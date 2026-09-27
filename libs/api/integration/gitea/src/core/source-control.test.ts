@@ -24,7 +24,7 @@ function giteaClient(overrides: Partial<GiteaApiClient> = {}): GiteaApiClient {
     resolveRef: vi.fn(() => Promise.resolve('abc123')),
     listTree: vi.fn(() =>
       Promise.resolve({
-        blobs: [{path: '.shipfox/workflows/ci.yml', size: 64}],
+        blobs: [{path: '.shipfox/workflows/ci.yml', type: 'file' as const, size: 64}],
         truncated: false,
       }),
     ),
@@ -399,9 +399,9 @@ describe('GiteaSourceControlProvider', () => {
       listTree: vi.fn(() =>
         Promise.resolve({
           blobs: [
-            {path: 'README.md', size: 10},
-            {path: '.shipfox/workflows/ci.yml', size: 64},
-            {path: '.shipfox/workflows/release.yml', size: 80},
+            {path: 'README.md', type: 'file' as const, size: 10},
+            {path: '.shipfox/workflows/ci.yml', type: 'file' as const, size: 64},
+            {path: '.shipfox/workflows/release.yml', type: 'file' as const, size: 80},
           ],
           truncated: false,
         }),
@@ -434,14 +434,44 @@ describe('GiteaSourceControlProvider', () => {
     });
   });
 
+  it('lists symlink and submodule entries next to files', async () => {
+    const gitea = giteaClient({
+      listTree: vi.fn(() =>
+        Promise.resolve({
+          blobs: [
+            {path: 'actions/greet/action.yml', type: 'file' as const, size: 64},
+            {path: 'actions/greet/link.js', type: 'symlink' as const, size: 9},
+            {path: 'actions/greet/vendor', type: 'submodule' as const, size: null},
+          ],
+          truncated: false,
+        }),
+      ),
+    });
+    const provider = new GiteaSourceControlProvider(gitea);
+
+    const result = await provider.listFiles({
+      connection: connection(),
+      externalRepositoryId: 'gitea:shipfox/platform',
+      ref: 'main',
+      prefix: 'actions/greet',
+      limit: 100,
+    });
+
+    expect(result.files).toEqual([
+      {path: 'actions/greet/action.yml', type: 'file' as const, size: 64},
+      {path: 'actions/greet/link.js', type: 'symlink' as const, size: 9},
+      {path: 'actions/greet/vendor', type: 'submodule' as const, size: null},
+    ]);
+  });
+
   it('paginates files with an offset cursor', async () => {
     const gitea = giteaClient({
       listTree: vi.fn(() =>
         Promise.resolve({
           blobs: [
-            {path: 'a.txt', size: 1},
-            {path: 'b.txt', size: 1},
-            {path: 'c.txt', size: 1},
+            {path: 'a.txt', type: 'file' as const, size: 1},
+            {path: 'b.txt', type: 'file' as const, size: 1},
+            {path: 'c.txt', type: 'file' as const, size: 1},
           ],
           truncated: false,
         }),

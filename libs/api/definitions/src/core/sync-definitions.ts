@@ -69,9 +69,7 @@ export async function discoverWorkflowFiles(
     );
   }
 
-  const paths = page.files
-    .filter((file) => file.path.endsWith('.yml') || file.path.endsWith('.yaml'))
-    .map((file) => file.path);
+  const paths = page.files.filter(isWorkflowFile).map((file) => file.path);
   if (paths.length === 0) {
     throw new DefinitionSyncPermanentError(
       'no-workflow-files',
@@ -80,6 +78,19 @@ export async function discoverWorkflowFiles(
   }
 
   return {paths};
+}
+
+export function isWorkflowFile(file: {path: string; type: string}): boolean {
+  return file.type === 'file' && (file.path.endsWith('.yml') || file.path.endsWith('.yaml'));
+}
+
+/** Whether a source file fetch failed because the file is not UTF-8 text. */
+export function isBinaryFileError(error: unknown): boolean {
+  return (
+    isInterModuleKnownError(integrationsInterModuleContract.methods.fetchSourceFile, error) &&
+    error.code === 'provider-failure' &&
+    error.details.reason === 'binary-file-unsupported'
+  );
 }
 
 export interface ParsedWorkflow {
@@ -107,13 +118,7 @@ export async function fetchAndParseWorkflows(
     async (path) => {
       params.onProgress?.(path);
 
-      const snapshot = await params.sourceControl.fetchFile({
-        workspaceId: params.workspaceId,
-        connectionId: params.sourceConnectionId,
-        externalRepositoryId: params.sourceExternalRepositoryId,
-        ref: params.ref,
-        path,
-      });
+      const snapshot = await fetchWorkflowFile(params, path);
 
       if (Buffer.byteLength(snapshot.content, 'utf8') > MAX_WORKFLOW_FILE_BYTES) {
         throw new DefinitionSyncPermanentError(
@@ -150,6 +155,24 @@ export async function fetchAndParseWorkflows(
       integrationValidationContext,
     }),
   );
+}
+
+async function fetchWorkflowFile(params: FetchAndParseWorkflowsParams, path: string) {
+  try {
+    return await params.sourceControl.fetchFile({
+      workspaceId: params.workspaceId,
+      connectionId: params.sourceConnectionId,
+      externalRepositoryId: params.sourceExternalRepositoryId,
+      ref: params.ref,
+      path,
+    });
+  } catch (error) {
+    if (isBinaryFileError(error)) {
+      const message = `Workflow file is not UTF-8 text: ${path}`;
+      throw new DefinitionSyncPermanentError('invalid-definition', message, [{message}], path);
+    }
+    throw error;
+  }
 }
 
 function parseWorkflowSnapshot(params: {

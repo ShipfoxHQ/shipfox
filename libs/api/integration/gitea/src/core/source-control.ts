@@ -173,7 +173,7 @@ export class GiteaSourceControlProvider
     const consumed = offset + page.length;
 
     return {
-      files: page.map((blob) => ({path: blob.path, type: 'file', size: blob.size})),
+      files: page.map((blob) => ({path: blob.path, type: blob.type, size: blob.size})),
       nextCursor: consumed < matched.length ? String(consumed) : null,
     };
   }

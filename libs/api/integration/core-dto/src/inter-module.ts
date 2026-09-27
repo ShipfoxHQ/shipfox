@@ -237,7 +237,11 @@ export const integrationsInterModuleContract = defineInterModuleContract({
       }),
       output: z.object({
         files: z.array(
-          z.object({path: z.string(), type: z.literal('file'), size: z.number().int().nullable()}),
+          z.object({
+            path: z.string(),
+            type: z.enum(['file', 'symlink', 'submodule']),
+            size: z.number().int().nullable(),
+          }),
         ),
         nextCursor: z.string().nullable(),
       }),

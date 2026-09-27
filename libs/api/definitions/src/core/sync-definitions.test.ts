@@ -203,6 +203,27 @@ describe('discoverWorkflowFiles', () => {
     expect(result.paths).toEqual(['.shipfox/workflows/ci.yml', '.shipfox/workflows/deploy.yaml']);
   });
 
+  it('skips symlinks and submodules even with a yaml extension', async () => {
+    const result = await discoverWorkflowFiles({
+      ...baseContext,
+      ref: 'main',
+      sourceControl: sourceControl({
+        listFiles: vi.fn(() =>
+          Promise.resolve({
+            files: [
+              {path: '.shipfox/workflows/ci.yml', type: 'file' as const, size: 64},
+              {path: '.shipfox/workflows/linked.yml', type: 'symlink' as const, size: 12},
+              {path: '.shipfox/workflows/shared.yaml', type: 'submodule' as const, size: 0},
+            ],
+            nextCursor: null,
+          }),
+        ),
+      }),
+    });
+
+    expect(result.paths).toEqual(['.shipfox/workflows/ci.yml']);
+  });
+
   it('lists workflows under the configured repository path', async () => {
     const listFiles = vi.fn(() =>
       Promise.resolve({
@@ -404,6 +425,42 @@ jobs:
 
     await expect(result).rejects.toBeInstanceOf(DefinitionSyncPermanentError);
     await expect(result).rejects.toMatchObject({code: 'content-too-large'});
+  });
+
+  it('rejects a workflow file that is not UTF-8 text with a file diagnostic', async () => {
+    const path = '.shipfox/workflows/binary.yml';
+    const result = fetchAndParseWorkflows({
+      ...baseContext,
+      ref: 'main',
+      paths: [path],
+      sourceControl: sourceControl({
+        fetchFile: vi.fn(() =>
+          Promise.reject(
+            createInterModuleKnownError(
+              integrationsInterModuleContract.methods.fetchSourceFile,
+              'provider-failure',
+              {reason: 'binary-file-unsupported'},
+            ),
+          ),
+        ),
+      }),
+    });
+
+    const error = await result.catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(DefinitionSyncPermanentError);
+    expect(classifySyncFailure(error)).toEqual({
+      code: 'invalid-definition',
+      message: `Workflow file is not UTF-8 text: ${path}`,
+      retryable: false,
+      diagnostics: [
+        {
+          code: 'invalid-definition',
+          message: `Workflow file is not UTF-8 text: ${path}`,
+          severity: 'error',
+          filePath: path,
+        },
+      ],
+    });
   });
 
   it('rejects invalid YAML as invalid-definition', async () => {

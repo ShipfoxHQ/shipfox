@@ -35,6 +35,8 @@ import {parseDefinitionWithDiagnostics} from './parse-definition.js';
 import {
   DEFAULT_WORKFLOW_PATH,
   FILE_FETCH_CONCURRENCY,
+  isBinaryFileError,
+  isWorkflowFile,
   MAX_WORKFLOW_FILE_BYTES,
   MAX_WORKFLOW_FILES,
 } from './sync-definitions.js';
@@ -424,9 +426,7 @@ async function listWorkflowFilesAtCommit(params: {
       {fileCount: Math.max(page.files.length, MAX_WORKFLOW_FILES + 1)},
     );
   }
-  return page.files
-    .filter((file) => file.path.endsWith('.yml') || file.path.endsWith('.yaml'))
-    .map((file) => file.path);
+  return page.files.filter(isWorkflowFile).map((file) => file.path);
 }
 
 async function fetchFileAtCommit(params: {
@@ -458,6 +458,10 @@ async function fetchFileAtCommit(params: {
           `Workflow file not found at ${params.ref}: ${params.configPath}`,
           {ref: params.ref, configPath: params.configPath},
         );
+      }
+      if (isBinaryFileError(error)) {
+        const message = `Workflow file is not UTF-8 text: ${params.configPath}`;
+        throw new DefinitionAtRefError('invalid-definition', message, {errors: [{message}]});
       }
       throw sourceUnavailable(error, 'The workflow file at the ref could not be fetched');
     }

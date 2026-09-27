@@ -71,9 +71,12 @@ export interface FileSnapshot {
   content: string;
 }
 
+/** Symlinks and submodules are listed so callers can reject them rather than miss them. */
+export type FileEntryType = 'file' | 'symlink' | 'submodule';
+
 export interface FileEntry {
   path: string;
-  type: 'file';
+  type: FileEntryType;
   size: number | null;
 }
 
@@ -412,6 +415,7 @@ export type IntegrationProviderErrorReason =
   | 'malformed-provider-response'
   | 'content-too-large'
   | 'too-many-files'
+  | 'binary-file-unsupported'
   | 'search-qualifier-conflict';
 
 export class IntegrationProviderError extends Error {
@@ -434,6 +438,20 @@ export class ConnectionSlugConflictError extends Error {
 }
 
 export const MAX_REPOSITORY_FILE_BYTES = 1_000_000;
+
+const strictUtf8Decoder = new TextDecoder('utf-8', {fatal: true, ignoreBOM: true});
+
+/**
+ * Decodes repository file bytes as UTF-8 text, or returns null when they are not
+ * valid UTF-8. A byte order mark is kept so the text round-trips to the same bytes.
+ */
+export function decodeRepositoryFileText(bytes: Uint8Array): string | null {
+  try {
+    return strictUtf8Decoder.decode(bytes);
+  } catch {
+    return null;
+  }
+}
 
 export function buildProviderRepositoryId(
   provider: IntegrationProviderKind,

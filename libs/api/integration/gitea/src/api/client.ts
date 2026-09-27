@@ -1,5 +1,9 @@
 import {Buffer} from 'node:buffer';
-import {MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-spi';
+import {
+  decodeRepositoryFileText,
+  type FileEntryType,
+  MAX_REPOSITORY_FILE_BYTES,
+} from '@shipfox/api-integration-spi';
 import {config} from '#config.js';
 import {GiteaIntegrationProviderError} from '#core/errors.js';
 
@@ -9,6 +13,7 @@ const NEXT_PAGE_RE = /[?&]page=(\d+)/;
 // Recursive tree listing is a single call; a tree larger than this is reported as
 // truncated by Gitea and surfaced to the adapter as `too-many-files`.
 const TREE_PAGE_SIZE = 1000;
+const GIT_SYMLINK_MODE = '120000';
 
 export interface GiteaRepository {
   ownerLogin: string;
@@ -27,6 +32,7 @@ export interface GiteaRepositoryPage {
 
 export interface GiteaTreeBlob {
   path: string;
+  type: FileEntryType;
   size: number | null;
 }
 
@@ -196,9 +202,14 @@ class HttpGiteaApiClient implements GiteaApiClient {
     const entries = Array.isArray(data.tree) ? data.tree : [];
     const blobs: GiteaTreeBlob[] = [];
     for (const entry of entries) {
-      if (isRecord(entry) && entry.type === 'blob' && typeof entry.path === 'string') {
-        blobs.push({path: entry.path, size: typeof entry.size === 'number' ? entry.size : null});
-      }
+      if (!isRecord(entry) || typeof entry.path !== 'string') continue;
+      const type = giteaTreeEntryType(entry);
+      if (type === null) continue;
+      blobs.push({
+        path: entry.path,
+        type,
+        size: typeof entry.size === 'number' ? entry.size : null,
+      });
     }
 
     return {blobs, truncated: data.truncated === true};
@@ -247,12 +258,16 @@ class HttpGiteaApiClient implements GiteaApiClient {
         'Gitea file response did not include base64 content',
       );
     }
+    const path = typeof data.path === 'string' ? data.path : input.path;
+    const content = decodeRepositoryFileText(Buffer.from(data.content, 'base64'));
+    if (content === null) {
+      throw new GiteaIntegrationProviderError(
+        'binary-file-unsupported',
+        `Gitea file ${path} is not UTF-8 text`,
+      );
+    }
 
-    return {
-      path: typeof data.path === 'string' ? data.path : input.path,
-      size,
-      content: Buffer.from(data.content, 'base64').toString('utf8'),
-    };
+    return {path, size, content};
   }
 
   async getIssue(input: {owner: string; repo: string; index: number}): Promise<GiteaIssue> {
@@ -521,6 +536,13 @@ function encodePath(path: string): string {
     }
   }
   return segments.map(encodeURIComponent).join('/');
+}
+
+// Git stores a symlink as a blob with mode 120000 and a submodule as a commit entry.
+function giteaTreeEntryType(entry: Record<string, unknown>): FileEntryType | null {
+  if (entry.type === 'commit') return 'submodule';
+  if (entry.type !== 'blob') return null;
+  return entry.mode === GIT_SYMLINK_MODE ? 'symlink' : 'file';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

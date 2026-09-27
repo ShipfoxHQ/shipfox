@@ -1,5 +1,6 @@
 import {
   buildProviderRepositoryId,
+  decodeRepositoryFileText,
   IntegrationProviderError,
   isValidGitObjectId,
   isValidGitRefName,
@@ -128,5 +129,31 @@ describe('checkout targets', () => {
         externalRepositoryId: 'github:42',
       }),
     ).toEqual({status: 'ambiguous'});
+  });
+});
+
+describe('repository file text', () => {
+  it('decodes valid UTF-8', () => {
+    const bytes = new TextEncoder().encode('name: café\n');
+
+    const result = decodeRepositoryFileText(bytes);
+
+    expect(result).toBe('name: café\n');
+  });
+
+  it('keeps a byte order mark', () => {
+    const bytes = Uint8Array.from([0xef, 0xbb, 0xbf, 0x61]);
+
+    const result = decodeRepositoryFileText(bytes);
+
+    expect(result).toBe('\uFEFFa');
+  });
+
+  it('rejects bytes that are not valid UTF-8', () => {
+    const bytes = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff]);
+
+    const result = decodeRepositoryFileText(bytes);
+
+    expect(result).toBeNull();
   });
 });
