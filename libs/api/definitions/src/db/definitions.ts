@@ -378,9 +378,13 @@ export async function getDefinitionByConfigPath(params: {
 
 export async function getWorkflowLineageById(
   id: string,
-): Promise<{id: string; projectId: string} | undefined> {
+): Promise<{id: string; projectId: string; configPath: string | null} | undefined> {
   const rows = await db()
-    .select({id: workflowWorkflows.id, projectId: workflowWorkflows.projectId})
+    .select({
+      id: workflowWorkflows.id,
+      projectId: workflowWorkflows.projectId,
+      configPath: workflowWorkflows.configPath,
+    })
     .from(workflowWorkflows)
     .where(eq(workflowWorkflows.id, id))
     .limit(1);

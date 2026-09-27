@@ -8,6 +8,7 @@ import {createDefinitionsInterModulePresentation} from './inter-module.js';
 const mocks = vi.hoisted(() => ({
   getDefinitionByConfigPath: vi.fn(),
   getDefinitionById: vi.fn(),
+  getWorkflowLineageById: vi.fn(),
   getLatestDefinitionSyncState: vi.fn(),
   listDefinitions: vi.fn(),
   listDefinitionsAtRef: vi.fn(),
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('#db/definitions.js', () => ({
   getDefinitionByConfigPath: mocks.getDefinitionByConfigPath,
   getDefinitionById: mocks.getDefinitionById,
+  getWorkflowLineageById: mocks.getWorkflowLineageById,
   listDefinitions: mocks.listDefinitions,
 }));
 
@@ -57,6 +59,7 @@ describe('definitions inter-module presentation', () => {
     mocks.listDefinitionsAtRef.mockReset();
     mocks.getDefinitionByConfigPath.mockReset();
     mocks.getDefinitionById.mockReset();
+    mocks.getWorkflowLineageById.mockReset();
     mocks.getLatestDefinitionSyncState.mockReset();
     mocks.listDefinitions.mockReset();
     mocks.requireProjectForWorkspace.mockReset();
@@ -166,6 +169,30 @@ describe('definitions inter-module presentation', () => {
       projectId: PROJECT_ID,
     });
     expect(mocks.getDefinitionByConfigPath).not.toHaveBeenCalled();
+  });
+
+  it('looks up a workflow by its lineage id', async () => {
+    const workflowId = '00000000-0000-4000-8000-000000000031';
+    mocks.getWorkflowLineageById.mockResolvedValueOnce({
+      id: workflowId,
+      projectId: PROJECT_ID,
+      configPath: CONFIG_PATH,
+    });
+
+    const found = await presentation().handlers.getWorkflow(
+      {workflowId},
+      {signal: new AbortController().signal},
+    );
+    const missing = await presentation().handlers.getWorkflow(
+      {workflowId: crypto.randomUUID()},
+      {signal: new AbortController().signal},
+    );
+
+    expect(found).toEqual({
+      workflow: {id: workflowId, projectId: PROJECT_ID, configPath: CONFIG_PATH},
+    });
+    expect(missing).toEqual({workflow: null});
+    expect(mocks.getWorkflowLineageById).toHaveBeenCalledWith(workflowId);
   });
 
   it('fills the new-run gate default when serving a legacy stored model', async () => {
