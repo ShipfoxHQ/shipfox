@@ -1,5 +1,9 @@
 import {z} from 'zod';
-import {sessionViewRowSchema} from './session-view.js';
+import {
+  sessionViewRowSchema,
+  sessionViewToolCallRowSchema,
+  sessionViewToolResultRowSchema,
+} from './session-view.js';
 
 /**
  * NDJSON log record contract: one JSON object per line, runner-framed.
@@ -23,6 +27,11 @@ import {sessionViewRowSchema} from './session-view.js';
  * that raw entry into one or more read-side `agent_session` records whose `row` is the
  * canonical session view row. The raw and normalized records travel through the same log
  * append/read pipe; only their contract at each boundary differs.
+ *
+ * The append-side `tool_row` record carries a ready tool call or tool result row, written
+ * by the runner for calls it proxies (action steps). The runner writes it, not the server,
+ * because only the runner can order the row against the step's stdout. It is stored as a
+ * read-side `agent_session` record, the same shape tool steps write from the server.
  */
 
 /** Largest decoded `data` payload per record. Longer lines are split by the runner. */
@@ -102,6 +111,14 @@ const rawAgentSession = z.object({
   data: z.string().min(1, {message: 'agent_session data must not be empty'}),
 });
 
+// Only tool rows, so a runner cannot forge message or lifecycle rows. The line size is
+// bounded by LOG_MAX_SESSION_LINE_BYTES on append.
+const rawToolRow = z.object({
+  ...envelope,
+  type: z.literal('tool_row'),
+  row: z.discriminatedUnion('kind', [sessionViewToolCallRowSchema, sessionViewToolResultRowSchema]),
+});
+
 const agentSession = z.object({
   ...envelope,
   type: z.literal('agent_session'),
@@ -122,6 +139,7 @@ export const rawLogRecordSchema = z.discriminatedUnion('type', [
   logEnd,
   logGap,
   rawAgentSession,
+  rawToolRow,
 ]);
 
 /** Stored/read records: regular records, normalized agent sessions, and tombstones. */

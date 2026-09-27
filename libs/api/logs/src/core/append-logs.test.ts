@@ -1,8 +1,9 @@
-import {type LogRecord, parseLogRecordLine} from '@shipfox/api-logs-dto';
+import {type LogRecord, parseLogRecordLine, type SessionViewRow} from '@shipfox/api-logs-dto';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {defineInterModulePresentation} from '@shipfox/inter-module';
 import {createFakeInterModuleClients} from '@shipfox/node-module/inter-module/testing';
 import {appendLogs} from '#core/append-logs.js';
+import {appendServerRecords} from '#core/append-server-records.js';
 import {LeaseStreamMismatchError, MalformedLogChunkError, OffsetGapError} from '#core/errors.js';
 import {db} from '#db/db.js';
 import {getOrCreateAttemptStream, setClaudeParseContext} from '#db/streams.js';
@@ -15,6 +16,7 @@ import {
   outputOfBytes,
   recordLine,
   sessionLine,
+  toolRowLine,
 } from '#test/fixtures/ndjson.js';
 import {findAccounting, findStream, listChunks, listStreamClosedEvents} from '#test/queries.js';
 
@@ -677,6 +679,83 @@ describe('appendLogs', () => {
     it('rejects a session line over LOG_MAX_SESSION_LINE_BYTES before any stream is created', async () => {
       const ctx = newCtx();
       const body = ndjsonBody(sessionLine('x'.repeat(600)));
+
+      const error = await appendLogs({...ctx, attempt: 1, offset: 0, body}).catch(
+        (e: unknown) => e,
+      );
+
+      expect(error).toBeInstanceOf(MalformedLogChunkError);
+      expect(await findStream({...ctx, attempt: 1})).toBeNull();
+    });
+  });
+
+  describe('tool_row', () => {
+    const toolCallRow = {
+      kind: 'tool-call',
+      timestamp: 5,
+      id: 'c1',
+      name: 'gh__x',
+      input: '{}',
+    } satisfies SessionViewRow;
+    const toolResultRow = {
+      kind: 'tool-result',
+      timestamp: 6,
+      toolCallId: 'c1',
+      toolName: 'gh__x',
+      output: '{}',
+      isError: false,
+    } satisfies SessionViewRow;
+
+    it('stores runner tool rows in append order, as tool steps store them', async () => {
+      const ctx = newCtx();
+      const toolStepCtx = newCtx();
+      await allowLargeLogBudget(ctx);
+      await allowLargeLogBudget(toolStepCtx);
+      const body = ndjsonBody(
+        outputLine('a\n'),
+        toolRowLine(toolCallRow),
+        toolRowLine(toolResultRow),
+        outputLine('b\n'),
+      );
+      await appendServerRecords({
+        ...toolStepCtx,
+        attempt: 1,
+        records: [toolCallRow, toolResultRow].map((row) => ({
+          v: 1,
+          ts: row.timestamp,
+          type: 'agent_session',
+          row,
+        })),
+      });
+
+      await appendLogs({...ctx, attempt: 1, offset: 0, body});
+
+      const stream = await findStream({...ctx, attempt: 1});
+      const records = recordsFromChunks(await listChunks(stream?.id as string));
+      const toolStepStream = await findStream({...toolStepCtx, attempt: 1});
+      const toolStepRecords = recordsFromChunks(await listChunks(toolStepStream?.id as string));
+      expect(records).toEqual([
+        {v: 1, ts: 1, type: 'output', stream: 'stdout', data: 'a\n'},
+        ...toolStepRecords,
+        {v: 1, ts: 1, type: 'output', stream: 'stdout', data: 'b\n'},
+      ]);
+    });
+
+    it('rejects a tool_row carrying a non-tool row before any stream is created', async () => {
+      const ctx = newCtx();
+      const body = ndjsonBody(toolRowLine({kind: 'thinking', timestamp: 1, text: 'forged'}));
+
+      const error = await appendLogs({...ctx, attempt: 1, offset: 0, body}).catch(
+        (e: unknown) => e,
+      );
+
+      expect(error).toBeInstanceOf(MalformedLogChunkError);
+      expect(await findStream({...ctx, attempt: 1})).toBeNull();
+    });
+
+    it('rejects a tool_row line over LOG_MAX_SESSION_LINE_BYTES before any stream is created', async () => {
+      const ctx = newCtx();
+      const body = ndjsonBody(toolRowLine({...toolResultRow, output: 'x'.repeat(600)}));
 
       const error = await appendLogs({...ctx, attempt: 1, offset: 0, body}).catch(
         (e: unknown) => e,
