@@ -22,4 +22,9 @@ export type {
   OutboxRetryResult,
   OutboxWriteResult,
 } from './types.js';
-export {writeIdempotentOutboxEvent, writeOutboxEvent, writeOutboxEvents} from './write.js';
+export {
+  onOutboxWrite,
+  writeIdempotentOutboxEvent,
+  writeOutboxEvent,
+  writeOutboxEvents,
+} from './write.js';

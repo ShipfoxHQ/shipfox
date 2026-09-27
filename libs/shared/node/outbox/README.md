@@ -5,6 +5,7 @@ Typed transactional outbox helpers for Drizzle and PostgreSQL.
 ## What it does
 
 - **Legacy module helpers**: `createOutboxTable`, `writeOutboxEvent`, and `writeOutboxEvents` keep the current Shipfox module contract.
+- **`onOutboxWrite(listener)`**: Calls `listener` after each legacy write in this process, so an idle dispatcher can poll soon. It returns an unsubscribe function.
 - **`createPostgresOutboxTable(pgTable)`**: Creates an outbox table with idempotency keys and delivery leases.
 - **`writeIdempotentOutboxEvent(tx, table, event)`**: Adds one event inside a Drizzle transaction and reports if the key was new.
 - **`createPostgresOutbox(options)`**: Claims events, records retries, rejects stale deliveries, and reports pending age.
@@ -15,7 +16,7 @@ Typed transactional outbox helpers for Drizzle and PostgreSQL.
 
 Import the supported API from `@shipfox/node-outbox`. The package has no public subpath exports.
 
-The runtime exports are `PostgresOutbox`, `createPostgresOutbox`, `createPostgresOutboxTable`, `writeIdempotentOutboxEvent`, and the behavior-preserving legacy exports `createOutboxTable`, `writeOutboxEvent`, and `writeOutboxEvents`. The root also exports the matching option, event, result, health, table, and event-map types used by those functions. Query construction and internal serialization helpers are not public.
+The runtime exports are `PostgresOutbox`, `createPostgresOutbox`, `createPostgresOutboxTable`, `writeIdempotentOutboxEvent`, the behavior-preserving legacy exports `createOutboxTable`, `writeOutboxEvent`, and `writeOutboxEvents`, and `onOutboxWrite`. The root also exports the matching option, event, result, health, table, and event-map types used by those functions. Query construction and internal serialization helpers are not public.
 
 ## Installation
 
@@ -76,6 +77,7 @@ It needs PostgreSQL 18 because that release added the built-in `uuidv7()` functi
 - Acknowledgement and retry require the current unexpired token. A stale call returns `stale` and changes nothing.
 - `maxAttempts` defaults to 5. The last failed attempt moves the event to the dead letter state.
 - `maxRetryDelayMs` defaults to 30 minutes. Longer retry delays use that limit.
+- `onOutboxWrite` listeners run before the caller's transaction commits. A listener that polls right away can miss the new row.
 - `createOutboxTable` stays separate, so current Shipfox modules need no schema or source change.
 
 ## Connections and Migrations
