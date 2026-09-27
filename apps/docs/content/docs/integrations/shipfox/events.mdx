@@ -12,8 +12,8 @@ eventReference: "integrations/shipfox/events"
   loops](/how-to/author-workflows/run-after-another-workflow#avoid-trigger-loops).
 </Callout>
 
-Reruns and dev runs send these events too. To skip them, filter on
-`event.run.attempt == 1` or `event.run.origin == 'synced'`.
+Reruns and dev runs send these events too. Filter on `event.run.attempt == 1`
+to skip reruns, or on `event.run.origin == 'synced'` to skip dev runs.
 
 **Settings → Events** lists a Shipfox event only when a workflow was listening
 for it. Runs that ended before you added the trigger have no event to inspect or
