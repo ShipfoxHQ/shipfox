@@ -115,6 +115,7 @@ COPY --from=build /prod ./
 # The runner package is the deployed root rather than an installed dependency, so its package bin
 # is not linked onto PATH by pnpm. Keep Git's name-based helper resolution usable in production.
 RUN ln -s /app/dist/git-credential-helper.js /usr/local/bin/git-credential-shipfox
+COPY --from=build --chmod=0755 /app/apps/runner/docker-entrypoint.sh /usr/local/bin/shipfox-runner-entrypoint
 
 # Verify the production dependency closure contains every Pi extension entry, the
 # WASM-backed SVG image-preparation assets, the renewable credential helpers, and
@@ -149,6 +150,7 @@ ENV IMAGE_REVISION=$IMAGE_REVISION \
 
 # tini as PID 1. OpenTelemetry is started in-process by startRunner(), so it
 # needs no preload flag. The runner command is separate from user step
-# processes, which are spawned by the runner.
-ENTRYPOINT ["tini", "--"]
+# processes, which are spawned by the runner. The entrypoint lowers the runner's
+# OOM score when the container grants CAP_SYS_RESOURCE, then execs the command.
+ENTRYPOINT ["tini", "--", "/usr/local/bin/shipfox-runner-entrypoint"]
 CMD ["node", "./dist/index.js"]

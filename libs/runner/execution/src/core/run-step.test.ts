@@ -1,4 +1,4 @@
-import {access, mkdtemp, rm, writeFile} from 'node:fs/promises';
+import {access, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, isAbsolute, join} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
@@ -552,6 +552,26 @@ describe('executeRunStep', () => {
     expect(result.error).toEqual({message: 'Command exited with code 1', exit_code: 1});
     expect(result.exit_code).toBe(1);
   });
+
+  it.runIf(process.platform === 'linux')(
+    'starts the step at the default OOM score instead of the runner score',
+    async () => {
+      const scorePath = '/proc/self/oom_score_adj';
+      const runnerScore = await readFile(scorePath, 'utf8');
+      await writeFile(scorePath, '300');
+      try {
+        const step = buildStep({config: {run: `cat ${scorePath}`}});
+        const output = collectOutput();
+
+        const result = await executeRunStep(step, {onOutput: output.sink});
+
+        expect(result.success).toBe(true);
+        expect(output.text().trim()).toBe('0');
+      } finally {
+        await writeFile(scorePath, runnerScore.trim());
+      }
+    },
+  );
 
   it('captures both stdout and stderr with their origin', async () => {
     const step = buildStep({config: {run: 'echo out && echo err >&2'}});

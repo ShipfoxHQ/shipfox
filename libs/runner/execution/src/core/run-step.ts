@@ -338,7 +338,8 @@ function spawnRunStepProcess(
   options: StepProcessOptions,
 ): SpawnRunStepResult {
   try {
-    const child = spawn(launch.executable, launch.args, {
+    const command = withDefaultOomScore(launch);
+    const child = spawn(command.executable, command.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
       cwd: options.cwd,
@@ -378,6 +379,25 @@ function spawnRunStepProcess(
       },
     };
   }
+}
+
+// Runner images lower the runner's OOM score, and children inherit it. The process resets its
+// own score before it execs, so the kernel kills a runaway step before the runner or the host's
+// daemons. Resetting from the runner after spawn would race the process's first fork.
+function withDefaultOomScore(
+  launch: ProcessLaunch,
+): Pick<ProcessLaunch, 'executable' | 'args'> {
+  if (process.platform !== 'linux') return launch;
+  return {
+    executable: '/bin/sh',
+    args: [
+      '-c',
+      '{ echo 0 > /proc/self/oom_score_adj; } 2>/dev/null; exec "$@"',
+      'sh',
+      launch.executable,
+      ...launch.args,
+    ],
+  };
 }
 
 function runStepCloseResult(

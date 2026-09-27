@@ -1135,6 +1135,12 @@ describe('systemd boot activation', () => {
     expect(unit).not.toContain('--enable-source-maps');
   });
 
+  it('makes the runner a poor OOM target', async () => {
+    const unit = await readUnit('shipfox-runner.service');
+
+    expect(systemdDirective(unit, 'Service', 'OOMScoreAdjust')).toBe('-900');
+  });
+
   it('forwards only the marked boot timeline to the EC2 console', async () => {
     const unit = await readUnit('shipfox-runner.service');
     const script = new URL('../scripts/runtime/run-runner.sh', import.meta.url);
@@ -1760,9 +1766,29 @@ describe('runner container entrypoint', () => {
     expect(dockerfile.indexOf('RUN node ./dist/verify-installation.js')).toBeLessThan(
       dockerfile.indexOf('ENV SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE=true'),
     );
-    expect(dockerfile).toContain('ENTRYPOINT ["tini", "--"]');
+    expect(dockerfile).toContain(
+      'ENTRYPOINT ["tini", "--", "/usr/local/bin/shipfox-runner-entrypoint"]',
+    );
     expect(dockerfile).toContain('CMD ["node", "./dist/index.js"]');
     expect(dockerfile).not.toContain('--enable-source-maps');
+  });
+
+  it('lowers the runner OOM score at container start without failing when it cannot', async () => {
+    const entrypoint = new URL('../../../../apps/runner/docker-entrypoint.sh', import.meta.url);
+    const dockerfile = await readFile(
+      new URL('../../../../apps/runner/Dockerfile', import.meta.url),
+      'utf8',
+    );
+    const source = await readFile(entrypoint, 'utf8');
+
+    execFileSync('/bin/sh', ['-n', entrypoint.pathname], {stdio: 'pipe'});
+    expect(dockerfile).toContain(
+      'COPY --from=build --chmod=0755 /app/apps/runner/docker-entrypoint.sh /usr/local/bin/shipfox-runner-entrypoint',
+    );
+    expect(source).toContain(
+      'sudo -n sh -c "echo -900 > /proc/$$/oom_score_adj" 2>/dev/null || true',
+    );
+    expect(source.trimEnd().endsWith('exec "$@"')).toBe(true);
   });
 });
 
