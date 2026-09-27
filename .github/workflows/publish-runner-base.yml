@@ -1,0 +1,328 @@
+name: Publish runner base
+
+on:
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Build a new generation even when the published base is compatible and fresh
+        required: false
+        default: true
+        type: boolean
+  workflow_call:
+    inputs:
+      force:
+        description: Build a new generation even when the published base is compatible and fresh
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      mode:
+        description: "`build` when this run published a generation, `reuse` when the current one fits"
+        value: ${{ jobs.plan.outputs.mode }}
+      generation:
+        description: Generation that the pointer names after this run
+        value: ${{ jobs.publish.outputs.generation || jobs.plan.outputs.current_generation }}
+    secrets:
+      AWS_RUNNER_IMAGE_ROLE_ARN:
+        required: true
+
+permissions:
+  contents: read
+
+# Serializes planning, builds, and the pointer write. A called workflow's top-level group also
+# holds its calling job, so a caller must not use this group name itself.
+concurrency:
+  group: runner-base-ubuntu24
+  cancel-in-progress: false
+
+env:
+  # `mise run` and `mise exec` otherwise install every tool in mise.toml, such
+  # as the uncached 1.4 GB Ollama download. Jobs declare their tools instead.
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
+  MISE_EXEC_AUTO_INSTALL: "false"
+
+jobs:
+  plan:
+    name: Plan runner base
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      generation: ${{ steps.plan.outputs.generation }}
+      current_generation: ${{ steps.plan.outputs.current_generation }}
+      kms_key_arn: ${{ steps.plan.outputs.kms_key_arn }}
+      amd64_source_ami_id: ${{ steps.plan.outputs.amd64_source_ami_id }}
+      arm64_source_ami_id: ${{ steps.plan.outputs.arm64_source_ami_id }}
+
+    steps:
+      - name: Require main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo '::error::Runner bases publish only from main.'
+          exit 1
+
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: node npm:pnpm npm:turbo
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Configure candidate AWS credentials
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          aws-region: eu-central-1
+          role-session-name: shipfox-runner-base-plan
+          role-to-assume: ${{ secrets.AWS_RUNNER_IMAGE_ROLE_ARN }}
+
+      - name: Build runner base tooling
+        run: turbo build --filter=@shipfox/runner-base...
+
+      - name: Plan runner base
+        id: plan
+        env:
+          BUILD_CANDIDATE_KMS_KEY_ID: ${{ vars.AWS_RUNNER_IMAGE_CANDIDATE_KMS_KEY_ID }}
+          FORCE: ${{ github.event_name == 'schedule' || inputs.force }}
+          PLAN_PATH: ${{ runner.temp }}/runner-base-plan.json
+        run: |
+          set -euo pipefail
+          plan_args=(--output "$PLAN_PATH")
+          if [[ "$FORCE" == "true" ]]; then
+            plan_args+=(--force)
+          fi
+          node infra/images/runner-base/bin/plan-runner-base.js "${plan_args[@]}"
+          {
+            echo "mode=$(jq -r '.mode' "$PLAN_PATH")"
+            # Re-running failed jobs keeps this output, so retried builds join the same generation.
+            echo "generation=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            echo "current_generation=$(jq -r '.current.generation // ""' "$PLAN_PATH")"
+            echo "kms_key_arn=$(jq -r '.kmsKeyArn' "$PLAN_PATH")"
+            echo "amd64_source_ami_id=$(jq -r '.sources.amd64.amiId // ""' "$PLAN_PATH")"
+            echo "arm64_source_ami_id=$(jq -r '.sources.arm64.amiId // ""' "$PLAN_PATH")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Report runner base plan
+        env:
+          PLAN_PATH: ${{ runner.temp }}/runner-base-plan.json
+        run: |
+          set -euo pipefail
+          {
+            echo '## Runner base plan'
+            echo
+            jq -r '"- Decision: `\(.mode)`"' "$PLAN_PATH"
+            jq -r '"- Reason: `\(.reason)` (\(.detail))"' "$PLAN_PATH"
+            jq -r '"- Recipe: `\(.recipeDigest)`"' "$PLAN_PATH"
+            jq -r '"- Key: `\(.kmsKeyArn)`"' "$PLAN_PATH"
+            jq -r '"- Current generation: " + (if .current == null then "none" else "`\(.current.generation)`, \((.current.ageDays * 100 | round) / 100) days old" end)' "$PLAN_PATH"
+            jq -r 'if .sources == null then "- Sources: not resolved" else "- Sources: " + ([.sources[] | "`\(.architecture)=\(.amiId)` (\(.name))"] | join(", ")) end' "$PLAN_PATH"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Build runner base (${{ matrix.architecture }})
+    needs: [plan]
+    if: needs.plan.outputs.mode == 'build'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [amd64, arm64]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: node npm:pnpm npm:turbo packer
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Configure candidate AWS credentials
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          aws-region: eu-central-1
+          role-duration-seconds: 7200
+          role-session-name: shipfox-runner-base-build
+          role-to-assume: ${{ secrets.AWS_RUNNER_IMAGE_ROLE_ARN }}
+
+      - name: Build runner base tooling
+        run: turbo build --filter=@shipfox/runner-base...
+
+      # The plan resolved the key alias and both sources once, so both architectures build
+      # against the same key ARN and Canonical pair.
+      - name: Build and verify runner base
+        env:
+          BUILD_ARCH: ${{ matrix.architecture }}
+          BUILD_BASE_GENERATION: ${{ needs.plan.outputs.generation }}
+          BUILD_CANDIDATE_KMS_KEY_ID: ${{ needs.plan.outputs.kms_key_arn }}
+          BUILD_REVISION: ${{ github.sha }}
+          BUILD_SOURCE_AMI_ID: >-
+            ${{ matrix.architecture == 'amd64' && needs.plan.outputs.amd64_source_ami_id ||
+            needs.plan.outputs.arm64_source_ami_id }}
+          PACKER_LOG: "1"
+          PACKER_LOG_PATH: ${{ runner.temp }}/packer-${{ matrix.architecture }}.log
+          RESULT_PATH: ${{ runner.temp }}/runner-base-${{ matrix.architecture }}.json
+        run: node infra/images/runner-base/bin/build-runner-base.js --output "$RESULT_PATH"
+
+      - name: Report runner base build
+        env:
+          PACKER_LOG_PATH: ${{ runner.temp }}/packer-${{ matrix.architecture }}.log
+          RESULT_PATH: ${{ runner.temp }}/runner-base-${{ matrix.architecture }}.json
+        run: |
+          set -euo pipefail
+          {
+            jq -r '"- Base \(.architecture): `\(.region):\(.amiId)` from `\(.sourceAmiId)`, captured \(.builtAt), verified \(.verifiedAt)"' "$RESULT_PATH"
+            grep -Eo 'runner base (kernel|boot timing): .*' "$PACKER_LOG_PATH" | sort -u | sed 's/^/  - /' || true
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload runner base result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runner-base-result-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/runner-base-${{ matrix.architecture }}.json
+          if-no-files-found: error
+
+      - name: Upload Packer diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runner-base-packer-diagnostics-${{ matrix.architecture }}
+          path: |
+            ${{ runner.temp }}/packer-${{ matrix.architecture }}.log
+            infra/images/runner-base/packer-manifest.json
+          if-no-files-found: warn
+
+  publish:
+    name: Publish runner base pointer
+    needs: [plan, build]
+    if: needs.plan.outputs.mode == 'build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      generation: ${{ steps.publish.outputs.generation }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: node npm:pnpm npm:turbo
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Configure candidate AWS credentials
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          aws-region: eu-central-1
+          role-session-name: shipfox-runner-base-publish
+          role-to-assume: ${{ secrets.AWS_RUNNER_IMAGE_ROLE_ARN }}
+
+      - name: Build runner base tooling
+        run: turbo build --filter=@shipfox/runner-base...
+
+      - name: Download runner base results
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: runner-base-result-*
+          path: ${{ runner.temp }}/runner-base-results
+          merge-multiple: true
+
+      # Main may have changed the recipe while this run built. Publication compares against
+      # main's current base files, not this checkout's.
+      - name: Read trusted main recipe inputs
+        id: trusted-main
+        env:
+          TRUSTED_ROOT: ${{ runner.temp }}/trusted-main
+        run: |
+          set -euo pipefail
+          mkdir -p "$TRUSTED_ROOT"
+          git fetch --no-tags --depth=1 origin main
+          git archive FETCH_HEAD infra/images/runner-base mise.toml | tar -x -C "$TRUSTED_ROOT"
+          echo "revision=$(git rev-parse FETCH_HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish runner base pointer
+        id: publish
+        env:
+          BUILD_CANDIDATE_KMS_KEY_ID: ${{ vars.AWS_RUNNER_IMAGE_CANDIDATE_KMS_KEY_ID }}
+          PUBLICATION_PATH: ${{ runner.temp }}/runner-base-publication.json
+          RESULTS_DIR: ${{ runner.temp }}/runner-base-results
+          TRUSTED_ROOT: ${{ runner.temp }}/trusted-main
+        run: |
+          set -euo pipefail
+          node infra/images/runner-base/bin/publish-runner-base.js \
+            --result "$RESULTS_DIR/runner-base-amd64.json" \
+            --result "$RESULTS_DIR/runner-base-arm64.json" \
+            --trusted-root "$TRUSTED_ROOT" \
+            --build-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+            --output "$PUBLICATION_PATH"
+          echo "generation=$(jq -r '.metadata.generation' "$PUBLICATION_PATH")" >> "$GITHUB_OUTPUT"
+
+      - name: Report runner base publication
+        env:
+          PUBLICATION_PATH: ${{ runner.temp }}/runner-base-publication.json
+          TRUSTED_REVISION: ${{ steps.trusted-main.outputs.revision }}
+        run: |
+          set -euo pipefail
+          {
+            echo '## Runner base publication'
+            echo
+            jq -r '"- Status: `\(.status)`"' "$PUBLICATION_PATH"
+            jq -r '"- Generation: `\(.metadata.generation)`, recipe `\(.metadata.recipeDigest)`"' "$PUBLICATION_PATH"
+            echo "- Recipe checked against main at \`$TRUSTED_REVISION\`"
+            jq -r '"- Owner `\(.metadata.owner)`, key `\(.metadata.kmsKeyArn)`, created \(.metadata.createdAt), verified \(.metadata.verifiedAt)"' "$PUBLICATION_PATH"
+            jq -r '.metadata.images[] | "- `\(.architecture)`: `\(.amiId)` from `\(.sourceAmiId)`"' "$PUBLICATION_PATH"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload runner base metadata
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runner-base-metadata
+          path: ${{ runner.temp }}/runner-base-publication.json
+          if-no-files-found: error
+
+  report:
+    name: Report runner base outcome
+    needs: [plan, build, publish]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Report runner base outcome
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+          MODE: ${{ needs.plan.outputs.mode }}
+          PLAN_RESULT: ${{ needs.plan.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        run: |
+          set -euo pipefail
+          if [[ "$PLAN_RESULT" == "success" && "$MODE" == "reuse" ]]; then
+            echo '- Outcome: the published base is compatible and fresh; nothing was built.' >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$PLAN_RESULT" == "success" && "$BUILD_RESULT" == "success" && "$PUBLISH_RESULT" == "success" ]]; then
+            echo '- Outcome: published a verified generation.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            message="Runner base publication failed (plan: $PLAN_RESULT, build: $BUILD_RESULT, publish: $PUBLISH_RESULT). The previous pointer was kept."
+            echo "::error::$message"
+            echo "- Outcome: $message" >> "$GITHUB_STEP_SUMMARY"
+          fi
