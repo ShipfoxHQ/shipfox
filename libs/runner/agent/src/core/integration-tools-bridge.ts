@@ -4,8 +4,6 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from 'node:http';
-import {Client} from '@modelcontextprotocol/sdk/client/index.js';
-import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -13,13 +11,18 @@ import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
   CallToolRequestSchema,
   type CallToolResult,
-  CallToolResultSchema,
   ListToolsRequestSchema,
   type ListToolsResult,
 } from '@modelcontextprotocol/sdk/types.js';
 import {logger} from '@shipfox/node-opentelemetry';
+import {
+  createGatewayMcpClient,
+  type GatewayMcpClient,
+} from '@shipfox/runner-protocol/gateway-mcp-client';
 
-const MAX_MCP_REQUEST_BYTES = 1_048_576;
+// Fits a create_commit near its 1,000,000 decoded-byte file limit once base64 and JSON framing
+// are added. The gateway MCP route accepts the same size.
+const MAX_MCP_REQUEST_BYTES = 2 * 1024 * 1024;
 const MCP_REQUEST_TIMEOUT_MS = 30_000;
 
 export interface IntegrationToolsBridgeRequestOptions {
@@ -48,14 +51,12 @@ export function createIntegrationToolsBridge(params: {
   name: string;
   preferredPort?: number;
 }): IntegrationToolsBridge {
-  const createClient = () => new Client({name: params.name, version: '0.0.0'});
-  const createTransport = () =>
-    new StreamableHTTPClientTransport(params.url, {fetch: params.fetch});
-  let client = createClient();
-  let transport = createTransport();
+  const upstream = createGatewayMcpClient({
+    url: params.url,
+    fetch: params.fetch,
+    name: params.name,
+  });
   const server = new McpServer({name: params.name, version: '0.0.0'}, {capabilities: {tools: {}}});
-  let connectPromise: Promise<void> | undefined;
-  let resetPromise: Promise<void> | undefined;
   let activationPromise: Promise<URL> | undefined;
   let cancelActivation: ((reason: unknown) => void) | undefined;
   let activationSettled = false;
@@ -65,66 +66,20 @@ export function createIntegrationToolsBridge(params: {
   let httpServer: HttpServer | undefined;
   const httpSessions = new Map<string, HttpSession>();
 
-  const resetConnection = (failedClient: Client): Promise<void> => {
-    if (closed || client !== failedClient) return Promise.resolve();
-    resetPromise ??= (async () => {
-      connectPromise = undefined;
-      await failedClient.close().catch(() => undefined);
-      if (!closed && client === failedClient) {
-        client = createClient();
-        transport = createTransport();
-      }
-    })().finally(() => {
-      resetPromise = undefined;
-    });
-    return resetPromise;
-  };
-
-  const ensureConnected = async (options?: IntegrationToolsBridgeRequestOptions) => {
+  const assertOpen = () => {
     if (closed) throw new Error('Integration tools bridge is closed.');
-    await resetPromise;
-    if (closed) throw new Error('Integration tools bridge is closed.');
-    if (connectPromise !== undefined) return connectPromise;
-
-    const connectingClient = client;
-    const connectingTransport = transport;
-    let pendingConnection: Promise<void>;
-    pendingConnection = connectingClient
-      .connect(connectingTransport as unknown as Transport, options)
-      .catch(async (error: unknown) => {
-        if (connectPromise === pendingConnection) connectPromise = undefined;
-        await resetConnection(connectingClient);
-        throw error;
-      });
-    connectPromise = pendingConnection;
-    return pendingConnection;
   };
 
   const bridge: IntegrationToolsBridge = {
     name: params.name,
     server,
     async listTools(options) {
-      await ensureConnected(options);
-      const requestClient = client;
-      try {
-        return await requestClient.listTools(undefined, options);
-      } catch (error) {
-        await resetConnection(requestClient);
-        throw error;
-      }
+      assertOpen();
+      return await upstream.listTools(undefined, options);
     },
     async callTool(name, args) {
-      await ensureConnected();
-      const requestClient = client;
-      try {
-        return (await requestClient.callTool(
-          {name, ...(args === undefined ? {} : {arguments: args})},
-          CallToolResultSchema,
-        )) as CallToolResult;
-      } catch (error) {
-        await resetConnection(requestClient);
-        throw error;
-      }
+      assertOpen();
+      return await upstream.callTool({name, ...(args === undefined ? {} : {arguments: args})});
     },
     activateHttp(options?: IntegrationToolsBridgeActivationOptions) {
       if (closePromise !== undefined) {
@@ -147,12 +102,7 @@ export function createIntegrationToolsBridge(params: {
               {name: params.name, version: '0.0.0'},
               {capabilities: {tools: {}}},
             );
-            installForwardingHandlers(
-              sessionServer,
-              ensureConnected,
-              () => client,
-              resetConnection,
-            );
+            installForwardingHandlers(sessionServer, assertOpen, upstream);
             const sessionTransport = new StreamableHTTPServerTransport({
               sessionIdGenerator: () => id,
             });
@@ -188,7 +138,7 @@ export function createIntegrationToolsBridge(params: {
       cancelActivation?.(new Error('Integration tools bridge is closed.'));
       closePromise ??= closeBridge({
         activationPromise,
-        getClient: () => client,
+        upstream,
         server,
         getHttpServer: () => httpServer,
         httpSessions,
@@ -197,7 +147,7 @@ export function createIntegrationToolsBridge(params: {
     },
   };
 
-  installForwardingHandlers(server.server, ensureConnected, () => client, resetConnection);
+  installForwardingHandlers(server.server, assertOpen, upstream);
 
   return bridge;
 }
@@ -371,29 +321,16 @@ function invalidHttpRequest(
 
 function installForwardingHandlers(
   server: Server,
-  ensureConnected: () => Promise<void>,
-  getClient: () => Client,
-  resetConnection: (failedClient: Client) => Promise<void>,
+  assertOpen: () => void,
+  upstream: GatewayMcpClient,
 ): void {
   server.setRequestHandler(ListToolsRequestSchema, async (request) => {
-    await ensureConnected();
-    const requestClient = getClient();
-    try {
-      return await requestClient.listTools(request.params);
-    } catch (error) {
-      await resetConnection(requestClient);
-      throw error;
-    }
+    assertOpen();
+    return await upstream.listTools(request.params);
   });
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    await ensureConnected();
-    const requestClient = getClient();
-    try {
-      return await requestClient.callTool(request.params, CallToolResultSchema);
-    } catch (error) {
-      await resetConnection(requestClient);
-      throw error;
-    }
+    assertOpen();
+    return await upstream.callTool(request.params);
   });
 }
 
@@ -435,7 +372,7 @@ function sendMcpError(
 
 async function closeBridge(params: {
   activationPromise: Promise<URL> | undefined;
-  getClient: () => Client;
+  upstream: GatewayMcpClient;
   server: McpServer;
   getHttpServer: () => HttpServer | undefined;
   httpSessions: Map<string, HttpSession>;
@@ -448,7 +385,7 @@ async function closeBridge(params: {
 
   const httpServer = params.getHttpServer();
   await releaseResources({
-    client: params.getClient(),
+    upstream: params.upstream,
     server: params.server,
     httpSessions: params.httpSessions,
     ...(httpServer === undefined ? {} : {httpServer}),
@@ -456,14 +393,14 @@ async function closeBridge(params: {
 }
 
 async function releaseResources(params: {
-  client?: Client;
+  upstream?: GatewayMcpClient;
   server: McpServer;
   httpServer?: HttpServer;
   httpSessions?: Map<string, HttpSession>;
 }): Promise<void> {
   const httpSessions = params.httpSessions;
   const results = await Promise.allSettled([
-    ...(params.client === undefined ? [] : [params.client.close()]),
+    ...(params.upstream === undefined ? [] : [params.upstream.close()]),
     params.server.close(),
     ...(httpSessions === undefined
       ? []

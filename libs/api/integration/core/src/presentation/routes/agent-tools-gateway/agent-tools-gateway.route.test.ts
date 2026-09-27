@@ -16,6 +16,7 @@ import {
   connection,
   leaseContext,
   materializedIntegration,
+  materializedTool,
   registryWithAgentTools,
 } from '#test/agent-tools-gateway-helpers.js';
 import {createAgentToolsGatewayRoutes} from './index.js';
@@ -152,6 +153,68 @@ describe('agent tools gateway route', () => {
       },
     ]);
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts tool calls larger than the default 1 MiB body limit', async () => {
+    const lease = leaseContext({workspaceId: 'workspace-1'});
+    const integration = materializedIntegration({
+      connectionId: 'connection-1',
+      tools: [
+        materializedTool({
+          inputSchema: {
+            type: 'object',
+            properties: {method: {type: 'string'}, content: {type: 'string'}},
+          },
+        }),
+      ],
+    });
+    const calls: unknown[] = [];
+    leases.set('large-lease', lease);
+    const app = await createGatewayApp({
+      registry: registryWithAgentTools([catalogTool()], {onCall: (call) => calls.push(call)}),
+      loadLeasedAgentStep: async () => ({
+        workspaceId: lease.workspaceId,
+        step: {type: 'agent', config: agentStepConfig([integration])},
+      }),
+      getIntegrationConnectionById: async () =>
+        connection({
+          id: integration.connectionId,
+          workspaceId: lease.workspaceId,
+          slug: integration.connectionSlug,
+        }),
+    });
+    const address = await app.listen({port: 0, host: '127.0.0.1'});
+    const client = new Client({name: 'test-http-client', version: '0.0.0'});
+    const transport = new StreamableHTTPClientTransport(
+      new URL('/runs/jobs/current/integration-tools/mcp', address),
+      {requestInit: {headers: {authorization: 'Bearer large-lease'}}},
+    );
+    // Base64 of a file near create_commit's 1,000,000 decoded-byte limit.
+    const content = Buffer.alloc(990_000, 7).toString('base64');
+
+    await client.connect(transport as unknown as Transport);
+    const result = await client.callTool(
+      {name: 'github_main__issue_read', arguments: {method: 'get', content}},
+      CallToolResultSchema,
+    );
+    await client.close();
+
+    expect(result.isError).not.toBe(true);
+    expect(calls).toEqual([{toolId: 'issue_read', arguments: {method: 'get', content}}]);
+  });
+
+  it('rejects requests above the 2 MiB body limit', async () => {
+    leases.set('valid-lease', leaseContext({workspaceId: 'workspace-1'}));
+    const app = await createGatewayApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/runs/jobs/current/integration-tools/mcp',
+      headers: {authorization: 'Bearer valid-lease', 'content-type': 'application/json'},
+      payload: JSON.stringify({content: 'a'.repeat(2 * 1024 * 1024)}),
+    });
+
+    expect(res.statusCode).toBe(413);
   });
 
   it('returns bounded MCP errors when provider dispatch times out', async () => {
