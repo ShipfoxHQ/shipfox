@@ -9,6 +9,7 @@ import {
 const expectedTools = [
   {id: 'read_channel', sensitivity: 'read', requiredScope: 'read'},
   {id: 'read_thread', sensitivity: 'read', requiredScope: 'read'},
+  {id: 'get_permalink', sensitivity: 'read', requiredScope: 'read'},
   {id: 'read_channel_info', sensitivity: 'read', requiredScope: 'read'},
   {id: 'read_channel_members', sensitivity: 'read', requiredScope: 'read'},
   {id: 'read_user_profile', sensitivity: 'read', requiredScope: 'read'},
@@ -89,6 +90,7 @@ describe('slackAgentToolCatalog', () => {
     expect(methods).toEqual({
       read_channel: 'conversations.history',
       read_thread: 'conversations.replies',
+      get_permalink: 'chat.getPermalink',
       read_channel_info: 'conversations.info',
       read_channel_members: 'conversations.members',
       read_user_profile: 'users.info',
@@ -108,6 +110,9 @@ describe('slackAgentToolCatalog', () => {
     expect(
       operation('read_thread').mapArguments({channel_id: 'C123', message_ts: '123.000'}),
     ).toMatchObject({channel: 'C123', ts: '123.000'});
+    expect(
+      operation('get_permalink').mapArguments({channel_id: 'C123', message_ts: '123.000'}),
+    ).toEqual({channel: 'C123', message_ts: '123.000'});
     expect(operation('read_user_profile').mapArguments({user_id: 'U123'})).toMatchObject({
       user: 'U123',
     });
