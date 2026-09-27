@@ -30,12 +30,14 @@ describe('createGatewayMcpClient', () => {
   it('replaces the connection after a failed request', async () => {
     const url = await startFakeGateway();
     let failNextCall = true;
+    let initializeRequests = 0;
     const client = createGatewayMcpClient({
       url,
       name: 'test',
       fetch: (input, init) => {
         const body =
           typeof init?.body === 'string' ? (JSON.parse(init.body) as {method?: string}) : undefined;
+        if (body?.method === 'initialize') initializeRequests += 1;
         if (failNextCall && body?.method === 'tools/call') {
           failNextCall = false;
           return Promise.resolve(new Response('temporarily unavailable', {status: 503}));
@@ -49,6 +51,7 @@ describe('createGatewayMcpClient', () => {
     await client.close();
 
     expect(result.isError).not.toBe(true);
+    expect(initializeRequests).toBe(2);
   });
 
   it('rejects requests after close', async () => {
