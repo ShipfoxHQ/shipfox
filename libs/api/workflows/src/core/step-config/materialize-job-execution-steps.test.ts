@@ -587,7 +587,6 @@ describe('materializeJobExecutionSteps', () => {
             sensitivity: 'read',
             sensitive: false,
             requiredScope: [{permission: 'issues', access: 'read'}],
-            result: 'json',
             inputSchema: {type: 'object'},
             methods: [
               {
@@ -605,7 +604,6 @@ describe('materializeJobExecutionSteps', () => {
             sensitivity: 'write',
             sensitive: false,
             requiredScope: [{permission: 'issues', access: 'write'}],
-            result: 'json',
             inputSchema: {type: 'object'},
             methods: [
               {
@@ -626,7 +624,6 @@ describe('materializeJobExecutionSteps', () => {
               {permission: 'pull_requests', access: 'write'},
               {permission: 'contents', access: 'write'},
             ],
-            result: 'json',
             inputSchema: {type: 'object'},
           },
         ],
@@ -941,7 +938,6 @@ describe('materializeJobExecutionSteps', () => {
             sensitivity: 'read',
             sensitive: false,
             requiredScope: [{permission: 'issues', access: 'read'}],
-            result: 'json',
             inputSchema: {type: 'object'},
             methods: [
               {

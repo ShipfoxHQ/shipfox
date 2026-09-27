@@ -166,7 +166,6 @@ describe('loadAgentToolMaterializationContext', () => {
       sensitivity: 'read',
       sensitive: false,
       requiredScope: [{permission: 'issues', access: 'read'}],
-      result: 'json',
       inputSchema: {type: 'object'},
     });
     expect(Object.isFrozen(materialized)).toBe(true);
@@ -191,7 +190,6 @@ describe('loadAgentToolMaterializationContext', () => {
       sensitivity: 'write',
       sensitive: false,
       requiredScope: [{permission: 'checks', access: 'write'}],
-      result: 'json',
       inputSchema: {type: 'object', properties: {method: {type: 'string'}}},
       outputSchema: {
         type: 'object',
