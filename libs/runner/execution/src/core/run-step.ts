@@ -267,7 +267,7 @@ function spawnAndCapture(
     const spawned = spawnRunStepProcess(launch, stepEnv, outputPath, annotationSpool, options);
     if (!spawned.ok) {
       unsubscribeSecrets?.();
-      logger().error({err: spawned.error}, 'Failed to spawn shell process');
+      logger().error({err: spawned.error}, 'Failed to spawn process');
       resolve(spawned.result);
       return;
     }
@@ -308,7 +308,7 @@ function spawnAndCapture(
     child.on('error', (err) => {
       abort.cleanup();
       unsubscribeSecrets?.();
-      logger().error({err}, 'Failed to spawn shell process');
+      logger().error({err}, 'Failed to spawn process');
       resolve({
         success: false,
         error: {message: `Failed to spawn process: ${err.message}`},
