@@ -178,3 +178,75 @@ describe('log destination thresholds', () => {
     expect(file).toEqual([]);
   });
 });
+
+describe('HTTP serializers', () => {
+  it('keeps caller headers and drops credentials', async () => {
+    const {settings} = await import('./log.js');
+    const serializeRequest = settings.serializers?.req;
+
+    const serialized = serializeRequest?.({
+      method: 'POST',
+      url: '/runners/register',
+      headers: {
+        authorization: 'Bearer secret',
+        cookie: 'session=secret',
+        'user-agent': 'node',
+        'x-forwarded-for': '203.0.113.7',
+      },
+      socket: {remoteAddress: '10.0.0.1', remotePort: 443},
+    });
+
+    expect(serialized).toMatchObject({
+      method: 'POST',
+      url: '/runners/register',
+      headers: {'user-agent': 'node', 'x-forwarded-for': '203.0.113.7'},
+    });
+    expect(serialized.headers).not.toHaveProperty('authorization');
+    expect(serialized.headers).not.toHaveProperty('cookie');
+  });
+
+  it('keeps only the response status code', async () => {
+    const {settings} = await import('./log.js');
+
+    const serialized = settings.serializers?.res?.({
+      statusCode: 200,
+      getHeaders: () => ({'set-cookie': 'refresh=secret'}),
+    });
+
+    expect(serialized).toEqual({statusCode: 200});
+  });
+
+  it('drops the failed request from HTTP client errors and redacts nested credentials', async () => {
+    const {settings} = await import('./log.js');
+    const cause = Object.assign(new Error('upstream rejected'), {
+      details: {headers: {Authorization: 'Bearer nested-secret', 'Set-Cookie': 'session=secret'}},
+    });
+    const error = Object.assign(new Error('Request failed', {cause}), {
+      options: {headers: {authorization: 'Bearer secret'}, body: '{"refresh_token":"secret"}'},
+      request: {headers: {cookie: 'session=secret'}},
+      response: {headers: {'set-cookie': 'session=secret'}},
+      data: '{"code":"invalid_grant"}',
+    });
+
+    const serialized = settings.serializers?.err?.(error);
+
+    expect(JSON.stringify(serialized)).not.toContain('secret');
+    expect(serialized).toMatchObject({
+      data: '{"code":"invalid_grant"}',
+      cause: {
+        details: {headers: {Authorization: '[Redacted]', 'Set-Cookie': '[Redacted]'}},
+      },
+    });
+  });
+
+  it('truncates error fields nested past the scrub depth', async () => {
+    const {settings} = await import('./log.js');
+    let nested: Record<string, unknown> = {authorization: 'Bearer deep-secret'};
+    for (let depth = 0; depth < 12; depth++) nested = {child: nested};
+
+    const serialized = settings.serializers?.err?.(Object.assign(new Error('deep'), {nested}));
+
+    expect(JSON.stringify(serialized)).not.toContain('deep-secret');
+    expect(JSON.stringify(serialized)).toContain('[Truncated]');
+  });
+});

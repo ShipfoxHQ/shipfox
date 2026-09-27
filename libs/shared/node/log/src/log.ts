@@ -86,6 +86,41 @@ function normalizeErrorArguments(args: Parameters<LogFn>): Parameters<LogFn> {
   return [normalizedObject, ...rest] as Parameters<LogFn>;
 }
 
+// Headers carry credentials such as `authorization`, `cookie`, and `set-cookie`. Log only request
+// headers that help trace a caller, and no response headers.
+const LOGGED_REQUEST_HEADERS = ['user-agent', 'x-forwarded-for'];
+
+function pickLoggedHeaders(headers: unknown): Record<string, unknown> {
+  if (!isRecord(headers)) return {};
+  return Object.fromEntries(
+    LOGGED_REQUEST_HEADERS.filter((name) => headers[name] !== undefined).map((name) => [
+      name,
+      headers[name],
+    ]),
+  );
+}
+
+// HTTP client errors such as ky's HTTPError keep the failed request, including its body and
+// headers, on enumerable fields that the error serializer would copy.
+const OMITTED_ERROR_FIELDS = new Set(['config', 'options', 'request', 'response']);
+const CREDENTIAL_FIELDS = new Set(['authorization', 'cookie', 'proxy-authorization', 'set-cookie']);
+const MAX_SCRUB_DEPTH = 10;
+
+function scrubSerializedError(value: unknown, depth = 0): unknown {
+  if (depth > MAX_SCRUB_DEPTH) return '[Truncated]';
+  if (Array.isArray(value)) return value.map((item) => scrubSerializedError(item, depth + 1));
+  if (!isRecord(value)) return value;
+
+  const scrubbed: Record<string, unknown> = {};
+  for (const [key, field] of Object.entries(value)) {
+    if (OMITTED_ERROR_FIELDS.has(key)) continue;
+    scrubbed[key] = CREDENTIAL_FIELDS.has(key.toLowerCase())
+      ? '[Redacted]'
+      : scrubSerializedError(field, depth + 1);
+  }
+  return scrubbed;
+}
+
 export const settings: LoggerOptions = {
   level: config.LOG_LEVEL,
   transport: {targets: transports},
@@ -104,11 +139,11 @@ export const settings: LoggerOptions = {
       const chained = stdSerializers.err(error as Error);
       if (!isRecord(structured) || !isRecord(chained)) return structured;
 
-      return {
+      return scrubSerializedError({
         ...structured,
         ...(typeof chained.message === 'string' ? {message: chained.message} : {}),
         ...(typeof chained.stack === 'string' ? {stack: chained.stack} : {}),
-      };
+      });
     };
 
     return {
@@ -118,8 +153,11 @@ export const settings: LoggerOptions = {
         return serializeError(errors);
       },
       err: serializeError,
-      req: stdSerializers.req,
-      res: stdSerializers.res,
+      req: (request: Parameters<typeof stdSerializers.req>[0]) => {
+        const {headers, ...serialized} = stdSerializers.req(request);
+        return {...serialized, headers: pickLoggedHeaders(headers)};
+      },
+      res: (response: {statusCode?: number}) => ({statusCode: response.statusCode ?? null}),
     };
   },
 };
