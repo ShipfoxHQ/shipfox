@@ -15,19 +15,20 @@ export interface AuthoredMetadata {
 export const authoredTemplateMetadata: Record<string, AuthoredMetadata> = {
   'ticket-to-pr': {
     group: 'deliver',
-    starts: 'You assign the agent to a Linear issue',
+    starts: 'Another workflow sends a task, or you assign the agent to a Linear issue',
     upcoming: {tracker: ['jira', 'clickup', 'github']},
     flow: [
       {
         kind: 'trigger',
-        icon: 'linear',
-        title: 'You give a ticket to the agent',
-        detail: 'Assign the Shipfox agent to a Linear issue, mention it, or add a label.',
+        title: 'The agent gets a task',
+        detail:
+          'Another workflow, such as a Slack dispatcher, sends the task with its acceptance criteria. Optional: assign the agent to a Linear issue, mention it, or add a label.',
       },
       {
         kind: 'agent',
         title: 'The agent changes the code',
-        detail: 'It reads the ticket and the repository. Then it makes the smallest change.',
+        detail:
+          'It reads the task and the repository. Then it makes the smallest change, or asks questions when the task is unclear.',
       },
       {
         kind: 'check',
@@ -39,7 +40,8 @@ export const authoredTemplateMetadata: Record<string, AuthoredMetadata> = {
         kind: 'write',
         icon: 'github',
         title: 'The workflow opens a draft pull request',
-        detail: 'It comments on the ticket with the PR link or with the questions of the agent.',
+        detail:
+          'The starting workflow reads the PR link or the questions of the agent. With Linear, the workflow also comments on the issue.',
       },
       {
         kind: 'human',
@@ -50,11 +52,12 @@ export const authoredTemplateMetadata: Record<string, AuthoredMetadata> = {
     writes: [
       {icon: 'github', action: 'Pushes a branch and opens a draft pull request'},
       {icon: 'github', action: 'Replies to review threads and resolves them (feedback loop only)'},
-      {icon: 'linear', action: 'Comments on the issue and can change its status'},
+      {icon: 'linear', action: 'Comments on the issue and can change its status (optional)'},
     ],
     prerequisites: [
-      'Connect Linear and GitHub.',
+      'Connect GitHub.',
       'Run CI on GitHub Actions to use the feedback loop.',
+      'To start from Linear issues, connect Linear.',
     ],
     related: ['fix-dependency-ci', 'report-failed-runs'],
   },
