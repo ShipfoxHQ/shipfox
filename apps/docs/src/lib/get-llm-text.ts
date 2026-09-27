@@ -37,11 +37,17 @@ export async function getLLMText(page: InferPageType<typeof source>) {
         referenceId(page, 'eventReference'),
       )
     : undefined;
+  const templateSource =
+    processed.includes('TemplateGallery') || processed.includes('TemplateDetail')
+      ? await import('@/lib/template-catalog/source')
+      : undefined;
   const body = serializeMachineReadableMarkdown(processed, {
     integrationCatalog,
     modelCatalog,
     toolReference,
     eventReference,
+    templateCatalog: templateSource?.getTemplateCatalog(),
+    getTemplateDetail: templateSource?.getTemplateDetail,
     pageUrl: page.url,
     requiredFacts: requiredFactsForPage(page.url),
     sourcePath: page.path,

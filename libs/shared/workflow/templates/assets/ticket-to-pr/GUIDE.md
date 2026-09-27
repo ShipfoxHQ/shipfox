@@ -7,7 +7,6 @@ Use this template when a Linear ticket should produce a tested GitHub pull reque
 - Connect Linear as the tracker and GitHub as the project's source.
 - Give the GitHub connection permission to read and write repository contents and pull requests.
 - Use GitHub Actions if you turn on the feedback loop.
-- The PR body ends with `Fixes <identifier>`. Linear links the PR to the issue when the workspace has Linear's GitHub integration.
 
 ## Choose the options
 
@@ -62,7 +61,7 @@ Replace each `replace-with-test-command` with the test command that proves the c
 
 ## Expected writes
 
-Each run creates one branch named `shipfox/<identifier>-<run number>-<attempt>`, pushes one commit, and opens one pull request. The run stops before the agent starts when another run already has a branch for the same issue. Close that PR and delete its branch to start again.
+Each run creates one branch named `shipfox/<identifier>-<run number>-<attempt>`, pushes one commit, and opens one pull request. The PR body ends with `Fixes <identifier>`, so Linear links the PR to the issue when the workspace has Linear's GitHub integration. The run stops before the agent starts when another run already has a branch for the same issue. Close that PR and delete its branch to start again.
 
 Ticket write-back can add a Linear comment and, if selected, change the issue status. When the agent asks questions instead, the run posts one comment and opens no PR.
 
