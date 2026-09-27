@@ -1,6 +1,6 @@
 import {reportError} from '@shipfox/node-error-monitoring';
 import type {ModuleService} from '@shipfox/node-module';
-import {logger} from '@shipfox/node-opentelemetry';
+import {logger, SpanStatusCode, trace} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {
   listWorkflowConcurrencyRepairCandidates,
@@ -10,6 +10,8 @@ import {
 } from '#db/workflow-concurrency.js';
 import {cancelWorkflowRunAttemptForConcurrencyWithOutcome} from '#db/workflow-runs/run-status.js';
 import {recordWorkflowConcurrencyRepair} from '#metrics/instance.js';
+
+const tracer = trace.getTracer('@shipfox/api-workflows');
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 const ERROR_BACKOFF_MS = 1_000;
@@ -94,16 +96,29 @@ export async function runWorkflowConcurrencyReconcilerCycle(params: {
   let repaired = false;
   for (const candidate of candidates) {
     if (params.signal.aborted) break;
-    try {
-      const candidateRepaired = await repairWorkflowConcurrencyCandidate({
-        candidate,
-        startOrchestration: params.startOrchestration,
-      });
-      repaired ||= candidateRepaired;
-    } catch (error) {
-      recordWorkflowConcurrencyRepair(repairCategory(candidate), 'failed');
-      throw error;
-    }
+    // Scans run outside any span so idle polling stays untraced. Each repair gets its own span.
+    const candidateRepaired = await tracer.startActiveSpan(
+      'workflows.concurrency.repair',
+      {
+        root: true,
+        attributes: {'workflows.concurrency.repair_category': repairCategory(candidate)},
+      },
+      async (span) => {
+        try {
+          return await repairWorkflowConcurrencyCandidate({
+            candidate,
+            startOrchestration: params.startOrchestration,
+          });
+        } catch (error) {
+          span.setStatus({code: SpanStatusCode.ERROR});
+          recordWorkflowConcurrencyRepair(repairCategory(candidate), 'failed');
+          throw error;
+        } finally {
+          span.end();
+        }
+      },
+    );
+    repaired ||= candidateRepaired;
   }
   return repaired;
 }

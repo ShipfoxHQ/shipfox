@@ -1,3 +1,7 @@
+import {mkdtemp, readFile, rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {logger} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
 import {closeApp, createApp} from './index.js';
 import {defineRoute} from './types.js';
@@ -51,5 +55,79 @@ describe('createApp lifecycle', () => {
         schema: expect.objectContaining({type: 'string'}),
       }),
     );
+  });
+});
+
+describe('request logging', () => {
+  test('writes one completion line per request', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'shipfox-node-fastify-'));
+    const file = join(directory, 'requests.log');
+
+    try {
+      const loggerInstance = logger({
+        level: 'info',
+        transport: {target: 'pino/file', options: {destination: file}},
+      });
+      const app = await createApp({fastifyOptions: {loggerInstance}});
+
+      await app.inject({method: 'GET', url: '/healthz'});
+
+      await vi.waitFor(async () => {
+        const records = (await readFile(file, 'utf8'))
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line));
+        expect(records.map((record) => record.msg)).toEqual(['request completed']);
+        expect(records[0]).toMatchObject({
+          req: {method: 'GET', url: '/healthz'},
+          statusCode: 200,
+          route: '/healthz',
+          responseTime: expect.any(Number),
+        });
+      });
+    } finally {
+      await rm(directory, {recursive: true, force: true});
+    }
+  });
+
+  test('puts a client error on the completion line instead of a separate record', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'shipfox-node-fastify-'));
+    const file = join(directory, 'requests.log');
+
+    try {
+      const loggerInstance = logger({
+        level: 'info',
+        transport: {target: 'pino/file', options: {destination: file}},
+      });
+      const app = await createApp({
+        fastifyOptions: {loggerInstance},
+        routes: [
+          defineRoute({
+            method: 'POST',
+            path: '/items',
+            description: 'Create an item',
+            schema: {body: z.object({name: z.string()})},
+            handler: () => ({ok: true}),
+          }),
+        ],
+      });
+
+      await app.inject({method: 'POST', url: '/items', payload: {}});
+
+      await vi.waitFor(async () => {
+        const records = (await readFile(file, 'utf8'))
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line));
+        expect(records).toHaveLength(1);
+        expect(records[0]).toMatchObject({
+          msg: 'request completed',
+          statusCode: 400,
+          clientError: {code: 'validation-error', message: expect.stringContaining('name')},
+        });
+      });
+    } finally {
+      await rm(directory, {recursive: true, force: true});
+    }
   });
 });

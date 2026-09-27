@@ -104,6 +104,15 @@ function windowStartFor(now: Date, windowSeconds: number): Date {
 
 type LoggerInstance = NonNullable<NonNullable<AppConfig['fastifyOptions']>['loggerInstance']>;
 
+function withoutRawHttpObjects(entry: unknown): unknown {
+  if (!Array.isArray(entry)) return entry;
+  return entry.map((arg) => {
+    if (typeof arg !== 'object' || arg === null) return arg;
+    const {req: _req, res: _res, ...rest} = arg as Record<string, unknown>;
+    return rest;
+  });
+}
+
 function createCapturingLogger(logs: unknown[]): LoggerInstance {
   const logger = {
     child: () => logger,
@@ -343,7 +352,8 @@ describe('auth rate-limit routes', () => {
       headers: {'x-forwarded-for': ip},
       payload: {email, password: 'wrong password'},
     });
-    const authLogs = logs.filter((entry) => {
+    // The shared `req` and `res` serializers reduce these raw objects before any log is written.
+    const authLogs = logs.map(withoutRawHttpObjects).filter((entry) => {
       const serializedEntry = JSON.stringify(entry);
       return (
         serializedEntry.includes('Auth rate limit blocked request') ||

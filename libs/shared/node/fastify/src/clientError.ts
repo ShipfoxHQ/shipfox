@@ -24,4 +24,9 @@ export class ClientError extends Error {
       this.status = params.status;
     }
   }
+
+  /** Fastify's error status convention, which tracing reads to tell client errors apart. */
+  get statusCode(): number {
+    return this.status ?? 400;
+  }
 }

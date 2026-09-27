@@ -36,7 +36,7 @@ await initializeModules({
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OUTBOX_DISPATCHER_ENABLED` | `true` | Starts the in-process drainer. Set `false` to use legacy Temporal dispatch workflows. |
-| `OUTBOX_DISPATCH_POLL_MS` | `250` | Time in milliseconds that an idle drainer waits before it checks the outbox again. It must be a whole number greater than zero. |
+| `OUTBOX_DISPATCH_POLL_MS` | `250` | Time in milliseconds that the drainer waits before it checks the outbox again after it finds work. It must be a whole number greater than zero. |
 
 The default suits an all-in-one deployment. Each API process runs a drainer. No
 extra service is required.
@@ -47,6 +47,15 @@ setting restores the legacy Temporal dispatcher. Use the default until a
 dedicated-drainer deployment is available.
 
 ## Behavior notes
+
+While the outbox stays empty, the drainer doubles its wait after each check, up
+to 2 seconds or `OUTBOX_DISPATCH_POLL_MS`, whichever is longer. It returns to `OUTBOX_DISPATCH_POLL_MS` after it claims an event.
+An event written in the same process ends an idle wait, and the drainer checks
+the outbox one poll interval later. That gives the writer's transaction time to
+commit.
+
+Claims create no spans. Each dispatched event gets an `outbox.dispatch` span,
+so handler queries and calls appear under it.
 
 The drainer logs an escaped error and waits before it tries again. During
 shutdown, it stops claiming rows and waits for work in flight to finish.

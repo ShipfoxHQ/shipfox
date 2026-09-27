@@ -58,7 +58,9 @@ function mountRoute(
   const routeConfig: FastifyRouteConfig = {
     method: route.method,
     url: route.path,
-    handler: route.handler,
+    handler: route.errorHandler
+      ? mapHandlerErrors(route.handler, route.errorHandler)
+      : route.handler,
   };
 
   routeConfig.schema = {...route.schema, description: route.description};
@@ -80,6 +82,26 @@ function mountRoute(
     routeConfig.handlerTimeout = route.options.handlerTimeout;
 
   app.route(routeConfig);
+}
+
+type FastifyHandler = FastifyRouteConfig['handler'];
+
+// Tracing records the error a handler throws. Mapping it here lets tracing see the client error a
+// route maps a domain error to. Fastify still calls the route error handler for validation and
+// hook errors.
+function mapHandlerErrors(
+  handler: RouteDefinition['handler'],
+  errorHandler: NonNullable<RouteDefinition['errorHandler']>,
+): FastifyHandler {
+  return async function (this: ThisParameterType<FastifyHandler>, request, reply) {
+    try {
+      return await (handler as FastifyHandler).call(this, request, reply);
+    } catch (error) {
+      await errorHandler(error, request, reply);
+      if (reply.sent) return reply;
+      throw error;
+    }
+  } as FastifyHandler;
 }
 
 function normalizePreHandler(preHandler: RoutePreHandler | RoutePreHandler[]): FastifyPreHandler {

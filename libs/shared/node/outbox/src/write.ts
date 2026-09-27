@@ -33,6 +33,19 @@ type OutboxEvent<TMap extends EventMapLike> = {
   [K in EventType<TMap>]: {type: K; orderingKey?: string | undefined; payload: TMap[K]};
 }[EventType<TMap>];
 
+const writeListeners = new Set<() => void>();
+
+/**
+ * Calls `listener` after each `writeOutboxEvents` insert in this process. The caller's
+ * transaction may still be open, so treat the call as a hint that rows may soon be claimable.
+ */
+export function onOutboxWrite(listener: () => void): () => void {
+  writeListeners.add(listener);
+  return () => {
+    writeListeners.delete(listener);
+  };
+}
+
 export async function writeOutboxEvent<TMap extends EventMapLike>(
   tx: DrizzleInsertable,
   outboxTable: OutboxTable,
@@ -56,6 +69,7 @@ export async function writeOutboxEvents<TMap extends EventMapLike>(
       payload: event.payload,
     })),
   );
+  for (const listener of writeListeners) listener();
 }
 
 /**

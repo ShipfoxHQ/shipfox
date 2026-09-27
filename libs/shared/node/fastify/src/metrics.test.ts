@@ -1,5 +1,4 @@
 const mocks = vi.hoisted(() => ({
-  requestAdd: vi.fn(),
   durationRecord: vi.fn(),
   activeAdd: vi.fn(),
   readinessRecord: vi.fn(),
@@ -10,7 +9,6 @@ vi.mock('@shipfox/node-opentelemetry', () => ({
   logger: () => false,
   instanceMetrics: {
     getMeter: () => ({
-      createCounter: () => ({add: mocks.requestAdd}),
       createHistogram: () => ({record: mocks.durationRecord}),
       createUpDownCounter: () => ({add: mocks.activeAdd}),
       createGauge: () => ({record: mocks.readinessRecord}),
@@ -44,15 +42,11 @@ describe('Fastify metrics', () => {
     const response = await app.inject({method: 'GET', url: '/items/request-123?expand=true'});
 
     expect(response.statusCode).toBe(200);
-    expect(mocks.requestAdd).toHaveBeenCalledWith(1, {
+    expect(mocks.durationRecord).toHaveBeenCalledWith(expect.any(Number), {
       method: 'GET',
       route: '/items/:id',
       status_code: '200',
     });
-    expect(mocks.durationRecord).toHaveBeenCalledWith(
-      expect.any(Number),
-      expect.objectContaining({route: '/items/:id'}),
-    );
     expect(mocks.activeAdd.mock.calls).toEqual([
       [1, {method: 'GET', route: '/items/:id'}],
       [-1, {method: 'GET', route: '/items/:id'}],
@@ -65,8 +59,8 @@ describe('Fastify metrics', () => {
     const response = await app.inject({method: 'GET', url: '/unknown/request-123'});
 
     expect(response.statusCode).toBe(404);
-    expect(mocks.requestAdd).toHaveBeenCalledWith(
-      1,
+    expect(mocks.durationRecord).toHaveBeenCalledWith(
+      expect.any(Number),
       expect.objectContaining({route: 'unmatched', status_code: '404'}),
     );
   });
@@ -101,12 +95,12 @@ describe('Fastify metrics', () => {
 
     expect(clientError.statusCode).toBe(422);
     expect(serverError.statusCode).toBe(500);
-    expect(mocks.requestAdd).toHaveBeenCalledWith(
-      1,
+    expect(mocks.durationRecord).toHaveBeenCalledWith(
+      expect.any(Number),
       expect.objectContaining({route: '/client-error', status_code: '422'}),
     );
-    expect(mocks.requestAdd).toHaveBeenCalledWith(
-      1,
+    expect(mocks.durationRecord).toHaveBeenCalledWith(
+      expect.any(Number),
       expect.objectContaining({route: '/server-error', status_code: '500'}),
     );
   });
@@ -174,8 +168,8 @@ describe('Fastify metrics', () => {
     client.destroy();
     await closed;
     await vi.waitFor(() => {
-      expect(mocks.requestAdd).toHaveBeenCalledWith(
-        1,
+      expect(mocks.durationRecord).toHaveBeenCalledWith(
+        expect.any(Number),
         expect.objectContaining({route: '/upload', status_code: 'aborted'}),
       );
     });

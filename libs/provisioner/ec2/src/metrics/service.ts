@@ -1,5 +1,10 @@
 import type {DemandStatDto} from '@shipfox/api-runners-dto';
-import {getServiceMetricsProvider, logger, type ObservableGauge} from '@shipfox/node-opentelemetry';
+import {
+  getServiceMetricsProvider,
+  logger,
+  type ObservableGauge,
+  withoutTracing,
+} from '@shipfox/node-opentelemetry';
 import {type ProvisionerTemplate, rankTemplatesForLabels} from '@shipfox/provisioner-core';
 import type {Ec2Engine, Ec2InstanceState, Ec2InstanceView} from '#ec2-engine.js';
 import {parseInstanceIdentity} from '#instance-identity.js';
@@ -62,7 +67,10 @@ export function registerEc2ServiceMetrics(options: RegisterEc2ServiceMetricsOpti
   meter.addBatchObservableCallback(
     async (observer) => {
       try {
-        const instances = await options.engine.listManaged(options.provisionerId);
+        // Runs on every metrics scrape; tracing it would add a trace per scrape.
+        const instances = await withoutTracing(() =>
+          options.engine.listManaged(options.provisionerId),
+        );
         observeManagedInstanceCounts(observer, managedInstances, instances);
         const {countsByTemplate, unattributedCount} = countTemplateRunners(
           options.templates,

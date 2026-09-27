@@ -13,20 +13,27 @@ import {
   recordDispatchFailure,
   renewDispatchClaim,
 } from '@shipfox/node-module';
-import {logger} from '@shipfox/node-opentelemetry';
+import {logger, SpanKind, SpanStatusCode, trace} from '@shipfox/node-opentelemetry';
 import {dispatchFailureCount, drainBatchSize, eventDispatchedCount} from '#metrics/index.js';
 
 const DISPATCH_CONCURRENCY = 8;
 const CLAIM_RENEWAL_INTERVAL_MS = 30_000;
 
+const tracer = trace.getTracer('@shipfox/api-dispatcher');
+
+export interface DrainCycleResult {
+  claimed: number;
+  hasMore: boolean;
+}
+
 export async function runDrainCycle(
   outboxRegistry: OutboxRegistry,
   partition?: OutboxDispatcherPartition,
   signal?: AbortSignal,
-): Promise<boolean> {
+): Promise<DrainCycleResult> {
   const {events: rows, hasMore} = await drainAll(outboxRegistry, partition ? {partition} : {});
   drainBatchSize.record(rows.length);
-  if (rows.length === 0) return hasMore;
+  if (rows.length === 0) return {claimed: 0, hasMore};
 
   const groups = groupRows(rows);
 
@@ -54,14 +61,35 @@ export async function runDrainCycle(
     {stopOnError: false, signal},
   );
 
-  return hasMore;
+  return {claimed: rows.length, hasMore};
 }
 
+// Claims run outside any span so idle polling stays untraced. Each claimed event gets its own
+// root span so handler work keeps its database and outbound spans.
 async function dispatchRow(outboxRegistry: OutboxRegistry, row: DrainedEvent): Promise<boolean> {
-  return await withClaimRenewal(
-    row,
-    async () => await dispatchClaimedRow(outboxRegistry, row),
-    outboxRegistry,
+  return await tracer.startActiveSpan(
+    'outbox.dispatch',
+    {
+      kind: SpanKind.CONSUMER,
+      root: true,
+      attributes: {'outbox.source': row.source, 'outbox.event_type': row.event.type},
+    },
+    async (span) => {
+      try {
+        const succeeded = await withClaimRenewal(
+          row,
+          async () => await dispatchClaimedRow(outboxRegistry, row),
+          outboxRegistry,
+        );
+        if (!succeeded) span.setStatus({code: SpanStatusCode.ERROR});
+        return succeeded;
+      } catch (error) {
+        span.setStatus({code: SpanStatusCode.ERROR});
+        throw error;
+      } finally {
+        span.end();
+      }
+    },
   );
 }
 

@@ -12,9 +12,27 @@ const fastifyErrorMap: Record<string, {status: number; code: string}> = {
   FST_ERR_HANDLER_TIMEOUT: {status: 408, code: 'handler-timeout'},
 };
 
+interface ClientErrorLog {
+  code: string;
+  message: string;
+  data?: unknown;
+}
+
+// Client errors are logged on the request's `request completed` line rather than as a record of
+// their own, so each rejected request costs one log record.
+const clientErrors = new WeakMap<FastifyRequest, ClientErrorLog>();
+
+export function getClientErrorLog(request: FastifyRequest): ClientErrorLog | undefined {
+  return clientErrors.get(request);
+}
+
 export function errorHandler(error: unknown, request: FastifyRequest, reply: FastifyReply) {
   if (error instanceof ClientError) {
-    request.log.info(error, error.message);
+    clientErrors.set(request, {
+      code: error.code,
+      message: error.message,
+      ...(error.data === undefined ? {} : {data: error.data}),
+    });
     const payload =
       error.details === undefined ? {code: error.code} : {code: error.code, details: error.details};
     return reply.code(error.status || 400).send(payload);
@@ -27,7 +45,7 @@ export function errorHandler(error: unknown, request: FastifyRequest, reply: Fas
     'code' in error &&
     error.code === 'FST_ERR_VALIDATION'
   ) {
-    request.log.info(error, error.message);
+    clientErrors.set(request, {code: 'validation-error', message: error.message});
     const validation = error.validation as Array<{message: string}>;
     return reply.code(400).send({
       code: 'validation-error',
@@ -38,7 +56,7 @@ export function errorHandler(error: unknown, request: FastifyRequest, reply: Fas
   if (error instanceof Error && 'code' in error && typeof error.code === 'string') {
     const mapped = fastifyErrorMap[error.code];
     if (mapped) {
-      request.log.info(error, error.message);
+      clientErrors.set(request, {code: mapped.code, message: error.message});
       return reply.code(mapped.status).send({code: mapped.code});
     }
   }

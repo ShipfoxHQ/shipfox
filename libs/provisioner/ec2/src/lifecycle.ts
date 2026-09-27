@@ -8,7 +8,7 @@ import {
   type RunnerInstanceReportEventDto,
   type TerminationReasonDto,
 } from '@shipfox/api-runners-dto';
-import {logger} from '@shipfox/node-opentelemetry';
+import {logger, withoutTracing} from '@shipfox/node-opentelemetry';
 import type {
   HTTPError,
   ProviderRunnerLaunch,
@@ -17,7 +17,7 @@ import type {
   ProvisionerIdentity,
   ProvisionerTemplate,
 } from '@shipfox/provisioner-core';
-import {ProvisionerAuthenticationError} from '@shipfox/provisioner-core';
+import {ProvisionerAuthenticationError, withWorkSpan} from '@shipfox/provisioner-core';
 import {
   type Ec2Engine,
   Ec2EngineError,
@@ -264,14 +264,17 @@ async function launchRunner(
   }
 }
 
+// Observation runs every converge tick, so its reads are not traced. applyObservedInstances
+// opens a span only when the observed state leaves something to do.
 async function observe(context: Ec2LifecycleContext): Promise<void> {
-  const instances = await context.engine.listManaged(context.identity.id);
+  const instances = await withoutTracing(() => context.engine.listManaged(context.identity.id));
   await applyObservedInstances(context, instances, new Map());
-  await reportEvents(context, []);
 }
 
 async function reconcile(context: Ec2LifecycleContext): Promise<void> {
-  const instances = await context.engine.listManaged(context.identity.id, {includeStatus: true});
+  const instances = await withoutTracing(() =>
+    context.engine.listManaged(context.identity.id, {includeStatus: true}),
+  );
   const registrationDeadlineCandidates = observeRegistrationDeadlineCandidates(context, instances);
   const healthCandidates = observeEc2Health(context, instances);
   const allTerminationCandidates = deduplicateTerminationCandidates([
@@ -298,13 +301,21 @@ async function reconcile(context: Ec2LifecycleContext): Promise<void> {
   const submittedRegistrationDeadlineCandidates = terminationCandidates.filter(
     (candidate) => candidate.reason === 'registration-deadline',
   );
-  const response = await reconcileWithBackend(
-    context,
-    observedProviderRunnerIds,
-    terminationCandidates,
-    observedRunnerLimitExceeded,
-    submittedRegistrationDeadlineCandidates,
-  );
+  const reconcileBackend = () =>
+    reconcileWithBackend(
+      context,
+      observedProviderRunnerIds,
+      terminationCandidates,
+      observedRunnerLimitExceeded,
+      submittedRegistrationDeadlineCandidates,
+    );
+  const response = await (terminationCandidates.length > 0
+    ? withWorkSpan(
+        'provisioner.ec2.reconcile',
+        {'provisioner.termination_candidate_count': terminationCandidates.length},
+        reconcileBackend,
+      )
+    : withoutTracing(reconcileBackend));
   syncCanonicalReservationIds(context, response.runners);
   const terminateIntents = new Map<string, TerminationIntent>();
   for (const runner of response.runners) {
@@ -330,7 +341,6 @@ async function reconcile(context: Ec2LifecycleContext): Promise<void> {
   }
 
   await applyObservedInstances(context, instances, terminateIntents);
-  await reportEvents(context, []);
   if (!observedRunnerLimitExceeded) context.lastReconciledAt = new Date(context.now());
 }
 
@@ -407,7 +417,6 @@ async function handleObservedRunnerLimit(
   context.canonicalReservationIdsByRunner.clear();
   if (terminationCandidates.length > 0) return false;
   await applyObservedInstances(context, instances, new Map());
-  await reportEvents(context, []);
   return true;
 }
 
@@ -809,22 +818,53 @@ async function applyObservedInstances(
   pruneTerminationActionedInstances(context, plan.observedInstanceIds, context.now().getTime());
   synthesizeAbsentLaunchedRunners(context, plan.observedIds, plan.trackerRunners, plan.events);
   context.tracker.replaceAll(plan.trackerRunners);
-  await assignEnrolledReservations(
+  const assignments = planAssignments(
     context,
     plan.assignmentCandidates,
     plan.observedRunnerInstanceIds,
   );
-  await terminateInstances(
-    context,
-    plan.terminateIntentInstances,
-    'backend-terminate',
-    plan.forcedTerminateIntentIds,
-    plan.terminationAuthorizationReasons,
-    plan.terminationDeadlines,
-    plan.missingStoppingTimestampIntentIds,
+  if (
+    assignments.size === 0 &&
+    plan.terminateIntentInstances.length === 0 &&
+    plan.events.length === 0 &&
+    context.pendingReports.length === 0
+  )
+    return;
+
+  const converge = async () => {
+    await assignEnrolledReservations(context, assignments);
+    await terminateInstances(
+      context,
+      plan.terminateIntentInstances,
+      'backend-terminate',
+      plan.forcedTerminateIntentIds,
+      plan.terminationAuthorizationReasons,
+      plan.terminationDeadlines,
+      plan.missingStoppingTimestampIntentIds,
+    );
+    if (plan.events.length > 0)
+      await reportEvents(context, plan.events, plan.terminalReportInstanceIds);
+    // Retries reports that failed earlier, including in this pass.
+    await reportEvents(context, []);
+  };
+  // Every pass re-reports each live instance, so routine state reports alone stay untraced.
+  const hasWork =
+    assignments.size > 0 ||
+    plan.terminateIntentInstances.length > 0 ||
+    plan.events.some((event) => event.state === 'failed' || event.state === 'terminated');
+  if (!hasWork) {
+    await withoutTracing(converge);
+    return;
+  }
+  await withWorkSpan(
+    'provisioner.ec2.converge',
+    {
+      'provisioner.assignment_count': assignments.size,
+      'provisioner.terminate_count': plan.terminateIntentInstances.length,
+      'provisioner.report_count': plan.events.length,
+    },
+    converge,
   );
-  if (plan.events.length > 0)
-    await reportEvents(context, plan.events, plan.terminalReportInstanceIds);
 }
 
 interface Ec2ObservationPlan {
@@ -1179,11 +1219,11 @@ function recordObservedAssignment(
   });
 }
 
-async function assignEnrolledReservations(
+function planAssignments(
   context: Ec2LifecycleContext,
   candidates: readonly AssignmentCandidate[],
   observedRunnerInstanceIds: ReadonlySet<string>,
-): Promise<void> {
+): Map<string, AssignmentCandidate[]> {
   pruneSuppressedReservationRunners(context, observedRunnerInstanceIds);
 
   const assignments = new Map<string, AssignmentCandidate[]>();
@@ -1194,6 +1234,13 @@ async function assignEnrolledReservations(
     assignmentCandidates.push(candidate);
     assignments.set(reservationId, assignmentCandidates);
   }
+  return assignments;
+}
+
+async function assignEnrolledReservations(
+  context: Ec2LifecycleContext,
+  assignments: ReadonlyMap<string, readonly AssignmentCandidate[]>,
+): Promise<void> {
   for (const [reservationId, assignmentCandidates] of assignments) {
     await assignReservationGroup(context, reservationId, assignmentCandidates);
   }

@@ -6,7 +6,7 @@ export const config = createConfig({
     default: true,
   }),
   OUTBOX_DISPATCH_POLL_MS: num({
-    desc: 'Time, in milliseconds, the in-process dispatcher waits before checking an empty outbox again.',
+    desc: 'Time, in milliseconds, the in-process dispatcher waits before checking the outbox again after it claims events or this process writes one. While the outbox stays empty, the wait doubles up to 2 seconds or this value, whichever is longer.',
     default: 250,
   }),
 });

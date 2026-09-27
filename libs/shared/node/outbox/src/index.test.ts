@@ -7,6 +7,7 @@ describe('@shipfox/node-outbox public exports', () => {
       'createOutboxTable',
       'createPostgresOutbox',
       'createPostgresOutboxTable',
+      'onOutboxWrite',
       'writeIdempotentOutboxEvent',
       'writeOutboxEvent',
       'writeOutboxEvents',

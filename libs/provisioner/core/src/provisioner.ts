@@ -22,6 +22,7 @@ import {
   reduceHealth,
 } from '#health.js';
 import {type ProviderPass, type RunnerEnvFactory, runProvisionerTick} from '#tick.js';
+import {withWorkSpan} from '#tracing.js';
 import {createInMemoryTracker, type ProviderRunnerTracker} from '#tracker.js';
 import type {ProvisionerAdapter, ProvisionerTemplate, TerminateRunners} from '#types.js';
 
@@ -309,7 +310,12 @@ async function runProviderTerminations<Spec>(
   const terminationIntents = [...(deps.takeTerminationIntents?.() ?? [])];
   if (terminationIntents.length === 0) return false;
   try {
-    await deps.adapter.terminate(terminationIntents);
+    const terminate = deps.adapter.terminate;
+    await withWorkSpan(
+      'provisioner.terminate',
+      {'provisioner.terminate_count': terminationIntents.length},
+      () => terminate(terminationIntents),
+    );
     applyHealthEvent(health, {
       type: 'facet_recovered',
       facet: 'provider_termination',

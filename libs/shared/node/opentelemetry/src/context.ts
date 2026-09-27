@@ -6,6 +6,7 @@ import {
   type Span,
   trace,
 } from '@opentelemetry/api';
+import {suppressTracing} from '@opentelemetry/core';
 
 const contextKeyCache = new Map<string, symbol>();
 
@@ -62,4 +63,9 @@ export function enrichSpanWithMetadata(
   for (const [key, value] of Object.entries(resolvedMetadata)) {
     span.setAttribute(key, value);
   }
+}
+
+/** Runs `fn` without creating spans, for example for repeated reads inside a long poll. */
+export function withoutTracing<T>(fn: () => T): T {
+  return otelContext.with(suppressTracing(otelContext.active()), fn);
 }

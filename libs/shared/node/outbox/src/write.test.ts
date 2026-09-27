@@ -1,6 +1,11 @@
 import {getTableConfig, pgTableCreator} from 'drizzle-orm/pg-core';
 import {createOutboxTable, createPostgresOutboxTable} from './schema.js';
-import {writeIdempotentOutboxEvent, writeOutboxEvent, writeOutboxEvents} from './write.js';
+import {
+  onOutboxWrite,
+  writeIdempotentOutboxEvent,
+  writeOutboxEvent,
+  writeOutboxEvents,
+} from './write.js';
 
 const outboxTable = createOutboxTable(pgTableCreator((name) => name));
 const postgresOutboxTable = createPostgresOutboxTable(pgTableCreator((name) => name));
@@ -101,6 +106,27 @@ describe('writeOutboxEvents', () => {
       {eventType: 'thing.created', orderingKey: 'key-1', payload: {id: 'a'}},
       {eventType: 'thing.deleted', orderingKey: null, payload: {id: 'b', reason: 'gone'}},
     ]);
+  });
+});
+
+describe('onOutboxWrite', () => {
+  it('notifies listeners after a non-empty insert until they unsubscribe', async () => {
+    const {tx} = fakeTx();
+    const listener = vi.fn();
+    const unsubscribe = onOutboxWrite(listener);
+
+    await writeOutboxEvents<TestEventMap>(tx, outboxTable, []);
+    await writeOutboxEvent<TestEventMap>(tx, outboxTable, {
+      type: 'thing.created',
+      payload: {id: 'a'},
+    });
+    unsubscribe();
+    await writeOutboxEvent<TestEventMap>(tx, outboxTable, {
+      type: 'thing.created',
+      payload: {id: 'b'},
+    });
+
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });
 

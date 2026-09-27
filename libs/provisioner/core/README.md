@@ -20,6 +20,12 @@ It never reserves more than its templates have free capacity. Demand polling and
 provider convergence run independently: a blocking demand poll does not delay
 observation, reporting, assignment, or termination handling.
 
+Idle passes create no trace spans. The demand poll runs without tracing, and a pass
+opens a span only when it has work: `provisioner.demand` when the poll returns
+reservations or terminations or a warm pool is short, and `provisioner.terminate` when
+the convergence loop delivers termination intents. Provider calls made for that work
+are children of the span.
+
 ## Public API
 
 - `startProvisioner({adapter})`: run the loop until a shutdown signal. The adapter
@@ -29,6 +35,8 @@ observation, reporting, assignment, or termination handling.
 - `loggingLaunch`: a default launcher that records each planned runner without
   starting it (used until a provider ships a real launcher).
 - `ProvisionerAuthenticationError`: thrown at startup when the token is rejected.
+- `withWorkSpan(name, attributes, operation)`: runs provider work in an active span.
+  Providers use it for work found by observation reads that they run without tracing.
 
 ## Key pieces (internal)
 
