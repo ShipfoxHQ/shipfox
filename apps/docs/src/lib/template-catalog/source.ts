@@ -11,8 +11,24 @@ function readCatalog(): TemplateCatalogDocument {
   );
 }
 
+// The gallery is a client component, so pass only the card fields and keep the
+// workflow files out of its payload.
 export function getTemplateCatalog(): TemplateCatalogEntry[] {
-  return readCatalog().templates;
+  return readCatalog().templates.map(
+    ({id, title, summary, revision, addedAt, group, starts, flow, writes, roles, href}) => ({
+      id,
+      title,
+      summary,
+      revision,
+      addedAt,
+      group,
+      starts,
+      flow,
+      writes,
+      roles,
+      href,
+    }),
+  );
 }
 
 export function getTemplateDetail(id: string): TemplateDetail {

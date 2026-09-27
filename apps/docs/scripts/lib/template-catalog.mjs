@@ -8,7 +8,7 @@ import {authoredTemplateMetadata} from '@/lib/template-catalog/authored';
 
 export const TEMPLATE_CATALOG_DOCUMENT_ID = 'examples/catalog';
 
-const OPTION_MARKER_PATTERN = /^\s*# option:([a-z0-9_-]+)=([a-z0-9_-]+) (begin|end)\s*$/;
+const OPTION_MARKER_PATTERN = /^\s*#\s*option:([a-z0-9_-]+)=([a-z0-9_-]+)\s+(begin|end)\s*$/;
 const TRAILING_MARKER_PATTERN = /\s+# (?:bind|model):[a-z0-9_-]+\s*$/;
 const EXTRA_BLANK_LINES_PATTERN = /\n{3,}/g;
 
