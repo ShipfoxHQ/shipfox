@@ -136,6 +136,7 @@ async function send<T>(transport: Transport, params: SendParams<T>): Promise<T> 
 
     const delayMs = rateLimitDelayMs(response.error, retries);
     const canRetry =
+      response.error.outcome_unknown !== true &&
       delayMs !== undefined &&
       retries < MAX_RATE_LIMIT_RETRIES &&
       transport.clock.now() - startedAt + delayMs <= RATE_LIMIT_RETRY_BUDGET_MS;
@@ -161,6 +162,15 @@ async function post<T>(
   params: SendParams<T>,
   body: string,
 ): Promise<T | ToolFailureResponseV1> {
+  if (params.signal?.aborted) {
+    throw cancelledError({
+      label: params.label,
+      callId: null,
+      outcomeUnknown: false,
+      cause: params.signal.reason,
+    });
+  }
+
   let response: Response;
   let payload: unknown;
   try {
@@ -173,7 +183,10 @@ async function post<T>(
       body,
       ...(params.signal ? {signal: params.signal} : {}),
     });
-    payload = await response.json().catch(() => undefined);
+    payload = await response.json().catch((error: unknown) => {
+      if (params.signal?.aborted) throw error;
+      return undefined;
+    });
   } catch (error) {
     if (params.signal?.aborted) {
       throw cancelledError({label: params.label, callId: null, outcomeUnknown: true, cause: error});

@@ -19,6 +19,21 @@ describe('defineAction', () => {
 });
 
 describe('isActionDefinition', () => {
+  it('recognizes a definition made by another copy of the package', () => {
+    const definition = {
+      [Symbol.for('@shipfox/actions/definition')]: true,
+      handler: () => undefined,
+    };
+
+    expect(isActionDefinition(definition)).toBe(true);
+  });
+
+  it('rejects a branded value without a handler function', () => {
+    const definition = {[Symbol.for('@shipfox/actions/definition')]: true, handler: 'index.ts'};
+
+    expect(isActionDefinition(definition)).toBe(false);
+  });
+
   it.each([
     ['a bare handler', async () => undefined],
     ['an object with a handler', {handler: async () => undefined}],

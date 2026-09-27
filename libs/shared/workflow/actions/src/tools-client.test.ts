@@ -257,6 +257,38 @@ describe('createToolsClient', () => {
 
       expect(error).toMatchObject({code: 'cancelled', outcomeUnknown: true, callId: null});
     });
+
+    it('reports an already aborted signal as cancelled without sending', async () => {
+      const signal = AbortSignal.abort();
+
+      const error = await rejection(client().github?.call('create_commit', {}, {signal}));
+
+      expect(error).toMatchObject({code: 'cancelled', outcomeUnknown: false, callId: null});
+      expect(requests).toEqual([]);
+    });
+
+    it('reports an abort while reading the response as cancelled', async () => {
+      const controller = new AbortController();
+      replies.push((_request, response) => {
+        response.writeHead(200, {'content-type': 'application/json'});
+        response.write('{"ok":');
+      });
+      const tools = createToolsClient({
+        url,
+        token: TOKEN,
+        fetch: async (input, init) => {
+          const response = await fetch(input, init);
+          controller.abort();
+          return response;
+        },
+      });
+
+      const error = await rejection(
+        tools.github?.call('create_commit', {}, {signal: controller.signal}),
+      );
+
+      expect(error).toMatchObject({code: 'cancelled', outcomeUnknown: true});
+    });
   });
 
   describe('request size', () => {
@@ -367,6 +399,28 @@ describe('createToolsClient', () => {
 
       expect(error).toMatchObject({code: 'rate-limited', retryAfterSeconds: 61});
       expect(clock.sleeps).toEqual([]);
+    });
+
+    it('does not retry a rate-limited error with an unknown outcome', async () => {
+      const clock = fakeClock();
+      replies.push(
+        replyJson(200, {
+          ok: false,
+          call_id: 'call-1',
+          error: {
+            code: 'rate-limited',
+            message: 'Slow down.',
+            retry_after_seconds: 1,
+            outcome_unknown: true,
+          },
+        }),
+      );
+
+      const error = await rejection(client(clock).github?.call('create_commit', {}));
+
+      expect(error).toMatchObject({code: 'rate-limited', outcomeUnknown: true});
+      expect(clock.sleeps).toEqual([]);
+      expect(requests).toHaveLength(1);
     });
 
     it.each([

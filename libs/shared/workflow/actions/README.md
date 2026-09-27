@@ -56,8 +56,8 @@ export default defineAction(async ({inputs, tools, log, signal}) => {
 
 - **Outputs follow their declared type.** A `json` output is always written with
   `JSON.stringify`, strings included, so the string `"true"` stays a string. `string`,
-  `number`, and `boolean` outputs must hold that type. `NaN`, `undefined`, cycles, and `BigInt`
-  are rejected.
+  `number`, and `boolean` outputs must hold that type. A top-level `undefined`, `NaN`, cycles, and
+  `BigInt` are rejected. Nested `undefined` follows `JSON.stringify`.
 - **`setOutput` writes right away**, so the value survives a later throw. The returned object is
   merged over earlier `setOutput` values. A declaration without `required: false` is required.
 - **Only `rate-limited` errors are retried**, up to 3 times and within 60 seconds in total,
