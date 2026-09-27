@@ -3,10 +3,16 @@ import {tmpdir} from 'node:os';
 import {basename, isAbsolute, join} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
-import {type CommandStartMetadata, executeRunStep, type OutputSink} from '#core/run-step.js';
+import {
+  type CommandStartMetadata,
+  executeRunStep,
+  executeStepProcess,
+  type OutputSink,
+} from '#core/run-step.js';
 import {MAX_OUTPUT_TOTAL_BYTES, MAX_OUTPUT_VALUE_BYTES} from '#core/step-output.js';
 
 const GRANDCHILD_PID_REGEX = /GRANDCHILD_PID=(\d+)/;
+const BACKGROUND_PID_REGEX = /BACKGROUND_PID=(\d+)/;
 const READY_REGEX = /READY/;
 const ESRCH_REGEX = /ESRCH/;
 const SHELL_EXECUTABLE_REGEX = /(?:^|\/)(bash|sh)$/;
@@ -889,6 +895,125 @@ describe('executeRunStep', () => {
     expect(result.success).toBe(false);
 
     await waitForProcessExit(grandchildPid);
+  });
+});
+
+describe('executeStepProcess', () => {
+  const memoryEvents = (oomKills: number) =>
+    `low 0\nhigh 0\nmax 0\noom ${oomKills}\noom_kill ${oomKills}\noom_group_kill 0\n`;
+
+  it('spawns an argv command without a shell', async () => {
+    const output = collectOutput();
+    const onCommandStart = vi.fn();
+
+    const result = await executeStepProcess(
+      {
+        argv: [
+          process.execPath,
+          '-e',
+          'process.stdout.write(JSON.stringify(process.argv.slice(1)))',
+          'two words',
+          '$HOME',
+        ],
+      },
+      {onOutput: output.sink, onCommandStart},
+    );
+
+    expect(result).toEqual({success: true, error: null, exit_code: 0});
+    expect(JSON.parse(output.text())).toEqual(['two words', '$HOME']);
+    expect(onCommandStart).not.toHaveBeenCalled();
+  });
+
+  it('uses the explicit env instead of the inherited process env', async () => {
+    const previous = process.env.SHIPFOX_ENV_TEST_INHERITED;
+    process.env.SHIPFOX_ENV_TEST_INHERITED = 'inherited';
+    try {
+      const script = `const keys = ['SHIPFOX_ENV_TEST_INHERITED', 'SHIPFOX_ENV_TEST_EXPLICIT', 'SHIPFOX_ENV_TEST_SECRET']; process.stdout.write(JSON.stringify({...Object.fromEntries(keys.map((key) => [key, process.env[key] ?? null])), output: typeof process.env.SHIPFOX_OUTPUT}));`;
+      const output = collectOutput();
+
+      const result = await executeStepProcess(
+        {argv: [process.execPath, '-e', script]},
+        {
+          env: {SHIPFOX_ENV_TEST_EXPLICIT: 'explicit'},
+          secretEnv: {SHIPFOX_ENV_TEST_SECRET: 'secret'},
+          onOutput: output.sink,
+        },
+      );
+
+      expect(result.success).toBe(true);
+      expect(JSON.parse(output.text())).toEqual({
+        SHIPFOX_ENV_TEST_INHERITED: null,
+        SHIPFOX_ENV_TEST_EXPLICIT: 'explicit',
+        SHIPFOX_ENV_TEST_SECRET: 'secret',
+        output: 'string',
+      });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.SHIPFOX_ENV_TEST_INHERITED;
+      } else {
+        process.env.SHIPFOX_ENV_TEST_INHERITED = previous;
+      }
+    }
+  });
+
+  it('kills a background process left running after the process exits', async () => {
+    const script = `const child = require('node:child_process').spawn('sleep', ['30'], {stdio: 'inherit'}); console.log('BACKGROUND_PID=' + child.pid); process.exit(0);`;
+    const output = collectOutput();
+
+    const result = await executeStepProcess(
+      {argv: [process.execPath, '-e', script]},
+      {killGroupAfterExit: true, onOutput: output.sink},
+    );
+
+    expect(result).toEqual({success: true, error: null, exit_code: 0});
+    const backgroundPid = Number(output.text().match(BACKGROUND_PID_REGEX)?.[1]);
+    await waitForProcessExit(backgroundPid);
+  });
+
+  it('reports out of memory when a SIGKILL raises the cgroup oom_kill counter', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'shipfox-memory-events-test-'));
+    try {
+      const memoryEventsPath = join(dir, 'memory.events');
+      await writeFile(memoryEventsPath, memoryEvents(2));
+      const script = `require('node:fs').writeFileSync(${JSON.stringify(memoryEventsPath)}, ${JSON.stringify(memoryEvents(3))}); process.kill(process.pid, 'SIGKILL');`;
+
+      const result = await executeStepProcess(
+        {argv: [process.execPath, '-e', script]},
+        {memoryEventsPath},
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.exit_code).toBeNull();
+      expect(result.error).toEqual({
+        message:
+          'Killed by signal SIGKILL because the runner ran out of memory. Reduce the memory the step uses or run it on a runner with more memory.',
+        exit_code: null,
+        signal: 'SIGKILL',
+      });
+    } finally {
+      await rm(dir, {recursive: true, force: true});
+    }
+  });
+
+  it('reports a plain SIGKILL when the cgroup oom_kill counter is unchanged', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'shipfox-memory-events-test-'));
+    try {
+      const memoryEventsPath = join(dir, 'memory.events');
+      await writeFile(memoryEventsPath, memoryEvents(2));
+
+      const result = await executeStepProcess(
+        {argv: [process.execPath, '-e', "process.kill(process.pid, 'SIGKILL')"]},
+        {memoryEventsPath},
+      );
+
+      expect(result.error).toEqual({
+        message: 'Killed by signal SIGKILL',
+        exit_code: null,
+        signal: 'SIGKILL',
+      });
+    } finally {
+      await rm(dir, {recursive: true, force: true});
+    }
   });
 });
 

@@ -14,6 +14,7 @@ import {
   createAnnotationSpool,
   disposeAnnotationSpool,
 } from '#core/annotation-spool.js';
+import {readOomKillCount} from '#core/out-of-memory.js';
 import {
   formatOutputSizeViolation,
   MAX_OUTPUT_TOTAL_BYTES,
@@ -47,7 +48,7 @@ export interface CommandShellMetadata {
   readonly display: string;
 }
 
-interface RunStepOptions {
+export interface StepProcessOptions {
   signal?: AbortSignal;
   cwd?: string;
   workspace?: string;
@@ -57,15 +58,35 @@ interface RunStepOptions {
    * repository-scoped credential, matching what agent steps already get.
    */
   gitConfigGlobal?: string;
+  /** Base environment of the process. Replaces the inherited `process.env` when given. */
+  env?: Readonly<Record<string, string>>;
   secretEnv?: Readonly<Record<string, string>>;
   secretValues?: readonly string[];
   /** Updates the tee redactors when a job registers another secret. */
   subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
+  /**
+   * Kills the process group as soon as the process exits, so background processes it
+   * left behind cannot outlive the step.
+   */
+  killGroupAfterExit?: boolean;
+  /**
+   * cgroup v2 `memory.events` file shared with the process. When set, a SIGKILL that
+   * coincides with a rise of its `oom_kill` counter is reported as out of memory.
+   */
+  memoryEventsPath?: string;
   onOutput?: OutputSink;
+  /** Called for script commands only. */
   onCommandStart?: CommandStartSink;
 }
 
-export function executeRunStep(step: StepDto, options: RunStepOptions = {}): Promise<StepResult> {
+export type StepCommand =
+  | {readonly script: string}
+  | {readonly argv: readonly [executable: string, ...args: string[]]};
+
+export function executeRunStep(
+  step: StepDto,
+  options: StepProcessOptions = {},
+): Promise<StepResult> {
   if (step.type !== 'run') {
     return Promise.resolve({
       success: false,
@@ -83,23 +104,44 @@ export function executeRunStep(step: StepDto, options: RunStepOptions = {}): Pro
     });
   }
 
-  return runShellCommand(command, {...readStepEnv(step), ...options.secretEnv}, options);
+  return runStepProcess({script: command}, {...readStepEnv(step), ...options.secretEnv}, options);
 }
 
-async function runShellCommand(
-  command: string,
-  stepEnv: Readonly<Record<string, string>>,
-  options: RunStepOptions,
+/**
+ * Runs a script or an argv command with the run step supervision: process group,
+ * cancellation, output streaming, the `SHIPFOX_OUTPUT` file, and the annotation spool.
+ */
+export function executeStepProcess(
+  command: StepCommand,
+  options: StepProcessOptions = {},
 ): Promise<StepResult> {
-  const scriptPath = join(tmpdir(), `shipfox-runner-${randomUUID()}.sh`);
+  return runStepProcess(command, options.secretEnv ?? {}, options);
+}
+
+interface ProcessLaunch {
+  readonly executable: string;
+  readonly args: readonly string[];
+  readonly metadata?: CommandStartMetadata;
+  readonly scriptFile?: {readonly path: string; readonly content: string};
+}
+
+async function runStepProcess(
+  command: StepCommand,
+  stepEnv: Readonly<Record<string, string>>,
+  options: StepProcessOptions,
+): Promise<StepResult> {
+  const launch = processLaunch(command, options.cwd);
   const outputPath = join(tmpdir(), `shipfox-output-${randomUUID()}`);
-  const metadata = commandStartMetadata({command, scriptPath, cwd: options.cwd});
-  notifyCommandStart(options.onCommandStart, cloneCommandStartMetadata(metadata));
+  if (launch.metadata) {
+    notifyCommandStart(options.onCommandStart, cloneCommandStartMetadata(launch.metadata));
+  }
   let annotationSpool: AnnotationSpool | undefined;
   let isolatedGitConfigGlobal: string | undefined;
 
   try {
-    await writeFile(scriptPath, command, {mode: 0o700});
+    if (launch.scriptFile) {
+      await writeFile(launch.scriptFile.path, launch.scriptFile.content, {mode: 0o700});
+    }
     await writeFile(outputPath, '', {mode: 0o600});
     try {
       annotationSpool = await createAnnotationSpool();
@@ -111,8 +153,12 @@ async function runShellCommand(
     }
 
     isolatedGitConfigGlobal = await isolateGitConfigGlobal(options.gitConfigGlobal);
-    const result = await spawnAndCapture(
-      metadata,
+    const oomKillsBefore =
+      options.memoryEventsPath === undefined
+        ? undefined
+        : await readOomKillCount(options.memoryEventsPath);
+    let result = await spawnAndCapture(
+      launch,
       stepEnv,
       outputPath,
       annotationSpool,
@@ -120,6 +166,7 @@ async function runShellCommand(
         ? options
         : {...options, gitConfigGlobal: isolatedGitConfigGlobal},
     );
+    result = await reportOutOfMemory(result, oomKillsBefore, options);
     const outputResult = await finalizeStepOutput(result, outputPath);
     if (!annotationSpool) return outputResult;
 
@@ -131,9 +178,44 @@ async function runShellCommand(
       await unlink(isolatedGitConfigGlobal).catch(() => undefined);
     }
     if (annotationSpool) await disposeAnnotationSpool(annotationSpool);
-    await unlink(scriptPath).catch(() => undefined);
+    if (launch.scriptFile) await unlink(launch.scriptFile.path).catch(() => undefined);
     await unlink(outputPath).catch(() => undefined);
   }
+}
+
+function processLaunch(command: StepCommand, cwd: string | undefined): ProcessLaunch {
+  if ('argv' in command) {
+    const [executable, ...args] = command.argv;
+    return {executable, args};
+  }
+  const scriptPath = join(tmpdir(), `shipfox-runner-${randomUUID()}.sh`);
+  const metadata = commandStartMetadata({command: command.script, scriptPath, cwd});
+  return {
+    executable: metadata.shell.executable,
+    args: metadata.shell.args,
+    metadata,
+    scriptFile: {path: scriptPath, content: command.script},
+  };
+}
+
+async function reportOutOfMemory(
+  result: StepResult,
+  oomKillsBefore: number | undefined,
+  options: StepProcessOptions,
+): Promise<StepResult> {
+  if (oomKillsBefore === undefined || options.memoryEventsPath === undefined) return result;
+  // A cancellation SIGKILLs the group itself, so the signal says nothing about memory.
+  if (result.error?.signal !== 'SIGKILL' || options.signal?.aborted) return result;
+  const oomKillsAfter = await readOomKillCount(options.memoryEventsPath);
+  if (oomKillsAfter === undefined || oomKillsAfter <= oomKillsBefore) return result;
+  return {
+    ...result,
+    error: {
+      ...result.error,
+      message:
+        'Killed by signal SIGKILL because the runner ran out of memory. Reduce the memory the step uses or run it on a runner with more memory.',
+    },
+  };
 }
 
 async function isolateGitConfigGlobal(configPath: string | undefined): Promise<string | undefined> {
@@ -157,14 +239,13 @@ function isFileSystemError(error: unknown, code: string): error is NodeJS.ErrnoE
 }
 
 function spawnAndCapture(
-  metadata: CommandStartMetadata,
+  launch: ProcessLaunch,
   stepEnv: Readonly<Record<string, string>>,
   outputPath: string,
   annotationSpool: AnnotationSpool | undefined,
-  options: RunStepOptions,
+  options: StepProcessOptions,
 ): Promise<StepResult> {
   return new Promise((resolve) => {
-    const {shell} = metadata;
     let teeSecrets = [...(options.secretValues ?? [])];
     const stdoutTeeRedactor = createTeeRedactor(
       buildSecretVariants(teeSecrets),
@@ -180,10 +261,10 @@ function spawnAndCapture(
       stderrTeeRedactor?.setSecrets(buildSecretVariants(teeSecrets));
     });
 
-    // detached:true makes the shell a process-group leader so killGroup() can
-    // SIGKILL its grandchildren too (Linux does not propagate signals down the
+    // detached:true makes the process a process-group leader so killProcessGroup()
+    // can SIGKILL its grandchildren too (Linux does not propagate signals down the
     // parent chain). We don't unref(): output capture still needs `close`.
-    const spawned = spawnRunStepProcess(shell, stepEnv, outputPath, annotationSpool, options);
+    const spawned = spawnRunStepProcess(launch, stepEnv, outputPath, annotationSpool, options);
     if (!spawned.ok) {
       unsubscribeSecrets?.();
       logger().error({err: spawned.error}, 'Failed to spawn shell process');
@@ -211,7 +292,12 @@ function spawnAndCapture(
     });
 
     const abort = observeProcessAbort(child, options.signal);
-    child.on('exit', abort.markExited);
+    child.on('exit', () => {
+      abort.markExited();
+      // A background process holding the output pipes would otherwise delay `close`
+      // until it exits on its own.
+      if (options.killGroupAfterExit) killProcessGroup(child);
+    });
 
     child.on('close', (code, signal) => {
       abort.cleanup();
@@ -245,19 +331,19 @@ type SpawnRunStepResult =
   | {ok: false; error: unknown; result: StepResult};
 
 function spawnRunStepProcess(
-  shell: CommandShellMetadata,
+  launch: ProcessLaunch,
   stepEnv: Readonly<Record<string, string>>,
   outputPath: string,
   annotationSpool: AnnotationSpool | undefined,
-  options: RunStepOptions,
+  options: StepProcessOptions,
 ): SpawnRunStepResult {
   try {
-    const child = spawn(shell.executable, shell.args, {
+    const child = spawn(launch.executable, launch.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
       cwd: options.cwd,
       env: {
-        ...process.env,
+        ...(options.env ?? process.env),
         ...stepEnv,
         ...((options.workspace ?? options.cwd)
           ? {SHIPFOX_WORKSPACE: options.workspace ?? options.cwd}
@@ -330,17 +416,7 @@ function observeProcessAbort(
 ): {markExited(): void; cleanup(): void; killSignal(): NodeJS.Signals | undefined} {
   let childExited = false;
   let abortKillSignal: NodeJS.Signals | undefined;
-  const killGroup = (): NodeJS.Signals | undefined => {
-    if (child.pid === undefined) return undefined;
-    try {
-      // Negative pid signals the entire process group.
-      const killSignal: NodeJS.Signals = 'SIGKILL';
-      process.kill(-child.pid, killSignal);
-      return killSignal;
-    } catch {
-      return undefined;
-    }
-  };
+  const killGroup = () => killProcessGroup(child);
   let onAbort: (() => void) | undefined;
   if (signal?.aborted) abortKillSignal = killGroup();
   if (signal && !signal.aborted) {
@@ -360,6 +436,18 @@ function observeProcessAbort(
     },
     killSignal: () => abortKillSignal,
   };
+}
+
+function killProcessGroup(child: ReturnType<typeof spawn>): NodeJS.Signals | undefined {
+  if (child.pid === undefined) return undefined;
+  try {
+    // Negative pid signals the entire process group.
+    const killSignal: NodeJS.Signals = 'SIGKILL';
+    process.kill(-child.pid, killSignal);
+    return killSignal;
+  } catch {
+    return undefined;
+  }
 }
 
 async function finalizeStepOutput(result: StepResult, outputPath: string): Promise<StepResult> {

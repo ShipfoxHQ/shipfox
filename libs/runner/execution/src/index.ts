@@ -4,12 +4,16 @@ export {
   type CheckoutStepExecution,
   executeCheckoutStep,
 } from '#core/checkout-step.js';
+export {resolveCgroupMemoryEventsPath} from '#core/out-of-memory.js';
 export {
   type CommandShellMetadata,
   type CommandStartMetadata,
   type CommandStartSink,
   executeRunStep,
+  executeStepProcess,
   type OutputSink,
+  type StepCommand,
+  type StepProcessOptions,
 } from '#core/run-step.js';
 export {executeSetupStep, type SetupJobContext, type SetupStepExecution} from '#core/setup-step.js';
 export {
