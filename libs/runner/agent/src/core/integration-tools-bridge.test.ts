@@ -203,6 +203,40 @@ describe('createIntegrationToolsBridge', () => {
     expect(invalidOrigin.status).toBe(403);
   });
 
+  it('accepts loopback requests up to the 2 MiB tool request budget', async () => {
+    gateway = await startFakeGateway(() => 'lease');
+    const authToken = 'invocation-secret';
+    const bridge = createIntegrationToolsBridge({
+      name: 'shipfox_integration_tools',
+      url: gateway.url,
+      fetch: leaseFetch(() => 'lease'),
+    });
+    const endpoint = await bridge.activateHttp({authToken});
+    const requestInit = {headers: {Authorization: `Bearer ${authToken}`}};
+    const client = new Client({name: 'test-client', version: '0.0.0'});
+    await client.connect(
+      new StreamableHTTPClientTransport(endpoint, {requestInit}) as unknown as Transport,
+    );
+    // Base64 of a file near create_commit's 1,000,000 decoded-byte limit.
+    const content = Buffer.alloc(990_000, 7).toString('base64');
+
+    const result = await client.callTool(
+      {name: 'github_main__issue_read', arguments: {method: 'get', content}},
+      CallToolResultSchema,
+    );
+    const tooLarge = await fetch(endpoint, {
+      method: 'POST',
+      headers: {...requestInit.headers, 'Content-Type': 'application/json'},
+      body: JSON.stringify({content: 'a'.repeat(2 * 1024 * 1024)}),
+    });
+    await client.close();
+    await bridge.close();
+
+    expect(result.isError).not.toBe(true);
+    expect(gateway.calls.at(-1)?.arguments?.content).toBe(content);
+    expect(tooLarge.status).toBe(413);
+  });
+
   it('cancels activation and releases the HTTP bridge resources', async () => {
     gateway = await startFakeGateway(() => 'lease');
     const bridge = createIntegrationToolsBridge({

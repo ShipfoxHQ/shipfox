@@ -25,6 +25,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./gateway-mcp-client": {
+      "workspace-source": {
+        "types": "./src/gateway-mcp-client.ts",
+        "default": "./src/gateway-mcp-client.ts"
+      },
+      "default": {
+        "types": "./dist/gateway-mcp-client.d.ts",
+        "default": "./dist/gateway-mcp-client.js"
+      }
     }
   },
   "scripts": {
@@ -37,6 +47,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "catalog:",
     "@shipfox/annotations-dto": "workspace:*",
     "@shipfox/api-logs-dto": "workspace:*",
     "@shipfox/api-agent-dto": "workspace:*",

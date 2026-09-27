@@ -16,6 +16,10 @@ import {
   resolveAuthorizedIntegrationTools,
 } from './resolve-authorized-tools.js';
 
+// A create_commit near its 1,000,000 decoded-byte file limit grows past Fastify's 1 MiB default
+// once base64 and JSON framing are added. The runner bridge caps requests at the same size.
+const GATEWAY_MCP_BODY_LIMIT = 2 * 1024 * 1024;
+
 export type {LeasedAgentStepLoader} from './resolve-authorized-tools.js';
 export {createWorkflowsLeasedAgentStepLoader} from './resolve-authorized-tools.js';
 
@@ -38,6 +42,7 @@ export function createAgentToolsGatewayRoutes(
         method: 'POST',
         path: '/mcp',
         description: 'Gateway MCP endpoint for integration-backed agent tools',
+        options: {bodyLimit: GATEWAY_MCP_BODY_LIMIT},
         handler: async (request, reply) => {
           const lease = requireLeasedJobContext(request);
           const authorizedTools = await resolveAuthorizedIntegrationTools({

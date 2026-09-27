@@ -8012,6 +8012,9 @@ importers:
 
   libs/runner/protocol:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 'catalog:'
+        version: 1.29.0(zod@4.4.3)
       '@shipfox/annotations-dto':
         specifier: workspace:*
         version: link:../../api/annotations-dto
