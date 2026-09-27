@@ -243,4 +243,33 @@ describe('workflow run outputs', () => {
       },
     ]);
   });
+
+  test('keeps the first attempt lifecycle context after a rerun succeeds', async () => {
+    const run = await createRun({
+      jobs: {build: {steps: [{run: 'echo build'}]}},
+      outputs: {version: template('jobs.build.outputs.version')},
+    });
+    await settleJob(run.id, 'build', 'failed');
+    await updateWorkflowRunStatus({
+      workflowRunId: run.id,
+      status: 'failed',
+      statusReason: 'job_failed',
+      expectedVersion: 1,
+    });
+    const firstAttempt = await currentAttempt(run.id);
+    await createRerunWorkflowRun({
+      workflowRunId: run.id,
+      mode: 'failed',
+      actorUserId: crypto.randomUUID(),
+    });
+    await settleJob(run.id, 'build', 'succeeded', {version: '2.0.0'});
+    await succeed(run.id);
+
+    const context = await getLifecycleEventContextRead({
+      workspaceId,
+      workflowRunAttemptId: firstAttempt.id,
+    });
+
+    expect(context).toMatchObject({runId: run.id, attempt: 1, outputs: null});
+  });
 });
