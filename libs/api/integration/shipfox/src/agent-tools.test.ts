@@ -929,6 +929,9 @@ describe('Shipfox agent tools', () => {
         started_at: null,
         finished_at: null,
         rerun_mode: null,
+        status_reason: 'job_failed',
+        status_reason_message: 'Job build failed.',
+        outputs: null,
       },
       has_started_job_execution: false,
       jobs: {kind: 'complete', total: 1, items: []},
@@ -981,6 +984,75 @@ describe('Shipfox agent tools', () => {
     expect(result.structuredContent).toMatchObject({
       jobs_truncated: true,
       jobs: [{id: definitionId, execution_count: executionCount}],
+    });
+  });
+
+  it.each([
+    {
+      status: 'succeeded',
+      status_reason: null,
+      status_reason_message: null,
+      outputs: {version: '1.2.3'},
+    },
+    {
+      status: 'failed',
+      status_reason: 'output_invalid',
+      status_reason_message: 'Workflow output "version" could not be evaluated.',
+      outputs: null,
+    },
+  ] as const)('returns the $status run attempt result', async (attemptResult) => {
+    const {provider, workflows} = createProvider();
+    workflows.getWorkflowRunOverview.mockResolvedValue({
+      run: {
+        id: childRunId,
+        project_id: projectId,
+        definition_id: definitionId,
+        number: 7,
+        name: 'Nightly',
+        workflow_name: 'Nightly',
+        origin: 'synced',
+        dev_source: null,
+        trigger_provider: 'manual',
+        trigger_source: 'manual',
+        trigger_event: 'fire',
+        trigger_reference: null,
+        parent_run: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+      },
+      attempt: {
+        id: parentRunId,
+        workflow_run_id: childRunId,
+        attempt: 1,
+        created_at: '2026-01-01T00:00:00.000Z',
+        started_at: '2026-01-01T00:00:00.000Z',
+        finished_at: '2026-01-01T00:01:00.000Z',
+        rerun_mode: null,
+        ...attemptResult,
+      },
+      has_started_job_execution: true,
+      jobs: {kind: 'complete', total: 0, items: []},
+    });
+    workflows.listWorkflowRunJobs.mockResolvedValue({
+      workflow_run_attempt: 1,
+      items: [],
+      nextCursor: null,
+      total: 0,
+    });
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+
+    const result = await session.call({
+      toolId: 'get_workflow_run',
+      arguments: {run_id: childRunId},
+    });
+
+    expect(result.structuredContent).toMatchObject({
+      run: {status: attemptResult.status},
+      attempt: attemptResult,
     });
   });
 

@@ -710,6 +710,9 @@ function defaultAttempt() {
     started_at: STARTED_AT,
     finished_at: null,
     rerun_mode: null,
+    status_reason: null,
+    status_reason_message: null,
+    outputs: null,
   };
 }
 

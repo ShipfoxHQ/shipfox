@@ -97,6 +97,62 @@ describe('bounded workflow agent-access tools', () => {
     expect(result).not.toHaveProperty('run_url');
   });
 
+  test('returns the status reason of a failed run', async () => {
+    const mocks = clients();
+    mocks.workflowHandlers.getWorkflowRunOverview.mockResolvedValue(overview());
+
+    const response = await tool(mocks, 'get_workflow_run').execute({
+      context,
+      arguments: {run_id: runId},
+    });
+    const result = expectSuccess<GetWorkflowRunResultDto>(response);
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      status_reason: 'job_failed',
+      status_reason_message: 'Job build failed.',
+      outputs: null,
+    });
+  });
+
+  test('returns the workflow outputs of a succeeded run', async () => {
+    const mocks = clients();
+    const succeeded = overview(1);
+    mocks.workflowHandlers.getWorkflowRunOverview.mockResolvedValue({
+      ...succeeded,
+      attempt: {...succeeded.attempt, outputs: {version: '1.2.3'}},
+    });
+
+    const response = await tool(mocks, 'get_workflow_run').execute({
+      context,
+      arguments: {run_id: runId},
+    });
+    const result = expectSuccess<GetWorkflowRunResultDto>(response);
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      status_reason: null,
+      status_reason_message: null,
+      outputs: {version: '1.2.3'},
+    });
+  });
+
+  test('rejects a run whose workflow outputs exceed the response ceiling', async () => {
+    const mocks = clients();
+    const succeeded = overview(1);
+    mocks.workflowHandlers.getWorkflowRunOverview.mockResolvedValue({
+      ...succeeded,
+      attempt: {...succeeded.attempt, outputs: {blob: 'x'.repeat(200 * 1024)}},
+    });
+
+    const response = await tool(mocks, 'get_workflow_run').execute({
+      context,
+      arguments: {run_id: runId},
+    });
+
+    expect(response).toMatchObject({ok: false, error: {code: 'content-too-large'}});
+  });
+
   test('returns a run URL without duplicating a trailing slash', async () => {
     const mocks = clients('https://client.example.test/');
     mocks.workflowHandlers.getWorkflowRunOverview.mockResolvedValue(overview());
@@ -586,7 +642,12 @@ function overview(attempt = 2): WorkflowRunOverviewResponseDto {
       secret_inputs: null,
       created_at: isoDate,
     },
-    attempt: runAttempt(attempt),
+    attempt: {
+      ...runAttempt(attempt),
+      status_reason: attempt === 2 ? 'job_failed' : null,
+      status_reason_message: attempt === 2 ? 'Job build failed.' : null,
+      outputs: null,
+    },
     has_started_job_execution: true,
     jobs: {
       kind: 'complete',

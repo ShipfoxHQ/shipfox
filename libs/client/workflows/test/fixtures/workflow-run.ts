@@ -11,6 +11,7 @@ import type {
   WorkflowRunJobSummaryDto,
   WorkflowRunListItemDto,
   WorkflowRunListResponseDto,
+  WorkflowRunOverviewAttemptDto,
   WorkflowRunOverviewResponseDto,
   WorkflowRunResponseDto,
   WorkflowRunStatusDto,
@@ -104,7 +105,11 @@ type WorkflowRunFixtureDto = Omit<
   'trigger_payload' | 'inputs' | 'source_snapshot'
 > & {
   parent_run?: WorkflowRunListItemDto['parent_run'];
-  run_attempt: WorkflowRunAttemptDto;
+  // The overview's attempt adds its terminal result, which defaults to none.
+  run_attempt: WorkflowRunAttemptDto &
+    Partial<
+      Pick<WorkflowRunOverviewAttemptDto, 'status_reason' | 'status_reason_message' | 'outputs'>
+    >;
   jobs: WorkflowJobFixtureDto[];
   has_started_job_execution: boolean;
 };
@@ -346,7 +351,12 @@ export function workflowRunOverviewResponseDto(
       parent_run: detail.parent_run ?? null,
       created_at: detail.created_at,
     },
-    attempt: detail.run_attempt,
+    attempt: {
+      status_reason: null,
+      status_reason_message: null,
+      outputs: null,
+      ...detail.run_attempt,
+    },
     has_started_job_execution: detail.has_started_job_execution,
     jobs: {
       kind: 'complete',

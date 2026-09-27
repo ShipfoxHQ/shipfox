@@ -17,7 +17,6 @@ import {
   WORKFLOW_RUN_ATTEMPT_MAX,
   WORKFLOW_RUN_JOB_POSITION_MAX,
   WORKFLOW_RUN_OVERVIEW_LARGE_JOB_PAGE_LIMIT,
-  WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT,
   workflowExecutionPayloadFieldSchema,
 } from '@shipfox/api-workflows-dto';
 import {
@@ -116,6 +115,7 @@ import {
 import {deliverEventToListener} from '#db/job-listener-events.js';
 import {recordWorkflowChildRunStart} from '#metrics/instance.js';
 import {
+  runOverviewResponseByteLimit,
   toRunAttemptDto,
   toRunListItemDto,
   toRunOverviewDto,
@@ -976,16 +976,14 @@ async function resolveRunAttempt(
 function toBoundedRunOverview(
   overview: Parameters<typeof toRunOverviewDto>[0],
 ): ReturnType<typeof toRunOverviewDto> {
+  const byteLimit = runOverviewResponseByteLimit(overview);
   const initialResponse = toRunOverviewDto(overview);
-  if (serializedByteLength(initialResponse) <= WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT) {
-    return initialResponse;
-  }
+  if (serializedByteLength(initialResponse) <= byteLimit) return initialResponse;
 
   let pageSize = WORKFLOW_RUN_OVERVIEW_LARGE_JOB_PAGE_LIMIT;
   while (true) {
     const response = toRunOverviewDto(overview, {forceLarge: true, largePageSize: pageSize});
-    if (serializedByteLength(response) <= WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT)
-      return response;
+    if (serializedByteLength(response) <= byteLimit) return response;
     if (pageSize === 1) throw new Error('Workflow run overview exceeds the response byte limit');
     pageSize = Math.max(1, Math.floor(pageSize / 2));
   }

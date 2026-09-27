@@ -16,6 +16,7 @@ export {
   toWorkflowStepAttemptSummariesResponseDto,
 } from './workflow-job-detail.js';
 export {
+  runOverviewResponseByteLimit,
   toJobOverviewDto,
   toRunAttemptDto,
   toRunConcurrencyDto,

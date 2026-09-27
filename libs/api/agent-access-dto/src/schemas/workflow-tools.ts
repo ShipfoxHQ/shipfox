@@ -79,6 +79,15 @@ const workflowRunStatusSchema = z.enum([
   'failed',
   'cancelled',
 ]);
+const WORKFLOW_RUN_STATUS_REASONS = [
+  'job_failed',
+  'timed_out',
+  'user_cancelled',
+  'concurrency_superseded',
+  'output_invalid',
+  'output_too_large',
+] as const;
+const workflowRunStatusReasonSchema = z.enum(WORKFLOW_RUN_STATUS_REASONS);
 const workflowRunOriginSchema = z.enum(['synced', 'dev']);
 const workflowRunRerunModeSchema = z.enum(['all', 'failed']);
 const jobStatusSchema = z.enum([
@@ -218,6 +227,9 @@ export const getWorkflowRunResultSchema = z
     name: textSchema,
     workflow_name: textSchema,
     status: workflowRunStatusSchema,
+    status_reason: workflowRunStatusReasonSchema.nullable(),
+    status_reason_message: textSchema.nullable(),
+    outputs: z.record(z.string(), z.unknown()).nullable(),
     origin: workflowRunOriginSchema,
     dev_source: workflowRunDevSourceSchema.nullable(),
     trigger_provider: textSchema.nullable(),
@@ -625,6 +637,9 @@ export const getWorkflowRunResultJsonSchema = {
       type: 'string',
       enum: ['waiting', 'pending', 'running', 'succeeded', 'failed', 'cancelled'],
     },
+    status_reason: nullable({type: 'string', enum: [...WORKFLOW_RUN_STATUS_REASONS]}),
+    status_reason_message: nullable(text),
+    outputs: nullable({type: 'object'}),
     origin: {type: 'string', enum: ['synced', 'dev']},
     dev_source: nullable(devSourceJsonSchema),
     trigger_provider: nullable(text),
@@ -654,6 +669,9 @@ export const getWorkflowRunResultJsonSchema = {
     'name',
     'workflow_name',
     'status',
+    'status_reason',
+    'status_reason_message',
+    'outputs',
     'origin',
     'dev_source',
     'trigger_provider',

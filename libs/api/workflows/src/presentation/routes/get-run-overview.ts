@@ -1,7 +1,6 @@
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
   WORKFLOW_RUN_OVERVIEW_LARGE_JOB_PAGE_LIMIT,
-  WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT,
   type WorkflowRunOverviewResponseDto,
   workflowRunOverviewQuerySchema,
   workflowRunOverviewResponseSchema,
@@ -11,7 +10,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import type {FastifyRequest} from 'fastify';
 import {z} from 'zod';
 import {getWorkflowRunOverview, listWorkflowRunConcurrencyByAttemptIds} from '#db/index.js';
-import {toRunOverviewDto} from '#presentation/dto/index.js';
+import {runOverviewResponseByteLimit, toRunOverviewDto} from '#presentation/dto/index.js';
 import {requireAccessibleRunScope} from './require-accessible-run.js';
 import {serializedResponseByteLength} from './serialized-response-byte-length.js';
 
@@ -134,7 +133,8 @@ async function readRunOverview({
   const serializedResponse = serialize(response);
   if (
     overview.jobs.kind === 'complete' &&
-    serializedResponseByteLength(serializedResponse) > WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT
+    serializedResponseByteLength(serializedResponse) >
+      runOverviewResponseByteLimit(overviewWithConcurrency)
   ) {
     return {
       ...toBoundedLargeOverviewResponse(overviewWithConcurrency, serialize),
@@ -149,13 +149,12 @@ function toBoundedLargeOverviewResponse(
   overview: Parameters<typeof toRunOverviewDto>[0],
   serialize: (response: WorkflowRunOverviewResponseDto) => string | ArrayBuffer | Buffer,
 ) {
+  const byteLimit = runOverviewResponseByteLimit(overview);
   let pageSize = WORKFLOW_RUN_OVERVIEW_LARGE_JOB_PAGE_LIMIT;
   while (true) {
     const response = toRunOverviewDto(overview, {forceLarge: true, largePageSize: pageSize});
     const serializedResponse = serialize(response);
-    if (
-      serializedResponseByteLength(serializedResponse) <= WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT
-    ) {
+    if (serializedResponseByteLength(serializedResponse) <= byteLimit) {
       return {response, serializedResponse};
     }
     if (pageSize === 1) {

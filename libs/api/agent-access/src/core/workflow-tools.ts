@@ -42,6 +42,7 @@ import type {
   StepAttemptSummaryDto,
   StepSummaryDto,
   WorkflowJobDetailDto,
+  WorkflowRunAttemptDto,
   WorkflowRunJobListSummaryDto,
   WorkflowRunJobOverviewDto,
   WorkflowRunOverviewResponseDto,
@@ -49,6 +50,7 @@ import type {
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {encodeNumberIdCursor, encodeStringIdCursor} from '@shipfox/node-drizzle';
 import {agentAccessSuccess} from './envelope.js';
+import {fitAgentAccessResponseToCeiling} from './response.js';
 import {buildRunUrl} from './run-url.js';
 import {
   cap,
@@ -116,7 +118,10 @@ function createGetWorkflowRunTool(
       }
 
       if (overview === null) return notFound();
-      return agentAccessSuccess(toWorkflowRunResult(overview, clientBaseUrl));
+      // Workflow outputs can exceed the response ceiling on their own.
+      return fitAgentAccessResponseToCeiling(
+        agentAccessSuccess(toWorkflowRunResult(overview, clientBaseUrl)),
+      );
     },
   };
 }
@@ -389,6 +394,9 @@ function toWorkflowRunResult(
     name: cap(overview.run.name),
     workflow_name: cap(overview.run.workflow_name),
     status: attempt.status,
+    status_reason: overview.attempt.status_reason,
+    status_reason_message: capNullable(overview.attempt.status_reason_message),
+    outputs: overview.attempt.outputs,
     origin: overview.run.origin,
     dev_source:
       overview.run.dev_source === null
@@ -437,7 +445,7 @@ function workflowRunJobStatusCounts(
 }
 
 function toWorkflowRunAttemptResult(
-  attempt: WorkflowRunOverviewResponseDto['attempt'],
+  attempt: WorkflowRunAttemptDto,
 ): GetWorkflowRunResultDto['attempt'] {
   return {
     id: attempt.id,

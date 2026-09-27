@@ -13,6 +13,7 @@ import type {
   WorkflowRunSelectionDto,
   WorkflowRunTriggerReferenceDto,
 } from '@shipfox/api-workflows-dto';
+import {WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT} from '@shipfox/api-workflows-dto';
 import {encodeStringIdCursor} from '@shipfox/node-drizzle';
 import type {
   WorkflowRun,
@@ -271,6 +272,14 @@ export function toRunOverviewDto(
   };
 }
 
+// Workflow outputs are bounded when the run materializes them, so they do not count against
+// the byte budget that decides how many jobs the overview carries.
+export function runOverviewResponseByteLimit(overview: WorkflowRunOverviewRead): number {
+  const {outputs} = overview.attempt;
+  if (outputs === null) return WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT;
+  return WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT + Buffer.byteLength(JSON.stringify(outputs));
+}
+
 function toOverviewJobsDto(
   overview: WorkflowRunOverviewRead,
   options: {forceLarge?: boolean; largePageSize?: number},
@@ -359,6 +368,9 @@ function toRunOverviewAttemptDto(
     workflow_run_id: attempt.workflowRunId,
     attempt: attempt.attempt,
     status: attempt.status,
+    status_reason: attempt.statusReason,
+    status_reason_message: attempt.statusReasonMessage,
+    outputs: attempt.outputs,
     created_at: attempt.createdAt.toISOString(),
     started_at: attempt.startedAt?.toISOString() ?? null,
     finished_at: attempt.finishedAt?.toISOString() ?? null,
