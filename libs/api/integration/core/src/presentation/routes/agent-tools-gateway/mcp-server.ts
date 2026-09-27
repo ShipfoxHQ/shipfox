@@ -4,6 +4,7 @@ import {
   type CallToolResult,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import {agentToolResultKind} from '@shipfox/api-integration-spi';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
@@ -76,8 +77,9 @@ export function buildAgentToolsMcpServer(params: BuildAgentToolsMcpServerParams)
     {name: 'shipfox-integration-tools', version: '0.0.0'},
     {capabilities: {tools: {}}},
   );
+  const agentTools = jsonResultTools(params.authorizedTools);
   server.setRequestHandler(ListToolsRequestSchema, () => ({
-    tools: [...params.authorizedTools.values()].map((authorizedTool) => ({
+    tools: [...agentTools.values()].map((authorizedTool) => ({
       name: authorizedTool.mcpName,
       description: authorizedTool.description,
       inputSchema: authorizedTool.inputSchema as {
@@ -98,7 +100,7 @@ export function buildAgentToolsMcpServer(params: BuildAgentToolsMcpServerParams)
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const authorizedTool = params.authorizedTools.get(request.params.name);
+    const authorizedTool = agentTools.get(request.params.name);
     if (!authorizedTool) {
       recordToolCall(params.recordCall, {
         arguments: request.params.arguments ?? {},
@@ -171,6 +173,19 @@ export function buildAgentToolsMcpServer(params: BuildAgentToolsMcpServerParams)
   });
 
   return server;
+}
+
+/** An agent cannot receive a file, so file tools are neither listed nor callable over MCP. */
+function jsonResultTools(
+  authorizedTools: AuthorizedIntegrationToolMap,
+): AuthorizedIntegrationToolMap {
+  return new Map(
+    [...authorizedTools].filter(
+      ([, authorizedTool]) =>
+        authorizedTool.catalogEntry === undefined ||
+        agentToolResultKind(authorizedTool.catalogEntry) === 'json',
+    ),
+  );
 }
 
 function unpackDispatchResult(dispatched: CallToolResult | IntegrationToolDispatchResult): {

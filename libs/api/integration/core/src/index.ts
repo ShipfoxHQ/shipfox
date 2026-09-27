@@ -108,6 +108,7 @@ export type {
   AgentToolRepositoryScope,
   AgentToolRepositoryScopeClassifier,
   AgentToolRepositoryTarget,
+  AgentToolResultKind,
   AgentToolSensitivity,
   AgentToolSession,
   AgentToolsCallerContext,

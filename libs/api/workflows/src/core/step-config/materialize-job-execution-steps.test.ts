@@ -127,6 +127,7 @@ function githubAgentToolCatalog(): readonly AgentToolCatalogEntry[] {
       sensitivity: 'read',
       sensitive: false,
       requiredScope: [{permission: 'issues', access: 'read'}],
+      result: 'json',
       inputSchema: {type: 'object'},
       methods: [
         {
@@ -151,6 +152,7 @@ function githubAgentToolCatalog(): readonly AgentToolCatalogEntry[] {
       sensitivity: 'write',
       sensitive: false,
       requiredScope: [{permission: 'issues', access: 'write'}],
+      result: 'json',
       inputSchema: {type: 'object'},
       methods: [
         {
@@ -171,6 +173,7 @@ function githubAgentToolCatalog(): readonly AgentToolCatalogEntry[] {
         {permission: 'pull_requests', access: 'write'},
         {permission: 'contents', access: 'write'},
       ],
+      result: 'json',
       inputSchema: {type: 'object'},
     },
   ];
@@ -184,6 +187,7 @@ function typedToolCatalog(): readonly AgentToolCatalogEntry[] {
       sensitivity: 'read',
       sensitive: false,
       requiredScope: [],
+      result: 'json',
       inputSchema: {
         type: 'object',
         properties: {
@@ -206,6 +210,7 @@ function checkRunToolCatalog(): readonly AgentToolCatalogEntry[] {
       sensitivity: 'write',
       sensitive: false,
       requiredScope: [{permission: 'checks', access: 'write'}],
+      result: 'json',
       inputSchema: {type: 'object'},
       methods: [
         {
@@ -582,6 +587,7 @@ describe('materializeJobExecutionSteps', () => {
             sensitivity: 'read',
             sensitive: false,
             requiredScope: [{permission: 'issues', access: 'read'}],
+            result: 'json',
             inputSchema: {type: 'object'},
             methods: [
               {
@@ -599,6 +605,7 @@ describe('materializeJobExecutionSteps', () => {
             sensitivity: 'write',
             sensitive: false,
             requiredScope: [{permission: 'issues', access: 'write'}],
+            result: 'json',
             inputSchema: {type: 'object'},
             methods: [
               {
@@ -619,6 +626,7 @@ describe('materializeJobExecutionSteps', () => {
               {permission: 'pull_requests', access: 'write'},
               {permission: 'contents', access: 'write'},
             ],
+            result: 'json',
             inputSchema: {type: 'object'},
           },
         ],
@@ -933,6 +941,7 @@ describe('materializeJobExecutionSteps', () => {
             sensitivity: 'read',
             sensitive: false,
             requiredScope: [{permission: 'issues', access: 'read'}],
+            result: 'json',
             inputSchema: {type: 'object'},
             methods: [
               {

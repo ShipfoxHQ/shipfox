@@ -72,6 +72,32 @@ describe('buildAgentToolsMcpServer', () => {
     ]);
   });
 
+  it('keeps file tools out of the MCP tool list and rejects calls to them', async () => {
+    const dispatch = vi.fn(async () => ({content: [{type: 'text' as const, text: 'ok'}]}));
+    const fileToolName = 'github_main__download_file';
+    const authorizedTools = defaultAuthorizedTools();
+    const jsonTool = authorizedTools.get('github_main__issue_read');
+    if (!jsonTool) throw new Error('Expected default authorized tool');
+    authorizedTools.set('github_main__issue_read', {...jsonTool, catalogEntry: catalogTool()});
+    authorizedTools.set(fileToolName, {
+      ...jsonTool,
+      mcpName: fileToolName,
+      catalogEntry: catalogTool({id: 'download_file', result: 'file', methods: undefined}),
+    });
+    const {client, close} = await connectClient(dispatch, authorizedTools);
+
+    const tools = await client.listTools();
+    const result = await client.callTool({name: fileToolName, arguments: {}}, CallToolResultSchema);
+    await close();
+
+    expect(tools.tools.map((tool) => tool.name)).toEqual(['github_main__issue_read']);
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: {code: 'invalid-request', reason: 'tool_not_found', tool: fileToolName},
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
   it('exposes the namespaced GitHub check-run family with both methods', async () => {
     const entry = githubAgentToolCatalog.find((candidate) => candidate.id === 'check_run_write');
     if (!entry) throw new Error('Expected the GitHub check-run catalog entry');
