@@ -14,6 +14,7 @@ import {normalizeDependencies, validateCycles} from './normalize-dependencies.js
 import {normalizeEnv} from './normalize-env.js';
 import {normalizeJobs} from './normalize-jobs.js';
 import {normalizeTriggers} from './normalize-triggers.js';
+import {normalizeWorkflowOutputs} from './normalize-workflow-outputs.js';
 import {parseInterpolationField} from './parse-interpolation-field.js';
 import {unescapeLiteralName, validateLiteralName} from './validate-literal-name.js';
 
@@ -70,6 +71,7 @@ export function normalizeWorkflowDocument(
           issues,
           fillSite: 'run-creation',
         }) ?? [{kind: 'literal' as const, value: document.run_name}]);
+  const outputs = normalizeWorkflowOutputs({outputs: document.outputs, jobs, issues});
 
   validateCycles(document.jobs, jobIdBySourceName, issues);
 
@@ -82,6 +84,7 @@ export function normalizeWorkflowDocument(
     triggers,
     jobs,
     dependencies,
+    ...(outputs === undefined ? {} : {outputs: outputs.templates, outputTypes: outputs.types}),
   };
   issues.push(...historicalEventPayloadDependencyIssues(model));
 

@@ -216,10 +216,10 @@ function completeOutputTemplate(params: {
   const {owner, key, outputTypes} = params;
   const outputType =
     outputTypes !== undefined && Object.hasOwn(outputTypes, key) ? outputTypes[key] : undefined;
+  const field = owner === 'workflow' ? ('workflow.outputs' as const) : ('job.outputs' as const);
   const completionParams = {
-    // Workflow outputs share the job-output completion policy: an unresolved reference fails.
-    field: 'job.outputs' as const,
-    errorField: owner === 'workflow' ? ('workflow.outputs' as const) : ('job.outputs' as const),
+    field,
+    errorField: field,
     ...(owner === 'workflow' ? {envKey: key} : {}),
     template: {segments: params.template},
     context: params.context,

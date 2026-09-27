@@ -80,6 +80,7 @@ function projectWorkflowValidation(schema: JsonSchema, stepSchema: JsonSchema) {
   addLiteralNamePattern(rootProperties.name);
   jobs.minProperties = 1;
   triggers.minProperties = 1;
+  object(rootProperties.outputs).minProperties = 1;
 
   stepSchema.allOf = [
     ...objects(stepSchema.allOf),

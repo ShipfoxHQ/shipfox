@@ -190,6 +190,9 @@ parseWorkflowDocument({
   bytes and 16 nesting levels, and their `method` key is rejected. Tool output
   mappings must use one `${{ ... }}` expression over `result` or `vars`; exact
   expression and catalog checks belong to the model layer.
+- Job `outputs` and top-level workflow `outputs` map names to template strings
+  and allow up to 128 entries each. Expression and job reference checks belong
+  to the model layer.
 - `env` can be declared on the workflow, a job, or a run step. Values may be
   strings, numbers, or booleans; the model layer stringifies numbers and
   booleans before a run is saved. Values are literal. Expression interpolation

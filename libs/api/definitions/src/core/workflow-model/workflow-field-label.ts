@@ -26,6 +26,8 @@ export function workflowFieldLabel(
       return 'Workflow run name interpolation';
     case 'workflow.concurrency.group':
       return 'Workflow concurrency group interpolation';
+    case 'workflow.outputs':
+      return 'Workflow outputs mapping';
     case 'job.execution_name':
       return 'Job execution name interpolation';
     case 'step.name':

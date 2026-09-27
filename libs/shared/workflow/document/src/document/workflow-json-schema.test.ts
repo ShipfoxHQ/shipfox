@@ -145,6 +145,7 @@ describe('buildWorkflowJsonSchema', () => {
     const schema = buildWorkflowJsonSchema();
     const jobs = object(object(schema.properties).jobs);
     const triggers = object(object(schema.properties).triggers);
+    const workflowOutputs = object(object(schema.properties).outputs);
     const jobOutputs = jobOutputsSchemaFor(schema);
     const step = stepSchemaFor(schema);
     const gate = object(object(step.properties).gate);
@@ -153,6 +154,7 @@ describe('buildWorkflowJsonSchema', () => {
 
     expect(jobs.minProperties).toBe(1);
     expect(triggers.minProperties).toBe(1);
+    expect(workflowOutputs.minProperties).toBe(1);
     expect(jobOutputs.minProperties).toBe(1);
     expect(discriminator).toMatchObject({
       oneOf: [

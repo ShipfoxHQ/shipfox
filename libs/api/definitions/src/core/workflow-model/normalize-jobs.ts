@@ -503,7 +503,7 @@ function normalizeJobOutputs(params: {
   return {templates, types};
 }
 
-function inferJobOutputType(template: WorkflowFieldTemplate): ExpressionType {
+export function inferJobOutputType(template: WorkflowFieldTemplate): ExpressionType {
   if (template.length !== 1) return 'string';
 
   const [segment] = template;
