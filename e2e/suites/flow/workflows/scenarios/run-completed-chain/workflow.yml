@@ -1,0 +1,16 @@
+name: Run completed upstream
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  build:
+    steps:
+      - key: pkg
+        run: echo "version=1.4.2" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          version: string
+    outputs:
+      version: ${{ steps.pkg.outputs.version }}
+outputs:
+  version: ${{ jobs.build.outputs.version }}

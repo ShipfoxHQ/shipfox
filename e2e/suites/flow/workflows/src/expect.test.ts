@@ -10,6 +10,7 @@ import {
   evaluateChildRunExpectation,
   evaluateExpectations,
   evaluateLogs,
+  evaluateTriggeredRunExpectation,
   logText,
   parseExpectation,
 } from './expect.js';
@@ -203,6 +204,56 @@ describe('evaluateExpectations', () => {
         child_run: {...input.child_run, depth: 0},
       }),
     ).toThrow();
+  });
+
+  test('matches a triggered run trigger and nested job assertions', () => {
+    const expectation = parseExpectation({
+      run: {status: 'succeeded'},
+      triggered_run: {
+        workflow: '.shipfox/workflows/downstream.yml',
+        status: 'succeeded',
+        trigger: {source: 'shipfox', event: 'run.completed'},
+        jobs: {build: {status: 'succeeded'}},
+      },
+    });
+    const triggeredExpectation = expectation.triggered_run;
+    if (triggeredExpectation === undefined) throw new Error('triggered expectation missing');
+
+    const result = evaluateTriggeredRunExpectation(
+      makeDetail({
+        trigger_provider: 'shipfox',
+        trigger_source: 'shipfox',
+        trigger_event: 'run.completed',
+      }),
+      triggeredExpectation,
+    );
+
+    expect(result).toEqual({mismatches: [], logRequirements: []});
+  });
+
+  test('flags a triggered run started by another trigger', () => {
+    const expectation = parseExpectation({
+      run: {status: 'succeeded'},
+      triggered_run: {
+        workflow: '.shipfox/workflows/downstream.yml',
+        status: 'succeeded',
+        trigger: {source: 'shipfox', event: 'run.completed'},
+        jobs: {build: {status: 'failed'}},
+      },
+    });
+    const triggeredExpectation = expectation.triggered_run;
+    if (triggeredExpectation === undefined) throw new Error('triggered expectation missing');
+
+    const result = evaluateTriggeredRunExpectation(
+      makeDetail({trigger_source: 'manual', trigger_event: 'fire'}),
+      triggeredExpectation,
+    );
+
+    expect(result.mismatches).toEqual([
+      {path: 'triggered_run.trigger.source', expected: 'shipfox', actual: 'manual'},
+      {path: 'triggered_run.trigger.event', expected: 'run.completed', actual: 'fire'},
+      {path: 'triggered_run.jobs.build.status', expected: 'failed', actual: 'succeeded'},
+    ]);
   });
 
   test('collects a log requirement with the step id and current attempt', () => {

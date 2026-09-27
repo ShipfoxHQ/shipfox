@@ -1,0 +1,23 @@
+name: Run completed failure notifier
+runner: __RUNNER_LABEL__
+triggers:
+  on_failure:
+    source: shipfox
+    event: run.completed
+    # The path check keeps a failing notifier from triggering itself.
+    filter: >-
+      event.run.status == 'failed'
+      && event.project.name == '__PROJECT_NAME__'
+      && event.workflow.path != '.shipfox/workflows/run-completed-failure-notify-child.yml'
+jobs:
+  notify:
+    steps:
+      - key: notify
+        env:
+          WORKFLOW: '${{ event.workflow.name }}'
+          STATUS: '${{ event.run.status }}'
+          REASON: '${{ event.run.status_reason }}'
+        run: |
+          echo "failed_run workflow=$WORKFLOW status=$STATUS reason=$REASON"
+          test "$STATUS" = "failed"
+          test "$REASON" = "job_failed"

@@ -1,0 +1,22 @@
+trigger: manual
+timeout_seconds: 180
+run:
+  status: failed
+jobs:
+  build:
+    status: failed
+triggered_run:
+  workflow: .shipfox/workflows/run-completed-failure-notify-child.yml
+  status: succeeded
+  trigger:
+    source: shipfox
+    event: run.completed
+  jobs:
+    notify:
+      status: succeeded
+      steps:
+        notify:
+          status: succeeded
+          exit_code: 0
+          logs:
+            include: ["failed_run workflow=Run completed failing upstream status=failed reason=job_failed"]

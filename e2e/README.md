@@ -69,6 +69,27 @@ to reach a terminal state, and checks its parent, terminal status, and optional
 jobs. A deeper descendant can therefore assert a self-starting workflow stopping
 with `run-depth-exceeded` without adding a bespoke test.
 
+Use a `triggered_run` block instead when the scenario run's events start
+another workflow through its trigger, for example `source: shipfox` on
+`run.completed`:
+
+```yaml
+triggered_run:
+  workflow: .shipfox/workflows/<scenario>-child.yml
+  status: succeeded
+  trigger:                 # the source and event that started the run
+    source: shipfox
+    event: run.completed
+  jobs:                    # optional, the same job/step assertions as the parent
+    deploy:
+      status: succeeded
+```
+
+The harness seeds `child-workflow.yml` the same way, waits for the first run of
+that definition other than the scenario run, and checks its terminal status,
+trigger, and optional jobs. Workflows can use `__PROJECT_NAME__` to filter
+events on the scenario's project, because every scenario shares one workspace.
+
 ## Pick the Right Level
 
 Use this decision tree before adding a spec:
