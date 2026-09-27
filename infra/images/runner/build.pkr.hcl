@@ -2,6 +2,15 @@ build {
   name    = "runner"
   sources = ["amazon-ebs.build_image", "qemu.build_image"]
 
+  # A candidate snapshot stores every block the bake writes, including files deleted before
+  # capture. Keep the uploaded workspace, the pnpm store, and other staging in memory. The
+  # script runs from /var/tmp so Packer can still remove it after /tmp is replaced.
+  provisioner "shell" {
+    inline        = ["sudo mount -t tmpfs -o mode=1777,nosuid,nodev tmpfs /tmp"]
+    remote_folder = "/var/tmp"
+    only          = ["amazon-ebs.build_image"]
+  }
+
   provisioner "file" {
     destination = "/tmp/shipfox-runner-workspace"
     source      = var.runner_workspace
@@ -12,13 +21,14 @@ build {
     source      = abspath("${path.root}/scripts")
   }
 
-  # A verified runner base already ran the OS preparation. Complete builds run it first.
+  # A verified runner base already ran the OS preparation and installed the pinned Node, so the
+  # Node script only confirms it. Complete builds run both first.
   provisioner "shell" {
     environment_vars = ["NODE_VERSION=${var.node_version}"]
     execute_command  = "sudo -E sh -c '{{ .Vars }} {{ .Path }}'"
     scripts = concat(local.from_runner_base ? [] : [var.runner_base_prepare_script], [
       "${path.root}/scripts/build/setup-runner.sh",
-      "${path.root}/scripts/build/install-node.sh",
+      var.runner_base_install_node_script,
       "${path.root}/scripts/build/install-runner.sh",
       "${path.root}/scripts/build/configure-boot.sh",
       "${path.root}/scripts/build/configure-ephemeral-boot.sh"

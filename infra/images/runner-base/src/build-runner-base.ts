@@ -15,6 +15,7 @@ export interface RunnerBaseBuild {
   architecture: RunnerBaseArchitecture;
   generation: string;
   kmsKeyId: string;
+  nodeVersion: string;
   recipeDigest: string;
   revision: string;
   sourceAmiId: string;
@@ -42,7 +43,7 @@ interface RunnerBaseBuildDependencies {
 export function parseBuildRunnerBaseArgs(
   args: string[],
   env: NodeJS.ProcessEnv = process.env,
-): {outputPath: string; build: Omit<RunnerBaseBuild, 'recipeDigest'>} {
+): {outputPath: string; build: Omit<RunnerBaseBuild, 'nodeVersion' | 'recipeDigest'>} {
   const {values} = parseArgs({args, options: {output: {type: 'string'}}, strict: true});
   if (!values.output) throw new Error('Usage: build-runner-base --output <path>');
 
@@ -100,6 +101,8 @@ function sharedVars(build: RunnerBaseBuild): string[] {
     `generation=${build.generation}`,
     '-var',
     `kms_key_id=${build.kmsKeyId}`,
+    '-var',
+    `node_version=${build.nodeVersion}`,
     '-var',
     `recipe_digest=${build.recipeDigest}`,
     '-var',
@@ -194,8 +197,8 @@ function spawnPacker(args: string[], cwd: string): Promise<void> {
 
 export function runBuildRunnerBaseCli(args = process.argv.slice(2)): void {
   const {outputPath, build} = parseBuildRunnerBaseArgs(args);
-  const {digest} = computeRunnerBaseRecipe();
-  buildRunnerBase({...build, recipeDigest: digest})
+  const {digest, nodeVersion} = computeRunnerBaseRecipe();
+  buildRunnerBase({...build, nodeVersion, recipeDigest: digest})
     .then(async (result) => {
       await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`);
       log.info(`Runner base verified: ${result.amiId} (${result.architecture}).`);

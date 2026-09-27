@@ -3,6 +3,7 @@ import {chmod, mkdir, mkdtemp, readFile, readlink, rm, stat, writeFile} from 'no
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {
+  RUNNER_BASE_INSTALL_NODE_SCRIPT,
   RUNNER_BASE_PREPARE_OS_SCRIPT,
   type RunnerBaseSelection,
   runnerBaseImageTags,
@@ -147,6 +148,8 @@ describe('packerBuildArgs', () => {
       'platform=aws',
       '-var',
       `runner_base_prepare_script=${RUNNER_BASE_PREPARE_OS_SCRIPT}`,
+      '-var',
+      `runner_base_install_node_script=${RUNNER_BASE_INSTALL_NODE_SCRIPT}`,
       '-var',
       'runner_workspace=/tmp/workspace',
       '-var',
@@ -2156,6 +2159,18 @@ describe('runner image composition', () => {
     );
     expect(baseIndex).toBeGreaterThanOrEqual(0);
     expect(build.indexOf('scripts/build/setup-runner.sh')).toBeGreaterThan(baseIndex);
+    expect(build.indexOf('var.runner_base_install_node_script')).toBeGreaterThan(baseIndex);
+  });
+
+  it('stages the AWS bake in memory before uploading the workspace', async () => {
+    const build = await readFile(new URL('../build.pkr.hcl', import.meta.url), 'utf8');
+
+    const mountIndex = build.indexOf('mount -t tmpfs -o mode=1777,nosuid,nodev tmpfs /tmp');
+    const mountProvisioner = build.slice(mountIndex, build.indexOf('\n  }', mountIndex));
+    expect(mountIndex).toBeGreaterThanOrEqual(0);
+    expect(mountIndex).toBeLessThan(build.indexOf('destination = "/tmp/shipfox-runner-workspace"'));
+    expect(mountProvisioner).toContain('remote_folder = "/var/tmp"');
+    expect(mountProvisioner).toContain('only          = ["amazon-ebs.build_image"]');
   });
 });
 

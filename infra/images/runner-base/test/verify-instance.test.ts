@@ -55,7 +55,12 @@ esac
     await writeExecutable(join(fixture.commandDirectory, command), '#!/bin/sh\necho fixture\n');
   }
   fixture.environment.RUNNER_BASE_INSTALLED_PACKAGES = await installedPackages();
+  await writeExecutable(
+    join(fixture.commandDirectory, 'node'),
+    `#!/bin/sh\nprintf "%s\\n" "\${RUNNER_BASE_NODE_VERSION:-v24.17.0}"\n`,
+  );
   fixture.environment.SHIPFOX_RUNNER_BASE_ARCHITECTURE = 'amd64';
+  fixture.environment.SHIPFOX_RUNNER_BASE_NODE_VERSION = '24.17.0';
   return fixture;
 }
 
@@ -115,10 +120,16 @@ describe('runner base fresh-instance verification', () => {
     expect(() => verify({RUNNER_BASE_INSTALLED_PACKAGES: packages})).toThrow('snapd');
   });
 
-  it('fails when Node is installed in the base', async () => {
-    await writeExecutable(join(fixture.commandDirectory, 'node'), '#!/bin/sh\nexit 0\n');
+  it('fails when the base holds another Node version', () => {
+    expect(() => verify({RUNNER_BASE_NODE_VERSION: 'v24.18.0'})).toThrow(
+      'Node is v24.18.0, expected v24.17.0',
+    );
+  });
 
-    expect(() => verify()).toThrow('Node is installed');
+  it('fails when Node is missing', async () => {
+    await rm(join(fixture.commandDirectory, 'node'));
+
+    expect(() => verify()).toThrow('Node is missing');
   });
 
   it('fails when a Shipfox runtime path exists', async () => {

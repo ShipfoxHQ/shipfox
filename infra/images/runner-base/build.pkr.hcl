@@ -3,9 +3,11 @@ build {
   sources = ["amazon-ebs.base"]
 
   provisioner "shell" {
-    execute_command = "sudo -E sh -c '{{ .Vars }} {{ .Path }}'"
+    environment_vars = ["NODE_VERSION=${var.node_version}"]
+    execute_command  = "sudo -E sh -c '{{ .Vars }} {{ .Path }}'"
     scripts = [
       "${path.root}/scripts/build/prepare-os.sh",
+      "${path.root}/scripts/build/install-node.sh",
       "${path.root}/scripts/build/clean-identity.sh"
     ]
   }
@@ -29,8 +31,11 @@ build {
   sources = ["amazon-ebs.verify"]
 
   provisioner "shell" {
-    environment_vars = ["SHIPFOX_RUNNER_BASE_ARCHITECTURE=${var.architecture}"]
-    execute_command  = "sudo -E sh -c '{{ .Vars }} {{ .Path }}'"
-    scripts          = ["${path.root}/scripts/verify/verify-instance.sh"]
+    environment_vars = [
+      "SHIPFOX_RUNNER_BASE_ARCHITECTURE=${var.architecture}",
+      "SHIPFOX_RUNNER_BASE_NODE_VERSION=${var.node_version}",
+    ]
+    execute_command = "sudo -E sh -c '{{ .Vars }} {{ .Path }}'"
+    scripts         = ["${path.root}/scripts/verify/verify-instance.sh"]
   }
 }

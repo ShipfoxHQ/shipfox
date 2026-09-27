@@ -5,6 +5,7 @@ set -eu
 # cloud-init injected the verification build's own key pair, so a successful connection is the
 # new-key check. The script then checks the base contract and records boot evidence.
 expected_architecture=${SHIPFOX_RUNNER_BASE_ARCHITECTURE:?SHIPFOX_RUNNER_BASE_ARCHITECTURE is required}
+expected_node_version=${SHIPFOX_RUNNER_BASE_NODE_VERSION:?SHIPFOX_RUNNER_BASE_NODE_VERSION is required}
 root_dir=${RUNNER_BASE_ROOT:-/}
 
 fail() {
@@ -53,12 +54,13 @@ if command -v snap >/dev/null 2>&1; then
   fail 'snap remains available'
 fi
 
+node_version=$(node --version 2>/dev/null || true)
+[ "$node_version" = "v$expected_node_version" ] ||
+  fail "Node is ${node_version:-missing}, expected v$expected_node_version"
+
 # The base carries no Shipfox runtime. The runner image stage owns all of it.
 if id shipfox >/dev/null 2>&1; then
   fail 'the shipfox user exists in the base'
-fi
-if command -v node >/dev/null 2>&1; then
-  fail 'Node is installed in the base'
 fi
 for shipfox_path in opt/runner opt/shipfox-runner etc/shipfox; do
   [ ! -e "$root_dir/$shipfox_path" ] || fail "Shipfox runtime path exists in the base: $shipfox_path"
