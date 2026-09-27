@@ -2,7 +2,7 @@ id: fix-default-branch-ci
 revision: 1
 added_at: 2026-09-26
 title: Investigate and repair default-branch CI failures
-summary: An agent investigates failed GitHub Actions runs on the default branch, classifies the cause, and opens a tested repair pull request when the cause is actionable.
+summary: Find out why CI broke on your default branch and get a tested repair pull request.
 roles:
   source:
     from: project

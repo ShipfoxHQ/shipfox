@@ -5,12 +5,24 @@ checkout: |
 prepare: |
   - key: prepare
     env:
-      ISSUE_IDENTIFIER: ${{ steps.issue.outputs.identifier }}
+      TASK_IDENTIFIER: ${{ steps.task.outputs.identifier }}
+      REQUESTED_REPOSITORY: ${{ steps.task.outputs.repository }}
       RUN_NUMBER: ${{ run.number }}
       RUN_ATTEMPT: ${{ run.attempt }}
     run: |
-      if ! printf '%s' "$ISSUE_IDENTIFIER" | grep -Eq '^[A-Za-z0-9]+-[0-9]+$'; then
-        echo "Unexpected issue identifier: $ISSUE_IDENTIFIER" >&2
+      if ! printf '%s' "$TASK_IDENTIFIER" | grep -Eq '^[A-Za-z0-9]+-[0-9]+$'; then
+        echo "Unexpected task identifier: $TASK_IDENTIFIER" >&2
+        exit 1
+      fi
+      REPOSITORY="$(git remote get-url origin | sed -E 's#^.*github\.com[:/]##; s#\.git$##')"
+      if ! printf '%s' "$REPOSITORY" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; then
+        echo "Expected a GitHub owner/repository remote." >&2
+        exit 1
+      fi
+      REQUESTED_LOWER="$(printf '%s' "$REQUESTED_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+      REPOSITORY_LOWER="$(printf '%s' "$REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+      if [ -n "$REQUESTED_REPOSITORY" ] && [ "$REQUESTED_LOWER" != "$REPOSITORY_LOWER" ]; then
+        echo "The task names $REQUESTED_REPOSITORY, but this project checks out $REPOSITORY." >&2
         exit 1
       fi
       BASE_BRANCH="$(
@@ -21,25 +33,20 @@ prepare: |
         echo "Could not resolve the repository's default branch." >&2
         exit 1
       fi
-      REPOSITORY="$(git remote get-url origin | sed -E 's#^.*github\.com[:/]##; s#\.git$##')"
-      if ! printf '%s' "$REPOSITORY" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; then
-        echo "Expected a GitHub owner/repository remote." >&2
-        exit 1
-      fi
       EXISTING_BRANCHES="$(
         git ls-remote --heads origin \
           | awk '{ sub("refs/heads/", "", $2); print $2 }' \
-          | grep -E "^shipfox/$ISSUE_IDENTIFIER-[0-9]+-[0-9]+$" \
-          | grep -v "^shipfox/$ISSUE_IDENTIFIER-$RUN_NUMBER-" || true
+          | grep -E "^shipfox/$TASK_IDENTIFIER-[0-9]+-[0-9]+$" \
+          | grep -v "^shipfox/$TASK_IDENTIFIER-$RUN_NUMBER-" || true
       )"
       if [ -n "$EXISTING_BRANCHES" ]; then
-        echo "Another run already created a branch for $ISSUE_IDENTIFIER:" >&2
+        echo "Another run already created a branch for $TASK_IDENTIFIER:" >&2
         printf '%s\n' "$EXISTING_BRANCHES" >&2
         echo "Close its pull request and delete the branch before starting a new run." >&2
         exit 1
       fi
       printf 'branch=%s\nbase=%s\nrepository=%s\nowner=%s\nrepo=%s\n' \
-        "shipfox/$ISSUE_IDENTIFIER-$RUN_NUMBER-$RUN_ATTEMPT" "$BASE_BRANCH" \
+        "shipfox/$TASK_IDENTIFIER-$RUN_NUMBER-$RUN_ATTEMPT" "$BASE_BRANCH" \
         "$REPOSITORY" "${REPOSITORY%%/*}" "${REPOSITORY#*/}" >> "$SHIPFOX_OUTPUT"
     outputs:
       branch: string
@@ -76,7 +83,7 @@ open_pr: |
       body: |-
         ${{ steps.fix.outputs.pr_summary }}
 
-        Fixes ${{ steps.issue.outputs.identifier }}
+        ${{ steps.task.outputs.reference }}
       draft: true # option:pr_mode
     outputs:
       pr_number: ${{ result.pull_request.number }}
@@ -124,7 +131,7 @@ respond: |
     thinking: high
     session: ticket_pr
     prompt: |
-      Continue the ticket conversation. Pull request
+      Continue the task conversation. Pull request
       #${{ jobs.implement.outputs.pr_number }} in ${{ jobs.implement.outputs.repository }}
       received feedback. The checkout is the current pull request head, and
       setup has already run.
@@ -154,13 +161,13 @@ respond: |
         a request with the reason.
       - already_addressed: the current code already handles it. Say where.
       - needs_human: a person must decide, such as a design change outside the
-        ticket.
+        task.
       - ignore: no change and no reply. Use it for acknowledgements, thanks,
         resolution notices, and chatter from other bots.
 
-      When author_type is not Bot, apply a request within the ticket's scope
+      When author_type is not Bot, apply a request within the task's scope
       unless it is unsafe. Question it only when it clearly conflicts with the
-      ticket. When author_type is Bot, apply a finding only after you confirm it
+      task. When author_type is Bot, apply a finding only after you confirm it
       in the current code. Answer or ignore a finding you cannot confirm or that
       is only a style preference.
 

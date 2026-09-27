@@ -2,7 +2,7 @@ id: report-failed-runs
 revision: 1
 added_at: 2026-09-26
 title: Report failed Shipfox workflow runs
-summary: Posts each failed Shipfox workflow run to Slack with the failed jobs, a log excerpt, and a next step.
+summary: Hear about every failed workflow run in Slack, with the failing step and what to do next.
 roles:
   notify:
     providers: [slack]

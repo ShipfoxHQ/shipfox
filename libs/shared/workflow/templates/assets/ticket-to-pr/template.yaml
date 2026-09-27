@@ -1,11 +1,14 @@
 id: ticket-to-pr
-revision: 3
+revision: 4
 added_at: 2026-09-23
-title: Ticket to pull request
-summary: An agent implements a Linear ticket, checks the change, and opens a GitHub pull request.
+title: Task to pull request
+summary: Turn a ticket or a request into a tested GitHub pull request.
 roles:
   tracker:
     providers: [linear]
+    optional: true
+    question: Should tickets in an issue tracker start the workflow and receive its results?
+    tradeoff: Starts from the tracker's ticket events and can comment on or move the ticket. Without a tracker, only manual starts with explicit task inputs, such as from a Slack dispatcher, run the workflow.
   source:
     from: project
     providers: [github]
@@ -52,21 +55,22 @@ options:
         label: Ready for review
         tradeoff: Opens the PR for review right away, which can notify reviewers.
   - id: ticket_write_back
-    question: What should the workflow write to Linear?
+    question: What should the workflow write to the ticket?
+    applies_to: [linear]
     choices:
       - id: comment
         label: Comment with the pull request
         default: true
-        tradeoff: Posts one comment with the PR link, or the agent's questions when the issue is unclear.
+        tradeoff: Posts one comment with the PR link, or the agent's questions when the ticket is unclear.
       - id: comment_and_transition
         label: Comment and change status
-        tradeoff: Also moves the issue to a chosen Linear status after the PR opens.
+        tradeoff: Also moves the ticket to a chosen status after the PR opens.
       - id: none
-        label: Do not write to Linear
+        label: Do not write to the ticket
         tradeoff: The ticket gets no PR link, questions, or status change.
 models:
   fix:
-    note: Implements the ticket and handles review comments and CI failures in one conversation.
+    note: Implements the task and handles review comments and CI failures in one conversation.
   reply:
     note: Posts prepared review replies and resolves threads.
 slots: [setup_commands, test_command]

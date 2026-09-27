@@ -109,32 +109,38 @@ Shipped templates keep an adaptation guide beside their workflow. For dependency
 For Slack codebase questions, read `skill://shipfox/create-workflow-from-template/references/ask-codebase.md`. It covers channel scope, manual dispatch inputs, and outcomes.
 For default-branch CI failures, read `skill://shipfox/create-workflow-from-template/references/fix-default-branch-ci.md`. It covers duplicate limits, outcomes, and the optional Slack report.
 For failed run reports, read `skill://shipfox/create-workflow-from-template/references/report-failed-runs.md`. It covers run event filters, options, and Slack writes.
+For tasks to pull requests, read `skill://shipfox/create-workflow-from-template/references/ticket-to-pr.md`. It covers manual task inputs, workflow outputs, the optional tracker, and expected writes.
 
 The build also serves each template guide as a `create-workflow-from-template/references/<template-id>.md` resource. The manifest lists the SHA-256 digest and byte size of every skill file.
 
 ### Ticket to PR part contract
 
-The [ticket to PR template](https://github.com/ShipfoxHQ/shipfox/blob/main/libs/shared/workflow/templates/assets/ticket-to-pr/workflow.yml) composes one tracker part and one source part. Later tracker providers must supply these blocks:
+The [ticket to PR template](https://github.com/ShipfoxHQ/shipfox/blob/main/libs/shared/workflow/templates/assets/ticket-to-pr/workflow.yml) composes the source part and, when the user chooses one, a tracker part. The tracker role is optional, so every tracker block must be self-contained.
+
+The base workflow owns the `manual` trigger, the workflow outputs, and the `task` step. The `task` step reads manual inputs or the tracker's ticket and outputs `ticket_id`, `identifier`, `title`, `url`, `repository`, `reference`, `description`, `acceptance_criteria`, and `request`. The adaptation guide lists the manual inputs.
+
+A tracker part supplies these blocks:
 
 | Block | Required contract |
 | --- | --- |
-| `tracker.trigger` | Starts from that tracker's ticket event and filters unrelated updates. |
-| `tracker.read_ticket` | Adds a `ticket` agent step with `summary` and `identifier` string outputs. |
-| `tracker.write_back` | Adds a `write_back` step that comments with the opened PR URL. |
-| `tracker.transition` | Adds an optional `transition_ticket` step for the chosen ticket status. |
+| `tracker.run_name` | Names the run from the ticket, or from the `identifier` or `title` input on a manual start. |
+| `tracker.trigger` | Starts from ticket events of one team or project. It must not match the workflow's own ticket writes. |
+| `tracker.ticket_env` | Sets `TICKET_ID`, `TICKET_IDENTIFIER`, `TICKET_TITLE`, `TICKET_URL`, `TICKET_DESCRIPTION`, and `TICKET_REQUEST` on the `task` step. Each is empty when `trigger.source` is `manual`. |
+| `tracker.read_tools` | Gives the `fix` step read-only tracker tools. |
+| `tracker.ask_questions` | Adds an `ask_questions` step for each `ticket_write_back` choice that writes. It runs only for `needs_clarification` when `steps.task.outputs.ticket_id` is set. |
+| `tracker.write_back` | Adds the write-back jobs for each `ticket_write_back` choice that writes. They run only after a PR opens for a task with a ticket ID. |
 
 The source part supplies these blocks:
 
 | Block | Required contract |
 | --- | --- |
 | `source.checkout` | Grants repository write access for ordered push steps. |
-| `source.push` | Creates a branch and outputs `branch`, `base`, `repository`, `owner`, and `repo`. |
-| `source.open_pr` | Creates the PR and outputs `pr_number` and `pr_url`. |
-| `source.review_listener` and `source.ci_listener` | Match only the opened PR and stop on close, timeout, or execution cap. |
-| `source.checkout_pr_branch` and `source.push_feedback` | Check out and update the PR branch. |
-| `source.repair_ci` and `source.reply_to_review` | Read failed CI logs or reply to a review comment. |
+| `source.prepare` | Fails when `steps.task.outputs.repository` names another repository, or another run has a branch for the identifier. Outputs `branch`, `base`, `repository`, `owner`, and `repo`. |
+| `source.push` and `source.open_pr` | Push the branch and open the PR with `steps.task.outputs.reference` in its body. `open_pr` outputs `pr_number` and `pr_url`. |
+| `source.feedback_listener` | Matches only the opened PR and stops when it closes. |
+| `source.checkout_pr_branch`, `source.respond`, `source.push_feedback`, and `source.reply` | Check out the PR branch, handle review comments and failed CI, push, and reply. |
 
-The `implement` job publishes PR identity and branch outputs. Each listener uses those outputs to match one PR and check out its branch.
+The `implement` job publishes task, PR, and branch outputs. The feedback listener uses them to match one PR and check out its branch.
 
 Keep provider tool IDs, event names, payload paths, and connection bindings inside parts. The base workflow owns job order, test gates, options, and the agent prompts. Every provider combination and structural option passes the API catalog conformance test before it ships.
 

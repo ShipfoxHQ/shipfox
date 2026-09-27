@@ -1,5 +1,5 @@
 run_name: |
-  run_name: 'Implement ${{ has(event.agentSession) ? event.agentSession.issue.identifier : event.data.identifier }}'
+  run_name: 'Implement ${{ trigger.source == "manual" ? (has(inputs.identifier) ? inputs.identifier : (has(inputs.title) ? inputs.title : "a task")) : has(event.agentSession) ? event.agentSession.issue.identifier : event.data.identifier }}'
 trigger: |
   # option:trigger_style=agent_session begin
   on_agent_session:
@@ -25,59 +25,72 @@ trigger: |
       has(event.data.team) && event.data.team.key == "replace-with-team-key" &&
       event.data.labels.exists(label, label.name == "replace-with-label-name")
   # option:trigger_style=label end
-issue: |
-  - key: issue
-    env:
-      ISSUE_ID: '${{ has(event.agentSession) ? event.agentSession.issue.id : event.data.id }}'
-      ISSUE_IDENTIFIER: '${{ has(event.agentSession) ? event.agentSession.issue.identifier : event.data.identifier }}'
-      ISSUE_TITLE: '${{ has(event.agentSession) ? event.agentSession.issue.title : event.data.title }}'
-      ISSUE_URL: '${{ has(event.agentSession) ? event.agentSession.issue.url : event.data.url }}'
-      ISSUE_DESCRIPTION: '${{ has(event.agentSession) ? (has(event.agentSession.issue.description) && event.agentSession.issue.description != null ? event.agentSession.issue.description : "") : (has(event.data.description) && event.data.description != null ? event.data.description : "") }}'
-      ISSUE_REQUEST: '${{ has(event.agentSession) && has(event.agentSession.comment) && event.agentSession.comment != null ? event.agentSession.comment.body : "" }}'
-    run: |
-      printf 'id=%s\nidentifier=%s\ntitle=%s\nurl=%s\n' \
-        "$ISSUE_ID" "$ISSUE_IDENTIFIER" "$ISSUE_TITLE" "$ISSUE_URL" >> "$SHIPFOX_OUTPUT"
-      {
-        echo 'description<<SHIPFOX_ISSUE_EOF'
-        printf '%s\n' "$ISSUE_DESCRIPTION"
-        echo 'SHIPFOX_ISSUE_EOF'
-        echo 'request<<SHIPFOX_ISSUE_EOF'
-        printf '%s\n' "$ISSUE_REQUEST"
-        echo 'SHIPFOX_ISSUE_EOF'
-      } >> "$SHIPFOX_OUTPUT"
-    outputs:
-      id: string
-      identifier: string
-      title: string
-      url: string
-      description: string
-      request: string
+ticket_env: |
+  TICKET_ID: '${{ trigger.source == "manual" ? "" : has(event.agentSession) ? event.agentSession.issue.id : event.data.id }}'
+  TICKET_IDENTIFIER: '${{ trigger.source == "manual" ? "" : has(event.agentSession) ? event.agentSession.issue.identifier : event.data.identifier }}'
+  TICKET_TITLE: '${{ trigger.source == "manual" ? "" : has(event.agentSession) ? event.agentSession.issue.title : event.data.title }}'
+  TICKET_URL: '${{ trigger.source == "manual" ? "" : has(event.agentSession) ? event.agentSession.issue.url : event.data.url }}'
+  TICKET_DESCRIPTION: '${{ trigger.source == "manual" ? "" : has(event.agentSession) ? (has(event.agentSession.issue.description) && event.agentSession.issue.description != null ? event.agentSession.issue.description : "") : (has(event.data.description) && event.data.description != null ? event.data.description : "") }}'
+  TICKET_REQUEST: '${{ trigger.source != "manual" && has(event.agentSession) && has(event.agentSession.comment) && event.agentSession.comment != null ? event.agentSession.comment.body : "" }}'
 read_tools: |
   integrations:
     - connection: linear_tracker # bind:tracker
       include: [get_issue, list_comments]
 ask_questions: |
+  # option:ticket_write_back=comment begin
   - key: ask_questions
-    if: ${{ steps.fix.outputs.status == "needs_clarification" }}
+    if: ${{ steps.fix.outputs.status == "needs_clarification" && steps.task.outputs.ticket_id != "" }}
     tool: save_comment
     connection: linear_tracker # bind:tracker
     with:
-      issueId: ${{ steps.issue.outputs.id }}
+      issueId: ${{ steps.task.outputs.ticket_id }}
       body: |-
         Shipfox needs answers before it can implement this issue:
 
         ${{ steps.fix.outputs.questions }}
-write_back: |
-  - key: write_back
+  # option:ticket_write_back=comment end
+  # option:ticket_write_back=comment_and_transition begin
+  - key: ask_questions
+    if: ${{ steps.fix.outputs.status == "needs_clarification" && steps.task.outputs.ticket_id != "" }}
     tool: save_comment
     connection: linear_tracker # bind:tracker
     with:
-      issueId: ${{ jobs.implement.outputs.issue_id }}
-      body: 'Opened pull request: ${{ jobs.implement.outputs.pr_url }}'
-transition: |
-  - key: transition_ticket
-    tool: save_issue
-    connection: linear_tracker # bind:tracker
-    with:
-      id: ${{ jobs.implement.outputs.issue_id }}
-      state: replace-with-linear-status
+      issueId: ${{ steps.task.outputs.ticket_id }}
+      body: |-
+        Shipfox needs answers before it can implement this issue:
+
+        ${{ steps.fix.outputs.questions }}
+  # option:ticket_write_back=comment_and_transition end
+write_back: |
+  # option:ticket_write_back=comment begin
+  comment_on_ticket:
+    needs: implement
+    if: ${{ needs.all(n, n.status == "succeeded") && jobs.implement.outputs.pr_url != "" && jobs.implement.outputs.ticket_id != "" }}
+    checkout: false
+    steps:
+      - key: write_back
+        tool: save_comment
+        connection: linear_tracker # bind:tracker
+        with:
+          issueId: ${{ jobs.implement.outputs.ticket_id }}
+          body: 'Opened pull request: ${{ jobs.implement.outputs.pr_url }}'
+  # option:ticket_write_back=comment end
+  # option:ticket_write_back=comment_and_transition begin
+  comment_on_ticket_and_move_it:
+    needs: implement
+    if: ${{ needs.all(n, n.status == "succeeded") && jobs.implement.outputs.pr_url != "" && jobs.implement.outputs.ticket_id != "" }}
+    checkout: false
+    steps:
+      - key: write_back
+        tool: save_comment
+        connection: linear_tracker # bind:tracker
+        with:
+          issueId: ${{ jobs.implement.outputs.ticket_id }}
+          body: 'Opened pull request: ${{ jobs.implement.outputs.pr_url }}'
+      - key: transition_ticket
+        tool: save_issue
+        connection: linear_tracker # bind:tracker
+        with:
+          id: ${{ jobs.implement.outputs.ticket_id }}
+          state: replace-with-linear-status
+  # option:ticket_write_back=comment_and_transition end

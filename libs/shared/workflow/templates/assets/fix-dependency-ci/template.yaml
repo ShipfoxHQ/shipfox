@@ -2,7 +2,7 @@ id: fix-dependency-ci
 revision: 2
 added_at: 2026-09-22
 title: Fix failing dependency-bot CI
-summary: An agent diagnoses failed dependency CI, validates repairs, and posts a patch or pushes the fix.
+summary: Get a tested fix for every dependency update that breaks CI.
 roles:
   source:
     from: project

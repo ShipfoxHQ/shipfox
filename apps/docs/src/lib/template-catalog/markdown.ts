@@ -52,7 +52,7 @@ export function serializeTemplateDetail(template: TemplateDetail): string {
   if (template.options.length > 0) {
     sections.push(
       '## Choices you make',
-      'Your agent asks these questions. The workflow file shows every default.',
+      'When you set up this workflow, your coding agent asks you these questions. The workflow file on this page uses the default answers.',
       ...template.options.map((option) => {
         const fallback = option.choices.find((choice) => choice.default) ?? option.choices[0];
         const choices = option.choices.map((choice) => {
@@ -68,6 +68,7 @@ export function serializeTemplateDetail(template: TemplateDetail): string {
   if (template.models.length > 0) {
     sections.push(
       '## Models',
+      'When you set up this workflow, your coding agent suggests models that your workspace can use. You choose the model for each step.',
       template.models
         .map((model) => {
           const tested = model.model
