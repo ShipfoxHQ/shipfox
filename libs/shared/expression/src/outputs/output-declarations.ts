@@ -10,6 +10,8 @@ export type OutputType = WorkflowDocumentStepOutputType;
 export interface OutputTypeDeclaration {
   readonly type: OutputType;
   readonly schema?: unknown;
+  // Absent means required, so declarations written before this flag keep failing on a missing key.
+  readonly required?: boolean;
 }
 
 export type OutputDeclarations = Readonly<Record<string, OutputTypeDeclaration>>;
@@ -123,22 +125,10 @@ export function coerceStepOutputs(params: {
   readonly declarations: OutputDeclarations;
   readonly output: Record<string, unknown> | null | undefined;
 }): CoerceStepOutputsResult {
-  const declaredKeys = Object.keys(params.declarations);
   const output = params.output ?? {};
 
-  for (const key of declaredKeys) {
-    if (Object.hasOwn(output, key)) continue;
-    const declaration = params.declarations[key];
-    return {
-      ok: false,
-      error: {
-        key,
-        reason: 'missing',
-        ...(declaration === undefined ? {} : {expectedType: declaration.type}),
-        message: `Output "${key}" is required by the step output declaration.`,
-      },
-    };
-  }
+  const missing = missingRequiredOutputError(params.declarations, output);
+  if (missing !== undefined) return {ok: false, error: missing};
 
   for (const key of Object.keys(output)) {
     if (Object.hasOwn(params.declarations, key)) continue;
@@ -154,6 +144,7 @@ export function coerceStepOutputs(params: {
 
   const coerced: Record<string, unknown> = {};
   for (const [key, declaration] of Object.entries(params.declarations)) {
+    if (!Object.hasOwn(output, key)) continue;
     const value = output[key];
     const result = coerceStepOutputValue(key, declaration, value);
     if (!result.ok) return result;
@@ -161,6 +152,22 @@ export function coerceStepOutputs(params: {
   }
 
   return {ok: true, output: coerced};
+}
+
+function missingRequiredOutputError(
+  declarations: OutputDeclarations,
+  output: Record<string, unknown>,
+): StepOutputCoercionError | undefined {
+  for (const [key, declaration] of Object.entries(declarations)) {
+    if (Object.hasOwn(output, key) || declaration.required === false) continue;
+    return {
+      key,
+      reason: 'missing',
+      expectedType: declaration.type,
+      message: `Output "${key}" is required by the step output declaration.`,
+    };
+  }
+  return undefined;
 }
 
 type CoerceStepOutputValueResult =

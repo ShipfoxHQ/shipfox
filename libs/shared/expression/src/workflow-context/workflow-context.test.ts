@@ -1,4 +1,7 @@
-import {evaluateWorkflowPredicate} from '../evaluator/evaluate-workflow-expression.js';
+import {
+  evaluateWorkflowExpression,
+  evaluateWorkflowPredicate,
+} from '../evaluator/evaluate-workflow-expression.js';
 import {createWorkflowExpression} from '../expression/create-workflow-expression.js';
 import {InvalidWorkflowExpressionError} from '../expression/errors.js';
 import {
@@ -362,6 +365,32 @@ describe('workflow context registry', () => {
         check: {mode: 'typed', typeEnvironment},
       }),
     ).not.toThrow();
+  });
+
+  it('types an optional step output as possibly absent, reached with has()', () => {
+    const typeEnvironment = buildTypedRootsEnvironment({
+      steps: [{key: 'build', outputs: {count: {type: 'number', required: false}}}],
+    });
+    const guarded = createWorkflowExpression({
+      source: 'has(steps.build.outputs.count) && steps.build.outputs.count > 5',
+      check: {mode: 'typed', typeEnvironment},
+    });
+    const direct = createWorkflowExpression({
+      source: 'steps.build.outputs.count > 5',
+      check: {mode: 'typed', typeEnvironment},
+    });
+
+    expect(() =>
+      createWorkflowExpression({
+        source: 'has(steps.build.outputs.count) && steps.build.outputs.count == "x"',
+        check: {mode: 'typed', typeEnvironment},
+      }),
+    ).toThrow(InvalidWorkflowExpressionError);
+    expect(evaluateWorkflowPredicate(guarded, {steps: {build: {outputs: {}}}})).toBe(false);
+    expect(evaluateWorkflowPredicate(guarded, {steps: {build: {outputs: {count: 6}}}})).toBe(true);
+    expect(() => evaluateWorkflowExpression(direct, {steps: {build: {outputs: {}}}})).toThrow(
+      expect.objectContaining({reason: 'missing-path'}),
+    );
   });
 
   it('types tool step entities from the catalog output schema and mapped outputs', () => {

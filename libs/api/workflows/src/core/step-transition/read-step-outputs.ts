@@ -1,4 +1,8 @@
-import {type OutputDeclarations, outputTypes} from '@shipfox/expression';
+import {
+  type OutputDeclarations,
+  type OutputTypeDeclaration,
+  outputTypes,
+} from '@shipfox/expression';
 
 const outputTypeSet = new Set<string>(outputTypes);
 
@@ -6,16 +10,18 @@ export function readStepOutputs(config: Record<string, unknown>): OutputDeclarat
   const outputs = config.outputs;
   if (!isRecord(outputs)) return undefined;
 
-  const declarations: Record<string, {type: (typeof outputTypes)[number]; schema?: unknown}> =
-    Object.create(null) as Record<string, {type: (typeof outputTypes)[number]; schema?: unknown}>;
+  const declarations = Object.create(null) as Record<string, OutputTypeDeclaration>;
 
   for (const [key, declaration] of Object.entries(outputs)) {
     if (!isRecord(declaration)) return undefined;
     const type = declaration.type;
     if (typeof type !== 'string' || !outputTypeSet.has(type)) return undefined;
+    const required = declaration.required;
+    if (required !== undefined && typeof required !== 'boolean') return undefined;
     declarations[key] = {
-      type: type as (typeof outputTypes)[number],
+      type: type as OutputTypeDeclaration['type'],
       ...(!Object.hasOwn(declaration, 'schema') ? {} : {schema: declaration.schema}),
+      ...(required === undefined ? {} : {required}),
     };
   }
 

@@ -309,6 +309,66 @@ describe('coerceStepOutputs', () => {
     expect(result).toMatchObject({ok: false, error: expectedError});
   });
 
+  it('fails on a missing key when the declaration sets required: true', () => {
+    const result = coerceStepOutputs({
+      declarations: {count: {type: 'number', required: true}},
+      output: {},
+    });
+
+    expect(result).toMatchObject({ok: false, error: {key: 'count', reason: 'missing'}});
+  });
+
+  it('accepts a missing optional output without adding the key', () => {
+    const result = coerceStepOutputs({
+      declarations: {
+        sha: {type: 'string'},
+        count: {type: 'number', required: false},
+      },
+      output: {sha: 'abc123'},
+    });
+
+    expect(result).toEqual({ok: true, output: {sha: 'abc123'}});
+  });
+
+  it('coerces an optional output that is present', () => {
+    const result = coerceStepOutputs({
+      declarations: {count: {type: 'number', required: false}},
+      output: {count: '42'},
+    });
+
+    expect(result).toEqual({ok: true, output: {count: 42}});
+  });
+
+  it.each([
+    ['invalid scalar', {type: 'number', required: false}, 'not-a-number', 'invalid_type'],
+    [
+      'schema validation failure',
+      {
+        type: 'json',
+        required: false,
+        schema: {type: 'object', properties: {size: {type: 'integer'}}, required: ['size']},
+      },
+      '{"size":"not-an-int"}',
+      'schema_invalid',
+    ],
+  ] as const)('type-checks a present optional output (%s)', (_label, declaration, value, reason) => {
+    const result = coerceStepOutputs({
+      declarations: {payload: declaration},
+      output: {payload: value},
+    });
+
+    expect(result).toMatchObject({ok: false, error: {key: 'payload', reason}});
+  });
+
+  it('rejects undeclared keys alongside optional outputs', () => {
+    const result = coerceStepOutputs({
+      declarations: {count: {type: 'number', required: false}},
+      output: {extra: 'nope'},
+    });
+
+    expect(result).toMatchObject({ok: false, error: {key: 'extra', reason: 'undeclared'}});
+  });
+
   it('reuses compiled JSON Schema validators by stable schema content', () => {
     const compileSpy = vi.spyOn(Ajv.prototype, 'compile');
     compileSpy.mockClear();
