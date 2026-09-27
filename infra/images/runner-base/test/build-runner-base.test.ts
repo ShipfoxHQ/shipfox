@@ -27,7 +27,7 @@ const ENVIRONMENT = {
   BUILD_SOURCE_AMI_ID: 'ami-bbbbbbbbbbbbbbbbb',
 };
 
-function packerManifest(name = 'base.base') {
+function packerManifest(name = 'base') {
   return {
     last_run_uuid: 'run-2',
     builds: [
