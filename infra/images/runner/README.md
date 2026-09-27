@@ -11,7 +11,8 @@ Candidate AWS builds start from an exact verified base AMI published by [`@shipf
 The source is explicit per lifecycle. A candidate AWS build fails without a base selection. A release or QEMU build fails with one, so a release never starts from a base encrypted under the candidate key.
 
 ```sh
-node infra/images/runner-base/bin/select-runner-base.js --output /tmp/runner-base-selection.json
+turbo build --filter=@shipfox/runner-image...
+BUILD_CANDIDATE_KMS_KEY_ID=alias/shipfox-runner-image-candidate node infra/images/runner-base/bin/select-runner-base.js --output /tmp/runner-base-selection.json
 BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS=123456789012,210987654321 BUILD_CANDIDATE_KMS_KEY_ID="$(jq -r .kmsKeyArn /tmp/runner-base-selection.json)" BUILD_RUNNER_BASE_SELECTION="$(cat /tmp/runner-base-selection.json)" BUILD_NUMBER=42 BUILD_REVISION=0123456789abcdef0123456789abcdef01234567 pnpm --filter=@shipfox/runner-image exec node ./bin/build-runner-image-candidate.js --output /tmp/runner-image-candidate.json
 BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_RUNNER_VERSION=0.1.0 pnpm --filter=@shipfox/runner-image exec node ./bin/build-runner-image.js ubuntu24 qemu
 ```
