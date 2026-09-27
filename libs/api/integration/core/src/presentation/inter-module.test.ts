@@ -532,6 +532,44 @@ describe('integrations inter-module presentation', () => {
     });
   });
 
+  it('resolves each tool result kind on the agent tools context', async () => {
+    const registry = createIntegrationProviderRegistry([
+      {
+        provider: 'github',
+        displayName: 'GitHub',
+        adapters: {
+          agent_tools: agentToolsProvider([
+            catalogTool({id: 'issue_read'}),
+            catalogTool({id: 'download_file', result: 'file', methods: undefined}),
+          ]),
+        },
+      },
+    ]);
+    const sourceControl = createSourceControlIntegrationService({
+      registry,
+      getIntegrationConnectionById: async () => undefined,
+    });
+    const transport = createInMemoryInterModuleTransport();
+    const client = transport.createClient(integrationsInterModuleContract);
+    transport.register(createIntegrationsInterModulePresentation({registry, sourceControl}));
+    transport.seal();
+
+    const context = await client.getAgentToolsContext({
+      workspaceId,
+      defaultConnectionId: connectionId,
+    });
+
+    expect(context.catalogs).toMatchObject([
+      {
+        provider: 'github',
+        tools: [
+          {id: 'issue_read', result: 'json'},
+          {id: 'download_file', result: 'file'},
+        ],
+      },
+    ]);
+  });
+
   it('lists workspace connections and returns a workspace-scoped provider catalog', async () => {
     const otherWorkspaceId = crypto.randomUUID();
     const catalog = [
@@ -547,6 +585,12 @@ describe('integrations inter-module presentation', () => {
             requiredScope: [],
           },
         ],
+      }),
+      catalogTool({
+        id: 'download_file',
+        description: 'Download a file from GitHub.',
+        result: 'file',
+        methods: undefined,
       }),
     ];
     const registry = createIntegrationProviderRegistry([
@@ -639,6 +683,7 @@ describe('integrations inter-module presentation', () => {
           description: 'Read issues from GitHub.',
           sensitivity: 'read',
           sensitive: false,
+          result: 'json',
           methods: [
             {
               id: 'get',
@@ -647,6 +692,13 @@ describe('integrations inter-module presentation', () => {
               sensitive: false,
             },
           ],
+        },
+        {
+          id: 'download_file',
+          description: 'Download a file from GitHub.',
+          sensitivity: 'read',
+          sensitive: false,
+          result: 'file',
         },
       ],
       events: ['issues'],

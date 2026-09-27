@@ -99,6 +99,7 @@ describe('agent-access integration tools', () => {
           description: 'Description',
           sensitivity: 'read',
           sensitive: false,
+          result: 'json',
           methods: [
             {
               id: methodId,
@@ -144,6 +145,7 @@ describe('agent-access integration tools', () => {
         description: 'T'.repeat(600),
         sensitivity: 'read' as const,
         sensitive: false,
+        result: 'json' as const,
         methods: Array.from({length: 51}, (_, methodIndex) => ({
           id: `method-${methodIndex}`,
           description: 'M'.repeat(600),

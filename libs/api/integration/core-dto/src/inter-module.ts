@@ -25,7 +25,9 @@ const connectionToolMethod = z.object({
   sensitivity: z.enum(['read', 'write']),
   sensitive: z.boolean(),
 });
+const toolResultKind = z.enum(['json', 'file']);
 const connectionTool = connectionToolMethod.extend({
+  result: toolResultKind,
   methods: z.array(connectionToolMethod).optional(),
 });
 const connectionToolCatalogConnection = workspaceConnection.omit({
@@ -328,6 +330,7 @@ export const integrationsInterModuleContract = defineInterModuleContract({
                 requiredScope: z.unknown(),
                 inputSchema: z.record(z.string(), z.unknown()),
                 outputSchema: z.record(z.string(), z.unknown()).optional(),
+                result: toolResultKind,
                 indirectTargetNote: z.string().min(1).optional(),
                 methods: z
                   .array(

@@ -254,6 +254,9 @@ export interface AgentToolCatalogMethod<RequiredScope = unknown> {
   indirectTargetNote?: string | undefined;
 }
 
+/** `file` tools return bytes rather than JSON, so agents cannot receive their result. */
+export type AgentToolResultKind = 'json' | 'file';
+
 export interface AgentToolCatalogEntry<RequiredScope = unknown> {
   id: string;
   description: string;
@@ -262,9 +265,17 @@ export interface AgentToolCatalogEntry<RequiredScope = unknown> {
   requiredScope: RequiredScope;
   inputSchema: AgentToolJsonSchema;
   outputSchema?: AgentToolJsonSchema | undefined;
+  /** Defaults to `json`. */
+  result?: AgentToolResultKind | undefined;
   repositoryScope?: AgentToolRepositoryScopeClassifier | undefined;
   indirectTargetNote?: string | undefined;
   methods?: readonly AgentToolCatalogMethod<RequiredScope>[] | undefined;
+}
+
+export function agentToolResultKind(
+  entry: Pick<AgentToolCatalogEntry, 'result'>,
+): AgentToolResultKind {
+  return entry.result ?? 'json';
 }
 
 /**

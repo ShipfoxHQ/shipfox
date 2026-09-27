@@ -3,6 +3,7 @@ import type {
   MaterializedAgentIntegrationToolConfigDto,
 } from '@shipfox/api-agent-dto';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
+import {agentToolResultKind} from '@shipfox/api-integration-spi';
 import {
   createInterModuleKnownError,
   defineInterModulePresentation,
@@ -300,6 +301,7 @@ export function createIntegrationsInterModulePresentation(params: {
             provider,
             tools: tools.map(({methods, repositoryScope: _repositoryScope, ...tool}) => ({
               ...tool,
+              result: agentToolResultKind(tool),
               ...(methods === undefined
                 ? {}
                 : {
@@ -468,6 +470,7 @@ function toConnectionToolCatalog(entry: AgentToolCatalogEntry) {
     description: entry.description,
     sensitivity: entry.sensitivity,
     sensitive: entry.sensitive,
+    result: agentToolResultKind(entry),
     ...(entry.methods === undefined
       ? {}
       : {
