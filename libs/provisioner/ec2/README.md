@@ -218,6 +218,9 @@ Search for `Observed EC2 runner instance termination` to find one terminal log p
 instance ID. The provider keeps the marker while AWS lists the instance, and for one
 hour after a listing gap.
 The provider reports non-terminal states on every observation.
+EC2 reads for observation, reconciliation, and service metrics run without tracing. A pass
+opens a `provisioner.ec2.converge` span only when it has assignments, terminations, or
+reports to send, and `provisioner.ec2.reconcile` only when it submits termination candidates.
 When the provider terminates an instance, it reports `terminated` with the backend authorization
 reason when one is present. Direct provider termination requests use `backend-terminate`.
 If `provisioner.ec2.registration_deadline_candidate_unidentifiable` appears, use

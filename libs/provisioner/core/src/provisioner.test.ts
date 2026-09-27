@@ -19,7 +19,10 @@ import type {ProvisionerAdapter, ProvisionerTemplate} from '#types.js';
 const observability = vi.hoisted(() => ({
   logger: {debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn: vi.fn()},
 }));
-vi.mock('@shipfox/node-opentelemetry', () => ({logger: () => observability.logger}));
+vi.mock('@shipfox/node-opentelemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shipfox/node-opentelemetry')>()),
+  logger: () => observability.logger,
+}));
 
 const EXPIRES_AT = '2026-01-01T00:00:00.000Z';
 

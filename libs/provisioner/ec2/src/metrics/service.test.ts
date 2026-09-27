@@ -25,7 +25,8 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('@shipfox/node-opentelemetry', () => ({
+vi.mock('@shipfox/node-opentelemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shipfox/node-opentelemetry')>()),
   getServiceMetricsProvider: mocks.getServiceMetricsProvider,
   logger: () => mocks.logger,
 }));

@@ -12,7 +12,7 @@ import {
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
 import type {ModuleService} from '@shipfox/node-module';
-import {logger} from '@shipfox/node-opentelemetry';
+import {logger, SpanStatusCode, trace} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {JobOutputNotJsonSafeError} from '#core/errors.js';
 import {recordStepProgressionMetrics, recordStepResultInTransaction} from '#core/job-execution.js';
@@ -32,6 +32,8 @@ import {
   recordWorkflowToolInvocationLogAppendFailure,
   recordWorkflowToolInvocationReclaims,
 } from '#metrics/instance.js';
+
+const tracer = trace.getTracer('@shipfox/api-workflows');
 
 const CLAIM_HEADROOM_MS = 15_000;
 const ERROR_BACKOFF_MS = 1_000;
@@ -171,15 +173,26 @@ export async function runToolStepExecutorCycle(params: {
     recordWorkflowToolInvocationReclaims('failed', failedReclaims);
   }
 
+  // Scans run outside any span so idle polling stays untraced. Each claimed call gets its own
+  // root span so its queries and provider calls stay traced.
   await Promise.all(
     claimed.claims.map((claim) =>
-      executeToolInvocation({
-        callTimeoutMs: params.callTimeoutMs,
-        claim,
-        integrations: params.integrations,
-        logs: params.logs,
-        nudge: params.nudge,
-        serviceSignal: params.signal,
+      tracer.startActiveSpan('workflows.tool_step.execute', {root: true}, async (span) => {
+        try {
+          await executeToolInvocation({
+            callTimeoutMs: params.callTimeoutMs,
+            claim,
+            integrations: params.integrations,
+            logs: params.logs,
+            nudge: params.nudge,
+            serviceSignal: params.signal,
+          });
+        } catch (error) {
+          span.setStatus({code: SpanStatusCode.ERROR});
+          throw error;
+        } finally {
+          span.end();
+        }
       }),
     ),
   );

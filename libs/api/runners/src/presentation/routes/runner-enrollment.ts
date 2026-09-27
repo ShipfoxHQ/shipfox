@@ -15,6 +15,7 @@ import {
   runnerEnrollmentResponseSchema,
 } from '@shipfox/api-runners-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import {trace, withoutTracing} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
 import {config} from '#config.js';
 import {getRunnerAssignment, issueRunnerActivationToken} from '#core/runner-activation.js';
@@ -194,18 +195,48 @@ export function resolveRunnerAssignmentPollWaitSeconds(
 export async function pollForRunnerActivationToken(
   params: RunnerAssignmentPollParams,
 ): Promise<string | null> {
+  const result = await waitForRunnerActivationToken(params);
+  const span = trace.getActiveSpan();
+  span?.setAttribute('runner.assignment_poll.reads', result.reads);
+  span?.setAttribute('runner.assignment_poll.outcome', result.outcome);
+  return result.activationToken;
+}
+
+interface RunnerAssignmentPollResult {
+  outcome: 'assigned' | 'aborted' | 'timeout';
+  reads: number;
+  activationToken: string | null;
+}
+
+async function waitForRunnerActivationToken(
+  params: RunnerAssignmentPollParams,
+): Promise<RunnerAssignmentPollResult> {
+  let reads = 0;
+  const finish = (
+    outcome: RunnerAssignmentPollResult['outcome'],
+    activationToken: string | null = null,
+  ): RunnerAssignmentPollResult => ({outcome, reads, activationToken});
+
   while (Date.now() < params.deadline) {
-    if (params.signal.aborted) return null;
-    const assignment = await params.getAssignment();
+    if (params.signal.aborted) return finish('aborted');
+    // Only the first read is traced, so a long wait stays one short trace.
+    const assignment = await withoutTracingAfterFirstRead(reads, params.getAssignment);
+    reads += 1;
     if (assignment) {
       const activationToken = await params.issueActivationToken();
-      if (activationToken) return activationToken;
+      if (activationToken) return finish('assigned', activationToken);
     }
     const remainingMs = params.deadline - Date.now();
-    if (remainingMs <= 0 || params.signal.aborted) return null;
+    if (remainingMs <= 0 || params.signal.aborted) {
+      return finish(params.signal.aborted ? 'aborted' : 'timeout');
+    }
     await new Promise((resolve) => setTimeout(resolve, Math.min(params.intervalMs, remainingMs)));
   }
-  return null;
+  return finish('timeout');
+}
+
+function withoutTracingAfterFirstRead<T>(reads: number, read: () => Promise<T>): Promise<T> {
+  return reads === 0 ? read() : withoutTracing(read);
 }
 export const runnerAssignmentPollRoute = defineRoute({
   method: 'GET',

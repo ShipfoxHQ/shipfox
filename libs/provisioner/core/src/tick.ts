@@ -4,8 +4,10 @@ import type {
   DemandStatDto,
   PollDemandTemplateDto,
 } from '@shipfox/api-runners-dto';
+import {withoutTracing} from '@shipfox/node-opentelemetry';
 import {ProvisionerAuthenticationError, type ProvisionerClient} from '#api-client.js';
 import {type PlannedLaunchGroup, planLaunches, templateAvailableSlots} from '#capacity.js';
+import {withWorkSpan} from '#tracing.js';
 import type {ProviderRunnerTracker} from '#tracker.js';
 import type {LaunchRunner, ProvisionerTemplate, TerminateRunners} from '#types.js';
 
@@ -110,20 +112,50 @@ export async function runProvisionerTick<Spec>(
     MAX_RESERVATIONS_PER_POLL,
   );
 
-  const response = await deps.client.pollDemand(
-    {
-      wait_seconds: deps.waitSeconds,
-      ...(deps.reservationTtlSeconds !== undefined
-        ? {reservation_ttl_seconds: deps.reservationTtlSeconds}
-        : {}),
-      max_reservations: pollReservationLimit,
-      templates: advertisements,
-    },
-    deps.signal ? {signal: deps.signal} : {},
+  // Most polls find nothing, so the poll itself is not traced. The API side of the poll
+  // then starts its own trace instead of joining a provisioner one.
+  const response = await withoutTracing(() =>
+    deps.client.pollDemand(
+      {
+        wait_seconds: deps.waitSeconds,
+        ...(deps.reservationTtlSeconds !== undefined
+          ? {reservation_ttl_seconds: deps.reservationTtlSeconds}
+          : {}),
+        max_reservations: pollReservationLimit,
+        templates: advertisements,
+      },
+      deps.signal ? {signal: deps.signal} : {},
+    ),
   );
 
-  const complete = () => completeProvisionerTick(deps, response);
+  const complete = () =>
+    hasTickWork(deps, response)
+      ? withWorkSpan(
+          'provisioner.demand',
+          {
+            'provisioner.reservation_count': response.reservations.length,
+            'provisioner.terminate_count': response.terminate_provider_runner_ids.length,
+          },
+          () => completeProvisionerTick(deps, response),
+        )
+      : completeProvisionerTick(deps, response);
   return deps.withProviderLock ? deps.withProviderLock(complete) : complete();
+}
+
+// Termination only mutates the tracker when it has runners to stop, so checking warm pool
+// deficits before it runs cannot miss a launch.
+function hasTickWork<Spec>(
+  deps: ProvisionerTickDeps<Spec>,
+  response: Awaited<ReturnType<ProvisionerClient['pollDemand']>>,
+): boolean {
+  if (response.reservations.length > 0 || response.terminate_provider_runner_ids.length > 0) {
+    return true;
+  }
+  const counts = deps.tracker.countsByTemplate();
+  return deps.templates.some((template) => {
+    const templateCounts = counts.get(template.key) ?? {starting: 0, running: 0};
+    return (template.targetConcurrency ?? 0) > templateCounts.starting + templateCounts.running;
+  });
 }
 
 async function completeProvisionerTick<Spec>(

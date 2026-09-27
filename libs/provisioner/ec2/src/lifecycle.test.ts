@@ -26,7 +26,10 @@ const observability = vi.hoisted(() => ({
   recordEc2HealthImpaired: vi.fn(),
 }));
 
-vi.mock('@shipfox/node-opentelemetry', () => ({logger: () => observability.logger}));
+vi.mock('@shipfox/node-opentelemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shipfox/node-opentelemetry')>()),
+  logger: () => observability.logger,
+}));
 vi.mock('#metrics/instance.js', () => ({
   recordEc2Launch: observability.recordEc2Launch,
   recordEc2ReconcileAbsent: observability.recordEc2ReconcileAbsent,
