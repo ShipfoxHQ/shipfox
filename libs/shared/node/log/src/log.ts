@@ -107,7 +107,7 @@ const CREDENTIAL_FIELDS = new Set(['authorization', 'cookie', 'proxy-authorizati
 const MAX_SCRUB_DEPTH = 10;
 
 function scrubSerializedError(value: unknown, depth = 0): unknown {
-  if (depth > MAX_SCRUB_DEPTH) return value;
+  if (depth > MAX_SCRUB_DEPTH) return '[Truncated]';
   if (Array.isArray(value)) return value.map((item) => scrubSerializedError(item, depth + 1));
   if (!isRecord(value)) return value;
 

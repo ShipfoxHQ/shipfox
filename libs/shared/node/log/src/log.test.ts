@@ -238,4 +238,15 @@ describe('HTTP serializers', () => {
       },
     });
   });
+
+  it('truncates error fields nested past the scrub depth', async () => {
+    const {settings} = await import('./log.js');
+    let nested: Record<string, unknown> = {authorization: 'Bearer deep-secret'};
+    for (let depth = 0; depth < 12; depth++) nested = {child: nested};
+
+    const serialized = settings.serializers?.err?.(Object.assign(new Error('deep'), {nested}));
+
+    expect(JSON.stringify(serialized)).not.toContain('deep-secret');
+    expect(JSON.stringify(serialized)).toContain('[Truncated]');
+  });
 });
