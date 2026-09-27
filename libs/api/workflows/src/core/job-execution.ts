@@ -20,8 +20,10 @@ import {
   finishStepAttempt,
   getDirectDependencyJobContexts,
   getJobExecutionById,
+  getJobExecutionsByJobId,
   getLatestJobExecutionByJobId,
   getStepAttemptsByJobExecutionId,
+  getStepDispatchRunContext,
   getStepsByJobExecutionIdForUpdate,
   getWorkflowContextForJob,
   insertRunningStepAttempt,
@@ -65,7 +67,10 @@ import {
   restoreAgentSessionIntentForRedispatch,
 } from './step-config/agent.js';
 import {assembleStepDispatchContext} from './step-config/assemble-run-context.js';
-import {completeStepDispatchConfig} from './step-config/complete-step-dispatch-config.js';
+import {
+  completeStepDispatchConfig,
+  planReadsContext,
+} from './step-config/complete-step-dispatch-config.js';
 import type {WorkflowEvaluationContext} from './step-config/workflow-evaluation-context.js';
 import {
   applyStepTransition,
@@ -145,6 +150,7 @@ interface ResolvePendingStepParams {
   readonly jobExecution: JobExecution;
   readonly attempts: Awaited<ReturnType<typeof getStepAttemptsByJobExecutionId>>;
   readonly jobs: Awaited<ReturnType<typeof getDirectDependencyJobContexts>>;
+  readonly runContext: Awaited<ReturnType<typeof getStepDispatchRunContext>>;
   readonly vars: Record<string, string> | undefined;
   readonly tx: Tx;
   readonly agent?: AgentInterModuleClient | undefined;
@@ -191,6 +197,7 @@ async function nextStepForJobExecutionInTransaction(
     includeTriggerEventPayloads: false,
   });
   const workflowContext = await getWorkflowContextForJob(jobExecution.jobId, tx);
+  const runContext = await getStepDispatchRunContext(jobExecution.jobId, tx);
 
   return resolveNextPendingStep({
     jobExecutionId,
@@ -198,6 +205,7 @@ async function nextStepForJobExecutionInTransaction(
     jobExecution,
     attempts,
     jobs,
+    runContext,
     vars: workflowContext.vars ?? undefined,
     workflowContext,
     tx,
@@ -262,6 +270,7 @@ async function resolveNextPendingStep({
   jobExecution,
   attempts,
   jobs,
+  runContext,
   vars,
   workflowContext,
   tx,
@@ -269,6 +278,7 @@ async function resolveNextPendingStep({
 }: ResolvePendingStepParams): Promise<NextStepResolution> {
   let skippedAny = false;
   let currentSteps = steps;
+  let executions: readonly JobExecution[] | undefined;
 
   while (true) {
     const pending = currentSteps.find((step) => step.status === 'pending');
@@ -285,11 +295,24 @@ async function resolveNextPendingStep({
       return {kind: 'done', status};
     }
 
+    // Listening jobs can hold many executions, so load them only for a step that reads them.
+    if (executions === undefined && planReadsContext(pending.configPlan, 'executions')) {
+      const jobExecutions = await getJobExecutionsByJobId(jobExecution.jobId, tx);
+      executions = jobExecutions.filter((execution) => execution.sequence <= jobExecution.sequence);
+    }
+
     const context = assembleStepDispatchContext({
       steps: currentSteps,
       attempts,
       targetStepId: pending.id,
+      runContext: {
+        run: runContext.run,
+        triggerPayload: runContext.run.triggerPayload,
+        inputs: runContext.run.inputs,
+      },
+      job: runContext.job,
       jobExecution,
+      executions,
       jobs,
       vars,
     });

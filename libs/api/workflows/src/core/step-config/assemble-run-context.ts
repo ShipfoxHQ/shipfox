@@ -998,7 +998,15 @@ export function assembleStepDispatchContext(params: {
   readonly steps: readonly Step[];
   readonly attempts: readonly StepAttempt[];
   readonly targetStepId: string;
+  /**
+   * A segment that mixes run-scoped roots with `steps` fills at step dispatch, so
+   * dispatch must still see every root that was available when the run started.
+   */
+  readonly runContext?: Omit<AssembleWorkflowRunContextParams, 'vars'> | undefined;
+  readonly job?: {readonly key: string; readonly name: string | null} | undefined;
   readonly jobExecution?: JobExecution;
+  /** The job's executions through the current one, loaded only when the step reads them. */
+  readonly executions?: readonly JobExecution[] | undefined;
   readonly jobs?: readonly JobContextInput[];
   readonly vars?: Record<string, string> | undefined;
 }): WorkflowEvaluationContext {
@@ -1018,8 +1026,21 @@ export function assembleStepDispatchContext(params: {
   return {
     site: 'step-dispatch',
     values: {
+      ...(params.runContext === undefined ? {} : assembleWorkflowRunContext(params.runContext)),
+      ...(params.job === undefined
+        ? {}
+        : {job: {key: params.job.key, name: params.job.name ?? params.job.key}}),
+      ...(params.executions === undefined
+        ? {}
+        : assembleExecutionsContextWithCurrentExecution(
+            params.executions,
+            params.jobExecution?.id,
+          )),
       vars: params.vars ?? {},
       ...assembleJobsContext(params.jobs ?? [], {eventProjection: 'metadata'}),
+      needs: (params.jobs ?? []).map((input) =>
+        assembleJobContext(input, {eventProjection: 'metadata'}),
+      ),
       ...(params.jobExecution === undefined
         ? {}
         : {

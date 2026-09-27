@@ -60,7 +60,7 @@ async function recordStepResult(
   return recordJobExecutionStepResult({...rest, jobExecutionId: step.jobExecutionId});
 }
 
-function plannedField(field: 'run' | 'step.feedback', source: string) {
+function plannedField(field: 'run' | 'env.value' | 'step.feedback', source: string) {
   const plan = planInterpolationField({field, segments: parseWorkflowTemplate(source)});
   if (!plan.ok) throw new Error('Expected test template to plan');
   return plan.plan.field;
@@ -372,6 +372,74 @@ describe('nextStepForJob', () => {
     const after = await getStepsByJobId(jobId);
     expect(after.find((step) => step.id === consumer.id)?.configPlan).toEqual({
       env: {SHA: shaPlan},
+    });
+  });
+
+  test('fills a dispatch segment that mixes run-scoped roots with a peer step output', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    const producer = steps[0];
+    const consumer = steps[1];
+    if (!producer || !consumer) throw new Error('Expected arranged steps');
+    const labelPlan = plannedField(
+      'env.value',
+      `\${{ workflow.name + "/" + job.key + "/" + trigger.event + "/" + steps.build.outputs.sha }}`,
+    );
+    await db().update(stepsTable).set({key: 'build'}).where(eq(stepsTable.id, producer.id));
+    await db()
+      .update(stepsTable)
+      .set({key: 'deploy', config: {run: 'echo ok'}, configPlan: {env: {LABEL: labelPlan}}})
+      .where(eq(stepsTable.id, consumer.id));
+    await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: producer.id,
+      status: 'succeeded',
+      output: {sha: 'abc123'},
+    });
+
+    const next = await nextStepForJob(jobId);
+
+    expect(next).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({
+        id: consumer.id,
+        config: {run: 'echo ok', env: {LABEL: 'Test Workflow/build/fire/abc123'}},
+      }),
+      dispatched: true,
+    });
+  });
+
+  test('loads executions for a dispatch segment that mixes them with a peer step output', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    const producer = steps[0];
+    const consumer = steps[1];
+    if (!producer || !consumer) throw new Error('Expected arranged steps');
+    const checkPlan = plannedField(
+      'env.value',
+      `\${{ executions.size() == 1 && steps.build.outputs.sha == "abc123" ? "yes" : "no" }}`,
+    );
+    await db().update(stepsTable).set({key: 'build'}).where(eq(stepsTable.id, producer.id));
+    await db()
+      .update(stepsTable)
+      .set({key: 'deploy', config: {run: 'echo ok'}, configPlan: {env: {CHECK: checkPlan}}})
+      .where(eq(stepsTable.id, consumer.id));
+    await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: producer.id,
+      status: 'succeeded',
+      output: {sha: 'abc123'},
+    });
+
+    const next = await nextStepForJob(jobId);
+
+    expect(next).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({
+        id: consumer.id,
+        config: {run: 'echo ok', env: {CHECK: 'yes'}},
+      }),
+      dispatched: true,
     });
   });
 

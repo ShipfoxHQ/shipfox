@@ -128,6 +128,7 @@ function completeResolvedStepField<Value>(
     field: params.errorField,
     source: source ?? params.field,
     ...(params.envKey === undefined ? {} : {envKey: params.envKey}),
+    contextUnavailable: true,
   });
 }
 

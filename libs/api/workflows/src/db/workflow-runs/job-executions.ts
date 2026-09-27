@@ -108,15 +108,16 @@ export async function getJobExecutionsByWorkflowRunAttemptId(
   );
 }
 
-export async function getJobExecutionsByJobId(jobId: string): Promise<JobExecution[]> {
-  const rows = await db()
+export async function getJobExecutionsByJobId(jobId: string, tx?: Tx): Promise<JobExecution[]> {
+  const source = tx ?? db();
+  const rows = await source
     .select({jobExecution: jobExecutions, job: jobs})
     .from(jobExecutions)
     .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
     .where(eq(jobExecutions.jobId, jobId))
     .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
   const executions = await loadJobExecutionsWithCanonicalTriggerEvents(
-    db(),
+    source,
     rows.map((row) => row.jobExecution),
   );
   return rows.map((row) =>
