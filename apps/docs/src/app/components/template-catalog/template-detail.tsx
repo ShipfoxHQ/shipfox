@@ -91,7 +91,8 @@ export async function TemplateDetail({id}: {id: string}) {
         {template.options.length > 0 ? (
           <Section title="Choices you make">
             <p className="text-sm text-fd-muted-foreground">
-              Your agent asks these questions. The workflow file shows every default.
+              When you set up this workflow, your coding agent asks you these questions. The
+              workflow file on this page uses the default answers.
             </p>
             <ul className="flex flex-col divide-y divide-fd-border rounded-lg border border-fd-border">
               {template.options.map((option) => {
@@ -171,7 +172,8 @@ export async function TemplateDetail({id}: {id: string}) {
               ))}
             </ul>
             <p className="text-xs text-fd-muted-foreground">
-              Your agent suggests alternatives from your workspace models. You confirm every model.
+              When you set up this workflow, your coding agent suggests models that your workspace
+              can use. You choose the model for each step.
             </p>
           </Section>
         ) : null}
