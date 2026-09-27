@@ -1,0 +1,41 @@
+id: slack-to-ticket
+revision: 1
+added_at: 2026-09-27
+title: Create a ticket from a Slack conversation
+summary: An agent reads a Slack thread and the project's repository, creates one grounded Linear ticket, and links it in the thread.
+roles:
+  chat:
+    providers: [slack]
+  tracker:
+    providers: [linear]
+  source:
+    from: project
+    providers: [github]
+options:
+  - id: entry_point
+    question: What should start the workflow?
+    choices:
+      - id: mention
+        label: Mention the app in allowed channels
+        default: true
+        tradeoff: Creates a ticket for every mention of the Shipfox app in the listed channels. Manual starts with thread inputs still work.
+      - id: dispatch_only
+        label: Manual starts only
+        tradeoff: Creates a ticket only when a Slack dispatcher or a person starts the workflow with thread inputs. Use it when a dispatcher already handles mentions, so one mention does not start two workflows.
+  - id: ticket_project
+    question: Should new tickets join a Linear project?
+    applies_to: [linear]
+    choices:
+      - id: team_only
+        label: Team only
+        default: true
+        tradeoff: Creates tickets in the chosen team without a project. Someone triages them into a project later.
+      - id: project
+        label: Add them to a project
+        tradeoff: Also adds every ticket to one Linear project. Requires the project's name or ID.
+models:
+  draft:
+    note: Reads the Slack thread and the repository, then drafts a ticket grounded in both. Needs a strong model with high thinking.
+slots: []
+secrets: []
+variables: []

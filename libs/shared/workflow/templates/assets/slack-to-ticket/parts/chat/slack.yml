@@ -1,0 +1,77 @@
+trigger: |
+  # option:entry_point=mention begin
+  on_mention:
+    source: slack_chat # bind:chat
+    event: app_mention
+    # Replace replace-with-channel-id with the IDs of the channels where the app creates tickets.
+    filter: >-
+      !has(event.bot_id) &&
+      event.channel in ["replace-with-channel-id"]
+  # option:entry_point=mention end
+read_thread: |
+  outputs:
+    channel_id: '${{ trigger.source == "manual" ? inputs.channel_id : event.channel }}'
+    thread_ts: '${{ trigger.source == "manual" ? inputs.thread_ts : (has(event.thread_ts) ? event.thread_ts : event.ts) }}'
+    permalink: ${{ steps.permalink.outputs.url }}
+  steps:
+    # Resolves the thread link for the ticket before the agent starts.
+    - key: permalink
+      tool: get_permalink
+      connection: slack_chat # bind:chat
+      with:
+        channel_id: '${{ trigger.source == "manual" ? inputs.channel_id : event.channel }}'
+        message_ts: '${{ trigger.source == "manual" ? inputs.thread_ts : (has(event.thread_ts) ? event.thread_ts : event.ts) }}'
+      outputs:
+        url: ${{ result.permalink }}
+read_tools: |
+  # The agent reads the thread itself. Tool selection cannot pin the channel, so the agent can read
+  # any thread in channels the app belongs to; the prompt limits it to this thread.
+  integrations:
+    - connection: slack_chat # bind:chat
+      include: [read_thread]
+already_tracked: |
+  - key: already_tracked
+    if: ${{ steps.draft.outputs.status == "already_tracked" }}
+    tool: send_message
+    connection: slack_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      message: This thread already has ticket ${{ steps.draft.outputs.existing_ticket }}, so Shipfox did not create another one. Add new details to that ticket.
+ask: |
+  - key: ask
+    if: ${{ steps.draft.outputs.status == "needs_information" }}
+    tool: send_message
+    connection: slack_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      message: |-
+        Shipfox needs more information before it can create a ticket:
+
+        ${{ steps.draft.outputs.reply }}
+
+        _Answer in this thread, then mention the app again._
+link_back: |
+  - key: link_back
+    tool: send_message
+    connection: slack_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      message: |-
+        Ticket [${{ steps.create_ticket.outputs.identifier }}](${{ steps.create_ticket.outputs.url }}) tracks this thread: ${{ jobs.draft.outputs.title }}
+
+        ${{ jobs.draft.outputs.reply }}
+
+        _Drafted from this thread and `${{ jobs.draft.outputs.repository }}` at `${{ jobs.draft.outputs.commit }}`. Review the ticket before work starts._
+    outputs:
+      message_ts: ${{ result.ts }}
+failure_reply: |
+  - key: report_failure
+    tool: send_message
+    connection: slack_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      message: Shipfox could not create a ticket from this thread. Run ${{ run.number }} of the Slack ticket workflow failed. A project member can inspect the run in Shipfox before starting it again.

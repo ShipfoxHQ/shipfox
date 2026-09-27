@@ -1,0 +1,24 @@
+create: |
+  - key: create_ticket
+    tool: save_issue
+    connection: linear_tracker # bind:tracker
+    with:
+      # Replace replace-with-team-key with the key of the Linear team that owns new tickets, such as ENG.
+      team: replace-with-team-key
+      # option:ticket_project=project begin
+      # Replace replace-with-project with the name or ID of the Linear project for new tickets.
+      project: replace-with-project
+      # option:ticket_project=project end
+      title: ${{ jobs.draft.outputs.title }}
+      description: |-
+        ${{ jobs.draft.outputs.description }}
+
+        ---
+
+        Drafted by Shipfox from a [Slack thread](${{ jobs.thread.outputs.permalink }}) and `${{ jobs.draft.outputs.repository }}` at [`${{ jobs.draft.outputs.commit }}`](${{ jobs.draft.outputs.tree_url }}). Check both before work starts.
+      links:
+        - title: Slack thread
+          url: ${{ jobs.thread.outputs.permalink }}
+    outputs:
+      identifier: ${{ result.id }}
+      url: ${{ result.url }}

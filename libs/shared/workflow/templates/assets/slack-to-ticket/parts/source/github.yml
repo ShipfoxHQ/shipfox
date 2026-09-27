@@ -1,0 +1,22 @@
+checkout: |
+  checkout:
+    permissions:
+      contents: read
+    persist-credentials: false
+revision: |
+  - key: revision
+    run: |
+      REMOTE="$(git remote get-url origin)"
+      REPOSITORY="$(printf '%s' "$REMOTE" | sed -E 's#^[A-Za-z][A-Za-z0-9+.-]*://[^/]*/##; s#^[^@/]+@[^:/]+:##; s#\.git$##')"
+      HOST="$(printf '%s' "$REMOTE" | sed -E 's#^[A-Za-z][A-Za-z0-9+.-]*://([^@/]*@)?##; s#^[^@/]+@##; s#[:/].*$##')"
+      COMMIT="$(git rev-parse HEAD)"
+      {
+        printf 'repository=%s\ncommit=%s\n' "$REPOSITORY" "$(git rev-parse --short=12 HEAD)"
+        printf 'code_url=https://%s/%s/blob/%s\n' "$HOST" "$REPOSITORY" "$COMMIT"
+        printf 'tree_url=https://%s/%s/tree/%s\n' "$HOST" "$REPOSITORY" "$COMMIT"
+      } >> "$SHIPFOX_OUTPUT"
+    outputs:
+      repository: string
+      commit: string
+      code_url: string
+      tree_url: string
