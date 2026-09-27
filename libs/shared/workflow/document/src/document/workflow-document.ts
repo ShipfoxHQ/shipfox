@@ -95,6 +95,13 @@ export const workflowDocumentEnvSchema = z
 
 export const WORKFLOW_DOCUMENT_STEP_OUTPUT_KEY_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
+// Action code reaches a binding as `tools.<alias>`, so aliases are identifiers.
+export const workflowDocumentActionAliasSchema = z
+  .string()
+  .regex(WORKFLOW_DOCUMENT_STEP_OUTPUT_KEY_PATTERN, {
+    message: 'Integration aliases must be identifiers.',
+  });
+
 // Tool inputs are a JSON tree: scalars, nested mappings, and sequences. String
 // leaves accept `${{ }}` interpolation; the expression layer validates them.
 type WorkflowDocumentJsonValue =
@@ -105,29 +112,37 @@ type WorkflowDocumentJsonValue =
   | WorkflowDocumentJsonValue[]
   | {[key: string]: WorkflowDocumentJsonValue};
 
-export const workflowDocumentToolStepWithSchema = z
+// Tool and action steps share the `with` field, so the step field checks only
+// the JSON-tree limits. Kind-specific rules run in the step refinement.
+const workflowDocumentStepWithSchema = z
   // Validate nested values in an iterative refinement. A recursive Zod schema
-  // would traverse hostile depth before the tool-input limits can reject it.
+  // would traverse hostile depth before the input limits can reject it.
   .record(z.string().min(1), z.unknown())
-  .superRefine((withValue, ctx) => {
-    // The server injects `method` for `family.method` tools, so the author can
-    // never set it.
-    if ('method' in withValue) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['method'],
-        message:
-          '`method` is not a valid tool input; the server injects it for `family.method` tools.',
-      });
-    }
-
-    validateWorkflowDocumentToolWith(withValue, ctx);
-  })
+  .superRefine((withValue, ctx) => validateWorkflowDocumentToolWith(withValue, ctx))
   .transform((withValue) => withValue as Record<string, WorkflowDocumentJsonValue>)
   .meta({
     description:
       'Provides input values to the tool. The tool defines the accepted fields. String values support workflow expressions. See [Context availability](/reference/contexts#context-availability).',
   });
+
+export const workflowDocumentToolStepWithSchema = workflowDocumentStepWithSchema.superRefine(
+  (withValue, ctx) => addWorkflowDocumentToolWithMethodIssue(withValue, ctx, []),
+);
+
+function addWorkflowDocumentToolWithMethodIssue(
+  withValue: Readonly<Record<string, unknown>>,
+  ctx: z.RefinementCtx,
+  path: readonly (string | number)[],
+) {
+  // The server injects `method` for `family.method` tools, so the author can
+  // never set it.
+  if (!('method' in withValue)) return;
+  ctx.addIssue({
+    code: 'custom',
+    path: [...path, 'method'],
+    message: '`method` is not a valid tool input; the server injects it for `family.method` tools.',
+  });
+}
 
 type WorkflowDocumentToolWithValidationTask =
   | {kind: 'value'; value: unknown; depth: number; path: (string | number)[]}
@@ -179,7 +194,7 @@ function addWorkflowDocumentToolWithBytes(
   if (state.serializedBytes <= WORKFLOW_DOCUMENT_TOOL_WITH_MAX_SERIALIZED_BYTES) return true;
   ctx.addIssue({
     code: 'custom',
-    message: `Tool \`with\` cannot serialize to more than ${WORKFLOW_DOCUMENT_TOOL_WITH_MAX_SERIALIZED_BYTES} bytes.`,
+    message: `\`with\` cannot serialize to more than ${WORKFLOW_DOCUMENT_TOOL_WITH_MAX_SERIALIZED_BYTES} bytes.`,
   });
   return false;
 }
@@ -200,12 +215,12 @@ function validateWorkflowDocumentToolWithValue(
   if (depth > WORKFLOW_DOCUMENT_TOOL_WITH_MAX_DEPTH) {
     ctx.addIssue({
       code: 'custom',
-      message: `Tool \`with\` cannot be nested deeper than ${WORKFLOW_DOCUMENT_TOOL_WITH_MAX_DEPTH} levels.`,
+      message: `\`with\` cannot be nested deeper than ${WORKFLOW_DOCUMENT_TOOL_WITH_MAX_DEPTH} levels.`,
     });
     return false;
   }
   if (state.activeObjects.has(value)) {
-    ctx.addIssue({code: 'custom', path, message: 'Tool `with` values must be a JSON tree.'});
+    ctx.addIssue({code: 'custom', path, message: '`with` values must be a JSON tree.'});
     return false;
   }
 
@@ -230,7 +245,7 @@ function rejectWorkflowDocumentToolWithValue(
   path: (string | number)[],
   ctx: z.RefinementCtx,
 ): false {
-  ctx.addIssue({code: 'custom', path, message: 'Tool `with` values must be JSON-compatible.'});
+  ctx.addIssue({code: 'custom', path, message: '`with` values must be JSON-compatible.'});
   return false;
 }
 
@@ -238,7 +253,7 @@ function rejectWorkflowDocumentToolWithTree(
   path: (string | number)[],
   ctx: z.RefinementCtx,
 ): false {
-  ctx.addIssue({code: 'custom', path, message: 'Tool `with` values must be a JSON tree.'});
+  ctx.addIssue({code: 'custom', path, message: '`with` values must be a JSON tree.'});
   return false;
 }
 
@@ -331,55 +346,66 @@ export const workflowDocumentStepOutputDeclarationSchema = z
         }),
     }),
   ])
-  .superRefine((declaration, ctx) => {
-    const schema = 'schema' in declaration ? declaration.schema : undefined;
-    if (declaration.type !== 'json' && schema !== undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['schema'],
-        message: '`schema` is only supported for json outputs.',
-      });
-      return;
-    }
+  .superRefine((declaration, ctx) =>
+    validateWorkflowDocumentValueDeclaration(
+      {type: declaration.type, schema: 'schema' in declaration ? declaration.schema : undefined},
+      ctx,
+    ),
+  );
 
-    if (schema === undefined) return;
+// Step outputs and action manifest inputs and outputs share one type vocabulary.
+export function validateWorkflowDocumentValueDeclaration(
+  declaration: {type: WorkflowDocumentStepOutputType; schema?: unknown},
+  ctx: z.RefinementCtx,
+): void {
+  const schema = declaration.schema;
+  if (declaration.type !== 'json' && schema !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['schema'],
+      message: '`schema` is only supported for json outputs.',
+    });
+    return;
+  }
 
-    if (!isJsonSchemaDocument(schema)) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['schema'],
-        message: 'Schema must be a valid JSON Schema document.',
-      });
-      return;
-    }
+  if (schema === undefined) return;
 
-    const serializedBytes = jsonSerializedByteLength(schema);
-    if (serializedBytes === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['schema'],
-        message: 'Schema must be a serializable JSON Schema document.',
-      });
-      return;
-    }
+  if (!isJsonSchemaDocument(schema)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['schema'],
+      message: 'Schema must be a valid JSON Schema document.',
+    });
+    return;
+  }
 
-    if (serializedBytes > WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_SERIALIZED_BYTES) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['schema'],
-        message: `Output JSON Schema cannot serialize to more than ${WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_SERIALIZED_BYTES} bytes.`,
-      });
-    }
+  const serializedBytes = jsonSerializedByteLength(schema);
+  if (serializedBytes === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['schema'],
+      message: 'Schema must be a serializable JSON Schema document.',
+    });
+    return;
+  }
 
-    const depth = maxJsonDepth(schema);
-    if (depth > WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['schema'],
-        message: `Output JSON Schema cannot be nested deeper than ${WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH} levels.`,
-      });
-    }
-  });
+  if (serializedBytes > WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_SERIALIZED_BYTES) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['schema'],
+      message: `Output JSON Schema cannot serialize to more than ${WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_SERIALIZED_BYTES} bytes.`,
+    });
+  }
+
+  const depth = maxJsonDepth(schema);
+  if (depth > WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['schema'],
+      message: `Output JSON Schema cannot be nested deeper than ${WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH} levels.`,
+    });
+  }
+}
 
 function stepOutputsAreMappingForm(outputs: Readonly<Record<string, unknown>>): boolean {
   const values = Object.values(outputs);
@@ -888,11 +914,11 @@ export const workflowDocumentAgentStepFields = [
 ] as const;
 
 // A step is a run step (`run`), an inline agent step (`prompt`), a checkout step
-// (`checkout`), or a tool step (`tool`), never two kinds at once. They share one
-// strict object so an unknown key is still rejected; the `superRefine`
-// discriminates by which payload keys are present and emits one targeted issue
-// per offending field (a plain union would surface every branch's errors at
-// once). The `agent` keyword is declared only so the reserved-keyword case
+// (`checkout`), a tool step (`tool`), or an action step (`uses`), never two
+// kinds at once. They share one strict object so an unknown key is still
+// rejected; the `superRefine` discriminates by which payload keys are present
+// and emits one targeted issue per offending field (a plain union would surface
+// every branch's errors at once). The `agent` keyword is declared only so the reserved-keyword case
 // produces a clear message instead of a generic "unrecognized key".
 const workflowDocumentStepBaseSchema = z.strictObject({
   key: z
@@ -953,7 +979,23 @@ const workflowDocumentStepBaseSchema = z.strictObject({
       description:
         'Selects an integration connection by its slug. If omitted, Shipfox uses the source integration connection of the project.',
     }),
-  with: workflowDocumentToolStepWithSchema.optional(),
+  uses: literalNameSchema('Action path must be literal. Interpolation is rejected.')
+    .optional()
+    .meta({
+      description:
+        'Runs the action in this repository directory. The path starts with `./` and the directory contains an `action.yml` manifest.',
+    }),
+  connections: z
+    .record(
+      workflowDocumentActionAliasSchema,
+      literalNameSchema('Connection slug must be literal. Interpolation is rejected.'),
+    )
+    .optional()
+    .meta({
+      description:
+        'Binds each integration alias declared in the action manifest to a connection slug.',
+    }),
+  with: workflowDocumentStepWithSchema.optional(),
   gate: workflowDocumentStepGateSchema.optional().meta({
     description:
       'Checks the step result and can restart earlier steps. Set `success`, `on_failure`, or both. See [Feedback loops](/understand/feedback-loops).',
@@ -981,12 +1023,39 @@ type WorkflowDocumentStepSchemaOutput =
     });
 type WorkflowDocumentStepInput = z.infer<typeof workflowDocumentStepBaseSchema>;
 
+const workflowDocumentActionStepFields = ['uses', 'connections'] as const;
+
 export const workflowDocumentStepKindInvalidFields = {
-  run: [...workflowDocumentAgentStepFields, 'checkout', 'tool', 'connection', 'with'],
-  agent: ['run', 'checkout', 'tool', 'connection', 'with'],
-  checkout: ['run', ...workflowDocumentAgentStepFields, 'env', 'tool', 'connection', 'with'],
-  tool: ['run', ...workflowDocumentAgentStepFields, 'checkout', 'env', 'working_directory'],
+  run: [
+    ...workflowDocumentAgentStepFields,
+    ...workflowDocumentActionStepFields,
+    'checkout',
+    'tool',
+    'connection',
+    'with',
+  ],
+  agent: ['run', ...workflowDocumentActionStepFields, 'checkout', 'tool', 'connection', 'with'],
+  checkout: [
+    'run',
+    ...workflowDocumentAgentStepFields,
+    ...workflowDocumentActionStepFields,
+    'env',
+    'tool',
+    'connection',
+    'with',
+  ],
+  tool: [
+    'run',
+    ...workflowDocumentAgentStepFields,
+    ...workflowDocumentActionStepFields,
+    'checkout',
+    'env',
+    'working_directory',
+  ],
+  action: ['run', ...workflowDocumentAgentStepFields, 'checkout', 'tool', 'connection', 'outputs'],
 } as const;
+
+type WorkflowDocumentStepKind = keyof typeof workflowDocumentStepKindInvalidFields;
 
 export const workflowDocumentStepSchema = workflowDocumentStepBaseSchema
   .superRefine(validateWorkflowDocumentStep)
@@ -1012,6 +1081,10 @@ function validateWorkflowDocumentStep(step: WorkflowDocumentStepInput, ctx: z.Re
       path: ['agent'],
       message: 'The "agent" keyword is reserved for a future step kind and is not supported yet.',
     });
+    return;
+  }
+  if (step.uses !== undefined) {
+    validateWorkflowDocumentActionStep(step, ctx);
     return;
   }
   if (step.checkout !== undefined) {
@@ -1075,6 +1148,24 @@ function validateWorkflowDocumentToolStep(
     'tool',
     workflowDocumentStepKindInvalidFields.tool,
   );
+  if (step.with !== undefined) addWorkflowDocumentToolWithMethodIssue(step.with, ctx, ['with']);
+}
+
+function validateWorkflowDocumentActionStep(
+  step: WorkflowDocumentStepInput,
+  ctx: z.RefinementCtx,
+): void {
+  addWorkflowDocumentInvalidStepFields(
+    step,
+    ctx,
+    'action',
+    workflowDocumentStepKindInvalidFields.action,
+  );
+  if (step.uses !== undefined && WORKFLOW_LITERAL_NAME_PATTERN.test(step.uses)) {
+    const message = workflowDocumentActionPathIssue(step.uses);
+    if (message !== undefined) ctx.addIssue({code: 'custom', path: ['uses'], message});
+  }
+  if (step.with !== undefined) addWorkflowDocumentActionWithSecretIssues(step.with, ctx);
 }
 
 function validateWorkflowDocumentCheckoutStep(
@@ -1092,13 +1183,13 @@ function validateWorkflowDocumentCheckoutStep(
 function addWorkflowDocumentInvalidStepFields(
   step: WorkflowDocumentStepInput,
   ctx: z.RefinementCtx,
-  stepKind: 'agent' | 'checkout' | 'run' | 'tool',
+  stepKind: WorkflowDocumentStepKind,
   fields: readonly (keyof WorkflowDocumentStepInput)[],
 ): void {
   for (const key of fields) {
     if (step[key] === undefined) continue;
     if (
-      (key === 'tool' || key === 'connection') &&
+      (key === 'tool' || key === 'connection' || key === 'uses') &&
       typeof step[key] === 'string' &&
       !WORKFLOW_LITERAL_NAME_PATTERN.test(step[key])
     ) {
@@ -1123,7 +1214,8 @@ function validateWorkflowDocumentAgentStep(
     ctx.addIssue({
       code: 'custom',
       path: ['tool'],
-      message: 'A tool step requires `tool`; `connection` and `with` are only valid alongside it.',
+      message:
+        'A tool step requires `tool`; `connection` is only valid alongside it, and `with` alongside `tool` or `uses`.',
     });
     return;
   }
@@ -1131,7 +1223,8 @@ function validateWorkflowDocumentAgentStep(
   if (!isAgent) {
     ctx.addIssue({
       code: 'custom',
-      message: 'A step must define either "run", an agent "prompt", a "checkout", or a "tool".',
+      message:
+        'A step must define either "run", an agent "prompt", a "checkout", a "tool", or "uses".',
     });
     return;
   }
@@ -1161,8 +1254,83 @@ function hasInvalidToolOnlyField(step: WorkflowDocumentStepInput): boolean {
   );
 }
 
-function articleForStepKind(stepKind: 'agent' | 'checkout' | 'run' | 'tool'): 'a' | 'an' {
-  return stepKind === 'agent' ? 'an' : 'a';
+function articleForStepKind(stepKind: WorkflowDocumentStepKind): 'a' | 'an' {
+  return stepKind === 'agent' || stepKind === 'action' ? 'an' : 'a';
+}
+
+const workflowDocumentUrlPattern = /^[A-Za-z][A-Za-z0-9+.-]*:/;
+
+// Only repository-local actions exist in v1. Remote forms stay reserved so a
+// later release can add them without changing what a local path means.
+export function workflowDocumentActionPathIssue(uses: string): string | undefined {
+  if (uses.startsWith('./')) {
+    if (isNormalizedRelativePath(uses.slice(2))) return undefined;
+    return 'Action paths must be normalized: no empty, `.`, or `..` segments, no backslashes, and no trailing `/`.';
+  }
+  if (uses === '.' || uses === '..' || uses.startsWith('../')) {
+    return 'Action paths must stay inside the repository and start with `./`.';
+  }
+  if (uses.startsWith('/')) return 'Action paths must be relative and start with `./`.';
+  if (workflowDocumentUrlPattern.test(uses)) {
+    return 'Action URLs are not supported. Use a repository path that starts with `./`.';
+  }
+  return 'Remote actions are not supported yet. Use a repository path that starts with `./`.';
+}
+
+export function isNormalizedRelativePath(path: string): boolean {
+  if (path.length === 0 || path.includes('\\') || path.includes('\u0000')) return false;
+  return path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');
+}
+
+const workflowDocumentSecretReferencePattern = /(?<!\$)\$\{\{[^}]*\bsecrets\b/;
+const workflowDocumentBareSecretReferencePattern =
+  /^\$\{\{\s*secrets\.[A-Za-z_][A-Za-z0-9_]*\s*\}\}$/;
+
+// Secret inputs are filled on the runner by input name, so a secret must be
+// the whole value of a top-level input. The model layer repeats the check with
+// the expression parser.
+function addWorkflowDocumentActionWithSecretIssues(
+  withValue: Readonly<Record<string, unknown>>,
+  ctx: z.RefinementCtx,
+): void {
+  const pending = workflowDocumentJsonChildEntries(withValue, ['with']);
+  // YAML aliases can share or nest objects, so each object is visited once.
+  const visited = new Set<object>();
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === undefined) continue;
+    const {value, path} = current;
+    if (typeof value === 'string') {
+      if (!isMisplacedSecretReference(value, path)) continue;
+      ctx.addIssue({
+        code: 'custom',
+        path,
+        message:
+          'Secret references in `with` must be the whole value of a top-level input, such as `$' +
+          '{{ secrets.NPM_TOKEN }}`.',
+      });
+      continue;
+    }
+    if (value === null || typeof value !== 'object' || visited.has(value)) continue;
+    visited.add(value);
+    for (const entry of workflowDocumentJsonChildEntries(value, path)) pending.push(entry);
+  }
+}
+
+function isMisplacedSecretReference(value: string, path: readonly (string | number)[]): boolean {
+  if (!workflowDocumentSecretReferencePattern.test(value)) return false;
+  // `with.<input>` is a top-level input.
+  return path.length !== 2 || !workflowDocumentBareSecretReferencePattern.test(value);
+}
+
+function workflowDocumentJsonChildEntries(
+  value: object,
+  path: readonly (string | number)[],
+): {value: unknown; path: (string | number)[]}[] {
+  return Object.entries(value).map(([key, child]) => ({
+    value: child,
+    path: [...path, Array.isArray(value) ? Number(key) : key],
+  }));
 }
 
 function outputsMappingSchema(label: 'Job' | 'Workflow') {

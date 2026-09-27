@@ -1,7 +1,7 @@
 import type {AgentValidationCatalogV2} from '@shipfox/api-agent-dto/inter-module';
 import {DEFINITION_SYNC_LAST_ERROR_MESSAGE_MAX_LENGTH} from '@shipfox/api-definitions-dto';
 import {InvalidWorkflowDocumentError} from '@shipfox/workflow-document';
-import {definitionDefaultRunnerLabels} from '../config.js';
+import {definitionActionsEnabled, definitionDefaultRunnerLabels} from '../config.js';
 import type {IntegrationValidationContext} from './entities/integration-context.js';
 import type {ValidationDiagnostic} from './entities/validation-diagnostic.js';
 import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
@@ -21,6 +21,8 @@ export type {ValidationDiagnostic} from './entities/validation-diagnostic.js';
 
 export interface DefinitionValidationOptions {
   defaultRunnerLabels?: readonly string[];
+  /** Accepts action steps (`uses`). Defaults to `DEFINITION_ACTIONS_ENABLED`. */
+  actionsEnabled?: boolean;
   agentValidationCatalog: AgentValidationCatalogV2;
   integrationValidationContext?: IntegrationValidationContext;
 }
@@ -39,7 +41,9 @@ export function validateDefinition(
   options: DefinitionValidationOptions,
 ): ValidationResult {
   try {
-    const {document, stepSourceLocations} = parseWorkflowYamlWithLocations(yamlContent);
+    const {document, stepSourceLocations} = parseWorkflowYamlWithLocations(yamlContent, {
+      actions: options.actionsEnabled ?? definitionActionsEnabled,
+    });
     const diagnostics: WorkflowModelValidationIssue[] = [];
     const model = normalizeWorkflowDocument(document, {
       defaultRunnerLabels: options.defaultRunnerLabels ?? definitionDefaultRunnerLabels,

@@ -710,6 +710,16 @@ function normalizeStep(params: {
   toolOverlayByKey: Map<string, WorkflowStepTypeOverlay>;
   context: NormalizeContext;
 }): WorkflowModelStep | undefined {
+  if (params.step.uses !== undefined) {
+    params.issues.push(
+      issue({
+        code: 'action-step-unsupported',
+        message: 'Action steps (`uses`) are not supported yet.',
+        path: ['jobs', params.sourceName, 'steps', params.index, 'uses'],
+      }),
+    );
+    return undefined;
+  }
   const stepKey = params.step.key;
   const stepId =
     stepKey === undefined

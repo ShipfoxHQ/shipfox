@@ -10,8 +10,11 @@ Input shape for Shipfox workflow authoring.
 - `WorkflowDocumentRunStepGate` describes the step `gate` block with `success`
   and `on_failure`.
 - A job step is a **run step** (`run: <shell command>`), an inline **agent
-  step** (`prompt`), a **checkout step** (`checkout`), or a **tool step**
-  (`tool`). A step carries one kind, never multiple kinds.
+  step** (`prompt`), a **checkout step** (`checkout`), a **tool step**
+  (`tool`), or an **action step** (`uses`). A step carries one kind, never
+  multiple kinds.
+- `actionManifestSchema` defines the `action.yml` manifest of a repository
+  action. `buildActionManifestJsonSchema` projects it for editors.
 - `encodeActionBundle` and `decodeActionBundle` store an action directory as
   one content-addressed bundle, so the API and the runner agree on its digest.
 
@@ -142,6 +145,48 @@ parseWorkflowDocument({
 });
 ```
 
+An action step runs a repository action. Action steps are off by default; pass
+`{actions: true}` to accept them. Without it, `uses` fails with "Action steps
+(`uses`) are not supported yet."
+
+```ts
+parseWorkflowDocument(
+  {
+    name: 'investigate',
+    jobs: {
+      investigate: {
+        steps: [
+          {
+            key: 'thread',
+            uses: './.shipfox/actions/slack-thread',
+            connections: {slack: 'team-slack'},
+            with: {channel_id: '${{ event.channel }}', token: '${{ secrets.SLACK_TOKEN }}'},
+          },
+        ],
+      },
+    },
+  },
+  {actions: true},
+);
+```
+
+The action manifest has its own schema:
+
+```ts
+import {actionManifestSchema} from '@shipfox/workflow-document';
+
+const manifest = actionManifestSchema.parse({
+  name: 'Slack thread to Markdown',
+  main: 'index.ts',
+  inputs: {channel_id: {required: true}},
+  outputs: {message_count: {type: 'number', required: true}},
+  integrations: {slack: {provider: 'slack', include: ['read_thread']}},
+});
+
+manifest.inputs?.channel_id?.type; // "string"
+manifest.integrations?.slack?.allow_write; // false
+```
+
 Jobs may also declare checkout intent. `permissions.contents` accepts `read` or
 `write`; `persist-credentials` accepts a boolean. Both fields are optional in
 the document shape. Later layers resolve omitted values to read-only checkout
@@ -221,6 +266,24 @@ const files = await decodeActionBundle({gzip: bundle.gzip, digest: bundle.digest
   bytes and 16 nesting levels, and their `method` key is rejected. Tool output
   mappings must use one `${{ ... }}` expression over `result` or `vars`; exact
   expression and catalog checks belong to the model layer.
+- Action steps accept only a normalized repository path that starts with
+  `./`, with no empty, `.`, or `..` segments. Absolute paths and URLs are
+  rejected. Other forms, such as `owner/repo@ref`, fail with "not supported
+  yet". An action step also accepts `connections`, `with`, `key`, `name`, `if`,
+  `env`, `working_directory`, and `gate`. It rejects `run`, agent fields,
+  `checkout`, `tool`, `connection`, and `outputs`, because the manifest owns
+  outputs. `with` has the tool-step size and depth limits, and a secret
+  reference must be the whole value of a top-level input, such as
+  `${{ secrets.NPM_TOKEN }}`. Manifest, binding, and input checks belong to the
+  model layer.
+- `buildWorkflowJsonSchema()` omits `uses` and `connections` unless called
+  with `{actions: true}`.
+- The manifest requires `name` and `main`. `main` is a `.ts`, `.mts`, `.js`, or
+  `.mjs` path inside the action directory, without `./`. Inputs and outputs
+  use the step output types (`string`, `number`, `boolean`, `json` with an
+  optional JSON Schema) and default to `string` and not required. An input
+  `default` must match its type. Integration selectors name tools explicitly;
+  `*` is rejected. Unknown keys are rejected everywhere.
 - Job `outputs` and top-level workflow `outputs` map names to template strings
   and allow up to 128 entries each. Expression and job reference checks belong
   to the model layer.
