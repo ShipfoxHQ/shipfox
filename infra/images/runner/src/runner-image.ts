@@ -2,7 +2,7 @@ import {execFileSync, spawn} from 'node:child_process';
 import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {RUNNER_BASE_PREPARE_OS_SCRIPT} from '@shipfox/runner-base';
+import {RUNNER_BASE_PREPARE_OS_SCRIPT, type RunnerBaseSelection} from '@shipfox/runner-base';
 import {getProjectRootPath, overlayBuiltOutputs} from '@shipfox/tool-utils';
 import {findProducedAmiId, readPackerAmiArtifact} from './aws.js';
 import {qemuSourceImageArgs} from './qemu.js';
@@ -17,6 +17,8 @@ export interface RunnerImageBuild {
   os: string;
   platform: RunnerImagePlatform;
   architecture: 'amd64' | 'arm64';
+  /** Verified base generation that candidate AWS builds start from. */
+  base?: RunnerBaseSelection;
   buildAttempt: string;
   buildNumber: string;
   candidateExpiresAt?: string;
@@ -84,10 +86,38 @@ export function packerBuildArgs(
     }
     args.push('-var', `candidate_kms_key_id=${build.candidateKmsKeyId}`);
     args.push('-var', `candidate_ami_users=${JSON.stringify(build.candidateConsumerAccountIds)}`);
+    args.push(...runnerBaseArgs(build));
+  } else if (build.base) {
+    // Bases are encrypted under the candidate key. Release and QEMU builds keep the complete
+    // Canonical build and their own encryption.
+    throw new Error('Only candidate AWS builds start from a runner base image.');
   }
   if (build.runnerVersion) args.push('-var', `runner_version=${build.runnerVersion}`);
   if (build.platform === 'qemu') args.push(...qemuSourceImageArgs(rootDir));
   return [...args, ...build.extraPackerArgs, '.'];
+}
+
+function runnerBaseArgs(build: RunnerImageBuild): string[] {
+  const base = build.base;
+  if (!base) throw new Error('Candidate AWS builds require a verified runner base selection.');
+  const image = base.images.find((item) => item.architecture === build.architecture);
+  if (!image) {
+    throw new Error(`Runner base generation ${base.generation} has no ${build.architecture} AMI.`);
+  }
+  // The candidate volume shares snapshot blocks with the base only under the base's exact key.
+  if (build.candidateKmsKeyId !== base.kmsKeyArn) {
+    throw new Error(
+      `Candidate builds must use the runner base key ${base.kmsKeyArn}, not ${build.candidateKmsKeyId}.`,
+    );
+  }
+  return [
+    '-var',
+    `source_ami_id=${image.amiId}`,
+    '-var',
+    `base_generation=${base.generation}`,
+    '-var',
+    `base_recipe=${base.recipeDigest}`,
+  ];
 }
 
 export async function buildRunnerImage(build: RunnerImageBuild): Promise<{amiId: string | null}> {

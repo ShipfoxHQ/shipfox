@@ -828,6 +828,8 @@ jobs:
       packages: read
     outputs:
       mode: ${{ steps.plan.outputs.mode }}
+      base_action: ${{ steps.plan.outputs.base_action }}
+      base_selection: ${{ steps.plan.outputs.base_selection }}
 
     steps:
       - name: Check out repository
@@ -867,13 +869,18 @@ jobs:
       - name: Plan candidate publication
         id: plan
         env:
+          BUILD_CANDIDATE_KMS_KEY_ID: ${{ vars.AWS_RUNNER_IMAGE_CANDIDATE_KMS_KEY_ID }}
           PLAN_PATH: ${{ runner.temp }}/runner-image-candidate-plan.json
         run: |
           set -euo pipefail
           node infra/images/runner/bin/plan-runner-image-candidate.js \
             --revision "$GITHUB_SHA" \
             --output "$PLAN_PATH"
-          echo "mode=$(jq -r '.mode' "$PLAN_PATH")" >> "$GITHUB_OUTPUT"
+          {
+            echo "mode=$(jq -r '.mode' "$PLAN_PATH")"
+            echo "base_action=$(jq -r '.base.action // "none"' "$PLAN_PATH")"
+            echo "base_selection=$(jq -c '.base.selection // empty' "$PLAN_PATH")"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Report candidate plan
         env:
@@ -890,18 +897,90 @@ jobs:
             jq -r '"- Selected AMIs: " + ((.priorPair.images // []) | map("`\(.architecture)=\(.amiId)`") | if length == 0 then "none" else join(", ") end)' "$PLAN_PATH"
             jq -r '"- Candidate age: " + (if .candidateAgeDays == null then "not available" else ((.candidateAgeDays * 100 | round) / 100 | tostring) + " days" end)' "$PLAN_PATH"
             jq -r 'if (.effectiveChanges | length) == 0 then "- Effective changes: none" else "- Effective changes:\n" + (.effectiveChanges | map("  - `" + . + "`") | join("\n")) end' "$PLAN_PATH"
+            jq -r '"- Runner base: " + (if .base == null then "not needed" else "`\(.base.action)` (\(.base.reason): \(.base.detail))" end)' "$PLAN_PATH"
+            jq -r 'if .base.selection then "- Selected base: `\(.base.selection.generation)`, " + ([.base.selection.images[] | "`\(.architecture)=\(.amiId)`"] | join(", ")) + ", created \(.base.selection.createdAt)" else empty end' "$PLAN_PATH"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # Runs the reusable base workflow only when the plan found no acceptable published base. That
+  # workflow re-plans after acquiring its publication slot, so concurrent callers build one base.
+  refresh-runner-base:
+    name: Refresh runner base
+    needs: [plan-runner-image-candidate]
+    if: >-
+      always() && github.ref == 'refs/heads/main' &&
+      needs['plan-runner-image-candidate'].result == 'success' &&
+      needs['plan-runner-image-candidate'].outputs.mode == 'build' &&
+      needs['plan-runner-image-candidate'].outputs.base_action == 'refresh'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-runner-base.yml
+    with:
+      force: false
+    secrets:
+      AWS_RUNNER_IMAGE_ROLE_ARN: ${{ secrets.AWS_RUNNER_IMAGE_ROLE_ARN }}
+
+  select-runner-base:
+    name: Select runner base
+    needs: [plan-runner-image-candidate, refresh-runner-base]
+    if: >-
+      always() && github.ref == 'refs/heads/main' &&
+      needs['plan-runner-image-candidate'].outputs.base_action == 'refresh' &&
+      needs['refresh-runner-base'].result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      selection: ${{ steps.select.outputs.selection }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: node npm:pnpm npm:turbo
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Configure candidate AWS credentials
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          aws-region: eu-central-1
+          role-session-name: shipfox-runner-base-select
+          role-to-assume: ${{ secrets.AWS_RUNNER_IMAGE_ROLE_ARN }}
+
+      - name: Build runner base tooling
+        run: turbo build --filter=@shipfox/runner-base...
+
+      - name: Select runner base
+        id: select
+        env:
+          BUILD_CANDIDATE_KMS_KEY_ID: ${{ vars.AWS_RUNNER_IMAGE_CANDIDATE_KMS_KEY_ID }}
+          SELECTION_PATH: ${{ runner.temp }}/runner-base-selection.json
+        run: |
+          set -euo pipefail
+          node infra/images/runner-base/bin/select-runner-base.js --output "$SELECTION_PATH"
+          echo "selection=$(jq -c . "$SELECTION_PATH")" >> "$GITHUB_OUTPUT"
+          jq -r '"- Selected base: `\(.generation)`, " + ([.images[] | "`\(.architecture)=\(.amiId)`"] | join(", ")) + ", created \(.createdAt)"' "$SELECTION_PATH" >> "$GITHUB_STEP_SUMMARY"
+
+  # Both architectures receive the same selection, so a pair never mixes base generations.
   publish-runner-image-candidate:
     name: Publish runner image candidate (${{ matrix.architecture }})
-    needs: [release-mode, plan-runner-image-candidate]
+    needs: [release-mode, plan-runner-image-candidate, select-runner-base]
     if: >-
       always() && github.ref == 'refs/heads/main' &&
       needs.release-mode.result == 'success' &&
       needs.release-mode.outputs.mode == 'normal' &&
       needs['plan-runner-image-candidate'].result == 'success' &&
-      (needs['plan-runner-image-candidate'].outputs.mode == 'build' ||
-      needs['plan-runner-image-candidate'].outputs.mode == 'reuse-current')
+      (needs['plan-runner-image-candidate'].outputs.mode == 'reuse-current' ||
+      (needs['plan-runner-image-candidate'].outputs.mode == 'build' &&
+      (needs['plan-runner-image-candidate'].outputs.base_selection != '' ||
+      needs['select-runner-base'].result == 'success')))
     runs-on: ubuntu-24.04-arm
     concurrency:
       group: runner-image-candidate-${{ github.sha }}-${{ matrix.architecture }}
@@ -938,6 +1017,8 @@ jobs:
       - name: Build runner image tooling
         run: turbo build --filter=@shipfox/runner-image...
 
+      # A new candidate builds under the base's exact key ARN so its snapshot shares the base's
+      # blocks. A reused candidate has no selection and keeps the key alias.
       - name: Build runner image candidate
         env:
           BUILD_ARCH: ${{ matrix.architecture }}
@@ -946,17 +1027,26 @@ jobs:
           BUILD_CANDIDATE_KMS_KEY_ID: ${{ vars.AWS_RUNNER_IMAGE_CANDIDATE_KMS_KEY_ID }}
           BUILD_NUMBER: ${{ github.run_number }}
           BUILD_REVISION: ${{ github.sha }}
+          BUILD_RUNNER_BASE_SELECTION: >-
+            ${{ needs['plan-runner-image-candidate'].outputs.base_selection ||
+            needs['select-runner-base'].outputs.selection }}
           PACKER_LOG: "1"
           PACKER_LOG_PATH: ${{ runner.temp }}/packer-${{ matrix.architecture }}.log
           RUNNER_IMAGE_CANDIDATE_RESULT_PATH: ${{ runner.temp }}/runner-image-candidate-${{ matrix.architecture }}.json
-        run: node infra/images/runner/bin/build-runner-image-candidate.js --output "$RUNNER_IMAGE_CANDIDATE_RESULT_PATH"
+        run: |
+          set -euo pipefail
+          if [[ -n "$BUILD_RUNNER_BASE_SELECTION" ]]; then
+            BUILD_CANDIDATE_KMS_KEY_ID="$(jq -r '.kmsKeyArn' <<<"$BUILD_RUNNER_BASE_SELECTION")"
+            export BUILD_CANDIDATE_KMS_KEY_ID
+          fi
+          node infra/images/runner/bin/build-runner-image-candidate.js --output "$RUNNER_IMAGE_CANDIDATE_RESULT_PATH"
 
       - name: Report runner image candidate
         env:
           RUNNER_IMAGE_CANDIDATE_RESULT_PATH: ${{ runner.temp }}/runner-image-candidate-${{ matrix.architecture }}.json
         run: |
           set -euo pipefail
-          jq -r '"- Candidate \(.architecture): \(.region):\(.amiId) owner \(.owner), expires \(.expiresAt) for \(.revision) (\(.status))"' "$RUNNER_IMAGE_CANDIDATE_RESULT_PATH" >> "$GITHUB_STEP_SUMMARY"
+          jq -r '"- Candidate \(.architecture): \(.region):\(.amiId) owner \(.owner), expires \(.expiresAt) for \(.revision) (\(.status))" + (if .base then ", base `\(.base.generation)` from `\(.base.sourceAmiId)`, recipe `\(.base.recipeDigest)`" else ", no base provenance" end)' "$RUNNER_IMAGE_CANDIDATE_RESULT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload runner image candidate result
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

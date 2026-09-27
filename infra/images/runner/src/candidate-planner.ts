@@ -4,6 +4,13 @@ import {writeFile} from 'node:fs/promises';
 import {dirname, resolve} from 'node:path';
 import {parseArgs} from 'node:util';
 import {DescribeImagesCommand, EC2Client, type Image} from '@aws-sdk/client-ec2';
+import {
+  RUNNER_BASE_TAGS,
+  type RunnerBaseSelection,
+  RunnerBaseSelectionError,
+  runnerBaseSelectionWarning,
+  selectRunnerBaseForCheckout,
+} from '@shipfox/runner-base';
 import {log} from '@shipfox/tool-utils';
 
 const CANDIDATE_REGION = 'eu-central-1';
@@ -34,6 +41,8 @@ export type CandidatePlannerMode = 'build' | 'reuse-current' | 'skip-recent';
 export interface PlannedCandidateImage {
   amiId: string;
   architecture: (typeof ARCHITECTURES)[number];
+  /** Runner base generation from the AMI tags. Candidates built before base images have none. */
+  baseGeneration: string | null;
   createdAt: string;
 }
 
@@ -41,6 +50,19 @@ export interface PlannedCandidatePair {
   revision: string;
   images: PlannedCandidateImage[];
 }
+
+/**
+ * How a new candidate gets its base. `select` names one verified generation for both
+ * architectures. `refresh` runs the reusable base workflow, then selects the published pointer.
+ */
+export type PlannedBase =
+  | {
+      action: 'select';
+      reason: 'current' | 'recover-partial-pair';
+      detail: string;
+      selection: RunnerBaseSelection;
+    }
+  | {action: 'refresh'; reason: string; detail: string; selection: null};
 
 export interface CandidatePlannerResult {
   mode: CandidatePlannerMode;
@@ -50,6 +72,8 @@ export interface CandidatePlannerResult {
   priorPair: PlannedCandidatePair | null;
   candidateAgeDays: number | null;
   effectiveChanges: string[];
+  /** Null when the current revision reuses its complete pair. */
+  base: PlannedBase | null;
 }
 
 export interface WorkspaceManifest {
@@ -67,6 +91,7 @@ interface CandidateInventoryClient {
 
 interface CandidatePlannerDependencies {
   listImages?: () => Promise<Image[]>;
+  selectBase?: (generation?: string) => Promise<RunnerBaseSelection>;
   listPublishedRevisions?: () => string[];
   resolveEffectiveDirectories?: () => string[];
   isAncestor?: (base: string, head: string) => boolean;
@@ -81,6 +106,8 @@ interface CandidatePlannerOptions {
 
 interface InventorySelection {
   currentPair: PlannedCandidatePair | null;
+  /** Surviving images of an incomplete current-revision group. */
+  currentPartialImages: PlannedCandidateImage[];
   newestPriorPair: PlannedCandidatePair | null;
   newestGroupIsPartial: boolean;
 }
@@ -105,74 +132,168 @@ export async function planRunnerImageCandidate(
       return publishedRevisions.has(revision);
     });
     const now = options.now ?? new Date();
-    const inventoryDecision = decideFromInventory(options, inventory, now);
+    if (inventory.currentPair) {
+      return {
+        mode: 'reuse-current',
+        reason: 'current-pair-exists',
+        detail: 'The current revision already owns a complete candidate pair.',
+        currentRevision: options.currentRevision,
+        priorPair: inventory.currentPair,
+        candidateAgeDays: pairAgeDays(inventory.currentPair, now),
+        effectiveChanges: [],
+        base: null,
+      };
+    }
+
+    const base = await planBase(
+      inventory,
+      dependencies.selectBase ?? ((generation) => selectRunnerBaseForCheckout({generation})),
+    );
+    const inventoryDecision = decideFromInventory(options, inventory, now, base);
     if (inventoryDecision) return inventoryDecision;
 
-    const priorPair = requiredPriorPair(inventory);
-
-    const isAncestor = dependencies.isAncestor ?? gitIsAncestor;
-    if (!isAncestor(priorPair.revision, options.currentRevision)) {
-      return {
-        ...baseResult,
-        mode: 'build',
-        reason: 'prior-not-ancestor',
-        detail:
-          'The newest published candidate revision is not an ancestor of the current revision.',
-        priorPair,
-        candidateAgeDays: pairAgeDays(priorPair, now),
-      };
-    }
-
-    const effectiveDirectories = (
-      dependencies.resolveEffectiveDirectories ?? resolveRunnerEffectiveDirectories
-    )();
-    const changedFiles = (dependencies.listChangedFiles ?? gitChangedFiles)(
-      priorPair.revision,
-      options.currentRevision,
-    );
-    const effectiveChanges = findEffectiveChanges(changedFiles, effectiveDirectories);
-    if (effectiveChanges.length) {
-      return {
-        ...baseResult,
-        mode: 'build',
-        reason: 'effective-inputs-changed',
-        detail: 'Runner image inputs changed since the newest published candidate pair.',
-        priorPair,
-        candidateAgeDays: pairAgeDays(priorPair, now),
-        effectiveChanges,
-      };
-    }
-
-    const candidateAgeDays = pairAgeDays(priorPair, now);
-    if (candidateAgeDays >= FRESHNESS_DAYS) {
-      return {
-        ...baseResult,
-        mode: 'build',
-        reason: 'freshness-threshold',
-        detail: `The newest published candidate pair is at least ${FRESHNESS_DAYS} days old.`,
-        priorPair,
-        candidateAgeDays,
-      };
-    }
-
-    return {
-      ...baseResult,
-      mode: 'skip-recent',
-      reason: 'recent-unchanged-pair',
-      detail: 'The newest published pair is recent and no effective runner image input changed.',
-      priorPair,
-      candidateAgeDays,
-    };
+    return decideFromPriorPair({
+      options,
+      priorPair: requiredPriorPair(inventory),
+      base,
+      dependencies,
+      now,
+    });
   } catch (error) {
+    const detail = `The planner could not complete its required reads: ${errorMessage(error)}`;
     return {
       ...baseResult,
       mode: 'build',
       reason: 'planner-failed-open',
-      detail: `The planner could not complete its required reads: ${errorMessage(error)}`,
+      detail,
       priorPair: null,
       candidateAgeDays: null,
+      base: {action: 'refresh', reason: 'planner-failed-open', detail, selection: null},
     };
   }
+}
+
+function decideFromPriorPair(context: {
+  options: CandidatePlannerOptions;
+  priorPair: PlannedCandidatePair;
+  base: PlannedBase;
+  dependencies: CandidatePlannerDependencies;
+  now: Date;
+}): CandidatePlannerResult {
+  const {options, priorPair, base, dependencies, now} = context;
+  const buildResult = (reason: string, detail: string, effectiveChanges: string[] = []) => ({
+    currentRevision: options.currentRevision,
+    mode: 'build' as const,
+    reason,
+    detail,
+    priorPair,
+    candidateAgeDays: pairAgeDays(priorPair, now),
+    effectiveChanges,
+    base,
+  });
+
+  if (!base.selection) {
+    return buildResult(
+      'base-refresh-required',
+      `No acceptable runner base is published (${base.reason}): ${base.detail}`,
+    );
+  }
+
+  const isAncestor = dependencies.isAncestor ?? gitIsAncestor;
+  if (!isAncestor(priorPair.revision, options.currentRevision)) {
+    return buildResult(
+      'prior-not-ancestor',
+      'The newest published candidate revision is not an ancestor of the current revision.',
+    );
+  }
+
+  const effectiveDirectories = (
+    dependencies.resolveEffectiveDirectories ?? resolveRunnerEffectiveDirectories
+  )();
+  const changedFiles = (dependencies.listChangedFiles ?? gitChangedFiles)(
+    priorPair.revision,
+    options.currentRevision,
+  );
+  const effectiveChanges = findEffectiveChanges(changedFiles, effectiveDirectories);
+  if (effectiveChanges.length) {
+    return buildResult(
+      'effective-inputs-changed',
+      'Runner image inputs changed since the newest published candidate pair.',
+      effectiveChanges,
+    );
+  }
+
+  // Base recipe changes reach candidates through a new generation, so the base package is not
+  // an effective input. A pair without base tags predates base images and also needs a bake.
+  const priorGeneration = pairBaseGeneration(priorPair);
+  if (priorGeneration !== base.selection.generation) {
+    return buildResult(
+      'base-generation-changed',
+      `The newest published pair uses base generation ${priorGeneration ?? '<none>'}; the selected base is ${base.selection.generation}.`,
+    );
+  }
+
+  const candidateAgeDays = pairAgeDays(priorPair, now);
+  if (candidateAgeDays >= FRESHNESS_DAYS) {
+    return buildResult(
+      'freshness-threshold',
+      `The newest published candidate pair is at least ${FRESHNESS_DAYS} days old.`,
+    );
+  }
+
+  return {
+    ...buildResult(
+      'recent-unchanged-pair',
+      'The newest published pair is recent and no effective runner image input changed.',
+    ),
+    mode: 'skip-recent',
+  };
+}
+
+// A partial current pair completes from its surviving image's generation, so the pair never
+// mixes generations. Otherwise the published pointer decides, and an unacceptable pointer asks
+// the reusable base workflow for a refresh.
+async function planBase(
+  inventory: InventorySelection,
+  selectBase: (generation?: string) => Promise<RunnerBaseSelection>,
+): Promise<PlannedBase> {
+  const [survivor] = inventory.currentPartialImages;
+  if (survivor) {
+    if (!survivor.baseGeneration) {
+      throw new Error(
+        `Candidate AMI ${survivor.amiId} for the current revision predates runner base images, so its pair cannot be completed. Deregister it or publish a new main revision.`,
+      );
+    }
+    const selection = await selectBase(survivor.baseGeneration);
+    return {
+      action: 'select',
+      reason: 'recover-partial-pair',
+      detail: `The surviving ${survivor.architecture} candidate uses generation ${selection.generation}.`,
+      selection,
+    };
+  }
+  try {
+    const selection = await selectBase();
+    return {
+      action: 'select',
+      reason: 'current',
+      detail: `Generation ${selection.generation} is published and compatible.`,
+      selection,
+    };
+  } catch (error) {
+    return {
+      action: 'refresh',
+      reason: error instanceof RunnerBaseSelectionError ? error.reason : 'unreadable',
+      detail: errorMessage(error),
+      selection: null,
+    };
+  }
+}
+
+function pairBaseGeneration(pair: PlannedCandidatePair): string | null {
+  const generations = new Set(pair.images.map((image) => image.baseGeneration));
+  const [generation] = generations;
+  return generations.size === 1 && generation ? generation : null;
 }
 
 // A prior pair counts only once its manifest is published. CI bakes alongside the required
@@ -221,9 +342,11 @@ export function inspectCandidateInventory(
     : (pairs.find((pair) => pair.revision !== currentRevision && isPublished(pair.revision)) ??
       null);
   const newestGroup = orderedGroups[0];
+  const currentGroup = groups.get(currentRevision);
 
   return {
     currentPair,
+    currentPartialImages: currentPair || !currentGroup ? [] : [...currentGroup.values()],
     newestPriorPair,
     newestGroupIsPartial: Boolean(
       newestGroup && !ARCHITECTURES.every((architecture) => newestGroup.group.has(architecture)),
@@ -269,8 +392,6 @@ export function findEffectiveChanges(
   const exactInputs = new Set<string>(ROOT_EFFECTIVE_INPUTS);
   const directories = [
     'infra/images/runner',
-    // Complete runner images run the base package's OS preparation.
-    'infra/images/runner-base',
     ...BUILD_TOOL_DIRECTORIES,
     ...productionPackageDirectories,
   ];
@@ -283,64 +404,43 @@ function decideFromInventory(
   options: CandidatePlannerOptions,
   inventory: InventorySelection,
   now: Date,
+  base: PlannedBase,
 ): CandidatePlannerResult | null {
-  if (inventory.currentPair) {
+  const build = (reason: string, detail: string): CandidatePlannerResult => {
+    const priorPair = inventory.newestPriorPair;
     return {
-      mode: 'reuse-current',
-      reason: 'current-pair-exists',
-      detail: 'The current revision already owns a complete candidate pair.',
+      mode: 'build',
+      reason,
+      detail,
       currentRevision: options.currentRevision,
-      priorPair: inventory.currentPair,
-      candidateAgeDays: pairAgeDays(inventory.currentPair, now),
+      priorPair,
+      candidateAgeDays: priorPair ? pairAgeDays(priorPair, now) : null,
       effectiveChanges: [],
+      base,
     };
-  }
+  };
   if (options.force) {
-    return inventoryBuildResult(
-      options.currentRevision,
+    return build(
       'manual-publication',
       'Manual publication bypasses the freshness and effective-change gates.',
-      inventory.newestPriorPair,
-      now,
+    );
+  }
+  if (inventory.currentPartialImages.length) {
+    return build(
+      'partial-current-pair',
+      'The current revision has one architecture; the other builds from the same base generation.',
     );
   }
   if (inventory.newestGroupIsPartial) {
-    return inventoryBuildResult(
-      options.currentRevision,
+    return build(
       'partial-candidate-pair',
       'The newest candidate revision does not have both architectures.',
-      inventory.newestPriorPair,
-      now,
     );
   }
   if (!inventory.newestPriorPair) {
-    return inventoryBuildResult(
-      options.currentRevision,
-      'no-complete-pair',
-      'No complete, published prior candidate pair is available.',
-      null,
-      now,
-    );
+    return build('no-complete-pair', 'No complete, published prior candidate pair is available.');
   }
   return null;
-}
-
-function inventoryBuildResult(
-  currentRevision: string,
-  reason: string,
-  detail: string,
-  priorPair: PlannedCandidatePair | null,
-  now: Date,
-): CandidatePlannerResult {
-  return {
-    mode: 'build',
-    reason,
-    detail,
-    currentRevision,
-    priorPair,
-    candidateAgeDays: priorPair ? pairAgeDays(priorPair, now) : null,
-    effectiveChanges: [],
-  };
 }
 
 function requiredPriorPair(inventory: InventorySelection): PlannedCandidatePair {
@@ -423,7 +523,8 @@ function parseCandidateImage(image: Image): PlannedCandidateImage & {revision: s
     throw new Error(`Candidate AMI ${amiId} has an invalid candidate identity.`);
   }
   const createdAt = timestamp(image.CreationDate, `Candidate AMI ${amiId} creation time`);
-  return {amiId, architecture, createdAt, revision};
+  const baseGeneration = tags.get(RUNNER_BASE_TAGS.generation) ?? null;
+  return {amiId, architecture, baseGeneration, createdAt, revision};
 }
 
 function resolveRunnerEffectiveDirectories(): string[] {
@@ -597,5 +698,11 @@ async function runRunnerImageCandidatePlannerCliAsync(args: string[]): Promise<v
   const {currentRevision, force, outputPath} = parseRunnerImageCandidatePlannerArgs(args);
   const result = await planRunnerImageCandidate({currentRevision, force});
   await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`);
+  const warning =
+    result.mode === 'build' && result.base?.selection
+      ? runnerBaseSelectionWarning(result.base.selection)
+      : null;
+  // The tool-utils Log type has no warning level, so write the annotation directly.
+  if (warning) process.stdout.write(`::warning::${warning}\n`);
   log.info(`Runner image candidate plan: ${result.mode} (${result.reason})`);
 }

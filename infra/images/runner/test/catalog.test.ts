@@ -39,10 +39,15 @@ function input(architecture: 'amd64' | 'arm64' = 'amd64') {
   };
 }
 
-function candidate(architecture: 'amd64' | 'arm64') {
+function candidate(architecture: 'amd64' | 'arm64', baseGeneration = '18000000000-1') {
   return {
     amiId: architecture === 'amd64' ? 'ami-0123abc456def7890' : 'ami-0fedcba9876543210',
     architecture,
+    base: {
+      generation: baseGeneration,
+      recipeDigest: `sha256:${'a'.repeat(64)}`,
+      sourceAmiId: architecture === 'amd64' ? 'ami-11111111111111111' : 'ami-22222222222222222',
+    },
     candidateId: `main-${revision}`,
     createdAt: '2026-07-19T10:15:00.000Z',
     expiresAt: '2026-08-02T10:15:00.000Z',
@@ -86,6 +91,33 @@ describe('runner image candidate manifests', () => {
         expect.objectContaining({architecture: 'arm64', encrypted: true}),
       ],
     });
+  });
+
+  it('keeps base provenance out of the v1 manifest', () => {
+    const manifest = mergeRunnerImageCandidateManifests(
+      [candidate('arm64'), candidate('amd64')],
+      candidateManifestInput(),
+    );
+
+    for (const image of manifest.images) expect(image).not.toHaveProperty('base');
+  });
+
+  it('rejects a pair built from different base generations', () => {
+    expect(() =>
+      mergeRunnerImageCandidateManifests(
+        [candidate('amd64'), candidate('arm64', '18000000001-1')],
+        candidateManifestInput(),
+      ),
+    ).toThrow('share one runner base generation');
+  });
+
+  it('rejects a pair that mixes a legacy image with a base-derived image', () => {
+    expect(() =>
+      mergeRunnerImageCandidateManifests(
+        [candidate('amd64'), {...candidate('arm64'), base: null}],
+        candidateManifestInput(),
+      ),
+    ).toThrow('share one runner base generation');
   });
 
   it('rejects a candidate result from a different source revision', () => {

@@ -12,17 +12,17 @@ build {
     source      = abspath("${path.root}/scripts")
   }
 
+  # A verified runner base already ran the OS preparation. Complete builds run it first.
   provisioner "shell" {
     environment_vars = ["NODE_VERSION=${var.node_version}"]
     execute_command  = "sudo -E sh -c '{{ .Vars }} {{ .Path }}'"
-    scripts = [
-      var.runner_base_prepare_script,
+    scripts = concat(local.from_runner_base ? [] : [var.runner_base_prepare_script], [
       "${path.root}/scripts/build/setup-runner.sh",
       "${path.root}/scripts/build/install-node.sh",
       "${path.root}/scripts/build/install-runner.sh",
       "${path.root}/scripts/build/configure-boot.sh",
       "${path.root}/scripts/build/configure-ephemeral-boot.sh"
-    ]
+    ])
   }
 
   # Verify the shared base capabilities before provider-specific runtime units are installed.

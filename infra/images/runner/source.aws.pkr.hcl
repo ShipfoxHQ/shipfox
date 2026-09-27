@@ -9,15 +9,15 @@ source "amazon-ebs" "build_image" {
   shutdown_behavior           = "terminate"
   ssh_username                = "ubuntu"
 
+  source_ami = var.source_ami_id
+
+  # Candidates start from their exact verified base, and Packer applies the filter to that ID so a
+  # base from another account, architecture, or generation fails before any instance launches.
+  # Release builds keep the complete build from the newest Canonical Ubuntu 24.04 image.
   source_ami_filter {
-    filters = {
-      architecture        = local.aws_architecture
-      name                = "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-${local.ubuntu_architecture}-server-*"
-      root-device-type    = "ebs"
-      virtualization-type = "hvm"
-    }
-    most_recent = true
-    owners      = ["099720109477"]
+    filters     = local.source_ami_filters
+    most_recent = !local.from_runner_base
+    owners      = local.from_runner_base ? ["self"] : ["099720109477"]
   }
 
   launch_block_device_mappings {

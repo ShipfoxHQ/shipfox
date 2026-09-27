@@ -2,7 +2,11 @@ import {execFileSync, spawnSync} from 'node:child_process';
 import {chmod, mkdir, mkdtemp, readFile, readlink, rm, stat, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {RUNNER_BASE_PREPARE_OS_SCRIPT} from '@shipfox/runner-base';
+import {
+  RUNNER_BASE_PREPARE_OS_SCRIPT,
+  type RunnerBaseSelection,
+  runnerBaseImageTags,
+} from '@shipfox/runner-base';
 import {findProducedAmiId, parsePackerAmiArtifact} from '#aws.js';
 import {parseBuildRunnerImageArgs} from '#build-runner-image.js';
 import {buildRunnerImageCandidate, parseRunnerImageCandidateArgs} from '#candidate.js';
@@ -59,6 +63,22 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+const BASE_KEY_ARN =
+  'arn:aws:kms:eu-central-1:123456789012:key/1234abcd-12ab-34cd-56ef-1234567890ab';
+const BASE_AMI = {amd64: 'ami-11111111111111111', arm64: 'ami-22222222222222222'};
+const BASE_SELECTION: RunnerBaseSelection = {
+  generation: '18000000000-1',
+  recipeDigest: `sha256:${'a'.repeat(64)}`,
+  kmsKeyArn: BASE_KEY_ARN,
+  owner: '123456789012',
+  createdAt: '2026-07-18T10:00:00.000Z',
+  selectedAt: '2026-07-19T09:00:00.000Z',
+  images: [
+    {architecture: 'amd64', amiId: BASE_AMI.amd64, createdAt: '2026-07-18T10:00:00.000Z'},
+    {architecture: 'arm64', amiId: BASE_AMI.arm64, createdAt: '2026-07-18T10:05:00.000Z'},
+  ],
+};
+
 describe('readMiseNodeVersion', () => {
   it('reads the selected Node version from mise', () => {
     const version = readMiseNodeVersion(() => '24.17.0\n');
@@ -66,6 +86,25 @@ describe('readMiseNodeVersion', () => {
     expect(version).toBe('24.17.0');
   });
 });
+
+function candidateBuildFromBase(architecture: 'amd64' | 'arm64') {
+  return {
+    os: 'ubuntu24',
+    platform: 'aws' as const,
+    architecture,
+    base: BASE_SELECTION,
+    buildAttempt: '1',
+    buildNumber: '42',
+    candidateExpiresAt: '2026-08-03T10:00:00Z',
+    candidateId: 'main-0123456789abcdef0123456789abcdef01234567',
+    candidateConsumerAccountIds: ['123456789012'],
+    candidateKmsKeyId: BASE_KEY_ARN,
+    lifecycle: 'candidate' as const,
+    nodeVersion: '24.17.0',
+    revision: '0123456789abcdef0123456789abcdef01234567',
+    extraPackerArgs: [],
+  };
+}
 
 describe('packerBuildArgs', () => {
   it('targets the AWS image source and passes the shared image variables', () => {
@@ -152,7 +191,8 @@ describe('packerBuildArgs', () => {
         candidateExpiresAt: '2026-08-03T10:00:00Z',
         candidateId: 'main-0123456789abcdef0123456789abcdef01234567',
         candidateConsumerAccountIds: ['123456789012', '210987654321'],
-        candidateKmsKeyId: 'alias/shipfox-runner-image-candidate',
+        candidateKmsKeyId: BASE_KEY_ARN,
+        base: BASE_SELECTION,
         lifecycle: 'candidate',
         nodeVersion: '24.17.0',
         revision: '0123456789abcdef0123456789abcdef01234567',
@@ -164,9 +204,62 @@ describe('packerBuildArgs', () => {
     expect(args).toContain('image_lifecycle=candidate');
     expect(args).toContain('candidate_id=main-0123456789abcdef0123456789abcdef01234567');
     expect(args).toContain('candidate_expires_at=2026-08-03T10:00:00Z');
-    expect(args).toContain('candidate_kms_key_id=alias/shipfox-runner-image-candidate');
+    expect(args).toContain(`candidate_kms_key_id=${BASE_KEY_ARN}`);
     expect(args).toContain('candidate_ami_users=["123456789012","210987654321"]');
     expect(args.some((arg) => arg.startsWith('runner_version='))).toBe(false);
+  });
+
+  it('starts a candidate AWS build from its architecture in the selected base generation', () => {
+    const args = packerBuildArgs(candidateBuildFromBase('arm64'), '/tmp/workspace');
+
+    expect(args).toContain(`source_ami_id=${BASE_AMI.arm64}`);
+    expect(args).toContain(`base_generation=${BASE_SELECTION.generation}`);
+    expect(args).toContain(`base_recipe=${BASE_SELECTION.recipeDigest}`);
+  });
+
+  it('requires a runner base for candidate AWS builds', () => {
+    const {base: _base, ...build} = candidateBuildFromBase('amd64');
+
+    expect(() => packerBuildArgs(build, '/tmp/workspace')).toThrow(
+      'Candidate AWS builds require a verified runner base selection.',
+    );
+  });
+
+  it('requires the candidate key to be the base key', () => {
+    expect(() =>
+      packerBuildArgs(
+        {
+          ...candidateBuildFromBase('amd64'),
+          candidateKmsKeyId: 'alias/shipfox-runner-image-candidate',
+        },
+        '/tmp/workspace',
+      ),
+    ).toThrow(`must use the runner base key ${BASE_KEY_ARN}`);
+  });
+
+  it('keeps release and QEMU builds on the complete Canonical build', () => {
+    const release = {
+      os: 'ubuntu24',
+      platform: 'aws' as const,
+      architecture: 'amd64' as const,
+      buildAttempt: '1',
+      buildNumber: '42',
+      lifecycle: 'release' as const,
+      nodeVersion: '24.17.0',
+      revision: '0123456789abcdef0123456789abcdef01234567',
+      runnerVersion: '0.1.0',
+      extraPackerArgs: [],
+    };
+
+    const args = packerBuildArgs(release, '/tmp/workspace');
+
+    expect(args.some((arg) => arg.startsWith('source_ami_id='))).toBe(false);
+    expect(() => packerBuildArgs({...release, base: BASE_SELECTION}, '/tmp/workspace')).toThrow(
+      'Only candidate AWS builds start from a runner base image.',
+    );
+    expect(() =>
+      packerBuildArgs({...release, platform: 'qemu', base: BASE_SELECTION}, '/tmp/workspace'),
+    ).toThrow('Only candidate AWS builds start from a runner base image.');
   });
 
   it('requires a KMS key for candidate AWS builds', () => {
@@ -466,7 +559,11 @@ describe('parseBuildRunnerImageArgs', () => {
 
 describe('runner image candidates', () => {
   const revision = '0123456789abcdef0123456789abcdef01234567';
-  const availableImage = (amiId: string, architecture: 'amd64' | 'arm64') => ({
+  const availableImage = (
+    amiId: string,
+    architecture: 'amd64' | 'arm64',
+    baseGeneration: string | null = BASE_SELECTION.generation,
+  ) => ({
     ImageId: amiId,
     State: 'available' as const,
     OwnerId: '123456789012',
@@ -476,42 +573,102 @@ describe('runner image candidates', () => {
       {Key: 'shipfox.revision', Value: revision},
       {Key: 'shipfox.architecture', Value: architecture},
       {Key: 'shipfox.expires_at', Value: '2026-08-03T10:00:00Z'},
+      ...(baseGeneration
+        ? [
+            {Key: 'shipfox.base_generation', Value: baseGeneration},
+            {Key: 'shipfox.base_recipe', Value: BASE_SELECTION.recipeDigest},
+            {Key: 'shipfox.source_ami_id', Value: BASE_AMI[architecture]},
+          ]
+        : []),
     ],
   });
+  const baseImage = (architecture: 'amd64' | 'arm64') => ({
+    ImageId: BASE_AMI[architecture],
+    State: 'available' as const,
+    OwnerId: '123456789012',
+    Architecture: architecture === 'amd64' ? 'x86_64' : 'arm64',
+    CreationDate: '2026-07-18T10:00:00Z',
+    Tags: Object.entries(
+      runnerBaseImageTags({
+        architecture,
+        generation: BASE_SELECTION.generation,
+        recipeDigest: BASE_SELECTION.recipeDigest,
+        revision,
+        status: 'verified',
+      }),
+    ).map(([Key, Value]) => ({Key, Value})),
+  });
+  const now = () => new Date('2026-07-19T10:00:00.000Z');
 
-  it('builds a candidate when no matching AMI exists', async () => {
+  // Answers candidate lookups by architecture, base lookups from the selection, and built-AMI
+  // availability checks from `built` in order.
+  function routedSend(
+    options: {existing?: Partial<Record<'amd64' | 'arm64', unknown[]>>; built?: unknown[]} = {},
+  ) {
+    const built = [...(options.built ?? [])];
+    const send = vi.fn();
+    send.mockImplementation((command) => {
+      const {Filters, ImageIds} = command.input;
+      const baseArchitecture = (['amd64', 'arm64'] as const).find((architecture) =>
+        ImageIds?.includes(BASE_AMI[architecture]),
+      );
+      if (baseArchitecture) return Promise.resolve({Images: [baseImage(baseArchitecture)]});
+      if (ImageIds) {
+        const next = built.shift();
+        return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
+      }
+      const architecture = Filters?.find(
+        (filter: {Name: string}) => filter.Name === 'tag:shipfox.architecture',
+      )?.Values[0] as 'amd64' | 'arm64';
+      return Promise.resolve({Images: options.existing?.[architecture] ?? []});
+    });
+    return send;
+  }
+
+  function baseBuild(architecture: 'amd64' | 'arm64') {
     const build = parseBuildRunnerImageArgs(
       ['ubuntu24', 'aws'],
       {
-        BUILD_ARCH: 'amd64',
+        BUILD_ARCH: architecture,
         BUILD_ATTEMPT: '1',
         BUILD_CANDIDATE_EXPIRES_AT: '2026-08-03T10:00:00Z',
         BUILD_CANDIDATE_ID: `main-${revision}`,
         BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS: '123456789012,210987654321',
-        BUILD_CANDIDATE_KMS_KEY_ID: 'alias/shipfox-runner-image-candidate',
+        BUILD_CANDIDATE_KMS_KEY_ID: BASE_KEY_ARN,
         BUILD_IMAGE_LIFECYCLE: 'candidate',
         BUILD_NUMBER: '42',
         BUILD_REVISION: revision,
       },
       '24.17.0',
     );
-    const send = vi
-      .fn()
-      .mockResolvedValueOnce({Images: []})
-      .mockResolvedValueOnce({
-        Images: [availableImage('ami-0123abc456def7890', 'amd64')],
-      });
+    return {...build, base: BASE_SELECTION};
+  }
+
+  it('builds a candidate from the selected base when no matching AMI exists', async () => {
+    const build = baseBuild('amd64');
+    const send = routedSend({
+      built: [{Images: [availableImage('ami-0123abc456def7890', 'amd64')]}],
+    });
     const buildImage = vi.fn().mockResolvedValue({amiId: 'ami-0123abc456def7890'});
 
     const candidate = await buildRunnerImageCandidate(build, {
       build: buildImage,
       client: {send},
+      now,
     });
 
     expect(buildImage).toHaveBeenCalledWith(build);
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({input: {Owners: ['self'], ImageIds: [BASE_AMI.amd64]}}),
+    );
     expect(candidate).toEqual({
       amiId: 'ami-0123abc456def7890',
       architecture: 'amd64',
+      base: {
+        generation: BASE_SELECTION.generation,
+        recipeDigest: BASE_SELECTION.recipeDigest,
+        sourceAmiId: BASE_AMI.amd64,
+      },
       candidateId: `main-${revision}`,
       createdAt: '2026-07-19T10:15:00.000Z',
       expiresAt: '2026-08-03T10:00:00.000Z',
@@ -521,6 +678,84 @@ describe('runner image candidates', () => {
       revision,
       status: 'built',
     });
+  });
+
+  it('completes a partial pair from the generation of the surviving architecture', async () => {
+    const send = routedSend({
+      existing: {amd64: [availableImage('ami-0123abc456def7890', 'amd64')]},
+      built: [{Images: [availableImage('ami-0fedcba9876543210', 'arm64')]}],
+    });
+    const buildImage = vi.fn().mockResolvedValue({amiId: 'ami-0fedcba9876543210'});
+
+    const candidate = await buildRunnerImageCandidate(baseBuild('arm64'), {
+      build: buildImage,
+      client: {send},
+      now,
+    });
+
+    expect(candidate.status).toBe('built');
+    expect(candidate.base?.generation).toBe(BASE_SELECTION.generation);
+  });
+
+  it('refuses to pair architectures from different base generations', async () => {
+    const send = routedSend({
+      existing: {amd64: [availableImage('ami-0123abc456def7890', 'amd64', '17000000000-1')]},
+    });
+    const buildImage = vi.fn();
+
+    const candidate = buildRunnerImageCandidate(baseBuild('arm64'), {
+      build: buildImage,
+      client: {send},
+      now,
+    });
+
+    await expect(candidate).rejects.toThrow(
+      'was built from base generation 17000000000-1, not 18000000000-1',
+    );
+    expect(buildImage).not.toHaveBeenCalled();
+  });
+
+  it('refuses to pair a base-derived architecture with a legacy complete build', async () => {
+    const send = routedSend({
+      existing: {amd64: [availableImage('ami-0123abc456def7890', 'amd64', null)]},
+    });
+    const buildImage = vi.fn();
+
+    const candidate = buildRunnerImageCandidate(baseBuild('arm64'), {
+      build: buildImage,
+      client: {send},
+      now,
+    });
+
+    await expect(candidate).rejects.toThrow('base generation <none>');
+    expect(buildImage).not.toHaveBeenCalled();
+  });
+
+  it('requires a base selection before building a new candidate', async () => {
+    const {base: _base, ...build} = baseBuild('amd64');
+    const buildImage = vi.fn();
+
+    const candidate = buildRunnerImageCandidate(build, {
+      build: buildImage,
+      client: {send: routedSend()},
+      now,
+    });
+
+    await expect(candidate).rejects.toThrow('require a verified runner base selection');
+    expect(buildImage).not.toHaveBeenCalled();
+  });
+
+  it('selects the base again when the selection is more than one day old at launch', async () => {
+    const buildImage = vi.fn();
+
+    const candidate = buildRunnerImageCandidate(baseBuild('amd64'), {
+      build: buildImage,
+      client: {send: routedSend()},
+      now: () => new Date('2026-07-20T09:00:01.000Z'),
+    });
+
+    await expect(candidate).rejects.toThrow('Re-run all jobs to select a base again');
+    expect(buildImage).not.toHaveBeenCalled();
   });
 
   it('reuses the matching available candidate AMI', async () => {
@@ -622,32 +857,16 @@ describe('runner image candidates', () => {
   });
 
   it('rejects a built AMI that is not available yet', async () => {
-    const build = parseBuildRunnerImageArgs(
-      ['ubuntu24', 'aws'],
-      {
-        BUILD_ARCH: 'amd64',
-        BUILD_ATTEMPT: '1',
-        BUILD_CANDIDATE_EXPIRES_AT: '2026-08-03T10:00:00Z',
-        BUILD_CANDIDATE_ID: `main-${revision}`,
-        BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS: '123456789012,210987654321',
-        BUILD_CANDIDATE_KMS_KEY_ID: 'alias/shipfox-runner-image-candidate',
-        BUILD_IMAGE_LIFECYCLE: 'candidate',
-        BUILD_NUMBER: '42',
-        BUILD_REVISION: revision,
-      },
-      '24.17.0',
-    );
-    const send = vi
-      .fn()
-      .mockResolvedValueOnce({Images: []})
-      .mockResolvedValueOnce({
-        Images: [{...availableImage('ami-0123abc456def7890', 'amd64'), State: 'pending'}],
-      });
+    const build = baseBuild('amd64');
+    const send = routedSend({
+      built: [{Images: [{...availableImage('ami-0123abc456def7890', 'amd64'), State: 'pending'}]}],
+    });
     const buildImage = vi.fn().mockResolvedValue({amiId: 'ami-0123abc456def7890'});
 
     const candidate = buildRunnerImageCandidate(build, {
       build: buildImage,
       client: {send},
+      now,
       describeAvailabilityRetries: 0,
     });
 
@@ -655,35 +874,19 @@ describe('runner image candidates', () => {
   });
 
   it('retries the availability check until the built AMI becomes available', async () => {
-    const build = parseBuildRunnerImageArgs(
-      ['ubuntu24', 'aws'],
-      {
-        BUILD_ARCH: 'amd64',
-        BUILD_ATTEMPT: '1',
-        BUILD_CANDIDATE_EXPIRES_AT: '2026-08-03T10:00:00Z',
-        BUILD_CANDIDATE_ID: `main-${revision}`,
-        BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS: '123456789012,210987654321',
-        BUILD_CANDIDATE_KMS_KEY_ID: 'alias/shipfox-runner-image-candidate',
-        BUILD_IMAGE_LIFECYCLE: 'candidate',
-        BUILD_NUMBER: '42',
-        BUILD_REVISION: revision,
-      },
-      '24.17.0',
-    );
-    const send = vi
-      .fn()
-      .mockResolvedValueOnce({Images: []})
-      .mockResolvedValueOnce({
-        Images: [{...availableImage('ami-0123abc456def7890', 'amd64'), State: 'pending'}],
-      })
-      .mockResolvedValueOnce({
-        Images: [availableImage('ami-0123abc456def7890', 'amd64')],
-      });
+    const build = baseBuild('amd64');
+    const send = routedSend({
+      built: [
+        {Images: [{...availableImage('ami-0123abc456def7890', 'amd64'), State: 'pending'}]},
+        {Images: [availableImage('ami-0123abc456def7890', 'amd64')]},
+      ],
+    });
     const buildImage = vi.fn().mockResolvedValue({amiId: 'ami-0123abc456def7890'});
 
     const candidate = await buildRunnerImageCandidate(build, {
       build: buildImage,
       client: {send},
+      now,
       describeAvailabilityRetries: 1,
       describeAvailabilityDelayMs: 1,
     });
@@ -693,69 +896,35 @@ describe('runner image candidates', () => {
   });
 
   it('retries a transient AMI-not-found response during availability checks', async () => {
-    const build = parseBuildRunnerImageArgs(
-      ['ubuntu24', 'aws'],
-      {
-        BUILD_ARCH: 'amd64',
-        BUILD_ATTEMPT: '1',
-        BUILD_CANDIDATE_EXPIRES_AT: '2026-08-03T10:00:00Z',
-        BUILD_CANDIDATE_ID: `main-${revision}`,
-        BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS: '123456789012,210987654321',
-        BUILD_CANDIDATE_KMS_KEY_ID: 'alias/shipfox-runner-image-candidate',
-        BUILD_IMAGE_LIFECYCLE: 'candidate',
-        BUILD_NUMBER: '42',
-        BUILD_REVISION: revision,
-      },
-      '24.17.0',
-    );
+    const build = baseBuild('amd64');
     const notFound = Object.assign(new Error('The image does not exist.'), {
       name: 'InvalidAMIID.NotFound',
     });
-    const send = vi
-      .fn()
-      .mockResolvedValueOnce({Images: []})
-      .mockRejectedValueOnce(notFound)
-      .mockResolvedValueOnce({
-        Images: [availableImage('ami-0123abc456def7890', 'amd64')],
-      });
+    const send = routedSend({
+      built: [notFound, {Images: [availableImage('ami-0123abc456def7890', 'amd64')]}],
+    });
     const buildImage = vi.fn().mockResolvedValue({amiId: 'ami-0123abc456def7890'});
 
     const candidate = await buildRunnerImageCandidate(build, {
       build: buildImage,
       client: {send},
+      now,
       describeAvailabilityRetries: 1,
       describeAvailabilityDelayMs: 1,
     });
 
     expect(candidate.status).toBe('built');
-    expect(send).toHaveBeenCalledTimes(3);
+    expect(buildImage).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a built AMI whose tags do not match the requested build', async () => {
-    const build = parseBuildRunnerImageArgs(
-      ['ubuntu24', 'aws'],
-      {
-        BUILD_ARCH: 'amd64',
-        BUILD_ATTEMPT: '1',
-        BUILD_CANDIDATE_EXPIRES_AT: '2026-08-03T10:00:00Z',
-        BUILD_CANDIDATE_ID: `main-${revision}`,
-        BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS: '123456789012,210987654321',
-        BUILD_CANDIDATE_KMS_KEY_ID: 'alias/shipfox-runner-image-candidate',
-        BUILD_IMAGE_LIFECYCLE: 'candidate',
-        BUILD_NUMBER: '42',
-        BUILD_REVISION: revision,
-      },
-      '24.17.0',
-    );
-    const send = vi
-      .fn()
-      .mockResolvedValueOnce({Images: []})
-      .mockResolvedValueOnce({
-        Images: [availableImage('ami-0123abc456def7890', 'arm64')],
-      });
+    const build = baseBuild('amd64');
+    const send = routedSend({
+      built: [{Images: [availableImage('ami-0123abc456def7890', 'arm64')]}],
+    });
     const buildImage = vi.fn().mockResolvedValue({amiId: 'ami-0123abc456def7890'});
 
-    const candidate = buildRunnerImageCandidate(build, {build: buildImage, client: {send}});
+    const candidate = buildRunnerImageCandidate(build, {build: buildImage, client: {send}, now});
 
     await expect(candidate).rejects.toThrow('does not carry the expected build identity tags');
   });
@@ -827,6 +996,34 @@ describe('runner image candidates', () => {
       revision,
     });
     expect(result.outputPath).toBe('/tmp/candidate.json');
+  });
+
+  it('reads the selected runner base from the environment', () => {
+    const result = parseRunnerImageCandidateArgs(['--output', '/tmp/candidate.json'], {
+      BUILD_ARCH: 'amd64',
+      BUILD_ATTEMPT: '1',
+      BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS: '123456789012',
+      BUILD_CANDIDATE_KMS_KEY_ID: BASE_KEY_ARN,
+      BUILD_NUMBER: '42',
+      BUILD_REVISION: revision,
+      BUILD_RUNNER_BASE_SELECTION: JSON.stringify(BASE_SELECTION),
+    });
+
+    expect(result.build.base).toEqual(BASE_SELECTION);
+  });
+
+  it('rejects a malformed runner base selection', () => {
+    expect(() =>
+      parseRunnerImageCandidateArgs(['--output', '/tmp/candidate.json'], {
+        BUILD_ARCH: 'amd64',
+        BUILD_ATTEMPT: '1',
+        BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS: '123456789012',
+        BUILD_CANDIDATE_KMS_KEY_ID: BASE_KEY_ARN,
+        BUILD_NUMBER: '42',
+        BUILD_REVISION: revision,
+        BUILD_RUNNER_BASE_SELECTION: JSON.stringify({...BASE_SELECTION, images: []}),
+      }),
+    ).toThrow('exactly one amd64 and one arm64 AMI');
   });
 
   it('rejects candidate builds from non-main GitHub refs', () => {
@@ -1951,10 +2148,12 @@ describe('runner image composition', () => {
     }
   });
 
-  it('runs the runner base OS preparation before the runner stage', async () => {
+  it('runs the runner base OS preparation before the runner stage of a complete build only', async () => {
     const build = await readFile(new URL('../build.pkr.hcl', import.meta.url), 'utf8');
 
-    const baseIndex = build.indexOf('var.runner_base_prepare_script,');
+    const baseIndex = build.indexOf(
+      'concat(local.from_runner_base ? [] : [var.runner_base_prepare_script], [',
+    );
     expect(baseIndex).toBeGreaterThanOrEqual(0);
     expect(build.indexOf('scripts/build/setup-runner.sh')).toBeGreaterThan(baseIndex);
   });
@@ -2350,8 +2549,8 @@ describe('ephemeral boot configuration', () => {
         '[Journal]\nStorage=volatile\nRuntimeMaxUse=64M\nRateLimitIntervalSec=30s\nRateLimitBurst=1000\n',
       );
 
-      const scriptsStart = build.indexOf('scripts = [');
-      const scriptsEnd = build.indexOf('\n    ]', scriptsStart);
+      const scriptsStart = build.indexOf('scripts = concat(');
+      const scriptsEnd = build.indexOf('\n    ])', scriptsStart);
       expect(scriptsStart).toBeGreaterThanOrEqual(0);
       expect(scriptsEnd).toBeGreaterThan(scriptsStart);
       expect(build.slice(scriptsStart, scriptsEnd)).toContain(

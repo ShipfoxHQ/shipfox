@@ -6,11 +6,12 @@
 
 - **Base build**: Packer's `base` build prepares an exact Canonical Ubuntu 24.04 AMI and captures an encrypted base AMI in `eu-central-1`.
 - **Fresh-instance verification**: Packer's `verify` build launches the captured AMI with a new key pair, checks the base contract, and records the kernel, boot timing, and root filesystem usage. It creates no image.
-- **`RUNNER_BASE_PREPARE_OS_SCRIPT`**: the absolute path of the OS preparation script. Complete runner image builds in `@shipfox/runner-image` run it before their runner stage.
+- **`RUNNER_BASE_PREPARE_OS_SCRIPT`**: the absolute path of the OS preparation script. Release and QEMU runner image builds in `@shipfox/runner-image` run it before their runner stage. Candidate builds start from a published base instead.
 - **`computeRunnerBaseRecipe`**: computes the deterministic recipe digest that identifies base compatibility.
 - **`parseRunnerBaseMetadata`**: validates one published base generation against [`schema/runner-base.v1.schema.json`](schema/runner-base.v1.schema.json).
 - **`runnerBaseImageTags`**, **`RUNNER_BASE_TAGS`**, and **`RUNNER_BASE_POINTER_PARAMETER`**: name the AMI and snapshot tags and the SSM pointer that publication and retention use.
 - **Publication**: the `plan-runner-base` and `publish-runner-base` commands decide whether a new generation is needed, then mark a verified pair and write it to the single SSM pointer. The [**Publish runner base**](../../../.github/workflows/publish-runner-base.yml) workflow runs them.
+- **Selection**: `selectRunnerBase` and the `select-runner-base` command choose one verified generation for a candidate build. `revalidateRunnerBaseImage` rechecks a selected AMI immediately before launch. `parseRunnerBaseSelection` reads a selection passed between jobs.
 
 The base holds the OS packages and removes snapd and the bundled SSM agent. It keeps cloud-init, SSH, and the source network configuration, so each new instance receives its own identity and launch key. Before capture, the build cleans cloud-init instance state, the machine ID, the hostname, SSH host keys, and Packer's temporary authorized keys.
 
@@ -94,6 +95,14 @@ The **Publish runner base** workflow runs daily, on manual dispatch, and as a re
 The workflow's concurrency group serializes whole runs, so the pointer has one writer. A caller must not use the `runner-base-ubuntu24` group itself. Any failure before the pointer write leaves the previous pointer in place. The run summary reports the plan, both builds with their kernel and boot timing, and the published metadata. The metadata is also uploaded as the `runner-base-metadata` artifact.
 
 To retry a failed publish job, re-run failed jobs: the tag writes are idempotent and a generation that is already published is not rewritten. A build that failed after capturing its AMI cannot reuse the generation's AMI name, so re-run all jobs instead. To stop scheduled publication, disable the workflow in GitHub Actions or remove its schedule. Published bases stay available for inspection.
+
+### Selection
+
+Candidate builds in `@shipfox/runner-image` consume bases through a selection. `select-runner-base --output <path>` reads the pointer and checks it against this checkout. Its recipe must match this checkout's, and its key must match the resolved candidate key. Both AMIs must be available, owned by the pointer's account, of the tagged architecture, and tagged `verified`. The older AMI must be at most seven days old. The selection records the generation, recipe, key ARN, owner, both AMI IDs, and when it was selected. It warns when the older AMI is more than two days old.
+
+`selectRunnerBase` with a `generation` selects that generation from its AMI tags instead of the pointer. It applies the same checks and also checks each snapshot's key. Candidate planning uses it to complete a pair from the generation its surviving image recorded.
+
+`revalidateRunnerBaseImage` rejects a selection older than one day and rechecks the AMI's availability and tags. Base retention keeps every base for nine days, which covers the seven-day selection limit plus the one-day launch window.
 
 ## Development
 
