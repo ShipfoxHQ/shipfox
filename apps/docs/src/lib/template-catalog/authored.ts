@@ -165,6 +165,45 @@ export const authoredTemplateMetadata: Record<string, AuthoredMetadata> = {
       'Invite the Shipfox app to each channel where it answers.',
     ],
   },
+  'slack-to-ticket': {
+    group: 'bring-in',
+    starts: 'Someone asks the Shipfox app in Slack to create a ticket',
+    flow: [
+      {
+        kind: 'trigger',
+        icon: 'slack',
+        title: 'Someone asks for a ticket in Slack',
+        detail: 'They mention the Shipfox app in a thread. A Slack dispatcher can also start it.',
+      },
+      {
+        kind: 'agent',
+        title: 'The agent reads the thread and the code',
+        detail:
+          'It drafts the problem, scope, and acceptance criteria from what the thread says, and links the relevant code. It asks questions when an essential fact is missing.',
+      },
+      {
+        kind: 'write',
+        icon: 'linear',
+        title: 'The workflow creates a Linear ticket',
+        detail: 'A thread gets one ticket. A repeated request gets the existing one.',
+      },
+      {
+        kind: 'write',
+        icon: 'slack',
+        title: 'The workflow links the ticket in the thread',
+        detail: 'You review the ticket before work starts.',
+      },
+    ],
+    writes: [
+      {icon: 'linear', action: 'Creates one ticket per thread'},
+      {icon: 'slack', action: 'Replies in the thread'},
+    ],
+    prerequisites: [
+      'Connect GitHub, Slack, and Linear.',
+      'Invite the Shipfox app to each channel where it creates tickets.',
+    ],
+    related: ['ask-codebase', 'ticket-to-pr'],
+  },
   'report-failed-runs': {
     group: 'operate',
     starts: 'A Shipfox workflow run fails',
