@@ -1,3 +1,4 @@
+import {Buffer} from 'node:buffer';
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {createWorkflowModelSnapshot} from '@shipfox/api-definitions-dto';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
@@ -15,6 +16,7 @@ import {
 } from '@shipfox/inter-module';
 import {DefinitionAtRefError, listDefinitionsAtRef, resolveDefinitionAtRef} from '#core/index.js';
 import {populateDefaultGateMaxAttempts} from '#core/workflow-model/populate-default-gate-max-attempts.js';
+import {getActionSnapshot} from '#db/action-snapshots.js';
 import {
   getDefinitionByConfigPath,
   getDefinitionById,
@@ -136,6 +138,22 @@ export function createDefinitionsInterModulePresentation(
           error,
         );
       }
+    },
+    getActionSnapshot: async ({workspaceId, digest}) => {
+      const snapshot = await getActionSnapshot({workspaceId, digest});
+      if (!snapshot) {
+        throw createInterModuleKnownError(
+          definitionsInterModuleContract.methods.getActionSnapshot,
+          'action-snapshot-not-found',
+          {digest},
+        );
+      }
+
+      return {
+        manifest: snapshot.manifest,
+        bundleGzipBase64: Buffer.from(snapshot.bundle).toString('base64'),
+        bytes: snapshot.bytes,
+      };
     },
   });
 }

@@ -1,6 +1,11 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
+export {
+  getActionSnapshot,
+  type UpsertActionSnapshotParams,
+  upsertActionSnapshot,
+} from './action-snapshots.js';
 export {closeDb, db, schema} from './db.js';
 export type {
   ApplyVcsDefinitionsBatchParams,
@@ -23,6 +28,7 @@ export {
   softDeleteVcsDefinitionsNotIn,
   upsertDefinition,
 } from './definitions.js';
+export {definitionActionSnapshots} from './schema/action-snapshots.js';
 export {definitionsOutbox} from './schema/outbox.js';
 export {definitionSyncStates} from './schema/sync-states.js';
 export {type WorkflowCreateDb, type WorkflowDb, workflowWorkflows} from './schema/workflows.js';

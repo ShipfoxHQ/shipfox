@@ -1,11 +1,13 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
+import {definitionActionSnapshots} from './schema/action-snapshots.js';
 import {workflowDefinitions} from './schema/definitions.js';
 import {definitionsOutbox} from './schema/outbox.js';
 import {definitionSyncStates} from './schema/sync-states.js';
 import {workflowWorkflows} from './schema/workflows.js';
 
 export const schema = {
+  definitionActionSnapshots,
   workflowDefinitions,
   definitionsOutbox,
   definitionSyncStates,

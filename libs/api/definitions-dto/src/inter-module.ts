@@ -1,4 +1,5 @@
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
+import {actionBundleDigestSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {
   DEFINITION_SYNC_LAST_ERROR_MESSAGE_MAX_LENGTH,
@@ -191,6 +192,19 @@ export const definitionsInterModuleContract = defineInterModuleContract({
         files: z.array(definitionAtRefFileSchema),
       }),
       errors: refListingErrors,
+    },
+    getActionSnapshot: {
+      input: z.object({workspaceId: idSchema, digest: actionBundleDigestSchema}),
+      output: z.object({
+        manifest: z.record(z.string(), z.unknown()),
+        /** The gzipped canonical bundle; decode it with `decodeActionBundle`. */
+        bundleGzipBase64: z.base64(),
+        /** Byte length of the uncompressed bundle. */
+        bytes: z.number().int().nonnegative(),
+      }),
+      errors: {
+        'action-snapshot-not-found': z.object({digest: actionBundleDigestSchema}),
+      },
     },
   },
 });
