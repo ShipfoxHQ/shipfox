@@ -108,7 +108,7 @@ export async function TemplateDetail({id}: {id: string}) {
                         />
                         <span className="flex min-w-0 flex-1 flex-col gap-tight">
                           <span className="text-sm font-medium text-fd-foreground">
-                            {option.question}
+                            {option.question ?? option.id}
                           </span>
                           <span className="text-xs text-fd-muted-foreground">
                             Default:{' '}

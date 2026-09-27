@@ -98,9 +98,13 @@ export function TemplateAdoptPane({
             type="button"
             aria-label="Copy prompt"
             onClick={() => {
-              void navigator.clipboard.writeText(prompt);
-              setCopied(true);
-              window.setTimeout(() => setCopied(false), 1500);
+              navigator.clipboard.writeText(prompt).then(
+                () => {
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1500);
+                },
+                () => setCopied(false),
+              );
             }}
             className="inline-flex size-7 shrink-0 items-center justify-center rounded text-fd-muted-foreground hover:bg-fd-accent hover:text-fd-foreground"
           >

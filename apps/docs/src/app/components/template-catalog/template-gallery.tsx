@@ -30,7 +30,7 @@ export function TemplateGallery({templates}: {templates: TemplateCatalogEntry[]}
   );
   const filtered = useMemo(() => filterTemplates(templates, filters), [templates, filters]);
   const hasFilters =
-    filters.query.length > 0 || filters.integrations.length > 0 || filters.groups.length > 0;
+    filters.query.trim().length > 0 || filters.integrations.length > 0 || filters.groups.length > 0;
 
   return (
     <section
@@ -52,7 +52,7 @@ export function TemplateGallery({templates}: {templates: TemplateCatalogEntry[]}
 
         {hasFilters ? (
           <div className="flex flex-wrap items-center gap-inline">
-            <p className="text-sm text-fd-muted-foreground">
+            <p aria-live="polite" className="text-sm text-fd-muted-foreground">
               {filtered.length} {filtered.length === 1 ? 'example' : 'examples'}
             </p>
             {filters.integrations.map((icon) => (

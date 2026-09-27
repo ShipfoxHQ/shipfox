@@ -7,7 +7,7 @@ The user may have copied the prompt without reading the choices it carries. Trea
 ## Check the template
 
 1. Call `list_workflow_templates` and find the template by ID. If none matches, say so and recommend a template as step 2 describes.
-2. If a required role has no provider with an active connection, name its `missing_providers` to connect and stop.
+2. If a required role has no provider with an active connection, name its `missing_providers` to connect and stop. If the prompt named a provider for a required role and that provider is not `compatible`, name it and let the user connect it or pick one of the role's compatible providers.
 3. If the repository already uses the template, say which workflow file holds its `# shipfox-template:` marker and ask whether to add another copy. Stop if the user declines.
 
 ## Confirm the choices
@@ -15,7 +15,7 @@ The user may have copied the prompt without reading the choices it carries. Trea
 In one message, restate:
 
 - The template's title and what it does, in one sentence.
-- The provider for each role the prompt named. A role the prompt did not name is still to be decided in step 3.
+- The provider for each required role. When the prompt did not name one and the role has several compatible providers, ask which one to use.
 - Each optional part the prompt accepted or declined, with its tradeoff. An accepted optional part whose provider has no active connection stays declined unless the user connects it.
 
 Ask the user to confirm or change these choices, and wait for the answer. Never continue on choices the user has not confirmed.
