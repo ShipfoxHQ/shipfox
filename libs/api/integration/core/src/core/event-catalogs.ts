@@ -1,10 +1,9 @@
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 
 /**
- * Providers whose single event name is minted by Shipfox. An explicit event on
- * one of these providers is provably wrong unless it is that one name; every
- * other provider's event names are provider-minted and never treated as a
- * closed set. `manual` and `cron` are registered built-in trigger sources;
+ * Providers whose event names are minted by Shipfox. An explicit event on one of
+ * these providers is provably wrong unless its catalog lists it; every other
+ * provider's event names are provider-minted and never treated as a closed set. `manual` and `cron` are registered built-in trigger sources;
  * sync classifies them by literal, before slug resolution.
  */
 export const FIXED_EVENT_PROVIDERS = ['webhook', 'shipfox'] as const;

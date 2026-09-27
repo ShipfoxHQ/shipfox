@@ -360,6 +360,7 @@ const integrationValidationContext = {
     ['jira-main', {id: 'conn_4', provider: 'jira', capabilities: ['agent_tools']}],
     ['clickup-main', {id: 'conn_5', provider: 'clickup', capabilities: ['agent_tools']}],
     ['deploy-hook', {id: 'conn_6', provider: 'webhook', capabilities: []}],
+    ['shipfox', {id: 'conn_7', provider: 'shipfox', capabilities: ['agent_tools']}],
   ]),
   eventCatalogs: new Map([
     ['github', new Set(['push', 'pull_request.opened'])],
@@ -367,8 +368,9 @@ const integrationValidationContext = {
     ['linear', new Set(['Issue'])],
     ['jira', new Set(['jira:issue_created'])],
     ['webhook', new Set(['received'])],
+    ['shipfox', new Set(['run.started', 'run.completed'])],
   ]),
-  fixedEventProviders: new Set(['webhook']),
+  fixedEventProviders: new Set(['webhook', 'shipfox']),
   defaultConnectionSlug: 'github-main',
 } satisfies IntegrationValidationContext;
 
@@ -5946,6 +5948,39 @@ describe('normalizeWorkflowDocument', () => {
       },
     ]);
     expect(model.triggers).toEqual([]);
+  });
+
+  it('makes a shipfox trigger with an unknown event inert', () => {
+    const document: WorkflowDocument = {
+      name: 'shipfox trigger',
+      triggers: {
+        on_finish: {source: 'shipfox', event: 'run.finished'},
+        on_complete: {source: 'shipfox', event: 'run.completed'},
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const {model, diagnostics} = normalizeWithDiagnostics(document, {
+      integrationValidationContext,
+    });
+
+    expect(diagnostics).toEqual([
+      {
+        code: 'invalid-trigger-event',
+        message: 'Event "run.finished" is never delivered by provider "shipfox".',
+        path: ['triggers', 'on_finish', 'event'],
+        details: {event: 'run.finished', source: 'shipfox', provider: 'shipfox'},
+        severity: 'error',
+        scope: 'trigger',
+      },
+    ]);
+    expect(model.triggers).toEqual([
+      expect.objectContaining({key: 'on_complete', source: 'shipfox', event: 'run.completed'}),
+    ]);
   });
 
   it('makes a fixed-provider trigger inert when its event catalog is unavailable', () => {

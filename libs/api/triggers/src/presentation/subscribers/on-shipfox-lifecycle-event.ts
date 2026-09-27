@@ -154,7 +154,7 @@ function buildCompletedPayload(
       status_reason: fact.statusReason ?? null,
       started_at: fact.startedAt ?? null,
       finished_at: fact.finishedAt ?? writtenAt.toISOString(),
-      outputs: null,
+      outputs: context.run.outputs,
     },
   };
 }
