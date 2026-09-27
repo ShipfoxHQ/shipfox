@@ -87,7 +87,10 @@ export async function decodeActionBundle({
 function canonicalActionBundleJson(files: readonly ActionBundleFile[]): string {
   const normalized = files.map(({path, content}) => ({content, path: normalizeBundlePath(path)}));
   // Code-unit order, not localeCompare, so the order never depends on the runtime locale.
-  normalized.sort((a, b) => (a.path < b.path ? -1 : 1));
+  normalized.sort((a, b) => {
+    if (a.path === b.path) return 0;
+    return a.path < b.path ? -1 : 1;
+  });
   for (let index = 1; index < normalized.length; index += 1) {
     if (normalized[index]?.path === normalized[index - 1]?.path) {
       throw new InvalidActionBundleError(

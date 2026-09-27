@@ -165,7 +165,7 @@ parseWorkflowDocument({
 ### Action bundles
 
 An action bundle holds the UTF-8 text files of one action directory. The
-encoder writes canonical JSON, `{"files":[{"content","path"}],"version":1}`,
+encoder writes canonical JSON, `{"files":[{"content":"…","path":"action.yml"}],"version":1}`,
 with NFC-normalized paths in code-unit order. The digest is
 `sha256:<hex>` over that JSON, and the stored form is the same JSON gzipped.
 
