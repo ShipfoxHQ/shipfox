@@ -189,6 +189,12 @@ describe('pull request CI repair', () => {
     expect(evaluate(triggerFilter(selection), {event: repairCommit})).toBe(false);
   });
 
+  it.each(selections)('starts for %s when the event has no head commit', (selection) => {
+    const event = failedRun({head_commit: null});
+
+    expect(evaluate(triggerFilter(selection), {event})).toBe(true);
+  });
+
   it.each([
     {selection: 'dependency_bot', author: 'dependabot[bot]', labels: [], expected: true},
     {selection: 'dependency_bot', author: 'octocat', labels: [], expected: false},

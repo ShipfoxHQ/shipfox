@@ -12,7 +12,8 @@ trigger: |
       # option:pr_selection=dependency_bot begin
       event.workflow_run.actor.login == "dependabot[bot]" &&
       # option:pr_selection=dependency_bot end
-      !event.workflow_run.head_commit.message.contains("Shipfox-CI-Repair:")
+      !(event.workflow_run.head_commit != null &&
+        event.workflow_run.head_commit.message.contains("Shipfox-CI-Repair:"))
 read_pr: |
   - key: read_pr
     tool: pull_request_read.get

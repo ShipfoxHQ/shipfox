@@ -24,7 +24,9 @@ Fork PRs and failures from an older commit are skipped before repair starts.
 Runs for one repository and PR share a concurrency group.
 The active run finishes; only the newest additional run waits.
 A queued run checks whether its event still describes the PR head.
-This prevents overlapping repairs, but separate failed workflows on one commit each produce a diagnosis.
+This prevents overlapping repairs.
+When several workflows fail on one commit, comment-only mode diagnoses each failure.
+In push mode, the first repair moves the PR head, so later runs for that commit skip without a comment.
 
 ### Repair limits
 
@@ -48,6 +50,7 @@ Shipfox drops a repeated GitHub webhook delivery that has the same delivery ID.
 | `all_pull_requests` | Every same-repository PR. | Commits on any PR branch, including branches people are working on. |
 
 Keep the marked blocks for the chosen selection in the trigger filter and in the `read_pr` `selected` output. Remove the others.
+Delete the `# option:pr_selection` marker lines too: they sit inside expressions, so a leftover marker breaks the expression.
 For `label`, replace `replace-with-label-name` with the exact GitHub label name.
 Anyone who can label PRs in the repository can opt a PR in. Removing the label stops later runs, not a run that already passed inspection.
 With `label` or `all_pull_requests`, the workflow repairs a PR regardless of who opened it, including drafts and bot PRs.
