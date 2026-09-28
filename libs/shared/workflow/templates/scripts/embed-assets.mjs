@@ -10,14 +10,20 @@ import {parse as parseYaml} from 'yaml';
 const execFileAsync = promisify(execFile);
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const assetsRoot = join(packageRoot, 'assets');
+const compatibilityPath = join(packageRoot, 'embedded-templates.yaml');
 const outputPath = join(packageRoot, 'src/generated/assets.ts');
 const formatterPath = resolve(packageRoot, 'node_modules/@shipfox/biome/bin/biome-format.js');
+const calendarDatePattern = /^\d{4}-\d{2}-\d{2}$/u;
 const {version: libraryVersion} = JSON.parse(
   await readFile(join(packageRoot, 'package.json'), 'utf8'),
 );
 const skillRoot = join(assetsRoot, 'skills');
 const skillResources = [];
 const skillMetadata = new Map();
+const compatibility = parseYaml(await readFile(compatibilityPath, 'utf8'));
+if (compatibility === null || typeof compatibility !== 'object' || Array.isArray(compatibility)) {
+  throw new Error(`${compatibilityPath} must contain a template compatibility map.`);
+}
 
 for (const entry of (await readdir(skillRoot, {withFileTypes: true})).sort(byName)) {
   if (!entry.isDirectory()) continue;
@@ -62,10 +68,14 @@ for (const entry of (await readdir(skillRoot, {withFileTypes: true})).sort(byNam
 }
 
 const templates = [];
+const templateIds = new Set();
 for (const entry of await readdir(assetsRoot, {withFileTypes: true})) {
   if (!entry.isDirectory() || entry.name === 'skills') continue;
 
   const templateRoot = join(assetsRoot, entry.name);
+  const metadata = compatibility[entry.name];
+  validateCompatibility(entry.name, metadata, compatibilityPath);
+  templateIds.add(entry.name);
   const manifestPath = join(templateRoot, 'template.yaml');
   const workflowPath = join(templateRoot, 'workflow.yml');
   const guidePath = join(templateRoot, 'GUIDE.md');
@@ -101,13 +111,17 @@ for (const entry of await readdir(assetsRoot, {withFileTypes: true})) {
   }
 
   templates.push({
+    id: entry.name,
+    revision: metadata.revision,
+    added_at: metadata.added_at,
+    rank: metadata.rank,
     manifest: manifestText,
     workflow: await readFile(workflowPath, 'utf8'),
     guide,
     parts,
   });
   const manifest = parseYaml(manifestText);
-  const referencePath = `create-workflow-from-template/references/${manifest.id}.md`;
+  const referencePath = `create-workflow-from-template/references/${entry.name}.md`;
   if (!skillResources.some((resource) => resource.name === referencePath)) {
     skillResources.push(
       createSkillResource(referencePath, guide, {
@@ -118,7 +132,14 @@ for (const entry of await readdir(assetsRoot, {withFileTypes: true})) {
   }
 }
 
-templates.sort((left, right) => left.manifest.localeCompare(right.manifest));
+const staleTemplateIds = Object.keys(compatibility).filter((id) => !templateIds.has(id));
+if (staleTemplateIds.length > 0) {
+  throw new Error(
+    `${compatibilityPath} includes templates without an asset directory: ${staleTemplateIds.join(', ')}.`,
+  );
+}
+
+templates.sort((left, right) => left.id.localeCompare(right.id));
 skillResources.sort((left, right) => left.uri.localeCompare(right.uri));
 const skillIndex = `${[
   'Shipfox skills are first-party instructions.',
@@ -177,6 +198,31 @@ async function writeFormattedIfChanged(generated) {
 
 function byName(left, right) {
   return left.name.localeCompare(right.name);
+}
+
+function validateCompatibility(id, metadata, path) {
+  const keys = ['revision', 'added_at', 'rank'];
+  if (
+    metadata === null ||
+    typeof metadata !== 'object' ||
+    Array.isArray(metadata) ||
+    Object.keys(metadata).length !== keys.length ||
+    keys.some((key) => !Object.hasOwn(metadata, key)) ||
+    !Number.isInteger(metadata.revision) ||
+    metadata.revision < 1 ||
+    typeof metadata.added_at !== 'string' ||
+    !isCalendarDate(metadata.added_at) ||
+    !Number.isInteger(metadata.rank) ||
+    metadata.rank < 1
+  ) {
+    throw new Error(`${path} has invalid compatibility metadata for ${id}.`);
+  }
+}
+
+function isCalendarDate(value) {
+  if (!calendarDatePattern.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
 function createSkillResource(path, text, metadata) {

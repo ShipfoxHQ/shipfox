@@ -10,6 +10,10 @@ import {embeddedWorkflowTemplateAssets} from './generated/assets.js';
 import {type WorkflowTemplateManifest, workflowTemplateManifestSchema} from './manifest.js';
 
 export interface EmbeddedWorkflowTemplateAsset {
+  id: string;
+  revision: number;
+  added_at: string;
+  rank: number;
   manifest: string;
   workflow: string;
   guide: string;
@@ -17,6 +21,10 @@ export interface EmbeddedWorkflowTemplateAsset {
 }
 
 export interface WorkflowTemplateAsset {
+  id: string;
+  revision: number;
+  added_at: string;
+  rank: number;
   manifest: WorkflowTemplateManifest | string;
   workflow: string;
   guide: string;
@@ -24,6 +32,10 @@ export interface WorkflowTemplateAsset {
 }
 
 export interface WorkflowTemplate {
+  id: string;
+  revision: number;
+  added_at: string;
+  rank: number;
   manifest: WorkflowTemplateManifest;
   workflow: string;
   guide: string;
@@ -41,7 +53,7 @@ export interface TemplateLoader {
 /** Creates an injectable loader. Production uses only the generated asset module. */
 export function createTemplateLoader(assets: readonly WorkflowTemplateAsset[]): TemplateLoader {
   const templates = assets.map(loadTemplate);
-  const byId = new Map(templates.map((template) => [template.manifest.id, template]));
+  const byId = new Map(templates.map((template) => [template.id, template]));
 
   return {
     list: () => templates,
@@ -73,16 +85,21 @@ function loadTemplate(asset: WorkflowTemplateAsset): WorkflowTemplate {
     typeof asset.manifest === 'string'
       ? workflowTemplateManifestSchema.parse(parseYaml(asset.manifest))
       : workflowTemplateManifestSchema.parse(asset.manifest);
-  const template = {manifest, workflow: asset.workflow, guide: asset.guide, parts: asset.parts};
+  const template = {
+    id: asset.id,
+    revision: asset.revision,
+    added_at: asset.added_at,
+    rank: asset.rank,
+    manifest,
+    workflow: asset.workflow,
+    guide: asset.guide,
+    parts: asset.parts,
+  };
 
   // Composing every binding also validates each one, so an optional role cannot hide a broken part.
   const startsManually = templateRoleBindings(manifest.roles)
     .map((bindings) => hasManualTrigger(composeTemplate(template, bindings)))
     .every(Boolean);
-  if (!startsManually && manifest.start_label === undefined) {
-    throw new Error(`${manifest.id}: a template without a manual trigger needs a start_label`);
-  }
-
   return {...template, startsManually};
 }
 

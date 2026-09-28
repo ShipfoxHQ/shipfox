@@ -1,10 +1,11 @@
-id: fixture-ticket-to-pr
-revision: 1
-added_at: 2026-10-01
-rank: 1
 title: Fixture ticket to pull request
 summary: A small template used to test composition.
-start_label: Starts when a ticket is created
+keywords: [fixture, testing]
+starts: A ticket starts the test workflow
+flow: []
+writes: []
+prerequisites: []
+related: []
 roles:
   tracker:
     providers: [linear, github]
@@ -22,6 +23,14 @@ options:
       - id: none
         label: Do not update the ticket
     applies_to: [linear, github]
-slots: [setup_commands, test_command]
-secrets: [TRACKER_TOKEN]
-variables: [TEST_COMMAND]
+slots:
+  - id: setup_commands
+    description: Commands to prepare the test repository.
+  - id: test_command
+    description: Command to test the workflow change.
+secrets:
+  - name: TRACKER_TOKEN
+    description: Token the test workflow sends to its tracker.
+variables:
+  - name: TEST_COMMAND
+    description: Test command configured for this workflow.

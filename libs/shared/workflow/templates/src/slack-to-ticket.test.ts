@@ -11,7 +11,7 @@ import {loadShippedTemplates} from './loader.js';
 
 type YamlRecord = Record<string, unknown>;
 
-const template = loadShippedTemplates().find((entry) => entry.manifest.id === 'slack-to-ticket');
+const template = loadShippedTemplates().find((entry) => entry.id === 'slack-to-ticket');
 if (template === undefined) throw new Error('Missing Slack ticket template');
 const composed = composeTemplate(template, {chat: 'slack', tracker: 'linear', source: 'github'});
 const optionMarker = /^\s*# option:(\w+)=(\w+) (begin|end)$/;

@@ -37,14 +37,19 @@ const context: AgentAccessContext = {
 };
 
 const asset: WorkflowTemplateAsset = {
+  id: 'fixture-template',
+  revision: 1,
+  added_at: '2026-10-01',
+  rank: 1,
   manifest: {
-    id: 'fixture-template',
-    revision: 1,
-    added_at: '2026-10-01',
-    rank: 1,
     title: 'Fixture template',
     summary: 'A fixture template.',
-    start_label: 'Starts when an issue opens',
+    keywords: [],
+    starts: 'An issue opens',
+    flow: [],
+    writes: [],
+    prerequisites: [],
+    related: [],
     roles: {
       tracker: {providers: ['linear', 'github']},
       source: {from: 'project', providers: ['github']},
@@ -503,9 +508,9 @@ describe('agent-access template tools', () => {
     const projects = projectClient();
     const notifyAsset: WorkflowTemplateAsset = {
       ...asset,
+      id: 'notify-template',
       manifest: {
         ...workflowTemplateManifestSchema.parse(asset.manifest),
-        id: 'notify-template',
         roles: {notify: {providers: ['slack']}},
       },
       workflow: 'name: fixture\njobs:\n  notify:\n    steps:\n      # part:notify.send',

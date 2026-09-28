@@ -12,7 +12,12 @@ export const workspaceWorkflowTemplateSchema = z.object({
   title: z.string(),
   summary: z.string(),
   group: workflowTemplateGroupSchema,
-  start_label: z.string().nullable(),
+  start_label: z
+    .string()
+    .nullable()
+    .describe(
+      'The template manifest starts phrase, or null when every role binding starts manually.',
+    ),
   providers: z.array(z.string()),
   missing_providers: z.array(z.string()),
   prompt: z.string(),

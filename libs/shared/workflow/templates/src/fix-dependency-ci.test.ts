@@ -13,7 +13,7 @@ type DeliveryMode = 'push_fix' | 'comment_only';
 type Selection = 'dependency_bot' | 'label' | 'all_pull_requests';
 type YamlRecord = Record<string, unknown>;
 
-const template = loadShippedTemplates().find((entry) => entry.manifest.id === 'fix-dependency-ci');
+const template = loadShippedTemplates().find((entry) => entry.id === 'fix-dependency-ci');
 if (template === undefined) throw new Error('Missing dependency repair template');
 const composed = composeTemplate(template, {source: 'github'});
 const roots: string[] = [];

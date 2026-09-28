@@ -134,8 +134,8 @@ function createGetWorkflowTemplateTool(options: AgentAccessTemplateToolsOptions)
       });
 
       return agentAccessSuccess({
-        template_id: template.manifest.id,
-        revision: template.manifest.revision,
+        template_id: template.id,
+        revision: template.revision,
         options: template.manifest.options,
         workflow_yaml: workflowYaml,
         guide_markdown: template.guide,
@@ -268,9 +268,9 @@ function quote(value: string): string {
 
 function toListTemplateResult({template, roles, compatible, missingProviders}: WorkspaceTemplate) {
   return {
-    id: template.manifest.id,
-    revision: template.manifest.revision,
-    added_at: template.manifest.added_at,
+    id: template.id,
+    revision: template.revision,
+    added_at: template.added_at,
     title: template.manifest.title,
     summary: template.manifest.summary,
     compatible,

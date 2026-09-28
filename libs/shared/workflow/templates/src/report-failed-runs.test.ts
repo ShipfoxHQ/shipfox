@@ -5,7 +5,7 @@ import {parse as parseYaml} from 'yaml';
 import {composeTemplate} from './composer.js';
 import {loadShippedTemplates} from './loader.js';
 
-const template = loadShippedTemplates().find((entry) => entry.manifest.id === 'report-failed-runs');
+const template = loadShippedTemplates().find((entry) => entry.id === 'report-failed-runs');
 if (template === undefined) throw new Error('Missing failed run report template');
 const composed = composeTemplate(template, {notify: 'slack'});
 const optionMarker = /^\s*# option:(\w+)=(\w+) (begin|end)$/;

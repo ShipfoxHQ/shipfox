@@ -12,9 +12,7 @@ import {loadShippedTemplates} from './loader.js';
 type ReportOutcomes = 'needs_person' | 'pull_requests' | 'both';
 type YamlRecord = Record<string, unknown>;
 
-const template = loadShippedTemplates().find(
-  (entry) => entry.manifest.id === 'fix-default-branch-ci',
-);
+const template = loadShippedTemplates().find((entry) => entry.id === 'fix-default-branch-ci');
 if (template === undefined) throw new Error('Missing default-branch CI template');
 const reportMarker = /^\s*# option:report_outcomes=([\w,]+) (begin|end)$/;
 const expressionPattern = /^\$\{\{\s*([\s\S]*?)\s*\}\}$/;

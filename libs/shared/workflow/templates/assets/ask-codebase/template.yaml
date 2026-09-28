@@ -1,9 +1,6 @@
-id: ask-codebase
-revision: 1
-added_at: 2026-09-26
-rank: 2
 title: Ask the codebase in Slack
 summary: Answer questions about your code in Slack, with references to the files.
+starts: Someone mentions the Shipfox app in Slack
 roles:
   chat:
     providers: [slack]

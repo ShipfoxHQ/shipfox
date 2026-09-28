@@ -11,7 +11,7 @@ import {loadShippedTemplates} from './loader.js';
 
 type YamlRecord = Record<string, unknown>;
 
-const template = loadShippedTemplates().find((entry) => entry.manifest.id === 'ticket-to-pr');
+const template = loadShippedTemplates().find((entry) => entry.id === 'ticket-to-pr');
 if (template === undefined) throw new Error('Missing ticket to PR template');
 const manualOnly: TemplateRoleBindings = {source: 'github'};
 const linear: TemplateRoleBindings = {tracker: 'linear', source: 'github'};
