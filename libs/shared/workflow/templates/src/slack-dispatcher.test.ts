@@ -121,17 +121,24 @@ describe('Slack dispatcher template', () => {
     {status: 'no_match', reply: true, start: false, followUp: false},
   ])('starts a workflow only for a $status route', ({status, reply, start, followUp}) => {
     const steps = {route: {outputs: {status}}};
+    const execution = {failed: false};
 
     expect(evaluate(step('route', 'reply').if, {steps})).toBe(reply);
     expect(evaluate(step('route', 'check_thread').if, {steps})).toBe(start);
-    expect(evaluate(step('route', 'start').if, {steps})).toBe(start);
-    expect(evaluate(step('route', 'started').if, {steps})).toBe(start);
+    expect(evaluate(step('route', 'start').if, {steps, execution})).toBe(start);
+    expect(evaluate(step('route', 'started').if, {steps, execution})).toBe(start);
     expect(
       evaluate(at(workflow, 'jobs', 'follow_up', 'if'), {
         needs: [{status: 'succeeded'}],
         jobs: {route: {outputs: {status}}},
       }),
     ).toBe(followUp);
+  });
+
+  it.each(['start', 'started'])('skips %s after the thread check or the start fails', (key) => {
+    const context = {steps: {route: {outputs: {status: 'start'}}}, execution: {failed: true}};
+
+    expect(evaluate(step('route', key).if, context)).toBe(false);
   });
 
   it('asks the person to mention the app again after questions', () => {

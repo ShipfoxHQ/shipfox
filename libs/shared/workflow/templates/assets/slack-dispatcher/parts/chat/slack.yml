@@ -45,7 +45,7 @@ reply: |
 started: |
   # Later runs read "Shipfox started" to find requests this dispatcher already started.
   - key: started
-    if: ${{ steps.route.outputs.status == "start" }}
+    if: ${{ steps.route.outputs.status == "start" && !execution.failed }}
     tool: send_message
     connection: slack_chat # bind:chat
     with:

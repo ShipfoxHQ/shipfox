@@ -156,9 +156,10 @@ jobs:
             exit 1
           fi
 
-      # Without project_id, the routed workflow must belong to this project.
+      # Without project_id, the routed workflow must belong to this project. A step with its own `if`
+      # still runs after an earlier step fails, so it checks execution.failed.
       - key: start
-        if: ${{ steps.route.outputs.status == "start" }}
+        if: ${{ steps.route.outputs.status == "start" && !execution.failed }}
         tool: start_workflow_run
         connection: shipfox
         with:
