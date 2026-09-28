@@ -84,13 +84,15 @@ describe('shipped skill resources', () => {
     expect(text).toContain('state the writes from **Expected writes** and runner/inference cost');
     expect(text).toContain('Event lookup does not verify project scope');
     expect(text).toContain('use Linear MCP only for Linear triggers.');
-    expect(text).toContain("give the guide's exact action to create its event.");
+    expect(text).toContain("give the guide's exact event-creation action;");
     expect(text).toContain('discard completed or high-risk rollout work');
-    expect(text).toContain('If they cannot trigger an event or choose to skip');
+    expect(text).toContain(
+      'They can skip; report "shape validated, not executed" and go to step 9.',
+    );
     expect(text).toContain("Share the dev run's `run_url` as soon as it is available");
     expect(text).toContain('Repeat the expected writes from step 6 in one line');
-    expect(text).toContain('Before any repeat real run, after a failure or after edits');
-    expect(text).toContain('Stop and ask the user after five failed real runs.');
+    expect(text).toContain('Before repeating a real run after failure or edits');
+    expect(text).toContain('Stop and ask after five failed real runs.');
   });
 
   test('asks before a dev run only when it can make a write that cannot be undone', () => {

@@ -67,19 +67,17 @@ Check the guide's repository prerequisites, such as a dependency bot or CI provi
 
 Follow `skill://shipfox/validate-workflow-change/SKILL.md` with the YAML, project ID, config path, and trigger key. Complete its shape check. Skip event selection for manual and cron triggers; go to step 7.
 
-For an integration trigger, state the writes from **Expected writes** and runner/inference cost. Keep events from the selected project that match the source-control repository or selected ticket team, project, or space. Check payloads and issue status; discard completed or high-risk rollout work, then let the user choose. Event lookup does not verify project scope; a connection may cover several repositories or teams.
+For an integration trigger, state the writes from **Expected writes** and runner/inference cost. Keep project events matching the repository or ticket team, project, or space. Check payload and issue status; discard completed or high-risk rollout work, then let the user choose. Event lookup does not verify project scope; connections may cover several repositories or teams.
 
-If no safe event matches, use Linear MCP only for Linear triggers. Suggest up to three open, low-risk issues in the selected team matching the repo filter. Ask which issue to use and give the guide's exact action to create its event. Do not edit issues. For other triggers, ask for a matching event and its guide-defined action. If Linear MCP is unavailable or finds no issue, ask for a matching Linear issue and its trigger action. They can skip; report "shape validated, not executed" and go to step 9.
+If no safe event matches, use Linear MCP only for Linear triggers. Suggest up to three open, low-risk issues in the selected team that match the repo filter. Ask which issue to use and give the guide's exact event-creation action; do not edit issues. For other triggers, ask for a matching event and its guide-defined action. If MCP is unavailable or finds none, ask for a Linear issue and its trigger action. They can skip; report "shape validated, not executed" and go to step 9.
 
 After they trigger it, poll `list_trigger_events` every 30 seconds for up to 5 minutes. Validate it and go to step 7. If it does not arrive, report that and wait. Do not deliver while waiting.
-
-If they cannot trigger an event or choose to skip, report "shape validated, not executed" and go to step 9.
 
 ## 7. Test the workflow
 
 Read and follow `skill://shipfox/test-workflow-change/SKILL.md` with the validated YAML and chosen event. It decides whether the real run needs the user's confirmation; never ask otherwise. Before starting it, say in one line what it may write from the guide's **Expected writes**. Share the dev run's `run_url` as soon as it is available so the user can follow it.
 
-If repository setup fails, isolate it with a manual setup-check workflow: checkout, install, test. Before any repeat real run, after a failure or after edits, find what the previous run produced (branch, PR, comment). Reuse it where the workflow allows, such as pointing the next run at the same branch or PR. Close or delete a previous dev run's write that would block the next run. Stop and ask the user after five failed real runs.
+If repository setup fails, isolate it with a manual setup-check workflow: checkout, install, test. Before repeating a real run after failure or edits, inspect its branch, PR, and comment. Repeat the expected writes from step 6 in one line. Reuse prior writes where allowed; close or delete any previous dev-run write blocking the next run. Stop and ask after five failed real runs.
 
 ## 8. Confirm the result with the user
 
