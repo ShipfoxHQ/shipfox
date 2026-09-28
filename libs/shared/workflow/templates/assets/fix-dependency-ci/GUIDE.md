@@ -25,8 +25,9 @@ Runs for one repository and PR share a concurrency group.
 The active run finishes; only the newest additional run waits.
 A queued run checks whether its event still describes the PR head.
 This prevents overlapping repairs.
-When several workflows fail on one commit, comment-only mode diagnoses each failure.
-In push mode, the first repair moves the PR head, so later runs for that commit skip without a comment.
+When several workflows fail on one commit, some get no diagnosis.
+A newer queued run replaces an older one.
+In push mode, the first repair moves the PR head, so later runs skip without a comment.
 
 ### Repair limits
 
