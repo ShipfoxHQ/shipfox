@@ -1,11 +1,12 @@
 const mocks = vi.hoisted(() => ({
   deleteExpiredEphemeralRegistrationTokensActivity: vi.fn(),
+  deleteExpiredJobExecutionTombstonesActivity: vi.fn(),
   deleteExpiredReservationsActivity: vi.fn(),
   deleteExpiredRunnerSessionsActivity: vi.fn(),
   detectAndExpireStuckJobsActivity: vi.fn(),
   reapStaleRunnerInstancesActivity: vi.fn(),
   recoverStaleIdleRunnerSessionsActivity: vi.fn(),
-  patched: vi.fn(() => true),
+  patched: vi.fn((_patchId: string) => true),
   info: vi.fn(),
   warn: vi.fn(),
 }));
@@ -19,6 +20,7 @@ vi.mock('@temporalio/workflow', () => ({
   proxyActivities: vi.fn(() => ({
     deleteExpiredEphemeralRegistrationTokensActivity:
       mocks.deleteExpiredEphemeralRegistrationTokensActivity,
+    deleteExpiredJobExecutionTombstonesActivity: mocks.deleteExpiredJobExecutionTombstonesActivity,
     deleteExpiredReservationsActivity: mocks.deleteExpiredReservationsActivity,
     deleteExpiredRunnerSessionsActivity: mocks.deleteExpiredRunnerSessionsActivity,
     detectAndExpireStuckJobsActivity: mocks.detectAndExpireStuckJobsActivity,
@@ -30,7 +32,9 @@ vi.mock('@temporalio/workflow', () => ({
 describe('stuckJobDetector', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.patched.mockImplementation(() => true);
     mocks.deleteExpiredEphemeralRegistrationTokensActivity.mockResolvedValue({deleted: 0});
+    mocks.deleteExpiredJobExecutionTombstonesActivity.mockResolvedValue({deleted: 0});
     mocks.deleteExpiredReservationsActivity.mockResolvedValue({deleted: 0});
     mocks.deleteExpiredRunnerSessionsActivity.mockResolvedValue({deleted: 0});
     mocks.detectAndExpireStuckJobsActivity.mockResolvedValue({expired: 0});
@@ -63,12 +67,53 @@ describe('stuckJobDetector', () => {
 
   it('skips recovery when the workflow patch is not enabled', async () => {
     const {stuckJobDetector} = await import('./stuck-job-detector.js');
-    mocks.patched.mockReturnValueOnce(false);
+    mocks.patched.mockImplementation((patchId) => patchId !== 'recover-stale-idle-sessions');
 
     await stuckJobDetector();
 
     expect(mocks.recoverStaleIdleRunnerSessionsActivity).not.toHaveBeenCalled();
     expect(mocks.reapStaleRunnerInstancesActivity).toHaveBeenCalledWith();
+  });
+
+  it('runs tombstone GC before stuck job expiry and logs deletions', async () => {
+    const {stuckJobDetector} = await import('./stuck-job-detector.js');
+    mocks.deleteExpiredJobExecutionTombstonesActivity.mockResolvedValueOnce({deleted: 2});
+
+    await stuckJobDetector();
+
+    expect(mocks.deleteExpiredJobExecutionTombstonesActivity).toHaveBeenCalledWith();
+    expect(mocks.detectAndExpireStuckJobsActivity).toHaveBeenCalledWith({thresholdSeconds: 180});
+    expect(mocks.info).toHaveBeenCalledWith(
+      'Stuck-job detector deleted expired job execution tombstones',
+      {deleted: 2},
+    );
+  });
+
+  it('skips tombstone GC when the workflow patch is not enabled', async () => {
+    const {stuckJobDetector} = await import('./stuck-job-detector.js');
+    mocks.patched.mockImplementation(
+      (patchId) => patchId !== 'delete-expired-job-execution-tombstones',
+    );
+
+    await stuckJobDetector();
+
+    expect(mocks.deleteExpiredJobExecutionTombstonesActivity).not.toHaveBeenCalled();
+    expect(mocks.detectAndExpireStuckJobsActivity).toHaveBeenCalledWith({thresholdSeconds: 180});
+  });
+
+  it('continues stuck job expiry when tombstone GC fails', async () => {
+    const {stuckJobDetector} = await import('./stuck-job-detector.js');
+    mocks.deleteExpiredJobExecutionTombstonesActivity.mockRejectedValueOnce(
+      new Error('database down'),
+    );
+
+    await stuckJobDetector();
+
+    expect(mocks.warn).toHaveBeenCalledWith(
+      'Stuck-job detector failed to delete expired job execution tombstones',
+      {error: 'database down'},
+    );
+    expect(mocks.detectAndExpireStuckJobsActivity).toHaveBeenCalledWith({thresholdSeconds: 180});
   });
 
   it('runs expired session GC before stuck job expiry and logs deletions', async () => {

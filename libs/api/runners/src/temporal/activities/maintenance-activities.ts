@@ -1,5 +1,6 @@
 import {
   deleteExpiredEphemeralRegistrationTokens,
+  deleteExpiredJobExecutionTombstones,
   deleteExpiredRunnerReservations,
   deleteExpiredRunnerSessions,
   detectAndExpireStuckJobs,
@@ -11,6 +12,12 @@ export function detectAndExpireStuckJobsActivity(params: {
   thresholdSeconds: number;
 }): Promise<{expired: number}> {
   return detectAndExpireStuckJobs(params);
+}
+
+export function deleteExpiredJobExecutionTombstonesActivity(params?: {
+  limit?: number;
+}): Promise<{deleted: number}> {
+  return deleteExpiredJobExecutionTombstones(params);
 }
 
 export function deleteExpiredReservationsActivity(params?: {

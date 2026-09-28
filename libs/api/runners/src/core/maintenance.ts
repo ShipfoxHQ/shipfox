@@ -1,6 +1,7 @@
 import {config} from '#config.js';
 import {deleteExpiredEphemeralRegistrationTokens as deleteExpiredEphemeralRegistrationTokensDb} from '#db/ephemeral-registration-tokens.js';
 import {
+  deleteExpiredJobExecutionTombstones as deleteExpiredJobExecutionTombstonesDb,
   expireStuckJobExecutions,
   removeExpiredManagedJobStopHandoffs,
   removeExpiredUnlinkedJobStopHandoffs,
@@ -20,6 +21,8 @@ import {
 } from '#metrics/instance.js';
 import {STUCK_JOB_THRESHOLD_SECONDS} from './maintenance-policy.js';
 import {authorizeRunnerTerminationTx} from './termination-authorization.js';
+
+const EXPIRED_JOB_EXECUTION_TOMBSTONE_RETENTION_DAYS = 7;
 
 export interface DetectAndExpireStuckJobsParams {
   noFirstHeartbeatGraceSeconds?: number;
@@ -49,6 +52,16 @@ export async function detectAndExpireStuckJobs(
     correlatedStaleOverride: config.RUNNER_CORRELATED_STALE_LEASE_OVERRIDE,
   });
   return {expired: reaped.length};
+}
+
+export async function deleteExpiredJobExecutionTombstones(params?: {
+  limit?: number;
+}): Promise<{deleted: number}> {
+  const deleted = await deleteExpiredJobExecutionTombstonesDb({
+    retentionDays: EXPIRED_JOB_EXECUTION_TOMBSTONE_RETENTION_DAYS,
+    ...(params?.limit === undefined ? {} : {limit: params.limit}),
+  });
+  return {deleted};
 }
 
 export async function deleteExpiredRunnerReservations(params?: {

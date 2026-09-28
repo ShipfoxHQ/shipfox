@@ -1,7 +1,8 @@
 import {vi} from '@shipfox/vitest/vi';
-import {eq} from 'drizzle-orm';
+import {eq, inArray} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
+import {expiredJobExecutions} from '#db/schema/expired-job-executions.js';
 import {provisionerTokens} from '#db/schema/provisioner-tokens.js';
 import {reservations} from '#db/schema/reservations.js';
 import {providerRunners} from '#db/schema/runner-instances.js';
@@ -10,10 +11,33 @@ import {providerRunnerReapedCount, reservationReleasedCount} from '#metrics/inst
 import {providerRunnerFactory, provisionerTokenFactory, reservationFactory} from '#test/index.js';
 import {
   deleteExpiredEphemeralRegistrationTokens,
+  deleteExpiredJobExecutionTombstones,
   deleteExpiredRunnerReservations,
   deleteExpiredRunnerSessions,
   reapStaleRunnerInstances,
 } from './maintenance.js';
+
+describe('deleteExpiredJobExecutionTombstones', () => {
+  it('removes tombstones older than seven days and keeps recent tombstones', async () => {
+    const staleId = crypto.randomUUID();
+    const recentId = crypto.randomUUID();
+    await db()
+      .insert(expiredJobExecutions)
+      .values([
+        {jobExecutionId: staleId, expiredAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)},
+        {jobExecutionId: recentId, expiredAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)},
+      ]);
+
+    const result = await deleteExpiredJobExecutionTombstones();
+
+    const remaining = await db()
+      .select({jobExecutionId: expiredJobExecutions.jobExecutionId})
+      .from(expiredJobExecutions)
+      .where(inArray(expiredJobExecutions.jobExecutionId, [staleId, recentId]));
+    expect(result.deleted).toBe(1);
+    expect(remaining.map((row) => row.jobExecutionId)).toEqual([recentId]);
+  });
+});
 
 describe('deleteExpiredRunnerReservations', () => {
   let workspaceId: string;

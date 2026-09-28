@@ -1,5 +1,6 @@
 vi.mock('#core/maintenance.js', () => ({
   deleteExpiredEphemeralRegistrationTokens: vi.fn(),
+  deleteExpiredJobExecutionTombstones: vi.fn(),
   deleteExpiredRunnerReservations: vi.fn(),
   deleteExpiredRunnerSessions: vi.fn(),
   detectAndExpireStuckJobs: vi.fn(),
@@ -67,6 +68,17 @@ describe('recoverStaleIdleRunnerSessionsActivity', () => {
 
     expect(result).toEqual({recovered: 3});
     expect(maintenance.recoverStaleIdleRunnerSessions).toHaveBeenCalledWith({limit: 25});
+  });
+});
+
+describe('deleteExpiredJobExecutionTombstonesActivity', () => {
+  it('delegates to core maintenance', async () => {
+    vi.mocked(maintenance.deleteExpiredJobExecutionTombstones).mockResolvedValueOnce({deleted: 5});
+
+    const result = await activities.deleteExpiredJobExecutionTombstonesActivity({limit: 25});
+
+    expect(result).toEqual({deleted: 5});
+    expect(maintenance.deleteExpiredJobExecutionTombstones).toHaveBeenCalledWith({limit: 25});
   });
 });
 
