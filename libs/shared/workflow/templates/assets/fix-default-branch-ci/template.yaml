@@ -11,7 +11,7 @@ roles:
     providers: [slack]
     optional: true
     question: Should the workflow notify you on Slack?
-    tradeoff: Posts in a Slack channel you choose about failures it cannot fix, the fix pull requests it opens, or both. Outages at external providers are never posted. Requires the Shipfox app in that channel.
+    tradeoff: Posts in a Slack channel you choose about failures that need a person, the fix pull requests it opens, or both. Outages at external providers are never posted. Requires the Shipfox app in that channel.
 options:
   - id: report_outcomes
     question: What should the workflow notify you about on Slack?

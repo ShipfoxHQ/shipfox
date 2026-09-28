@@ -51,7 +51,7 @@ Choose the commands and any watched CI workflow yourself; the dev run tests them
 
 ## 5. Assemble the workflow and check prerequisites
 
-Edit `workflow_yaml`, the complete file from `get_workflow_template`: keep the `# option:` blocks the user chose and delete the others, fill each `# slot:` with the confirmed commands, and set each `# bind:<role>` value from `suggested_bindings`, asking when a role has several.
+Edit `workflow_yaml`, the complete file from `get_workflow_template`: keep the `# option:` blocks the user chose and delete the others, fill each `# slot:` with the chosen commands, and set each `# bind:<role>` value from `suggested_bindings`, asking when a role has several.
 
 Call `get_workflow_authoring_context` for the selected project before any run. If `model_provider_configured` is `false`, stop and ask the user to add a provider under Settings > Agents, then report back. Compare the template's required secrets, variables, and runner with the context. If any are missing, stop and ask the user to add them under Settings > Secrets, Variables, or Runners, then report back.
 

@@ -97,7 +97,7 @@ The investigation uses a read-only checkout of the default branch without saved 
 The agent has only read integration tools, so it cannot push, comment, or rerun GitHub Actions.
 
 A repair creates one branch and one draft pull request into the default branch.
-To open it ready for review, which can notify reviewers right away, set `draft: false` in the `deliver` job.
+To open it ready for review, which can notify reviewers right away, set `draft: false` on the `open_pr` step in the `deliver` job.
 A separate job checks out the investigated commit with write access, applies the tested patch, commits it, and pushes the branch. No repository code runs in that job.
 The shell commit is not signed by this template. Check signing and sign-off requirements before enabling the workflow.
 With Slack, each reported outcome posts one message.
