@@ -271,7 +271,7 @@ function RecommendedTemplate({
             <ProviderIcons providers={template.providers} />
           </div>
           <Text as="h4" size="md" bold>
-            {template.title}
+            <TemplateLink template={template} />
           </Text>
           <Text size="sm" className="text-foreground-neutral-muted">
             {template.summary}
@@ -293,7 +293,7 @@ function TemplateRow({template, onCopied}: {template: WorkflowTemplate; onCopied
     <PanelRow asChild className="min-h-40 py-tight">
       <li>
         <Text as="h4" size="sm" className="min-w-0 truncate">
-          {template.title}
+          <TemplateLink template={template} />
         </Text>
         <div className="flex min-w-0 shrink items-center gap-tight">
           <ProviderIcons providers={template.providers} />
@@ -310,6 +310,20 @@ function TemplateRow({template, onCopied}: {template: WorkflowTemplate; onCopied
         </div>
       </li>
     </PanelRow>
+  );
+}
+
+/** The template's example page in the docs, which walks through what it does. */
+function TemplateLink({template}: {template: WorkflowTemplate}) {
+  return (
+    <a
+      href={`${EXAMPLES_URL}/${encodeURIComponent(template.id)}`}
+      target="_blank"
+      rel="noreferrer"
+      className="rounded-4 underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+    >
+      {template.title}
+    </a>
   );
 }
 
