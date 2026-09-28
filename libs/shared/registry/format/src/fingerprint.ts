@@ -49,7 +49,11 @@ export function canonicalJson(value: unknown): string {
 // Writes object members directly instead of rebuilding an object: JavaScript
 // would reorder integer-like keys and drop an own `__proto__` key.
 function serialize(value: unknown): string | undefined {
-  if (Array.isArray(value)) return `[${value.map((item) => serialize(item) ?? 'null').join(',')}]`;
+  if (Array.isArray(value)) {
+    // Array.from visits holes, which map skips.
+    const items = Array.from(value, (item) => serialize(item) ?? 'null');
+    return `[${items.join(',')}]`;
+  }
   if (value !== null && typeof value === 'object') {
     const record = value as Record<string, unknown>;
     // Code-unit order, not localeCompare, so the order never depends on the runtime locale.

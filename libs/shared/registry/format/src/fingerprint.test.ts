@@ -100,10 +100,11 @@ describe('canonicalJson', () => {
     expect(result).toBe('{"10":1,"2":1,"__proto__":{"x":1},"b":1}');
   });
 
-  it('writes undefined array items as null', () => {
-    const result = canonicalJson([1, undefined]);
+  it('writes undefined array items and holes as null', () => {
+    // biome-ignore lint/suspicious/noSparseArray: the hole is the case under test.
+    const result = canonicalJson([1, undefined, , 2]);
 
-    expect(result).toBe('[1,null]');
+    expect(result).toBe('[1,null,null,2]');
   });
 
   it('rejects numbers JSON cannot represent', () => {
