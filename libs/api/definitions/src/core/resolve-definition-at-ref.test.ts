@@ -1209,6 +1209,9 @@ jobs:
     expect(clients.integrations.listSourceFiles).toHaveBeenCalledWith(
       expect.objectContaining({prefix: '.shipfox/actions/notify/', ref: COMMIT}),
     );
+    expect(clients.integrations.fetchSourceFile).toHaveBeenCalledWith(
+      expect.objectContaining({path: '.shipfox/actions/notify/action.yml', ref: COMMIT}),
+    );
     expect(JSON.stringify(result.model)).toContain('"kind":"action"');
     expect(result.warnings).toEqual([]);
     expect(await snapshotRows(workspaceId)).toEqual([
@@ -1302,7 +1305,8 @@ jobs:
 
   test('caps content and action files at 1 MiB combined', async () => {
     const {projectId, clients} = clientsFor(actionRepository());
-    const half = 'a'.repeat(512 * 1024);
+    // The upload alone stays under the cap; only the workflow content pushes it over.
+    const half = 'a'.repeat(512 * 1024 - 64);
 
     const error = await expectRefError(
       resolveDefinitionAtRef({

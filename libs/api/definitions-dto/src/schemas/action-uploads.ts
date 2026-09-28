@@ -15,11 +15,9 @@ const actionUploadFileSchema = z.object({
 });
 
 const actionUploadSchema = z.object({
+  // Matched against `uses` verbatim, so it is not normalized.
   path: z.string().superRefine((path, ctx) => {
-    const issue =
-      path.normalize('NFC') === path
-        ? workflowDocumentActionPathIssue(path)
-        : 'Action paths must be NFC-normalized.';
+    const issue = workflowDocumentActionPathIssue(path);
     if (issue !== undefined) ctx.addIssue({code: 'custom', message: issue});
   }),
   files: z
