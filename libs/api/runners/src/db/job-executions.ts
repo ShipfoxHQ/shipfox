@@ -44,6 +44,7 @@ import {
   recordShadowedJobLeaseExpiry,
   recordStaleJobCandidateRatio,
 } from '#metrics/instance.js';
+import {setCapacityHoldJobExecutionTx} from './capacity-holds.js';
 import type {Tx} from './db.js';
 import {db} from './db.js';
 import {lockRunnerReservationAdvisoryKeysTx} from './reservation-locks.js';
@@ -888,6 +889,7 @@ export async function claimPendingJobExecution(
         params.runnerSessionId,
         runnerInstanceCondition,
         claimed.claimedAt,
+        row.jobExecutionId,
       );
       claimedRunner = runnerClaim.claimedRunner;
       if (claimedRunner && queueTimeObservation) {
@@ -1153,6 +1155,7 @@ async function recordClaimedRunnerTx(
   runnerSessionId: string,
   runnerInstanceCondition: ReturnType<typeof eq>,
   claimedAt: Date,
+  jobExecutionId: string,
 ): Promise<{
   claimedRunner: ClaimedProviderRunner | undefined;
   reservationReleaseCount: number;
@@ -1182,6 +1185,11 @@ async function recordClaimedRunnerTx(
         from ${runnerSessions}
         where ${runnerSessions.id} = ${runnerSessionId}
       )`,
+    });
+  if (row)
+    await setCapacityHoldJobExecutionTx(tx, {
+      runnerInstanceId: row.id,
+      jobExecutionId,
     });
   const reservationReleaseCount = row?.isFirstClaim
     ? await releaseFirstClaimReservationTx(tx, row)

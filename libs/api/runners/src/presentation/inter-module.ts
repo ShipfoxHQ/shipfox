@@ -1,6 +1,7 @@
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {defineInterModulePresentation, type InterModulePresentation} from '@shipfox/inter-module';
 import {getEffectiveRunnerToolCapabilities} from '#core/runner-tool-capabilities.js';
+import {getWorkspaceCapacityUsage} from '#db/capacity-holds.js';
 import {
   expirePendingJobExecution,
   getJobLeaseState,
@@ -25,5 +26,8 @@ export function createRunnersInterModulePresentation(): InterModulePresentation<
         ? {...result, claimedAt: result.claimedAt.toISOString()}
         : result;
     },
+    getWorkspaceCapacityUsage: async ({workspaceIds}) => ({
+      usage: await getWorkspaceCapacityUsage({workspaceIds}),
+    }),
   });
 }

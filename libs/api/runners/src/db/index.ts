@@ -113,6 +113,7 @@ export type {
   DeleteExpiredRunnerSessionsParams,
 } from './runner-sessions.js';
 export {createRunnerSession, deleteExpiredRunnerSessions} from './runner-sessions.js';
+export {capacityHolds} from './schema/capacity-holds.js';
 export {runnersOutbox} from './schema/outbox.js';
 export {runnerBootstrapTokens, runnerControlSessions} from './schema/runner-control-sessions.js';
 

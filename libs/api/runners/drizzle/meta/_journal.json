@@ -141,6 +141,13 @@
       "when": 1790627311146,
       "tag": "0019_worthless_tomas",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790627532731,
+      "tag": "0020_capacity_holds",
+      "breakpoints": true
     }
   ]
 }

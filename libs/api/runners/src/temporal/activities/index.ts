@@ -1,3 +1,4 @@
+import type {InstallationPlacementPolicy} from '#installation-provisioning.js';
 import {
   deleteExpiredEphemeralRegistrationTokensActivity,
   deleteExpiredJobExecutionTombstonesActivity,
@@ -5,10 +6,10 @@ import {
   deleteExpiredRunnerSessionsActivity,
   detectAndExpireStuckJobsActivity,
   reapStaleRunnerInstancesActivity,
+  reconcileCapacityHoldsActivity,
   recoverStaleIdleRunnerSessionsActivity,
 } from './maintenance-activities.js';
-
-export function createRunnersMaintenanceActivities() {
+export function createRunnersMaintenanceActivities(placement?: InstallationPlacementPolicy) {
   return {
     deleteExpiredEphemeralRegistrationTokensActivity,
     deleteExpiredJobExecutionTombstonesActivity,
@@ -17,5 +18,7 @@ export function createRunnersMaintenanceActivities() {
     detectAndExpireStuckJobsActivity,
     reapStaleRunnerInstancesActivity,
     recoverStaleIdleRunnerSessionsActivity,
+    reconcileCapacityHoldsActivity: () =>
+      reconcileCapacityHoldsActivity(placement ? {placement} : {}),
   };
 }

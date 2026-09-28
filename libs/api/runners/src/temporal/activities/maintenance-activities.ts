@@ -7,6 +7,9 @@ import {
   reapStaleRunnerInstances,
   recoverStaleIdleRunnerSessions,
 } from '#core/maintenance.js';
+import {reconcileCapacityHolds} from '#db/capacity-holds.js';
+import type {InstallationPlacementPolicy} from '#installation-provisioning.js';
+import {recordCapacityHoldReconciliation, recordCapacityHoldSweep} from '#metrics/instance.js';
 
 export function detectAndExpireStuckJobsActivity(params: {
   thresholdSeconds: number;
@@ -52,4 +55,13 @@ export function deleteExpiredEphemeralRegistrationTokensActivity(params?: {
   limit?: number;
 }): Promise<{deleted: number}> {
   return deleteExpiredEphemeralRegistrationTokens(params);
+}
+
+export async function reconcileCapacityHoldsActivity(params: {
+  placement?: InstallationPlacementPolicy;
+}): Promise<{reconciled: number; swept: number}> {
+  const result = await reconcileCapacityHolds(params);
+  recordCapacityHoldReconciliation(result.reconciled);
+  recordCapacityHoldSweep(result.swept);
+  return result;
 }

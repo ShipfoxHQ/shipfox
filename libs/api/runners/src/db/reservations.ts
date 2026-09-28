@@ -16,7 +16,13 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
+import type {InstallationPlacementPolicy} from '#installation-provisioning.js';
 import {recordProviderRunnerActivationOutcome} from '#metrics/instance.js';
+import {
+  insertLaunchCapacityHoldsTx,
+  insertRunnerCapacityHoldTx,
+  releaseUnboundCapacityHoldsForReservationsTx,
+} from './capacity-holds.js';
 import type {Tx} from './db.js';
 import {db} from './db.js';
 import {lockRunnerReservationAdvisoryKeysTx} from './reservation-locks.js';
@@ -63,6 +69,7 @@ export interface PollDemandAndReserveParams {
   activationGraceSeconds?: number;
   templates: ReservationTemplate[];
   capabilityWindowSeconds?: number;
+  placement?: InstallationPlacementPolicy;
 }
 
 export interface InstallationPollDemandAndReserveParams {
@@ -74,6 +81,7 @@ export interface InstallationPollDemandAndReserveParams {
   templates: ReservationTemplate[];
   capabilityWindowSeconds: number;
   eligibleWorkspaceIds: ReadonlySet<string>;
+  placement?: InstallationPlacementPolicy;
   signal?: AbortSignal;
   onReservations?: (reservations: ReservationGrant[]) => void;
 }
@@ -200,6 +208,7 @@ export async function pollInstallationDemandAndReserve(
         })),
         capabilityWindowSeconds: params.capabilityWindowSeconds,
         scope: 'installation',
+        ...(params.placement ? {placement: params.placement} : {}),
       });
     });
     results.push(result);
@@ -363,8 +372,18 @@ async function grantDemandReservationTx(
     await bindDemandReservationTx(tx, params, demand, idleRunners);
   }
   const launchCount = grant - idleRunners.length;
+  const launchUnits = params.placement
+    ? allocateLaunchUnits(satisfyingTemplates, launchCount, params.placement)
+    : [];
   drawSlots(satisfyingTemplates, launchCount);
   const launchReservation = await insertLaunchReservationTx(tx, params, demand, launchCount);
+  if (launchReservation && params.placement) {
+    await insertLaunchCapacityHoldsTx(tx, {
+      workspaceId: params.workspaceId,
+      reservationId: launchReservation.id,
+      units: launchUnits,
+    });
+  }
   state.newlyReservedUnits.push({labels: demand.requiredLabels, count: grant});
   if (launchReservation) {
     state.grants.push({
@@ -401,6 +420,7 @@ async function bindDemandReservationTx(
     workspaceId: params.workspaceId,
     requiredLabels: demand.requiredLabels,
     scope: params.scope,
+    ...(params.placement ? {placement: params.placement} : {}),
     idleRunners,
   });
 }
@@ -737,10 +757,27 @@ async function bindIdleRunnerInstancesTx(
     workspaceId: string;
     requiredLabels: string[];
     scope: DemandScope;
+    placement?: InstallationPlacementPolicy;
     idleRunners: IdleRunnerCandidate[];
   },
 ): Promise<void> {
   const idleRunnerIds = params.idleRunners.map((runner) => runner.id);
+
+  if (params.scope === 'installation' && params.placement) {
+    for (const runner of params.idleRunners) {
+      const [runnerRow] = await tx
+        .select({labels: providerRunners.labels})
+        .from(providerRunners)
+        .where(eq(providerRunners.id, runner.id))
+        .limit(1);
+      if (runnerRow)
+        await insertRunnerCapacityHoldTx(tx, {
+          workspaceId: params.workspaceId,
+          runnerInstanceId: runner.id,
+          units: params.placement.units(runnerRow.labels),
+        });
+    }
+  }
 
   await tx
     .update(runnerActivationTokens)
@@ -904,6 +941,7 @@ async function deleteReservationsWithCleanupTx(
   const reservationIds = reservationRows.map((reservation) => reservation.id);
 
   if (reservationIds.length === 0) return 0;
+  await releaseUnboundCapacityHoldsForReservationsTx(tx, reservationIds);
 
   const assignedRunnerIds = affectedRunners
     .filter(
@@ -1392,4 +1430,20 @@ function drawSlots(templates: NormalizedTemplate[], count: number): void {
 
 function labelKey(labels: string[]): string {
   return JSON.stringify(labels);
+}
+
+function allocateLaunchUnits(
+  templates: readonly NormalizedTemplate[],
+  count: number,
+  placement: InstallationPlacementPolicy,
+): number[] {
+  let remaining = count;
+  const units: number[] = [];
+  for (const template of templates) {
+    const take = Math.min(remaining, template.remainingSlots);
+    for (let index = 0; index < take; index += 1) units.push(placement.units(template.labels));
+    remaining -= take;
+    if (remaining === 0) break;
+  }
+  return units;
 }

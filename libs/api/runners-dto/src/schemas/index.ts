@@ -1,4 +1,8 @@
 export {
+  type AdminRunnerCapacityResponseDto,
+  adminRunnerCapacityResponseSchema,
+} from './admin-capacity.js';
+export {
   type AdministratorProvisionerTokenDto,
   administratorProvisionerTokenSchema,
   type CreateAdministratorProvisionerTokenBodyDto,

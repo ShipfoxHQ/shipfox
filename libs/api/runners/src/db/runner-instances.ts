@@ -25,10 +25,12 @@ import type {
 } from '#core/entities/runner-instance.js';
 import {sanitizeRunnerLabels} from '#core/runner-labels.js';
 import {
+  recordCapacityHoldReleaseLag,
   recordRunnerEnrollmentCredentialRevocations,
   recordRunnerReservationCapacityFailure,
 } from '#metrics/index.js';
 import type {RunnerTerminationAuthorizationRejectionReason} from '#metrics/instance.js';
+import {releaseCapacityHoldsForRunnerInstancesTx} from './capacity-holds.js';
 import type {Tx} from './db.js';
 import {db} from './db.js';
 import {lockRunnerEnrollmentTx} from './enrollment-locks.js';
@@ -625,6 +627,12 @@ export async function reportRunnerInstances(params: ReportRunnerInstancesParams)
       freshTerminalEvents.length > 0
         ? await releaseTerminalRunnerInstanceReservations(tx, params, freshTerminalEvents)
         : 0;
+    if (freshTerminalEvents.length > 0)
+      await releaseCapacityHoldsForRunnerInstancesTx(tx, {
+        providerRunnerIds: freshTerminalEvents.map((event) => event.providerRunnerId),
+        onReleased: (createdAt) =>
+          recordCapacityHoldReleaseLag(Math.max(0, (Date.now() - createdAt.getTime()) / 1000)),
+      });
 
     return {
       accepted: reservationSafeEvents.length,
