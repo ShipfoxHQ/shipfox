@@ -32,6 +32,8 @@ Ask each `optional` role's `question` only if it has a compatible provider.
 
 Call `get_workflow_template` with the selected template, the project ID, and a provider ID, not a connection slug, for each required role with `from_project: false`, such as `tracker: "linear"`, and each accepted optional role. Read its `guide_markdown`.
 
+Use local Linear MCP list_teams to find the repo team. If unavailable or unclear, ask; never use a broad trigger.
+
 Use `search_docs` for `workflow schema` and read the returned `docs://` reference. Search for the template's triggers, steps, and providers.
 
 Ask about the options the template declares for the chosen providers, one option per message, in the template's order. Wait for each answer before asking the next. Skip options that known facts decide.
@@ -47,7 +49,7 @@ Find install, build, and test commands. Trust these sources in order:
 5. `Makefile`.
 6. `README.md`.
 
-Choose the commands and any watched CI workflow yourself; the dev run tests them. Tell the user in one plain sentence what the workflow will run, such as "the checks from your `CI` workflow". Ask only if several CI workflows could be watched.
+Choose the commands and any watched CI workflow yourself. Tell the user in one plain sentence what the workflow will run, such as "the checks from your `CI` workflow". Ask only if several CI workflows could be watched. Do not ask for command confirmation; the dev run tests them.
 
 ## 5. Assemble the workflow and check prerequisites
 
@@ -55,7 +57,7 @@ Edit `workflow_yaml`, the complete file from `get_workflow_template`: keep the `
 
 Call `get_workflow_authoring_context` for the selected project before any run. If `model_provider_configured` is `false`, stop and ask the user to add a provider under Settings > Agents, then report back. Compare the template's required secrets, variables, and runner with the context. If any are missing, stop and ask the user to add them under Settings > Secrets, Variables, or Runners, then report back.
 
-Pick a model for each group in `model_recommendations`: read and follow `skill://shipfox/create-workflow-from-template/references/choose-models.md`.
+Use tested template models; else workspace default. On request, read `skill://shipfox/create-workflow-from-template/references/choose-models.md`.
 
 Check the guide's repository prerequisites, such as a dependency bot or CI provider.
 
@@ -63,17 +65,17 @@ Check the guide's repository prerequisites, such as a dependency bot or CI provi
 
 Read and follow `skill://shipfox/validate-workflow-change/SKILL.md` with the assembled YAML, selected `project_id`, intended `config_path`, and trigger key. Complete its shape check before selecting an event. Manual and cron triggers need no replay event; skip to step 7.
 
-For an integration trigger, keep only events of the selected project: match the source-control repository or named ticket team, project, or space. The event check does not verify this; a connection may cover several repositories or teams. Check payloads against workflow expressions and pick the most recent matching event yourself.
+For an integration trigger, state the writes from **Expected writes** and runner/inference cost. Keep events from the selected project that match the source-control repository or selected ticket team, project, or space. Check payloads and issue status; discard completed or high-risk rollout work, then let the user choose. Event lookup does not verify project scope; a connection may cover several repositories or teams.
 
-If no event matches, ask the user to trigger a safe one themselves. Name the exact action, such as "create a test ticket in team X and assign it to the Shipfox agent". Tell them they can say they cannot trigger the event or ask to skip the dev run. Stop and wait for their response.
+If no safe event matches, use Linear MCP when available to find up to three open, low-risk issues in the selected team that match the repo filter. Suggest their IDs and titles; ask which to trigger. Do not edit issues. If none fit or Linear is unavailable, ask the user to create or name one. They can skip; report "shape validated, not executed" and go to step 9.
 
-After confirmation, call `list_trigger_events` every 30 seconds for up to 5 minutes. When the event appears, complete the event check and go to step 7 for the real dev run. If it has not arrived after 5 minutes, tell the user and wait for an update. If they confirm another trigger or ask you to keep checking, repeat the 30-second lookup for up to 5 minutes. Do not deliver the workflow or open the pull request while waiting.
+After they trigger an event, poll `list_trigger_events` every 30 seconds for up to 5 minutes. When it appears, validate it and go to step 7. If it does not appear, report that and wait. Do not deliver the workflow or open a pull request while waiting.
 
-Skip the dev run only if the user says they cannot trigger an event or asks to skip it. Then report "shape validated, not executed" and go to step 9.
+If they cannot trigger an event or choose to skip, report "shape validated, not executed" and go to step 9.
 
 ## 7. Test the workflow
 
-Read and follow `skill://shipfox/test-workflow-change/SKILL.md` with the validated YAML and chosen event. It decides whether the real run needs the user's confirmation; never ask otherwise. As you start the run, say in one line what it may write, from the guide's **Expected writes**.
+Read and follow `skill://shipfox/test-workflow-change/SKILL.md` with the validated YAML and chosen event. It decides whether the real run needs the user's confirmation; never ask otherwise. Before starting it, say in one line what it may write from the guide's **Expected writes**. Share the dev run's `run_url` as soon as it is available so the user can follow it.
 
 If repository setup fails, isolate it with a manual setup-check workflow: checkout, install, test. Before any repeat real run, after a failure or after edits, find what the previous run produced (branch, PR, comment). Reuse it where the workflow allows, such as pointing the next run at the same branch or PR. Close or delete a previous dev run's write that would block the next run. Stop and ask the user after five failed real runs.
 
@@ -94,6 +96,7 @@ Write the YAML under `.shipfox/workflows/` with the template marker and a descri
 - Never request, read, or write secret values.
 - Never guess a tool ID, event name, model ID, runner name, connection slug, or project ID.
 - Bind only models from `model_recommendations` or the catalog.
+- Offer alternatives only when the user asks to change a model.
 - If any tool returns `content-too-large`, stop and report it. Never reconstruct a template's YAML by hand.
 - Keep `integrations.include` lists as narrow as the template.
 - Local dev runs upload only the YAML. Keep setup commands inline until the workflow merges.

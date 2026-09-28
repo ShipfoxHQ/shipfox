@@ -119,9 +119,11 @@ jobs:
             exit 1
           fi
 
+      # part:tracker.mark_in_progress
+
       - key: fix
         model: gpt-6-luna # model:fix
-        thinking: high
+        thinking: max
         session: ticket_pr
         prompt: |
           Implement ${{ steps.task.outputs.identifier }}: ${{ steps.task.outputs.title }}

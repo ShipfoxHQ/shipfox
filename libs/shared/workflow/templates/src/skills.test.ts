@@ -68,11 +68,12 @@ describe('shipped skill resources', () => {
     }
   });
 
-  test('binds known models and replays project events', () => {
+  test('suggests safe Linear issues and requires scoped replay and partial-write handling', () => {
     const text =
       getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';
 
     expect(text).toContain('Bind only models from `model_recommendations` or the catalog.');
+    expect(text).toContain('Use tested template models; else workspace default.');
     expect(text).toContain(
       'skill://shipfox/create-workflow-from-template/references/choose-models.md',
     );
@@ -80,15 +81,15 @@ describe('shipped skill resources', () => {
     expect(text).toContain("Never reconstruct a template's YAML by hand.");
     expect(text).toContain('If `model_provider_configured` is `false`, stop');
     expect(text).not.toContain('no-compatible-model');
-    expect(text).toContain('keep only events of the selected project');
-    expect(text).toContain('The event check does not verify this');
+    expect(text).toContain('state the writes from **Expected writes** and runner/inference cost');
+    expect(text).toContain('Event lookup does not verify project scope');
     expect(text).toContain(
-      'Tell them they can say they cannot trigger the event or ask to skip the dev run.',
+      'use Linear MCP when available to find up to three open, low-risk issues',
     );
-    expect(text).toContain(
-      'Skip the dev run only if the user says they cannot trigger an event or asks to skip it.',
-    );
-    expect(text).toContain('pick the most recent matching event yourself');
+    expect(text).toContain('discard completed or high-risk rollout work');
+    expect(text).toContain('If they cannot trigger an event or choose to skip');
+    expect(text).toContain("Share the dev run's `run_url` as soon as it is available");
+    expect(text).toContain('Repeat the expected writes from step 6 in one line');
     expect(text).toContain('Before any repeat real run, after a failure or after edits');
     expect(text).toContain('Stop and ask the user after five failed real runs.');
   });
@@ -109,6 +110,16 @@ describe('shipped skill resources', () => {
     );
     expect(testing).toContain('Runner time and inference need no confirmation.');
     expect(testing).not.toContain('The user must authorize a real run');
+  });
+
+  test('shares the dev run URL as soon as it is available', () => {
+    const skill = getShippedSkillResource('skill://shipfox/test-workflow-change/SKILL.md');
+    const text = skill?.text ?? '';
+
+    expect(skill?.revision).toBe(2);
+    expect(text).toContain('revision: 2');
+    expect(text).toContain('immediately share the returned `run_url`');
+    expect(text).toContain('call `get_workflow_run` once to retrieve it and share it');
   });
 
   test('asks about an optional role only when its provider is connected', () => {

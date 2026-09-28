@@ -6,7 +6,7 @@ Use this template when a task should produce a tested GitHub pull request. A tas
 
 - Connect GitHub as the project's source.
 - Give the GitHub connection permission to read and write repository contents and pull requests.
-- Use GitHub Actions if you turn on the feedback loop.
+- Use GitHub Actions for the feedback loop, which is on by default.
 - For the optional tracker, connect Linear.
 
 ## Choose a tracker
@@ -15,7 +15,7 @@ The `tracker` role is optional.
 
 | Choice | Starts from | Writes to the ticket |
 | --- | --- | --- |
-| Linear | Linear ticket events and manual starts | A comment, and optionally a status change |
+| Linear | Linear ticket events and manual starts | Moves the issue to `In Progress` by default and posts comments |
 | No tracker | Manual starts only | Nothing |
 
 Every composition keeps the `manual` trigger. Without a tracker, the workflow has no tracker tools and no write-back jobs.
@@ -32,7 +32,7 @@ A manual start, such as a dispatcher's `start_workflow_run` call, passes these i
 | `acceptance_criteria` | Yes | How a reviewer checks that the change is done, such as a Markdown list. |
 | `url` | No | Link to the source, such as the Slack thread or the ticket. The PR body links it. |
 | `request` | No | Extra instructions from the person who asked. |
-| `ticket_id` | No | The tracker's ID for the ticket. With a tracker, the run comments on this ticket. |
+| `ticket_id` | No | The tracker's ID for the ticket. With Linear, the default option moves it to `In Progress` and posts comments. |
 | `identifier` | No | The ticket key, such as `ENG-123`. It names the branch and the PR reference. Without it, the run uses `task-<run number>`. |
 
 A manual start without a required input fails before the agent starts and writes nothing.
@@ -74,18 +74,22 @@ The run then opens no PR. With a tracker and a ticket, it posts the questions as
 
 This option applies only to Linear. Keep one trigger block. `agent_session` starts when the agent is assigned or mentioned. `label` starts when an issue is created with the chosen label or gets it later.
 
-Replace every `replace-with-team-key` value with the key of the Linear team whose issues belong to this repository, such as `ENG`. Without it, every project that uses this template would open a PR for the same issue. For `label`, also replace every `replace-with-label-name` value with the label's exact name. Check the team key and label name against a journaled event before a real run.
+Replace every `replace-with-team-key` value with the key of the Linear team whose issues belong to this repository, such as `ENG`. Use local Linear MCP tools to look up the team when available. If the repository does not identify one team, ask the user. Keep this filter: it runs before the workflow and agent start. An agent cannot safely select a team after a broad trigger.
+
+If you remove the team filter, every project that uses this template could open a PR for the same issue. For `label`, also replace every `replace-with-label-name` value with the label's exact name. Check the team key and label name against a journaled event before a real run.
 
 The workflow's own Linear writes do not start it again. Its comments do not mention the agent, so they create no agent session. A status change adds no label.
 
 ### Feedback loop
 
-`off` removes the `respond_to_feedback` job. `on` keeps it. The job listens to the opened PR until it closes and handles two kinds of events:
+The feedback loop is on by default. It stays active until the PR closes and handles two kinds of events:
 
 - Inline review comments from repository owners, organization members, collaborators, and bots.
 - Failed GitHub Actions runs on the PR branch. Failures on an older commit are skipped.
 
 It does not handle review summaries, PR conversation comments, or other CI providers. Events arriving within a minute are handled together. Each push can make automated reviewers comment again, so the loop can run many times on an active PR.
+
+Choose `off` to stop after opening the PR.
 
 The agent reads each comment's full thread and decides one of these outcomes:
 
@@ -99,7 +103,7 @@ It applies a person's in-scope request unless the request is unsafe. It applies 
 
 ### Thread resolution
 
-This option matters only when the feedback loop is on. Keep one marked `resolve_threads` block in the `reply` step's prompt and integrations. `addressed` resolves a thread after its reply is posted, when every decision in it is `apply` or `already_addressed`. The fix must also be pushed. `never` leaves every thread for reviewers.
+This option matters only when the feedback loop is on. Keep one marked `resolve_threads` block in the `reply` step's prompt and integrations. `addressed` resolves a thread after the fix is pushed or the code is confirmed to handle the comment. Reviewers can reopen resolved threads. `never` leaves every thread for reviewers.
 
 ### Pull request mode
 
@@ -107,7 +111,7 @@ Choose `draft` or `ready` for `pr_mode`. The default opens a draft PR. Set the m
 
 ### Ticket write-back
 
-This option applies only with a tracker. Keep the marked blocks for one `ticket_write_back` choice. `comment` posts the PR URL on the ticket. `comment_and_transition` also changes the ticket status; replace `replace-with-linear-status` with the exact destination status. `none` removes every tracker write.
+This option applies only with Linear. By default, `comment_and_transition` moves the issue to `In Progress` when the agent starts. It posts the PR link after the PR opens, or clarification questions when needed. Choose `comment` to post comments without changing status, or `none` to make no Linear updates.
 
 Both write-back choices also post the agent's questions when it finds the ticket too unclear to implement. The run writes to the ticket only when the task has a ticket ID, from the event or the `ticket_id` input. The PR link is written in a separate job, so a failed tracker write does not stop the feedback loop.
 
@@ -127,7 +131,7 @@ Replace each `replace-with-test-command` with the test command that proves the c
 
 Each run creates one branch named `shipfox/<identifier>-<run number>-<attempt>`, pushes one commit, and opens one pull request. The PR body ends with `Fixes <identifier>` for a ticket, so Linear links the PR to the issue when the workspace has Linear's GitHub integration. Without a ticket, it links the task's `url`. The run stops before the agent starts when another run already has a branch for the same identifier. Close that PR and delete its branch to start again.
 
-Ticket write-back can add a tracker comment and, if selected, change the ticket status. When the agent asks questions instead, the run posts at most one comment and opens no PR.
+Ticket updates can move an issue to `In Progress` when the agent starts and post a comment with the PR link. When the agent asks questions instead, the run posts at most one comment and opens no PR.
 
 A feedback execution can push one commit, reply to review comments, and resolve threads. It pushes only when the PR head has not moved since checkout. The implementing and feedback agents get only read tools. Shell steps, tool steps, and the `reply` step own the writes. Agent steps can still reach the repository's write credential from their shell.
 
@@ -141,4 +145,4 @@ Before relying on an adapted workflow, check these paths:
 - Start it manually without `acceptance_criteria`. Check that the run fails before the agent starts.
 - Start it manually with another repository in `repository`. Check that the run stops before setup.
 - Start it with an unclear task. Check that no PR opens and that `questions` holds the agent's questions.
-- With a tracker, start it from a ticket event. Check the PR comment on the ticket and that the comment starts no new run.
+- With Linear, start it from a ticket event. Check that the issue moves to `In Progress` before the agent starts. Check that the PR comment starts no new run.

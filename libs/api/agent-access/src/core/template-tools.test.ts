@@ -190,6 +190,7 @@ describe('agent-access template tools', () => {
       },
     });
     expect(get.description).toContain('provider_required');
+    expect(get.description).toContain('Do not ask users to choose models during setup');
     if (!response.ok) throw new Error('Expected a successful template response');
     expect(getWorkflowTemplateResultSchema.safeParse(response.result).success).toBe(true);
   });
