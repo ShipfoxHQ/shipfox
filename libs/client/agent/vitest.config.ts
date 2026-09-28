@@ -60,6 +60,8 @@ export default defineConfig(
                 launchOptions: {
                   args: ['--disable-lcd-text', '--font-render-hinting=none'],
                 },
+                // Framer Motion honors this preference; Argos CSS alone cannot stop JS animations.
+                contextOptions: {reducedMotion: 'reduce'},
               }),
               instances: [{browser: 'chromium'}],
             },
