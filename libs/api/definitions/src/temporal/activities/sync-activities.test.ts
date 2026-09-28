@@ -1,11 +1,14 @@
-import {DEFINITION_SYNC_DIAGNOSTICS_MAX_COUNT} from '@shipfox/api-definitions-dto';
+import {
+  DEFINITION_RESOLVED,
+  DEFINITION_SYNC_DIAGNOSTICS_MAX_COUNT,
+} from '@shipfox/api-definitions-dto';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {isErrorReported} from '@shipfox/node-error-monitoring';
 import {ApplicationFailure} from '@temporalio/common';
 import {sql} from 'drizzle-orm';
 import type {DefinitionsSourceControl} from '#core/integrations.js';
-import {db, definitionSyncStates} from '#db/index.js';
+import {db, definitionSyncStates, definitionsOutbox, getActionSnapshot} from '#db/index.js';
 import {workflowDefinitions} from '#db/schema/definitions.js';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import {createDefinitionSyncActivities} from './sync-activities.js';
@@ -251,6 +254,83 @@ describe('definition sync activities', () => {
       expect(result.deletedCount).toBe(0);
       expect(result.diagnostics).toEqual([]);
       expect(getValidationCatalogV2).toHaveBeenLastCalledWith({workspaceId});
+    });
+
+    it('stores action snapshots and re-applies a definition when only action code changes', async () => {
+      const workflowPath = '.shipfox/workflows/ci.yml';
+      const repository: Record<string, string> = {
+        [workflowPath]: [
+          'name: Actions',
+          'runner: ubuntu-latest',
+          'jobs:',
+          '  build:',
+          '    steps:',
+          '      - uses: ./.shipfox/actions/notify',
+        ].join('\n'),
+        '.shipfox/actions/notify/action.yml': 'name: Notify\nmain: index.ts\n',
+        '.shipfox/actions/notify/index.ts': 'export default 1;\n',
+      };
+      const source = sourceControl({
+        listFiles: vi.fn(({prefix}: {prefix: string}) =>
+          Promise.resolve({
+            files: Object.keys(repository)
+              .filter((path) => path.startsWith(prefix))
+              .map((path) => ({path, type: 'file' as const, size: repository[path]?.length ?? 0})),
+            nextCursor: null,
+          }),
+        ),
+        fetchFile: vi.fn(({path, ref}: {path: string; ref: string}) =>
+          Promise.resolve({path, ref, content: repository[path] ?? ''}),
+        ),
+      });
+      const activities = createDefinitionSyncActivities(source, agent);
+      const workspaceId = crypto.randomUUID();
+      const sync = () =>
+        activities.fetchAndApplyDefinitionWorkflows({
+          projectId,
+          workspaceId,
+          sourceConnectionId,
+          sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
+          sourceRef: 'main',
+          paths: [workflowPath],
+        });
+      const storedDigest = async () => {
+        const [row] = await db()
+          .select({definition: workflowDefinitions.definition})
+          .from(workflowDefinitions)
+          .where(sql`${workflowDefinitions.projectId} = ${projectId}`);
+        const step = row?.definition.model.jobs[0]?.steps[0];
+        return step?.kind === 'action' ? step.action.digest : undefined;
+      };
+      const resolvedEventCount = async () => {
+        const rows = await db()
+          .select({id: definitionsOutbox.id})
+          .from(definitionsOutbox)
+          .where(
+            sql`${definitionsOutbox.payload}->>'projectId' = ${projectId} and ${definitionsOutbox.eventType} = ${DEFINITION_RESOLVED}`,
+          );
+        return rows.length;
+      };
+
+      const first = await sync();
+      const firstDigest = await storedDigest();
+      const unchanged = await sync();
+      repository['.shipfox/actions/notify/index.ts'] = 'export default 2;\n';
+      const changed = await sync();
+      const changedDigest = await storedDigest();
+
+      expect(first.appliedCount).toBe(1);
+      expect(unchanged.appliedCount).toBe(0);
+      expect(changed.appliedCount).toBe(1);
+      expect(await resolvedEventCount()).toBe(2);
+      expect(changedDigest).not.toBe(firstDigest);
+      for (const digest of [firstDigest, changedDigest]) {
+        expect(await getActionSnapshot({workspaceId, digest: digest ?? ''})).toMatchObject({
+          projectId,
+          source: 'vcs',
+          manifest: {name: 'Notify', main: 'index.ts'},
+        });
+      }
     });
 
     it('adds the workflow file path to persisted diagnostics', async () => {

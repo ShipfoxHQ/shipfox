@@ -43,6 +43,13 @@
       "when": 1790551351707,
       "tag": "0005_action_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790562235460,
+      "tag": "0006_action_sync_error_codes",
+      "breakpoints": true
     }
   ]
 }

@@ -49,6 +49,8 @@ export interface ResolvedAction {
 
 export interface ResolveWorkflowActionsParams extends ActionSourceContext {
   workflows: readonly {path: string; document: WorkflowDocument}[];
+  /** Called with each `uses` path before its directory is read. */
+  onProgress?: ((uses: string) => void) | undefined;
 }
 
 /** Reads every action the workflows reference, once per `uses` path. */
@@ -71,6 +73,7 @@ export async function resolveWorkflowActions(
   const resolved = new Map<string, ResolvedAction>();
   // One directory at a time, so file fetches stay within FILE_FETCH_CONCURRENCY.
   for (const uses of references) {
+    params.onProgress?.(uses);
     resolved.set(uses, await readActionDirectory({...params, uses}));
   }
   return resolved;

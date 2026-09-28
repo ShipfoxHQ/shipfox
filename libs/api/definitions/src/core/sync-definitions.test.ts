@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {LOWERCASE_SHA256_HEX_RE} from '@shipfox/regex';
@@ -12,10 +13,11 @@ import {
   resolveSyncSource,
 } from './sync-definitions.js';
 
-function fetchAndParseWorkflows(
+async function fetchAndParseWorkflows(
   params: Omit<Parameters<typeof fetchAndParseWorkflowsBase>[0], 'agentValidationCatalog'>,
 ) {
-  return fetchAndParseWorkflowsBase({...params, agentValidationCatalog});
+  const result = await fetchAndParseWorkflowsBase({...params, agentValidationCatalog});
+  return result.workflows;
 }
 
 const validYaml = `
@@ -759,6 +761,220 @@ jobs:
 
     await expect(result).rejects.toMatchObject({code: 'invalid-definition'});
     expect(loadIntegrationValidationContext).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('fetchAndParseWorkflows with actions', () => {
+  const workflowPath = '.shipfox/workflows/ci.yml';
+  const actionYaml = `
+name: Actions
+runner: ubuntu-latest
+jobs:
+  build:
+    steps:
+      - uses: ./.shipfox/actions/notify
+`;
+
+  function actionRepository(overrides: Record<string, string> = {}): Record<string, string> {
+    return {
+      [workflowPath]: actionYaml,
+      '.shipfox/actions/notify/action.yml': 'name: Notify\nmain: index.ts\n',
+      '.shipfox/actions/notify/index.ts': "import {format} from './lib/format.ts';\n",
+      '.shipfox/actions/notify/lib/format.ts': 'export const format = 1;\n',
+      ...overrides,
+    };
+  }
+
+  function repositorySourceControl(repository: Record<string, string>) {
+    return sourceControl({
+      listFiles: vi.fn(({prefix}: {prefix: string}) =>
+        Promise.resolve({
+          files: Object.entries(repository)
+            .filter(([path]) => path.startsWith(prefix))
+            .map(([path, content]) => ({
+              path,
+              type: 'file' as const,
+              size: Buffer.byteLength(content, 'utf8'),
+            })),
+          nextCursor: null,
+        }),
+      ),
+      fetchFile: vi.fn(({path, ref}: {path: string; ref: string}) =>
+        Promise.resolve({path, ref, content: repository[path] ?? ''}),
+      ),
+    });
+  }
+
+  function sync(params: {
+    repository: Record<string, string>;
+    paths?: string[];
+    actionsEnabled?: boolean;
+    source?: DefinitionsSourceControl;
+    onProgress?: (path: string) => void;
+    loadIntegrationValidationContext?: () => Promise<IntegrationValidationContext>;
+  }) {
+    return fetchAndParseWorkflowsBase({
+      ...baseContext,
+      ref: 'abc123',
+      paths: params.paths ?? [workflowPath],
+      sourceControl: params.source ?? repositorySourceControl(params.repository),
+      agentValidationCatalog,
+      actionsEnabled: params.actionsEnabled ?? true,
+      onProgress: params.onProgress,
+      loadIntegrationValidationContext: params.loadIntegrationValidationContext,
+    });
+  }
+
+  it('reads the referenced action at the sync ref and normalizes the step', async () => {
+    const source = repositorySourceControl(actionRepository());
+
+    const result = await sync({repository: {}, source});
+
+    expect(source.listFiles).toHaveBeenCalledWith(
+      expect.objectContaining({prefix: '.shipfox/actions/notify/', ref: 'abc123'}),
+    );
+    expect(result.actions).toHaveLength(1);
+    expect(result.workflows[0]?.definition.model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'action',
+      action: {
+        uses: './.shipfox/actions/notify',
+        name: 'Notify',
+        digest: result.actions[0]?.bundle.digest,
+      },
+    });
+    expect(result.actionDiagnostics).toEqual([]);
+  });
+
+  it('reports progress for each action directory it reads', async () => {
+    const onProgress = vi.fn();
+
+    await sync({repository: actionRepository(), onProgress});
+
+    expect(onProgress.mock.calls).toEqual([[workflowPath], ['./.shipfox/actions/notify']]);
+  });
+
+  it('loads the integration context for an action whose manifest declares integrations', async () => {
+    const loadIntegrationValidationContext = vi.fn(() =>
+      Promise.resolve(integrationValidationContext),
+    );
+
+    const result = await sync({
+      repository: actionRepository({
+        [workflowPath]: `${actionYaml}        connections:
+          github: github-main
+`,
+        '.shipfox/actions/notify/action.yml': [
+          'name: Notify',
+          'main: index.ts',
+          'integrations:',
+          '  github:',
+          '    provider: github',
+          '    include: [issue_read]',
+        ].join('\n'),
+      }),
+      loadIntegrationValidationContext,
+    });
+
+    expect(loadIntegrationValidationContext).toHaveBeenCalledTimes(1);
+    expect(result.workflows[0]?.definition.model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'action',
+      action: {integrations: {github: {provider: 'github', connection: 'github-main'}}},
+    });
+  });
+
+  it('keeps the YAML-only hash for workflows without actions', async () => {
+    const result = await sync({repository: {[workflowPath]: validYaml}});
+
+    expect(result.workflows[0]?.contentHash).toBe(
+      createHash('sha256').update(validYaml, 'utf8').digest('hex'),
+    );
+    expect(result.actions).toEqual([]);
+  });
+
+  it('changes the hash when only action code changes', async () => {
+    const before = await sync({repository: actionRepository()});
+    const unchanged = await sync({repository: actionRepository()});
+    const after = await sync({
+      repository: actionRepository({
+        '.shipfox/actions/notify/lib/format.ts': 'export const format = 2;\n',
+      }),
+    });
+
+    expect(unchanged.workflows[0]?.contentHash).toBe(before.workflows[0]?.contentHash);
+    expect(after.workflows[0]?.contentHash).not.toBe(before.workflows[0]?.contentHash);
+  });
+
+  it('reads an action shared by several workflows once', async () => {
+    const otherPath = '.shipfox/workflows/other.yml';
+    const source = repositorySourceControl(actionRepository({[otherPath]: actionYaml}));
+
+    const result = await sync({repository: {}, source, paths: [workflowPath, otherPath]});
+
+    expect(result.workflows).toHaveLength(2);
+    expect(result.actions).toHaveLength(1);
+    expect(source.listFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects uses as not supported yet when actions are disabled', async () => {
+    const source = repositorySourceControl(actionRepository());
+
+    const error = await sync({repository: {}, source, actionsEnabled: false}).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toMatchObject({
+      code: 'invalid-definition',
+      filePath: workflowPath,
+      details: [{message: 'Action steps (`uses`) are not supported yet.'}],
+    });
+    expect(source.listFiles).not.toHaveBeenCalled();
+  });
+
+  it('reports manifest problems against the action.yml path', async () => {
+    const error = await sync({
+      repository: actionRepository({
+        '.shipfox/actions/notify/action.yml': 'name: Notify\nmain: missing.ts\n',
+      }),
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(DefinitionSyncPermanentError);
+    expect(classifySyncFailure(error)).toMatchObject({
+      code: 'action-invalid',
+      retryable: false,
+      diagnostics: [
+        {
+          code: 'action-invalid',
+          filePath: '.shipfox/actions/notify/action.yml',
+          path: 'main',
+          severity: 'error',
+        },
+      ],
+    });
+  });
+
+  it('reports a missing action directory as action-not-found', async () => {
+    const error = await sync({repository: {[workflowPath]: actionYaml}}).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(classifySyncFailure(error)).toMatchObject({code: 'action-not-found', retryable: false});
+  });
+
+  it('warns about unresolved relative imports with the repository path', async () => {
+    const result = await sync({
+      repository: actionRepository({
+        '.shipfox/actions/notify/index.ts': "import {graph} from './lib/graph.ts';\n",
+      }),
+    });
+
+    expect(result.actionDiagnostics).toEqual([
+      {
+        code: 'action-import-unresolved',
+        message: 'index.ts imports ./lib/graph.ts, which is not in the action',
+        severity: 'warning',
+        filePath: '.shipfox/actions/notify/index.ts',
+      },
+    ]);
   });
 });
 

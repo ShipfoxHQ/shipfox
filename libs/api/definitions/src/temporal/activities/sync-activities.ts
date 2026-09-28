@@ -17,7 +17,11 @@ import {
 } from '#core/index.js';
 import type {DefinitionsSourceControl} from '#core/integrations.js';
 import {loadIntegrationValidationContext} from '#core/integrations.js';
-import {applyVcsDefinitionsBatch, markDefinitionSyncState} from '#db/index.js';
+import {
+  applyVcsDefinitionsBatch,
+  markDefinitionSyncState,
+  upsertActionSnapshot,
+} from '#db/index.js';
 
 export interface SyncWorkflowInput {
   projectId: string;
@@ -148,7 +152,7 @@ function createFetchAndApplyActivity(
     input: FetchAndApplyActivityInput,
   ): Promise<FetchAndApplyActivityResult> {
     return await runWithPermanentTranslation(async () => {
-      const definitions = await fetchAndParseWorkflows({
+      const {workflows, actions, actionDiagnostics} = await fetchAndParseWorkflows({
         ...input,
         ref: input.sourceCommitSha ?? input.sourceRef,
         sourceControl,
@@ -168,11 +172,22 @@ function createFetchAndApplyActivity(
               },
       });
 
+      // Snapshots go first, so every stored definition can resolve its digests.
+      for (const action of actions) {
+        await upsertActionSnapshot({
+          workspaceId: input.workspaceId,
+          projectId: input.projectId,
+          manifest: action.manifest,
+          bundle: action.bundle,
+          source: 'vcs',
+        });
+      }
+
       const result = await applyVcsDefinitionsBatch({
         projectId: input.projectId,
         workspaceId: input.workspaceId,
         ref: input.sourceRef,
-        upserts: definitions.map((entry) => ({
+        upserts: workflows.map((entry) => ({
           configPath: entry.path,
           name: entry.name,
           document: entry.definition.document,
@@ -182,11 +197,12 @@ function createFetchAndApplyActivity(
         })),
       });
 
-      const diagnostics = limitDefinitionSyncDiagnostics(
-        definitions.flatMap((entry) =>
+      const diagnostics = limitDefinitionSyncDiagnostics([
+        ...workflows.flatMap((entry) =>
           entry.diagnostics.map((diagnostic) => ({...diagnostic, filePath: entry.path})),
         ),
-      );
+        ...actionDiagnostics,
+      ]);
 
       return {
         ...result,

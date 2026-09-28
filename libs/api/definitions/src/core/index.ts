@@ -27,6 +27,7 @@ export {
   fetchAndParseWorkflows,
   MAX_WORKFLOW_FILES,
   type ParsedWorkflow,
+  type ParsedWorkflows,
   type ResolvedSyncSource,
   resolveSyncSource,
   type SyncFailureClassification,

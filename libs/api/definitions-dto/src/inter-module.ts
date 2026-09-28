@@ -40,6 +40,10 @@ const definitionSyncSummarySchema = z.object({
       'content-too-large',
       'too-many-files',
       'connection-unavailable',
+      'action-not-found',
+      'action-invalid',
+      'action-too-large',
+      'action-unsupported-file',
       'unknown',
     ])
     .nullable(),
