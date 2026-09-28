@@ -14,6 +14,10 @@ report-failed-runs:
   revision: 1
   added_at: 2026-09-26
   rank: 6
+slack-dispatcher:
+  revision: 1
+  added_at: 2026-09-28
+  rank: 7
 slack-to-ticket:
   revision: 1
   added_at: 2026-09-27

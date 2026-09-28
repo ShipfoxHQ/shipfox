@@ -8,7 +8,7 @@ import {loadShippedTemplates} from './loader.js';
 
 type YamlRecord = Record<string, unknown>;
 
-const template = loadShippedTemplates().find((entry) => entry.manifest.id === 'slack-dispatcher');
+const template = loadShippedTemplates().find((entry) => entry.id === 'slack-dispatcher');
 if (template === undefined) throw new Error('Missing Slack dispatcher template');
 const composed = composeTemplate(template, {chat: 'slack'});
 parseWorkflowDocument(parseYaml(composed));

@@ -1,10 +1,6 @@
-id: slack-dispatcher
-revision: 1
-added_at: 2026-09-28
-rank: 7
 title: Route Slack requests to your workflows
 summary: Mention one Slack app for any request, and it starts the workflow that handles it.
-start_label: Starts when someone mentions the app in Slack
+starts: Someone mentions the Shipfox app in Slack with any request
 roles:
   chat:
     providers: [slack]

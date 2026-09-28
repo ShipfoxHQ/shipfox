@@ -119,6 +119,12 @@ describe('workflow template loader', () => {
         rank: 6,
         manifestHasIdentity: false,
       },
+      'slack-dispatcher': {
+        revision: 1,
+        added_at: '2026-09-28',
+        rank: 7,
+        manifestHasIdentity: false,
+      },
       'slack-to-ticket': {
         revision: 1,
         added_at: '2026-09-27',
