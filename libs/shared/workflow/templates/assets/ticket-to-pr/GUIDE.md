@@ -37,7 +37,7 @@ A manual start, such as a dispatcher's `start_workflow_run` call, passes these i
 | `url` | No | Link to the source, such as the Slack thread or the ticket. The PR body links it. |
 | `request` | No | Extra instructions from the person who asked. |
 | `ticket_id` | No | The tracker's ID for the ticket. For Jira, the issue ID or key. For GitHub issues, the issue number in the project's repository. With a tracker, the default option moves it to an in-progress status and posts comments. |
-| `identifier` | No | The ticket key, such as `ENG-123`. It names the branch and the PR reference. For GitHub issues, pass `issue-<number>`. Without it, the run uses `task-<run number>`. |
+| `identifier` | No | The ticket key, such as `ENG-123`. It names the branch and the PR reference. For GitHub issues, pass `issue-<number>` and the issue number as `ticket_id`, which adds the `Fixes #<number>` line. Without it, the run uses `task-<run number>`. |
 
 A manual start without a required input fails before the agent starts and writes nothing.
 

@@ -119,6 +119,7 @@ test.describe('agent-access workflow templates', () => {
               {provider: 'linear', compatible: false, suggested_bindings: []},
               {provider: 'jira', compatible: false, suggested_bindings: []},
               {provider: 'clickup', compatible: false, suggested_bindings: []},
+              {provider: 'github', compatible: true, suggested_bindings: [github.slug]},
             ],
           }),
         ]),
@@ -154,6 +155,7 @@ test.describe('agent-access workflow templates', () => {
               {provider: 'linear', compatible: true, suggested_bindings: [linear.slug]},
               {provider: 'jira', compatible: false, suggested_bindings: []},
               {provider: 'clickup', compatible: false, suggested_bindings: []},
+              {provider: 'github', compatible: true, suggested_bindings: [github.slug]},
             ],
           }),
           {
