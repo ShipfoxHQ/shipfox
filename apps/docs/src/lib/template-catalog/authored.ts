@@ -15,14 +15,15 @@ export interface AuthoredMetadata {
 export const authoredTemplateMetadata: Record<string, AuthoredMetadata> = {
   'ticket-to-pr': {
     group: 'deliver',
-    starts: 'Another workflow sends a task, or you assign the agent to a Linear issue',
+    starts:
+      'Your coding agent or another workflow sends a task, or you assign the agent to a Linear issue',
     upcoming: {tracker: ['jira', 'clickup', 'github']},
     flow: [
       {
         kind: 'trigger',
         title: 'The agent gets a task',
         detail:
-          'Another workflow, such as a Slack dispatcher, sends the task with its acceptance criteria. Optional: assign the agent to a Linear issue, mention it, or add a label.',
+          'Your coding agent or another workflow, such as a Slack dispatcher, sends the task with its acceptance criteria. Optional: assign the agent to a Linear issue, mention it, or add a label.',
       },
       {
         kind: 'agent',
@@ -39,18 +40,19 @@ export const authoredTemplateMetadata: Record<string, AuthoredMetadata> = {
       {
         kind: 'write',
         icon: 'github',
-        title: 'The workflow opens a draft pull request',
+        title: 'The workflow opens a draft task pull request',
         detail:
-          'The starting workflow reads the PR link or the questions of the agent. With Linear, the workflow also comments on the issue.',
+          'The task pull request holds the code change. The starting workflow reads its link or the questions of the agent. With Linear, the workflow also comments on the issue.',
       },
       {
         kind: 'human',
-        title: 'You review and merge the pull request',
-        detail: 'Optional: the agent replies to inline review comments and fixes failed CI.',
+        title: 'You review and merge the task pull request',
+        detail:
+          'Merging it ships the change. The workflow pull request that your coding agent opens during setup is the one that turns the workflow on. Optional: the agent replies to inline review comments and fixes failed CI.',
       },
     ],
     writes: [
-      {icon: 'github', action: 'Pushes a branch and opens a draft pull request'},
+      {icon: 'github', action: 'Pushes a branch and opens a draft task pull request'},
       {icon: 'github', action: 'Replies to review threads and resolves them (feedback loop only)'},
       {icon: 'linear', action: 'Comments on the issue and can change its status (optional)'},
     ],

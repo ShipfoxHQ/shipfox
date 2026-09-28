@@ -41,6 +41,14 @@ A ticket loader passes `ticket_id`, `identifier`, and `url` with the ticket's co
 
 A dispatcher without a ticket leaves `ticket_id` and `identifier` empty. Each such start opens its own PR. The `idempotency_key` of `start_workflow_run` prevents duplicates only within the dispatcher's own run, so the dispatcher must not start one request twice.
 
+## Choose a first task
+
+The first test run needs a task. When the user has no task in mind, read the repository and propose two or three small, verifiable changes. Good candidates are a missing test, a `TODO` with a clear fix, or an outdated README section. Prefer changes that the test command checks quickly. Give each a title, a description, and acceptance criteria. Do not propose changes to CI configuration, secrets, dependencies, or generated files. Let the user pick one or describe their own, then pass it as the manual inputs.
+
+## Start the next task
+
+Without a tracker, the workflow starts only manually, with inputs. The dashboard Run button sends no inputs, so it cannot start this workflow. After the workflow pull request, which adds the file under `.shipfox/workflows/`, merges, the user asks their coding agent to start it with a new task. The agent calls `fire_manual_trigger` with the inputs above. With the Linear tracker, a Linear ticket also starts it, as the trigger option sets.
+
 ## Read the outcome
 
 When the run succeeds, it publishes these workflow outputs in its `run.completed` event:
@@ -129,7 +137,7 @@ Replace each `replace-with-test-command` with the test command that proves the c
 
 ## Expected writes
 
-Each run creates one branch named `shipfox/<identifier>-<run number>-<attempt>`, pushes one commit, and opens one pull request. The PR body ends with `Fixes <identifier>` for a ticket, so Linear links the PR to the issue when the workspace has Linear's GitHub integration. Without a ticket, it links the task's `url`. The run stops before the agent starts when another run already has a branch for the same identifier. Close that PR and delete its branch to start again.
+Each run creates one branch named `shipfox/<identifier>-<run number>-<attempt>`, pushes one commit, and opens one task pull request. Merging the task pull request ships the change but does not install the workflow. The PR body ends with `Fixes <identifier>` for a ticket, so Linear links the PR to the issue when the workspace has Linear's GitHub integration. Without a ticket, it links the task's `url`. The run stops before the agent starts when another run already has a branch for the same identifier. Close that PR and delete its branch to start again.
 
 Ticket updates can move an issue to its in-progress status when work starts and post a comment with the PR link. When the agent asks questions instead, the run posts at most one comment and opens no PR.
 

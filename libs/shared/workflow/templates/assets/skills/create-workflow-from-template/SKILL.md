@@ -1,7 +1,7 @@
 ---
 name: create-workflow-from-template
 description: Use when setting up a Shipfox workflow from a template.
-revision: 11
+revision: 12
 catalog_title: Create a workflow from a template
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to create a workflow from a template.
@@ -23,7 +23,7 @@ If the prompt names a template ID, as docs prompts do, read and follow `skill://
 
 1. Call `list_workflow_templates`.
 2. Check existing workflow files and definitions for `# shipfox-template:` markers. Skip every template the repository already uses, whatever its revision.
-3. A template is `compatible` when each required role has a provider with an active connection. Present compatible templates first, one sentence each, then incompatible ones with their `missing_providers` to connect. For an `optional` role with no compatible provider, say in one sentence what connecting it adds; never ask. Also offer a custom workflow for the user's own goal.
+3. Present `compatible` templates first, one sentence each, then incompatible ones with their `missing_providers` to connect. For an `optional` role with no compatible provider, say in one sentence what connecting it adds; never ask. Also offer a custom workflow for the user's own goal.
 4. Let the user pick a template or describe their goal. For their own goal, stop here and follow `skill://shipfox/write-a-workflow/SKILL.md`, with the closest template's `workflow_yaml` as an example.
 
 ## 3. Interview the user
@@ -42,14 +42,7 @@ Ask about the options the template declares for the chosen providers, one option
 
 Skip this step silently when `workflow_yaml` has no `# slot:` markers.
 
-Find install, build, and test commands. Trust these sources in order:
-
-1. CI configuration, such as `.github/workflows/`.
-2. `AGENTS.md` or `CLAUDE.md`.
-3. Mise and other toolchain files.
-4. Package manager lockfiles.
-5. `Makefile`.
-6. `README.md`.
+Find install, build, and test commands. Trust, in order: CI configuration such as `.github/workflows/`, `AGENTS.md` or `CLAUDE.md`, mise and other toolchain files, lockfiles, `Makefile`, then `README.md`.
 
 Choose repository commands and any CI workflow to watch. Tell the user what will run in one plain sentence. Ask which workflow only if several could be watched. Do not ask them to confirm commands; the dev run tests them.
 
@@ -79,17 +72,19 @@ After they trigger it, poll `list_trigger_events` every 30 seconds for 5 minutes
 
 Follow `skill://shipfox/test-workflow-change/SKILL.md` with the validated YAML and event. It decides whether the run needs confirmation; never ask otherwise. Before starting, state the guide's **Expected writes** in one line. Share the dev run's `run_url` as soon as it appears.
 
-If setup fails, isolate it with a manual setup workflow: checkout, install, test. Before repeating after failure or edits, inspect the prior branch, PR, and comment. Repeat step 6's expected writes in one line. Reuse prior writes where allowed; close or delete any write blocking the next run. Stop and ask after five failed real runs.
+If setup fails, isolate it with a manual setup workflow: checkout, install, test. Before repeating after failure or edits, inspect the prior branch, PR, and comment. Reuse prior writes where allowed; close or delete any write blocking the next run. Stop and ask after five failed real runs.
 
 ## 8. Confirm the result with the user
 
 A run succeeds at `succeeded`, or when every one-shot job succeeds and each listener reports `listener_status: listening`. Tell the user what it did, link every write, and share its `run_url`. For listening jobs, say it awaits later PR events, such as review comments or CI, and offer to leave it open or cancel it with `cancel_workflow_run`. If step 1 found no workflows, welcome them to their first run.
 
-Ask whether to open a pull request now or make edits first. After edits, repeat steps 6 and 7.
+Ask whether to open the workflow pull request now or make edits first. After edits, repeat steps 6 and 7.
 
 ## 9. Deliver
 
-Write the YAML under `.shipfox/workflows/` with the template marker and a descriptive file name, then open the pull request. Mark it untested if the user could not trigger an event or asked to skip the dev run. Shipfox syncs the workflow once it merges.
+Write the YAML under `.shipfox/workflows/` with the template marker and a descriptive file name, then open the workflow pull request. Mark it untested if the user could not trigger an event or asked to skip the dev run.
+
+In your final message, link the workflow pull request and any pull request the test run opened. Say that only merging the workflow pull request installs the workflow. If the guide explains how to start the next run, repeat it.
 
 ## Rules
 
@@ -98,7 +93,6 @@ Write the YAML under `.shipfox/workflows/` with the template marker and a descri
 - Never request, read, or write secret values.
 - Never guess a tool ID, event name, model ID, runner name, connection slug, or project ID.
 - Bind only models from `model_recommendations` or the catalog.
-- Offer alternatives only when the user asks to change a model.
 - If any tool returns `content-too-large`, stop and report it. Never reconstruct a template's YAML by hand.
 - Keep `integrations.include` lists as narrow as the template.
 - Local dev runs upload only the YAML. Keep setup commands inline until the workflow merges.
