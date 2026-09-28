@@ -31,9 +31,10 @@ post-activation Get-started checklist, and its panel and top-bar hosts.
   always carries the whole checklist.
 - **`FirstWorkflowPanel`**: the first workflow panel. In choose mode it shows
   the MCP setup inline, collapsing to "Connected: <client>" once the signed-in
-  user has an agent grant for the workspace. It suggests up to four workflow
-  templates the workspace can use, with a copyable prompt each. Templates that
-  need a connection the workspace lacks are not shown. In finish mode it links
+  user has an agent grant for the workspace. It recommends one workflow
+  template in full and lists up to three more on one line each, every one with
+  a copyable prompt. Templates that need a connection the workspace lacks are
+  not shown. In finish mode it links
   the latest succeeded test run and explains which pull request turns the
   workflow on. The template cards move behind a disclosure.
   `WorkspaceSetupChecklist` mounts it below the checklist on the home.
@@ -161,9 +162,10 @@ The caller maps its own query results to the derivation inputs:
   workspace sees the panel while "Connect your tools" is the next step. A
   dismissed checklist hides the panel too.
 - The panel reads `GET /workspaces/:workspaceId/workflow-templates`, which
-  returns templates grouped and ranked for the workspace's connections. Cards
-  come from the `try_now` and `starts_on_event` groups in that order; the
-  `needs_connection` group is not shown.
+  returns templates grouped and ranked for the workspace's connections. The
+  recommended template and the list come from the `try_now` and
+  `starts_on_event` groups in that order; the `needs_connection` group is not
+  shown.
 - `FirstWorkflowPanel` captures `first_workflow_panel_opened` with `surface`
   and `mode` once per mode it shows, and `first_workflow_prompt_copied` with
   `surface`, `template_id` (or `generic`), and `group` for a template after a

@@ -13,33 +13,36 @@ export interface WorkflowTemplate {
   prompt: string;
 }
 
-export const MAX_SUGGESTED_TEMPLATE_CARDS = 4;
+export interface WorkflowTemplateSuggestions {
+  /** The first template to try, shown in full. */
+  recommended: WorkflowTemplate | undefined;
+  /** The next usable templates, one line each. */
+  others: readonly WorkflowTemplate[];
+}
+
+export const MAX_OTHER_SUGGESTED_TEMPLATES = 3;
 
 /**
- * The panel's cards: templates the workspace can use now. Templates that need
- * a connection are left out, since listing what the workspace cannot run only
- * grows with the catalog. The server already orders "Try it now" ahead of
- * "Starts on an event", so the first cards are the ones the user can run today.
+ * Picks the panel's suggestions from templates the workspace can use now.
+ * Templates that need a connection are left out, and the list is capped, so
+ * the panel stays the same size however much of the catalog matches. The
+ * server already orders "Try it now" ahead of "Starts on an event", so the
+ * recommended template is one the user can run today.
  */
 export function suggestWorkflowTemplates(
   templates: readonly WorkflowTemplate[],
-): readonly WorkflowTemplate[] {
-  return templates
-    .filter((template) => template.group !== 'needs_connection')
-    .slice(0, MAX_SUGGESTED_TEMPLATE_CARDS);
+): WorkflowTemplateSuggestions {
+  const [recommended, ...others] = templates.filter(
+    (template) => template.group !== 'needs_connection',
+  );
+  return {recommended, others: others.slice(0, MAX_OTHER_SUGGESTED_TEMPLATES)};
 }
 
 const TRY_NOW_LABEL = 'Try it now';
 const STARTS_ON_EVENT_FALLBACK_LABEL = 'Starts on an event';
 
-/** The card label for a usable template. */
-export function workflowTemplateCardLabel(template: WorkflowTemplate): string {
+/** How a usable template starts, shown next to its title. */
+export function workflowTemplateLabel(template: WorkflowTemplate): string {
   if (template.group === 'try_now') return TRY_NOW_LABEL;
   return template.startLabel ?? STARTS_ON_EVENT_FALLBACK_LABEL;
-}
-
-/** Joins names as "Slack", "Slack and Linear", or "Slack, Linear, and Jira". */
-export function joinProviderNames(names: readonly string[]): string {
-  if (names.length <= 2) return names.join(' and ');
-  return `${names.slice(0, -1).join(', ')}, and ${names.at(-1)}`;
 }

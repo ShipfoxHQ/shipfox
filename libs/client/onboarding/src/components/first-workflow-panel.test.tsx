@@ -154,18 +154,17 @@ describe('FirstWorkflowPanel in choose mode', () => {
     expect(screen.queryByText(CONNECTED_RE)).not.toBeInTheDocument();
   });
 
-  test('suggests only what a GitHub-only workspace can run', async () => {
+  test('recommends one workflow and lists the others a GitHub-only workspace can run', async () => {
     renderPanel();
 
-    const cards = within(await screen.findByRole('list', {name: 'Suggested workflows'}));
-    const titles = cards.getAllByRole('heading').map((heading) => heading.textContent);
-    expect(titles).toEqual([
-      'Task to pull request',
+    expect(await screen.findByRole('heading', {name: 'Task to pull request'})).toBeVisible();
+    expect(screen.getByText('Recommended · Try it now')).toBeVisible();
+    const others = within(screen.getByRole('list', {name: 'More suggested workflows'}));
+    expect(others.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
       'Investigate and repair default-branch CI failures',
       'Repair failing pull request CI',
     ]);
-    expect(cards.getByText('Try it now')).toBeVisible();
-    expect(cards.getByText('Starts on a failing dependency update')).toBeVisible();
+    expect(others.getByText('Starts on a failing dependency update')).toBeVisible();
     expect(screen.queryByText('Ask the codebase in Slack')).not.toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Browse all examples'})).toHaveAttribute(
       'href',
@@ -173,11 +172,11 @@ describe('FirstWorkflowPanel in choose mode', () => {
     );
   });
 
-  test('shows at most four cards when every template is usable', async () => {
+  test('caps the other suggestions at three when many templates are usable', async () => {
     renderPanel({templates: allToolsWorkflowTemplates});
 
-    const cards = within(await screen.findByRole('list', {name: 'Suggested workflows'}));
-    expect(cards.getAllByRole('heading')).toHaveLength(4);
+    const others = within(await screen.findByRole('list', {name: 'More suggested workflows'}));
+    expect(others.getAllByRole('listitem')).toHaveLength(3);
   });
 
   test('copies a template prompt and captures the template ID', async () => {
@@ -204,12 +203,33 @@ describe('FirstWorkflowPanel in choose mode', () => {
     });
   });
 
+  test('copies a listed workflow from its row', async () => {
+    const writeText = stubClipboard();
+    const capture = vi.fn();
+    renderPanel({analytics: {capture}});
+
+    fireEvent.click(
+      await screen.findByRole('button', {name: 'Copy prompt for Repair failing pull request CI'}),
+    );
+
+    expect(writeText).toHaveBeenCalledWith(
+      'Use Shipfox to create a workflow from the fix-dependency-ci template.',
+    );
+    await waitFor(() =>
+      expect(capture).toHaveBeenCalledWith('first_workflow_prompt_copied', {
+        surface: 'home',
+        template_id: 'fix-dependency-ci',
+        group: 'starts_on_event',
+      }),
+    );
+  });
+
   test('copies the generic prompt for something else', async () => {
     const writeText = stubClipboard();
     const capture = vi.fn();
     renderPanel({analytics: {capture}});
 
-    fireEvent.click(await screen.findByRole('button', {name: 'Copy prompt for something else'}));
+    fireEvent.click(await screen.findByRole('button', {name: 'Copy a generic prompt'}));
 
     expect(writeText).toHaveBeenCalledWith(FIRST_WORKFLOW_PROMPT);
     await waitFor(() =>
@@ -224,8 +244,8 @@ describe('FirstWorkflowPanel in choose mode', () => {
     renderPanel({templates: 'failed'});
 
     expect(await screen.findByText(TEMPLATES_FAILED_RE)).toBeVisible();
-    expect(screen.queryByRole('list', {name: 'Suggested workflows'})).not.toBeInTheDocument();
-    expect(screen.getByRole('button', {name: 'Copy prompt for something else'})).toBeVisible();
+    expect(screen.queryByRole('heading', {name: 'Task to pull request'})).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Copy a generic prompt'})).toBeVisible();
     expect(screen.getByRole('link', {name: 'Browse all examples'})).toBeVisible();
   });
 });
@@ -255,10 +275,10 @@ describe('FirstWorkflowPanel in finish mode', () => {
     renderPanel({progress: {state: 'test_run_succeeded', testRunId: 'run-1'}});
 
     const disclosure = await screen.findByRole('button', {name: 'Set up a different workflow'});
-    expect(screen.queryByRole('list', {name: 'Suggested workflows'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', {name: 'Task to pull request'})).not.toBeInTheDocument();
 
     fireEvent.click(disclosure);
 
-    expect(await screen.findByRole('list', {name: 'Suggested workflows'})).toBeVisible();
+    expect(await screen.findByRole('heading', {name: 'Task to pull request'})).toBeVisible();
   });
 });

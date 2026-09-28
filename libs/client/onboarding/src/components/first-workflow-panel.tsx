@@ -1,19 +1,10 @@
 import {McpSetupInstructions} from '@shipfox/client-agent';
-import {PROVIDER_CATALOG} from '@shipfox/client-integrations';
 import {useClientAnalytics} from '@shipfox/client-shell/runtime';
-import {Badge} from '@shipfox/react-ui/badge';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@shipfox/react-ui/collapsible';
 import {useCopyToClipboard} from '@shipfox/react-ui/hooks';
 import {Icon} from '@shipfox/react-ui/icon';
-import {
-  Panel,
-  PanelBody,
-  PanelCell,
-  PanelGrid,
-  PanelHeader,
-  PanelTitle,
-} from '@shipfox/react-ui/panel';
+import {Panel, PanelBody, PanelHeader, PanelRow, PanelTitle} from '@shipfox/react-ui/panel';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Text} from '@shipfox/react-ui/typography';
@@ -21,10 +12,9 @@ import {Link} from '@tanstack/react-router';
 import {type ReactNode, useEffect, useId, useRef, useState} from 'react';
 import type {FirstWorkflowProgress} from '#core/setup-checklist.js';
 import {
-  joinProviderNames,
   suggestWorkflowTemplates,
   type WorkflowTemplate,
-  workflowTemplateCardLabel,
+  workflowTemplateLabel,
 } from '#core/workflow-templates.js';
 import {useWorkspaceAgentGrant, type WorkspaceAgentGrant} from '#hooks/api/agent-grants.js';
 import {useWorkspaceWorkflowTemplatesQuery} from '#hooks/api/workflow-templates.js';
@@ -197,7 +187,7 @@ function TemplatePicker({
 }) {
   const analytics = useClientAnalytics();
   const templatesQuery = useWorkspaceWorkflowTemplatesQuery(workspace.id);
-  const cards = templatesQuery.data ? suggestWorkflowTemplates(templatesQuery.data) : null;
+  const suggestions = templatesQuery.data ? suggestWorkflowTemplates(templatesQuery.data) : null;
 
   function captureCopy(template: WorkflowTemplate | undefined) {
     analytics.capture(
@@ -210,8 +200,8 @@ function TemplatePicker({
 
   return (
     <>
-      {templatesQuery.isPending ? <TemplateCardsSkeleton /> : null}
-      {templatesQuery.isError && !cards ? (
+      {templatesQuery.isPending ? <SuggestionsSkeleton /> : null}
+      {templatesQuery.isError && !suggestions ? (
         <PanelStep>
           <Text size="sm" className="text-foreground-neutral-muted">
             Suggested workflows could not load. Browse the examples or describe what you want to
@@ -219,33 +209,24 @@ function TemplatePicker({
           </Text>
         </PanelStep>
       ) : null}
-      {cards && cards.length > 0 ? (
-        <PanelGrid aria-label="Suggested workflows" className="border-b border-border-neutral-base">
-          {cards.map((template) => (
-            <TemplateCard
+      {suggestions?.recommended ? (
+        <RecommendedTemplate
+          template={suggestions.recommended}
+          onCopied={() => captureCopy(suggestions.recommended)}
+        />
+      ) : null}
+      {suggestions && suggestions.others.length > 0 ? (
+        <ul aria-label="More suggested workflows" className="border-b border-border-neutral-base">
+          {suggestions.others.map((template) => (
+            <TemplateRow
               key={template.id}
               template={template}
               onCopied={() => captureCopy(template)}
             />
           ))}
-        </PanelGrid>
+        </ul>
       ) : null}
-      <PanelStep>
-        <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-inline">
-          <div className="flex min-w-0 flex-col gap-tight">
-            <Text size="sm" bold>
-              Something else
-            </Text>
-            <Text size="sm" className="text-foreground-neutral-muted">
-              Your coding agent recommends a workflow or writes one for this repository.
-            </Text>
-          </div>
-          <CopyPromptButton
-            prompt={FIRST_WORKFLOW_PROMPT}
-            subject="something else"
-            onCopied={() => captureCopy(undefined)}
-          />
-        </div>
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-inline px-row py-row">
         <ButtonLink
           href={EXAMPLES_URL}
           target="_blank"
@@ -255,74 +236,105 @@ function TemplatePicker({
         >
           Browse all examples
         </ButtonLink>
-      </PanelStep>
+        <div className="flex min-w-0 items-center gap-tight">
+          <Text size="sm" className="text-foreground-neutral-muted">
+            Something else?
+          </Text>
+          <CopyPromptButton
+            prompt={FIRST_WORKFLOW_PROMPT}
+            label="Copy a generic prompt"
+            appearance="inline"
+            onCopied={() => captureCopy(undefined)}
+          />
+        </div>
+      </div>
     </>
   );
 }
 
-function providerDisplayName(provider: string): string {
-  return PROVIDER_CATALOG[provider]?.displayName ?? provider;
-}
-
-function TemplateCard({template, onCopied}: {template: WorkflowTemplate; onCopied: () => void}) {
-  const providerNames = joinProviderNames(template.providers.map(providerDisplayName));
-
+function RecommendedTemplate({
+  template,
+  onCopied,
+}: {
+  template: WorkflowTemplate;
+  onCopied: () => void;
+}) {
   return (
-    <PanelCell className="gap-inline px-row py-row">
-      <div className="flex min-w-0 items-center justify-between gap-inline">
-        <Badge
-          variant={template.group === 'try_now' ? 'info' : 'neutral'}
-          className="min-w-0 shrink"
-        >
-          <span className="min-w-0 truncate">{workflowTemplateCardLabel(template)}</span>
-        </Badge>
-        <span className="flex shrink-0 items-center gap-tight" title={`Uses ${providerNames}`}>
-          {template.providers.map((provider) => {
-            const iconName = PROVIDER_CATALOG[provider]?.iconName;
-            return iconName ? (
-              <Icon
-                key={provider}
-                name={iconName}
-                className="size-16 text-foreground-neutral-muted"
-                aria-hidden="true"
-              />
-            ) : null;
-          })}
-          <span className="sr-only">Uses {providerNames}</span>
-        </span>
+    <PanelStep>
+      <div className="flex w-full min-w-0 items-start justify-between gap-group">
+        <div className="flex min-w-0 flex-col gap-tight">
+          <Text size="xs" className="text-foreground-neutral-muted">
+            Recommended · {workflowTemplateLabel(template)}
+          </Text>
+          <Text as="h4" size="md" bold>
+            {template.title}
+          </Text>
+          <Text size="sm" className="text-foreground-neutral-muted">
+            {template.summary}
+          </Text>
+        </div>
+        <CopyPromptButton
+          prompt={template.prompt}
+          label="Copy prompt"
+          subject={template.title}
+          onCopied={onCopied}
+        />
       </div>
-      <Text as="h4" size="md" bold>
-        {template.title}
-      </Text>
-      <Text size="sm" className="flex-1 text-foreground-neutral-muted">
-        {template.summary}
-      </Text>
-      <CopyPromptButton prompt={template.prompt} subject={template.title} onCopied={onCopied} />
-    </PanelCell>
+    </PanelStep>
   );
 }
 
-function TemplateCardsSkeleton() {
+function TemplateRow({template, onCopied}: {template: WorkflowTemplate; onCopied: () => void}) {
   return (
-    <PanelGrid aria-hidden="true" className="border-b border-border-neutral-base">
-      {[0, 1].map((index) => (
-        <PanelCell key={index} className="gap-inline px-row py-row">
-          <Skeleton className="h-20 w-96" />
-          <Skeleton className="h-20 w-160" />
-          <Skeleton className="h-40 w-full" />
-        </PanelCell>
-      ))}
-    </PanelGrid>
+    <PanelRow asChild className="min-h-40 py-tight">
+      <li>
+        <Text as="h4" size="sm" className="min-w-0 truncate">
+          {template.title}
+        </Text>
+        <div className="flex min-w-0 shrink items-center gap-tight">
+          <Text size="xs" className="min-w-0 truncate text-foreground-neutral-muted">
+            {workflowTemplateLabel(template)}
+          </Text>
+          <CopyPromptButton
+            prompt={template.prompt}
+            label="Copy prompt"
+            subject={template.title}
+            appearance="icon"
+            onCopied={onCopied}
+          />
+        </div>
+      </li>
+    </PanelRow>
   );
 }
 
+function SuggestionsSkeleton() {
+  return (
+    <div aria-hidden="true" className="border-b border-border-neutral-base">
+      <div className="flex flex-col gap-tight px-row py-row">
+        <Skeleton className="h-16 w-120" />
+        <Skeleton className="h-20 w-160" />
+        <Skeleton className="h-16 w-3/4" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * `subject` names the template for assistive tech when the visible label alone
+ * would repeat on every row.
+ */
 function CopyPromptButton({
   prompt,
+  label,
   subject,
+  appearance = 'button',
   onCopied,
 }: {
   prompt: string;
-  subject: string;
+  label: string;
+  subject?: string;
+  appearance?: 'button' | 'icon' | 'inline';
   onCopied: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -351,17 +363,37 @@ function CopyPromptButton({
     }
   }
 
+  const visibleLabel = copied ? 'Copied' : label;
+  const accessibleName = subject
+    ? `${copied ? 'Copied prompt' : 'Copy prompt'} for ${subject}`
+    : undefined;
+
+  if (appearance === 'icon') {
+    return (
+      <Button
+        type="button"
+        size="xs"
+        variant="transparentMuted"
+        className="shrink-0"
+        iconLeft={copied ? 'check' : 'copy'}
+        aria-label={accessibleName ?? visibleLabel}
+        title={accessibleName ?? visibleLabel}
+        onClick={() => void handleCopy()}
+      />
+    );
+  }
+
   return (
     <Button
       type="button"
       size="sm"
-      variant="secondary"
-      className="shrink-0 self-start"
+      variant={appearance === 'inline' ? 'transparent' : 'secondary'}
+      className="shrink-0"
       iconLeft={copied ? 'check' : 'copy'}
-      aria-label={`${copied ? 'Copied prompt' : 'Copy prompt'} for ${subject}`}
+      aria-label={accessibleName}
       onClick={() => void handleCopy()}
     >
-      {copied ? 'Copied' : 'Copy prompt'}
+      {visibleLabel}
     </Button>
   );
 }
