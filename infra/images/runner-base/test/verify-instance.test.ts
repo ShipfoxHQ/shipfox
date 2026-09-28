@@ -119,6 +119,10 @@ describe('runner base fresh-instance verification', () => {
     expect(() => verify({RUNNER_BASE_INSTALLED_PACKAGES: packages})).toThrow('snapd');
   });
 
+  it('accepts any release of the pinned Node major', () => {
+    expect(verify({RUNNER_BASE_NODE_VERSION: 'v24.21.0'})).toContain('runner base verified');
+  });
+
   it('fails when the base holds another Node major', () => {
     expect(() => verify({RUNNER_BASE_NODE_VERSION: 'v22.20.0'})).toThrow(
       'Node is v22.20.0, expected v24.x',

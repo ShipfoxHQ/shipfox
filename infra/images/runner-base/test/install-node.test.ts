@@ -82,7 +82,10 @@ describe('runner base Node installation', () => {
 
   it('fails when no release of the pinned major matches the architecture', () => {
     expect(() =>
-      installNode({RUNNER_BASE_NODE_VERSION: 'v22.20.0', RUNNER_BASE_NODE_SHASUMS: ''}),
+      installNode({
+        RUNNER_BASE_NODE_VERSION: 'v22.20.0',
+        RUNNER_BASE_NODE_SHASUMS: `${'c'.repeat(64)}  node-v24.18.0-linux-x64.tar.xz`,
+      }),
     ).toThrow('No Node 24 release found for linux-arm64');
   });
 });
