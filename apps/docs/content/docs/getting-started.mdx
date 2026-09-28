@@ -1,144 +1,66 @@
 ---
 title: "Quick Start: Your First Workflow with Your Coding Agent"
 sidebarTitle: "Quick Start"
-description: "Ask your coding agent to set up a workflow that turns a task into a tested pull request, test it on your repository, and turn it on."
+description: "Paste one prompt into your coding agent. It sets up a workflow that turns a task into a tested pull request."
 ---
 
-In this lesson, your coding agent sets up the Task to pull request workflow on
-your repository. You pick a small task. A test run of the workflow changes the
-code, runs your tests, and opens a pull request with the change. Then you turn
-the workflow on and give it the next task.
-
-You work with two pull requests:
-
-| Pull request | Opened by | Merging it |
-| --- | --- | --- |
-| **Task pull request** | The workflow's test run | Ships the code change. |
-| **Workflow pull request** | Your coding agent | Turns the workflow on. |
+Your coding agent sets up a workflow that turns a task into a tested pull
+request. You connect the agent, paste one prompt, and merge two pull requests.
 
 ## Before you begin
 
 - Complete onboarding in [Shipfox](https://app.shipfox.io), with a project for
-  a GitHub repository. This lesson needs no other integration connection.
-- Clone the project's repository and open it in a coding agent that reads MCP
-  resources on its own, such as Claude Code or Codex CLI.
-- Get permission to merge pull requests in the repository.
+  a GitHub repository.
+- Open that repository in Claude Code or Codex CLI.
 
 The test run uses runner time and model inference, like any other run.
 
-## Connect your coding agent
+## Set up your first workflow
 
-In Claude Code, run this command in the repository:
+<Steps>
+  <Step>
 
-```sh
-claude mcp add --transport http shipfox https://api.shipfox.io/mcp
-```
+    **Connect your coding agent**
 
-Open Claude Code and run `/mcp`. Select **shipfox** and complete the browser
-sign-in. In Shipfox, select **Allow access**.
+    In Claude Code, run this command in the repository:
 
-For another client, follow [Connect a Coding
-Agent](/how-to/set-up-work/connect-mcp-client).
+    ```sh
+    claude mcp add --transport http shipfox https://api.shipfox.io/mcp
+    ```
 
-Ask the agent to list your Shipfox projects. The list includes the project for
-this repository.
+    Run `/mcp`, select **shipfox**, and sign in. For Codex CLI, see [Connect a
+    Coding Agent](/how-to/set-up-work/connect-mcp-client).
+  </Step>
+  <Step>
 
-## Pick a workflow
+    **Paste the prompt**
 
-Paste this prompt into your coding agent:
+    ```text
+    Use Shipfox to create a workflow from the ticket-to-pr template, without the tracker part.
+    ```
 
-```text
-Use Shipfox to create a workflow from the ticket-to-pr template, without the tracker part.
-```
+    Answer the agent's questions. It finds your test commands, proposes a small
+    task from your repository, and starts a test run.
+  </Step>
+  <Step>
 
-Task to pull request turns a task into a tested pull request. It needs only
-GitHub, and you start it yourself, so your first run starts right away.
-[Examples](/examples) has a prompt for every other workflow.
+    **Merge the two pull requests**
 
-The agent describes the template and asks you to confirm that it starts
-without an issue tracker. Confirm.
+    The test run opens a **task pull request** with the change. Leave a review
+    comment and the agent pushes a fix. Merge it to ship the change.
 
-## Let the agent set up the workflow
+    Then the agent opens a **workflow pull request**. Merge it to turn the
+    workflow on.
+  </Step>
+</Steps>
 
-The agent asks one question at a time and waits for your answer. It works
-through these steps:
+## What you built
 
-1. It asks how the workflow behaves, such as whether it handles review
-   comments. The defaults suit a first run.
-2. It finds your install and test commands in CI configuration or files such as
-   `AGENTS.md`. It names the commands that the test run uses.
-3. It checks that your workspace has a model and a runner for the workflow.
-4. It proposes two or three small tasks from your repository, each with
-   acceptance criteria. Pick one, or describe your own.
-5. It checks the workflow and starts a test run.
-
-The workflow file stays on your machine. The test run uploads it to Shipfox
-without a commit.
-
-The agent says that the run opens a task pull request, then shares the run
-link.
-
-## Review the task pull request
-
-Open the run link. Notice these parts of the run page:
-
-- The **Dev** badge and the **local file** source show that this run used the
-  file from your machine.
-- The agent step shows the agent's messages, tool calls, and cost.
-- If a test fails, the workflow sends the log to the agent, which tries again.
-
-When the tests pass, the run opens a draft task pull request on your
-repository. The agent links it.
-
-Review the change against the acceptance criteria you picked. The run keeps
-listening while the pull request is open. Leave an inline review comment, and
-the agent replies or pushes a fix.
-
-Merge the task pull request when you are satisfied. Merging it ships the
-change. It does not turn the workflow on.
-
-## Turn the workflow on
-
-The agent asks whether to open the workflow pull request or change something
-first. Ask it to open the pull request.
-
-The workflow pull request adds one file under `.shipfox/workflows/`. Merge it.
-Shipfox syncs workflows from the default branch, so the workflow is now on.
-
-Open the project's **Workflows** page. It lists **Implement a task and open a
-pull request**.
-
-If the workflow is missing, see [Workflow sync](/how-to/run-and-troubleshoot/workflow-sync).
-
-## Start the next task
-
-The workflow starts only when someone sends it a task. The **Run** button in
-the dashboard sends no task, so give the next one to your coding agent:
+The workflow is on. Give it the next task through your coding agent:
 
 ```text
 Start the Implement a task and open a pull request workflow in Shipfox with this task: <the change and how to check it>.
 ```
-
-The agent starts the workflow with the task. This run has no **Dev** badge,
-because it uses the file from the default branch. It opens a new task pull
-request.
-
-To start it from Linear or Jira issues later, see [Task to pull
-request](/examples/ticket-to-pr).
-
-## Verify the result
-
-- The first task pull request contains the change you picked.
-- The default branch has the workflow file under `.shipfox/workflows/`.
-- The second run opened a task pull request for the next task.
-
-## What you built
-
-Your coding agent adapted a workflow to your repository and tested it with a
-real task. You reviewed the task pull request, merged the workflow pull
-request, and started the installed workflow with a new task.
-
-## Next steps
 
 <Cards>
   <Card title="Examples" href="/examples">
@@ -146,8 +68,5 @@ request, and started the installed workflow with a new task.
   </Card>
   <Card title="How Shipfox works" href="/understand">
     The mental model in one page: events, jobs, agents, and feedback loops.
-  </Card>
-  <Card title="Debug a failed run" href="/how-to/run-and-troubleshoot/debug-failed-run">
-    Ask your coding agent to find why a run failed and propose a fix.
   </Card>
 </Cards>
