@@ -1,7 +1,7 @@
 ---
 name: create-workflow-from-template
 description: Use when setting up a Shipfox workflow from a template.
-revision: 7
+revision: 8
 catalog_title: Create a workflow from a template
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to create a workflow from a template.
@@ -63,7 +63,7 @@ Check the guide's repository prerequisites, such as a dependency bot or CI provi
 
 Read and follow `skill://shipfox/validate-workflow-change/SKILL.md` with the assembled YAML, selected `project_id`, intended `config_path`, and trigger key. Complete its shape check before selecting an event. Manual and cron triggers need no replay event; skip to step 7.
 
-For an integration trigger, state what a real run will write before listing events: ticket, branch, PR, comment, or transition from the guide's **Expected writes**, plus runner time and inference. Keep only events of the selected project: match the source-control repository or named ticket team, project, or space. The event check does not verify this; a connection may cover several repositories or teams. Check payloads against workflow expressions and let the user choose.
+For an integration trigger, keep only events of the selected project: match the source-control repository or named ticket team, project, or space. The event check does not verify this; a connection may cover several repositories or teams. Check payloads against workflow expressions and pick the most recent matching event yourself.
 
 If no event matches, ask the user to trigger a safe one themselves. Name the exact action, such as "create a test ticket in team X and assign it to the Shipfox agent". Tell them they can say they cannot trigger the event or ask to skip the dev run. Stop and wait for their response.
 
@@ -73,13 +73,13 @@ Skip the dev run only if the user says they cannot trigger an event or asks to s
 
 ## 7. Test the workflow
 
-Read and follow `skill://shipfox/test-workflow-change/SKILL.md` with the validated YAML and chosen event. Repeat the expected writes from step 6 in one line before the real run.
+Read and follow `skill://shipfox/test-workflow-change/SKILL.md` with the validated YAML and chosen event. It decides whether the real run needs the user's confirmation; never ask otherwise. As you start the run, say in one line what it may write, from the guide's **Expected writes**.
 
-If repository setup fails, isolate it with a manual setup-check workflow: checkout, install, test. Before any repeat real run, after a failure or after edits, find what the previous run produced (branch, PR, comment) and decide explicitly with the user: reuse it (point the next run at the same branch or PR, or pick an event whose writes are idempotent), stop, or repeat the writes with their agreement. Never rerun a writing step without one of these. Stop and ask the user after five failed real runs.
+If repository setup fails, isolate it with a manual setup-check workflow: checkout, install, test. Before any repeat real run, after a failure or after edits, find what the previous run produced (branch, PR, comment). Reuse it where the workflow allows, such as pointing the next run at the same branch or PR. Close or delete a previous dev run's write that would block the next run. Stop and ask the user after five failed real runs.
 
 ## 8. Confirm the result with the user
 
-A run succeeds when it reaches `succeeded`, or, with listening jobs, when every one-shot job succeeded and each listening job reports `listener_status: listening`. Then tell the user what it did and give them its `run_url` to open the run in Shipfox. For listening jobs, explain that the run now waits for later events, such as review comments or CI results on the PR it opened, and offer to leave it open or stop it with `cancel_workflow_run`. If step 1 found no workflow definitions, congratulate them on their first Shipfox workflow run.
+A run succeeds when it reaches `succeeded`, or, with listening jobs, when every one-shot job succeeded and each listening job reports `listener_status: listening`. Then tell the user what it did, list every write the dev runs made with its link, and give them its `run_url` to open the run in Shipfox. For listening jobs, explain that the run now waits for later events, such as review comments or CI results on the PR it opened, and offer to leave it open or stop it with `cancel_workflow_run`. If step 1 found no workflow definitions, congratulate them on their first Shipfox workflow run.
 
 Ask whether to open a pull request now or make edits first. After edits, repeat steps 6 and 7.
 
