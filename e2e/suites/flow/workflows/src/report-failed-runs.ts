@@ -10,8 +10,6 @@ const selectedWorkflowPaths = /\[".shipfox\/workflows\/replace-with-workflow.yml
 const selections: Readonly<Record<string, string>> = {
   scope: 'workspace',
   workflow_filter: 'selected',
-  include_cancelled: 'off',
-  diagnosis: 'off',
 };
 
 export function failingWorkflowYaml(): string {
@@ -52,7 +50,11 @@ export function reportFailedRunsWorkflowYaml(params: {
     })
     .join('\n');
   if (!selectedWorkflowPaths.test(workflow)) throw new Error('The report has no workflow list');
+  // The suite configures no model provider, so the test covers the report and drops the diagnosis.
+  const diagnoseJob = workflow.indexOf('\n  diagnose:\n');
+  if (diagnoseJob === -1) throw new Error('The report has no diagnose job');
   return workflow
+    .slice(0, diagnoseJob + 1)
     .replace(selectedWorkflowPaths, JSON.stringify(params.workflowPaths))
     .replace('runner: shipfox', `runner: ${RUNNER_LABEL_PLACEHOLDER}`)
     .replaceAll('slack_notify', params.slackSlug)

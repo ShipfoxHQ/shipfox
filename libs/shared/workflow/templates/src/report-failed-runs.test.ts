@@ -16,8 +16,6 @@ const longLogExcerpt = /^….*Error: the last line$/su;
 const defaults = {
   scope: 'project',
   workflow_filter: 'all',
-  include_cancelled: 'off',
-  diagnosis: 'off',
 };
 const projectId = 'replace-with-project-id';
 
@@ -132,8 +130,6 @@ describe('failed run report', () => {
     {},
     {scope: 'workspace'},
     {workflow_filter: 'selected'},
-    {include_cancelled: 'on'},
-    {diagnosis: 'agent'},
   ])('parses the %o variant', (selections) => {
     expect(workflow(selections).triggers?.run_completed).toMatchObject({
       source: 'shipfox',
@@ -171,15 +167,12 @@ describe('failed run report', () => {
     expect(matches(completedEvent(), {workflow_filter: 'selected'})).toBe(false);
   });
 
-  it('adds cancelled runs except those replaced by a newer run', () => {
-    const cancelled = completedEvent({status: 'cancelled', status_reason: 'user_cancelled'});
-    const superseded = completedEvent({
-      status: 'cancelled',
-      status_reason: 'concurrency_superseded',
-    });
-
-    expect(matches(cancelled, {include_cancelled: 'on'})).toBe(true);
-    expect(matches(superseded, {include_cancelled: 'on'})).toBe(false);
+  it.each([
+    {},
+    {scope: 'workspace'},
+    {workflow_filter: 'selected'},
+  ])('diagnoses every reported failure in the %o variant', (selections) => {
+    expect(workflow(selections).jobs.diagnose).toMatchObject({needs: 'report'});
   });
 
   it('skips runs of the report workflow itself', () => {

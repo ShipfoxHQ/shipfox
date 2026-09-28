@@ -225,10 +225,16 @@ export const authoredTemplateMetadata: Record<string, AuthoredMetadata> = {
         icon: 'slack',
         title: 'You get a report on Slack',
         detail:
-          'The report suggests a next step. Optional: an agent adds a diagnosis in the thread.',
+          'The report names the failed step, shows the log excerpt, and suggests a next step.',
+      },
+      {
+        kind: 'agent',
+        title: 'The agent diagnoses the failure',
+        detail:
+          'It reads the failed logs and replies in the thread with the likely cause and a fix to try.',
       },
     ],
-    writes: [{icon: 'slack', action: 'Posts a message for each failed run'}],
+    writes: [{icon: 'slack', action: 'Posts a report and a diagnosis for each failed run'}],
     prerequisites: ['Connect Slack and invite the Shipfox app to the report channel.'],
     related: ['fix-default-branch-ci'],
   },
