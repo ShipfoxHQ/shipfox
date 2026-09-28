@@ -1,5 +1,14 @@
-import type {ToolCallResponseV1, ToolListResponseV1} from '@shipfox/actions/contract';
+import {createHash} from 'node:crypto';
+import {mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import type {
+  ToolCallResponseV1,
+  ToolDownloadResponseV1,
+  ToolListResponseV1,
+} from '@shipfox/actions/contract';
 import {
+  ACTION_TOOL_DOWNLOAD_TIMEOUT_MS,
   type ActionEndpoint,
   type ActionIntegrationGrant,
   type ActionToolRow,
@@ -85,22 +94,68 @@ function fakeUpstream() {
   return {upstream, calls};
 }
 
+interface PendingDownload {
+  request: {connectionSlug: string; tool: string; arguments: Record<string, unknown>};
+  options: {signal: AbortSignal; headers: Record<string, string>};
+  /** Pushes bytes to the action. */
+  send: (text: string) => void;
+  finish: () => void;
+}
+
+/** A gateway whose downloads stream only what the test sends. */
+function fakeDownloadUpstream(headers: Record<string, string> = {}) {
+  const downloads: PendingDownload[] = [];
+  const upstream: ActionToolsUpstream = {
+    callTool: () => Promise.reject(new Error('Not a call test.')),
+    downloadFile: (request, options) => {
+      let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+      const body = new ReadableStream<Uint8Array>({
+        start(streamController) {
+          controller = streamController;
+        },
+      });
+      options.signal.addEventListener('abort', () => controller?.error(options.signal.reason), {
+        once: true,
+      });
+      downloads.push({
+        request,
+        options,
+        send: (text) => controller?.enqueue(new TextEncoder().encode(text)),
+        finish: () => controller?.close(),
+      });
+      return Promise.resolve(
+        new Response(body, {headers: {'content-type': 'application/pdf', ...headers}}),
+      );
+    },
+  };
+  return {upstream, downloads};
+}
+
 describe('startActionEndpoint', () => {
   let endpoint: ActionEndpoint | undefined;
   let rows: ActionToolRow[];
+  let root: string;
+  let workspace: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     rows = [];
+    root = await realpath(await mkdtemp(join(tmpdir(), 'action-endpoint-')));
+    workspace = join(root, 'workspace');
+    await mkdir(workspace);
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     await endpoint?.close();
     endpoint = undefined;
+    await rm(root, {recursive: true, force: true});
   });
 
   async function start(params: Partial<StartActionEndpointParams> = {}): Promise<ActionEndpoint> {
     endpoint = await startActionEndpoint({
       integrations: INTEGRATIONS,
+      cwd: workspace,
+      workspace,
       onToolRow: (row) => rows.push(row),
       now: () => 1000,
       ...params,
@@ -126,6 +181,19 @@ describe('startActionEndpoint', () => {
 
   async function callJson(target: ActionEndpoint, body: unknown): Promise<ToolCallResponseV1> {
     return (await (await call(target, body)).json()) as ToolCallResponseV1;
+  }
+
+  function download(
+    target: ActionEndpoint,
+    body: Record<string, unknown>,
+    init: {signal?: AbortSignal} = {},
+  ): Promise<ToolDownloadResponseV1> {
+    return fetch(`${target.url}/v1/tools/download`, {
+      method: 'POST',
+      headers: {authorization: `Bearer ${target.token}`, 'content-type': 'application/json'},
+      body: JSON.stringify({alias: 'linear', tool: 'download_file', arguments: {}, ...body}),
+      ...(init.signal ? {signal: init.signal} : {}),
+    }).then((response) => response.json() as Promise<ToolDownloadResponseV1>);
   }
 
   describe('access', () => {
@@ -158,7 +226,11 @@ describe('startActionEndpoint', () => {
     });
 
     it('rejects the token after teardown', async () => {
-      const first = await startActionEndpoint({integrations: INTEGRATIONS});
+      const first = await startActionEndpoint({
+        integrations: INTEGRATIONS,
+        cwd: workspace,
+        workspace,
+      });
       const oldToken = first.token;
       await first.close();
       const next = await start();
@@ -414,6 +486,273 @@ describe('startActionEndpoint', () => {
       for (const pending of calls.slice(1)) pending.resolve({content: []});
 
       expect((await Promise.all(responses)).every((response) => response.ok)).toBe(true);
+    });
+  });
+
+  describe('downloads', () => {
+    it('streams the file into the workspace and returns its metadata', async () => {
+      const {upstream, downloads} = fakeDownloadUpstream({
+        'x-shipfox-filename': "UTF-8''Q3%20report.pdf",
+      });
+      const target = await start({upstream});
+
+      const pending = download(target, {
+        arguments: {url: 'https://uploads/x'},
+        destination: 'files/',
+      });
+      await vi.waitFor(() => expect(downloads).toHaveLength(1));
+      downloads[0]?.send('%PDF-');
+      downloads[0]?.send('1.7');
+      downloads[0]?.finish();
+      const response = await pending;
+
+      expect(response).toEqual({
+        ok: true,
+        call_id: expect.stringMatching(UUID_REGEX),
+        file: {
+          path: join('files', 'Q3 report.pdf'),
+          bytes: 8,
+          sha256: createHash('sha256').update('%PDF-1.7').digest('hex'),
+          media_type: 'application/pdf',
+          filename: 'Q3 report.pdf',
+        },
+      });
+      expect(await readFile(join(workspace, 'files', 'Q3 report.pdf'), 'utf8')).toBe('%PDF-1.7');
+      expect(downloads[0]?.request).toEqual({
+        connectionSlug: 'acme-linear',
+        tool: 'download_file',
+        arguments: {url: 'https://uploads/x'},
+      });
+      expect(downloads[0]?.options.headers).toEqual({
+        'x-shipfox-call-id': response.call_id,
+        'x-shipfox-deadline': String(ACTION_TOOL_DOWNLOAD_TIMEOUT_MS),
+      });
+    });
+
+    it('writes rows with the file metadata only', async () => {
+      const {upstream, downloads} = fakeDownloadUpstream();
+      const target = await start({upstream});
+
+      const pending = download(target, {destination: 'out.bin'});
+      await vi.waitFor(() => expect(downloads).toHaveLength(1));
+      downloads[0]?.send('secret file bytes');
+      downloads[0]?.finish();
+      const response = await pending;
+
+      expect(rows).toHaveLength(2);
+      expect(rows[1]).toMatchObject({
+        kind: 'tool-result',
+        toolCallId: response.call_id,
+        toolName: 'linear__download_file',
+        isError: false,
+      });
+      const output = rows[1]?.kind === 'tool-result' ? rows[1].output : '';
+      expect(JSON.parse(output)).toMatchObject({path: 'out.bin', bytes: 17});
+      expect(output).not.toContain('secret file bytes');
+    });
+
+    it('completes a slow three minute transfer', async () => {
+      vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']});
+      const {upstream, downloads} = fakeDownloadUpstream();
+      const target = await start({upstream});
+
+      const pending = download(target, {destination: 'slow.txt'});
+      await vi.waitFor(() => expect(downloads).toHaveLength(1));
+      for (let minute = 0; minute < 6; minute += 1) {
+        downloads[0]?.send('chunk ');
+        await vi.advanceTimersByTimeAsync(30_000);
+      }
+      downloads[0]?.finish();
+      const response = await pending;
+
+      expect(response).toMatchObject({ok: true, file: {path: 'slow.txt', bytes: 36}});
+      expect(downloads[0]?.options.signal.aborted).toBe(false);
+    });
+
+    it('times out a transfer past its deadline and leaves no partial file', async () => {
+      const {upstream, downloads} = fakeDownloadUpstream();
+      const target = await start({upstream, downloadTimeoutMs: 50});
+
+      const pending = download(target, {destination: 'late.txt'});
+      await vi.waitFor(() => expect(downloads).toHaveLength(1));
+      downloads[0]?.send('some');
+      const response = await pending;
+
+      expect(response).toMatchObject({ok: false, error: {code: 'timeout'}});
+      expect(await readdir(workspace)).toEqual([]);
+    });
+
+    it('leaves no partial file when the step is cancelled mid-transfer', async () => {
+      const {upstream, downloads} = fakeDownloadUpstream();
+      const step = new AbortController();
+      const target = await start({upstream, signal: step.signal});
+
+      const pending = download(target, {destination: 'files/'});
+      await vi.waitFor(() => expect(downloads).toHaveLength(1));
+      downloads[0]?.send('first bytes');
+      await vi.waitFor(async () => expect(await readdir(join(workspace, 'files'))).toHaveLength(1));
+      step.abort();
+      const response = await pending;
+
+      expect(downloads[0]?.options.signal.aborted).toBe(true);
+      expect(response).toMatchObject({ok: false, error: {code: 'cancelled'}});
+      expect(await readdir(join(workspace, 'files'))).toEqual([]);
+    });
+
+    it('leaves no partial file when the action disconnects', async () => {
+      const {upstream, downloads} = fakeDownloadUpstream();
+      const target = await start({upstream});
+      const client = new AbortController();
+
+      const pending = download(target, {destination: 'files/'}, {signal: client.signal});
+      await vi.waitFor(() => expect(downloads).toHaveLength(1));
+      downloads[0]?.send('first bytes');
+      client.abort();
+
+      await expect(pending).rejects.toThrow();
+      await vi.waitFor(() =>
+        expect(rows.at(-1)).toMatchObject({kind: 'tool-result', isError: true}),
+      );
+      expect(downloads[0]?.options.signal.aborted).toBe(true);
+      expect(await readdir(join(workspace, 'files'))).toEqual([]);
+    });
+
+    it('refuses a destination outside the workspace before reaching the gateway', async () => {
+      const {upstream, downloads} = fakeDownloadUpstream();
+      const target = await start({upstream});
+
+      const response = await download(target, {destination: '../escape.txt'});
+
+      expect(response).toMatchObject({
+        ok: false,
+        call_id: null,
+        error: {code: 'destination-not-allowed'},
+      });
+      expect(downloads).toHaveLength(0);
+      expect(rows).toEqual([]);
+    });
+
+    it('refuses a symlink that leads out of the workspace', async () => {
+      const outside = join(root, 'outside');
+      await mkdir(outside);
+      await symlink(outside, join(workspace, 'link'));
+      const {upstream, downloads} = fakeDownloadUpstream();
+      const target = await start({upstream});
+
+      const response = await download(target, {destination: 'link/'});
+
+      expect(response).toMatchObject({ok: false, error: {code: 'destination-not-allowed'}});
+      expect(downloads).toHaveLength(0);
+    });
+
+    it('names colliding files with a numbered suffix', async () => {
+      const {upstream, downloads} = fakeDownloadUpstream({
+        'x-shipfox-filename': "UTF-8''report.pdf",
+      });
+      const target = await start({upstream});
+
+      const names: string[] = [];
+      for (let index = 0; index < 3; index += 1) {
+        const pending = download(target, {destination: 'files/'});
+        await vi.waitFor(() => expect(downloads).toHaveLength(index + 1));
+        downloads[index]?.send(`copy ${index}`);
+        downloads[index]?.finish();
+        const response = await pending;
+        names.push(response.ok ? response.file.filename : response.error.code);
+      }
+
+      expect(names).toEqual(['report.pdf', 'report (2).pdf', 'report (3).pdf']);
+      expect(await readFile(join(workspace, 'files', 'report (2).pdf'), 'utf8')).toBe('copy 1');
+    });
+
+    it('sanitizes the provider filename and falls back to the call id', async () => {
+      const {upstream, downloads} = fakeDownloadUpstream({
+        'x-shipfox-filename': "UTF-8''..%2F..%2F.hidden",
+      });
+      const plain = fakeDownloadUpstream();
+      const target = await start({upstream});
+
+      const pending = download(target, {destination: './'});
+      await vi.waitFor(() => expect(downloads).toHaveLength(1));
+      downloads[0]?.finish();
+      const sanitized = await pending;
+      await endpoint?.close();
+      const next = await start({upstream: plain.upstream});
+      const fallbackPending = download(next, {destination: './'});
+      await vi.waitFor(() => expect(plain.downloads).toHaveLength(1));
+      plain.downloads[0]?.finish();
+      const fallback = await fallbackPending;
+
+      expect(sanitized).toMatchObject({ok: true, file: {filename: 'hidden'}});
+      expect(fallback).toMatchObject({
+        ok: true,
+        file: {filename: `download-${fallback.call_id}`},
+      });
+    });
+
+    it('refuses a file larger than the limit before writing it', async () => {
+      const {upstream, downloads} = fakeDownloadUpstream({
+        'x-shipfox-size': String(200 * 1024 * 1024),
+      });
+      const target = await start({upstream});
+
+      const pending = download(target, {destination: 'big.bin'});
+      await vi.waitFor(() => expect(downloads).toHaveLength(1));
+      const response = await pending;
+
+      expect(response).toMatchObject({ok: false, error: {code: 'file-too-large'}});
+      expect(downloads[0]?.options.signal.aborted).toBe(true);
+      expect(await readdir(workspace)).toEqual([]);
+    });
+
+    it('turns a gateway refusal into a failure', async () => {
+      const upstream: ActionToolsUpstream = {
+        callTool: () => Promise.reject(new Error('Not a call test.')),
+        downloadFile: () =>
+          Promise.resolve(
+            Response.json(
+              {code: 'rate-limited', details: {message: 'Slow down', retryAfterSeconds: 3}},
+              {status: 429},
+            ),
+          ),
+      };
+      const target = await start({upstream});
+
+      const response = await download(target, {destination: 'file.bin'});
+
+      expect(response).toMatchObject({
+        ok: false,
+        call_id: expect.stringMatching(UUID_REGEX),
+        error: {
+          code: 'rate-limited',
+          message: 'Slow down',
+          retry_after_seconds: 3,
+          outcome_unknown: false,
+        },
+      });
+      expect(await readdir(workspace)).toEqual([]);
+    });
+
+    it.each([
+      ['a JSON tool', {alias: 'slack', tool: 'read_thread'}, 'tool-result-kind-mismatch'],
+      ['an ungranted tool', {alias: 'linear', tool: 'export_all'}, 'tool-not-granted'],
+    ])('refuses %s before reaching the gateway', async (_label, body, code) => {
+      const {upstream, downloads} = fakeDownloadUpstream();
+      const target = await start({upstream});
+
+      const response = await download(target, {...body, destination: 'x'});
+
+      expect(response).toMatchObject({ok: false, call_id: null, error: {code}});
+      expect(downloads).toHaveLength(0);
+    });
+
+    it('refuses a request without a destination', async () => {
+      const {upstream} = fakeDownloadUpstream();
+      const target = await start({upstream});
+
+      const response = await download(target, {destination: undefined});
+
+      expect(response).toMatchObject({ok: false, error: {code: 'invalid-request'}});
     });
   });
 

@@ -166,6 +166,8 @@ export async function executeActionStep(
   const stepTemp = await mkdtemp(join(options.jobTempDir, 'steps', 'step-'));
   const endpoint = await startActionEndpoint({
     integrations: integrationGrants(config.integrations),
+    cwd: options.cwd,
+    workspace: options.workspace,
     upstream: options.toolsUpstream,
     signal: options.signal,
     onToolRow: options.onToolRow,
