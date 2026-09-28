@@ -54,7 +54,7 @@ describe('prepareRegistry', () => {
       publish_url: 'https://registry.example.com',
       keys: [signingKey.publicKey],
     });
-    expect(Buffer.from(signingKey.publicKey.public_key, 'base64')).toHaveLength(32);
+    expect(Buffer.from(signingKey.publicKey.public_key, 'base64')).toHaveLength(44);
     const profile = registryNamespaceProfileSchema.parse(
       await readJson(registry.storage, registryNamespacePath('shipfox')),
     );

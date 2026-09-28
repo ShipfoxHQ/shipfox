@@ -23,6 +23,26 @@ release tool, Shipfox instances, and the docs build.
   digests, manifest, changelog, dependencies, actions, and builder recipe.
   `published_at`, `provenance`, and the builder's tool version are excluded,
   so a retried publish of the same content keeps its fingerprint.
+- **`computeActionBump({previous, next})`** returns the minimum bump between
+  two parsed action manifests:
+
+  | Change | Bump |
+  | -- | -- |
+  | Input removed, type changed, or newly required without a default | major |
+  | Output removed or type changed | major |
+  | Integration alias added or removed, or its provider changed | major |
+  | `allow_write` turned on | major |
+  | Optional input, output, or selectors added | minor |
+  | Anything else, including selectors removed and `allow_write` turned off | patch |
+
+- **`diffActionCapabilities({previous, next})`** lists what changed in the
+  integration aliases: `alias_added`, `alias_removed`, `provider_changed`,
+  `write_enabled`, `write_disabled`, `selectors_added`, and
+  `selectors_removed`. A provider change reports only `provider_changed`.
+- **`deriveActionMetadata({reference, manifest, contentBytes})`** returns the
+  `derived` field of an action version document: integration providers,
+  capabilities per alias, the input and output interface, a YAML usage
+  snippet, and the bundle size. `registryActionMetadataSchema` validates it.
 - **`canonicalJson(value)`** writes JSON with object keys sorted at every depth.
 - **Signed envelopes** wrap version documents in a
   [DSSE](https://github.com/secure-systems-lab/dsse) envelope with Ed25519

@@ -93,7 +93,8 @@ Unknown fields are errors, so a typo refuses startup.
   catalog and indexes with `If-Match` and a bounded retry. Concurrent writers
   therefore do not lose entries.
 - `.well-known/shipfox-registry.json` lists the signing key's public key as
-  base64 of its 32 raw bytes. It is informational: instances trust only their
+  base64 DER SubjectPublicKeyInfo, the format instances use in their trusted
+  key configuration. It is informational: instances trust only their
   configured keys.
 - A namespace removed from the bootstrap file keeps its profile file. Its
   catalog entries lose `verified` and fall back to the namespace as display

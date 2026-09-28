@@ -9176,6 +9176,9 @@ importers:
 
   libs/shared/registry/format:
     dependencies:
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../../workflow/document
       zod:
         specifier: 'catalog:'
         version: 4.4.3

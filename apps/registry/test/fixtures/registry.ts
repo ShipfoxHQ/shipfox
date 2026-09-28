@@ -65,7 +65,15 @@ export function actionVersionDocument(
       description: 'Turns a Slack thread into Markdown.',
       keywords: ['slack'],
     },
-    derived: {integrations: ['slack'], capabilities: {slack: {provider: 'slack'}}},
+    derived: {
+      integrations: ['slack'],
+      capabilities: {
+        slack: {provider: 'slack', selectors: ['conversations.replies'], allow_write: false},
+      },
+      interface: {inputs: {}, outputs: {}},
+      usage: 'uses: shipfox/slack-thread-digest@1.0.0\nconnections:\n  slack: <slack connection>\n',
+      size: 100,
+    },
     dependencies: [],
     actions: [],
     builder: {tool: '@shipfox/registry-release', version: '0.1.0', recipe: 1},

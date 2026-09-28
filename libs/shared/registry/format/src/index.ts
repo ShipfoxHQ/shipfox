@@ -1,4 +1,14 @@
 export {
+  type ActionCapabilityChange,
+  type ActionManifestChange,
+  computeActionBump,
+  type DeriveActionMetadataParams,
+  deriveActionMetadata,
+  diffActionCapabilities,
+  type RegistryActionMetadata,
+  registryActionMetadataSchema,
+} from '#actions.js';
+export {
   REGISTRY_BUMPS,
   REGISTRY_DIGEST_PATTERN,
   REGISTRY_PACKAGE_KINDS,
