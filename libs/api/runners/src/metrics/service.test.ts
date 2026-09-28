@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => {
     runningJobExecutions: {},
     stopHandoffCount: {},
     stopHandoffOldestAge: {},
+    unheldInstallationRunners: {},
   };
   const gaugeByName = {
     runners_enrolled_without_recent_report: gauges.enrolledRunnersWithoutRecentReport,
@@ -22,10 +23,12 @@ const mocks = vi.hoisted(() => {
     runners_running_job_executions: gauges.runningJobExecutions,
     runners_job_stop_handoff_count: gauges.stopHandoffCount,
     runners_job_stop_handoff_oldest_age: gauges.stopHandoffOldestAge,
+    runners_unheld_installation_runners: gauges.unheldInstallationRunners,
   };
   return {
     addBatchObservableCallback: vi.fn(),
     countStaleEnrolledRunnerInstances: vi.fn(),
+    countUnheldInstallationRunners: vi.fn(),
     createObservableGauge: vi.fn((name: string) => gaugeByName[name as keyof typeof gaugeByName]),
     gauges,
     getMeter: vi.fn(),
@@ -43,6 +46,9 @@ vi.mock('@shipfox/node-opentelemetry', () => ({
 }));
 vi.mock('#config.js', () => ({
   config: {RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS: 300},
+}));
+vi.mock('#db/capacity-holds.js', () => ({
+  countUnheldInstallationRunners: mocks.countUnheldInstallationRunners,
 }));
 vi.mock('#db/job-executions.js', () => ({
   getJobExecutionCleanupStats: mocks.getJobExecutionCleanupStats,
@@ -70,6 +76,7 @@ describe('registerRunnersServiceMetrics', () => {
   beforeEach(() => {
     mocks.addBatchObservableCallback.mockReset();
     mocks.countStaleEnrolledRunnerInstances.mockReset();
+    mocks.countUnheldInstallationRunners.mockReset();
     mocks.createObservableGauge.mockClear();
     mocks.getJobExecutionQueueDepth.mockReset();
     mocks.getJobExecutionCleanupStats.mockReset();
@@ -87,6 +94,7 @@ describe('registerRunnersServiceMetrics', () => {
       stopHandoffOldestAgeMilliseconds: 0,
     });
     mocks.countLiveReservationLeakUnits.mockResolvedValue(0);
+    mocks.countUnheldInstallationRunners.mockResolvedValue(0);
     mocks.listProviderRunnerByPhaseMetrics.mockResolvedValue([]);
     mocks.listProviderRunnerByStateMetrics.mockResolvedValue([]);
     mocks.getMeter.mockReturnValue({
@@ -136,6 +144,19 @@ describe('registerRunnersServiceMetrics', () => {
     expect(observer.observe).toHaveBeenCalledWith(mocks.gauges.reservationLeakUnits, 3);
   });
 
+  it('observes live installation runners without a capacity hold', async () => {
+    mocks.countUnheldInstallationRunners.mockResolvedValue(4);
+
+    registerRunnersServiceMetrics();
+    const callback = mocks.addBatchObservableCallback.mock.calls[0]?.[0];
+    if (typeof callback !== 'function') throw new Error('Expected metrics callback');
+    const observer = {observe: vi.fn()};
+
+    await callback(observer);
+
+    expect(observer.observe).toHaveBeenCalledWith(mocks.gauges.unheldInstallationRunners, 4);
+  });
+
   it('keeps queue gauges observable when the enrolled-runner query fails', async () => {
     mocks.getJobExecutionQueueDepth.mockResolvedValue({
       pendingJobExecutions: 3,
@@ -156,7 +177,7 @@ describe('registerRunnersServiceMetrics', () => {
 
     expect(observer.observe).toHaveBeenCalledWith(mocks.gauges.pendingJobExecutions, 3);
     expect(observer.observe).toHaveBeenCalledWith(mocks.gauges.runningJobExecutions, 4);
-    expect(observer.observe).toHaveBeenCalledTimes(5);
+    expect(observer.observe).toHaveBeenCalledTimes(6);
   });
 
   it('observes provider runners by lifecycle state and oldest age', async () => {

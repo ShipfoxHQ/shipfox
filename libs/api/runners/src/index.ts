@@ -70,7 +70,8 @@ export function createRunnersModule({
       {
         taskQueue: RUNNERS_MAINTENANCE_TASK_QUEUE,
         workflowsPath,
-        activities: createRunnersMaintenanceActivities,
+        activities: () =>
+          createRunnersMaintenanceActivities(options.installationProvisioning?.policy.placement),
         workflows: [
           {name: 'stuckJobDetector', id: 'stuck-job-detector', cronSchedule: '* * * * *'},
         ],

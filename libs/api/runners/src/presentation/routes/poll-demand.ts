@@ -102,6 +102,9 @@ export function createPollDemandRoute(options: CreateRunnersModuleOptions = {}) 
           templates,
           capabilityWindowSeconds: config.PROVISIONER_ACTIVE_WINDOW_SECONDS,
           eligibleWorkspaceIds,
+          ...(options.installationProvisioning.policy.placement
+            ? {placement: options.installationProvisioning.policy.placement}
+            : {}),
           signal: abortController.signal,
           onReservations: (reservations) => {
             responseReservations.push(...reservations);

@@ -11,6 +11,7 @@ import {
   RunnerInstanceNotAssignableError,
 } from '#core/errors.js';
 import {sanitizeRunnerLabels} from '#core/runner-labels.js';
+import {bindCapacityHoldToRunnerTx} from '#db/capacity-holds.js';
 import {db, type schema, type Tx} from '#db/db.js';
 import {lockRunnerEnrollmentTx} from '#db/enrollment-locks.js';
 import {lockRunnerReservationAdvisoryKeysTx} from '#db/reservation-locks.js';
@@ -111,6 +112,19 @@ export async function createRunnerInstancesWithBootstrapTokens(params: {
         })),
       )
       .returning({id: providerRunners.id});
+    await Promise.all(
+      instances.flatMap((instance, index) => {
+        const runner = runnerInstances[index];
+        return runner?.reservationId
+          ? [
+              bindCapacityHoldToRunnerTx(tx, {
+                reservationId: runner.reservationId,
+                runnerInstanceId: instance.id,
+              }),
+            ]
+          : [];
+      }),
+    );
     const results = instances.map((instance, index) => {
       const runner = runnerInstances[index];
       if (!runner) throw new Error('Runner instance insert returned an unexpected row count');

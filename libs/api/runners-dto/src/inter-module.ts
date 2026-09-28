@@ -48,6 +48,18 @@ export const runnersInterModuleContract = defineInterModuleContract({
         z.object({kind: z.literal('absent')}),
       ]),
     },
+    getWorkspaceCapacityUsage: {
+      input: z.object({workspaceIds: z.array(idSchema).min(1).max(100)}),
+      output: z.object({
+        usage: z.array(
+          z.object({
+            workspaceId: idSchema,
+            unitsInUse: z.number().int().nonnegative(),
+            queuedForCapacity: z.number().int().nonnegative(),
+          }),
+        ),
+      }),
+    },
   },
 });
 

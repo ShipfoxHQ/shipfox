@@ -27,6 +27,7 @@ export {
   providerRunnerStaleIdleSessionRecoveredCount,
   providerRunnerTerminateIntentHonoredCount,
   providerRunnerTerminateIntentIssuedCount,
+  recordCapacityHoldReleaseLag,
   recordJobExecutionQueueTime,
   recordProviderRunnerActivationOutcome,
   recordProviderRunnerActivationToFirstClaim,

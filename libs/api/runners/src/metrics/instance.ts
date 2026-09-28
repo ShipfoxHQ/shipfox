@@ -282,6 +282,37 @@ export const runnerTerminationAuthorizationRejectedCount = meter.createCounter<{
   description: 'Runner termination authorization requests rejected by bounded reason',
 });
 
+export const capacityHoldsSweptCount = meter.createCounter<Record<string, never>>(
+  'runners_capacity_holds_swept_total',
+  {description: 'Capacity holds released for terminal runner instances by maintenance'},
+);
+
+export const capacityHoldsReconciledCount = meter.createCounter<Record<string, never>>(
+  'runners_capacity_holds_reconciled_total',
+  {description: 'Capacity holds created for installation runners missing a hold'},
+);
+
+export const capacityHoldReleaseLag = meter.createHistogram<Record<string, never>>(
+  'runners_capacity_hold_release_lag_seconds',
+  {
+    description: 'Delay between capacity hold creation and release',
+    unit: 's',
+    advice: {explicitBucketBoundaries: [1, 5, 10, 30, 60, 120, 300, 900, 3600]},
+  },
+);
+
+export function recordCapacityHoldSweep(count: number): void {
+  if (count > 0) recordMetric(() => capacityHoldsSweptCount.add(count));
+}
+
+export function recordCapacityHoldReconciliation(count: number): void {
+  if (count > 0) recordMetric(() => capacityHoldsReconciledCount.add(count));
+}
+
+export function recordCapacityHoldReleaseLag(seconds: number): void {
+  if (seconds >= 0) recordMetric(() => capacityHoldReleaseLag.record(seconds));
+}
+
 export const providerRunnerActivationOutcomeCount = meter.createCounter<{
   outcome: 'reaped' | 'rebound';
 }>('runners_provider_runner_activation_outcome', {

@@ -1,5 +1,6 @@
 import {getServiceMetricsProvider, type ObservableGauge} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
+import {countUnheldInstallationRunners} from '#db/capacity-holds.js';
 import {getJobExecutionCleanupStats, getJobExecutionQueueDepth} from '#db/job-executions.js';
 import {countLiveReservationLeakUnits} from '#db/reservations.js';
 import {
@@ -23,6 +24,10 @@ type ProviderRunnerStateLabels = {
 export function registerRunnersServiceMetrics(): void {
   const meter = getServiceMetricsProvider().getMeter('runners');
 
+  const unheldInstallationRunners = meter.createObservableGauge(
+    'runners_unheld_installation_runners',
+    {description: 'Live installation runners without an unreleased capacity hold'},
+  );
   const pendingJobExecutions = meter.createObservableGauge('runners_pending_job_executions', {
     description: 'Job executions currently waiting in the queue to be claimed',
   });
@@ -79,6 +84,7 @@ export function registerRunnersServiceMetrics(): void {
       const [
         depthResult,
         cleanupStatsResult,
+        unheldInstallationRunnersResult,
         staleEnrolledRunnerCountResult,
         providerRunnersByPhaseResult,
         reservationLeakUnitsResult,
@@ -86,6 +92,7 @@ export function registerRunnersServiceMetrics(): void {
       ] = await Promise.allSettled([
         getJobExecutionQueueDepth(),
         getJobExecutionCleanupStats(),
+        countUnheldInstallationRunners(),
         countStaleEnrolledRunnerInstances({
           graceSeconds: config.RUNNER_STALE_PROVISIONED_RUNNER_THRESHOLD_SECONDS,
         }),
@@ -94,6 +101,8 @@ export function registerRunnersServiceMetrics(): void {
         listProviderRunnerByStateMetrics(),
       ]);
 
+      if (unheldInstallationRunnersResult.status === 'fulfilled')
+        observer.observe(unheldInstallationRunners, unheldInstallationRunnersResult.value);
       if (depthResult.status === 'fulfilled') {
         observer.observe(pendingJobExecutions, depthResult.value.pendingJobExecutions);
         observer.observe(runningJobExecutions, depthResult.value.runningJobExecutions);
@@ -134,6 +143,7 @@ export function registerRunnersServiceMetrics(): void {
       );
     },
     [
+      unheldInstallationRunners,
       pendingJobExecutions,
       runningJobExecutions,
       stopHandoffCount,

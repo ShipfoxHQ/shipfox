@@ -75,4 +75,11 @@ export const runnersTestClient: RunnersInterModuleClient = {
     counts: workspaceIds.map((workspaceId) => ({workspaceId, queued: 0, running: 0})),
   }),
   expirePendingJobExecution: async () => ({kind: 'absent'}),
+  getWorkspaceCapacityUsage: async ({workspaceIds}) => ({
+    usage: workspaceIds.map((workspaceId) => ({
+      workspaceId,
+      unitsInUse: 0,
+      queuedForCapacity: 0,
+    })),
+  }),
 };

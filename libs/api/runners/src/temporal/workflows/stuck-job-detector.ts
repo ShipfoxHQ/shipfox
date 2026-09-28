@@ -11,6 +11,7 @@ const {
   detectAndExpireStuckJobsActivity,
   reapStaleRunnerInstancesActivity,
   recoverStaleIdleRunnerSessionsActivity,
+  reconcileCapacityHoldsActivity,
 } = proxyActivities<ReturnType<typeof createRunnersMaintenanceActivities>>({
   startToCloseTimeout: '60s',
 });
@@ -63,6 +64,8 @@ export async function stuckJobDetector(): Promise<void> {
 
   await recoverStaleIdleRunnerSessionsIfPatched();
 
+  if (patched('capacity-hold-reconciliation')) await logCapacityHoldReconciliation();
+
   const {reaped, reservationsReleased} = await reapStaleRunnerInstancesActivity();
   if (reaped > 0) {
     log.info('Stuck-job detector reaped stale provisioned runners', {
@@ -85,6 +88,13 @@ async function deleteExpiredJobExecutionTombstonesIfPatched(): Promise<void> {
       error: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+async function logCapacityHoldReconciliation(): Promise<void> {
+  if (typeof reconcileCapacityHoldsActivity !== 'function') return;
+  const {reconciled, swept} = await reconcileCapacityHoldsActivity();
+  if (reconciled > 0 || swept > 0)
+    log.info('Stuck-job detector reconciled capacity holds', {reconciled, swept});
 }
 
 async function recoverStaleIdleRunnerSessionsIfPatched(): Promise<void> {

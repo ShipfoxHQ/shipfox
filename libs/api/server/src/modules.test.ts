@@ -291,6 +291,7 @@ describe('defaultModules', () => {
           handlers: {
             getEffectiveRunnerToolCapabilities: vi.fn(),
             getWorkspaceJobCounts: vi.fn(),
+            getWorkspaceCapacityUsage: vi.fn(),
             getLeaseState: vi.fn(),
             expirePendingJobExecution: vi.fn(),
           },
