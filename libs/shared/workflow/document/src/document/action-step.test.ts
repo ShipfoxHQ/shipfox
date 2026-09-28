@@ -1,6 +1,10 @@
 import type {z} from 'zod';
 import {workflowDocumentActionPathIssue, workflowDocumentStepSchema} from './workflow-document.js';
-import {InvalidWorkflowDocumentError, parseWorkflowDocument} from './workflow-document-parser.js';
+import {
+  InvalidWorkflowDocumentError,
+  type ParseWorkflowDocumentOptions,
+  parseWorkflowDocument,
+} from './workflow-document-parser.js';
 import {buildWorkflowJsonSchema} from './workflow-json-schema.js';
 
 const secret = (name: string) => `${'$'}{{ secrets.${name} }}`;
@@ -14,7 +18,7 @@ function stepIssues(step: Record<string, unknown>): z.core.$ZodIssue[] {
   return result.success ? [] : result.error.issues;
 }
 
-function parseIssues(input: unknown, options?: {actions?: boolean}) {
+function parseIssues(input: unknown, options?: ParseWorkflowDocumentOptions) {
   try {
     parseWorkflowDocument(input, options);
     return [];
@@ -173,14 +177,19 @@ describe('workflowDocumentActionPathIssue', () => {
     expect(workflowDocumentActionPathIssue(path)).toContain(fragment);
   });
 
-  it('reports the path issue on the uses field', () => {
+  it('rejects a registry reference, since it is not a repository path', () => {
+    expect(workflowDocumentActionPathIssue('shipfox/slack-thread-digest@1.4.2')).toBe(
+      'Remote actions are not supported yet. Use a repository path that starts with `./`.',
+    );
+  });
+
+  it('reports the reference issue on the uses field', () => {
     const issues = stepIssues({uses: 'owner/repo@v1'});
 
     expect(issues).toEqual([
       expect.objectContaining({
         path: ['uses'],
-        message:
-          'Remote actions are not supported yet. Use a repository path that starts with `./`.',
+        message: 'Pin an exact version, such as `owner/repo@1.4.2`.',
       }),
     ]);
   });
@@ -230,6 +239,65 @@ describe('parseWorkflowDocument actions option', () => {
     const plain = documentWithStep({run: 'echo hi'});
 
     expect(parseWorkflowDocument(plain, {actions: true})).toEqual(parseWorkflowDocument(plain));
+  });
+});
+
+describe('parseWorkflowDocument registryActions option', () => {
+  const registryStep = {uses: 'shipfox/slack-thread-digest@1.4.2', connections: {slack: 'team'}};
+  const remoteMessage =
+    'Remote actions are not supported yet. Use a repository path that starts with `./`.';
+
+  it('accepts a registry reference when enabled', () => {
+    const result = parseWorkflowDocument(documentWithStep(registryStep), {
+      actions: true,
+      registryActions: true,
+    });
+
+    expect(result.jobs.build?.steps[0]).toEqual(registryStep);
+  });
+
+  it.each([
+    'shipfox/slack-thread-digest@1.4.2',
+    'shipfox/x@1',
+    'registry.acme.dev/acme/x@1.0.0',
+    'owner/repo/path@ref',
+  ])('rejects %s with the remote-action message by default', (uses) => {
+    const issues = parseIssues(documentWithStep({uses}), {actions: true});
+
+    expect(issues).toEqual([{path: 'jobs.build.steps.0.uses', message: remoteMessage}]);
+  });
+
+  it('keeps the repository path messages by default', () => {
+    const issues = parseIssues(documentWithStep({uses: '../actions/deploy'}), {actions: true});
+
+    expect(issues).toEqual([
+      {
+        path: 'jobs.build.steps.0.uses',
+        message: 'Action paths must stay inside the repository and start with `./`.',
+      },
+    ]);
+  });
+
+  it('reports the registry grammar when enabled', () => {
+    const issues = parseIssues(documentWithStep({uses: 'shipfox/x@latest'}), {
+      actions: true,
+      registryActions: true,
+    });
+
+    expect(issues).toEqual([
+      {
+        path: 'jobs.build.steps.0.uses',
+        message: 'Pin an exact version, such as `shipfox/x@1.4.2`.',
+      },
+    ]);
+  });
+
+  it('reports only the unsupported actions feature without actions', () => {
+    const issues = parseIssues(documentWithStep(registryStep), {registryActions: true});
+
+    expect(issues).toEqual([
+      {path: 'jobs.build.steps.0.uses', message: 'Action steps (`uses`) are not supported yet.'},
+    ]);
   });
 });
 

@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {parseWorkflowActionRef, REMOTE_ACTIONS_UNSUPPORTED_MESSAGE} from './action-ref.js';
 import {checkoutTargetValidationIssues} from './checkout-target-validation.js';
 import {agentThinkingSchema, agentToolSurfaceSchema, harnessSchema} from './step-enums.js';
 
@@ -1162,8 +1163,8 @@ function validateWorkflowDocumentActionStep(
     workflowDocumentStepKindInvalidFields.action,
   );
   if (step.uses !== undefined && WORKFLOW_LITERAL_NAME_PATTERN.test(step.uses)) {
-    const message = workflowDocumentActionPathIssue(step.uses);
-    if (message !== undefined) ctx.addIssue({code: 'custom', path: ['uses'], message});
+    const result = parseWorkflowActionRef(step.uses);
+    if (!result.ok) ctx.addIssue({code: 'custom', path: ['uses'], message: result.message});
   }
   if (step.with !== undefined) addWorkflowDocumentActionWithSecretIssues(step.with, ctx);
 }
@@ -1258,28 +1259,15 @@ function articleForStepKind(stepKind: WorkflowDocumentStepKind): 'a' | 'an' {
   return stepKind === 'agent' || stepKind === 'action' ? 'an' : 'a';
 }
 
-const workflowDocumentUrlPattern = /^[A-Za-z][A-Za-z0-9+.-]*:/;
-
-// Only repository-local actions exist in v1. Remote forms stay reserved so a
-// later release can add them without changing what a local path means.
+/**
+ * Validates a repository action path, such as an uploaded action directory.
+ * Registry references are not paths, so they get the remote-action message.
+ */
 export function workflowDocumentActionPathIssue(uses: string): string | undefined {
-  if (uses.startsWith('./')) {
-    if (isNormalizedRelativePath(uses.slice(2))) return undefined;
-    return 'Action paths must be normalized: no empty, `.`, or `..` segments, no backslashes, and no trailing `/`.';
-  }
-  if (uses === '.' || uses === '..' || uses.startsWith('../')) {
-    return 'Action paths must stay inside the repository and start with `./`.';
-  }
-  if (uses.startsWith('/')) return 'Action paths must be relative and start with `./`.';
-  if (workflowDocumentUrlPattern.test(uses)) {
-    return 'Action URLs are not supported. Use a repository path that starts with `./`.';
-  }
-  return 'Remote actions are not supported yet. Use a repository path that starts with `./`.';
-}
-
-export function isNormalizedRelativePath(path: string): boolean {
-  if (path.length === 0 || path.includes('\\') || path.includes('\u0000')) return false;
-  return path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');
+  const result = parseWorkflowActionRef(uses);
+  if (result.ok && result.ref.kind === 'local') return undefined;
+  if (!(result.ok || result.registry)) return result.message;
+  return REMOTE_ACTIONS_UNSUPPORTED_MESSAGE;
 }
 
 const workflowDocumentSecretReferencePattern = /(?<!\$)\$\{\{[^}]*\bsecrets\b/;

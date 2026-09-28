@@ -169,6 +169,57 @@ describe('actionManifestSchema', () => {
 
     expect(JSON.stringify(issues)).toContain('Invalid key in record');
   });
+
+  it('accepts registry presentation fields', () => {
+    const manifest = actionManifestSchema.parse({
+      ...slackThreadManifest,
+      keywords: ['slack', 'markdown'],
+      related: ['shipfox/linear-issue-context'],
+    });
+
+    expect(manifest).toEqual(
+      expect.objectContaining({
+        keywords: ['slack', 'markdown'],
+        related: ['shipfox/linear-issue-context'],
+      }),
+    );
+  });
+
+  it.each([
+    ['Slack', 'keywords.0'],
+    ['s', 'keywords.0'],
+    ['slack_thread', 'keywords.0'],
+  ])('rejects the keyword %s', (keyword, path) => {
+    const issues = manifestIssues({...slackThreadManifest, keywords: [keyword]});
+
+    expect(issues).toEqual([
+      {path, message: 'Keywords use 2 to 40 lowercase letters, digits, and single hyphens.'},
+    ]);
+  });
+
+  it('rejects more than 10 keywords', () => {
+    const keywords = Array.from({length: 11}, (_, index) => `keyword-${index}`);
+
+    const issues = manifestIssues({...slackThreadManifest, keywords});
+
+    expect(issues).toEqual([expect.objectContaining({path: 'keywords'})]);
+  });
+
+  it.each([
+    'linear-issue-context',
+    'shipfox/linear-issue-context@1.0.0',
+    './actions/deploy',
+    'acme/a/b',
+  ])('rejects the related package %s', (related) => {
+    const issues = manifestIssues({...slackThreadManifest, related: [related]});
+
+    expect(issues).toEqual([
+      {
+        path: 'related.0',
+        message: 'Related packages are registry names, such as `shipfox/slack-thread-digest`.',
+      },
+    ]);
+  });
 });
 
 describe('buildActionManifestJsonSchema', () => {
@@ -191,6 +242,8 @@ describe('buildActionManifestJsonSchema', () => {
       'inputs',
       'outputs',
       'integrations',
+      'keywords',
+      'related',
     ]);
   });
 

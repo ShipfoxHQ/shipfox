@@ -1,4 +1,5 @@
 export {
+  ACTION_MANIFEST_KEYWORDS_MAX_ENTRIES,
   ACTION_MANIFEST_RUNTIMES,
   ACTION_MANIFEST_VALUES_MAX_ENTRIES,
   type ActionManifest,
@@ -10,6 +11,11 @@ export {
   type BuildActionManifestJsonSchemaOptions,
   buildActionManifestJsonSchema,
 } from './action-manifest.js';
+export {
+  parseWorkflowActionRef,
+  type WorkflowActionRef,
+  type WorkflowActionRefResult,
+} from './action-ref.js';
 export {
   type CheckoutTargetValidationIssue,
   checkoutTargetValidationIssues,
