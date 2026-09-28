@@ -3,6 +3,7 @@ import type {AgentToolCatalogEntry, AgentToolMaterializationContext} from './age
 import {
   createAgentToolMaterializationSnapshot,
   loadAgentToolMaterializationContext,
+  materializeActionIntegrations,
   materializeToolStep,
 } from './agent-tools.js';
 import {AgentIntegrationMaterializationError} from './errors.js';
@@ -227,5 +228,207 @@ describe('loadAgentToolMaterializationContext', () => {
         },
       ],
     });
+  });
+});
+
+describe('action integrations', () => {
+  function slackCatalog(): AgentToolCatalogEntry[] {
+    return [
+      {
+        id: 'thread',
+        description: 'Read and reply to threads.',
+        sensitivity: 'read',
+        sensitive: false,
+        requiredScope: ['channels:history'],
+        result: 'json',
+        inputSchema: {type: 'object'},
+        methods: [
+          {
+            id: 'read',
+            description: 'Read a thread.',
+            sensitivity: 'read',
+            sensitive: false,
+            requiredScope: ['channels:history'],
+          },
+        ],
+      },
+      {
+        id: 'download_file',
+        description: 'Download a file.',
+        sensitivity: 'read',
+        sensitive: false,
+        requiredScope: ['files:read'],
+        result: 'file',
+        inputSchema: {type: 'object', properties: {url: {type: 'string'}}},
+      },
+    ];
+  }
+
+  function slackContext(catalog = slackCatalog()): AgentToolMaterializationContext {
+    return {
+      catalogs: new Map([['slack', catalog]]),
+      workspaceConnectionSnapshot: new Map([
+        ['team-slack', {id: 'connection-slack', provider: 'slack', capabilities: ['agent_tools']}],
+        ['github-main', {id: 'connection-1', provider: 'github', capabilities: ['agent_tools']}],
+      ]),
+      defaultConnection: {id: 'connection-1', slug: 'github-main', provider: 'github'},
+    };
+  }
+
+  function actionModel(connection = 'team-slack') {
+    return workflowModel({
+      name: 'Actions',
+      runner: 'ubuntu-latest',
+      jobs: {
+        build: {
+          steps: [
+            {
+              key: 'thread',
+              uses: './.shipfox/actions/slack-thread',
+              action: {
+                integrations: {
+                  slack: {
+                    provider: 'slack',
+                    connection,
+                    include: ['thread', 'download_file'],
+                    allowWrite: false,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  test('freezes each alias to its connection and concrete tools with their result kind', () => {
+    const snapshot = createAgentToolMaterializationSnapshot({
+      model: actionModel(),
+      context: slackContext(),
+    });
+
+    expect(snapshot).toEqual({
+      steps: [
+        {
+          jobKey: 'build',
+          stepId: 'build-thread',
+          actionIntegrations: {
+            slack: {
+              connectionId: 'connection-slack',
+              connectionSlug: 'team-slack',
+              provider: 'slack',
+              requiredScope: ['channels:history', 'files:read'],
+              tools: [
+                {
+                  id: 'thread',
+                  sensitivity: 'read',
+                  sensitive: false,
+                  requiredScope: ['channels:history'],
+                  inputSchema: {type: 'object'},
+                  result: 'json',
+                  methods: [
+                    {
+                      id: 'read',
+                      token: 'thread.read',
+                      description: 'Read a thread.',
+                      sensitivity: 'read',
+                      sensitive: false,
+                      requiredScope: ['channels:history'],
+                    },
+                  ],
+                },
+                {
+                  id: 'download_file',
+                  sensitivity: 'read',
+                  sensitive: false,
+                  requiredScope: ['files:read'],
+                  inputSchema: {type: 'object', properties: {url: {type: 'string'}}},
+                  result: 'file',
+                },
+              ],
+            },
+          },
+        },
+      ],
+    });
+  });
+
+  test('does not short-circuit for a model whose only integrations are action aliases', async () => {
+    await expect(
+      loadAgentToolMaterializationContext({
+        model: actionModel(),
+        workspaceId: crypto.randomUUID(),
+        projectId: crypto.randomUUID(),
+      }),
+    ).rejects.toThrow(AgentIntegrationMaterializationError);
+  });
+
+  test('fails when the bound connection is unavailable', () => {
+    expect(() =>
+      createAgentToolMaterializationSnapshot({
+        model: actionModel('removed-slack'),
+        context: slackContext(),
+      }),
+    ).toThrow(
+      new AgentIntegrationMaterializationError(
+        'Integration connection removed-slack was not found while materializing action integration slack',
+      ),
+    );
+  });
+
+  test('fails when the bound connection belongs to another provider', () => {
+    expect(() =>
+      createAgentToolMaterializationSnapshot({
+        model: actionModel('github-main'),
+        context: slackContext(),
+      }),
+    ).toThrow(
+      new AgentIntegrationMaterializationError(
+        'Action integration slack expects a slack connection, but github-main is github',
+      ),
+    );
+  });
+
+  test('reuses the frozen grant when the catalog later gains a method', () => {
+    const snapshot = createAgentToolMaterializationSnapshot({
+      model: actionModel(),
+      context: slackContext(),
+    });
+    const widened = slackCatalog().map((entry) =>
+      entry.id === 'thread'
+        ? {
+            ...entry,
+            methods: [
+              ...(entry.methods ?? []),
+              {
+                id: 'reply',
+                description: 'Reply to a thread.',
+                sensitivity: 'write' as const,
+                sensitive: false,
+                requiredScope: ['chat:write'],
+              },
+            ],
+          }
+        : entry,
+    );
+
+    const reused = materializeActionIntegrations({
+      jobKey: 'build',
+      stepId: 'build-thread',
+      integrations: {
+        slack: {
+          provider: 'slack',
+          connection: 'team-slack',
+          include: ['thread', 'download_file'],
+          allowWrite: false,
+        },
+      },
+      context: slackContext(widened),
+      snapshot,
+    });
+
+    expect(reused).toEqual(snapshot?.steps[0]?.actionIntegrations);
+    expect(reused.slack?.tools[0]?.methods?.map((method) => method.id)).toEqual(['read']);
   });
 });

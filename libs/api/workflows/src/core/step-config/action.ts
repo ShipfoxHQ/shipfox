@@ -9,8 +9,15 @@ import {
   type ResolvedFieldSegment,
   type StepOutputCoercionError,
 } from '@shipfox/expression';
+import {
+  type AgentToolMaterializationContext,
+  type AgentToolMaterializationSnapshot,
+  type MaterializedActionIntegration,
+  type MaterializedActionTool,
+  materializeActionIntegrations,
+} from '#core/agent-tools.js';
 import type {PersistedEvaluationTraceEntry, StepConfigDispatchPlan} from '#core/entities/step.js';
-import {ActionInputInvalidError} from '#core/errors.js';
+import {ActionInputInvalidError, AgentIntegrationMaterializationError} from '#core/errors.js';
 import type {WorkflowStepEvaluationTraceEntry, WorkflowStepTemplateDiagnostic} from './fields.js';
 import {completeDispatchField, type ResolveRunStepConfigParams, resolveStepEnv} from './run.js';
 import {completeWith, isFieldTemplate, resolveWith} from './tool.js';
@@ -32,9 +39,21 @@ export interface ActionStepConfig {
  * creation; dispatch fills the rest, applies defaults, and types every value.
  */
 export function resolveActionStepConfig(
-  params: Omit<ResolveRunStepConfigParams, 'step'> & {readonly step: ActionStep},
+  params: Omit<ResolveRunStepConfigParams, 'step'> & {
+    readonly step: ActionStep;
+    readonly jobKey: string;
+    readonly agentToolContext?: AgentToolMaterializationContext | undefined;
+    readonly agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
+  },
 ): ActionStepConfig {
   const {step} = params;
+  const grants = materializeActionIntegrations({
+    jobKey: params.jobKey,
+    stepId: step.id,
+    integrations: step.action.integrations,
+    context: params.agentToolContext,
+    snapshot: params.agentToolSnapshot,
+  });
   const env = resolveStepEnv(params);
   const withTree = step.templates?.with;
   const inputs =
@@ -60,11 +79,9 @@ export function resolveActionStepConfig(
       },
       ...(inputs.value === undefined ? {} : {inputs: inputs.value}),
       ...(hasEnv ? {env: env.env} : {}),
-      integrations: Object.entries(step.action.integrations).map(([alias, integration]) => ({
-        alias,
-        provider: integration.provider,
-        connection_slug: integration.connection,
-      })),
+      integrations: Object.keys(step.action.integrations).map((alias) =>
+        actionIntegrationConfig(alias, grants[alias]),
+      ),
     },
     configPlan: {
       action: {
@@ -76,6 +93,37 @@ export function resolveActionStepConfig(
     diagnostics: env.diagnostics,
     trace: env.trace,
     hasTemplates: withTree !== undefined || env.hasTemplates,
+  };
+}
+
+function actionIntegrationConfig(
+  alias: string,
+  grant: MaterializedActionIntegration | undefined,
+): Record<string, unknown> {
+  if (grant === undefined) {
+    throw new AgentIntegrationMaterializationError(
+      `Action integration ${alias} is missing from the frozen tool grants`,
+    );
+  }
+  return {
+    alias,
+    provider: grant.provider,
+    connection_slug: grant.connectionSlug,
+    tools: grant.tools.map(actionToolConfig),
+  };
+}
+
+function actionToolConfig(tool: MaterializedActionTool): Record<string, unknown> {
+  return {
+    id: tool.id,
+    sensitivity: tool.sensitivity,
+    result: tool.result,
+    input_schema: tool.inputSchema,
+    ...(tool.methods === undefined
+      ? {}
+      : {
+          methods: tool.methods.map((method) => ({id: method.id, sensitivity: method.sensitivity})),
+        }),
   };
 }
 

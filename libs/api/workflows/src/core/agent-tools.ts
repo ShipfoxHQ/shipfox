@@ -9,6 +9,8 @@ import {AgentIntegrationMaterializationError} from './errors.js';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelAgentStep = Extract<WorkflowModelJob['steps'][number], {kind: 'agent'}>;
+type WorkflowModelActionStep = Extract<WorkflowModelJob['steps'][number], {kind: 'action'}>;
+type WorkflowModelActionIntegrations = WorkflowModelActionStep['action']['integrations'];
 type WorkflowModelStepIntegration = NonNullable<WorkflowModelAgentStep['integrations']>[number];
 type IntegrationsAgentToolsContext = Awaited<
   ReturnType<IntegrationsModuleClient['getAgentToolsContext']>
@@ -46,7 +48,18 @@ export interface AgentToolMaterializationSnapshotStep {
   readonly stepId: string;
   readonly integrations?: readonly MaterializedAgentIntegrationConfigDto[];
   readonly tool?: MaterializedToolStep;
+  /** Action step grants, keyed by manifest alias. */
+  readonly actionIntegrations?: Readonly<Record<string, MaterializedActionIntegration>>;
 }
+
+export interface MaterializedActionIntegration
+  extends Omit<MaterializedAgentIntegrationConfigDto, 'tools'> {
+  readonly tools: readonly MaterializedActionTool[];
+}
+
+export type MaterializedActionTool = MaterializedAgentIntegrationToolConfigDto & {
+  readonly result: AgentToolCatalogEntry['result'];
+};
 
 export interface MaterializedToolStep {
   readonly connectionId: string;
@@ -176,6 +189,66 @@ export function materializeToolStep(params: {
   });
 }
 
+export function materializeActionIntegrations(params: {
+  readonly jobKey: string;
+  readonly stepId: string;
+  readonly integrations: WorkflowModelActionIntegrations;
+  readonly context: AgentToolMaterializationContext | undefined;
+  readonly snapshot?: AgentToolMaterializationSnapshot | null | undefined;
+}): Record<string, MaterializedActionIntegration> {
+  const snapshot = findSnapshotStep(params)?.actionIntegrations;
+  if (snapshot !== undefined) return cloneJson(snapshot);
+  const aliases = Object.entries(params.integrations);
+  if (aliases.length === 0) return {};
+  const {context} = params;
+  if (context === undefined) {
+    throw new AgentIntegrationMaterializationError(
+      'Action integrations require materialization context',
+    );
+  }
+
+  return Object.fromEntries(
+    aliases.map(([alias, integration]) => [
+      alias,
+      materializeActionIntegration({alias, integration, context}),
+    ]),
+  );
+}
+
+function materializeActionIntegration(params: {
+  readonly alias: string;
+  readonly integration: WorkflowModelActionIntegrations[string];
+  readonly context: AgentToolMaterializationContext;
+}): MaterializedActionIntegration {
+  const connection = resolveConnection({
+    connectionSlug: params.integration.connection,
+    context: params.context,
+    missingMessage: `Integration connection ${params.integration.connection} was not found while materializing action integration ${params.alias}`,
+  });
+  if (connection.provider !== params.integration.provider) {
+    throw new AgentIntegrationMaterializationError(
+      `Action integration ${params.alias} expects a ${params.integration.provider} connection, but ${connection.slug} is ${connection.provider}`,
+    );
+  }
+  const catalog = params.context.catalogs.get(connection.provider);
+  if (catalog === undefined) {
+    throw new AgentIntegrationMaterializationError(
+      `Integration provider ${connection.provider} has no agent tool catalog`,
+    );
+  }
+
+  const tools = selectToolStates({catalog, include: params.integration.include, exclude: []}).map(
+    (state) => ({...materializedTool(state), result: state.entry.result}),
+  );
+  return {
+    connectionId: connection.id,
+    connectionSlug: connection.slug,
+    provider: connection.provider,
+    requiredScope: mergeRequiredScopes(tools.map((tool) => tool.requiredScope)),
+    tools,
+  };
+}
+
 function resolveToolMethod(
   entry: AgentToolCatalogEntry,
   methodId: string | undefined,
@@ -209,32 +282,47 @@ export function createAgentToolMaterializationSnapshot(params: {
 }): AgentToolMaterializationSnapshot | null {
   if (params.context === undefined) return null;
 
-  const steps: AgentToolMaterializationSnapshotStep[] = params.model.jobs.flatMap((job) =>
-    job.steps.flatMap((step): AgentToolMaterializationSnapshotStep[] => {
-      if (step.kind === 'tool') {
-        const tool = materializeToolStep({
-          jobKey: job.key,
-          stepId: step.id,
-          tool: step.tool,
-          connection: step.connection,
-          context: params.context,
-          snapshot: undefined,
-        });
-        return [{jobKey: job.key, stepId: step.id, tool}];
-      }
-      if (step.kind !== 'agent' || step.integrations === undefined) return [];
-      const integrations = materializeAgentIntegrations({
-        jobKey: job.key,
-        stepId: step.id,
-        integrations: step.integrations,
-        context: params.context,
-      });
-      if (integrations === undefined) return [];
-      return [{jobKey: job.key, stepId: step.id, integrations}];
-    }),
+  const {context} = params;
+  const steps = params.model.jobs.flatMap((job) =>
+    job.steps.flatMap((step) => snapshotStep({jobKey: job.key, step, context}) ?? []),
   );
 
   return steps.length === 0 ? null : {steps};
+}
+
+function snapshotStep(params: {
+  readonly jobKey: string;
+  readonly step: WorkflowModelJob['steps'][number];
+  readonly context: AgentToolMaterializationContext;
+}): AgentToolMaterializationSnapshotStep | undefined {
+  const {jobKey, step, context} = params;
+  const base = {jobKey, stepId: step.id};
+  if (step.kind === 'tool') {
+    const tool = materializeToolStep({
+      ...base,
+      tool: step.tool,
+      connection: step.connection,
+      context,
+      snapshot: undefined,
+    });
+    return {...base, tool};
+  }
+  if (step.kind === 'action') {
+    if (Object.keys(step.action.integrations).length === 0) return undefined;
+    const actionIntegrations = materializeActionIntegrations({
+      ...base,
+      integrations: step.action.integrations,
+      context,
+    });
+    return {...base, actionIntegrations};
+  }
+  if (step.kind !== 'agent' || step.integrations === undefined) return undefined;
+  const integrations = materializeAgentIntegrations({
+    ...base,
+    integrations: step.integrations,
+    context,
+  });
+  return integrations === undefined ? undefined : {...base, integrations};
 }
 
 function findSnapshotStep(params: {
@@ -263,11 +351,11 @@ function materializeAgentIntegration(params: {
     );
   }
 
-  const tools = selectTools({
+  const tools = selectToolStates({
     catalog,
     include: params.integration.include,
     exclude: params.integration.exclude ?? [],
-  });
+  }).map(materializedTool);
   const requiredScope = mergeRequiredScopes(tools.map((tool) => tool.requiredScope));
 
   return {
@@ -318,11 +406,11 @@ function resolveConnection(params: {
   };
 }
 
-function selectTools(params: {
+function selectToolStates(params: {
   readonly catalog: readonly AgentToolCatalogEntry[];
   readonly include: readonly string[];
   readonly exclude: readonly string[];
-}): MaterializedAgentIntegrationToolConfigDto[] {
+}): SelectedToolState[] {
   const selected = new Map<string, SelectedToolState>();
 
   for (const token of params.include) {
@@ -332,17 +420,13 @@ function selectTools(params: {
     applySelection({catalog: params.catalog, selected, token, mode: 'exclude'});
   }
 
-  const tools = params.catalog.flatMap((entry) => {
-    const state = selected.get(entry.id);
-    if (state === undefined) return [];
-    return [materializedTool(state)];
-  });
-  if (tools.length === 0) {
+  const states = params.catalog.flatMap((entry) => selected.get(entry.id) ?? []);
+  if (states.length === 0) {
     throw new AgentIntegrationMaterializationError(
       'Agent integration selection resolved to no tools',
     );
   }
-  return tools;
+  return states;
 }
 
 function applySelection(params: {
@@ -502,7 +586,8 @@ function isPermissionScope(
  * Model-level twin of `hasIntegrationToolReferences` in
  * `libs/api/definitions/src/core/has-integration-tool-references.ts`, which
  * runs the same criterion over the authored `WorkflowDocument` at sync time.
- * Keep both in sync.
+ * Keep both in sync. Action integrations are the exception: they live in the
+ * action manifest, which the document twin cannot see.
  */
 function hasIntegrationToolReferences(
   model: WorkflowModel | null,
@@ -511,7 +596,10 @@ function hasIntegrationToolReferences(
   if (model === null) return false;
   return (jobs ?? model.jobs).some((job) =>
     job.steps.some(
-      (step) => step.kind === 'tool' || (step.kind === 'agent' && step.integrations !== undefined),
+      (step) =>
+        step.kind === 'tool' ||
+        (step.kind === 'agent' && step.integrations !== undefined) ||
+        (step.kind === 'action' && Object.keys(step.action.integrations).length > 0),
     ),
   );
 }

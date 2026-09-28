@@ -1090,6 +1090,121 @@ describe('workflow run queries', () => {
       });
     });
 
+    test('reruns reuse frozen action tool grants when the catalog has grown', async () => {
+      const readThread = {
+        id: 'read_thread',
+        description: 'Read a thread.',
+        sensitivity: 'read',
+        sensitive: false,
+        requiredScope: ['channels:history'],
+        result: 'json',
+        inputSchema: {type: 'object'},
+      };
+      const context = (tools: readonly unknown[]) => ({
+        catalogs: [{provider: 'slack', tools}],
+        workspaceConnections: [
+          {
+            id: 'connection-slack',
+            slug: 'team-slack',
+            provider: 'slack',
+            capabilities: ['agent_tools'],
+          },
+        ],
+        defaultConnection: {id: 'connection-slack', slug: 'team-slack', provider: 'slack'},
+      });
+      const getAgentToolsContext = vi
+        .fn()
+        .mockResolvedValueOnce(context([readThread]))
+        .mockResolvedValue(
+          context([
+            {...readThread, id: 'post_message', sensitivity: 'write', requiredScope: []},
+            readThread,
+          ]),
+        );
+      const integrations = {getAgentToolsContext} as unknown as IntegrationsModuleClient;
+      const projects = {
+        getProjectById: vi.fn().mockResolvedValue({
+          project: {sourceConnectionId: 'connection-slack'},
+        }),
+      } as unknown as ProjectsModuleClient;
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              steps: [
+                {
+                  key: 'thread',
+                  uses: './.shipfox/actions/slack-thread',
+                  action: {
+                    integrations: {
+                      slack: {
+                        provider: 'slack',
+                        connection: 'team-slack',
+                        include: ['read_thread'],
+                        allowWrite: false,
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        integrations,
+        projects,
+      });
+      await markJob(await getJobsByWorkflowRunId(source.id), 'build', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+      const [sourceAttempt] = await listTestRunAttempts({workflowRunId: source.id, projectId});
+      const snapshot = sourceAttempt?.agentToolMaterialization;
+      expect(snapshot?.steps[0]?.actionIntegrations?.slack).toMatchObject({
+        connectionId: 'connection-slack',
+        tools: [{id: 'read_thread', result: 'json'}],
+      });
+
+      await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const attempts = await listTestRunAttempts({workflowRunId: source.id, projectId});
+      const rerunAttempt = attempts.find((attempt) => attempt.attempt === 2);
+      expect(rerunAttempt?.agentToolMaterialization).toEqual(snapshot);
+      expect(getAgentToolsContext).toHaveBeenCalledTimes(1);
+      const [rerunJob] = await getJobsByWorkflowRunId(source.id);
+      if (!rerunJob) throw new Error('Missing rerun build job');
+      const rerunStep = (await getStepsByJobId(rerunJob.id)).find((step) => step.type === 'action');
+      expect(rerunStep?.config.integrations).toEqual([
+        {
+          alias: 'slack',
+          provider: 'slack',
+          connection_slug: 'team-slack',
+          tools: [
+            {
+              id: 'read_thread',
+              sensitivity: 'read',
+              result: 'json',
+              input_schema: {type: 'object'},
+            },
+          ],
+        },
+      ]);
+    });
+
     test('reruns re-materialize each job checkout policy from the model', async () => {
       const source = await createWorkflowRun({
         workspaceId,
