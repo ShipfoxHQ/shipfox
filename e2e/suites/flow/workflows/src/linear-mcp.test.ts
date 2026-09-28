@@ -14,7 +14,7 @@ import {
 
 describe('Linear MCP mock', () => {
   it('serves deterministic authenticated read and write tool calls', async () => {
-    const mock = await startLinearMcpMock(new URL('http://127.0.0.1:0/mcp'));
+    const mock = await startLinearMcpMock({endpoint: new URL('http://127.0.0.1:0/mcp')});
     const client = new Client({name: 'linear-mcp-test', version: '0.0.0'});
     const transport = new StreamableHTTPClientTransport(mock.endpoint, {
       requestInit: {headers: {authorization: 'Bearer synthetic-linear-token'}},
@@ -55,7 +55,7 @@ describe('Linear MCP mock', () => {
   });
 
   it('serves uploads to bearer-authenticated requests', async () => {
-    const mock = await startLinearMcpMock(new URL('http://127.0.0.1:0/mcp'));
+    const mock = await startLinearMcpMock({endpoint: new URL('http://127.0.0.1:0/mcp')});
     const url = new URL('e2e-org/report/report.pdf?signature=signed', mock.uploadsUrl);
 
     try {
@@ -93,7 +93,7 @@ describe('Linear MCP mock', () => {
     const endpoint = new URL(`http://127.0.0.1:${address.port}/mcp`);
     let mock: Awaited<ReturnType<typeof startLinearMcpMock>> | undefined;
     let occupiedClosed = false;
-    const startingMock = startLinearMcpMock(endpoint);
+    const startingMock = startLinearMcpMock({endpoint});
 
     try {
       await expect(
@@ -113,6 +113,55 @@ describe('Linear MCP mock', () => {
       }
       mock ??= await startingMock.catch(() => undefined);
       await mock?.stop();
+    }
+  });
+
+  it('serves a fixture workspace in pages, with not-found errors', async () => {
+    const mock = await startLinearMcpMock({
+      endpoint: new URL('http://127.0.0.1:0/mcp'),
+      workspace: {
+        issues: {
+          'ENG-1': {id: 'ENG-1', title: 'Root', projectId: 'project-1'},
+          'ENG-2': {id: 'ENG-2', title: 'Child', projectId: 'project-1', parentId: 'ENG-1'},
+          'ENG-3': {id: 'ENG-3', title: 'Elsewhere', projectId: 'project-2'},
+          'ENG-4': {id: 'ENG-4', title: 'Sibling', projectId: 'project-1'},
+        },
+        documents: {},
+        comments: {},
+      },
+    });
+    const client = new Client({name: 'linear-mcp-test', version: '0.0.0'});
+    const transport = new StreamableHTTPClientTransport(mock.endpoint);
+    const call = async (name: string, arguments_: Record<string, unknown>) => {
+      const result = await client.callTool({name, arguments: arguments_}, CallToolResultSchema);
+      const [block] = result.content as {type: string; text?: string}[];
+      return {isError: result.isError === true, body: JSON.parse(block?.text ?? 'null') as unknown};
+    };
+
+    try {
+      await client.connect(transport as unknown as Transport);
+      const firstPage = await call('list_issues', {project: 'project-1'});
+      const secondPage = await call('list_issues', {project: 'project-1', cursor: '2'});
+      const children = await call('list_issues', {parentId: 'ENG-1'});
+      const missing = await call('get_issue', {id: 'ENG-404'});
+
+      expect(firstPage.body).toEqual({
+        issues: [
+          {id: 'ENG-1', title: 'Root', projectId: 'project-1'},
+          {id: 'ENG-2', title: 'Child', projectId: 'project-1'},
+        ],
+        hasNextPage: true,
+        cursor: '2',
+      });
+      expect(secondPage.body).toEqual({
+        issues: [{id: 'ENG-4', title: 'Sibling', projectId: 'project-1'}],
+        hasNextPage: false,
+      });
+      expect(children.body).toMatchObject({issues: [{id: 'ENG-2'}], hasNextPage: false});
+      expect(missing).toMatchObject({isError: true, body: {error: 'invalid_request'}});
+    } finally {
+      await client.close();
+      await mock.stop();
     }
   });
 });

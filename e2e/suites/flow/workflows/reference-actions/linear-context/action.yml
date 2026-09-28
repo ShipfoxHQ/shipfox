@@ -1,0 +1,60 @@
+name: Linear issue context to Markdown
+description: >-
+  Saves a Linear issue, the issues it relates to, its project's issues and documents, their
+  comments, and their uploaded files as local Markdown.
+main: index.ts
+
+inputs:
+  issue_id:
+    description: Identifier or ID of the issue to start from, such as ENG-123.
+    required: true
+  destination:
+    description: Directory that receives the Markdown file, coverage.json, and files/.
+    default: context/linear
+  allow_partial:
+    description: Succeed with complete set to false when the export has gaps, instead of failing.
+    type: boolean
+    default: false
+  max_entities:
+    description: Most issues and documents to read.
+    type: number
+    default: 250
+  max_file_bytes:
+    description: Most bytes to download across all files.
+    type: number
+    default: 262144000
+  max_duration:
+    description: Seconds the walk may take before it stops with a gap.
+    type: number
+    default: 900
+  uploads_url:
+    description: Prefix of Linear upload URLs. Change it only to test against a stand-in server.
+    default: https://uploads.linear.app/
+
+outputs:
+  path:
+    description: Path of the Markdown file. Its name ends in .partial.md when the export has gaps.
+    required: true
+  coverage_path:
+    description: Path of coverage.json.
+    required: true
+  files_path:
+    description: Directory of the downloaded files.
+    required: true
+  complete:
+    description: True only when every page and file was read.
+    type: boolean
+    required: true
+  issue_count:
+    description: Issues in the export.
+    type: number
+    required: true
+  file_count:
+    description: Files downloaded.
+    type: number
+    required: true
+
+integrations:
+  linear:
+    provider: linear
+    include: [get_issue, list_issues, list_comments, get_document, list_documents, download_file]

@@ -1,0 +1,45 @@
+name: Verified commit on a pull request branch
+description: Publishes the job's local changes as one GitHub-verified commit on a pull request branch.
+main: index.ts
+
+inputs:
+  repository:
+    description: GitHub repository in owner/name form.
+    required: true
+  pull_request:
+    description: Pull request whose head branch receives the commit.
+    type: number
+  branch:
+    description: Branch that receives the commit, instead of a pull request's head branch.
+  expected_head:
+    description: >-
+      Commit the local changes are compared with, and the branch head the commit must land on.
+      Defaults to the pull request's current head.
+  message:
+    description: Commit message. The first line is the headline.
+    required: true
+  paths:
+    description: Repository paths to publish. Every change is published when omitted.
+    type: json
+    schema:
+      type: array
+      items:
+        type: string
+
+outputs:
+  outcome:
+    description: committed, or no_changes when the checkout matches the expected head.
+    required: true
+  branch:
+    description: Branch the commit targets.
+    required: true
+  commit_sha:
+    description: SHA of the new commit.
+  commit_url:
+    description: URL of the new commit on GitHub.
+
+integrations:
+  github:
+    provider: github
+    include: [pull_request_read.get, create_commit]
+    allow_write: true

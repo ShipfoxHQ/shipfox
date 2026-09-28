@@ -1,10 +1,5 @@
-import {once} from 'node:events';
-import {
-  createServer,
-  type Server as HttpServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from 'node:http';
+import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
+import {closeServer, listenOnEndpoint} from './mock-server.js';
 
 export const SLACK_REPLIES_MARKER = 'slack-replies-marker';
 export const SLACK_POSTED_TS = '1721300000.000002';
@@ -15,6 +10,14 @@ export type SlackApiMockCall =
       authorization: string | undefined;
       channel: string | undefined;
       ts: string | undefined;
+      cursor?: string | undefined;
+    }
+  | {kind: 'users.info'; authorization: string | undefined; user: string | undefined}
+  | {
+      kind: 'chat.getPermalink';
+      authorization: string | undefined;
+      channel: string | undefined;
+      messageTs: string | undefined;
     }
   | {
       kind: 'chat.postMessage';
@@ -24,6 +27,19 @@ export type SlackApiMockCall =
       text: string | undefined;
     };
 
+export interface SlackThreadPage {
+  messages: Record<string, unknown>[];
+  nextCursor?: string | undefined;
+}
+
+export interface SlackApiMockOptions {
+  endpoint?: URL | undefined;
+  /** Thread pages by the cursor that requests them, `''` for the first page. */
+  threadPages?: Readonly<Record<string, SlackThreadPage>> | undefined;
+  /** Users `users.info` knows. Any other user ID answers `user_not_found`. */
+  users?: Readonly<Record<string, Record<string, unknown>>> | undefined;
+}
+
 export interface SlackApiMock {
   calls: SlackApiMockCall[];
   endpoint: URL;
@@ -32,18 +48,24 @@ export interface SlackApiMock {
   stop(): Promise<void>;
 }
 
-export async function startSlackApiMock(
-  endpoint = new URL(requiredSlackApiBaseUrl()),
-): Promise<SlackApiMock> {
+export async function startSlackApiMock(options: SlackApiMockOptions = {}): Promise<SlackApiMock> {
+  const endpoint = options.endpoint ?? new URL(requiredSlackApiBaseUrl());
   const calls: SlackApiMockCall[] = [];
   const failures: {postMessage: string | null} = {postMessage: null};
   let boundEndpoint = endpoint;
   const server = createServer((request, response) => {
-    void handleSlackRequest({calls, failures, endpoint: boundEndpoint, request, response});
+    void handleSlackRequest({
+      calls,
+      failures,
+      options,
+      endpoint: boundEndpoint,
+      request,
+      response,
+    });
   });
 
   try {
-    boundEndpoint = await listen(server, endpoint);
+    boundEndpoint = await listenOnEndpoint(server, endpoint);
   } catch (error) {
     throw new Error(`Slack API mock failed to start at ${endpoint}`, {cause: error});
   }
@@ -56,7 +78,7 @@ export async function startSlackApiMock(
     },
     stop: async () => {
       try {
-        await close(server);
+        await closeServer(server);
       } catch (error) {
         throw new Error(`Slack API mock failed to stop at ${boundEndpoint}`, {cause: error});
       }
@@ -64,82 +86,125 @@ export async function startSlackApiMock(
   };
 }
 
+interface SlackRequestContext {
+  calls: SlackApiMockCall[];
+  failures: {postMessage: string | null};
+  options: SlackApiMockOptions;
+  response: ServerResponse;
+  authorization: string | undefined;
+  body: URLSearchParams;
+}
+
+const SLACK_METHOD_PATH = /^\/(?:api\/)?/u;
+
+const SLACK_METHOD_HANDLERS: Readonly<Record<string, (context: SlackRequestContext) => void>> = {
+  'conversations.replies': handleConversationsReplies,
+  'users.info': handleUsersInfo,
+  'chat.getPermalink': handleGetPermalink,
+  'chat.postMessage': handlePostMessage,
+};
+
 async function handleSlackRequest(params: {
   calls: SlackApiMockCall[];
   failures: {postMessage: string | null};
+  options: SlackApiMockOptions;
   endpoint: URL;
   request: IncomingMessage;
   response: ServerResponse;
 }): Promise<void> {
-  const requestUrl = new URL(params.request.url ?? '/', params.endpoint);
-  const authorization = params.request.headers.authorization;
+  const {pathname} = new URL(params.request.url ?? '/', params.endpoint);
+  const method = pathname.replace(SLACK_METHOD_PATH, '');
+  const handler = params.request.method === 'POST' ? SLACK_METHOD_HANDLERS[method] : undefined;
   const body = await readFormBody(params.request);
-
-  if (isSlackMethodRequest(params.request, requestUrl, 'conversations.replies')) {
-    params.calls.push({
-      kind: 'conversations.replies',
-      authorization,
-      channel: body.get('channel') ?? undefined,
-      ts: body.get('ts') ?? undefined,
-    });
-    sendJson(params.response, 200, {
-      ok: true,
-      messages: [{type: 'message', ts: body.get('ts'), text: SLACK_REPLIES_MARKER}],
-    });
+  if (handler === undefined) {
+    sendJson(params.response, 200, {ok: false, error: 'unknown_method'});
     return;
   }
-
-  if (isSlackMethodRequest(params.request, requestUrl, 'chat.postMessage')) {
-    const text = body.get('text') ?? undefined;
-    params.calls.push({
-      kind: 'chat.postMessage',
-      authorization,
-      channel: body.get('channel') ?? undefined,
-      threadTs: body.get('thread_ts') ?? undefined,
-      text,
-    });
-    if (params.failures.postMessage !== null) {
-      sendJson(params.response, 200, {ok: false, error: params.failures.postMessage});
-      return;
-    }
-    sendJson(params.response, 200, {
-      ok: true,
-      channel: body.get('channel') ?? undefined,
-      ts: SLACK_POSTED_TS,
-      message: {text},
-    });
-    return;
-  }
-
-  sendJson(params.response, 200, {ok: false, error: 'unknown_method'});
+  handler({...params, authorization: params.request.headers.authorization, body});
 }
 
-function isSlackMethodRequest(request: IncomingMessage, requestUrl: URL, method: string): boolean {
-  return (
-    request.method === 'POST' &&
-    (requestUrl.pathname === `/${method}` || requestUrl.pathname === `/api/${method}`)
+function handleConversationsReplies(context: SlackRequestContext): void {
+  const cursor = context.body.get('cursor') ?? undefined;
+  context.calls.push({
+    kind: 'conversations.replies',
+    authorization: context.authorization,
+    channel: context.body.get('channel') ?? undefined,
+    ts: context.body.get('ts') ?? undefined,
+    cursor,
+  });
+  sendJson(
+    context.response,
+    200,
+    threadRepliesBody(context.options, context.body.get('ts'), cursor),
   );
+}
+
+function handleUsersInfo(context: SlackRequestContext): void {
+  const userId = context.body.get('user') ?? undefined;
+  context.calls.push({kind: 'users.info', authorization: context.authorization, user: userId});
+  const user = userId === undefined ? undefined : context.options.users?.[userId];
+  sendJson(
+    context.response,
+    200,
+    user === undefined ? {ok: false, error: 'user_not_found'} : {ok: true, user},
+  );
+}
+
+function handleGetPermalink(context: SlackRequestContext): void {
+  const channel = context.body.get('channel') ?? undefined;
+  const messageTs = context.body.get('message_ts') ?? undefined;
+  context.calls.push({
+    kind: 'chat.getPermalink',
+    authorization: context.authorization,
+    channel,
+    messageTs,
+  });
+  sendJson(context.response, 200, {
+    ok: true,
+    channel,
+    permalink: `https://e2e.slack.com/archives/${channel}/p${messageTs?.replace('.', '')}`,
+  });
+}
+
+function handlePostMessage(context: SlackRequestContext): void {
+  const text = context.body.get('text') ?? undefined;
+  const channel = context.body.get('channel') ?? undefined;
+  context.calls.push({
+    kind: 'chat.postMessage',
+    authorization: context.authorization,
+    channel,
+    threadTs: context.body.get('thread_ts') ?? undefined,
+    text,
+  });
+  if (context.failures.postMessage !== null) {
+    sendJson(context.response, 200, {ok: false, error: context.failures.postMessage});
+    return;
+  }
+  sendJson(context.response, 200, {ok: true, channel, ts: SLACK_POSTED_TS, message: {text}});
+}
+
+function threadRepliesBody(
+  options: SlackApiMockOptions,
+  ts: string | null,
+  cursor: string | undefined,
+): Record<string, unknown> {
+  if (options.threadPages === undefined) {
+    return {ok: true, messages: [{type: 'message', ts, text: SLACK_REPLIES_MARKER}]};
+  }
+  const page = options.threadPages[cursor ?? ''];
+  if (page === undefined) return {ok: false, error: 'invalid_cursor'};
+  return {
+    ok: true,
+    messages: page.messages,
+    has_more: page.nextCursor !== undefined,
+    response_metadata: {next_cursor: page.nextCursor ?? ''},
+  };
 }
 
 function requiredSlackApiBaseUrl(): string {
   const endpoint = process.env.SLACK_API_BASE_URL;
   if (!endpoint) throw new Error('SLACK_API_BASE_URL must be configured for the Slack API mock.');
   return endpoint;
-}
-
-async function listen(server: HttpServer, endpoint: URL): Promise<URL> {
-  server.listen({host: endpoint.hostname, port: Number(endpoint.port)});
-  await once(server, 'listening');
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('Expected TCP server address.');
-  const boundEndpoint = new URL(endpoint);
-  boundEndpoint.port = String(address.port);
-  return boundEndpoint;
-}
-
-async function close(server: HttpServer): Promise<void> {
-  server.close();
-  await once(server, 'close');
 }
 
 async function readFormBody(request: NodeJS.ReadableStream): Promise<URLSearchParams> {

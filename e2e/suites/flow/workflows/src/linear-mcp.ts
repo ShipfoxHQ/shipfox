@@ -1,28 +1,21 @@
-import {once} from 'node:events';
-import {
-  createServer,
-  type Server as HttpServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from 'node:http';
-import {setTimeout as delay} from 'node:timers/promises';
+import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
 import {z} from 'zod';
+import {closeServer, listenOnEndpoint} from './mock-server.js';
 
 export const LINEAR_READ_RESULT_MARKER = 'linear-read-result-marker';
 export const LINEAR_WRITE_RESULT_MARKER = 'linear-write-result-marker';
 /** Path prefix the mock serves uploads under, standing in for `https://uploads.linear.app/`. */
 export const LINEAR_UPLOADS_PATH = '/uploads/';
-
-const LINEAR_MCP_PORT_WAIT_TIMEOUT_MS = 120_000;
-const LINEAR_MCP_PORT_RETRY_INTERVAL_MS = 100;
+/** Small pages make every list in a fixture workspace paginate. */
+const LINEAR_WORKSPACE_PAGE_SIZE = 2;
 
 export interface LinearMcpCall {
   authorization: string | undefined;
   arguments: Record<string, unknown>;
-  toolName: 'get_issue' | 'save_comment';
+  toolName: string;
 }
 
 export interface LinearUploadRequest {
@@ -58,6 +51,30 @@ export const LINEAR_UPLOAD_FIXTURES: Readonly<Record<string, LinearUploadFixture
   },
 };
 
+/**
+ * A Linear workspace served the way the hosted MCP serves it: one JSON object per result, in a
+ * text block. Issues are keyed by identifier and follow `get_issue`'s shape.
+ */
+export interface LinearWorkspaceFixture {
+  issues: Readonly<Record<string, LinearIssueFixture>>;
+  documents: Readonly<Record<string, Record<string, unknown> & {id: string; projectId?: string}>>;
+  /** Comments by parent, keyed `issue:<identifier>` or `document:<id>`. */
+  comments: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+}
+
+export interface LinearIssueFixture extends Record<string, unknown> {
+  id: string;
+  title: string;
+  projectId?: string | null;
+  parentId?: string | null;
+}
+
+export interface LinearMcpMockOptions {
+  endpoint?: URL | undefined;
+  /** Serves the read tools from this workspace instead of fixed markers. */
+  workspace?: LinearWorkspaceFixture | undefined;
+}
+
 export interface LinearMcpMock {
   calls: LinearMcpCall[];
   uploads: LinearUploadRequest[];
@@ -67,8 +84,9 @@ export interface LinearMcpMock {
 }
 
 export async function startLinearMcpMock(
-  endpoint = new URL(requiredLinearMcpEndpoint()),
+  options: LinearMcpMockOptions = {},
 ): Promise<LinearMcpMock> {
+  const endpoint = options.endpoint ?? new URL(requiredLinearMcpEndpoint());
   const calls: LinearMcpCall[] = [];
   const uploads: LinearUploadRequest[] = [];
   let boundEndpoint = endpoint;
@@ -78,11 +96,17 @@ export async function startLinearMcpMock(
       handleUploadRequest({uploads, path, request, response});
       return;
     }
-    void handleMcpRequest({calls, endpoint: boundEndpoint, request, response});
+    void handleMcpRequest({
+      calls,
+      workspace: options.workspace,
+      endpoint: boundEndpoint,
+      request,
+      response,
+    });
   });
 
   try {
-    boundEndpoint = await listen(server, endpoint);
+    boundEndpoint = await listenOnEndpoint(server, endpoint);
   } catch (error) {
     throw new Error(`Linear MCP mock failed to start at ${endpoint}`, {cause: error});
   }
@@ -94,7 +118,7 @@ export async function startLinearMcpMock(
     uploadsUrl: new URL(LINEAR_UPLOADS_PATH, boundEndpoint),
     stop: async () => {
       try {
-        await close(server);
+        await closeServer(server);
       } catch (error) {
         throw new Error(`Linear MCP mock failed to stop at ${boundEndpoint}`, {cause: error});
       }
@@ -104,6 +128,7 @@ export async function startLinearMcpMock(
 
 async function handleMcpRequest(params: {
   calls: LinearMcpCall[];
+  workspace: LinearWorkspaceFixture | undefined;
   endpoint: URL;
   request: IncomingMessage;
   response: ServerResponse;
@@ -121,21 +146,28 @@ async function handleMcpRequest(params: {
   try {
     const body = await readJsonBody(params.request);
     const mcp = new McpServer({name: 'linear-e2e-mock', version: '0.0.0'});
-    mcp.registerTool(
-      'get_issue',
-      {
-        description: 'Get a deterministic Linear issue.',
-        inputSchema: {id: z.string()},
-      },
-      (arguments_) => {
-        params.calls.push({
-          authorization: params.request.headers.authorization,
-          arguments: arguments_,
-          toolName: 'get_issue',
-        });
-        return {content: [{type: 'text', text: LINEAR_READ_RESULT_MARKER}]};
-      },
-    );
+    const record = (toolName: string, arguments_: Record<string, unknown>) => {
+      params.calls.push({
+        authorization: params.request.headers.authorization,
+        arguments: arguments_,
+        toolName,
+      });
+    };
+    if (params.workspace === undefined) {
+      mcp.registerTool(
+        'get_issue',
+        {
+          description: 'Get a deterministic Linear issue.',
+          inputSchema: {id: z.string()},
+        },
+        (arguments_) => {
+          record('get_issue', arguments_);
+          return {content: [{type: 'text', text: LINEAR_READ_RESULT_MARKER}]};
+        },
+      );
+    } else {
+      registerWorkspaceTools(mcp, params.workspace, record);
+    }
     mcp.registerTool(
       'save_comment',
       {
@@ -143,11 +175,7 @@ async function handleMcpRequest(params: {
         inputSchema: {issueId: z.string(), body: z.string()},
       },
       (arguments_) => {
-        params.calls.push({
-          authorization: params.request.headers.authorization,
-          arguments: arguments_,
-          toolName: 'save_comment',
-        });
+        record('save_comment', arguments_);
         return {content: [{type: 'text', text: LINEAR_WRITE_RESULT_MARKER}]};
       },
     );
@@ -162,6 +190,132 @@ async function handleMcpRequest(params: {
       sendMcpError(params.response, 500, -32603, 'MCP request failed.');
     else params.response.end();
   }
+}
+
+function registerWorkspaceTools(
+  mcp: McpServer,
+  workspace: LinearWorkspaceFixture,
+  record: (toolName: string, arguments_: Record<string, unknown>) => void,
+): void {
+  const page = z.object({cursor: z.string().optional(), limit: z.number().optional()}).shape;
+  mcp.registerTool(
+    'get_issue',
+    {
+      description: 'Get a Linear issue from the fixture workspace.',
+      inputSchema: {id: z.string(), includeRelations: z.boolean().optional()},
+    },
+    (arguments_) => {
+      record('get_issue', arguments_);
+      const issue = workspace.issues[arguments_.id];
+      return issue === undefined ? notFound('Issue') : jsonResult(issue);
+    },
+  );
+  mcp.registerTool(
+    'list_issues',
+    {
+      description: 'List Linear issues from the fixture workspace.',
+      inputSchema: {
+        ...page,
+        project: z.string().optional(),
+        parentId: z.string().optional(),
+        includeArchived: z.boolean().optional(),
+      },
+    },
+    (arguments_) => {
+      record('list_issues', arguments_);
+      const issues = Object.values(workspace.issues).filter(
+        (issue) =>
+          (arguments_.project === undefined || issue.projectId === arguments_.project) &&
+          (arguments_.parentId === undefined || issue.parentId === arguments_.parentId),
+      );
+      return jsonResult(paged('issues', issues.map(listedIssue), arguments_.cursor));
+    },
+  );
+  mcp.registerTool(
+    'list_comments',
+    {
+      description: 'List Linear comments from the fixture workspace.',
+      inputSchema: {...page, issueId: z.string().optional(), documentId: z.string().optional()},
+    },
+    (arguments_) => {
+      record('list_comments', arguments_);
+      const parent =
+        arguments_.issueId === undefined
+          ? `document:${arguments_.documentId}`
+          : `issue:${arguments_.issueId}`;
+      return jsonResult(paged('comments', workspace.comments[parent] ?? [], arguments_.cursor));
+    },
+  );
+  mcp.registerTool(
+    'list_documents',
+    {
+      description: 'List Linear documents from the fixture workspace.',
+      inputSchema: {
+        ...page,
+        projectId: z.string().optional(),
+        includeArchived: z.boolean().optional(),
+      },
+    },
+    (arguments_) => {
+      record('list_documents', arguments_);
+      const documents = Object.values(workspace.documents)
+        .filter((document) => document.projectId === arguments_.projectId)
+        .map((document) => ({id: document.id, title: document.title}));
+      return jsonResult(paged('documents', documents, arguments_.cursor));
+    },
+  );
+  mcp.registerTool(
+    'get_document',
+    {
+      description: 'Get a Linear document from the fixture workspace.',
+      inputSchema: {id: z.string()},
+    },
+    (arguments_) => {
+      record('get_document', arguments_);
+      const document = workspace.documents[arguments_.id];
+      return document === undefined ? notFound('Document') : jsonResult(document);
+    },
+  );
+}
+
+// List results carry previews, as the hosted MCP's do; get_issue has the full record.
+function listedIssue(issue: LinearIssueFixture): Record<string, unknown> {
+  return {id: issue.id, title: issue.title, projectId: issue.projectId ?? null};
+}
+
+function paged(
+  key: string,
+  items: readonly unknown[],
+  cursor: string | undefined,
+): Record<string, unknown> {
+  const start = cursor === undefined ? 0 : Number(cursor);
+  const end = start + LINEAR_WORKSPACE_PAGE_SIZE;
+  const hasNextPage = end < items.length;
+  return {
+    [key]: items.slice(start, end),
+    hasNextPage,
+    ...(hasNextPage ? {cursor: String(end)} : {}),
+  };
+}
+
+function jsonResult(value: unknown) {
+  return {content: [{type: 'text' as const, text: JSON.stringify(value)}]};
+}
+
+function notFound(entity: string) {
+  return {
+    isError: true,
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify({
+          error: 'invalid_request',
+          message: `Could not find referenced ${entity}.`,
+          status: 400,
+        }),
+      },
+    ],
+  };
 }
 
 /** Like `uploads.linear.app`, a request without a bearer token gets a 401. */
@@ -197,37 +351,6 @@ function requiredLinearMcpEndpoint(): string {
   const endpoint = process.env.LINEAR_MCP_ENDPOINT;
   if (!endpoint) throw new Error('LINEAR_MCP_ENDPOINT must be configured for the Linear MCP mock.');
   return endpoint;
-}
-
-async function listen(server: HttpServer, endpoint: URL): Promise<URL> {
-  const port = Number(endpoint.port);
-  const deadline = Date.now() + LINEAR_MCP_PORT_WAIT_TIMEOUT_MS;
-
-  while (true) {
-    server.listen({host: endpoint.hostname, port});
-    try {
-      await once(server, 'listening');
-      break;
-    } catch (error) {
-      if (!isAddressInUseError(error) || port === 0 || Date.now() >= deadline) throw error;
-      await delay(LINEAR_MCP_PORT_RETRY_INTERVAL_MS);
-    }
-  }
-
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('Expected TCP server address.');
-  const boundEndpoint = new URL(endpoint);
-  boundEndpoint.port = String(address.port);
-  return boundEndpoint;
-}
-
-function isAddressInUseError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && 'code' in error && error.code === 'EADDRINUSE';
-}
-
-async function close(server: HttpServer): Promise<void> {
-  server.close();
-  await once(server, 'close');
 }
 
 async function readJsonBody(request: NodeJS.ReadableStream): Promise<unknown> {

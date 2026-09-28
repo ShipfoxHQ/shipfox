@@ -1,10 +1,6 @@
-import {once} from 'node:events';
-import {
-  createServer,
-  type Server as HttpServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from 'node:http';
+import {createHash} from 'node:crypto';
+import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
+import {closeServer, listenOnEndpoint} from './mock-server.js';
 
 const JWT_SEGMENT_LENGTH = 169;
 
@@ -23,6 +19,7 @@ const REPOSITORY_PATH = /^\/repositories\/(\d+)$/u;
 const REPOSITORY_BY_NAME_PATH = /^\/repos\/([^/]+)\/([^/]+)$/u;
 const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/u;
 const ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues$/u;
+const PULL_REQUEST_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)$/u;
 const CHECK_RUN_CREATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs$/u;
 const CHECK_RUN_UPDATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs\/(\d+)$/u;
 const SEARCH_ISSUES_PATH = /^\/search\/issues$/u;
@@ -66,6 +63,20 @@ export type GithubApiMockCall =
       issueNumber: number;
     }
   | {
+      kind: 'read-pull-request';
+      authorization: string | undefined;
+      owner: string;
+      repo: string;
+      pullNumber: number;
+    }
+  | {
+      kind: 'create-commit';
+      authorization: string | undefined;
+      input: Record<string, unknown>;
+      /** False when the expected head was stale and GitHub would reject the commit. */
+      accepted: boolean;
+    }
+  | {
       kind: 'create-issue';
       authorization: string | undefined;
       owner: string;
@@ -88,9 +99,20 @@ export type GithubApiMockCall =
       body: Record<string, unknown>;
     };
 
+export interface GithubPullRequestFixture {
+  /** Head branch name. */
+  ref: string;
+  /** Head commit the pull request reports. */
+  sha: string;
+}
+
 export interface GithubApiMock {
   calls: GithubApiMockCall[];
   endpoint: URL;
+  /** Open pull requests by number. Tests fill it once they know the commits. */
+  pullRequests: Map<number, GithubPullRequestFixture>;
+  /** Branch tips for createCommitOnBranch's compare-and-swap, by branch name. */
+  branchHeads: Map<string, string>;
   stop(): Promise<void>;
 }
 
@@ -120,6 +142,8 @@ export async function startGithubApiMock(
   const checkRunCreateFailure = options.checkRunCreateFailure;
   const checkRunUpdateFailure = options.checkRunUpdateFailure;
   const knownCheckRunIds = new Set<number>();
+  const pullRequests = new Map<number, GithubPullRequestFixture>();
+  const branchHeads = new Map<string, string>();
   addConfiguredCheckRunId(knownCheckRunIds, checkRunCreateResponse);
   addConfiguredCheckRunId(knownCheckRunIds, checkRunUpdateResponse);
   const endpoint = options.endpoint ?? new URL(requiredGithubApiBaseUrl());
@@ -135,13 +159,15 @@ export async function startGithubApiMock(
       checkRunCreateFailure,
       checkRunUpdateFailure,
       knownCheckRunIds,
+      pullRequests,
+      branchHeads,
       request,
       response,
     });
   });
 
   try {
-    boundEndpoint = await listen(server, endpoint);
+    boundEndpoint = await listenOnEndpoint(server, endpoint);
   } catch (error) {
     throw new Error(`GitHub API mock failed to start at ${endpoint}`, {cause: error});
   }
@@ -149,9 +175,11 @@ export async function startGithubApiMock(
   return {
     calls,
     endpoint: boundEndpoint,
+    pullRequests,
+    branchHeads,
     stop: async () => {
       try {
-        await close(server);
+        await closeServer(server);
       } catch (error) {
         throw new Error(`GitHub API mock failed to stop at ${boundEndpoint}`, {cause: error});
       }
@@ -169,6 +197,8 @@ interface GithubRequestContext {
   checkRunCreateFailure: GithubApiMockFailure | undefined;
   checkRunUpdateFailure: GithubApiMockFailure | undefined;
   knownCheckRunIds: Set<number>;
+  pullRequests: Map<number, GithubPullRequestFixture>;
+  branchHeads: Map<string, string>;
   request: IncomingMessage;
   response: ServerResponse;
   requestUrl: URL;
@@ -185,6 +215,8 @@ async function handleGithubRequest(params: {
   checkRunCreateFailure: GithubApiMockFailure | undefined;
   checkRunUpdateFailure: GithubApiMockFailure | undefined;
   knownCheckRunIds: Set<number>;
+  pullRequests: Map<number, GithubPullRequestFixture>;
+  branchHeads: Map<string, string>;
   request: IncomingMessage;
   response: ServerResponse;
 }): Promise<void> {
@@ -212,6 +244,11 @@ async function handleGithubRequest(params: {
   const issueMatch = requestUrl.pathname.match(ISSUE_PATH);
   if (requestMatches(params.request, 'GET', issueMatch)) {
     handleIssueRequest(context, issueMatch);
+    return;
+  }
+  const pullRequestMatch = requestUrl.pathname.match(PULL_REQUEST_PATH);
+  if (requestMatches(params.request, 'GET', pullRequestMatch)) {
+    handlePullRequestRequest(context, pullRequestMatch);
     return;
   }
   const createIssueMatch = requestUrl.pathname.match(ISSUES_PATH);
@@ -325,6 +362,32 @@ function handleIssueRequest(params: GithubRequestContext, match: RegExpMatchArra
   });
 }
 
+function handlePullRequestRequest(params: GithubRequestContext, match: RegExpMatchArray): void {
+  const owner = decodeURIComponent(match[1] ?? '');
+  const repo = decodeURIComponent(match[2] ?? '');
+  const pullNumber = Number(match[3]);
+  if (isCurrentInstallationAuthorization(params)) {
+    params.calls.push({
+      kind: 'read-pull-request',
+      authorization: params.authorization,
+      owner,
+      repo,
+      pullNumber,
+    });
+  }
+  const pullRequest = params.pullRequests.get(pullNumber);
+  if (pullRequest === undefined) {
+    sendJson(params.response, 404, {message: 'Not Found'});
+    return;
+  }
+  sendJson(params.response, 200, {
+    number: pullNumber,
+    state: 'open',
+    head: {ref: pullRequest.ref, sha: pullRequest.sha, repo: {full_name: `${owner}/${repo}`}},
+    base: {ref: 'main', repo: {full_name: `${owner}/${repo}`}},
+  });
+}
+
 async function handleCreateIssueRequest(
   params: GithubRequestContext,
   match: RegExpMatchArray,
@@ -423,6 +486,10 @@ async function handleGraphqlRequest(params: GithubRequestContext): Promise<void>
   const body = await readJsonBody(params.request);
   const query = typeof body.query === 'string' ? body.query : '';
   const variables = isRecord(body.variables) ? body.variables : {};
+  if (query.includes('createCommitOnBranch')) {
+    handleCreateCommitRequest(params, isRecord(variables.input) ? variables.input : {});
+    return;
+  }
   if (isCurrentInstallationAuthorization(params)) {
     params.calls.push({kind: 'graphql', authorization: params.authorization, query, variables});
   }
@@ -456,6 +523,47 @@ async function handleGraphqlRequest(params: GithubRequestContext): Promise<void>
     return;
   }
   sendJson(params.response, 200, {data: {}});
+}
+
+// Like GitHub, a commit lands only when expectedHeadOid still names the branch tip.
+function handleCreateCommitRequest(
+  params: GithubRequestContext,
+  input: Record<string, unknown>,
+): void {
+  const branch = isRecord(input.branch) ? input.branch : {};
+  const branchName = String(branch.branchName);
+  const head = params.branchHeads.get(branchName);
+  const accepted = head !== undefined && head === input.expectedHeadOid;
+  if (isCurrentInstallationAuthorization(params)) {
+    params.calls.push({
+      kind: 'create-commit',
+      authorization: params.authorization,
+      input,
+      accepted,
+    });
+  }
+  if (!accepted) {
+    sendJson(params.response, 200, {
+      data: null,
+      errors: [
+        {
+          type: 'STALE_DATA',
+          message: `Expected branch to point to "${String(input.expectedHeadOid)}" but it did not. Pull and try again.`,
+        },
+      ],
+    });
+    return;
+  }
+  const oid = createHash('sha1').update(JSON.stringify(input)).digest('hex');
+  params.branchHeads.set(branchName, oid);
+  const repository = String(branch.repositoryNameWithOwner);
+  sendJson(params.response, 200, {
+    data: {
+      createCommitOnBranch: {
+        commit: {oid, url: `https://github.com/${repository}/commit/${oid}`},
+      },
+    },
+  });
 }
 
 function isCurrentInstallationAuthorization(params: GithubRequestContext): boolean {
@@ -539,21 +647,6 @@ function requiredGithubApiBaseUrl(): string {
   const endpoint = process.env.GITHUB_API_BASE_URL;
   if (!endpoint) throw new Error('GITHUB_API_BASE_URL must be configured for the GitHub API mock.');
   return endpoint;
-}
-
-async function listen(server: HttpServer, endpoint: URL): Promise<URL> {
-  server.listen({host: endpoint.hostname, port: Number(endpoint.port)});
-  await once(server, 'listening');
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('Expected TCP server address.');
-  const boundEndpoint = new URL(endpoint);
-  boundEndpoint.port = String(address.port);
-  return boundEndpoint;
-}
-
-async function close(server: HttpServer): Promise<void> {
-  server.close();
-  await once(server, 'close');
 }
 
 async function readCheckRunBody(
