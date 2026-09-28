@@ -24,8 +24,24 @@ release tool, Shipfox instances, and the docs build.
   `published_at`, `provenance`, and the builder's tool version are excluded,
   so a retried publish of the same content keeps its fingerprint.
 - **`canonicalJson(value)`** writes JSON with object keys sorted at every depth.
+- **Signed envelopes** wrap version documents in a
+  [DSSE](https://github.com/secure-systems-lab/dsse) envelope with Ed25519
+  signatures.
+  - `signRegistryVersionDocument` validates a document and signs its
+    canonical JSON through a `RegistrySigner`. `createEd25519Signer` builds one
+    from a PKCS#8 PEM private key. A KMS signer only needs to implement the
+    same interface.
+  - `verifyRegistryVersionEnvelope` accepts an envelope when one signature
+    verifies under a trusted key with the same `keyid`. It then checks that the
+    payload names the requested package, version, and kind. It throws a
+    `RegistryEnvelopeError` whose `reason` is `malformed`,
+    `signature-invalid`, `schema-unsupported`, or `payload-mismatch`.
+  - `decodeUnverifiedRegistryVersionEnvelope` reads the payload without
+    checking signatures. Use it only for envelopes you wrote yourself.
 
-The package is browser-safe: hashing uses WebCrypto.
+The package is browser-safe: hashing, signing, and verification use WebCrypto,
+and base64 uses `atob` and `btoa`. Signing and verification need WebCrypto
+Ed25519 support, which current Node and browsers have.
 
 ## Installation and setup
 
@@ -55,6 +71,19 @@ if (reference) {
 ['1.10.0', '1.2.0'].sort(compareRegistryVersions); // ['1.2.0', '1.10.0']
 ```
 
+Verify a fetched envelope against the keys the instance trusts:
+
+```ts
+import {verifyRegistryVersionEnvelope} from '@shipfox/registry-format';
+
+// Throws a RegistryEnvelopeError when the envelope is not trusted.
+const {document, keyid} = await verifyRegistryVersionEnvelope({
+  envelope: await response.json(),
+  trustedKeys: [{keyid: 'reg-2026-1', public_key: 'MCowBQYDK2VwAyEA…'}],
+  expected: {package: 'shipfox/slack-thread-digest', version: '1.4.2', kind: 'action'},
+});
+```
+
 ## Behavior notes
 
 - Index, catalog, and profile files are unsigned and mutable. Only version
@@ -62,6 +91,15 @@ if (reference) {
 - The `.well-known` metadata is informational. Instances trust the keys in
   their own configuration, never the keys it lists.
 - A version document's `bump` is absent on a package's first version.
+- Public keys are base64 DER SubjectPublicKeyInfo: the body of the PEM that
+  `openssl pkey -pubout` writes, without the armor lines.
+  `registryEd25519PublicKeySchema` rejects any other format, and
+  `registryTrustedKeySchema` validates one configured trusted key.
+- Verification skips signatures whose `keyid` matches no trusted key. To rotate keys,
+  trust the new key before the signer switches to it. Versions signed by the
+  old key stay valid while it remains trusted.
+- The payload type is part of the signed data, so an envelope cannot be
+  replayed as another payload type.
 
 ## Development
 

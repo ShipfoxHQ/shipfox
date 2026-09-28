@@ -4,12 +4,15 @@ import {
   type RegistryNamespaceProfile,
   type RegistryPackageIndex,
   registryCatalogSchema,
+  registryEd25519PublicKeySchema,
   registryMetadataSchema,
   registryNamespaceProfileSchema,
   registryPackageIndexSchema,
   registryVersionDocumentSchema,
 } from '#documents.js';
 import {actionVersionDocument, digest, templateVersionDocument} from '#test/fixtures/documents.js';
+
+const ED25519_PUBLIC_KEY = 'MCowBQYDK2VwAyEA0lRAbWUILmDiUDHxGX6kM6NrMi13DEve1UGXlHWgxuA=';
 
 function roundTrip<T>(schema: {parse(value: unknown): T}, value: T): T {
   return schema.parse(JSON.parse(JSON.stringify(value)));
@@ -139,11 +142,33 @@ describe('index and profile schemas', () => {
   it('round-trips the well-known metadata', () => {
     const metadata: RegistryMetadata = {
       publish_url: 'https://registry.shipfox.io/v1/publish',
-      keys: [{keyid: 'reg-2026-1', algorithm: 'ed25519', public_key: 'MCowBQYDK2VwAyEA'}],
+      keys: [{keyid: 'reg-2026-1', algorithm: 'ed25519', public_key: ED25519_PUBLIC_KEY}],
     };
 
     const result = roundTrip(registryMetadataSchema, metadata);
 
     expect(result).toEqual(metadata);
+  });
+});
+
+describe('registryEd25519PublicKeySchema', () => {
+  it('accepts a base64 DER Ed25519 public key', () => {
+    const result = registryEd25519PublicKeySchema.safeParse(ED25519_PUBLIC_KEY);
+
+    expect(result.success).toBe(true);
+  });
+
+  it.each([
+    ['a truncated key', 'MCowBQYDK2VwAyEA'],
+    [
+      'a PEM with armor',
+      `-----BEGIN PUBLIC KEY-----\n${ED25519_PUBLIC_KEY}\n-----END PUBLIC KEY-----`,
+    ],
+    ['a raw 32-byte key', 'A'.repeat(43) + '='],
+    ['an X25519 key', 'MCowBQYDK2VuAyEA0lRAbWUILmDiUDHxGX6kM6NrMi13DEve1UGXlHWgxuA='],
+  ])('rejects %s', (_case, value) => {
+    const result = registryEd25519PublicKeySchema.safeParse(value);
+
+    expect(result.success).toBe(false);
   });
 });

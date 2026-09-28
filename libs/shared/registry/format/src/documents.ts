@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {decodeBase64} from '#base64.js';
 import {
   registryPackageNameSchema,
   registryReferenceSchema,
@@ -128,10 +129,36 @@ export const registryNamespaceProfileSchema = z.object({
   verified: z.boolean(),
 });
 
+const ED25519_SPKI_PREFIX = [
+  0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00,
+];
+
+function isEd25519PublicKey(value: string): boolean {
+  const bytes = decodeBase64(value);
+  return (
+    bytes?.length === ED25519_SPKI_PREFIX.length + 32 &&
+    ED25519_SPKI_PREFIX.every((byte, index) => bytes[index] === byte)
+  );
+}
+
+/**
+ * An Ed25519 public key as base64 DER SubjectPublicKeyInfo: the body of the
+ * PEM that `openssl pkey -pubout` writes, without the armor lines.
+ */
+export const registryEd25519PublicKeySchema = z
+  .string()
+  .refine(isEd25519PublicKey, 'Expected a base64 DER Ed25519 public key');
+
 export const registryPublicKeySchema = z.object({
   keyid: z.string().min(1),
   algorithm: z.literal('ed25519'),
-  public_key: z.string().min(1),
+  public_key: registryEd25519PublicKeySchema,
+});
+
+/** A key an instance trusts for version envelopes, from its own configuration. */
+export const registryTrustedKeySchema = registryPublicKeySchema.pick({
+  keyid: true,
+  public_key: true,
 });
 
 /**
@@ -153,4 +180,5 @@ export type RegistryCatalogEntry = z.infer<typeof registryCatalogEntrySchema>;
 export type RegistryCatalog = z.infer<typeof registryCatalogSchema>;
 export type RegistryNamespaceProfile = z.infer<typeof registryNamespaceProfileSchema>;
 export type RegistryPublicKey = z.infer<typeof registryPublicKeySchema>;
+export type RegistryTrustedKey = z.infer<typeof registryTrustedKeySchema>;
 export type RegistryMetadata = z.infer<typeof registryMetadataSchema>;
