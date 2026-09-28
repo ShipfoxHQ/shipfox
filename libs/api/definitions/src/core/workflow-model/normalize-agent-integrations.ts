@@ -63,65 +63,116 @@ function validateIntegration(params: {
     return;
   }
 
-  const connection = context.workspaceConnectionSnapshot.get(connectionSlug);
+  const selectorsByToken = resolveAgentToolConnection({
+    connectionSlug,
+    path: integrationConnectionPath(params),
+    details: {integrationIndex: params.integrationIndex},
+    issues: params.issues,
+    context,
+  });
+  if (selectorsByToken === undefined) return;
+
+  validateAgentToolSelection({
+    include: params.integration.include,
+    ...(params.integration.exclude === undefined ? {} : {exclude: params.integration.exclude}),
+    allowWrite: params.normalized.allowWrite,
+    selectorsByToken,
+    selectorPath: (field, tokenIndex) =>
+      tokenIndex === undefined
+        ? [...integrationPath(params), field]
+        : [...integrationPath(params), field, tokenIndex],
+    issues: params.issues,
+  });
+}
+
+/**
+ * Looks up a connection that serves agent tools and returns its provider's
+ * selectors, or reports why it cannot serve them.
+ */
+export function resolveAgentToolConnection(params: {
+  connectionSlug: string;
+  /** Rejects a connection of another provider. */
+  expectedProvider?: string;
+  path: readonly (string | number)[];
+  details?: Readonly<Record<string, unknown>>;
+  issues: WorkflowModelValidationIssue[];
+  context: IntegrationValidationContext;
+}): ReadonlyMap<string, AgentToolSelector> | undefined {
+  const {connectionSlug} = params;
+  const connection = params.context.workspaceConnectionSnapshot.get(connectionSlug);
   if (connection === undefined) {
     params.issues.push(
       issue({
         code: 'integration-connection-not-found',
         message: `Integration connection "${connectionSlug}" was not found in the workspace.`,
-        path: integrationConnectionPath(params),
+        path: params.path,
+        details: {connection: connectionSlug, ...params.details},
+      }),
+    );
+    return undefined;
+  }
+
+  if (params.expectedProvider !== undefined && connection.provider !== params.expectedProvider) {
+    params.issues.push(
+      issue({
+        code: 'integration-connection-provider-mismatch',
+        message: `Integration connection "${connectionSlug}" is a ${connection.provider} connection; expected ${params.expectedProvider}.`,
+        path: params.path,
         details: {
           connection: connectionSlug,
-          integrationIndex: params.integrationIndex,
+          provider: connection.provider,
+          expectedProvider: params.expectedProvider,
+          ...params.details,
         },
       }),
     );
-    return;
+    return undefined;
   }
 
-  const catalog = context.agentToolSelectionCatalogs.get(connection.provider);
+  const catalog = params.context.agentToolSelectionCatalogs.get(connection.provider);
   if (catalog === undefined || !connection.capabilities.includes('agent_tools')) {
     params.issues.push(
       issue({
         code: 'integration-connection-not-capable',
         message: `Integration connection "${connectionSlug}" does not support agent tools.`,
-        path: integrationConnectionPath(params),
+        path: params.path,
         details: {
           connection: connectionSlug,
           provider: connection.provider,
           capabilities: connection.capabilities,
-          integrationIndex: params.integrationIndex,
+          ...params.details,
         },
       }),
     );
-    return;
+    return undefined;
   }
 
-  const selectorsByToken = new Map(catalog.selectors.map((selector) => [selector.token, selector]));
-  validateSelection({
-    ...params,
-    field: 'include',
-    tokens: params.integration.include,
-    selectorsByToken,
-  });
-  if (params.integration.exclude !== undefined) {
-    validateSelection({
-      ...params,
-      field: 'exclude',
-      tokens: params.integration.exclude,
-      selectorsByToken,
-    });
+  return new Map(catalog.selectors.map((selector) => [selector.token, selector]));
+}
+
+/** Checks selectors against the provider catalog; write tools need `allowWrite`. */
+export function validateAgentToolSelection(params: {
+  include: readonly string[];
+  exclude?: readonly string[];
+  allowWrite: boolean;
+  selectorsByToken: ReadonlyMap<string, AgentToolSelector>;
+  selectorPath: (field: 'include' | 'exclude', tokenIndex?: number) => readonly (string | number)[];
+  details?: Readonly<Record<string, unknown>>;
+  issues: WorkflowModelValidationIssue[];
+}): void {
+  validateSelection({...params, field: 'include', tokens: params.include});
+  if (params.exclude !== undefined) {
+    validateSelection({...params, field: 'exclude', tokens: params.exclude});
   }
-  validateWriteSelection({...params, selectorsByToken});
+  validateWriteSelection(params);
 }
 
 function validateSelection(params: {
   field: 'include' | 'exclude';
   tokens: readonly string[];
   selectorsByToken: ReadonlyMap<string, AgentToolSelector>;
-  sourceName: string;
-  stepIndex: number;
-  integrationIndex: number;
+  selectorPath: (field: 'include' | 'exclude', tokenIndex?: number) => readonly (string | number)[];
+  details?: Readonly<Record<string, unknown>>;
   issues: WorkflowModelValidationIssue[];
 }): void {
   params.tokens.forEach((token, tokenIndex) => {
@@ -135,28 +186,25 @@ function validateSelection(params: {
           code === 'unknown-integration-method'
             ? `Unknown integration tool method: ${token}.`
             : `Unknown integration tool: ${token}.`,
-        path: [...integrationPath(params), params.field, tokenIndex],
-        details: {token},
+        path: params.selectorPath(params.field, tokenIndex),
+        details: {token, ...params.details},
       }),
     );
   });
 }
 
 function validateWriteSelection(params: {
-  integration: WorkflowDocumentStepIntegration;
-  normalized: WorkflowModelStepIntegration;
+  include: readonly string[];
+  allowWrite: boolean;
   selectorsByToken: ReadonlyMap<string, AgentToolSelector>;
-  sourceName: string;
-  stepIndex: number;
-  integrationIndex: number;
+  selectorPath: (field: 'include' | 'exclude', tokenIndex?: number) => readonly (string | number)[];
+  details?: Readonly<Record<string, unknown>>;
   issues: WorkflowModelValidationIssue[];
 }): void {
-  if (params.normalized.allowWrite) return;
+  if (params.allowWrite) return;
 
   const writeTokens = dedupe(
-    params.integration.include.filter(
-      (token) => params.selectorsByToken.get(token)?.sensitivity === 'write',
-    ),
+    params.include.filter((token) => params.selectorsByToken.get(token)?.sensitivity === 'write'),
   );
   if (writeTokens.length === 0) return;
 
@@ -164,8 +212,8 @@ function validateWriteSelection(params: {
     issue({
       code: 'integration-write-not-allowed',
       message: `Integration selection includes write-capable tools but allow_write is not true: ${writeTokens.join(', ')}.`,
-      path: [...integrationPath(params), 'include'],
-      details: {tokens: writeTokens},
+      path: params.selectorPath('include'),
+      details: {tokens: writeTokens, ...params.details},
     }),
   );
 }

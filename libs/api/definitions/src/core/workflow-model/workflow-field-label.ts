@@ -48,6 +48,8 @@ export function workflowFieldLabel(
       return 'Tool step with interpolation';
     case 'tool.outputs':
       return 'Tool step outputs mapping';
+    case 'action.with':
+      return 'Action step with interpolation';
     case 'step.success':
       return 'Step gate success';
     case 'step.feedback':

@@ -28,6 +28,7 @@ import {
   type WorkflowDocumentJob,
   type WorkflowDocumentStep,
 } from '@shipfox/workflow-document';
+import type {ResolvedActions} from '../entities/action-snapshot.js';
 import type {IntegrationValidationContext} from '../entities/integration-context.js';
 import type {
   WorkflowEnvTemplates,
@@ -46,6 +47,7 @@ import type {
   WorkflowModelValidationIssue,
   WorkflowModelValidationIssuePathSegment,
 } from './invalid-workflow-model-error.js';
+import {buildActionStep, normalizeActionFields} from './normalize-action-step.js';
 import {normalizeAgentIntegrations} from './normalize-agent-integrations.js';
 import {normalizeEnv} from './normalize-env.js';
 import {normalizeIfCondition} from './normalize-if-condition.js';
@@ -66,6 +68,7 @@ export interface NormalizeContext {
   readonly defaultRunnerLabels: readonly string[];
   readonly agentValidationCatalog: AgentValidationCatalogV2;
   readonly integrationValidationContext?: IntegrationValidationContext | undefined;
+  readonly actionManifests?: ResolvedActions | undefined;
 }
 
 interface NormalizeJobsState {
@@ -215,9 +218,9 @@ function normalizeJob(params: {
   const stepTypeOverlay = params.job.steps.some((step) => step.outputs !== undefined)
     ? {}
     : undefined;
-  // Tool steps record a `steps.<key>` type overlay while they normalize, so
-  // later steps and the job outputs see `outputs.result` typed from the
-  // catalog output schema.
+  // Tool and action steps record a `steps.<key>` type overlay while they
+  // normalize, so later steps and the job outputs see their outputs typed from
+  // the catalog output schema or the action manifest.
   const toolOverlayByKey = new Map<string, WorkflowStepTypeOverlay>();
   const steps = normalizeJobSteps({
     sourceName: params.sourceName,
@@ -637,21 +640,18 @@ function normalizeStepWorkingDirectory(
 function normalizeConcreteStep(params: {
   normalization: NormalizeStepParams;
   stepId: string;
-  stepKey: string | undefined;
   stepBase: WorkflowModelStepBaseFields;
   outputs: ReturnType<typeof normalizeStepOutputs>;
   condition: ReturnType<typeof normalizeIfCondition>;
   gate: ReturnType<typeof normalizeStepGate>;
   toolStepResult: ReturnType<typeof normalizeToolStep> | undefined;
+  actionFields: ReturnType<typeof normalizeActionFields>;
   name: WorkflowFieldTemplate | undefined;
   workingDirectory: WorkflowFieldTemplate | undefined;
   typeOverlay: ExpressionTypeEnvironment | undefined;
 }): WorkflowModelStep {
   const source = params.normalization;
   if (params.toolStepResult !== undefined) {
-    if (params.stepKey !== undefined) {
-      source.toolOverlayByKey.set(params.stepKey, params.toolStepResult.overlay);
-    }
     return {
       ...params.toolStepResult.step,
       ...(params.condition === undefined ? {} : {if: params.condition}),
@@ -676,6 +676,9 @@ function normalizeConcreteStep(params: {
     allowedJobReferences: source.allowedJobReferences,
     typeOverlay: params.typeOverlay,
   };
+  if (params.actionFields !== undefined) {
+    return buildActionStep({...shared, fields: params.actionFields});
+  }
   if (source.step.run !== undefined) {
     return normalizeRunStep({
       ...shared,
@@ -687,8 +690,79 @@ function normalizeConcreteStep(params: {
     return normalizeAgentStep({...shared, context: source.context});
   if (source.step.checkout !== undefined) return normalizeCheckoutStep(shared);
   throw new Error(
-    `Workflow step "${params.stepId}" is neither a run, agent, tool, nor checkout step`,
+    `Workflow step "${params.stepId}" is neither a run, agent, tool, action, nor checkout step`,
   );
+}
+
+// Tool and action steps resolve their catalog- or manifest-tied fields before
+// the current-step overlay exists, because that overlay is derived from them.
+// Their overlay is recorded for later steps and the job outputs.
+function normalizeKindFields(
+  params: NormalizeStepParams,
+  stepId: string,
+  stepBase: WorkflowModelStepBaseFields,
+  previousStepsOverlay: ExpressionTypeEnvironment | undefined,
+):
+  | {
+      toolStepResult: ReturnType<typeof normalizeToolStep> | undefined;
+      actionFields: ReturnType<typeof normalizeActionFields>;
+      outputs: ReturnType<typeof normalizeStepOutputs>;
+      currentStepOverlay: WorkflowStepTypeOverlay | undefined;
+    }
+  | undefined {
+  const shared = {
+    step: params.step,
+    sourceName: params.sourceName,
+    stepIndex: params.index,
+    issues: params.issues,
+    fillSite: params.fillSite,
+    allowedJobReferences: params.allowedJobReferences,
+    typeOverlay: previousStepsOverlay,
+    integrationValidationContext: params.context.integrationValidationContext,
+  };
+  const toolStepResult =
+    params.step.tool === undefined
+      ? undefined
+      : normalizeToolStep({
+          ...shared,
+          stepBase,
+          name: normalizeStepName({...params, typeOverlay: previousStepsOverlay}),
+        });
+  const actionFields =
+    params.step.uses === undefined
+      ? undefined
+      : normalizeActionFields({
+          ...shared,
+          stepId,
+          actionManifests: params.context.actionManifests,
+        });
+  if (params.step.uses !== undefined && actionFields === undefined) return undefined;
+
+  const derivedOverlay = toolStepResult?.overlay ?? actionFields?.overlay;
+  const outputs =
+    toolStepResult === undefined
+      ? (actionFields?.outputs ??
+        normalizeStepOutputs({
+          step: params.step,
+          sourceName: params.sourceName,
+          stepIndex: params.index,
+          issues: params.issues,
+        }))
+      : undefined;
+  const stepKey = params.step.key;
+  if (stepKey === undefined) {
+    return {toolStepResult, actionFields, outputs, currentStepOverlay: undefined};
+  }
+  if (derivedOverlay !== undefined) params.toolOverlayByKey.set(stepKey, derivedOverlay);
+  return {
+    toolStepResult,
+    actionFields,
+    outputs,
+    currentStepOverlay: derivedOverlay ?? {
+      key: stepKey,
+      ...(outputs === undefined ? {} : {outputs}),
+    },
+  };
 }
 
 function normalizeStep(params: {
@@ -710,16 +784,6 @@ function normalizeStep(params: {
   toolOverlayByKey: Map<string, WorkflowStepTypeOverlay>;
   context: NormalizeContext;
 }): WorkflowModelStep | undefined {
-  if (params.step.uses !== undefined) {
-    params.issues.push(
-      issue({
-        code: 'action-step-unsupported',
-        message: 'Action steps (`uses`) are not supported yet.',
-        path: ['jobs', params.sourceName, 'steps', params.index, 'uses'],
-      }),
-    );
-    return undefined;
-  }
   const stepKey = params.step.key;
   const stepId =
     stepKey === undefined
@@ -741,41 +805,10 @@ function normalizeStep(params: {
       : {workingDirectory: params.step.working_directory}),
     ...(sourceLocation === undefined ? {} : {sourceLocation}),
   };
-  // Tool steps resolve their catalog-tied fields before the current-step
-  // overlay exists, because that overlay is derived from them.
-  const toolStepResult =
-    params.step.tool === undefined
-      ? undefined
-      : normalizeToolStep({
-          step: params.step,
-          stepBase,
-          sourceName: params.sourceName,
-          stepIndex: params.index,
-          name: normalizeStepName({...params, typeOverlay: previousStepsOverlay}),
-          issues: params.issues,
-          fillSite: params.fillSite,
-          allowedJobReferences: params.allowedJobReferences,
-          typeOverlay: previousStepsOverlay,
-          integrationValidationContext: params.context.integrationValidationContext,
-        });
-  const outputs =
-    toolStepResult === undefined
-      ? normalizeStepOutputs({
-          step: params.step,
-          sourceName: params.sourceName,
-          stepIndex: params.index,
-          issues: params.issues,
-        })
-      : undefined;
-  let currentStepOverlay: WorkflowStepTypeOverlay | undefined;
-  if (stepKey !== undefined) {
-    currentStepOverlay =
-      toolStepResult?.overlay ??
-      ({
-        key: stepKey,
-        ...(outputs === undefined ? {} : {outputs}),
-      } satisfies WorkflowStepTypeOverlay);
-  }
+  const kindFields = normalizeKindFields(params, stepId, stepBase, previousStepsOverlay);
+  // An unresolved action already reported its issue and has no model.
+  if (kindFields === undefined) return undefined;
+  const {toolStepResult, actionFields, outputs, currentStepOverlay} = kindFields;
   const {typeOverlay, conditionTypeOverlay} = currentStepTypeContext(
     params,
     previousContext,
@@ -814,12 +847,12 @@ function normalizeStep(params: {
   return normalizeConcreteStep({
     normalization: params,
     stepId,
-    stepKey,
     stepBase,
     outputs,
     condition,
     gate,
     toolStepResult,
+    actionFields,
     name,
     workingDirectory: normalizeStepWorkingDirectory(params, typeOverlay),
     typeOverlay,

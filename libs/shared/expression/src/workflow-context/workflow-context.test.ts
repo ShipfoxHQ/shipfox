@@ -1128,6 +1128,7 @@ describe('workflow interpolation field policies', () => {
       'checkout.path',
       'tool.with',
       'tool.outputs',
+      'action.with',
     ]);
     expect(Object.keys(workflowInterpolationFieldPolicies)).toEqual(workflowInterpolationFields);
   });
@@ -1168,6 +1169,7 @@ describe('workflow interpolation field policies', () => {
     ['checkout.path', ['server']],
     ['tool.with', ['server']],
     ['tool.outputs', ['server']],
+    ['action.with', ['server', 'runner']],
   ] satisfies readonly [
     WorkflowInterpolationField,
     readonly string[],

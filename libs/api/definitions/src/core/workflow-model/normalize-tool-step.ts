@@ -118,6 +118,7 @@ export function normalizeToolStep(params: {
 
   const withTemplates = normalizeWithTemplates({
     ...params,
+    field: 'tool.with',
     withValue: params.step.with,
   });
   const outputMappings = normalizeOutputMappings({
@@ -473,8 +474,9 @@ function pushSecretInputDestinationIssue(
   );
 }
 
-function normalizeWithTemplates(params: {
-  step: WorkflowDocumentStep;
+/** Parses every string leaf of a tool or action `with` tree as an interpolation field. */
+export function normalizeWithTemplates(params: {
+  field: 'tool.with' | 'action.with';
   sourceName: string;
   stepIndex: number;
   issues: WorkflowModelValidationIssue[];
@@ -482,6 +484,10 @@ function normalizeWithTemplates(params: {
   allowedJobReferences: ReadonlySet<string>;
   typeOverlay?: ExpressionTypeEnvironment | undefined;
   withValue: Readonly<Record<string, unknown>> | undefined;
+  onTemplate?: (
+    template: WorkflowFieldTemplate,
+    path: readonly WorkflowModelValidationIssuePathSegment[],
+  ) => void;
 }): WorkflowJsonTemplateTree | undefined {
   if (params.withValue === undefined) return undefined;
   return walkWithValue({
@@ -492,6 +498,7 @@ function normalizeWithTemplates(params: {
 }
 
 function walkWithValue(params: {
+  field: 'tool.with' | 'action.with';
   value: unknown;
   path: readonly WorkflowModelValidationIssuePathSegment[];
   sourceName: string;
@@ -500,6 +507,10 @@ function walkWithValue(params: {
   fillSite: AvailabilitySite;
   allowedJobReferences: ReadonlySet<string>;
   typeOverlay?: ExpressionTypeEnvironment | undefined;
+  onTemplate?: (
+    template: WorkflowFieldTemplate,
+    path: readonly WorkflowModelValidationIssuePathSegment[],
+  ) => void;
 }): WorkflowJsonTemplateTree | undefined {
   if (Array.isArray(params.value)) {
     const trees = params.value.map((child, index) =>
@@ -518,8 +529,8 @@ function walkWithValue(params: {
 
   if (typeof params.value !== 'string') return undefined;
 
-  return parseInterpolationField({
-    field: 'tool.with',
+  const template = parseInterpolationField({
+    field: params.field,
     source: params.value,
     path: params.path,
     issues: params.issues,
@@ -527,6 +538,8 @@ function walkWithValue(params: {
     allowedJobReferences: params.allowedJobReferences,
     typeOverlay: params.typeOverlay,
   });
+  if (template !== undefined) params.onTemplate?.(template, params.path);
+  return template;
 }
 
 function normalizeOutputMappings(params: {
