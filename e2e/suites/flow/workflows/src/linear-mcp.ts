@@ -13,6 +13,49 @@ import {z} from 'zod';
 
 export const LINEAR_READ_RESULT_MARKER = 'linear-read-result-marker';
 export const LINEAR_WRITE_RESULT_MARKER = 'linear-write-result-marker';
+export const LINEAR_GRAPHQL_ISSUE_ID = 'ENG-878';
+export const LINEAR_GRAPHQL_PROJECT_ID = 'linear-e2e-project';
+
+const LINEAR_GRAPHQL_PATH = '/graphql';
+const GRAPHQL_OPERATION_NAME_PATTERN = /\bquery\s+(\w+)/;
+
+interface LinearGraphqlIssue {
+  id: string;
+  identifier: string;
+  title: string;
+  archivedAt: string | null;
+  project: {id: string} | null;
+}
+
+interface LinearGraphqlRelation {
+  type: string;
+  issue: LinearGraphqlIssue;
+}
+
+// One issue with relations in both directions, including the inverse duplicate
+// that Linear's hosted get_issue drops, and more attachments than one page holds.
+const linearGraphqlFixture = {
+  outgoing: [
+    {type: 'blocks', issue: graphqlIssue('ENG-879', LINEAR_GRAPHQL_PROJECT_ID)},
+    {type: 'related', issue: graphqlIssue('ENG-881', 'linear-e2e-other-project')},
+  ],
+  incoming: [
+    {type: 'duplicate', issue: graphqlIssue('ENG-880', LINEAR_GRAPHQL_PROJECT_ID)},
+    {type: 'blocks', issue: graphqlIssue('ENG-882', LINEAR_GRAPHQL_PROJECT_ID)},
+    {type: 'related', issue: graphqlIssue('ENG-883', null, '2026-09-01T00:00:00.000Z')},
+  ],
+  attachments: ['design.pdf', 'screenshot.png', 'notes.txt'].map((title, index) => ({
+    id: `linear-e2e-attachment-${index + 1}`,
+    title,
+    subtitle: null,
+    url: `https://uploads.linear.app/linear-e2e/${title}`,
+    createdAt: `2026-09-2${index + 1}T12:00:00.000Z`,
+  })),
+} satisfies {
+  outgoing: LinearGraphqlRelation[];
+  incoming: LinearGraphqlRelation[];
+  attachments: unknown[];
+};
 
 const LINEAR_MCP_PORT_WAIT_TIMEOUT_MS = 120_000;
 const LINEAR_MCP_PORT_RETRY_INTERVAL_MS = 100;
@@ -23,9 +66,17 @@ export interface LinearMcpCall {
   toolName: 'get_issue' | 'save_comment';
 }
 
+export interface LinearGraphqlCall {
+  authorization: string | undefined;
+  operationName: string | undefined;
+  variables: Record<string, unknown>;
+}
+
 export interface LinearMcpMock {
   calls: LinearMcpCall[];
+  graphqlCalls: LinearGraphqlCall[];
   endpoint: URL;
+  graphqlEndpoint: URL;
   stop(): Promise<void>;
 }
 
@@ -33,8 +84,14 @@ export async function startLinearMcpMock(
   endpoint = new URL(requiredLinearMcpEndpoint()),
 ): Promise<LinearMcpMock> {
   const calls: LinearMcpCall[] = [];
+  const graphqlCalls: LinearGraphqlCall[] = [];
   let boundEndpoint = endpoint;
   const server = createServer((request, response) => {
+    const requestUrl = new URL(request.url ?? '/', boundEndpoint);
+    if (requestUrl.pathname === LINEAR_GRAPHQL_PATH) {
+      void handleGraphqlRequest({calls: graphqlCalls, request, response});
+      return;
+    }
     void handleMcpRequest({calls, endpoint: boundEndpoint, request, response});
   });
 
@@ -46,7 +103,9 @@ export async function startLinearMcpMock(
 
   return {
     calls,
+    graphqlCalls,
     endpoint: boundEndpoint,
+    graphqlEndpoint: new URL(LINEAR_GRAPHQL_PATH, boundEndpoint),
     stop: async () => {
       try {
         await close(server);
@@ -117,6 +176,161 @@ async function handleMcpRequest(params: {
       sendMcpError(params.response, 500, -32603, 'MCP request failed.');
     else params.response.end();
   }
+}
+
+async function handleGraphqlRequest(params: {
+  calls: LinearGraphqlCall[];
+  request: IncomingMessage;
+  response: ServerResponse;
+}): Promise<void> {
+  if (params.request.method !== 'POST') {
+    sendJson(params.response, 405, {errors: [{message: 'Method not allowed.'}]});
+    return;
+  }
+
+  try {
+    const body = (await readJsonBody(params.request)) as {
+      query?: unknown;
+      variables?: Record<string, unknown>;
+    };
+    const variables = body.variables ?? {};
+    const operationName = graphqlOperationName(body.query);
+    params.calls.push({
+      authorization: params.request.headers.authorization,
+      operationName,
+      variables,
+    });
+
+    // Linear answers a missing issue with HTTP 400 and a GraphQL error.
+    if (variables.id !== LINEAR_GRAPHQL_ISSUE_ID) {
+      sendJson(params.response, 400, {
+        data: null,
+        errors: [
+          {
+            message: 'Entity not found: Issue',
+            extensions: {
+              type: 'invalid input',
+              code: 'INPUT_ERROR',
+              userPresentableMessage: 'Could not find referenced Issue.',
+            },
+          },
+        ],
+      });
+      return;
+    }
+
+    if (operationName === 'ShipfoxLinearIssueRelations') {
+      sendJson(params.response, 200, {data: {issue: relationsData(variables)}});
+      return;
+    }
+    if (operationName === 'ShipfoxLinearIssueAttachments') {
+      const page = connectionPage({
+        items: linearGraphqlFixture.attachments,
+        prefix: 'attachment',
+        first: variables.first,
+        after: variables.after,
+      });
+      sendJson(params.response, 200, {
+        data: {
+          issue: {
+            attachments: {nodes: page.edges.map((edge) => edge.node), pageInfo: page.pageInfo},
+          },
+        },
+      });
+      return;
+    }
+    sendJson(params.response, 200, {errors: [{message: `Unsupported operation ${operationName}`}]});
+  } catch (_error) {
+    if (!params.response.headersSent) {
+      sendJson(params.response, 500, {errors: [{message: 'GraphQL request failed.'}]});
+    } else {
+      params.response.end();
+    }
+  }
+}
+
+function relationsData(variables: Record<string, unknown>) {
+  const incoming = connectionPage({
+    items: linearGraphqlFixture.incoming,
+    prefix: 'incoming',
+    first: variables.incomingFirst,
+    after: variables.incomingAfter,
+  });
+  const outgoing =
+    variables.withOutgoing === true
+      ? connectionPage({
+          items: linearGraphqlFixture.outgoing,
+          prefix: 'outgoing',
+          first: variables.outgoingFirst,
+          after: variables.outgoingAfter,
+        })
+      : undefined;
+  return {
+    ...(outgoing === undefined
+      ? {}
+      : {
+          relations: {
+            edges: outgoing.edges.map((edge) => ({
+              cursor: edge.cursor,
+              node: {type: edge.node.type, relatedIssue: edge.node.issue},
+            })),
+            pageInfo: outgoing.pageInfo,
+          },
+        }),
+    inverseRelations: {
+      edges: incoming.edges.map((edge) => ({
+        cursor: edge.cursor,
+        node: {type: edge.node.type, issue: edge.node.issue},
+      })),
+      pageInfo: incoming.pageInfo,
+    },
+  };
+}
+
+function connectionPage<Item>(params: {
+  items: Item[];
+  prefix: string;
+  first: unknown;
+  after: unknown;
+}) {
+  if (typeof params.first !== 'number') throw new Error('first must be a number');
+  const start =
+    typeof params.after === 'string'
+      ? Number(params.after.slice(`${params.prefix}-`.length)) + 1
+      : 0;
+  const edges = params.items
+    .slice(start, start + params.first)
+    .map((node, index) => ({cursor: `${params.prefix}-${start + index}`, node}));
+  return {
+    edges,
+    pageInfo: {
+      hasNextPage: start + params.first < params.items.length,
+      endCursor: edges.at(-1)?.cursor ?? null,
+    },
+  };
+}
+
+function graphqlIssue(
+  identifier: string,
+  projectId: string | null,
+  archivedAt: string | null = null,
+): LinearGraphqlIssue {
+  return {
+    id: `linear-e2e-${identifier}`,
+    identifier,
+    title: `E2E issue ${identifier}`,
+    archivedAt,
+    project: projectId === null ? null : {id: projectId},
+  };
+}
+
+function graphqlOperationName(query: unknown): string | undefined {
+  if (typeof query !== 'string') return undefined;
+  return GRAPHQL_OPERATION_NAME_PATTERN.exec(query)?.[1];
+}
+
+function sendJson(response: ServerResponse, statusCode: number, body: unknown): void {
+  response.writeHead(statusCode, {'content-type': 'application/json'}).end(JSON.stringify(body));
 }
 
 function requiredLinearMcpEndpoint(): string {

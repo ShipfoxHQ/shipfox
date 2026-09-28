@@ -35,7 +35,7 @@ describe('LinearAgentToolsProvider', () => {
     expect(provider.selectionCatalog()).toBe(linearAgentToolSelectionCatalog);
   });
 
-  it('reads the stored token for the connection id before opening the MCP client', async () => {
+  it('opens the MCP client with the stored token on the first proxied call', async () => {
     const getAccessToken = vi.fn().mockResolvedValue('linear-token');
     const createClient = vi.fn().mockResolvedValue({
       callTool: vi.fn().mockResolvedValue({content: []}),
@@ -46,13 +46,17 @@ describe('LinearAgentToolsProvider', () => {
       createClient,
     });
 
-    await provider.openSession({
+    const session = await provider.openSession({
       connection: linearConnection({id: 'linear-connection-7'}),
       tools: [],
       scope: {provider: 'linear'},
     });
+    expect(createClient).not.toHaveBeenCalled();
+    await session.call({toolId: 'get_issue', arguments: {id: 'ENG-875'}});
+    await session.call({toolId: 'get_issue', arguments: {id: 'ENG-876'}});
 
     expect(getAccessToken).toHaveBeenCalledWith({connectionId: 'linear-connection-7'});
+    expect(createClient).toHaveBeenCalledOnce();
     expect(createClient).toHaveBeenCalledWith({
       endpoint: new URL('https://mcp.linear.app/mcp'),
       accessToken: 'linear-token',
@@ -139,6 +143,92 @@ describe('LinearAgentToolsProvider', () => {
       1234,
     );
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers native tools from the Linear API without opening the MCP client', async () => {
+    const createClient = vi.fn();
+    const listIssueAttachments = vi.fn().mockResolvedValue({
+      attachments: [],
+      hasNextPage: false,
+      endCursor: null,
+    });
+    const provider = new LinearAgentToolsProvider({
+      tokenStore: {getAccessToken: async () => 'linear-token'},
+      linear: {listIssueAttachments, listIssueRelations: vi.fn()},
+      createClient,
+    });
+    const session = await provider.openSession({
+      connection: linearConnection(),
+      tools: [],
+      scope: {provider: 'linear'},
+    });
+
+    const result = await session.call({
+      toolId: 'list_issue_attachments',
+      arguments: {issueId: 'ENG-875'},
+    });
+    await session.close?.();
+
+    expect(result.structuredContent).toEqual({attachments: [], hasNextPage: false, cursor: null});
+    expect(listIssueAttachments).toHaveBeenCalledWith({
+      accessToken: 'linear-token',
+      issueId: 'ENG-875',
+      first: 50,
+      after: undefined,
+    });
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'JSON errors from get tools',
+      '{"error":"invalid_request","message":"Could not find referenced Issue.","status":400}',
+    ],
+    ['prose errors from list tools', 'Error: Could not find issue "ENG-999999"'],
+  ])('tags Linear not-found %s with the not-found code', async (_name, text) => {
+    const provider = new LinearAgentToolsProvider({
+      tokenStore: {getAccessToken: async () => 'linear-token'},
+      createClient: async () => ({
+        callTool: async () => ({isError: true, content: [{type: 'text', text}]}),
+        close: async () => undefined,
+      }),
+    });
+    const session = await provider.openSession({
+      connection: linearConnection(),
+      tools: [],
+      scope: {provider: 'linear'},
+    });
+
+    const result = await session.call({toolId: 'get_issue', arguments: {id: 'ENG-999999'}});
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{type: 'text', text}],
+      structuredContent: {code: 'not-found'},
+    });
+  });
+
+  it('leaves other Linear tool errors without a code', async () => {
+    const errorResult = {
+      isError: true,
+      content: [{type: 'text' as const, text: 'Argument Validation Error'}],
+    };
+    const provider = new LinearAgentToolsProvider({
+      tokenStore: {getAccessToken: async () => 'linear-token'},
+      createClient: async () => ({
+        callTool: async () => errorResult,
+        close: async () => undefined,
+      }),
+    });
+    const session = await provider.openSession({
+      connection: linearConnection(),
+      tools: [],
+      scope: {provider: 'linear'},
+    });
+
+    const result = await session.call({toolId: 'save_issue', arguments: {}});
+
+    expect(result).toBe(errorResult);
   });
 
   it('does not open an MCP client when the Linear token is missing', async () => {
@@ -285,14 +375,17 @@ describe('LinearAgentToolsProvider', () => {
       createClient: () => Promise.reject(remoteError),
     });
 
-    const result = provider.openSession({
+    const session = await provider.openSession({
       connection: linearConnection(),
       tools: [],
       scope: {provider: 'linear'},
     });
 
+    const result = session.call({toolId: 'get_issue', arguments: {id: 'ENG-875'}});
+
     await expect(result).rejects.toMatchObject(expected);
     await expect(result).rejects.toBeInstanceOf(LinearIntegrationProviderError);
+    await expect(session.close?.()).resolves.toBeUndefined();
   });
 
   it('does not hide unknown SDK failures', async () => {
@@ -302,13 +395,15 @@ describe('LinearAgentToolsProvider', () => {
       createClient: () => Promise.reject(sdkError),
     });
 
-    const result = provider.openSession({
+    const session = await provider.openSession({
       connection: linearConnection(),
       tools: [],
       scope: {provider: 'linear'},
     });
 
-    await expect(result).rejects.toBe(sdkError);
+    await expect(session.call({toolId: 'get_issue', arguments: {id: 'ENG-875'}})).rejects.toBe(
+      sdkError,
+    );
   });
 });
 

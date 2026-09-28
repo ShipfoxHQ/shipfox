@@ -21,6 +21,7 @@ describe('linear config', () => {
       expect(config[name]).toBe(process.env[name]);
     }
     expect(config.LINEAR_MCP_ENDPOINT).toBe('https://mcp.linear.app/mcp');
+    expect(config.LINEAR_GRAPHQL_ENDPOINT).toBe('https://api.linear.app/graphql');
   });
 
   it('accepts a compatible Linear MCP endpoint override', async () => {

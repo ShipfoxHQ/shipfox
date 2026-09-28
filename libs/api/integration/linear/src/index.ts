@@ -127,7 +127,7 @@ export function createLinearIntegrationProvider(
     options.getLinearInstallationByConnectionId ?? getLinearInstallationByConnectionId;
   const adapters = options.agentTools
     ? {
-        agent_tools: new LinearAgentToolsProvider(options.agentTools),
+        agent_tools: new LinearAgentToolsProvider({linear, ...options.agentTools}),
       }
     : {};
   const webhookProcessor =

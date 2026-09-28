@@ -377,6 +377,10 @@ export function e2eEnv(sourceEnv) {
     ),
     INTEGRATIONS_TEST_VCS_PORT: String(testVcsPort),
     LINEAR_MCP_ENDPOINT: linearMcpEndpoint,
+    // The Linear E2E mock serves GraphQL next to MCP, on the same port.
+    LINEAR_GRAPHQL_ENDPOINT: valueOr(sourceEnv.LINEAR_GRAPHQL_ENDPOINT, () =>
+      new URL('/graphql', linearMcpEndpoint).toString(),
+    ),
     LINEAR_OAUTH_CLIENT_ID: valueOr(sourceEnv.LINEAR_OAUTH_CLIENT_ID, 'e2e-linear-client-id'),
     LINEAR_OAUTH_CLIENT_SECRET: valueOr(
       sourceEnv.LINEAR_OAUTH_CLIENT_SECRET,

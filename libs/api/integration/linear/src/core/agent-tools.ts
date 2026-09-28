@@ -42,6 +42,16 @@ const limitSchema = numberSchema('Maximum number of results to return');
 const dateFilterSchema = stringSchema('ISO-8601 date or duration filter');
 const prioritySchema = numberSchema('0=None, 1=Urgent, 2=High, 3=Medium, 4=Low');
 const nullableStringSchema = nullableSchema(stringSchema());
+export const LINEAR_NATIVE_PAGE_LIMIT_MAX = 250;
+const nativePageProperties = {
+  cursor: cursorSchema,
+  limit: {
+    type: 'integer',
+    minimum: 1,
+    maximum: LINEAR_NATIVE_PAGE_LIMIT_MAX,
+    description: 'Maximum number of results to return. Defaults to 50.',
+  },
+};
 
 const pageProperties = {
   cursor: cursorSchema,
@@ -174,6 +184,32 @@ export const linearAgentToolCatalog = [
       milestoneId: stringSchema('Milestone UUID'),
       projectId: stringSchema('Project name, ID, or slug'),
     }),
+  }),
+  tool({
+    id: 'list_issue_relations',
+    category: 'issues',
+    description:
+      'List every relation of a Linear issue in both directions: blocks, related, and duplicate. Outgoing relations come first, then incoming ones. Pages until hasNextPage is false.',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: 'read',
+    inputSchema: objectSchema(
+      {issueId: stringSchema('Issue ID or identifier'), ...nativePageProperties},
+      ['issueId'],
+    ),
+  }),
+  tool({
+    id: 'list_issue_attachments',
+    category: 'attachments',
+    description:
+      'List every attachment of a Linear issue, including links and uploaded files. Pages until hasNextPage is false.',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: 'read',
+    inputSchema: objectSchema(
+      {issueId: stringSchema('Issue ID or identifier'), ...nativePageProperties},
+      ['issueId'],
+    ),
   }),
   tool({
     id: 'list_issue_labels',

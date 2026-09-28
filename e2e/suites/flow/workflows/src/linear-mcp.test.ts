@@ -6,10 +6,22 @@ import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/st
 import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
 import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import {
+  LINEAR_GRAPHQL_ISSUE_ID,
   LINEAR_READ_RESULT_MARKER,
   LINEAR_WRITE_RESULT_MARKER,
   startLinearMcpMock,
 } from './linear-mcp.js';
+
+interface GraphqlTestResponse {
+  data?: {
+    issue?: {
+      relations?: unknown;
+      inverseRelations?: {edges: {node: {issue: {identifier: string}}}[]};
+      attachments?: unknown;
+    } | null;
+  } | null;
+  errors?: {message: string}[];
+}
 
 describe('Linear MCP mock', () => {
   it('serves deterministic authenticated read and write tool calls', async () => {
@@ -49,6 +61,67 @@ describe('Linear MCP mock', () => {
       ]);
     } finally {
       await client.close();
+      await mock.stop();
+    }
+  });
+
+  it('serves paginated GraphQL relations and attachments next to the MCP endpoint', async () => {
+    const mock = await startLinearMcpMock(new URL('http://127.0.0.1:0/mcp'));
+    const graphql = async (query: string, variables: Record<string, unknown>) => {
+      const response = await fetch(mock.graphqlEndpoint, {
+        method: 'POST',
+        headers: {'content-type': 'application/json', authorization: 'Bearer linear-token'},
+        body: JSON.stringify({query, variables}),
+      });
+      return {status: response.status, body: (await response.json()) as GraphqlTestResponse};
+    };
+
+    try {
+      const relations = await graphql('query ShipfoxLinearIssueRelations { issue }', {
+        id: LINEAR_GRAPHQL_ISSUE_ID,
+        withOutgoing: true,
+        outgoingFirst: 1,
+        outgoingAfter: null,
+        incomingFirst: 2,
+        incomingAfter: 'incoming-0',
+      });
+      const attachments = await graphql('query ShipfoxLinearIssueAttachments { issue }', {
+        id: LINEAR_GRAPHQL_ISSUE_ID,
+        first: 2,
+        after: 'attachment-1',
+      });
+      const missing = await graphql('query ShipfoxLinearIssueAttachments { issue }', {
+        id: 'ENG-404',
+        first: 2,
+      });
+
+      expect(mock.graphqlEndpoint.pathname).toBe('/graphql');
+      expect(relations.body.data?.issue?.relations).toEqual({
+        edges: [
+          {
+            cursor: 'outgoing-0',
+            node: {type: 'blocks', relatedIssue: expect.objectContaining({identifier: 'ENG-879'})},
+          },
+        ],
+        pageInfo: {hasNextPage: true, endCursor: 'outgoing-0'},
+      });
+      expect(
+        relations.body.data?.issue?.inverseRelations?.edges.map(
+          (edge) => edge.node.issue.identifier,
+        ),
+      ).toEqual(['ENG-882', 'ENG-883']);
+      expect(attachments.body.data?.issue?.attachments).toEqual({
+        nodes: [expect.objectContaining({title: 'notes.txt'})],
+        pageInfo: {hasNextPage: false, endCursor: 'attachment-2'},
+      });
+      expect(missing.status).toBe(400);
+      expect(missing.body.errors?.[0]?.message).toBe('Entity not found: Issue');
+      expect(mock.graphqlCalls.map((call) => [call.authorization, call.operationName])).toEqual([
+        ['Bearer linear-token', 'ShipfoxLinearIssueRelations'],
+        ['Bearer linear-token', 'ShipfoxLinearIssueAttachments'],
+        ['Bearer linear-token', 'ShipfoxLinearIssueAttachments'],
+      ]);
+    } finally {
       await mock.stop();
     }
   });

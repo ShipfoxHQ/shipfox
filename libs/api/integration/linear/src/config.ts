@@ -17,6 +17,10 @@ const linearConfigSchema = {
     desc: 'Streamable HTTP endpoint used for Linear MCP tool calls. Set this only when routing Linear tools through a compatible proxy or test server.',
     default: 'https://mcp.linear.app/mcp',
   }),
+  LINEAR_GRAPHQL_ENDPOINT: url({
+    desc: 'Linear GraphQL API endpoint used for identity checks and native Linear tools. Set this only when routing Linear API calls through a compatible proxy or test server.',
+    default: 'https://api.linear.app/graphql',
+  }),
 };
 
 export const config = createConfig(linearConfigSchema);
