@@ -18,6 +18,7 @@ export interface ChecklistWorkspace {
 }
 
 const FIRST_WORKFLOW_YAML = `name: First workflow
+runner: e2e
 triggers:
   manual:
     source: manual
