@@ -375,6 +375,9 @@ catalogs:
     envalid:
       specifier: ^8.0.0
       version: 8.2.0
+    es-module-lexer:
+      specifier: ^2.1.0
+      version: 2.1.0
     fastify:
       specifier: ^5.3.3
       version: 5.8.5
@@ -2861,6 +2864,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
+      es-module-lexer:
+        specifier: 'catalog:'
+        version: 2.1.0
       js-yaml:
         specifier: 'catalog:'
         version: 4.2.0
