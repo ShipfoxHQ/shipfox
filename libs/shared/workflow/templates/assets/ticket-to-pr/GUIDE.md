@@ -15,7 +15,7 @@ The `tracker` role is optional.
 
 | Choice | Starts from | Writes to the ticket |
 | --- | --- | --- |
-| Linear | Linear ticket events and manual starts | Moves the issue to `In Progress` by default and posts comments |
+| Linear | Linear ticket events and manual starts | Moves the issue to its in-progress status by default and posts comments |
 | No tracker | Manual starts only | Nothing |
 
 Every composition keeps the `manual` trigger. Without a tracker, the workflow has no tracker tools and no write-back jobs.
@@ -32,7 +32,7 @@ A manual start, such as a dispatcher's `start_workflow_run` call, passes these i
 | `acceptance_criteria` | Yes | How a reviewer checks that the change is done, such as a Markdown list. |
 | `url` | No | Link to the source, such as the Slack thread or the ticket. The PR body links it. |
 | `request` | No | Extra instructions from the person who asked. |
-| `ticket_id` | No | The tracker's ID for the ticket. With Linear, the default option moves it to `In Progress` and posts comments. |
+| `ticket_id` | No | The tracker's ID for the ticket. With Linear, the default option moves it to its in-progress status and posts comments. |
 | `identifier` | No | The ticket key, such as `ENG-123`. It names the branch and the PR reference. Without it, the run uses `task-<run number>`. |
 
 A manual start without a required input fails before the agent starts and writes nothing.
@@ -111,9 +111,9 @@ Choose `draft` or `ready` for `pr_mode`. The default opens a draft PR. Set the m
 
 ### Ticket write-back
 
-This option applies only with Linear. By default, `comment_and_transition` moves the issue to `In Progress` when the agent starts. It posts the PR link after the PR opens, or clarification questions when needed. Choose `comment` to post comments without changing status, or `none` to make no Linear updates.
+This option applies only with Linear. By default, `comment_and_transition` moves the issue to its in-progress status when work starts. It posts the PR link after opening a PR, or questions when the issue is unclear. Choose `comment` to post comments without changing status, or `none` to make no Linear updates.
 
-Both write-back choices also post the agent's questions when it finds the ticket too unclear to implement. The run writes to the ticket only when the task has a ticket ID, from the event or the `ticket_id` input. The PR link is written in a separate job, so a failed tracker write does not stop the feedback loop.
+Both write-back choices also post the agent's questions when the ticket is too unclear to implement. The run writes only when it has a ticket ID from an event or the `ticket_id` input. Status updates get up to five attempts. Persistent failures stop implementation. The PR link is written separately, so a failed comment does not stop the feedback loop.
 
 ## Bind the model and connections
 
@@ -131,7 +131,7 @@ Replace each `replace-with-test-command` with the test command that proves the c
 
 Each run creates one branch named `shipfox/<identifier>-<run number>-<attempt>`, pushes one commit, and opens one pull request. The PR body ends with `Fixes <identifier>` for a ticket, so Linear links the PR to the issue when the workspace has Linear's GitHub integration. Without a ticket, it links the task's `url`. The run stops before the agent starts when another run already has a branch for the same identifier. Close that PR and delete its branch to start again.
 
-Ticket updates can move an issue to `In Progress` when the agent starts and post a comment with the PR link. When the agent asks questions instead, the run posts at most one comment and opens no PR.
+Ticket updates can move an issue to its in-progress status when work starts and post a comment with the PR link. When the agent asks questions instead, the run posts at most one comment and opens no PR.
 
 A feedback execution can push one commit, reply to review comments, and resolve threads. It pushes only when the PR head has not moved since checkout. The implementing and feedback agents get only read tools. Shell steps, tool steps, and the `reply` step own the writes. Agent steps can still reach the repository's write credential from their shell.
 
@@ -145,4 +145,4 @@ Before relying on an adapted workflow, check these paths:
 - Start it manually without `acceptance_criteria`. Check that the run fails before the agent starts.
 - Start it manually with another repository in `repository`. Check that the run stops before setup.
 - Start it with an unclear task. Check that no PR opens and that `questions` holds the agent's questions.
-- With Linear, start it from a ticket event. Check that the issue moves to `In Progress` before the agent starts. Check that the PR comment starts no new run.
+- With Linear, start it from a ticket event. Check that the issue moves to its in-progress status before the agent starts. Check that the PR comment starts no new run.

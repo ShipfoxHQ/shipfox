@@ -172,7 +172,7 @@ describe('ticket to PR template', () => {
     ]);
     expect(Object.keys(at(document, 'jobs') as YamlRecord)).toEqual([
       'implement',
-      'comment_on_ticket_and_move_it',
+      'comment_on_ticket',
       'respond_to_feedback',
     ]);
     expect(step(document, 'implement', 'mark_in_progress')).toMatchObject({
@@ -180,7 +180,12 @@ describe('ticket to PR template', () => {
       tool: 'save_issue',
       with: {
         id: `\${{ steps.task.outputs.ticket_id }}`,
-        state: 'In Progress',
+        state: 'started',
+      },
+      gate: {
+        on_failure: {
+          restart_from: 'task',
+        },
       },
     });
     const implementSteps = at(document, 'jobs', 'implement', 'steps') as YamlRecord[];

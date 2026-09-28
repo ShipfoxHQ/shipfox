@@ -69,7 +69,10 @@ mark_in_progress: |
     connection: linear_tracker # bind:tracker
     with:
       id: ${{ steps.task.outputs.ticket_id }}
-      state: In Progress
+      state: started
+    gate:
+      on_failure:
+        restart_from: task
   # option:ticket_write_back=comment_and_transition end
 write_back: |
   # option:ticket_write_back=comment begin
@@ -86,7 +89,7 @@ write_back: |
           body: 'Opened pull request: ${{ jobs.implement.outputs.pr_url }}'
   # option:ticket_write_back=comment end
   # option:ticket_write_back=comment_and_transition begin
-  comment_on_ticket_and_move_it:
+  comment_on_ticket:
     needs: implement
     if: ${{ needs.all(n, n.status == "succeeded") && jobs.implement.outputs.pr_url != "" && jobs.implement.outputs.ticket_id != "" }}
     checkout: false

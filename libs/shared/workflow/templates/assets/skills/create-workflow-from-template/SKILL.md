@@ -32,7 +32,7 @@ Ask each `optional` role's `question` only if it has a compatible provider.
 
 Call `get_workflow_template` with the selected template, the project ID, and a provider ID, not a connection slug, for each required role with `from_project: false`, such as `tracker: "linear"`, and each accepted optional role. Read its `guide_markdown`.
 
-Use local Linear MCP list_teams to find the repo team. If unavailable or unclear, ask; never use a broad trigger.
+For Linear triggers only, use local Linear MCP `list_teams` to find the repo team. If unavailable or unclear, ask; never use a broad trigger.
 
 Use `search_docs` for `workflow schema` and read the returned `docs://` reference. Search for the template's triggers, steps, and providers.
 
@@ -57,19 +57,21 @@ Edit `workflow_yaml`, the complete file from `get_workflow_template`: keep the `
 
 Call `get_workflow_authoring_context` for the selected project before any run. If `model_provider_configured` is `false`, stop and ask the user to add a provider under Settings > Agents, then report back. Compare the template's required secrets, variables, and runner with the context. If any are missing, stop and ask the user to add them under Settings > Secrets, Variables, or Runners, then report back.
 
-Use tested template models; else workspace default. On request, read `skill://shipfox/create-workflow-from-template/references/choose-models.md`.
+Use the tested model; otherwise, use the workspace default. If recommendations return `choose`, call `list_workspace_models` and tell the user to set a default under Settings > Agents. Do not ask for model preferences.
+
+Read `skill://shipfox/create-workflow-from-template/references/choose-models.md` only when they ask to change models.
 
 Check the guide's repository prerequisites, such as a dependency bot or CI provider.
 
 ## 6. Validate the workflow and select an event
 
-Read and follow `skill://shipfox/validate-workflow-change/SKILL.md` with the assembled YAML, selected `project_id`, intended `config_path`, and trigger key. Complete its shape check before selecting an event. Manual and cron triggers need no replay event; skip to step 7.
+Follow `skill://shipfox/validate-workflow-change/SKILL.md` with the YAML, project ID, config path, and trigger key. Complete its shape check. Skip event selection for manual and cron triggers; go to step 7.
 
 For an integration trigger, state the writes from **Expected writes** and runner/inference cost. Keep events from the selected project that match the source-control repository or selected ticket team, project, or space. Check payloads and issue status; discard completed or high-risk rollout work, then let the user choose. Event lookup does not verify project scope; a connection may cover several repositories or teams.
 
-If no safe event matches, use Linear MCP when available to find up to three open, low-risk issues in the selected team that match the repo filter. Suggest their IDs and titles; ask which to trigger. Do not edit issues. If none fit or Linear is unavailable, ask the user to create or name one. They can skip; report "shape validated, not executed" and go to step 9.
+If no safe event matches, use Linear MCP only for Linear triggers. Suggest up to three open, low-risk issues in the selected team matching the repo filter. Ask which issue to use and give the guide's exact action to create its event. Do not edit issues. For other triggers, ask for a matching event and its guide-defined action. If Linear MCP is unavailable or finds no issue, ask for a matching Linear issue and its trigger action. They can skip; report "shape validated, not executed" and go to step 9.
 
-After they trigger an event, poll `list_trigger_events` every 30 seconds for up to 5 minutes. When it appears, validate it and go to step 7. If it does not appear, report that and wait. Do not deliver the workflow or open a pull request while waiting.
+After they trigger it, poll `list_trigger_events` every 30 seconds for up to 5 minutes. Validate it and go to step 7. If it does not arrive, report that and wait. Do not deliver while waiting.
 
 If they cannot trigger an event or choose to skip, report "shape validated, not executed" and go to step 9.
 
