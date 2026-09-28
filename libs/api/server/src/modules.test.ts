@@ -158,6 +158,7 @@ describe('defaultModules', () => {
         interModulePresentations: [
           defineInterModulePresentation(integrationsInterModuleContract, {
             callTool: vi.fn(),
+            checkTemplateConformance: vi.fn(),
             createCheckoutCredentials: vi.fn(),
             createCheckoutSpec: vi.fn(),
             fetchSourceFile: vi.fn(),

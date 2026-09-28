@@ -81,6 +81,7 @@
     "@temporalio/workflow": "catalog:",
     "ajv": "catalog:",
     "drizzle-orm": "catalog:",
+    "yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -105,7 +106,6 @@
     "drizzle-kit": "catalog:",
     "fastify": "catalog:",
     "fastify-type-provider-zod": "catalog:",
-    "fishery": "catalog:",
-    "yaml": "catalog:"
+    "fishery": "catalog:"
   }
 }

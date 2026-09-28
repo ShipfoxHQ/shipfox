@@ -1407,3 +1407,63 @@ describe('integrations inter-module callTool', () => {
     );
   });
 });
+
+describe('integrations template conformance', () => {
+  it('checks a composed template against the registered providers and built-ins', async () => {
+    const registry = createIntegrationProviderRegistry([
+      {
+        provider: 'github',
+        displayName: 'GitHub',
+        adapters: {
+          agent_tools: {
+            ...agentToolsProvider(),
+            selectionCatalog: () => ({
+              selectors: [
+                {token: 'issue_read', kind: 'family', sensitivity: 'read', sensitive: false},
+              ],
+            }),
+          },
+        },
+      },
+    ]);
+    const sourceControl = createSourceControlIntegrationService({
+      registry,
+      getIntegrationConnectionById: async () => undefined,
+    });
+    const transport = createInMemoryInterModuleTransport();
+    const client = transport.createClient(integrationsInterModuleContract);
+    transport.register(
+      createIntegrationsInterModulePresentation({
+        registry,
+        sourceControl,
+        builtinConnections: [
+          {slug: 'shipfox', id: SHIPFOX_BUILTIN_CONNECTION_ID, provider: 'shipfox'},
+        ],
+      }),
+    );
+    transport.seal();
+    const workflow = [
+      'jobs:',
+      '  work:',
+      '    steps:',
+      '      - key: read',
+      '        tool: issue_read',
+      '        connection: github_source # bind:source',
+      '      - key: comment',
+      '        tool: add_issue_comment',
+      '        connection: github_source # bind:source',
+      '      - key: run',
+      '        tool: get_workflow_run',
+      '        connection: shipfox',
+    ].join('\n');
+
+    await expect(
+      client.checkTemplateConformance({workflow, bindings: {source: 'github'}}),
+    ).resolves.toEqual({
+      issues: [
+        'github_source (github): unknown tool add_issue_comment',
+        'connection shipfox uses provider shipfox, which is not available',
+      ],
+    });
+  });
+});

@@ -25,6 +25,7 @@ import {
   type WorkflowTemplateManifest,
 } from '@shipfox/workflow-templates';
 import {parse as parseYaml} from 'yaml';
+import {type IntegrationCatalog, templateCatalogIssues} from './template-conformance.js';
 
 interface ProviderCatalog {
   events: ReadonlySet<string>;
@@ -32,14 +33,8 @@ interface ProviderCatalog {
   writeTools: ReadonlySet<string>;
 }
 
-interface CatalogReferences {
-  events: string[];
-  tools: string[];
-}
-
 interface ConformanceResult {
   issues: string[];
-  referenceCount: number;
   variantCount: number;
 }
 
@@ -79,25 +74,23 @@ const providerCatalogs: Readonly<Record<string, ProviderCatalog>> = {
   github: catalog(githubEventCatalog.events, githubAgentToolSelectionCatalog.selectors),
   jira: catalog(jiraEventCatalog.events, jiraAgentToolSelectionCatalog.selectors),
   linear: catalog(linearEventCatalog.events, linearAgentToolSelectionCatalog.selectors),
+  shipfox: catalog(shipfoxEventCatalog.events, shipfoxAgentToolSelectionCatalog.selectors),
   slack: catalog(slackEventCatalog.events, slackAgentToolSelectionCatalog.selectors),
 };
 
-// Built-in connections exist in every workspace, so templates bind them by slug
-// in workflow.yml instead of a provider part.
-const builtInConnectionCatalogs: Readonly<Record<string, ProviderCatalog>> = {
-  shipfox: catalog(shipfoxEventCatalog.events, shipfoxAgentToolSelectionCatalog.selectors),
+const integrationCatalog: IntegrationCatalog = {
+  providers: new Map(Object.entries(providerCatalogs)),
+  builtinConnections: new Map([['shipfox', 'shipfox']]),
 };
 
 describe('workflow template catalog conformance', () => {
   it('uses valid catalogs and produces structurally sound workflow variants', () => {
     const templates = loadShippedTemplates();
     const results = templates.map(templateConformance);
-    const referenceCount = results.reduce((total, result) => total + result.referenceCount, 0);
     const variantCount = results.reduce((total, result) => total + result.variantCount, 0);
     const issues = results.flatMap((result) => result.issues);
 
     expect(templates.length).toBeGreaterThan(0);
-    expect(referenceCount).toBeGreaterThan(0);
     expect(variantCount).toBeGreaterThan(templates.length);
     expect(issues).toEqual([]);
   });
@@ -138,7 +131,7 @@ describe('workflow template catalog conformance', () => {
     );
   });
 
-  it('checks built-in connection references in workflow.yml against their catalog', () => {
+  it('checks catalog references in every composed variant', () => {
     const template = loadShippedTemplates().find(
       ({manifest}) => manifest.id === 'report-failed-runs',
     );
@@ -159,13 +152,13 @@ describe('workflow template catalog conformance', () => {
 
     expect(templateConformance(template).issues).toEqual([]);
     expect(templateConformance(unknownTool).issues).toContain(
-      'report-failed-runs/workflow.yml (shipfox): unknown tool get_workflow_runs',
+      'report-failed-runs/notify=slack/default: shipfox (shipfox): unknown tool get_workflow_runs',
     );
     expect(templateConformance(unknownEvent).issues).toContain(
-      'report-failed-runs/workflow.yml (shipfox): unknown event run.finished',
+      'report-failed-runs/notify=slack/default: shipfox (shipfox): unknown event run.finished',
     );
     expect(templateConformance(otherConnection).issues).toContain(
-      'report-failed-runs/workflow.yml contains provider references outside a provider part',
+      'report-failed-runs/notify=slack/default: tool get_workflow_run uses connection other, which is not bound to a role',
     );
   });
 
@@ -217,40 +210,13 @@ function dependencyCiTemplate(): WorkflowTemplate {
 }
 
 function templateConformance(template: WorkflowTemplate): ConformanceResult {
-  const workflow = parseYaml(template.workflow);
-  const templateReferences = collectCatalogReferences(workflow);
-  const builtInResult = builtInReferencesConformance(
-    `${template.manifest.id}/workflow.yml`,
-    workflow,
+  const results = templateRoleBindings(template.manifest.roles).map((bindings) =>
+    bindingVariantsConformance(template, bindings),
   );
-  const templateReferenceCount = referenceCount(templateReferences);
-  const issues = [
-    ...(templateReferenceCount === 0
-      ? []
-      : [
-          `${template.manifest.id}/workflow.yml contains provider references outside a provider part`,
-        ]),
-    ...builtInResult.issues,
-  ];
-  const partResults = Object.entries(template.parts).flatMap(([role, providers]) =>
-    Object.entries(providers).map(([provider, blocks]) =>
-      providerPartsConformance(template.manifest.id, role, provider, blocks),
-    ),
-  );
-  const variantsResult = templateVariantsConformance(template);
 
   return {
-    issues: [
-      ...issues,
-      ...modelPlaceholderIssues(template),
-      ...partResults.flatMap((result) => result.issues),
-      ...variantsResult.issues,
-    ],
-    referenceCount:
-      templateReferenceCount +
-      builtInResult.referenceCount +
-      partResults.reduce((total, result) => total + result.referenceCount, 0),
-    variantCount: variantsResult.variantCount,
+    issues: [...modelPlaceholderIssues(template), ...results.flatMap((result) => result.issues)],
+    variantCount: results.reduce((total, result) => total + result.variantCount, 0),
   };
 }
 
@@ -311,92 +277,6 @@ function modelMarkerIssues(
   return issues;
 }
 
-function providerPartsConformance(
-  templateId: string,
-  role: string,
-  provider: string,
-  blocks: Readonly<Record<string, string>>,
-): ConformanceResult {
-  const providerCatalog = providerCatalogs[provider];
-  if (providerCatalog === undefined) {
-    return {
-      issues: [`${templateId}/${role}/${provider} has no registered catalog`],
-      referenceCount: 0,
-      variantCount: 0,
-    };
-  }
-
-  const results = Object.entries(blocks).map(([part, block]) =>
-    partConformance(templateId, role, provider, part, block, providerCatalog),
-  );
-  return {
-    issues: results.flatMap((result) => result.issues),
-    referenceCount: results.reduce((total, result) => total + result.referenceCount, 0),
-    variantCount: 0,
-  };
-}
-
-function partConformance(
-  templateId: string,
-  role: string,
-  provider: string,
-  part: string,
-  block: string,
-  providerCatalog: ProviderCatalog,
-): ConformanceResult {
-  const parsed = parseYaml(block);
-  const references = collectCatalogReferences(parsed);
-  const prefix = `${templateId}/${role}/${provider}/${part}`;
-  const builtInResult = builtInReferencesConformance(prefix, parsed);
-  return {
-    issues: [...catalogIssues(prefix, references, providerCatalog), ...builtInResult.issues],
-    referenceCount: referenceCount(references) + builtInResult.referenceCount,
-    variantCount: 0,
-  };
-}
-
-function builtInReferencesConformance(prefix: string, value: unknown): ConformanceResult {
-  const results = Object.entries(builtInConnectionCatalogs).map(([connection, builtInCatalog]) => {
-    const references = collectCatalogReferences(value, connection);
-    return {
-      issues: catalogIssues(`${prefix} (${connection})`, references, builtInCatalog),
-      referenceCount: referenceCount(references),
-    };
-  });
-  return {
-    issues: results.flatMap((result) => result.issues),
-    referenceCount: results.reduce((total, result) => total + result.referenceCount, 0),
-    variantCount: 0,
-  };
-}
-
-function catalogIssues(
-  prefix: string,
-  references: CatalogReferences,
-  providerCatalog: ProviderCatalog,
-): string[] {
-  return [
-    ...references.events
-      .filter((event) => !providerCatalog.events.has(event))
-      .map((event) => `${prefix}: unknown event ${event}`),
-    ...references.tools
-      .filter((tool) => !providerCatalog.tools.has(tool))
-      .map((tool) => `${prefix}: unknown tool ${tool}`),
-  ];
-}
-
-function templateVariantsConformance(template: WorkflowTemplate): ConformanceResult {
-  const results = templateRoleBindings(template.manifest.roles).map((bindings) =>
-    bindingVariantsConformance(template, bindings),
-  );
-
-  return {
-    issues: results.flatMap((result) => result.issues),
-    referenceCount: 0,
-    variantCount: results.reduce((total, result) => total + result.variantCount, 0),
-  };
-}
-
 function bindingVariantsConformance(
   template: WorkflowTemplate,
   bindings: TemplateRoleBindings,
@@ -407,15 +287,21 @@ function bindingVariantsConformance(
     .map(([role, provider]) => `${role}=${provider}`)
     .join(',');
   const prefix = `${template.manifest.id}/${bindingLabel}`;
-  const parsedResults = structuralVariants(template.manifest, composed).map((variant) =>
-    parseWorkflowVariant(variant, prefix),
-  );
+  const variants = structuralVariants(template.manifest, composed);
+  const parsedResults = variants.map((variant) => parseWorkflowVariant(variant, prefix));
   const parsedVariants = parsedResults.flatMap((result) =>
     result.variant === null ? [] : [result.variant],
   );
   const allToolIds = new Set(parsedVariants.flatMap((variant) => [...variant.toolIds]));
   const writeTools = writeToolsForBindings(bindings);
-  const issues = parsedResults.flatMap((result) => result.issues);
+  const issues = [
+    ...variants.flatMap(({label, workflow}) =>
+      templateCatalogIssues({workflow, bindings, catalog: integrationCatalog}).map(
+        (issue) => `${prefix}/${label}: ${issue}`,
+      ),
+    ),
+    ...parsedResults.flatMap((result) => result.issues),
+  ];
 
   for (const variant of parsedVariants) {
     const removedWriteTools = new Set(
@@ -426,11 +312,7 @@ function bindingVariantsConformance(
     );
   }
 
-  return {
-    issues,
-    referenceCount: 0,
-    variantCount: parsedResults.length,
-  };
+  return {issues, variantCount: parsedResults.length};
 }
 
 function structuralVariants(
@@ -678,16 +560,11 @@ function collectIntegrationTools(document: WorkflowDocument): ReadonlySet<string
 }
 
 function writeToolsForBindings(bindings: TemplateRoleBindings): ReadonlySet<string> {
-  return new Set([
-    ...Object.values(bindings).flatMap((provider) => [
-      ...(providerCatalogs[provider]?.writeTools ?? []),
-    ]),
-    ...Object.values(builtInConnectionCatalogs).flatMap((builtIn) => [...builtIn.writeTools]),
-  ]);
-}
-
-function referenceCount(references: CatalogReferences): number {
-  return references.events.length + references.tools.length;
+  return new Set(
+    [...Object.values(bindings), ...integrationCatalog.builtinConnections.values()].flatMap(
+      (provider) => [...(providerCatalogs[provider]?.writeTools ?? [])],
+    ),
+  );
 }
 
 function catalog(
@@ -703,67 +580,6 @@ function catalog(
         .map((selector) => selector.token),
     ),
   };
-}
-
-/**
- * Collects references bound to one built-in connection, or, without a
- * connection, every reference that no built-in connection owns.
- */
-function collectCatalogReferences(value: unknown, builtInConnection?: string): CatalogReferences {
-  const references: CatalogReferences = {events: [], tools: []};
-  visitCatalogReferences(value, references, builtInConnection);
-  return references;
-}
-
-function visitCatalogReferences(
-  value: unknown,
-  references: CatalogReferences,
-  builtInConnection: string | undefined,
-): void {
-  if (Array.isArray(value)) {
-    for (const item of value) visitCatalogReferences(item, references, builtInConnection);
-    return;
-  }
-  if (!isRecord(value)) return;
-
-  if (ownsReference(value.source, builtInConnection)) addEventReference(value, references);
-  if (ownsReference(value.connection, builtInConnection)) addToolReference(value, references);
-  addIntegrationReferences(value, references, builtInConnection);
-
-  for (const nested of Object.values(value)) {
-    visitCatalogReferences(nested, references, builtInConnection);
-  }
-}
-
-function ownsReference(connection: unknown, builtInConnection: string | undefined): boolean {
-  if (builtInConnection !== undefined) return connection === builtInConnection;
-  return typeof connection !== 'string' || !Object.hasOwn(builtInConnectionCatalogs, connection);
-}
-
-function addEventReference(value: Record<string, unknown>, references: CatalogReferences): void {
-  if (typeof value.source === 'string' && typeof value.event === 'string') {
-    references.events.push(value.event);
-  }
-}
-
-function addToolReference(value: Record<string, unknown>, references: CatalogReferences): void {
-  if (typeof value.tool === 'string') references.tools.push(value.tool);
-}
-
-function addIntegrationReferences(
-  value: Record<string, unknown>,
-  references: CatalogReferences,
-  builtInConnection: string | undefined,
-): void {
-  if (!Array.isArray(value.integrations)) return;
-
-  for (const integration of value.integrations) {
-    if (!isRecord(integration) || !Array.isArray(integration.include)) continue;
-    if (!ownsReference(integration.connection, builtInConnection)) continue;
-    references.tools.push(
-      ...integration.include.filter((tool): tool is string => typeof tool === 'string'),
-    );
-  }
 }
 
 function visitStrings(value: unknown, visit: (value: string) => void): void {

@@ -44,6 +44,7 @@ import type {
   AuthorizedCheckoutSpec,
   IntegrationSourceControlService,
 } from '#core/source-control-service.js';
+import {buildIntegrationCatalog, templateCatalogIssues} from '#core/template-conformance.js';
 import {
   createIntegrationToolCallRecorder,
   INVALID_METHOD_LABEL,
@@ -329,6 +330,13 @@ export function createIntegrationsInterModulePresentation(params: {
             : null,
         };
       }),
+    checkTemplateConformance: async ({workflow, bindings}) => {
+      const catalog = await buildIntegrationCatalog({
+        registry: params.registry,
+        builtinConnections: params.builtinConnections,
+      });
+      return {issues: templateCatalogIssues({workflow, bindings, catalog})};
+    },
     callTool: async (input, context) => {
       const method = contract.methods.callTool;
       try {
