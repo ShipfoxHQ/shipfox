@@ -1,5 +1,5 @@
 import {createHash, randomUUID} from 'node:crypto';
-import type {TriggerDto} from '@shipfox/api-definitions-dto';
+import type {ActionUploadDto, TriggerDto} from '@shipfox/api-definitions-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {getTriggerEventById} from '#db/event-queries.js';
@@ -31,6 +31,8 @@ export interface CreateDevRunParams {
   ref?: string | undefined;
   /** Workflow YAML supplied by the caller instead of fetched from the repository. */
   content?: string | undefined;
+  /** Whole action directories, each replacing the ref's copy of the `uses` path it names. */
+  actions?: readonly ActionUploadDto[] | undefined;
   /** Commit the ref resolved to when the picker listed the file; a mismatch answers `ref-moved`. */
   commit?: string | undefined;
   configPath: string;
@@ -184,6 +186,7 @@ async function prepareDevRun(
     projectId: params.projectId,
     ...(params.ref === undefined ? {} : {ref: params.ref}),
     ...(params.content === undefined ? {} : {content: params.content}),
+    ...(params.actions === undefined ? {} : {actions: [...params.actions]}),
     configPath: params.configPath,
     ...(params.commit === undefined ? {} : {expectedCommit: params.commit}),
   });
@@ -225,6 +228,7 @@ async function startDevRunAndRecordFailure(
         commit: resolved.commit,
         configPath: params.configPath,
         definitionSource: params.content === undefined ? 'ref' : 'local',
+        localActions: (params.actions ?? []).map((action) => action.path),
         initiatedByUserId: params.userId,
         ...(built.replaySource === undefined
           ? {}

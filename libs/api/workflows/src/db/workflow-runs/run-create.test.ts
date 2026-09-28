@@ -240,7 +240,7 @@ describe('workflow run queries', () => {
       ).resolves.toBeDefined();
       await expect(getWorkflowRunById(run.id)).resolves.toMatchObject({
         origin: 'dev',
-        devSource: {definitionSource: 'ref'},
+        devSource: {definitionSource: 'ref', localActions: []},
       });
 
       await expect(
@@ -270,6 +270,7 @@ describe('workflow run queries', () => {
         ref: 'fix-triage-prompt',
         commit: 'a'.repeat(40),
         definitionSource,
+        localActions: definitionSource === 'local' ? ['./.shipfox/actions/notify'] : [],
         configPath: '.shipfox/workflows/triage-sentry.yml',
         initiatedByUserId: crypto.randomUUID(),
         replayOfEventId: null,
@@ -307,6 +308,7 @@ describe('workflow run queries', () => {
             ref: devSource.ref,
             commit: devSource.commit,
             definition_source: devSource.definitionSource,
+            local_actions: devSource.localActions,
             config_path: devSource.configPath,
             initiated_by_user_id: devSource.initiatedByUserId,
             replay_of_event_id: devSource.replayOfEventId,
@@ -1778,6 +1780,7 @@ describe('workflow run queries', () => {
           ref: 'feature/workflow',
           commit: 'a'.repeat(40),
           definitionSource: 'ref',
+          localActions: [],
           configPath: '.shipfox/workflows.yml',
           initiatedByUserId: developerUserId,
           replayOfEventId: null,

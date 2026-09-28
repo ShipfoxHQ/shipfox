@@ -2,6 +2,9 @@ export const AGENT_ACCESS_MCP_PATH = '/mcp' as const;
 export const AGENT_ACCESS_PROTECTED_RESOURCE_METADATA_PATH =
   '/.well-known/oauth-protected-resource' as const;
 export const AGENT_ACCESS_MCP_SERVER_NAME = 'shipfox' as const;
+// create_dev_run carries up to 1 MiB of workflow and action text, which JSON
+// escaping and the JSON-RPC frame inflate past Fastify's 1 MiB default.
+export const AGENT_ACCESS_MCP_BODY_LIMIT_BYTES = 4 * 1024 * 1024;
 
 export const AGENT_ACCESS_TOOL_CALL_LIMIT = 60;
 export const AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT = 10;

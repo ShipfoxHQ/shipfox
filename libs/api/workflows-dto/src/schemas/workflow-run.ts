@@ -79,11 +79,13 @@ export const workflowRunConcurrencySchema = z.object({
 export type WorkflowRunConcurrencyDto = z.infer<typeof workflowRunConcurrencySchema>;
 
 // Dev-run provenance: the ref and pinned commit the definition came from, the file that
-// ran, the user who started the run, and the journaled event it replays when any.
+// ran, the action directories uploaded in place of the ref's copies, the user who
+// started the run, and the journaled event it replays when any.
 export const workflowRunDevSourceSchema = z.object({
   ref: z.string(),
   commit: z.string(),
   definition_source: z.enum(['ref', 'local']).default('ref'),
+  local_actions: z.array(z.string()).default([]),
   config_path: z.string(),
   initiated_by_user_id: z.string().uuid(),
   replay_of_event_id: z.string().uuid().nullable(),

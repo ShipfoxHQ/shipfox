@@ -173,6 +173,7 @@ function toDevSourceDto(
     ref: devSource.ref,
     commit: devSource.commit,
     definition_source: devSource.definitionSource ?? 'ref',
+    local_actions: devSource.localActions ?? [],
     config_path: devSource.configPath,
     initiated_by_user_id: devSource.initiatedByUserId,
     replay_of_event_id: devSource.replayOfEventId,

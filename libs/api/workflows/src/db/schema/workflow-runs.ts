@@ -41,6 +41,7 @@ export interface WorkflowRunDevSourceDb {
   ref: string;
   commit: string;
   definition_source?: 'ref' | 'local';
+  local_actions?: string[];
   config_path: string;
   initiated_by_user_id: string;
   replay_of_event_id: string | null;
@@ -218,6 +219,7 @@ export function toWorkflowRunOriginState(
       ref: row.devSource.ref,
       commit: row.devSource.commit,
       definitionSource: row.devSource.definition_source ?? 'ref',
+      localActions: row.devSource.local_actions ?? [],
       configPath: row.devSource.config_path,
       initiatedByUserId: row.devSource.initiated_by_user_id,
       replayOfEventId: row.devSource.replay_of_event_id,

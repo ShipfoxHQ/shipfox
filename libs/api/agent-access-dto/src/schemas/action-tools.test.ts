@@ -83,6 +83,84 @@ describe('agent-access action tool schemas', () => {
     expect(createDevRunInputJsonSchema.properties.content).toEqual({type: 'string'});
   });
 
+  test('accepts whole action directories in both the Zod and JSON schemas', () => {
+    const ajv = new Ajv({strict: true, strictRequired: false});
+    addFormats(ajv);
+    const validateInput = ajv.compile(createDevRunInputJsonSchema);
+    const input = {
+      project_id: uuid,
+      ref: 'main',
+      trigger: 'manual',
+      config_path: '.shipfox/workflow.yml',
+      actions: [
+        {
+          path: './.shipfox/actions/notify',
+          files: [
+            {path: 'action.yml', content: 'name: Notify\n'},
+            {path: 'lib/format.ts', content: 'export {};\n'},
+          ],
+        },
+      ],
+    };
+
+    expect(createDevRunInputSchema.safeParse(input).success).toBe(true);
+    expect(validateInput(input)).toBe(true);
+  });
+
+  test.each([
+    ['a uses path without ./', {path: 'notify', files: [{path: 'a.ts', content: ''}]}],
+    ['no files', {path: './notify', files: []}],
+    ['a file without content', {path: './notify', files: [{path: 'a.ts'}]}],
+  ])('rejects an action upload with %s in both schemas', (_label, upload) => {
+    const ajv = new Ajv({strict: true, strictRequired: false});
+    addFormats(ajv);
+    const validateInput = ajv.compile(createDevRunInputJsonSchema);
+    const input = {
+      project_id: uuid,
+      ref: 'main',
+      trigger: 'manual',
+      config_path: '.shipfox/workflow.yml',
+      actions: [upload],
+    };
+
+    expect(createDevRunInputSchema.safeParse(input).success).toBe(false);
+    expect(validateInput(input)).toBe(false);
+  });
+
+  test.each([
+    ['a file path with ..', [{path: './notify', files: [{path: '../a.ts', content: ''}]}]],
+    ['an absolute file path', [{path: './notify', files: [{path: '/a.ts', content: ''}]}]],
+    [
+      'duplicate file paths',
+      [
+        {
+          path: './notify',
+          files: [
+            {path: 'a.ts', content: ''},
+            {path: 'a.ts', content: ''},
+          ],
+        },
+      ],
+    ],
+    [
+      'duplicate upload paths',
+      [
+        {path: './notify', files: [{path: 'a.ts', content: ''}]},
+        {path: './notify', files: [{path: 'b.ts', content: ''}]},
+      ],
+    ],
+  ])('rejects action uploads with %s', (_label, actions) => {
+    const input = {
+      project_id: uuid,
+      ref: 'main',
+      trigger: 'manual',
+      config_path: '.shipfox/workflow.yml',
+      actions,
+    };
+
+    expect(createDevRunInputSchema.safeParse(input).success).toBe(false);
+  });
+
   test('requires a ref without local content and rejects a commit without a ref', () => {
     const input = {
       project_id: uuid,

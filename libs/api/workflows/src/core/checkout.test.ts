@@ -15,6 +15,7 @@ function devRun(commit: string): {origin: 'dev'; devSource: WorkflowRunDevSource
       ref: 'fix-triage-prompt',
       commit,
       definitionSource: 'ref',
+      localActions: [],
       configPath: '.shipfox/workflows/triage-sentry.yml',
       initiatedByUserId: crypto.randomUUID(),
       replayOfEventId: null,
