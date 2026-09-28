@@ -206,7 +206,12 @@ function SessionBannerStrip({
 }
 
 function ApplicationHeader({compactLogo, context}: {compactLogo: boolean; context: ReactNode}) {
+  const location = useLocation();
   const {HeaderActions} = useChrome();
+  const headerActionsRetryKey = useMemo(
+    () => ({href: location.href, slot: HeaderActions}),
+    [location.href, HeaderActions],
+  );
 
   return (
     <header className="sticky top-0 z-30 h-56 px-row flex items-center gap-cluster bg-background-subtle-base border-b border-border-neutral-base shrink-0">
@@ -229,7 +234,10 @@ function ApplicationHeader({compactLogo, context}: {compactLogo: boolean; contex
       <div className="min-w-0 flex-1" />
       <div className="flex shrink-0 items-center gap-cluster">
         {HeaderActions ? (
-          <ReportErrorBoundary label="Failed to render header actions.">
+          <ReportErrorBoundary
+            label="Failed to render header actions."
+            retryKey={headerActionsRetryKey}
+          >
             <HeaderActions />
           </ReportErrorBoundary>
         ) : undefined}

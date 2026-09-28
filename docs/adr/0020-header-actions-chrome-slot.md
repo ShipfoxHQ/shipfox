@@ -21,3 +21,13 @@ The slot is rendered by `ApplicationHeader`, which mounts inside the composed ro
 - Composing applications can add header actions without a shell-to-feature dependency.
 - A failing header action reports an error without interrupting the header or the routed application.
 - Existing compositions and self-hosted builds keep their current header because the slot is optional.
+
+## Rejected alternatives
+
+### Use a feature registry or feature-specific injection
+
+A runtime feature registry would conflict with ADR 0001's explicit compile-time feature composition contract. Feature-specific injection would couple the shell to a feature-owned implementation. The browser-only `ChromeSlots` contract keeps application composition explicit and the shell independent.
+
+### Omit the reporting boundary
+
+Without `ReportErrorBoundary`, an optional header action could interrupt the shell when its render fails. The local boundary reports and isolates slot failures while preserving the header and routed application.
