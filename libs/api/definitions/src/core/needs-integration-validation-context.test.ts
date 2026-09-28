@@ -1,4 +1,4 @@
-import type {WorkflowDocument} from '@shipfox/workflow-document';
+import type {ActionManifest, WorkflowDocument} from '@shipfox/workflow-document';
 import {needsIntegrationValidationContext} from './needs-integration-validation-context.js';
 
 function document(overrides: Partial<WorkflowDocument> = {}): WorkflowDocument {
@@ -82,5 +82,36 @@ describe('needsIntegrationValidationContext', () => {
     ],
   ] as const)('%s -> %s', (_description, workflow, expected) => {
     expect(needsIntegrationValidationContext(workflow)).toBe(expected);
+  });
+
+  describe('action steps', () => {
+    const uses = './.shipfox/actions/thread';
+    const workflow = document({jobs: {build: {steps: [{uses}]}}});
+
+    function actions(integrations?: ActionManifest['integrations']) {
+      return new Map([
+        [
+          uses,
+          {
+            manifest: {name: 'Thread', main: 'index.ts', ...(integrations ? {integrations} : {})},
+            digest: `sha256:${'a'.repeat(64)}`,
+          },
+        ],
+      ]);
+    }
+
+    it.each([
+      ['without resolved manifests', undefined, false],
+      ['whose manifest declares no integrations', actions(), false],
+      [
+        'whose manifest declares integrations',
+        actions({
+          slack: {provider: 'slack', include: ['read_thread'], allow_write: false},
+        }),
+        true,
+      ],
+    ] as const)('an action %s -> %s', (_description, actionManifests, expected) => {
+      expect(needsIntegrationValidationContext(workflow, actionManifests)).toBe(expected);
+    });
   });
 });

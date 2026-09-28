@@ -1,3 +1,5 @@
+import type {ActionManifest} from '@shipfox/workflow-document';
+
 export type ActionSnapshotSource = 'vcs' | 'dev_local';
 
 export interface ActionSnapshot {
@@ -13,3 +15,11 @@ export interface ActionSnapshot {
   source: ActionSnapshotSource;
   createdAt: Date;
 }
+
+/** A parsed manifest and its snapshot digest, keyed by the `uses` path that references it. */
+export interface ResolvedAction {
+  readonly manifest: ActionManifest;
+  readonly digest: string;
+}
+
+export type ResolvedActions = ReadonlyMap<string, ResolvedAction>;

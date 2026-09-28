@@ -1,7 +1,14 @@
 export const invalidWorkflowModelErrorCode = 'invalid-workflow-model';
 
 export type WorkflowModelValidationIssueCode =
-  | 'action-step-unsupported'
+  | 'action-connection-missing'
+  | 'action-connection-unknown'
+  | 'action-input-invalid'
+  | 'action-input-missing'
+  | 'action-input-unknown'
+  | 'action-manifest-invalid'
+  | 'action-not-resolved'
+  | 'action-secret-input-invalid'
   | 'agent-session-harness-mismatch'
   | 'agent-session-parallel-resume'
   | 'context-unavailable-at-fill-site'
@@ -19,6 +26,7 @@ export type WorkflowModelValidationIssueCode =
   | 'harness-tool-incompatible'
   | 'integration-connection-not-capable'
   | 'integration-connection-not-found'
+  | 'integration-connection-provider-mismatch'
   | 'integration-write-not-allowed'
   | 'invalid-cron-schedule'
   | 'invalid-cron-timezone'

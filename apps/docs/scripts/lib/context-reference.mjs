@@ -37,6 +37,9 @@ export const WORKFLOW_FIELD_YAML_KEYS = {
   'tool.outputs': 'jobs.<job_id>.steps[*].outputs.<name>',
 };
 
+// Action steps stay out of the docs until workflow actions launch.
+export const UNDOCUMENTED_WORKFLOW_FIELDS = new Set(['action.with']);
+
 // Keep the shape lookup here so generation and drift checking traverse the same
 // typed registry.
 export function contextRootShape(root, deps) {

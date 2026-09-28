@@ -1,6 +1,7 @@
 import type {AgentValidationCatalogV2} from '@shipfox/api-agent-dto/inter-module';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import type {WorkflowDocument} from '@shipfox/workflow-document';
+import type {ResolvedActions} from '../entities/action-snapshot.js';
 import type {IntegrationValidationContext} from '../entities/integration-context.js';
 import type {WorkflowModel, WorkflowStepSourceLocationMap} from '../entities/workflow-model.js';
 import {historicalEventPayloadDependencyIssues} from './historical-event-payload-dependencies.js';
@@ -24,6 +25,7 @@ export function normalizeWorkflowDocument(
     defaultRunnerLabels?: readonly string[] | undefined;
     agentValidationCatalog: AgentValidationCatalogV2;
     integrationValidationContext?: IntegrationValidationContext | undefined;
+    actionManifests?: ResolvedActions | undefined;
     stepSourceLocations?: WorkflowStepSourceLocationMap | undefined;
     /** Provide a fresh array for each call to collect non-fatal validation issues. */
     diagnostics?: WorkflowModelValidationIssue[] | undefined;
@@ -35,6 +37,7 @@ export function normalizeWorkflowDocument(
     defaultRunnerLabels,
     agentValidationCatalog: options.agentValidationCatalog,
     integrationValidationContext: options.integrationValidationContext,
+    actionManifests: options.actionManifests,
   };
   validateLiteralName({
     field: 'workflow.name',

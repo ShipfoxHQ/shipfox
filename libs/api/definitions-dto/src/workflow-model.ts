@@ -1,6 +1,7 @@
 import type {
   ExpressionType,
   OutputDeclarations,
+  OutputTypeDeclaration,
   ResolvedFieldSegment,
   WorkflowExpression,
 } from '@shipfox/expression';
@@ -156,7 +157,8 @@ export type WorkflowModelStep =
   | WorkflowModelRunStep
   | WorkflowModelAgentStep
   | WorkflowModelCheckoutStep
-  | WorkflowModelToolStep;
+  | WorkflowModelToolStep
+  | WorkflowModelActionStep;
 interface WorkflowModelStepBase {
   readonly id: string;
   readonly key?: string;
@@ -219,6 +221,39 @@ export interface WorkflowModelToolStep extends WorkflowModelStepBase {
     readonly with?: WorkflowJsonTemplateTree;
     readonly name?: WorkflowFieldTemplate;
   };
+}
+export interface WorkflowModelActionStep extends WorkflowModelStepBase {
+  readonly kind: 'action';
+  readonly action: WorkflowModelAction;
+  readonly with?: WorkflowJsonValue;
+  readonly env?: Readonly<Record<string, string>>;
+  readonly templates?: {
+    readonly with?: WorkflowJsonTemplateTree;
+    readonly name?: WorkflowFieldTemplate;
+    readonly workingDirectory?: WorkflowFieldTemplate;
+    readonly env?: WorkflowEnvTemplates;
+  };
+}
+/** The action snapshot a step runs, with the manifest fields dispatch needs. */
+export interface WorkflowModelAction {
+  readonly uses: string;
+  readonly digest: string;
+  readonly name: string;
+  readonly main: string;
+  readonly inputs: Readonly<Record<string, WorkflowModelActionInput>>;
+  /** Keyed by manifest alias. Each alias is bound to a connection slug by the step. */
+  readonly integrations: Readonly<Record<string, WorkflowModelActionIntegration>>;
+}
+export interface WorkflowModelActionInput extends OutputTypeDeclaration {
+  readonly required: boolean;
+  /** Applies only when the step omits the input. */
+  readonly default?: WorkflowJsonValue;
+}
+export interface WorkflowModelActionIntegration {
+  readonly provider: string;
+  readonly connection: string;
+  readonly include: readonly string[];
+  readonly allowWrite: boolean;
 }
 export interface WorkflowModelStepIntegration {
   readonly connection?: string;

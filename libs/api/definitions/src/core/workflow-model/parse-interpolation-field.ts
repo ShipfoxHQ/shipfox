@@ -55,7 +55,8 @@ export type StoredInterpolationField =
   | 'checkout.ref'
   | 'checkout.path'
   | 'tool.with'
-  | 'tool.outputs';
+  | 'tool.outputs'
+  | 'action.with';
 
 export function parseInterpolationField(params: {
   field: StoredInterpolationField;

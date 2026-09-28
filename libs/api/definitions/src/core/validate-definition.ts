@@ -2,6 +2,7 @@ import type {AgentValidationCatalogV2} from '@shipfox/api-agent-dto/inter-module
 import {DEFINITION_SYNC_LAST_ERROR_MESSAGE_MAX_LENGTH} from '@shipfox/api-definitions-dto';
 import {InvalidWorkflowDocumentError} from '@shipfox/workflow-document';
 import {definitionActionsEnabled, definitionDefaultRunnerLabels} from '../config.js';
+import type {ResolvedActions} from './entities/action-snapshot.js';
 import type {IntegrationValidationContext} from './entities/integration-context.js';
 import type {ValidationDiagnostic} from './entities/validation-diagnostic.js';
 import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
@@ -23,6 +24,8 @@ export interface DefinitionValidationOptions {
   defaultRunnerLabels?: readonly string[];
   /** Accepts action steps (`uses`). Defaults to `DEFINITION_ACTIONS_ENABLED`. */
   actionsEnabled?: boolean;
+  /** Manifests of the actions the document references, keyed by `uses` path. */
+  actionManifests?: ResolvedActions;
   agentValidationCatalog: AgentValidationCatalogV2;
   integrationValidationContext?: IntegrationValidationContext;
 }
@@ -49,6 +52,7 @@ export function validateDefinition(
       defaultRunnerLabels: options.defaultRunnerLabels ?? definitionDefaultRunnerLabels,
       agentValidationCatalog: options.agentValidationCatalog,
       integrationValidationContext: options.integrationValidationContext,
+      actionManifests: options.actionManifests,
       stepSourceLocations,
       diagnostics,
     });

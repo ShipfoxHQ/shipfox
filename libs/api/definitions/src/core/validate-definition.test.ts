@@ -374,10 +374,40 @@ jobs:
       expect(result).toEqual({valid: false, errors: [runOnAction]});
     });
 
-    test('reports a valid action step as unsupported by the workflow model', () => {
+    test('reports an action step whose manifest was not resolved', () => {
       const result = validateDefinition(actionYaml(), {actionsEnabled: true});
 
-      expect(result).toEqual({valid: false, errors: [notSupported]});
+      expect(result).toEqual({
+        valid: false,
+        errors: [
+          {
+            message: 'Action "./.shipfox/actions/slack-thread" could not be resolved.',
+            path: 'jobs.build.steps.0.uses',
+          },
+        ],
+      });
+    });
+
+    test('normalizes an action step with its resolved manifest', () => {
+      const result = validateDefinition(actionYaml(), {
+        actionsEnabled: true,
+        actionManifests: new Map([
+          [
+            './.shipfox/actions/slack-thread',
+            {
+              manifest: {name: 'Slack thread', main: 'index.ts'},
+              digest: `sha256:${'a'.repeat(64)}`,
+            },
+          ],
+        ]),
+      });
+
+      expect(result.valid).toBe(true);
+      if (!result.valid) return;
+      expect(result.definition.model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'action',
+        action: {uses: './.shipfox/actions/slack-thread', name: 'Slack thread'},
+      });
     });
   });
 });

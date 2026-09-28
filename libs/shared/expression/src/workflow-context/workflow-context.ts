@@ -511,7 +511,8 @@ export type WorkflowInterpolationField =
   | 'checkout.ref'
   | 'checkout.path'
   | 'tool.with'
-  | 'tool.outputs';
+  | 'tool.outputs'
+  | 'action.with';
 
 export const workflowFieldFailurePolicies = ['fail', 'degrade', 'fail-closed'] as const;
 export type WorkflowFieldFailurePolicy = (typeof workflowFieldFailurePolicies)[number];
@@ -642,6 +643,11 @@ export const workflowInterpolationFieldPolicies: Readonly<
     failurePolicy: 'fail',
     minimumFillTarget: 'step-report',
     roots: ['result', 'vars'],
+  },
+  // Action inputs accept bare secret references, which the runner fills.
+  'action.with': {
+    acceptedHosts: anyHost,
+    failurePolicy: 'fail',
   },
 };
 
@@ -784,7 +790,9 @@ export function getWorkflowInterpolationFieldTypeEnvironment(
   field: WorkflowInterpolationField,
   root: WorkflowContextName | WorkflowContextReservedRoot,
 ): ExpressionTypeEnvironment | undefined {
-  if (field === 'tool.with' && root === 'step') return stepDispatchTypeEnvironment;
+  if ((field === 'tool.with' || field === 'action.with') && root === 'step') {
+    return stepDispatchTypeEnvironment;
+  }
   if (!isWorkflowContextName(root)) return undefined;
   return getWorkflowContextTypeEnvironment(root);
 }
