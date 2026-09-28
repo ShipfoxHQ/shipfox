@@ -694,6 +694,7 @@ describe('createLinearApiClient native tool queries', () => {
   it.each([
     [401, 'credentials-unavailable'],
     [403, 'access-denied'],
+    [408, 'timeout'],
     [400, 'provider-rejected'],
     [503, 'provider-unavailable'],
   ])('maps a bare HTTP %i to %s', async (status, reason) => {

@@ -685,6 +685,7 @@ function classifyGraphqlHttp4xx(status: number): IntegrationProviderErrorReason 
 }
 
 function classifyToolHttp4xx(status: number): IntegrationProviderErrorReason {
+  if (status === 408) return 'timeout';
   if (status === 401) return 'credentials-unavailable';
   if (status === 403) return 'access-denied';
   return 'provider-rejected';

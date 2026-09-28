@@ -290,6 +290,18 @@ describe('Linear native tools', () => {
     });
   });
 
+  it('rejects an inherited property name as an unknown tool', async () => {
+    const {context} = nativeContext();
+
+    const result = await callLinearNativeTool({toolId: 'toString', arguments: {}}, context);
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{type: 'text', text: 'Unknown Linear tool: toString'}],
+      structuredContent: {code: 'invalid-request'},
+    });
+  });
+
   it('rethrows unexpected failures for the gateway to report', async () => {
     const {linear, context} = nativeContext();
     const failure = new Error('unexpected');

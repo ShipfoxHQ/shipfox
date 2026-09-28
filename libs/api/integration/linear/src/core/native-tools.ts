@@ -53,7 +53,7 @@ export async function callLinearNativeTool(
   call: AgentToolCallInput,
   context: LinearNativeToolContext,
 ): Promise<CallToolResult> {
-  const handler = linearNativeTools[call.toolId];
+  const handler = isLinearNativeTool(call.toolId) ? linearNativeTools[call.toolId] : undefined;
   if (!handler) return toolError(`Unknown Linear tool: ${call.toolId}`, 'invalid-request');
   try {
     return await handler(call.arguments, context);
