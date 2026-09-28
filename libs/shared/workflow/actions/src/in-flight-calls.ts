@@ -1,4 +1,4 @@
-import type {AliasTools, Tools} from '#tools-client.js';
+import type {AliasTools, Tools} from '#tool-types.js';
 
 export interface InFlightCalls {
   readonly tools: Tools;
