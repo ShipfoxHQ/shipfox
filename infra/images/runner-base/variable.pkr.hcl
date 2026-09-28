@@ -42,15 +42,6 @@ variable "kms_key_id" {
   }
 }
 
-variable "node_version" {
-  type        = string
-  description = "Node version pinned in mise.toml. The recipe digest covers it."
-  validation {
-    condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+$", var.node_version))
-    error_message = "Node version must be an exact version such as 24.17.0."
-  }
-}
-
 variable "os_disk_size_gb" {
   type    = number
   default = 30

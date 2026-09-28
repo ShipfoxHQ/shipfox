@@ -13,8 +13,6 @@ runPacker([
   '-var',
   'kms_key_id=alias/ci',
   '-var',
-  'node_version=24.17.0',
-  '-var',
   `recipe_digest=sha256:${'0'.repeat(64)}`,
   '-var',
   'revision=ci',

@@ -62,10 +62,6 @@ variable "image_lifecycle" {
   }
 }
 
-variable "node_version" {
-  type = string
-}
-
 variable "revision" {
   type    = string
   default = "local"

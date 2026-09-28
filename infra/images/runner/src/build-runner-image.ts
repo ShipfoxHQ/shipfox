@@ -4,7 +4,6 @@ import {
   buildRunnerImage,
   type RunnerImageLifecycle,
   type RunnerImagePlatform,
-  readMiseNodeVersion,
 } from './runner-image.js';
 
 export const AWS_ACCOUNT_ID_PATTERN = /^\d{12}$/u;
@@ -41,7 +40,7 @@ function candidatePlatformMetadata(platform: string, env: NodeJS.ProcessEnv) {
   };
 }
 
-export function parseBuildRunnerImageArgs(args: string[], env = process.env, nodeVersion?: string) {
+export function parseBuildRunnerImageArgs(args: string[], env = process.env) {
   const [os, platform, ...extraPackerArgs] = args;
   if (!os || !platform)
     throw new Error('Usage: build-runner-image <os> <aws|qemu> [packer options]');
@@ -56,7 +55,6 @@ export function parseBuildRunnerImageArgs(args: string[], env = process.env, nod
     platform: platform as RunnerImagePlatform,
     ...validatedEnvironment,
     lifecycle,
-    nodeVersion: nodeVersion ?? readMiseNodeVersion(),
     revision: env.BUILD_REVISION ?? env.GITHUB_SHA ?? 'local',
     extraPackerArgs,
   };

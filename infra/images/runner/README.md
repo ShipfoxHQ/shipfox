@@ -4,9 +4,9 @@
 
 ## Build
 
-Builds run the production deploy inside the target VM. This is required because the runner contains architecture-specific native payloads. The wrapper obtains the Node version from `mise`, prunes `@shipfox/runner`, and then invokes Packer.
+Builds run the production deploy inside the target VM. This is required because the runner contains architecture-specific native payloads. The wrapper prunes `@shipfox/runner` and then invokes Packer.
 
-Candidate AWS builds start from an exact verified base AMI published by [`@shipfox/runner-base`](../runner-base/README.md). That base already holds the OS packages and the Node version pinned in `mise.toml`, with snapd and the SSM agent removed. Direct release and QEMU builds keep the complete build: they start from Canonical Ubuntu 24.04 and run the base package's OS preparation script first. Both paths then run the same runner stage. It removes cloud-init, runs the base package's Node script, and adds the swap file, the `shipfox` user, pnpm, and the runner. It then applies the boot, network, and hardening policy. The Node script downloads Node only when the pinned version is missing, so a base-derived candidate keeps the base's Node.
+Candidate AWS builds start from an exact verified base AMI published by [`@shipfox/runner-base`](../runner-base/README.md). That base already holds the OS packages and the Node major pinned by the base package, with snapd and the SSM agent removed. Direct release and QEMU builds keep the complete build: they start from Canonical Ubuntu 24.04 and run the base package's OS preparation script first. Both paths then run the same runner stage. It removes cloud-init, runs the base package's Node script, and adds the swap file, the `shipfox` user, pnpm, and the runner. It then applies the boot, network, and hardening policy. The Node script installs the latest release of its pinned major only when that major is missing, so a base-derived candidate keeps the base's Node.
 
 A candidate snapshot shares the base snapshot's blocks and stores every block the bake writes, including files it deletes before capture. AWS builds therefore mount a memory-backed `/tmp` before the first upload, so the pruned workspace and the pnpm store never reach the root volume. The time a candidate AMI takes to become available grows with the bytes the bake writes.
 
