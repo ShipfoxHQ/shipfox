@@ -816,6 +816,10 @@ export interface ProviderToolCatalog {
      */
     create_canvas: {arguments: SlackCreateCanvasArguments; result: 'json'};
     /**
+     * Get a permanent link to a Slack message, including a reply in a thread. Requires the channel ID and the message timestamp.
+     */
+    get_permalink: {arguments: SlackGetPermalinkArguments; result: 'json'};
+    /**
      * Read messages from a Slack channel in reverse chronological order (newest first). Reading direct message history needs the ID of that conversation, not the ID of the user on the other side.
      */
     read_channel: {arguments: SlackReadChannelArguments; result: 'json'};
@@ -5795,6 +5799,17 @@ export interface SlackCreateCanvasArguments {
    * Canvas body, written as standard Markdown
    */
   content: string;
+}
+
+export interface SlackGetPermalinkArguments {
+  /**
+   * Channel, private group, or direct message conversation ID, such as C0ABC12345 or D0ABC12345. A user ID is not accepted here
+   */
+  channel_id: string;
+  /**
+   * Timestamp of the message, such as 1234567890.123456
+   */
+  message_ts: string;
 }
 
 export interface SlackReadChannelArguments {
