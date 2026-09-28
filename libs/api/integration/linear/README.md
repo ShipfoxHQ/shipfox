@@ -64,27 +64,9 @@ the local source of truth for authoring validation, write-safety metadata, and
 future audit behavior; the provider advertises `agent_tools` and proxies calls
 to Linear's hosted MCP server with the connection's stored Linear token.
 
-Two read tools are native. They call Linear's GraphQL API directly, because the
-hosted `get_issue` silently stops at 50 relations and 50 attachments, and never
-returns the issues marked as duplicates of it:
-
-- `list_issue_relations` returns `{relations, hasNextPage, cursor}`. Each
-  relation has Linear's `type`, such as `blocks`, `related`, or `duplicate`; a
-  `direction`, `outgoing` or `incoming`; and an `issue` with `id`,
-  `identifier`, `title`, `projectId`, and `archivedAt`. Outgoing relations come
-  first.
-- `list_issue_attachments` returns `{attachments, hasNextPage, cursor}`. Each
-  attachment has `id`, `title`, `subtitle`, `url`, and `createdAt`.
-
-Both take `issueId`, and optionally `cursor` and `limit` (1 to 250, default 50).
-Results are structured content, and `cursor` is `null` on the last page. The
-MCP session opens only when a call needs a hosted tool.
-
-A Linear error for a missing record, or one the token cannot see, carries the
-`not-found` code, from native and hosted tools alike.
-
-`LINEAR_MCP_ENDPOINT` and `LINEAR_GRAPHQL_ENDPOINT` override the two Linear
-endpoints for a compatible proxy or test server.
+Linear reports a missing record, or one the token cannot see, as prose with no
+error code. The provider gives those tool errors the `not-found` code, so callers
+can tell them from other failures.
 
 Sensitivity policy:
 

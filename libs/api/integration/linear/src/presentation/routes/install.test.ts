@@ -60,8 +60,6 @@ function linearClient(overrides: Partial<LinearApiClient> = {}): LinearApiClient
         organizationUrlKey: 'acme',
       }),
     ),
-    listIssueRelations: vi.fn(),
-    listIssueAttachments: vi.fn(),
     ...overrides,
   };
 }

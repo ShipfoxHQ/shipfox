@@ -17,18 +17,12 @@ import type {
   IntegrationConnection,
   OpenAgentToolsSessionInput,
 } from '@shipfox/api-integration-spi';
-import {createLinearApiClient} from '#api/client.js';
 import {
   type LinearAgentToolRequiredScope,
   linearAgentToolCatalog,
   linearAgentToolSelectionCatalog,
 } from '#core/agent-tools.js';
 import {isLinearNotFoundMessage, LinearIntegrationProviderError} from '#core/errors.js';
-import {
-  callLinearNativeTool,
-  isLinearNativeTool,
-  type LinearNativeToolsClient,
-} from '#core/native-tools.js';
 import type {LinearTokenStore} from '#core/tokens.js';
 
 const LINEAR_MCP_ENDPOINT = 'https://mcp.linear.app/mcp';
@@ -53,7 +47,6 @@ type CreateLinearMcpClient = (params: CreateLinearMcpClientParams) => Promise<Li
 
 export interface LinearAgentToolsProviderOptions {
   tokenStore: Pick<LinearTokenStore, 'getAccessToken'>;
-  linear?: LinearNativeToolsClient | undefined;
   endpoint?: string | URL | undefined;
   callTimeoutMs?: number | undefined;
   createClient?: CreateLinearMcpClient | undefined;
@@ -65,13 +58,11 @@ export class LinearAgentToolsProvider
   private readonly endpoint: URL;
   private readonly callTimeoutMs: number;
   private readonly createClient: CreateLinearMcpClient;
-  private readonly linear: LinearNativeToolsClient;
 
   constructor(private readonly options: LinearAgentToolsProviderOptions) {
     this.endpoint = new URL(options.endpoint ?? LINEAR_MCP_ENDPOINT);
     this.callTimeoutMs = options.callTimeoutMs ?? LINEAR_MCP_CALL_TIMEOUT_MS;
     this.createClient = options.createClient ?? createSdkLinearMcpClient;
-    this.linear = options.linear ?? createLinearApiClient();
   }
 
   catalog() {
@@ -88,25 +79,22 @@ export class LinearAgentToolsProvider
     const accessToken = await this.options.tokenStore.getAccessToken({
       connectionId: input.connection.id,
     });
-    // Opened on the first proxied call, so native-only sessions never reach the hosted MCP.
-    let client: Promise<LinearMcpClient> | undefined;
+    let client: LinearMcpClient;
+    try {
+      client = await this.createClient({endpoint: this.endpoint, accessToken});
+    } catch (error) {
+      throw mapLinearMcpError(error);
+    }
 
     return {
       call: async (call) => {
-        if (isLinearNativeTool(call.toolId)) {
-          return await callLinearNativeTool(call, {linear: this.linear, accessToken});
-        }
         try {
-          client ??= this.createClient({endpoint: this.endpoint, accessToken});
-          return withNotFoundCode(await (await client).callTool(call, this.callTimeoutMs));
+          return withNotFoundCode(await client.callTool(call, this.callTimeoutMs));
         } catch (error) {
           throw mapLinearMcpError(error);
         }
       },
-      close: async () => {
-        const opened = await client?.catch(() => undefined);
-        await opened?.close();
-      },
+      close: () => client.close(),
     };
   }
 }

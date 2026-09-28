@@ -39,8 +39,6 @@ function createConnectionContext() {
       getIdentity: vi.fn(),
       refreshAccessToken,
       revokeToken: vi.fn(),
-      listIssueRelations: vi.fn(),
-      listIssueAttachments: vi.fn(),
     },
   });
 

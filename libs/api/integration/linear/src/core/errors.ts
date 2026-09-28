@@ -2,7 +2,7 @@ import {IntegrationProviderError} from '@shipfox/api-integration-spi';
 
 export class LinearIntegrationProviderError extends IntegrationProviderError {}
 
-// Linear words missing and invisible records the same way, in GraphQL errors and hosted MCP results.
+// Linear words missing and invisible records the same way.
 const notFoundMessagePattern = /^(?:Error:\s*)?(?:Entity not found|Could not find)\b/i;
 
 export function isLinearNotFoundMessage(message: string): boolean {
