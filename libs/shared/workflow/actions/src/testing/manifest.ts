@@ -1,4 +1,4 @@
-import {readFile} from 'node:fs/promises';
+import {access, readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {coerceStepOutputs, type StepOutputCoercionError} from '@shipfox/expression';
 import {type ActionManifest, actionManifestSchema} from '@shipfox/workflow-document';
@@ -21,8 +21,11 @@ export interface GrantedIntegration {
   readonly methods: ReadonlyMap<string, ToolGrant>;
 }
 
+// The server's manifest names, in order of preference.
+const ACTION_MANIFEST_FILE_NAMES = ['action.yml', 'action.yaml'] as const;
+
 export async function readActionManifest(actionDir: string): Promise<ActionManifest> {
-  const path = join(actionDir, 'action.yml');
+  const path = await manifestPath(actionDir);
   let raw: unknown;
   try {
     raw = parse(await readFile(path, 'utf8'));
@@ -35,6 +38,19 @@ export async function readActionManifest(actionDir: string): Promise<ActionManif
     issue.path.length === 0 ? issue.message : `${issue.path.join('.')}: ${issue.message}`,
   );
   throw new ActionTestSetupError(`Invalid action manifest ${path}:\n- ${issues.join('\n- ')}`);
+}
+
+async function manifestPath(actionDir: string): Promise<string> {
+  for (const name of ACTION_MANIFEST_FILE_NAMES) {
+    const path = join(actionDir, name);
+    try {
+      await access(path);
+      return path;
+    } catch {
+      // Try the next name.
+    }
+  }
+  return join(actionDir, ACTION_MANIFEST_FILE_NAMES[0]);
 }
 
 /** Applies defaults to omitted inputs and types every value, as the server does at dispatch. */

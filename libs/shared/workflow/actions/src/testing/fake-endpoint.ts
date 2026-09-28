@@ -103,15 +103,22 @@ export async function startFakeEndpoint(params: {
         result: {structured: result.structured, content: result.content},
       };
     }
-    return await writeFile(callId, request.destination ?? '', value as FakeToolFile);
+    const file = toFakeFile(value);
+    if (file === undefined) {
+      const error = new Error(
+        `The fake for ${request.alias}.${request.tool} must return file bytes or {bytes, filename, mediaType}, because the tool returns a file.`,
+      );
+      fakeErrors.push(error);
+      return failure(callId, {code: 'fake-failed', message: error.message, outcome_unknown: false});
+    }
+    return await writeFile(callId, request.destination ?? '', file);
   };
 
   const writeFile = async (
     callId: string,
     destination: string,
-    value: FakeToolFile,
+    file: FakeFile,
   ): Promise<ToolDownloadResponseV1> => {
-    const file = typeof value === 'string' || value instanceof Uint8Array ? {bytes: value} : value;
     const bytes = typeof file.bytes === 'string' ? Buffer.from(file.bytes) : file.bytes;
     try {
       const target = await resolveDownloadTarget({
@@ -195,6 +202,20 @@ export async function startFakeEndpoint(params: {
         server.closeAllConnections();
         server.close(() => resolve());
       }),
+  };
+}
+
+type FakeFile = Exclude<FakeToolFile, Uint8Array | string>;
+
+function toFakeFile(value: unknown): FakeFile | undefined {
+  if (typeof value === 'string' || value instanceof Uint8Array) return {bytes: value};
+  if (!isRecord(value)) return undefined;
+  const {bytes, filename, mediaType} = value;
+  if (typeof bytes !== 'string' && !(bytes instanceof Uint8Array)) return undefined;
+  return {
+    bytes,
+    ...(typeof filename === 'string' ? {filename} : {}),
+    ...(typeof mediaType === 'string' ? {mediaType} : {}),
   };
 }
 

@@ -119,7 +119,8 @@ test('collects every page of a thread', async () => {
 - **The result** holds `status`, `exitCode`, `outputs` (typed as later steps see them), `error`,
   every `calls` entry, the interleaved `logs`, the `summary`, and the `workspace`.
 - **The workspace** is a new temporary directory unless `workspace` names one. Call
-  `result.workspace.remove()` to delete it.
+  `result.workspace.remove()` to delete it. It deletes a named workspace too, so name only a
+  disposable directory.
 - **`timeoutMs`** defaults to 30 seconds. The process group is killed when it passes.
 
 Limits:

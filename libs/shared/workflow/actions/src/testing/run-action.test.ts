@@ -1,5 +1,8 @@
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
+import {mkdtemp, rm, writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {
   type ActionTestWorkspace,
@@ -20,8 +23,19 @@ describe('runAction', () => {
     return result;
   };
 
+  const actionDirs: string[] = [];
+  const writeAction = async (files: Record<string, string>) => {
+    const dir = await mkdtemp(join(tmpdir(), 'shipfox-action-dir-'));
+    actionDirs.push(dir);
+    await Promise.all(
+      Object.entries(files).map(([name, content]) => writeFile(join(dir, name), content)),
+    );
+    return dir;
+  };
+
   afterEach(async () => {
     await Promise.all(workspaces.splice(0).map((workspace) => workspace.remove()));
+    await Promise.all(actionDirs.splice(0).map((dir) => rm(dir, {recursive: true, force: true})));
   });
 
   it('runs the action with fakes and types its outputs', async () => {
@@ -49,6 +63,33 @@ describe('runAction', () => {
     });
     expect(result.calls.map((call) => call.args.cursor)).toEqual([undefined, 'c2']);
     expect(await result.workspace.read('context/slack-thread.md')).toBe('- first\n- second\n');
+  });
+
+  it('reads an action.yaml manifest', async () => {
+    const dir = await writeAction({
+      'action.yaml': 'name: Yaml\nmain: index.mjs\noutputs:\n  greeting:\n    required: true\n',
+      'index.mjs':
+        "import {defineAction} from '@shipfox/actions';\nexport default defineAction(() => ({greeting: 'hi'}));\n",
+    });
+
+    const result = await runAction(dir);
+
+    expect(result).toMatchObject({status: 'succeeded', outputs: {greeting: 'hi'}});
+  });
+
+  it('fails an output above the runner size limit', async () => {
+    const dir = await writeAction({
+      'action.yml': 'name: Big\nmain: index.mjs\noutputs:\n  big: {}\n',
+      'index.mjs':
+        "import {defineAction} from '@shipfox/actions';\nexport default defineAction(() => ({big: 'x'.repeat(65 * 1024)}));\n",
+    });
+
+    const result = await runAction(dir);
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: {message: expect.stringContaining('Output "big" exceeds the per-value size limit')},
+    });
   });
 
   it('rejects a missing required input before the action starts', async () => {
@@ -135,6 +176,19 @@ describe('runAction', () => {
       {code: 'tool-result-kind-mismatch', outcomeUnknown: false},
     ]);
     expect(await result.workspace.read('files/notes.txt')).toBe('hello');
+  });
+
+  it('rejects when a download fake returns something other than a file', async () => {
+    const run = runAction(probe, {
+      inputs: {
+        calls: [{alias: 'linear', tool: 'download_file', args: {}, destination: 'files/'}],
+      },
+      tools: {linear: {download_file: () => toolResult({url: 'u'})}},
+    });
+
+    await expect(run).rejects.toThrow(
+      'The fake for linear.download_file must return file bytes or {bytes, filename, mediaType}',
+    );
   });
 
   it('keeps outputs, logs, and the summary of a failed action', async () => {
