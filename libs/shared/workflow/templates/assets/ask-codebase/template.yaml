@@ -19,7 +19,7 @@ options:
         tradeoff: The app answers when someone mentions it in the channels you pick.
       - id: dispatch_only
         label: Through another workflow
-        tradeoff: Another workflow, such as a Slack dispatcher, starts this one. Pick it when another workflow already answers mentions, or each mention gets two replies.
+        tradeoff: Another workflow, such as a Slack dispatcher, starts this one. Pick it when another workflow already answers mentions, so each mention does not get two replies.
 models:
   answer:
     note: Analyzes the repository to answer the Slack thread's question with one grounded reply. Needs a strong model with high thinking.
