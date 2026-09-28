@@ -81,7 +81,7 @@ describe('shipped skill resources', () => {
     expect(text).toContain("Never reconstruct a template's YAML by hand.");
     expect(text).toContain('If `model_provider_configured` is `false`, stop');
     expect(text).not.toContain('no-compatible-model');
-    expect(text).toContain('state the writes from **Expected writes** and runner/inference cost');
+    expect(text).toContain('state **Expected writes** and runner/inference cost');
     expect(text).toContain('Event lookup does not verify project scope');
     expect(text).toContain('use Linear MCP only for Linear triggers.');
     expect(text).toContain("give the guide's exact event-creation action;");
@@ -90,7 +90,7 @@ describe('shipped skill resources', () => {
       'They can skip; report "shape validated, not executed" and go to step 9.',
     );
     expect(text).toContain("Share the dev run's `run_url` as soon as it is available");
-    expect(text).toContain('Repeat the expected writes from step 6 in one line');
+    expect(text).toContain("Repeat step 6's expected writes in one line");
     expect(text).toContain('Before repeating a real run after failure or edits');
     expect(text).toContain('Stop and ask after five failed real runs.');
   });
@@ -102,7 +102,7 @@ describe('shipped skill resources', () => {
       getShippedSkillResource('skill://shipfox/test-workflow-change/SKILL.md')?.text ?? '';
 
     expect(template).toContain(
-      "It decides whether the real run needs the user's confirmation; never ask otherwise.",
+      'It decides whether the run needs confirmation; never ask otherwise.',
     );
     expect(template).not.toContain('decide explicitly with the user');
     expect(testing).toContain('revision: 2');
