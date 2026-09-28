@@ -33,7 +33,7 @@ post-activation Get-started checklist, and its panel and top-bar hosts.
   the MCP setup inline, collapsing to "Connected: <client>" once the signed-in
   user has an agent grant for the workspace. It recommends one workflow
   template in full and lists up to three more on one line each, every one with
-  a copyable prompt. Templates that need a connection the workspace lacks are
+  its integration icons and a copyable prompt. Templates that need a connection the workspace lacks are
   not shown. In finish mode it links
   the latest succeeded test run and explains which pull request turns the
   workflow on. The template cards move behind a disclosure.

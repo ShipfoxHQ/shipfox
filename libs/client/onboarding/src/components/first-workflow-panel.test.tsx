@@ -159,6 +159,7 @@ describe('FirstWorkflowPanel in choose mode', () => {
 
     expect(await screen.findByRole('heading', {name: 'Task to pull request'})).toBeVisible();
     expect(screen.getByText('Recommended · Try it now')).toBeVisible();
+    expect(screen.getByText('Uses GitHub, Linear, and Jira')).toBeInTheDocument();
     const others = within(screen.getByRole('list', {name: 'More suggested workflows'}));
     expect(others.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
       'Investigate and repair default-branch CI failures',

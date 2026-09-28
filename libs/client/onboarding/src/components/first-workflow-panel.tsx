@@ -1,4 +1,5 @@
 import {McpSetupInstructions} from '@shipfox/client-agent';
+import {PROVIDER_CATALOG} from '@shipfox/client-integrations';
 import {useClientAnalytics} from '@shipfox/client-shell/runtime';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@shipfox/react-ui/collapsible';
@@ -263,9 +264,12 @@ function RecommendedTemplate({
     <PanelStep>
       <div className="flex w-full min-w-0 items-start justify-between gap-group">
         <div className="flex min-w-0 flex-col gap-tight">
-          <Text size="xs" className="text-foreground-neutral-muted">
-            Recommended · {workflowTemplateLabel(template)}
-          </Text>
+          <div className="flex min-w-0 items-center gap-inline">
+            <Text size="xs" className="text-foreground-neutral-muted">
+              Recommended · {workflowTemplateLabel(template)}
+            </Text>
+            <ProviderIcons providers={template.providers} />
+          </div>
           <Text as="h4" size="md" bold>
             {template.title}
           </Text>
@@ -292,6 +296,7 @@ function TemplateRow({template, onCopied}: {template: WorkflowTemplate; onCopied
           {template.title}
         </Text>
         <div className="flex min-w-0 shrink items-center gap-tight">
+          <ProviderIcons providers={template.providers} />
           <Text size="xs" className="min-w-0 truncate text-foreground-neutral-muted">
             {workflowTemplateLabel(template)}
           </Text>
@@ -305,6 +310,31 @@ function TemplateRow({template, onCopied}: {template: WorkflowTemplate; onCopied
         </div>
       </li>
     </PanelRow>
+  );
+}
+
+const providerNameList = new Intl.ListFormat('en', {type: 'conjunction'});
+
+function ProviderIcons({providers}: {providers: readonly string[]}) {
+  const entries = providers.flatMap((provider) => {
+    const entry = PROVIDER_CATALOG[provider];
+    return entry ? [{provider, ...entry}] : [];
+  });
+  if (entries.length === 0) return null;
+  const label = `Uses ${providerNameList.format(entries.map(({displayName}) => displayName))}`;
+
+  return (
+    <span className="flex shrink-0 items-center gap-tight" title={label}>
+      {entries.map(({provider, iconName}) => (
+        <Icon
+          key={provider}
+          name={iconName}
+          className="size-14 text-foreground-neutral-muted"
+          aria-hidden="true"
+        />
+      ))}
+      <span className="sr-only">{label}</span>
+    </span>
   );
 }
 
