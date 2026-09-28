@@ -19,7 +19,6 @@ function toWorkflowTemplate(dto: WorkspaceWorkflowTemplateDto): WorkflowTemplate
     group: dto.group,
     startLabel: dto.start_label,
     providers: dto.providers,
-    missingProviders: dto.missing_providers,
     prompt: dto.prompt,
   };
 }

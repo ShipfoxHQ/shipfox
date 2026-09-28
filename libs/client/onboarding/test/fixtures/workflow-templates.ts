@@ -53,20 +53,20 @@ const REPORT_FAILED_RUNS = {
 
 /** The library as ranked for a workspace with only GitHub connected. */
 export const githubOnlyWorkflowTemplates: WorkflowTemplate[] = [
-  template({...TICKET_TO_PR, group: 'try_now', missingProviders: []}),
-  template({...FIX_DEFAULT_BRANCH_CI, group: 'starts_on_event', missingProviders: []}),
-  template({...FIX_DEPENDENCY_CI, group: 'starts_on_event', missingProviders: []}),
-  template({...ASK_CODEBASE, group: 'needs_connection', missingProviders: ['slack']}),
-  template({...SLACK_TO_TICKET, group: 'needs_connection', missingProviders: ['slack', 'linear']}),
-  template({...REPORT_FAILED_RUNS, group: 'needs_connection', missingProviders: ['slack']}),
+  template({...TICKET_TO_PR, group: 'try_now'}),
+  template({...FIX_DEFAULT_BRANCH_CI, group: 'starts_on_event'}),
+  template({...FIX_DEPENDENCY_CI, group: 'starts_on_event'}),
+  template({...ASK_CODEBASE, group: 'needs_connection'}),
+  template({...SLACK_TO_TICKET, group: 'needs_connection'}),
+  template({...REPORT_FAILED_RUNS, group: 'needs_connection'}),
 ];
 
 /** The library as ranked for a workspace with GitHub, Slack, and Linear connected. */
 export const allToolsWorkflowTemplates: WorkflowTemplate[] = [
-  template({...TICKET_TO_PR, group: 'try_now', missingProviders: []}),
-  template({...ASK_CODEBASE, group: 'try_now', missingProviders: []}),
-  template({...SLACK_TO_TICKET, group: 'try_now', missingProviders: []}),
-  template({...FIX_DEFAULT_BRANCH_CI, group: 'starts_on_event', missingProviders: []}),
-  template({...FIX_DEPENDENCY_CI, group: 'starts_on_event', missingProviders: []}),
-  template({...REPORT_FAILED_RUNS, group: 'starts_on_event', missingProviders: []}),
+  template({...TICKET_TO_PR, group: 'try_now'}),
+  template({...ASK_CODEBASE, group: 'try_now'}),
+  template({...SLACK_TO_TICKET, group: 'try_now'}),
+  template({...FIX_DEFAULT_BRANCH_CI, group: 'starts_on_event'}),
+  template({...FIX_DEPENDENCY_CI, group: 'starts_on_event'}),
+  template({...REPORT_FAILED_RUNS, group: 'starts_on_event'}),
 ];

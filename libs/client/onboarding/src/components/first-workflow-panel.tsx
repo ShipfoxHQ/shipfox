@@ -198,7 +198,7 @@ function TemplatePicker({
 }) {
   const analytics = useClientAnalytics();
   const templatesQuery = useWorkspaceWorkflowTemplatesQuery(workspace.id);
-  const suggestions = templatesQuery.data ? suggestWorkflowTemplates(templatesQuery.data) : null;
+  const cards = templatesQuery.data ? suggestWorkflowTemplates(templatesQuery.data) : null;
 
   function captureCopy(template: WorkflowTemplate | undefined) {
     analytics.capture(
@@ -212,7 +212,7 @@ function TemplatePicker({
   return (
     <>
       {templatesQuery.isPending ? <TemplateCardsSkeleton /> : null}
-      {templatesQuery.isError && !suggestions ? (
+      {templatesQuery.isError && !cards ? (
         <PanelStep>
           <Text size="sm" className="text-foreground-neutral-muted">
             Suggested workflows could not load. Browse the examples or describe what you want to
@@ -220,9 +220,9 @@ function TemplatePicker({
           </Text>
         </PanelStep>
       ) : null}
-      {suggestions && suggestions.cards.length > 0 ? (
+      {cards && cards.length > 0 ? (
         <PanelGrid aria-label="Suggested workflows" className="border-b border-border-neutral-base">
-          {suggestions.cards.map((template) => (
+          {cards.map((template) => (
             <TemplateCard
               key={template.id}
               template={template}
@@ -230,27 +230,6 @@ function TemplatePicker({
             />
           ))}
         </PanelGrid>
-      ) : null}
-      {suggestions && suggestions.needsConnection.length > 0 ? (
-        <PanelStep>
-          <Text size="sm" className="text-foreground-neutral-muted">
-            Needs a connection
-          </Text>
-          <ul className="flex flex-col gap-tight">
-            {suggestions.needsConnection.map((template) => (
-              <li key={template.id}>
-                <ButtonLink asChild variant="interactive" size="sm">
-                  <Link
-                    to="/w/$workspaceSlug/settings/integrations"
-                    params={{workspaceSlug: workspace.slug}}
-                  >
-                    {needsConnectionLabel(template)}
-                  </Link>
-                </ButtonLink>
-              </li>
-            ))}
-          </ul>
-        </PanelStep>
       ) : null}
       <PanelStep>
         <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-inline">
@@ -291,11 +270,6 @@ function TemplatePicker({
       </PanelStep>
     </>
   );
-}
-
-function needsConnectionLabel(template: WorkflowTemplate): string {
-  const providers = joinProviderNames(template.missingProviders.map(providerDisplayName));
-  return `Connect ${providers} to use ${template.title}`;
 }
 
 function providerDisplayName(provider: string): string {

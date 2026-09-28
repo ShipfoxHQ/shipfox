@@ -137,8 +137,8 @@ function PanelStory({
         <FirstWorkflowPanel workspace={WORKSPACE} progress={progress} surface="home" />
       ),
     });
-    const stubRoutes = ['/w/$workspaceSlug/settings/integrations', '/runs/$workflowRunId'].map(
-      (path) => createRoute({getParentRoute: () => rootRoute, path, component: () => null}),
+    const stubRoutes = ['/runs/$workflowRunId'].map((path) =>
+      createRoute({getParentRoute: () => rootRoute, path, component: () => null}),
     );
 
     return createRouter({

@@ -35,7 +35,6 @@ describe('listWorkspaceWorkflowTemplates', () => {
         group: 'starts_on_event',
         startLabel: 'Starts on a failing dependency update',
         providers: ['github'],
-        missingProviders: [],
         prompt: 'Use Shipfox to create a workflow from the fix-dependency-ci template.',
       },
     ]);

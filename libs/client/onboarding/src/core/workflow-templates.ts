@@ -10,33 +10,23 @@ export interface WorkflowTemplate {
   startLabel: string | null;
   /** Provider keys, required ones first. */
   providers: readonly string[];
-  missingProviders: readonly string[];
   prompt: string;
-}
-
-export interface WorkflowTemplateSuggestions {
-  /** Templates the workspace can use now, in server rank order. */
-  cards: readonly WorkflowTemplate[];
-  /** Templates that need a connection first, one line each. */
-  needsConnection: readonly WorkflowTemplate[];
 }
 
 export const MAX_SUGGESTED_TEMPLATE_CARDS = 4;
 
 /**
- * Splits the ranked list into the panel's cards and its "Needs a connection"
- * lines. The server already orders "Try it now" ahead of "Starts on an event",
- * so the first cards are the ones the user can run today.
+ * The panel's cards: templates the workspace can use now. Templates that need
+ * a connection are left out, since listing what the workspace cannot run only
+ * grows with the catalog. The server already orders "Try it now" ahead of
+ * "Starts on an event", so the first cards are the ones the user can run today.
  */
 export function suggestWorkflowTemplates(
   templates: readonly WorkflowTemplate[],
-): WorkflowTemplateSuggestions {
-  return {
-    cards: templates
-      .filter((template) => template.group !== 'needs_connection')
-      .slice(0, MAX_SUGGESTED_TEMPLATE_CARDS),
-    needsConnection: templates.filter((template) => template.group === 'needs_connection'),
-  };
+): readonly WorkflowTemplate[] {
+  return templates
+    .filter((template) => template.group !== 'needs_connection')
+    .slice(0, MAX_SUGGESTED_TEMPLATE_CARDS);
 }
 
 const TRY_NOW_LABEL = 'Try it now';

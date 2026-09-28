@@ -64,8 +64,8 @@ function renderPanel({
       <FirstWorkflowPanel workspace={WORKSPACE} progress={progress} surface="home" />
     ),
   });
-  const stubRoutes = ['/w/$workspaceSlug/settings/integrations', '/runs/$workflowRunId'].map(
-    (path) => createRoute({getParentRoute: () => rootRoute, path, component: () => null}),
+  const stubRoutes = ['/runs/$workflowRunId'].map((path) =>
+    createRoute({getParentRoute: () => rootRoute, path, component: () => null}),
   );
   const router = createRouter({
     routeTree: rootRoute.addChildren([panelRoute, ...stubRoutes]),
@@ -154,7 +154,7 @@ describe('FirstWorkflowPanel in choose mode', () => {
     expect(screen.queryByText(CONNECTED_RE)).not.toBeInTheDocument();
   });
 
-  test('suggests what a GitHub-only workspace can run and what a connection unlocks', async () => {
+  test('suggests only what a GitHub-only workspace can run', async () => {
     renderPanel();
 
     const cards = within(await screen.findByRole('list', {name: 'Suggested workflows'}));
@@ -166,14 +166,7 @@ describe('FirstWorkflowPanel in choose mode', () => {
     ]);
     expect(cards.getByText('Try it now')).toBeVisible();
     expect(cards.getByText('Starts on a failing dependency update')).toBeVisible();
-    expect(
-      screen.getByRole('link', {name: 'Connect Slack to use Ask the codebase in Slack'}),
-    ).toHaveAttribute('href', `/w/${WORKSPACE.slug}/settings/integrations`);
-    expect(
-      screen.getByRole('link', {
-        name: 'Connect Slack and Linear to use Create a ticket from a Slack conversation',
-      }),
-    ).toBeVisible();
+    expect(screen.queryByText('Ask the codebase in Slack')).not.toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Browse all examples'})).toHaveAttribute(
       'href',
       'https://www.shipfox.io/docs/examples',
@@ -186,7 +179,6 @@ describe('FirstWorkflowPanel in choose mode', () => {
 
     const cards = within(await screen.findByRole('list', {name: 'Suggested workflows'}));
     expect(cards.getAllByRole('heading')).toHaveLength(4);
-    expect(screen.queryByText('Needs a connection')).not.toBeInTheDocument();
   });
 
   test('copies a template prompt and captures the template ID', async () => {

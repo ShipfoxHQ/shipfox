@@ -10,23 +10,18 @@ import {
 } from './workflow-templates.js';
 
 describe('suggestWorkflowTemplates', () => {
-  test('splits usable templates from those that need a connection, keeping rank order', () => {
-    const {cards, needsConnection} = suggestWorkflowTemplates(githubOnlyWorkflowTemplates);
+  test('keeps only usable templates, in rank order', () => {
+    const cards = suggestWorkflowTemplates(githubOnlyWorkflowTemplates);
 
     expect(cards.map(({id}) => id)).toEqual([
       'ticket-to-pr',
       'fix-default-branch-ci',
       'fix-dependency-ci',
     ]);
-    expect(needsConnection.map(({id}) => id)).toEqual([
-      'ask-codebase',
-      'slack-to-ticket',
-      'report-failed-runs',
-    ]);
   });
 
   test('caps the cards at four', () => {
-    const {cards, needsConnection} = suggestWorkflowTemplates(allToolsWorkflowTemplates);
+    const cards = suggestWorkflowTemplates(allToolsWorkflowTemplates);
 
     expect(cards.map(({id}) => id)).toEqual([
       'ticket-to-pr',
@@ -34,7 +29,6 @@ describe('suggestWorkflowTemplates', () => {
       'slack-to-ticket',
       'fix-default-branch-ci',
     ]);
-    expect(needsConnection).toEqual([]);
   });
 });
 
