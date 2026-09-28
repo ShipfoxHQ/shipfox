@@ -5,7 +5,9 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 
 - **`workflowTemplateManifestSchema`** checks template presentation fields, keywords, starts, flow, writes, prerequisites, related templates, roles, options, model placeholders, and described slots, secrets, and variables.
 - **`composeWorkflow`** replaces `# part:<role>.<name>` markers with text blocks at the marker indentation.
-- **`composeTemplate`** selects one provider part for every bound role, composes the workflow, and writes its `# shipfox-template:` header.
+- **`composeTemplate`** selects one provider part for every bound role, composes the workflow, and writes its `# shipfox-template:` header. An optional third argument takes the chosen `options` and a `header` choice.
+- **`applyTemplateOptions`** keeps the `# option:X=Y` blocks whose choice is chosen, deletes the other blocks of that option, and removes the marker lines.
+- **`parseTemplateHeader`** reads a `# shipfox-template:` header, in its registry or legacy form, without the manifest. It is also exported from the browser-safe `@shipfox/workflow-templates/header` subpath, with `formatTemplateHeader`.
 - **`templateRoleBindings`** lists every role binding a template supports, with each optional role both bound and unbound.
 - **`computeTemplateBump`** returns the minimum semantic-version bump between two parsed manifests. The registry and the release tool use it. See [Version bumps](#version-bumps).
 - **`deriveTemplateMetadata`** returns the `derived` field of a template version document from the manifest and the content bundle size: the integrations, the slots, secrets, and variables, the role and option choices, and the size. `workflowTemplateMetadataSchema` validates it.
@@ -59,11 +61,31 @@ The following comments are preserved as authoring instructions:
 - `# slot:<name>` identifies a value the agent fills from the manifest slot.
 - `# model:<key>` identifies a model value on an agent step's `model:` line. Each key needs a `models` entry in the manifest.
 - `# option:X=Y begin` and `# option:X=Y end` surround an optional block. `X=Y,Z` keeps the block when any listed choice is chosen.
-- `# shipfox-template: <id>@<revision> <role>=<provider>` identifies an adopted composed template. `composeTemplate` writes it after leading comments from the loader identity and bound roles, so base workflows must not declare it.
+- `# shipfox-template:` identifies an adopted composed template. `composeTemplate` writes it after leading comments, so base workflows must not declare it. See [Template header](#template-header).
 
 The composer only substitutes `part:` markers. It does not evaluate expressions, conditionals, or loops. A missing part or required provider binding throws an error.
 
 Each `models` entry needs a matching marker in `workflow.yml` or a provider part. The entry can include a `note` for the user. The loader composes every role binding and rejects missing, unknown, incomplete, or conflicting markers. Keep model markers out of optional-role parts, because the composition without that role would lose them.
+
+### Template header
+
+`composeTemplate` writes one of two header forms. The legacy form is the default:
+
+```yaml
+# shipfox-template: ticket-to-pr@3 source=github tracker=linear
+```
+
+The registry form names the registry package version, then its bound roles and chosen options. Roles come first, then options, each in manifest order, and an empty group is omitted:
+
+```yaml
+# shipfox-template: shipfox/ticket-to-pr@1.2.0; roles: source=github tracker=linear; options: feedback_loop=on pr_mode=draft
+```
+
+Ask for it with `composeTemplate(template, bindings, {header: {kind: 'registry', reference}, options})`. A template served from the embedded copy keeps the legacy header, so an adoption never claims a registry base that may not exist. The composer checks `options` against the manifest and records them only in the registry form, because the legacy form has no options group. It does not apply them to the YAML.
+
+`parseTemplateHeader(text)` reads either form from workflow YAML or from the header line alone, and returns `{ref, bindings, options}` or `{legacy: {id, revision, bindings}}`. The group names tell roles from options, so a role and an option can share a name and no manifest is needed. It searches only the leading comment lines. It returns `undefined` when there is no header, or when it is malformed: a range or tag instead of an exact version, an unknown, empty, repeated, or misordered group, or a repeated key.
+
+`applyTemplateOptions(yaml, options)` resolves the option blocks. `# option:X=Y,Z begin` keeps its block when either `Y` or `Z` is chosen for `X`. Blocks can nest. An option with no chosen value keeps its blocks and markers, so `{}` changes nothing. An unclosed block, or an end marker that does not match, throws. Lines such as `# option:bot_identity`, `# slot:`, `# bind:`, and `# model:` stay.
 
 ### Optional roles
 

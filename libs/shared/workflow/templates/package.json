@@ -31,6 +31,16 @@
         "default": "./dist/index.js"
       }
     },
+    "./header": {
+      "workspace-source": {
+        "types": "./src/header.ts",
+        "default": "./src/header.ts"
+      },
+      "default": {
+        "types": "./dist/header.d.ts",
+        "default": "./dist/header.js"
+      }
+    },
     "./prompt": {
       "workspace-source": {
         "types": "./src/prompt.ts",
@@ -54,6 +64,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/registry-format": "workspace:*",
     "@shipfox/workflow-document": "workspace:*",
     "yaml": "catalog:",
     "zod": "catalog:"

@@ -36,12 +36,11 @@ export type RegistryEnvelopeErrorReason =
 
 export class RegistryEnvelopeError extends Error {
   override name = 'RegistryEnvelopeError';
+  readonly reason: RegistryEnvelopeErrorReason;
 
-  constructor(
-    public readonly reason: RegistryEnvelopeErrorReason,
-    message: string,
-  ) {
+  constructor(reason: RegistryEnvelopeErrorReason, message: string) {
     super(message);
+    this.reason = reason;
   }
 }
 
