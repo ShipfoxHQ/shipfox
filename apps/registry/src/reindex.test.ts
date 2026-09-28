@@ -43,8 +43,10 @@ describe('reindexRegistry', () => {
         bump: 'minor',
         manifest: {name: 'Slack digest', description: 'Digests threads.'},
         derived: {
-          integrations: ['slack'],
-          capabilities: {slack: {provider: 'slack', allow_write: true}},
+          ...actionVersionDocument().derived,
+          capabilities: {
+            slack: {provider: 'slack', selectors: ['conversations.replies'], allow_write: true},
+          },
         },
       }),
     );
