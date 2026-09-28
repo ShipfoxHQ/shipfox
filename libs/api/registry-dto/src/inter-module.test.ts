@@ -1,4 +1,5 @@
 import {registryInterModuleContract} from './inter-module.js';
+import {registrySourceSchema} from './schemas/version.js';
 
 const methods = registryInterModuleContract.methods;
 
@@ -50,5 +51,10 @@ describe('registryInterModuleContract', () => {
       'registry-unavailable',
       'registry-version-not-found',
     ]);
+  });
+
+  it('accepts a base64 bundle and rejects other strings', () => {
+    expect(registrySourceSchema.safeParse({source: 'H4sIAAAAAAAAA0tLLAEA'}).success).toBe(true);
+    expect(registrySourceSchema.safeParse({source: 'not base64!'}).success).toBe(false);
   });
 });

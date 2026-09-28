@@ -1,4 +1,4 @@
-import {createHash, generateKeyPairSync} from 'node:crypto';
+import {createHash, generateKeyPairSync, randomUUID} from 'node:crypto';
 import {createServer} from 'node:http';
 import type {AddressInfo} from 'node:net';
 import {
@@ -45,8 +45,10 @@ export async function startTestRegistry(): Promise<TestRegistry> {
   const files = new Map<string, Uint8Array | string>();
   const failures = new Map<string, number>();
   const requests: string[] = [];
+  // The OS can hand out a port again, and cached rows are keyed by URL, so the prefix keeps URLs unique.
+  const prefix = `/${randomUUID()}/`;
   const server = createServer((request, response) => {
-    const path = (request.url ?? '').slice(1);
+    const path = (request.url ?? '').slice(prefix.length);
     requests.push(path);
     const status = failures.get(path);
     if (status) {
@@ -64,7 +66,7 @@ export async function startTestRegistry(): Promise<TestRegistry> {
   const {port} = server.address() as AddressInfo;
 
   return {
-    url: `http://127.0.0.1:${port}`,
+    url: `http://127.0.0.1:${port}${prefix.slice(0, -1)}`,
     requests,
     put: (path, body) => files.set(path, body),
     fail: (path, status) => failures.set(path, status),

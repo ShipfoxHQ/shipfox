@@ -96,7 +96,8 @@ describe('Registry inter-module presentation', () => {
     expect(isInterModuleKnownError(registryInterModuleContract.methods.resolveVersion, error)).toBe(
       true,
     );
-    expect(error).toMatchObject({code, details});
+    expect(error).toHaveProperty('code', code);
+    expect(error).toHaveProperty('details', details);
   });
 
   it('mints registry-signature-invalid for an untrusted signature', async () => {
@@ -128,6 +129,7 @@ describe('Registry inter-module presentation', () => {
     expect(isInterModuleKnownError(registryInterModuleContract.methods.getReadme, error)).toBe(
       true,
     );
-    expect(error).toMatchObject({code: 'registry-unavailable', details: {}});
+    expect(error).toHaveProperty('code', 'registry-unavailable');
+    expect(error).toHaveProperty('details', {});
   });
 });

@@ -17,11 +17,11 @@ export async function fetchRegistryFile(params: {
     });
   }
   if (response.status === 404) {
-    await response.body?.cancel();
+    await discardBody(response);
     return undefined;
   }
   if (!response.ok) {
-    await response.body?.cancel();
+    await discardBody(response);
     throw new RegistryUnavailableError(
       `The registry answered ${response.status} for ${params.path}`,
     );
@@ -33,4 +33,9 @@ export async function fetchRegistryFile(params: {
       cause: error,
     });
   }
+}
+
+// Cancelling rejects when the connection died after the headers, which must not hide the status.
+async function discardBody(response: Response): Promise<void> {
+  await response.body?.cancel().catch(() => undefined);
 }

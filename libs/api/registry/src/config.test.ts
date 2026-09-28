@@ -45,7 +45,7 @@ describe('parseTrustedKeys', () => {
 });
 
 describe('createRegistrySettings', () => {
-  it('disables the registry without a URL, whatever the keys are', () => {
+  it('disables the registry with an empty URL and no keys', () => {
     const settings = createRegistrySettings({REGISTRY_URL: '', REGISTRY_TRUSTED_KEYS: '[]'});
 
     expect(settings).toEqual({registry: '', trustedKeys: []});

@@ -25,13 +25,13 @@ export const resolvedRegistryVersionSchema = z.object({
   /** The signed version document, verified against the instance's trusted keys. */
   document: registryVersionDocumentSchema,
   /** Base64 of the gzip content bundle, whose digest was checked. */
-  content: z.string(),
+  content: z.base64(),
 });
 export type ResolvedRegistryVersionDto = z.infer<typeof resolvedRegistryVersionSchema>;
 
 export const registrySourceSchema = z.object({
   /** Base64 of the gzip source archive, whose digest was checked. */
-  source: z.string(),
+  source: z.base64(),
 });
 export type RegistrySourceDto = z.infer<typeof registrySourceSchema>;
 
