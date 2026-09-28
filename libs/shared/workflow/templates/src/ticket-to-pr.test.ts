@@ -16,6 +16,7 @@ if (template === undefined) throw new Error('Missing ticket to PR template');
 const manualOnly: TemplateRoleBindings = {source: 'github'};
 const linear: TemplateRoleBindings = {tracker: 'linear', source: 'github'};
 const jira: TemplateRoleBindings = {tracker: 'jira', source: 'github'};
+const clickup: TemplateRoleBindings = {tracker: 'clickup', source: 'github'};
 const defaults: Readonly<Record<string, string>> = Object.fromEntries(
   template.manifest.options.flatMap((option) => {
     const defaultChoice = option.choices.find((choice) => choice.default === true);
@@ -98,6 +99,15 @@ function jiraEvent({
   };
 }
 
+function clickupWorkflow(selections: Record<string, string> = {}): YamlRecord {
+  const yaml = render(clickup, selections)
+    .replaceAll('replace-with-list-id', 'list-1')
+    .replaceAll('replace-with-tag-name', 'shipfox')
+    .replaceAll('replace-with-trigger-status', 'ready for dev');
+  parseWorkflowDocument(parseYaml(yaml));
+  return parseYaml(yaml) as YamlRecord;
+}
+
 function toolSteps(document: YamlRecord): unknown[] {
   return Object.values(at(document, 'jobs') as YamlRecord).flatMap((job) =>
     ((job as YamlRecord).steps as YamlRecord[]).flatMap((entry) =>
@@ -175,7 +185,7 @@ describe('ticket to PR template', () => {
     const document = workflow(manualOnly);
 
     expect(render(manualOnly).split('\n')[1]).toBe(
-      '# shipfox-template: ticket-to-pr@5 source=github',
+      '# shipfox-template: ticket-to-pr@6 source=github',
     );
     expect(Object.keys(at(document, 'triggers') as YamlRecord)).toEqual(['manual']);
     expect(Object.keys(at(document, 'jobs') as YamlRecord)).toEqual([
@@ -256,7 +266,7 @@ describe('ticket to PR template', () => {
     const document = workflow(jira);
 
     expect(render(jira).split('\n')[1]).toBe(
-      '# shipfox-template: ticket-to-pr@5 tracker=jira source=github',
+      '# shipfox-template: ticket-to-pr@6 tracker=jira source=github',
     );
     expect(Object.keys(at(document, 'triggers') as YamlRecord)).toEqual([
       'manual',
@@ -463,6 +473,143 @@ describe('ticket to PR template', () => {
     expect(evaluate(find.if, context(true, ''))).toBe(false);
   });
 
+  it('keeps the manual trigger next to the ClickUp triggers and write-back', () => {
+    const document = workflow(clickup);
+
+    expect(render(clickup).split('\n')[1]).toBe(
+      '# shipfox-template: ticket-to-pr@6 tracker=clickup source=github',
+    );
+    expect(Object.keys(at(document, 'triggers') as YamlRecord)).toEqual(['manual', 'on_tag_added']);
+    expect(
+      Object.keys(at(workflow(clickup, {clickup_trigger: 'status'}), 'triggers') as YamlRecord),
+    ).toEqual(['manual', 'on_status_changed']);
+    expect(step(document, 'implement', 'fix').integrations).toEqual([
+      {connection: 'clickup_tracker', include: ['get_task', 'get_task_comments']},
+    ]);
+    expect(Object.keys(at(document, 'jobs') as YamlRecord)).toEqual([
+      'implement',
+      'comment_on_ticket',
+      'respond_to_feedback',
+    ]);
+    expect(toolSteps(document)).toEqual([
+      'get_task',
+      'update_task',
+      'add_comment',
+      'create_pull_request',
+      'add_comment',
+    ]);
+    expect(toolSteps(workflow(clickup, {ticket_write_back: 'comment'}))).toEqual([
+      'get_task',
+      'add_comment',
+      'create_pull_request',
+      'add_comment',
+    ]);
+    expect(toolSteps(workflow(clickup, {ticket_write_back: 'none'}))).toEqual([
+      'get_task',
+      'create_pull_request',
+    ]);
+  });
+
+  it.each([
+    {name: 'the tag is added', field: 'tag', after: [{name: 'shipfox'}], matches: true},
+    {name: 'another tag is added', field: 'tag', after: [{name: 'bug'}], matches: false},
+    {name: 'the tag is removed', field: 'tag_removed', after: null, matches: false},
+    {name: 'the tag list is emptied', field: 'tag', after: null, matches: false},
+    {
+      name: 'the tag is added in another List',
+      field: 'tag',
+      after: [{name: 'shipfox'}],
+      list: 'other-list',
+      matches: false,
+    },
+  ])('starts the ClickUp tag trigger when $name: $matches', ({field, after, list, matches}) => {
+    const {event, filter} = trigger(clickupWorkflow(), 'on_tag_added');
+    const payload = {
+      task_id: '86abc',
+      history_items: [{field, parent_id: list ?? 'list-1', after}],
+    };
+
+    expect(event).toBe('taskTagUpdated');
+    expect(evaluate(filter, {event: payload})).toBe(matches);
+  });
+
+  it.each([
+    {name: 'the task moves to the trigger status', status: 'ready for dev', matches: true},
+    {name: 'the workflow moves the task on', status: 'in progress', matches: false},
+  ])('starts the ClickUp status trigger when $name: $matches', ({status, matches}) => {
+    const {event, filter} = trigger(
+      clickupWorkflow({clickup_trigger: 'status'}),
+      'on_status_changed',
+    );
+    const payload = {
+      task_id: '86abc',
+      history_items: [{field: 'status', parent_id: 'list-1', after: {status}}],
+    };
+
+    expect(event).toBe('taskStatusUpdated');
+    expect(evaluate(filter, {event: payload})).toBe(matches);
+  });
+
+  it('reads the ClickUp task loaded from the event', () => {
+    const task = step(workflow(clickup), 'implement', 'task');
+    const loaded = {
+      title: 'Add a health check',
+      url: 'https://app.clickup.com/t/86abc',
+      description: 'Expose GET /health.',
+    };
+
+    const result = runStep(task, {
+      trigger: {source: 'clickup_tracker'},
+      run: {number: 7},
+      event: {task_id: '86abc'},
+      steps: {load_ticket: {outputs: loaded}},
+      inputs: {},
+    });
+
+    expect(result.outputs).toEqual({
+      ticket_id: '86abc',
+      identifier: 'CU-86abc',
+      title: 'Add a health check',
+      url: 'https://app.clickup.com/t/86abc',
+      repository: '',
+      reference: 'Fixes CU-86abc',
+      description: 'Expose GET /health.',
+      acceptance_criteria: '',
+      request: '',
+    });
+  });
+
+  it.each([
+    {name: 'loads the ClickUp task from the event', source: 'clickup_tracker', taskId: '86abc'},
+    {name: 'skips the ClickUp task load on a manual start', source: 'manual', taskId: ''},
+  ])('$name', ({source, taskId}) => {
+    const document = workflow(clickup);
+    const reference = step(document, 'implement', 'ticket_ref');
+    const load = step(document, 'implement', 'load_ticket');
+
+    const result = runStep(reference, {trigger: {source}, event: {task_id: '86abc'}});
+
+    expect(result.outputs).toEqual({task_id: taskId});
+    expect(evaluate(load.if, {steps: {ticket_ref: {outputs: result.outputs}}})).toBe(taskId !== '');
+  });
+
+  it('moves a ClickUp task to the in-progress status before the fix', () => {
+    const document = workflow(clickup);
+    const steps = at(document, 'jobs', 'implement', 'steps') as YamlRecord[];
+
+    expect(step(document, 'implement', 'mark_in_progress')).toMatchObject({
+      tool: 'update_task',
+      with: {
+        task_id: `\${{ steps.task.outputs.ticket_id }}`,
+        status: 'replace-with-in-progress-status',
+      },
+      gate: {on_failure: {restart_from: 'task'}},
+    });
+    expect(steps.findIndex((entry) => entry.key === 'mark_in_progress')).toBeLessThan(
+      steps.findIndex((entry) => entry.key === 'fix'),
+    );
+  });
+
   it('publishes the task outcome for the workflow that started the run', () => {
     expect(Object.keys(at(workflow(manualOnly), 'outputs') as YamlRecord)).toEqual([
       'status',
@@ -598,7 +745,10 @@ describe('ticket to PR template', () => {
     expect(evaluate(ask.if, context(''))).toBe(false);
   });
 
-  it('refuses a task for another repository before touching the remote', () => {
+  it.each([
+    'task-7',
+    'CU-86abc',
+  ])('refuses task %s for another repository before touching the remote', (identifier) => {
     const root = tempRoot();
     const git = (...args: string[]) => execFileSync('git', args, {cwd: root, encoding: 'utf8'});
     git('init', '--quiet');
@@ -608,7 +758,7 @@ describe('ticket to PR template', () => {
     const result = runStep(
       prepare,
       {
-        steps: {task: {outputs: {identifier: 'task-7', repository: 'acme/web'}}},
+        steps: {task: {outputs: {identifier, repository: 'acme/web'}}},
         run: {number: 7, attempt: 1},
       },
       root,
