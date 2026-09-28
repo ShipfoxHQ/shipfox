@@ -1,0 +1,149 @@
+```text
+https://api.shipfox.io/mcp
+```
+
+<Tabs groupId="mcp-client" persist items={['Claude Code', 'Codex CLI', 'Cursor', 'VS Code', 'OpenCode', 'Zed', 'Antigravity', 'Other clients']}>
+<Tab value="Claude Code">
+
+Run this command in your terminal:
+
+```sh
+claude mcp add --transport http shipfox https://api.shipfox.io/mcp
+```
+
+Open Claude Code and run `/mcp`. Select **shipfox** and complete the browser
+sign-in.
+
+Claude Code reads the server's skill and docs resources on its own.
+
+</Tab>
+<Tab value="Codex CLI">
+
+Run these commands in your terminal:
+
+```sh
+codex mcp add shipfox --url https://api.shipfox.io/mcp
+codex mcp login shipfox
+```
+
+The second command opens the Shipfox sign-in page in your browser.
+
+Codex CLI 0.47.0 and later reads the server's skill and docs resources on its
+own.
+
+</Tab>
+<Tab value="Cursor">
+
+Add this entry to `.cursor/mcp.json` in your project, or to
+`~/.cursor/mcp.json` for every project:
+
+```json
+{
+  "mcpServers": {
+    "shipfox": {
+      "url": "https://api.shipfox.io/mcp"
+    }
+  }
+}
+```
+
+Don't add Cursor's `auth` block for static OAuth clients. Shipfox registers the
+OAuth client during sign-in.
+
+Open **Customize** from the Cursor sidebar to see the server. Cursor opens the
+browser sign-in when it first connects to Shipfox. For the file format, see the
+[Cursor MCP documentation](https://cursor.com/docs/mcp).
+
+Cursor 1.6 and later supports the server's skill and docs resources. Only user
+reports show its agent reading them on its own.
+
+</Tab>
+<Tab value="VS Code">
+
+Add this entry to `.vscode/mcp.json` in your project. To use it in every
+workspace, run **MCP: Open User Configuration** instead.
+
+```json
+{
+  "servers": {
+    "shipfox": {
+      "type": "http",
+      "url": "https://api.shipfox.io/mcp"
+    }
+  }
+}
+```
+
+Run **MCP: List Servers** and select **shipfox**. Start the server. VS Code asks
+you to approve the sign-in and opens your browser.
+
+VS Code 1.101 and later supports the server's skill and docs resources. Attach
+one to a chat with **Add Context** > **MCP Resources**.
+
+</Tab>
+<Tab value="OpenCode">
+
+Add this entry to `opencode.json` in your project:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "shipfox": {
+      "type": "remote",
+      "url": "https://api.shipfox.io/mcp"
+    }
+  }
+}
+```
+
+Run `opencode mcp auth shipfox` to complete the browser sign-in.
+
+OpenCode 1.17.10 and later reads the server's skill and docs resources on its
+own.
+
+</Tab>
+<Tab value="Zed">
+
+Run **zed: open settings file** from the command palette and add this entry:
+
+```json
+{
+  "context_servers": {
+    "shipfox": {
+      "url": "https://api.shipfox.io/mcp"
+    }
+  }
+}
+```
+
+Select **Authenticate** next to the server to complete the browser sign-in.
+
+Zed doesn't support MCP resources, so its agent can't read the server's skills.
+
+</Tab>
+<Tab value="Antigravity">
+
+Add this entry to `.agents/mcp_config.json` in your project, or to
+`~/.gemini/config/mcp_config.json` for every project:
+
+```json
+{
+  "mcpServers": {
+    "shipfox": {
+      "serverUrl": "https://api.shipfox.io/mcp"
+    }
+  }
+}
+```
+
+In Agent Settings, select **Authenticate** for the server. After the browser
+sign-in, paste the code into Antigravity and select **Submit**.
+
+</Tab>
+<Tab value="Other clients">
+
+Add the server URL to any client that supports MCP OAuth and browser sign-in.
+
+</Tab>
+</Tabs>

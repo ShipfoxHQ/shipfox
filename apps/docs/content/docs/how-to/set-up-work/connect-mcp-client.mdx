@@ -1,7 +1,7 @@
 ---
 title: "Connect Your Coding Agent to Shipfox (MCP)"
 sidebarTitle: "Connect a Coding Agent"
-description: "Connect Claude Code, Codex CLI, Cursor, or VS Code to the Shipfox MCP server. Verify or disconnect the app in Shipfox."
+description: "Connect Claude Code, Codex CLI, Cursor, VS Code, OpenCode, Zed, or Antigravity to the Shipfox MCP server. Verify or disconnect the app in Shipfox."
 ---
 
 Connect an existing coding agent to the Shipfox MCP server. The agent gets
@@ -10,131 +10,20 @@ start or manage workflow runs. Your browser handles sign-in. For server details
 and the tool list, see the [reference for the Shipfox MCP
 server](/reference/mcp-server).
 
-## Before you begin
-
-You need:
-
-- A Shipfox account with access to the workspace.
-- An MCP client: Claude Code, Codex CLI, Cursor, or VS Code. Other clients work
-  if they support MCP OAuth and browser sign-in.
-- The Shipfox MCP server endpoint. For Shipfox Cloud, use
-  `https://api.shipfox.io/mcp`. For a self-hosted installation, open **Settings
-  → Shipfox MCP server** and copy the **Shipfox MCP server endpoint**.
-
-The commands below use the Shipfox Cloud endpoint. For a self-hosted
-installation, replace it with the endpoint you copied.
-
 ## Add the Shipfox MCP server to your client
 
-Follow the section for your client. Each client stores a separate sign-in.
-Repeat these instructions for every client you use.
+<Callout type="info">
+  Self-hosted installations use their own endpoint instead of
+  `https://api.shipfox.io/mcp`. Copy it from **Settings → Shipfox MCP server**.
+</Callout>
 
-### Claude Code
-
-Run this command in your terminal:
-
-```sh
-claude mcp add --transport http shipfox https://api.shipfox.io/mcp
-```
-
-Open Claude Code and run `/mcp`. Select **shipfox** and complete the browser
-sign-in.
-
-### Codex CLI
-
-Run these commands in your terminal:
-
-```sh
-codex mcp add shipfox --url https://api.shipfox.io/mcp
-codex mcp login shipfox
-```
-
-The second command opens the Shipfox sign-in page in your browser.
-
-### Cursor
-
-Cursor reads MCP servers from two files. Use `.cursor/mcp.json` for one
-project. Use `~/.cursor/mcp.json` for every project. Add this server entry:
-
-```json
-{
-  "mcpServers": {
-    "shipfox": {
-      "url": "https://api.shipfox.io/mcp"
-    }
-  }
-}
-```
-
-Don't add Cursor's `auth` block for static OAuth clients. Shipfox registers the
-OAuth client during sign-in.
-
-Open **Customize** from the Cursor sidebar to see the server. Cursor opens the
-browser sign-in when it first connects to Shipfox.
-
-For the file format and the Customize page, see the [Cursor MCP
-documentation](https://cursor.com/docs/mcp).
-
-### VS Code
-
-Add the server to `.vscode/mcp.json` in your project. To use it in every
-workspace, run **MCP: Open User Configuration** instead.
-
-```json
-{
-  "servers": {
-    "shipfox": {
-      "type": "http",
-      "url": "https://api.shipfox.io/mcp"
-    }
-  }
-}
-```
-
-Run **MCP: List Servers** and select **shipfox**. Start the server. VS Code asks
-you to approve the sign-in and opens your browser.
+<include>../../../snippets/connect-coding-agent.mdx</include>
 
 ## Approve access in Shipfox
 
-<Steps>
-  <Step>
-
-    **Sign in to Shipfox**
-
-    Your browser displays the Shipfox access request. Sign in if prompted.
-    Shipfox displays the request again after sign-in.
-  </Step>
-  <Step>
-
-    **Check the request**
-
-    Shipfox shows the app name, client identity, requested access, and return
-    destination. Check that the app name matches the client you started. Select
-    **Deny** if it doesn't.
-
-    The requested access is **Read workspace data and start or manage workflow
-    runs**. This includes downloading complete step logs. A local client shows
-    **on this device** as its return destination.
-  </Step>
-  <Step>
-
-    **Choose the workspace**
-
-    If you belong to several workspaces, select the one the agent may use. Each
-    connected app reads and acts in one workspace.
-  </Step>
-  <Step>
-
-    **Allow access**
-
-    Select **Allow access**. The browser returns to your client. The client
-    stores and refreshes the credential.
-  </Step>
-</Steps>
-
-The approval page expires after [five
-minutes](/reference/mcp-server#access-lifetime). If the request is unavailable
-or expired, restart the sign-in from your client.
+Your client opens Shipfox in the browser. Choose the workspace the agent may
+use, then select **Allow access**. Select **Deny** if the app name doesn't
+match the client you started.
 
 ## Verify the connected app
 

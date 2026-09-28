@@ -260,7 +260,9 @@ export const stringifyMachineReadableComponent: StringifyCallback = (
       return stepMarkdown(node, state, info);
     case 'Tab':
       return titledBlock(
-        attributeValue(node, 'title') ?? attributeValue(node, 'label'),
+        attributeValue(node, 'title') ??
+          attributeValue(node, 'label') ??
+          attributeValue(node, 'value'),
         undefined,
         childrenMarkdown(node, state, info),
         '####',

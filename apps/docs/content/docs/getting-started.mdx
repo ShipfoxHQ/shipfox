@@ -1,100 +1,50 @@
 ---
-title: "Getting Started with Shipfox: Run Your First Workflow"
+title: "Quick Start: Your First Workflow with Your Coding Agent"
 sidebarTitle: "Quick Start"
-description: "Add a workflow and verify a command and agent step in your first Shipfox run."
+description: "Connect your coding agent to Shipfox and ask it to build your first workflow."
 ---
 
-In this lesson, you will add a complete workflow to a test repository and run
-it. The final run prints a command result and contains an agent summary based
-on the repository's files.
+Your coding agent builds Shipfox workflows for you. Connect it, then tell it
+what to build.
 
 ## Before you begin
 
-Complete onboarding in [Shipfox](https://app.shipfox.io) before starting
-this lesson. Use a repository where you have permission to push a test
-workflow.
+- Complete onboarding in [Shipfox](https://app.shipfox.io), with a project for
+  your repository.
+- Open that repository in Claude Code, Codex CLI, or OpenCode.
 
-## Add your first workflow
+## Connect your coding agent
 
-A workflow is a YAML file that tells Shipfox when to run (`triggers`), where to
-run (`runner`), and what to do (`jobs` and `steps`). Create
-`.shipfox/workflows/hello.yaml`. This is a complete workflow:
+Add the Shipfox MCP server to your coding agent:
 
-```yaml
-# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-name: Inspect the repository
-runner: shipfox      # label of the runner that executes the jobs
-triggers:
-  on_demand:
-    source: manual         # fires when you click Run in the dashboard
-jobs:
-  inspect:
-    steps:
-      - run: echo "hello world"
-      - prompt: |
-          Read this repository and summarize its purpose in two sentences.
-          Name one top-level file that supports your answer.
-          Do not change any files.
-```
+<include>../snippets/connect-coding-agent.mdx</include>
 
-The manual trigger works in every workspace with no further setup. Every field is described in the [Workflow Schema reference](/reference/workflow-schema).
+## Start building
 
-Commit and push the file to the repository's default branch. Shipfox detects
-the workflow automatically. No manual import is required.
-
-## Run it
-
-A run records one use of a workflow. Open the project's **Workflows** page, find
-**Inspect the repository**, and select **Run**.
-
-Open the run to stream its output. The command step should show:
+Start from a template. The agent suggests the ones that fit your workspace:
 
 ```text
-inspect · echo "hello world"
-hello world
+Use Shipfox to create a workflow from a template.
 ```
 
-![Shipfox run detail page showing a succeeded run with its job graph and step list](/img/run-detail.png)
+To pick one yourself, copy its prompt from [Examples](/examples).
 
-*A run detail page: status, the job graph, and every step with its duration.*
+Or describe your own workflow:
 
-<Callout type="info">
-  A run stuck in `pending` means no online runner matches the `runner:` value in your workflow. See [Resolve pending jobs](/how-to/author-workflows/choose-runners#resolve-a-pending-job).
-</Callout>
+```text
+Use Shipfox to write a workflow for this repository.
+```
 
-## Verify the result
-
-Open the agent step after it finishes.
-
-1. Confirm that the response has two sentences.
-2. Open the file named by the agent and check that it supports the summary.
-3. Confirm that the agent did not change any repository file.
-
-The agent uses the checkout for the commit that started the run. Its messages,
-tool calls, token use, cost, and final response remain in the step log.
-
-## What you built
-
-You added a complete workflow and started it with a manual trigger. One job ran
-a fixed command and an agent in the same checkout. The run now provides a
-visible record of both steps and their results.
+The agent asks a few questions, tests the workflow on your repository, and
+opens a pull request. Merge it to turn the workflow on.
 
 ## Next steps
 
 <Cards>
+  <Card title="Examples" href="/examples">
+    Workflows tested by the Shipfox team, each with a prompt to paste.
+  </Card>
   <Card title="How Shipfox works" href="/understand">
     The mental model in one page: events, jobs, agents, and feedback loops.
-  </Card>
-  <Card title="Parallel CI and agent review" href="/how-to/recipes/parallel-ci-agent-review">
-    Run lint and tests together, then review the repository after both pass.
-  </Card>
-  <Card title="Gate & retry" href="/how-to/recipes/build-feedback-loop">
-    Add an objective check and retry an agent with evidence.
-  </Card>
-  <Card title="Agent steps" href="/how-to/author-workflows/add-agent-steps">
-    Add and verify agent work in another workflow.
-  </Card>
-  <Card title="Checks on every push" href="/how-to/recipes/checks-on-push">
-    Replace the manual start with a GitHub push trigger.
   </Card>
 </Cards>
