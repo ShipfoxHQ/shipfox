@@ -11,6 +11,7 @@ import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/i
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
   createTemplateLoader,
+  shippedTemplateLoader,
   type WorkflowTemplateAsset,
   workflowTemplateManifestSchema,
 } from '@shipfox/workflow-templates';
@@ -143,6 +144,22 @@ describe('agent-access template tools', () => {
     });
     if (!response.ok) throw new Error('Expected a successful list response');
     expect(listWorkflowTemplatesResultSchema.safeParse(response.result).success).toBe(true);
+  });
+
+  test('lists the shipped templates for a GitHub-only workspace', async () => {
+    const tools = createAgentAccessTemplateTools({
+      agent: createTestAgentClient({models: [], runtimeProvider: 'anthropic'}),
+      integrations: integrationClient([connection('github-main', 'github')]),
+      projects: projectClient(),
+      templates: shippedTemplateLoader,
+    });
+
+    const response = await getTool(tools, 'list_workflow_templates').execute({
+      context,
+      arguments: {},
+    });
+
+    expect(response).toMatchSnapshot();
   });
 
   test('returns model recommendations grouped by the tested binding', async () => {

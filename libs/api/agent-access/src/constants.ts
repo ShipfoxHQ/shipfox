@@ -15,6 +15,7 @@ const agentAccessMcpInstructionParts = [
   'This server exposes read tools and action tools for the workspace bound to the authenticated credential. Action tools change workspace state and should only run when the user asked for that action.',
   'Do not provide a workspace selector; the credential determines the workspace.',
   'When a workflow or trigger needs a project, call list_projects first and use a returned project ID rather than guessing one.',
+  'When the user asks to create, set up, or suggest a workflow, read skill://shipfox/create-workflow-from-template/SKILL.md and follow it.',
 ] as const;
 const integrationDiscoveryMcpInstruction =
   'Call list_integration_connections before writing a trigger source or a tool-step connection, and call get_integration_connection_tools before naming a tool ID or an event.';

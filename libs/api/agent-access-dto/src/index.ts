@@ -217,6 +217,14 @@ export {
   listExecutionTriggerEventsResultSchema,
 } from './schemas/workflow-execution-events.js';
 export {
+  type ListWorkspaceWorkflowTemplatesResponseDto,
+  listWorkspaceWorkflowTemplatesResponseSchema,
+  type WorkflowTemplateGroupDto,
+  type WorkspaceWorkflowTemplateDto,
+  workflowTemplateGroupSchema,
+  workspaceWorkflowTemplateSchema,
+} from './schemas/workflow-templates.js';
+export {
   AGENT_ACCESS_WORKFLOW_ATTEMPT_MAX,
   AGENT_ACCESS_WORKFLOW_EXECUTION_COUNT_MAX,
   AGENT_ACCESS_WORKFLOW_EXECUTION_PAGE_LIMIT,

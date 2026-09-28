@@ -30,6 +30,13 @@ import {buildModelRecommendations, createModelBindingResolver} from './model-rec
 import {cap, invalidRequest, notFound, parseInput} from './tool-utils.js';
 import type {AgentAccessTool} from './tools.js';
 import {getWorkspaceModels} from './workspace-models.js';
+import {
+  connectionSlugs,
+  listActiveConnections,
+  listWorkspaceTemplates,
+  type WorkspaceConnection,
+  type WorkspaceTemplate,
+} from './workspace-templates.js';
 
 export const AGENT_ACCESS_TEMPLATE_TOOL_NAMES = [
   'list_workflow_templates',
@@ -69,11 +76,12 @@ function createListWorkflowTemplatesTool(
       const input = parseInput(listWorkflowTemplatesInputSchema, rawInput);
       if (!input) return invalidRequest();
 
-      const connections = await listActiveConnections(integrations, context.workspaceId);
-      const templatesResult = templates
-        .list()
-        .map((template) => toListTemplateResult(template, connections));
-      return agentAccessSuccess({templates: templatesResult});
+      const workspaceTemplates = await listWorkspaceTemplates({
+        templates,
+        integrations,
+        workspaceId: context.workspaceId,
+      });
+      return agentAccessSuccess({templates: workspaceTemplates.map(toListTemplateResult)});
     },
   };
 }
@@ -253,67 +261,27 @@ function quote(value: string): string {
   return JSON.stringify(cap(value, 128));
 }
 
-async function listActiveConnections(
-  integrations: IntegrationsModuleClient,
-  workspaceId: string,
-): Promise<readonly WorkspaceConnection[]> {
-  const connections: WorkspaceConnection[] = [];
-  let cursor: WorkspaceConnectionCursor | undefined;
-
-  while (true) {
-    const page = await integrations.listConnectionsByWorkspace({
-      workspaceId,
-      limit: 100,
-      ...(cursor === undefined ? {} : {cursor}),
-    });
-    connections.push(...page.connections);
-    if (page.nextCursor === null) break;
-    cursor = page.nextCursor;
-  }
-
-  return connections.filter((connection) => connection.lifecycleStatus === 'active');
-}
-
-type WorkspaceConnectionPage = Awaited<
-  ReturnType<IntegrationsModuleClient['listConnectionsByWorkspace']>
->;
-type WorkspaceConnection = WorkspaceConnectionPage['connections'][number];
-type WorkspaceConnectionCursor = NonNullable<WorkspaceConnectionPage['nextCursor']>;
-
-function toListTemplateResult(
-  template: WorkflowTemplate,
-  connections: readonly WorkspaceConnection[],
-) {
-  const roles = Object.entries(template.manifest.roles).map(([role, declaration]) => ({
-    role,
-    from_project: declaration.from === 'project',
-    optional: declaration.optional === true,
-    ...(declaration.question === undefined ? {} : {question: declaration.question}),
-    ...(declaration.tradeoff === undefined ? {} : {tradeoff: declaration.tradeoff}),
-    providers: declaration.providers.map((provider) => {
-      const suggested = connectionSlugs(connections, provider);
-      return {
-        provider,
-        compatible: suggested.length > 0,
-        suggested_bindings: suggested,
-      };
-    }),
-  }));
-  const requiredRoles = roles.filter(({optional}) => !optional);
-  const missingProviders = requiredRoles.flatMap(({providers}) =>
-    providers.filter(({compatible}) => !compatible).map(({provider}) => provider),
-  );
-  const uniqueMissingProviders = [...new Set(missingProviders)];
-
+function toListTemplateResult({template, roles, compatible, missingProviders}: WorkspaceTemplate) {
   return {
     id: template.manifest.id,
     revision: template.manifest.revision,
     added_at: template.manifest.added_at,
     title: template.manifest.title,
     summary: template.manifest.summary,
-    compatible: requiredRoles.every(({providers}) => providers.some(({compatible}) => compatible)),
-    missing_providers: uniqueMissingProviders,
-    roles,
+    compatible,
+    missing_providers: missingProviders,
+    roles: roles.map(({name, declaration, providers}) => ({
+      role: name,
+      from_project: declaration.from === 'project',
+      optional: declaration.optional === true,
+      ...(declaration.question === undefined ? {} : {question: declaration.question}),
+      ...(declaration.tradeoff === undefined ? {} : {tradeoff: declaration.tradeoff}),
+      providers: providers.map(({provider, connectionSlugs}) => ({
+        provider,
+        compatible: connectionSlugs.length > 0,
+        suggested_bindings: connectionSlugs,
+      })),
+    })),
   };
 }
 
@@ -335,8 +303,4 @@ function suggestedBindings(
         return [role, provider === undefined ? [] : connectionSlugs(connections, provider)];
       }),
   );
-}
-
-function connectionSlugs(connections: readonly WorkspaceConnection[], provider: string): string[] {
-  return connections.filter((connection) => connection.provider === provider).map(({slug}) => slug);
 }
