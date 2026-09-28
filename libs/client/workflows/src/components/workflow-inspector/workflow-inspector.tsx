@@ -608,8 +608,10 @@ function StatusReasonSection({
   reason: string;
   message: string | null | undefined;
 }) {
+  const label =
+    reason === 'queue_timed_out' ? (message ?? 'Not started within 1 h') : humanize(reason);
   return (
-    <InspectorSection title="Status reason" aside={<Badge size="2xs">{humanize(reason)}</Badge>}>
+    <InspectorSection title="Status reason" aside={<Badge size="2xs">{label}</Badge>}>
       {message ? (
         <InspectorSectionBody>
           <Text size="xs">{message}</Text>

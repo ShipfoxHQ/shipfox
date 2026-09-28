@@ -214,7 +214,8 @@ export function createWorkflowsModule({
       {
         taskQueue: WORKFLOWS_TASK_QUEUE,
         workflowsPath,
-        activities: () => createOrchestrationActivities({agent, integrations, projects, secrets}),
+        activities: () =>
+          createOrchestrationActivities({agent, integrations, projects, runners, secrets}),
         workflows: [],
       },
     ],

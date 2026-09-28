@@ -163,7 +163,7 @@ function JobExecutionSwitcherMenu({
                 </span>
                 {!isSelected && jobExecution.statusReason ? (
                   <span className="min-w-0 flex-1 truncate text-xs leading-20 text-foreground-neutral-muted">
-                    {jobExecution.statusReason}
+                    {executionStatusReasonLabel(jobExecution)}
                   </span>
                 ) : (
                   <span className="min-w-0 flex-1" />
@@ -219,7 +219,7 @@ function executionAccessibleLabel(execution: JobExecutionOption): string {
   return [
     `Execution #${execution.sequence}: ${executionDisplayName(execution)}`,
     status.label,
-    execution.statusReason ?? undefined,
+    executionStatusReasonLabel(execution) ?? undefined,
     execution.displayDuration
       ? `duration ${formatJobExecutionTime(execution.displayDuration)}`
       : undefined,
@@ -257,7 +257,7 @@ function ExecutionSummary({execution}: {execution: JobExecutionOption}) {
       </span>
       {execution.statusReason ? (
         <Text as="span" size="xs" className="min-w-0 truncate text-foreground-neutral-muted">
-          · {execution.statusReason}
+          · {executionStatusReasonLabel(execution)}
         </Text>
       ) : null}
       <JobExecutionDuration
@@ -266,6 +266,14 @@ function ExecutionSummary({execution}: {execution: JobExecutionOption}) {
       />
     </span>
   );
+}
+
+function executionStatusReasonLabel(execution: JobExecutionOption): string | null {
+  if (!execution.statusReason) return null;
+  if (execution.statusReason === 'queue_timed_out') {
+    return execution.statusReasonMessage ?? 'Not started within 1 h';
+  }
+  return execution.statusReason;
 }
 
 function JobExecutionDuration({

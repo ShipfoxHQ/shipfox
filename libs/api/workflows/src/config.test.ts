@@ -5,6 +5,7 @@ import {join} from 'node:path';
 import {
   loadRunnerCatalog,
   MAX_NODE_TIMER_DELAY_MS,
+  parseJobQueueTimeout,
   validateToolStepExecutorConfig,
   validateWorkflowConcurrencyRepairConfig,
 } from './config.js';
@@ -24,6 +25,20 @@ function writeCatalog(contents: string): string {
   writeFileSync(path, contents);
   return path;
 }
+
+describe('parseJobQueueTimeout', () => {
+  it.each([
+    ['1m', 60_000],
+    ['90m', 90 * 60_000],
+    ['24h', 24 * 60 * 60_000],
+  ])('accepts %s', (value, expected) => {
+    expect(parseJobQueueTimeout(value)).toBe(expected);
+  });
+
+  it.each(['59s', '25h', '1d', 'not-a-duration'])('rejects %s', (value) => {
+    expect(() => parseJobQueueTimeout(value)).toThrow('WORKFLOWS_JOB_QUEUE_TIMEOUT');
+  });
+});
 
 describe('loadRunnerCatalog', () => {
   it('returns an empty catalog when no path is configured', () => {

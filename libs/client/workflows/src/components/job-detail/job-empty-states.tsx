@@ -211,6 +211,7 @@ export function skippedJobDescription(reason: Job['statusReason']): string {
     case 'user_cancelled':
     case 'run_cancelled':
     case 'concurrency_superseded':
+    case 'queue_timed_out':
     case 'timed_out':
     case 'lease_expired':
     case 'provider_lost':
@@ -242,6 +243,11 @@ function preStepFailureDescription(
       return 'The runner stopped unexpectedly before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';
     case 'runner_lost':
       return 'The runner stopped responding before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';
+    case 'queue_timed_out':
+      return (
+        statusReasonMessage ||
+        'Not started within 1 h. Try the workflow again when a runner is available.'
+      );
     case 'timed_out':
       return 'The job timed out before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';
     case 'user_cancelled':
