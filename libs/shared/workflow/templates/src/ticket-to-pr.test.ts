@@ -514,6 +514,7 @@ describe('ticket to PR template', () => {
     {name: 'the tag is added', field: 'tag', after: [{name: 'shipfox'}], matches: true},
     {name: 'another tag is added', field: 'tag', after: [{name: 'bug'}], matches: false},
     {name: 'the tag is removed', field: 'tag_removed', after: null, matches: false},
+    {name: 'the tag list is emptied', field: 'tag', after: null, matches: false},
     {
       name: 'the tag is added in another List',
       field: 'tag',
