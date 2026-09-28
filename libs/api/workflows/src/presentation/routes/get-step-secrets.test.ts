@@ -331,7 +331,50 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
     expect(res.json()).toEqual({secrets: []});
   });
 
-  test('returns 409 when the leased step is not a run step', async () => {
+  test('returns the secrets an action step binds to its inputs and env', async () => {
+    const {run, job, step} = await createRunningRunStep();
+    await db()
+      .update(stepsTable)
+      .set({
+        type: 'action',
+        config: {
+          inputs: {channel_id: 'C1'},
+          secret_bindings: [
+            {target: 'SLACK_TOKEN', segments: [{kind: 'secret', store: 'local', key: 'SLACK'}]},
+            {
+              target: {kind: 'input', name: 'token'},
+              segments: [{kind: 'secret', store: 'local', key: 'NPM_TOKEN'}],
+            },
+          ],
+        },
+      })
+      .where(eq(stepsTable.id, step.id));
+    await secrets.setSecrets({
+      workspaceId: run.workspaceId,
+      projectId: run.projectId,
+      values: {SLACK: 'slack-secret', NPM_TOKEN: 'npm-secret'},
+    });
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId: job.id,
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: stepSecretsUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      secrets: [
+        {store: 'local', key: 'SLACK', value: 'slack-secret'},
+        {store: 'local', key: 'NPM_TOKEN', value: 'npm-secret'},
+      ],
+    });
+  });
+
+  test('returns 409 when the leased step is not a run or action step', async () => {
     const {job, step} = await createRunningAgentStep();
     const token = await mintActiveLeaseToken({
       renewableInference: false,

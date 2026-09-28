@@ -117,7 +117,7 @@ export function completeRunDispatchConfig(params: {
         template: field,
         context: params.context,
         definitionId: params.definitionId,
-        envKey: key,
+        target: key,
         trace: params.trace,
       });
       if (completed.kind === 'binding') secretBindings.push(completed.binding);
@@ -155,7 +155,7 @@ function completeRunCommand(params: {
       template: {segments: [binding.segment]},
       context: params.context,
       definitionId: params.definitionId,
-      envKey: binding.name,
+      target: binding.name,
       trace: params.trace,
     });
     if (completed.kind === 'binding') secretBindings.push(completed.binding);
@@ -169,26 +169,29 @@ type CompletedDispatchField =
   | {readonly kind: 'value'; readonly value: string}
   | {readonly kind: 'binding'; readonly binding: MaterializedSecretBindingDto};
 
-function completeDispatchField(params: {
-  readonly field: 'run' | 'env.value';
+/**
+ * Resolves a field at dispatch. A field made only of runner-filled secrets becomes
+ * a binding to `target`, so the config and trace keep references, never values.
+ */
+export function completeDispatchField(params: {
+  readonly field: 'run' | 'env.value' | 'action.with';
   readonly traceField: StepConfigField;
   readonly errorField: StepConfigField;
   readonly template: ResolvedField;
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
-  readonly envKey?: string;
+  readonly target: MaterializedSecretBindingDto['target'];
   readonly trace: PersistedEvaluationTraceEntry[];
 }): CompletedDispatchField {
-  const resolved = resolveStepField(params);
-  params.trace.push(...tagTrace(resolved.trace, params.traceField, params.envKey));
+  const envKey = typeof params.target === 'string' ? params.target : undefined;
+  const resolved = resolveStepField({...params, ...(envKey === undefined ? {} : {envKey})});
+  params.trace.push(...tagTrace(resolved.trace, params.traceField, envKey));
   if (resolved.kind === 'frozen') return {kind: 'value', value: resolved.value};
-  if (params.envKey !== undefined && containsOnlyRunnerSecretSegments(resolved.field)) {
-    params.trace.push(
-      ...runnerSecretReferenceTrace(resolved.field, params.traceField, params.envKey),
-    );
+  if (containsOnlyRunnerSecretSegments(resolved.field)) {
+    params.trace.push(...runnerSecretReferenceTrace(resolved.field, params.traceField, envKey));
     return {
       kind: 'binding',
-      binding: secretBindingFromField(params.envKey, resolved.field),
+      binding: secretBindingFromField(params.target, resolved.field),
     };
   }
 
@@ -197,7 +200,7 @@ function completeDispatchField(params: {
   throw new InterpolationUnresolvableError(params.definitionId, {
     field: params.errorField,
     source: source ?? params.field,
-    ...(params.envKey === undefined ? {} : {envKey: params.envKey}),
+    ...(envKey === undefined ? {} : {envKey}),
     contextUnavailable: true,
   });
 }
@@ -214,7 +217,7 @@ function containsOnlyRunnerSecretSegments(field: ResolvedField): boolean {
 }
 
 function secretBindingFromField(
-  target: string,
+  target: MaterializedSecretBindingDto['target'],
   field: ResolvedField,
 ): MaterializedSecretBindingDto {
   const binding = {
@@ -411,7 +414,7 @@ function tagTrace(
 function runnerSecretReferenceTrace(
   field: ResolvedField,
   stepField: StepConfigField,
-  envKey: string,
+  envKey: string | undefined,
 ): WorkflowStepEvaluationTraceEntry[] {
   return field.segments.flatMap((segment) => {
     if (segment.kind === 'literal') return [];
@@ -425,7 +428,7 @@ function runnerSecretReferenceTrace(
           reference: true,
         }),
         field: stepField,
-        envKey,
+        ...(envKey === undefined ? {} : {envKey}),
       },
     ];
   });

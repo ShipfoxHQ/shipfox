@@ -27,7 +27,7 @@ export function createGetStepSecretsRoute(
     method: 'GET',
     path: '/steps/:stepId/secrets',
     description:
-      "Returns decrypted secret values referenced by the runner's currently leased running run step. The job scope and secret bindings are re-derived from server state; the runner supplies only the step id and current attempt.",
+      "Returns decrypted secret values referenced by the runner's currently leased running run or action step. The job scope and secret bindings are re-derived from server state; the runner supplies only the step id and current attempt.",
     schema: {
       params: stepSecretsParamsSchema,
       querystring: stepSecretsQuerySchema,
@@ -55,8 +55,8 @@ export function createGetStepSecretsRoute(
         attempt,
       });
 
-      if (step.type !== 'run') {
-        throw new ClientError('Step is not a run step', 'step-not-run', {status: 409});
+      if (step.type !== 'run' && step.type !== 'action') {
+        throw new ClientError('Step is not a run or action step', 'step-not-run', {status: 409});
       }
 
       const secretBindings = parseSecretBindings(step.config.secret_bindings);

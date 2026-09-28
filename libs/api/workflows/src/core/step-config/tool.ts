@@ -265,7 +265,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isFieldTemplate(
+export function isFieldTemplate(
   value: WorkflowJsonTemplateTree,
 ): value is readonly ResolvedFieldSegment[] {
   return (

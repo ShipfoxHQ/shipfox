@@ -52,6 +52,24 @@ describe('secret binding schema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('validates bindings that target an action input', () => {
+    const result = materializedSecretBindingSchema.safeParse({
+      target: {kind: 'input', name: 'token'},
+      segments: [{kind: 'secret', store: 'local', key: 'NPM_TOKEN'}],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it.each([
+    {kind: 'input', name: 'bad-name'},
+    {kind: 'file', name: 'token'},
+  ])('rejects binding target %j', (target) => {
+    const result = materializedSecretBindingSchema.safeParse({target, segments: []});
+
+    expect(result.success).toBe(false);
+  });
+
   it.each(['OPENAI_API_KEY', '_SF_0', 'camelCaseTarget'])('accepts binding target %s', (target) => {
     const result = secretBindingTargetSchema.safeParse(target);
 

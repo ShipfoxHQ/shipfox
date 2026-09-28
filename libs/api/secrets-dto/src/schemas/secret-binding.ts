@@ -7,6 +7,12 @@ export const SECRET_BINDING_TARGET_PATTERN = new RegExp(SECRET_BINDING_TARGET_PA
 
 export const secretBindingTargetSchema = z.string().min(1).regex(SECRET_BINDING_TARGET_PATTERN);
 
+// A bare string target names an environment variable, so run-step bindings keep their shape.
+export const secretBindingInputTargetSchema = z.object({
+  kind: z.literal('input'),
+  name: secretBindingTargetSchema,
+});
+
 export const secretBindingSegmentSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('literal'),
@@ -20,9 +26,10 @@ export const secretBindingSegmentSchema = z.discriminatedUnion('kind', [
 ]);
 
 export const materializedSecretBindingSchema = z.object({
-  target: secretBindingTargetSchema,
+  target: z.union([secretBindingTargetSchema, secretBindingInputTargetSchema]),
   segments: z.array(secretBindingSegmentSchema),
 });
 
 export type SecretBindingSegmentDto = z.infer<typeof secretBindingSegmentSchema>;
+export type SecretBindingInputTargetDto = z.infer<typeof secretBindingInputTargetSchema>;
 export type MaterializedSecretBindingDto = z.infer<typeof materializedSecretBindingSchema>;
