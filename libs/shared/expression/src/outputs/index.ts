@@ -1,5 +1,6 @@
 export {
   type CoerceStepOutputsResult,
+  coerceKeptStepOutputs,
   coerceStepOutputs,
   type JsonSchemaValidationResult,
   jsonSchemaToExpressionType,

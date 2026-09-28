@@ -7,6 +7,7 @@ import type {
   LogOutcomeDto,
 } from '@shipfox/api-workflows-dto';
 import {
+  coerceKeptStepOutputs,
   coerceStepOutputs,
   evaluatePlannedPredicateAtSite,
   type StepOutputCoercionError,
@@ -1322,10 +1323,12 @@ function coerceReportedStepOutput(
   config: Record<string, unknown>,
   result: ReportedStepResult,
 ): OutputCoercionResult {
-  if (result.status !== 'succeeded') return {kind: 'not-applicable'};
-
   const declarations = readStepOutputs(config);
   if (declarations === undefined) return {kind: 'not-applicable'};
+  if (result.status !== 'succeeded') {
+    if (result.output === null) return {kind: 'not-applicable'};
+    return {kind: 'coerced', output: coerceKeptStepOutputs({declarations, output: result.output})};
+  }
 
   const coerced = coerceStepOutputs({declarations, output: result.output});
   if (!coerced.ok) return {kind: 'failed', error: coerced.error};

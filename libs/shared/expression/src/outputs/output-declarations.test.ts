@@ -1,5 +1,6 @@
 import {Ajv} from 'ajv';
 import {
+  coerceKeptStepOutputs,
   coerceStepOutputs,
   jsonSchemaToExpressionType,
   outputDeclarationToExpressionType,
@@ -426,5 +427,21 @@ describe('coerceStepOutputs', () => {
 
     expect(first).toEqual({ok: true, output: {payload: 1}});
     expect(second).toEqual({ok: true, output: {payload: {name: 'artifact'}}});
+  });
+});
+
+describe('coerceKeptStepOutputs', () => {
+  it('types kept outputs and drops invalid, undeclared, and missing ones', () => {
+    const result = coerceKeptStepOutputs({
+      declarations: {
+        path: {type: 'string'},
+        complete: {type: 'boolean'},
+        count: {type: 'number'},
+        missing: {type: 'string', required: true},
+      },
+      output: {path: 'export.md', complete: 'false', count: 'many', extra: 'nope'},
+    });
+
+    expect(result).toEqual({path: 'export.md', complete: false});
   });
 });

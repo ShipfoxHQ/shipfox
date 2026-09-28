@@ -154,6 +154,21 @@ export function coerceStepOutputs(params: {
   return {ok: true, output: coerced};
 }
 
+// A failed step keeps the outputs it set before failing. Type what matches its
+// declaration and drop the rest, so no output error masks the step's own failure.
+export function coerceKeptStepOutputs(params: {
+  readonly declarations: OutputDeclarations;
+  readonly output: Record<string, unknown>;
+}): Record<string, unknown> {
+  const coerced: Record<string, unknown> = {};
+  for (const [key, declaration] of Object.entries(params.declarations)) {
+    if (!Object.hasOwn(params.output, key)) continue;
+    const result = coerceStepOutputValue(key, declaration, params.output[key]);
+    if (result.ok) coerced[key] = result.value;
+  }
+  return coerced;
+}
+
 function missingRequiredOutputError(
   declarations: OutputDeclarations,
   output: Record<string, unknown>,
