@@ -546,6 +546,9 @@ describe('piHarnessAdapter', () => {
       expect(services.settingsManager.applyOverrides).toHaveBeenCalledWith({
         shellCommandPrefix: '{ echo 0 > /proc/self/oom_score_adj; } 2>/dev/null\nsource .envrc',
       });
+      expect(services.settingsManager.applyOverrides.mock.invocationCallOrder[0]).toBeGreaterThan(
+        createAgentSessionServicesMock.mock.invocationCallOrder[0] ?? 0,
+      );
       expect(services.settingsManager.applyOverrides.mock.invocationCallOrder[0]).toBeLessThan(
         createAgentSessionMock.mock.invocationCallOrder[0] ?? 0,
       );
