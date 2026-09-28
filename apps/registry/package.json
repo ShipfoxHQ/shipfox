@@ -1,0 +1,47 @@
+{
+  "name": "@shipfox/registry",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "apps/registry"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#test/*": "./test/*",
+    "#*": {
+      "workspace-source": "./src/*",
+      "default": "./dist/*"
+    }
+  },
+  "scripts": {
+    "build": "shipfox-swc",
+    "dev": "tsx watch --conditions=workspace-source --env-file-if-exists=../../.env --env-file-if-exists=.env --env-file-if-exists=.env.local src/index.ts",
+    "reindex": "tsx --conditions=workspace-source --env-file-if-exists=../../.env --env-file-if-exists=.env --env-file-if-exists=.env.local src/cli.ts reindex",
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "test": "shipfox-vitest-run",
+    "test:watch": "shipfox-vitest-watch",
+    "type": "shipfox-tsc-check",
+    "type:emit": "shipfox-tsc-emit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "catalog:",
+    "@shipfox/config": "workspace:*",
+    "@shipfox/node-fastify": "workspace:*",
+    "@shipfox/node-object-storage": "workspace:*",
+    "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/registry-format": "workspace:*",
+    "yaml": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/swc": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*",
+    "tsx": "catalog:"
+  }
+}

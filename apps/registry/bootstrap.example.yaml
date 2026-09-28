@@ -1,0 +1,14 @@
+# Local-development bootstrap file. Deployments keep their own file; see README.md.
+reserved: [shipfox-*, github, slack, linear, jira, official, actions, templates, registry, admin]
+featured: [shipfox/ticket-to-pr]
+namespaces:
+  shipfox:
+    status: active
+    profile: {display_name: Shipfox, url: https://www.shipfox.io, verified: true}
+    publishers:
+      - provider: github
+        repository_id: "812345678"
+        repository_owner_id: "1234567"
+        repository: ShipfoxHQ/shipfox
+        workflow: .github/workflows/publish-packages.yml
+        environment: registry
