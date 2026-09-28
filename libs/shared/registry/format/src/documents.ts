@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {registryActionMetadataSchema} from '#actions.js';
 import {decodeBase64} from '#base64.js';
 import {
   registryPackageNameSchema,
@@ -66,6 +67,7 @@ const versionDocumentBaseSchema = z.object({
 
 export const registryActionVersionDocumentSchema = versionDocumentBaseSchema.extend({
   kind: z.literal('action'),
+  derived: registryActionMetadataSchema,
   content: blobSchema.extend({format: z.literal('action-bundle@1')}),
   dependencies: z.array(z.object({name: z.string().min(1), version: z.string().min(1)})),
 });
