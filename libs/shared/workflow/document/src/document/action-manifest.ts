@@ -1,6 +1,10 @@
 import {z} from 'zod';
 import {
   isNormalizedRelativePath,
+  isWorkflowRegistryPackageName,
+  isWorkflowRegistrySlug,
+} from './action-ref.js';
+import {
   validateWorkflowDocumentValueDeclaration,
   WORKFLOW_DOCUMENT_STEP_OUTPUT_KEY_PATTERN,
   WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES,
@@ -11,6 +15,7 @@ import {
 
 export const ACTION_MANIFEST_RUNTIMES = ['node24'] as const;
 export const ACTION_MANIFEST_VALUES_MAX_ENTRIES = WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES;
+export const ACTION_MANIFEST_KEYWORDS_MAX_ENTRIES = 10;
 
 type JsonSchema = Record<string, unknown>;
 
@@ -122,6 +127,23 @@ export const actionManifestSchema = z.strictObject({
       description:
         'Declares integration aliases. Each step that uses the action binds every alias with `connections`.',
     }),
+  keywords: z
+    .array(
+      z.string().refine(isWorkflowRegistrySlug, {
+        message: 'Keywords use 2 to 40 lowercase letters, digits, and single hyphens.',
+      }),
+    )
+    .max(ACTION_MANIFEST_KEYWORDS_MAX_ENTRIES)
+    .optional()
+    .meta({description: 'Lists search keywords for the registry page.'}),
+  related: z
+    .array(
+      z.string().refine(isWorkflowRegistryPackageName, {
+        message: 'Related packages are registry names, such as `shipfox/slack-thread-digest`.',
+      }),
+    )
+    .optional()
+    .meta({description: 'Links other registry packages from the registry page.'}),
 });
 
 export type ActionManifest = z.infer<typeof actionManifestSchema>;

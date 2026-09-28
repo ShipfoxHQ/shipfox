@@ -13,6 +13,8 @@ Input shape for Shipfox workflow authoring.
   step** (`prompt`), a **checkout step** (`checkout`), a **tool step**
   (`tool`), or an **action step** (`uses`). A step carries one kind, never
   multiple kinds.
+- `parseWorkflowActionRef` classifies an action step's `uses` as a repository
+  path or a registry reference.
 - `actionManifestSchema` defines the `action.yml` manifest of a repository
   action. `buildActionManifestJsonSchema` projects it for editors.
 - `encodeActionBundle` and `decodeActionBundle` store an action directory as
@@ -149,6 +151,13 @@ An action step runs a repository action. Action steps are off by default; pass
 `{actions: true}` to accept them. Without it, `uses` fails with "Action steps
 (`uses`) are not supported yet."
 
+Registry references (`uses: shipfox/slack-thread-digest@1.4.2`) are off by
+default too; pass `{actions: true, registryActions: true}` to accept them.
+Without `registryActions`, every registry form fails with "Remote actions are
+not supported yet". `parseWorkflowActionRef(uses)` returns the parsed
+reference, `{kind: 'local', path}` or `{kind: 'registry', namespace, name,
+version}`, or the message for an invalid value.
+
 ```ts
 parseWorkflowDocument(
   {
@@ -266,10 +275,15 @@ const files = await decodeActionBundle({gzip: bundle.gzip, digest: bundle.digest
   bytes and 16 nesting levels, and their `method` key is rejected. Tool output
   mappings must use one `${{ ... }}` expression over `result` or `vars`; exact
   expression and catalog checks belong to the model layer.
-- Action steps accept only a normalized repository path that starts with
-  `./`, with no empty, `.`, or `..` segments. Absolute paths and URLs are
-  rejected. Other forms, such as `owner/repo@ref`, fail with "not supported
-  yet". An action step also accepts `connections`, `with`, `key`, `name`, `if`,
+- Action steps accept a normalized repository path that starts with `./`,
+  with no empty, `.`, or `..` segments, and, with `registryActions`, a
+  registry reference `namespace/name@MAJOR.MINOR.PATCH`. Namespaces and names
+  are 2 to 40 lowercase letters, digits, and single hyphens. Absolute paths,
+  paths outside the repository, and URLs are rejected. With `registryActions`,
+  a first segment that contains `.` or `:` fails with "Other registries are not
+  supported yet", `namespace/name` without an exact version fails with "Pin an
+  exact version", and three or more segments fail with "Remote actions come
+  from the registry, not from Git". An action step also accepts `connections`, `with`, `key`, `name`, `if`,
   `env`, `working_directory`, and `gate`. It rejects `run`, agent fields,
   `checkout`, `tool`, `connection`, and `outputs`, because the manifest owns
   outputs. `with` has the tool-step size and depth limits, and a secret
@@ -283,7 +297,10 @@ const files = await decodeActionBundle({gzip: bundle.gzip, digest: bundle.digest
   use the step output types (`string`, `number`, `boolean`, `json` with an
   optional JSON Schema) and default to `string` and not required. An input
   `default` must match its type. Integration selectors name tools explicitly;
-  `*` is rejected. Unknown keys are rejected everywhere.
+  `*` is rejected. Optional `keywords` (up to 10 slugs) and `related`
+  (registry package names, such as `shipfox/slack-thread-digest`) feed the
+  registry page; local actions ignore them. Unknown keys are rejected
+  everywhere.
 - Job `outputs` and top-level workflow `outputs` map names to template strings
   and allow up to 128 entries each. Expression and job reference checks belong
   to the model layer.

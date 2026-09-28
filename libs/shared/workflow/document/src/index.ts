@@ -10,6 +10,7 @@ export {
   invalidActionBundleErrorCode,
 } from '#action-bundle/index.js';
 export {
+  ACTION_MANIFEST_KEYWORDS_MAX_ENTRIES,
   ACTION_MANIFEST_RUNTIMES,
   ACTION_MANIFEST_VALUES_MAX_ENTRIES,
   type ActionManifest,
@@ -39,6 +40,7 @@ export {
   invalidWorkflowDocumentErrorCode,
   isValidWorkflowSessionKeyTemplateLiteralParts,
   type ParseWorkflowDocumentOptions,
+  parseWorkflowActionRef,
   parseWorkflowDocument,
   piAgentThinkingSchema,
   thinkingLevelsForHarness,
@@ -56,6 +58,8 @@ export {
   WORKFLOW_SESSION_KEY_MAX_LENGTH,
   WORKFLOW_SESSION_KEY_PATTERN,
   WORKFLOW_SESSION_KEY_PATTERN_SOURCE,
+  type WorkflowActionRef,
+  type WorkflowActionRefResult,
   type WorkflowDocument,
   type WorkflowDocumentCheckout,
   type WorkflowDocumentConcurrency,
