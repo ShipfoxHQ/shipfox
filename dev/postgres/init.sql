@@ -6,3 +6,11 @@ CREATE DATABASE api_test WITH OWNER = shipfox ENCODING = 'UTF8' LC_COLLATE = 'en
 LIMIT
   = -1;
 
+
+CREATE DATABASE registry WITH OWNER = shipfox ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8' TABLESPACE = pg_default CONNECTION
+LIMIT
+  = -1;
+
+CREATE DATABASE registry_test WITH OWNER = shipfox ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8' TABLESPACE = pg_default CONNECTION
+LIMIT
+  = -1;

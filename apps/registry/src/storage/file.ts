@@ -1,6 +1,6 @@
 import {createHash, randomUUID} from 'node:crypto';
-import {link, mkdir, readdir, readFile, rename, rm, writeFile} from 'node:fs/promises';
-import {dirname, join, relative, sep} from 'node:path';
+import {link, mkdir, readFile, rename, rm, writeFile} from 'node:fs/promises';
+import {dirname, join} from 'node:path';
 import {
   assertStorageKey,
   type PutObjectParams,
@@ -12,12 +12,11 @@ import {
 const TEMPORARY_PREFIX = '.tmp-';
 
 /**
- * Stores registry files under a local directory, for development and E2E. Conditional writes are
- * atomic within one process only, so run a single registry process on a directory.
+ * Stores registry blobs under a local directory, for development and E2E. It keeps no object
+ * metadata. Create-only writes are atomic across processes, because they rely on `link()`.
  */
 export class FileRegistryStorage implements RegistryStorage {
   readonly #root: string;
-  readonly #locks = new Map<string, Promise<unknown>>();
 
   constructor(root: string) {
     this.#root = root;
@@ -33,21 +32,7 @@ export class FileRegistryStorage implements RegistryStorage {
     }
   }
 
-  put(params: PutObjectParams): Promise<{etag: string}> {
-    return this.#withLock(params.key, () => this.#put(params));
-  }
-
-  async list(prefix: string): Promise<string[]> {
-    const keys: string[] = [];
-    await this.#walk(this.#root, keys);
-    return keys.filter((key) => key.startsWith(prefix)).sort();
-  }
-
-  close(): void {
-    // Nothing to release: every operation opens and closes its own files.
-  }
-
-  async #put({key, body, ifNoneMatch, ifMatch}: PutObjectParams): Promise<{etag: string}> {
+  async put({key, body, ifNoneMatch}: PutObjectParams): Promise<{etag: string}> {
     const path = this.#path(key);
     await mkdir(dirname(path), {recursive: true});
     const temporary = join(dirname(path), `${TEMPORARY_PREFIX}${randomUUID()}`);
@@ -60,9 +45,6 @@ export class FileRegistryStorage implements RegistryStorage {
           throw error;
         });
       } else {
-        if (ifMatch !== undefined && (await this.get(key))?.etag !== ifMatch) {
-          throw new StoragePreconditionFailedError(key);
-        }
         await rename(temporary, path);
       }
     } finally {
@@ -71,33 +53,12 @@ export class FileRegistryStorage implements RegistryStorage {
     return {etag: etagOf(body)};
   }
 
-  async #walk(directory: string, keys: string[]): Promise<void> {
-    const entries = await readdir(directory, {withFileTypes: true}).catch((error: unknown) => {
-      if (isMissing(error)) return [];
-      throw error;
-    });
-    for (const entry of entries) {
-      if (entry.name.startsWith(TEMPORARY_PREFIX)) continue;
-      const path = join(directory, entry.name);
-      if (entry.isDirectory()) await this.#walk(path, keys);
-      else if (entry.isFile()) keys.push(relative(this.#root, path).split(sep).join('/'));
-    }
+  close(): void {
+    // Nothing to release: every operation opens and closes its own files.
   }
 
   #path(key: string): string {
     return join(this.#root, ...assertStorageKey(key).split('/'));
-  }
-
-  async #withLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
-    const previous = this.#locks.get(key) ?? Promise.resolve();
-    const current = previous.then(operation, operation);
-    const settled = current.catch(() => undefined);
-    this.#locks.set(key, settled);
-    try {
-      return await current;
-    } finally {
-      if (this.#locks.get(key) === settled) this.#locks.delete(key);
-    }
   }
 }
 

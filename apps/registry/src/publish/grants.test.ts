@@ -5,6 +5,7 @@ import type {GithubOidcClaims} from '#publish/oidc.js';
 const claims: GithubOidcClaims = {
   iss: 'https://token.actions.githubusercontent.com',
   jti: 'token-1',
+  exp: 1_790_000_000,
   repository: 'acme/tools',
   repository_id: '10',
   repository_owner_id: '20',

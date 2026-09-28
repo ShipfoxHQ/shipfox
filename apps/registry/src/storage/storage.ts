@@ -7,20 +7,19 @@ export interface PutObjectParams {
   readonly key: string;
   readonly body: Buffer;
   readonly contentType: string;
+  readonly contentDisposition?: string | undefined;
+  readonly cacheControl?: string | undefined;
   /** `*` writes only when the key does not exist yet. */
   readonly ifNoneMatch?: '*' | undefined;
-  /** Writes only when the stored object still has this etag. */
-  readonly ifMatch?: string | undefined;
 }
 
 /**
- * The registry's object store. Keys are layout paths such as `v1/index.json`; a driver maps them
- * under its own root. Conditional puts throw `StoragePreconditionFailedError`.
+ * The registry's blob store. Keys are paths such as `blobs/sha256/<hex>`; a driver maps them under
+ * its own root. A create-only put of an existing key throws `StoragePreconditionFailedError`.
  */
 export interface RegistryStorage {
   get(key: string): Promise<StoredObject | null>;
   put(params: PutObjectParams): Promise<{etag: string}>;
-  list(prefix: string): Promise<string[]>;
   close(): void;
 }
 

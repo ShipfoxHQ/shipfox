@@ -1,10 +1,12 @@
 import {createPublicKey} from 'node:crypto';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
-import {registryJtiPath} from '@shipfox/registry-format';
 import {decodeJwt, decodeProtectedHeader, generateKeyPair, jwtVerify} from 'jose';
 import {loadBootstrap} from '#bootstrap.js';
+import {db} from '#db/db.js';
+import {audit} from '#db/schema/audit.js';
+import {usedTokens} from '#db/schema/used-tokens.js';
 import {createPublishTokenExchange} from '#publish/exchange.js';
-import {createGithubOidcVerifier} from '#publish/oidc.js';
+import {CLOCK_SKEW_SECONDS, createGithubOidcVerifier} from '#publish/oidc.js';
 import {PUBLISH_TOKEN_AUDIENCE, type PublishTokenClaims} from '#publish/publish-token.js';
 import {publishRoutes} from '#publish/routes.js';
 import {
@@ -13,7 +15,7 @@ import {
   REGISTRY_PUBLIC_URL,
   type SignOidcTokenParams,
 } from '#test/fixtures/fake-oidc-issuer.js';
-import {createTemporaryRegistry} from '#test/fixtures/registry.js';
+import {createTemporaryRegistry, resetRegistryDatabase} from '#test/fixtures/registry.js';
 import {testSigningKey} from '#test/fixtures/signing-key.js';
 
 const BOOTSTRAP = `
@@ -48,8 +50,6 @@ namespaces:
         workflow: .github/workflows/release.yml
 `;
 
-const TOKEN_AUDIT_KEY = /^_registry\/audit\/\d{4}-\d{2}-\d{2}\/[^/]+-token-[\w-]+\.json$/;
-
 const guardedClaims = (overrides: Record<string, unknown> = {}) =>
   githubClaims({
     repository: 'acme/guarded',
@@ -78,7 +78,6 @@ describe('POST /v1/publish/token', () => {
 
   async function startApp(jwksUrl = issuer.jwksUrl) {
     const exchange = createPublishTokenExchange({
-      storage: registry.storage,
       bootstrap: await loadBootstrap(await registry.writeBootstrap(BOOTSTRAP)),
       signingKey,
       publicUrl: REGISTRY_PUBLIC_URL,
@@ -93,6 +92,7 @@ describe('POST /v1/publish/token', () => {
 
   beforeEach(async () => {
     registry = await createTemporaryRegistry();
+    await resetRegistryDatabase();
     await startApp();
   });
 
@@ -108,13 +108,19 @@ describe('POST /v1/publish/token', () => {
     exchange(await issuer.sign(params));
 
   async function auditRecords() {
-    const keys = await registry.storage.list('_registry/audit/');
-    return Promise.all(
-      keys.map(async (key) => ({
-        key,
-        record: JSON.parse((await registry.storage.get(key))?.body.toString('utf8') ?? 'null'),
-      })),
-    );
+    const rows = await db().select().from(audit).orderBy(audit.at);
+    return rows.map(({event, reason, namespace, detail}) => ({
+      record: {
+        event,
+        reason,
+        namespace,
+        ...(detail as {grants?: unknown[]; oidc?: Record<string, unknown>}),
+      },
+    }));
+  }
+
+  function tokenRows() {
+    return db().select().from(usedTokens);
   }
 
   async function onlyAuditRecord() {
@@ -210,13 +216,16 @@ describe('POST /v1/publish/token', () => {
       expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 401]);
     });
 
-    it('records the token id under the private prefix', async () => {
+    it('records the token id until the token can no longer verify', async () => {
       const oidcToken = await issuer.sign();
-      const {jti} = decodeJwt(oidcToken);
+      const {jti, exp} = decodeJwt(oidcToken);
 
       await exchange(oidcToken);
 
-      expect(await registry.storage.get(registryJtiPath(jti as string))).not.toBeNull();
+      const rows = await tokenRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.jti).toBe(jti);
+      expect(rows[0]?.expiresAt).toEqual(new Date(((exp as number) + CLOCK_SKEW_SECONDS) * 1000));
     });
   });
 
@@ -252,7 +261,8 @@ describe('POST /v1/publish/token', () => {
 
       expect(response.statusCode).toBe(401);
       expect(response.json()).toEqual({code: 'invalid-oidc-token'});
-      expect(await registry.storage.list('_registry/')).toEqual([]);
+      expect(await auditRecords()).toEqual([]);
+      expect(await tokenRows()).toEqual([]);
     });
 
     it('refuses a token signed by a key outside the issuer key set', async () => {
@@ -332,7 +342,7 @@ describe('POST /v1/publish/token', () => {
         oidc: {run_id: '17000000001'},
       });
       expect(record.grants).toContainEqual({namespace: grant, fields: [field]});
-      expect(await registry.storage.list('_registry/jti/')).toEqual([]);
+      expect(await tokenRows()).toEqual([]);
     });
 
     it('refuses an identity that no grant names, listing every grant it missed', async () => {
@@ -378,15 +388,7 @@ describe('POST /v1/publish/token', () => {
       expect(await auditRecords()).toMatchObject([
         {record: {reason: 'namespace-suspended', namespace: 'retired'}},
       ]);
-      expect(await registry.storage.list('_registry/jti/')).toEqual([]);
-    });
-
-    it('writes audit records under the day of the refusal', async () => {
-      await signAndExchange({claims: githubClaims({repository_id: '999'})});
-
-      const {key} = await onlyAuditRecord();
-
-      expect(key).toMatch(TOKEN_AUDIT_KEY);
+      expect(await tokenRows()).toEqual([]);
     });
   });
 });

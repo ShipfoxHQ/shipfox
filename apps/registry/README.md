@@ -1,45 +1,45 @@
 # @shipfox/registry
 
-Runs the Shipfox Registry service: it stores registry files, serves them, and
-owns the bootstrap file that declares namespaces and curation.
+Runs the Shipfox Registry service: it keeps package metadata in its own Postgres
+database and package blobs in a private store, and owns the bootstrap file that
+declares namespaces and curation.
 
 ## What it does
 
-- **Storage** keeps every registry file in one bucket or directory, under the
-  layout from [`@shipfox/registry-format`](../../libs/shared/registry/format).
-  Drivers: `s3://` (S3, R2, MinIO) and `file://` (development and E2E). Both
-  support create-only writes (`If-None-Match: *`) and compare-and-swap writes
-  (`If-Match: <etag>`).
-- **Reads** serve the public `v1/` and `.well-known/` files as stored, with
-  `ETag` and `If-None-Match` support. Version documents and blobs are marked
-  immutable; indexes use `no-cache`. `_registry/` is never served.
-- **Bootstrap** loads the bootstrap file at startup and refuses to start when it
-  is missing or invalid. It then rewrites `.well-known/shipfox-registry.json`,
-  every namespace profile, and the catalog's publishers and `featured` order.
+- **Postgres** holds the metadata, in tables that start with `registry_`:
+  `registry_packages`, `registry_versions`, `registry_used_tokens`, and
+  `registry_audit`. The service applies its migrations at startup, under the
+  history table `__drizzle_migrations_registry`.
+- **Blob store** keeps only `blobs/sha256/<hex>`, the content bundles and source
+  archives. A blob is written create-only with `Content-Type: application/gzip`,
+  `Content-Disposition: attachment`, and
+  `Cache-Control: private, max-age=31536000, immutable`. Drivers: `s3://` (S3,
+  R2, MinIO, Tigris) and `file://` (development and E2E).
+- **Bootstrap** loads the bootstrap file at startup into memory and refuses to
+  start when it is missing or invalid. Namespaces, profiles, grants, reserved
+  names, and `featured` are never stored in the database.
 - **Publish token exchange** (`POST /v1/publish/token`) swaps a GitHub Actions
   OIDC token for a publish token. The token must verify, match an active
   publish grant, and not have been used before.
-- **`reindex`** rebuilds every package index and the catalog from the stored
-  version documents.
+
+A self-hosted registry is this container, a Postgres database, and an
+S3-compatible store (or a directory in development).
 
 ## Installation and setup
 
 The app is private and runs from this repository or its image. For local
 development, `apps/registry/.env` points at `bootstrap.example.yaml`, a
-development signing key, and a file store under `/tmp/shipfox-registry-dev`.
+development signing key, and a file store under `/tmp/shipfox-registry-dev`. The
+`dev` script uses the `registry` database on the local Postgres. The
+repository's Postgres image creates it on a fresh volume. On an older volume,
+create it once:
 
 ```sh
+docker compose exec postgres psql -U shipfox -d api -c 'CREATE DATABASE registry'
 mise exec -- pnpm --filter @shipfox/registry dev
 ```
 
 ## Usage
-
-Read the catalog and a namespace profile from a running registry:
-
-```sh
-curl http://localhost:16120/v1/index.json
-curl http://localhost:16120/v1/namespaces/shipfox.json
-```
 
 Exchange a GitHub Actions OIDC token for a publish token. The job requests the
 OIDC token with the registry URL as its audience, exactly as written in
@@ -59,24 +59,16 @@ curl -X POST http://localhost:16120/v1/publish/token \
 | 403 | `publish-grant-not-found` | No grant matches the token. The response never says which claim differed. |
 | 403 | `namespace-suspended` | The matching grant belongs to a suspended namespace. |
 
-Rebuild all indexes, from the registry container or a checkout:
-
-```sh
-node dist/cli.js reindex                                # in the image
-mise exec -- pnpm --filter @shipfox/registry reindex    # in a checkout
-```
-
-The command exits with 1 when it cannot read a version document. It logs each
-skipped file and leaves it out of every index.
-
 ## Environment
 
-`src/config.ts` owns the variables and their descriptions. An `s3://` store
-reads its endpoint, region, and credentials from the shared
-`OBJECT_STORAGE_S3_*` settings of
+`src/config.ts` owns the variables and their descriptions. The database uses the
+shared `POSTGRES_*` settings of
+[`@shipfox/node-postgres`](../../libs/shared/node/postgres), with a database of
+the registry's own. An `s3://` store reads its endpoint, region, and credentials
+from the shared `OBJECT_STORAGE_S3_*` settings of
 [`@shipfox/node-object-storage`](../../libs/shared/node/object-storage). The
 bucket and prefix come from `REGISTRY_STORAGE_URL`. The store must support
-conditional writes, as S3, R2, and MinIO do.
+conditional writes, as S3, R2, MinIO, and Tigris do.
 
 ### Bootstrap file
 
@@ -121,18 +113,11 @@ grant the same identity, the first one in the file wins.
 
 ## Behavior notes
 
-- The file store makes conditional writes atomic within one process. Run a
-  single registry process per directory.
-- Indexes, the catalog, and profiles are unsigned. The registry updates the
-  catalog and indexes with `If-Match` and a bounded retry. Concurrent writers
-  therefore do not lose entries.
-- `.well-known/shipfox-registry.json` lists the signing key's public key as
-  base64 DER SubjectPublicKeyInfo, the format instances use in their trusted
-  key configuration. It is informational: instances trust only their
-  configured keys.
-- A namespace removed from the bootstrap file keeps its profile file. Its
-  catalog entries lose `verified` and fall back to the namespace as display
-  name.
+- The file store makes create-only writes atomic with `link()`, so several
+  registry processes can share a directory.
+- A blob is content-addressed. The store checks the bytes against the digest
+  before it writes, and writing an existing key again with the same bytes
+  succeeds. It refuses to replace a key that holds other bytes.
 - The exchange accepts RS256 tokens from `https://token.actions.githubusercontent.com`
   with an `iat` no older than 10 minutes. Every time check (`exp`, `nbf`,
   `iat`) allows 60 seconds of clock tolerance, so an `iat` up to 60 seconds
@@ -142,15 +127,20 @@ grant the same identity, the first one in the file wins.
 - A publish token lasts 10 minutes, has the audience `registry-publish`, and
   names one namespace. It carries the run's provenance claims, copied from the
   verified OIDC token.
-- Each exchange consumes its OIDC token id with a create-only write to
-  `_registry/jti/<jti>`, so a token works once across replicas.
-- A refusal of a token that verified is written to
-  `_registry/audit/<day>/<time>-token-<id>.json`, with the token claims and,
-  for a missing grant, the mismatched fields of each grant. Tokens that fail
-  verification are only logged, so unauthenticated requests cannot grow the
-  bucket.
+- Each exchange consumes its OIDC token id with an insert into
+  `registry_used_tokens`, whose primary key lets a token work once across
+  replicas. The row lives until the token can no longer verify (`exp` plus the
+  60 seconds of clock tolerance). Every replica deletes expired rows every 10
+  minutes.
+- A refusal of a token that verified is a row in `registry_audit`, with the
+  token claims and, for a missing grant, the mismatched fields of each grant.
+  Tokens that fail verification are only logged, so unauthenticated requests
+  cannot grow the table.
 
 ## Development
+
+Tests use the repository's Postgres (`mise exec -- pnpm dev:services:up`). They
+create and migrate a `registry_test` database when it does not exist.
 
 ```sh
 turbo check --filter=@shipfox/registry
