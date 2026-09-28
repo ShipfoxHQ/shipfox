@@ -77,6 +77,8 @@ export function resolveActionStepConfig(
         main: step.action.main,
         name: step.action.name,
       },
+      // The runner hands it to the action as `context.jobKey`.
+      job_key: params.jobKey,
       ...(inputs.value === undefined ? {} : {inputs: inputs.value}),
       ...(hasEnv ? {env: env.env} : {}),
       integrations: Object.keys(step.action.integrations).map((alias) =>

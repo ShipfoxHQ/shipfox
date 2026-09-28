@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
-import {mkdir, readFile, writeFile} from 'node:fs/promises';
+import {mkdir, mkdtemp, readFile, realpath, rm, writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
 import {isAbsolute, join, relative, sep} from 'node:path';
 import {promisify} from 'node:util';
 import {gunzip, gzip} from 'node:zlib';
@@ -21,9 +22,11 @@ import {
   type CheckoutDestination,
   type CheckoutDestinations,
   type CommandStartMetadata,
+  executeActionStep,
   executeCheckoutStep,
   executeRunStep,
   executeSetupStep,
+  resolveCgroupMemoryEventsPath,
   type SetupJobContext,
   type StepResult,
 } from '@shipfox/runner-execution';
@@ -46,6 +49,7 @@ import {
   type LeaseTokenSource,
   type LogAppendFn,
   reportStep,
+  requestActionBundle,
   requestAgentRuntimeConfigWithTiming,
   requestNextStep,
   requestSessionTranscript,
@@ -142,6 +146,7 @@ export async function runJobSteps(params: {
     annotationContexts: createAnnotationContextRegistry(),
     activeStream: undefined,
     checkoutRef: undefined,
+    actionTempDir: undefined,
   };
 
   try {
@@ -153,6 +158,10 @@ export async function runJobSteps(params: {
     // Drain the last stream (bounded) before runJob deletes the log spool; an abort
     // cuts the wait short. Whatever did not drain is timeout-closed server-side.
     await settleStream({stream: state.activeStream, signal});
+    if (state.actionTempDir !== undefined) {
+      const dir = await state.actionTempDir.catch(() => undefined);
+      if (dir !== undefined) await rm(dir, {recursive: true, force: true}).catch(() => undefined);
+    }
   }
 }
 
@@ -166,6 +175,8 @@ interface JobStepLoopState {
   annotationContexts: AnnotationContextRegistry;
   activeStream: LogStreamLifecycle | undefined;
   checkoutRef: string | undefined;
+  /** Created on the first action step and removed when the job ends. */
+  actionTempDir: Promise<string> | undefined;
 }
 
 async function runJobStepIteration(
@@ -229,6 +240,11 @@ async function runJobStepIteration(
     logsDir: params.logsDir,
     jobContext: params.jobContext,
     gitConfigPath: params.gitConfigPath,
+    actionTempDir: () => {
+      // Real path, because the action loader compares its importers after realpath.
+      state.actionTempDir ??= mkdtemp(join(tmpdir(), 'shipfox-job-')).then((dir) => realpath(dir));
+      return state.actionTempDir;
+    },
     ...(params.credentialHelper ? {credentialHelper: params.credentialHelper} : {}),
     ...preparation,
   };
@@ -641,6 +657,8 @@ export async function executeStep(params: {
   checkoutRef?: string | undefined;
   consumeCheckoutRef?: (() => void) | undefined;
   gitConfigPath: string;
+  /** Runner-owned job directory outside the workspace, for extracted actions and step files. */
+  actionTempDir: () => Promise<string>;
   jobId: string;
   stepLabel: string;
   prepareLogs?: (() => Promise<void>) | undefined;
@@ -760,6 +778,21 @@ export async function executeStep(params: {
         registerStreamSecrets,
         secretState,
         checkoutRef,
+      });
+      stream = execution.stream;
+      return {...execution, credentialScopes};
+    }
+
+    if (step.type === 'action') {
+      const execution = await executeActionStepBranch({
+        params: {...stepParams, step},
+        stepCwd,
+        append,
+        onStream: (createdStream) => {
+          stream = createdStream;
+        },
+        registerStreamSecrets,
+        secretState,
       });
       stream = execution.stream;
       return {...execution, credentialScopes};
@@ -1414,18 +1447,30 @@ function redactError(error: unknown, secretVariants: string[]): unknown {
   return redactValue(error);
 }
 
-async function executeRunStepBranch(params: {
+interface ProcessStepBranchParams {
   params: Parameters<typeof executeStep>[0];
   stepCwd: string;
   append: LogAppendFn;
   onStream: (stream: StepLogStream | undefined) => void;
   registerStreamSecrets: (stream: StepLogStream | undefined) => void;
   secretState: StepSecretState;
-}): Promise<StepExecution> {
+}
+
+interface OpenedProcessStep {
+  secretMaterial: StepSecretMaterial | undefined;
+  stepSecrets: string[];
+  stepStream: StepLogStream | undefined;
+}
+
+// Run and action steps pull their secrets before the log stream opens, so the stream masks them
+// from the first byte.
+async function openProcessStep(
+  params: ProcessStepBranchParams,
+): Promise<{ok: true; opened: OpenedProcessStep} | {ok: false; execution: StepExecution}> {
   const input = params.params;
-  let secretMaterial: RunSecretMaterial | undefined;
+  let secretMaterial: StepSecretMaterial | undefined;
   try {
-    secretMaterial = await loadRunSecretMaterial({
+    secretMaterial = await loadStepSecretMaterial({
       step: input.step,
       leaseClient: input.leaseClient,
       attempt: input.attempt,
@@ -1433,45 +1478,45 @@ async function executeRunStepBranch(params: {
     });
   } catch (error) {
     return {
-      result: stepSecretsFailure(error),
-      logOutcome: 'drained',
-      preparedWorkspace: false,
+      ok: false,
+      execution: {
+        result: stepSecretsFailure(error),
+        logOutcome: 'drained',
+        preparedWorkspace: false,
+      },
     };
   }
   if (secretMaterial !== undefined) {
-    params.params.registerSecrets?.(secretMaterial.secretValues);
+    input.registerSecrets?.(secretMaterial.secretValues);
   }
-  const runSecrets = [
+  const stepSecrets = [
     ...input.secrets,
     ...(input.ambientGitConfigSecrets ?? []),
     ...(secretMaterial?.secretValues ?? []),
   ];
-  params.secretState.crashSecrets = [...runSecrets];
+  params.secretState.crashSecrets = [...stepSecrets];
   params.secretState.inferenceSecrets = [];
-  const stepStream = createRunStepLogStream(input, runSecrets, params.append);
+  const stepStream = createRunStepLogStream(input, stepSecrets, params.append);
   params.onStream(stepStream);
   params.registerStreamSecrets(stepStream);
-  let result = await executeRunStep(input.step, {
-    signal: input.signal,
-    cwd: params.stepCwd,
-    workspace: input.cwd,
-    ...(input.ambientGitConfigPath ? {gitConfigGlobal: input.ambientGitConfigPath} : {}),
-    ...(secretMaterial?.secretEnv ? {secretEnv: secretMaterial.secretEnv} : {}),
-    ...(runSecrets.length > 0 ? {secretValues: [...runSecrets]} : {}),
-    ...(input.subscribeSecrets ? {subscribeSecrets: input.subscribeSecrets} : {}),
-    onCommandStart: (metadata) => writeCommandMetadata(stepStream, metadata),
-    onOutput: (chunk, source) => stepStream?.write(chunk, source),
-  });
-  result = maskRunStepOutputs(
-    result,
+  return {ok: true, opened: {secretMaterial, stepSecrets, stepStream}};
+}
+
+function finishProcessStep(
+  params: ProcessStepBranchParams,
+  stepStream: StepLogStream | undefined,
+  processResult: StepResult,
+): StepExecution {
+  const result = maskRunStepOutputs(
+    processResult,
     buildSecretVariants([
       ...params.secretState.crashSecrets,
       ...params.secretState.inferenceSecrets,
       ...params.secretState.subscribedSecrets,
-      ...input.secrets,
+      ...params.params.secrets,
     ]),
     stepStream,
-    input.annotationContexts ?? createAnnotationContextRegistry(),
+    params.params.annotationContexts ?? createAnnotationContextRegistry(),
   );
   writeRunFailureContext(stepStream, result);
   return {
@@ -1480,6 +1525,57 @@ async function executeRunStepBranch(params: {
     logOutcome: stepStream ? undefined : 'abandoned',
     preparedWorkspace: false,
   };
+}
+
+async function executeRunStepBranch(params: ProcessStepBranchParams): Promise<StepExecution> {
+  const input = params.params;
+  const opening = await openProcessStep(params);
+  if (!opening.ok) return opening.execution;
+  const {secretMaterial, stepSecrets, stepStream} = opening.opened;
+  const result = await executeRunStep(input.step, {
+    signal: input.signal,
+    cwd: params.stepCwd,
+    workspace: input.cwd,
+    ...(input.ambientGitConfigPath ? {gitConfigGlobal: input.ambientGitConfigPath} : {}),
+    ...(secretMaterial ? {secretEnv: secretMaterial.secretEnv} : {}),
+    ...(stepSecrets.length > 0 ? {secretValues: [...stepSecrets]} : {}),
+    ...(input.subscribeSecrets ? {subscribeSecrets: input.subscribeSecrets} : {}),
+    onCommandStart: (metadata) => writeCommandMetadata(stepStream, metadata),
+    onOutput: (chunk, source) => stepStream?.write(chunk, source),
+  });
+  return finishProcessStep(params, stepStream, result);
+}
+
+async function executeActionStepBranch(params: ProcessStepBranchParams): Promise<StepExecution> {
+  const input = params.params;
+  const opening = await openProcessStep(params);
+  if (!opening.ok) return opening.execution;
+  const {secretMaterial, stepSecrets, stepStream} = opening.opened;
+  const memoryEventsPath = await resolveCgroupMemoryEventsPath();
+  const result = await executeActionStep(input.step, {
+    signal: input.signal,
+    cwd: params.stepCwd,
+    workspace: input.cwd,
+    jobTempDir: await input.actionTempDir(),
+    runId: input.jobContext.workflowRunId,
+    jobId: input.jobContext.jobId,
+    loadBundle: () =>
+      requestActionBundle(input.leaseClient, {stepId: input.step.id, signal: input.signal}),
+    ...(input.ambientGitConfigPath ? {gitConfigGlobal: input.ambientGitConfigPath} : {}),
+    ...(secretMaterial
+      ? {secretEnv: secretMaterial.secretEnv, secretInputs: secretMaterial.secretInputs}
+      : {}),
+    ...(stepSecrets.length > 0 ? {secretValues: [...stepSecrets]} : {}),
+    ...(input.subscribeSecrets ? {subscribeSecrets: input.subscribeSecrets} : {}),
+    ...(memoryEventsPath === undefined ? {} : {memoryEventsPath}),
+    onLogLine: (line) => stepStream?.writeOutputLine(line),
+    onSecret: (secret) => {
+      stepStream?.addSecrets([secret]);
+      params.secretState.crashSecrets.push(secret);
+    },
+    onOutput: (chunk, source) => stepStream?.write(chunk, source),
+  });
+  return finishProcessStep(params, stepStream, result);
 }
 
 function createRunStepLogStream(
@@ -1541,21 +1637,23 @@ async function runSetupPreparation(
   }
 }
 
-interface RunSecretMaterial {
+interface StepSecretMaterial {
   secretEnv: Record<string, string>;
+  /** Action inputs filled from secrets. Always empty for run steps. */
+  secretInputs: Record<string, string>;
   secretValues: string[];
 }
 
-const runSecretBindingsSchema = materializedSecretBindingSchema.array();
+const stepSecretBindingsSchema = materializedSecretBindingSchema.array();
 
-async function loadRunSecretMaterial(params: {
+async function loadStepSecretMaterial(params: {
   step: StepDto;
   leaseClient: KyInstance;
   attempt: number;
   signal: AbortSignal;
-}): Promise<RunSecretMaterial | undefined> {
-  if (params.step.type !== 'run') return undefined;
-  const bindings = parseRunSecretBindings(params.step.config.secret_bindings);
+}): Promise<StepSecretMaterial | undefined> {
+  if (params.step.type !== 'run' && params.step.type !== 'action') return undefined;
+  const bindings = parseStepSecretBindings(params.step);
   if (bindings.length === 0) return undefined;
 
   const pulled = await requestStepSecrets(params.leaseClient, {
@@ -1565,30 +1663,31 @@ async function loadRunSecretMaterial(params: {
   });
   const values = new Map(pulled.secrets.map((secret) => [secretReferenceId(secret), secret.value]));
   const secretEnv: Record<string, string> = {};
+  const secretInputs: Record<string, string> = {};
 
   for (const binding of bindings) {
-    secretEnv[binding.target] = assembleSecretBinding(binding, values);
+    const value = assembleSecretBinding(binding, values);
+    if (typeof binding.target === 'string') secretEnv[binding.target] = value;
+    else secretInputs[binding.target.name] = value;
   }
 
   return {
     secretEnv,
+    secretInputs,
     secretValues: pulled.secrets.map((secret) => secret.value),
   };
 }
 
-type RunSecretBinding = MaterializedSecretBindingDto & {target: string};
-
-// Run steps only bind environment variables; input targets belong to action steps.
-function parseRunSecretBindings(value: unknown): RunSecretBinding[] {
-  const parsed = runSecretBindingsSchema.safeParse(value ?? []);
-  if (!parsed.success || !parsed.data.every(isEnvSecretBinding)) {
-    throw new Error('Run step secret bindings are invalid.');
+// Environment variables are the only target of run steps; input targets belong to action steps.
+function parseStepSecretBindings(step: StepDto): MaterializedSecretBindingDto[] {
+  const parsed = stepSecretBindingsSchema.safeParse(step.config.secret_bindings ?? []);
+  if (
+    !parsed.success ||
+    (step.type !== 'action' && parsed.data.some((binding) => typeof binding.target !== 'string'))
+  ) {
+    throw new Error('Step secret bindings are invalid.');
   }
   return parsed.data;
-}
-
-function isEnvSecretBinding(binding: MaterializedSecretBindingDto): binding is RunSecretBinding {
-  return typeof binding.target === 'string';
 }
 
 function assembleSecretBinding(
@@ -1600,7 +1699,7 @@ function assembleSecretBinding(
       if (segment.kind === 'literal') return segment.value;
       const value = values.get(secretReferenceId(segment));
       if (value === undefined) {
-        throw new Error('Run step secret response is missing a requested secret.');
+        throw new Error('Step secret response is missing a requested secret.');
       }
       return value;
     })
@@ -1623,7 +1722,7 @@ function stepSecretsFailure(error: unknown): StepResult {
   return {
     success: false,
     error: {
-      message: error instanceof Error ? error.message : 'Run step secrets could not be resolved.',
+      message: error instanceof Error ? error.message : 'Step secrets could not be resolved.',
       reason: 'config_unresolvable',
     },
     exit_code: null,

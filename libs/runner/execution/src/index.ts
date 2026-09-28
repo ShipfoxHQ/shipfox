@@ -1,3 +1,4 @@
+export {type ActionStepOptions, executeActionStep} from '#core/action-step.js';
 export {
   type CheckoutDestination,
   type CheckoutDestinations,

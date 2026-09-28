@@ -1,4 +1,4 @@
-import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {gzipSync} from 'node:zlib';
@@ -73,6 +73,8 @@ const appendStepLogsMock = vi.fn();
 const writeStepAnnotationsMock = vi.fn();
 const integrationToolsGatewayUrlMock = vi.fn();
 const executeRunStepMock = vi.fn();
+const executeActionStepMock = vi.fn();
+const requestActionBundleMock = vi.fn();
 const executeSetupStepMock = vi.fn();
 const executeCheckoutStepMock = vi.fn();
 const createStepLogStreamMock = vi.fn();
@@ -103,6 +105,7 @@ vi.mock('@shipfox/runner-protocol', () => ({
   requestSessionTranscript: (...args: unknown[]) => requestSessionTranscriptMock(...args),
   commitSessionTranscript: (...args: unknown[]) => commitSessionTranscriptMock(...args),
   reportStep: (...args: unknown[]) => reportStepMock(...args),
+  requestActionBundle: (...args: unknown[]) => requestActionBundleMock(...args),
   appendStepLogs: (...args: unknown[]) => appendStepLogsMock(...args),
   writeStepAnnotations: (...args: unknown[]) => writeStepAnnotationsMock(...args),
   integrationToolsGatewayUrl: (...args: unknown[]) => integrationToolsGatewayUrlMock(...args),
@@ -113,6 +116,8 @@ vi.mock('@shipfox/runner-protocol', () => ({
 
 vi.mock('@shipfox/runner-execution', () => ({
   executeRunStep: (...args: unknown[]) => executeRunStepMock(...args),
+  executeActionStep: (...args: unknown[]) => executeActionStepMock(...args),
+  resolveCgroupMemoryEventsPath: () => Promise.resolve('/sys/fs/cgroup/runner/memory.events'),
   executeSetupStep: (...args: unknown[]) => executeSetupStepMock(...args),
   executeCheckoutStep: (...args: unknown[]) => executeCheckoutStepMock(...args),
 }));
@@ -163,6 +168,7 @@ const RUN_ID = '00000000-0000-0000-0000-0000000000ab';
 const LOGS_DIR = '/runner-logs/job-1';
 const AGENT_STATE_DIR = '/runner-agent/job-1';
 const GIT_CONFIG_PATH = '/runner-cred/job-1/git-cred.config';
+const ACTION_TEMP_DIR = '/runner-tmp/job-1';
 const JOB_CONTEXT = {
   workflowRunId: '00000000-0000-0000-0000-000000000004',
   workflowRunAttemptId: RUN_ID,
@@ -318,6 +324,8 @@ describe('runJobSteps', () => {
     writeStepAnnotationsMock.mockReset();
     integrationToolsGatewayUrlMock.mockReset();
     executeRunStepMock.mockReset();
+    executeActionStepMock.mockReset();
+    requestActionBundleMock.mockReset();
     executeSetupStepMock.mockReset();
     executeCheckoutStepMock.mockReset();
     createStepLogStreamMock.mockReset();
@@ -875,6 +883,125 @@ describe('runJobSteps', () => {
     );
   });
 
+  it('runs an action step with its secret inputs, bundle, and job temp directory', async () => {
+    const setup = buildSetupStep();
+    const actionStep = buildStep({
+      id: '00000000-0000-0000-0000-0000000000d0',
+      name: 'Slack thread',
+      type: 'action',
+      position: 1,
+      config: {
+        working_directory: 'app',
+        action: {uses: './.shipfox/actions/slack-thread', digest: 'sha256:abc', main: 'index.ts'},
+        secret_bindings: [
+          {
+            target: {kind: 'input', name: 'token'},
+            segments: [{kind: 'secret', store: 'local', key: 'SLACK_TOKEN'}],
+          },
+          {target: 'REGION', segments: [{kind: 'literal', value: 'eu'}]},
+        ],
+      },
+    });
+    requestStepSecretsMock.mockResolvedValueOnce({
+      secrets: [{store: 'local', key: 'SLACK_TOKEN', value: 'slack-secret'}],
+    });
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(actionStep, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    let jobTempDir: string | undefined;
+    executeActionStepMock.mockImplementation(
+      async (
+        _step: StepDto,
+        options: {
+          jobTempDir: string;
+          loadBundle: () => Promise<Uint8Array>;
+          onLogLine: (line: string) => void;
+          onSecret: (secret: string) => void;
+        },
+      ) => {
+        jobTempDir = options.jobTempDir;
+        expect(existsSync(jobTempDir)).toBe(true);
+        await options.loadBundle();
+        options.onLogLine('Shipfox action Slack thread sha256:abc');
+        options.onSecret('endpoint-token');
+        return {success: true, error: null, exit_code: 0, outputs: {path: 'thread.md'}};
+      },
+    );
+    requestActionBundleMock.mockResolvedValue(Buffer.from('bundle'));
+    const registerSecrets = vi.fn();
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal, registerSecrets});
+
+    expect(executeActionStepMock).toHaveBeenCalledWith(
+      actionStep,
+      expect.objectContaining({
+        cwd: '/work/app',
+        workspace: '/work',
+        runId: JOB_CONTEXT.workflowRunId,
+        jobId: JOB_ID,
+        secretEnv: {REGION: 'eu'},
+        secretInputs: {token: 'slack-secret'},
+        secretValues: ['slack-secret'],
+        memoryEventsPath: '/sys/fs/cgroup/runner/memory.events',
+      }),
+    );
+    expect(registerSecrets).toHaveBeenCalledWith(['slack-secret']);
+    expect(requestActionBundleMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: actionStep.id,
+      signal: ac.signal,
+    });
+    expect(streamFor(actionStep.id).writeOutputLine).toHaveBeenCalledWith(
+      'Shipfox action Slack thread sha256:abc',
+    );
+    expect(streamFor(actionStep.id).addSecrets).toHaveBeenCalledWith(['endpoint-token']);
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({
+        stepId: actionStep.id,
+        status: 'succeeded',
+        outputs: {path: 'thread.md'},
+      }),
+    );
+    expect(jobTempDir).toBeDefined();
+    expect(existsSync(jobTempDir as string)).toBe(false);
+  });
+
+  it('fails a run step whose secret binding targets an action input', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep({
+      config: {
+        run: 'echo',
+        secret_bindings: [
+          {
+            target: {kind: 'input', name: 'token'},
+            segments: [{kind: 'secret', store: 'local', key: 'API_TOKEN'}],
+          },
+        ],
+      },
+    });
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1));
+    reportStepMock
+      .mockResolvedValueOnce({ok: true, cancel: false})
+      .mockResolvedValueOnce({ok: true, cancel: true});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(executeRunStepMock).not.toHaveBeenCalled();
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({
+        stepId: run.id,
+        status: 'failed',
+        error: {message: 'Step secret bindings are invalid.', reason: 'config_unresolvable'},
+      }),
+    );
+  });
+
   it('requests step secrets before opening the log stream and injects assembled env', async () => {
     const setup = buildSetupStep();
     const run = buildRunStep({
@@ -1021,7 +1148,7 @@ describe('runJobSteps', () => {
         stepId: run.id,
         status: 'failed',
         error: {
-          message: 'Run step secret response is missing a requested secret.',
+          message: 'Step secret response is missing a requested secret.',
           reason: 'config_unresolvable',
         },
       }),
@@ -3386,6 +3513,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
+      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
       jobId: JOB_ID,
       stepLabel: 'run',
     });
@@ -3434,6 +3562,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
+      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
       jobId: JOB_ID,
       stepLabel: 'run',
     });
@@ -3486,6 +3615,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
+      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
       jobId: JOB_ID,
       stepLabel: 'run',
     });
@@ -3528,6 +3658,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
+      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
       jobId: JOB_ID,
       stepLabel: 'run',
     });
@@ -3602,6 +3733,7 @@ describe('runJobSteps', () => {
         signal: ac.signal,
         workspacePrepared: true,
         gitConfigPath: GIT_CONFIG_PATH,
+        actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
         jobId: JOB_ID,
         stepLabel: 'implement',
       });
@@ -3649,6 +3781,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
+      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
       jobId: JOB_ID,
       stepLabel: 'implement',
     });
@@ -3703,6 +3836,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
+      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
       jobId: JOB_ID,
       stepLabel: 'implement',
     });
@@ -3736,6 +3870,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
+      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
       jobId: JOB_ID,
       stepLabel: 'implement',
     });
