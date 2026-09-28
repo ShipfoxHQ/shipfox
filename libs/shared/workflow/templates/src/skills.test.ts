@@ -7,7 +7,7 @@ const semanticVersionPattern = /^\d+\.\d+\.\d+$/u;
 describe('shipped skill resources', () => {
   test('embeds the template procedure and template guide bytes', () => {
     const skill = getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md');
-    expect(skill?.revision).toBe(11);
+    expect(skill?.revision).toBe(12);
     expect(skill?.text).toContain('skill://shipfox/validate-workflow-change/SKILL.md');
     expect(skill?.text).toContain('skill://shipfox/test-workflow-change/SKILL.md');
 
