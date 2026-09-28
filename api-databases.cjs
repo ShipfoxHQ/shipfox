@@ -11,6 +11,7 @@ const databaseOwners = freezeEntries([
   {id: 'integrations', packagePath: 'libs/api/integration/core'},
   {id: 'logs', packagePath: 'libs/api/logs'},
   {id: 'projects', packagePath: 'libs/api/projects'},
+  {id: 'registry', packagePath: 'libs/api/registry'},
   {id: 'runners', packagePath: 'libs/api/runners'},
   {id: 'secrets', packagePath: 'libs/api/secrets'},
   {id: 'triggers', packagePath: 'libs/api/triggers'},
@@ -155,6 +156,14 @@ const databaseMigrationUnits = freezeEntries([
     packagePath: 'libs/api/projects',
     drizzleConfigPath: 'libs/api/projects/drizzle.config.ts',
     migrationsPath: 'libs/api/projects/drizzle',
+  },
+  {
+    id: 'registry',
+    ownerId: 'registry',
+    namespace: 'registry',
+    packagePath: 'libs/api/registry',
+    drizzleConfigPath: 'libs/api/registry/drizzle.config.ts',
+    migrationsPath: 'libs/api/registry/drizzle',
   },
   {
     id: 'runners',

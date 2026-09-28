@@ -43,6 +43,7 @@ const mocks = vi.hoisted(() => ({
   createIntegrationsContext: vi.fn(),
   createLogsModule: vi.fn(),
   createProjectsModule: vi.fn(),
+  createRegistryModule: vi.fn(),
   createRunnersModule: vi.fn(),
   createSecretsModule: vi.fn(),
   createTriggersModule: vi.fn(),
@@ -108,6 +109,7 @@ vi.mock('@shipfox/api-integration-core', () => ({
 }));
 vi.mock('@shipfox/api-logs', () => ({createLogsModule: mocks.createLogsModule}));
 vi.mock('@shipfox/api-projects', () => ({createProjectsModule: mocks.createProjectsModule}));
+vi.mock('@shipfox/api-registry', () => ({createRegistryModule: mocks.createRegistryModule}));
 vi.mock('@shipfox/api-runners', () => ({createRunnersModule: mocks.createRunnersModule}));
 vi.mock('@shipfox/api-secrets', () => ({
   createSecretsModule: mocks.createSecretsModule,
@@ -135,6 +137,7 @@ describe('defaultModules', () => {
     mocks.createIntegrationsContext.mockReset();
     mocks.createLogsModule.mockReset();
     mocks.createProjectsModule.mockReset();
+    mocks.createRegistryModule.mockReset();
     mocks.createRunnersModule.mockReset();
     mocks.createSecretsModule.mockReset();
     mocks.createTriggersModule.mockReset();
@@ -222,6 +225,7 @@ describe('defaultModules', () => {
     mocks.getUserSummary.mockResolvedValue(undefined);
     mocks.getUserSummaryByEmail.mockResolvedValue(null);
     mocks.setSecrets.mockResolvedValue({});
+    mocks.createRegistryModule.mockReturnValue({name: 'registry'});
     mocks.createProjectsModule.mockReturnValue({
       name: 'projects',
       interModulePresentations: [
@@ -414,6 +418,7 @@ describe('defaultModules', () => {
       'agent',
       'integrations',
       'projects',
+      'registry',
       'definitions',
       'workflows',
       'annotations',
@@ -645,6 +650,7 @@ describe('defaultModules', () => {
       'agent',
       'integrations',
       'projects',
+      'registry',
       'definitions',
       'workflows',
       'annotations',
@@ -906,6 +912,7 @@ describe('defaultModules', () => {
       'agent',
       'integrations',
       'projects',
+      'registry',
       'definitions',
       'workflows',
       'annotations',

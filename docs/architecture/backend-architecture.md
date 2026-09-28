@@ -53,6 +53,7 @@ records the map as of its date and the decision behind it.
 | Integrations | `@shipfox/api-integration-core`, all provider packages, and their DTO packages. |
 | Logs | `@shipfox/api-logs`, `@shipfox/api-logs-dto`. |
 | Projects | `@shipfox/api-projects`, `@shipfox/api-projects-dto`. |
+| Registry | `@shipfox/api-registry`, `@shipfox/api-registry-dto`. |
 | Runners | `@shipfox/api-runners`, `@shipfox/api-runners-dto`. |
 | Secrets | `@shipfox/api-secrets`, `@shipfox/api-secrets-dto`. |
 | Triggers | `@shipfox/api-triggers`, `@shipfox/api-triggers-dto`. |

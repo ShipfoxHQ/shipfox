@@ -1,0 +1,57 @@
+import {createConfig, str} from '@shipfox/config';
+import {type RegistryTrustedKey, registryTrustedKeySchema} from '@shipfox/registry-format';
+import type {RegistrySettings} from '#core/settings.js';
+
+const TRAILING_SLASHES = /\/+$/;
+
+export const config = createConfig({
+  REGISTRY_URL: str({
+    desc: 'URL of the Shipfox Registry API that provides workflow actions and templates, such as https://api.registry.shipfox.io. Leave empty to disable registry references and templates.',
+    default: '',
+  }),
+  REGISTRY_TRUSTED_KEYS: str({
+    desc: 'JSON list of the registry signing keys this instance trusts, as objects with keyid and public_key (a base64 DER Ed25519 public key). Registry content is used only when a trusted key signed it. Required when REGISTRY_URL is set.',
+    default: '[]',
+  }),
+});
+
+export function normalizeRegistryUrl(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed === '') return '';
+  if (!URL.canParse(trimmed)) throw new Error(`REGISTRY_URL ${JSON.stringify(value)} is not a URL`);
+  const url = new URL(trimmed);
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error(`REGISTRY_URL ${JSON.stringify(value)} is not an http(s) URL`);
+  }
+  return `${url.origin}${url.pathname.replace(TRAILING_SLASHES, '')}`;
+}
+
+export function parseTrustedKeys(value: string): RegistryTrustedKey[] {
+  let json: unknown;
+  try {
+    json = JSON.parse(value);
+  } catch {
+    throw new Error('REGISTRY_TRUSTED_KEYS is not valid JSON');
+  }
+  const result = registryTrustedKeySchema.array().safeParse(json);
+  if (!result.success) {
+    throw new Error(
+      'REGISTRY_TRUSTED_KEYS must be a JSON list of {keyid, public_key} with base64 DER Ed25519 public keys',
+    );
+  }
+  return result.data;
+}
+
+export function createRegistrySettings(values: {
+  REGISTRY_URL: string;
+  REGISTRY_TRUSTED_KEYS: string;
+}): RegistrySettings {
+  const registry = normalizeRegistryUrl(values.REGISTRY_URL);
+  const trustedKeys = parseTrustedKeys(values.REGISTRY_TRUSTED_KEYS);
+  if (registry !== '' && trustedKeys.length === 0) {
+    throw new Error('REGISTRY_TRUSTED_KEYS must list at least one key when REGISTRY_URL is set');
+  }
+  return {registry, trustedKeys};
+}
+
+export const registrySettings = createRegistrySettings(config);

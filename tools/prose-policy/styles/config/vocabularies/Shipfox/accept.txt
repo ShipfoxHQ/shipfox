@@ -176,6 +176,7 @@ slug
 slugs
 namespace
 namespaces
+gzip
 identifier
 identifiers
 UUID
