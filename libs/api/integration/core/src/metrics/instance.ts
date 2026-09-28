@@ -73,6 +73,8 @@ const integrationAgentToolCallErrorCodes = new Set<string>([
   'admission-denied',
   'content-too-large',
   'too-many-files',
+  'file-too-large',
+  'file-location-not-allowed',
   'repository-required',
   'repository-not-granted',
   'repository-ambiguous',

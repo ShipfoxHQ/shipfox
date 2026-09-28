@@ -23,6 +23,7 @@ import {
   callIntegrationTool,
   type IntegrationToolCallInput,
   loadAuthorizedToolConnection,
+  openIntegrationToolDownload,
   SHIPFOX_BUILTIN_CONNECTION_ID,
 } from './tool-call-service.js';
 
@@ -1390,6 +1391,72 @@ describe('callIntegrationTool', () => {
     await callIntegrationTool(inputWithoutMethods);
 
     expect(onOpenSession.mock.calls[1]?.[0].tools[0]).not.toHaveProperty('methods');
+  });
+});
+
+describe('openIntegrationToolDownload', () => {
+  beforeEach(() => {
+    serviceMocks.loggerError.mockReset();
+    serviceMocks.reportError.mockReset();
+  });
+
+  it('denies a declared repository before asking the provider for the file', async () => {
+    const downloadFile = vi.fn();
+    const entry = catalogWithRepositoryScope(declaredRepositoryScope);
+    const registry = registryWithAgentTools([entry], {
+      repositoryAuthorization: 'enforced',
+      downloadFile,
+    });
+
+    const result = await openIntegrationToolDownload({
+      ...createInput({}, {registry, catalogEntry: entry}),
+      repositoryAuthorizer: {
+        enabled: true,
+        resolveRepositoryAuthorization: async () => ({
+          authorized: false,
+          reason: 'repository_not_granted',
+        }),
+      },
+      signal: new AbortController().signal,
+    });
+
+    expect(result).toMatchObject({
+      outcome: 'error',
+      error: {code: 'repository-not-granted'},
+      authorization: {decision: 'denied'},
+    });
+    expect(downloadFile).not.toHaveBeenCalled();
+  });
+
+  it('passes the tool call and its signal to the provider', async () => {
+    const body = new ReadableStream<Uint8Array>();
+    const downloadFile = vi.fn(async () => ({body, mediaType: 'application/pdf', size: 3}));
+    const signal = new AbortController().signal;
+
+    const result = await openIntegrationToolDownload({
+      ...createInput({downloadFile}),
+      signal,
+    });
+
+    expect(result).toEqual({
+      outcome: 'success',
+      file: {body, mediaType: 'application/pdf', size: 3},
+    });
+    expect(downloadFile).toHaveBeenCalledWith({
+      connection: expect.objectContaining({id: 'connection-1'}),
+      toolId: 'issue_read',
+      arguments: {method: 'get', owner: 'shipfox', repo: 'platform', issue_number: 1},
+      signal,
+    });
+  });
+
+  it('rejects a provider that does not serve file tools', async () => {
+    const result = await openIntegrationToolDownload({
+      ...createInput(),
+      signal: new AbortController().signal,
+    });
+
+    expect(result).toMatchObject({outcome: 'error', error: {code: 'provider-rejected'}});
   });
 });
 

@@ -4,7 +4,6 @@ import {
   type CallToolResult,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import {agentToolResultKind} from '@shipfox/api-integration-spi';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
@@ -18,9 +17,10 @@ import {
   type IntegrationAgentToolCallErrorCode,
   normalizeIntegrationAgentToolCallErrorCode,
 } from '#metrics/index.js';
-import type {
-  AuthorizedIntegrationTool,
-  AuthorizedIntegrationToolMap,
+import {
+  type AuthorizedIntegrationTool,
+  type AuthorizedIntegrationToolMap,
+  authorizedToolResultKind,
 } from './resolve-authorized-tools.js';
 
 export interface IntegrationToolDispatchInput {
@@ -43,7 +43,8 @@ export type IntegrationToolProtocolErrorReason =
   | 'arguments_not_object'
   | 'missing_required_parameter'
   | 'invalid_parameter_type'
-  | 'unauthorized_method';
+  | 'unauthorized_method'
+  | 'result_kind_mismatch';
 
 export interface IntegrationToolProtocolError {
   readonly [key: string]: unknown;
@@ -181,9 +182,7 @@ function jsonResultTools(
 ): AuthorizedIntegrationToolMap {
   return new Map(
     [...authorizedTools].filter(
-      ([, authorizedTool]) =>
-        authorizedTool.catalogEntry === undefined ||
-        agentToolResultKind(authorizedTool.catalogEntry) === 'json',
+      ([, authorizedTool]) => authorizedToolResultKind(authorizedTool) === 'json',
     ),
   );
 }
@@ -253,7 +252,7 @@ function recordToolCall(
   }
 }
 
-function validateMethod(
+export function validateMethod(
   authorizedTool: AuthorizedIntegrationTool,
   args: Record<string, unknown>,
 ):

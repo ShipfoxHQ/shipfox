@@ -130,6 +130,30 @@ describe('integration tool call audit', () => {
     );
   });
 
+  it('records the file result kind and byte count of a download', () => {
+    const logInfo = vi.fn();
+    const recorder = createIntegrationToolCallRecorder(
+      {...agentCaller, caller: 'action', callId: 'call-1'},
+      {recordMetric: vi.fn(), logInfo},
+    );
+
+    recorder({
+      authorizedTool: auditTarget(),
+      arguments: {url: 'https://uploads.example/file'},
+      method: 'none',
+      outcome: 'tool-error',
+      errorCode: 'file-too-large',
+      resultKind: 'file',
+      bytes: 1024,
+    });
+
+    expect(logInfo).toHaveBeenCalledWith(
+      expect.objectContaining({errorCode: 'file-too-large', resultKind: 'file', bytes: 1024}),
+      'integration tool call audited',
+    );
+    expect(JSON.stringify(logInfo.mock.calls)).not.toContain('uploads.example');
+  });
+
   it('records the tool-step caller identity on the metric and audit line', () => {
     const recordMetric = vi.fn();
     const logInfo = vi.fn();
