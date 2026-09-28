@@ -41,14 +41,16 @@ function buildTemplateDetail(template) {
       bindings: {...binding},
       yaml: applyDefaultOptions(composeTemplate(template, binding), manifest.options),
     })),
-    // Related links are presentation only, so a link to a package this build does not ship is hidden.
-    related: manifest.related.flatMap((name) => {
-      const related = name.startsWith(SHIPFOX_NAMESPACE_PREFIX)
-        ? shippedTemplateLoader.get(name.slice(SHIPFOX_NAMESPACE_PREFIX.length))
-        : undefined;
-      return related ? [buildEntry(related)] : [];
-    }),
+    related: manifest.related.map((name) => buildEntry(relatedTemplate({template, name}))),
   };
+}
+
+function relatedTemplate({template, name}) {
+  const related = name.startsWith(SHIPFOX_NAMESPACE_PREFIX)
+    ? shippedTemplateLoader.get(name.slice(SHIPFOX_NAMESPACE_PREFIX.length))
+    : undefined;
+  if (!related) throw new Error(`Example "${template.id}" relates to unknown package "${name}".`);
+  return related;
 }
 
 function buildEntry(template) {
