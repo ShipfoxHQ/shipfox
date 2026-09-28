@@ -175,6 +175,7 @@ const STABLE_ERROR_CODES = new Set([
   'installation-not-found',
   'file-not-found',
   'ref-not-found',
+  'not-found',
   'ref-invalid',
   'access-denied',
   'rate-limited',

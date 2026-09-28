@@ -58,6 +58,7 @@ const integrationAgentToolCallErrorCodes = new Set<string>([
   'installation-not-found',
   'file-not-found',
   'ref-not-found',
+  'not-found',
   'ref-invalid',
   'access-denied',
   'rate-limited',

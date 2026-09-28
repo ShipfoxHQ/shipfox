@@ -46,6 +46,7 @@ type MissingProviderErrorReason = Exclude<
   IntegrationProviderErrorReason,
   | (typeof providerErrorReasons)[number]
   | 'ref-not-found'
+  | 'not-found'
   | 'ref-invalid'
   | 'credentials-unavailable'
   | 'search-qualifier-conflict'
