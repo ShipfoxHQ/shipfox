@@ -10,6 +10,7 @@
         "$TURBO_ROOT$/libs/shared/common/**/package.json",
         "$TURBO_ROOT$/libs/shared/expression/**/package.json",
         "$TURBO_ROOT$/libs/shared/node/**/package.json",
+        "$TURBO_ROOT$/libs/shared/registry/**/package.json",
         "$TURBO_ROOT$/libs/shared/workflow/**/package.json"
       ]
     },
