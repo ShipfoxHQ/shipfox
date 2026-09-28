@@ -1,6 +1,6 @@
 title: Ask the codebase in Slack
 summary: Answer questions about your code in Slack, with references to the files.
-starts: Someone mentions the Shipfox app in Slack or another workflow starts this run
+starts: Someone mentions the Shipfox app in Slack, or another workflow starts it manually
 roles:
   chat:
     providers: [slack]
