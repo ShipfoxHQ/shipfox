@@ -2,10 +2,10 @@
   "pages": [
     "---Get Started---",
     "index",
+    "getting-started",
     "examples",
     "editions",
     "compare-approaches",
-    "getting-started",
     "---Use Shipfox---",
     "understand",
     "how-to",

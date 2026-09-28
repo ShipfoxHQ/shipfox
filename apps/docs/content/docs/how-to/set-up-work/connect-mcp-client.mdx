@@ -40,6 +40,8 @@ claude mcp add --transport http shipfox https://api.shipfox.io/mcp
 Open Claude Code and run `/mcp`. Select **shipfox** and complete the browser
 sign-in.
 
+Claude Code reads the server's skill and docs resources on its own.
+
 ### Codex CLI
 
 Run these commands in your terminal:
@@ -50,6 +52,9 @@ codex mcp login shipfox
 ```
 
 The second command opens the Shipfox sign-in page in your browser.
+
+Codex CLI 0.47.0 and later reads the server's skill and docs resources on its
+own.
 
 ### Cursor
 
@@ -75,6 +80,8 @@ browser sign-in when it first connects to Shipfox.
 For the file format and the Customize page, see the [Cursor MCP
 documentation](https://cursor.com/docs/mcp).
 
+Cursor 1.6 and later supports the server's skill and docs resources.
+
 ### VS Code
 
 Add the server to `.vscode/mcp.json` in your project. To use it in every
@@ -93,6 +100,9 @@ workspace, run **MCP: Open User Configuration** instead.
 
 Run **MCP: List Servers** and select **shipfox**. Start the server. VS Code asks
 you to approve the sign-in and opens your browser.
+
+VS Code 1.101 and later supports the server's skill and docs resources. Attach
+one to a chat with **Add Context** > **MCP Resources**.
 
 ## Approve access in Shipfox
 
