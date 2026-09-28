@@ -17,7 +17,7 @@ export function buildTemplateCatalogDocument() {
   return {
     id: TEMPLATE_CATALOG_DOCUMENT_ID,
     templates: [...shippedTemplateLoader.list()]
-      .sort((a, b) => a.manifest.rank - b.manifest.rank)
+      .sort((a, b) => a.rank - b.rank)
       .map((template) => buildTemplateDetail(template)),
   };
 }
@@ -26,7 +26,7 @@ function buildTemplateDetail(template) {
   const {manifest} = template;
   const bindings = templateRoleBindings(manifest.roles);
   const anchors = extractModelAnchors(composeTemplate(template, bindings.at(-1) ?? {}));
-  const meta = authoredMetadata(manifest.id);
+  const meta = authoredMetadata(template.id);
 
   return {
     ...buildEntry(template),
@@ -45,7 +45,7 @@ function buildTemplateDetail(template) {
     related: (meta.related ?? []).map((id) => {
       const related = shippedTemplateLoader.get(id);
       if (!related)
-        throw new Error(`Example "${manifest.id}" relates to unknown template "${id}".`);
+        throw new Error(`Example "${template.id}" relates to unknown template "${id}".`);
       return buildEntry(related);
     }),
   };
@@ -53,14 +53,14 @@ function buildTemplateDetail(template) {
 
 function buildEntry(template) {
   const {manifest} = template;
-  const meta = authoredMetadata(manifest.id);
+  const meta = authoredMetadata(template.id);
 
   return {
-    id: manifest.id,
+    id: template.id,
     title: manifest.title,
     summary: manifest.summary,
-    revision: manifest.revision,
-    addedAt: manifest.added_at,
+    revision: template.revision,
+    addedAt: template.added_at,
     group: meta.group,
     starts: meta.starts,
     flow: meta.flow,
@@ -73,7 +73,7 @@ function buildEntry(template) {
       fromProject: declaration.from === 'project',
       question: declaration.question,
     })),
-    href: `/examples/${manifest.id}`,
+    href: `/examples/${template.id}`,
   };
 }
 

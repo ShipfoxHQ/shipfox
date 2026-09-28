@@ -1,10 +1,6 @@
-id: fix-dependency-ci
-revision: 3
-added_at: 2026-09-22
-rank: 5
 title: Repair failing pull request CI
 summary: Get a tested fix when CI fails on a dependency update or an opted-in pull request.
-start_label: Starts on a failing dependency update
+starts: CI fails on a selected GitHub pull request
 roles:
   source:
     from: project
@@ -49,6 +45,12 @@ options:
 models:
   fix:
     note: Reads failed CI logs and repairs the pull request branch.
-slots: [setup_commands, install_command, test_command]
+slots:
+  - id: setup_commands
+    description: Shell commands to prepare the repository before tests run.
+  - id: install_command
+    description: Command to install project dependencies.
+  - id: test_command
+    description: Command to run the repository checks after the fix.
 secrets: []
 variables: []

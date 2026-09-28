@@ -3,14 +3,14 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 
 ## What it does
 
-- **`workflowTemplateManifestSchema`** checks template identity, revisions, rank, start label, roles, provider choices, options, model placeholders, slots, secrets, and variables.
+- **`workflowTemplateManifestSchema`** checks template presentation fields, keywords, starts, flow, writes, prerequisites, related templates, roles, options, model placeholders, and described slots, secrets, and variables.
 - **`composeWorkflow`** replaces `# part:<role>.<name>` markers with text blocks at the marker indentation.
 - **`composeTemplate`** selects one provider part for every bound role, composes the workflow, and writes its `# shipfox-template:` header.
 - **`templateRoleBindings`** lists every role binding a template supports, with each optional role both bound and unbound.
 - **`extractModelAnchors`** reads each placeholder's tested model and thinking setting from composed YAML.
 - **`recommendModels`** selects up to four scored alternatives to a tested model and labels their intelligence and cost tradeoffs.
 - **`buildTemplatePrompt`** builds the prompt a user pastes into a coding agent to set up a template. It is also exported from the browser-safe `@shipfox/workflow-templates/prompt` subpath.
-- **`createTemplateLoader`** creates an injectable loader for tests or other asset sources. Each loaded template reports `startsManually`.
+- **`createTemplateLoader`** creates an injectable loader for tests or other asset sources. Each loaded template reports its identity and embedded compatibility values beside the manifest, plus `startsManually`.
 - **`shippedTemplateLoader`** serves only assets embedded during the package build.
 - **`listShippedSkillResources`** lists the embedded skill index, manifest, procedures, and references.
 - **`getShippedSkillResource`** reads one embedded resource by its exact `skill://shipfox/` URI.
@@ -57,7 +57,7 @@ The following comments are preserved as authoring instructions:
 - `# slot:<name>` identifies a value the agent fills from the manifest slot.
 - `# model:<key>` identifies a model value on an agent step's `model:` line. Each key needs a `models` entry in the manifest.
 - `# option:X=Y begin` and `# option:X=Y end` surround an optional block. `X=Y,Z` keeps the block when any listed choice is chosen.
-- `# shipfox-template: <id>@<revision> <role>=<provider>` identifies an adopted composed template. `composeTemplate` writes it after the leading comments from the manifest and the bound roles, so base workflows must not declare it.
+- `# shipfox-template: <id>@<revision> <role>=<provider>` identifies an adopted composed template. `composeTemplate` writes it after leading comments from the loader identity and bound roles, so base workflows must not declare it.
 
 The composer only substitutes `part:` markers. It does not evaluate expressions, conditionals, or loops. A missing part or required provider binding throws an error.
 
@@ -80,11 +80,11 @@ When an optional role is unbound, `composeTemplate` removes its `# part:` marker
 
 `extractModelAnchors` reads markers after provider parts are composed and before options are applied. It returns the model and sibling `thinking` value for each placeholder. Repeated markers must agree. The marked `model` and `thinking` values are the setting the template author tested, so write only a tested setting there.
 
-### Ranks and start labels
+### Identity and start phrases
 
-Every manifest declares a `rank`, lower first. Product surfaces and the docs Examples gallery order templates by it.
+Every manifest requires `starts`, a phrase of at most 120 characters that describes how the workflow begins. The loader derives `startsManually` by composing every role binding and checking each result with `@shipfox/workflow-document`. It is true only when every composition has a `source: manual` trigger, so an optional role cannot make a non-manual template count as manual.
 
-The loader derives `startsManually` from the workflow. It composes every role binding and parses each result with `@shipfox/workflow-document`. The value is true only when every composition has a `source: manual` trigger, so a manual trigger in an optional role's part does not count. A template without a manual trigger must declare `start_label`, one short phrase such as `Starts when a workflow run fails`, or the loader rejects it.
+The embedded loader takes each template id from its asset directory. It reads `revision`, `added_at`, and `rank` from [`embedded-templates.yaml`](embedded-templates.yaml) and exposes those values beside the manifest. Catalog packages do not include this compatibility file.
 
 ### Setup prompts
 
@@ -106,6 +106,7 @@ assets/<template-id>/
   workflow.yml
   GUIDE.md
   parts/<role>/<provider>.yml
+embedded-templates.yaml
 ```
 
 To check a local workflow without starting a run, read `skill://shipfox/validate-workflow-change/SKILL.md` through MCP. It covers trigger inputs, retained events, dry-run refusals, and verification.

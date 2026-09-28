@@ -12,7 +12,7 @@ import {loadShippedTemplates} from './loader.js';
 type EntryPoint = 'mention' | 'dispatch_only';
 type YamlRecord = Record<string, unknown>;
 
-const template = loadShippedTemplates().find((entry) => entry.manifest.id === 'ask-codebase');
+const template = loadShippedTemplates().find((entry) => entry.id === 'ask-codebase');
 if (template === undefined) throw new Error('Missing codebase question template');
 const composed = composeTemplate(template, {chat: 'slack', source: 'github'});
 const entryPointMarker = /^\s*# option:entry_point=(\w+) (begin|end)$/;

@@ -46,20 +46,21 @@ export function extractModelAnchors(composedYaml: string): WorkflowModelAnchors 
 
 /** Validates that every composed model marker belongs to the template manifest. */
 export function validateModelAnchors(
-  manifest: Pick<WorkflowTemplateManifest, 'id' | 'models'>,
+  templateId: string,
+  manifest: Pick<WorkflowTemplateManifest, 'models'>,
   composedYaml: string,
 ): WorkflowModelAnchors {
   const anchors = extractModelAnchors(composedYaml);
 
   for (const placeholder of Object.keys(anchors)) {
     if (!hasOwn(manifest.models, placeholder)) {
-      throw new Error(`${manifest.id}: # model:${placeholder} has no manifest placeholder`);
+      throw new Error(`${templateId}: # model:${placeholder} has no manifest placeholder`);
     }
   }
 
   for (const placeholder of Object.keys(manifest.models)) {
     if (!hasOwn(anchors, placeholder)) {
-      throw new Error(`${manifest.id}: models.${placeholder} has no # model:${placeholder} marker`);
+      throw new Error(`${templateId}: models.${placeholder} has no # model:${placeholder} marker`);
     }
   }
 

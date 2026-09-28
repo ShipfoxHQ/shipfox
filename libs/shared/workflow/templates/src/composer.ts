@@ -39,7 +39,13 @@ export function composeWorkflow(workflow: string, parts: PartBlocks): string {
  * bindings, so it records which optional roles were chosen.
  */
 export function composeTemplate(
-  template: {manifest: WorkflowTemplateManifest; workflow: string; parts: PartProviderBlocks},
+  template: {
+    id: string;
+    revision: number;
+    manifest: WorkflowTemplateManifest;
+    workflow: string;
+    parts: PartProviderBlocks;
+  },
   bindings: TemplateRoleBindings,
 ): string {
   const selectedParts: Record<string, string> = {};
@@ -72,8 +78,8 @@ export function composeTemplate(
     withoutRoleParts(template.workflow, unboundRoles),
     selectedParts,
   );
-  validateModelAnchors(template.manifest, composed);
-  return withTemplateHeader(composed, templateHeader(template.manifest, bindings));
+  validateModelAnchors(template.id, template.manifest, composed);
+  return withTemplateHeader(composed, templateHeader(template, bindings));
 }
 
 /** Lists every role binding a template supports, leaving each optional role both bound and unbound. */
@@ -126,13 +132,13 @@ function withoutRoleParts(workflow: string, roles: ReadonlySet<string>): string 
 }
 
 function templateHeader(
-  manifest: WorkflowTemplateManifest,
+  template: {id: string; revision: number; manifest: WorkflowTemplateManifest},
   bindings: TemplateRoleBindings,
 ): string {
-  const roles = Object.keys(manifest.roles)
+  const roles = Object.keys(template.manifest.roles)
     .filter((role) => bindings[role] !== undefined)
     .map((role) => `${role}=${bindings[role]}`);
-  return `# shipfox-template: ${[`${manifest.id}@${manifest.revision}`, ...roles].join(' ')}`;
+  return `# shipfox-template: ${[`${template.id}@${template.revision}`, ...roles].join(' ')}`;
 }
 
 /** Places the header after the leading comments, such as a `yaml-language-server` modeline. */

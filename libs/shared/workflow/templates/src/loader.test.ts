@@ -12,6 +12,10 @@ import {extractModelAnchors} from './model-anchors.js';
 const missingThinkingPattern = /thinking: high\s*/u;
 const fixtureRoot = new URL('../test/fixtures/', import.meta.url);
 const fixture: WorkflowTemplateAsset = {
+  id: 'fixture-ticket-to-pr',
+  revision: 1,
+  added_at: '2026-10-01',
+  rank: 1,
   manifest: workflowTemplateManifestSchema.parse(
     parseYaml(readFileSync(new URL('template.yaml', fixtureRoot), 'utf8')),
   ),
@@ -48,7 +52,7 @@ describe('workflow template loader', () => {
   });
 
   it('does not expose test fixtures through the shipped loader', () => {
-    expect(loadShippedTemplates().map((template) => template.manifest.id)).toEqual([
+    expect(loadShippedTemplates().map((template) => template.id)).toEqual([
       'ask-codebase',
       'fix-default-branch-ci',
       'fix-dependency-ci',
@@ -74,10 +78,58 @@ describe('workflow template loader', () => {
     for (const template of loadShippedTemplates()) {
       for (const bindings of templateRoleBindings(template.manifest.roles)) {
         expect(extractModelAnchors(composeTemplate(template, bindings))).toEqual(
-          expected[template.manifest.id as keyof typeof expected],
+          expected[template.id as keyof typeof expected],
         );
       }
     }
+  });
+
+  it('keeps embedded compatibility metadata beside each manifest', () => {
+    expect(
+      Object.fromEntries(
+        loadShippedTemplates().map(({id, revision, added_at, rank, manifest}) => [
+          id,
+          {revision, added_at, rank, manifestHasIdentity: 'id' in manifest},
+        ]),
+      ),
+    ).toEqual({
+      'ask-codebase': {
+        revision: 1,
+        added_at: '2026-09-26',
+        rank: 2,
+        manifestHasIdentity: false,
+      },
+      'fix-default-branch-ci': {
+        revision: 1,
+        added_at: '2026-09-26',
+        rank: 4,
+        manifestHasIdentity: false,
+      },
+      'fix-dependency-ci': {
+        revision: 3,
+        added_at: '2026-09-22',
+        rank: 5,
+        manifestHasIdentity: false,
+      },
+      'report-failed-runs': {
+        revision: 1,
+        added_at: '2026-09-26',
+        rank: 6,
+        manifestHasIdentity: false,
+      },
+      'slack-to-ticket': {
+        revision: 1,
+        added_at: '2026-09-27',
+        rank: 3,
+        manifestHasIdentity: false,
+      },
+      'ticket-to-pr': {
+        revision: 7,
+        added_at: '2026-09-23',
+        rank: 1,
+        manifestHasIdentity: false,
+      },
+    });
   });
 
   it('composes and parses every shipped role combination within the payload limit', () => {
@@ -141,7 +193,7 @@ describe('workflow template loader', () => {
   it('derives whether every role binding starts manually', () => {
     expect(
       Object.fromEntries(
-        loadShippedTemplates().map((template) => [template.manifest.id, template.startsManually]),
+        loadShippedTemplates().map((template) => [template.id, template.startsManually]),
       ),
     ).toEqual({
       'ask-codebase': true,
@@ -175,14 +227,6 @@ describe('workflow template loader', () => {
     expect(loaded?.startsManually).toBe(false);
   });
 
-  it('rejects a template without a manual trigger or a start label', () => {
-    const {start_label: _startLabel, ...manifest} = shippedTemplate('fix-dependency-ci').manifest;
-
-    expect(() =>
-      createTemplateLoader([{...shippedTemplate('fix-dependency-ci'), manifest}]),
-    ).toThrow('fix-dependency-ci: a template without a manual trigger needs a start_label');
-  });
-
   it('keeps setup command insertion inside job steps', () => {
     const loader = createTemplateLoader([fixture]);
     const template = loader.get('fixture-ticket-to-pr');
@@ -201,7 +245,7 @@ describe('workflow template loader', () => {
 });
 
 function shippedTemplate(id: string): WorkflowTemplate {
-  const template = loadShippedTemplates().find((candidate) => candidate.manifest.id === id);
+  const template = loadShippedTemplates().find((candidate) => candidate.id === id);
   if (template === undefined) throw new Error(`Shipped template was not loaded: ${id}`);
   return template;
 }
@@ -222,7 +266,7 @@ function withSourcePart(
   const githubParts = sourceParts?.github;
   const part = githubParts?.[partName];
   if (sourceParts === undefined || githubParts === undefined || part === undefined) {
-    throw new Error(`${template.manifest.id} has no source.github.${partName} part`);
+    throw new Error(`${template.id} has no source.github.${partName} part`);
   }
 
   return {

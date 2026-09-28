@@ -4,7 +4,12 @@
   "tasks": {
     "build:assets": {
       "cache": true,
-      "inputs": ["assets/**", "scripts/embed-assets.mjs", "package.json"],
+      "inputs": [
+        "assets/**",
+        "embedded-templates.yaml",
+        "scripts/embed-assets.mjs",
+        "package.json"
+      ],
       "outputs": ["src/generated/**"],
       "dependsOn": ["@shipfox/biome#build"]
     },

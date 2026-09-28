@@ -2,7 +2,6 @@ import {describe, expect, it} from '@shipfox/vitest/vi';
 import {extractModelAnchors, validateModelAnchors} from './model-anchors.js';
 
 const manifest = {
-  id: 'fixture',
   models: {
     ticket: {},
     fix: {},
@@ -104,7 +103,8 @@ describe('extractModelAnchors', () => {
     expect(anchors.constructor).toEqual({model: 'tested', thinking: 'high'});
     expect(() =>
       validateModelAnchors(
-        {id: 'fixture', models},
+        'fixture',
+        {models},
         ['model: tested # model:constructor', 'thinking: high'].join('\n'),
       ),
     ).toThrow('models.toString has no # model:toString marker');
@@ -133,14 +133,15 @@ describe('extractModelAnchors', () => {
 describe('validateModelAnchors', () => {
   it('rejects a manifest placeholder without a marker', () => {
     expect(() =>
-      validateModelAnchors(manifest, 'model: tested # model:ticket\nthinking: high'),
+      validateModelAnchors('fixture', manifest, 'model: tested # model:ticket\nthinking: high'),
     ).toThrow('models.fix has no # model:fix marker');
   });
 
   it('rejects a marker without a manifest placeholder', () => {
     expect(() =>
       validateModelAnchors(
-        {...manifest, models: {ticket: {}}},
+        'fixture',
+        {models: {ticket: {}}},
         'model: tested # model:unknown\nthinking: high',
       ),
     ).toThrow('# model:unknown has no manifest placeholder');

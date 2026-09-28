@@ -46,24 +46,25 @@ export function createWorkflowTemplateRoutes(
 }
 
 function toWorkflowTemplateDto({
-  template: {manifest},
+  template,
   roles,
   group,
   missingProviders,
 }: WorkspaceTemplate): WorkspaceWorkflowTemplateDto {
+  const {manifest} = template;
   // Required roles first, so the providers a template cannot run without lead.
   const orderedRoles = [
     ...roles.filter(({declaration}) => declaration.optional !== true),
     ...roles.filter(({declaration}) => declaration.optional === true),
   ];
   return {
-    id: manifest.id,
+    id: template.id,
     title: manifest.title,
     summary: manifest.summary,
     group,
-    start_label: manifest.start_label ?? null,
+    start_label: template.startsManually ? null : manifest.starts,
     providers: [...new Set(orderedRoles.flatMap(({declaration}) => declaration.providers))],
     missing_providers: missingProviders,
-    prompt: buildTemplatePrompt({templateId: manifest.id}),
+    prompt: buildTemplatePrompt({templateId: template.id}),
   };
 }

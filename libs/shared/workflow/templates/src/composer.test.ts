@@ -40,13 +40,12 @@ describe('composeWorkflow', () => {
 
 describe('composeTemplate', () => {
   const template = {
+    id: 'fixture',
+    revision: 2,
     manifest: workflowTemplateManifestSchema.parse({
-      id: 'fixture',
-      revision: 2,
-      added_at: '2026-10-01',
-      rank: 1,
       title: 'Fixture',
       summary: 'A fixture template.',
+      starts: 'A test event starts this workflow',
       roles: {
         report: {
           providers: ['slack'],

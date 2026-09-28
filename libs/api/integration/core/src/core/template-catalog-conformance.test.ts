@@ -132,9 +132,7 @@ describe('workflow template catalog conformance', () => {
   });
 
   it('checks catalog references in every composed variant', () => {
-    const template = loadShippedTemplates().find(
-      ({manifest}) => manifest.id === 'report-failed-runs',
-    );
+    const template = loadShippedTemplates().find(({id}) => id === 'report-failed-runs');
     if (template === undefined) throw new Error('Failed run report template was not loaded');
 
     const unknownTool = {
@@ -204,7 +202,7 @@ describe('workflow template catalog conformance', () => {
 });
 
 function dependencyCiTemplate(): WorkflowTemplate {
-  const template = loadShippedTemplates().find(({manifest}) => manifest.id === 'fix-dependency-ci');
+  const template = loadShippedTemplates().find(({id}) => id === 'fix-dependency-ci');
   if (template === undefined) throw new Error('Shipped template was not loaded');
   return template;
 }
@@ -225,7 +223,7 @@ function modelPlaceholderIssues(template: WorkflowTemplate): string[] {
   const markers = new Set<string>();
   const issues = modelMarkerIssues(
     template.workflow,
-    `${manifest.id}/workflow.yml`,
+    `${template.id}/workflow.yml`,
     manifest,
     markers,
   );
@@ -236,7 +234,7 @@ function modelPlaceholderIssues(template: WorkflowTemplate): string[] {
         issues.push(
           ...modelMarkerIssues(
             block,
-            `${manifest.id}/${role}/${provider}/${part}`,
+            `${template.id}/${role}/${provider}/${part}`,
             manifest,
             markers,
           ),
@@ -247,7 +245,7 @@ function modelPlaceholderIssues(template: WorkflowTemplate): string[] {
 
   for (const key of Object.keys(manifest.models)) {
     if (!markers.has(key))
-      issues.push(`${manifest.id}: models.${key} has no # model:${key} marker`);
+      issues.push(`${template.id}: models.${key} has no # model:${key} marker`);
   }
   return issues;
 }
@@ -286,7 +284,7 @@ function bindingVariantsConformance(
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([role, provider]) => `${role}=${provider}`)
     .join(',');
-  const prefix = `${template.manifest.id}/${bindingLabel}`;
+  const prefix = `${template.id}/${bindingLabel}`;
   const variants = structuralVariants(template.manifest, composed);
   const parsedResults = variants.map((variant) => parseWorkflowVariant(variant, prefix));
   const parsedVariants = parsedResults.flatMap((result) =>

@@ -38,14 +38,14 @@ export async function listWorkspaceTemplates(params: {
   return params.templates.list().map((template) => toWorkspaceTemplate(template, connections));
 }
 
-/** Orders templates by group, then by the manifest rank. */
+/** Orders templates by group, then by their embedded compatibility rank. */
 export function rankWorkspaceTemplates(
   templates: readonly WorkspaceTemplate[],
 ): WorkspaceTemplate[] {
   return [...templates].sort(
     (left, right) =>
       GROUP_ORDER.indexOf(left.group) - GROUP_ORDER.indexOf(right.group) ||
-      left.template.manifest.rank - right.template.manifest.rank,
+      left.template.rank - right.template.rank,
   );
 }
 

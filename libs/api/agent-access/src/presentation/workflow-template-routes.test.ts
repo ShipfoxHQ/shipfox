@@ -93,7 +93,7 @@ describe('GET /workspaces/:workspaceId/workflow-templates', () => {
       prompt: 'Use Shipfox to create a workflow from the ticket-to-pr template.',
     });
     expect(body.templates[1]).toMatchObject({
-      start_label: 'Starts when CI fails on the default branch',
+      start_label: 'GitHub Actions fails on the default branch',
     });
     expect(body.templates.find(({id}) => id === 'slack-to-ticket')).toMatchObject({
       missing_providers: ['slack', 'linear'],

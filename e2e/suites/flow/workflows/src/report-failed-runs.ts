@@ -34,9 +34,7 @@ export function reportFailedRunsWorkflowYaml(params: {
   channel: string;
   workflowPaths: readonly string[];
 }): string {
-  const template = loadShippedTemplates().find(
-    ({manifest}) => manifest.id === 'report-failed-runs',
-  );
+  const template = loadShippedTemplates().find(({id}) => id === 'report-failed-runs');
   if (template === undefined) throw new Error('The report template is not shipped');
   const open: boolean[] = [];
   const workflow = composeTemplate(template, {notify: 'slack'})
