@@ -1,0 +1,53 @@
+name: Action dependencies
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  deps:
+    steps:
+      # Package managers would need a registry and would find the repository's own pnpm
+      # workspace above the runner workspace, so this step writes the layouts they produce:
+      # npm hoists every package to the top node_modules, and pnpm links only direct
+      # dependencies there and keeps the rest under node_modules/.pnpm.
+      - key: install
+        name: Install greeting under npm and pnpm layouts
+        run: |
+          write_package() {
+            mkdir -p "$1"
+            printf '{"name":"%s","version":"1.0.0","type":"module","exports":"./index.js"}\n' "$2" > "$1/package.json"
+            printf '%s\n' "$3" > "$1/index.js"
+          }
+          greeting='import {punctuate} from "punctuation"; export const greet = (name) => punctuate(`hello ${name}`);'
+          punctuation='export const punctuate = (text) => `${text}!`;'
+
+          write_package npm-app/node_modules/greeting greeting "$greeting"
+          write_package npm-app/node_modules/punctuation punctuation "$punctuation"
+
+          store=pnpm-app/node_modules/.pnpm
+          write_package "$store/greeting@1.0.0/node_modules/greeting" greeting "$greeting"
+          write_package "$store/punctuation@1.0.0/node_modules/punctuation" punctuation "$punctuation"
+          ln -s ../../punctuation@1.0.0/node_modules/punctuation "$store/greeting@1.0.0/node_modules/punctuation"
+          ln -s .pnpm/greeting@1.0.0/node_modules/greeting pnpm-app/node_modules/greeting
+          test ! -e pnpm-app/node_modules/punctuation
+      - key: npm_layout
+        name: Import greeting from the npm layout
+        uses: ./.shipfox/actions/greet
+        working_directory: npm-app
+        with:
+          name: npm
+      - key: pnpm_layout
+        name: Import greeting from the pnpm layout
+        uses: ./.shipfox/actions/greet
+        working_directory: pnpm-app
+        with:
+          name: pnpm
+      - key: consume
+        name: Read the greetings
+        env:
+          NPM_GREETING: ${{ steps.npm_layout.outputs.greeting }}
+          PNPM_GREETING: ${{ steps.pnpm_layout.outputs.greeting }}
+        run: |
+          test "$NPM_GREETING" = "hello npm!"
+          test "$PNPM_GREETING" = "hello pnpm!"
+          echo "greetings consumed"

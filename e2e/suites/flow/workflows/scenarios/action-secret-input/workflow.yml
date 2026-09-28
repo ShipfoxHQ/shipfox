@@ -1,0 +1,13 @@
+name: Action secret input
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  secret:
+    steps:
+      - key: use_token
+        name: Use a secret input
+        uses: ./.shipfox/actions/use-token
+        with:
+          token: ${{ secrets.ACTION_TOKEN }}

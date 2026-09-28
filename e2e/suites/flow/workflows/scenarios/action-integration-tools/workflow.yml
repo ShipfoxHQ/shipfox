@@ -1,0 +1,28 @@
+name: Action integration tools
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  report:
+    steps:
+      - key: report
+        name: Report on the Gitea issue
+        uses: ./.shipfox/actions/issue-report
+        connections:
+          gitea: __GITEA_SOURCE__
+          shipfox: shipfox
+        with:
+          repo: __GITEA_REPOSITORY_NAME__
+          issue: __GITEA_ISSUE_NUMBER__
+          comment: __GITEA_COMMENT_BODY__
+      - key: consume
+        name: Consume action outputs
+        env:
+          TITLE: ${{ steps.report.outputs.title }}
+          RUN_STATUS: ${{ steps.report.outputs.run_status }}
+          EXPECTED_TITLE: __GITEA_ISSUE_TITLE__
+        run: |
+          test "$TITLE" = "$EXPECTED_TITLE"
+          test "$RUN_STATUS" = running
+          echo "action outputs consumed: $TITLE"

@@ -72,6 +72,15 @@ export interface CommitFilesParams {
   message: string;
   files: CommitFile[];
   branch?: string;
+  /** Creates this branch from `branch` and commits onto it. */
+  newBranch?: string;
+}
+
+export interface GetFileShaParams {
+  org: string;
+  repo: string;
+  path: string;
+  ref?: string;
 }
 
 export function generateOrgName(): string {
@@ -217,7 +226,15 @@ export async function commitFiles(params: CommitFilesParams): Promise<string> {
 
   const response = await giteaFetchJson<{commit?: {sha?: string}}>(
     `repos/${encodeSegment(params.org)}/${encodeSegment(params.repo)}/contents`,
-    {method: 'POST', json: {branch: params.branch ?? 'main', message: params.message, files}},
+    {
+      method: 'POST',
+      json: {
+        branch: params.branch ?? 'main',
+        ...(params.newBranch === undefined ? {} : {new_branch: params.newBranch}),
+        message: params.message,
+        files,
+      },
+    },
   );
 
   const sha = response.commit?.sha;
@@ -230,6 +247,17 @@ export async function commitFiles(params: CommitFilesParams): Promise<string> {
   }
 
   return sha;
+}
+
+// The blob SHA that an `update` or `delete` in `commitFiles` must name.
+export async function getFileSha(params: GetFileShaParams): Promise<string> {
+  const file = await giteaFetchJson<{sha: string}>(
+    `repos/${encodeSegment(params.org)}/${encodeSegment(params.repo)}/contents/${params.path
+      .split('/')
+      .map(encodeSegment)
+      .join('/')}?ref=${encodeURIComponent(params.ref ?? 'main')}`,
+  );
+  return file.sha;
 }
 
 export async function deleteRepo(params: {org: string; repo: string}): Promise<void> {

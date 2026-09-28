@@ -1,0 +1,24 @@
+name: Issue report
+description: Reads a Gitea issue and the current run, then comments on the issue.
+main: index.ts
+inputs:
+  repo:
+    required: true
+  issue:
+    type: number
+    required: true
+  comment:
+    required: true
+outputs:
+  title:
+    required: true
+  run_status:
+    required: true
+integrations:
+  gitea:
+    provider: gitea
+    include: [get_issue, comment_on_issue]
+    allow_write: true
+  shipfox:
+    provider: shipfox
+    include: [get_workflow_run]

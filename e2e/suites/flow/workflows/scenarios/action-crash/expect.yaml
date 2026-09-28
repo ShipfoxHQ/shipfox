@@ -1,0 +1,26 @@
+trigger: manual
+run:
+  status: failed
+jobs:
+  throws:
+    status: failed
+    steps:
+      crash:
+        type: action
+        status: failed
+        exit_code: 1
+        error:
+          message: The action failed with exit code 1.
+        logs:
+          include: ["handler threw on purpose"]
+  exits_early:
+    status: failed
+    steps:
+      crash:
+        type: action
+        status: failed
+        exit_code: 0
+        error:
+          message: The action exited before it finished.
+        logs:
+          include: ["exiting with code 0 before the handler settles"]

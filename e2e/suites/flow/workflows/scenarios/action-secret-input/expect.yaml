@@ -1,0 +1,18 @@
+trigger: manual
+run:
+  status: succeeded
+jobs:
+  secret:
+    status: succeeded
+    steps:
+      use_token:
+        type: action
+        status: succeeded
+        logs:
+          include:
+            - "token=***"
+          exclude:
+            - "action-secret-e2e"
+runner_log:
+  exclude:
+    - "action-secret-e2e"

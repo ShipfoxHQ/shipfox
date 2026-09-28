@@ -1,0 +1,9 @@
+name: Greet
+description: Imports a package installed in the step working directory.
+main: index.ts
+inputs:
+  name:
+    required: true
+outputs:
+  greeting:
+    required: true

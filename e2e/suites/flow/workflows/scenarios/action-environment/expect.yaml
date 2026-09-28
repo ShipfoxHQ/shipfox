@@ -1,0 +1,12 @@
+trigger: manual
+run:
+  status: succeeded
+jobs:
+  inspect:
+    status: succeeded
+    steps:
+      inspect:
+        type: action
+        status: succeeded
+        logs:
+          include: ["environment holds the step env and no runner variables"]

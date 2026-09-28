@@ -1,0 +1,6 @@
+name: Use token
+description: Checks that a secret input arrives and prints it, to prove masking.
+main: index.ts
+inputs:
+  token:
+    required: true

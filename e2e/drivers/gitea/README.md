@@ -23,10 +23,13 @@ Instance side (admin-credentialed, against `E2E_GITEA_URL`):
   `{number, title, body}`.
 - `listIssueComments({org, repo, index})`: read the comments on an issue. Returns
   `{id, body}` entries for external-state assertions.
-- `commitFiles({org, repo, message, files, branch?})`: one commit for the whole batch
-  through Gitea's change-files contents API. Returns the commit SHA. File `content` is
+- `commitFiles({org, repo, message, files, branch?, newBranch?})`: one commit for the whole
+  batch through Gitea's change-files contents API. Returns the commit SHA. File `content` is
   UTF-8 text; the helper base64-encodes it. `operation` defaults to `create`; `update`
-  and `delete` need the file's current blob `sha`.
+  and `delete` need the file's current blob `sha`. `newBranch` creates that branch from
+  `branch` and commits onto it.
+- `getFileSha({org, repo, path, ref?})`: the current blob SHA of a file, for `update` and
+  `delete`. `ref` defaults to `main`.
 - `deleteRepo({org, repo})`, `deleteOrg({org})`: teardown. `deleteOrg` deletes the org's
   repositories first, then the org (Gitea rejects deleting an org that still owns repos).
 
