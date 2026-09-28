@@ -6,7 +6,7 @@ const TRAILING_SLASHES = /\/+$/;
 
 export const config = createConfig({
   REGISTRY_URL: str({
-    desc: 'URL of the Shipfox Registry that provides workflow actions and templates, such as https://registry.shipfox.io. Leave empty to disable registry references and templates.',
+    desc: 'URL of the Shipfox Registry API that provides workflow actions and templates, such as https://api.registry.shipfox.io. Leave empty to disable registry references and templates.',
     default: '',
   }),
   REGISTRY_TRUSTED_KEYS: str({

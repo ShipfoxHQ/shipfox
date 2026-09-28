@@ -31,7 +31,7 @@ await initializeModules({modules: [createRegistryModule()]});
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `REGISTRY_URL` | empty | URL of the registry. Empty disables the module: every call fails with `registry-disabled`. |
+| `REGISTRY_URL` | empty | URL of the registry API. Empty disables the module: every call fails with `registry-disabled`. |
 | `REGISTRY_TRUSTED_KEYS` | `[]` | JSON list of `{keyid, public_key}`. A public key is a base64 DER Ed25519 key. Required when `REGISTRY_URL` is set. |
 
 Startup fails when `REGISTRY_URL` is not an HTTP or HTTPS URL, when `REGISTRY_TRUSTED_KEYS` is invalid, or when a URL is set without a key. The URL is normalized: the query, fragment, credentials, and trailing slashes are dropped.
