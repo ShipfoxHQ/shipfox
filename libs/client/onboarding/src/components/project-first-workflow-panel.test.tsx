@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import {agentGrantsQueryOptions} from '@shipfox/client-agent';
 import {configureApiClient} from '@shipfox/client-api';
+import {definitionsQueryKeys} from '@shipfox/client-projects';
 import {ClientAnalyticsProvider} from '@shipfox/client-shell/runtime';
 import {afterEach, beforeEach, describe, expect, test, vi} from '@shipfox/vitest/vi';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
@@ -27,7 +28,11 @@ const PROJECT_B = 'project-b';
 
 type ProgressByScope = [FirstWorkflowScope, FirstWorkflowProgress][];
 
-function renderProjectPanel(projectId: string, progress: ProgressByScope) {
+function renderProjectPanel(
+  projectId: string,
+  progress: ProgressByScope,
+  seed: (queryClient: QueryClient) => void = () => undefined,
+) {
   const capture = vi.fn();
   const rootRoute = createRootRoute({component: Outlet});
   const panelRoute = createRoute({
@@ -53,6 +58,7 @@ function renderProjectPanel(projectId: string, progress: ProgressByScope) {
   for (const [scope, value] of progress) {
     queryClient.setQueryData(firstWorkflowQueryKeys.scope(scope), value);
   }
+  seed(queryClient);
 
   render(
     <ClientAnalyticsProvider analytics={{capture}}>
@@ -61,7 +67,7 @@ function renderProjectPanel(projectId: string, progress: ProgressByScope) {
       </QueryClientProvider>
     </ClientAnalyticsProvider>,
   );
-  return {capture};
+  return {capture, queryClient};
 }
 
 beforeEach(() => {
@@ -106,5 +112,38 @@ describe('ProjectFirstWorkflowPanel', () => {
 
     expect(await screen.findByRole('heading', {name: 'Finish your first workflow'})).toBeVisible();
     expect(screen.getByRole('link', {name: 'View run'})).toHaveAttribute('href', '/runs/run-b');
+  });
+
+  test('shows a skeleton while its progress loads', async () => {
+    renderProjectPanel(PROJECT_B, []);
+
+    expect(await screen.findByRole('status', {name: 'Loading first workflow setup'})).toBeVisible();
+  });
+
+  test('falls back to choose mode when its progress fails to load', async () => {
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() => Promise.reject(new Error('request failed'))),
+    });
+
+    renderProjectPanel(PROJECT_B, []);
+
+    expect(await screen.findByRole('heading', {name: 'Create your first workflow'})).toBeVisible();
+  });
+
+  test("refreshes the page's definitions once the project has one", async () => {
+    const {queryClient} = renderProjectPanel(
+      PROJECT_B,
+      [[{kind: 'project', projectId: PROJECT_B}, {state: 'done'}]],
+      (client) =>
+        client.setQueryData(definitionsQueryKeys.list(PROJECT_B), {pages: [], pageParams: []}),
+    );
+
+    await waitFor(() =>
+      expect(queryClient.getQueryState(definitionsQueryKeys.list(PROJECT_B))?.isInvalidated).toBe(
+        true,
+      ),
+    );
+    expect(screen.queryByRole('heading', {name: 'Create your first workflow'})).toBeNull();
   });
 });

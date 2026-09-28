@@ -99,35 +99,35 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
             <WorkflowSyncAlert sync={sync} />
             <WorkflowSyncDiagnostics sync={sync} />
 
-            <WorkflowDefinitionsTable
-              definitions={definitions}
-              isPending={definitionsQuery.isPending}
-              isError={definitionsQuery.isError}
-              isRefreshing={definitionsQuery.isRefetching}
-              sync={sync ?? null}
-              runError={runError}
-              runningDefinitionId={
-                fireManual.isPending && fireManual.variables
-                  ? fireManual.variables.definitionId
-                  : null
-              }
-              hasNextPage={definitionsQuery.hasNextPage}
-              isFetchingNextPage={definitionsQuery.isFetchingNextPage}
-              isFetchNextPageError={definitionsQuery.isFetchNextPageError}
-              onRetry={() => definitionsQuery.refetch()}
-              onLoadMore={() => definitionsQuery.fetchNextPage()}
-              onOpenDefinition={setSelectedDefinition}
-              onRun={(definition) => {
-                void handleRun(definition);
-              }}
-            />
-
             <FirstWorkflowSlot
               projectId={projectId}
               definitionsLoaded={definitionsQuery.isSuccess && !definitionsQuery.isPlaceholderData}
               definitionCount={definitions.length}
               sync={sync}
-            />
+            >
+              <WorkflowDefinitionsTable
+                definitions={definitions}
+                isPending={definitionsQuery.isPending}
+                isError={definitionsQuery.isError}
+                isRefreshing={definitionsQuery.isRefetching}
+                sync={sync ?? null}
+                runError={runError}
+                runningDefinitionId={
+                  fireManual.isPending && fireManual.variables
+                    ? fireManual.variables.definitionId
+                    : null
+                }
+                hasNextPage={definitionsQuery.hasNextPage}
+                isFetchingNextPage={definitionsQuery.isFetchingNextPage}
+                isFetchNextPageError={definitionsQuery.isFetchNextPageError}
+                onRetry={() => definitionsQuery.refetch()}
+                onLoadMore={() => definitionsQuery.fetchNextPage()}
+                onOpenDefinition={setSelectedDefinition}
+                onRun={(definition) => {
+                  void handleRun(definition);
+                }}
+              />
+            </FirstWorkflowSlot>
           </>
         ) : null}
 
@@ -143,30 +143,34 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
 }
 
 /**
- * Offers the first workflow only once the page knows the project has none and
- * no sync in progress is about to find one.
+ * Replaces the definitions table with the first workflow panel once the page
+ * knows the project has none and no sync in progress is about to find one.
  */
 function FirstWorkflowSlot({
   projectId,
   definitionsLoaded,
   definitionCount,
   sync,
+  children,
 }: {
   projectId: string;
   definitionsLoaded: boolean;
   definitionCount: number;
   sync: DefinitionSyncSummary | null | undefined;
+  children: ReactNode;
 }) {
   const {FirstWorkflowPanel} = useChrome();
   const syncInProgress = sync?.status === 'pending' || sync?.status === 'syncing';
   if (!FirstWorkflowPanel || !definitionsLoaded || definitionCount > 0 || syncInProgress) {
-    return null;
+    return children;
   }
   return <FirstWorkflowPanel projectId={projectId} />;
 }
 
 function WorkflowSyncAlert({sync}: {sync: DefinitionSyncSummary | null | undefined}) {
-  if (sync?.status !== 'failed') return null;
+  // A repository without workflow files is where every project starts, and the
+  // empty state already says so.
+  if (sync?.status !== 'failed' || sync.lastErrorCode === 'no-workflow-files') return null;
 
   return (
     <Callout role="alert" type="error">

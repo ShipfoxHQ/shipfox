@@ -1,6 +1,7 @@
-import {listDefinitions, listProjects} from '@shipfox/client-projects';
+import {definitionsQueryKeys, listDefinitions, listProjects} from '@shipfox/client-projects';
 import {listWorkflowRuns} from '@shipfox/client-workflows';
-import {queryOptions, useQuery} from '@tanstack/react-query';
+import {queryOptions, useQuery, useQueryClient} from '@tanstack/react-query';
+import {useEffect} from 'react';
 import type {FirstWorkflowProgress} from '#core/setup-checklist.js';
 import {useChecklistDismissal} from '#hooks/use-checklist-dismissal.js';
 
@@ -121,7 +122,10 @@ export interface FirstWorkflowQueryState {
 
 /**
  * Reads the first-workflow progress for a scope. The workspace scope follows
- * the checklist's dismissal: a dismissed checklist makes no request.
+ * the checklist's dismissal: a dismissed checklist makes no request. The
+ * project scope refreshes the project's definitions list once it sees a
+ * definition, because that list does not poll and the workflows page swaps the
+ * panel for it.
  */
 export function useFirstWorkflowState({
   scope,
@@ -134,5 +138,12 @@ export function useFirstWorkflowState({
       ? Boolean(scope.workspaceId) && !dismissed
       : Boolean(scope.projectId);
   const query = useQuery({...firstWorkflowQueryOptions(scope), enabled, subscribed: enabled});
+  const queryClient = useQueryClient();
+  const projectDone =
+    scope.kind === 'project' && query.data?.state === 'done' ? scope.projectId : undefined;
+  useEffect(() => {
+    if (!projectDone) return;
+    void queryClient.invalidateQueries({queryKey: definitionsQueryKeys.list(projectDone)});
+  }, [projectDone, queryClient]);
   return {progress: query.data, isError: query.isError};
 }

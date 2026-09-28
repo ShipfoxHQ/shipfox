@@ -66,7 +66,7 @@ describe('ProjectWorkflowsPage', () => {
     expect(screen.getByRole('region', {name: 'Project source'})).toBeInTheDocument();
   });
 
-  test('shows failed sync empty state', async () => {
+  test('shows the sync failure and its diagnostics when definitions are invalid', async () => {
     configureApiClient({
       fetchImpl: createProjectDetailFetch({
         definitions: jsonResponse(
@@ -78,8 +78,8 @@ describe('ProjectWorkflowsPage', () => {
               last_sync_at: '2026-05-07T01:00:00.000Z',
               started_at: '2026-05-07T01:00:00.000Z',
               finished_at: null,
-              last_error_code: 'no-workflow-files',
-              last_error_message: 'No workflow files found',
+              last_error_code: 'invalid-definition',
+              last_error_message: 'Workflow definitions are invalid',
               diagnostics: [
                 {
                   code: 'invalid-definition',
@@ -104,10 +104,8 @@ describe('ProjectWorkflowsPage', () => {
 
     renderWorkflowsPage();
 
-    expect(
-      await screen.findByText('No workflow files found under .shipfox/workflows/.'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Workflow sync failed')).toBeInTheDocument();
+    expect(await screen.findByText('Workflow sync failed')).toBeInTheDocument();
+    expect(screen.getAllByText('Workflow definitions are invalid').length).toBeGreaterThan(0);
     expect(screen.getByText('Workflow definition errors')).toBeInTheDocument();
     expect(screen.getByText('.shipfox/workflows/invalid.yml')).toHaveClass('break-all');
     expect(screen.getByText('jobs.build.steps.0.gate.success')).toHaveClass('break-all');
@@ -115,6 +113,35 @@ describe('ProjectWorkflowsPage', () => {
       screen.getByText('Step gate success must be a valid CEL boolean expression: No such key'),
     ).toHaveClass('text-tag-error-text');
     expect(screen.getByText('jobs.build.steps.1.gate.success')).toBeInTheDocument();
+  });
+
+  test('shows no sync failure when the repository has no workflow files', async () => {
+    configureApiClient({
+      fetchImpl: createProjectDetailFetch({
+        definitions: jsonResponse(
+          definitionsDto({
+            definitions: [],
+            sync: {
+              ref: 'main',
+              status: 'failed',
+              last_sync_at: '2026-05-07T01:00:00.000Z',
+              started_at: '2026-05-07T01:00:00.000Z',
+              finished_at: null,
+              last_error_code: 'no-workflow-files',
+              last_error_message: 'No workflow files found',
+              diagnostics: [],
+            },
+          }),
+        ),
+      }),
+    });
+
+    renderWorkflowsPage();
+
+    expect(
+      await screen.findByText('No workflow files found under .shipfox/workflows/.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Workflow sync failed')).not.toBeInTheDocument();
   });
 
   describe('first workflow panel slot', () => {
@@ -141,18 +168,19 @@ describe('ProjectWorkflowsPage', () => {
     }
 
     test.each([
-      ['succeeded', 'No workflow definitions found.'],
-      ['failed', 'No workflow files found under .shipfox/workflows/.'],
-    ] as const)('renders the slot under the empty state after a %s sync', async (status, message) => {
+      'succeeded',
+      'failed',
+    ] as const)('renders the slot in place of the empty list after a %s sync', async (status) => {
       configureApiClient({
         fetchImpl: createProjectDetailFetch({definitions: emptyDefinitions(status)}),
       });
 
       renderWorkflowsPage({FirstWorkflowPanel});
 
-      const emptyState = await screen.findByText(message);
-      const panel = await screen.findByText(`First workflow panel for ${PROJECT_ID}`);
-      expect(emptyState.compareDocumentPosition(panel)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(await screen.findByText(`First workflow panel for ${PROJECT_ID}`)).toBeInTheDocument();
+      expect(screen.getByRole('region', {name: 'Project source'})).toBeInTheDocument();
+      expect(screen.queryByRole('region', {name: 'Workflow definitions'})).not.toBeInTheDocument();
+      expect(screen.queryByText('Workflow sync failed')).not.toBeInTheDocument();
     });
 
     test('does not render the slot when the project has definitions', async () => {

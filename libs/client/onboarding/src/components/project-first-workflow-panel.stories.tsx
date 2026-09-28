@@ -38,18 +38,19 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The real workflows page after a sync that found no workflow files, with the panel slotted in. */
+/**
+ * The real workflows page after a sync that found no workflow files, with the
+ * panel in place of the empty list.
+ */
 export const NoWorkflowFiles: Story = {
   render: () => <EmptyProjectWorkflowsStory />,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.findByText('No workflow files found under .shipfox/workflows/.'),
-    ).resolves.toBeVisible();
-    await expect(
       canvas.findByRole('heading', {name: 'Create your first workflow'}),
     ).resolves.toBeVisible();
     await expect(canvas.findByText('Acme GitHub')).resolves.toBeVisible();
+    await expect(canvas.queryByRole('region', {name: 'Workflow definitions'})).toBeNull();
   },
 };
 
