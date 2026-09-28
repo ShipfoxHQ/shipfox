@@ -23,10 +23,10 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
   required output is missing.
 - **`log.info`, `log.warn`, `log.error`, and `log.group(name, fn)`** write to the step log.
   `group` prints collapsible `::group::` and `::endgroup::` markers.
-- **`@shipfox/actions/bootstrap`** and **`@shipfox/actions/loader`** are the action process
-  runtime, not modules to import. The runner and the testing helper start every action as
+- **`@shipfox/actions/runtime-files`** exports `ACTION_BOOTSTRAP_PATH` and `ACTION_LOADER_PATH`,
+  the built action process runtime. The runner and the testing helper start every action as
   `node --import <loader> <bootstrap>`, with the step working directory as `cwd` and the `v1`
-  environment variables set.
+  environment variables set. Run these files; do not import them.
 - **`@shipfox/actions/contract`** exports the `v1` local contract between the action process and
   the runner: routes, request and response shapes, limits, and environment variable names.
 

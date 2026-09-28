@@ -5,11 +5,9 @@ import {tmpdir} from 'node:os';
 import {dirname, join, relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {ActionContextFileV1, ActionOutputDeclarations, ActionResultFileV1} from '#contract.js';
+import {ACTION_BOOTSTRAP_PATH, ACTION_LOADER_PATH} from '#runtime-files.js';
 
-const distDir = fileURLToPath(new URL('../../dist/', import.meta.url));
-export const bootstrapPath = join(distDir, 'bootstrap.js');
-export const loaderPath = join(distDir, 'loader.js');
-export const sdkEntryPath = join(distDir, 'index.js');
+export const sdkEntryPath = fileURLToPath(new URL('../../dist/index.js', import.meta.url));
 
 export const ACTION_TOKEN = 'step-token';
 
@@ -26,8 +24,10 @@ export interface ActionSandbox {
 }
 
 export async function createActionSandbox(): Promise<ActionSandbox> {
-  if (!existsSync(bootstrapPath)) {
-    throw new Error(`${bootstrapPath} is missing. Build @shipfox/actions before these tests.`);
+  if (!existsSync(ACTION_BOOTSTRAP_PATH)) {
+    throw new Error(
+      `${ACTION_BOOTSTRAP_PATH} is missing. Build @shipfox/actions before these tests.`,
+    );
   }
   // Node reports real paths (macOS tmpdir is a symlink), so the sandbox uses them too.
   const root = await realpath(await mkdtemp(join(tmpdir(), 'shipfox-action-')));
@@ -127,7 +127,12 @@ export async function runActionProcess(
 
   const child = spawn(
     process.execPath,
-    ['--import', loaderPath, '--disable-warning=ExperimentalWarning', bootstrapPath],
+    [
+      '--import',
+      ACTION_LOADER_PATH,
+      '--disable-warning=ExperimentalWarning',
+      ACTION_BOOTSTRAP_PATH,
+    ],
     {
       cwd: sandbox.workspace,
       env: {

@@ -42,8 +42,16 @@
         "default": "./dist/contract.js"
       }
     },
-    "./bootstrap": "./dist/bootstrap.js",
-    "./loader": "./dist/loader.js"
+    "./runtime-files": {
+      "workspace-source": {
+        "types": "./src/runtime-files.ts",
+        "default": "./src/runtime-files.ts"
+      },
+      "default": {
+        "types": "./dist/runtime-files.d.ts",
+        "default": "./dist/runtime-files.js"
+      }
+    }
   },
   "scripts": {
     "build": "shipfox-swc",
