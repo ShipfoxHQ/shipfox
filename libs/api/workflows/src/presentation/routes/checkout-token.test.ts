@@ -88,6 +88,7 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
           agent: {} as never,
           annotations,
           auth: {} as never,
+          definitions: {} as never,
           integrations: integrations as never,
           projects: projects as never,
           runners: runnersTestClient,

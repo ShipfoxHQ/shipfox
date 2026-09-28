@@ -170,6 +170,7 @@ export function createWorkflowsModule({
       agent,
       annotations,
       auth,
+      definitions,
       integrations,
       toolStepExecutor,
       projects,

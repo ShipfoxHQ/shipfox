@@ -39,6 +39,7 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
           agent: agentTestClient,
           annotations: annotationsTestClient,
           auth: workflowsTestAuthClient,
+          definitions: {} as never,
           integrations: {} as never,
           projects: projectsTestClient,
           runners: runnersTestClient,

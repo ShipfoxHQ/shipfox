@@ -27,6 +27,7 @@ export {
   RunnerSessionExhaustedError,
   registerRunnerSession,
   reportStep,
+  requestActionBundle,
   requestAgentRuntimeConfig,
   requestAgentRuntimeConfigWithTiming,
   requestCheckoutToken,

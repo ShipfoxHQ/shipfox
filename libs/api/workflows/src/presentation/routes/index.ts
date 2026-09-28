@@ -2,6 +2,7 @@ import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {AUTH_LEASED_JOB, AUTH_USER} from '@shipfox/api-auth-context';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
+import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
@@ -13,6 +14,7 @@ import type {WorkflowAdmissionPolicy} from '#core/workspace-admission.js';
 import {createAgentRuntimeConfigRoute} from './agent-runtime-config.js';
 import {cancelRunRoute} from './cancel-run.js';
 import {createCheckoutTokenRoute} from './checkout-token.js';
+import {createGetActionBundleRoute} from './get-action-bundle.js';
 import {getJobDetailRoute} from './get-job-detail.js';
 import {getJobExecutionContextRoute} from './get-job-execution-context.js';
 import {getRunAggregatesRoute} from './get-run-aggregates.js';
@@ -39,6 +41,7 @@ type WorkflowRouteClients = {
   agent: AgentInterModuleClient;
   annotations: AnnotationsInterModuleClient;
   auth: AuthInterModuleClient;
+  definitions: DefinitionsInterModuleClient;
   integrations: IntegrationsModuleClient;
   toolStepExecutor?: {nudge(): void};
   projects: ProjectsModuleClient;
@@ -67,6 +70,7 @@ export function createLeaseTokenRouteGroup(params: LeaseTokenRouteClients): Rout
       }),
       createAgentRuntimeConfigRoute(params),
       createGetStepSecretsRoute(params.runners, params.secrets),
+      createGetActionBundleRoute({runners: params.runners, definitions: params.definitions}),
     ],
   };
 }

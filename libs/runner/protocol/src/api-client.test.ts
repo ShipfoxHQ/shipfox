@@ -33,6 +33,7 @@ import {
   RunnerSessionExhaustedError,
   registerRunnerSession,
   reportStep,
+  requestActionBundle,
   requestAgentRuntimeConfig,
   requestAgentRuntimeConfigWithTiming,
   requestCheckoutToken,
@@ -860,6 +861,32 @@ describe('api-client auth contexts', () => {
       },
       log_outcome: 'drained',
     });
+  });
+});
+
+describe('action bundle transport', () => {
+  it('loads the gzipped bundle from the lease-authed endpoint, retrying 5xx responses', async () => {
+    const gzip = new Uint8Array([31, 139, 8, 0]);
+    const responses = [new Response(null, {status: 503}), new Response(gzip, {status: 200})];
+    stubFetch(() => responses.shift() ?? new Response(null, {status: 500}));
+    const leaseClient = createLeaseClient('lease-action');
+
+    const bundle = await requestActionBundle(leaseClient, {stepId: STEP_ID});
+
+    expect(bundle).toEqual(Buffer.from(gzip));
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.url).toContain(`runs/jobs/current/steps/${STEP_ID}/action-bundle`);
+    expect(calls[0]?.authorization).toBe('Bearer lease-action');
+  });
+
+  it('names the status and code of a failed load', async () => {
+    stubFetch(() => jsonResponse({code: 'action-snapshot-not-found'}, 404));
+    const leaseClient = createLeaseClient('lease-action');
+
+    await expect(requestActionBundle(leaseClient, {stepId: STEP_ID})).rejects.toThrow(
+      'Action bundle load failed with status 404 (action-snapshot-not-found)',
+    );
+    expect(calls).toHaveLength(1);
   });
 });
 

@@ -99,6 +99,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
           agent: agentTestClient,
           annotations: annotationsTestClient,
           auth: workflowsTestAuthClient,
+          definitions: {} as never,
           integrations: {} as never,
           projects: projectsTestClient,
           runners: runnersTestClient,
