@@ -72,7 +72,7 @@ case "$*" in
   info) [ -z "\${RUNNER_BASE_DOCKER_DAEMON_DOWN:-}" ] ;;
   --version) echo 'Docker version 29.0.0' ;;
   'buildx version') [ -z "\${RUNNER_BASE_DOCKER_BUILDX_MISSING:-}" ] && echo 'buildx v0.30.0' ;;
-  'compose version') echo 'Docker Compose version v2.40.0' ;;
+  'compose version') [ -z "\${RUNNER_BASE_DOCKER_COMPOSE_MISSING:-}" ] && echo 'Docker Compose version v2.40.0' ;;
   *) exit 1 ;;
 esac
 `,
@@ -120,6 +120,7 @@ describe('runner base fresh-instance verification', () => {
     ['the shipfox user exists', {RUNNER_BASE_SHIPFOX_USER: '1'}, 'shipfox user'],
     ['the Docker daemon is down', {RUNNER_BASE_DOCKER_DAEMON_DOWN: '1'}, 'Docker daemon'],
     ['Buildx is missing', {RUNNER_BASE_DOCKER_BUILDX_MISSING: '1'}, 'Docker Buildx is missing'],
+    ['Compose is missing', {RUNNER_BASE_DOCKER_COMPOSE_MISSING: '1'}, 'Docker Compose is missing'],
   ])('fails when %s', (_label, environment, message) => {
     expect(() => verify(environment)).toThrow(message);
   });
