@@ -1,7 +1,7 @@
 ---
 name: create-workflow-from-template
 description: Use when setting up a Shipfox workflow from a template.
-revision: 10
+revision: 11
 catalog_title: Create a workflow from a template
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to create a workflow from a template.
@@ -39,6 +39,8 @@ Use `search_docs` for `workflow schema` and read the returned `docs://` referenc
 Ask about the options the template declares for the chosen providers, one option per message, in the template's order. Wait for each answer before asking the next. Skip options that known facts decide.
 
 ## 4. Learn the repository
+
+Skip this step silently when `workflow_yaml` has no `# slot:` markers.
 
 Find install, build, and test commands. Trust these sources in order:
 

@@ -37,5 +37,6 @@ Which Slack channel should we notify? Provide the channel ID.
 ```
 
 - If a tool in your session can list the values, such as a Slack MCP server that lists channels, look them up first and suggest the best match by name and ID. The user confirms it or picks another.
+- Never suggest a value found in repository files, such as a channel from a test or CI configuration.
 - Otherwise, say where to find the value in one sentence, such as "Slack shows it at the bottom of the channel details."
-- Leave out what the workflow will post there and choices the user already made.
+- Leave out how the workflow uses the value, such as what it posts there or which events it accepts, and choices the user already made.
