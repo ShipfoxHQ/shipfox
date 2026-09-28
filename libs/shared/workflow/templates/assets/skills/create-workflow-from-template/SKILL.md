@@ -1,7 +1,7 @@
 ---
 name: create-workflow-from-template
 description: Use when setting up a Shipfox workflow from a template.
-revision: 12
+revision: 13
 catalog_title: Create a workflow from a template
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to create a workflow from a template.
@@ -62,7 +62,7 @@ Check the guide's repository prerequisites, such as a dependency bot or CI provi
 
 Follow `skill://shipfox/validate-workflow-change/SKILL.md` with the YAML, project ID, config path, and trigger key. Complete its shape check. Skip event selection for manual and cron triggers; go to step 7.
 
-For integration triggers, state **Expected writes** and runner/inference cost. Keep project events matching the repo or selected ticket team, project, or space. Check payload and issue status; discard completed or high-risk rollouts and let the user choose. Event lookup does not verify project scope; connections may cover multiple repos or teams.
+For integration triggers, state **Expected writes** and runner/inference cost. Keep project events matching the repo or selected ticket team, project, or space. Check payload and issue status; discard completed or high-risk issues and let the user choose another event. Never change an answered option to make a test safer. Event lookup does not verify project scope; connections may cover multiple repos or teams.
 
 If no safe event matches, use Linear MCP only for Linear triggers. Suggest up to three open, low-risk issues in the selected team matching the repo filter. Ask which issue to use and give the guide's exact event-creation action; do not edit it. For other triggers, ask for a matching event and its guide action. If Linear MCP is unavailable or finds no issue, ask for a matching Linear issue and its trigger action. They can skip; report "shape validated, not executed" and go to step 9.
 
@@ -89,6 +89,7 @@ In your final message, link the workflow pull request and any pull request the t
 ## Rules
 
 - Ask one question per message and wait for the answer. Never bundle questions or offer to accept all defaults at once. Confirming a named template is the only exception.
+- Ask each question once. Reuse the user's answer in every later step; never ask again about a choice they already made.
 - Write questions in plain words a new user understands, as `skill://shipfox/create-workflow-from-template/references/ask-options.md` describes, including values such as a channel ID.
 - Never request, read, or write secret values.
 - Never guess a tool ID, event name, model ID, runner name, connection slug, or project ID.
