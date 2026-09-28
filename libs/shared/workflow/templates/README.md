@@ -123,6 +123,7 @@ For default-branch CI failures, read `skill://shipfox/create-workflow-from-templ
 For failed run reports, read `skill://shipfox/create-workflow-from-template/references/report-failed-runs.md`. It covers run event filters, options, and Slack writes.
 For tasks to pull requests, read `skill://shipfox/create-workflow-from-template/references/ticket-to-pr.md`. It covers manual task inputs, workflow outputs, the optional tracker, and expected writes.
 For Slack conversations that become tickets, read `skill://shipfox/create-workflow-from-template/references/slack-to-ticket.md`. It covers channel and team scope, manual dispatch inputs, duplicate tickets, and expected writes.
+For routing Slack requests to other workflows, read `skill://shipfox/create-workflow-from-template/references/slack-dispatcher.md`. It covers the workflow list, destination limits, the result handoff, duplicates, and expected writes.
 
 The build also serves each template guide as a `create-workflow-from-template/references/<template-id>.md` resource. The manifest lists the SHA-256 digest and byte size of every skill file.
 

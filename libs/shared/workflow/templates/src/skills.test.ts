@@ -35,6 +35,12 @@ describe('shipped skill resources', () => {
     expect(askCodebaseGuide?.text).toBe(
       readFileSync(new URL('../assets/ask-codebase/GUIDE.md', import.meta.url), 'utf8'),
     );
+    const slackDispatcherGuide = getShippedSkillResource(
+      'skill://shipfox/create-workflow-from-template/references/slack-dispatcher.md',
+    );
+    expect(slackDispatcherGuide?.text).toBe(
+      readFileSync(new URL('../assets/slack-dispatcher/GUIDE.md', import.meta.url), 'utf8'),
+    );
     const slackTicketGuide = getShippedSkillResource(
       'skill://shipfox/create-workflow-from-template/references/slack-to-ticket.md',
     );

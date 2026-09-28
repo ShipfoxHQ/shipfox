@@ -1,0 +1,13 @@
+title: Route Slack requests to your workflows
+summary: Mention one Slack app for any request, and it starts the workflow that handles it.
+starts: Someone mentions the Shipfox app in Slack with any request
+roles:
+  chat:
+    providers: [slack]
+options: []
+models:
+  route:
+    note: Reads the Slack thread, picks one listed workflow, and writes its inputs, or asks for what is missing. A mid-sized model is enough.
+slots: []
+secrets: []
+variables: []
