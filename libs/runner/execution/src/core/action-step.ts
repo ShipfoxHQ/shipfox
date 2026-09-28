@@ -35,6 +35,8 @@ const INHERITED_ENV_KEYS = new Set([
   'http_proxy',
   'https_proxy',
   'no_proxy',
+  'ALL_PROXY',
+  'all_proxy',
   'SSL_CERT_FILE',
   'SSL_CERT_DIR',
   'NODE_EXTRA_CA_CERTS',
