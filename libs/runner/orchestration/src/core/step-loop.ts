@@ -19,6 +19,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {interruptibleSleep, nextBackoffInterval, withJitter} from '@shipfox/node-resilient-loop';
 import {redactSecrets} from '@shipfox/redact';
 import {
+  type ActionToolsUpstream,
   type CheckoutDestination,
   type CheckoutDestinations,
   type CommandStartMetadata,
@@ -44,6 +45,7 @@ import {
   type AnnotationWriteOutcome,
   appendStepLogs,
   commitSessionTranscript,
+  createIntegrationToolsDownload,
   createIntegrationToolsGatewayFetch,
   HTTPError,
   integrationToolsGatewayUrl,
@@ -1557,11 +1559,15 @@ async function executeActionStepBranch(params: ProcessStepBranchParams): Promise
   // Loaded here so the MCP SDK stays out of the runner's bootstrap module set. The client
   // connects on the first tool call, so an action without calls never reaches the gateway.
   const {createGatewayMcpClient} = await import('@shipfox/runner-protocol/gateway-mcp-client');
-  const toolsUpstream = createGatewayMcpClient({
+  const gatewayClient = createGatewayMcpClient({
     url: gatewayUrl,
     fetch: createIntegrationToolsGatewayFetch(input.leaseToken, gatewayUrl),
     name: 'shipfox-action',
   });
+  const toolsUpstream: ActionToolsUpstream = {
+    callTool: (callParams, options) => gatewayClient.callTool(callParams, options),
+    downloadFile: createIntegrationToolsDownload(input.leaseToken),
+  };
   const result = await executeActionStep(input.step, {
     signal: input.signal,
     cwd: params.stepCwd,
@@ -1586,7 +1592,7 @@ async function executeActionStepBranch(params: ProcessStepBranchParams): Promise
     onOutput: (chunk, source) => stepStream?.write(chunk, source),
     toolsUpstream,
     onToolRow: (row) => stepStream?.writeToolRow(row),
-  }).finally(() => toolsUpstream.close().catch(() => undefined));
+  }).finally(() => gatewayClient.close().catch(() => undefined));
   return finishProcessStep(params, stepStream, result);
 }
 

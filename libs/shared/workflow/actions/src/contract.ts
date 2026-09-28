@@ -13,6 +13,11 @@ export const TOOLS_LIST_PATH = '/v1/tools';
 /** Encoded request body limit, sized so a 1 MB `create_commit` still fits after base64. */
 export const MAX_TOOL_REQUEST_BYTES = 2 * 1024 * 1024;
 
+/** One downloaded file. The gateway enforces the same limit. */
+export const MAX_DOWNLOAD_FILE_BYTES = 100 * 1024 * 1024;
+/** All downloads of one step together, counted as bytes arrive. */
+export const MAX_STEP_DOWNLOAD_BYTES = 1024 * 1024 * 1024;
+
 export const ACTION_ENV = {
   actionsUrl: 'SHIPFOX_ACTIONS_URL',
   actionsToken: 'SHIPFOX_ACTIONS_TOKEN',

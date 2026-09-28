@@ -42,6 +42,16 @@
         "default": "./dist/contract.js"
       }
     },
+    "./download-writer": {
+      "workspace-source": {
+        "types": "./src/download-writer.ts",
+        "default": "./src/download-writer.ts"
+      },
+      "default": {
+        "types": "./dist/download-writer.d.ts",
+        "default": "./dist/download-writer.js"
+      }
+    },
     "./runtime-files": {
       "workspace-source": {
         "types": "./src/runtime-files.ts",

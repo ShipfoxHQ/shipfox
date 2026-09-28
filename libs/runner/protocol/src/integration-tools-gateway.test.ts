@@ -1,5 +1,6 @@
 import {AGENT_INTEGRATION_MCP_ENDPOINT} from '@shipfox/api-agent-dto';
 import {
+  createIntegrationToolsDownload,
   createIntegrationToolsGatewayFetch,
   integrationToolsGatewayUrl,
 } from '#integration-tools-gateway.js';
@@ -69,6 +70,35 @@ describe('integration tools gateway protocol helpers', () => {
     );
 
     expect(calls).toEqual([]);
+  });
+
+  it('posts a download to the gateway download route with the lease token', async () => {
+    let request: Request | undefined;
+    globalThis.fetch = vi.fn((input: Request | string | URL, init?: RequestInit) => {
+      request = new Request(input, init);
+      return Promise.resolve(new Response('bytes'));
+    }) as unknown as typeof globalThis.fetch;
+    const download = createIntegrationToolsDownload(() => 'lease-current');
+
+    const response = await download(
+      {connectionSlug: 'acme-linear', tool: 'download_file', arguments: {url: 'u'}},
+      {signal: new AbortController().signal, headers: {'x-shipfox-call-id': 'call-1'}},
+    );
+
+    expect(await response.text()).toBe('bytes');
+    expect(new URL(request?.url ?? '').pathname).toBe(
+      '/runs/jobs/current/integration-tools/download',
+    );
+    expect(request?.method).toBe('POST');
+    expect(request?.headers.get('content-type')).toBe('application/json');
+    expect(request?.headers.get('authorization')).toBe('Bearer lease-current');
+    expect(request?.headers.get('x-shipfox-call-id')).toBe('call-1');
+    expect(request?.redirect).toBe('error');
+    expect(await request?.json()).toEqual({
+      connection_slug: 'acme-linear',
+      tool: 'download_file',
+      arguments: {url: 'u'},
+    });
   });
 });
 

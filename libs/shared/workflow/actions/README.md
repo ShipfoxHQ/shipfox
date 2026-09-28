@@ -32,6 +32,8 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
   environment variables set. Run these files; do not import them.
 - **`@shipfox/actions/contract`** exports the `v1` local contract between the action process and
   the runner: routes, request and response shapes, limits, and environment variable names.
+- **`@shipfox/actions/download-writer`** writes tool downloads into the job workspace. The runner
+  and the testing helper use it, so tests write files the way runs do. Actions do not import it.
 
 ## Installation and setup
 
@@ -83,6 +85,12 @@ declare module '@shipfox/actions' {
   fits a 1 MB `create_commit` after base64.
 - **Argument types are generated** from the provider catalogs into `src/generated/tool-catalog.ts`.
   Regenerate them with `pnpm --filter @shipfox/action-tool-types generate`.
+- **Downloads** resolve `destination` against the step working directory and must stay inside
+  the job workspace, symlinks included. A trailing `/` means a directory: the file keeps the
+  provider's name, made safe, or `download-<call id>`, and a taken name gets ` (2)`, ` (3)`, and
+  so on. A destination without a trailing `/` names the file and replaces it. A file is limited
+  to 100 MiB, all downloads of a step to 1 GiB, and each download to 290 seconds. A failed
+  download leaves no file behind.
 - **Cancellation** through `signal` throws `ToolCallError` with code `cancelled`. It sets
   `outcomeUnknown` when the request was already sent.
 

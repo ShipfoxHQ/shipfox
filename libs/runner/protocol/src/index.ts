@@ -47,6 +47,9 @@ export {
   runnerStartupMode,
 } from '#config.js';
 export {
+  createIntegrationToolsDownload,
   createIntegrationToolsGatewayFetch,
+  type IntegrationToolDownloadRequest,
+  type IntegrationToolsDownloadFn,
   integrationToolsGatewayUrl,
 } from '#integration-tools-gateway.js';

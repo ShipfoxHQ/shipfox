@@ -73,6 +73,7 @@ const appendStepLogsMock = vi.fn();
 const writeStepAnnotationsMock = vi.fn();
 const integrationToolsGatewayUrlMock = vi.fn();
 const gatewayClientCloseMock = vi.fn();
+const integrationToolsDownloadMock = vi.fn();
 const createGatewayMcpClientMock = vi.fn();
 const executeRunStepMock = vi.fn();
 const executeActionStepMock = vi.fn();
@@ -112,6 +113,7 @@ vi.mock('@shipfox/runner-protocol', () => ({
   writeStepAnnotations: (...args: unknown[]) => writeStepAnnotationsMock(...args),
   integrationToolsGatewayUrl: (...args: unknown[]) => integrationToolsGatewayUrlMock(...args),
   createIntegrationToolsGatewayFetch: () => fetch,
+  createIntegrationToolsDownload: () => integrationToolsDownloadMock,
   AgentRuntimeConfigRequestError,
   StepSecretsRequestError,
   HTTPError,
@@ -976,7 +978,9 @@ describe('runJobSteps', () => {
     );
     expect(executeActionStepMock).toHaveBeenCalledWith(
       actionStep,
-      expect.objectContaining({toolsUpstream: {close: gatewayClientCloseMock}}),
+      expect.objectContaining({
+        toolsUpstream: {callTool: expect.any(Function), downloadFile: integrationToolsDownloadMock},
+      }),
     );
     expect(gatewayClientCloseMock).toHaveBeenCalledTimes(1);
     expect(reportStepMock).toHaveBeenCalledWith(
