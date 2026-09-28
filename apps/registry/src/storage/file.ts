@@ -51,8 +51,8 @@ export class FileRegistryStorage implements RegistryStorage {
     const path = this.#path(key);
     await mkdir(dirname(path), {recursive: true});
     const temporary = join(dirname(path), `${TEMPORARY_PREFIX}${randomUUID()}`);
-    await writeFile(temporary, body);
     try {
+      await writeFile(temporary, body);
       if (ifNoneMatch === '*') {
         // link() fails when the target exists, which makes create-only atomic.
         await link(temporary, path).catch((error: unknown) => {

@@ -49,7 +49,7 @@ const bootstrapSchema = z
       const namespace = parseRegistryPackageName(packageName)?.namespace;
       if (seen.has(packageName)) {
         context.addIssue({code: 'custom', path: ['featured', index], message: 'is listed twice'});
-      } else if (namespace && !(namespace in bootstrap.namespaces)) {
+      } else if (namespace && !Object.hasOwn(bootstrap.namespaces, namespace)) {
         context.addIssue({
           code: 'custom',
           path: ['featured', index],

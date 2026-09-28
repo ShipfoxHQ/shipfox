@@ -181,7 +181,8 @@ function hasCapabilityChange(
 ): boolean {
   if (!previous || document.kind !== 'action') return false;
   return (
-    canonicalJson(previous.derived.capabilities) !== canonicalJson(document.derived.capabilities)
+    canonicalJson(previous.derived.capabilities ?? {}) !==
+    canonicalJson(document.derived.capabilities ?? {})
   );
 }
 

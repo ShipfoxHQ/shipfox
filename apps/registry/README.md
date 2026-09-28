@@ -90,8 +90,8 @@ Unknown fields are errors, so a typo refuses startup.
 - The file store makes conditional writes atomic within one process. Run a
   single registry process per directory.
 - Indexes, the catalog, and profiles are unsigned. The registry updates the
-  catalog and indexes with `If-Match` and a bounded retry, so concurrent
-  writers do not lose entries.
+  catalog and indexes with `If-Match` and a bounded retry. Concurrent writers
+  therefore do not lose entries.
 - `.well-known/shipfox-registry.json` lists the signing key's public key as
   base64 of its 32 raw bytes. It is informational: instances trust only their
   configured keys.

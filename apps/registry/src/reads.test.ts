@@ -65,6 +65,7 @@ describe('read routes', () => {
     expect(envelope.headers['cache-control']).toBe('public, max-age=31536000, immutable');
     expect(blob.statusCode).toBe(200);
     expect(blob.headers['content-type']).toBe('application/octet-stream');
+    expect(blob.headers['cache-control']).toBe('public, max-age=31536000, immutable');
     expect(blob.rawPayload).toEqual(Buffer.from([0x1f, 0x8b, 0x00]));
   });
 
@@ -86,6 +87,7 @@ describe('read routes', () => {
     '/v1/../_registry/jti/abc',
     '/v1/%2E%2E/_registry/jti/abc',
     '/_registry/jti/abc',
+    '/v1/%00',
   ])('answers %s with 404', async (url) => {
     await registry.storage.put({
       key: '_registry/jti/abc',

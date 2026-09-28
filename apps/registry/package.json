@@ -10,7 +10,10 @@
   "type": "module",
   "imports": {
     "#test/*": "./test/*",
-    "#*": "./src/*"
+    "#*": {
+      "workspace-source": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "scripts": {
     "build": "shipfox-swc",

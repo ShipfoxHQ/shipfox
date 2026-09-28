@@ -126,6 +126,11 @@ describe('prepareRegistry', () => {
       'names namespace other, which is not declared',
     ],
     [
+      'a featured package in a namespace named like an Object property',
+      'featured: [constructor/tool]\nnamespaces: {shipfox: {profile: {display_name: S}}}',
+      'names namespace constructor, which is not declared',
+    ],
+    [
       'a publisher without numeric ids',
       BOOTSTRAP_YAML.replace('"812345678"', 'ShipfoxHQ'),
       'repository_id must be a numeric id',

@@ -76,8 +76,9 @@ async function readVersionDocuments(storage: RegistryStorage) {
       skipped.push({key, reason: `payload names ${document.package}@${document.version}`});
       continue;
     }
-    const documents = documentsByPackage.get(document.package) ?? [];
-    documentsByPackage.set(document.package, [...documents, document]);
+    const documents = documentsByPackage.get(document.package);
+    if (documents) documents.push(document);
+    else documentsByPackage.set(document.package, [document]);
   }
   return {documentsByPackage, skipped};
 }

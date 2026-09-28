@@ -37,6 +37,7 @@ export function isStorageKey(key: string): boolean {
   return (
     key !== '' &&
     !key.includes('\\') &&
+    !key.includes('\0') &&
     segments.every((segment) => segment !== '' && segment !== '.' && segment !== '..')
   );
 }
