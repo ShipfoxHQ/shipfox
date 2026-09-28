@@ -24,7 +24,8 @@ import {
 } from '@tanstack/react-router';
 import type {ReactNode} from 'react';
 import {useEffect, useMemo, useState} from 'react';
-import {deriveSetupChecklist} from '#core/setup-checklist.js';
+import {deriveSetupChecklist, type FirstWorkflowProgress} from '#core/setup-checklist.js';
+import {firstWorkflowQueryKeys} from '#hooks/api/first-workflow.js';
 import {setWorkspaceSetupChecklistExpanded} from '#hooks/use-checklist-expansion.js';
 import {
   SetupChecklistBody,
@@ -33,6 +34,7 @@ import {
   WorkspaceSetupChecklist,
   WorkspaceSetupIndicator,
 } from './setup-checklist.js';
+import {FirstWorkflowCelebration} from './setup-checklist-completion.js';
 
 const WORKSPACE: WorkspaceReference = {id: 'story-workspace', slug: 'acme'};
 const DISMISSED_WORKSPACE: WorkspaceReference = {
@@ -64,6 +66,18 @@ const githubConnection: IntegrationConnection = {
   displayName: 'GitHub',
   lifecycleStatus: 'active',
   capabilities: ['source_control'],
+  createdAt: now,
+  updatedAt: now,
+};
+const activeLinearConnection: IntegrationConnection = {
+  id: 'linear-connection',
+  workspaceId: WORKSPACE.id,
+  provider: 'linear',
+  externalAccountId: 'linear-account',
+  slug: 'linear-account',
+  displayName: 'Linear',
+  lifecycleStatus: 'active',
+  capabilities: ['agent_tools'],
   createdAt: now,
   updatedAt: now,
 };
@@ -106,6 +120,7 @@ const completeChecklist = deriveSetupChecklist({
   workspaceRunnerCapacity: false,
   modelProvider: {installationProvided: true, configured: false},
   membership: {memberCount: 2, pendingInvitationCount: 0},
+  firstWorkflow: {state: 'done'},
 });
 
 const meta = {
@@ -140,6 +155,28 @@ export const NeedsAttentionPanel: Story = {
 
 export const NeedsAttentionIndicator: Story = {
   render: () => <HostStory scenario="attention" host="indicator" />,
+};
+
+export const TestRunSucceededPanel: Story = {
+  render: () => <HostStory scenario="test-run" host="panel" />,
+};
+
+export const TestRunSucceededIndicator: Story = {
+  render: () => <HostStory scenario="test-run" host="indicator" />,
+};
+
+export const FirstWorkflowCelebrated: Story = {
+  render: () => (
+    <div className="min-h-[240px] bg-background-subtle-base p-frame">
+      <div className="mx-auto w-full max-w-[480px]">
+        <Panel>
+          <PanelBody>
+            <FirstWorkflowCelebration showBurst={false} />
+          </PanelBody>
+        </Panel>
+      </div>
+    </div>
+  ),
 };
 
 export const SelfHostedPanelExpanded: Story = {
@@ -251,7 +288,15 @@ function DismissedStory() {
   );
 }
 
-type Scenario = 'attention' | 'cloud' | 'complete' | 'self-hosted';
+type Scenario = 'attention' | 'cloud' | 'complete' | 'self-hosted' | 'test-run';
+
+const SCENARIO_FIRST_WORKFLOW: Record<Scenario, FirstWorkflowProgress> = {
+  attention: {state: 'open'},
+  cloud: {state: 'open'},
+  complete: {state: 'done'},
+  'self-hosted': {state: 'open'},
+  'test-run': {state: 'test_run_succeeded', testRunId: 'story-run'},
+};
 
 function StoryProviders({
   scenario,
@@ -277,10 +322,14 @@ function StoryProviders({
 
 function createScenarioQueryClient(scenario: Scenario, workspace: WorkspaceReference) {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
-  const cloud = scenario === 'cloud' || scenario === 'complete';
+  const cloud = scenario === 'cloud' || scenario === 'complete' || scenario === 'test-run';
   const attention = scenario === 'attention';
-  const providers = attention ? [githubProvider, linearProvider] : [githubProvider];
-  const connections = attention ? [githubConnection, disabledLinearConnection] : [githubConnection];
+  const toolsConnected = scenario === 'test-run';
+  const providers =
+    attention || toolsConnected ? [githubProvider, linearProvider] : [githubProvider];
+  const connections = [githubConnection];
+  if (attention) connections.push(disabledLinearConnection);
+  if (toolsConnected) connections.push(activeLinearConnection);
   const runnerResponse = {
     provisioners: [],
     installationRunners: cloud ? ('managed' as const) : ('none' as const),
@@ -314,6 +363,10 @@ function createScenarioQueryClient(scenario: Scenario, workspace: WorkspaceRefer
     },
   ]);
   queryClient.setQueryData(listInvitationsQueryKey(workspace.id), []);
+  queryClient.setQueryData(
+    firstWorkflowQueryKeys.scope({kind: 'workspace', workspaceId: workspace.id}),
+    SCENARIO_FIRST_WORKFLOW[scenario],
+  );
 
   return queryClient;
 }
@@ -327,6 +380,7 @@ function createStoryRouter(children: ReactNode) {
     '/w/$workspaceSlug/settings/agents',
     '/w/$workspaceSlug/settings/members',
     '/w/$workspaceSlug/setup/members',
+    '/runs/$workflowRunId',
   ].map((path) =>
     createRoute({
       getParentRoute: () => rootRoute,

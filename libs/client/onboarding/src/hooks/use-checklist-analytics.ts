@@ -58,3 +58,43 @@ export function useShownAnalytics(host: ChecklistHost, visible: boolean) {
     analytics.capture('onboarding_checklist_shown', {host});
   }, [analytics, host, visible]);
 }
+
+/**
+ * Observes the first-workflow row going from not done to done. A workspace
+ * that already had a definition on load never celebrates. Activation is always
+ * captured; the burst plays only when the checklist stays open, because a
+ * transition that also completes the checklist gets the checklist's burst.
+ */
+export function useFirstWorkflowActivation(queryState: ChecklistQueryState) {
+  const analytics = useClientAnalytics();
+  const observedNotDone = useRef(false);
+  const activationHandled = useRef(false);
+  const [celebrating, setCelebrating] = useState(false);
+  const state = queryState.firstWorkflow?.state;
+  const completesChecklist = queryState.checklist.complete;
+
+  useEffect(() => {
+    if (state === undefined) return;
+    if (state !== 'done') {
+      observedNotDone.current = true;
+      return;
+    }
+    if (!observedNotDone.current || activationHandled.current) return;
+    activationHandled.current = true;
+    analytics.capture('first_workflow_activated');
+    if (!completesChecklist) setCelebrating(true);
+  }, [analytics, completesChecklist, state]);
+
+  return celebrating;
+}
+
+export function useFirstWorkflowTestRunShown(host: ChecklistHost, shown: boolean) {
+  const analytics = useClientAnalytics();
+  const captured = useRef(false);
+
+  useEffect(() => {
+    if (!shown || captured.current) return;
+    captured.current = true;
+    analytics.capture('first_workflow_test_run_shown', {host});
+  }, [analytics, host, shown]);
+}

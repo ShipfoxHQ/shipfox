@@ -7,7 +7,11 @@ import {cn} from '@shipfox/react-ui/utils';
 import {useCallback, useId, useState} from 'react';
 import type {SetupChecklistItem} from '#core/setup-checklist.js';
 import {useSetupChecklistQueryState} from '#hooks/api/setup-checklist.js';
-import {useCompletionTransition, useShownAnalytics} from '#hooks/use-checklist-analytics.js';
+import {
+  useCompletionTransition,
+  useFirstWorkflowTestRunShown,
+  useShownAnalytics,
+} from '#hooks/use-checklist-analytics.js';
 import {useChecklistDismissal} from '#hooks/use-checklist-dismissal.js';
 import {SetupChecklistBody} from './setup-checklist-body.js';
 import {ChecklistDismissAction, checklistCountLabel} from './setup-checklist-host-primitives.js';
@@ -69,6 +73,10 @@ function WorkspaceSetupIndicatorForWorkspace({workspace}: {workspace: WorkspaceR
     indicatorReady &&
     (!queryState.checklist.complete || showCompletion);
   useShownAnalytics('popover', isVisible);
+  useFirstWorkflowTestRunShown(
+    'popover',
+    isVisible && open && queryState.firstWorkflow?.state === 'test_run_succeeded',
+  );
 
   if (dismissal.dismissed || !queryState.baseSettled || !indicatorReady) return null;
   if (queryState.checklist.complete && !showCompletion) return null;

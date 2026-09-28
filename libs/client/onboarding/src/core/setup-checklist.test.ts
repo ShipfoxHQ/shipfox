@@ -32,6 +32,7 @@ function input(overrides: Partial<SetupChecklistInput> = {}): SetupChecklistInpu
     workspaceRunnerCapacity: false,
     modelProvider: {installationProvided: true, configured: false},
     membership: {memberCount: 1, pendingInvitationCount: 0},
+    firstWorkflow: {state: 'open'},
     ...overrides,
   };
 }
@@ -53,24 +54,24 @@ describe('deriveSetupChecklist', () => {
     ]);
   });
 
-  test('renders the Cloud shape as 2 of 3 done', () => {
+  test('renders the Cloud shape as 2 of 4 done', () => {
     const checklist = deriveSetupChecklist(input());
 
     expect(checklist.items.map((item) => [item.id, item.status])).toEqual([
       ['source-control', 'done'],
       ['project', 'done'],
       ['tools', 'open'],
-      ['first-workflow', 'info'],
+      ['first-workflow', 'open'],
       ['teammates', 'info'],
     ]);
-    expect(checklist.trackedCount).toBe(3);
-    expect(checklist.openCount).toBe(1);
+    expect(checklist.trackedCount).toBe(4);
+    expect(checklist.openCount).toBe(2);
     expect(checklist.complete).toBe(false);
   });
 
-  test('completes on Cloud once a tool is connected', () => {
+  test('completes on Cloud once a tool is connected and the first workflow exists', () => {
     const checklist = deriveSetupChecklist(
-      input({readiness: readiness({hasToolIntegration: true})}),
+      input({readiness: readiness({hasToolIntegration: true}), firstWorkflow: {state: 'done'}}),
     );
 
     expect(checklist.openCount).toBe(0);
@@ -78,7 +79,7 @@ describe('deriveSetupChecklist', () => {
     expect(checklist.items.find((item) => item.id === 'tools')?.status).toBe('done');
   });
 
-  test('renders the bare self-host shape as 2 of 5 done', () => {
+  test('renders the bare self-host shape as 2 of 6 done', () => {
     const checklist = deriveSetupChecklist(
       input({
         installationRunners: 'none',
@@ -95,18 +96,19 @@ describe('deriveSetupChecklist', () => {
       'first-workflow',
       'teammates',
     ]);
-    expect(checklist.trackedCount).toBe(5);
-    expect(checklist.openCount).toBe(3);
+    expect(checklist.trackedCount).toBe(6);
+    expect(checklist.openCount).toBe(4);
     expect(checklist.complete).toBe(false);
   });
 
-  test('completes on a bare self-host only when tools, runner, and model provider are done', () => {
+  test('completes on a bare self-host only when tools, runner, model provider, and first workflow are done', () => {
     const checklist = deriveSetupChecklist(
       input({
         readiness: readiness({hasToolIntegration: true}),
         installationRunners: 'none',
         workspaceRunnerCapacity: true,
         modelProvider: {installationProvided: false, configured: true},
+        firstWorkflow: {state: 'done'},
       }),
     );
 
@@ -121,6 +123,7 @@ describe('deriveSetupChecklist', () => {
         installationRunners: 'none',
         workspaceRunnerCapacity: false,
         modelProvider: {installationProvided: false, configured: true},
+        firstWorkflow: {state: 'done'},
       }),
     );
 
@@ -291,14 +294,45 @@ describe('deriveSetupChecklist', () => {
     });
   });
 
-  test('treats the first-workflow row as a pointer that never counts', () => {
-    const checklist = deriveSetupChecklist(input());
+  test('asks for the first workflow from the workspace home while nothing ran', () => {
+    const checklist = deriveSetupChecklist(input({firstWorkflow: {state: 'open'}}));
 
-    expect(checklist.items.find((item) => item.id === 'first-workflow')).toMatchObject({
-      status: 'info',
-      tracked: false,
-      action: {href: '/docs/getting-started'},
+    expect(checklist.items.find((item) => item.id === 'first-workflow')).toEqual({
+      id: 'first-workflow',
+      title: 'Create your first workflow',
+      status: 'open',
+      tracked: true,
+      purpose: 'Your coding agent sets it up from a template',
+      action: {label: 'Choose a workflow', href: '/'},
     });
+  });
+
+  test('points at the workflow pull request once a test run succeeded', () => {
+    const checklist = deriveSetupChecklist(
+      input({firstWorkflow: {state: 'test_run_succeeded', testRunId: 'run-1'}}),
+    );
+
+    expect(checklist.items.find((item) => item.id === 'first-workflow')).toEqual({
+      id: 'first-workflow',
+      title: 'A test run succeeded',
+      status: 'open',
+      tracked: true,
+      purpose: 'Merge the workflow pull request from your coding agent to turn the workflow on',
+      action: {label: 'View run', href: '/runs/$workflowRunId', workflowRunId: 'run-1'},
+    });
+    expect(checklist.openCount).toBe(2);
+  });
+
+  test('marks the first-workflow row done once a definition exists', () => {
+    const checklist = deriveSetupChecklist(input({firstWorkflow: {state: 'done'}}));
+
+    expect(checklist.items.find((item) => item.id === 'first-workflow')).toEqual({
+      id: 'first-workflow',
+      title: 'Create your first workflow',
+      status: 'done',
+      tracked: true,
+    });
+    expect(checklist.openCount).toBe(1);
   });
 
   test('treats the teammates row as a pointer that never counts', () => {
@@ -336,9 +370,9 @@ describe('deriveSetupChecklist', () => {
       }),
     );
 
-    expect(checklist.trackedCount).toBe(5);
-    expect(checklist.openCount).toBe(3);
-    expect(checklist.items.filter((item) => !item.tracked)).toHaveLength(2);
+    expect(checklist.trackedCount).toBe(6);
+    expect(checklist.openCount).toBe(4);
+    expect(checklist.items.filter((item) => !item.tracked)).toHaveLength(1);
   });
 });
 
@@ -366,13 +400,21 @@ describe('selectNextSetupStep', () => {
     expect(selectNextSetupStep(checklist)?.id).toBe('runner');
   });
 
-  test('falls back to the first unfinished pointer when every tracked row is done', () => {
+  test('asks for the first workflow once the tools row is done', () => {
     const checklist = deriveSetupChecklist(
       input({readiness: readiness({hasToolIntegration: true})}),
     );
 
-    expect(checklist.openCount).toBe(0);
     expect(selectNextSetupStep(checklist)?.id).toBe('first-workflow');
+  });
+
+  test('falls back to the first unfinished pointer when every tracked row is done', () => {
+    const checklist = deriveSetupChecklist(
+      input({readiness: readiness({hasToolIntegration: true}), firstWorkflow: {state: 'done'}}),
+    );
+
+    expect(checklist.openCount).toBe(0);
+    expect(selectNextSetupStep(checklist)?.id).toBe('teammates');
   });
 
   test('returns nothing when the checklist has no rows left to show', () => {

@@ -130,7 +130,7 @@ function appendFilters(params: URLSearchParams, filters: WorkflowRunFilters) {
   if (filters.createdTo) params.set('created_to', filters.createdTo);
 }
 
-async function listWorkflowRuns({
+export async function listWorkflowRuns({
   projectId,
   filters,
   limit = 50,

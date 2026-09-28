@@ -140,6 +140,7 @@ export {
 export {
   type FireManualWorkflowVariables,
   fireManualWorkflow,
+  listWorkflowRuns,
   useCancelWorkflowRunMutation,
   useFireManualWorkflowMutation,
   useWorkflowRunAttemptsQuery,

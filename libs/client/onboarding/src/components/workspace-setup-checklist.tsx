@@ -3,11 +3,16 @@ import {Panel, PanelBody} from '@shipfox/react-ui/panel';
 import {useCallback, useId, useState} from 'react';
 import {type SetupChecklistItem, selectNextSetupStep} from '#core/setup-checklist.js';
 import {type ChecklistQueryState, useSetupChecklistQueryState} from '#hooks/api/setup-checklist.js';
-import {useCompletionTransition, useShownAnalytics} from '#hooks/use-checklist-analytics.js';
+import {
+  useCompletionTransition,
+  useFirstWorkflowActivation,
+  useFirstWorkflowTestRunShown,
+  useShownAnalytics,
+} from '#hooks/use-checklist-analytics.js';
 import {useChecklistDismissal} from '#hooks/use-checklist-dismissal.js';
 import {useChecklistExpansion} from '#hooks/use-checklist-expansion.js';
 import {SetupChecklistBody} from './setup-checklist-body.js';
-import {SetupChecklistCompletion} from './setup-checklist-completion.js';
+import {FirstWorkflowCelebration, SetupChecklistCompletion} from './setup-checklist-completion.js';
 import {
   type ChecklistExpansionControl,
   ChecklistHeader,
@@ -44,8 +49,11 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
     if (completed) setBurstPending(true);
   }, []);
   const showCompletion = useCompletionTransition(queryState, 'panel', handleCompleted);
+  const firstWorkflowCelebrating = useFirstWorkflowActivation(queryState);
+  const [firstWorkflowBurstPlayed, setFirstWorkflowBurstPlayed] = useState(false);
   const analytics = useClientAnalytics();
   const consumeBurst = useCallback(() => setBurstPending(false), []);
+  const consumeFirstWorkflowBurst = useCallback(() => setFirstWorkflowBurstPlayed(true), []);
 
   const dismiss = useCallback(() => {
     dismissal.dismiss();
@@ -69,6 +77,14 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
     queryState.baseSettled &&
     (queryState.checklist.openCount > 0 || showCompletion);
   useShownAnalytics('panel', isVisible);
+  const nextStep = selectNextSetupStep(queryState.checklist);
+  useFirstWorkflowTestRunShown(
+    'panel',
+    isVisible &&
+      !showCompletion &&
+      queryState.firstWorkflow?.state === 'test_run_succeeded' &&
+      (expanded || nextStep?.id === 'first-workflow'),
+  );
 
   if (dismissal.dismissed) return null;
 
@@ -106,6 +122,11 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
             completion={showCompletion}
             showBurst={burstPending}
             onBurstComplete={consumeBurst}
+            firstWorkflowCelebration={
+              firstWorkflowCelebrating
+                ? {showBurst: !firstWorkflowBurstPlayed, onBurstComplete: consumeFirstWorkflowBurst}
+                : undefined
+            }
             onAction={handleAction}
             onDone={dismiss}
           />
@@ -127,6 +148,7 @@ function ChecklistPanelBody({
   completion,
   showBurst,
   onBurstComplete,
+  firstWorkflowCelebration,
   onAction,
   onDone,
 }: {
@@ -136,6 +158,7 @@ function ChecklistPanelBody({
   completion: boolean;
   showBurst: boolean;
   onBurstComplete: () => void;
+  firstWorkflowCelebration: {showBurst: boolean; onBurstComplete: () => void} | undefined;
   onAction: (item: SetupChecklistItem) => void;
   onDone: () => void;
 }) {
@@ -152,25 +175,39 @@ function ChecklistPanelBody({
     );
   }
 
+  const celebration = firstWorkflowCelebration ? (
+    <FirstWorkflowCelebration
+      showBurst={firstWorkflowCelebration.showBurst}
+      onBurstComplete={firstWorkflowCelebration.onBurstComplete}
+    />
+  ) : null;
+
   if (expanded) {
     return (
-      <SetupChecklistBody
-        checklist={queryState.checklist}
-        workspaceSlug={workspaceSlug}
-        onAction={onAction}
-      />
+      <>
+        {celebration}
+        <SetupChecklistBody
+          checklist={queryState.checklist}
+          workspaceSlug={workspaceSlug}
+          onAction={onAction}
+        />
+      </>
     );
   }
 
   const nextStep = selectNextSetupStep(queryState.checklist);
-  if (!nextStep) return null;
 
-  // A pointer only leads once nothing is left to ask for. The runner and
-  // model-provider rows stay hidden while their families load, so promoting the
-  // pointer then would call setup finished a moment too early.
-  if (!nextStep.tracked && !queryState.trackedRowsSettled) return <ChecklistSkeleton />;
+  // A pointer only leads once nothing is left to ask for. The runner,
+  // model-provider, and first-workflow rows stay hidden while their families
+  // load, so promoting a pointer, or showing nothing, would call setup finished
+  // a moment too early.
+  if (!nextStep?.tracked && !queryState.trackedRowsSettled) return <ChecklistSkeleton />;
+  if (!nextStep) return celebration;
 
   return (
-    <SetupChecklistNextStep item={nextStep} workspaceSlug={workspaceSlug} onAction={onAction} />
+    <>
+      {celebration}
+      <SetupChecklistNextStep item={nextStep} workspaceSlug={workspaceSlug} onAction={onAction} />
+    </>
   );
 }

@@ -5,7 +5,7 @@ import {ChecklistStatus, checklistActionTarget} from './setup-checklist-item-pri
 
 /**
  * The collapsed panel body: one step at full weight. A pointer keeps the
- * secondary fill, because reading the quickstart is an offer rather than the
+ * secondary fill, because inviting teammates is an offer rather than the
  * workspace's next unfinished ask.
  */
 export function SetupChecklistNextStep({
