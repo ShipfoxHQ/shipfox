@@ -242,6 +242,7 @@ describe('workflow run origin schemas', () => {
     expect(result.dev_source).toMatchObject({
       ref: 'fix-triage-prompt',
       definition_source: 'ref',
+      local_actions: [],
       replay_of_event_id: '66666666-6666-4666-8666-666666666666',
     });
   });
@@ -255,6 +256,7 @@ describe('workflow run origin schemas', () => {
         ref: 'main',
         commit: 'abc123',
         definition_source: 'local',
+        local_actions: ['./.shipfox/actions/notify'],
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '55555555-5555-4555-8555-555555555555',
         replay_of_event_id: null,
@@ -262,6 +264,7 @@ describe('workflow run origin schemas', () => {
     });
 
     expect(result.dev_source?.definition_source).toBe('local');
+    expect(result.dev_source?.local_actions).toEqual(['./.shipfox/actions/notify']);
   });
 
   test('accepts a dev run without a replayed event', () => {

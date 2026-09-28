@@ -358,7 +358,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
           replayOfEventId: idSchema.optional(),
           definitionSource: z.enum(['ref', 'local']).optional(),
           /** `uses` paths of the action directories uploaded with the run. */
-          localActions: z.array(z.string().min(1).max(1024)).optional(),
+          localActions: z.array(z.string().min(1)).optional(),
         }),
         triggerConnectionId: idSchema.optional(),
         triggerPayload: triggerPayloadSchema,
