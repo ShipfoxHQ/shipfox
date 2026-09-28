@@ -1,7 +1,7 @@
 import type {ActionRunContext} from '#contract.js';
 import type {ActionLog} from '#log.js';
 import type {ActionOutputValues} from '#outputs.js';
-import type {Tools} from '#tools-client.js';
+import type {Tools} from '#tool-types.js';
 
 export type ActionInputs = Readonly<Record<string, unknown>>;
 

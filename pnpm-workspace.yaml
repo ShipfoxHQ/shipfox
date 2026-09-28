@@ -143,6 +143,7 @@ catalog:
   "jotai": "^2.19.1"
   "js-yaml": "^4.1.0"
   "jsdom": "^29.0.0"
+  "json-schema-to-typescript": "^16.0.0"
   "ky": "^2.0.0"
   "lucide-react": "^1.0.0"
   "mjml": "^5.0.0"

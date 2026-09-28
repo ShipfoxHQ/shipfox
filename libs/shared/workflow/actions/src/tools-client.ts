@@ -8,32 +8,8 @@ import {
   type ToolFailureResponseV1,
 } from '#contract.js';
 import {ToolCallError} from '#tool-call-error.js';
-import {type DownloadedFile, ToolResult, toDownloadedFile} from '#tool-result.js';
-
-export type ToolArguments = Record<string, unknown>;
-
-export interface ToolCallOptions {
-  signal?: AbortSignal;
-}
-
-export interface ToolDownloadOptions extends ToolCallOptions {
-  /** Relative to the step working directory. A trailing `/` means a directory. */
-  destination: string;
-}
-
-export interface AliasTools {
-  /** Calls a granted tool. Throws `ToolCallError` when the call fails. */
-  call(tool: string, args?: ToolArguments, options?: ToolCallOptions): Promise<ToolResult>;
-  /** Calls a granted file tool and writes the file into the workspace. */
-  download(
-    tool: string,
-    args: ToolArguments,
-    options: ToolDownloadOptions,
-  ): Promise<DownloadedFile>;
-}
-
-/** Tool clients by manifest integration alias, for example `tools.slack`. */
-export type Tools = Readonly<Record<string, AliasTools>>;
+import {ToolResult, toDownloadedFile} from '#tool-result.js';
+import type {AliasTools, Tools} from '#tool-types.js';
 
 export interface ToolsClientOptions {
   /** The local endpoint, `SHIPFOX_ACTIONS_URL`. */

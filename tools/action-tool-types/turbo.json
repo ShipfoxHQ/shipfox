@@ -1,0 +1,9 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/libs/shared/workflow/actions/src/generated/**"]
+    }
+  }
+}
