@@ -125,7 +125,7 @@ const stepErrorExpectationSchema = z
     reason: stepErrorReasonSchema.optional(),
     field: z.string().optional(),
     source: z.string().optional(),
-    message: z.string().optional(),
+    message: z.string().min(1).optional(),
   })
   .strict();
 

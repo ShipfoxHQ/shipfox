@@ -27,8 +27,8 @@ scenarios/hello-world/
 ```
 
 A scenario whose `files/` holds an action directory (an `action.yml`) gets its definition
-from the definition sync, because only a sync snapshots actions. Other scenarios create
-their definition with `POST /definitions`.
+from the definition sync, because only a sync snapshots actions. Other `expect.yaml` scenarios
+create their definition with `POST /definitions`.
 
 `tests/scenarios.e2e.ts` discovers every directory that contains an `expect.yaml` or
 `reject.yaml` and registers one Playwright test for it. Each `expect.yaml` test,

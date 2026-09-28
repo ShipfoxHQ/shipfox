@@ -202,6 +202,8 @@ jobs:
 test('an action-only commit makes a new definition version and reruns keep their snapshot', async ({
   suite,
 }) => {
+  // Three runs, each with its own terminal budget.
+  test.slow();
   const token = suite.sessionToken;
   const workflowYaml = `
 name: Action snapshot versions
