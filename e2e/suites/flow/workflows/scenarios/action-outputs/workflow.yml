@@ -1,0 +1,28 @@
+name: Action outputs
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  outputs:
+    steps:
+      - key: probe
+        name: Set typed outputs
+        uses: ./.shipfox/actions/probe
+      - key: consume
+        name: Read typed outputs
+        env:
+          AS_TRUE: ${{ toJson(steps.probe.outputs.as_true) }}
+          AS_NUMBER: ${{ toJson(steps.probe.outputs.as_number) }}
+          AS_NULL: ${{ toJson(steps.probe.outputs.as_null) }}
+          AS_ARRAY: ${{ toJson(steps.probe.outputs.as_array) }}
+          STRUCTURED: ${{ toJson(steps.probe.outputs.structured) }}
+          PARTIAL: ${{ steps.probe.outputs.partial }}
+        run: |
+          test "$AS_TRUE" = '"true"'
+          test "$AS_NUMBER" = '"123"'
+          test "$AS_NULL" = '"null"'
+          test "$AS_ARRAY" = '"[1]"'
+          test "$STRUCTURED" = '{"items":[2,true,null]}'
+          test "$PARTIAL" = "set before return"
+          echo "typed outputs consumed"

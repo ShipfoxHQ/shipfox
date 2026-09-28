@@ -281,6 +281,9 @@ export function e2eEnv(sourceEnv) {
     // harness-defaulted deployment is not bootstrap-able by anyone with
     // repository access.
     AUTH_IMPERSONATION_ENABLED: valueOr(sourceEnv.AUTH_IMPERSONATION_ENABLED, 'true'),
+    // Workflow actions stay dark in production until launch. Its `devDefault` does not
+    // apply here, because the E2E API runs without NODE_ENV.
+    DEFINITION_ACTIONS_ENABLED: valueOr(sourceEnv.DEFINITION_ACTIONS_ENABLED, 'true'),
     ADMIN_BOOTSTRAP_TOKEN: valueOr(sourceEnv.ADMIN_BOOTSTRAP_TOKEN, e2eBootstrapToken),
     AUTH_SIGNUP_GATE_ENABLED: valueOr(
       sourceEnv.AUTH_SIGNUP_GATE_ENABLED,

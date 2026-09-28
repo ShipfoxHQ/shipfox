@@ -31,7 +31,9 @@ export {
   createRepo,
   deleteOrg,
   deleteRepo,
+  type GetFileShaParams,
   generateOrgName,
+  getFileSha,
   type IssueComment,
   listIssueComments,
 } from './instance.js';

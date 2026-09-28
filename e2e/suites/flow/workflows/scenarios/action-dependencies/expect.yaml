@@ -1,0 +1,27 @@
+trigger: manual
+run:
+  status: succeeded
+jobs:
+  deps:
+    status: succeeded
+    steps:
+      install:
+        type: run
+        status: succeeded
+        exit_code: 0
+      npm_layout:
+        type: action
+        status: succeeded
+        logs:
+          include: ["hello npm!"]
+      pnpm_layout:
+        type: action
+        status: succeeded
+        logs:
+          include: ["hello pnpm!"]
+      consume:
+        type: run
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["greetings consumed"]

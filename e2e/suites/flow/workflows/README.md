@@ -26,6 +26,10 @@ scenarios/hello-world/
   files/          optional extra repo files, committed alongside the workflow
 ```
 
+A scenario whose `files/` holds an action directory (an `action.yml`) gets its definition
+from the definition sync, because only a sync snapshots actions. Other `expect.yaml` scenarios
+create their definition with `POST /definitions`.
+
 `tests/scenarios.e2e.ts` discovers every directory that contains an `expect.yaml` or
 `reject.yaml` and registers one Playwright test for it. Each `expect.yaml` test,
 against the shared suite arrangement:
@@ -73,6 +77,7 @@ jobs:                    # optional, keyed by job key
           reason: config_unresolvable  # step error reason enum
           field: env.VERSION           # exact match on the failing field
           source: steps.build.outputs  # substring match on the unresolved source
+          message: exited before       # substring match on the error message
         logs:
           include: ["hello world"]   # substring, or /regex/
           exclude: ["SECRET_VALUE"]

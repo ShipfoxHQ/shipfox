@@ -1,0 +1,26 @@
+trigger: manual
+run:
+  status: succeeded
+gitea:
+  issue:
+    title: Action tools fixture
+    body: Read this issue from a workflow action.
+  comment: Action comment landed
+jobs:
+  report:
+    status: succeeded
+    steps:
+      report:
+        type: action
+        status: succeeded
+        logs:
+          include:
+            - "Shipfox action Issue report sha256:"
+            - "issue: Action tools fixture"
+            - "run: running"
+      consume:
+        type: run
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["action outputs consumed: Action tools fixture"]

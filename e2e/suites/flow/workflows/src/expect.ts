@@ -125,6 +125,7 @@ const stepErrorExpectationSchema = z
     reason: stepErrorReasonSchema.optional(),
     field: z.string().optional(),
     source: z.string().optional(),
+    message: z.string().min(1).optional(),
   })
   .strict();
 
@@ -351,6 +352,14 @@ function evaluateStepError(
 
   evaluateErrorField(step.error, 'field', expectation.field, `${path}.field`, mismatches, false);
   evaluateErrorField(step.error, 'source', expectation.source, `${path}.source`, mismatches, true);
+  evaluateErrorField(
+    step.error,
+    'message',
+    expectation.message,
+    `${path}.message`,
+    mismatches,
+    true,
+  );
 }
 
 function evaluateGateResult(

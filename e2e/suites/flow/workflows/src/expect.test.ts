@@ -448,6 +448,7 @@ describe('evaluateExpectations', () => {
                   reason: 'config_unresolvable',
                   field: 'env.VERSION',
                   source: 'build.outputs',
+                  message: 'Could not resolve env.VERSION',
                 },
               },
             },
@@ -515,6 +516,7 @@ describe('evaluateExpectations', () => {
                   reason: 'config_unresolvable',
                   field: 'env.VERSION',
                   source: 'steps.build.outputs.version',
+                  message: 'The action exited before it finished.',
                 },
               },
             },
@@ -535,6 +537,11 @@ describe('evaluateExpectations', () => {
         path: 'jobs.build.steps.greet.error.source',
         expected: 'include steps.build.outputs.version',
         actual: 'null',
+      },
+      {
+        path: 'jobs.build.steps.greet.error.message',
+        expected: 'include The action exited before it finished.',
+        actual: 'Agent config could not be resolved',
       },
     ]);
   });

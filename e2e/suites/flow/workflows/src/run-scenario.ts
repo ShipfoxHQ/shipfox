@@ -39,7 +39,11 @@ import {
   triggerWebhookAndAwaitRun,
   type WebhookDiagnosticsRequest,
 } from './webhook.js';
-import {seedProjectWithApiDefinition, seedWorkflowProject} from './workflow-project.js';
+import {
+  seedAndWaitForDefinition,
+  seedProjectWithApiDefinition,
+  seedWorkflowProject,
+} from './workflow-project.js';
 
 const REJECTION_NO_RUN_TIMEOUT_MS = 15_000;
 const E2E_SECRET_ACTOR_ID = '11111111-1111-4111-8111-111111111111';
@@ -323,6 +327,17 @@ async function seedScenarioProject(params: {
       definition: undefined,
       project: seeded.project,
       syncStartedAfter: seeded.syncStartedAfter,
+      giteaIssue: seeded.giteaIssue,
+    };
+  }
+  // Only a definition sync reads and snapshots action directories, so `POST /definitions`
+  // cannot create a definition that uses one.
+  if (params.scenario.usesActions) {
+    const seeded = await seedAndWaitForDefinition(seedParams);
+    return {
+      childDefinition: undefined,
+      definition: seeded.definition,
+      project: seeded.project,
       giteaIssue: seeded.giteaIssue,
     };
   }

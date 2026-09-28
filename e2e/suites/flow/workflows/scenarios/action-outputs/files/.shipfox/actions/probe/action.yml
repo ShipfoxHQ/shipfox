@@ -1,0 +1,23 @@
+name: Output probe
+description: Sets json outputs that hold strings, a structured output, and optional outputs.
+main: index.ts
+outputs:
+  as_true:
+    type: json
+    required: true
+  as_number:
+    type: json
+    required: true
+  as_null:
+    type: json
+    required: true
+  as_array:
+    type: json
+    required: true
+  structured:
+    type: json
+    required: true
+  partial:
+    description: Optional, set with setOutput.
+  missing:
+    description: Optional, never set.

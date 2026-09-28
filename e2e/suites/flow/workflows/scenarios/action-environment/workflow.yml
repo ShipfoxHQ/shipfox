@@ -1,0 +1,17 @@
+name: Action environment
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+env:
+  WORKFLOW_LEVEL: from-workflow
+jobs:
+  inspect:
+    env:
+      JOB_LEVEL: from-job
+    steps:
+      - key: inspect
+        name: Inspect the action environment
+        uses: ./.shipfox/actions/inspect-env
+        env:
+          STEP_LEVEL: from-step

@@ -48,6 +48,8 @@ interface BaseScenario {
   childConfigPath?: string;
   childWorkflowYaml?: string;
   extraFiles: ScenarioFile[];
+  /** True when `files/` holds an action directory, which the definition sync must snapshot. */
+  usesActions: boolean;
   seededSecrets: SeededSecret[];
   seededVariables: SeededVariable[];
   fakeModelProviderScriptKey?: string | undefined;
@@ -64,6 +66,8 @@ export interface RejectScenario extends BaseScenario {
 }
 
 export type Scenario = ExpectScenario | RejectScenario;
+
+const ACTION_MANIFEST_PATH_RE = /(^|\/)action\.ya?ml$/u;
 
 const scenariosRoot = fileURLToPath(new URL('../scenarios/', import.meta.url));
 
@@ -124,6 +128,7 @@ function loadScenario(root: string, name: string): Scenario {
   }
 
   const childWorkflowPath = join(dir, 'child-workflow.yml');
+  const extraFiles = readScenarioFiles(join(dir, 'files'));
   const base = {
     name,
     dir,
@@ -135,7 +140,8 @@ function loadScenario(root: string, name: string): Scenario {
           childWorkflowYaml: readFileSync(childWorkflowPath, 'utf8'),
         }
       : {}),
-    extraFiles: readScenarioFiles(join(dir, 'files')),
+    extraFiles,
+    usesActions: extraFiles.some((file) => ACTION_MANIFEST_PATH_RE.test(file.path)),
     seededSecrets: loadSeededSecrets(dir),
     seededVariables: loadSeededVariables(dir),
     fakeModelProviderScriptKey: loadModelProviderScriptKey(dir),

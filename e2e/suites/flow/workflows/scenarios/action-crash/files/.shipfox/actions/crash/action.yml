@@ -1,0 +1,6 @@
+name: Crash
+description: Fails on purpose, by throwing or by exiting before the handler settles.
+main: index.ts
+inputs:
+  mode:
+    required: true

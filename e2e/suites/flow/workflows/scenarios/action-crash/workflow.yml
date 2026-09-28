@@ -1,0 +1,20 @@
+name: Action crash
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  throws:
+    steps:
+      - key: crash
+        name: Throw from the handler
+        uses: ./.shipfox/actions/crash
+        with:
+          mode: throw
+  exits_early:
+    steps:
+      - key: crash
+        name: Exit before the handler settles
+        uses: ./.shipfox/actions/crash
+        with:
+          mode: exit
