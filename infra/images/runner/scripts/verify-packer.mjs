@@ -2,7 +2,11 @@ import {spawnSync} from 'node:child_process';
 import {mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {RUNNER_BASE_INSTALL_NODE_SCRIPT, RUNNER_BASE_PREPARE_OS_SCRIPT} from '@shipfox/runner-base';
+import {
+  RUNNER_BASE_INSTALL_DOCKER_SCRIPT,
+  RUNNER_BASE_INSTALL_NODE_SCRIPT,
+  RUNNER_BASE_PREPARE_OS_SCRIPT,
+} from '@shipfox/runner-base';
 
 const runnerWorkspace = mkdtempSync(join(tmpdir(), 'shipfox-runner-workspace-'));
 
@@ -20,6 +24,8 @@ try {
     'revision=ci',
     '-var',
     `runner_base_prepare_script=${RUNNER_BASE_PREPARE_OS_SCRIPT}`,
+    '-var',
+    `runner_base_install_docker_script=${RUNNER_BASE_INSTALL_DOCKER_SCRIPT}`,
     '-var',
     `runner_base_install_node_script=${RUNNER_BASE_INSTALL_NODE_SCRIPT}`,
     '-var',

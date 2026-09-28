@@ -46,6 +46,13 @@ for package in \
     fail "required package is missing: $package"
 done
 
+# Keep this list aligned with the packages installed by install-docker.sh.
+for package in \
+  docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; do
+  [ "$(package_state "$package")" = 'install ok installed' ] ||
+    fail "required package is missing: $package"
+done
+
 for package in snapd amazon-ssm-agent; do
   if [ "$(package_state "$package")" = 'install ok installed' ]; then
     fail "forbidden package remains installed: $package"
@@ -61,6 +68,11 @@ case "$node_version" in
   *) fail "Node is ${node_version:-missing}, expected v$expected_node_major.x" ;;
 esac
 
+docker info >/dev/null || fail 'the Docker daemon is not running'
+docker_version=$(docker --version) || fail 'the Docker CLI is missing'
+buildx_version=$(docker buildx version) || fail 'Docker Buildx is missing'
+compose_version=$(docker compose version) || fail 'Docker Compose is missing'
+
 # The base carries no Shipfox runtime. The runner image stage owns all of it.
 if id shipfox >/dev/null 2>&1; then
   fail 'the shipfox user exists in the base'
@@ -71,5 +83,7 @@ done
 
 printf 'runner base kernel: %s\n' "$(uname -r)"
 printf 'runner base boot timing: %s\n' "$(systemd-analyze time 2>/dev/null || echo unavailable)"
+# Docker versions are not pinned, so record what this generation baked.
+printf 'runner base docker: %s; %s; %s\n' "$docker_version" "$buildx_version" "$compose_version"
 df -h /
 printf 'runner base verified: ubuntu24/%s\n' "$expected_architecture"

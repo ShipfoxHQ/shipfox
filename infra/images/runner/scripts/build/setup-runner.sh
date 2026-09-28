@@ -21,6 +21,8 @@ apt-get clean
 
 groupadd --system shipfox || true
 id shipfox >/dev/null 2>&1 || useradd --system --gid shipfox --create-home --home-dir /home/shipfox shipfox
+# Jobs run as shipfox and reach the base's Docker daemon without sudo.
+usermod --append --groups docker shipfox
 printf '%s\n' 'shipfox ALL=(ALL) NOPASSWD:ALL' > "$root_dir/etc/sudoers.d/shipfox"
 chmod 0440 "$root_dir/etc/sudoers.d/shipfox"
 install -d -o shipfox -g shipfox "$root_dir/opt/runner"

@@ -187,7 +187,7 @@ jobs:
           set -euo pipefail
           {
             jq -r '"- Base \(.architecture): `\(.region):\(.amiId)` from `\(.sourceAmiId)`, captured \(.builtAt), verified \(.verifiedAt)"' "$RESULT_PATH"
-            grep -Eo 'runner base (kernel|boot timing): .*' "$PACKER_LOG_PATH" | sort -u | sed 's/^/  - /' || true
+            grep -Eo 'runner base (kernel|boot timing|docker): .*' "$PACKER_LOG_PATH" | sort -u | sed 's/^/  - /' || true
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload runner base result
