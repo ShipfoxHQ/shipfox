@@ -810,6 +810,8 @@ jobs:
     paths?: string[];
     actionsEnabled?: boolean;
     source?: DefinitionsSourceControl;
+    onProgress?: (path: string) => void;
+    loadIntegrationValidationContext?: () => Promise<IntegrationValidationContext>;
   }) {
     return fetchAndParseWorkflowsBase({
       ...baseContext,
@@ -818,6 +820,8 @@ jobs:
       sourceControl: params.source ?? repositorySourceControl(params.repository),
       agentValidationCatalog,
       actionsEnabled: params.actionsEnabled ?? true,
+      onProgress: params.onProgress,
+      loadIntegrationValidationContext: params.loadIntegrationValidationContext,
     });
   }
 
@@ -839,6 +843,43 @@ jobs:
       },
     });
     expect(result.actionDiagnostics).toEqual([]);
+  });
+
+  it('reports progress for each action directory it reads', async () => {
+    const onProgress = vi.fn();
+
+    await sync({repository: actionRepository(), onProgress});
+
+    expect(onProgress.mock.calls).toEqual([[workflowPath], ['./.shipfox/actions/notify']]);
+  });
+
+  it('loads the integration context for an action whose manifest declares integrations', async () => {
+    const loadIntegrationValidationContext = vi.fn(() =>
+      Promise.resolve(integrationValidationContext),
+    );
+
+    const result = await sync({
+      repository: actionRepository({
+        [workflowPath]: `${actionYaml}        connections:
+          github: github-main
+`,
+        '.shipfox/actions/notify/action.yml': [
+          'name: Notify',
+          'main: index.ts',
+          'integrations:',
+          '  github:',
+          '    provider: github',
+          '    include: [issue_read]',
+        ].join('\n'),
+      }),
+      loadIntegrationValidationContext,
+    });
+
+    expect(loadIntegrationValidationContext).toHaveBeenCalledTimes(1);
+    expect(result.workflows[0]?.definition.model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'action',
+      action: {integrations: {github: {provider: 'github', connection: 'github-main'}}},
+    });
   });
 
   it('keeps the YAML-only hash for workflows without actions', async () => {

@@ -109,6 +109,7 @@ export interface ParsedWorkflow {
 export interface FetchAndParseWorkflowsParams extends SyncSourceContext {
   ref: string;
   paths: string[];
+  /** Called before each workflow file and each action directory is read. */
   onProgress?: ((path: string) => void) | undefined;
   agentValidationCatalog: AgentValidationCatalogV2;
   loadIntegrationValidationContext?: (() => Promise<IntegrationValidationContext>) | undefined;
@@ -209,10 +210,16 @@ function parseWorkflowDocumentForSync(params: {
   try {
     return parseWorkflowYaml(params.content, {actions: params.actionsEnabled});
   } catch (error) {
-    // Full validation fails the same way and reports it as a sync error, before
-    // any action is read.
+    // Full validation fails the same way and reports the failure with its
+    // details, before any action is read.
     parseWorkflowSnapshot({...params, actionManifests: new Map()});
-    throw error;
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new DefinitionSyncPermanentError(
+      'invalid-definition',
+      `Invalid workflow definition at ${params.path}: ${reason}`,
+      [],
+      params.path,
+    );
   }
 }
 
