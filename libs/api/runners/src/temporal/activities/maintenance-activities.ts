@@ -9,7 +9,11 @@ import {
 } from '#core/maintenance.js';
 import {reconcileCapacityHolds} from '#db/capacity-holds.js';
 import type {InstallationPlacementPolicy} from '#installation-provisioning.js';
-import {recordCapacityHoldReconciliation, recordCapacityHoldSweep} from '#metrics/instance.js';
+import {
+  recordCapacityHoldReconciliation,
+  recordCapacityHoldReleaseLag,
+  recordCapacityHoldSweep,
+} from '#metrics/instance.js';
 
 export function detectAndExpireStuckJobsActivity(params: {
   thresholdSeconds: number;
@@ -60,7 +64,11 @@ export function deleteExpiredEphemeralRegistrationTokensActivity(params?: {
 export async function reconcileCapacityHoldsActivity(params: {
   placement?: InstallationPlacementPolicy;
 }): Promise<{reconciled: number; swept: number}> {
-  const result = await reconcileCapacityHolds(params);
+  const result = await reconcileCapacityHolds({
+    ...params,
+    onReleased: (createdAt) =>
+      recordCapacityHoldReleaseLag(Math.max(0, (Date.now() - createdAt.getTime()) / 1000)),
+  });
   recordCapacityHoldReconciliation(result.reconciled);
   recordCapacityHoldSweep(result.swept);
   return result;

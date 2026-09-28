@@ -64,7 +64,7 @@ export async function stuckJobDetector(): Promise<void> {
 
   await recoverStaleIdleRunnerSessionsIfPatched();
 
-  await logCapacityHoldReconciliation();
+  if (patched('capacity-hold-reconciliation')) await logCapacityHoldReconciliation();
 
   const {reaped, reservationsReleased} = await reapStaleRunnerInstancesActivity();
   if (reaped > 0) {

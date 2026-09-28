@@ -9,7 +9,9 @@ export async function setup() {
 
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_runners');
   await db().execute(sql`TRUNCATE runners_provisioner_capability_snapshots CASCADE`);
-  await db().execute(sql`TRUNCATE runners_runner_instances, runners_reservations CASCADE`);
+  await db().execute(
+    sql`TRUNCATE runners_runner_instances, runners_reservations, runners_capacity_holds CASCADE`,
+  );
   await db().execute(sql`TRUNCATE runners_provisioner_tokens CASCADE`);
   await db().execute(sql`TRUNCATE runners_ephemeral_registration_tokens CASCADE`);
   await db().execute(sql`TRUNCATE runners_runner_bootstrap_tokens CASCADE`);

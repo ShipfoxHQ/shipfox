@@ -136,7 +136,10 @@ export async function releaseCapacityHoldsForRunnerInstancesTx(
   return released.length;
 }
 
-export async function sweepTerminalCapacityHolds(limit = 1000): Promise<number> {
+export async function sweepTerminalCapacityHolds(
+  limit = 1000,
+  onReleased?: (createdAt: Date) => void,
+): Promise<number> {
   return await db().transaction(async (tx) => {
     const rows = await tx
       .select({runnerInstanceId: capacityHolds.runnerInstanceId})
@@ -149,6 +152,7 @@ export async function sweepTerminalCapacityHolds(limit = 1000): Promise<number> 
       runnerInstanceIds: rows.flatMap((row) =>
         row.runnerInstanceId ? [row.runnerInstanceId] : [],
       ),
+      ...(onReleased ? {onReleased} : {}),
     });
   });
 }
@@ -156,8 +160,9 @@ export async function sweepTerminalCapacityHolds(limit = 1000): Promise<number> 
 export async function reconcileCapacityHolds(params: {
   placement?: InstallationPlacementPolicy;
   limit?: number;
+  onReleased?: (createdAt: Date) => void;
 }): Promise<{reconciled: number; swept: number}> {
-  const swept = await sweepTerminalCapacityHolds(params.limit ?? 1000);
+  const swept = await sweepTerminalCapacityHolds(params.limit ?? 1000, params.onReleased);
   if (!params.placement) return {reconciled: 0, swept};
 
   const placement = params.placement;
