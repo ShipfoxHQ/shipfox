@@ -9,18 +9,6 @@ export type TemplateIcon =
   | 'posthog'
   | 'shipfox';
 
-// Placeholder groups from the Software factory starter catalog project.
-export type TemplateGroup = 'bring-in' | 'deliver' | 'improve' | 'operate';
-
-export const templateGroupLabels: Record<TemplateGroup, string> = {
-  'bring-in': 'Bring work in',
-  deliver: 'Deliver changes',
-  improve: 'Improve engineering',
-  operate: 'Operate the factory',
-};
-
-export const TEMPLATE_GROUPS = Object.keys(templateGroupLabels) as TemplateGroup[];
-
 export const templateIconLabels: Record<TemplateIcon, string> = {
   github: 'GitHub',
   linear: 'Linear',
@@ -37,17 +25,22 @@ export type TemplateFlowKind = 'trigger' | 'agent' | 'check' | 'tool' | 'write' 
 
 export interface TemplateFlowStep {
   kind: TemplateFlowKind;
-  icon?: TemplateIcon;
+  provider?: TemplateIcon;
   title: string;
   detail: string;
   /** Index of an earlier step this one sends work back to. */
   loopsTo?: number;
 }
 
+export interface TemplateWrite {
+  /** Absent when the provider depends on the reader's choices, such as the tracker. */
+  provider?: TemplateIcon;
+  action: string;
+}
+
 export interface TemplateRole {
   role: string;
   providers: TemplateIcon[];
-  upcoming: TemplateIcon[];
   optional: boolean;
   fromProject: boolean;
   question?: string;
@@ -59,10 +52,10 @@ export interface TemplateCatalogEntry {
   summary: string;
   revision: number;
   addedAt: string;
-  group: TemplateGroup;
+  keywords: string[];
   starts: string;
   flow: TemplateFlowStep[];
-  writes: {icon: TemplateIcon; action: string}[];
+  writes: TemplateWrite[];
   roles: TemplateRole[];
   href: string;
 }

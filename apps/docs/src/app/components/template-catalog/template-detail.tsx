@@ -19,6 +19,7 @@ import {
   type TemplateFlowKind,
   type TemplateFlowStep,
   type TemplateIcon as TemplateIconName,
+  type TemplateWrite,
   templateIconLabels,
 } from '@/lib/template-catalog/types';
 import {TemplateAdoptPane} from './template-adopt-pane';
@@ -64,12 +65,19 @@ export async function TemplateDetail({id}: {id: string}) {
 
         <Section title="What it writes">
           <ul className="flex flex-col divide-y divide-fd-border rounded-lg border border-fd-border">
-            {groupWrites(template.writes).map(([icon, actions]) => (
-              <li key={icon} className="flex items-center gap-cluster px-row py-row text-sm">
-                <TemplateIcon icon={icon} className="size-4 text-fd-muted-foreground" />
-                <span className="w-16 shrink-0 font-medium text-fd-foreground">
-                  {templateIconLabels[icon]}
-                </span>
+            {groupWrites(template.writes).map(([provider, actions]) => (
+              <li
+                key={provider ?? 'setup'}
+                className="flex items-center gap-cluster px-row py-row text-sm"
+              >
+                {provider === undefined ? null : (
+                  <>
+                    <TemplateIcon icon={provider} className="size-4 text-fd-muted-foreground" />
+                    <span className="w-16 shrink-0 font-medium text-fd-foreground">
+                      {templateIconLabels[provider]}
+                    </span>
+                  </>
+                )}
                 <ul className="flex flex-col gap-tight text-fd-muted-foreground">
                   {actions.map((action) => (
                     <li key={action}>{action}</li>
@@ -80,13 +88,15 @@ export async function TemplateDetail({id}: {id: string}) {
           </ul>
         </Section>
 
-        <Section title="Before you start">
-          <ul className="flex list-inside list-disc flex-col gap-inline text-sm text-fd-foreground marker:text-fd-muted-foreground">
-            {template.prerequisites.map((item) => (
-              <li key={item}>{inlineCode(item)}</li>
-            ))}
-          </ul>
-        </Section>
+        {template.prerequisites.length > 0 ? (
+          <Section title="Before you start">
+            <ul className="flex list-inside list-disc flex-col gap-inline text-sm text-fd-foreground marker:text-fd-muted-foreground">
+              {template.prerequisites.map((item) => (
+                <li key={item}>{inlineCode(item)}</li>
+              ))}
+            </ul>
+          </Section>
+        ) : null}
 
         {template.options.length > 0 ? (
           <Section title="Choices you make">
@@ -207,10 +217,11 @@ export async function TemplateDetail({id}: {id: string}) {
   );
 }
 
-function groupWrites(writes: {icon: TemplateIconName; action: string}[]) {
-  const groups = new Map<TemplateIconName, string[]>();
+// A write without a provider depends on the reader's choices, so it forms one unlabelled row.
+function groupWrites(writes: TemplateWrite[]) {
+  const groups = new Map<TemplateIconName | undefined, string[]>();
   for (const write of writes)
-    groups.set(write.icon, [...(groups.get(write.icon) ?? []), write.action]);
+    groups.set(write.provider, [...(groups.get(write.provider) ?? []), write.action]);
   return [...groups.entries()];
 }
 
@@ -240,8 +251,8 @@ function Flow({steps}: {steps: TemplateFlowStep[]}) {
             <span
               className={`relative z-10 flex size-9 shrink-0 items-center justify-center rounded-full border ${flowNodeStyles[step.kind]}`}
             >
-              {step.icon ? (
-                <TemplateIcon icon={step.icon} className="size-4" />
+              {step.provider ? (
+                <TemplateIcon icon={step.provider} className="size-4" />
               ) : (
                 <Icon aria-hidden="true" className="size-4" />
               )}

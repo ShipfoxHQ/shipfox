@@ -1,30 +1,20 @@
 import {inlineCode} from '../markdown';
 import {buildTemplatePagePrompt} from './prompt';
 import {
-  TEMPLATE_GROUPS,
   type TemplateCatalogEntry,
   type TemplateDetail,
-  templateGroupLabels,
+  type TemplateWrite,
   templateIconLabels,
   templateIntegrations,
 } from './types';
 
 export function serializeTemplateCatalog(templates: readonly TemplateCatalogEntry[]): string {
-  return TEMPLATE_GROUPS.flatMap((group) => {
-    const inGroup = templates.filter((template) => template.group === group);
-    if (inGroup.length === 0) return [];
-    return [
-      `## ${templateGroupLabels[group]}`,
-      '',
-      ...inGroup.map(
-        (template) =>
-          `- [${template.title}](${template.href}): ${template.summary} Starts when: ${template.starts}. Integrations: ${integrationNames(template)}.`,
-      ),
-      '',
-    ];
-  })
-    .join('\n')
-    .trim();
+  return templates
+    .map(
+      (template) =>
+        `- [${template.title}](${template.href}): ${template.summary} Starts when: ${template.starts}. Integrations: ${integrationNames(template)}.`,
+    )
+    .join('\n');
 }
 
 export function serializeTemplateDetail(template: TemplateDetail): string {
@@ -42,12 +32,15 @@ export function serializeTemplateDetail(template: TemplateDetail): string {
       })
       .join('\n'),
     '## What it writes',
-    template.writes
-      .map((write) => `- ${templateIconLabels[write.icon]}: ${write.action}.`)
-      .join('\n'),
-    '## Before you start',
-    template.prerequisites.map((item) => `- ${item}`).join('\n'),
+    template.writes.map(serializeWrite).join('\n'),
   ];
+
+  if (template.prerequisites.length > 0) {
+    sections.push(
+      '## Before you start',
+      template.prerequisites.map((item) => `- ${item}`).join('\n'),
+    );
+  }
 
   if (template.options.length > 0) {
     sections.push(
@@ -100,6 +93,12 @@ export function serializeTemplateDetail(template: TemplateDetail): string {
   }
 
   return sections.join('\n\n');
+}
+
+function serializeWrite(write: TemplateWrite): string {
+  return write.provider === undefined
+    ? `- ${write.action}`
+    : `- ${templateIconLabels[write.provider]}: ${write.action}`;
 }
 
 function integrationNames(template: TemplateCatalogEntry): string {

@@ -15,13 +15,13 @@ function readCatalog(): TemplateCatalogDocument {
 // workflow files out of its payload.
 export function getTemplateCatalog(): TemplateCatalogEntry[] {
   return readCatalog().templates.map(
-    ({id, title, summary, revision, addedAt, group, starts, flow, writes, roles, href}) => ({
+    ({id, title, summary, revision, addedAt, keywords, starts, flow, writes, roles, href}) => ({
       id,
       title,
       summary,
       revision,
       addedAt,
-      group,
+      keywords,
       starts,
       flow,
       writes,

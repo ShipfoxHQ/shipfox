@@ -4,10 +4,10 @@ import {
   shippedTemplateLoader,
   templateRoleBindings,
 } from '@shipfox/workflow-templates';
-import {authoredTemplateMetadata} from '@/lib/template-catalog/authored';
 
 export const TEMPLATE_CATALOG_DOCUMENT_ID = 'examples/catalog';
 
+const SHIPFOX_NAMESPACE_PREFIX = 'shipfox/';
 const OPTION_MARKER_PATTERN = /^\s*#\s*option:([a-z0-9_-]+)=([a-z0-9_-]+)\s+(begin|end)\s*$/;
 const TRAILING_MARKER_PATTERN = /\s+# (?:bind|model):[a-z0-9_-]+\s*$/;
 const EXTRA_BLANK_LINES_PATTERN = /\n{3,}/g;
@@ -26,11 +26,10 @@ function buildTemplateDetail(template) {
   const {manifest} = template;
   const bindings = templateRoleBindings(manifest.roles);
   const anchors = extractModelAnchors(composeTemplate(template, bindings.at(-1) ?? {}));
-  const meta = authoredMetadata(template.id);
 
   return {
     ...buildEntry(template),
-    prerequisites: meta.prerequisites,
+    prerequisites: manifest.prerequisites,
     options: manifest.options,
     models: Object.entries(manifest.models).map(([key, model]) => ({
       key,
@@ -42,18 +41,18 @@ function buildTemplateDetail(template) {
       bindings: {...binding},
       yaml: applyDefaultOptions(composeTemplate(template, binding), manifest.options),
     })),
-    related: (meta.related ?? []).map((id) => {
-      const related = shippedTemplateLoader.get(id);
-      if (!related)
-        throw new Error(`Example "${template.id}" relates to unknown template "${id}".`);
-      return buildEntry(related);
+    // Related links are presentation only, so a link to a package this build does not ship is hidden.
+    related: manifest.related.flatMap((name) => {
+      const related = name.startsWith(SHIPFOX_NAMESPACE_PREFIX)
+        ? shippedTemplateLoader.get(name.slice(SHIPFOX_NAMESPACE_PREFIX.length))
+        : undefined;
+      return related ? [buildEntry(related)] : [];
     }),
   };
 }
 
 function buildEntry(template) {
   const {manifest} = template;
-  const meta = authoredMetadata(template.id);
 
   return {
     id: template.id,
@@ -61,26 +60,19 @@ function buildEntry(template) {
     summary: manifest.summary,
     revision: template.revision,
     addedAt: template.added_at,
-    group: meta.group,
-    starts: meta.starts,
-    flow: meta.flow,
-    writes: meta.writes,
+    keywords: manifest.keywords,
+    starts: manifest.starts,
+    flow: manifest.flow.map(({loops_to: loopsTo, ...step}) => ({...step, loopsTo})),
+    writes: manifest.writes,
     roles: Object.entries(manifest.roles).map(([role, declaration]) => ({
       role,
       providers: declaration.providers,
-      upcoming: meta.upcoming?.[role] ?? [],
       optional: declaration.optional === true,
       fromProject: declaration.from === 'project',
       question: declaration.question,
     })),
     href: `/examples/${template.id}`,
   };
-}
-
-function authoredMetadata(id) {
-  const meta = authoredTemplateMetadata[id];
-  if (!meta) throw new Error(`Template "${id}" has no example metadata in authored.ts.`);
-  return meta;
 }
 
 // Keeps each option's default block, drops the others, and removes authoring markers,
