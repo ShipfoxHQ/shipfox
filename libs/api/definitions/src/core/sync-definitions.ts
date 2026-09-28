@@ -13,7 +13,11 @@ import {
 import type {ValidationDiagnostic} from './entities/validation-diagnostic.js';
 import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
 import {DefinitionParseError, DefinitionSyncPermanentError} from './errors.js';
-import type {DefinitionsSourceControl} from './integrations.js';
+import {
+  type DefinitionsSourceControl,
+  FILE_FETCH_CONCURRENCY,
+  isBinaryFileError,
+} from './integrations.js';
 import {needsIntegrationValidationContext} from './needs-integration-validation-context.js';
 import {parseDefinitionWithDiagnostics, stripDefinitionDiagnostics} from './parse-definition.js';
 import type {ValidationError} from './validate-definition.js';
@@ -21,7 +25,6 @@ import type {ValidationError} from './validate-definition.js';
 export const DEFAULT_WORKFLOW_PATH = '.shipfox/workflows/';
 export const MAX_WORKFLOW_FILES = 100;
 export {MAX_WORKFLOW_FILE_BYTES};
-export const FILE_FETCH_CONCURRENCY = 4;
 export const UNRESOLVED_SYNC_REF = '__unresolved__';
 const TRAILING_SENTENCE_PUNCTUATION_RE = /[.!?]$/;
 
@@ -82,15 +85,6 @@ export async function discoverWorkflowFiles(
 
 export function isWorkflowFile(file: {path: string; type: string}): boolean {
   return file.type === 'file' && (file.path.endsWith('.yml') || file.path.endsWith('.yaml'));
-}
-
-/** Whether a source file fetch failed because the file is not UTF-8 text. */
-export function isBinaryFileError(error: unknown): boolean {
-  return (
-    isInterModuleKnownError(integrationsInterModuleContract.methods.fetchSourceFile, error) &&
-    error.code === 'provider-failure' &&
-    error.details.reason === 'binary-file-unsupported'
-  );
 }
 
 export interface ParsedWorkflow {
