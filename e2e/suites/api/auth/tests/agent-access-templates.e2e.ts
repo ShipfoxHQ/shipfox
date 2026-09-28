@@ -198,10 +198,10 @@ test.describe('agent-access workflow templates', () => {
           {
             model: 'gpt-6-luna',
             provider: E2E_MANAGED_PROVIDER,
-            thinking: 'high',
+            thinking: 'max',
             provider_required: false,
             is_anchor: true,
-            intelligence_index: 60,
+            intelligence_index: 70,
             tradeoff: null,
           },
           {
@@ -209,7 +209,7 @@ test.describe('agent-access workflow templates', () => {
             lab: 'DeepSeek',
             thinking: 'medium',
             is_anchor: false,
-            tradeoff: {intelligence: 'slightly_smarter', cost: 'more_expensive'},
+            tradeoff: {intelligence: 'slightly_less_capable', cost: 'cheaper'},
           },
         ],
       });
