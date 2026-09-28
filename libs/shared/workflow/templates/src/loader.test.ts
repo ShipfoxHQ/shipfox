@@ -53,6 +53,7 @@ describe('workflow template loader', () => {
       'fix-default-branch-ci',
       'fix-dependency-ci',
       'report-failed-runs',
+      'slack-to-ticket',
       'ticket-to-pr',
     ]);
   });
@@ -63,6 +64,7 @@ describe('workflow template loader', () => {
       'fix-default-branch-ci': {investigate: {model: 'gpt-6-sol', thinking: 'high'}},
       'fix-dependency-ci': {fix: {model: 'gpt-6-sol', thinking: 'high'}},
       'report-failed-runs': {diagnose: {model: 'gpt-6-luna', thinking: 'low'}},
+      'slack-to-ticket': {draft: {model: 'gpt-6-sol', thinking: 'high'}},
       'ticket-to-pr': {
         fix: {model: 'gpt-6-luna', thinking: 'high'},
         reply: {model: 'gpt-6-sol', thinking: 'low'},

@@ -5,6 +5,7 @@
     "fix-dependency-ci",
     "fix-default-branch-ci",
     "ask-codebase",
+    "slack-to-ticket",
     "report-failed-runs"
   ]
 }

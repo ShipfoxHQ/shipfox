@@ -44,6 +44,12 @@ describe('shipped skill resources', () => {
     expect(askCodebaseGuide?.text).toBe(
       readFileSync(new URL('../assets/ask-codebase/GUIDE.md', import.meta.url), 'utf8'),
     );
+    const slackTicketGuide = getShippedSkillResource(
+      'skill://shipfox/create-workflow-from-template/references/slack-to-ticket.md',
+    );
+    expect(slackTicketGuide?.text).toBe(
+      readFileSync(new URL('../assets/slack-to-ticket/GUIDE.md', import.meta.url), 'utf8'),
+    );
     const defaultBranchGuide = getShippedSkillResource(
       'skill://shipfox/create-workflow-from-template/references/fix-default-branch-ci.md',
     );

@@ -24,6 +24,7 @@ const SHIPPED_TEMPLATE_IDS = [
   'fix-default-branch-ci',
   'fix-dependency-ci',
   'report-failed-runs',
+  'slack-to-ticket',
   'ticket-to-pr',
 ];
 const E2E_MANAGED_PROVIDER = 'shipfox';
@@ -121,6 +122,10 @@ test.describe('agent-access workflow templates', () => {
       expect(before.templates.find(({id}) => id === 'ask-codebase')).toMatchObject({
         compatible: false,
         missing_providers: ['slack'],
+      });
+      expect(before.templates.find(({id}) => id === 'slack-to-ticket')).toMatchObject({
+        compatible: false,
+        missing_providers: ['slack', 'linear'],
       });
       expect(before.templates.find(({id}) => id === 'fix-default-branch-ci')).toMatchObject({
         compatible: true,

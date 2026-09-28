@@ -80,6 +80,21 @@ export const slackAgentToolCatalog = [
     ),
   }),
   tool({
+    id: 'get_permalink',
+    description:
+      'Get a permanent link to a Slack message, including a reply in a thread. Requires the channel ID and the message timestamp.',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: 'read',
+    inputSchema: objectSchema(
+      {
+        channel_id: conversationIdSchema,
+        message_ts: stringSchema('Timestamp of the message, such as 1234567890.123456'),
+      },
+      ['channel_id', 'message_ts'],
+    ),
+  }),
+  tool({
     id: 'read_channel_info',
     description:
       'Retrieve metadata for a single Slack channel by ID: name, topic, purpose, privacy, and archive status. Use this to learn what a channel is for before reading or posting. To read its messages, use read_channel instead.',
@@ -265,6 +280,10 @@ export const SLACK_TOOL_OPERATIONS = {
       limit,
       cursor,
     }),
+  },
+  get_permalink: {
+    method: 'chat.getPermalink',
+    mapArguments: ({channel_id, message_ts}) => ({channel: channel_id, message_ts}),
   },
   read_channel_info: {
     method: 'conversations.info',
