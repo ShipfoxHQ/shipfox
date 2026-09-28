@@ -5,19 +5,23 @@ import {Panel} from '@shipfox/react-ui/panel';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@shipfox/react-ui/tabs';
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
+import {useId} from 'react';
 
 export function McpSetup() {
+  const titleId = useId();
   const endpoint = new URL(resolveApiUrl('/mcp'), window.location.origin).href;
   const quotedEndpoint = `'${endpoint.replaceAll("'", "'\\''")}'`;
+  const cursorConfig = JSON.stringify({mcpServers: {shipfox: {url: endpoint}}}, null, 2);
+  const vsCodeConfig = JSON.stringify({servers: {shipfox: {type: 'http', url: endpoint}}}, null, 2);
 
   return (
-    <section className="flex min-w-0 flex-col gap-group" aria-labelledby="mcp-setup-title">
+    <section className="flex min-w-0 flex-col gap-group" aria-labelledby={titleId}>
       <div className="flex flex-col gap-tight">
-        <Header id="mcp-setup-title" variant="h3">
+        <Header id={titleId} variant="h3">
           Connect an MCP app
         </Header>
         <Text size="sm" className="text-foreground-neutral-muted">
-          Connect Claude, Codex, or another MCP app to the Shipfox MCP server.
+          Connect Claude, Codex, Cursor, VS Code, or another MCP app to the Shipfox MCP server.
         </Text>
       </div>
       <Panel>
@@ -26,11 +30,15 @@ export function McpSetup() {
         </div>
         <div className="flex flex-col gap-group p-panel-compact">
           <Tabs defaultValue="claude-code">
-            <TabsList aria-label="Setup instructions">
-              <TabsTrigger value="claude-code">Claude Code</TabsTrigger>
-              <TabsTrigger value="codex">Codex</TabsTrigger>
-              <TabsTrigger value="claude">Claude app</TabsTrigger>
-            </TabsList>
+            <div className="scrollbar overflow-x-auto">
+              <TabsList aria-label="Setup instructions" className="min-w-max">
+                <TabsTrigger value="claude-code">Claude Code</TabsTrigger>
+                <TabsTrigger value="codex">Codex</TabsTrigger>
+                <TabsTrigger value="cursor">Cursor</TabsTrigger>
+                <TabsTrigger value="vscode">VS Code</TabsTrigger>
+                <TabsTrigger value="claude">Claude app</TabsTrigger>
+              </TabsList>
+            </div>
             <TabsContent value="claude-code" className="flex flex-col gap-inline pt-panel-compact">
               <Text size="sm">Run this command in your terminal:</Text>
               <SetupCode
@@ -38,15 +46,8 @@ export function McpSetup() {
                 code={`claude mcp add --transport http shipfox ${quotedEndpoint}`}
               />
               <Text size="sm">
-                Open Claude Code and run{' '}
-                <Code
-                  as="code"
-                  variant="label"
-                  className="rounded-4 bg-background-components-base px-tight"
-                >
-                  /mcp
-                </Code>
-                . Select Shipfox and follow the sign-in steps in your browser.
+                Open Claude Code and run <InlineCode>/mcp</InlineCode>. Select Shipfox and follow
+                the sign-in steps in your browser.
               </Text>
             </TabsContent>
             <TabsContent value="codex" className="flex flex-col gap-inline pt-panel-compact">
@@ -55,6 +56,27 @@ export function McpSetup() {
                 label="Codex commands"
                 code={`codex mcp add shipfox --url ${quotedEndpoint}\ncodex mcp login shipfox`}
               />
+            </TabsContent>
+            <TabsContent value="cursor" className="flex flex-col gap-inline pt-panel-compact">
+              <Text size="sm">
+                Add this entry to <InlineCode>.cursor/mcp.json</InlineCode> in your project, or to{' '}
+                <InlineCode>~/.cursor/mcp.json</InlineCode> for every project:
+              </Text>
+              <SetupCode label="Cursor configuration" code={cursorConfig} />
+              <Text size="sm">
+                Open Customize from the Cursor sidebar to see the server. Cursor opens the sign-in
+                steps in your browser when it first connects to Shipfox.
+              </Text>
+            </TabsContent>
+            <TabsContent value="vscode" className="flex flex-col gap-inline pt-panel-compact">
+              <Text size="sm">
+                Add this entry to <InlineCode>.vscode/mcp.json</InlineCode> in your project:
+              </Text>
+              <SetupCode label="VS Code configuration" code={vsCodeConfig} />
+              <Text size="sm">
+                Run MCP: List Servers, select Shipfox, and start it. VS Code asks you to approve the
+                sign-in and opens your browser.
+              </Text>
             </TabsContent>
             <TabsContent value="claude" className="flex flex-col gap-inline pt-panel-compact">
               <Text size="sm">
@@ -66,12 +88,19 @@ export function McpSetup() {
           </Tabs>
           <Text size="sm" className="text-foreground-neutral-muted">
             When the Shipfox access page opens, select this workspace and review the requested
-            access. Once you approve, the app will appear below. Other MCP apps can use the same
-            endpoint with OAuth.
+            access. Other MCP apps can use the same endpoint with OAuth.
           </Text>
         </div>
       </Panel>
     </section>
+  );
+}
+
+function InlineCode({children}: {children: string}) {
+  return (
+    <Code as="code" variant="label" className="rounded-4 bg-background-components-base px-tight">
+      {children}
+    </Code>
   );
 }
 

@@ -39,6 +39,16 @@
         "default": "./dist/feature.js"
       }
     },
+    "./mcp-setup": {
+      "workspace-source": {
+        "types": "./src/mcp-setup.ts",
+        "default": "./src/mcp-setup.ts"
+      },
+      "default": {
+        "types": "./dist/mcp-setup.d.ts",
+        "default": "./dist/mcp-setup.js"
+      }
+    },
     "./routes/*": {
       "workspace-source": {
         "types": "./src/routes/*.tsx",
