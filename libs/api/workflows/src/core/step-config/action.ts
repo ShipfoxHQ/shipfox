@@ -4,7 +4,7 @@ import type {PersistedEvaluationTraceEntry, StepConfigDispatchPlan} from '#core/
 import {ActionInputInvalidError} from '#core/errors.js';
 import type {WorkflowStepEvaluationTraceEntry, WorkflowStepTemplateDiagnostic} from './fields.js';
 import {type ResolveRunStepConfigParams, resolveStepEnv} from './run.js';
-import {completeWith, normalizeCelIntegersForJson, resolveWith} from './tool.js';
+import {completeWith, resolveWith} from './tool.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 type ActionStep = Extract<WorkflowModel['jobs'][number]['steps'][number], {kind: 'action'}>;
@@ -86,10 +86,7 @@ export function completeActionConfig(params: {
     definitionId: params.definitionId,
     trace: params.trace,
   });
-  params.config.inputs = coerceActionInputs(
-    actionPlan.inputs,
-    normalizeCelIntegersForJson(provided),
-  );
+  params.config.inputs = coerceActionInputs(actionPlan.inputs, provided);
 }
 
 // Defaults apply only to omitted inputs, never to null or empty values.

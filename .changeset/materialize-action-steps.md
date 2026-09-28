@@ -6,7 +6,7 @@
 "@shipfox/client-workflows": patch
 ---
 
-Workflow runs materialize and dispatch action steps (`uses`).
+Workflow runs materialize and dispatch action steps (`uses`). Definitions accept `uses` only while `DEFINITION_ACTIONS_ENABLED` is on, and it stays off in production for now.
 
 - **Step type:** steps gain the `action` type. The job detail and agent access step type enums accept it.
 - **Config:** an action step's config carries the action (`uses`, snapshot digest, `main`, and name), its `inputs`, the merged workflow, job, and step `env`, the connection binding of each integration alias, and the manifest outputs with `required`.

@@ -899,9 +899,8 @@ describe('workflow run queries', () => {
       });
 
       const rerunJob = (await getJobsByWorkflowRunId(source.id)).find((job) => job.key === 'build');
-      const rerunStep = (await getStepsByJobId(rerunJob?.id as string)).find(
-        (step) => step.key === 'export',
-      );
+      if (!rerunJob) throw new Error('Missing rerun job');
+      const rerunStep = (await getStepsByJobId(rerunJob.id)).find((step) => step.key === 'export');
       expect(rerunStep).toMatchObject({
         type: 'action',
         config: {action: {uses: './.shipfox/actions/export', digest}},

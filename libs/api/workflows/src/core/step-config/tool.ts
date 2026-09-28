@@ -196,7 +196,7 @@ export function completeWith(
       errorField: field,
     });
     params.trace.push(...resolved.trace.map((entry) => ({...entry, field})));
-    return resolved.value;
+    return normalizeCelIntegersForJson(resolved.value);
   }
   if (Array.isArray(plan)) {
     const values = Array.isArray(base) ? [...base] : [];
@@ -205,7 +205,7 @@ export function completeWith(
     });
     return values;
   }
-  if (typeof plan === 'object' && !('segments' in plan)) {
+  if (typeof plan === 'object') {
     const source = objectWithValue(base);
     const values = {...source};
     for (const [key, child] of Object.entries(plan)) {

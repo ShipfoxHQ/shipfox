@@ -62,7 +62,7 @@ jobs:                    # optional, keyed by job key
     status_reason: step_failed   # optional: why the job ended (step_failed, condition_false, ...)
     steps:               # optional, keyed by step key or name
       greet:
-        type: run         # optional: setup | run | agent | checkout | tool
+        type: run         # optional: setup | run | agent | checkout | tool | action
         status: succeeded
         exit_code: 0     # optional
         gate_result:     # optional: assert the latest attempt's gate evaluation
