@@ -61,6 +61,16 @@
         "types": "./dist/runtime-files.d.ts",
         "default": "./dist/runtime-files.js"
       }
+    },
+    "./testing": {
+      "workspace-source": {
+        "types": "./src/testing/index.ts",
+        "default": "./src/testing/index.ts"
+      },
+      "default": {
+        "types": "./dist/testing/index.d.ts",
+        "default": "./dist/testing/index.js"
+      }
     }
   },
   "scripts": {
@@ -72,6 +82,11 @@
     "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
+  },
+  "dependencies": {
+    "@shipfox/expression": "workspace:*",
+    "@shipfox/workflow-document": "workspace:*",
+    "yaml": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

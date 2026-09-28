@@ -1,8 +1,13 @@
 import {relative} from 'node:path';
 import {providerToolCatalogs} from '#catalogs.js';
-import {generatedFilePath, repositoryRoot, writeToolCatalogFile} from '#generate.js';
-
-const displayPath = relative(repositoryRoot, generatedFilePath);
+import {
+  generatedFilePath,
+  generatedGrantsFilePath,
+  repositoryRoot,
+  writeToolCatalogFile,
+} from '#generate.js';
 
 await writeToolCatalogFile(providerToolCatalogs);
-process.stdout.write(`Wrote ${displayPath}\n`);
+for (const path of [generatedFilePath, generatedGrantsFilePath]) {
+  process.stdout.write(`Wrote ${relative(repositoryRoot, path)}\n`);
+}

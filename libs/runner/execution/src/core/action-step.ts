@@ -6,6 +6,7 @@ import {
   type ActionContextFileV1,
   type ActionOutputDeclarations,
   type ActionResultFileV1,
+  inheritedActionEnv,
 } from '@shipfox/actions/contract';
 import {ACTION_BOOTSTRAP_PATH, ACTION_LOADER_PATH} from '@shipfox/actions/runtime-files';
 import type {StepDto} from '@shipfox/api-workflows-dto';
@@ -22,30 +23,6 @@ import {executeStepProcess, type StepProcessOptions} from '#core/run-step.js';
 import type {StepResult} from '#core/step-result.js';
 
 const PRIVATE_FILE_MODE = 0o600;
-
-/** Runner variables an action inherits. Everything else in the runner environment stays out. */
-const INHERITED_ENV_KEYS = new Set([
-  'PATH',
-  'HOME',
-  'USER',
-  'LOGNAME',
-  'SHELL',
-  'LANG',
-  'TZ',
-  'TMPDIR',
-  'TERM',
-  'HTTP_PROXY',
-  'HTTPS_PROXY',
-  'NO_PROXY',
-  'http_proxy',
-  'https_proxy',
-  'no_proxy',
-  'ALL_PROXY',
-  'all_proxy',
-  'SSL_CERT_FILE',
-  'SSL_CERT_DIR',
-  'NODE_EXTRA_CA_CERTS',
-]);
 
 const sensitivitySchema = z.enum(['read', 'write']);
 
@@ -200,7 +177,7 @@ export async function executeActionStep(
         cwd: options.cwd,
         workspace: options.workspace,
         env: {
-          ...inheritedEnv(),
+          ...inheritedActionEnv(process.env),
           ...config.env,
           ...options.secretEnv,
           [ACTION_ENV.actionPath]: actionPath,
@@ -242,15 +219,6 @@ function integrationGrants(
       methods: tool.methods,
     })),
   }));
-}
-
-function inheritedEnv(): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value === undefined) continue;
-    if (INHERITED_ENV_KEYS.has(key) || key.startsWith('LC_')) env[key] = value;
-  }
-  return env;
 }
 
 function contextFile(

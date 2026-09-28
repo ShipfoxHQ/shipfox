@@ -30,6 +30,40 @@ export const ACTION_ENV = {
   workspace: 'SHIPFOX_WORKSPACE',
 } as const;
 
+/** Runner variables an action inherits. Everything else in the runner environment stays out. */
+export const ACTION_INHERITED_ENV_KEYS: ReadonlySet<string> = new Set([
+  'PATH',
+  'HOME',
+  'USER',
+  'LOGNAME',
+  'SHELL',
+  'LANG',
+  'TZ',
+  'TMPDIR',
+  'TERM',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'NO_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'no_proxy',
+  'ALL_PROXY',
+  'all_proxy',
+  'SSL_CERT_FILE',
+  'SSL_CERT_DIR',
+  'NODE_EXTRA_CA_CERTS',
+]);
+
+/** The inherited part of an action environment: the allowlisted keys and every `LC_*`. */
+export function inheritedActionEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const inherited: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) continue;
+    if (ACTION_INHERITED_ENV_KEYS.has(key) || key.startsWith('LC_')) inherited[key] = value;
+  }
+  return inherited;
+}
+
 export type ActionOutputType = 'string' | 'number' | 'boolean' | 'json';
 
 export interface ActionOutputDeclaration {

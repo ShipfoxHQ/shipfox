@@ -1,0 +1,28 @@
+name: Probe
+description: Calls the tools its inputs list and reports what happened.
+main: index.ts
+
+inputs:
+  calls:
+    type: json
+    default: []
+  fail:
+    type: boolean
+    default: false
+  sleep_ms:
+    type: number
+    default: 0
+
+outputs:
+  cwd:
+    required: true
+  results:
+    type: json
+
+integrations:
+  slack:
+    provider: slack
+    include: [read_thread, send_message]
+  linear:
+    provider: linear
+    include: [download_file]

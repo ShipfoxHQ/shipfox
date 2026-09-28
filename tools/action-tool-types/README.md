@@ -10,8 +10,10 @@ tool catalogs.
   tool id and per `family.method` name from the tool's `inputSchema`, using
   `json-schema-to-typescript`. A `family.method` type omits `method`, which the runner fills in.
   Results are not typed.
-- **The drift test** fails when the committed file differs from a fresh render, so a catalog
-  change cannot ship without its types.
+- **It also writes `src/generated/tool-grants.ts`,** the sensitivity and result kind of every
+  tool and family method. `@shipfox/actions/testing` checks calls against it.
+- **The drift test** fails when a committed file differs from a fresh render, so a catalog
+  change cannot ship without its types and grants.
 
 ## Installation and setup
 

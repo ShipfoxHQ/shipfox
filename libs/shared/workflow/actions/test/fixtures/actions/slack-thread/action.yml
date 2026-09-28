@@ -1,0 +1,22 @@
+name: Slack thread to Markdown
+main: index.ts
+
+inputs:
+  channel_id:
+    required: true
+  thread_ts:
+    required: true
+  destination:
+    default: context/slack-thread.md
+
+outputs:
+  path:
+    required: true
+  message_count:
+    type: number
+    required: true
+
+integrations:
+  slack:
+    provider: slack
+    include: [read_thread]
