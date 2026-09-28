@@ -264,6 +264,63 @@ describe('LogView', () => {
     expect(screen.queryByText('{"workspace":"shipfox"}')).not.toBeInTheDocument();
   });
 
+  test('shows action calls with their alias, and never an outcome-unknown write as failed', () => {
+    render(
+      <LogView
+        records={[
+          agentSession({
+            kind: 'tool-call',
+            timestamp: ts,
+            id: 'post',
+            name: 'chat__post_message',
+            input: '{"channel_id":"C1","text":"Shipped"}',
+          }),
+          agentSession(
+            {
+              kind: 'tool-result',
+              timestamp: ts + 1,
+              toolCallId: 'post',
+              toolName: 'chat__post_message',
+              output: '{"code":"provider-timeout","message":"No answer","outcome_unknown":true}',
+              isError: true,
+            },
+            1,
+          ),
+          agentSession(
+            {
+              kind: 'tool-call',
+              timestamp: ts + 2,
+              id: 'read',
+              name: 'chat__read_thread',
+              input: '{"channel_id":"C2"}',
+            },
+            2,
+          ),
+        ]}
+        attemptStatus="cancelled"
+        actionPresentation={createIntegrationActionPresentationLookup(
+          (['post_message', 'read_thread'] as const).map((toolId) => ({
+            provider: 'slack',
+            connectionId: 'team-slack',
+            connectionSlug: 'team-slack',
+            toolId,
+            sensitivity: toolId === 'post_message' ? ('write' as const) : ('read' as const),
+            alias: 'chat',
+          })),
+        )}
+      />,
+    );
+
+    expect(screen.getByText('outcome unknown')).toBeVisible();
+    expect(screen.queryByText('failed')).not.toBeInTheDocument();
+    expect(screen.getByText('interrupted')).toBeVisible();
+    fireEvent.click(screen.getByText('Slack · Post Message'));
+    expect(screen.getByText('Alias').nextElementSibling).toHaveTextContent('chat');
+    expect(screen.getByText('Connection').nextElementSibling).toHaveTextContent('team-slack');
+    expect(screen.getByText('Shipped')).toBeInTheDocument();
+    expect(screen.getByText('No answer')).toBeInTheDocument();
+  });
+
   test('shows nested objects and arrays as labeled groups', () => {
     render(
       <LogView

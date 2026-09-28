@@ -785,6 +785,27 @@ describe('StepList', () => {
       }),
     ).toBeInTheDocument();
   });
+
+  test('names action steps as actions', () => {
+    render(
+      <StepList
+        job={makeJob({
+          steps: [
+            makeStep({
+              name: 'Save Slack thread',
+              type: 'action',
+              config: {action: {uses: './.shipfox/actions/slack-thread', digest: 'sha256:ab'}},
+              attempts: [makeAttempt({status: 'succeeded'})],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', {name: 'Save Slack thread, Succeeded, attempt 1, action'}),
+    ).toBeInTheDocument();
+  });
 });
 
 function makeJob(overrides: JobDtoOverrides = {}): Job {

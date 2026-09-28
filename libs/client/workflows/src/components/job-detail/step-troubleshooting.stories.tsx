@@ -1,4 +1,5 @@
 import type {StepAttemptDto} from '@shipfox/api-workflows-dto';
+import {stepLogsQueryKeys} from '@shipfox/client-logs';
 import type {Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {useState} from 'react';
@@ -69,6 +70,196 @@ export const RunnerLossCauses: Story = {
 export const ToolStep: Story = {
   render: ({toolOutcome}) => <ToolStepStory outcome={toolOutcome} />,
 };
+
+const ACTION_STATES = [
+  'succeeded',
+  'input_invalid',
+  'unavailable',
+  'early_exit',
+  'out_of_memory',
+  'output_invalid',
+  'output_too_large',
+] as const;
+type ActionState = (typeof ACTION_STATES)[number];
+
+const ACTION_ERRORS: Record<Exclude<ActionState, 'succeeded'>, Record<string, unknown>> = {
+  input_invalid: {
+    reason: 'action_input_invalid',
+    field: 'action.with.thread_ts',
+    message: 'Action input "thread_ts" is required.',
+  },
+  unavailable: {
+    reason: 'action_unavailable',
+    message: 'The action snapshot did not match digest sha256:0123456789ab.',
+  },
+  early_exit: {message: 'The action exited before it finished.', exit_code: 0},
+  out_of_memory: {
+    message: 'The action was killed (SIGKILL). It likely ran out of memory.',
+    signal: 'SIGKILL',
+  },
+  output_invalid: {
+    reason: 'output_invalid',
+    field: 'outputs.message_count',
+    message: 'Output "message_count" must be a number.',
+  },
+  output_too_large: {
+    reason: 'step_result_too_large',
+    message: 'Output "markdown" exceeds the per-value size limit of 65536 bytes.',
+  },
+};
+
+/** Action identity, masked inputs, bindings and grants. */
+export const ActionStep: Story = {
+  render: () => <ActionStepStory state="succeeded" />,
+};
+
+/** Each action failure callout: invalid input, unavailable code, early exit, memory, outputs. */
+export const ActionStepFailed: StoryObj<{actionState: Exclude<ActionState, 'succeeded'>}> = {
+  args: {actionState: 'out_of_memory'},
+  argTypes: {actionState: {control: 'select', options: ACTION_STATES.slice(1)}},
+  render: ({actionState}) => <ActionStepStory key={actionState} state={actionState} />,
+};
+
+function ActionStepStory({state}: {state: ActionState}) {
+  const entry = actionStepEntry(state);
+  const [queryClient] = useState(() => {
+    const client = new QueryClient({
+      defaultOptions: {queries: {staleTime: Number.POSITIVE_INFINITY}},
+    });
+    client.setQueryData(
+      stepAttemptDetailQueryKeys.detail(entry.step.id, entry.attempt),
+      actionStepDetail(entry.step.id),
+    );
+    client.setQueryData(stepLogsQueryKeys.detail(entry.step.id, entry.attempt), {
+      records: [
+        {
+          v: 1,
+          ts: Date.parse('2026-09-27T12:00:00.000Z'),
+          type: 'output',
+          stream: 'stdout',
+          data: 'Shipfox action Slack thread to Markdown sha256:0123456789ab · node v24.3.0 · @shipfox/actions 0.4.1\n',
+        },
+      ],
+      nextCursor: 1,
+      source: 'inline',
+      state: 'closed',
+      complete: true,
+      hasMore: false,
+      truncated: false,
+      totalBytes: null,
+      expiresAt: null,
+    });
+    return client;
+  });
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <main className="min-h-screen bg-background-neutral-base p-16">
+        <StepInspectorSheet
+          entry={entry}
+          open
+          onOpenChange={() => undefined}
+          workspaceSlug="acme"
+          projectSlug="platform"
+          workflowRunId="11111111-1111-4111-8111-111111111111"
+          runAttempt={1}
+          jobId="44444444-4444-4444-8444-000000000005"
+          onViewLogs={() => undefined}
+        />
+      </main>
+    </QueryClientProvider>
+  );
+}
+
+function actionStepEntry(state: ActionState): StepListEntryModel {
+  const jobId = '44444444-4444-4444-8444-000000000005';
+  const executionId = '77777777-7777-4777-8777-000000000005';
+  const stepId = '55555555-5555-4555-8555-000000000005';
+  const status = state === 'succeeded' ? 'succeeded' : 'failed';
+  const error = state === 'succeeded' ? null : ACTION_ERRORS[state];
+  const job = workflowJob({
+    id: jobId,
+    name: 'investigate',
+    key: 'investigate',
+    status,
+    job_executions: [
+      workflowJobExecutionDto({
+        id: executionId,
+        job_id: jobId,
+        status,
+        steps: [
+          workflowStepDto({
+            id: stepId,
+            job_execution_id: executionId,
+            name: 'Save the Slack thread',
+            key: 'thread',
+            status,
+            type: 'action',
+            source_location: {start_line: 12, end_line: 18},
+            error,
+            attempts: [
+              workflowStepAttemptDto({
+                id: '66666666-6666-4666-8666-000000000005',
+                step_id: stepId,
+                status,
+                outputs:
+                  state === 'succeeded'
+                    ? {path: 'context/slack-thread.md', message_count: 42, complete: true}
+                    : null,
+                error,
+                finished_at: '2026-09-27T12:01:00.000Z',
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+  const execution = job.jobExecutions[0];
+  if (!execution) throw new Error('Story fixture is missing a job execution.');
+  const entry = buildStepListModel({job, jobExecution: execution}).entries[0];
+  if (!entry) throw new Error('Story fixture is missing a step attempt.');
+  return entry;
+}
+
+function actionStepDetail(stepId: string): StepAttemptDetail {
+  return {
+    stepId,
+    attempt: 1,
+    session: null,
+    authoredConfig: null,
+    config: {
+      action: {
+        uses: './.shipfox/actions/slack-thread',
+        digest: 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+        main: 'index.ts',
+        name: 'Slack thread to Markdown',
+      },
+      inputs: {
+        channel_id: 'C0123456',
+        thread_ts: '1727000000.1234',
+        destination: 'context/slack-thread.md',
+      },
+      secret_bindings: [
+        {target: {kind: 'input', name: 'token'}, segments: [{kind: 'secret', key: 'SLACK_TOKEN'}]},
+      ],
+      integrations: [
+        {
+          alias: 'slack',
+          provider: 'slack',
+          connection_slug: 'team-slack',
+          tools: [
+            {id: 'read_thread', sensitivity: 'read', result: 'json'},
+            {id: 'read_user_profile', sensitivity: 'read', result: 'json'},
+            {id: 'post_message', sensitivity: 'write', result: 'json'},
+          ],
+        },
+      ],
+    },
+    toolArguments: null,
+    evaluationTrace: null,
+  };
+}
 
 function ProviderInterruptedStory() {
   const [queryClient] = useState(

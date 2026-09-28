@@ -12,6 +12,8 @@ import {
   preDispatchStepDiagnostic,
 } from './pre-dispatch-step-diagnostic.js';
 
+const ACTION_INPUT_DESCRIPTION = /does not match its declaration in action\.yml/u;
+
 describe('preDispatchStepDiagnostic', () => {
   it('classifies only failed attempts with an unresolvable configuration', () => {
     expect(
@@ -28,6 +30,20 @@ describe('preDispatchStepDiagnostic', () => {
     expect(
       preDispatchStepDiagnostic('failed', {reason: 'agent_invocation_failed'}),
     ).toBeUndefined();
+  });
+
+  it('names the invalid action input and the rule it broke', () => {
+    expect(
+      preDispatchStepDiagnostic('failed', {
+        reason: 'action_input_invalid',
+        field: 'action.with.limit',
+        source: 'action',
+        message: 'Action input "limit" must be a number value.',
+      }),
+    ).toEqual({
+      field: 'action.with.limit',
+      actionInputProblem: 'Action input "limit" must be a number value.',
+    });
   });
 
   it('omits unavailable optional details', () => {
@@ -65,6 +81,24 @@ describe('PreDispatchStepDiagnostic', () => {
       'href',
       expect.stringContaining('tab=source'),
     );
+  });
+
+  it('explains an invalid action input with its field and problem', async () => {
+    await renderDiagnostic({
+      diagnostic: {
+        field: 'action.with.limit',
+        actionInputProblem: 'Action input "limit" must be a number value.',
+      },
+      sourceLocation: {startLine: 4, endLine: 9},
+    });
+
+    expect(screen.getByText(ACTION_INPUT_DESCRIPTION)).toBeInTheDocument();
+    expect(screen.getByText('action.with.limit')).toBeInTheDocument();
+    expect(screen.getByText('Problem').nextElementSibling).toHaveTextContent(
+      'Action input "limit" must be a number value.',
+    );
+    expect(screen.queryByText('Unavailable reference')).toBeNull();
+    expect(screen.getByRole('link', {name: 'View in source'})).toBeInTheDocument();
   });
 
   it('keeps the explanation when field and source are absent', async () => {

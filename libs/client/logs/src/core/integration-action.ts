@@ -7,6 +7,13 @@ export interface IntegrationActionTool {
   toolId: string;
   sensitivity: 'read' | 'write';
   methods?: readonly {id: string; sensitivity: 'read' | 'write'}[] | undefined;
+  /**
+   * Set for action steps. Their rows name each call `<alias>__<tool>`, as the action code called
+   * it, because two aliases can bind the same connection.
+   */
+  alias?: string | undefined;
+  /** A `file` tool records the downloaded file's metadata as its result. */
+  result?: 'json' | 'file' | undefined;
 }
 
 const CLAUDE_PREFIX = 'mcp__shipfox_integration_tools__';
@@ -17,7 +24,8 @@ export function createIntegrationActionPresentationLookup(
 ): ActionPresentationLookup {
   const byName = new Map<string, IntegrationActionTool | null>();
   for (const tool of tools) {
-    const name = `${tool.connectionSlug.replaceAll('-', '_')}__${tool.toolId}`;
+    const prefix = tool.alias ?? tool.connectionSlug.replaceAll('-', '_');
+    const name = `${prefix}__${tool.toolId}`;
     byName.set(name, byName.has(name) ? null : tool);
   }
 
@@ -28,10 +36,124 @@ export function createIntegrationActionPresentationLookup(
       ? exposedName.slice(CLAUDE_PREFIX.length)
       : exposedName;
     const tool = byName.get(name);
-    if (!tool) return undefined;
+    if (tool) {
+      return isActionTool(tool)
+        ? presentActionCall({tool, action, methodId: null})
+        : presentIntegrationAction(tool, action.request, action.result);
+    }
 
-    return presentIntegrationAction(tool, action.request, action.result);
+    // Action code calls a family method as `family.method`.
+    const methodSeparator = name.indexOf('.');
+    if (methodSeparator === -1) return undefined;
+    const family = byName.get(name.slice(0, methodSeparator));
+    if (!family || !isActionTool(family) || !family.methods) return undefined;
+    return presentActionCall({tool: family, action, methodId: name.slice(methodSeparator + 1)});
   };
+}
+
+function isActionTool(
+  tool: IntegrationActionTool,
+): tool is IntegrationActionTool & {alias: string} {
+  return tool.alias !== undefined;
+}
+
+function presentActionCall({
+  tool,
+  action,
+  methodId,
+}: {
+  tool: IntegrationActionTool & {alias: string};
+  action: PairedAction;
+  methodId: string | null;
+}): ActionPresentation {
+  const input = parseObject(action.request?.input);
+  const output = parseJson(action.result?.output);
+  const method = tool.methods?.find((candidate) => candidate.id === methodId);
+  const failure = action.result?.isError ? asRecord(output) : null;
+  const file = tool.result === 'file' && !action.result?.isError ? downloadedFile(output) : null;
+  return {
+    label: humanize(method ? `${tool.toolId} ${method.id}` : tool.toolId),
+    target: file?.filename ?? primaryIdentifier(input),
+    iconKind: 'integration',
+    detailKind: 'structured',
+    readClassification: tool.methods ? (method?.sensitivity ?? 'unknown') : tool.sensitivity,
+    statusDetail: file ? formatBytes(file.bytes) : undefined,
+    outcome: actionCallOutcome(action.state, failure),
+    meta: [
+      {label: 'Alias', value: tool.alias},
+      {label: 'Connection', value: tool.connectionSlug},
+    ],
+    // Without a presented detail the row shows both the arguments and the result.
+    ...(file
+      ? {
+          detail: {
+            label: 'Downloaded file',
+            value: JSON.stringify({
+              File: file.filename,
+              Size: formatBytes(file.bytes),
+              'Media type': file.mediaType,
+              'SHA-256': file.sha256,
+              Path: file.path,
+            }),
+            kind: 'structured' as const,
+          },
+        }
+      : {}),
+    integration: {
+      provider: tool.provider,
+      connectionId: tool.connectionId,
+      connectionSlug: tool.connectionSlug,
+      toolId: tool.toolId,
+      methodId: method?.id ?? null,
+    },
+  };
+}
+
+function actionCallOutcome(
+  state: PairedAction['state'],
+  failure: Record<string, unknown> | null,
+): ActionPresentation['outcome'] {
+  // Failed action calls record the local endpoint's error, which flags a write that may have landed.
+  if (failure?.outcome_unknown === true) return {label: 'outcome unknown', tone: 'warning'};
+  // The step ended while the call was open: cancellation or a timeout stopped it.
+  if (state === 'no-result') return {label: 'interrupted', tone: 'neutral'};
+  return undefined;
+}
+
+interface DownloadedFile {
+  path: string;
+  filename: string;
+  bytes: number;
+  mediaType: string;
+  sha256: string;
+}
+
+function downloadedFile(value: unknown): DownloadedFile | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const {path, filename, bytes, media_type: mediaType, sha256} = record;
+  if (
+    typeof path !== 'string' ||
+    typeof filename !== 'string' ||
+    typeof bytes !== 'number' ||
+    typeof mediaType !== 'string' ||
+    typeof sha256 !== 'string'
+  ) {
+    return null;
+  }
+  return {path, filename, bytes, mediaType, sha256};
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KiB', 'MiB', 'GiB'];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`;
 }
 
 function presentIntegrationAction(

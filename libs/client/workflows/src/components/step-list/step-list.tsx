@@ -552,6 +552,16 @@ function StepStatusIcon({entry}: {entry: StepListEntryModel}) {
 }
 
 function ToolProviderIcon({entry}: {entry: StepListEntryModel}) {
+  if (entry.step.type === 'action') {
+    return (
+      <Icon
+        name="codeBoxLine"
+        size={14}
+        aria-hidden="true"
+        className="shrink-0 text-foreground-neutral-muted"
+      />
+    );
+  }
   if (entry.step.type !== 'tool') return null;
   const provider = entry.step.toolConfig?.provider;
   const catalogEntry = provider ? PROVIDER_CATALOG[provider] : undefined;
@@ -591,6 +601,7 @@ function StepAttemptChip({attempt}: {attempt: StepAttemptModel}) {
 
 function entryAccessibleLabel(entry: StepListEntryModel): string {
   const parts = [entry.step.label, entry.statusVisual.label, `attempt ${entry.attemptOrdinal}`];
+  if (entry.step.type === 'action') parts.push('action');
   if (entry.step.toolConfig?.provider) {
     const provider = entry.step.toolConfig.provider;
     parts.push(

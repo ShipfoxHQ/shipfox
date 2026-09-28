@@ -37,6 +37,13 @@ export interface ActionPresentation {
   detailKind: ActionDetailKind;
   readClassification?: ActionReadClassification | undefined;
   statusDetail?: string | undefined;
+  /**
+   * Replaces the failed or no-result wording. A write whose outcome is unknown must never read
+   * as failed, because the provider may have applied it.
+   */
+  outcome?: {label: string; tone: 'warning' | 'neutral'} | undefined;
+  /** Identity facts shown above the recorded details. */
+  meta?: readonly {label: string; value: string}[] | undefined;
   detail?: {label: string; value: string; kind: ActionDetailKind} | null;
   integration?:
     | {

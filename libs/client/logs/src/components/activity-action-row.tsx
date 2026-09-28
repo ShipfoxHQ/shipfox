@@ -76,10 +76,13 @@ export function ActivityActionRow({
             durationMs={action.durationMs}
             terminated={terminated}
             detail={resolvedPresentation.statusDetail}
+            outcome={resolvedPresentation.outcome}
           />
         }
         className={cn(
-          action.state === 'failed' && 'text-foreground-contrast-primary',
+          action.state === 'failed' &&
+            !resolvedPresentation.outcome &&
+            'text-foreground-contrast-primary',
           action.state === 'no-result' && 'text-foreground-contrast-secondary',
         )}
       >
@@ -89,6 +92,7 @@ export function ActivityActionRow({
         </span>
       </LogDisclosureTrigger>
       <LogDisclosureContent className="border-l-0 pb-row">
+        {resolvedPresentation.meta?.length ? <ActionMeta meta={resolvedPresentation.meta} /> : null}
         {hasPresentedDetail ? (
           <PresentedDetails detail={resolvedPresentation.detail ?? null} />
         ) : (
@@ -332,16 +336,65 @@ function ActionIcon({kind}: {kind: ActionPresentation['iconKind']}) {
   );
 }
 
+function ActionMeta({meta}: {meta: NonNullable<ActionPresentation['meta']>}) {
+  return (
+    <dl className="mb-tight flex min-w-0 flex-wrap gap-x-group gap-y-tight">
+      {meta.map((entry) => (
+        <div key={entry.label} className="flex min-w-0 items-baseline gap-tight">
+          <dt className="text-foreground-contrast-secondary">{entry.label}</dt>
+          <dd className="min-w-0 truncate font-code text-foreground-contrast-primary">
+            {entry.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function ActionOutcome({
+  outcome,
+  durationMs,
+}: {
+  outcome: NonNullable<ActionPresentation['outcome']>;
+  durationMs: number | null;
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-inline',
+        outcome.tone === 'warning' ? 'text-tag-warning-text' : 'text-foreground-contrast-secondary',
+      )}
+    >
+      {outcome.tone === 'warning' ? (
+        <Icon
+          name="errorWarningFill"
+          className="size-14 text-tag-warning-icon"
+          aria-hidden="true"
+        />
+      ) : null}
+      <span>{outcome.label}</span>
+      {durationMs !== null ? (
+        <>
+          <span aria-hidden="true" className="h-12 border-l border-border-contrast-base" />
+          <span className="font-code">{formatDuration(durationMs)}</span>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 function ActionStatus({
   state,
   durationMs,
   terminated,
   detail,
+  outcome,
 }: {
   state: ActivityState;
   durationMs: number | null;
   terminated: boolean;
   detail?: string | undefined;
+  outcome?: ActionPresentation['outcome'];
 }) {
   if (state === 'running' && !terminated) {
     return (
@@ -350,6 +403,10 @@ function ActionStatus({
         <span>running</span>
       </span>
     );
+  }
+
+  if (outcome && state !== 'succeeded') {
+    return <ActionOutcome outcome={outcome} durationMs={durationMs} />;
   }
 
   const completed = state === 'succeeded' || state === 'failed';

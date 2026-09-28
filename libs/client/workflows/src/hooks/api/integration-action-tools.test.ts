@@ -119,3 +119,41 @@ test('presents a tool step using its frozen connection and method', () => {
   });
   expect(item.action).toMatchObject({state: 'succeeded', durationMs: 250});
 });
+
+test('maps action bindings by alias with each granted tool and result kind', () => {
+  expect(
+    toIntegrationActionTools({
+      action: {uses: './.shipfox/actions/linear-context', digest: 'sha256:ab', name: 'Linear'},
+      integrations: [
+        {
+          alias: 'tickets',
+          provider: 'linear',
+          connection_slug: 'tickets-main',
+          tools: [
+            {id: 'get_issue', sensitivity: 'read', result: 'json'},
+            {id: 'download_file', sensitivity: 'read', result: 'file'},
+          ],
+        },
+      ],
+    }),
+  ).toEqual([
+    {
+      provider: 'linear',
+      connectionId: 'tickets-main',
+      connectionSlug: 'tickets-main',
+      toolId: 'get_issue',
+      sensitivity: 'read',
+      alias: 'tickets',
+      result: 'json',
+    },
+    {
+      provider: 'linear',
+      connectionId: 'tickets-main',
+      connectionSlug: 'tickets-main',
+      toolId: 'download_file',
+      sensitivity: 'read',
+      alias: 'tickets',
+      result: 'file',
+    },
+  ]);
+});
