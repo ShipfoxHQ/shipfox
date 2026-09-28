@@ -167,6 +167,24 @@ describe('bootstrap', () => {
     expect(run.stderr).toMatch(REJECTION_STACK_RE);
   });
 
+  it('fails on a rejection left unhandled just before the handler returns', async () => {
+    await writeFiles(sandbox.bundle, {
+      'index.js': `
+        import {defineAction} from '@shipfox/actions';
+
+        export default defineAction(() => {
+          Promise.reject(new Error('late rejection'));
+        });
+      `,
+    });
+
+    const run = await runActionProcess({sandbox});
+
+    expect(run.exitCode).toBe(1);
+    expect(run.result).toEqual({status: 'failed'});
+    expect(run.stderr).toContain('Error: late rejection');
+  });
+
   it('writes no result when the action exits before the handler settles', async () => {
     await writeFiles(sandbox.bundle, {
       'index.js': `

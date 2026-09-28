@@ -146,4 +146,23 @@ describe('loader', () => {
       `Cannot find package 'b' imported from ${join(sandbox.bundle, 'index.js')}, looked up from ${sandbox.workspace}. ${PACKAGE_NOT_FOUND_HINT}`,
     );
   });
+
+  it('keeps the resolution error for a missing file inside an installed package', async () => {
+    // No `exports` field, so a subpath resolves straight to a file.
+    await writeFiles(join(sandbox.workspace, 'node_modules', 'pkg'), {
+      'package.json': JSON.stringify({name: 'pkg', type: 'module'}),
+    });
+    await writeFiles(sandbox.bundle, {
+      'index.js': reportAction("import 'pkg/missing.js';", "'unreachable'"),
+    });
+
+    const result = await run();
+
+    expect(result.exitCode).toBe(1);
+    expect(result.result).toEqual({status: 'failed'});
+    expect(result.stderr).toContain(
+      `Cannot find module '${join(sandbox.workspace, 'node_modules', 'pkg', 'missing.js')}'`,
+    );
+    expect(result.stderr).not.toContain(PACKAGE_NOT_FOUND_HINT);
+  });
 });

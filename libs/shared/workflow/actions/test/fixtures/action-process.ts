@@ -182,6 +182,7 @@ function parseOutputFile(content: string): Record<string, string> {
     const heredoc = HEREDOC_START_RE.exec(line);
     if (heredoc?.[1] && heredoc[2]) {
       const end = lines.indexOf(heredoc[2], index + 1);
+      if (end < 0) break;
       outputs[heredoc[1]] = lines.slice(index + 1, end).join('\n');
       index = end;
       continue;

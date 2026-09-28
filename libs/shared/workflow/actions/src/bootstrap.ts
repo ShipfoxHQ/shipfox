@@ -33,8 +33,13 @@ process.on('beforeExit', () => {
 });
 
 run().then(() => {
-  writeResult('succeeded');
-  exit(0);
+  // Node reports a rejection left unhandled in the handler's last turn only after this callback,
+  // so finish one turn later and let that failure win.
+  setImmediate(() => {
+    if (exiting) return;
+    writeResult('succeeded');
+    exit(0);
+  });
 }, fail);
 
 async function run(): Promise<void> {

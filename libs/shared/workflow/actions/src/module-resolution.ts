@@ -43,7 +43,7 @@ export function createActionResolveHook(params: ActionResolveHookParams): Resolv
     try {
       return nextResolve(specifier, {...context, parentURL: workspacePackageUrl});
     } catch (error) {
-      if (!isModuleNotFound(error)) throw error;
+      if (!isPackageNotFound(error)) throw error;
       throw moduleError({
         code: 'ERR_MODULE_NOT_FOUND',
         message: `Cannot find package '${specifier}' imported from ${importer}, looked up from ${params.workspaceDir}. ${PACKAGE_NOT_FOUND_HINT}`,
@@ -95,9 +95,14 @@ function isBareSpecifier(specifier: string): boolean {
   );
 }
 
-function isModuleNotFound(error: unknown): boolean {
-  const code = (error as {code?: unknown} | null)?.code;
-  return code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND';
+// Node uses ERR_MODULE_NOT_FOUND both for a missing package and for a missing file inside an
+// installed one. Only a missing package gets the install hint; the other keeps Node's error.
+function isPackageNotFound(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error as {code?: unknown}).code === 'ERR_MODULE_NOT_FOUND' &&
+    error.message.startsWith('Cannot find package')
+  );
 }
 
 function moduleError(params: {code: string; message: string; cause?: unknown}): Error {
