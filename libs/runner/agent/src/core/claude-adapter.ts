@@ -27,6 +27,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
 import {config} from '#config.js';
 import {CLAUDE_AUTH_HELPER_PATH} from '#core/claude-auth-helper.js';
+import {resolveBundledClaudeCodeExecutable} from '#core/claude-code.js';
 import {
   CLAUDE_CREDENTIAL_HELPER_TTL_MS,
   type ClaudeCredentialBroker,
@@ -49,6 +50,7 @@ import {
   AgentSessionUnavailableError,
 } from '#core/errors.js';
 import type {HarnessAdapter, HarnessInvocation, HarnessResult} from '#core/harness.js';
+import {withDefaultOomScore} from '#core/oom-score.js';
 import {
   OutputCollector,
   RequiredOutputsMissingError,
@@ -390,6 +392,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
         abortController: controller,
         ...toolContext.selectedToolOptions,
         ...claudeSystemPromptOption(),
+        ...claudeExecutableOptions(),
         ...(credentialBroker === undefined
           ? {}
           : {settings: {apiKeyHelper: CLAUDE_AUTH_HELPER_PATH}}),
@@ -1395,6 +1398,17 @@ function userMessage(content: string): SDKUserMessage {
     message: {role: 'user', content},
     parent_tool_use_id: null,
   };
+}
+
+// The SDK passes executableArgs before its own CLI arguments when the executable is native, so
+// /bin/sh resets the OOM score and then execs the bundled binary with the SDK's arguments.
+function claudeExecutableOptions(): {
+  readonly pathToClaudeCodeExecutable?: string;
+  readonly executableArgs?: string[];
+} {
+  if (process.platform !== 'linux') return {};
+  const launch = withDefaultOomScore({executable: resolveBundledClaudeCodeExecutable(), args: []});
+  return {pathToClaudeCodeExecutable: launch.executable, executableArgs: launch.args};
 }
 
 function claudeSystemPromptOption(): {readonly systemPrompt?: string} {

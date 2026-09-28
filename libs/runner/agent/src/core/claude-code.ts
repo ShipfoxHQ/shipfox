@@ -63,7 +63,7 @@ export function isSupportedClaudeCodeVersion(version: string): boolean {
   );
 }
 
-function resolveBundledClaudeCodeExecutable(params: ClaudeCodeCheckParams): string {
+export function resolveBundledClaudeCodeExecutable(params: ClaudeCodeCheckParams = {}): string {
   const platform = params.platform ?? process.platform;
   const arch = params.arch ?? process.arch;
   const specifiers = claudeCodeBinarySpecifiers({
