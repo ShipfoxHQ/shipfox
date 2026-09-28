@@ -221,4 +221,73 @@ describe('action step config', () => {
       input: 'limit',
     });
   });
+
+  describe('secret inputs', () => {
+    function npmStep(params: {tokenType: 'string' | 'number'}): ActionStepInput {
+      const base = slackThreadStep({
+        channel_id: 'C1',
+        thread_ts: '1.0',
+        token: template('secrets.NPM_TOKEN'),
+      });
+      return {
+        ...base,
+        env: {LOG_LEVEL: 'debug', SLACK_TOKEN: template('secrets.SLACK')},
+        action: {
+          ...base.action,
+          inputs: {
+            ...base.action?.inputs,
+            token: {type: params.tokenType, required: true},
+          },
+        },
+      };
+    }
+
+    test('binds a secret input by reference and keeps the value out of the config and trace', async () => {
+      const materialized = await materializeActionStep(npmStep({tokenType: 'string'}));
+
+      const completed = await completeStepDispatchConfig({
+        step: stepFrom(materialized),
+        context: dispatchContext({}),
+        definitionId: 'definition-1',
+      });
+
+      expect(materialized.config.inputs).toEqual({channel_id: 'C1', thread_ts: '1.0'});
+      expect(completed.config.inputs).toEqual({channel_id: 'C1', thread_ts: '1.0', limit: 200});
+      expect(completed.config.secret_bindings).toEqual([
+        {target: 'SLACK_TOKEN', segments: [{kind: 'secret', store: 'local', key: 'SLACK'}]},
+        {
+          target: {kind: 'input', name: 'token'},
+          segments: [{kind: 'secret', store: 'local', key: 'NPM_TOKEN'}],
+        },
+      ]);
+      const secretTrace = completed.trace.filter(
+        (entry) => 'roots' in entry && entry.roots.includes('secrets'),
+      );
+      expect(secretTrace).toEqual([
+        expect.objectContaining({field: 'env', envKey: 'SLACK_TOKEN', reference: true}),
+        expect.objectContaining({
+          field: 'action.with',
+          expression: 'secrets.NPM_TOKEN',
+          reference: true,
+        }),
+      ]);
+      expect(secretTrace.every((entry) => !('value' in entry))).toBe(true);
+    });
+
+    test('rejects a secret bound to an input that is not a string', async () => {
+      const materialized = await materializeActionStep(npmStep({tokenType: 'number'}));
+
+      const completion = completeStepDispatchConfig({
+        step: stepFrom(materialized),
+        context: dispatchContext({}),
+        definitionId: 'definition-1',
+      });
+
+      await expect(completion).rejects.toMatchObject({
+        name: 'ActionInputInvalidError',
+        message: 'Action input "token" receives a secret, so it must be a string input.',
+        input: 'token',
+      });
+    });
+  });
 });

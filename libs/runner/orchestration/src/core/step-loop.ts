@@ -1576,10 +1576,19 @@ async function loadRunSecretMaterial(params: {
   };
 }
 
-function parseRunSecretBindings(value: unknown): MaterializedSecretBindingDto[] {
+type RunSecretBinding = MaterializedSecretBindingDto & {target: string};
+
+// Run steps only bind environment variables; input targets belong to action steps.
+function parseRunSecretBindings(value: unknown): RunSecretBinding[] {
   const parsed = runSecretBindingsSchema.safeParse(value ?? []);
-  if (!parsed.success) throw new Error('Run step secret bindings are invalid.');
+  if (!parsed.success || !parsed.data.every(isEnvSecretBinding)) {
+    throw new Error('Run step secret bindings are invalid.');
+  }
   return parsed.data;
+}
+
+function isEnvSecretBinding(binding: MaterializedSecretBindingDto): binding is RunSecretBinding {
+  return typeof binding.target === 'string';
 }
 
 function assembleSecretBinding(

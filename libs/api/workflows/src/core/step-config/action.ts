@@ -1,10 +1,19 @@
-import type {WorkflowModel, WorkflowModelActionInput} from '@shipfox/api-definitions-dto';
-import {coerceStepOutputs, type StepOutputCoercionError} from '@shipfox/expression';
+import type {
+  WorkflowJsonTemplateTree,
+  WorkflowModel,
+  WorkflowModelActionInput,
+} from '@shipfox/api-definitions-dto';
+import type {MaterializedSecretBindingDto} from '@shipfox/api-secrets-dto';
+import {
+  coerceStepOutputs,
+  type ResolvedFieldSegment,
+  type StepOutputCoercionError,
+} from '@shipfox/expression';
 import type {PersistedEvaluationTraceEntry, StepConfigDispatchPlan} from '#core/entities/step.js';
 import {ActionInputInvalidError} from '#core/errors.js';
 import type {WorkflowStepEvaluationTraceEntry, WorkflowStepTemplateDiagnostic} from './fields.js';
-import {type ResolveRunStepConfigParams, resolveStepEnv} from './run.js';
-import {completeWith, resolveWith} from './tool.js';
+import {completeDispatchField, type ResolveRunStepConfigParams, resolveStepEnv} from './run.js';
+import {completeWith, isFieldTemplate, resolveWith} from './tool.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 type ActionStep = Extract<WorkflowModel['jobs'][number]['steps'][number], {kind: 'action'}>;
@@ -80,13 +89,98 @@ export function completeActionConfig(params: {
   const actionPlan = params.plan.action;
   if (actionPlan === undefined) return;
 
-  const provided = completeWith(params.config.inputs, actionPlan.with, {
+  const {secretInputs, withPlan} = splitSecretInputs(actionPlan.with);
+  const secretBindings = completeSecretInputs({
+    ...params,
+    declarations: actionPlan.inputs,
+    secretInputs,
+  });
+  const provided = completeWith(params.config.inputs, withPlan, {
     field: 'action.with',
     context: params.context,
     definitionId: params.definitionId,
     trace: params.trace,
   });
-  params.config.inputs = coerceActionInputs(actionPlan.inputs, provided);
+  const declarations = withoutSecretInputs(actionPlan.inputs, secretInputs);
+  params.config.inputs = coerceActionInputs(declarations, provided);
+  if (secretBindings.length === 0) return;
+
+  const existing = Array.isArray(params.config.secret_bindings)
+    ? params.config.secret_bindings
+    : [];
+  params.config.secret_bindings = [...existing, ...secretBindings];
+}
+
+type SecretInputTemplates = Readonly<Record<string, readonly ResolvedFieldSegment[]>>;
+
+// Normalization only accepts a secret as the whole value of a top-level input.
+function splitSecretInputs(plan: WorkflowJsonTemplateTree | undefined): {
+  readonly secretInputs: SecretInputTemplates;
+  readonly withPlan: WorkflowJsonTemplateTree | undefined;
+} {
+  if (plan === undefined || plan === null || Array.isArray(plan) || typeof plan !== 'object') {
+    return {secretInputs: {}, withPlan: plan};
+  }
+
+  const secretInputs: Record<string, readonly ResolvedFieldSegment[]> = {};
+  const withPlan: Record<string, WorkflowJsonTemplateTree> = {};
+  for (const [name, child] of Object.entries(plan as Record<string, WorkflowJsonTemplateTree>)) {
+    if (child !== undefined && isFieldTemplate(child) && readsSecrets(child)) {
+      secretInputs[name] = child;
+    } else {
+      withPlan[name] = child;
+    }
+  }
+  return {secretInputs, withPlan};
+}
+
+function readsSecrets(segments: readonly ResolvedFieldSegment[]): boolean {
+  return segments.some(
+    (segment) => segment.kind === 'deferred' && segment.roots.includes('secrets'),
+  );
+}
+
+function completeSecretInputs(params: {
+  readonly declarations: ActionInputDeclarations;
+  readonly secretInputs: SecretInputTemplates;
+  readonly context: WorkflowEvaluationContext;
+  readonly definitionId: string;
+  readonly trace: PersistedEvaluationTraceEntry[];
+}): MaterializedSecretBindingDto[] {
+  const bindings: MaterializedSecretBindingDto[] = [];
+  for (const [name, segments] of Object.entries(params.secretInputs)) {
+    // The runner fills the secret as a string, so the input must accept one as is.
+    if (params.declarations[name]?.type !== 'string') {
+      throw new ActionInputInvalidError(
+        `Action input "${name}" receives a secret, so it must be a string input.`,
+        name,
+      );
+    }
+    const completed = completeDispatchField({
+      field: 'action.with',
+      traceField: 'action.with',
+      errorField: 'action.with',
+      template: {segments},
+      context: params.context,
+      definitionId: params.definitionId,
+      target: {kind: 'input', name},
+      trace: params.trace,
+    });
+    if (completed.kind !== 'binding') {
+      throw new Error(`Action secret input "${name}" resolved outside the runner`);
+    }
+    bindings.push(completed.binding);
+  }
+  return bindings;
+}
+
+function withoutSecretInputs(
+  declarations: ActionInputDeclarations,
+  secretInputs: SecretInputTemplates,
+): ActionInputDeclarations {
+  return Object.fromEntries(
+    Object.entries(declarations).filter(([name]) => !Object.hasOwn(secretInputs, name)),
+  );
 }
 
 // Defaults apply only to omitted inputs, never to null or empty values.
