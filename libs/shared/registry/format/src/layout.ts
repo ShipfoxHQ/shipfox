@@ -7,6 +7,7 @@ export const REGISTRY_PRIVATE_PREFIX = '_registry/';
 
 export const REGISTRY_METADATA_PATH = '.well-known/shipfox-registry.json';
 export const REGISTRY_CATALOG_PATH = 'v1/index.json';
+const TOKEN_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
 // Every helper validates its segments, so a crafted name can never escape its prefix.
 
@@ -53,8 +54,8 @@ export function registryAuditPath({
 }
 
 export function registryJtiPath(jti: string): string {
-  if (jti.length === 0) throw new TypeError('A token id is required');
-  return `${REGISTRY_PRIVATE_PREFIX}jti/${encodeURIComponent(jti)}`;
+  if (!TOKEN_ID_PATTERN.test(jti)) throw new TypeError(`${JSON.stringify(jti)} is not a token id`);
+  return `${REGISTRY_PRIVATE_PREFIX}jti/${jti}`;
 }
 
 function packagePrefix(packageName: string): string {

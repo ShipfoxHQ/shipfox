@@ -46,12 +46,6 @@ describe('registry storage layout', () => {
     ]);
   });
 
-  it('keeps a token id inside its prefix', () => {
-    const result = registryJtiPath('../../v1/index.json');
-
-    expect(result).toBe('_registry/jti/..%2F..%2Fv1%2Findex.json');
-  });
-
   it.each([
     () => registryNamespacePath('../_registry'),
     () => registryPackageIndexPath('shipfox/../../_registry'),
@@ -61,6 +55,10 @@ describe('registry storage layout', () => {
     () => registryBlobPath('sha256:../../index.json'),
     () => registryBlobPath(`sha512:${digestHex}`),
     () => registryJtiPath(''),
+    () => registryJtiPath('.'),
+    () => registryJtiPath('..'),
+    () => registryJtiPath('../../v1/index.json'),
+    () => registryJtiPath('a'.repeat(129)),
   ])('rejects segments outside the grammar (%#)', (build) => {
     expect(build).toThrow(TypeError);
   });

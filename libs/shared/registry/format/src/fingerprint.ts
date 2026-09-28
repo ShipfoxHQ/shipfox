@@ -41,23 +41,30 @@ export function computeFingerprint(document: FingerprintSource): Promise<string>
  * `undefined` object values are omitted, as `JSON.stringify` does.
  */
 export function canonicalJson(value: unknown): string {
-  return JSON.stringify(sortKeys(value));
+  const json = serialize(value);
+  if (json === undefined) throw new TypeError('Canonical JSON cannot encode undefined');
+  return json;
 }
 
-function sortKeys(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeys);
-  if (value === null || typeof value !== 'object') {
-    if (typeof value === 'number' && !Number.isFinite(value)) {
-      throw new TypeError(`Canonical JSON cannot encode ${value}`);
-    }
-    return value;
+// Writes object members directly instead of rebuilding an object: JavaScript
+// would reorder integer-like keys and drop an own `__proto__` key.
+function serialize(value: unknown): string | undefined {
+  if (Array.isArray(value)) return `[${value.map((item) => serialize(item) ?? 'null').join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    // Code-unit order, not localeCompare, so the order never depends on the runtime locale.
+    const members = Object.keys(record)
+      .sort()
+      .flatMap((key) => {
+        const member = serialize(record[key]);
+        return member === undefined ? [] : [`${JSON.stringify(key)}:${member}`];
+      });
+    return `{${members.join(',')}}`;
   }
-  const sorted: Record<string, unknown> = {};
-  // Code-unit order, not localeCompare, so the order never depends on the runtime locale.
-  for (const key of Object.keys(value).sort()) {
-    sorted[key] = sortKeys((value as Record<string, unknown>)[key]);
+  if (typeof value === 'number' && !Number.isFinite(value)) {
+    throw new TypeError(`Canonical JSON cannot encode ${value}`);
   }
-  return sorted;
+  return JSON.stringify(value);
 }
 
 async function sha256Digest(bytes: Uint8Array<ArrayBuffer>): Promise<string> {

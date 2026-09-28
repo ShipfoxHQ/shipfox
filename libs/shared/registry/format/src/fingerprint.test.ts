@@ -43,8 +43,8 @@ describe('computeFingerprint', () => {
   });
 
   it.each([
-    ['content', {content: {digest: digest('9'), bytes: 1, format: 'action-bundle@1' as const}}],
-    ['source', {source: {digest: digest('9'), bytes: 1, format: 'source-archive@1' as const}}],
+    ['content', {content: {...actionVersionDocument().content, digest: digest('9')}}],
+    ['source', {source: {...actionVersionDocument().source, digest: digest('9')}}],
     ['README', {readme: undefined}],
     ['changelog', {changelog: 'Other notes.'}],
     ['manifest', {manifest: {name: 'Other'}}],
@@ -61,6 +61,18 @@ describe('computeFingerprint', () => {
     ]);
 
     expect(second).not.toBe(first);
+  });
+
+  it('ignores the composition format of a template', async () => {
+    const template = templateVersionDocument();
+    const recomposed = {...template, composition: 2};
+
+    const [first, second] = await Promise.all([
+      computeFingerprint(template),
+      computeFingerprint(recomposed),
+    ]);
+
+    expect(second).toBe(first);
   });
 
   it('fingerprints a template document', async () => {
@@ -80,6 +92,18 @@ describe('canonicalJson', () => {
     const result = canonicalJson({b: 1, a: {d: [{z: 1, y: 2}], c: undefined}});
 
     expect(result).toBe('{"a":{"d":[{"y":2,"z":1}]},"b":1}');
+  });
+
+  it('sorts integer-like keys as text and keeps an own __proto__ key', () => {
+    const result = canonicalJson(JSON.parse('{"b":1,"10":1,"2":1,"__proto__":{"x":1}}'));
+
+    expect(result).toBe('{"10":1,"2":1,"__proto__":{"x":1},"b":1}');
+  });
+
+  it('writes undefined array items as null', () => {
+    const result = canonicalJson([1, undefined]);
+
+    expect(result).toBe('[1,null]');
   });
 
   it('rejects numbers JSON cannot represent', () => {
