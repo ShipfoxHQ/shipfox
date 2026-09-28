@@ -9260,6 +9260,9 @@ importers:
 
   libs/shared/workflow/templates:
     dependencies:
+      '@shipfox/registry-format':
+        specifier: workspace:*
+        version: link:../../registry/format
       '@shipfox/workflow-document':
         specifier: workspace:*
         version: link:../document

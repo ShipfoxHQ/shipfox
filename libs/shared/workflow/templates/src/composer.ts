@@ -1,12 +1,44 @@
+import type {RegistryReference} from '@shipfox/registry-format';
+import {formatTemplateHeader} from './header.js';
 import type {WorkflowTemplateManifest} from './manifest.js';
 import {validateModelAnchors} from './model-anchors.js';
 
 export type PartBlocks = Readonly<Record<string, string>>;
 export type TemplateRoleBindings = Readonly<Record<string, string>>;
+/** The chosen choice id for each option id. */
+export type TemplateOptions = Readonly<Record<string, string>>;
+
+/**
+ * Which grammar the composer writes. `legacy` is `<id>@<revision>` and has no place for options.
+ * `registry` names the registry package the composed template came from.
+ */
+export type TemplateHeaderChoice =
+  | {kind: 'legacy'}
+  | {kind: 'registry'; reference: RegistryReference};
+
+export interface ComposeTemplateInput {
+  options?: TemplateOptions;
+  header?: TemplateHeaderChoice;
+}
+
+interface OptionMarker {
+  option: string;
+  choices: readonly string[];
+  edge: string | undefined;
+  text: string;
+}
+
+interface OpenOptionBlock {
+  marker: string;
+  chosen: boolean;
+  keep: boolean;
+}
 
 const newlinePattern = /\n/;
 const leadingWhitespacePattern = /^\s*/;
 const partMarkerPattern = /^(\s*)#\s*part:([a-z0-9_-]+)\.([a-z0-9_-]+)\s*$/;
+const optionBlockPattern =
+  /^\s*#\s*option:([a-z0-9][a-z0-9_-]*)=([a-z0-9][a-z0-9_-]*(?:,[a-z0-9][a-z0-9_-]*)*)\s+(begin|end)\s*$/;
 const templateHeaderPattern = /^#\s*shipfox-template:/;
 
 /** Composes a base workflow by replacing its part markers with indented blocks. */
@@ -34,9 +66,54 @@ export function composeWorkflow(workflow: string, parts: PartBlocks): string {
 }
 
 /**
+ * Keeps the `# option:X=Y begin` blocks whose choice is chosen in `options`, deletes the other
+ * blocks of the same option, and removes every begin and end marker line. `X=Y,Z` keeps its block
+ * when either choice is chosen. Other comments, such as `# slot:` and `# bind:`, stay. An option
+ * with no entry in `options` keeps its blocks and markers, so an empty `options` changes nothing.
+ */
+export function applyTemplateOptions(yaml: string, options: TemplateOptions): string {
+  const open: OpenOptionBlock[] = [];
+  const kept: string[] = [];
+  const emit = (line: string) => {
+    if (open.every((block) => block.keep)) kept.push(line);
+  };
+
+  for (const line of yaml.split(newlinePattern)) {
+    const marker = parseOptionMarker(line);
+    if (marker === undefined) {
+      emit(line);
+      continue;
+    }
+
+    if (marker.edge === 'begin') {
+      const block = openOptionBlock(marker, options);
+      if (!block.chosen) emit(line);
+      open.push(block);
+      continue;
+    }
+
+    const block = open.pop();
+    if (block?.marker !== marker.text) {
+      throw new Error(`Unbalanced option block: # option:${marker.text} end`);
+    }
+    if (!block.chosen) emit(line);
+  }
+
+  const unclosed = open.at(-1);
+  if (unclosed !== undefined) {
+    throw new Error(`Unclosed option block: # option:${unclosed.marker} begin`);
+  }
+  return kept.join('\n');
+}
+
+/**
  * Composes a template after selecting one provider part for each bound role. An unbound optional
  * role drops its part markers. The composer writes the `# shipfox-template:` header from the
  * bindings, so it records which optional roles were chosen.
+ *
+ * `options` are checked against the manifest and recorded in a registry header. They are not
+ * applied to the YAML, so pass the result to `applyTemplateOptions` for that. A legacy header,
+ * the default, cannot record options.
  */
 export function composeTemplate(
   template: {
@@ -47,7 +124,10 @@ export function composeTemplate(
     parts: PartProviderBlocks;
   },
   bindings: TemplateRoleBindings,
+  {options = {}, header = {kind: 'legacy'}}: ComposeTemplateInput = {},
 ): string {
+  validateOptions(template.id, template.manifest, options);
+
   const selectedParts: Record<string, string> = {};
   const unboundRoles = new Set<string>();
 
@@ -79,7 +159,7 @@ export function composeTemplate(
     selectedParts,
   );
   validateModelAnchors(template.id, template.manifest, composed);
-  return withTemplateHeader(composed, templateHeader(template, bindings));
+  return withTemplateHeader(composed, templateHeader({template, bindings, options, header}));
 }
 
 /** Lists every role binding a template supports, leaving each optional role both bound and unbound. */
@@ -99,6 +179,24 @@ export function templateRoleBindings(
 export type PartProviderBlocks = Readonly<Record<string, Readonly<Record<string, PartBlocks>>>>;
 
 export const composeWorkflowTemplate = composeTemplate;
+
+function parseOptionMarker(line: string): OptionMarker | undefined {
+  const [, option, choices, edge] = optionBlockPattern.exec(line) ?? [];
+  if (option === undefined || choices === undefined) return undefined;
+  return {option, choices: choices.split(','), edge, text: `${option}=${choices}`};
+}
+
+function openOptionBlock(
+  {option, choices, text}: OptionMarker,
+  options: TemplateOptions,
+): OpenOptionBlock {
+  const choice = Object.hasOwn(options, option) ? options[option] : undefined;
+  return {
+    marker: text,
+    chosen: choice !== undefined,
+    keep: choice === undefined || choices.includes(choice),
+  };
+}
 
 function dedent(block: string): string {
   const lines = block.replace(/\r\n/g, '\n').split('\n');
@@ -131,14 +229,57 @@ function withoutRoleParts(workflow: string, roles: ReadonlySet<string>): string 
     .join('\n');
 }
 
-function templateHeader(
-  template: {id: string; revision: number; manifest: WorkflowTemplateManifest},
-  bindings: TemplateRoleBindings,
-): string {
-  const roles = Object.keys(template.manifest.roles)
-    .filter((role) => bindings[role] !== undefined)
-    .map((role) => `${role}=${bindings[role]}`);
-  return `# shipfox-template: ${[`${template.id}@${template.revision}`, ...roles].join(' ')}`;
+function validateOptions(
+  templateId: string,
+  manifest: Pick<WorkflowTemplateManifest, 'options'>,
+  options: TemplateOptions,
+): void {
+  for (const [id, choice] of Object.entries(options)) {
+    const declaration = manifest.options.find((option) => option.id === id);
+    if (declaration === undefined) throw new Error(`${templateId}: unknown option ${id}`);
+    if (!declaration.choices.some((candidate) => candidate.id === choice)) {
+      throw new Error(`${templateId}: unsupported choice for option ${id}: ${choice}`);
+    }
+  }
+}
+
+function templateHeader({
+  template,
+  bindings,
+  options,
+  header,
+}: {
+  template: {id: string; revision: number; manifest: WorkflowTemplateManifest};
+  bindings: TemplateRoleBindings;
+  options: TemplateOptions;
+  header: TemplateHeaderChoice;
+}): string {
+  const roles = manifestOrderedPairs(Object.keys(template.manifest.roles), bindings);
+  if (header.kind === 'legacy') {
+    return formatTemplateHeader({
+      legacy: {id: template.id, revision: template.revision, bindings: roles},
+    });
+  }
+  return formatTemplateHeader({
+    ref: header.reference,
+    bindings: roles,
+    options: manifestOrderedPairs(
+      template.manifest.options.map((option) => option.id),
+      options,
+    ),
+  });
+}
+
+function manifestOrderedPairs(
+  keys: readonly string[],
+  values: Readonly<Record<string, string>>,
+): Record<string, string> {
+  return Object.fromEntries(
+    keys.flatMap((key) => {
+      const value = Object.hasOwn(values, key) ? values[key] : undefined;
+      return value === undefined ? [] : [[key, value]];
+    }),
+  );
 }
 
 /** Places the header after the leading comments, such as a `yaml-language-server` modeline. */

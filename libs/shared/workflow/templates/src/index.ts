@@ -1,11 +1,22 @@
 export {
+  applyTemplateOptions,
+  type ComposeTemplateInput,
   composeTemplate,
   composeWorkflow,
   composeWorkflowTemplate,
   type PartBlocks,
+  type TemplateHeaderChoice,
+  type TemplateOptions,
   type TemplateRoleBindings,
   templateRoleBindings,
 } from './composer.js';
+export {
+  formatTemplateHeader,
+  type LegacyTemplateHeader,
+  parseTemplateHeader,
+  type RegistryTemplateHeader,
+  type TemplateHeader,
+} from './header.js';
 export {
   createTemplateLoader,
   type EmbeddedWorkflowTemplateAsset,
