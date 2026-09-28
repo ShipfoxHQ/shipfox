@@ -75,7 +75,7 @@ function callableTools(
         name: `${entry.id}.${method.id}`,
         description: method.description,
         typeName: typeName(provider, `${entry.id}_${method.id}`),
-        schema: withoutMethodProperty(entry.inputSchema as JSONSchema),
+        schema: methodSchema(entry.inputSchema as JSONSchema, method.id),
         result,
       });
     }
@@ -83,12 +83,23 @@ function callableTools(
   return callable;
 }
 
-function withoutMethodProperty(schema: JSONSchema): JSONSchema {
+/**
+ * The family schema narrowed to one method. A family may list per-method required fields in
+ * `oneOf` branches keyed by a `method` const. That branch's fields become required, and the
+ * other branches and `method` itself are dropped.
+ */
+function methodSchema(family: JSONSchema, method: string): JSONSchema {
+  const {oneOf, ...schema} = family;
+  const branch = oneOf?.find((candidate) => candidate.properties?.method?.const === method);
   const {method: _method, ...properties} = schema.properties ?? {};
-  const required = Array.isArray(schema.required)
-    ? schema.required.filter((name) => name !== 'method')
-    : schema.required;
-  return {...schema, properties, required};
+  const required = [...requiredNames(schema), ...requiredNames(branch)].filter(
+    (name) => name !== 'method',
+  );
+  return {...schema, properties, required: [...new Set(required)]};
+}
+
+function requiredNames(schema: JSONSchema | undefined): string[] {
+  return Array.isArray(schema?.required) ? schema.required : [];
 }
 
 function compileArguments(tool: CallableTool): Promise<string> {

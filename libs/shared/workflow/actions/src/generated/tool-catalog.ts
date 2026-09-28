@@ -1423,7 +1423,7 @@ export type GithubActionsRunTriggerArguments = {
     }
 );
 
-export type GithubActionsRunTriggerCancelWorkflowRunArguments = {
+export interface GithubActionsRunTriggerCancelWorkflowRunArguments {
   /**
    * Repository owner
    */
@@ -1449,31 +1449,10 @@ export type GithubActionsRunTriggerCancelWorkflowRunArguments = {
   /**
    * The ID of the workflow run. Required for all methods except run_workflow
    */
-  run_id?: number;
-} & (
-  | {
-      method?: 'run_workflow';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'rerun_workflow_run';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'rerun_failed_jobs';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'cancel_workflow_run';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'delete_workflow_run_logs';
-      [k: string]: unknown;
-    }
-);
+  run_id: number;
+}
 
-export type GithubActionsRunTriggerDeleteWorkflowRunLogsArguments = {
+export interface GithubActionsRunTriggerDeleteWorkflowRunLogsArguments {
   /**
    * Repository owner
    */
@@ -1499,31 +1478,10 @@ export type GithubActionsRunTriggerDeleteWorkflowRunLogsArguments = {
   /**
    * The ID of the workflow run. Required for all methods except run_workflow
    */
-  run_id?: number;
-} & (
-  | {
-      method?: 'run_workflow';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'rerun_workflow_run';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'rerun_failed_jobs';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'cancel_workflow_run';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'delete_workflow_run_logs';
-      [k: string]: unknown;
-    }
-);
+  run_id: number;
+}
 
-export type GithubActionsRunTriggerRerunFailedJobsArguments = {
+export interface GithubActionsRunTriggerRerunFailedJobsArguments {
   /**
    * Repository owner
    */
@@ -1549,31 +1507,10 @@ export type GithubActionsRunTriggerRerunFailedJobsArguments = {
   /**
    * The ID of the workflow run. Required for all methods except run_workflow
    */
-  run_id?: number;
-} & (
-  | {
-      method?: 'run_workflow';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'rerun_workflow_run';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'rerun_failed_jobs';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'cancel_workflow_run';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'delete_workflow_run_logs';
-      [k: string]: unknown;
-    }
-);
+  run_id: number;
+}
 
-export type GithubActionsRunTriggerRerunWorkflowRunArguments = {
+export interface GithubActionsRunTriggerRerunWorkflowRunArguments {
   /**
    * Repository owner
    */
@@ -1599,31 +1536,10 @@ export type GithubActionsRunTriggerRerunWorkflowRunArguments = {
   /**
    * The ID of the workflow run. Required for all methods except run_workflow
    */
-  run_id?: number;
-} & (
-  | {
-      method?: 'run_workflow';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'rerun_workflow_run';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'rerun_failed_jobs';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'cancel_workflow_run';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'delete_workflow_run_logs';
-      [k: string]: unknown;
-    }
-);
+  run_id: number;
+}
 
-export type GithubActionsRunTriggerRunWorkflowArguments = {
+export interface GithubActionsRunTriggerRunWorkflowArguments {
   /**
    * Repository owner
    */
@@ -1635,11 +1551,11 @@ export type GithubActionsRunTriggerRunWorkflowArguments = {
   /**
    * The workflow ID or workflow file name. Required for run_workflow
    */
-  workflow_id?: string;
+  workflow_id: string;
   /**
    * The git reference for the workflow. Required for run_workflow
    */
-  ref?: string;
+  ref: string;
   /**
    * Inputs the workflow accepts. Only used for run_workflow
    */
@@ -1650,28 +1566,7 @@ export type GithubActionsRunTriggerRunWorkflowArguments = {
    * The ID of the workflow run. Required for all methods except run_workflow
    */
   run_id?: number;
-} & (
-  | {
-      method?: 'run_workflow';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'rerun_workflow_run';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'rerun_failed_jobs';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'cancel_workflow_run';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'delete_workflow_run_logs';
-      [k: string]: unknown;
-    }
-);
+}
 
 export interface GithubAddCommentToPendingReviewArguments {
   /**
@@ -1857,7 +1752,7 @@ export type GithubCheckRunWriteArguments = {
     })
 );
 
-export type GithubCheckRunWriteCreateArguments = {
+export interface GithubCheckRunWriteCreateArguments {
   /**
    * Repository owner
    */
@@ -1873,11 +1768,11 @@ export type GithubCheckRunWriteCreateArguments = {
   /**
    * Stable display name for the check
    */
-  name?: string;
+  name: string;
   /**
    * Full, non-zero 40- or 64-character hexadecimal commit object ID
    */
-  head_sha?: string;
+  head_sha: string;
   /**
    * Absolute HTTP or HTTPS link with more details
    */
@@ -1923,20 +1818,9 @@ export type GithubCheckRunWriteCreateArguments = {
      */
     text?: string;
   };
-} & (
-  | {
-      method?: 'create';
-      [k: string]: unknown;
-    }
-  | ({
-      [k: string]: unknown;
-    } & {
-      method?: 'update';
-      [k: string]: unknown;
-    })
-);
+}
 
-export type GithubCheckRunWriteUpdateArguments = {
+export interface GithubCheckRunWriteUpdateArguments {
   /**
    * Repository owner
    */
@@ -1948,7 +1832,7 @@ export type GithubCheckRunWriteUpdateArguments = {
   /**
    * The positive numeric ID of the check run to update
    */
-  check_run_id?: number;
+  check_run_id: number;
   /**
    * Stable display name for the check
    */
@@ -2002,18 +1886,7 @@ export type GithubCheckRunWriteUpdateArguments = {
      */
     text?: string;
   };
-} & (
-  | {
-      method?: 'create';
-      [k: string]: unknown;
-    }
-  | ({
-      [k: string]: unknown;
-    } & {
-      method?: 'update';
-      [k: string]: unknown;
-    })
-);
+}
 
 export interface GithubCreateBranchArguments {
   /**
@@ -2646,7 +2519,7 @@ export type GithubPullRequestReadArguments = {
     }
 );
 
-export type GithubPullRequestReadGetArguments = {
+export interface GithubPullRequestReadGetArguments {
   /**
    * Repository owner
    */
@@ -2675,50 +2548,9 @@ export type GithubPullRequestReadGetArguments = {
    * Results per page for pagination
    */
   per_page?: number;
-} & (
-  | {
-      method?: 'get';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_diff';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_status';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_files';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_commits';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_threads';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_reviews';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_check_runs';
-      [k: string]: unknown;
-    }
-);
+}
 
-export type GithubPullRequestReadGetCheckRunsArguments = {
+export interface GithubPullRequestReadGetCheckRunsArguments {
   /**
    * Repository owner
    */
@@ -2734,7 +2566,7 @@ export type GithubPullRequestReadGetCheckRunsArguments = {
   /**
    * Git reference to inspect. Required for get_status and get_check_runs
    */
-  ref?: string;
+  ref: string;
   /**
    * Cursor for review comment pagination
    */
@@ -2747,50 +2579,9 @@ export type GithubPullRequestReadGetCheckRunsArguments = {
    * Results per page for pagination
    */
   per_page?: number;
-} & (
-  | {
-      method?: 'get';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_diff';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_status';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_files';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_commits';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_threads';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_reviews';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_check_runs';
-      [k: string]: unknown;
-    }
-);
+}
 
-export type GithubPullRequestReadGetCommentsArguments = {
+export interface GithubPullRequestReadGetCommentsArguments {
   /**
    * Repository owner
    */
@@ -2819,50 +2610,9 @@ export type GithubPullRequestReadGetCommentsArguments = {
    * Results per page for pagination
    */
   per_page?: number;
-} & (
-  | {
-      method?: 'get';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_diff';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_status';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_files';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_commits';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_threads';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_reviews';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_check_runs';
-      [k: string]: unknown;
-    }
-);
+}
 
-export type GithubPullRequestReadGetCommitsArguments = {
+export interface GithubPullRequestReadGetCommitsArguments {
   /**
    * Repository owner
    */
@@ -2891,50 +2641,9 @@ export type GithubPullRequestReadGetCommitsArguments = {
    * Results per page for pagination
    */
   per_page?: number;
-} & (
-  | {
-      method?: 'get';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_diff';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_status';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_files';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_commits';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_threads';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_reviews';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_check_runs';
-      [k: string]: unknown;
-    }
-);
+}
 
-export type GithubPullRequestReadGetDiffArguments = {
+export interface GithubPullRequestReadGetDiffArguments {
   /**
    * Repository owner
    */
@@ -2963,50 +2672,9 @@ export type GithubPullRequestReadGetDiffArguments = {
    * Results per page for pagination
    */
   per_page?: number;
-} & (
-  | {
-      method?: 'get';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_diff';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_status';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_files';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_commits';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_threads';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_reviews';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_check_runs';
-      [k: string]: unknown;
-    }
-);
+}
 
-export type GithubPullRequestReadGetFilesArguments = {
+export interface GithubPullRequestReadGetFilesArguments {
   /**
    * Repository owner
    */
@@ -3035,50 +2703,9 @@ export type GithubPullRequestReadGetFilesArguments = {
    * Results per page for pagination
    */
   per_page?: number;
-} & (
-  | {
-      method?: 'get';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_diff';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_status';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_files';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_commits';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_threads';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_reviews';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_check_runs';
-      [k: string]: unknown;
-    }
-);
+}
 
-export type GithubPullRequestReadGetReviewCommentsArguments = {
+export interface GithubPullRequestReadGetReviewCommentsArguments {
   /**
    * Repository owner
    */
@@ -3107,50 +2734,9 @@ export type GithubPullRequestReadGetReviewCommentsArguments = {
    * Results per page for pagination
    */
   per_page?: number;
-} & (
-  | {
-      method?: 'get';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_diff';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_status';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_files';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_commits';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_threads';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_reviews';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_check_runs';
-      [k: string]: unknown;
-    }
-);
+}
 
-export type GithubPullRequestReadGetReviewThreadsArguments = {
+export interface GithubPullRequestReadGetReviewThreadsArguments {
   /**
    * Repository owner
    */
@@ -3179,50 +2765,9 @@ export type GithubPullRequestReadGetReviewThreadsArguments = {
    * Results per page for pagination
    */
   per_page?: number;
-} & (
-  | {
-      method?: 'get';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_diff';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_status';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_files';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_commits';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_threads';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_reviews';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_check_runs';
-      [k: string]: unknown;
-    }
-);
+}
 
-export type GithubPullRequestReadGetReviewsArguments = {
+export interface GithubPullRequestReadGetReviewsArguments {
   /**
    * Repository owner
    */
@@ -3251,50 +2796,9 @@ export type GithubPullRequestReadGetReviewsArguments = {
    * Results per page for pagination
    */
   per_page?: number;
-} & (
-  | {
-      method?: 'get';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_diff';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_status';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_files';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_commits';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_threads';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_reviews';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_check_runs';
-      [k: string]: unknown;
-    }
-);
+}
 
-export type GithubPullRequestReadGetStatusArguments = {
+export interface GithubPullRequestReadGetStatusArguments {
   /**
    * Repository owner
    */
@@ -3310,7 +2814,7 @@ export type GithubPullRequestReadGetStatusArguments = {
   /**
    * Git reference to inspect. Required for get_status and get_check_runs
    */
-  ref?: string;
+  ref: string;
   /**
    * Cursor for review comment pagination
    */
@@ -3323,48 +2827,7 @@ export type GithubPullRequestReadGetStatusArguments = {
    * Results per page for pagination
    */
   per_page?: number;
-} & (
-  | {
-      method?: 'get';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_diff';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_status';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_files';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_commits';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_review_threads';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_reviews';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_comments';
-      [k: string]: unknown;
-    }
-  | {
-      method?: 'get_check_runs';
-      [k: string]: unknown;
-    }
-);
+}
 
 export interface GithubPullRequestReviewThreadWriteArguments {
   /**

@@ -72,6 +72,42 @@ describe('renderToolCatalogSource', () => {
     );
   });
 
+  it('requires the fields of the matching method branch', async () => {
+    const checkRunWrite: AgentToolCatalogEntry = {
+      ...issueRead,
+      id: 'check_run_write',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          method: {type: 'string', enum: ['create', 'update']},
+          check_run_id: {type: 'integer'},
+          name: {type: 'string'},
+        },
+        required: ['method'],
+        oneOf: [
+          {properties: {method: {const: 'create'}}, required: ['name']},
+          {properties: {method: {const: 'update'}}, required: ['check_run_id']},
+        ],
+      },
+      methods: [
+        {
+          id: 'create',
+          description: 'Create a check run.',
+          sensitivity: 'write',
+          sensitive: false,
+          requiredScope: null,
+        },
+      ],
+    };
+
+    const source = await renderToolCatalogSource([{provider: 'github', tools: [checkRunWrite]}]);
+
+    expect(declaration(source, 'GithubCheckRunWriteCreateArguments')).toBe(
+      'export interface GithubCheckRunWriteCreateArguments {\n  check_run_id?: number;\n  name: string;\n}',
+    );
+  });
+
   it('inlines titled subschemas instead of naming them', async () => {
     const source = await renderToolCatalogSource([{provider: 'slack', tools: [readThread]}]);
 

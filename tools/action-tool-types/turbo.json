@@ -3,11 +3,7 @@
   "extends": ["//"],
   "tasks": {
     "test": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/libs/shared/workflow/actions/src/generated/**",
-        "$TURBO_ROOT$/biome.json"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/libs/shared/workflow/actions/src/generated/**"]
     }
   }
 }

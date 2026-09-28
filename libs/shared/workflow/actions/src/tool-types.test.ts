@@ -52,6 +52,14 @@ describe('tool argument types', () => {
     >();
   });
 
+  it('requires the fields a family method needs, without its method argument', () => {
+    type CreateCheckRun = ProviderToolArguments<'github', 'check_run_write.create'>;
+
+    expectTypeOf<CreateCheckRun['name']>().toEqualTypeOf<string>();
+    expectTypeOf<CreateCheckRun['head_sha']>().toEqualTypeOf<string>();
+    expectTypeOf<CreateCheckRun>().not.toHaveProperty('method');
+  });
+
   it('types calls through the aliases an action declares', () => {
     const typeOnly = async (tools: ToolsFor<{chat: 'slack'; code: 'github'; ci: 'shipfox'}>) => {
       expectTypeOf(
