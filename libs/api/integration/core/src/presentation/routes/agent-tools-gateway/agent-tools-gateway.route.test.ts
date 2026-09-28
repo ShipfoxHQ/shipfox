@@ -19,7 +19,7 @@ import {
   materializedTool,
   registryWithAgentTools,
 } from '#test/agent-tools-gateway-helpers.js';
-import {createAgentToolsGatewayRoutes} from './index.js';
+import {createAgentToolsGatewayRoutes, leasedToolCaller} from './index.js';
 
 let leases = new Map<string, LeasedJobContext>();
 
@@ -153,6 +153,55 @@ describe('agent tools gateway route', () => {
       },
     ]);
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves granted tools to a leased action step and refuses the rest', async () => {
+    const lease = leaseContext({workspaceId: 'workspace-1'});
+    const integration = materializedIntegration({connectionId: 'connection-1'});
+    const calls: unknown[] = [];
+    leases.set('action-lease', lease);
+    const app = await createGatewayApp({
+      registry: registryWithAgentTools([catalogTool()], {onCall: (call) => calls.push(call)}),
+      loadLeasedAgentStep: async () => ({
+        workspaceId: lease.workspaceId,
+        stepType: 'action',
+        integrations: [integration],
+      }),
+      getIntegrationConnectionById: async () =>
+        connection({
+          id: integration.connectionId,
+          workspaceId: lease.workspaceId,
+          slug: integration.connectionSlug,
+        }),
+    });
+    const address = await app.listen({port: 0, host: '127.0.0.1'});
+    const client = new Client({name: 'test-http-client', version: '0.0.0'});
+    const transport = new StreamableHTTPClientTransport(
+      new URL('/runs/jobs/current/integration-tools/mcp', address),
+      {
+        requestInit: {
+          headers: {authorization: 'Bearer action-lease', 'x-shipfox-call-id': 'call-1'},
+        },
+      },
+    );
+
+    await client.connect(transport as unknown as Transport);
+    const granted = await client.callTool(
+      {name: 'github_main__issue_read', arguments: {method: 'get', owner: 'shipfox'}},
+      CallToolResultSchema,
+    );
+    const ungranted = await client.callTool(
+      {name: 'github_main__issue_write', arguments: {method: 'create', owner: 'shipfox'}},
+      CallToolResultSchema,
+    );
+    await client.close();
+
+    expect(granted.isError).not.toBe(true);
+    expect(ungranted).toMatchObject({
+      isError: true,
+      structuredContent: {code: 'invalid-request', reason: 'tool_not_found'},
+    });
+    expect(calls).toEqual([{toolId: 'issue_read', arguments: {method: 'get', owner: 'shipfox'}}]);
   });
 
   it('accepts tool calls larger than the default 1 MiB body limit', async () => {
@@ -512,3 +561,25 @@ async function callIssueReadTool(app: FastifyInstance, leaseToken: string) {
 
   return result;
 }
+
+describe('leasedToolCaller', () => {
+  it('names the caller after the leased step type and keeps a well-formed call id', () => {
+    const caller = leasedToolCaller({
+      stepType: 'action',
+      callId: 'b7c1f0de-8d4e-4b53-9f0a-1c2d3e4f5a6b',
+    });
+
+    expect(caller).toEqual({caller: 'action', callId: 'b7c1f0de-8d4e-4b53-9f0a-1c2d3e4f5a6b'});
+  });
+
+  it.each([
+    ['absent', undefined],
+    ['repeated', ['call-1', 'call-2']],
+    ['malformed', 'call id\nforged'],
+    ['too long', 'a'.repeat(129)],
+  ])('drops an %s call id', (_case, callId) => {
+    const caller = leasedToolCaller({stepType: 'agent', callId});
+
+    expect(caller).toEqual({caller: 'agent'});
+  });
+});

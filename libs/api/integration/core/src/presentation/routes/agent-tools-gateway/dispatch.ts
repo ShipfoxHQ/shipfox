@@ -4,7 +4,11 @@ import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {RepositoryAuthorizer} from '#core/repository-authorizer.js';
-import {callIntegrationTool, type IntegrationToolCallError} from '#core/tool-call-service.js';
+import {
+  callIntegrationTool,
+  type IntegrationToolCallCaller,
+  type IntegrationToolCallError,
+} from '#core/tool-call-service.js';
 import type {
   IntegrationToolDispatcher,
   IntegrationToolDispatchInput,
@@ -14,8 +18,15 @@ import type {
 export interface CreateIntegrationToolDispatcherParams {
   registry: IntegrationProviderRegistry;
   lease: LeasedJobContext;
+  /** Defaults to `agent`. */
+  caller?: LeasedIntegrationToolCaller | undefined;
   repositoryAuthorizer?: RepositoryAuthorizer | undefined;
 }
+
+export type LeasedIntegrationToolCaller = Omit<
+  Extract<IntegrationToolCallCaller, {caller: 'agent' | 'action'}>,
+  'lease'
+>;
 
 export interface IntegrationToolDispatcherDependencies {
   logger?: typeof logger;
@@ -30,7 +41,7 @@ export function createIntegrationToolDispatcher(
     dispatchIntegrationToolCall({
       ...input,
       registry: params.registry,
-      caller: {caller: 'agent', lease: params.lease},
+      caller: {...(params.caller ?? {caller: 'agent'}), lease: params.lease},
       repositoryAuthorizer: params.repositoryAuthorizer,
       logger: dependencies.logger ?? logger,
       reportError: dependencies.reportError ?? reportError,
@@ -40,7 +51,7 @@ export function createIntegrationToolDispatcher(
 async function dispatchIntegrationToolCall(
   input: IntegrationToolDispatchInput & {
     registry: IntegrationProviderRegistry;
-    caller: {caller: 'agent'; lease: LeasedJobContext};
+    caller: Extract<IntegrationToolCallCaller, {caller: 'agent' | 'action'}>;
     repositoryAuthorizer?: RepositoryAuthorizer | undefined;
     logger: typeof logger;
     reportError: typeof reportError;

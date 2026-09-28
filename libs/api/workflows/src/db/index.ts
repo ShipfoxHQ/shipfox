@@ -168,6 +168,7 @@ export {
   getStepByIdForJobExecution,
   getStepsByJobExecutionId,
   getStepsByJobExecutionIdForUpdate,
+  getStepToolMaterializationSource,
   getToolInvocationDepth,
   getToolInvocationsByJobExecutionId,
   getWorkflowJobDetail,

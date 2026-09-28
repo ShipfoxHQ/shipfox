@@ -2,6 +2,8 @@ import {workflowModel} from '#test/index.js';
 import type {AgentToolCatalogEntry, AgentToolMaterializationContext} from './agent-tools.js';
 import {
   createAgentToolMaterializationSnapshot,
+  findFrozenActionIntegrations,
+  flattenActionIntegrations,
   loadAgentToolMaterializationContext,
   materializeActionIntegrations,
   materializeToolStep,
@@ -430,5 +432,101 @@ describe('action integrations', () => {
 
     expect(reused).toEqual(snapshot?.steps[0]?.actionIntegrations);
     expect(reused.slack?.tools[0]?.methods?.map((method) => method.id)).toEqual(['read']);
+  });
+
+  test('finds the frozen grants of the step row at a model position', () => {
+    const model = workflowModel({
+      name: 'Actions',
+      runner: 'ubuntu-latest',
+      jobs: {
+        build: {
+          steps: [
+            {run: 'echo first'},
+            {
+              key: 'thread',
+              uses: './.shipfox/actions/slack-thread',
+              action: {
+                integrations: {
+                  slack: {
+                    provider: 'slack',
+                    connection: 'team-slack',
+                    include: ['thread'],
+                    allowWrite: false,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+    const snapshot = createAgentToolMaterializationSnapshot({model, context: slackContext()});
+
+    const grants = findFrozenActionIntegrations({
+      model,
+      snapshot,
+      jobKey: 'build',
+      stepPosition: 2,
+    });
+    const runStep = findFrozenActionIntegrations({
+      model,
+      snapshot,
+      jobKey: 'build',
+      stepPosition: 1,
+    });
+
+    expect(grants).toEqual(snapshot?.steps[0]?.actionIntegrations);
+    expect(runStep).toBeUndefined();
+  });
+
+  test('merges aliases bound to the same connection into one entry', () => {
+    const catalog = slackCatalog().map((entry) =>
+      entry.id === 'thread'
+        ? {
+            ...entry,
+            methods: [
+              ...(entry.methods ?? []),
+              {
+                id: 'reply',
+                description: 'Reply to a thread.',
+                sensitivity: 'write' as const,
+                sensitive: false,
+                requiredScope: ['chat:write'],
+              },
+            ],
+          }
+        : entry,
+    );
+    const alias = (include: string[]) => ({
+      provider: 'slack',
+      connection: 'team-slack',
+      include,
+      allowWrite: true,
+    });
+    const grants = materializeActionIntegrations({
+      jobKey: 'build',
+      stepId: 'build-thread',
+      integrations: {
+        reader: alias(['thread.read']),
+        writer: alias(['thread.reply', 'download_file']),
+      },
+      context: slackContext(catalog),
+    });
+
+    const flattened = flattenActionIntegrations(grants);
+
+    expect(flattened).toHaveLength(1);
+    expect(flattened[0]).toMatchObject({
+      connectionId: 'connection-slack',
+      requiredScope: ['channels:history', 'chat:write', 'files:read'],
+    });
+    expect(flattened[0]?.tools.map((tool) => [tool.id, tool.result])).toEqual([
+      ['thread', 'json'],
+      ['download_file', 'file'],
+    ]);
+    expect(flattened[0]?.tools[0]).toMatchObject({
+      sensitivity: 'write',
+      methods: [{id: 'read'}, {id: 'reply'}],
+    });
   });
 });

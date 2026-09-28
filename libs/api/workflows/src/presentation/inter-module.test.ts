@@ -54,6 +54,7 @@ const mocks = vi.hoisted(() => ({
   getStepAttemptDetail: vi.fn(),
   getStepById: vi.fn(),
   getStepByIdForJobExecution: vi.fn(),
+  getStepToolMaterializationSource: vi.fn(),
   getExecutionTriggerEvent: vi.fn(),
   getLifecycleEventContextRead: vi.fn(),
   getWorkflowJobDetail: vi.fn(),
@@ -497,6 +498,7 @@ describe('Workflows inter-module presentation', () => {
     mocks.getLatestStepAttempt.mockReset();
     mocks.listStepAttemptIdsByJobId.mockReset();
     mocks.getStepAttemptDetail.mockReset();
+    mocks.getStepToolMaterializationSource.mockReset();
     mocks.getStepById.mockReset();
     mocks.getStepByIdForJobExecution.mockReset();
     mocks.getExecutionTriggerEvent.mockReset();
@@ -1377,12 +1379,143 @@ describe('Workflows inter-module presentation', () => {
 
     expect(result).toEqual({
       workspaceId: '00000000-0000-4000-8000-000000000010',
+      stepType: 'agent',
       integrations: [integration],
     });
     expect(runners.getLeaseState).toHaveBeenCalledWith({
       jobId: input.jobId,
       jobExecutionId: input.jobExecutionId,
       runnerSessionId: input.runnerSessionId,
+    });
+  });
+
+  describe('getLeasedAgentToolContext for action steps', () => {
+    const input = {
+      jobId: '00000000-0000-4000-8000-000000000006',
+      jobExecutionId: '00000000-0000-4000-8000-000000000007',
+      runnerSessionId: '00000000-0000-4000-8000-000000000008',
+      stepId: '00000000-0000-4000-8000-000000000009',
+      attempt: 1,
+    };
+    const method = workflowsInterModuleContract.methods.getLeasedAgentToolContext;
+    const tool = {
+      id: 'read_thread',
+      sensitivity: 'read' as const,
+      sensitive: false,
+      requiredScope: ['channels:history'],
+      inputSchema: {type: 'object'},
+      result: 'json' as const,
+    };
+    const grant = {
+      connectionId: 'connection-slack',
+      connectionSlug: 'team-slack',
+      provider: 'slack',
+      requiredScope: ['channels:history'],
+      tools: [tool],
+    };
+    const model = {
+      jobs: [
+        {
+          key: 'build',
+          steps: [
+            {
+              id: 'build-thread',
+              kind: 'action',
+              action: {
+                integrations: {
+                  slack: {provider: 'slack', connection: 'team-slack', include: ['read_thread']},
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    function presentation() {
+      return createWorkflowsInterModulePresentation({
+        agent: {} as never,
+        definitions: {} as never,
+        integrations: {} as never,
+        projects: {} as never,
+        runners: {
+          getLeaseState: vi.fn().mockResolvedValue({active: true, renewableInference: false}),
+        } as never,
+        secrets: {} as never,
+        workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
+      });
+    }
+
+    function arrangeRunningStep(type: string) {
+      mocks.getStepByIdForJobExecution.mockResolvedValue({
+        id: input.stepId,
+        currentAttempt: input.attempt,
+        status: 'running',
+        type,
+        config: {},
+      });
+      mocks.getJobScope.mockResolvedValue({workspaceId: '00000000-0000-4000-8000-000000000010'});
+    }
+
+    async function expectKnownError(call: Promise<unknown> | unknown, code: string): Promise<void> {
+      try {
+        await call;
+        throw new Error(`Expected contract error ${code}, but the call succeeded`);
+      } catch (error) {
+        expect(isInterModuleKnownError(method, error) && (error as {code: string}).code).toBe(code);
+      }
+    }
+
+    it('returns the frozen grants with their result kind', async () => {
+      arrangeRunningStep('action');
+      mocks.getStepToolMaterializationSource.mockResolvedValue({
+        jobKey: 'build',
+        stepPosition: 1,
+        model,
+        agentToolMaterialization: {
+          steps: [{jobKey: 'build', stepId: 'build-thread', actionIntegrations: {slack: grant}}],
+        },
+      });
+
+      const result = await presentation().handlers.getLeasedAgentToolContext(input, {
+        signal: new AbortController().signal,
+      });
+
+      expect(result).toEqual({
+        workspaceId: '00000000-0000-4000-8000-000000000010',
+        stepType: 'action',
+        integrations: [grant],
+      });
+      expect(mocks.getStepToolMaterializationSource).toHaveBeenCalledWith(input.stepId);
+    });
+
+    it('rejects an action step without frozen grants', async () => {
+      arrangeRunningStep('action');
+      mocks.getStepToolMaterializationSource.mockResolvedValue({
+        jobKey: 'build',
+        stepPosition: 1,
+        model,
+        agentToolMaterialization: null,
+      });
+
+      await expectKnownError(
+        presentation().handlers.getLeasedAgentToolContext(input, {
+          signal: new AbortController().signal,
+        }),
+        'agent-step-config-invalid',
+      );
+    });
+
+    it('still refuses run steps', async () => {
+      arrangeRunningStep('run');
+
+      await expectKnownError(
+        presentation().handlers.getLeasedAgentToolContext(input, {
+          signal: new AbortController().signal,
+        }),
+        'leased-step-not-agent',
+      );
+      expect(mocks.getStepToolMaterializationSource).not.toHaveBeenCalled();
     });
   });
 

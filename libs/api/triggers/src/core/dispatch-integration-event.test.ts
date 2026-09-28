@@ -27,6 +27,7 @@ const workflows = {
   listJobStepAttempts: async () => ({stepAttemptIds: []}),
   getLeasedAgentToolContext: async () => ({
     workspaceId: crypto.randomUUID(),
+    stepType: 'agent' as const,
     integrations: [],
   }),
   getLeasedAgentSessionContext: async () => ({

@@ -100,6 +100,29 @@ describe('integration tool call audit', () => {
     expect(JSON.stringify(logInfo.mock.calls)).not.toContain('must-not-appear');
   });
 
+  it('records the action caller label and call id', () => {
+    const recordMetric = vi.fn();
+    const logInfo = vi.fn();
+    const recorder = createIntegrationToolCallRecorder(
+      {...agentCaller, caller: 'action', callId: 'call-1'},
+      {recordMetric, logInfo},
+    );
+
+    recorder({
+      authorizedTool: auditTarget(),
+      arguments: {repo: 'platform'},
+      method: 'get',
+      outcome: 'success',
+      errorCode: 'none',
+    });
+
+    expect(recordMetric).toHaveBeenCalledWith(expect.objectContaining({caller: 'action'}));
+    expect(logInfo).toHaveBeenCalledWith(
+      expect.objectContaining({caller: 'action', callId: 'call-1', currentStepId: 'step-1'}),
+      'integration tool call audited',
+    );
+  });
+
   it('records the tool-step caller identity on the metric and audit line', () => {
     const recordMetric = vi.fn();
     const logInfo = vi.fn();

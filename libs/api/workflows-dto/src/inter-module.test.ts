@@ -481,6 +481,36 @@ describe('workflowsInterModuleContract', () => {
     expect(agentTools.attempt).toBe(1);
   });
 
+  test('accepts an action step tool context with result kinds', () => {
+    const output = workflowsInterModuleContract.methods.getLeasedAgentToolContext.output;
+
+    const result = output.parse({
+      workspaceId: '00000000-0000-4000-8000-000000000010',
+      stepType: 'action',
+      integrations: [
+        {
+          connectionId: 'connection-1',
+          connectionSlug: 'team-slack',
+          provider: 'slack',
+          requiredScope: [],
+          tools: [
+            {
+              id: 'read_thread',
+              sensitivity: 'read',
+              sensitive: false,
+              requiredScope: [],
+              inputSchema: {type: 'object'},
+              result: 'json',
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result.stepType).toBe('action');
+    expect(result.integrations[0]?.tools[0]?.result).toBe('json');
+  });
+
   test('accepts the session transcript lease context payload', () => {
     const sessionContext =
       workflowsInterModuleContract.methods.getLeasedAgentSessionContext.input.parse({

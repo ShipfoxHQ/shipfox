@@ -29,6 +29,7 @@ import {
   getJobsByWorkflowRunId,
   getStepAttempts,
   getStepsByJobId,
+  getStepToolMaterializationSource,
   getWorkflowRunAttemptById,
   getWorkflowRunById,
   updateWorkflowRunStatus,
@@ -1188,7 +1189,13 @@ describe('workflow run queries', () => {
       const [rerunJob] = await getJobsByWorkflowRunId(source.id);
       if (!rerunJob) throw new Error('Missing rerun build job');
       const rerunStep = (await getStepsByJobId(rerunJob.id)).find((step) => step.type === 'action');
-      expect(rerunStep?.config.integrations).toEqual([
+      if (!rerunStep) throw new Error('Missing rerun action step');
+      await expect(getStepToolMaterializationSource(rerunStep.id)).resolves.toMatchObject({
+        jobKey: 'build',
+        stepPosition: 1,
+        agentToolMaterialization: snapshot,
+      });
+      expect(rerunStep.config.integrations).toEqual([
         {
           alias: 'slack',
           provider: 'slack',

@@ -1,3 +1,4 @@
+import {readPersistedWorkflowModel, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import {
   type LogOutcomeDto,
   type StepAttemptTerminalCauseDto,
@@ -8,6 +9,7 @@ import {
 import {captureException} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {and, asc, count, desc, eq, getTableColumns, gte, inArray, sql} from 'drizzle-orm';
+import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
 import {
   assertWorkflowExecutionPayloadSize,
   assertWorkflowProductOutputSize,
@@ -80,6 +82,38 @@ export async function getStepByIdForJobExecution(params: {
   const row = rows[0];
   if (!row) return undefined;
   return toStep(row);
+}
+
+/** The run attempt model and frozen tool grants a step was materialized from. */
+export async function getStepToolMaterializationSource(stepId: string): Promise<
+  | {
+      jobKey: string;
+      stepPosition: number;
+      model: WorkflowModel | null;
+      agentToolMaterialization: AgentToolMaterializationSnapshot | null;
+    }
+  | undefined
+> {
+  const [row] = await db()
+    .select({
+      jobKey: jobs.key,
+      stepPosition: steps.position,
+      model: workflowRunAttempts.model,
+      agentToolMaterialization: workflowRunAttempts.agentToolMaterialization,
+    })
+    .from(steps)
+    .innerJoin(jobExecutions, eq(steps.jobExecutionId, jobExecutions.id))
+    .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
+    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .where(eq(steps.id, stepId))
+    .limit(1);
+  if (!row) return undefined;
+  return {
+    jobKey: row.jobKey,
+    stepPosition: row.stepPosition,
+    model: row.model === null ? null : readPersistedWorkflowModel(row.model),
+    agentToolMaterialization: row.agentToolMaterialization ?? null,
+  };
 }
 
 export async function getStepById(stepId: string): Promise<Step | undefined> {
