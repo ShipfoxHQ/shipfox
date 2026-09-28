@@ -1,12 +1,12 @@
 id: ticket-to-pr
-revision: 5
+revision: 6
 added_at: 2026-09-23
 rank: 1
 title: Task to pull request
 summary: Turn a ticket or a request into a tested GitHub pull request.
 roles:
   tracker:
-    providers: [linear, jira]
+    providers: [linear, jira, clickup]
     optional: true
     question: Should tickets in an issue tracker start the workflow and receive its results?
     tradeoff: Starts from the tracker's ticket events and can comment on or move the ticket. Without a tracker, only manual starts with explicit task inputs, such as from a Slack dispatcher, run the workflow.
@@ -36,6 +36,17 @@ options:
       - id: status
         label: Move the issue to a status
         tradeoff: Starts when an issue in the chosen Jira project moves to the status. Requires the status's exact name. Issues created directly in that status do not start it.
+  - id: clickup_trigger
+    question: What should start the workflow?
+    applies_to: [clickup]
+    choices:
+      - id: tag
+        label: Add a ClickUp tag
+        default: true
+        tradeoff: Starts when a task in the chosen List gets the tag. Requires the tag's exact name.
+      - id: status
+        label: Move to a ClickUp status
+        tradeoff: Starts when a task in the chosen List moves to the status, including a task created in it. Requires the status's exact name.
   - id: feedback_loop
     question: Should the workflow handle inline review comments and failed GitHub Actions runs after opening a PR?
     choices:
@@ -68,7 +79,7 @@ options:
         tradeoff: Opens the PR for review right away, which can notify reviewers.
   - id: ticket_write_back
     question: How should the workflow update the ticket?
-    applies_to: [linear, jira]
+    applies_to: [linear, jira, clickup]
     choices:
       - id: comment
         label: Comment only

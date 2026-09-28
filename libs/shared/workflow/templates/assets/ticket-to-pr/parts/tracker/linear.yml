@@ -25,6 +25,7 @@ trigger: |
       has(event.data.team) && event.data.team.key == "replace-with-team-key" &&
       event.data.labels.exists(label, label.name == "replace-with-label-name")
   # option:trigger_style=label end
+load_ticket: ''
 ticket_env: |
   TICKET_ID: '${{ trigger.source == "manual" ? "" : has(event.agentSession) ? event.agentSession.issue.id : event.data.id }}'
   TICKET_IDENTIFIER: '${{ trigger.source == "manual" ? "" : has(event.agentSession) ? event.agentSession.issue.identifier : event.data.identifier }}'

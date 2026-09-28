@@ -137,6 +137,7 @@ A tracker part supplies these blocks:
 | --- | --- |
 | `tracker.run_name` | Names the run from the ticket, or from the `identifier` or `title` input on a manual start. |
 | `tracker.trigger` | Starts from ticket events of one team or project. It must not match the workflow's own ticket writes. |
+| `tracker.load_ticket` | Adds steps before `task` that fetch ticket fields the event lacks. They fetch nothing when `trigger.source` is `manual`. Can be empty. |
 | `tracker.ticket_env` | Sets `TICKET_ID`, `TICKET_IDENTIFIER`, `TICKET_TITLE`, `TICKET_URL`, `TICKET_DESCRIPTION`, and `TICKET_REQUEST` on the `task` step. Each is empty when `trigger.source` is `manual`. |
 | `tracker.read_tools` | Gives the `fix` step read-only tracker tools. |
 | `tracker.mark_in_progress` | Moves a ticket to its in-progress status before the `fix` step when the default `comment_and_transition` choice is selected. |

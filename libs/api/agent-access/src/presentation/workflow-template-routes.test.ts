@@ -88,7 +88,7 @@ describe('GET /workspaces/:workspaceId/workflow-templates', () => {
       summary: 'Turn a ticket or a request into a tested GitHub pull request.',
       group: 'try_now',
       start_label: null,
-      providers: ['github', 'linear', 'jira'],
+      providers: ['github', 'linear', 'jira', 'clickup'],
       missing_providers: [],
       prompt: 'Use Shipfox to create a workflow from the ticket-to-pr template.',
     });

@@ -1,13 +1,14 @@
 # Task to pull request
 
-Use this template when a task should produce a tested GitHub pull request. A task comes from a Linear or Jira ticket, or from a manual start with explicit task inputs. A Slack dispatcher, a ticket loader, or a person can start it.
+Use this template when a task should produce a tested GitHub pull request. A task comes from a Linear, Jira, or ClickUp ticket, or from a manual start with explicit task inputs. A Slack dispatcher, a ticket loader, or a person can start it.
 
 ## Prerequisites
 
 - Connect GitHub as the project's source.
 - Give the GitHub connection permission to read and write repository contents and pull requests.
 - Use GitHub Actions for the feedback loop, which is on by default.
-- For the optional tracker, connect Linear or Jira.
+- For the optional tracker, connect Linear, Jira, or ClickUp.
+- For ClickUp, connect it as a dedicated service account. Give that account access to every Space, Folder, and List the workflow monitors. ClickUp sends events and serves tasks only from locations the account can see.
 
 ## Choose a tracker
 
@@ -17,6 +18,7 @@ The `tracker` role is optional.
 | --- | --- | --- |
 | Linear | Linear ticket events and manual starts | Moves the issue to its in-progress status by default and posts comments |
 | Jira | Jira issue events and manual starts | Moves the issue to an in-progress status by default and posts comments |
+| ClickUp | ClickUp task events and manual starts | Moves the task to a chosen in-progress status by default and posts comments |
 | No tracker | Manual starts only | Nothing |
 
 Every composition keeps the `manual` trigger. Without a tracker, the workflow has no tracker tools and no write-back jobs.
@@ -101,6 +103,15 @@ Replace every `replace-with-project-key` value with the key of the Jira project 
 The workflow's own Jira writes do not start it again. A comment changes no label or status. The in-progress move leaves the start status, and the run skips it when the start status is already in the In Progress category.
 
 Each Jira connection covers one Jira site, identified by the `cloudId` in its events. With several Jira connections, bind the one whose site holds the project, and check the `cloudId` of a journaled event from that project.
+### ClickUp trigger
+
+This option applies only to ClickUp. Keep one `clickup_trigger` block. `tag` starts when a task gets the chosen tag. `status` starts when a task moves to the chosen status, including a task created in that status.
+
+Replace `replace-with-list-id` with the ID of the ClickUp List whose tasks belong to this repository. The event carries the List ID in each change record's `parent_id`. For `tag`, replace `replace-with-tag-name` with the tag's exact name. For `status`, replace `replace-with-trigger-status` with the status's exact name. ClickUp sends tag and status names in lowercase, so check them against a journaled event before a real run.
+
+ClickUp sends several events for one action, such as `taskUpdated` next to `taskTagUpdated`. Each trigger matches one specific event name, so one action starts one run.
+
+The workflow's own ClickUp writes do not start it again. It never changes tags. Its comments send a comment event, which no trigger matches. With `status` and `comment_and_transition`, the in-progress status must differ from the trigger status.
 
 ### Feedback loop
 
@@ -137,13 +148,15 @@ This option applies only with a tracker. By default, `comment_and_transition` mo
 
 Jira moves an issue through transitions, and the available transitions depend on the project's workflow and the issue's current status. When the issue's status is still in the To Do category, the run reads the transitions at work start and applies the first one that leads to an In Progress category status. It skips the move when the issue is already in progress or done, or when no such transition exists.
 
+ClickUp statuses belong to each List. Replace `replace-with-in-progress-status` with the exact name of the List's in-progress status, such as `in progress`. The run sets that status when work starts, whatever the task's current status.
+
 Both write-back choices also post the agent's questions when the ticket is too unclear to implement. The run writes only when it has a ticket ID from an event or the `ticket_id` input. Status updates get up to five attempts. Persistent failures stop implementation. The PR link is written separately, so a failed comment does not stop the feedback loop.
 
 ## Bind the model and connections
 
 Confirm that the model and thinking level on the `fix` steps are available in the workspace. The implementation and feedback steps continue one `ticket_pr` session, so every `# model:fix` step must use the same model and harness. The `# model:reply` step only posts prepared replies, so a smaller model is enough.
 
-Replace `linear_tracker` or `jira_tracker` with the tracker connection slug and `github_source` with the project's GitHub source connection slug. Keep the same GitHub slug in every step and listener.
+Replace `linear_tracker`, `jira_tracker`, or `clickup_tracker` with the tracker connection slug and `github_source` with the project's GitHub source connection slug. Keep the same GitHub slug in every step and listener.
 
 ## Fill the command slots
 
@@ -153,7 +166,7 @@ Replace each `replace-with-test-command` with the test command that proves the c
 
 ## Expected writes
 
-Each run creates one branch named `shipfox/<identifier>-<run number>-<attempt>`, pushes one commit, and opens one task pull request. Merging the task pull request ships the change but does not install the workflow. The PR body ends with `Fixes <identifier>` for a ticket, so Linear links the PR to the issue when the workspace has Linear's GitHub integration. Jira shows the PR on the issue when the site has the GitHub for Jira app, because the branch name and PR body contain the issue key. Without a ticket, it links the task's `url`. The run stops before the agent starts when another run already has a branch for the same identifier. Close that PR and delete its branch to start again.
+Each run creates one branch named `shipfox/<identifier>-<run number>-<attempt>`, pushes one commit, and opens one task pull request. Merging the task pull request ships the change but does not install the workflow. The PR body ends with `Fixes <identifier>` for a ticket, so Linear links the PR to the issue when the workspace has Linear's GitHub integration. Jira shows the PR on the issue when the site has the GitHub for Jira app, because the branch name and PR body contain the issue key. A ClickUp task's identifier is `CU-<task ID>`, which ClickUp's GitHub integration links to the task. Without a ticket, it links the task's `url`. The run stops before the agent starts when another run already has a branch for the same identifier. Close that PR and delete its branch to start again.
 
 Ticket updates can move an issue to its in-progress status when work starts and post a comment with the PR link. Jira comments and transitions appear as the Atlassian user who connected Jira. When the agent asks questions instead, the run posts at most one comment and opens no PR.
 

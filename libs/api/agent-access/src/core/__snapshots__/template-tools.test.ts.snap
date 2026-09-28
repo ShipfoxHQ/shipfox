@@ -190,7 +190,7 @@ exports[`agent-access template tools > lists the shipped templates for a GitHub-
         "compatible": true,
         "id": "ticket-to-pr",
         "missing_providers": [],
-        "revision": 5,
+        "revision": 6,
         "roles": [
           {
             "from_project": false,
@@ -204,6 +204,11 @@ exports[`agent-access template tools > lists the shipped templates for a GitHub-
               {
                 "compatible": false,
                 "provider": "jira",
+                "suggested_bindings": [],
+              },
+              {
+                "compatible": false,
+                "provider": "clickup",
                 "suggested_bindings": [],
               },
             ],

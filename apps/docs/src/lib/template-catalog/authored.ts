@@ -16,14 +16,14 @@ export const authoredTemplateMetadata: Record<string, AuthoredMetadata> = {
   'ticket-to-pr': {
     group: 'deliver',
     starts:
-      'Your coding agent or another workflow sends a task, or a Linear or Jira issue is ready',
-    upcoming: {tracker: ['clickup', 'github']},
+      'Your coding agent or another workflow sends a task, or a Linear, Jira, or ClickUp ticket is ready',
+    upcoming: {tracker: ['github']},
     flow: [
       {
         kind: 'trigger',
         title: 'The agent gets a task',
         detail:
-          'Your coding agent or another workflow, such as a Slack dispatcher, sends the task with its acceptance criteria. Optional: assign the agent to a Linear issue or mention it, add a label in Linear or Jira, or move a Jira issue to a status.',
+          'Your coding agent or another workflow, such as a Slack dispatcher, sends the task with its acceptance criteria. Optional: assign the agent to a Linear issue or mention it, add a label in Linear or Jira, add a tag in ClickUp, or move a Jira issue or ClickUp task to a status.',
       },
       {
         kind: 'agent',
@@ -42,7 +42,7 @@ export const authoredTemplateMetadata: Record<string, AuthoredMetadata> = {
         icon: 'github',
         title: 'The workflow opens a draft task pull request',
         detail:
-          'The task pull request holds the code change. The starting workflow reads its link or the questions of the agent. With Linear or Jira, the workflow also comments on the issue.',
+          'The task pull request holds the code change. The starting workflow reads its link or the questions of the agent. With a tracker, the workflow also comments on the ticket.',
       },
       {
         kind: 'human',
@@ -56,11 +56,12 @@ export const authoredTemplateMetadata: Record<string, AuthoredMetadata> = {
       {icon: 'github', action: 'Replies to review threads and resolves them (feedback loop only)'},
       {icon: 'linear', action: 'Comments on the issue and can change its status (optional)'},
       {icon: 'jira', action: 'Comments on the issue and can change its status (optional)'},
+      {icon: 'clickup', action: 'Comments on the task and can change its status (optional)'},
     ],
     prerequisites: [
       'Connect GitHub.',
       'Run CI on GitHub Actions to use the feedback loop.',
-      'To start from Linear or Jira issues, connect Linear or Jira.',
+      'To start from Linear, Jira, or ClickUp tickets, connect that tracker.',
     ],
     related: ['fix-dependency-ci', 'report-failed-runs'],
   },

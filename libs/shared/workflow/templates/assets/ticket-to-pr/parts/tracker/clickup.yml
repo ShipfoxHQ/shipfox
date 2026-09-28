@@ -1,0 +1,114 @@
+run_name: |
+  run_name: 'Implement ${{ trigger.source == "manual" ? (has(inputs.identifier) ? inputs.identifier : (has(inputs.title) ? inputs.title : "a task")) : "CU-" + event.task_id }}'
+trigger: |
+  # option:clickup_trigger=tag begin
+  on_tag_added:
+    source: clickup_tracker # bind:tracker
+    event: taskTagUpdated
+    filter: >-
+      event.history_items.exists(item, item.field == "tag" &&
+        item.parent_id == "replace-with-list-id" && item.after != null &&
+        item.after.exists(tag, tag.name == "replace-with-tag-name"))
+  # option:clickup_trigger=tag end
+  # option:clickup_trigger=status begin
+  on_status_changed:
+    source: clickup_tracker # bind:tracker
+    event: taskStatusUpdated
+    filter: >-
+      event.history_items.exists(item, item.field == "status" &&
+        item.parent_id == "replace-with-list-id" && item.after != null &&
+        item.after.status == "replace-with-trigger-status")
+  # option:clickup_trigger=status end
+load_ticket: |
+  - key: ticket_ref
+    env:
+      TASK_ID: '${{ trigger.source == "manual" ? "" : event.task_id }}'
+    run: printf 'task_id=%s\n' "$TASK_ID" >> "$SHIPFOX_OUTPUT"
+    outputs:
+      task_id: string
+  - key: load_ticket
+    if: ${{ steps.ticket_ref.outputs.task_id != "" }}
+    tool: get_task
+    connection: clickup_tracker # bind:tracker
+    with:
+      task_id: ${{ steps.ticket_ref.outputs.task_id }}
+    outputs:
+      title: ${{ result.name }}
+      url: ${{ result.url }}
+      description: '${{ has(result.markdown_description) && result.markdown_description != null ? result.markdown_description : "" }}'
+ticket_env: |
+  TICKET_ID: '${{ trigger.source == "manual" ? "" : event.task_id }}'
+  TICKET_IDENTIFIER: '${{ trigger.source == "manual" ? "" : "CU-" + event.task_id }}'
+  TICKET_TITLE: '${{ trigger.source == "manual" ? "" : steps.load_ticket.outputs.title }}'
+  TICKET_URL: '${{ trigger.source == "manual" ? "" : steps.load_ticket.outputs.url }}'
+  TICKET_DESCRIPTION: '${{ trigger.source == "manual" ? "" : steps.load_ticket.outputs.description }}'
+  TICKET_REQUEST: ''
+read_tools: |
+  integrations:
+    - connection: clickup_tracker # bind:tracker
+      include: [get_task, get_task_comments]
+ask_questions: |
+  # option:ticket_write_back=comment begin
+  - key: ask_questions
+    if: ${{ steps.fix.outputs.status == "needs_clarification" && steps.task.outputs.ticket_id != "" }}
+    tool: add_comment
+    connection: clickup_tracker # bind:tracker
+    with:
+      task_id: ${{ steps.task.outputs.ticket_id }}
+      body: |-
+        Shipfox needs answers before it can implement this task:
+
+        ${{ steps.fix.outputs.questions }}
+  # option:ticket_write_back=comment end
+  # option:ticket_write_back=comment_and_transition begin
+  - key: ask_questions
+    if: ${{ steps.fix.outputs.status == "needs_clarification" && steps.task.outputs.ticket_id != "" }}
+    tool: add_comment
+    connection: clickup_tracker # bind:tracker
+    with:
+      task_id: ${{ steps.task.outputs.ticket_id }}
+      body: |-
+        Shipfox needs answers before it can implement this task:
+
+        ${{ steps.fix.outputs.questions }}
+  # option:ticket_write_back=comment_and_transition end
+mark_in_progress: |
+  # option:ticket_write_back=comment_and_transition begin
+  - key: mark_in_progress
+    if: ${{ steps.task.outputs.ticket_id != "" }}
+    tool: update_task
+    connection: clickup_tracker # bind:tracker
+    with:
+      task_id: ${{ steps.task.outputs.ticket_id }}
+      status: replace-with-in-progress-status
+    gate:
+      on_failure:
+        restart_from: task
+  # option:ticket_write_back=comment_and_transition end
+write_back: |
+  # option:ticket_write_back=comment begin
+  comment_only:
+    needs: implement
+    if: ${{ needs.all(n, n.status == "succeeded") && jobs.implement.outputs.pr_url != "" && jobs.implement.outputs.ticket_id != "" }}
+    checkout: false
+    steps:
+      - key: write_back
+        tool: add_comment
+        connection: clickup_tracker # bind:tracker
+        with:
+          task_id: ${{ jobs.implement.outputs.ticket_id }}
+          body: 'Opened pull request: ${{ jobs.implement.outputs.pr_url }}'
+  # option:ticket_write_back=comment end
+  # option:ticket_write_back=comment_and_transition begin
+  comment_on_ticket:
+    needs: implement
+    if: ${{ needs.all(n, n.status == "succeeded") && jobs.implement.outputs.pr_url != "" && jobs.implement.outputs.ticket_id != "" }}
+    checkout: false
+    steps:
+      - key: write_back
+        tool: add_comment
+        connection: clickup_tracker # bind:tracker
+        with:
+          task_id: ${{ jobs.implement.outputs.ticket_id }}
+          body: 'Opened pull request: ${{ jobs.implement.outputs.pr_url }}'
+  # option:ticket_write_back=comment_and_transition end

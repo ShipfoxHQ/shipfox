@@ -26,6 +26,7 @@ trigger: |
       event.issue.fields.status.name == "replace-with-start-status" &&
       event.changelog.items.exists(item, has(item.fieldId) && item.fieldId == "status")
   # option:jira_trigger=status end
+load_ticket: ''
 ticket_env: |
   TICKET_ID: '${{ trigger.source == "manual" ? "" : event.issue.id }}'
   TICKET_IDENTIFIER: '${{ trigger.source == "manual" ? "" : event.issue.key }}'

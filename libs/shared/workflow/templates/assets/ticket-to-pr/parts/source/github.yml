@@ -10,7 +10,7 @@ prepare: |
       RUN_NUMBER: ${{ run.number }}
       RUN_ATTEMPT: ${{ run.attempt }}
     run: |
-      if ! printf '%s' "$TASK_IDENTIFIER" | grep -Eq '^[A-Za-z0-9_]+-[0-9]+$'; then
+      if ! printf '%s' "$TASK_IDENTIFIER" | grep -Eq '^[A-Za-z0-9_]+-[A-Za-z0-9]+$'; then
         echo "Unexpected task identifier: $TASK_IDENTIFIER" >&2
         exit 1
       fi
