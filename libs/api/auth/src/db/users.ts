@@ -135,6 +135,17 @@ export async function findUserSummaryById(params: {id: string}): Promise<UserSum
   return rows[0];
 }
 
+export async function findUserSummaryByEmail(params: {
+  email: string;
+}): Promise<(UserSummary & Pick<User, 'status'>) | undefined> {
+  const rows = await db()
+    .select({id: users.id, email: users.email, name: users.name, status: users.status})
+    .from(users)
+    .where(eq(users.email, params.email))
+    .limit(1);
+  return rows[0];
+}
+
 export interface UpdateUserPasswordParams {
   userId: string;
   hashedPassword: string;
