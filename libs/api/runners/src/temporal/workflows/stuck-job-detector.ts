@@ -27,7 +27,7 @@ export async function stuckJobDetector(): Promise<void> {
     });
   }
 
-  await deleteExpiredJobExecutionTombstonesIfPossible();
+  await deleteExpiredJobExecutionTombstonesIfPatched();
 
   try {
     const {deleted} = await deleteExpiredRunnerSessionsActivity();
@@ -72,7 +72,9 @@ export async function stuckJobDetector(): Promise<void> {
   }
 }
 
-async function deleteExpiredJobExecutionTombstonesIfPossible(): Promise<void> {
+async function deleteExpiredJobExecutionTombstonesIfPatched(): Promise<void> {
+  if (!patched('delete-expired-job-execution-tombstones')) return;
+
   try {
     const {deleted} = await deleteExpiredJobExecutionTombstonesActivity();
     if (deleted > 0) {

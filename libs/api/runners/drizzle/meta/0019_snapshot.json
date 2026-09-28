@@ -273,7 +273,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "runners_expired_job_executions_expired_at_idx": {
+          "name": "runners_expired_job_executions_expired_at_idx",
+          "columns": [
+            {
+              "expression": "expired_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
