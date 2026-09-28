@@ -529,7 +529,7 @@ ${exportStep('ENG-20', true)}
     expect(await stepLogs(run, 'complete', 'check')).toContain('linear context export verified');
     expect(findStep(run.observation, 'strict', 'context')).toMatchObject({
       status: 'failed',
-      outputs: {path: 'context/linear/ENG-20.partial.md'},
+      outputs: {path: 'context/linear/ENG-20.partial.md', complete: false, file_count: 0},
     });
     expect(await stepLogs(run, 'strict', 'context')).toContain(
       'saved as context/linear/ENG-20.partial.md',

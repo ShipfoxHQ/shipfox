@@ -40,6 +40,7 @@ export type {
 } from './expression/workflow-expression.js';
 export {
   type CoerceStepOutputsResult,
+  coerceKeptStepOutputs,
   coerceStepOutputs,
   type JsonSchemaValidationResult,
   jsonSchemaToExpressionType,

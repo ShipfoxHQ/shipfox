@@ -1787,6 +1787,42 @@ describe('action steps', () => {
     const [attempt] = await getStepAttempts(jobId);
     expect(attempt).toMatchObject({status: 'succeeded', output: {path: 'context/export.md'}});
   });
+
+  test('types the outputs a failed step keeps without replacing its error', async () => {
+    const {jobId, steps} = await arrangeActionJob([
+      {
+        uses: './.shipfox/actions/export',
+        action: {inputs},
+        outputs: {
+          path: {type: 'string', required: true},
+          complete: {type: 'boolean', required: false},
+          file_count: {type: 'number', required: true},
+          summary: {type: 'string', required: true},
+        },
+      },
+    ]);
+    const stepId = steps[0]?.id as string;
+    await nextStepForJob(jobId);
+    const error = {message: 'The export has gaps.'};
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId,
+      status: 'failed',
+      error,
+      output: {path: 'context/export.md', complete: 'false', file_count: 'many', extra: 'x'},
+    });
+
+    expect(outcome).toEqual({jobFinished: true, status: 'failed'});
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({
+      status: 'failed',
+      error,
+      output: {path: 'context/export.md', complete: false},
+    });
+    expect(attempt?.output).not.toHaveProperty('file_count');
+    expect(attempt?.output).not.toHaveProperty('extra');
+  });
 });
 
 describe('nextStepForJob concurrency', () => {
