@@ -134,8 +134,10 @@ grant the same identity, the first one in the file wins.
   catalog entries lose `verified` and fall back to the namespace as display
   name.
 - The exchange accepts RS256 tokens from `https://token.actions.githubusercontent.com`
-  with an `iat` at most 60 seconds ahead and at most 10 minutes old. It caches
-  the issuer's key set and refetches it on an unknown key id. An unreachable
+  with an `iat` no older than 10 minutes. Every time check (`exp`, `nbf`,
+  `iat`) allows 60 seconds of clock tolerance, so an `iat` up to 60 seconds
+  ahead passes and a token up to 11 minutes old does too. It caches the
+  issuer's key set and refetches it on an unknown key id. An unreachable
   key set fails the request with a 500, not a 401, so a job can retry.
 - A publish token lasts 10 minutes, has the audience `registry-publish`, and
   names one namespace. It carries the run's provenance claims, copied from the
