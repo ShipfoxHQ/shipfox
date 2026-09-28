@@ -20,9 +20,7 @@ export function TemplateAdoptPane({
   roles: TemplateRole[];
   variants: Variant[];
 }) {
-  const choosable = roles.filter(
-    (role) => role.optional || role.providers.length > 1 || role.upcoming.length > 0,
-  );
+  const choosable = roles.filter((role) => role.optional || role.providers.length > 1);
   const [bindings, setBindings] = useState<Record<string, string | undefined>>(
     () => variants[variants.length - 1]?.bindings ?? {},
   );
@@ -79,13 +77,6 @@ export function TemplateAdoptPane({
                     : templateIconLabels[provider]}
                 </Pill>
               ))}
-              {role.upcoming.map((provider) => (
-                <Pill key={provider} disabled>
-                  <TemplateIcon icon={provider} className="size-3.5" />
-                  {templateIconLabels[provider]}
-                  <span className="text-[10px] uppercase tracking-wide">Soon</span>
-                </Pill>
-              ))}
             </div>
           </div>
         ))}
@@ -120,12 +111,10 @@ export function TemplateAdoptPane({
 
 function Pill({
   selected = false,
-  disabled = false,
   onClick,
   children,
 }: {
   selected?: boolean;
-  disabled?: boolean;
   onClick?: () => void;
   children: ReactNode;
 }) {
@@ -133,19 +122,16 @@ function Pill({
     <button
       type="button"
       aria-pressed={selected}
-      disabled={disabled}
       onClick={onClick}
-      className={`inline-flex min-h-8 items-center gap-tight rounded-md border px-row text-xs font-medium ${pillStyle({selected, disabled})}`}
+      className={`inline-flex min-h-8 items-center gap-tight rounded-md border px-row text-xs font-medium ${pillStyle(selected)}`}
     >
       {children}
     </button>
   );
 }
 
-function pillStyle({selected, disabled}: {selected: boolean; disabled: boolean}) {
+function pillStyle(selected: boolean) {
   if (selected) return 'border-fd-primary bg-fd-primary/10 text-fd-foreground';
-  if (disabled)
-    return 'cursor-not-allowed border-dashed border-fd-border text-fd-muted-foreground/60';
   return 'border-fd-border text-fd-muted-foreground hover:text-fd-foreground';
 }
 

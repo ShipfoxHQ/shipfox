@@ -6,21 +6,18 @@ import type {TemplateRole} from './types';
 const tracker: TemplateRole = {
   role: 'tracker',
   providers: ['linear'],
-  upcoming: [],
   optional: true,
   fromProject: false,
 };
 const source: TemplateRole = {
   role: 'source',
   providers: ['github'],
-  upcoming: [],
   optional: false,
   fromProject: true,
 };
 const chat: TemplateRole = {
   role: 'chat',
   providers: ['slack', 'linear'],
-  upcoming: [],
   optional: false,
   fromProject: false,
 };

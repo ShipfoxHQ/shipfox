@@ -4,11 +4,8 @@ import {Search, X, Zap} from 'lucide-react';
 import Link from 'next/link';
 import {useMemo, useState} from 'react';
 import {
-  TEMPLATE_GROUPS,
   type TemplateCatalogEntry,
-  type TemplateGroup,
   type TemplateIcon as TemplateIconName,
-  templateGroupLabels,
   templateIconLabels,
   templateIntegrations,
 } from '@/lib/template-catalog/types';
@@ -17,10 +14,9 @@ import {TemplateIcon} from './template-icon';
 interface Filters {
   query: string;
   integrations: TemplateIconName[];
-  groups: TemplateGroup[];
 }
 
-const emptyFilters: Filters = {query: '', integrations: [], groups: []};
+const emptyFilters: Filters = {query: '', integrations: []};
 
 export function TemplateGallery({templates}: {templates: TemplateCatalogEntry[]}) {
   const [filters, setFilters] = useState(emptyFilters);
@@ -29,8 +25,7 @@ export function TemplateGallery({templates}: {templates: TemplateCatalogEntry[]}
     [templates],
   );
   const filtered = useMemo(() => filterTemplates(templates, filters), [templates, filters]);
-  const hasFilters =
-    filters.query.trim().length > 0 || filters.integrations.length > 0 || filters.groups.length > 0;
+  const hasFilters = filters.query.trim().length > 0 || filters.integrations.length > 0;
 
   return (
     <section
@@ -67,26 +62,10 @@ export function TemplateGallery({templates}: {templates: TemplateCatalogEntry[]}
                 }
               />
             ))}
-            {filters.groups.map((group) => (
-              <FilterChip
-                key={group}
-                label={templateGroupLabels[group]}
-                onRemove={() =>
-                  setFilters((current) => ({
-                    ...current,
-                    groups: current.groups.filter((value) => value !== group),
-                  }))
-                }
-              />
-            ))}
           </div>
         ) : null}
 
-        <Results
-          templates={filtered}
-          grouped={!hasFilters}
-          onClear={() => setFilters(emptyFilters)}
-        />
+        <Results templates={filtered} onClear={() => setFilters(emptyFilters)} />
       </div>
 
       <aside
@@ -111,30 +90,12 @@ export function TemplateGallery({templates}: {templates: TemplateCatalogEntry[]}
             }))
           }
         />
-        <Facet
-          legend="Category"
-          values={TEMPLATE_GROUPS}
-          selected={filters.groups}
-          count={(group) => filterTemplates(templates, {...filters, groups: [group]}).length}
-          render={(group) => templateGroupLabels[group]}
-          onToggle={(group) =>
-            setFilters((current) => ({...current, groups: toggle(current.groups, group)}))
-          }
-        />
       </aside>
     </section>
   );
 }
 
-function Results({
-  templates,
-  grouped,
-  onClear,
-}: {
-  templates: TemplateCatalogEntry[];
-  grouped: boolean;
-  onClear: () => void;
-}) {
+function Results({templates, onClear}: {templates: TemplateCatalogEntry[]; onClear: () => void}) {
   if (templates.length === 0)
     return (
       <div className="flex flex-col items-center gap-inline rounded-lg border border-dashed border-fd-border p-panel text-center">
@@ -148,19 +109,7 @@ function Results({
         </button>
       </div>
     );
-  if (!grouped) return <TemplateGrid templates={templates} />;
-  return TEMPLATE_GROUPS.map((group) => {
-    const inGroup = templates.filter((template) => template.group === group);
-    if (inGroup.length === 0) return null;
-    return (
-      <div key={group} className="flex flex-col gap-group">
-        <h2 className="text-sm font-medium text-fd-muted-foreground">
-          {templateGroupLabels[group]}
-        </h2>
-        <TemplateGrid templates={inGroup} />
-      </div>
-    );
-  });
+  return <TemplateGrid templates={templates} />;
 }
 
 function TemplateGrid({templates}: {templates: TemplateCatalogEntry[]}) {
@@ -284,12 +233,12 @@ function filterTemplates(templates: TemplateCatalogEntry[], filters: Filters) {
       !filters.integrations.some((icon) => integrations.includes(icon))
     )
       return false;
-    if (filters.groups.length > 0 && !filters.groups.includes(template.group)) return false;
     if (query.length === 0) return true;
     return [
       template.title,
       template.summary,
       template.starts,
+      ...template.keywords,
       ...integrations.map((icon) => templateIconLabels[icon]),
     ]
       .join(' ')
