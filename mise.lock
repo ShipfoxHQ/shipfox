@@ -76,7 +76,8 @@ version = "11.7.0"
 backend = "npm:pnpm"
 
 [[tools."npm:turbo"]]
-version = "2.9.18"
+version = "2.11.4"
+aube = { path = ".mise/locks/npm-turbo/2.11.4", digest = "sha256:ac59293892a72c6f88623a2639251d62ea3281cae2efa6c5a810696fe5de4ae1" }
 backend = "npm:turbo"
 
 [[tools."npm:wrangler"]]
