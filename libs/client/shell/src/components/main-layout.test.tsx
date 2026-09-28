@@ -2,6 +2,7 @@ import type {AnyRouter} from '@tanstack/react-router';
 import {act, fireEvent, screen, waitFor, within} from '@testing-library/react';
 import {atom, useAtomValue} from 'jotai';
 import {defineClientFeature} from '#contract.js';
+import {useMaybeActiveWorkspace} from '#runtime/active-workspace.js';
 import type {ChromeSlots} from '#runtime/chrome-context.js';
 import {defineRoute} from '#runtime/define-route.js';
 import {renderComposedShell} from '#test/render.js';
@@ -104,6 +105,63 @@ describe('MainLayout navigation', () => {
     fireEvent.click(target);
 
     await waitFor(() => expect((router as AnyRouter).state.location.pathname).toBe(targetPath));
+  });
+});
+
+describe('MainLayout header actions', () => {
+  test('renders no header action when the slot is absent', async () => {
+    await renderMainLayout();
+
+    expect(await screen.findByRole('link', {name: 'Docs (opens in new tab)'})).toBeVisible();
+    expect(screen.queryByTestId('header-action')).not.toBeInTheDocument();
+  });
+
+  test('renders no content when the slot returns null', async () => {
+    await renderMainLayout({HeaderActions: () => null});
+
+    expect(await screen.findByRole('link', {name: 'Docs (opens in new tab)'})).toBeVisible();
+    expect(screen.queryByTestId('header-action')).not.toBeInTheDocument();
+  });
+
+  test('renders the slot inside the routed workspace context', async () => {
+    function HeaderAction() {
+      const workspace = useMaybeActiveWorkspace();
+      return <span data-testid="header-action">{workspace?.name} action</span>;
+    }
+
+    await renderMainLayout({HeaderActions: HeaderAction});
+
+    const headerAction = await screen.findByTestId('header-action');
+    const docsLink = screen.getByRole('link', {name: 'Docs (opens in new tab)'});
+    expect(headerAction).toHaveTextContent('Workspace action');
+    expect(docsLink).toBeVisible();
+    expect(
+      headerAction.compareDocumentPosition(docsLink) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  test('contains a failing slot and reports its error', async () => {
+    const failure = new Error('Header action failed');
+    const reportErrorSpy = vi.fn();
+    vi.stubGlobal('reportError', reportErrorSpy);
+    const FailingHeaderAction = () => {
+      throw failure;
+    };
+
+    try {
+      await renderMainLayout({HeaderActions: FailingHeaderAction});
+
+      expect(await screen.findByRole('link', {name: 'Docs (opens in new tab)'})).toBeVisible();
+      expect(screen.getByRole('main')).toBeVisible();
+      expect(reportErrorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: failure,
+          message: 'Failed to render header actions.',
+        }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

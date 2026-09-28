@@ -11,6 +11,7 @@
 - **Amended by:** [ADR 0014: Admin user impersonation](0014-admin-user-impersonation.md)
 - **Amended by:** [ADR 0015: Usage context and application seams](0015-usage-context-and-application-seams.md)
 - **Amended by:** [ADR 0018: Client analytics subject context](0018-client-analytics-subject-context.md)
+- **Amended by:** [ADR 0020: Header actions chrome slot](0020-header-actions-chrome-slot.md)
 
 ## Context
 

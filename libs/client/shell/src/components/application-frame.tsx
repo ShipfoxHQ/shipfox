@@ -206,6 +206,8 @@ function SessionBannerStrip({
 }
 
 function ApplicationHeader({compactLogo, context}: {compactLogo: boolean; context: ReactNode}) {
+  const {HeaderActions} = useChrome();
+
   return (
     <header className="sticky top-0 z-30 h-56 px-row flex items-center gap-cluster bg-background-subtle-base border-b border-border-neutral-base shrink-0">
       <Link
@@ -226,6 +228,11 @@ function ApplicationHeader({compactLogo, context}: {compactLogo: boolean; contex
       <div className="flex min-w-0 items-center gap-cluster overflow-hidden">{context}</div>
       <div className="min-w-0 flex-1" />
       <div className="flex shrink-0 items-center gap-cluster">
+        {HeaderActions ? (
+          <ReportErrorBoundary label="Failed to render header actions.">
+            <HeaderActions />
+          </ReportErrorBoundary>
+        ) : undefined}
         <Button asChild variant="transparent" size="sm" className="text-foreground-neutral-subtle">
           <a
             href="https://shipfox.io/docs"

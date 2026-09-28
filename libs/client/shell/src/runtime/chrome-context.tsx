@@ -21,6 +21,12 @@ export interface ChromeSlots {
    */
   AccountMenuEntry?: ComponentType;
   /**
+   * Optional content rendered in the application header before the Docs link,
+   * inside an error boundary that renders nothing on failure. The component
+   * may return null.
+   */
+  HeaderActions?: ComponentType;
+  /**
    * Optional component the projects hub renders as its first panel. The hub
    * renders nothing when the slot is absent, so a consumer that composes
    * without the onboarding feature is unaffected.

@@ -1,3 +1,4 @@
+import {Button} from '@shipfox/react-ui/button';
 import {Text} from '@shipfox/react-ui/typography';
 import type {Meta, StoryObj} from '@storybook/react';
 import {QueryClient} from '@tanstack/react-query';
@@ -63,6 +64,14 @@ function EmptySessionBanner() {
   return null;
 }
 
+function DemoHeaderAction() {
+  return (
+    <Button variant="transparent" size="sm" className="text-foreground-neutral-subtle">
+      Help
+    </Button>
+  );
+}
+
 function OverviewPage() {
   return (
     <div className="flex flex-col gap-cluster">
@@ -79,10 +88,12 @@ function OverviewPage() {
 function MainLayoutStory({
   withSessionBanner,
   showSessionBanner,
+  withHeaderAction,
   hideProjectNavigation,
 }: {
   withSessionBanner: boolean;
   showSessionBanner: boolean;
+  withHeaderAction: boolean;
   hideProjectNavigation: boolean;
 }) {
   const queryClient = useMemo(
@@ -101,8 +112,9 @@ function MainLayoutStory({
       ...(withSessionBanner
         ? {SessionBanner: showSessionBanner ? DemoSessionBanner : EmptySessionBanner}
         : {}),
+      ...(withHeaderAction ? {HeaderActions: DemoHeaderAction} : {}),
     }),
-    [showSessionBanner, withSessionBanner],
+    [showSessionBanner, withHeaderAction, withSessionBanner],
   );
   const [router, setRouter] = useState<AnyRouter | null>(null);
 
@@ -160,6 +172,7 @@ const meta = {
   args: {
     withSessionBanner: true,
     showSessionBanner: true,
+    withHeaderAction: false,
     hideProjectNavigation: false,
   },
 } satisfies Meta<typeof MainLayoutStory>;
@@ -182,6 +195,12 @@ export const Playground: Story = {
       const expectedHeight = `calc(100dvh - ${96 + Math.round((strip as HTMLElement).getBoundingClientRect().height)}px)`;
       expect(main.style.getPropertyValue('--app-content-h')).toBe(expectedHeight);
     });
+  },
+};
+
+export const WithHeaderAction: Story = {
+  args: {
+    withHeaderAction: true,
   },
 };
 
