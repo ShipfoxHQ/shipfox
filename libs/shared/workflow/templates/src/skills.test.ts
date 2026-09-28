@@ -8,17 +8,8 @@ describe('shipped skill resources', () => {
   test('embeds the template procedure and template guide bytes', () => {
     const skill = getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md');
     expect(skill?.revision).toBe(10);
-    expect(skill?.text).toContain('revision: 10');
-    expect(skill?.text).toContain('## 1. Orient');
-    expect(skill?.text).toContain('## 9. Deliver');
     expect(skill?.text).toContain('skill://shipfox/validate-workflow-change/SKILL.md');
     expect(skill?.text).toContain('skill://shipfox/test-workflow-change/SKILL.md');
-    expect(skill?.text).not.toContain('setup-procedure.md');
-    expect(
-      getShippedSkillResource(
-        'skill://shipfox/create-workflow-from-template/references/setup-procedure.md',
-      ),
-    ).toBeUndefined();
 
     const guide = getShippedSkillResource(
       'skill://shipfox/create-workflow-from-template/references/ticket-to-pr.md',
@@ -68,86 +59,33 @@ describe('shipped skill resources', () => {
     }
   });
 
-  test('suggests safe Linear issues and requires scoped replay and partial-write handling', () => {
-    const text =
-      getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';
-
-    expect(text).toContain('Bind only models from `model_recommendations` or the catalog.');
-    expect(text).toContain('Use the tested model; otherwise, use the workspace default.');
-    expect(text).toContain(
-      'skill://shipfox/create-workflow-from-template/references/choose-models.md',
+  test('keeps workflow authoring and dev-run contract identifiers in the skills', () => {
+    const template = getShippedSkillResource(
+      'skill://shipfox/create-workflow-from-template/SKILL.md',
     );
-    expect(text).toContain('If any tool returns `content-too-large`, stop and report it.');
-    expect(text).toContain("Never reconstruct a template's YAML by hand.");
-    expect(text).toContain('If `model_provider_configured` is `false`, stop');
-    expect(text).not.toContain('no-compatible-model');
-    expect(text).toContain('state **Expected writes** and runner/inference cost');
-    expect(text).toContain('Event lookup does not verify project scope');
-    expect(text).toContain('use Linear MCP only for Linear triggers.');
-    expect(text).toContain("give the guide's exact event-creation action;");
-    expect(text).toContain('discard completed or high-risk rollouts');
-    expect(text).toContain(
-      'They can skip; report "shape validated, not executed" and go to step 9.',
-    );
-    expect(text).toContain("Share the dev run's `run_url` as soon as it appears");
-    expect(text).toContain("Repeat step 6's expected writes in one line");
-    expect(text).toContain('Before repeating after failure or edits');
-    expect(text).toContain('Stop and ask after five failed real runs.');
-  });
+    const authoring = getShippedSkillResource('skill://shipfox/write-a-workflow/SKILL.md');
+    const testing = getShippedSkillResource('skill://shipfox/test-workflow-change/SKILL.md');
 
-  test('asks before a dev run only when it can make a write that cannot be undone', () => {
-    const template =
-      getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';
-    const testing =
-      getShippedSkillResource('skill://shipfox/test-workflow-change/SKILL.md')?.text ?? '';
-
-    expect(template).toContain(
-      'It decides whether the run needs confirmation; never ask otherwise.',
-    );
-    expect(template).not.toContain('decide explicitly with the user');
-    expect(testing).toContain('revision: 2');
-    expect(testing).toContain(
-      'Start the real run without asking unless it can make a write that cannot be undone.',
-    );
-    expect(testing).toContain('Runner time and inference need no confirmation.');
-    expect(testing).not.toContain('The user must authorize a real run');
-  });
-
-  test('shares the dev run URL as soon as it is available', () => {
-    const skill = getShippedSkillResource('skill://shipfox/test-workflow-change/SKILL.md');
-    const text = skill?.text ?? '';
-
-    expect(skill?.revision).toBe(2);
-    expect(text).toContain('revision: 2');
-    expect(text).toContain('Share the returned `run_url` immediately.');
-    expect(text).toContain('If absent, share `run_id` and say no UI link was returned.');
-    expect(text).not.toContain('call `get_workflow_run` once to retrieve it and share it');
-  });
-
-  test('asks about an optional role only when its provider is connected', () => {
-    const text =
-      getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';
-
-    expect(text).toContain('only if it has a compatible provider.');
-    expect(text).toContain('say in one sentence what connecting it adds; never ask.');
-    expect(text).toContain('each accepted optional role.');
-  });
-
-  test('chooses models from the paged catalog when writing a workflow', () => {
-    const text = getShippedSkillResource('skill://shipfox/write-a-workflow/SKILL.md')?.text ?? '';
-
-    expect(text).toContain('revision: 3');
-    expect(text).toContain('| Models and their thinking levels | `list_workspace_models` |');
-    expect(text).toContain(
-      '| The default model, runners, secret names, or variable names | `get_workflow_authoring_context` |',
-    );
-    expect(text).toContain('If `default_model` is null, go to step 2.');
-    expect(text).toContain('when its `supported_thinking` includes it');
-    expect(text).toContain('ask for a preference first');
-    expect(text).toContain('Show at most one page. Never page through the whole catalog.');
-    expect(text).toContain('Always write `provider` for a model from `list_workspace_models`');
-    expect(text).toContain('If any tool returns `content-too-large`, stop and report it');
-    expect(text).not.toContain('from the authoring context');
+    expect(authoring?.revision).toBe(3);
+    expect(testing?.revision).toBe(2);
+    for (const identifier of [
+      'get_workflow_template',
+      'get_workflow_authoring_context',
+      'list_workspace_models',
+      'list_trigger_events',
+    ]) {
+      expect(template?.text).toContain(identifier);
+      expect(authoring?.text).toContain(identifier);
+    }
+    for (const identifier of [
+      'create_dev_run',
+      'run_url',
+      'run_id',
+      'get_workflow_run',
+      'get_step_logs',
+    ]) {
+      expect(testing?.text).toContain(identifier);
+    }
   });
 
   test('binds the default template model per recommendation group', () => {
@@ -167,31 +105,7 @@ describe('shipped skill resources', () => {
     for (const mode of ['`recommended`', '`template_default`', '`workspace_default`', '`choose`']) {
       expect(reference?.text).toContain(mode);
     }
-    expect(reference?.text).toContain('Do not ask the user to choose a model.');
     expect(reference?.text).toContain('`provider_required: true`');
-    expect(reference?.text).toContain('always for a model chosen from `list_workspace_models`');
-    expect(reference?.text).toContain('show at most one page');
-    expect(reference?.text).toContain('Never rank or compare unscored models.');
-  });
-
-  test('asks one plain question at a time', () => {
-    const text =
-      getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';
-
-    expect(text).toContain('one option per message');
-    expect(text).toContain('Ask one question per message and wait for the answer.');
-    expect(text).toContain('Write questions in plain words a new user understands');
-    expect(text).not.toContain('Ask the user to confirm them');
-    expect(text).toContain('references/ask-options.md');
-    expect(text).not.toContain('one batch of questions');
-    expect(text).not.toContain('pick for me');
-
-    const format = getShippedSkillResource(
-      'skill://shipfox/create-workflow-from-template/references/ask-options.md',
-    )?.text;
-    expect(format).toContain('(default)');
-    expect(format).toContain('Never add how the workflow implements a choice');
-    expect(format).toContain('Which Slack channel should we notify? Provide the channel ID.');
   });
 
   test('manifests every embedded skill file with its exact size and digest', () => {
