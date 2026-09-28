@@ -44,6 +44,7 @@ describe('composeTemplate', () => {
       id: 'fixture',
       revision: 2,
       added_at: '2026-10-01',
+      rank: 1,
       title: 'Fixture',
       summary: 'A fixture template.',
       roles: {

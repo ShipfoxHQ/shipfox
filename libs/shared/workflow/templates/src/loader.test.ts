@@ -138,6 +138,51 @@ describe('workflow template loader', () => {
     expect(() => createTemplateLoader([template()])).toThrow(message);
   });
 
+  it('derives whether every role binding starts manually', () => {
+    expect(
+      Object.fromEntries(
+        loadShippedTemplates().map((template) => [template.manifest.id, template.startsManually]),
+      ),
+    ).toEqual({
+      'ask-codebase': true,
+      'fix-default-branch-ci': false,
+      'fix-dependency-ci': false,
+      'report-failed-runs': false,
+      'slack-to-ticket': true,
+      'ticket-to-pr': true,
+    });
+  });
+
+  it('does not start manually when only an optional role adds the manual trigger', () => {
+    const template = shippedTemplate('fix-default-branch-ci');
+    const withManualReport: WorkflowTemplateAsset = {
+      ...template,
+      workflow: template.workflow.replace(
+        '  # part:source.trigger\n',
+        '  # part:source.trigger\n  # part:report.trigger\n',
+      ),
+      parts: {
+        ...template.parts,
+        report: {
+          slack: {...template.parts.report?.slack, trigger: 'manual:\n  source: manual'},
+        },
+      },
+    };
+
+    const [loaded] = createTemplateLoader([withManualReport]).list();
+
+    expect(withManualReport.workflow).toContain('# part:report.trigger');
+    expect(loaded?.startsManually).toBe(false);
+  });
+
+  it('rejects a template without a manual trigger or a start label', () => {
+    const {start_label: _startLabel, ...manifest} = shippedTemplate('fix-dependency-ci').manifest;
+
+    expect(() =>
+      createTemplateLoader([{...shippedTemplate('fix-dependency-ci'), manifest}]),
+    ).toThrow('fix-dependency-ci: a template without a manual trigger needs a start_label');
+  });
+
   it('keeps setup command insertion inside job steps', () => {
     const loader = createTemplateLoader([fixture]);
     const template = loader.get('fixture-ticket-to-pr');

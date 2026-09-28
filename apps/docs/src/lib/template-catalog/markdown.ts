@@ -1,5 +1,5 @@
 import {inlineCode} from '../markdown';
-import {buildTemplatePrompt} from './prompt';
+import {buildTemplatePagePrompt} from './prompt';
 import {
   TEMPLATE_GROUPS,
   type TemplateCatalogEntry,
@@ -85,7 +85,7 @@ export function serializeTemplateDetail(template: TemplateDetail): string {
     'Open your coding agent in your repository and paste this prompt. The agent needs the [Shipfox MCP server](/how-to/set-up-work/connect-mcp-client).',
     [
       '```text',
-      buildTemplatePrompt(template.id, template.roles, variant?.bindings ?? {}),
+      buildTemplatePagePrompt(template.id, template.roles, variant?.bindings ?? {}),
       '```',
     ].join('\n'),
     `The workflow file, \`.shipfox/workflows/${template.id}.yml\`, with every default:`,

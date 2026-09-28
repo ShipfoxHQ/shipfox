@@ -40,8 +40,10 @@ const asset: WorkflowTemplateAsset = {
     id: 'fixture-template',
     revision: 1,
     added_at: '2026-10-01',
+    rank: 1,
     title: 'Fixture template',
     summary: 'A fixture template.',
+    start_label: 'Starts when an issue opens',
     roles: {
       tracker: {providers: ['linear', 'github']},
       source: {from: 'project', providers: ['github']},
@@ -58,15 +60,25 @@ const asset: WorkflowTemplateAsset = {
     secrets: [],
     variables: [],
   },
-  workflow: 'name: fixture\ntriggers:\n  # part:tracker.trigger\n  # part:report.trigger\njobs: {}',
+  workflow: [
+    'name: fixture',
+    'triggers:',
+    '  # part:tracker.trigger',
+    '  # part:report.trigger',
+    'jobs:',
+    '  fix:',
+    '    steps:',
+    '      - key: fix',
+    '        prompt: Fix the issue.',
+  ].join('\n'),
   guide: '# Follow this fixture',
   parts: {
     tracker: {
-      linear: {trigger: '- source: linear\n  event: issue.created'},
-      github: {trigger: '- source: github\n  event: issues.opened'},
+      linear: {trigger: 'on_issue:\n  source: linear\n  event: issue.created'},
+      github: {trigger: 'on_issue:\n  source: github\n  event: issues.opened'},
     },
     source: {github: {unused: 'unused'}},
-    report: {slack: {trigger: '- source: slack\n  event: app_mention'}},
+    report: {slack: {trigger: 'on_mention:\n  source: slack\n  event: app_mention'}},
   } as unknown as WorkflowTemplateAsset['parts'],
 };
 describe('agent-access template tools', () => {

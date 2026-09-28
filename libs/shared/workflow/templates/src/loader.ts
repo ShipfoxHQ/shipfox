@@ -1,3 +1,4 @@
+import {parseWorkflowDocument} from '@shipfox/workflow-document';
 import {parse as parseYaml} from 'yaml';
 import {
   composeTemplate,
@@ -27,6 +28,8 @@ export interface WorkflowTemplate {
   workflow: string;
   guide: string;
   parts: PartProviderBlocks;
+  /** True when every role binding composes a workflow with a `source: manual` trigger. */
+  startsManually: boolean;
 }
 
 export interface TemplateLoader {
@@ -37,8 +40,7 @@ export interface TemplateLoader {
 
 /** Creates an injectable loader. Production uses only the generated asset module. */
 export function createTemplateLoader(assets: readonly WorkflowTemplateAsset[]): TemplateLoader {
-  const templates = assets.map(normalizeTemplate);
-  for (const template of templates) validateTemplateCombinations(template);
+  const templates = assets.map(loadTemplate);
   const byId = new Map(templates.map((template) => [template.manifest.id, template]));
 
   return {
@@ -66,22 +68,25 @@ export function getShippedTemplate(id: string): WorkflowTemplate | undefined {
 
 export const shippedTemplateLoader = createTemplateLoader(embeddedWorkflowTemplateAssets);
 
-function validateTemplateCombinations(template: WorkflowTemplate): void {
-  for (const bindings of templateRoleBindings(template.manifest.roles)) {
-    composeTemplate(template, bindings);
-  }
-}
-
-function normalizeTemplate(asset: WorkflowTemplateAsset): WorkflowTemplate {
+function loadTemplate(asset: WorkflowTemplateAsset): WorkflowTemplate {
   const manifest =
     typeof asset.manifest === 'string'
       ? workflowTemplateManifestSchema.parse(parseYaml(asset.manifest))
       : workflowTemplateManifestSchema.parse(asset.manifest);
+  const template = {manifest, workflow: asset.workflow, guide: asset.guide, parts: asset.parts};
 
-  return {
-    manifest,
-    workflow: asset.workflow,
-    guide: asset.guide,
-    parts: asset.parts,
-  };
+  // Composing every binding also validates each one, so an optional role cannot hide a broken part.
+  const startsManually = templateRoleBindings(manifest.roles)
+    .map((bindings) => hasManualTrigger(composeTemplate(template, bindings)))
+    .every(Boolean);
+  if (!startsManually && manifest.start_label === undefined) {
+    throw new Error(`${manifest.id}: a template without a manual trigger needs a start_label`);
+  }
+
+  return {...template, startsManually};
+}
+
+function hasManualTrigger(composed: string): boolean {
+  const {triggers = {}} = parseWorkflowDocument(parseYaml(composed));
+  return Object.values(triggers).some((trigger) => trigger.source === 'manual');
 }

@@ -2,7 +2,7 @@
 
 import {Check, Copy} from 'lucide-react';
 import {type ReactNode, useMemo, useState} from 'react';
-import {buildTemplatePrompt} from '@/lib/template-catalog/prompt';
+import {buildTemplatePagePrompt} from '@/lib/template-catalog/prompt';
 import {type TemplateRole, templateIconLabels} from '@/lib/template-catalog/types';
 import {TemplateIcon} from './template-icon';
 
@@ -32,7 +32,7 @@ export function TemplateAdoptPane({
       roles.every((role) => candidate.bindings[role.role] === bindings[role.role]),
     ) ?? variants[0];
   const prompt = useMemo(
-    () => buildTemplatePrompt(templateId, roles, bindings),
+    () => buildTemplatePagePrompt(templateId, roles, bindings),
     [templateId, roles, bindings],
   );
 
