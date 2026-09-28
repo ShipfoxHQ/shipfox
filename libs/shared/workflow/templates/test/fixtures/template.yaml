@@ -1,8 +1,10 @@
 id: fixture-ticket-to-pr
 revision: 1
 added_at: 2026-10-01
+rank: 1
 title: Fixture ticket to pull request
 summary: A small template used to test composition.
+start_label: Starts when a ticket is created
 roles:
   tracker:
     providers: [linear, github]

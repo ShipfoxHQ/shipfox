@@ -1,7 +1,8 @@
+import {buildTemplatePrompt} from '@shipfox/workflow-templates/prompt';
 import {type TemplateRole, templateIconLabels} from './types';
 
-/** The prompt a user pastes into a coding agent; the create-workflow-from-template skill confirms each choice it names. */
-export function buildTemplatePrompt(
+/** Names the provider choices on the page, so the create-workflow-from-template skill confirms them. */
+export function buildTemplatePagePrompt(
   templateId: string,
   roles: TemplateRole[],
   bindings: Record<string, string | undefined>,
@@ -13,6 +14,5 @@ export function buildTemplatePrompt(
       if (provider === undefined) return `without the ${role.role} part`;
       return `${templateIconLabels[provider as keyof typeof templateIconLabels]} as the ${role.role}`;
     });
-  const suffix = choices.length > 0 ? `, with ${choices.join(' and ')}` : '';
-  return `Use Shipfox to create a workflow from the ${templateId} template${suffix}.`;
+  return buildTemplatePrompt({templateId, choices});
 }

@@ -30,6 +30,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./prompt": {
+      "workspace-source": {
+        "types": "./src/prompt.ts",
+        "default": "./src/prompt.ts"
+      },
+      "default": {
+        "types": "./dist/prompt.d.ts",
+        "default": "./dist/prompt.js"
+      }
     }
   },
   "scripts": {

@@ -39,6 +39,7 @@ export {
   type WorkflowModelAnchor,
   type WorkflowModelAnchors,
 } from './model-anchors.js';
+export {type BuildTemplatePromptInput, buildTemplatePrompt} from './prompt.js';
 export {
   CHEAPER_RATIO,
   type CostTradeoff,

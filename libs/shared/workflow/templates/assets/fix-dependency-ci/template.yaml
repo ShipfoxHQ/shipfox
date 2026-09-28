@@ -1,8 +1,10 @@
 id: fix-dependency-ci
 revision: 3
 added_at: 2026-09-22
+rank: 5
 title: Repair failing pull request CI
 summary: Get a tested fix when CI fails on a dependency update or an opted-in pull request.
+start_label: Starts on a failing dependency update
 roles:
   source:
     from: project

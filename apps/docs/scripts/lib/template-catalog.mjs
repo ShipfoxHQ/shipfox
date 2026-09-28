@@ -16,7 +16,9 @@ const EXTRA_BLANK_LINES_PATTERN = /\n{3,}/g;
 export function buildTemplateCatalogDocument() {
   return {
     id: TEMPLATE_CATALOG_DOCUMENT_ID,
-    templates: shippedTemplateLoader.list().map((template) => buildTemplateDetail(template)),
+    templates: [...shippedTemplateLoader.list()]
+      .sort((a, b) => a.manifest.rank - b.manifest.rank)
+      .map((template) => buildTemplateDetail(template)),
   };
 }
 

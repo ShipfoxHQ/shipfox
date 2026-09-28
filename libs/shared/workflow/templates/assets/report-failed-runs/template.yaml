@@ -1,8 +1,10 @@
 id: report-failed-runs
 revision: 1
 added_at: 2026-09-26
+rank: 6
 title: Report failed Shipfox workflow runs
 summary: Hear about every failed workflow run in Slack, with the failing step and an agent diagnosis of the cause.
+start_label: Starts when a workflow run fails
 roles:
   notify:
     providers: [slack]

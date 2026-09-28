@@ -96,8 +96,10 @@ export const workflowTemplateManifestSchema = z.object({
   id: identifierSchema,
   revision: z.number().int().positive(),
   added_at: z.string().date(),
+  rank: z.number().int().positive(),
   title: z.string().min(1),
   summary: z.string().min(1),
+  start_label: z.string().min(1).optional(),
   roles: z
     .record(identifierSchema, workflowTemplateRoleSchema)
     .refine((roles) => Object.keys(roles).length > 0, 'A template must declare at least one role'),

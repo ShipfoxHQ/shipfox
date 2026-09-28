@@ -3,13 +3,14 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 
 ## What it does
 
-- **`workflowTemplateManifestSchema`** checks template identity, revisions, roles, provider choices, options, model placeholders, slots, secrets, and variables.
+- **`workflowTemplateManifestSchema`** checks template identity, revisions, rank, start label, roles, provider choices, options, model placeholders, slots, secrets, and variables.
 - **`composeWorkflow`** replaces `# part:<role>.<name>` markers with text blocks at the marker indentation.
 - **`composeTemplate`** selects one provider part for every bound role, composes the workflow, and writes its `# shipfox-template:` header.
 - **`templateRoleBindings`** lists every role binding a template supports, with each optional role both bound and unbound.
 - **`extractModelAnchors`** reads each placeholder's tested model and thinking setting from composed YAML.
 - **`recommendModels`** selects up to four scored alternatives to a tested model and labels their intelligence and cost tradeoffs.
-- **`createTemplateLoader`** creates an injectable loader for tests or other asset sources.
+- **`buildTemplatePrompt`** builds the prompt a user pastes into a coding agent to set up a template. It is also exported from the browser-safe `@shipfox/workflow-templates/prompt` subpath.
+- **`createTemplateLoader`** creates an injectable loader for tests or other asset sources. Each loaded template reports `startsManually`.
 - **`shippedTemplateLoader`** serves only assets embedded during the package build.
 - **`listShippedSkillResources`** lists the embedded skill index, manifest, procedures, and references.
 - **`getShippedSkillResource`** reads one embedded resource by its exact `skill://shipfox/` URI.
@@ -78,6 +79,16 @@ roles:
 When an optional role is unbound, `composeTemplate` removes its `# part:` markers and leaves it out of the header. Keep everything that depends on the role inside its parts, such as a whole job. A role with `from: project` cannot be optional.
 
 `extractModelAnchors` reads markers after provider parts are composed and before options are applied. It returns the model and sibling `thinking` value for each placeholder. Repeated markers must agree. The marked `model` and `thinking` values are the setting the template author tested, so write only a tested setting there.
+
+### Ranks and start labels
+
+Every manifest declares a `rank`, lower first. Product surfaces and the docs Examples gallery order templates by it.
+
+The loader derives `startsManually` from the workflow. It composes every role binding and parses each result with `@shipfox/workflow-document`. The value is true only when every composition has a `source: manual` trigger, so a manual trigger in an optional role's part does not count. A template without a manual trigger must declare `start_label`, one short phrase such as `Starts when a workflow run fails`, or the loader rejects it.
+
+### Setup prompts
+
+`buildTemplatePrompt({templateId, choices})` returns `Use Shipfox to create a workflow from the <id> template.` Each `choices` phrase, such as `Slack as the report`, is appended, so the create-workflow-from-template skill confirms it instead of asking. Browser code imports it from `@shipfox/workflow-templates/prompt`, because the package root embeds every template asset.
 
 ### Model recommendations
 

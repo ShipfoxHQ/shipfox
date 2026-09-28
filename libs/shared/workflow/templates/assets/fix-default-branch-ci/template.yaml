@@ -1,8 +1,10 @@
 id: fix-default-branch-ci
 revision: 1
 added_at: 2026-09-26
+rank: 4
 title: Investigate and repair default-branch CI failures
 summary: Find out why CI broke on your default branch and get a tested repair pull request.
+start_label: Starts when CI fails on the default branch
 roles:
   source:
     from: project

@@ -1,6 +1,7 @@
 id: slack-to-ticket
 revision: 1
 added_at: 2026-09-27
+rank: 3
 title: Create a ticket from a Slack conversation
 summary: Turn a request in a Slack thread into a Linear ticket grounded in your code.
 roles:
