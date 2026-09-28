@@ -72,6 +72,8 @@ const reportStepMock = vi.fn();
 const appendStepLogsMock = vi.fn();
 const writeStepAnnotationsMock = vi.fn();
 const integrationToolsGatewayUrlMock = vi.fn();
+const gatewayClientCloseMock = vi.fn();
+const createGatewayMcpClientMock = vi.fn();
 const executeRunStepMock = vi.fn();
 const executeActionStepMock = vi.fn();
 const requestActionBundleMock = vi.fn();
@@ -109,9 +111,14 @@ vi.mock('@shipfox/runner-protocol', () => ({
   appendStepLogs: (...args: unknown[]) => appendStepLogsMock(...args),
   writeStepAnnotations: (...args: unknown[]) => writeStepAnnotationsMock(...args),
   integrationToolsGatewayUrl: (...args: unknown[]) => integrationToolsGatewayUrlMock(...args),
+  createIntegrationToolsGatewayFetch: () => fetch,
   AgentRuntimeConfigRequestError,
   StepSecretsRequestError,
   HTTPError,
+}));
+
+vi.mock('@shipfox/runner-protocol/gateway-mcp-client', () => ({
+  createGatewayMcpClient: (...args: unknown[]) => createGatewayMcpClientMock(...args),
 }));
 
 vi.mock('@shipfox/runner-execution', () => ({
@@ -200,6 +207,7 @@ interface FakeStream {
   writeGroup: ReturnType<typeof vi.fn>;
   writeOutputLine: ReturnType<typeof vi.fn>;
   writeEntry: ReturnType<typeof vi.fn>;
+  writeToolRow: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
   drain: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
@@ -232,6 +240,7 @@ function makeFakeStream(
       events.push(`line:${label}`);
     }),
     writeEntry: vi.fn(),
+    writeToolRow: vi.fn(),
     close: vi.fn(() => {
       events.push(`close:${label}`);
       return Promise.resolve({streamLength: STREAM_LENGTH});
@@ -323,6 +332,10 @@ describe('runJobSteps', () => {
     appendStepLogsMock.mockReset();
     writeStepAnnotationsMock.mockReset();
     integrationToolsGatewayUrlMock.mockReset();
+    gatewayClientCloseMock.mockReset();
+    gatewayClientCloseMock.mockResolvedValue(undefined);
+    createGatewayMcpClientMock.mockReset();
+    createGatewayMcpClientMock.mockReturnValue({close: gatewayClientCloseMock});
     executeRunStepMock.mockReset();
     executeActionStepMock.mockReset();
     requestActionBundleMock.mockReset();
@@ -918,9 +931,11 @@ describe('runJobSteps', () => {
           loadBundle: () => Promise<Uint8Array>;
           onLogLine: (line: string) => void;
           onSecret: (secret: string) => void;
+          onToolRow: (row: unknown) => void;
         },
       ) => {
         jobTempDir = options.jobTempDir;
+        options.onToolRow({kind: 'tool-call', timestamp: 1, id: 'call-1', name: 'x', input: '{}'});
         expect(existsSync(jobTempDir)).toBe(true);
         await options.loadBundle();
         options.onLogLine('Shipfox action Slack thread sha256:abc');
@@ -956,6 +971,14 @@ describe('runJobSteps', () => {
       'Shipfox action Slack thread sha256:abc',
     );
     expect(streamFor(actionStep.id).addSecrets).toHaveBeenCalledWith(['endpoint-token']);
+    expect(streamFor(actionStep.id).writeToolRow).toHaveBeenCalledWith(
+      expect.objectContaining({kind: 'tool-call', id: 'call-1'}),
+    );
+    expect(executeActionStepMock).toHaveBeenCalledWith(
+      actionStep,
+      expect.objectContaining({toolsUpstream: {close: gatewayClientCloseMock}}),
+    );
+    expect(gatewayClientCloseMock).toHaveBeenCalledTimes(1);
     expect(reportStepMock).toHaveBeenCalledWith(
       leaseClient,
       expect.objectContaining({

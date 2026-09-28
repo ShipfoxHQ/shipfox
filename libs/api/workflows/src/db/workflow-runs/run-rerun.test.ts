@@ -1204,6 +1204,7 @@ describe('workflow run queries', () => {
             {
               id: 'read_thread',
               sensitivity: 'read',
+              sensitive: false,
               result: 'json',
               input_schema: {type: 'object'},
             },

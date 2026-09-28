@@ -1,7 +1,13 @@
 import {Buffer} from 'node:buffer';
 import {redactSecrets} from '@shipfox/redact';
 import type {LogAppendFn} from '@shipfox/runner-protocol';
-import {type FramedOutput, type OutputSource, StreamFramer} from '#core/framing.js';
+import {config} from '#config.js';
+import {
+  type FramedOutput,
+  type OutputSource,
+  StreamFramer,
+  type ToolLogRow,
+} from '#core/framing.js';
 import type {LogStreamLifecycle} from '#core/lifecycle.js';
 import {createRecordSink} from '#core/record-sink.js';
 import {buildSecretVariants} from '#core/secrets.js';
@@ -45,6 +51,11 @@ export interface StepLogStream extends LogStreamLifecycle {
   writeGroup(options: StepLogGroupOptions): void;
   /** Frames a runner-originated output line, ensuring it ends with a newline. */
   writeOutputLine(line: string, source?: OutputSource): void;
+  /**
+   * Frames a masked tool call or tool result row. A row larger than one upload window is
+   * dropped with a gap, because the uploader never splits a record.
+   */
+  writeToolRow(row: ToolLogRow): void;
 }
 
 export interface StepLogGroupOptions {
@@ -62,6 +73,7 @@ export interface StepLogGroupOptions {
  */
 export function createStepLogStream(options: StepLogStreamOptions): StepLogStream {
   const now = options.now ?? Date.now;
+  const flushBytes = options.flushBytes ?? config.SHIPFOX_LOG_FLUSH_BYTES;
   const framer = new StreamFramer(now);
   const baseSecrets = [...(options.secrets ?? [])];
   let addedSecrets: string[] = [];
@@ -74,7 +86,7 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
     attempt: options.attempt,
     append: options.append,
     now,
-    ...(options.flushBytes !== undefined ? {flushBytes: options.flushBytes} : {}),
+    flushBytes,
     ...(options.spoolMaxBytes !== undefined ? {spoolMaxBytes: options.spoolMaxBytes} : {}),
     ...(options.flushIntervalMs !== undefined ? {flushIntervalMs: options.flushIntervalMs} : {}),
   });
@@ -144,6 +156,18 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
     return redactSecrets(text, secretVariants);
   }
 
+  function maskToolRow(row: ToolLogRow): ToolLogRow {
+    if (row.kind === 'tool-call') {
+      return {
+        ...row,
+        name: safeText(row.name),
+        input: safeText(row.input),
+        ...(row.summary === undefined ? {} : {summary: safeText(row.summary)}),
+      };
+    }
+    return {...row, toolName: safeText(row.toolName), output: safeText(row.output)};
+  }
+
   function refreshSecrets(): void {
     const secrets = [...baseSecrets, ...addedSecrets, ...rotatingSecrets];
     secretVariants = buildSecretVariants(secrets);
@@ -209,6 +233,20 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
 
     writeOutputLine(line, source = 'stdout') {
       writeEvents([{type: 'output', src: source, data: safeText(ensureTrailingNewline(line))}]);
+    },
+
+    writeToolRow(row) {
+      if (!canWrite()) return;
+      let bytes: Buffer;
+      try {
+        bytes = framer.frameToolRow(maskToolRow(row));
+      } catch (err) {
+        sink.fail(err);
+        return;
+      }
+      if (bytes.length > flushBytes) sink.dropPayload(bytes.length);
+      else sink.spool({bytes, payloadBytes: 0});
+      sink.notify();
     },
 
     close() {

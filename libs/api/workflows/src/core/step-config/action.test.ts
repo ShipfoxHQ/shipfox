@@ -156,6 +156,7 @@ describe('action step config', () => {
               {
                 id: 'read_thread',
                 sensitivity: 'read',
+                sensitive: false,
                 result: 'json',
                 input_schema: {type: 'object', properties: {channel: {type: 'string'}}},
               },

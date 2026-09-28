@@ -1,4 +1,4 @@
-export type {OutputSource} from '#core/framing.js';
+export type {OutputSource, ToolLogRow} from '#core/framing.js';
 export type {LogDrainOutcome, LogStreamLifecycle} from '#core/lifecycle.js';
 export {buildSecretVariants} from '#core/secrets.js';
 export {

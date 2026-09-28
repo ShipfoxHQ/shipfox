@@ -44,6 +44,7 @@ import {
   type AnnotationWriteOutcome,
   appendStepLogs,
   commitSessionTranscript,
+  createIntegrationToolsGatewayFetch,
   HTTPError,
   integrationToolsGatewayUrl,
   type LeaseTokenSource,
@@ -1552,6 +1553,15 @@ async function executeActionStepBranch(params: ProcessStepBranchParams): Promise
   if (!opening.ok) return opening.execution;
   const {secretMaterial, stepSecrets, stepStream} = opening.opened;
   const memoryEventsPath = await resolveCgroupMemoryEventsPath();
+  const gatewayUrl = integrationToolsGatewayUrl();
+  // Loaded here so the MCP SDK stays out of the runner's bootstrap module set. The client
+  // connects on the first tool call, so an action without calls never reaches the gateway.
+  const {createGatewayMcpClient} = await import('@shipfox/runner-protocol/gateway-mcp-client');
+  const toolsUpstream = createGatewayMcpClient({
+    url: gatewayUrl,
+    fetch: createIntegrationToolsGatewayFetch(input.leaseToken, gatewayUrl),
+    name: 'shipfox-action',
+  });
   const result = await executeActionStep(input.step, {
     signal: input.signal,
     cwd: params.stepCwd,
@@ -1574,7 +1584,9 @@ async function executeActionStepBranch(params: ProcessStepBranchParams): Promise
       params.secretState.crashSecrets.push(secret);
     },
     onOutput: (chunk, source) => stepStream?.write(chunk, source),
-  });
+    toolsUpstream,
+    onToolRow: (row) => stepStream?.writeToolRow(row),
+  }).finally(() => toolsUpstream.close().catch(() => undefined));
   return finishProcessStep(params, stepStream, result);
 }
 
