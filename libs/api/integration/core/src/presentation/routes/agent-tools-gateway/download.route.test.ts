@@ -91,6 +91,20 @@ describe('tool download route', () => {
     );
   });
 
+  it('falls back to a generic content type when the media type is not header-safe', async () => {
+    const address = await startGateway({
+      downloadFile: async () => fileDownload([Buffer.from('x')], {mediaType: 'text/plain\n;x=1'}),
+    });
+
+    const res = await download(address, {
+      body: {connection_slug: 'github-main', tool: 'download_file', arguments: {}},
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/octet-stream');
+    expect(await res.text()).toBe('x');
+  });
+
   it('refuses a tool the action was not granted without calling the provider', async () => {
     const downloadFile = vi.fn<DownloadFile>();
     const address = await startGateway({downloadFile});
@@ -217,7 +231,11 @@ describe('tool download route', () => {
     await expect(readAll(res)).rejects.toThrow();
     await vi.waitFor(() =>
       expect(infoSpy).toHaveBeenCalledWith(
-        expect.objectContaining({outcome: 'tool-error', errorCode: 'file-too-large'}),
+        expect.objectContaining({
+          outcome: 'tool-error',
+          errorCode: 'file-too-large',
+          bytes: MAX_AGENT_TOOL_FILE_BYTES,
+        }),
         'integration tool call audited',
       ),
     );

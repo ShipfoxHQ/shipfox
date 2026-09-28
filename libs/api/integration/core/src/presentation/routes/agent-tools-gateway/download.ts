@@ -39,7 +39,7 @@ import {
 const DEADLINE_HEADER = 'x-shipfox-deadline';
 const MAX_DOWNLOAD_DURATION_MS = 5 * 60 * 1000;
 const DEADLINE_PATTERN = /^\d{1,10}$/;
-const MEDIA_TYPE_PATTERN = /^[\w.+-]+\/[\w.+-]+(?:\s*;[\x20-\x7e]*)?$/;
+const MEDIA_TYPE_PATTERN = /^[\w.+-]+\/[\w.+-]+(?: *;[\x20-\x7e]*)?$/;
 const RFC5987_RESERVED_PATTERN = /['()*]/g;
 
 const toolDownloadBodySchema = z.object({
@@ -111,6 +111,8 @@ export function createToolDownloadRoute(params: ToolDownloadRouteParams) {
         }
       };
       reply.raw.on('close', onClose);
+      // The runner can leave while the grants load; its close event has then already fired.
+      if (reply.raw.destroyed) onClose();
       const input: IntegrationToolDownloadInput = {
         registry: params.registry,
         connection: authorizedTool.connection,
@@ -224,10 +226,12 @@ async function streamFileBody(params: {
       Readable.fromWeb(params.body as NodeReadableStream<Uint8Array>),
       new Transform({
         transform(chunk: Buffer, _encoding, callback) {
+          if (bytes + chunk.length > MAX_AGENT_TOOL_FILE_BYTES) {
+            tooLarge = true;
+            return callback(new Error('The file exceeded the download limit'));
+          }
           bytes += chunk.length;
-          if (bytes <= MAX_AGENT_TOOL_FILE_BYTES) return callback(null, chunk);
-          tooLarge = true;
-          callback(new Error('The file exceeded the download limit'));
+          callback(null, chunk);
         },
       }),
       params.destination,
