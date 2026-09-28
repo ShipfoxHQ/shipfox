@@ -58,6 +58,10 @@ export const DEFINITION_SYNC_ERROR_CODES = [
   'content-too-large',
   'too-many-files',
   'connection-unavailable',
+  'action-not-found',
+  'action-invalid',
+  'action-too-large',
+  'action-unsupported-file',
   'unknown',
 ] as const;
 

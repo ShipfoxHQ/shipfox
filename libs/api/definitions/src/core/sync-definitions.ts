@@ -4,6 +4,11 @@ import {MAX_WORKFLOW_FILE_BYTES} from '@shipfox/api-definitions-dto';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {boundedMap} from '@shipfox/node-module';
+import type {WorkflowDocument} from '@shipfox/workflow-document';
+import {definitionActionsEnabled} from '../config.js';
+import {checkActionImports} from './check-action-imports.js';
+import {collectActionReferences} from './collect-action-references.js';
+import type {ResolvedActions} from './entities/action-snapshot.js';
 import type {IntegrationValidationContext} from './entities/integration-context.js';
 import {
   type DefinitionSyncDiagnostic,
@@ -12,7 +17,11 @@ import {
 } from './entities/sync-state.js';
 import type {ValidationDiagnostic} from './entities/validation-diagnostic.js';
 import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
-import {DefinitionParseError, DefinitionSyncPermanentError} from './errors.js';
+import {
+  ActionResolutionError,
+  DefinitionParseError,
+  DefinitionSyncPermanentError,
+} from './errors.js';
 import {
   type DefinitionsSourceControl,
   FILE_FETCH_CONCURRENCY,
@@ -20,7 +29,9 @@ import {
 } from './integrations.js';
 import {needsIntegrationValidationContext} from './needs-integration-validation-context.js';
 import {parseDefinitionWithDiagnostics, stripDefinitionDiagnostics} from './parse-definition.js';
+import {type ResolvedAction, resolveWorkflowActions} from './resolve-actions.js';
 import type {ValidationError} from './validate-definition.js';
+import {parseWorkflowYaml} from './workflow-yaml/index.js';
 
 export const DEFAULT_WORKFLOW_PATH = '.shipfox/workflows/';
 export const MAX_WORKFLOW_FILES = 100;
@@ -101,12 +112,27 @@ export interface FetchAndParseWorkflowsParams extends SyncSourceContext {
   onProgress?: ((path: string) => void) | undefined;
   agentValidationCatalog: AgentValidationCatalogV2;
   loadIntegrationValidationContext?: (() => Promise<IntegrationValidationContext>) | undefined;
+  /** Accepts action steps (`uses`). Defaults to `DEFINITION_ACTIONS_ENABLED`. */
+  actionsEnabled?: boolean | undefined;
 }
 
+export interface ParsedWorkflows {
+  workflows: ParsedWorkflow[];
+  /** Every action the workflows reference, once per `uses` path. */
+  actions: ResolvedAction[];
+  /** Warnings on action files, which belong to no workflow file. */
+  actionDiagnostics: DefinitionSyncDiagnostic[];
+}
+
+/**
+ * Reads the workflows and the actions they reference at `ref`, which is a
+ * commit SHA when sync runs for a push, so code and workflow come from one tree.
+ */
 export async function fetchAndParseWorkflows(
   params: FetchAndParseWorkflowsParams,
-): Promise<ParsedWorkflow[]> {
-  const parsed = await boundedMap(
+): Promise<ParsedWorkflows> {
+  const actionsEnabled = params.actionsEnabled ?? definitionActionsEnabled;
+  const fetched = await boundedMap(
     params.paths,
     FILE_FETCH_CONCURRENCY,
     async (path) => {
@@ -121,34 +147,126 @@ export async function fetchAndParseWorkflows(
         );
       }
 
-      return {
-        ...parseWorkflowSnapshot({
-          path: snapshot.path,
-          content: snapshot.content,
-          agentValidationCatalog: params.agentValidationCatalog,
-        }),
-        rawContent: snapshot.content,
-      };
+      return {path: snapshot.path, content: snapshot.content};
     },
     {stopOnError: true},
   );
 
-  if (
-    !params.loadIntegrationValidationContext ||
-    !parsed.some((entry) => needsIntegrationValidationContext(entry.definition.document))
-  ) {
-    return parsed.map(({rawContent: _rawContent, ...entry}) => entry);
-  }
+  // Pass 1 needs only the documents: which actions to read and whether the
+  // integration context is needed.
+  const documents = fetched.map((entry) => ({
+    ...entry,
+    document: parseWorkflowDocumentForSync({
+      ...entry,
+      agentValidationCatalog: params.agentValidationCatalog,
+      actionsEnabled,
+    }),
+  }));
 
-  const integrationValidationContext = await params.loadIntegrationValidationContext();
-  return parsed.map((entry) =>
-    parseWorkflowSnapshot({
+  const resolvedActions = await resolveSyncActions(params, documents);
+  const actionManifests: ResolvedActions = new Map(
+    [...resolvedActions].map(([uses, action]) => [
+      uses,
+      {manifest: action.manifest, digest: action.bundle.digest},
+    ]),
+  );
+
+  const integrationValidationContext =
+    params.loadIntegrationValidationContext !== undefined &&
+    documents.some((entry) => needsIntegrationValidationContext(entry.document, actionManifests))
+      ? await params.loadIntegrationValidationContext()
+      : undefined;
+
+  const workflows = documents.map((entry) => {
+    const parsed = parseWorkflowSnapshot({
       path: entry.path,
-      content: entry.rawContent,
+      content: entry.content,
       agentValidationCatalog: params.agentValidationCatalog,
       integrationValidationContext,
-    }),
-  );
+      actionsEnabled,
+      actionManifests,
+    });
+    return {
+      ...parsed,
+      contentHash: workflowContentHash({
+        content: entry.content,
+        document: entry.document,
+        actionManifests,
+      }),
+    };
+  });
+
+  const actions = [...resolvedActions.values()];
+  return {workflows, actions, actionDiagnostics: await actionImportDiagnostics(actions)};
+}
+
+function parseWorkflowDocumentForSync(params: {
+  path: string;
+  content: string;
+  agentValidationCatalog: AgentValidationCatalogV2;
+  actionsEnabled: boolean;
+}): WorkflowDocument {
+  try {
+    return parseWorkflowYaml(params.content, {actions: params.actionsEnabled});
+  } catch (error) {
+    // Full validation fails the same way and reports it as a sync error, before
+    // any action is read.
+    parseWorkflowSnapshot({...params, actionManifests: new Map()});
+    throw error;
+  }
+}
+
+async function resolveSyncActions(
+  params: FetchAndParseWorkflowsParams,
+  workflows: readonly {path: string; document: WorkflowDocument}[],
+): Promise<Map<string, ResolvedAction>> {
+  try {
+    return await resolveWorkflowActions({...params, workflows});
+  } catch (error) {
+    if (!(error instanceof ActionResolutionError)) throw error;
+    const details =
+      error.details.length === 0 && error.filePath !== undefined
+        ? [{message: error.message}]
+        : error.details;
+    throw new DefinitionSyncPermanentError(error.code, error.message, details, error.filePath);
+  }
+}
+
+/**
+ * Hashes the YAML alone when the workflow uses no action, so existing rows keep
+ * their hash. Otherwise the action digests join the hash, so a commit that
+ * changes only action code still produces a new definition.
+ */
+function workflowContentHash(params: {
+  content: string;
+  document: WorkflowDocument;
+  actionManifests: ResolvedActions;
+}): string {
+  const uses = collectActionReferences(params.document);
+  if (uses.length === 0) return sha256Hex(params.content);
+
+  const actions = uses
+    .sort()
+    .map((path) => [path, params.actionManifests.get(path)?.digest ?? null]);
+  return sha256Hex(JSON.stringify({content: params.content, actions}));
+}
+
+async function actionImportDiagnostics(
+  actions: readonly ResolvedAction[],
+): Promise<DefinitionSyncDiagnostic[]> {
+  const diagnostics: DefinitionSyncDiagnostic[] = [];
+  for (const action of actions) {
+    const directory = action.uses.slice('./'.length);
+    for (const issue of await checkActionImports({files: action.files})) {
+      diagnostics.push({
+        code: issue.code,
+        message: issue.message,
+        severity: 'warning',
+        filePath: `${directory}/${issue.filePath}`,
+      });
+    }
+  }
+  return diagnostics;
 }
 
 async function fetchWorkflowFile(params: FetchAndParseWorkflowsParams, path: string) {
@@ -174,23 +292,22 @@ function parseWorkflowSnapshot(params: {
   content: string;
   integrationValidationContext?: IntegrationValidationContext | undefined;
   agentValidationCatalog: AgentValidationCatalogV2;
-}): ParsedWorkflow {
+  actionsEnabled: boolean;
+  actionManifests: ResolvedActions;
+}): Omit<ParsedWorkflow, 'contentHash'> {
   try {
-    const definition =
-      params.integrationValidationContext === undefined
-        ? parseDefinitionWithDiagnostics(params.content, {
-            agentValidationCatalog: params.agentValidationCatalog,
-          })
-        : parseDefinitionWithDiagnostics(params.content, {
-            agentValidationCatalog: params.agentValidationCatalog,
-            integrationValidationContext: params.integrationValidationContext,
-          });
-    const contentHash = sha256Hex(params.content);
+    const definition = parseDefinitionWithDiagnostics(params.content, {
+      agentValidationCatalog: params.agentValidationCatalog,
+      actionsEnabled: params.actionsEnabled,
+      actionManifests: params.actionManifests,
+      ...(params.integrationValidationContext === undefined
+        ? {}
+        : {integrationValidationContext: params.integrationValidationContext}),
+    });
     return {
       path: params.path,
       name: definition.document.name,
       definition: stripDefinitionDiagnostics(definition),
-      contentHash,
       diagnostics: definition.diagnostics,
     };
   } catch (error) {
@@ -215,7 +332,11 @@ export interface SyncFailureClassification {
 
 export function classifySyncFailure(error: unknown): SyncFailureClassification {
   if (error instanceof DefinitionSyncPermanentError) {
-    const diagnostics = definitionSyncDiagnosticsFor(error.details, error.filePath);
+    const diagnostics = definitionSyncDiagnosticsFor({
+      code: error.code,
+      errors: error.details,
+      filePath: error.filePath,
+    });
     return {
       code: error.code,
       message: error.message,
@@ -290,13 +411,15 @@ function isValidationError(value: unknown): value is ValidationError {
   );
 }
 
-function definitionSyncDiagnosticsFor(
-  errors: readonly ValidationError[],
-  filePath?: string | undefined,
-): DefinitionSyncDiagnostic[] {
+function definitionSyncDiagnosticsFor(params: {
+  code: DefinitionSyncErrorCode;
+  errors: readonly ValidationError[];
+  filePath?: string | undefined;
+}): DefinitionSyncDiagnostic[] {
+  const {code, errors, filePath} = params;
   return limitDefinitionSyncDiagnostics(
     errors.map((error) => ({
-      code: 'invalid-definition',
+      code,
       message:
         error.reason === undefined
           ? error.message

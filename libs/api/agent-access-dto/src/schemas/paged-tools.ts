@@ -259,6 +259,10 @@ const definitionSyncErrorCodes = [
   'content-too-large',
   'too-many-files',
   'connection-unavailable',
+  'action-not-found',
+  'action-invalid',
+  'action-too-large',
+  'action-unsupported-file',
   'unknown',
 ] as const;
 const definitionSyncErrorCodeSchema = z.enum(definitionSyncErrorCodes);

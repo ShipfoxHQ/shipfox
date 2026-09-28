@@ -33,6 +33,10 @@ export const definitionSyncErrorCodeEnum = pgEnum('definitions_sync_error_code',
   'content-too-large',
   'too-many-files',
   'connection-unavailable',
+  'action-not-found',
+  'action-invalid',
+  'action-too-large',
+  'action-unsupported-file',
   'unknown',
 ]);
 
