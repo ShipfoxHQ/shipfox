@@ -34,7 +34,6 @@ export const FIRST_WORKFLOW_PROMPT =
   "Set up a Shipfox workflow for this repository: read the Shipfox MCP server's `create-workflow-from-template` skill and follow it.";
 
 const EXAMPLES_URL = 'https://www.shipfox.io/docs/examples';
-const QUICK_START_URL = 'https://www.shipfox.io/docs/getting-started';
 
 /** Where the panel is mounted, reported with every panel event. */
 export type FirstWorkflowSurface = 'home' | 'workflows_empty';
@@ -247,26 +246,15 @@ function TemplatePicker({
             onCopied={() => captureCopy(undefined)}
           />
         </div>
-        <div className="flex flex-wrap items-center gap-group">
-          <ButtonLink
-            href={EXAMPLES_URL}
-            target="_blank"
-            rel="noreferrer"
-            variant="interactive"
-            iconRight="externalLink"
-          >
-            Browse all examples
-          </ButtonLink>
-          <ButtonLink
-            href={QUICK_START_URL}
-            target="_blank"
-            rel="noreferrer"
-            variant="muted"
-            iconRight="externalLink"
-          >
-            Read the Quick Start
-          </ButtonLink>
-        </div>
+        <ButtonLink
+          href={EXAMPLES_URL}
+          target="_blank"
+          rel="noreferrer"
+          variant="interactive"
+          iconRight="externalLink"
+        >
+          Browse all examples
+        </ButtonLink>
       </PanelStep>
     </>
   );

@@ -171,7 +171,6 @@ describe('FirstWorkflowPanel in choose mode', () => {
       'href',
       'https://www.shipfox.io/docs/examples',
     );
-    expect(screen.getByRole('link', {name: 'Read the Quick Start'})).toBeVisible();
   });
 
   test('shows at most four cards when every template is usable', async () => {
