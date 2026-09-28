@@ -143,8 +143,7 @@ grant the same identity, the first one in the file wins.
   names one namespace. It carries the run's provenance claims, copied from the
   verified OIDC token.
 - Each exchange consumes its OIDC token id with a create-only write to
-  `_registry/jti/<jti>`, so a token works once across replicas. Records older
-  than an hour can be deleted, because the token no longer verifies by then.
+  `_registry/jti/<jti>`, so a token works once across replicas.
 - A refusal of a token that verified is written to
   `_registry/audit/<day>/<time>-token-<id>.json`, with the token claims and,
   for a missing grant, the mismatched fields of each grant. Tokens that fail

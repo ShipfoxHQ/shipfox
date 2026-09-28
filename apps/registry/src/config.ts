@@ -2,7 +2,7 @@ import {bool, createConfig, str, url} from '@shipfox/config';
 
 export const config = createConfig({
   REGISTRY_PUBLIC_URL: url({
-    desc: 'URL that clients use to reach this registry, such as https://registry.shipfox.io. It is listed in .well-known/shipfox-registry.json and is the audience that GitHub Actions OIDC tokens must request, character for character.',
+    desc: 'URL that clients use to reach the registry API, such as https://api.registry.shipfox.io. It is listed in .well-known/shipfox-registry.json and is the audience that GitHub Actions OIDC tokens must request, character for character.',
   }),
   REGISTRY_STORAGE_URL: str({
     desc: 'Where registry files are stored. Use s3://bucket/prefix for S3, R2, or MinIO, with the connection from the OBJECT_STORAGE_S3_* settings. Use file:///absolute/path for development and E2E. The store must support conditional writes.',
