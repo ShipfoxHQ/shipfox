@@ -11,6 +11,9 @@ export const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url
 export const generatedFilePath = fileURLToPath(
   new URL('../../../libs/shared/workflow/actions/src/generated/tool-catalog.ts', import.meta.url),
 );
+export const generatedGrantsFilePath = fileURLToPath(
+  new URL('../../../libs/shared/workflow/actions/src/generated/tool-grants.ts', import.meta.url),
+);
 
 const HEADER = `// Generated from the provider tool catalogs by @shipfox/action-tool-types. Do not edit.
 // Regenerate with \`pnpm --filter @shipfox/action-tool-types generate\`.`;
@@ -53,6 +56,51 @@ export async function renderToolCatalogSource(
 
   const source = [HEADER, mapLines.join('\n'), ...declarations].join('\n\n');
   return formatWithBiome(source, generatedFilePath);
+}
+
+/**
+ * Renders the runtime grant data the testing helper checks calls against: each tool's
+ * sensitivity and result kind, and each family method's sensitivity.
+ */
+export function renderToolGrantsSource(catalogs: readonly ProviderToolCatalog[]): string {
+  const providers = [...catalogs].sort((a, b) => a.provider.localeCompare(b.provider));
+  const grants = Object.fromEntries(
+    providers.map(({provider, tools}) => [
+      provider,
+      Object.fromEntries(
+        [...tools]
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .map((entry) => [
+            entry.id,
+            {
+              sensitivity: entry.sensitivity,
+              result: agentToolResultKind(entry),
+              ...(entry.methods === undefined
+                ? {}
+                : {
+                    methods: Object.fromEntries(
+                      [...entry.methods]
+                        .sort((a, b) => a.id.localeCompare(b.id))
+                        .map((method) => [method.id, method.sensitivity]),
+                    ),
+                  }),
+            },
+          ]),
+      ),
+    ]),
+  );
+  const source = [
+    HEADER,
+    `export interface ToolGrant {
+  readonly sensitivity: 'read' | 'write';
+  readonly result: 'json' | 'file';
+  /** Method sensitivities of a family tool, by method id. */
+  readonly methods?: Readonly<Record<string, 'read' | 'write'>>;
+}`,
+    `/** Grant data by provider slug and tool id. */
+export const toolGrants: Readonly<Record<string, Readonly<Record<string, ToolGrant>>>> = ${JSON.stringify(grants)};`,
+  ].join('\n\n');
+  return formatWithBiome(source, generatedGrantsFilePath);
 }
 
 /** Tool ids, plus one `family.method` name per method with `method` filled by the runner. */
@@ -177,12 +225,20 @@ export async function writeToolCatalogFile(catalogs: readonly ProviderToolCatalo
   const source = await renderToolCatalogSource(catalogs);
   await mkdir(dirname(generatedFilePath), {recursive: true});
   await writeFile(generatedFilePath, source);
+  await writeFile(generatedGrantsFilePath, renderToolGrantsSource(catalogs));
 }
 
-/** Compares the committed file with a fresh render. */
+/** Compares the committed files with a fresh render. */
 export async function isToolCatalogFileCurrent(
   catalogs: readonly ProviderToolCatalog[],
 ): Promise<boolean> {
-  const committed = await readFile(generatedFilePath, 'utf8').catch(() => undefined);
-  return committed === (await renderToolCatalogSource(catalogs));
+  const [types, grants] = await Promise.all(
+    [generatedFilePath, generatedGrantsFilePath].map((path) =>
+      readFile(path, 'utf8').catch(() => undefined),
+    ),
+  );
+  return (
+    types === (await renderToolCatalogSource(catalogs)) &&
+    grants === renderToolGrantsSource(catalogs)
+  );
 }

@@ -1,6 +1,10 @@
 import type {AgentToolCatalogEntry} from '@shipfox/api-integration-spi';
 import {type ProviderToolCatalog, providerToolCatalogs} from '#catalogs.js';
-import {isToolCatalogFileCurrent, renderToolCatalogSource} from '#generate.js';
+import {
+  isToolCatalogFileCurrent,
+  renderToolCatalogSource,
+  renderToolGrantsSource,
+} from '#generate.js';
 
 const readThread: AgentToolCatalogEntry = {
   id: 'read_thread',
@@ -129,11 +133,41 @@ describe('renderToolCatalogSource', () => {
   });
 });
 
+describe('renderToolGrantsSource', () => {
+  it('lists the sensitivity and result kind of every tool and family method', () => {
+    const source = renderToolGrantsSource([
+      {provider: 'slack', tools: [readThread]},
+      {provider: 'github', tools: [issueRead]},
+    ]);
+
+    expect(source).toContain(
+      [
+        "  github: {issue_read: {sensitivity: 'read', result: 'file', methods: {get: 'read'}}},",
+        "  slack: {read_thread: {sensitivity: 'read', result: 'json'}},",
+      ].join('\n'),
+    );
+  });
+});
+
 describe('isToolCatalogFileCurrent', () => {
   it('matches the committed file to the provider catalogs', async () => {
     const current = await isToolCatalogFileCurrent(providerToolCatalogs);
 
     expect(current, 'Run `pnpm --filter @shipfox/action-tool-types generate`.').toBe(true);
+  });
+
+  it('reports drift when only a sensitivity changes', async () => {
+    const changed = providerToolCatalogs.map((catalog) => ({
+      ...catalog,
+      tools: catalog.tools.map((tool) => ({
+        ...tool,
+        sensitivity: tool.sensitivity === 'read' ? ('write' as const) : ('read' as const),
+      })),
+    }));
+
+    const current = await isToolCatalogFileCurrent(changed);
+
+    expect(current).toBe(false);
   });
 
   it('reports drift when a catalog changes', async () => {

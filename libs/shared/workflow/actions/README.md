@@ -34,6 +34,8 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
   the runner: routes, request and response shapes, limits, and environment variable names.
 - **`@shipfox/actions/download-writer`** writes tool downloads into the job workspace. The runner
   and the testing helper use it, so tests write files the way runs do. Actions do not import it.
+- **`@shipfox/actions/testing`** runs an action from a unit test with fake tools. It exports
+  `runAction`, `toolResult`, and `toolError`. See [Testing an action](#testing-an-action).
 
 ## Installation and setup
 
@@ -70,6 +72,64 @@ declare module '@shipfox/actions' {
   }
 }
 ```
+
+## Testing an action
+
+`runAction(actionDir, {inputs, tools, workspace, env, timeoutMs})` runs the action in its own
+Node process, started the way a runner starts it, with the real loader and bootstrap. It works
+under any test runner, including Vitest's `threads` and `forks` pools, Jest, and `node:test`.
+
+```ts
+import {runAction, toolResult} from '@shipfox/actions/testing';
+import {expect, test} from 'vitest';
+
+test('collects every page of a thread', async () => {
+  const result = await runAction(new URL('./', import.meta.url), {
+    inputs: {channel_id: 'C1', thread_ts: '1.0'},
+    tools: {
+      slack: {
+        read_thread: (args) =>
+          toolResult(
+            args.cursor
+              ? {messages: [{ts: '1.2', text: 'second'}]}
+              : {messages: [{ts: '1.1', text: 'first'}], response_metadata: {next_cursor: 'c2'}},
+          ),
+      },
+    },
+  });
+
+  expect(result.status).toBe('succeeded');
+  expect(result.outputs.message_count).toBe(2);
+  expect(result.calls.map((call) => call.args.cursor)).toEqual([undefined, 'c2']);
+  expect(await result.workspace.read('context/slack-thread.md')).toContain('second');
+});
+```
+
+- **Inputs** are checked against `action.yml` with defaults applied, as at dispatch. An invalid
+  manifest or input rejects with `ActionTestSetupError` before the action starts.
+- **Fakes** are functions keyed by alias, then by the tool name the action calls (`tool` or
+  `family.method`). A `call` fake returns `toolResult(structured)` or a plain value. A `download`
+  fake returns the file bytes, or `{bytes, filename, mediaType}`, and the file is written with
+  the runner's download code. Throw `toolError('rate-limited')` or
+  `toolError({outcomeUnknown: true})` to test error paths.
+- **Grants follow the manifest.** A call to an undeclared alias or an ungranted tool, or a write
+  tool without `allow_write`, fails with `tool-not-granted`. A granted tool without a fake fails
+  with `no-fake-for-tool`. A fake that throws anything else, such as a failed assertion, makes
+  `runAction` reject with that error.
+- **The result** holds `status`, `exitCode`, `outputs` (typed as later steps see them), `error`,
+  every `calls` entry, the interleaved `logs`, the `summary`, and the `workspace`.
+- **The workspace** is a new temporary directory unless `workspace` names one. Call
+  `result.workspace.remove()` to delete it. It deletes a named workspace too, so name only a
+  disposable directory.
+- **`timeoutMs`** defaults to 30 seconds. The process group is killed when it passes.
+
+Limits:
+
+- Module mocks such as `vi.mock` do not reach the action's process. Fakes run in the test
+  process, so they can hold state and assert on arguments.
+- Coverage of action files needs a tool that follows child processes, such as `c8`.
+- Packages resolve with the real loader, so the test workspace needs the action's packages
+  installed, as a run does.
 
 ## Behavior notes
 
