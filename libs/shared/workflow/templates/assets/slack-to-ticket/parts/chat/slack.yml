@@ -60,7 +60,7 @@ link_back: |
       channel_id: ${{ jobs.thread.outputs.channel_id }}
       thread_ts: ${{ jobs.thread.outputs.thread_ts }}
       message: |-
-        Ticket [${{ steps.create_ticket.outputs.identifier }}](${{ steps.create_ticket.outputs.url }}) tracks this thread: ${{ jobs.draft.outputs.title }}
+        Ticket ${{ steps.create_ticket.outputs.identifier }} tracks this thread: [${{ jobs.draft.outputs.title }}](${{ steps.create_ticket.outputs.url }})
 
         ${{ jobs.draft.outputs.reply }}
 
@@ -74,4 +74,4 @@ failure_reply: |
     with:
       channel_id: ${{ jobs.thread.outputs.channel_id }}
       thread_ts: ${{ jobs.thread.outputs.thread_ts }}
-      message: Shipfox could not create a ticket from this thread. Run ${{ run.number }} of the Slack ticket workflow failed. A project member can inspect the run in Shipfox before starting it again.
+      message: Shipfox could not finish creating a ticket from this thread. Run ${{ run.number }} of the Slack ticket workflow failed, and a ticket may already exist in Linear. A project member can inspect the run in Shipfox and check Linear before starting it again.
