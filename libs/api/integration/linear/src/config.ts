@@ -1,4 +1,4 @@
-import {createConfig, str, url} from '@shipfox/config';
+import {bool, createConfig, str, url} from '@shipfox/config';
 
 const linearConfigSchema = {
   LINEAR_OAUTH_CLIENT_ID: str({
@@ -16,6 +16,14 @@ const linearConfigSchema = {
   LINEAR_MCP_ENDPOINT: url({
     desc: 'Streamable HTTP endpoint used for Linear MCP tool calls. Set this only when routing Linear tools through a compatible proxy or test server.',
     default: 'https://mcp.linear.app/mcp',
+  }),
+  LINEAR_UPLOADS_URL: url({
+    desc: 'Base URL of Linear file uploads. The download_file tool only fetches URLs under it. Set this only when serving uploads from a test server.',
+    default: 'https://uploads.linear.app/',
+  }),
+  LINEAR_UPLOADS_ALLOW_PRIVATE_NETWORKS: bool({
+    desc: 'Allows Linear upload downloads to reach private, loopback, link-local, and .internal network targets. Keep this false unless LINEAR_UPLOADS_URL points at a local test server.',
+    default: false,
   }),
 };
 

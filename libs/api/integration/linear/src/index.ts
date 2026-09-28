@@ -1,7 +1,10 @@
 import {LINEAR_PROVIDER, linearEventCatalog} from '@shipfox/api-integration-linear-dto';
 import {createLinearApiClient, type LinearApiClient} from '#api/client.js';
 import {config} from '#config.js';
-import {LinearAgentToolsProvider} from '#core/agent-tools-provider.js';
+import {
+  LinearAgentToolsProvider,
+  type LinearAgentToolsProviderOptions,
+} from '#core/agent-tools-provider.js';
 import type {LinearTokenStore} from '#core/tokens.js';
 import {createLinearWebhookProcessor} from '#core/webhook-processor.js';
 import {closeDb, db} from '#db/db.js';
@@ -101,6 +104,7 @@ export interface CreateLinearIntegrationProviderOptions {
         tokenStore: Pick<LinearTokenStore, 'getAccessToken'>;
         endpoint?: string | URL | undefined;
         callTimeoutMs?: number | undefined;
+        uploads?: LinearAgentToolsProviderOptions['uploads'];
       }
     | undefined;
   getLinearInstallationByConnectionId?: typeof getLinearInstallationByConnectionId | undefined;

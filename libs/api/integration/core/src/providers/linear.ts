@@ -138,7 +138,14 @@ async function loadLinearModuleParts(
   });
 
   const integrationProvider = createLinearIntegrationProvider({
-    agentTools: {tokenStore, endpoint: linearConfig.LINEAR_MCP_ENDPOINT},
+    agentTools: {
+      tokenStore,
+      endpoint: linearConfig.LINEAR_MCP_ENDPOINT,
+      uploads: {
+        url: linearConfig.LINEAR_UPLOADS_URL,
+        allowPrivateNetworks: linearConfig.LINEAR_UPLOADS_ALLOW_PRIVATE_NETWORKS,
+      },
+    },
     cleanup: {
       deleteConnectionRecords: async (connection, {tx}) => {
         await deleteLinearInstallationByConnectionId(connection.id, {tx});

@@ -13,6 +13,8 @@ import {z} from 'zod';
 
 export const LINEAR_READ_RESULT_MARKER = 'linear-read-result-marker';
 export const LINEAR_WRITE_RESULT_MARKER = 'linear-write-result-marker';
+/** Path prefix the mock serves uploads under, standing in for `https://uploads.linear.app/`. */
+export const LINEAR_UPLOADS_PATH = '/uploads/';
 
 const LINEAR_MCP_PORT_WAIT_TIMEOUT_MS = 120_000;
 const LINEAR_MCP_PORT_RETRY_INTERVAL_MS = 100;
@@ -23,9 +25,44 @@ export interface LinearMcpCall {
   toolName: 'get_issue' | 'save_comment';
 }
 
+export interface LinearUploadRequest {
+  authorization: string | undefined;
+  path: string;
+}
+
+export interface LinearUploadFixture {
+  mediaType: string;
+  filename: string;
+  body: Buffer;
+}
+
+/** Uploads the mock serves, by path under the uploads URL. */
+export const LINEAR_UPLOAD_FIXTURES: Readonly<Record<string, LinearUploadFixture>> = {
+  'e2e-org/notes/notes.txt': {
+    mediaType: 'text/plain',
+    filename: 'notes.txt',
+    body: Buffer.from('Synthetic Linear upload notes.\n'),
+  },
+  'e2e-org/diagram/diagram.png': {
+    mediaType: 'image/png',
+    filename: 'diagram.png',
+    body: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      'base64',
+    ),
+  },
+  'e2e-org/report/report.pdf': {
+    mediaType: 'application/pdf',
+    filename: 'report.pdf',
+    body: Buffer.from('%PDF-1.4\n%Synthetic Linear upload\n%%EOF\n'),
+  },
+};
+
 export interface LinearMcpMock {
   calls: LinearMcpCall[];
+  uploads: LinearUploadRequest[];
   endpoint: URL;
+  uploadsUrl: URL;
   stop(): Promise<void>;
 }
 
@@ -33,8 +70,14 @@ export async function startLinearMcpMock(
   endpoint = new URL(requiredLinearMcpEndpoint()),
 ): Promise<LinearMcpMock> {
   const calls: LinearMcpCall[] = [];
+  const uploads: LinearUploadRequest[] = [];
   let boundEndpoint = endpoint;
   const server = createServer((request, response) => {
+    const path = new URL(request.url ?? '/', boundEndpoint).pathname;
+    if (path.startsWith(LINEAR_UPLOADS_PATH)) {
+      handleUploadRequest({uploads, path, request, response});
+      return;
+    }
     void handleMcpRequest({calls, endpoint: boundEndpoint, request, response});
   });
 
@@ -46,7 +89,9 @@ export async function startLinearMcpMock(
 
   return {
     calls,
+    uploads,
     endpoint: boundEndpoint,
+    uploadsUrl: new URL(LINEAR_UPLOADS_PATH, boundEndpoint),
     stop: async () => {
       try {
         await close(server);
@@ -116,6 +161,35 @@ async function handleMcpRequest(params: {
     if (!params.response.headersSent)
       sendMcpError(params.response, 500, -32603, 'MCP request failed.');
     else params.response.end();
+  }
+}
+
+/** Like `uploads.linear.app`, a request without a bearer token gets a 401. */
+function handleUploadRequest(params: {
+  uploads: LinearUploadRequest[];
+  path: string;
+  request: IncomingMessage;
+  response: ServerResponse;
+}): void {
+  const authorization = params.request.headers.authorization;
+  params.uploads.push({authorization, path: params.path});
+  const fixture = LINEAR_UPLOAD_FIXTURES[params.path.slice(LINEAR_UPLOADS_PATH.length)];
+  if (params.request.method !== 'GET') {
+    params.response.writeHead(405).end();
+  } else if (!authorization?.startsWith('Bearer ')) {
+    params.response
+      .writeHead(401, {'content-type': 'application/json'})
+      .end('{"error":"unauthorized"}');
+  } else if (fixture === undefined) {
+    params.response.writeHead(404).end();
+  } else {
+    params.response
+      .writeHead(200, {
+        'content-type': fixture.mediaType,
+        'content-length': String(fixture.body.length),
+        'content-disposition': `attachment; filename="${fixture.filename}"`,
+      })
+      .end(fixture.body);
   }
 }
 

@@ -7,6 +7,7 @@ import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
 import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import {
   LINEAR_READ_RESULT_MARKER,
+  LINEAR_UPLOAD_FIXTURES,
   LINEAR_WRITE_RESULT_MARKER,
   startLinearMcpMock,
 } from './linear-mcp.js';
@@ -49,6 +50,36 @@ describe('Linear MCP mock', () => {
       ]);
     } finally {
       await client.close();
+      await mock.stop();
+    }
+  });
+
+  it('serves uploads to bearer-authenticated requests', async () => {
+    const mock = await startLinearMcpMock(new URL('http://127.0.0.1:0/mcp'));
+    const url = new URL('e2e-org/report/report.pdf?signature=signed', mock.uploadsUrl);
+
+    try {
+      const unauthenticated = await fetch(url);
+      const missing = await fetch(new URL('e2e-org/missing', mock.uploadsUrl), {
+        headers: {authorization: 'Bearer synthetic-linear-token'},
+      });
+      const response = await fetch(url, {
+        headers: {authorization: 'Bearer synthetic-linear-token'},
+      });
+
+      expect(unauthenticated.status).toBe(401);
+      expect(missing.status).toBe(404);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toBe('application/pdf');
+      expect(response.headers.get('content-disposition')).toBe('attachment; filename="report.pdf"');
+      expect(Buffer.from(await response.arrayBuffer())).toEqual(
+        LINEAR_UPLOAD_FIXTURES['e2e-org/report/report.pdf']?.body,
+      );
+      expect(mock.uploads.at(-1)).toEqual({
+        authorization: 'Bearer synthetic-linear-token',
+        path: '/uploads/e2e-org/report/report.pdf',
+      });
+    } finally {
       await mock.stop();
     }
   });

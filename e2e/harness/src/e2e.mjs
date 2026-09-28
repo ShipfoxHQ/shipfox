@@ -377,6 +377,13 @@ export function e2eEnv(sourceEnv) {
     ),
     INTEGRATIONS_TEST_VCS_PORT: String(testVcsPort),
     LINEAR_MCP_ENDPOINT: linearMcpEndpoint,
+    LINEAR_UPLOADS_URL: valueOr(sourceEnv.LINEAR_UPLOADS_URL, () =>
+      new URL('/uploads/', linearMcpEndpoint).toString(),
+    ),
+    LINEAR_UPLOADS_ALLOW_PRIVATE_NETWORKS: valueOr(
+      sourceEnv.LINEAR_UPLOADS_ALLOW_PRIVATE_NETWORKS,
+      'true',
+    ),
     LINEAR_OAUTH_CLIENT_ID: valueOr(sourceEnv.LINEAR_OAUTH_CLIENT_ID, 'e2e-linear-client-id'),
     LINEAR_OAUTH_CLIENT_SECRET: valueOr(
       sourceEnv.LINEAR_OAUTH_CLIENT_SECRET,

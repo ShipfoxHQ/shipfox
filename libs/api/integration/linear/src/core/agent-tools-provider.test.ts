@@ -362,6 +362,100 @@ describe('LinearAgentToolsProvider', () => {
 
     await expect(result).rejects.toBe(sdkError);
   });
+
+  describe('downloadFile', () => {
+    it('downloads a Linear upload from the uploads host with the connection token', async () => {
+      const requests: {url: string | undefined; authorization: string | undefined}[] = [];
+      const server = createServer((request, response) => {
+        requests.push({url: request.url, authorization: request.headers.authorization});
+        response
+          .writeHead(200, {
+            'content-type': 'text/plain',
+            'content-length': '19',
+            'content-disposition': 'attachment; filename="notes.txt"',
+          })
+          .end('linear upload bytes');
+      });
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Expected TCP server address');
+      const uploadsUrl = `http://127.0.0.1:${address.port}/uploads/`;
+      const getAccessToken = vi.fn().mockResolvedValue('linear-token');
+      const provider = new LinearAgentToolsProvider({
+        tokenStore: {getAccessToken},
+        uploads: {url: uploadsUrl, allowPrivateNetworks: true},
+      });
+
+      try {
+        const file = await provider.downloadFile({
+          connection: linearConnection({id: 'linear-connection-7'}),
+          toolId: 'download_file',
+          arguments: {url: `${uploadsUrl}org-1/file-1?signature=signed`},
+          signal: new AbortController().signal,
+        });
+
+        expect(await new Response(file.body).text()).toBe('linear upload bytes');
+        expect(file).toMatchObject({mediaType: 'text/plain', filename: 'notes.txt', size: 19});
+        expect(getAccessToken).toHaveBeenCalledWith({connectionId: 'linear-connection-7'});
+        expect(requests).toEqual([
+          {url: '/uploads/org-1/file-1', authorization: 'Bearer linear-token'},
+        ]);
+      } finally {
+        await new Promise<void>((resolve, reject) =>
+          server.close((error) => (error ? reject(error) : resolve())),
+        );
+      }
+    });
+
+    it('refuses an uploads host on a private network by default', async () => {
+      const provider = new LinearAgentToolsProvider({
+        tokenStore: {getAccessToken: async () => 'linear-token'},
+        uploads: {url: 'http://127.0.0.1:9/uploads/'},
+      });
+
+      const result = provider.downloadFile({
+        connection: linearConnection(),
+        toolId: 'download_file',
+        arguments: {url: 'http://127.0.0.1:9/uploads/org-1/file-1'},
+        signal: new AbortController().signal,
+      });
+
+      await expect(result).rejects.toMatchObject({reason: 'file-location-not-allowed'});
+    });
+
+    it('rejects a tool that does not return a file', async () => {
+      const getAccessToken = vi.fn().mockResolvedValue('linear-token');
+      const provider = new LinearAgentToolsProvider({tokenStore: {getAccessToken}});
+
+      const result = provider.downloadFile({
+        connection: linearConnection(),
+        toolId: 'get_issue',
+        arguments: {id: 'ENG-1'},
+        signal: new AbortController().signal,
+      });
+
+      await expect(result).rejects.toMatchObject({reason: 'provider-rejected'});
+      expect(getAccessToken).not.toHaveBeenCalled();
+    });
+
+    it('does not proxy a file tool call to the hosted MCP', async () => {
+      const callTool = vi.fn();
+      const provider = new LinearAgentToolsProvider({
+        tokenStore: {getAccessToken: async () => 'linear-token'},
+        createClient: vi.fn().mockResolvedValue({callTool, close: vi.fn()}),
+      });
+      const session = await provider.openSession({
+        connection: linearConnection(),
+        tools: [],
+        scope: {provider: 'linear'},
+      });
+
+      const result = session.call({toolId: 'download_file', arguments: {url: 'x'}});
+
+      await expect(result).rejects.toMatchObject({reason: 'provider-rejected'});
+      expect(callTool).not.toHaveBeenCalled();
+    });
+  });
 });
 
 function handleMcpRequest(request: IncomingMessage, response: ServerResponse): void {

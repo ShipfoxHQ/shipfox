@@ -3757,6 +3757,9 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle
+      '@shipfox/node-egress-guard':
+        specifier: workspace:*
+        version: link:../../../shared/node/egress-guard
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../../shared/node/fastify
