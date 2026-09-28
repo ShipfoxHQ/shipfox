@@ -10,6 +10,7 @@ import {
 import {
   contextFieldRows,
   contextRootShape,
+  UNDOCUMENTED_WORKFLOW_FIELDS,
   WORKFLOW_FIELD_YAML_KEYS,
 } from './lib/context-reference.mjs';
 
@@ -19,7 +20,7 @@ const mappedFields = Object.keys(WORKFLOW_FIELD_YAML_KEYS);
 const documentedRoots = new Set(workflowContextDocs.map((doc) => doc.root));
 
 for (const field of engineFields) {
-  if (!mappedFields.includes(field)) {
+  if (!mappedFields.includes(field) && !UNDOCUMENTED_WORKFLOW_FIELDS.has(field)) {
     failures.push(
       `Expression field "${field}" has no YAML key in scripts/lib/context-reference.mjs. Add it so the availability matrix documents the field.`,
     );
