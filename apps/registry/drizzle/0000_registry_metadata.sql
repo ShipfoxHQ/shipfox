@@ -38,7 +38,7 @@ CREATE TABLE "registry_versions" (
 	"document" jsonb NOT NULL,
 	"fingerprint" text NOT NULL,
 	"content_digest" text NOT NULL,
-	"source_digest" text,
+	"source_digest" text NOT NULL,
 	"readme" text,
 	"bump" text,
 	"capability_change" boolean DEFAULT false NOT NULL,

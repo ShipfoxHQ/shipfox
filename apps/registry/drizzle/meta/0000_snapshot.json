@@ -1,5 +1,5 @@
 {
-  "id": "22d89d61-43bd-4124-af74-c11aa1a3eb7c",
+  "id": "e4d72a9f-260f-44ce-ac17-1898566405ee",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -315,7 +315,7 @@
           "name": "source_digest",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "readme": {
           "name": "readme",

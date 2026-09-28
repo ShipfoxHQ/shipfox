@@ -15,7 +15,7 @@ export const versions = pgTable(
     document: jsonb('document').notNull(),
     fingerprint: text('fingerprint').notNull(),
     contentDigest: text('content_digest').notNull(),
-    sourceDigest: text('source_digest'),
+    sourceDigest: text('source_digest').notNull(),
     readme: text('readme'),
     bump: text('bump'),
     capabilityChange: boolean('capability_change').notNull().default(false),
