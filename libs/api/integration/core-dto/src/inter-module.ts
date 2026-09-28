@@ -357,6 +357,14 @@ export const integrationsInterModuleContract = defineInterModuleContract({
       }),
       errors: sourceErrors,
     },
+    /** Lists the tool and event references of a composed template this instance cannot serve. */
+    checkTemplateConformance: {
+      input: z.object({
+        workflow: z.string(),
+        bindings: z.record(z.string().min(1), provider),
+      }),
+      output: z.object({issues: z.array(z.string())}),
+    },
     callTool: {
       input: z.object({
         workspaceId: id,
