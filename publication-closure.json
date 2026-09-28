@@ -142,6 +142,7 @@
     "@shipfox/react-ui",
     "@shipfox/redact",
     "@shipfox/regex",
+    "@shipfox/registry-format",
     "@shipfox/runner-labels",
     "@shipfox/workflow-document",
     "@shipfox/workflow-templates"
