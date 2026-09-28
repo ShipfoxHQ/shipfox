@@ -1,6 +1,7 @@
 import {configureApiClient} from '@shipfox/client-api';
 import type {ChromeSlots} from '@shipfox/client-shell/runtime';
 import {fireEvent, screen, waitFor, within} from '@testing-library/react';
+import {useState} from 'react';
 import {
   jsonResponse,
   PROJECT_TEST_WID,
@@ -139,16 +140,17 @@ describe('ProjectWorkflowsPage', () => {
       );
     }
 
-    test('renders the slot for the project under the empty state', async () => {
+    test.each([
+      ['succeeded', 'No workflow definitions found.'],
+      ['failed', 'No workflow files found under .shipfox/workflows/.'],
+    ] as const)('renders the slot under the empty state after a %s sync', async (status, message) => {
       configureApiClient({
-        fetchImpl: createProjectDetailFetch({definitions: emptyDefinitions('failed')}),
+        fetchImpl: createProjectDetailFetch({definitions: emptyDefinitions(status)}),
       });
 
       renderWorkflowsPage({FirstWorkflowPanel});
 
-      const emptyState = await screen.findByText(
-        'No workflow files found under .shipfox/workflows/.',
-      );
+      const emptyState = await screen.findByText(message);
       const panel = await screen.findByText(`First workflow panel for ${PROJECT_ID}`);
       expect(emptyState.compareDocumentPosition(panel)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     });
@@ -186,6 +188,56 @@ describe('ProjectWorkflowsPage', () => {
       renderWorkflowsPage({FirstWorkflowPanel});
 
       expect(await screen.findByText("Couldn't load workflows")).toBeInTheDocument();
+      expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
+    });
+
+    test("does not render the slot from the previous project's definitions", async () => {
+      const emptyProjectId = '66666666-6666-4666-8666-666666666666';
+      const detailFetch = createProjectDetailFetch({definitions: emptyDefinitions('succeeded')});
+      configureApiClient({
+        fetchImpl: vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+          const url = new URL(requestInputUrl(input));
+          if (url.pathname === `/projects/${emptyProjectId}`) {
+            return Promise.resolve(jsonResponse({...projectDto(), id: emptyProjectId}));
+          }
+          if (
+            url.pathname === '/definitions' &&
+            url.searchParams.get('project_id') === PROJECT_ID
+          ) {
+            return new Promise<Response>(() => undefined);
+          }
+          return detailFetch(input, init);
+        }),
+      });
+
+      function SwitchingPage() {
+        const [projectId, setProjectId] = useState(emptyProjectId);
+        return (
+          <>
+            <button type="button" onClick={() => setProjectId(PROJECT_ID)}>
+              Switch project
+            </button>
+            <ProjectWorkflowsPage projectId={projectId} />
+          </>
+        );
+      }
+      renderProjectPage(`/w/${PROJECT_TEST_WSLUG}/p/project/workflows`, () => <SwitchingPage />, {
+        FirstWorkflowPanel,
+      });
+
+      expect(
+        await screen.findByText(`First workflow panel for ${emptyProjectId}`),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', {name: 'Switch project'}));
+
+      await waitFor(() =>
+        expect(
+          screen.queryByText(`First workflow panel for ${emptyProjectId}`),
+        ).not.toBeInTheDocument(),
+      );
+      // The new project's page renders with the previous project's empty list
+      // as placeholder data while its own definitions load.
+      expect(await screen.findByText('No workflows')).toBeInTheDocument();
       expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
     });
 

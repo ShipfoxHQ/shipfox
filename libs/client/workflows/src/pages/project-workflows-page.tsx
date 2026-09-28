@@ -124,7 +124,7 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
 
             <FirstWorkflowSlot
               projectId={projectId}
-              definitionsLoaded={definitionsQuery.isSuccess}
+              definitionsLoaded={definitionsQuery.isSuccess && !definitionsQuery.isPlaceholderData}
               definitionCount={definitions.length}
               sync={sync}
             />
