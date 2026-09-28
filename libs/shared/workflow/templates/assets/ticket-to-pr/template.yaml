@@ -62,9 +62,9 @@ options:
         label: Comment only
         tradeoff: Posts the PR link, or clarification questions when needed.
       - id: comment_and_transition
-        label: Comment and set In Progress
+        label: Comment and set in-progress status
         default: true
-        tradeoff: Moves the issue to In Progress when the agent starts. Posts the PR link or clarification questions when needed.
+        tradeoff: Moves the issue to its in-progress status when work starts; posts the PR link or clarification questions.
       - id: none
         label: No updates
         tradeoff: Makes no Linear updates.

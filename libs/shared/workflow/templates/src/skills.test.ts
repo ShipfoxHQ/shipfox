@@ -83,9 +83,8 @@ describe('shipped skill resources', () => {
     expect(text).not.toContain('no-compatible-model');
     expect(text).toContain('state the writes from **Expected writes** and runner/inference cost');
     expect(text).toContain('Event lookup does not verify project scope');
-    expect(text).toContain(
-      'use Linear MCP when available to find up to three open, low-risk issues',
-    );
+    expect(text).toContain('use Linear MCP only for Linear triggers.');
+    expect(text).toContain("give the guide's exact action to create its event.");
     expect(text).toContain('discard completed or high-risk rollout work');
     expect(text).toContain('If they cannot trigger an event or choose to skip');
     expect(text).toContain("Share the dev run's `run_url` as soon as it is available");
@@ -118,8 +117,9 @@ describe('shipped skill resources', () => {
 
     expect(skill?.revision).toBe(2);
     expect(text).toContain('revision: 2');
-    expect(text).toContain('immediately share the returned `run_url`');
-    expect(text).toContain('call `get_workflow_run` once to retrieve it and share it');
+    expect(text).toContain('Share the returned `run_url` immediately.');
+    expect(text).toContain('If absent, share `run_id` and say no UI link was returned.');
+    expect(text).not.toContain('call `get_workflow_run` once to retrieve it and share it');
   });
 
   test('asks about an optional role only when its provider is connected', () => {
