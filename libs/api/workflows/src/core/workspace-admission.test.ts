@@ -1,5 +1,6 @@
 import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
+import type {RequiredAction as SharedRequiredAction} from '@shipfox/policy-notice';
 import {
   type WorkflowAdmissionDeniedError,
   WorkspaceDeletedError,
@@ -7,14 +8,27 @@ import {
   WorkspaceSuspendedError,
 } from './errors.js';
 import {
+  type RequiredAction as AdmissionRequiredAction,
   assertWorkspaceAdmitsNewJobs,
   WORKFLOW_ADMISSION_POLICY_TIMEOUT_MS,
 } from './workspace-admission.js';
+
+type Equal<Left, Right> =
+  (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2
+    ? true
+    : false;
+type Assert<T extends true> = T;
+type AdmissionRequiredActionIsUnchanged = Assert<
+  Equal<AdmissionRequiredAction, SharedRequiredAction>
+>;
+
+const admissionRequiredActionIsUnchanged = true as AdmissionRequiredActionIsUnchanged;
 
 const workspaceId = '00000000-0000-4000-8000-000000000001';
 
 describe('assertWorkspaceAdmitsNewJobs', () => {
   test('allows active workspaces', async () => {
+    expect(admissionRequiredActionIsUnchanged).toBe(true);
     const getWorkspaceOperatingState = vi.fn().mockResolvedValue({status: 'active'});
 
     await assertWorkspaceAdmitsNewJobs({getWorkspaceOperatingState}, workspaceId);
@@ -45,7 +59,7 @@ describe('assertWorkspaceAdmitsNewJobs', () => {
       reason: 'billing-payment-method-required',
       message: 'Add a payment method to continue.',
       url: '/settings/billing',
-    };
+    } satisfies AdmissionRequiredAction;
     const admit = vi.fn().mockResolvedValue({
       allowed: false,
       reason: requiredAction.reason,

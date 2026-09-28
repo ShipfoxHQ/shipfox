@@ -53,6 +53,7 @@
   "dependencies": {
     "@shipfox/inter-module": "workspace:*",
     "@shipfox/workflow-document": "workspace:*",
+    "@shipfox/policy-notice": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {
