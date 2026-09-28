@@ -98,6 +98,24 @@ describe('buildAgentToolsMcpServer', () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  it('keeps a tool frozen as a file tool out of MCP even without a live catalog entry', async () => {
+    const dispatch = vi.fn(async () => ({content: [{type: 'text' as const, text: 'ok'}]}));
+    const authorizedTools = defaultAuthorizedTools();
+    const jsonTool = authorizedTools.get('github_main__issue_read');
+    if (!jsonTool) throw new Error('Expected default authorized tool');
+    authorizedTools.set('github_main__issue_read', {
+      ...jsonTool,
+      tool: {...jsonTool.tool, result: 'file'},
+      catalogEntry: undefined,
+    });
+    const {client, close} = await connectClient(dispatch, authorizedTools);
+
+    const tools = await client.listTools();
+    await close();
+
+    expect(tools.tools).toEqual([]);
+  });
+
   it('exposes the namespaced GitHub check-run family with both methods', async () => {
     const entry = githubAgentToolCatalog.find((candidate) => candidate.id === 'check_run_write');
     if (!entry) throw new Error('Expected the GitHub check-run catalog entry');

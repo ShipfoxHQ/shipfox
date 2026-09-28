@@ -3,6 +3,7 @@ import type {
   MaterializedAgentIntegrationToolConfigDto,
 } from '@shipfox/api-agent-dto';
 import type {LeasedJobContext} from '@shipfox/api-auth-context';
+import type {AgentToolResultKind} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
   type IntegrationAgentToolCallErrorLabel,
@@ -113,6 +114,9 @@ export interface IntegrationToolCallAuditRecord {
   targetProjectIds?: readonly string[] | undefined;
   runProjectId?: string | undefined;
   indirectTargetNote?: string | undefined;
+  /** Set for file downloads, with the bytes streamed to the caller. */
+  resultKind?: AgentToolResultKind | undefined;
+  bytes?: number | undefined;
 }
 
 export function integrationToolCallAuthorizationAuditFields(
@@ -215,6 +219,8 @@ function auditLogContext(
     ...optionalLogField('runProjectId', record.runProjectId),
     ...optionalLogField('indirectTargetNote', record.indirectTargetNote),
     ...optionalLogField('providerStatus', record.providerStatus),
+    ...optionalLogField('resultKind', record.resultKind),
+    ...optionalLogField('bytes', record.bytes),
     argumentSummary: summarizeIntegrationToolArguments(record.arguments),
   };
 }

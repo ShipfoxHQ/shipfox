@@ -4,7 +4,11 @@ import type {
   MaterializedAgentIntegrationToolConfigDto,
 } from '@shipfox/api-agent-dto';
 import {SHIPFOX_BUILTIN_CONNECTION_ID} from '@shipfox/api-integration-shipfox-dto';
-import type {AgentToolsCallerContext} from '@shipfox/api-integration-spi';
+import {
+  type AgentToolFileDownload,
+  type AgentToolsCallerContext,
+  MAX_AGENT_TOOL_FILE_BYTES,
+} from '@shipfox/api-integration-spi';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
@@ -68,14 +72,12 @@ export type IntegrationToolCallOutcome =
       authorization?: IntegrationToolCallAuthorization | undefined;
     };
 
-export interface IntegrationToolCallInput {
+/** One authorized tool invocation, shared by JSON tool calls and file downloads. */
+export interface IntegrationToolTargetInput {
   registry: IntegrationProviderRegistry;
   connection: IntegrationConnection;
   integration: MaterializedAgentIntegrationConfigDto;
   tool: MaterializedAgentIntegrationToolConfigDto;
-  description: string;
-  inputSchema: AgentToolJsonSchema;
-  outputSchema?: AgentToolJsonSchema | undefined;
   arguments: Record<string, unknown>;
   method?: string | undefined;
   caller: IntegrationToolCallCaller;
@@ -88,6 +90,12 @@ export interface IntegrationToolCallInput {
   signal?: AbortSignal | undefined;
   logger?: typeof logger;
   reportError?: typeof reportError;
+}
+
+export interface IntegrationToolCallInput extends IntegrationToolTargetInput {
+  description: string;
+  inputSchema: AgentToolJsonSchema;
+  outputSchema?: AgentToolJsonSchema | undefined;
 }
 
 interface ToolSessionState {
@@ -127,7 +135,7 @@ async function executeIntegrationTool(
 }
 
 function logIntegrationToolError(
-  input: IntegrationToolCallInput,
+  input: IntegrationToolTargetInput,
   error: unknown,
   errorRecord: IntegrationToolCallError,
   log: typeof logger,
@@ -153,7 +161,7 @@ function logIntegrationToolError(
 }
 
 function integrationToolErrorReportContext(
-  input: IntegrationToolCallInput,
+  input: IntegrationToolTargetInput,
   errorRecord: IntegrationToolCallError,
 ): Parameters<typeof reportError>[1] {
   const correlation = {...callerLogContext(input.caller)};
@@ -219,23 +227,10 @@ export async function callIntegrationTool(
     if (input.signal?.aborted) {
       return {outcome: 'error', error: abortOutcome(input.signal)};
     }
-    if (input.repositoryAuthorizer !== undefined) {
-      const catalogEntry = input.repositoryAuthorizer.enabled
-        ? await liveCatalogEntry(input)
-        : input.catalogEntry;
-      authorization = await resolveIntegrationToolAuthorization(input, catalogEntry);
-      if (authorization.decision === 'denied' && authorization.denialReason !== 'none') {
-        return withAuthorization(
-          {
-            outcome: 'error',
-            error: {
-              code: repositoryAuthorizationClientErrorCode(authorization.denialReason),
-              message: repositoryAuthorizationErrorMessage(authorization.denialReason),
-            },
-          },
-          authorization,
-        );
-      }
+    const repository = await authorizeRepositoryTargets(input);
+    authorization = repository.authorization;
+    if (repository.denial !== undefined) {
+      return withAuthorization({outcome: 'error', error: repository.denial}, authorization);
     }
 
     return withAuthorization(await executeIntegrationTool(input, state), authorization);
@@ -246,13 +241,126 @@ export async function callIntegrationTool(
   }
 }
 
+async function authorizeRepositoryTargets(input: IntegrationToolTargetInput): Promise<{
+  authorization?: IntegrationToolCallAuthorization | undefined;
+  denial?: IntegrationToolCallError | undefined;
+}> {
+  if (input.repositoryAuthorizer === undefined) return {};
+  const catalogEntry = input.repositoryAuthorizer.enabled
+    ? await liveCatalogEntry(input)
+    : input.catalogEntry;
+  const authorization = await resolveIntegrationToolAuthorization(input, catalogEntry);
+  if (authorization.decision !== 'denied' || authorization.denialReason === 'none') {
+    return {authorization};
+  }
+  return {
+    authorization,
+    denial: {
+      code: repositoryAuthorizationClientErrorCode(authorization.denialReason),
+      message: repositoryAuthorizationErrorMessage(authorization.denialReason),
+    },
+  };
+}
+
+export interface IntegrationToolDownloadInput extends IntegrationToolTargetInput {
+  /** Covers the provider request and the body stream; see `AgentToolDownloadFileInput`. */
+  signal: AbortSignal;
+}
+
+export type IntegrationToolDownloadOutcome =
+  | {
+      outcome: 'success';
+      file: AgentToolFileDownload;
+      authorization?: IntegrationToolCallAuthorization | undefined;
+    }
+  | {
+      outcome: 'error';
+      error: IntegrationToolCallError;
+      authorization?: IntegrationToolCallAuthorization | undefined;
+    };
+
+/**
+ * Opens a file tool download after the same repository authorization as a JSON
+ * tool call. The caller streams the body and owns the byte limit while it does.
+ */
+export async function openIntegrationToolDownload(
+  input: IntegrationToolDownloadInput,
+): Promise<IntegrationToolDownloadOutcome> {
+  let authorization: IntegrationToolCallAuthorization | undefined;
+  try {
+    if (input.signal.aborted) return {outcome: 'error', error: abortOutcome(input.signal)};
+    const repository = await authorizeRepositoryTargets(input);
+    authorization = repository.authorization;
+    if (repository.denial !== undefined) {
+      return withAuthorization({outcome: 'error', error: repository.denial}, authorization);
+    }
+
+    const adapter = input.registry.getAdapter(input.integration.provider, 'agent_tools');
+    if (adapter.downloadFile === undefined) {
+      throw new IntegrationProviderError(
+        'provider-rejected',
+        'Integration provider does not serve file tools',
+      );
+    }
+    const opening = adapter.downloadFile({
+      connection: input.connection,
+      toolId: input.tool.id,
+      arguments: input.arguments,
+      signal: input.signal,
+    });
+    // An abort can win the race after the provider already answered; release that body.
+    void opening.then(
+      (file) => (input.signal.aborted ? file.body.cancel().catch(() => undefined) : undefined),
+      () => undefined,
+    );
+    const file = await raceWithSignal(opening, input.signal);
+    if (file.size !== undefined && file.size > MAX_AGENT_TOOL_FILE_BYTES) {
+      void file.body.cancel().catch(() => undefined);
+      return withAuthorization(
+        {outcome: 'error', error: fileTooLargeError(MAX_AGENT_TOOL_FILE_BYTES)},
+        authorization,
+      );
+    }
+    return withAuthorization({outcome: 'success', file}, authorization);
+  } catch (error) {
+    return withAuthorization(
+      {outcome: 'error', error: integrationToolDownloadError(input, error)},
+      authorization,
+    );
+  }
+}
+
+/** Classifies a download failure, before or while the body streams. */
+export function integrationToolDownloadError(
+  input: IntegrationToolDownloadInput,
+  error: unknown,
+): IntegrationToolCallError {
+  if (input.signal.aborted) return abortOutcome(input.signal);
+  const errorRecord = errorResult(error);
+  logIntegrationToolError(
+    input,
+    error,
+    errorRecord,
+    input.logger ?? logger,
+    input.reportError ?? reportError,
+  );
+  return errorRecord;
+}
+
+export function fileTooLargeError(maxBytes: number): IntegrationToolCallError {
+  return {
+    code: 'file-too-large',
+    message: `The file is larger than the ${maxBytes / (1024 * 1024)} MiB limit`,
+  };
+}
+
 /**
  * Evaluates the live tool classifier and the local authorizer immediately
  * before a provider session is opened. This is deliberately shared by the MCP
  * and deterministic callers through `callIntegrationTool`.
  */
 async function resolveIntegrationToolAuthorization(
-  input: IntegrationToolCallInput,
+  input: IntegrationToolTargetInput,
   catalogEntry: AgentToolCatalogEntry | undefined,
 ): Promise<IntegrationToolCallAuthorization> {
   const mode = input.repositoryAccessMode ?? input.connection.repositoryAccessMode;
@@ -286,7 +394,7 @@ async function resolveIntegrationToolAuthorization(
 }
 
 function requiresExplicitRepositoryDenial(
-  input: IntegrationToolCallInput,
+  input: IntegrationToolTargetInput,
   providerAuthorization: 'enforced' | 'unclassified' | undefined,
   mode: RepositoryAuthorizationMode,
   scope: ClassifiedToolCallScope,
@@ -301,7 +409,7 @@ function requiresExplicitRepositoryDenial(
 }
 
 function createBaseAuthorization(
-  input: IntegrationToolCallInput,
+  input: IntegrationToolTargetInput,
   mode: RepositoryAuthorizationMode,
   providerAuthorization: 'enforced' | 'unclassified' | undefined,
   scope: ClassifiedToolCallScope,
@@ -322,7 +430,7 @@ function createBaseAuthorization(
 }
 
 function shouldAuthorizeDeclaredTargets(
-  input: IntegrationToolCallInput,
+  input: IntegrationToolTargetInput,
   providerAuthorization: 'enforced' | 'unclassified' | undefined,
   scope: ClassifiedToolCallScope,
 ): scope is ClassifiedToolCallScope & {kind: 'declared-targets'} {
@@ -334,7 +442,7 @@ function shouldAuthorizeDeclaredTargets(
 }
 
 async function authorizeDeclaredTargets(
-  input: IntegrationToolCallInput,
+  input: IntegrationToolTargetInput,
   mode: RepositoryAuthorizationMode,
   scope: ClassifiedToolCallScope & {kind: 'declared-targets'},
   authorization: IntegrationToolCallAuthorization,
@@ -383,7 +491,7 @@ async function authorizeDeclaredTargets(
 }
 
 async function resolveDeclaredTargetAuthorization(
-  input: IntegrationToolCallInput,
+  input: IntegrationToolTargetInput,
   authorizer: RepositoryAuthorizer,
   mode: RepositoryAuthorizationMode,
   repository: {owner: string; name: string},
@@ -418,7 +526,7 @@ type ClassifiedToolCallScope = AgentToolRepositoryScope & {
 };
 
 async function liveCatalogEntry(
-  input: IntegrationToolCallInput,
+  input: IntegrationToolTargetInput,
 ): Promise<AgentToolCatalogEntry | undefined> {
   const catalog = await raceWithSignal(
     Promise.resolve().then(() => {
@@ -534,10 +642,9 @@ function repositoryAuthorizationErrorMessage(reason: RepositoryAuthorizationDeni
   }
 }
 
-function withAuthorization(
-  outcome: IntegrationToolCallOutcome,
-  authorization: IntegrationToolCallAuthorization | undefined,
-): IntegrationToolCallOutcome {
+function withAuthorization<
+  Outcome extends IntegrationToolCallOutcome | IntegrationToolDownloadOutcome,
+>(outcome: Outcome, authorization: IntegrationToolCallAuthorization | undefined): Outcome {
   return authorization === undefined ? outcome : {...outcome, authorization};
 }
 
@@ -613,7 +720,7 @@ function providerSupportsAgentTools(
   return registry.get(provider).capabilities.includes('agent_tools');
 }
 
-function toolCallLogContext(input: IntegrationToolCallInput): Record<string, unknown> {
+function toolCallLogContext(input: IntegrationToolTargetInput): Record<string, unknown> {
   return {
     ...callerLogContext(input.caller),
     connectionId: input.connection.id,

@@ -5,6 +5,7 @@ import {
   materializedAgentStepConfigSchema,
 } from '@shipfox/api-agent-dto';
 import {requireLeasedJobContext} from '@shipfox/api-auth-context';
+import {type AgentToolResultKind, agentToolResultKind} from '@shipfox/api-integration-spi';
 import {
   type WorkflowsModuleClient,
   workflowsInterModuleContract,
@@ -25,6 +26,15 @@ import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import {loadAuthorizedToolConnection} from '#core/tool-call-service.js';
 import type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
 
+/** A frozen tool grant. Action tools carry the result kind frozen at run creation. */
+export type LeasedIntegrationToolConfig = MaterializedAgentIntegrationToolConfigDto & {
+  result?: AgentToolResultKind | undefined;
+};
+
+export type LeasedIntegrationConfig = Omit<MaterializedAgentIntegrationConfigDto, 'tools'> & {
+  tools: LeasedIntegrationToolConfig[];
+};
+
 export type LeasedAgentStepLoader = (params: {
   request: object;
   stepId: string;
@@ -33,7 +43,7 @@ export type LeasedAgentStepLoader = (params: {
   workspaceId: string;
   /** Absent for loaders that predate action steps, which only serve agents. */
   stepType?: LeasedToolStepType | undefined;
-  integrations?: MaterializedAgentIntegrationConfigDto[];
+  integrations?: LeasedIntegrationConfig[];
   step?: {type: string; config: Record<string, unknown>};
 }>;
 
@@ -81,7 +91,7 @@ function toLeasedAgentToolClientError(error: unknown): unknown {
 export interface AuthorizedIntegrationTool {
   mcpName: string;
   integration: MaterializedAgentIntegrationConfigDto;
-  tool: MaterializedAgentIntegrationToolConfigDto;
+  tool: LeasedIntegrationToolConfig;
   connection: IntegrationConnection;
   description: string;
   inputSchema: AgentToolJsonSchema;
@@ -91,6 +101,11 @@ export interface AuthorizedIntegrationTool {
 }
 
 export type AuthorizedIntegrationToolMap = Map<string, AuthorizedIntegrationTool>;
+
+/** The frozen kind wins; agent grants freeze none, so the live catalog decides for them. */
+export function authorizedToolResultKind(tool: AuthorizedIntegrationTool): AgentToolResultKind {
+  return tool.tool.result ?? (tool.catalogEntry ? agentToolResultKind(tool.catalogEntry) : 'json');
+}
 
 export interface AuthorizedIntegrationTools {
   stepType: LeasedToolStepType;
@@ -154,7 +169,7 @@ export async function resolveAuthorizedIntegrationTools(
 function addAuthorizedTool(
   authorizedTools: AuthorizedIntegrationToolMap,
   integration: MaterializedAgentIntegrationConfigDto,
-  tool: MaterializedAgentIntegrationToolConfigDto,
+  tool: LeasedIntegrationToolConfig,
   connection: IntegrationConnection,
   catalogTool: AgentToolCatalogEntry | undefined,
 ): void {

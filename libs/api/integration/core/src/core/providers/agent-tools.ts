@@ -2,6 +2,8 @@ export type {
   AgentToolCallInput,
   AgentToolCatalogEntry,
   AgentToolCatalogMethod,
+  AgentToolDownloadFileInput,
+  AgentToolFileDownload,
   AgentToolJsonSchema,
   AgentToolRepositoryAuthorizationState,
   AgentToolRepositoryScope,

@@ -344,6 +344,30 @@ export interface OpenAgentToolsSessionInput<
   caller?: AgentToolsCallerContext | undefined;
 }
 
+/** The largest file a file tool may return. The gateway enforces it while streaming. */
+export const MAX_AGENT_TOOL_FILE_BYTES = 100 * 1024 * 1024;
+
+export interface AgentToolDownloadFileInput<
+  Connection extends IntegrationConnection = IntegrationConnection,
+> {
+  connection: Connection;
+  toolId: string;
+  arguments: Record<string, unknown>;
+  /**
+   * Aborted on the download deadline or when the caller disconnects. Pass it to
+   * the provider fetch and to the returned body, so an abandoned transfer stops.
+   */
+  signal: AbortSignal;
+}
+
+export interface AgentToolFileDownload {
+  body: ReadableStream<Uint8Array>;
+  mediaType: string;
+  filename?: string | undefined;
+  /** Byte length, when the provider announces it. */
+  size?: number | undefined;
+}
+
 export interface AgentToolsProvider<
   Connection extends IntegrationConnection = IntegrationConnection,
   RequiredScope = unknown,
@@ -357,6 +381,8 @@ export interface AgentToolsProvider<
   openSession(
     input: OpenAgentToolsSessionInput<Connection, RequiredScope, ProviderScope>,
   ): Promise<AgentToolSession<CallResult>>;
+  /** Serves the catalog's `file` tools. Required when the catalog declares one. */
+  downloadFile?(input: AgentToolDownloadFileInput<Connection>): Promise<AgentToolFileDownload>;
 }
 
 export interface IntegrationProviderAdapters<
@@ -428,7 +454,9 @@ export type IntegrationProviderErrorReason =
   | 'content-too-large'
   | 'too-many-files'
   | 'binary-file-unsupported'
-  | 'search-qualifier-conflict';
+  | 'search-qualifier-conflict'
+  | 'file-too-large'
+  | 'file-location-not-allowed';
 
 export class IntegrationProviderError extends Error {
   constructor(

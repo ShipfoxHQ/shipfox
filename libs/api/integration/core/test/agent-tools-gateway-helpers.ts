@@ -185,6 +185,7 @@ export interface AgentToolsProviderOptions {
   }): void;
   onCall?(input: {toolId: string; arguments: Record<string, unknown>}): void;
   onClose?(): void;
+  downloadFile?: AgentToolsProvider['downloadFile'];
 }
 
 export function agentToolsProvider(
@@ -194,6 +195,7 @@ export function agentToolsProvider(
   return {
     catalog: () => catalog,
     selectionCatalog: () => ({selectors: []}),
+    ...(options.downloadFile === undefined ? {} : {downloadFile: options.downloadFile}),
     openSession: (input) => {
       if (options.openSessionError) return Promise.reject(options.openSessionError);
       options.onOpenSession?.({connection: input.connection, tools: input.tools});
