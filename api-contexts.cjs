@@ -67,6 +67,7 @@ const architecturePackages = {
       'libs/shared/common/runner-labels',
     ],
     expression: ['libs/shared/expression'],
+    registry: ['libs/shared/registry/format'],
     workflow: ['libs/shared/workflow/document', 'libs/shared/workflow/templates'],
   },
   'shared-infrastructure': {

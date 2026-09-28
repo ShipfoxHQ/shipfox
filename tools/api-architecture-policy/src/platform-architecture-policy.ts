@@ -26,6 +26,7 @@ const serverRoots = [
   'libs/shared/common',
   'libs/shared/expression',
   'libs/shared/node',
+  'libs/shared/registry',
   'libs/shared/workflow',
 ] as const;
 const dependencyGroups = [
