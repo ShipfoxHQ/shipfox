@@ -919,6 +919,36 @@ describe('first workflow row', () => {
     expect(captured(capture, 'onboarding_checklist_completed')).toHaveLength(0);
   });
 
+  test('waits for every family before choosing between the two bursts', async () => {
+    const queryClient = createQueryClient();
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() => pendingResponse()),
+    });
+    seedQueries(queryClient, true, WORKSPACE, {state: 'open'});
+    queryClient.removeQueries({queryKey: listMembersQueryKey(WORKSPACE.id)});
+    const capture = vi.fn();
+
+    renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {capture});
+
+    expect(await screen.findByText('Create your first workflow')).toBeInTheDocument();
+
+    act(() => {
+      seedFirstWorkflow(queryClient, {state: 'done'});
+    });
+    await waitFor(() => expect(screen.queryByText('Create your first workflow')).toBeNull());
+    expect(screen.queryByText('Your first workflow is on')).not.toBeInTheDocument();
+    expect(captured(capture, 'first_workflow_activated')).toHaveLength(0);
+
+    act(() => {
+      queryClient.setQueryData(listMembersQueryKey(WORKSPACE.id), []);
+    });
+
+    expect(await screen.findByText("You're set up")).toBeInTheDocument();
+    expect(screen.queryByText('Your first workflow is on')).not.toBeInTheDocument();
+    expect(captured(capture, 'first_workflow_activated')).toHaveLength(1);
+  });
+
   test('plays nothing for a workspace that already had a definition on load', async () => {
     const queryClient = createQueryClient();
     seedQueries(queryClient, false, WORKSPACE, {state: 'done'});

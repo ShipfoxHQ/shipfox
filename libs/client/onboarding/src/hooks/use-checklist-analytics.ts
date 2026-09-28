@@ -71,6 +71,7 @@ export function useFirstWorkflowActivation(queryState: ChecklistQueryState) {
   const activationHandled = useRef(false);
   const [celebrating, setCelebrating] = useState(false);
   const state = queryState.firstWorkflow?.state;
+  const completionReady = queryState.completionReady;
   const completesChecklist = queryState.checklist.complete;
 
   useEffect(() => {
@@ -79,11 +80,14 @@ export function useFirstWorkflowActivation(queryState: ChecklistQueryState) {
       observedNotDone.current = true;
       return;
     }
+    // Until every family reports, the checklist cannot say whether this
+    // transition completes it, and the burst would then play twice.
+    if (!completionReady) return;
     if (!observedNotDone.current || activationHandled.current) return;
     activationHandled.current = true;
     analytics.capture('first_workflow_activated');
     if (!completesChecklist) setCelebrating(true);
-  }, [analytics, completesChecklist, state]);
+  }, [analytics, completesChecklist, completionReady, state]);
 
   return celebrating;
 }
