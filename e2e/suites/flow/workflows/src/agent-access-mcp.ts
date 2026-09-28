@@ -53,7 +53,12 @@ export async function connectAgentAccessMcp(params: {
       },
     },
   });
-  await client.connect(transport as unknown as Transport);
+  try {
+    await client.connect(transport as unknown as Transport);
+  } catch (error) {
+    await client.close().catch(() => undefined);
+    throw error;
+  }
   return client;
 }
 
@@ -104,16 +109,29 @@ export async function waitForIntegrationEvent(params: {
       describe: () => params.description,
     },
     async () => {
-      const response = await callTool(params.client, 'list_trigger_events', {
-        source: [params.source],
-        event: [params.event],
-        origin: ['integration'],
-        from: params.from,
-        limit: EVENT_PAGE_LIMIT,
-      });
-      if (!response.envelope.ok) throw new Error('Trigger event list returned an MCP error');
-      const events = listTriggerEventsResultSchema.parse(response.envelope.result).trigger_events;
-      return await findMatchingIntegrationEvent({...params, events, inspectedIds});
+      // Parallel tests push through the same connection, so the awaited event can sit
+      // past the first page.
+      let cursor: string | null = null;
+      do {
+        const response = await callTool(params.client, 'list_trigger_events', {
+          source: [params.source],
+          event: [params.event],
+          origin: ['integration'],
+          from: params.from,
+          limit: EVENT_PAGE_LIMIT,
+          ...(cursor === null ? {} : {cursor}),
+        });
+        if (!response.envelope.ok) throw new Error('Trigger event list returned an MCP error');
+        const page = listTriggerEventsResultSchema.parse(response.envelope.result);
+        const match = await findMatchingIntegrationEvent({
+          ...params,
+          events: page.trigger_events,
+          inspectedIds,
+        });
+        if (match !== null) return match;
+        cursor = page.next_cursor;
+      } while (cursor !== null);
+      return null;
     },
   );
 }
