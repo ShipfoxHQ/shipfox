@@ -33,6 +33,7 @@
     "@shipfox/node-object-storage": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/registry-format": "workspace:*",
+    "jose": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:"
   },
