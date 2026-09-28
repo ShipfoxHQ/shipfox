@@ -19,6 +19,7 @@ import {createLogsModule} from '@shipfox/api-logs';
 import {logsInterModuleContract} from '@shipfox/api-logs-dto/inter-module';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
+import {createRegistryModule} from '@shipfox/api-registry';
 import {type CreateRunnersModuleOptions, createRunnersModule} from '@shipfox/api-runners';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {createSecretsModule} from '@shipfox/api-secrets';
@@ -452,6 +453,7 @@ export async function defaultModules(
     agentModule,
     integrations.module,
     projectsModule,
+    createRegistryModule(),
     definitionsModule,
     createWorkflowsModule({
       ...options.workflowsModuleOptions,

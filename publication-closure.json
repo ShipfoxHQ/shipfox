@@ -86,6 +86,8 @@
     "@shipfox/api-logs-dto",
     "@shipfox/api-projects",
     "@shipfox/api-projects-dto",
+    "@shipfox/api-registry",
+    "@shipfox/api-registry-dto",
     "@shipfox/api-runners",
     "@shipfox/api-runners-dto",
     "@shipfox/api-secrets",
@@ -142,6 +144,7 @@
     "@shipfox/react-ui",
     "@shipfox/redact",
     "@shipfox/regex",
+    "@shipfox/registry-format",
     "@shipfox/runner-labels",
     "@shipfox/workflow-document",
     "@shipfox/workflow-templates"

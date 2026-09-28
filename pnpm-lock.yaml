@@ -4753,6 +4753,92 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/vitest
 
+  libs/api/registry:
+    dependencies:
+      '@shipfox/api-registry-dto':
+        specifier: workspace:*
+        version: link:../registry-dto
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../shared/common/config
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
+      '@shipfox/node-drizzle':
+        specifier: workspace:*
+        version: link:../../shared/node/drizzle
+      '@shipfox/node-module':
+        specifier: workspace:*
+        version: link:../../shared/node/module
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../shared/node/opentelemetry
+      '@shipfox/node-postgres':
+        specifier: workspace:*
+        version: link:../../shared/node/postgres
+      '@shipfox/registry-format':
+        specifier: workspace:*
+        version: link:../../shared/registry/format
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../../shared/workflow/document
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+      drizzle-kit:
+        specifier: 'catalog:'
+        version: 0.31.10
+
+  libs/api/registry-dto:
+    dependencies:
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../shared/common/inter-module
+      '@shipfox/registry-format':
+        specifier: workspace:*
+        version: link:../../shared/registry/format
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
   libs/api/runners:
     dependencies:
       '@shipfox/api-auth-context':
@@ -5053,6 +5139,9 @@ importers:
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
+      '@shipfox/api-registry':
+        specifier: workspace:*
+        version: link:../registry
       '@shipfox/api-runners':
         specifier: workspace:*
         version: link:../runners

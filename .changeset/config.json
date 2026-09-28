@@ -46,6 +46,8 @@
       "@shipfox/api-logs-dto",
       "@shipfox/api-projects",
       "@shipfox/api-projects-dto",
+      "@shipfox/api-registry",
+      "@shipfox/api-registry-dto",
       "@shipfox/api-runners",
       "@shipfox/api-runners-dto",
       "@shipfox/api-secrets",
