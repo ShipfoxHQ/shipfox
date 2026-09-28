@@ -2,7 +2,7 @@
 https://api.shipfox.io/mcp
 ```
 
-<Tabs groupId="mcp-client" persist items={['Claude Code', 'Codex CLI', 'Cursor', 'VS Code', 'Other clients']}>
+<Tabs groupId="mcp-client" persist items={['Claude Code', 'Codex CLI', 'Cursor', 'VS Code', 'OpenCode', 'Zed', 'Antigravity', 'Other clients']}>
 <Tab value="Claude Code">
 
 Run this command in your terminal:
@@ -79,6 +79,60 @@ you to approve the sign-in and opens your browser.
 
 VS Code 1.101 and later supports the server's skill and docs resources. Attach
 one to a chat with **Add Context** > **MCP Resources**.
+
+</Tab>
+<Tab value="OpenCode">
+
+Add this entry to `opencode.json` in your project:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "shipfox": {
+      "type": "remote",
+      "url": "https://api.shipfox.io/mcp"
+    }
+  }
+}
+```
+
+Run `opencode mcp auth shipfox` to complete the browser sign-in.
+
+</Tab>
+<Tab value="Zed">
+
+Run **zed: open settings file** from the command palette and add this entry:
+
+```json
+{
+  "context_servers": {
+    "shipfox": {
+      "url": "https://api.shipfox.io/mcp"
+    }
+  }
+}
+```
+
+Zed opens the browser sign-in when it connects to Shipfox.
+
+</Tab>
+<Tab value="Antigravity">
+
+Add this entry to `.agents/mcp_config.json` in your project, or to
+`~/.gemini/config/mcp_config.json` for every project:
+
+```json
+{
+  "mcpServers": {
+    "shipfox": {
+      "serverUrl": "https://api.shipfox.io/mcp"
+    }
+  }
+}
+```
+
+Antigravity opens the browser sign-in when it connects to Shipfox.
 
 </Tab>
 <Tab value="Other clients">
