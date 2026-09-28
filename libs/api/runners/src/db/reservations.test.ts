@@ -11,12 +11,16 @@ import {
   pollInstallationDemandAndReserve,
   releaseReservationUnits,
 } from '#db/reservations.js';
+import {capacityHolds} from '#db/schema/capacity-holds.js';
 import {pendingJobExecutions} from '#db/schema/pending-job-executions.js';
 import {reservations} from '#db/schema/reservations.js';
 import {runnerActivationTokens} from '#db/schema/runner-activation-tokens.js';
 import {runnerControlSessions} from '#db/schema/runner-control-sessions.js';
 import {providerRunners} from '#db/schema/runner-instances.js';
-import {providerRunnerActivationOutcomeCount} from '#metrics/instance.js';
+import {
+  placementTemplateChangedCount,
+  providerRunnerActivationOutcomeCount,
+} from '#metrics/instance.js';
 import {pendingJobFactory, reservationFactory} from '#test/index.js';
 
 describe('pollDemandAndReserve', () => {
@@ -2242,6 +2246,94 @@ describe('pollDemandAndReserve', () => {
         ),
       );
   }
+
+  describe('installation template order', () => {
+    const managed = 'shipfox-managed';
+    const templates = () => [
+      template('shipfox-16cpu', [managed, 'shipfox-16cpu'], 1),
+      template('shipfox-1cpu', [managed, 'shipfox-1cpu'], 1),
+    ];
+
+    function placementPolicy(templateOrder: 'default' | 'smallest') {
+      return {
+        units: (labels: readonly string[]) => (labels.includes('shipfox-16cpu') ? 16 : 1),
+        holds: 'record' as const,
+        templateOrder,
+      };
+    }
+
+    // Unregistered meters hand out one shared counter, so the spy also sees other counters' calls.
+    function changedCalls(spy: {mock: {calls: unknown[][]}}) {
+      return spy.mock.calls.filter(
+        ([, attributes]) => typeof attributes === 'object' && attributes && 'order' in attributes,
+      );
+    }
+
+    async function pollWithOrder(templateOrder: 'default' | 'smallest') {
+      await pollInstallationDemandAndReserve({
+        provisionerId,
+        maxReservations: 1,
+        ttlSeconds: 60,
+        templates: templates(),
+        capabilityWindowSeconds: 60,
+        eligibleWorkspaceIds: new Set([workspaceId]),
+        placement: placementPolicy(templateOrder),
+      });
+      const holds = await db()
+        .select({units: capacityHolds.units})
+        .from(capacityHolds)
+        .where(eq(capacityHolds.workspaceId, workspaceId));
+      return holds.map((hold) => hold.units);
+    }
+
+    it.each([
+      {order: 'default', expectedUnits: 16},
+      {order: 'smallest', expectedUnits: 1},
+    ] as const)('sends an unsized managed job to $expectedUnits units under $order', async ({
+      order,
+      expectedUnits,
+    }) => {
+      await createPendingJobs(1, [managed]);
+
+      const units = await pollWithOrder(order);
+
+      expect(units).toEqual([expectedUnits]);
+    });
+
+    it.each([
+      'default',
+      'smallest',
+    ] as const)('keeps a sized job on its template under %s', async (order) => {
+      await createPendingJobs(1, [managed, 'shipfox-16cpu']);
+
+      const units = await pollWithOrder(order);
+
+      expect(units).toEqual([16]);
+    });
+
+    it.each([
+      'default',
+      'smallest',
+    ] as const)('counts the changed template under %s', async (order) => {
+      const changedSpy = vi.spyOn(placementTemplateChangedCount, 'add');
+      await createPendingJobs(1, [managed]);
+
+      await pollWithOrder(order);
+
+      expect(changedCalls(changedSpy)).toEqual([[1, {order}]]);
+      changedSpy.mockRestore();
+    });
+
+    it('does not count a sized job as changed', async () => {
+      const changedSpy = vi.spyOn(placementTemplateChangedCount, 'add');
+      await createPendingJobs(1, [managed, 'shipfox-1cpu']);
+
+      await pollWithOrder('default');
+
+      expect(changedCalls(changedSpy)).toEqual([]);
+      changedSpy.mockRestore();
+    });
+  });
 
   function template(templateKey: string, labels: string[], availableSlots: number) {
     return {templateKey, labels, availableSlots, starting: 0, running: 0};

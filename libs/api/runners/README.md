@@ -71,6 +71,7 @@ report occurs. Service gauges read current runner database state.
 | `runners_job_stop_handoff_cleaned` | `surface` | Terminal stop-handoffs removed by reconciliation or maintenance. |
 | `runners_provider_runner_by_state` | `state` | Active provider-runner count. |
 | `runners_provider_runner_by_state_oldest_age` | `state` | Age in milliseconds of the oldest active provider runner in that state. |
+| `runners_placement_template_changed_total` | `order` | Launch units whose template would differ between the `default` and `smallest` template orders. `order` is the mode in use. |
 
 Lifecycle telemetry label cardinality is bounded. `reason` is one of the ten
 values in the `RunnerTerminationReason` union, plus `unknown-reason` or

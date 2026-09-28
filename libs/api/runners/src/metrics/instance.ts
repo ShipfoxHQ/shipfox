@@ -313,6 +313,21 @@ export function recordCapacityHoldReleaseLag(seconds: number): void {
   if (seconds >= 0) recordMetric(() => capacityHoldReleaseLag.record(seconds));
 }
 
+export const placementTemplateChangedCount = meter.createCounter<{
+  order: 'default' | 'smallest';
+}>('runners_placement_template_changed_total', {
+  description:
+    'Launch grants whose template would differ between the default and smallest template orders',
+});
+
+export function recordPlacementTemplateChanged(params: {
+  order: 'default' | 'smallest';
+  count: number;
+}): void {
+  if (params.count > 0)
+    recordMetric(() => placementTemplateChangedCount.add(params.count, {order: params.order}));
+}
+
 export const providerRunnerActivationOutcomeCount = meter.createCounter<{
   outcome: 'reaped' | 'rebound';
 }>('runners_provider_runner_activation_outcome', {

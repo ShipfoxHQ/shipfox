@@ -6,7 +6,11 @@
 export interface InstallationPlacementPolicy {
   units(templateLabels: readonly string[]): number;
   holds: 'record';
-  templateOrder: 'default';
+  /**
+   * `default` prefers the fewest labels, then the template key. `smallest` prefers the fewest
+   * units first, then the default order.
+   */
+  templateOrder: 'default' | 'smallest';
 }
 
 export interface InstallationProvisioningPolicy {
