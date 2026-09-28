@@ -246,7 +246,7 @@ function preStepFailureDescription(
     case 'queue_timed_out':
       return (
         statusReasonMessage ||
-        'Not started within 1 h. Try the workflow again when a runner is available.'
+        'Not started within the queue timeout. Try the workflow again when a runner is available.'
       );
     case 'timed_out':
       return 'The job timed out before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';

@@ -33,7 +33,7 @@ const configSchema = {
     default: '60m',
   }),
   AUTH_JOB_LEASE_TOKEN_EXPIRES_IN: str({
-    desc: 'How long a job lease token stays valid. Set it longer than the longest queued wait and job execution duration plus a safety margin.',
+    desc: 'How long a job lease token stays valid. Lease tokens are minted on claim and refreshed by heartbeat and step transitions. Set it longer than the longest uninterrupted running stretch plus a safety margin.',
     default: '90m',
   }),
   AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN: str({

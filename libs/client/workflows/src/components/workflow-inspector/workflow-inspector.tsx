@@ -612,7 +612,7 @@ function StatusReasonSection({
     reason === 'queue_timed_out' ? (message ?? 'Not started within 1 h') : humanize(reason);
   return (
     <InspectorSection title="Status reason" aside={<Badge size="2xs">{label}</Badge>}>
-      {message ? (
+      {message && reason !== 'queue_timed_out' ? (
         <InspectorSectionBody>
           <Text size="xs">{message}</Text>
         </InspectorSectionBody>

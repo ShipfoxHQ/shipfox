@@ -404,7 +404,7 @@ describe('jobExecutionOrchestration', () => {
     expect(callsNamed('queueJobExecutionActivity')).toHaveLength(1);
   });
 
-  test('times out after the execution deadline and fails its steps', async () => {
+  test('times out while queued and fails the execution', async () => {
     setCfg({
       dag: makeDag([dagJob('job-timeout', 'build')]),
       jobResults: new Map(),
