@@ -208,6 +208,51 @@ export const authoredTemplateMetadata: Record<string, AuthoredMetadata> = {
     ],
     related: ['ask-codebase', 'ticket-to-pr'],
   },
+  'slack-dispatcher': {
+    group: 'bring-in',
+    starts: 'Someone mentions the Shipfox app in Slack with any request',
+    flow: [
+      {
+        kind: 'trigger',
+        icon: 'slack',
+        title: 'Someone mentions the app in Slack',
+        detail: 'They ask a question, ask for a ticket, or ask for a change in a thread.',
+      },
+      {
+        kind: 'agent',
+        title: 'The agent picks a workflow',
+        detail:
+          'It reads the thread and chooses one workflow from your list, such as codebase questions, Slack to ticket, or task to pull request. It asks when the request is unclear or an input is missing.',
+      },
+      {
+        kind: 'tool',
+        icon: 'shipfox',
+        title: 'The workflow starts the chosen workflow',
+        detail: 'It posts the run link in the thread. A repeated request gets the earlier run.',
+      },
+      {
+        kind: 'write',
+        icon: 'slack',
+        title: 'The result appears in the thread',
+        detail:
+          'The chosen workflow replies with an answer or a ticket link. For a change, the dispatcher posts the pull request link.',
+      },
+      {
+        kind: 'human',
+        title: 'You review the result',
+        detail: 'You review and merge any pull request yourself.',
+      },
+    ],
+    writes: [
+      {icon: 'shipfox', action: 'Starts one listed workflow per request'},
+      {icon: 'slack', action: 'Replies in the thread'},
+    ],
+    prerequisites: [
+      'Connect Slack and invite the Shipfox app to each channel where it routes requests.',
+      'Set up the workflows it starts, such as codebase questions, Slack to ticket, and task to pull request.',
+    ],
+    related: ['ask-codebase', 'slack-to-ticket', 'ticket-to-pr'],
+  },
   'report-failed-runs': {
     group: 'operate',
     starts: 'A Shipfox workflow run fails',

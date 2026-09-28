@@ -134,6 +134,31 @@ exports[`agent-access template tools > lists the shipped templates for a GitHub-
         "title": "Report failed Shipfox workflow runs",
       },
       {
+        "added_at": "2026-09-28",
+        "compatible": false,
+        "id": "slack-dispatcher",
+        "missing_providers": [
+          "slack",
+        ],
+        "revision": 1,
+        "roles": [
+          {
+            "from_project": false,
+            "optional": false,
+            "providers": [
+              {
+                "compatible": false,
+                "provider": "slack",
+                "suggested_bindings": [],
+              },
+            ],
+            "role": "chat",
+          },
+        ],
+        "summary": "Mention one Slack app for any request, and it starts the workflow that handles it.",
+        "title": "Route Slack requests to your workflows",
+      },
+      {
         "added_at": "2026-09-27",
         "compatible": false,
         "id": "slack-to-ticket",

@@ -81,6 +81,7 @@ describe('GET /workspaces/:workspaceId/workflow-templates', () => {
       ['ask-codebase', 'needs_connection'],
       ['slack-to-ticket', 'needs_connection'],
       ['report-failed-runs', 'needs_connection'],
+      ['slack-dispatcher', 'needs_connection'],
     ]);
     expect(body.templates[0]).toEqual({
       id: 'ticket-to-pr',

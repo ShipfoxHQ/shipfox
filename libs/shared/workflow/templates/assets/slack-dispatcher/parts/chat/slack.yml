@@ -1,0 +1,100 @@
+trigger: |
+  on_mention:
+    source: slack_chat # bind:chat
+    event: app_mention
+    # Replace replace-with-channel-id with the IDs of the channels where the app routes requests.
+    filter: >-
+      !has(event.bot_id) &&
+      event.channel in ["replace-with-channel-id"]
+read_thread: |
+  outputs:
+    channel_id: ${{ event.channel }}
+    thread_ts: '${{ has(event.thread_ts) ? event.thread_ts : event.ts }}'
+    request: ${{ event.text }}
+    permalink: ${{ steps.permalink.outputs.url }}
+    messages: ${{ steps.read_thread.outputs.messages }}
+    truncated: ${{ steps.read_thread.outputs.truncated }}
+  steps:
+    - key: read_thread
+      tool: read_thread
+      connection: slack_chat # bind:chat
+      with:
+        channel_id: ${{ event.channel }}
+        message_ts: '${{ has(event.thread_ts) ? event.thread_ts : event.ts }}'
+        limit: 50
+      outputs:
+        messages: '${{ toJson(result.messages.map(m, {"ts": m.ts, "author": has(m.bot_id) ? "bot:" + m.bot_id : (has(m.user) ? m.user : "unknown"), "text": !has(m.text) ? "" : size(m.text) > 1000 ? m.text.substring(0, 1000) + " [truncated]" : m.text})) }}'
+        truncated: ${{ has(result.has_more) && result.has_more }}
+    - key: permalink
+      tool: get_permalink
+      connection: slack_chat # bind:chat
+      with:
+        channel_id: ${{ event.channel }}
+        message_ts: '${{ has(event.thread_ts) ? event.thread_ts : event.ts }}'
+      outputs:
+        url: ${{ result.permalink }}
+reply: |
+  - key: reply
+    if: ${{ steps.route.outputs.status != "start" }}
+    tool: send_message
+    connection: slack_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      message: '${{ steps.route.outputs.reply + (steps.route.outputs.status == "needs_information" ? "\n\n_Answer in this thread, then mention the app again._" : "") }}'
+started: |
+  # Later runs read "Shipfox started" to find requests this dispatcher already started.
+  - key: started
+    if: ${{ steps.route.outputs.status == "start" }}
+    tool: send_message
+    connection: slack_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      message: |-
+        Shipfox started [${{ steps.start.outputs.name }} #${{ steps.start.outputs.run_number }}](https://app.shipfox.io/runs/${{ steps.start.outputs.run_id }}) for this request.
+        ${{ steps.route.outputs.reply }}
+    outputs:
+      message_ts: ${{ result.ts }}
+# A run of another workflow ends the listener without a message; that workflow replies in the thread.
+task_result: |
+  - key: pull_request
+    if: ${{ execution.events.exists(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.pr_url) && e.data.job.outputs.pr_url != "") }}
+    tool: send_message
+    connection: slack_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      message: |-
+        Run [#${{ jobs.route.outputs.run_number }}](https://app.shipfox.io/runs/${{ jobs.route.outputs.run_id }}) opened a pull request for this request: ${{ execution.events.filter(e, e.event == "job.completed")[0].data.job.outputs.pr_url }}
+
+        _Review it before you merge it._
+  - key: questions
+    if: ${{ execution.events.exists(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.status) && e.data.job.outputs.status == "needs_clarification") }}
+    tool: send_message
+    connection: slack_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      message: |-
+        Run [#${{ jobs.route.outputs.run_number }}](https://app.shipfox.io/runs/${{ jobs.route.outputs.run_id }}) needs more information before it changes code:
+
+        ${{ execution.events.filter(e, e.event == "job.completed")[0].data.job.outputs.questions }}
+
+        _Answer in this thread, then mention the app again._
+  - key: stopped
+    if: ${{ execution.events.exists(e, e.event == "job.completed" && e.data.job.status != "succeeded") }}
+    tool: send_message
+    connection: slack_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      message: Run [#${{ jobs.route.outputs.run_number }}](https://app.shipfox.io/runs/${{ jobs.route.outputs.run_id }}) stopped before it opened a pull request. A project member can inspect the run in Shipfox.
+failure_reply: |
+  - key: report_failure
+    tool: send_message
+    connection: slack_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      message: Shipfox could not route this request. Run ${{ run.number }} of the Slack dispatcher failed, and it may already have started a workflow. A project member can inspect the run in Shipfox before anyone asks again.

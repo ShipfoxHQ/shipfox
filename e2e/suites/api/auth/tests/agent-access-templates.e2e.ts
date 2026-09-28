@@ -24,6 +24,7 @@ const SHIPPED_TEMPLATE_IDS = [
   'fix-default-branch-ci',
   'fix-dependency-ci',
   'report-failed-runs',
+  'slack-dispatcher',
   'slack-to-ticket',
   'ticket-to-pr',
 ];
@@ -131,6 +132,10 @@ test.describe('agent-access workflow templates', () => {
       expect(before.templates.find(({id}) => id === 'slack-to-ticket')).toMatchObject({
         compatible: false,
         missing_providers: ['slack', 'linear'],
+      });
+      expect(before.templates.find(({id}) => id === 'slack-dispatcher')).toMatchObject({
+        compatible: false,
+        missing_providers: ['slack'],
       });
       expect(before.templates.find(({id}) => id === 'fix-default-branch-ci')).toMatchObject({
         compatible: true,
