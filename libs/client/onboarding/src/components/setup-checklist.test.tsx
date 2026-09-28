@@ -1033,6 +1033,9 @@ describe('first workflow panel on the home', () => {
   async function expectNoPanel() {
     expect(await screen.findByText('Connect your tools')).toBeInTheDocument();
     expect(screen.queryByRole('heading', PANEL_HEADING)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', {name: 'Finish your first workflow'}),
+    ).not.toBeInTheDocument();
   }
 
   test('shows below the checklist for a GitHub-only workspace', async () => {

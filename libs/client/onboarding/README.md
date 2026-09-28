@@ -165,8 +165,8 @@ The caller maps its own query results to the derivation inputs:
   come from the `try_now` and `starts_on_event` groups in that order.
 - `FirstWorkflowPanel` captures `first_workflow_panel_opened` with `surface`
   and `mode` once per mode it shows, and `first_workflow_prompt_copied` with
-  `surface`, `template_id` (or `generic`), and `group` after a successful
-  copy.
+  `surface`, `template_id` (or `generic`), and `group` for a template after a
+  successful copy.
 - Dismissal is scoped to the workspace and device. A dismissed host does not
   subscribe to checklist queries until the flag is cleared.
 
