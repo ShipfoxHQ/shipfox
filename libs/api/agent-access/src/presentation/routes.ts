@@ -32,6 +32,7 @@ import type {TemplateLoader} from '@shipfox/workflow-templates';
 import {config} from '#config.js';
 import {
   AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT,
+  AGENT_ACCESS_MCP_BODY_LIMIT_BYTES,
   AGENT_ACCESS_MCP_PATH,
   AGENT_ACCESS_PROTECTED_RESOURCE_METADATA_PATH,
 } from '#constants.js';
@@ -120,6 +121,7 @@ export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions 
         path: AGENT_ACCESS_MCP_PATH,
         description: 'Stateless Streamable HTTP MCP endpoint for agent-access tools.',
         auth: AUTH_AGENT_ACCESS,
+        options: {bodyLimit: AGENT_ACCESS_MCP_BODY_LIMIT_BYTES},
         preAuth: createOriginGuard(originMatcher),
         errorHandler,
         handler: async (request, reply) => {

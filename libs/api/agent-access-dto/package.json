@@ -41,6 +41,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-definitions-dto": "workspace:*",
     "@shipfox/api-logs-dto": "workspace:*",
     "zod": "catalog:"
   },

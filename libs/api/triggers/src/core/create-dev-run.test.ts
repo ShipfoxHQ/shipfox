@@ -332,6 +332,7 @@ describe('createDevRun', () => {
         ref: params.ref,
         commit: COMMIT,
         configPath: params.configPath,
+        localActions: [],
         initiatedByUserId: params.userId,
       },
     });
@@ -512,6 +513,45 @@ describe('createDevRun', () => {
       outcome: 'routed',
       definition_source: 'local',
     });
+  });
+
+  test('passes action uploads to definition resolution and records their paths', async () => {
+    const actions = [
+      {path: './.shipfox/actions/notify', files: [{path: 'action.yml', content: 'name: Notify\n'}]},
+    ];
+    const params = {...buildParams(), actions};
+    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(undefined));
+    startDevRun.mockResolvedValue({id: crypto.randomUUID(), name: 'Dev run'});
+
+    await createDevRun(params);
+
+    expect(resolveDefinitionAtRef).toHaveBeenCalledWith({
+      projectId: params.projectId,
+      ref: params.ref,
+      actions,
+      configPath: params.configPath,
+    });
+    expect(startDevRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        devSource: expect.objectContaining({
+          definitionSource: 'ref',
+          localActions: ['./.shipfox/actions/notify'],
+        }),
+      }),
+    );
+  });
+
+  test('passes action uploads to definition resolution on a dry run', async () => {
+    const actions = [
+      {path: './.shipfox/actions/notify', files: [{path: 'action.yml', content: 'name: Notify\n'}]},
+    ];
+    const params = {...buildParams(), actions};
+    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(undefined));
+
+    await checkDevRun(params);
+
+    expect(resolveDefinitionAtRef).toHaveBeenCalledWith(expect.objectContaining({actions}));
+    expect(startDevRun).not.toHaveBeenCalled();
   });
 
   test.each([

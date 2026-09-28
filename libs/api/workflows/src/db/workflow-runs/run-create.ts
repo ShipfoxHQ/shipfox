@@ -586,6 +586,7 @@ function toWorkflowRunDevSourceDb(source: WorkflowRunDevSource): WorkflowRunDevS
     ref: source.ref,
     commit: source.commit,
     definition_source: source.definitionSource,
+    local_actions: source.localActions,
     config_path: source.configPath,
     initiated_by_user_id: source.initiatedByUserId,
     replay_of_event_id: source.replayOfEventId,

@@ -26,6 +26,10 @@ import {
 import {mapStartRunError} from './map-start-run-error.js';
 import {requireProjectAccess} from './project-access.js';
 
+// Uploads are capped at 1 MiB of UTF-8 in the domain layer. JSON escaping can
+// inflate that text well past Fastify's 1 MiB default before it is decoded.
+export const DEV_RUN_BODY_LIMIT_BYTES = 4 * 1024 * 1024;
+
 // Error responses use several shapes: bare codes (`trigger-not-found`, …) and
 // codes with details (`invalid-workflow-definition`, `workflow-interpolation-unresolvable`).
 const errorResponseSchema = z.object({
@@ -44,6 +48,7 @@ export function createDevRunRoute(
     path: '/',
     description:
       'Create a dev run from a workflow file at a git ref or supplied YAML for a manual, cron, or replayed integration trigger.',
+    options: {bodyLimit: DEV_RUN_BODY_LIMIT_BYTES},
     schema: {
       body: createDevRunBodySchema,
       response: {
@@ -63,8 +68,17 @@ export function createDevRunRoute(
     },
     handler: async (request, reply) => {
       const userContext = requireUserContext(request);
-      const {project_id, ref, content, commit, config_path, trigger, inputs, replay_event_id} =
-        request.body;
+      const {
+        project_id,
+        ref,
+        content,
+        actions,
+        commit,
+        config_path,
+        trigger,
+        inputs,
+        replay_event_id,
+      } = request.body;
       const {workspaceId} = await requireProjectAccess(request, project_id, projects);
 
       const run = await createDevRun({
@@ -74,6 +88,7 @@ export function createDevRunRoute(
         projectId: project_id,
         ref,
         content,
+        actions,
         commit,
         configPath: config_path,
         triggerKey: trigger,
@@ -179,7 +194,7 @@ function handleDefinitionResolutionError(error: unknown): void {
         cause: error,
       });
     case 'content-too-large':
-      throw new ClientError('Workflow file is too large', 'content-too-large', {
+      throw new ClientError('Workflow file or action files are too large', 'content-too-large', {
         status: 422,
         cause: error,
       });

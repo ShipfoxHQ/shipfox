@@ -293,6 +293,7 @@ describe('runDevWorkflow', () => {
     ref: 'fix-triage-prompt',
     commit: 'a'.repeat(40),
     definitionSource: 'ref',
+    localActions: [],
     configPath: '.shipfox/workflows/triage-sentry.yml',
     initiatedByUserId: crypto.randomUUID(),
     replayOfEventId: null,

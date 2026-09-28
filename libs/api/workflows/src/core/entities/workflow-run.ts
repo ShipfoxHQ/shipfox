@@ -18,12 +18,15 @@ export type WorkflowRunStatusReason =
 
 /**
  * Why a dev run was created: the ref and pinned commit the definition came from, the
- * file that ran, the user who started it, and the journaled event it replays when any.
+ * file that ran, the action directories uploaded in place of the ref's copies, the user
+ * who started it, and the journaled event it replays when any.
  */
 export interface WorkflowRunDevSource {
   ref: string;
   commit: string;
   definitionSource: 'ref' | 'local';
+  /** `uses` paths of the uploaded action directories. */
+  localActions: string[];
   configPath: string;
   initiatedByUserId: string;
   replayOfEventId: string | null;

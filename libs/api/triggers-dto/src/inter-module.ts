@@ -1,4 +1,5 @@
 import {
+  actionUploadsSchema,
   definitionValidationErrorSchema,
   definitionValidationWarningSchema,
 } from '@shipfox/api-definitions-dto';
@@ -376,6 +377,7 @@ const createDevRunInputSchema = z
     projectId: idSchema,
     ref: refSchema.optional(),
     content: z.string().optional(),
+    actions: actionUploadsSchema.optional(),
     configPath: configPathSchema,
     triggerKey: z.string().min(1),
     commit: z

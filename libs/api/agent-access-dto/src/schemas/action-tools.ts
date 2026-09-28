@@ -1,3 +1,4 @@
+import {actionUploadsSchema, MAX_LOCAL_UPLOAD_BYTES} from '@shipfox/api-definitions-dto';
 import {z} from 'zod';
 
 export const AGENT_ACCESS_ACTION_INPUTS_MAX_BYTES = 16 * 1024;
@@ -142,6 +143,7 @@ export const createDevRunInputSchema = z
     project_id: uuidSchema,
     ref: safeRefSchema.optional(),
     content: z.string().optional(),
+    actions: actionUploadsSchema.optional(),
     config_path: safeConfigPathSchema,
     trigger: z.string().min(1),
     commit: z
@@ -290,12 +292,46 @@ const createDevRunWarningJsonSchema = {
   additionalProperties: false,
 } as const;
 
+const actionUploadFileJsonSchema = {
+  type: 'object',
+  properties: {
+    path: {
+      type: 'string',
+      minLength: 1,
+      description: 'Path relative to the action directory, for example lib/graph.ts.',
+    },
+    content: {type: 'string', description: 'UTF-8 text of the file.'},
+  },
+  required: ['path', 'content'],
+  additionalProperties: false,
+} as const;
+
+const actionUploadJsonSchema = {
+  type: 'object',
+  properties: {
+    path: {
+      type: 'string',
+      pattern: '^\\./',
+      description:
+        'The uses path exactly as the workflow writes it, for example ./.shipfox/actions/notify.',
+    },
+    files: {type: 'array', items: actionUploadFileJsonSchema, minItems: 1},
+  },
+  required: ['path', 'files'],
+  additionalProperties: false,
+} as const;
+
 export const createDevRunInputJsonSchema = {
   type: 'object',
   properties: {
     project_id: uuidJsonSchema,
     ref: {type: 'string', minLength: 1, maxLength: 256, pattern: safeRefInputPattern},
     content: {type: 'string'},
+    actions: {
+      type: 'array',
+      items: actionUploadJsonSchema,
+      description: `Whole action directories, each replacing the ref's copy of its path. content and every action file share ${MAX_LOCAL_UPLOAD_BYTES} UTF-8 bytes.`,
+    },
     config_path: {
       type: 'string',
       minLength: 1,

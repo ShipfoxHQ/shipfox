@@ -21,6 +21,7 @@ import {
   createApp,
   type FastifyRequest,
 } from '@shipfox/node-fastify';
+import {AGENT_ACCESS_MCP_BODY_LIMIT_BYTES} from '#constants.js';
 import {createDocsCache} from '#core/docs.js';
 import {createAgentAccessRateLimiter} from '#core/rate-limiter.js';
 import {createAgentAccessFixtureTool} from '#core/tools.js';
@@ -259,6 +260,33 @@ describe('agent-access MCP routes', () => {
 
     expect(response.statusCode).toBe(406);
     expect(authCalls).toBe(1);
+  });
+
+  test('accepts a body past the 1 MiB default so a dev-run upload fits', async () => {
+    const app = await createTestApp();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: {authorization: 'Bearer valid-token', 'content-type': 'application/json'},
+      payload: JSON.stringify({padding: 'x'.repeat(2 * 1024 * 1024)}),
+    });
+
+    // The transport rejects the missing Accept header only after Fastify parsed the body.
+    expect(response.statusCode).toBe(406);
+  });
+
+  test('returns 413 above the MCP body limit', async () => {
+    const app = await createTestApp();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: {authorization: 'Bearer valid-token', 'content-type': 'application/json'},
+      payload: JSON.stringify({padding: 'x'.repeat(AGENT_ACCESS_MCP_BODY_LIMIT_BYTES)}),
+    });
+
+    expect(response.statusCode).toBe(413);
   });
 
   test('challenges unauthenticated requests with protected-resource metadata', async () => {

@@ -247,6 +247,7 @@ describe('bounded workflow run overview routes', () => {
         ref: 'main',
         commit: 'abc123',
         definitionSource: 'ref',
+        localActions: [],
         configPath: '.shipfox/workflow.yml',
         initiatedByUserId: crypto.randomUUID(),
         replayOfEventId: null,

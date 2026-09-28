@@ -161,6 +161,7 @@ describe('workflow run queries', () => {
           ref: 'refs/heads/feature',
           commit: 'abc123',
           definitionSource: 'ref',
+          localActions: [],
           configPath: '.shipfox/workflow.yml',
           initiatedByUserId,
           replayOfEventId: null,

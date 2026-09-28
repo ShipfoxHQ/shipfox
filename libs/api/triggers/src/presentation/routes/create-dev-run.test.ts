@@ -27,7 +27,7 @@ vi.mock('#core/create-dev-run.js', () => ({
   createDevRun: createDevRunMock,
 }));
 
-const {createDevRunRoute} = await import('./create-dev-run.js');
+const {createDevRunRoute, DEV_RUN_BODY_LIMIT_BYTES} = await import('./create-dev-run.js');
 
 const workflows = {} as WorkflowsModuleClient;
 const definitions = {} as never;
@@ -62,7 +62,11 @@ describe('POST /dev-runs', () => {
       );
       done();
     });
-    app.post('/dev-runs', createDevRunRoute(workflows, definitions, projects));
+    const route = createDevRunRoute(workflows, definitions, projects);
+    const bodyLimit = route.options?.bodyLimit;
+    if (bodyLimit === undefined) throw new Error('Expected the dev-run route to set a body limit');
+    // The shared router passes the route's body limit to Fastify the same way.
+    app.post('/dev-runs', {...route, bodyLimit});
     await app.ready();
   });
 
@@ -177,10 +181,92 @@ describe('POST /dev-runs', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/dev-runs',
-      payload: {...VALID_BODY, content: 'x'.repeat(1024 * 1024)},
+      payload: {...VALID_BODY, content: 'x'.repeat(DEV_RUN_BODY_LIMIT_BYTES)},
     });
 
     expect(res.statusCode).toBe(413);
+    expect(createDevRunMock).not.toHaveBeenCalled();
+  });
+
+  test('forwards action uploads with the local content', async () => {
+    createDevRunMock.mockResolvedValue({id: crypto.randomUUID(), ref: 'main', commit: COMMIT});
+    const {ref: _ref, commit: _commit, ...localBody} = VALID_BODY;
+    const actions = [
+      {
+        path: './.shipfox/actions/notify',
+        files: [
+          {path: 'action.yml', content: 'name: Notify\nmain: index.ts\n'},
+          {path: 'lib/format.ts', content: 'export const format = () => "";\n'},
+        ],
+      },
+    ];
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/dev-runs',
+      payload: {...localBody, content: 'name: Local\n', actions},
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(createDevRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({content: 'name: Local\n', actions}),
+    );
+  });
+
+  test('accepts an upload whose JSON escaping takes the body past 1 MiB', async () => {
+    createDevRunMock.mockResolvedValue({id: crypto.randomUUID(), commit: COMMIT});
+    // Each newline is escaped to two bytes, so 768 KiB of text is a 1.5 MiB body.
+    const content = '\n'.repeat(768 * 1024);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/dev-runs',
+      payload: {
+        ...VALID_BODY,
+        actions: [{path: './.shipfox/actions/notify', files: [{path: 'index.ts', content}]}],
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(createDevRunMock).toHaveBeenCalled();
+  });
+
+  test.each([
+    [
+      'a uses path outside the repository',
+      [{path: '../notify', files: [{path: 'a.ts', content: ''}]}],
+    ],
+    ['a uses path without ./', [{path: '.shipfox/notify', files: [{path: 'a.ts', content: ''}]}]],
+    ['an absolute file path', [{path: './notify', files: [{path: '/a.ts', content: ''}]}]],
+    ['a file path with ..', [{path: './notify', files: [{path: 'lib/../a.ts', content: ''}]}]],
+    ['an action with no files', [{path: './notify', files: []}]],
+    [
+      'duplicate file paths',
+      [
+        {
+          path: './notify',
+          files: [
+            {path: 'a.ts', content: ''},
+            {path: 'a.ts', content: ''},
+          ],
+        },
+      ],
+    ],
+    [
+      'duplicate upload paths',
+      [
+        {path: './notify', files: [{path: 'a.ts', content: ''}]},
+        {path: './notify', files: [{path: 'b.ts', content: ''}]},
+      ],
+    ],
+  ])('rejects %s', async (_label, actions) => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/dev-runs',
+      payload: {...VALID_BODY, actions},
+    });
+
+    expect(res.statusCode).toBe(400);
     expect(createDevRunMock).not.toHaveBeenCalled();
   });
 

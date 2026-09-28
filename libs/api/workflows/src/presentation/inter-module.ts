@@ -403,6 +403,7 @@ export function createWorkflowsInterModulePresentation(params: {
             devSource: {
               ...input.devSource,
               definitionSource: input.devSource.definitionSource ?? 'ref',
+              localActions: input.devSource.localActions ?? [],
               replayOfEventId: input.devSource.replayOfEventId ?? null,
             },
             triggerPayload: input.triggerPayload,

@@ -1,4 +1,4 @@
-import {definitionValidationWarningSchema} from '@shipfox/api-definitions-dto';
+import {actionUploadsSchema, definitionValidationWarningSchema} from '@shipfox/api-definitions-dto';
 import {isSafeRefInput} from '@shipfox/regex';
 import {z} from 'zod';
 
@@ -17,6 +17,10 @@ export const createDevRunBodySchema = z
     // fetching the workflow file from the repository. The domain layer owns
     // the byte limit so callers receive `content-too-large`.
     content: z.string().optional(),
+    // Whole action directories, each replacing the ref's copy of the `uses`
+    // path it names. The byte limit shared with `content` is enforced in the
+    // domain layer.
+    actions: actionUploadsSchema.optional(),
     // The commit the ref resolved to when the picker listed the file; a
     // mismatch answers 409 `ref-moved`.
     commit: z

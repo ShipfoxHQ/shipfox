@@ -328,6 +328,124 @@ describe('agent-access action tools', () => {
     });
   });
 
+  test('forwards action uploads to real and dry runs', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.createDevRun).mockResolvedValue({id: runId, commit: 'a'.repeat(40)});
+    vi.mocked(triggers.checkDevRun).mockResolvedValue({
+      checkPassed: true,
+      triggerKind: 'manual',
+      ref: 'main',
+      commit: 'a'.repeat(40),
+      warnings: [
+        {
+          code: 'action-upload-unused',
+          message: 'Uploaded action ./.shipfox/actions/notify is not used by any step',
+        },
+      ],
+    });
+    const actions = [
+      {
+        path: './.shipfox/actions/notify',
+        files: [
+          {path: 'action.yml', content: 'name: Notify\nmain: index.ts\n'},
+          {path: 'index.ts', content: "import {format} from './lib/format.ts';\n"},
+          {path: 'lib/format.ts', content: 'export const format = () => "";\n'},
+        ],
+      },
+    ];
+    const args = {
+      project_id: projectId,
+      ref: 'main',
+      config_path: '.shipfox/workflow.yml',
+      trigger: 'manual',
+      actions,
+    };
+
+    await tool(tools, 'create_dev_run').execute({context, arguments: args});
+    const dryRun = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {...args, dry_run: true},
+    });
+
+    expect(triggers.createDevRun).toHaveBeenCalledWith(expect.objectContaining({actions}));
+    expect(triggers.checkDevRun).toHaveBeenCalledWith(expect.objectContaining({actions}));
+    expect(dryRun).toMatchObject({
+      ok: true,
+      result: {warnings: [{code: 'action-upload-unused'}]},
+    });
+  });
+
+  test.each([
+    ['a uses path without ./', [{path: 'actions/notify', files: [{path: 'a.ts', content: ''}]}]],
+    ['a file path with ..', [{path: './notify', files: [{path: '../a.ts', content: ''}]}]],
+    ['an action with no files', [{path: './notify', files: []}]],
+    [
+      'duplicate upload paths',
+      [
+        {path: './notify', files: [{path: 'a.ts', content: ''}]},
+        {path: './notify', files: [{path: 'b.ts', content: ''}]},
+      ],
+    ],
+  ])('rejects action uploads with %s', async (_label, actions) => {
+    const {triggers, tools} = clients();
+    const devRunTool = tool(tools, 'create_dev_run');
+    const args = {
+      project_id: projectId,
+      ref: 'main',
+      config_path: '.shipfox/workflow.yml',
+      trigger: 'manual',
+      actions,
+    };
+
+    expect(devRunTool.validateInput?.(args)).toBe(false);
+    await expect(
+      Promise.resolve(devRunTool.execute({context, arguments: args})),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {code: 'invalid-request'},
+    });
+    expect(triggers.createDevRun).not.toHaveBeenCalled();
+  });
+
+  test('truncates dry-run action diagnostics within the details byte budget', async () => {
+    const {triggers, tools} = clients();
+    const errors = Array.from({length: 120}, (_, index) => ({
+      message: `Action ./.shipfox/actions/notify: index.ts imports ./lib/helper-${index}.ts, which was not uploaded`,
+    }));
+    vi.mocked(triggers.checkDevRun).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.checkDevRun,
+        'invalid-definition',
+        {errors},
+      ),
+    );
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        ref: 'main',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+        dry_run: true,
+        actions: [{path: './.shipfox/actions/notify', files: [{path: 'index.ts', content: ''}]}],
+      },
+    });
+    if (response.ok) throw new Error('Expected invalid-definition details');
+    const details = response.error?.details;
+    if (!details) throw new Error('Expected invalid-definition details');
+    const kept = details.errors as Array<{message: string}>;
+
+    expect(response.error?.code).toBe('invalid-definition');
+    expect(details).toMatchObject({total: 120, truncated: true});
+    expect(kept[0]).toEqual(errors[0]);
+    expect(kept.length).toBeLessThan(120);
+    expect(new TextEncoder().encode(JSON.stringify(details)).byteLength).toBeLessThanOrEqual(
+      AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES,
+    );
+    expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
+  });
+
   test('routes dry runs to the check command without creating a run', async () => {
     const {triggers, tools} = clients();
     vi.mocked(triggers.checkDevRun).mockResolvedValue({

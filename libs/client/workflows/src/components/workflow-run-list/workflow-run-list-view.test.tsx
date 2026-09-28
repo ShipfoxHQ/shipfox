@@ -917,6 +917,7 @@ function devRunOverrides(
       ref: 'fix-triage-prompt',
       commit: 'abcdef1234567890abcdef1234567890abcdef12',
       definition_source: definitionSource,
+      local_actions: [],
       config_path: '.shipfox/workflows/triage-sentry.yml',
       initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
       replay_of_event_id: null,

@@ -166,12 +166,18 @@ the event bus and have no HTTP entry point.
 
 `POST /dev-runs` keeps `config_path` required because it names the workflow lineage.
 A local run shares numbering with a synced file at the same path. `content` is
-limited to 256 KiB of UTF-8 bytes by the definitions core. A request larger than
-Fastify's 1 MiB body limit is rejected by the transport before application code.
+limited to 256 KiB of UTF-8 bytes by the definitions core.
+
+`actions` uploads whole action directories as `[{path, files: [{path, content}]}]`.
+Each `path` is a `uses` path, and each upload replaces the ref's copy of that
+directory completely. Actions that are not uploaded are read from the ref. The
+definitions core limits `content` and all action files to 1 MiB of UTF-8 bytes
+together. The route accepts bodies up to 4 MiB, because JSON escaping inflates
+the text. A larger request gets `413` from the transport before application code.
 
 | Code | Useful details |
 | --- | --- |
-| `content-too-large` | The supplied YAML exceeds the domain limit. |
+| `content-too-large` | The supplied YAML or action files exceed the domain limit. |
 | `invalid-workflow-definition` | `errors` contains validation messages, paths, and reasons when available. |
 | `trigger-not-found` | `availableTriggerKeys` lists the keys found in the resolved workflow. |
 | `replay-event-mismatch` | `eventSource`, `eventName`, `triggerSource`, and `triggerEvent` describe both sides of the mismatch when available. |
@@ -179,7 +185,8 @@ Fastify's 1 MiB body limit is rejected by the transport before application code.
 
 The response includes the resolved `ref` and definition warnings when present. A
 local run records `definition_source: local`, stores the YAML on the run, and
-creates no definition or live subscription.
+creates no definition or live subscription. The run's `dev_source.local_actions`
+lists the uploaded action paths.
 
 ## Vocabulary
 
