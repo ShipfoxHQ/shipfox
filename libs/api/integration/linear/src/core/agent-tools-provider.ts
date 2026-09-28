@@ -22,7 +22,7 @@ import {
   linearAgentToolCatalog,
   linearAgentToolSelectionCatalog,
 } from '#core/agent-tools.js';
-import {LinearIntegrationProviderError} from '#core/errors.js';
+import {isLinearNotFoundMessage, LinearIntegrationProviderError} from '#core/errors.js';
 import type {LinearTokenStore} from '#core/tokens.js';
 
 const LINEAR_MCP_ENDPOINT = 'https://mcp.linear.app/mcp';
@@ -89,7 +89,7 @@ export class LinearAgentToolsProvider
     return {
       call: async (call) => {
         try {
-          return await client.callTool(call, this.callTimeoutMs);
+          return withNotFoundCode(await client.callTool(call, this.callTimeoutMs));
         } catch (error) {
           throw mapLinearMcpError(error);
         }
@@ -97,6 +97,31 @@ export class LinearAgentToolsProvider
       close: () => client.close(),
     };
   }
+}
+
+/** Linear's hosted MCP reports missing records as prose without an error code. */
+function withNotFoundCode(result: CallToolResult): CallToolResult {
+  if (result.isError !== true) return result;
+  const message = mcpErrorMessage(result);
+  if (message === undefined || !isLinearNotFoundMessage(message)) return result;
+  return {
+    ...result,
+    structuredContent: {...result.structuredContent, code: 'not-found'},
+  };
+}
+
+function mcpErrorMessage(result: CallToolResult): string | undefined {
+  const block = result.content.find((content) => content.type === 'text');
+  if (block?.type !== 'text') return undefined;
+  try {
+    const parsed: unknown = JSON.parse(block.text);
+    if (typeof parsed === 'object' && parsed !== null && 'message' in parsed) {
+      return typeof parsed.message === 'string' ? parsed.message : undefined;
+    }
+  } catch {
+    // Some Linear tools return plain prose rather than a JSON error object.
+  }
+  return block.text;
 }
 
 async function createSdkLinearMcpClient(

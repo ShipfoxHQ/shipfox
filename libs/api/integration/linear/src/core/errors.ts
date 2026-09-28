@@ -2,6 +2,13 @@ import {IntegrationProviderError} from '@shipfox/api-integration-spi';
 
 export class LinearIntegrationProviderError extends IntegrationProviderError {}
 
+// Linear words missing and invisible records the same way.
+const notFoundMessagePattern = /^(?:Error:\s*)?(?:Entity not found|Could not find)\b/i;
+
+export function isLinearNotFoundMessage(message: string): boolean {
+  return notFoundMessagePattern.test(message);
+}
+
 export class LinearInstallStateError extends Error {
   constructor(message = 'Invalid Linear install state') {
     super(message);

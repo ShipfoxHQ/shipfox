@@ -64,6 +64,10 @@ the local source of truth for authoring validation, write-safety metadata, and
 future audit behavior; the provider advertises `agent_tools` and proxies calls
 to Linear's hosted MCP server with the connection's stored Linear token.
 
+Linear reports a missing record, or one the token cannot see, as prose with no
+error code. The provider gives those tool errors the `not-found` code, so callers
+can tell them from other failures.
+
 Sensitivity policy:
 
 - `save_issue` is explicitly `sensitive: false`. It is still a write tool and

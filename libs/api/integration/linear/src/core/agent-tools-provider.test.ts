@@ -141,6 +141,58 @@ describe('LinearAgentToolsProvider', () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    [
+      'JSON errors from get tools',
+      '{"error":"invalid_request","message":"Could not find referenced Issue.","status":400}',
+    ],
+    ['prose errors from list tools', 'Error: Could not find issue "ENG-999999"'],
+  ])('tags Linear not-found %s with the not-found code', async (_name, text) => {
+    const provider = new LinearAgentToolsProvider({
+      tokenStore: {getAccessToken: async () => 'linear-token'},
+      createClient: async () => ({
+        callTool: async () => ({isError: true, content: [{type: 'text', text}]}),
+        close: async () => undefined,
+      }),
+    });
+    const session = await provider.openSession({
+      connection: linearConnection(),
+      tools: [],
+      scope: {provider: 'linear'},
+    });
+
+    const result = await session.call({toolId: 'get_issue', arguments: {id: 'ENG-999999'}});
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{type: 'text', text}],
+      structuredContent: {code: 'not-found'},
+    });
+  });
+
+  it('leaves other Linear tool errors without a code', async () => {
+    const errorResult = {
+      isError: true,
+      content: [{type: 'text' as const, text: 'Argument Validation Error'}],
+    };
+    const provider = new LinearAgentToolsProvider({
+      tokenStore: {getAccessToken: async () => 'linear-token'},
+      createClient: async () => ({
+        callTool: async () => errorResult,
+        close: async () => undefined,
+      }),
+    });
+    const session = await provider.openSession({
+      connection: linearConnection(),
+      tools: [],
+      scope: {provider: 'linear'},
+    });
+
+    const result = await session.call({toolId: 'save_issue', arguments: {}});
+
+    expect(result).toBe(errorResult);
+  });
+
   it('does not open an MCP client when the Linear token is missing', async () => {
     const createClient = vi.fn();
     const provider = new LinearAgentToolsProvider({
