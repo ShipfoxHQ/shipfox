@@ -172,7 +172,16 @@ describe('failed run report', () => {
     {scope: 'workspace'},
     {workflow_filter: 'selected'},
   ])('diagnoses every reported failure in the %o variant', (selections) => {
-    expect(workflow(selections).jobs.diagnose).toMatchObject({needs: 'report'});
+    const diagnose = workflow(selections).jobs.diagnose;
+
+    expect(diagnose).toMatchObject({needs: 'report'});
+    expect(diagnose?.steps.map((step) => step.key)).toEqual(['diagnose', 'reply']);
+    expect(diagnose?.steps[1]).toMatchObject({
+      with: {
+        thread_ts: '${{ jobs.report.outputs.message_ts }}',
+        message: expect.stringContaining('steps.diagnose.outputs.diagnosis'),
+      },
+    });
   });
 
   it('skips runs of the report workflow itself', () => {
