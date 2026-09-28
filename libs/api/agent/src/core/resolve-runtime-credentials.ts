@@ -128,7 +128,7 @@ async function assertManagedModelAvailable(
   }
   const lock = locks.get(params.model);
   if (lock === undefined) return;
-  recordRuntimeConfigResolution(params, {source: 'instance', outcome: 'unavailable'});
+  recordRuntimeConfigResolution(params, {source: 'instance', outcome: 'model_locked'});
   throw new ManagedModelUnavailableError(params.model, lock.notice);
 }
 
@@ -136,7 +136,7 @@ function recordRuntimeConfigResolution(
   params: Pick<ResolveRuntimeCredentialsParams, 'jobIdentity'>,
   result: {
     source: 'workspace' | 'instance';
-    outcome: 'resolved' | 'unavailable' | 'decryption_failed';
+    outcome: 'resolved' | 'unavailable' | 'decryption_failed' | 'model_locked';
   },
 ): void {
   agentRuntimeConfigResolvedCount.add(1, {

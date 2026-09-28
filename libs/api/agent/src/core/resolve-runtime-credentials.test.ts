@@ -176,6 +176,10 @@ describe('resolveRuntimeCredentials', () => {
       };
     }
 
+    function availabilityMock(locks: ReadonlyMap<string, ManagedModelLock>) {
+      return vi.fn<NonNullable<ManagedModelProvider['availability']>>().mockResolvedValue(locks);
+    }
+
     function credentialsMock() {
       return vi.fn<ManagedModelProvider['resolveCredentials']>().mockResolvedValue({
         api: 'anthropic-messages',
@@ -186,7 +190,7 @@ describe('resolveRuntimeCredentials', () => {
 
     it('refuses a locked model with its notice before resolving credentials', async () => {
       const resolveCredentials = credentialsMock();
-      const availability = vi.fn().mockResolvedValue(new Map([['claude-model', lock]]));
+      const availability = availabilityMock(new Map([['claude-model', lock]]));
 
       const result = await resolveRuntimeCredentials(resolveParams(), {
         managedProvider: {...managedProvider(resolveCredentials), availability},
@@ -200,7 +204,7 @@ describe('resolveRuntimeCredentials', () => {
 
     it('resolves credentials for a model that is not locked', async () => {
       const resolveCredentials = credentialsMock();
-      const availability = vi.fn().mockResolvedValue(new Map([['other-model', lock]]));
+      const availability = availabilityMock(new Map([['other-model', lock]]));
 
       const result = await resolveRuntimeCredentials(resolveParams(), {
         managedProvider: {...managedProvider(resolveCredentials), availability},
@@ -212,7 +216,7 @@ describe('resolveRuntimeCredentials', () => {
 
     it('skips the availability check on renewal so a running step is never cut off', async () => {
       const resolveCredentials = credentialsMock();
-      const availability = vi.fn().mockResolvedValue(new Map([['claude-model', lock]]));
+      const availability = availabilityMock(new Map([['claude-model', lock]]));
 
       const result = await resolveRuntimeCredentials(resolveParams({renewal: true}), {
         managedProvider: {...managedProvider(resolveCredentials), availability},
@@ -225,7 +229,9 @@ describe('resolveRuntimeCredentials', () => {
     it('reports an availability failure without resolving credentials', async () => {
       const resolveCredentials = credentialsMock();
       const cause = new Error('limits unavailable');
-      const availability = vi.fn().mockRejectedValue(cause);
+      const availability = vi
+        .fn<NonNullable<ManagedModelProvider['availability']>>()
+        .mockRejectedValue(cause);
 
       const result = await resolveRuntimeCredentials(resolveParams(), {
         managedProvider: {...managedProvider(resolveCredentials), availability},

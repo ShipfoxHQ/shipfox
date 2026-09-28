@@ -138,13 +138,14 @@ export interface ManagedModelLock {
 /** Thrown by the agent module when a managed provider locks the requested model. */
 export class ManagedModelUnavailableError extends Error {
   readonly code = MODEL_UNAVAILABLE_ERROR_CODE;
+  readonly model: string;
+  readonly notice: PolicyNotice;
 
-  constructor(
-    readonly model: string,
-    readonly notice: PolicyNotice,
-  ) {
+  constructor(model: string, notice: PolicyNotice) {
     super(notice.message);
     this.name = 'ManagedModelUnavailableError';
+    this.model = model;
+    this.notice = notice;
   }
 }
 
@@ -158,7 +159,11 @@ export interface ManagedModelProvider {
    * Locked models for one workspace. Models not in the map are available.
    *
    * Checked before the first `resolveCredentials` of a step attempt and never on renewal, so a
-   * running step is not cut off. A rejection is reported as a retryable 503.
+   * running step is not cut off. A model in the returned map fails the step with a 422 and its
+   * notice. A rejection is reported as a retryable 503.
+   *
+   * The lock is a product limit, not a security boundary: the runner marks renewals with a
+   * request header, so a caller that sets it can skip the check.
    */
   readonly availability?:
     | ((params: {workspaceId: string}) => Promise<ReadonlyMap<string, ManagedModelLock>>)

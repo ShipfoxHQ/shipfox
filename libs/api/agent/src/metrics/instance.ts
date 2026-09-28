@@ -17,7 +17,7 @@ export const modelProviderValidationCount = meter.createCounter<{
 
 export const agentRuntimeConfigResolvedCount = meter.createCounter<{
   source: 'workspace' | 'instance';
-  outcome: 'resolved' | 'unavailable' | 'decryption_failed';
+  outcome: 'resolved' | 'unavailable' | 'decryption_failed' | 'model_locked';
   has_job_identity: boolean;
 }>('agent_runtime_config_resolved', {
   description:
