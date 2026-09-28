@@ -115,7 +115,10 @@ test.describe('agent-access workflow templates', () => {
           expect.objectContaining({
             role: 'tracker',
             optional: true,
-            providers: [{provider: 'linear', compatible: false, suggested_bindings: []}],
+            providers: [
+              {provider: 'linear', compatible: false, suggested_bindings: []},
+              {provider: 'jira', compatible: false, suggested_bindings: []},
+            ],
           }),
         ]),
       });
@@ -146,7 +149,10 @@ test.describe('agent-access workflow templates', () => {
             role: 'tracker',
             from_project: false,
             optional: true,
-            providers: [{provider: 'linear', compatible: true, suggested_bindings: [linear.slug]}],
+            providers: [
+              {provider: 'linear', compatible: true, suggested_bindings: [linear.slug]},
+              {provider: 'jira', compatible: false, suggested_bindings: []},
+            ],
           }),
           {
             role: 'source',

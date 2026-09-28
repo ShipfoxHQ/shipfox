@@ -1,13 +1,13 @@
 # Task to pull request
 
-Use this template when a task should produce a tested GitHub pull request. A task comes from a Linear ticket, or from a manual start with explicit task inputs. A Slack dispatcher, a ticket loader, or a person can start it.
+Use this template when a task should produce a tested GitHub pull request. A task comes from a Linear or Jira ticket, or from a manual start with explicit task inputs. A Slack dispatcher, a ticket loader, or a person can start it.
 
 ## Prerequisites
 
 - Connect GitHub as the project's source.
 - Give the GitHub connection permission to read and write repository contents and pull requests.
 - Use GitHub Actions for the feedback loop, which is on by default.
-- For the optional tracker, connect Linear.
+- For the optional tracker, connect Linear or Jira.
 
 ## Choose a tracker
 
@@ -16,6 +16,7 @@ The `tracker` role is optional.
 | Choice | Starts from | Writes to the ticket |
 | --- | --- | --- |
 | Linear | Linear ticket events and manual starts | Moves the issue to its in-progress status by default and posts comments |
+| Jira | Jira issue events and manual starts | Moves the issue to an in-progress status by default and posts comments |
 | No tracker | Manual starts only | Nothing |
 
 Every composition keeps the `manual` trigger. Without a tracker, the workflow has no tracker tools and no write-back jobs.
@@ -32,7 +33,7 @@ A manual start, such as a dispatcher's `start_workflow_run` call, passes these i
 | `acceptance_criteria` | Yes | How a reviewer checks that the change is done, such as a Markdown list. |
 | `url` | No | Link to the source, such as the Slack thread or the ticket. The PR body links it. |
 | `request` | No | Extra instructions from the person who asked. |
-| `ticket_id` | No | The tracker's ID for the ticket. With Linear, the default option moves it to its in-progress status and posts comments. |
+| `ticket_id` | No | The tracker's ID for the ticket. For Jira, the issue ID or key. With a tracker, the default option moves it to an in-progress status and posts comments. |
 | `identifier` | No | The ticket key, such as `ENG-123`. It names the branch and the PR reference. Without it, the run uses `task-<run number>`. |
 
 A manual start without a required input fails before the agent starts and writes nothing.
@@ -47,7 +48,7 @@ The first test run needs a task. When the user has no task in mind, read the rep
 
 ## Start the next task
 
-Without a tracker, the workflow starts only manually, with inputs. A run started from the dashboard Run button has no inputs, so it fails before the agent starts and writes nothing. After the user merges the workflow pull request, which adds the file under `.shipfox/workflows/`, they ask their coding agent to start it with a new task. The agent calls `fire_manual_trigger` with the inputs above. With the Linear tracker, a Linear ticket also starts it, as the trigger option sets.
+Without a tracker, the workflow starts only manually, with inputs. A run started from the dashboard Run button has no inputs, so it fails before the agent starts and writes nothing. After the user merges the workflow pull request, which adds the file under `.shipfox/workflows/`, they ask their coding agent to start it with a new task. The agent calls `fire_manual_trigger` with the inputs above. With a tracker, a Linear or Jira ticket also starts it, as the trigger option sets.
 
 ## Read the outcome
 
@@ -78,15 +79,28 @@ The run then opens no PR. With a tracker and a ticket, it posts the questions as
 
 ## Choose the options
 
-### Trigger
+### Linear trigger
 
-This option applies only to Linear. Keep one trigger block. `agent_session` starts when the agent is assigned or mentioned. `label` starts when an issue is created with the chosen label or gets it later.
+The `trigger_style` option applies only to Linear. Keep one trigger block. `agent_session` starts when the agent is assigned or mentioned. `label` starts when an issue is created with the chosen label or gets it later.
 
 Replace every `replace-with-team-key` value with the key of the Linear team whose issues belong to this repository, such as `ENG`. Use local Linear MCP tools to look up the team when available. If the repository does not identify one team, ask the user. Keep this filter: it runs before the workflow and agent start. An agent cannot safely select a team after a broad trigger.
 
 If you remove the team filter, every project that uses this template could open a PR for the same issue. For `label`, also replace every `replace-with-label-name` value with the label's exact name. Check the team key and label name against a journaled event before a real run.
 
 The workflow's own Linear writes do not start it again. Its comments do not mention the agent, so they create no agent session. A status change adds no label.
+
+### Jira trigger
+
+The `jira_trigger` option applies only to Jira. Keep one trigger block.
+
+- `label` starts when an issue is created with the label or gets it later. Use it when people pick tickets for the agent one by one.
+- `status` starts when an issue moves to a status, such as `Ready for dev`. Use it when a board column already means "ready to implement". Issues created directly in that status do not start it.
+
+Replace every `replace-with-project-key` value with the key of the Jira project whose issues belong to this repository, such as `ENG`. Without it, every project that uses this template would open a PR for the same issue. For `label`, also replace every `replace-with-label-name` value with the label's exact name. For `status`, replace `replace-with-start-status` with the status's exact name. Check the project key, label, and status against a journaled event before a real run.
+
+The workflow's own Jira writes do not start it again. A comment changes no label or status. The in-progress move leaves the start status, and the run skips it when the start status is already in the In Progress category.
+
+Each Jira connection covers one Jira site, identified by the `cloudId` in its events. With several Jira connections, bind the one whose site holds the project, and check the `cloudId` of a journaled event from that project.
 
 ### Feedback loop
 
@@ -119,7 +133,9 @@ Choose `draft` or `ready` for `pr_mode`. The default opens a draft PR. Set the m
 
 ### Ticket write-back
 
-This option applies only with Linear. By default, `comment_and_transition` moves the issue to its in-progress status when work starts. It posts the PR link after opening a PR, or questions when the issue is unclear. Choose `comment` to post comments without changing status, or `none` to make no Linear updates.
+This option applies only with a tracker. By default, `comment_and_transition` moves the issue to its in-progress status when work starts. It posts the PR link after opening a PR, or questions when the issue is unclear. Choose `comment` to post comments without changing status, or `none` to make no ticket updates.
+
+Jira moves an issue through transitions, and the available transitions depend on the project's workflow and the issue's current status. When the issue's status is still in the To Do category, the run reads the transitions at work start and applies the first one that leads to an In Progress category status. It skips the move when the issue is already in progress or done, or when no such transition exists.
 
 Both write-back choices also post the agent's questions when the ticket is too unclear to implement. The run writes only when it has a ticket ID from an event or the `ticket_id` input. Status updates get up to five attempts. Persistent failures stop implementation. The PR link is written separately, so a failed comment does not stop the feedback loop.
 
@@ -127,7 +143,7 @@ Both write-back choices also post the agent's questions when the ticket is too u
 
 Confirm that the model and thinking level on the `fix` steps are available in the workspace. The implementation and feedback steps continue one `ticket_pr` session, so every `# model:fix` step must use the same model and harness. The `# model:reply` step only posts prepared replies, so a smaller model is enough.
 
-Replace `linear_tracker` with the tracker connection slug and `github_source` with the project's GitHub source connection slug. Keep the same GitHub slug in every step and listener.
+Replace `linear_tracker` or `jira_tracker` with the tracker connection slug and `github_source` with the project's GitHub source connection slug. Keep the same GitHub slug in every step and listener.
 
 ## Fill the command slots
 
@@ -137,9 +153,9 @@ Replace each `replace-with-test-command` with the test command that proves the c
 
 ## Expected writes
 
-Each run creates one branch named `shipfox/<identifier>-<run number>-<attempt>`, pushes one commit, and opens one task pull request. Merging the task pull request ships the change but does not install the workflow. The PR body ends with `Fixes <identifier>` for a ticket, so Linear links the PR to the issue when the workspace has Linear's GitHub integration. Without a ticket, it links the task's `url`. The run stops before the agent starts when another run already has a branch for the same identifier. Close that PR and delete its branch to start again.
+Each run creates one branch named `shipfox/<identifier>-<run number>-<attempt>`, pushes one commit, and opens one task pull request. Merging the task pull request ships the change but does not install the workflow. The PR body ends with `Fixes <identifier>` for a ticket, so Linear links the PR to the issue when the workspace has Linear's GitHub integration. Jira shows the PR on the issue when the site has the GitHub for Jira app, because the branch name and PR body contain the issue key. Without a ticket, it links the task's `url`. The run stops before the agent starts when another run already has a branch for the same identifier. Close that PR and delete its branch to start again.
 
-Ticket updates can move an issue to its in-progress status when work starts and post a comment with the PR link. When the agent asks questions instead, the run posts at most one comment and opens no PR.
+Ticket updates can move an issue to its in-progress status when work starts and post a comment with the PR link. Jira comments and transitions appear as the Atlassian user who connected Jira. When the agent asks questions instead, the run posts at most one comment and opens no PR.
 
 A feedback execution can push one commit, reply to review comments, and resolve threads. It pushes only when the PR head has not moved since checkout. The implementing and feedback agents get only read tools. Shell steps, tool steps, and the `reply` step own the writes. Agent steps can still reach the repository's write credential from their shell.
 
@@ -153,4 +169,4 @@ Before relying on an adapted workflow, check these paths:
 - Start it manually without `acceptance_criteria`. Check that the run fails before the agent starts.
 - Start it manually with another repository in `repository`. Check that the run stops before setup.
 - Start it with an unclear task. Check that no PR opens and that `questions` holds the agent's questions.
-- With Linear, start it from a ticket event. Check that the issue moves to its in-progress status before the agent starts. Check that the PR comment starts no new run.
+- With a tracker, start it from a ticket event. Check that the issue moves to its in-progress status before the agent starts. Check that the status change and the PR comment start no new run.

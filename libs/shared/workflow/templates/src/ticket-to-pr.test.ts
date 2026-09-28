@@ -15,6 +15,7 @@ const template = loadShippedTemplates().find((entry) => entry.manifest.id === 't
 if (template === undefined) throw new Error('Missing ticket to PR template');
 const manualOnly: TemplateRoleBindings = {source: 'github'};
 const linear: TemplateRoleBindings = {tracker: 'linear', source: 'github'};
+const jira: TemplateRoleBindings = {tracker: 'jira', source: 'github'};
 const defaults: Readonly<Record<string, string>> = Object.fromEntries(
   template.manifest.options.flatMap((option) => {
     const defaultChoice = option.choices.find((choice) => choice.default === true);
@@ -60,6 +61,43 @@ function step(document: YamlRecord, job: string, key: string): YamlRecord {
   return found;
 }
 
+function trigger(document: YamlRecord, key: string): YamlRecord {
+  return at(document, 'triggers', key) as YamlRecord;
+}
+
+function jiraWorkflow(selections: Record<string, string> = {}): YamlRecord {
+  const yaml = render(jira, selections)
+    .replaceAll('replace-with-project-key', 'ENG')
+    .replaceAll('replace-with-label-name', 'shipfox')
+    .replaceAll('replace-with-start-status', 'Ready for dev');
+  parseWorkflowDocument(parseYaml(yaml));
+  return parseYaml(yaml) as YamlRecord;
+}
+
+function jiraEvent({
+  project = 'ENG',
+  labels = [] as string[],
+  status = 'To Do',
+  changes = [] as YamlRecord[],
+} = {}): YamlRecord {
+  return {
+    issue: {
+      id: '10042',
+      key: `${project}-12`,
+      self: 'https://acme.atlassian.net/rest/api/2/issue/10042',
+      fields: {
+        summary: 'Add a health check',
+        description: 'Expose GET /health.',
+        labels,
+        status: {id: '3', name: status},
+        project: {key: project},
+      },
+    },
+    changelog: {items: changes},
+    cloudId: 'cloud-id',
+  };
+}
+
 function toolSteps(document: YamlRecord): unknown[] {
   return Object.values(at(document, 'jobs') as YamlRecord).flatMap((job) =>
     ((job as YamlRecord).steps as YamlRecord[]).flatMap((entry) =>
@@ -83,7 +121,7 @@ function runStep(entry: YamlRecord, context: YamlRecord, cwd = tempRoot()) {
   const env = Object.fromEntries(
     Object.entries((entry.env ?? {}) as YamlRecord).map(([name, value]) => [
       name,
-      String(evaluate(value, context)),
+      expressionPattern.test(String(value)) ? String(evaluate(value, context)) : String(value),
     ]),
   );
   const output = join(cwd, '.shipfox-output');
@@ -212,6 +250,217 @@ describe('ticket to PR template', () => {
     expect(toolSteps(workflow(linear, {ticket_write_back: 'none'}))).toEqual([
       'create_pull_request',
     ]);
+  });
+
+  it('keeps the manual trigger next to the Jira triggers and write-back', () => {
+    const document = workflow(jira);
+
+    expect(render(jira).split('\n')[1]).toBe(
+      '# shipfox-template: ticket-to-pr@5 tracker=jira source=github',
+    );
+    expect(Object.keys(at(document, 'triggers') as YamlRecord)).toEqual([
+      'manual',
+      'on_label_added',
+      'on_labeled_issue_created',
+    ]);
+    expect(
+      Object.keys(at(workflow(jira, {jira_trigger: 'status'}), 'triggers') as YamlRecord),
+    ).toEqual(['manual', 'on_status_changed']);
+    expect(step(document, 'implement', 'fix').integrations).toEqual([
+      {connection: 'jira_tracker', include: ['get_issue', 'get_issue_comments']},
+    ]);
+    expect(Object.keys(at(document, 'jobs') as YamlRecord)).toEqual([
+      'implement',
+      'comment_on_ticket',
+      'respond_to_feedback',
+    ]);
+    expect(toolSteps(document)).toEqual([
+      'get_issue',
+      'get_issue_transitions',
+      'transition_issue',
+      'add_comment',
+      'create_pull_request',
+      'add_comment',
+    ]);
+    expect(toolSteps(workflow(jira, {ticket_write_back: 'comment'}))).toEqual([
+      'add_comment',
+      'create_pull_request',
+      'add_comment',
+    ]);
+    expect(toolSteps(workflow(jira, {ticket_write_back: 'none'}))).toEqual(['create_pull_request']);
+  });
+
+  it.each([
+    {
+      name: 'a label added to an issue',
+      event: jiraEvent({
+        labels: ['backend', 'shipfox'],
+        changes: [
+          {fieldId: 'labels', from: null, fromString: 'backend', toString: 'backend shipfox'},
+        ],
+      }),
+      matches: true,
+    },
+    {
+      name: 'the first label added to an issue',
+      event: jiraEvent({
+        labels: ['shipfox'],
+        changes: [{fieldId: 'labels', from: null, fromString: '', toString: 'shipfox'}],
+      }),
+      matches: true,
+    },
+    {
+      name: 'another label added next to the label',
+      event: jiraEvent({
+        labels: ['backend', 'shipfox'],
+        changes: [
+          {fieldId: 'labels', from: null, fromString: 'shipfox', toString: 'backend shipfox'},
+        ],
+      }),
+      matches: false,
+    },
+    {
+      name: 'a status change on a labeled issue',
+      event: jiraEvent({
+        labels: ['shipfox'],
+        status: 'In Review',
+        changes: [{fieldId: 'status', from: '3', fromString: 'To Do', toString: 'In Review'}],
+      }),
+      matches: false,
+    },
+    {
+      name: 'a label added in another project',
+      event: jiraEvent({
+        project: 'OPS',
+        labels: ['shipfox'],
+        changes: [{fieldId: 'labels', from: null, fromString: '', toString: 'shipfox'}],
+      }),
+      matches: false,
+    },
+  ])('starts the Jira label trigger on $name: $matches', ({event, matches}) => {
+    const filter = trigger(jiraWorkflow(), 'on_label_added').filter;
+
+    expect(evaluate(filter, {event})).toBe(matches);
+  });
+
+  it('starts the Jira label trigger on an issue created with the label', () => {
+    const filter = trigger(jiraWorkflow(), 'on_labeled_issue_created').filter;
+
+    expect(evaluate(filter, {event: jiraEvent({labels: ['shipfox']})})).toBe(true);
+    expect(evaluate(filter, {event: jiraEvent({labels: ['backend']})})).toBe(false);
+  });
+
+  it.each([
+    {
+      name: 'a move to the status',
+      event: jiraEvent({
+        status: 'Ready for dev',
+        changes: [{fieldId: 'status', from: '1', fromString: 'To Do', toString: 'Ready for dev'}],
+      }),
+      matches: true,
+    },
+    {
+      name: 'another change on an issue in the status',
+      event: jiraEvent({
+        status: 'Ready for dev',
+        labels: ['backend'],
+        changes: [{fieldId: 'labels', from: null, fromString: '', toString: 'backend'}],
+      }),
+      matches: false,
+    },
+    {
+      name: 'a move to another status',
+      event: jiraEvent({
+        status: 'In Review',
+        changes: [
+          {fieldId: 'status', from: '3', fromString: 'Ready for dev', toString: 'In Review'},
+        ],
+      }),
+      matches: false,
+    },
+  ])('starts the Jira status trigger on $name: $matches', ({event, matches}) => {
+    const filter = trigger(jiraWorkflow({jira_trigger: 'status'}), 'on_status_changed').filter;
+
+    expect(evaluate(filter, {event})).toBe(matches);
+  });
+
+  it.each([
+    {description: 'Expose GET /health.', expected: 'Expose GET /health.'},
+    {description: null, expected: ''},
+  ])('reads the Jira ticket from an issue event with description $description', ({
+    description,
+    expected,
+  }) => {
+    const task = step(workflow(jira), 'implement', 'task');
+    const event = jiraEvent({labels: ['shipfox']});
+    (at(event, 'issue', 'fields') as YamlRecord).description = description;
+
+    const result = runStep(task, {
+      trigger: {source: 'jira_tracker'},
+      run: {number: 7},
+      event,
+      inputs: {},
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.outputs).toEqual({
+      ticket_id: '10042',
+      identifier: 'ENG-12',
+      title: 'Add a health check',
+      url: 'https://acme.atlassian.net/browse/ENG-12',
+      repository: '',
+      reference: 'Fixes ENG-12',
+      description: expected,
+      acceptance_criteria: '',
+      request: '',
+    });
+    expect(
+      evaluate(String(at(workflow(jira), 'run_name')).replace(runNamePrefix, ''), {
+        trigger: {source: 'jira_tracker'},
+        event,
+      }),
+    ).toBe('ENG-12');
+  });
+
+  it('moves a Jira issue to an in-progress status only when it is still to do', () => {
+    const document = jiraWorkflow();
+    const read = step(document, 'implement', 'read_status');
+    const find = step(document, 'implement', 'find_in_progress');
+    const move = step(document, 'implement', 'mark_in_progress');
+    const started = (key: string) =>
+      evaluate((read.outputs as YamlRecord).started, {
+        result: {fields: {status: {statusCategory: {key}}}},
+      });
+    const transitionId = (transitions: YamlRecord[]) =>
+      evaluate((find.outputs as YamlRecord).transition_id, {result: {transitions}});
+    const context = (isStarted: boolean, id: string) => ({
+      steps: {
+        task: {outputs: {ticket_id: '10042'}},
+        read_status: {outputs: {started: isStarted}},
+        find_in_progress: {outputs: {transition_id: id}},
+      },
+    });
+
+    expect(started('new')).toBe(false);
+    expect(started('indeterminate')).toBe(true);
+    expect(started('done')).toBe(true);
+    expect(
+      transitionId([
+        {id: '11', name: 'Close', to: {name: 'Done', statusCategory: {key: 'done'}}},
+        {
+          id: '21',
+          name: 'Start',
+          to: {name: 'In Progress', statusCategory: {key: 'indeterminate'}},
+        },
+      ]),
+    ).toBe('21');
+    expect(
+      transitionId([{id: '11', name: 'Close', to: {name: 'Done', statusCategory: {key: 'done'}}}]),
+    ).toBe('');
+    expect(evaluate(move.if, context(false, '21'))).toBe(true);
+    expect(evaluate(move.if, context(true, '21'))).toBe(false);
+    expect(evaluate(move.if, context(false, ''))).toBe(false);
+    expect(evaluate(find.if, context(true, ''))).toBe(false);
   });
 
   it('publishes the task outcome for the workflow that started the run', () => {
