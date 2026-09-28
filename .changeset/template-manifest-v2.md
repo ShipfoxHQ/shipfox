@@ -3,4 +3,4 @@
 "@shipfox/api-agent-access-dto": patch
 ---
 
-Removes transitional template identity fields and reads embedded compatibility metadata outside the published template manifest.
+Makes manifests v2: removes legacy identity and start-label fields, requires `starts`, adds catalog and workflow metadata, and describes slots, secrets, and variables.

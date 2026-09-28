@@ -32,6 +32,18 @@ describe('workflowTemplateOptionSchema', () => {
 });
 
 describe('workflowTemplateManifestSchema', () => {
+  it('rejects duplicate option ids', () => {
+    const result = workflowTemplateManifestSchema.safeParse({
+      ...baseManifest,
+      options: [
+        {id: 'mode', choices: [{id: 'fast'}]},
+        {id: 'mode', choices: [{id: 'safe'}]},
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it('accepts manifest v2 metadata, conditions, and described fields', () => {
     const manifest = workflowTemplateManifestSchema.parse({
       ...baseManifest,
@@ -95,11 +107,33 @@ describe('workflowTemplateManifestSchema', () => {
   });
 
   it('rejects all transitional identity and start-label fields', () => {
-    for (const field of ['id', 'revision', 'added_at', 'rank', 'start_label']) {
+    const legacyValues = {
+      id: 'fixture',
+      revision: 1,
+      added_at: '2026-10-01',
+      rank: 1,
+      start_label: 'Starts on a task',
+    };
+
+    for (const [field, value] of Object.entries(legacyValues)) {
       expect(
-        workflowTemplateManifestSchema.safeParse({...baseManifest, [field]: 'legacy'}).success,
+        workflowTemplateManifestSchema.safeParse({...baseManifest, [field]: value}).success,
       ).toBe(false);
     }
+  });
+
+  it('requires related packages to use registry package-name rules', () => {
+    for (const related of ['a/pkg', 'shipfox/a', 'shipfox/-invalid', `shipfox/${'a'.repeat(41)}`]) {
+      expect(
+        workflowTemplateManifestSchema.safeParse({...baseManifest, related: [related]}).success,
+      ).toBe(false);
+    }
+    expect(
+      workflowTemplateManifestSchema.safeParse({
+        ...baseManifest,
+        related: ['shipfox/slack-thread-digest'],
+      }).success,
+    ).toBe(true);
   });
 
   it('requires a start phrase and limits it to 120 characters', () => {
@@ -137,6 +171,10 @@ describe('workflowTemplateManifestSchema', () => {
     {
       name: 'a missing role',
       when: {role: 'missing'},
+    },
+    {
+      name: 'an inherited role name',
+      when: {role: 'toString'},
     },
     {
       name: 'a provider not declared by the role',

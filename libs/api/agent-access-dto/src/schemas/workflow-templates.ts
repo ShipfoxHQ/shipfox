@@ -15,9 +15,7 @@ export const workspaceWorkflowTemplateSchema = z.object({
   start_label: z
     .string()
     .nullable()
-    .describe(
-      'The template manifest starts phrase, or null when every role binding starts manually.',
-    ),
+    .describe("The workflow's starting phrase, or null when every role binding starts manually."),
   providers: z.array(z.string()),
   missing_providers: z.array(z.string()),
   prompt: z.string(),

@@ -3,7 +3,7 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 
 ## What it does
 
-- **`workflowTemplateManifestSchema`** checks template presentation fields, roles, provider choices, options, model placeholders, and described slots, secrets, and variables.
+- **`workflowTemplateManifestSchema`** checks template presentation fields, keywords, starts, flow, writes, prerequisites, related templates, roles, options, model placeholders, and described slots, secrets, and variables.
 - **`composeWorkflow`** replaces `# part:<role>.<name>` markers with text blocks at the marker indentation.
 - **`composeTemplate`** selects one provider part for every bound role, composes the workflow, and writes its `# shipfox-template:` header.
 - **`templateRoleBindings`** lists every role binding a template supports, with each optional role both bound and unbound.

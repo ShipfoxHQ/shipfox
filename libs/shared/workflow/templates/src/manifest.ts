@@ -8,7 +8,23 @@ const environmentNameSchema = z
   .string()
   .min(1)
   .regex(/^[A-Za-z][A-Za-z0-9_-]*$/);
-const registryPackageNameSchema = z.string().regex(/^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/);
+const registrySlugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const registryPackageNameSchema = z.string().refine(
+  (value) => {
+    const [namespace, name, ...extraSegments] = value.split('/');
+    return (
+      extraSegments.length === 0 &&
+      [namespace, name].every(
+        (segment) =>
+          segment !== undefined &&
+          segment.length >= 2 &&
+          segment.length <= 40 &&
+          registrySlugPattern.test(segment),
+      )
+    );
+  },
+  {message: 'Expected a registry package name such as shipfox/slack-thread-digest'},
+);
 
 export const workflowTemplateRoleSchema = z
   .object({
@@ -178,6 +194,18 @@ export const workflowTemplateManifestSchema = z
     ]);
     const roles = manifest.roles;
     const options = new Map(manifest.options.map((option) => [option.id, option]));
+    const optionIds = new Set<string>();
+
+    manifest.options.forEach((option, index) => {
+      if (optionIds.has(option.id)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['options', index, 'id'],
+          message: 'Option ids must be unique',
+        });
+      }
+      optionIds.add(option.id);
+    });
 
     manifest.keywords.forEach((keyword, index) => {
       if (manifest.keywords.indexOf(keyword) !== index) {
@@ -234,6 +262,14 @@ function validateWhen(
   if (when === undefined) return;
 
   if ('role' in when) {
+    if (!Object.hasOwn(roles, when.role)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, 'role'],
+        message: `Unknown role in when condition: ${when.role}`,
+      });
+      return;
+    }
     const role = roles[when.role];
     if (role === undefined) {
       context.addIssue({
