@@ -1,70 +1,52 @@
 ---
 title: "Quick Start: Your First Workflow with Your Coding Agent"
 sidebarTitle: "Quick Start"
-description: "Paste one prompt into your coding agent. It sets up a workflow that turns a task into a tested pull request."
+description: "Connect your coding agent to Shipfox and ask it to build your first workflow."
 ---
 
-Your coding agent sets up a workflow that turns a task into a tested pull
-request. You connect the agent, paste one prompt, and merge two pull requests.
+Your coding agent builds Shipfox workflows for you. Connect it, then tell it
+what to build.
 
 ## Before you begin
 
 - Complete onboarding in [Shipfox](https://app.shipfox.io), with a project for
-  a GitHub repository.
+  your repository.
 - Open that repository in Claude Code or Codex CLI.
 
-The test run uses runner time and model inference, like any other run.
+## Connect your coding agent
 
-## Set up your first workflow
+In Claude Code, run this command in the repository:
 
-<Steps>
-  <Step>
+```sh
+claude mcp add --transport http shipfox https://api.shipfox.io/mcp
+```
 
-    **Connect your coding agent**
+Run `/mcp`, select **shipfox**, and sign in. For Codex CLI, see [Connect a
+Coding Agent](/how-to/set-up-work/connect-mcp-client).
 
-    In Claude Code, run this command in the repository:
+## Start building
 
-    ```sh
-    claude mcp add --transport http shipfox https://api.shipfox.io/mcp
-    ```
-
-    Run `/mcp`, select **shipfox**, and sign in. For Codex CLI, see [Connect a
-    Coding Agent](/how-to/set-up-work/connect-mcp-client).
-  </Step>
-  <Step>
-
-    **Paste the prompt**
-
-    ```text
-    Use Shipfox to create a workflow from the ticket-to-pr template, without the tracker part.
-    ```
-
-    Answer the agent's questions. It finds your test commands, proposes a small
-    task from your repository, and starts a test run.
-  </Step>
-  <Step>
-
-    **Merge the two pull requests**
-
-    The test run opens a **task pull request** with the change. Leave a review
-    comment and the agent pushes a fix. Merge it to ship the change.
-
-    Then the agent opens a **workflow pull request**. Merge it to turn the
-    workflow on.
-  </Step>
-</Steps>
-
-## What you built
-
-The workflow is on. Give it the next task through your coding agent:
+Start from a template. Pick one in [Examples](/examples) and paste its prompt,
+such as:
 
 ```text
-Start the Implement a task and open a pull request workflow in Shipfox with this task: <the change and how to check it>.
+Use Shipfox to create a workflow from the ticket-to-pr template, without the tracker part.
 ```
+
+Or describe your own workflow:
+
+```text
+Use Shipfox to write a workflow for this repository.
+```
+
+The agent asks a few questions, tests the workflow on your repository, and
+opens a pull request. Merge it to turn the workflow on.
+
+## Next steps
 
 <Cards>
   <Card title="Examples" href="/examples">
-    Set up another workflow, such as fixing failed CI or answering questions in Slack.
+    Workflows tested by the Shipfox team, each with a prompt to paste.
   </Card>
   <Card title="How Shipfox works" href="/understand">
     The mental model in one page: events, jobs, agents, and feedback loops.
