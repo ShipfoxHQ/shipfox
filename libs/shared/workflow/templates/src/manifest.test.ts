@@ -44,7 +44,7 @@ describe('workflowTemplateManifestSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('accepts manifest v2 metadata, conditions, and described fields', () => {
+  it('accepts manifest v2 metadata and described fields', () => {
     const manifest = workflowTemplateManifestSchema.parse({
       ...baseManifest,
       keywords: ['coding-agent', 'pull-request'],
@@ -60,16 +60,9 @@ describe('workflowTemplateManifestSchema', () => {
       ],
       writes: [
         {provider: 'github', action: 'Opens a pull request.'},
-        {
-          provider: 'github',
-          action: 'Adds a review label.',
-          when: {option: 'feedback', choices: ['on']},
-        },
+        {action: 'With a tracker, comments on the ticket.'},
       ],
-      prerequisites: [
-        'Run CI on GitHub Actions.',
-        {text: 'Invite the app to Slack.', when: {role: 'report', provider: 'slack'}},
-      ],
+      prerequisites: ['With Slack, invite the app to the report channel.'],
       related: ['shipfox/fix-default-branch-ci'],
       roles: {
         ...baseManifest.roles,
@@ -95,6 +88,7 @@ describe('workflowTemplateManifestSchema', () => {
       variables: [{name: 'COMMAND', description: 'Command the workflow runs.'}],
     });
 
+    expect(manifest.writes[1]).toEqual({action: 'With a tracker, comments on the ticket.'});
     expect(manifest.roles.source?.from).toBe('project');
     expect(manifest.options[0]?.choices[1]?.default).toBe(true);
     expect(manifest.models.fix).toEqual({note: 'Repairs the failed check.'});
@@ -167,42 +161,17 @@ describe('workflowTemplateManifestSchema', () => {
     ).toBe(false);
   });
 
-  it.each([
-    {
-      name: 'a missing role',
-      when: {role: 'missing'},
-    },
-    {
-      name: 'an inherited role name',
-      when: {role: 'toString'},
-    },
-    {
-      name: 'a provider not declared by the role',
-      when: {role: 'source', provider: 'linear'},
-    },
-    {
-      name: 'a missing option',
-      when: {option: 'missing', choices: ['on']},
-    },
-    {
-      name: 'a choice not declared by the option',
-      when: {option: 'feedback', choices: ['missing']},
-    },
-  ])('rejects when conditions with $name', ({when}) => {
+  it('rejects conditions on writes and prerequisites', () => {
     expect(
       workflowTemplateManifestSchema.safeParse({
         ...baseManifest,
-        roles: {
-          source: baseManifest.roles.source,
-          report: {
-            providers: ['slack'],
-            optional: true,
-            question: 'Should this report?',
-            tradeoff: 'Adds a report.',
-          },
-        },
-        options: [{id: 'feedback', choices: [{id: 'on'}]}],
-        writes: [{provider: 'github', action: 'Opens a pull request.', when}],
+        writes: [{provider: 'github', action: 'Opens a pull request.', when: {role: 'source'}}],
+      }).success,
+    ).toBe(false);
+    expect(
+      workflowTemplateManifestSchema.safeParse({
+        ...baseManifest,
+        prerequisites: [{text: 'Invite the app.', when: {role: 'source'}}],
       }).success,
     ).toBe(false);
   });

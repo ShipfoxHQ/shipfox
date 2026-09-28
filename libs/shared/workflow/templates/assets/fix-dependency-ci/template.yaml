@@ -1,6 +1,30 @@
 title: Repair failing pull request CI
 summary: Get a tested fix when CI fails on a dependency update or an opted-in pull request.
 starts: CI fails on a selected GitHub pull request
+keywords: [ci, dependencies, dependabot, renovate, pull-request]
+flow:
+  - kind: trigger
+    provider: github
+    title: CI fails on a selected pull request
+    detail: A check fails on a dependency-bot pull request, a labeled pull request, or any same-repository pull request, depending on your choice.
+  - kind: agent
+    title: The agent finds the cause
+    detail: It reads the failed logs and the changes in the pull request.
+  - kind: check
+    title: The workflow runs your checks again
+    detail: The checks confirm that the fix works.
+  - kind: write
+    provider: github
+    title: The workflow pushes the fix or proposes it
+    detail: It pushes one commit to the pull request branch, or it posts a tested patch as a comment.
+writes:
+  - provider: github
+    action: Pushes one commit to the pull request branch, unless it is set to comment only.
+  - provider: github
+    action: Comments on the pull request with the result.
+prerequisites:
+  - To push fixes, make sure branch rules let the Shipfox app push to the pull request branches.
+related: [shipfox/fix-default-branch-ci]
 roles:
   source:
     from: project

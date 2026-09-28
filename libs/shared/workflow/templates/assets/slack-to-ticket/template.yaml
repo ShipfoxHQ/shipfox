@@ -1,6 +1,31 @@
 title: Create a ticket from a Slack conversation
 summary: Turn a request in a Slack thread into a Linear ticket grounded in your code.
 starts: Someone asks the Shipfox app to create a ticket from a Slack thread
+keywords: [tickets, triage, intake, chatops]
+flow:
+  - kind: trigger
+    provider: slack
+    title: Someone asks for a ticket in Slack
+    detail: They mention the Shipfox app in a thread. A Slack dispatcher can also start it.
+  - kind: agent
+    title: The agent reads the thread and the code
+    detail: It drafts the problem, scope, and acceptance criteria from what the thread says, and links the relevant code. It asks questions when an essential fact is missing.
+  - kind: write
+    provider: linear
+    title: The workflow creates a Linear ticket
+    detail: A thread gets one ticket. A repeated request gets the existing one.
+  - kind: write
+    provider: slack
+    title: The workflow links the ticket in the thread
+    detail: You review the ticket before work starts.
+writes:
+  - provider: linear
+    action: Creates one ticket per thread in the chosen team, and in the chosen project when set.
+  - provider: slack
+    action: Replies once in the thread.
+prerequisites:
+  - Invite the Shipfox app to each Slack channel where it creates tickets.
+related: [shipfox/slack-dispatcher, shipfox/ask-codebase, shipfox/ticket-to-pr]
 roles:
   chat:
     providers: [slack]

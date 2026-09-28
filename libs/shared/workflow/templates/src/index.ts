@@ -32,7 +32,6 @@ export {
   type WorkflowTemplateSecret,
   type WorkflowTemplateSlot,
   type WorkflowTemplateVariable,
-  type WorkflowTemplateWhen,
   type WorkflowTemplateWrite,
   workflowTemplateFlowStepSchema,
   workflowTemplateManifestSchema,
@@ -44,7 +43,6 @@ export {
   workflowTemplateSecretSchema,
   workflowTemplateSlotSchema,
   workflowTemplateVariableSchema,
-  workflowTemplateWhenSchema,
   workflowTemplateWriteSchema,
 } from './manifest.js';
 export {

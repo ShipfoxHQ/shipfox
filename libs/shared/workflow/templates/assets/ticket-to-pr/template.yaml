@@ -1,6 +1,34 @@
 title: Task to pull request
 summary: Turn a ticket or a request into a tested GitHub pull request.
 starts: An agent sends a task, or a ticket is ready in Linear, Jira, ClickUp, or GitHub
+keywords: [pull-request, coding-agent, tickets, code-review]
+flow:
+  - kind: trigger
+    title: The agent gets a task
+    detail: Your coding agent or another workflow, such as a Slack dispatcher, sends the task with its acceptance criteria. With a tracker, a ready ticket starts it too, from a label, a tag, a status, an assignment, or a mention of the Shipfox agent.
+  - kind: agent
+    title: The agent changes the code
+    detail: It reads the task and the repository. Then it makes the smallest change, or asks questions when the task is unclear.
+  - kind: check
+    title: The workflow runs your tests
+    detail: If a test fails, the workflow sends the log to the agent.
+    loops_to: 1
+  - kind: write
+    provider: github
+    title: The workflow opens a task pull request
+    detail: The task pull request holds the code change, as a draft by default. The starting workflow reads its link or the questions of the agent. With a tracker, the workflow also comments on the ticket.
+  - kind: human
+    title: You review and merge the task pull request
+    detail: Merging it ships the change. With the feedback loop, the agent also replies to inline review comments and fixes failed GitHub Actions runs.
+writes:
+  - provider: github
+    action: Pushes a branch and opens a task pull request, as a draft by default.
+  - provider: github
+    action: With the feedback loop, pushes fixes, replies to inline review comments, and can resolve addressed threads.
+  - action: With a tracker, comments on the ticket and can set its in-progress status, or an in-progress label on GitHub, unless ticket updates are off.
+prerequisites:
+  - With ClickUp, connect a dedicated service account that can see every Space, Folder, and List the workflow watches.
+related: [shipfox/fix-dependency-ci, shipfox/report-failed-runs]
 roles:
   tracker:
     providers: [linear, jira, clickup, github]

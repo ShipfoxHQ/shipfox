@@ -109,12 +109,6 @@ export const workflowTemplateModelSchema = z
   })
   .strict();
 
-export const workflowTemplateWhenSchema = z.union([
-  z.object({role: identifierSchema}).strict(),
-  z.object({role: identifierSchema, provider: identifierSchema}).strict(),
-  z.object({option: identifierSchema, choices: z.array(identifierSchema).min(1)}).strict(),
-]);
-
 export const workflowTemplateFlowStepSchema = z
   .object({
     kind: z.enum(['trigger', 'agent', 'check', 'tool', 'write', 'human']),
@@ -127,21 +121,12 @@ export const workflowTemplateFlowStepSchema = z
 
 export const workflowTemplateWriteSchema = z
   .object({
-    provider: identifierSchema,
+    provider: identifierSchema.optional(),
     action: z.string().min(1),
-    when: workflowTemplateWhenSchema.optional(),
   })
   .strict();
 
-export const workflowTemplatePrerequisiteSchema = z.union([
-  z.string().min(1),
-  z
-    .object({
-      text: z.string().min(1),
-      when: workflowTemplateWhenSchema.optional(),
-    })
-    .strict(),
-]);
+export const workflowTemplatePrerequisiteSchema = z.string().min(1);
 
 export const workflowTemplateSlotSchema = z
   .object({
@@ -192,8 +177,6 @@ export const workflowTemplateManifestSchema = z
       'shipfox',
       ...Object.values(manifest.roles).flatMap((role) => role.providers),
     ]);
-    const roles = manifest.roles;
-    const options = new Map(manifest.options.map((option) => [option.id, option]));
     const optionIds = new Set<string>();
 
     manifest.options.forEach((option, index) => {
@@ -235,85 +218,20 @@ export const workflowTemplateManifestSchema = z
     }
 
     for (const [index, write] of manifest.writes.entries()) {
-      if (!providers.has(write.provider)) {
+      if (write.provider !== undefined && !providers.has(write.provider)) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['writes', index, 'provider'],
           message: `Unknown write provider: ${write.provider}`,
         });
       }
-      validateWhen(write.when, ['writes', index, 'when'], roles, options, context);
-    }
-
-    for (const [index, prerequisite] of manifest.prerequisites.entries()) {
-      if (typeof prerequisite !== 'string') {
-        validateWhen(prerequisite.when, ['prerequisites', index, 'when'], roles, options, context);
-      }
     }
   });
-
-function validateWhen(
-  when: WorkflowTemplateWhen | undefined,
-  path: (string | number)[],
-  roles: WorkflowTemplateManifest['roles'],
-  options: ReadonlyMap<string, WorkflowTemplateOption>,
-  context: z.RefinementCtx,
-): void {
-  if (when === undefined) return;
-
-  if ('role' in when) {
-    if (!Object.hasOwn(roles, when.role)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [...path, 'role'],
-        message: `Unknown role in when condition: ${when.role}`,
-      });
-      return;
-    }
-    const role = roles[when.role];
-    if (role === undefined) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [...path, 'role'],
-        message: `Unknown role in when condition: ${when.role}`,
-      });
-      return;
-    }
-    if ('provider' in when && !role.providers.includes(when.provider)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [...path, 'provider'],
-        message: `Role ${when.role} does not use provider ${when.provider}`,
-      });
-    }
-    return;
-  }
-
-  const option = options.get(when.option);
-  if (option === undefined) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: [...path, 'option'],
-      message: `Unknown option in when condition: ${when.option}`,
-    });
-    return;
-  }
-  for (const [index, choice] of when.choices.entries()) {
-    if (!option.choices.some((candidate) => candidate.id === choice)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [...path, 'choices', index],
-        message: `Unknown choice for option ${when.option}: ${choice}`,
-      });
-    }
-  }
-}
 
 export type WorkflowTemplateRole = z.infer<typeof workflowTemplateRoleSchema>;
 export type WorkflowTemplateOptionChoice = z.infer<typeof workflowTemplateOptionChoiceSchema>;
 export type WorkflowTemplateOption = z.infer<typeof workflowTemplateOptionSchema>;
 export type WorkflowTemplateModel = z.infer<typeof workflowTemplateModelSchema>;
-export type WorkflowTemplateWhen = z.infer<typeof workflowTemplateWhenSchema>;
 export type WorkflowTemplateFlowStep = z.infer<typeof workflowTemplateFlowStepSchema>;
 export type WorkflowTemplateWrite = z.infer<typeof workflowTemplateWriteSchema>;
 export type WorkflowTemplatePrerequisite = z.infer<typeof workflowTemplatePrerequisiteSchema>;
