@@ -119,6 +119,8 @@ describe('e2eEnv', () => {
     assert.equal(env.POSTHOG_MCP_ENDPOINT, 'http://127.0.0.1:55367/mcp');
     assert.match(env.GITHUB_APP_PRIVATE_KEY, /BEGIN PRIVATE KEY/u);
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55360/mcp');
+    assert.equal(env.LINEAR_UPLOADS_URL, 'http://127.0.0.1:55360/uploads/');
+    assert.equal(env.LINEAR_UPLOADS_ALLOW_PRIVATE_NETWORKS, 'true');
     assert.equal(env.LINEAR_OAUTH_CLIENT_ID, 'e2e-linear-client-id');
     assert.equal(env.SHIPFOX_TURBO_CONCURRENCY, undefined);
     assert.equal(env.VITE_API_URL, 'http://localhost:55351');
@@ -155,6 +157,7 @@ describe('e2eEnv', () => {
     assert.equal(env.E2E_GITEA_URL, 'http://localhost:3001');
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:3000');
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:16120/mcp');
+    assert.equal(env.LINEAR_UPLOADS_URL, 'http://127.0.0.1:16120/uploads/');
     assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:16121');
     assert.equal(env.GITHUB_INSTALLATION_TOKEN_FORMAT_OVERRIDE, 'disabled');
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:16122');

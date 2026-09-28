@@ -34,6 +34,7 @@ interface LinearAgentToolCatalogInput {
   sensitive: boolean;
   requiredScope: LinearAgentToolRequiredScope;
   inputSchema: AgentToolJsonSchema;
+  result?: 'file' | undefined;
 }
 
 const orderBySchema = enumSchema(['createdAt', 'updatedAt'], 'Sort order');
@@ -500,6 +501,17 @@ export const linearAgentToolCatalog = [
       repo: stringSchema('Repository name'),
       status: stringSchema('Pull request status'),
     }),
+  }),
+  tool({
+    id: 'download_file',
+    category: 'attachments',
+    description:
+      'Download a file uploaded to Linear. The URL must start with https://uploads.linear.app/, as in issue, comment, and document bodies. Signed URLs are accepted.',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: 'read',
+    inputSchema: objectSchema({url: stringSchema('Linear upload URL')}, ['url']),
+    result: 'file',
   }),
   tool({
     id: 'extract_images',

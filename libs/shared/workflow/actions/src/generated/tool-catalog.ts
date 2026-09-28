@@ -473,6 +473,10 @@ export interface ProviderToolCatalog {
      */
     delete_status_update: {arguments: LinearDeleteStatusUpdateArguments; result: 'json'};
     /**
+     * Download a file uploaded to Linear. The URL must start with https://uploads.linear.app/, as in issue, comment, and document bodies. Signed URLs are accepted.
+     */
+    download_file: {arguments: LinearDownloadFileArguments; result: 'file'};
+    /**
      * Extract and fetch images from markdown content.
      */
     extract_images: {arguments: LinearExtractImagesArguments; result: 'json'};
@@ -3648,6 +3652,13 @@ export interface LinearDeleteStatusUpdateArguments {
    * Status update type
    */
   type: 'project' | 'initiative';
+}
+
+export interface LinearDownloadFileArguments {
+  /**
+   * Linear upload URL
+   */
+  url: string;
 }
 
 export interface LinearExtractImagesArguments {

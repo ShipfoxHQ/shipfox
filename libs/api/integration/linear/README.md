@@ -64,6 +64,15 @@ the local source of truth for authoring validation, write-safety metadata, and
 future audit behavior; the provider advertises `agent_tools` and proxies calls
 to Linear's hosted MCP server with the connection's stored Linear token.
 
+One tool is native rather than proxied. `download_file` is a `file` tool, so
+only action steps can call it. It takes `{url}`, which must start with
+`LINEAR_UPLOADS_URL` (`https://uploads.linear.app/` by default). Anything else
+fails with `file-location-not-allowed`. It drops the URL's `signature` parameter
+and fetches the file with the connection's token. Each hop passes the egress
+guard. It follows up to 3 redirects, only to `https` locations, and drops the
+token once the origin changes. `LINEAR_UPLOADS_ALLOW_PRIVATE_NETWORKS` lets a
+local test server stand in for the uploads host.
+
 Linear reports a missing record, or one the token cannot see, as prose with no
 error code. The provider gives those tool errors the `not-found` code, so callers
 can tell them from other failures.
