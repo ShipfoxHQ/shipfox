@@ -51,6 +51,40 @@ export function SetupChecklistCompletion({
   );
 }
 
+/**
+ * The first workflow's own moment. The checklist stays open around it when
+ * another tracked row is still open, so it sits above the next step rather
+ * than replacing the panel body.
+ */
+export function FirstWorkflowCelebration({
+  showBurst,
+  onBurstComplete,
+}: {
+  showBurst: boolean;
+  onBurstComplete?: (() => void) | undefined;
+}) {
+  return (
+    <div className="relative overflow-hidden border-b border-tag-success-border bg-tag-success-bg p-panel">
+      <ConfettiBurst active={showBurst} onComplete={onBurstComplete} />
+      <div className="relative flex items-center gap-group">
+        <Icon
+          name="checkCircleSolid"
+          className="size-20 shrink-0 text-tag-success-icon"
+          aria-hidden="true"
+        />
+        <div className="min-w-0 flex-1">
+          <Text size="sm" bold className="text-tag-success-text">
+            Your first workflow is on
+          </Text>
+          <Text size="xs" className="text-tag-success-text">
+            Shipfox synced it from your default branch.
+          </Text>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ConfettiBurst({
   active,
   onComplete,

@@ -3,6 +3,7 @@ import {createLinearConnection} from '@shipfox/e2e-setup-integrations';
 import {
   CLOUD_CHECKLIST_COUNT_RE,
   createChecklistWorkspace,
+  createFirstDefinition,
   INITIAL_CHECKLIST_COUNT_RE,
   LINEAR_AUTHORIZE_ORIGIN,
   LINEAR_AUTHORIZE_URL_RE,
@@ -162,6 +163,9 @@ test.describe('workspace setup checklist', () => {
       name: 'Cloud Setup Guide Workspace',
       installationRunners: 'managed',
     });
+    // Seeded before the first visit, so connecting Linear is the transition
+    // that completes the checklist.
+    await createFirstDefinition({auth, workspace});
 
     await workspaceHome.goto(workspace.slug);
     await expect(workspaceSetupChecklist.countLabel(CLOUD_CHECKLIST_COUNT_RE)).toBeVisible();

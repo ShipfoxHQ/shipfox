@@ -6,6 +6,8 @@ export {
 } from '#core/integration-readiness.js';
 export {
   deriveSetupChecklist,
+  type FirstWorkflowProgress,
+  type FirstWorkflowState,
   type SetupChecklist,
   type SetupChecklistAction,
   type SetupChecklistInput,

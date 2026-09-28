@@ -28,7 +28,8 @@ import {
 } from '@tanstack/react-router';
 import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {deriveIntegrationReadiness} from '#core/integration-readiness.js';
-import {deriveSetupChecklist} from '#core/setup-checklist.js';
+import {deriveSetupChecklist, type FirstWorkflowProgress} from '#core/setup-checklist.js';
+import {firstWorkflowQueryKeys} from '#hooks/api/first-workflow.js';
 import {
   SetupChecklistBody,
   type WorkspaceReference,
@@ -81,11 +82,26 @@ function pendingResponse(): Promise<Response> {
   });
 }
 
+function firstWorkflowKey(workspace: WorkspaceReference = WORKSPACE) {
+  return firstWorkflowQueryKeys.scope({kind: 'workspace', workspaceId: workspace.id});
+}
+
+function seedFirstWorkflow(
+  queryClient: QueryClient,
+  progress: FirstWorkflowProgress,
+  workspace: WorkspaceReference = WORKSPACE,
+) {
+  queryClient.setQueryData(firstWorkflowKey(workspace), progress);
+}
+
+/** The first workflow defaults to done so the tools row stays the one that moves. */
 function seedQueries(
   queryClient: QueryClient,
   toolsConnected = false,
   workspace: WorkspaceReference = WORKSPACE,
+  firstWorkflow: FirstWorkflowProgress = {state: 'done'},
 ) {
+  seedFirstWorkflow(queryClient, firstWorkflow, workspace);
   queryClient.setQueryData(integrationProvidersQueryOptions().queryKey, [
     githubProvider,
     linearProvider,
@@ -137,6 +153,7 @@ function renderWithProviders(
     '/w/$workspaceSlug/settings/agents',
     '/w/$workspaceSlug/settings/members',
     '/w/$workspaceSlug/setup/members',
+    '/runs/$workflowRunId',
   ];
   const routes = routePaths.map((path) =>
     createRoute({
@@ -170,6 +187,7 @@ describe('SetupChecklistBody', () => {
       workspaceRunnerCapacity: false,
       modelProvider: {installationProvided: false, configured: false},
       membership: {memberCount: 1, pendingInvitationCount: 0},
+      firstWorkflow: {state: 'open'},
     });
     const queryClient = createQueryClient();
 
@@ -197,16 +215,16 @@ describe('SetupChecklistBody', () => {
       'href',
       `/w/${WORKSPACE.slug}/settings/agents`,
     );
-    expect(await screen.findByRole('link', {name: 'Read the quickstart'})).toHaveAttribute(
+    expect(await screen.findByRole('link', {name: 'Choose a workflow'})).toHaveAttribute(
       'href',
-      'https://www.shipfox.io/docs/getting-started',
+      `/w/${WORKSPACE.slug}`,
     );
     expect(await screen.findByRole('link', {name: 'Invite'})).toHaveAttribute(
       'href',
       `/w/${WORKSPACE.slug}/setup/members`,
     );
     expect(screen.queryByText('Next', {exact: true})).not.toBeInTheDocument();
-    expect(await screen.findAllByText('next step', {exact: true})).toHaveLength(2);
+    expect(await screen.findAllByText('next step', {exact: true})).toHaveLength(1);
     expect(
       screen
         .getAllByText('done', {exact: true})
@@ -244,12 +262,9 @@ describe('workspace checklist hosts', () => {
     });
 
     expect(fetchImpl).not.toHaveBeenCalled();
-    expect(
-      queryClient
-        .getQueryCache()
-        .find({queryKey: integrationProvidersQueryOptions().queryKey})
-        ?.getObserversCount() ?? 0,
-    ).toBe(0);
+    for (const queryKey of [integrationProvidersQueryOptions().queryKey, firstWorkflowKey()]) {
+      expect(queryClient.getQueryCache().find({queryKey})?.getObserversCount() ?? 0).toBe(0);
+    }
     clearWorkspaceSetupChecklistDismissal(WORKSPACE.id);
   });
 
@@ -334,7 +349,7 @@ describe('workspace checklist hosts', () => {
     });
 
     expect(
-      await screen.findByRole('button', {name: 'Get started, 2 of 3 done'}),
+      await screen.findByRole('button', {name: 'Get started, 3 of 4 done'}),
     ).toBeInTheDocument();
   });
 
@@ -345,7 +360,7 @@ describe('workspace checklist hosts', () => {
 
     renderWithProviders(<WorkspaceSetupIndicator workspace={WORKSPACE} />, queryClient, {capture});
     expect(
-      await screen.findByRole('button', {name: 'Get started, 2 of 3 done'}),
+      await screen.findByRole('button', {name: 'Get started, 3 of 4 done'}),
     ).toBeInTheDocument();
 
     act(() => {
@@ -355,7 +370,7 @@ describe('workspace checklist hosts', () => {
       ]);
     });
 
-    const trigger = await screen.findByRole('button', {name: 'Get started, 3 of 3 done'});
+    const trigger = await screen.findByRole('button', {name: 'Get started, 4 of 4 done'});
     expect(capture).toHaveBeenCalledWith('onboarding_checklist_completed', {host: 'popover'});
     fireEvent.click(trigger);
 
@@ -387,7 +402,7 @@ describe('workspace checklist hosts', () => {
     );
 
     expect(
-      await screen.findByRole('button', {name: 'Get started, 2 of 3 done'}),
+      await screen.findByRole('button', {name: 'Get started, 3 of 4 done'}),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: 'Hide setup guide'}));
 
@@ -460,6 +475,11 @@ describe('workspace checklist hosts', () => {
       });
       queryClient.setQueryData(listMembersQueryKey(WORKSPACE.id), []);
       queryClient.setQueryData(listInvitationsQueryKey(WORKSPACE.id), []);
+    });
+    await waitFor(() => expect(screen.queryByText("You're set up")).not.toBeInTheDocument());
+
+    act(() => {
+      seedFirstWorkflow(queryClient, {state: 'done'});
     });
 
     expect(await screen.findByText("You're set up")).toBeInTheDocument();
@@ -587,7 +607,7 @@ describe('workspace checklist hosts', () => {
     expect(await screen.findByText('Connect your tools')).toBeInTheDocument();
     expect(screen.queryByRole('list', {name: 'Setup steps'})).not.toBeInTheDocument();
     expect(screen.queryByText('Create a project')).not.toBeInTheDocument();
-    expect(screen.queryByText('Push your first workflow')).not.toBeInTheDocument();
+    expect(screen.queryByText('Create your first workflow')).not.toBeInTheDocument();
 
     const toggle = screen.getByRole('button', {name: 'Show all 5 steps'});
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
@@ -595,7 +615,7 @@ describe('workspace checklist hosts', () => {
 
     expect(await screen.findByRole('list', {name: 'Setup steps'})).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(5);
-    expect(screen.getByText('Push your first workflow')).toBeInTheDocument();
+    expect(screen.getByText('Create your first workflow')).toBeInTheDocument();
 
     const collapse = screen.getByRole('button', {name: 'Show less'});
     expect(collapse).toHaveAttribute('aria-expanded', 'true');
@@ -738,7 +758,7 @@ describe('workspace checklist hosts', () => {
     });
 
     expect(await screen.findByRole('status', {name: 'Loading setup guide'})).toBeInTheDocument();
-    expect(screen.queryByText('Push your first workflow')).not.toBeInTheDocument();
+    expect(screen.queryByText('Invite your teammates')).not.toBeInTheDocument();
     // The tracked rows are still hidden, so no count may claim they are done.
     expect(screen.queryByText(DONE_COUNT_RE)).not.toBeInTheDocument();
   });
@@ -771,13 +791,14 @@ describe('workspace checklist hosts', () => {
       defaultHarnessId: null,
       defaultProviderId: null,
     });
+    seedFirstWorkflow(queryClient, {state: 'done'});
 
     renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {
       capture: vi.fn(),
     });
 
     // Members and invitations are still in flight, and the count is already final.
-    expect(await screen.findByText('2 of 3 done')).toBeInTheDocument();
+    expect(await screen.findByText('3 of 4 done')).toBeInTheDocument();
     expect(await screen.findByText('Connect your tools')).toBeInTheDocument();
   });
 
@@ -805,5 +826,182 @@ describe('workspace checklist hosts', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', {name: GET_STARTED_BUTTON_RE})).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('first workflow row', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: vi.fn()});
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  function captured(capture: ReturnType<typeof vi.fn>, event: string) {
+    return capture.mock.calls.filter(([name]) => name === event);
+  }
+
+  test('moves from open to test run succeeded to done as the progress changes', async () => {
+    const queryClient = createQueryClient();
+    seedQueries(queryClient, true, WORKSPACE, {state: 'open'});
+    const capture = vi.fn();
+
+    renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {capture});
+
+    expect(await screen.findByText('Create your first workflow')).toBeInTheDocument();
+    expect(screen.getByText('Your coding agent sets it up from a template')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Choose a workflow'})).toHaveAttribute(
+      'href',
+      `/w/${WORKSPACE.slug}`,
+    );
+
+    act(() => {
+      seedFirstWorkflow(queryClient, {state: 'test_run_succeeded', testRunId: 'run-1'});
+    });
+
+    expect(await screen.findByText('A test run succeeded')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Merge the workflow pull request from your coding agent to turn the workflow on',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'View run'})).toHaveAttribute('href', '/runs/run-1');
+    expect(capture).toHaveBeenCalledWith('first_workflow_test_run_shown', {host: 'panel'});
+
+    act(() => {
+      seedFirstWorkflow(queryClient, {state: 'done'});
+    });
+
+    // Every other row is done, so the checklist completion carries the only burst.
+    expect(await screen.findByText("You're set up")).toBeInTheDocument();
+    expect(screen.queryByText('Your first workflow is on')).not.toBeInTheDocument();
+    expect(captured(capture, 'onboarding_checklist_completed')).toHaveLength(1);
+    expect(captured(capture, 'first_workflow_activated')).toHaveLength(1);
+  });
+
+  test('celebrates the first workflow once while another row stays open', async () => {
+    const queryClient = createQueryClient();
+    seedQueries(queryClient, false, WORKSPACE, {
+      state: 'test_run_succeeded',
+      testRunId: 'run-1',
+    });
+    const capture = vi.fn();
+
+    renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {capture});
+
+    expect(await screen.findByText('Connect your tools')).toBeInTheDocument();
+    // The row sits behind the tools step, so it has not been shown yet.
+    expect(captured(capture, 'first_workflow_test_run_shown')).toHaveLength(0);
+
+    act(() => {
+      seedFirstWorkflow(queryClient, {state: 'done'});
+    });
+
+    expect(await screen.findByText('Your first workflow is on')).toBeInTheDocument();
+    expect(screen.getByText('Connect your tools')).toBeInTheDocument();
+    expect(screen.queryByText("You're set up")).not.toBeInTheDocument();
+    expect(captured(capture, 'first_workflow_activated')).toHaveLength(1);
+
+    act(() => {
+      seedFirstWorkflow(queryClient, {state: 'open'});
+    });
+    act(() => {
+      seedFirstWorkflow(queryClient, {state: 'done'});
+    });
+
+    await waitFor(() => expect(screen.getAllByText('Your first workflow is on')).toHaveLength(1));
+    expect(captured(capture, 'first_workflow_activated')).toHaveLength(1);
+    expect(captured(capture, 'onboarding_checklist_completed')).toHaveLength(0);
+  });
+
+  test('waits for every family before choosing between the two bursts', async () => {
+    const queryClient = createQueryClient();
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() => pendingResponse()),
+    });
+    seedQueries(queryClient, true, WORKSPACE, {state: 'open'});
+    queryClient.removeQueries({queryKey: listMembersQueryKey(WORKSPACE.id)});
+    const capture = vi.fn();
+
+    renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {capture});
+
+    expect(await screen.findByText('Create your first workflow')).toBeInTheDocument();
+
+    act(() => {
+      seedFirstWorkflow(queryClient, {state: 'done'});
+    });
+    await waitFor(() => expect(screen.queryByText('Create your first workflow')).toBeNull());
+    expect(screen.queryByText('Your first workflow is on')).not.toBeInTheDocument();
+    expect(captured(capture, 'first_workflow_activated')).toHaveLength(0);
+
+    act(() => {
+      queryClient.setQueryData(listMembersQueryKey(WORKSPACE.id), []);
+    });
+
+    expect(await screen.findByText("You're set up")).toBeInTheDocument();
+    expect(screen.queryByText('Your first workflow is on')).not.toBeInTheDocument();
+    expect(captured(capture, 'first_workflow_activated')).toHaveLength(1);
+  });
+
+  test('plays nothing for a workspace that already had a definition on load', async () => {
+    const queryClient = createQueryClient();
+    seedQueries(queryClient, false, WORKSPACE, {state: 'done'});
+    const capture = vi.fn();
+
+    renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {capture});
+
+    expect(await screen.findByText('Connect your tools')).toBeInTheDocument();
+    expect(screen.queryByText('Your first workflow is on')).not.toBeInTheDocument();
+    expect(captured(capture, 'first_workflow_activated')).toHaveLength(0);
+  });
+
+  test('hides the row until the first-workflow read answers', async () => {
+    const queryClient = createQueryClient();
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() => pendingResponse()),
+    });
+    seedQueries(queryClient, true);
+    queryClient.removeQueries({queryKey: firstWorkflowKey()});
+
+    renderWithProviders(<WorkspaceSetupIndicator workspace={WORKSPACE} />, queryClient, {
+      capture: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', {name: GET_STARTED_BUTTON_RE})).not.toBeInTheDocument();
+    });
+
+    act(() => {
+      seedFirstWorkflow(queryClient, {state: 'open'});
+    });
+
+    expect(
+      await screen.findByRole('button', {name: 'Get started, 3 of 4 done'}),
+    ).toBeInTheDocument();
+  });
+
+  test('captures the test run row when the popover shows it', async () => {
+    const queryClient = createQueryClient();
+    seedQueries(queryClient, false, WORKSPACE, {
+      state: 'test_run_succeeded',
+      testRunId: 'run-1',
+    });
+    const capture = vi.fn();
+
+    renderWithProviders(<WorkspaceSetupIndicator workspace={WORKSPACE} />, queryClient, {capture});
+
+    const trigger = await screen.findByRole('button', {name: 'Get started, 2 of 4 done'});
+    expect(captured(capture, 'first_workflow_test_run_shown')).toHaveLength(0);
+    fireEvent.click(trigger);
+
+    expect(await screen.findByText('A test run succeeded')).toBeInTheDocument();
+    expect(capture).toHaveBeenCalledWith('first_workflow_test_run_shown', {host: 'popover'});
   });
 });

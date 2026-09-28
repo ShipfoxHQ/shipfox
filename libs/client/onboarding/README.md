@@ -15,16 +15,16 @@ post-activation Get-started checklist, and its panel and top-bar hosts.
   `attentionProviders` list ordered by the most recent connection update, and
   the two workspace-level facts `hasSourceControl` and `hasToolIntegration`.
 - **`deriveSetupChecklist`**: the setup-checklist derivation. It turns
-  integration readiness plus runner, model-provider, and membership facts into
-  the ordered `items` list, the tracked `openCount` and `trackedCount`, and
-  `complete`. Rows follow the spec order; the runner and model-provider rows
-  exist only when the installation does not already provide the capability;
-  the first-workflow and teammates rows are pointers that never count.
+  integration readiness plus runner, model-provider, first-workflow, and
+  membership facts into the ordered `items` list, the tracked `openCount` and
+  `trackedCount`, and `complete`. Rows follow the spec order; the runner and
+  model-provider rows exist only when the installation does not already provide
+  the capability; the teammates row is a pointer that never counts.
 - **`selectNextSetupStep`**: the one row a compact host asks for. It returns the
   first open tracked row, falling back to the first unfinished pointer once
   every tracked row is done.
 - **`WorkspaceSetupChecklist`** and **`WorkspaceSetupIndicator`**: slot-ready
-  hosts that load the five checklist query families, render the checklist in a
+  hosts that load the six checklist query families, render the checklist in a
   panel or a non-modal popover, and persist per-device dismissal. The panel sits
   above a page's own content, so it shows only the next step. A header toggle
   opens the full list, and that choice is remembered per device. The popover
@@ -46,7 +46,7 @@ pnpm add @shipfox/client-onboarding
 
 The package is part of the `libs/client` workspace. Its runtime dependencies
 are `client-agent`, `client-integrations`, `client-projects`, `client-runners`,
-`client-shell`, and `client-workspace-settings`.
+`client-shell`, `client-workflows`, and `client-workspace-settings`.
 
 ## Usage
 
@@ -72,12 +72,13 @@ const checklist = deriveSetupChecklist({
   workspaceRunnerCapacity: false,
   modelProvider: {installationProvided: false, configured: false},
   membership: {memberCount: 1, pendingInvitationCount: 0},
+  firstWorkflow: {state: 'open'},
 });
 
 checklist.items; // 7 rows: source control, project, tools, runner,
 // model provider, first workflow, teammates
-checklist.trackedCount; // 5
-checklist.openCount; // 3
+checklist.trackedCount; // 6
+checklist.openCount; // 4
 checklist.complete; // false
 
 selectNextSetupStep(checklist)?.id; // 'tools'
@@ -106,6 +107,8 @@ The caller maps its own query results to the derivation inputs:
 - `modelProvider` reports installation-provided inference and workspace
   configuration.
 - `membership` reports the member and pending-invitation counts.
+- `firstWorkflow` is `{state: 'open'}`, `{state: 'test_run_succeeded',
+  testRunId}`, or `{state: 'done'}`.
 
 ## Behavior notes
 
@@ -117,8 +120,16 @@ The caller maps its own query results to the derivation inputs:
 - The tools row names one attention provider ("Linear needs attention") or
   counts several ("2 integrations need attention").
 - `complete` is true when every tracked row is done. Tracked rows are source
-  control, project, and tools, plus runner and model-provider when those rows
-  exist. The first-workflow and teammates pointers never count.
+  control, project, tools, and first workflow, plus runner and model-provider
+  when those rows exist. The teammates pointer never counts.
+- The first-workflow row is open with "Create your first workflow" and a link
+  to the workspace home until a dev run succeeds. It then reads "A test run
+  succeeded" and links to that run. It is done once the workspace has a
+  definition. A succeeded dev run is the only fact behind the middle state.
+- The hosts read the first-workflow state per project: definitions and
+  succeeded dev runs, one of each, stopping at the first definition. The read
+  reloads when the window regains focus and polls every 15 seconds while the
+  tab is visible, until the row is done. The other families never poll.
 - The runner row exists only when `installationRunners` is `'none'`; the
   model-provider row exists only when `modelProvider.installationProvided` is
   false.
@@ -127,6 +138,11 @@ The caller maps its own query results to the derivation inputs:
 - The panel and indicator render nothing for an initially complete checklist;
   the mounted host that observes the final tracked row transition renders the
   completion state and owns its one-shot burst.
+- The panel also observes the first-workflow row turning done. It captures
+  `first_workflow_activated` and plays a burst above the next step. When the
+  same transition completes the checklist, only the completion burst plays.
+- Both hosts capture `first_workflow_test_run_shown` once per mount, the first
+  time they show the row as "A test run succeeded".
 - `FirstWorkflowPanel` captures `first_workflow_panel_opened` on mount and
   `first_workflow_prompt_copied` after a successful copy. It is exported but not
   mounted by this package until the activation flow is ready.

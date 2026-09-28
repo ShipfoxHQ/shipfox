@@ -13,16 +13,28 @@ export type SetupChecklistItemId =
 
 /** Every destination the checklist routes to. Keeps action routing total. */
 export type SetupChecklistActionHref =
-  | '/docs/getting-started'
+  | '/'
+  | '/runs/$workflowRunId'
   | '/settings/agents'
   | '/settings/integrations'
   | '/setup/members'
   | '/settings/runners';
 
-export interface SetupChecklistAction {
-  label: string;
-  href: SetupChecklistActionHref;
-}
+export type SetupChecklistAction =
+  | {label: string; href: Exclude<SetupChecklistActionHref, '/runs/$workflowRunId'>}
+  | {label: string; href: '/runs/$workflowRunId'; workflowRunId: string};
+
+/**
+ * Where the workspace stands on its first workflow. A succeeded dev run is the
+ * only fact behind the middle state: it claims neither which workflow ran nor
+ * that a pull request exists.
+ */
+export type FirstWorkflowProgress =
+  | {state: 'open'}
+  | {state: 'test_run_succeeded'; testRunId: string}
+  | {state: 'done'};
+
+export type FirstWorkflowState = FirstWorkflowProgress['state'];
 
 export interface SetupChecklistItem {
   id: SetupChecklistItemId;
@@ -55,6 +67,7 @@ export interface SetupChecklistInput {
   workspaceRunnerCapacity: boolean;
   modelProvider: {installationProvided: boolean; configured: boolean};
   membership: {memberCount: number; pendingInvitationCount: number};
+  firstWorkflow: FirstWorkflowProgress;
 }
 
 const TOOLS_TITLE = 'Connect your tools';
@@ -62,15 +75,18 @@ const TOOLS_PURPOSE =
   'Connect issue tracking, messaging, observability, or any Shipfox integration';
 const RUNNER_PURPOSE = 'Jobs wait in `pending` until a runner is online';
 const MODEL_PROVIDER_PURPOSE = 'Agent steps need a model provider to run';
-const FIRST_WORKFLOW_PURPOSE =
-  'Add a workflow file under `.shipfox/workflows/` and Shipfox picks it up on the next push';
+const FIRST_WORKFLOW_TITLE = 'Create your first workflow';
+const FIRST_WORKFLOW_PURPOSE = 'Your coding agent sets it up from a template';
+const TEST_RUN_SUCCEEDED_TITLE = 'A test run succeeded';
+const TEST_RUN_SUCCEEDED_PURPOSE =
+  'Merge the workflow pull request from your coding agent to turn the workflow on';
 const TEAMMATES_PURPOSE = 'Everyone in the workspace can edit workflows and see runs';
 
 /**
  * Derives the workspace setup checklist from integration readiness and the
- * runner, model-provider, and membership facts. Rows follow the spec order;
- * the runner and model-provider rows exist only when the installation does
- * not already provide the capability.
+ * runner, model-provider, first-workflow, and membership facts. Rows follow the
+ * spec order; the runner and model-provider rows exist only when the
+ * installation does not already provide the capability.
  */
 export function deriveSetupChecklist({
   readiness,
@@ -78,6 +94,7 @@ export function deriveSetupChecklist({
   workspaceRunnerCapacity,
   modelProvider,
   membership,
+  firstWorkflow,
 }: SetupChecklistInput): SetupChecklist {
   const toolsAttention =
     !readiness.hasToolIntegration && attentionToolProviders(readiness).length > 0;
@@ -117,25 +134,14 @@ export function deriveSetupChecklist({
     });
   }
 
-  items.push(
-    {
-      id: 'first-workflow',
-      title: 'Push your first workflow',
-      status: 'info',
-      tracked: false,
-      purpose: FIRST_WORKFLOW_PURPOSE,
-      action: {label: 'Read the quickstart', href: '/docs/getting-started'},
-    },
-    {
-      id: 'teammates',
-      title: 'Invite your teammates',
-      status:
-        membership.memberCount >= 2 || membership.pendingInvitationCount >= 1 ? 'done' : 'info',
-      tracked: false,
-      purpose: TEAMMATES_PURPOSE,
-      action: {label: 'Invite', href: '/setup/members'},
-    },
-  );
+  items.push(firstWorkflowItem(firstWorkflow), {
+    id: 'teammates',
+    title: 'Invite your teammates',
+    status: membership.memberCount >= 2 || membership.pendingInvitationCount >= 1 ? 'done' : 'info',
+    tracked: false,
+    purpose: TEAMMATES_PURPOSE,
+    action: {label: 'Invite', href: '/setup/members'},
+  });
 
   const trackedItems = items.filter((item) => item.tracked);
   const openCount = trackedItems.filter((item) => item.status === 'open').length;
@@ -146,6 +152,35 @@ export function deriveSetupChecklist({
     trackedCount: trackedItems.length,
     complete: openCount === 0,
   };
+}
+
+function firstWorkflowItem(progress: FirstWorkflowProgress): SetupChecklistItem {
+  switch (progress.state) {
+    case 'open':
+      return {
+        id: 'first-workflow',
+        title: FIRST_WORKFLOW_TITLE,
+        status: 'open',
+        tracked: true,
+        purpose: FIRST_WORKFLOW_PURPOSE,
+        action: {label: 'Choose a workflow', href: '/'},
+      };
+    case 'test_run_succeeded':
+      return {
+        id: 'first-workflow',
+        title: TEST_RUN_SUCCEEDED_TITLE,
+        status: 'open',
+        tracked: true,
+        purpose: TEST_RUN_SUCCEEDED_PURPOSE,
+        action: {
+          label: 'View run',
+          href: '/runs/$workflowRunId',
+          workflowRunId: progress.testRunId,
+        },
+      };
+    case 'done':
+      return {id: 'first-workflow', title: FIRST_WORKFLOW_TITLE, status: 'done', tracked: true};
+  }
 }
 
 function toolsTitle(readiness: WorkspaceIntegrationReadiness): string {

@@ -6458,6 +6458,9 @@ importers:
       '@shipfox/client-shell':
         specifier: workspace:*
         version: link:../shell
+      '@shipfox/client-workflows':
+        specifier: workspace:*
+        version: link:../workflows
       '@shipfox/client-workspace-settings':
         specifier: workspace:*
         version: link:../workspace-settings

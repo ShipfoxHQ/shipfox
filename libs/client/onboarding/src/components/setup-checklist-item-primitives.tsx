@@ -4,8 +4,6 @@ import {Link} from '@tanstack/react-router';
 import type {ReactElement} from 'react';
 import type {SetupChecklistAction, SetupChecklistItem} from '#core/setup-checklist.js';
 
-const GETTING_STARTED_URL = 'https://www.shipfox.io/docs/getting-started';
-
 export function checklistStatusLabel(item: SetupChecklistItem): string {
   if (item.status === 'done') return 'done';
   if (!item.tracked) return 'next step';
@@ -55,11 +53,21 @@ export function checklistActionTarget({
   onClick: () => void;
 }): ReactElement {
   switch (action.href) {
-    case '/docs/getting-started':
+    case '/':
       return (
-        <a href={GETTING_STARTED_URL} onClick={onClick}>
+        <Link to="/w/$workspaceSlug" params={{workspaceSlug}} onClick={onClick}>
           {action.label}
-        </a>
+        </Link>
+      );
+    case '/runs/$workflowRunId':
+      return (
+        <Link
+          to="/runs/$workflowRunId"
+          params={{workflowRunId: action.workflowRunId}}
+          onClick={onClick}
+        >
+          {action.label}
+        </Link>
       );
     case '/settings/integrations':
       return (

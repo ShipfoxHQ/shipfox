@@ -18,14 +18,18 @@ import {useQuery} from '@tanstack/react-query';
 import {deriveIntegrationReadiness} from '#core/integration-readiness.js';
 import {
   deriveSetupChecklist,
+  type FirstWorkflowProgress,
   type SetupChecklist,
   type SetupChecklistItemId,
 } from '#core/setup-checklist.js';
+import {useFirstWorkflowState} from './first-workflow.js';
 
 const CHECKLIST_STALE_TIME_MS = 5 * 60 * 1000;
 
 export interface ChecklistQueryState {
   checklist: SetupChecklist;
+  /** Undefined until the first-workflow read answers. */
+  firstWorkflow: FirstWorkflowProgress | undefined;
   baseSettled: boolean;
   /**
    * Every family that can still add a tracked row has reported, by success or
@@ -87,6 +91,9 @@ export function useSetupChecklistQueryState(
     ...listInvitationsQueryOptions(workspaceId),
     ...queryPolicy,
   });
+  // Polls on its own policy: the other families change in this app, while the
+  // first workflow changes in the user's terminal and on GitHub.
+  const firstWorkflow = useFirstWorkflowState({scope: {kind: 'workspace', workspaceId}});
 
   const families = checklistFamilyState({
     providersQuery,
@@ -97,6 +104,10 @@ export function useSetupChecklistQueryState(
     configsQuery,
     membersQuery,
     invitationsQuery,
+    firstWorkflowQuery: {
+      isSuccess: firstWorkflow.progress !== undefined,
+      isError: firstWorkflow.isError,
+    },
   });
 
   const rawChecklist = deriveSetupChecklist({
@@ -117,6 +128,7 @@ export function useSetupChecklistQueryState(
       memberCount: membersQuery.data?.length ?? 0,
       pendingInvitationCount: invitationsQuery.data?.length ?? 0,
     },
+    firstWorkflow: firstWorkflow.progress ?? {state: 'open'},
   });
 
   const hiddenRows = hiddenChecklistRows(families);
@@ -125,6 +137,7 @@ export function useSetupChecklistQueryState(
   const openCount = trackedItems.filter((item) => item.status === 'open').length;
 
   return {
+    firstWorkflow: firstWorkflow.progress,
     baseSettled: families.baseSettled,
     trackedRowsSettled: families.trackedRowsSettled,
     completionReady: families.completionReady,
@@ -153,14 +166,17 @@ function checklistFamilyState(queries: {
   configsQuery: SettleableQuery;
   membersQuery: SettleableQuery;
   invitationsQuery: SettleableQuery;
+  firstWorkflowQuery: SettleableQuery;
 }) {
   const runnerSettled =
     isSettled(queries.activeProvisionersQuery) && isSettled(queries.runnersStatusQuery);
   const modelSettled = isSettled(queries.catalogQuery) && isSettled(queries.configsQuery);
   const membersSettled = isSettled(queries.membersQuery) && isSettled(queries.invitationsQuery);
+  const firstWorkflowSettled = isSettled(queries.firstWorkflowQuery);
   const providersReady = queries.providersQuery.isSuccess;
   const connectionsReady = queries.connectionsQuery.isSuccess;
-  const everyFamilySettled = runnerSettled && modelSettled && membersSettled;
+  const everyFamilySettled =
+    runnerSettled && modelSettled && membersSettled && firstWorkflowSettled;
 
   return {
     providersReady,
@@ -168,8 +184,9 @@ function checklistFamilyState(queries: {
     runnerReady: queries.activeProvisionersQuery.isSuccess && queries.runnersStatusQuery.isSuccess,
     modelReady: queries.catalogQuery.isSuccess && queries.configsQuery.isSuccess,
     membersReady: queries.membersQuery.isSuccess && queries.invitationsQuery.isSuccess,
+    firstWorkflowReady: queries.firstWorkflowQuery.isSuccess,
     baseSettled: isSettled(queries.providersQuery) && isSettled(queries.connectionsQuery),
-    trackedRowsSettled: runnerSettled && modelSettled,
+    trackedRowsSettled: runnerSettled && modelSettled && firstWorkflowSettled,
     completionReady: providersReady && connectionsReady && everyFamilySettled,
   };
 }
@@ -180,12 +197,14 @@ function hiddenChecklistRows(readiness: {
   runnerReady: boolean;
   modelReady: boolean;
   membersReady: boolean;
+  firstWorkflowReady: boolean;
 }): Set<SetupChecklistItemId> {
   const hiddenRows = new Set<SetupChecklistItemId>();
   if (!readiness.providersReady || !readiness.connectionsReady) hiddenRows.add('tools');
   if (!readiness.runnerReady) hiddenRows.add('runner');
   if (!readiness.modelReady) hiddenRows.add('model-provider');
   if (!readiness.membersReady) hiddenRows.add('teammates');
+  if (!readiness.firstWorkflowReady) hiddenRows.add('first-workflow');
   return hiddenRows;
 }
 

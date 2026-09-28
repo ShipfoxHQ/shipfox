@@ -1,9 +1,10 @@
+import {createApiClient} from '@shipfox/e2e-core';
 import type {WorkspaceFixtures} from '@shipfox/e2e-kit/fixtures';
 import type {Page} from '@shipfox/playwright';
 
-export const INITIAL_CHECKLIST_COUNT_RE = /2 of 4 done/u;
-export const LINEAR_CHECKLIST_COUNT_RE = /3 of 4 done/u;
-export const CLOUD_CHECKLIST_COUNT_RE = /2 of 3 done/u;
+export const INITIAL_CHECKLIST_COUNT_RE = /2 of 5 done/u;
+export const LINEAR_CHECKLIST_COUNT_RE = /3 of 5 done/u;
+export const CLOUD_CHECKLIST_COUNT_RE = /3 of 4 done/u;
 export const LINEAR_AUTHORIZE_ORIGIN = 'https://linear.app';
 export const LINEAR_AUTHORIZE_URL_RE = /^https:\/\/linear\.app\//u;
 
@@ -12,7 +13,21 @@ type InstallationRunners = 'managed' | 'none';
 export interface ChecklistWorkspace {
   id: string;
   slug: string;
+  ownerUserId: string;
+  projectId: string;
 }
+
+const FIRST_WORKFLOW_YAML = `name: First workflow
+runner: e2e
+triggers:
+  manual:
+    source: manual
+    event: fire
+jobs:
+  hello:
+    steps:
+      - run: echo hello
+`;
 
 async function stubModelProviderDependencies(page: Page, workspaceId: string) {
   await page.route('**/agent/model-provider-catalog', async (route) => {
@@ -69,10 +84,21 @@ export async function createChecklistWorkspace({
 }): Promise<ChecklistWorkspace> {
   const user = await auth.createUser();
   const workspace = await workspaces.create({userId: user.user.id, name});
-  await projects.createProject({workspaceId: workspace.id});
+  const project = await projects.createProject({workspaceId: workspace.id});
   await auth.loginAs(page, user);
   await stubChecklistDependencies(page, workspace.id, installationRunners);
-  return {id: workspace.id, slug: workspace.slug};
+  return {id: workspace.id, slug: workspace.slug, ownerUserId: user.user.id, projectId: project.id};
+}
+
+/** Adds the workspace's first definition, which completes the first-workflow row. */
+export async function createFirstDefinition({
+  auth,
+  workspace,
+}: Pick<WorkspaceFixtures, 'auth'> & {workspace: ChecklistWorkspace}) {
+  const session = await auth.createSession({user_id: workspace.ownerUserId});
+  await createApiClient({token: session.token}).requestJson('post', '/definitions', {
+    json: {project_id: workspace.projectId, source: 'manual', yaml: FIRST_WORKFLOW_YAML},
+  });
 }
 
 /** Serves Linear's authorize page so the install redirect stays inside the browser. */
