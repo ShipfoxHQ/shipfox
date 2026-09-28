@@ -1,3 +1,4 @@
+export {computeTemplateBump, type TemplateBump, type TemplateManifestChange} from './bump.js';
 export {
   composeTemplate,
   composeWorkflow,
@@ -45,6 +46,12 @@ export {
   workflowTemplateVariableSchema,
   workflowTemplateWriteSchema,
 } from './manifest.js';
+export {
+  type DeriveTemplateMetadataParams,
+  deriveTemplateMetadata,
+  type WorkflowTemplateMetadata,
+  workflowTemplateMetadataSchema,
+} from './metadata.js';
 export {
   extractModelAnchors,
   validateModelAnchors,

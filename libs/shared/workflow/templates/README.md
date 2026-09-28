@@ -7,6 +7,8 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`composeWorkflow`** replaces `# part:<role>.<name>` markers with text blocks at the marker indentation.
 - **`composeTemplate`** selects one provider part for every bound role, composes the workflow, and writes its `# shipfox-template:` header.
 - **`templateRoleBindings`** lists every role binding a template supports, with each optional role both bound and unbound.
+- **`computeTemplateBump`** returns the minimum semantic-version bump between two parsed manifests. The registry and the release tool use it. See [Version bumps](#version-bumps).
+- **`deriveTemplateMetadata`** returns the `derived` field of a template version document from the manifest and the content bundle size: the integrations, the slots, secrets, and variables, the role and option choices, and the size. `workflowTemplateMetadataSchema` validates it.
 - **`extractModelAnchors`** reads each placeholder's tested model and thinking setting from composed YAML.
 - **`recommendModels`** selects up to four scored alternatives to a tested model and labels their intelligence and cost tradeoffs.
 - **`buildTemplatePrompt`** builds the prompt a user pastes into a coding agent to set up a template. It is also exported from the browser-safe `@shipfox/workflow-templates/prompt` subpath.
@@ -97,6 +99,23 @@ The embedded loader takes each template id from its asset directory. It reads `r
 - `related` holds registry package names, such as `shipfox/fix-dependency-ci`.
 
 `writes` and `prerequisites` carry no conditions. Consumers show them as authored, and the coding agent applies them to the user's choices.
+
+### Version bumps
+
+`computeTemplateBump({previous, next})` compares manifests only, so it never sees the workflow body or the prompts. The version number tells how much work an upgrade is:
+
+| Change | Bump |
+| --- | --- |
+| Required role added, role removed, provider removed from a role, or an optional role made required | major |
+| Option or choice removed | major |
+| Slot, secret, or variable added | major |
+| Optional role added, provider added to a role | minor |
+| Option or choice added, `writes` entry added | minor |
+| Anything else, including workflow body, prompts, and removed or reworded slots | patch |
+
+A `writes` entry has no id, so its provider, when it has one, and its text identify it. A reworded entry counts as an added one. When a change fits several rows, the highest bump wins.
+
+`deriveTemplateMetadata` uses only the manifest. Facts that need composition, such as manual trigger inputs, workflow outputs, model anchors, and composed previews, depend on the platform version, so consumers compute them with the composer.
 
 ### Setup prompts
 
