@@ -51,8 +51,8 @@
     "@shipfox/expression": "workspace:*",
     "@shipfox/inter-module": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
-    "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-error-monitoring": "workspace:*",
+    "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-module": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-outbox": "workspace:*",
@@ -65,6 +65,7 @@
     "@temporalio/workflow": "catalog:",
     "cron-parser": "catalog:",
     "drizzle-orm": "catalog:",
+    "es-module-lexer": "catalog:",
     "js-yaml": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:"

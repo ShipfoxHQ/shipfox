@@ -127,6 +127,7 @@ catalog:
   "drizzle-kit": "^0.31.10"
   "drizzle-orm": "^0.45.2"
   "envalid": "^8.0.0"
+  "es-module-lexer": "^2.1.0"
   "fastify": "^5.3.3"
   "fastify-type-provider-zod": "^6.0.0"
   "fishery": "^2.4.0"
