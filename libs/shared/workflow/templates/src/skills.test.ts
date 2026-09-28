@@ -91,7 +91,7 @@ describe('shipped skill resources', () => {
     );
     expect(text).toContain("Share the dev run's `run_url` as soon as it appears");
     expect(text).toContain("Repeat step 6's expected writes in one line");
-    expect(text).toContain('Before repeating a real run after failure or edits');
+    expect(text).toContain('Before repeating after failure or edits');
     expect(text).toContain('Stop and ask after five failed real runs.');
   });
 
