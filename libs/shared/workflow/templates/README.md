@@ -128,6 +128,7 @@ A tracker part supplies these blocks:
 | `tracker.trigger` | Starts from ticket events of one team or project. It must not match the workflow's own ticket writes. |
 | `tracker.ticket_env` | Sets `TICKET_ID`, `TICKET_IDENTIFIER`, `TICKET_TITLE`, `TICKET_URL`, `TICKET_DESCRIPTION`, and `TICKET_REQUEST` on the `task` step. Each is empty when `trigger.source` is `manual`. |
 | `tracker.read_tools` | Gives the `fix` step read-only tracker tools. |
+| `tracker.mark_in_progress` | Moves a ticket to its in-progress status before the `fix` step when the default `comment_and_transition` choice is selected. |
 | `tracker.ask_questions` | Adds an `ask_questions` step for each `ticket_write_back` choice that writes. It runs only for `needs_clarification` when `steps.task.outputs.ticket_id` is set. |
 | `tracker.write_back` | Adds the write-back jobs for each `ticket_write_back` choice that writes. They run only after a PR opens for a task with a ticket ID. |
 

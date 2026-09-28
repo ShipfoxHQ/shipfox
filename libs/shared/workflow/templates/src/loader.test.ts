@@ -66,8 +66,8 @@ describe('workflow template loader', () => {
       'report-failed-runs': {diagnose: {model: 'gpt-6-luna', thinking: 'low'}},
       'slack-to-ticket': {draft: {model: 'gpt-6-sol', thinking: 'high'}},
       'ticket-to-pr': {
-        fix: {model: 'gpt-6-luna', thinking: 'high'},
-        reply: {model: 'gpt-6-sol', thinking: 'low'},
+        fix: {model: 'gpt-6-luna', thinking: 'max'},
+        reply: {model: 'glm-5.3-flash', thinking: 'low'},
       },
     };
 

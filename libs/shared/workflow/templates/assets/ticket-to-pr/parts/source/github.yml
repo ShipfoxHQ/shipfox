@@ -128,7 +128,7 @@ respond: |
     if: >-
       ${{ execution.events.exists(e, e.event == "pull_request_review_comment.created") || execution.events.exists(e, e.event == "workflow_run.completed" && e.data.workflow_run.head_sha == steps.confirm_clean.outputs.head_sha) }}
     model: gpt-6-luna # model:fix
-    thinking: high
+    thinking: max
     session: ticket_pr
     prompt: |
       Continue the task conversation. Pull request
@@ -226,7 +226,7 @@ reply: |
   - key: reply
     if: >-
       ${{ steps.respond.status == "succeeded" && steps.respond.outputs.decisions.exists(d, d.decision != "ignore") }}
-    model: gpt-6-sol # model:reply
+    model: glm-5.3-flash # model:reply
     thinking: low
     prompt: |
       Post the replies below on pull request

@@ -190,6 +190,9 @@ describe('agent-access template tools', () => {
       },
     });
     expect(get.description).toContain('provider_required');
+    expect(get.description).toContain('`choose` when neither default is available');
+    expect(get.description).toContain('set a workspace default under Settings > Agents');
+    expect(get.description).toContain('Do not ask users to compare models during setup');
     if (!response.ok) throw new Error('Expected a successful template response');
     expect(getWorkflowTemplateResultSchema.safeParse(response.result).success).toBe(true);
   });

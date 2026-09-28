@@ -15,12 +15,12 @@ const template = loadShippedTemplates().find((entry) => entry.manifest.id === 't
 if (template === undefined) throw new Error('Missing ticket to PR template');
 const manualOnly: TemplateRoleBindings = {source: 'github'};
 const linear: TemplateRoleBindings = {tracker: 'linear', source: 'github'};
-const defaults: Readonly<Record<string, string>> = {
-  trigger_style: 'agent_session',
-  feedback_loop: 'off',
-  resolve_threads: 'addressed',
-  ticket_write_back: 'comment',
-};
+const defaults: Readonly<Record<string, string>> = Object.fromEntries(
+  template.manifest.options.flatMap((option) => {
+    const defaultChoice = option.choices.find((choice) => choice.default === true);
+    return defaultChoice === undefined ? [] : [[option.id, defaultChoice.id]];
+  }),
+);
 const optionMarker = /^\s*# option:([a-z_]+)=([a-z_]+) (begin|end)$/;
 const expressionPattern = /^\$\{\{\s*([\s\S]*?)\s*\}\}$/;
 const heredocPattern = /^([a-z_]+)<<(\w+)$/;
@@ -133,14 +133,32 @@ afterEach(() => {
 });
 
 describe('ticket to PR template', () => {
-  it('composes a manual-only worker when no tracker is chosen', () => {
+  it('composes a manual-only worker with feedback enabled by default', () => {
     const document = workflow(manualOnly);
 
     expect(render(manualOnly).split('\n')[1]).toBe(
-      '# shipfox-template: ticket-to-pr@4 source=github',
+      '# shipfox-template: ticket-to-pr@5 source=github',
     );
     expect(Object.keys(at(document, 'triggers') as YamlRecord)).toEqual(['manual']);
-    expect(Object.keys(at(document, 'jobs') as YamlRecord)).toEqual(['implement']);
+    expect(Object.keys(at(document, 'jobs') as YamlRecord)).toEqual([
+      'implement',
+      'respond_to_feedback',
+    ]);
+    expect(step(document, 'implement', 'fix')).toMatchObject({
+      model: 'gpt-6-luna',
+      thinking: 'max',
+    });
+    expect(step(document, 'respond_to_feedback', 'respond')).toMatchObject({
+      model: 'gpt-6-luna',
+      thinking: 'max',
+    });
+    expect(step(document, 'respond_to_feedback', 'reply')).toMatchObject({
+      model: 'glm-5.3-flash',
+      thinking: 'low',
+    });
+    expect(
+      Object.keys(at(workflow(manualOnly, {feedback_loop: 'off'}), 'jobs') as YamlRecord),
+    ).toEqual(['implement']);
     expect(step(document, 'implement', 'fix').integrations).toBeUndefined();
     expect(toolSteps(document)).toEqual(['create_pull_request']);
   });
@@ -155,12 +173,41 @@ describe('ticket to PR template', () => {
     expect(Object.keys(at(document, 'jobs') as YamlRecord)).toEqual([
       'implement',
       'comment_on_ticket',
+      'respond_to_feedback',
     ]);
-    expect(toolSteps(workflow(linear, {ticket_write_back: 'comment_and_transition'}))).toEqual([
+    expect(step(document, 'implement', 'mark_in_progress')).toMatchObject({
+      if: `\${{ steps.task.outputs.ticket_id != "" }}`,
+      tool: 'save_issue',
+      with: {
+        id: `\${{ steps.task.outputs.ticket_id }}`,
+        state: 'started',
+      },
+      gate: {
+        on_failure: {
+          restart_from: 'task',
+        },
+      },
+    });
+    const implementSteps = at(document, 'jobs', 'implement', 'steps') as YamlRecord[];
+    expect(implementSteps.findIndex((entry) => entry.key === 'mark_in_progress')).toBeLessThan(
+      implementSteps.findIndex((entry) => entry.key === 'fix'),
+    );
+    expect(toolSteps(document)).toEqual([
+      'save_issue',
       'save_comment',
       'create_pull_request',
       'save_comment',
+    ]);
+    expect(toolSteps(workflow(linear, {ticket_write_back: 'comment_and_transition'}))).toEqual([
       'save_issue',
+      'save_comment',
+      'create_pull_request',
+      'save_comment',
+    ]);
+    expect(toolSteps(workflow(linear, {ticket_write_back: 'comment'}))).toEqual([
+      'save_comment',
+      'create_pull_request',
+      'save_comment',
     ]);
     expect(toolSteps(workflow(linear, {ticket_write_back: 'none'}))).toEqual([
       'create_pull_request',

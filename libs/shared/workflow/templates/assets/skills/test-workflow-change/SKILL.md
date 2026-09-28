@@ -19,8 +19,8 @@ catalog_prompt: Test this validated local Shipfox workflow change against a real
 
 ## Procedure
 
-1. Call `create_dev_run` with `project_id`, `config_path`, `trigger`, and the complete local YAML as `content`. For an integration trigger, supply the validated `replay_event_id`. For manual or cron triggers, omit it; supply `inputs` only for a manual trigger when needed. Set `dry_run: false` or omit it. Record the returned `run_id` and share `run_url` when present.
-2. Call `get_workflow_run` with `run_id` and follow the run. If it fails, call `get_step_logs` with `run_id` and `failed_only: true`. To inspect another step, call `list_workflow_run_jobs`, `list_workflow_job_executions`, and `list_workflow_execution_steps`, then call `get_step_logs` with its `step_id`.
+1. Call `create_dev_run` with the project, config, trigger, and complete YAML. Include `replay_event_id` for integration triggers. Pass `inputs` only for manual triggers. Set `dry_run: false` or omit it. Share the returned `run_url` immediately. If absent, share `run_id` and say no UI link was returned.
+2. Follow the run with `get_workflow_run` using `wait_seconds`. If it fails, call `get_step_logs` with `run_id` and `failed_only: true`. To inspect another step, call `list_workflow_run_jobs`, `list_workflow_job_executions`, and `list_workflow_execution_steps`, then call `get_step_logs` with its `step_id`.
 3. Inspect the external resource for writes already made before retrying a failed run. Dev runs have no idempotency key. If `create_dev_run` returns `tool-failed` or the transport times out, call `list_workflow_runs` for the project with `origin: dev` before any retry.
 4. If the YAML needs a fix, edit it, follow `validate-workflow-change` again, and start another real run. If the YAML is unchanged and the run is terminal, call `rerun_workflow_run` with `run_id`, its current `expected_attempt`, and `mode: all` or `mode: failed`. A rerun uses the stored workflow snapshot. Review existing effects before either kind of repeat; stop and ask the user after five failed real runs.
 
@@ -45,7 +45,7 @@ The local YAML need not exist at any checkout revision.
 
 ## Verify
 
-- Confirm the run shows **Dev · local file** and the expected workflow source. Share `run_url` when available.
+- Confirm the run shows **Dev · local file** and the expected workflow source.
 - Confirm the run and step logs show the expected result. For a listening job, check `listener_status: listening` and explain that it awaits later events.
 - Confirm the original issue, pull request, channel, or other resource has only the intended changes.
 - List each write the run made, with its link, so the user can close or delete it.
