@@ -86,6 +86,16 @@ Every manifest requires `starts`, a phrase of at most 120 characters that descri
 
 The embedded loader takes each template id from its asset directory. It reads `revision`, `added_at`, and `rank` from [`embedded-templates.yaml`](embedded-templates.yaml) and exposes those values beside the manifest. Catalog packages do not include this compatibility file.
 
+### Catalog metadata
+
+`keywords`, `flow`, `writes`, `prerequisites`, and `related` describe a template for catalogs and coding agents:
+
+- `writes` lists every write the template can make, as `{provider?, action}`. Put conditions in the sentence, such as "With a tracker, comments on the ticket." Omit `provider` when it depends on the user's choice.
+- `prerequisites` lists user actions that the roles do not imply, such as inviting the Shipfox app to a channel. Do not list connections: binding each role already requires one.
+- `related` holds registry package names, such as `shipfox/fix-dependency-ci`.
+
+Neither list carries conditions. Consumers show them as authored, and the coding agent applies them to the user's choices.
+
 ### Setup prompts
 
 `buildTemplatePrompt({templateId, choices})` returns `Use Shipfox to create a workflow from the <id> template.` Each `choices` clause, such as `with Slack as the report` or `without the tracker part`, is appended, so the create-workflow-from-template skill confirms it instead of asking. Browser code imports it from `@shipfox/workflow-templates/prompt`, because the package root embeds every template asset.

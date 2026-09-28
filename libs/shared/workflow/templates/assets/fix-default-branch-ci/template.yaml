@@ -1,6 +1,31 @@
 title: Investigate and repair default-branch CI failures
 summary: Find out why CI broke on your default branch and get a tested repair pull request.
 starts: GitHub Actions fails on the default branch
+keywords: [ci, default-branch, repair, github-actions]
+flow:
+  - kind: trigger
+    provider: github
+    title: CI fails on the default branch
+    detail: A GitHub Actions run fails on the default branch.
+  - kind: agent
+    title: The agent finds the cause
+    detail: It reads the failed logs and the recent changes on the branch.
+  - kind: write
+    provider: github
+    title: The agent opens a repair pull request
+    detail: It opens a pull request only when it can fix the cause and your checks pass. If the cause is outside your code, such as a registry outage, it does nothing.
+  - kind: write
+    provider: slack
+    title: With Slack, you are notified
+    detail: The workflow posts about failures that need a person, the repair pull requests it opens, or both.
+writes:
+  - provider: github
+    action: Pushes a branch and opens a draft repair pull request.
+  - provider: slack
+    action: With Slack, posts about failures that need a person, repair pull requests, or both.
+prerequisites:
+  - With Slack, invite the Shipfox app to the report channel.
+related: [shipfox/fix-dependency-ci, shipfox/report-failed-runs]
 roles:
   source:
     from: project

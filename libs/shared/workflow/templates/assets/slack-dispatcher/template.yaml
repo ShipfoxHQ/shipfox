@@ -1,6 +1,35 @@
 title: Route Slack requests to your workflows
 summary: Mention one Slack app for any request, and it starts the workflow that handles it.
 starts: Someone mentions the Shipfox app in Slack with any request
+keywords: [routing, chatops, intake, dispatcher]
+flow:
+  - kind: trigger
+    provider: slack
+    title: Someone mentions the app in Slack
+    detail: They ask a question, ask for a ticket, or ask for a change in a thread.
+  - kind: agent
+    title: The agent picks a workflow
+    detail: It reads the thread and chooses one workflow from your list, such as codebase questions, Slack to ticket, or task to pull request. It asks when the request is unclear or an input is missing.
+  - kind: tool
+    provider: shipfox
+    title: The workflow starts the chosen workflow
+    detail: It posts the run link in the thread. A repeated request gets the earlier run.
+  - kind: write
+    provider: slack
+    title: The result appears in the thread
+    detail: The chosen workflow replies with an answer or a ticket link. For a change, the dispatcher posts the pull request link.
+  - kind: human
+    title: You review the result
+    detail: You review and merge any pull request yourself.
+writes:
+  - provider: shipfox
+    action: Starts one listed workflow per request.
+  - provider: slack
+    action: Replies in the thread with the start message, questions, the earlier run, or a failure notice, and later the pull request link for a change.
+prerequisites:
+  - Invite the Shipfox app to each Slack channel where it routes requests.
+  - Set up each workflow it starts in the same project first. Set the codebase question and Slack ticket workflows to start only from another workflow.
+related: [shipfox/ask-codebase, shipfox/slack-to-ticket, shipfox/ticket-to-pr]
 roles:
   chat:
     providers: [slack]

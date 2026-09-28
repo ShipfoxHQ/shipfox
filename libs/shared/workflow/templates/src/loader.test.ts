@@ -86,6 +86,20 @@ describe('workflow template loader', () => {
     }
   });
 
+  it('gives every shipped template its catalog metadata', () => {
+    const templates = loadShippedTemplates();
+    const packages = new Set(templates.map(({id}) => `shipfox/${id}`));
+
+    for (const {id, manifest} of templates) {
+      expect(manifest.keywords, id).not.toHaveLength(0);
+      expect(manifest.flow[0]?.kind, id).toBe('trigger');
+      expect(manifest.writes, id).not.toHaveLength(0);
+      for (const related of manifest.related) {
+        expect(packages, `${id} links ${related}`).toContain(related);
+      }
+    }
+  });
+
   it('keeps embedded compatibility metadata beside each manifest', () => {
     expect(
       Object.fromEntries(

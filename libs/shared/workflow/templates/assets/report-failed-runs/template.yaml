@@ -1,6 +1,29 @@
 title: Report failed Shipfox workflow runs
 summary: Hear about every failed workflow run in Slack, with the failing step and an agent diagnosis of the cause.
 starts: A Shipfox workflow run fails
+keywords: [monitoring, failures, diagnosis, alerts]
+flow:
+  - kind: trigger
+    provider: shipfox
+    title: A workflow run fails
+    detail: The workflow watches every workflow in the project, or only the ones you pick.
+  - kind: tool
+    provider: shipfox
+    title: The workflow reads the failed run
+    detail: It gets the failed jobs and steps, the first error, and the last 15 log lines.
+  - kind: write
+    provider: slack
+    title: You get a report on Slack
+    detail: The report names the failed step, shows the log excerpt, and suggests a next step.
+  - kind: agent
+    title: The agent diagnoses the failure
+    detail: It reads the failed logs and replies in the thread with the likely cause and a fix to try.
+writes:
+  - provider: slack
+    action: Posts a report and a diagnosis reply for each failed run.
+prerequisites:
+  - Invite the Shipfox app to the Slack report channel.
+related: [shipfox/fix-default-branch-ci]
 roles:
   notify:
     providers: [slack]

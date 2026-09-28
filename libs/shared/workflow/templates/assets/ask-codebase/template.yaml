@@ -1,6 +1,25 @@
 title: Ask the codebase in Slack
 summary: Answer questions about your code in Slack, with references to the files.
 starts: Someone mentions the Shipfox app in Slack, or another workflow starts it manually
+keywords: [questions, codebase, chatops, read-only]
+flow:
+  - kind: trigger
+    provider: slack
+    title: Someone asks a question in Slack
+    detail: They mention the Shipfox app in a channel, or another workflow, such as a Slack dispatcher, starts it.
+  - kind: agent
+    title: The agent reads the thread and the code
+    detail: It reads the default branch and changes nothing.
+  - kind: write
+    provider: slack
+    title: The agent replies in the thread
+    detail: It links the files it read and says when it is not sure.
+writes:
+  - provider: slack
+    action: Replies in the thread with the answer or a failure notice.
+prerequisites:
+  - Invite the Shipfox app to each Slack channel where it answers.
+related: [shipfox/slack-dispatcher, shipfox/slack-to-ticket]
 roles:
   chat:
     providers: [slack]
