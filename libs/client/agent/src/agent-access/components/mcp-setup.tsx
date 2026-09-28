@@ -30,13 +30,15 @@ export function McpSetup() {
         </div>
         <div className="flex flex-col gap-group p-panel-compact">
           <Tabs defaultValue="claude-code">
-            <TabsList aria-label="Setup instructions">
-              <TabsTrigger value="claude-code">Claude Code</TabsTrigger>
-              <TabsTrigger value="codex">Codex</TabsTrigger>
-              <TabsTrigger value="cursor">Cursor</TabsTrigger>
-              <TabsTrigger value="vscode">VS Code</TabsTrigger>
-              <TabsTrigger value="claude">Claude app</TabsTrigger>
-            </TabsList>
+            <div className="scrollbar overflow-x-auto">
+              <TabsList aria-label="Setup instructions" className="min-w-max">
+                <TabsTrigger value="claude-code">Claude Code</TabsTrigger>
+                <TabsTrigger value="codex">Codex</TabsTrigger>
+                <TabsTrigger value="cursor">Cursor</TabsTrigger>
+                <TabsTrigger value="vscode">VS Code</TabsTrigger>
+                <TabsTrigger value="claude">Claude app</TabsTrigger>
+              </TabsList>
+            </div>
             <TabsContent value="claude-code" className="flex flex-col gap-inline pt-panel-compact">
               <Text size="sm">Run this command in your terminal:</Text>
               <SetupCode
