@@ -55,7 +55,7 @@ The following comments are preserved as authoring instructions:
 - `# bind:<role>` identifies a connection binding.
 - `# slot:<name>` identifies a value the agent fills from the manifest slot.
 - `# model:<key>` identifies a model value on an agent step's `model:` line. Each key needs a `models` entry in the manifest.
-- `# option:X=Y begin` and `# option:X=Y end` surround an optional block.
+- `# option:X=Y begin` and `# option:X=Y end` surround an optional block. `X=Y,Z` keeps the block when any listed choice is chosen.
 - `# shipfox-template: <id>@<revision> <role>=<provider>` identifies an adopted composed template. `composeTemplate` writes it after the leading comments from the manifest and the bound roles, so base workflows must not declare it.
 
 The composer only substitutes `part:` markers. It does not evaluate expressions, conditionals, or loops. A missing part or required provider binding throws an error.

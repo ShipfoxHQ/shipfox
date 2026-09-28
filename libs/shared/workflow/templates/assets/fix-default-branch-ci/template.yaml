@@ -10,30 +10,23 @@ roles:
   report:
     providers: [slack]
     optional: true
-    question: Should the workflow post repair pull requests to a Slack channel?
-    tradeoff: Posts one Slack message per repair pull request, and optionally per failure that needs a person. Requires the Shipfox app in the chosen channel. External outages and skipped failures are never posted.
+    question: Should the workflow notify you on Slack?
+    tradeoff: Posts in a Slack channel you choose about failures it cannot fix, the fix pull requests it opens, or both. Outages at external providers are never posted. Requires the Shipfox app in that channel.
 options:
-  - id: pr_mode
-    question: How should the repair pull request open?
-    choices:
-      - id: draft
-        label: Draft
-        default: true
-        tradeoff: Someone marks the PR ready before review.
-      - id: ready
-        label: Ready for review
-        tradeoff: Opens the PR for review right away, which can notify reviewers.
   - id: report_outcomes
-    question: Which outcomes should the workflow post to Slack?
+    question: What should the workflow notify you about on Slack?
     applies_to: [slack]
     choices:
-      - id: pull_requests
-        label: Repair pull requests
+      - id: needs_person
+        label: Failures that need a person
         default: true
-        tradeoff: Posts only when a repair PR opens.
-      - id: pull_requests_and_diagnoses
-        label: Repair pull requests and diagnoses
-        tradeoff: Also posts the diagnosis when a person must act, such as an unexplained intermittent failure or a repair too large to deliver.
+        tradeoff: Posts the agent's diagnosis when it cannot fix a failure, such as an unexplained intermittent failure or a fix too large to open as a pull request.
+      - id: pull_requests
+        label: Fix pull requests
+        tradeoff: Posts a link each time the workflow opens a fix pull request. Failures it cannot fix are not posted.
+      - id: both
+        label: Both
+        tradeoff: Posts both kinds of message.
 models:
   investigate:
     note: Reads failed CI logs and recent history, reproduces the failure, and repairs its cause. Needs a strong model with high thinking.

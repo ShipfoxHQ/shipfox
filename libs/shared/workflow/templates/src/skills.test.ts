@@ -7,8 +7,8 @@ const semanticVersionPattern = /^\d+\.\d+\.\d+$/u;
 describe('shipped skill resources', () => {
   test('embeds the template procedure and template guide bytes', () => {
     const skill = getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md');
-    expect(skill?.revision).toBe(8);
-    expect(skill?.text).toContain('revision: 8');
+    expect(skill?.revision).toBe(9);
+    expect(skill?.text).toContain('revision: 9');
     expect(skill?.text).toContain('## 1. Orient');
     expect(skill?.text).toContain('## 9. Deliver');
     expect(skill?.text).toContain('skill://shipfox/validate-workflow-change/SKILL.md');
@@ -68,13 +68,11 @@ describe('shipped skill resources', () => {
     }
   });
 
-  test('requires model confirmation and project-scoped replay', () => {
+  test('binds known models and replays project events', () => {
     const text =
       getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';
 
-    expect(text).toContain(
-      'Never bind a model and thinking combination the user has not confirmed.',
-    );
+    expect(text).toContain('Bind only models from `model_recommendations` or the catalog.');
     expect(text).toContain(
       'skill://shipfox/create-workflow-from-template/references/choose-models.md',
     );
@@ -139,7 +137,7 @@ describe('shipped skill resources', () => {
     expect(text).not.toContain('from the authoring context');
   });
 
-  test('chooses template models per recommendation group', () => {
+  test('binds the default template model per recommendation group', () => {
     const reference = getShippedSkillResource(
       'skill://shipfox/create-workflow-from-template/references/choose-models.md',
     );
@@ -156,19 +154,21 @@ describe('shipped skill resources', () => {
     for (const mode of ['`recommended`', '`template_default`', '`workspace_default`', '`choose`']) {
       expect(reference?.text).toContain(mode);
     }
+    expect(reference?.text).toContain('Do not ask the user to choose a model.');
     expect(reference?.text).toContain('`provider_required: true`');
     expect(reference?.text).toContain('always for a model chosen from `list_workspace_models`');
     expect(reference?.text).toContain('show at most one page');
     expect(reference?.text).toContain('Never rank or compare unscored models.');
   });
 
-  test('asks one explained question at a time', () => {
+  test('asks one plain question at a time', () => {
     const text =
       getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';
 
     expect(text).toContain('one option per message');
     expect(text).toContain('Ask one question per message and wait for the answer.');
-    expect(text).toContain('restate what it decides and what each answer entails');
+    expect(text).toContain('Write questions in plain words a new user understands.');
+    expect(text).not.toContain('Ask the user to confirm them');
     expect(text).not.toContain('one batch of questions');
     expect(text).not.toContain('pick for me');
   });

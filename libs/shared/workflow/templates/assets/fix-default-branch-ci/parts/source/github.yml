@@ -176,7 +176,7 @@ open_pr: |
         The configured checks passed locally at `${{ jobs.investigate.outputs.commit }}`. GitHub CI has not been verified. A person reviews and merges this change.
 
         _Opened by Shipfox run ${{ run.number }}._
-      draft: true # option:pr_mode
+      draft: true
     outputs:
       pr_number: ${{ result.pull_request.number }}
       pr_url: ${{ result.pull_request.html_url }}

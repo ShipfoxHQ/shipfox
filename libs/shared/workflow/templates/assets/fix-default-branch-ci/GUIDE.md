@@ -58,11 +58,6 @@ The `investigate` job publishes `status`, `classification`, and `summary`. The `
 
 ## Choose the options
 
-### Pull request mode
-
-Keep `draft: true` for the `draft` choice, or set it to `false` for `ready`.
-A ready pull request can notify reviewers right away.
-
 ### Slack report
 
 The `report` role is optional. Without it, the workflow has no `report` job and needs no Slack connection.
@@ -70,10 +65,11 @@ The `report` role is optional. Without it, the workflow has no `report` job and 
 With Slack, replace every `replace-with-channel-id` with the ID of the channel that receives reports, such as `C0ABC12345`.
 Use a channel ID, not a name.
 
-For `report_outcomes`, keep the marked block for the chosen choice and remove the others:
+For `report_outcomes`, keep each marked block whose list includes the chosen choice and remove the others:
 
+- `needs_person` posts the diagnosis when the status is `needs_human` or the repair patch is too large to deliver.
 - `pull_requests` posts one message when a repair pull request opens.
-- `pull_requests_and_diagnoses` also posts the diagnosis when the status is `needs_human` or the repair patch is too large to deliver.
+- `both` posts both messages.
 
 External outages, skipped failures, and other `not_actionable` outcomes are never posted.
 
@@ -100,13 +96,14 @@ Output goes to `.git/shipfox-test.log`, which the agent reads on retries.
 The investigation uses a read-only checkout of the default branch without saved Git credentials.
 The agent has only read integration tools, so it cannot push, comment, or rerun GitHub Actions.
 
-A repair creates one branch and one pull request into the default branch.
+A repair creates one branch and one draft pull request into the default branch.
+To open it ready for review, which can notify reviewers right away, set `draft: false` in the `deliver` job.
 A separate job checks out the investigated commit with write access, applies the tested patch, commits it, and pushes the branch. No repository code runs in that job.
 The shell commit is not signed by this template. Check signing and sign-off requirements before enabling the workflow.
 With Slack, each reported outcome posts one message.
 
 Delivery rejects changed commit history, unstaged changes, unignored untracked files, and empty repairs.
-Patches larger than 30,000 bytes are not delivered. They are posted as a diagnosis only when the Slack report uses `pull_requests_and_diagnoses`.
+Patches larger than 30,000 bytes are not delivered. They are posted as a diagnosis when the Slack report uses `needs_person` or `both`.
 
 A failed run can leave a pushed branch without a pull request. Delete that branch before starting the run again.
 The workflow posts nothing about its own failures. Use Shipfox run notifications for those.
