@@ -1,5 +1,6 @@
-import {eq} from 'drizzle-orm';
+import {and, eq, isNull} from 'drizzle-orm';
 import {
+  assignRunnerCapacityHoldTx,
   bindCapacityHoldToRunnerTx,
   getWorkspaceCapacityUsage,
   insertLaunchCapacityHoldsTx,
@@ -35,6 +36,34 @@ describe('capacity holds', () => {
       .from(capacityHolds)
       .where(eq(capacityHolds.runnerInstanceId, runner.id));
     expect(hold).toMatchObject({workspaceId, reservationId, units: 2, releasedAt: null});
+  });
+
+  it('moves an adopted runner hold to the adopting workspace', async () => {
+    const firstWorkspaceId = crypto.randomUUID();
+    const adoptingWorkspaceId = crypto.randomUUID();
+    const runner = await providerRunnerFactory.create({workspaceId: firstWorkspaceId});
+    await db().insert(capacityHolds).values({
+      workspaceId: firstWorkspaceId,
+      runnerInstanceId: runner.id,
+      jobExecutionId: crypto.randomUUID(),
+      units: 1,
+    });
+
+    await db().transaction((tx) =>
+      assignRunnerCapacityHoldTx(tx, {
+        workspaceId: adoptingWorkspaceId,
+        runnerInstanceId: runner.id,
+        units: 2,
+      }),
+    );
+
+    const holds = await db()
+      .select()
+      .from(capacityHolds)
+      .where(and(eq(capacityHolds.runnerInstanceId, runner.id), isNull(capacityHolds.releasedAt)));
+    expect(holds).toEqual([
+      expect.objectContaining({workspaceId: adoptingWorkspaceId, units: 2, jobExecutionId: null}),
+    ]);
   });
 
   it('releases an unbound hold when its reservation expires', async () => {

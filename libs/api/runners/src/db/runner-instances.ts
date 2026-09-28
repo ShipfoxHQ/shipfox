@@ -629,6 +629,7 @@ export async function reportRunnerInstances(params: ReportRunnerInstancesParams)
         : 0;
     if (freshTerminalEvents.length > 0)
       await releaseCapacityHoldsForRunnerInstancesTx(tx, {
+        provisionerId: params.provisionerId,
         providerRunnerIds: freshTerminalEvents.map((event) => event.providerRunnerId),
         onReleased: (createdAt) =>
           recordCapacityHoldReleaseLag(Math.max(0, (Date.now() - createdAt.getTime()) / 1000)),

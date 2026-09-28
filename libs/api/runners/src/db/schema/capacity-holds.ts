@@ -20,6 +20,9 @@ export const capacityHolds = pgTable(
     index('runners_capacity_holds_workspace_active_idx')
       .on(table.workspaceId)
       .where(sql`released_at is null`),
+    index('runners_capacity_holds_reservation_unbound_idx')
+      .on(table.reservationId)
+      .where(sql`runner_instance_id is null and released_at is null`),
     uniqueIndex('runners_capacity_holds_runner_active_unique')
       .on(table.runnerInstanceId)
       .where(sql`runner_instance_id is not null and released_at is null`),

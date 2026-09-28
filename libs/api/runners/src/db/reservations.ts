@@ -19,8 +19,8 @@ import {
 import type {InstallationPlacementPolicy} from '#installation-provisioning.js';
 import {recordProviderRunnerActivationOutcome} from '#metrics/instance.js';
 import {
+  assignRunnerCapacityHoldTx,
   insertLaunchCapacityHoldsTx,
-  insertRunnerCapacityHoldTx,
   releaseUnboundCapacityHoldsForReservationsTx,
 } from './capacity-holds.js';
 import type {Tx} from './db.js';
@@ -771,7 +771,7 @@ async function bindIdleRunnerInstancesTx(
         .where(eq(providerRunners.id, runner.id))
         .limit(1);
       if (runnerRow)
-        await insertRunnerCapacityHoldTx(tx, {
+        await assignRunnerCapacityHoldTx(tx, {
           workspaceId: params.workspaceId,
           runnerInstanceId: runner.id,
           units: params.placement.units(runnerRow.labels),

@@ -12,4 +12,5 @@ CREATE TABLE "runners_capacity_holds" (
 );
 --> statement-breakpoint
 CREATE INDEX "runners_capacity_holds_workspace_active_idx" ON "runners_capacity_holds" USING btree ("workspace_id") WHERE released_at is null;--> statement-breakpoint
+CREATE INDEX "runners_capacity_holds_reservation_unbound_idx" ON "runners_capacity_holds" USING btree ("reservation_id") WHERE runner_instance_id is null and released_at is null;--> statement-breakpoint
 CREATE UNIQUE INDEX "runners_capacity_holds_runner_active_unique" ON "runners_capacity_holds" USING btree ("runner_instance_id") WHERE runner_instance_id is not null and released_at is null;

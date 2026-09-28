@@ -34,6 +34,24 @@ export async function insertRunnerCapacityHoldTx(
   return inserted.length > 0;
 }
 
+/** Moves an adopted runner's active hold to the adopting workspace, or creates one when it has none. */
+export async function assignRunnerCapacityHoldTx(
+  tx: Tx,
+  params: {workspaceId: string; runnerInstanceId: string; units: number},
+): Promise<void> {
+  const moved = await tx
+    .update(capacityHolds)
+    .set({workspaceId: params.workspaceId, units: params.units, jobExecutionId: null})
+    .where(
+      and(
+        eq(capacityHolds.runnerInstanceId, params.runnerInstanceId),
+        isNull(capacityHolds.releasedAt),
+      ),
+    )
+    .returning({id: capacityHolds.id});
+  if (moved.length === 0) await insertRunnerCapacityHoldTx(tx, params);
+}
+
 /** Binds the oldest unbound hold for a launch reservation to the newly-created runner. */
 export async function bindCapacityHoldToRunnerTx(
   tx: Tx,
@@ -100,31 +118,23 @@ export async function releaseUnboundCapacityHoldsForReservationsTx(
 
 export async function releaseCapacityHoldsForRunnerInstancesTx(
   tx: Tx,
-  params: {
-    runnerInstanceIds?: readonly string[];
-    providerRunnerIds?: readonly string[];
-    onReleased?: (createdAt: Date) => void;
-  },
+  params: (
+    | {runnerInstanceIds: readonly string[]}
+    | {provisionerId: string; providerRunnerIds: readonly string[]}
+  ) & {onReleased?: (createdAt: Date) => void},
 ): Promise<number> {
-  if (
-    (params.runnerInstanceIds?.length ?? 0) === 0 &&
-    (params.providerRunnerIds?.length ?? 0) === 0
-  )
-    return 0;
+  const byInstance = 'runnerInstanceIds' in params;
+  if ((byInstance ? params.runnerInstanceIds : params.providerRunnerIds).length === 0) return 0;
+  const runnerMatch = byInstance
+    ? inArray(providerRunners.id, params.runnerInstanceIds as string[])
+    : and(
+        eq(providerRunners.provisionerId, params.provisionerId),
+        inArray(providerRunners.providerRunnerId, params.providerRunnerIds as string[]),
+      );
   const runnerIds = tx
     .select({id: providerRunners.id})
     .from(providerRunners)
-    .where(
-      and(
-        params.runnerInstanceIds?.length
-          ? inArray(providerRunners.id, params.runnerInstanceIds as string[])
-          : undefined,
-        params.providerRunnerIds?.length
-          ? inArray(providerRunners.providerRunnerId, params.providerRunnerIds as string[])
-          : undefined,
-        inArray(providerRunners.state, terminalStates),
-      ),
-    );
+    .where(and(runnerMatch, inArray(providerRunners.state, terminalStates)));
   const released = await tx
     .update(capacityHolds)
     .set({releasedAt: sql`now()`, releaseReason: 'runner-terminal'})

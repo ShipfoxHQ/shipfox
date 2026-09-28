@@ -161,6 +161,22 @@
           "method": "btree",
           "with": {}
         },
+        "runners_capacity_holds_reservation_unbound_idx": {
+          "name": "runners_capacity_holds_reservation_unbound_idx",
+          "columns": [
+            {
+              "expression": "reservation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "runner_instance_id is null and released_at is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "runners_capacity_holds_runner_active_unique": {
           "name": "runners_capacity_holds_runner_active_unique",
           "columns": [
@@ -738,9 +754,7 @@
         "runners_pending_jobs_job_execution_id_unique": {
           "name": "runners_pending_jobs_job_execution_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "job_execution_id"
-          ]
+          "columns": ["job_execution_id"]
         }
       },
       "policies": {},
@@ -2293,12 +2307,8 @@
           "name": "runners_running_jobs_runner_session_id_runners_runner_sessions_id_fk",
           "tableFrom": "runners_running_jobs",
           "tableTo": "runners_runner_sessions",
-          "columnsFrom": [
-            "runner_session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["runner_session_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2308,9 +2318,7 @@
         "runners_running_jobs_job_execution_id_unique": {
           "name": "runners_running_jobs_job_execution_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "job_execution_id"
-          ]
+          "columns": ["job_execution_id"]
         }
       },
       "policies": {},
@@ -2327,39 +2335,22 @@
     "public.runners_provisioner_scope": {
       "name": "runners_provisioner_scope",
       "schema": "public",
-      "values": [
-        "workspace",
-        "installation"
-      ]
+      "values": ["workspace", "installation"]
     },
     "public.runners_reservation_kind": {
       "name": "runners_reservation_kind",
       "schema": "public",
-      "values": [
-        "bound",
-        "launch"
-      ]
+      "values": ["bound", "launch"]
     },
     "public.runners_provider_runner_launch_kind": {
       "name": "runners_provider_runner_launch_kind",
       "schema": "public",
-      "values": [
-        "demand",
-        "warm",
-        "manual"
-      ]
+      "values": ["demand", "warm", "manual"]
     },
     "public.runners_provider_runner_state": {
       "name": "runners_provider_runner_state",
       "schema": "public",
-      "values": [
-        "starting",
-        "running",
-        "stopping",
-        "stopped",
-        "failed",
-        "terminated"
-      ]
+      "values": ["starting", "running", "stopping", "stopped", "failed", "terminated"]
     },
     "public.runners_termination_reason": {
       "name": "runners_termination_reason",
@@ -2380,27 +2371,17 @@
     "public.runners_runner_session_registration_token_kind": {
       "name": "runners_runner_session_registration_token_kind",
       "schema": "public",
-      "values": [
-        "manual",
-        "ephemeral",
-        "activation"
-      ]
+      "values": ["manual", "ephemeral", "activation"]
     },
     "public.runners_runner_session_scope": {
       "name": "runners_runner_session_scope",
       "schema": "public",
-      "values": [
-        "workspace"
-      ]
+      "values": ["workspace"]
     },
     "public.runners_job_stop_reason": {
       "name": "runners_job_stop_reason",
       "schema": "public",
-      "values": [
-        "run_cancelled",
-        "timed_out",
-        "concurrency_superseded"
-      ]
+      "values": ["run_cancelled", "timed_out", "concurrency_superseded"]
     }
   },
   "schemas": {},
