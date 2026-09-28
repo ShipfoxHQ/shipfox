@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-name: Fix failing dependency-bot CI
+name: Repair failing pull request CI
 runner: shipfox
 
 concurrency:
-  group: 'dependency-ci-${{ event.repository.full_name }}-${{ event.workflow_run.pull_requests[0].number }}'
+  group: 'pr-ci-repair-${{ event.repository.full_name }}-${{ event.workflow_run.pull_requests[0].number }}'
   cancel_in_progress: false
 
 triggers:
@@ -13,7 +13,7 @@ jobs:
   inspect:
     checkout: false
     outputs:
-      eligible: ${{ steps.read_pr.outputs.open && steps.read_pr.outputs.author == event.workflow_run.actor.login && steps.read_pr.outputs.repository == event.repository.full_name && steps.read_pr.outputs.branch == event.workflow_run.head_branch && steps.read_pr.outputs.head_sha == event.workflow_run.head_sha }}
+      eligible: ${{ steps.read_pr.outputs.open && steps.read_pr.outputs.selected && steps.read_pr.outputs.repository == event.repository.full_name && steps.read_pr.outputs.branch == event.workflow_run.head_branch && steps.read_pr.outputs.head_sha == event.workflow_run.head_sha }}
       head_sha: ${{ steps.read_pr.outputs.head_sha }}
     steps:
       # part:source.read_pr
