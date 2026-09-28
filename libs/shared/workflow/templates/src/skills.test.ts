@@ -85,7 +85,7 @@ describe('shipped skill resources', () => {
     expect(text).toContain('Event lookup does not verify project scope');
     expect(text).toContain('use Linear MCP only for Linear triggers.');
     expect(text).toContain("give the guide's exact event-creation action;");
-    expect(text).toContain('discard completed or high-risk rollout work');
+    expect(text).toContain('discard completed or high-risk rollouts');
     expect(text).toContain(
       'They can skip; report "shape validated, not executed" and go to step 9.',
     );
