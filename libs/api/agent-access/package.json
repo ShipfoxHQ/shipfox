@@ -61,7 +61,8 @@
     "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-module": "workspace:*",
-    "@shipfox/node-opentelemetry": "workspace:*"
+    "@shipfox/node-opentelemetry": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

@@ -1,0 +1,235 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`agent-access template tools > lists the shipped templates for a GitHub-only workspace 1`] = `
+{
+  "ok": true,
+  "result": {
+    "templates": [
+      {
+        "added_at": "2026-09-26",
+        "compatible": false,
+        "id": "ask-codebase",
+        "missing_providers": [
+          "slack",
+        ],
+        "revision": 1,
+        "roles": [
+          {
+            "from_project": false,
+            "optional": false,
+            "providers": [
+              {
+                "compatible": false,
+                "provider": "slack",
+                "suggested_bindings": [],
+              },
+            ],
+            "role": "chat",
+          },
+          {
+            "from_project": true,
+            "optional": false,
+            "providers": [
+              {
+                "compatible": true,
+                "provider": "github",
+                "suggested_bindings": [
+                  "github-main",
+                ],
+              },
+            ],
+            "role": "source",
+          },
+        ],
+        "summary": "Answer questions about your code in Slack, with references to the files.",
+        "title": "Ask the codebase in Slack",
+      },
+      {
+        "added_at": "2026-09-26",
+        "compatible": true,
+        "id": "fix-default-branch-ci",
+        "missing_providers": [],
+        "revision": 1,
+        "roles": [
+          {
+            "from_project": true,
+            "optional": false,
+            "providers": [
+              {
+                "compatible": true,
+                "provider": "github",
+                "suggested_bindings": [
+                  "github-main",
+                ],
+              },
+            ],
+            "role": "source",
+          },
+          {
+            "from_project": false,
+            "optional": true,
+            "providers": [
+              {
+                "compatible": false,
+                "provider": "slack",
+                "suggested_bindings": [],
+              },
+            ],
+            "question": "Should the workflow notify you on Slack?",
+            "role": "report",
+            "tradeoff": "Posts in a Slack channel you choose about failures that need a person, the fix pull requests it opens, or both. Outages at external providers are never posted. Requires the Shipfox app in that channel.",
+          },
+        ],
+        "summary": "Find out why CI broke on your default branch and get a tested repair pull request.",
+        "title": "Investigate and repair default-branch CI failures",
+      },
+      {
+        "added_at": "2026-09-22",
+        "compatible": true,
+        "id": "fix-dependency-ci",
+        "missing_providers": [],
+        "revision": 3,
+        "roles": [
+          {
+            "from_project": true,
+            "optional": false,
+            "providers": [
+              {
+                "compatible": true,
+                "provider": "github",
+                "suggested_bindings": [
+                  "github-main",
+                ],
+              },
+            ],
+            "role": "source",
+          },
+        ],
+        "summary": "Get a tested fix when CI fails on a dependency update or an opted-in pull request.",
+        "title": "Repair failing pull request CI",
+      },
+      {
+        "added_at": "2026-09-26",
+        "compatible": false,
+        "id": "report-failed-runs",
+        "missing_providers": [
+          "slack",
+        ],
+        "revision": 1,
+        "roles": [
+          {
+            "from_project": false,
+            "optional": false,
+            "providers": [
+              {
+                "compatible": false,
+                "provider": "slack",
+                "suggested_bindings": [],
+              },
+            ],
+            "role": "notify",
+          },
+        ],
+        "summary": "Hear about every failed workflow run in Slack, with the failing step and an agent diagnosis of the cause.",
+        "title": "Report failed Shipfox workflow runs",
+      },
+      {
+        "added_at": "2026-09-27",
+        "compatible": false,
+        "id": "slack-to-ticket",
+        "missing_providers": [
+          "slack",
+          "linear",
+        ],
+        "revision": 1,
+        "roles": [
+          {
+            "from_project": false,
+            "optional": false,
+            "providers": [
+              {
+                "compatible": false,
+                "provider": "slack",
+                "suggested_bindings": [],
+              },
+            ],
+            "role": "chat",
+          },
+          {
+            "from_project": false,
+            "optional": false,
+            "providers": [
+              {
+                "compatible": false,
+                "provider": "linear",
+                "suggested_bindings": [],
+              },
+            ],
+            "role": "tracker",
+          },
+          {
+            "from_project": true,
+            "optional": false,
+            "providers": [
+              {
+                "compatible": true,
+                "provider": "github",
+                "suggested_bindings": [
+                  "github-main",
+                ],
+              },
+            ],
+            "role": "source",
+          },
+        ],
+        "summary": "Turn a request in a Slack thread into a Linear ticket grounded in your code.",
+        "title": "Create a ticket from a Slack conversation",
+      },
+      {
+        "added_at": "2026-09-23",
+        "compatible": true,
+        "id": "ticket-to-pr",
+        "missing_providers": [],
+        "revision": 5,
+        "roles": [
+          {
+            "from_project": false,
+            "optional": true,
+            "providers": [
+              {
+                "compatible": false,
+                "provider": "linear",
+                "suggested_bindings": [],
+              },
+              {
+                "compatible": false,
+                "provider": "jira",
+                "suggested_bindings": [],
+              },
+            ],
+            "question": "Should tickets in an issue tracker start the workflow and receive its results?",
+            "role": "tracker",
+            "tradeoff": "Starts from the tracker's ticket events and can comment on or move the ticket. Without a tracker, only manual starts with explicit task inputs, such as from a Slack dispatcher, run the workflow.",
+          },
+          {
+            "from_project": true,
+            "optional": false,
+            "providers": [
+              {
+                "compatible": true,
+                "provider": "github",
+                "suggested_bindings": [
+                  "github-main",
+                ],
+              },
+            ],
+            "role": "source",
+          },
+        ],
+        "summary": "Turn a ticket or a request into a tested GitHub pull request.",
+        "title": "Task to pull request",
+      },
+    ],
+  },
+}
+`;

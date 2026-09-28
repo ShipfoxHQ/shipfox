@@ -166,6 +166,16 @@ describe('buildAgentAccessMcpServer', () => {
     await close();
   });
 
+  test('points workflow setup requests at the setup skill', async () => {
+    const {client, close} = await connectClient();
+
+    expect(client.getInstructions()).toMatchSnapshot();
+    expect(client.getInstructions()).toContain(
+      'When the user asks to create, set up, or suggest a workflow, read skill://shipfox/create-workflow-from-template/SKILL.md and follow it.',
+    );
+    await close();
+  });
+
   test('returns a tool error with retry metadata without raising a JSON-RPC error', async () => {
     const limiter = createAgentAccessRateLimiter({limit: 1, now: () => 1_000});
     const {client, close} = await connectClient(limiter);

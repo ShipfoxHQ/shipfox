@@ -2396,6 +2396,9 @@ importers:
       '@shipfox/workflow-templates':
         specifier: workspace:*
         version: link:../../shared/workflow/templates
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*

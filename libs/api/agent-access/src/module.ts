@@ -3,6 +3,7 @@ import {
   type CreateAgentAccessRoutesOptions,
   createAgentAccessRoutes,
 } from '#presentation/routes.js';
+import {createWorkflowTemplateRoutes} from '#presentation/workflow-template-routes.js';
 
 export type CreateAgentAccessModuleOptions = CreateAgentAccessRoutesOptions;
 
@@ -10,9 +11,15 @@ export type CreateAgentAccessModuleOptions = CreateAgentAccessRoutesOptions;
 export function createAgentAccessModule(
   options: CreateAgentAccessModuleOptions = {},
 ): ShipfoxModule {
+  const {templates, integrations} = options;
   return {
     name: 'agent-access',
-    routes: [createAgentAccessRoutes(options)],
+    routes: [
+      createAgentAccessRoutes(options),
+      ...(templates === undefined || integrations === undefined
+        ? []
+        : [createWorkflowTemplateRoutes({templates, integrations})]),
+    ],
   };
 }
 
