@@ -1,4 +1,5 @@
 import type {WorkflowModelAction} from '@shipfox/api-definitions-dto';
+import type {AgentToolMaterializationContext} from '#core/agent-tools.js';
 import type {Step} from '#core/entities/step.js';
 import {ActionInputInvalidError} from '#core/errors.js';
 import {workflowModel} from '#test/index.js';
@@ -21,6 +22,29 @@ function dispatchContext(outputs: Record<string, unknown>): WorkflowEvaluationCo
   return {site: 'step-dispatch', values: {steps: {build: {outputs}}}};
 }
 
+const agentToolContext: AgentToolMaterializationContext = {
+  catalogs: new Map([
+    [
+      'slack',
+      [
+        {
+          id: 'read_thread',
+          description: 'Read a thread.',
+          sensitivity: 'read',
+          sensitive: false,
+          requiredScope: ['channels:history'],
+          result: 'json',
+          inputSchema: {type: 'object', properties: {channel: {type: 'string'}}},
+        },
+      ],
+    ],
+  ]),
+  workspaceConnectionSnapshot: new Map([
+    ['team-slack', {id: 'connection-slack', provider: 'slack', capabilities: ['agent_tools']}],
+  ]),
+  defaultConnection: {id: 'connection-slack', slug: 'team-slack', provider: 'slack'},
+};
+
 async function materializeActionStep(step: ActionStepInput) {
   const model = workflowModel({
     env: {REGION: 'eu'},
@@ -28,7 +52,12 @@ async function materializeActionStep(step: ActionStepInput) {
   });
   const job = model.jobs[0];
   if (!job) throw new Error('Expected workflow job');
-  const steps = await materializeJobExecutionSteps({model, job, context: creationContext});
+  const steps = await materializeJobExecutionSteps({
+    model,
+    job,
+    context: creationContext,
+    agentToolContext,
+  });
   const materialized = steps[1];
   if (!materialized) throw new Error('Expected materialized action step');
   return materialized;
@@ -117,7 +146,21 @@ describe('action step config', () => {
         },
         inputs: {channel_id: 'C0123'},
         env: {REGION: 'eu', LOG_LEVEL: 'debug'},
-        integrations: [{alias: 'slack', provider: 'slack', connection_slug: 'team-slack'}],
+        integrations: [
+          {
+            alias: 'slack',
+            provider: 'slack',
+            connection_slug: 'team-slack',
+            tools: [
+              {
+                id: 'read_thread',
+                sensitivity: 'read',
+                result: 'json',
+                input_schema: {type: 'object', properties: {channel: {type: 'string'}}},
+              },
+            ],
+          },
+        ],
         outputs: {},
       },
       configPlan: {
