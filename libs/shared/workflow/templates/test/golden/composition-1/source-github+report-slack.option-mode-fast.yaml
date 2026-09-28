@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+# Leading comments stay above the template header.
+# shipfox-template: shipfox/composer-fixture@1.0.0; roles: source=github report=slack; options: mode=fast
+
+name: Composer fixture
+triggers:
+  # bind:source
+  ticket:
+    source: github_fixture
+    event: issues.opened
+jobs:
+  build:
+    steps:
+      - key: checkout_github
+        run: git clone https://github.com/acme/repo.git
+
+      # slot:setup_commands
+      # option:mode
+      - key: quick_check
+        run: echo fast
+      # option:notify=summary,detail begin
+      - key: describe
+        # option:notify=detail begin
+        detail_level: high
+        # option:notify=detail end
+        # option:notify=summary begin
+        summary_only: true
+        # option:notify=summary end
+        model: fixture-model # model:describe
+        thinking: low
+      # option:notify=summary,detail end
+      # option:notify=none begin
+      - key: skip_notice
+        run: echo no notification
+      # option:notify=none end
+  # bind:report
+  report:
+    needs: build
+    steps:
+      - key: post
+        tool: chat_write.post
+        connection: slack_fixture

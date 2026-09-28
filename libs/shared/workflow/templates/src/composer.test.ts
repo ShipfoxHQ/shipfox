@@ -5,6 +5,7 @@ import {
   composeWorkflow,
   templateRoleBindings,
 } from './composer.js';
+import {SUPPORTED_COMPOSITIONS, UnsupportedCompositionError} from './composition.js';
 import {parseTemplateHeader} from './header.js';
 import {workflowTemplateManifestSchema} from './manifest.js';
 
@@ -329,5 +330,41 @@ describe('applyTemplateOptions', () => {
     expect(() =>
       applyTemplateOptions('# option:mode=fast begin\n# option:mode=thorough end', {mode: 'fast'}),
     ).toThrow('Unbalanced option block: # option:mode=thorough end');
+  });
+});
+
+describe('composition formats', () => {
+  const manifest = workflowTemplateManifestSchema.parse({
+    title: 'Fixture',
+    summary: 'A fixture template.',
+    starts: 'A test event starts this workflow',
+    roles: {source: {from: 'project', providers: ['github']}},
+  });
+  const template = {
+    id: 'fixture',
+    revision: 1,
+    manifest,
+    workflow: 'name: fixture\n# part:source.checkout',
+    parts: {source: {github: {checkout: 'checkout: true'}}},
+  };
+
+  it('supports format 1', () => {
+    expect(SUPPORTED_COMPOSITIONS).toEqual([1]);
+  });
+
+  it('composes the same output for the default and an explicit supported format', () => {
+    expect(composeTemplate(template, {source: 'github'}, {composition: 1})).toBe(
+      composeTemplate(template, {source: 'github'}),
+    );
+    expect(applyTemplateOptions('a', {}, {composition: 1})).toBe('a');
+  });
+
+  it('rejects an unsupported format', () => {
+    expect(() => composeTemplate(template, {source: 'github'}, {composition: 2})).toThrow(
+      UnsupportedCompositionError,
+    );
+    expect(() => applyTemplateOptions('a', {}, {composition: 0})).toThrow(
+      'Unsupported template composition 0; supported: 1',
+    );
   });
 });

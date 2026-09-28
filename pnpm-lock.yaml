@@ -9351,6 +9351,9 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../../tools/vitest
+      tsx:
+        specifier: 'catalog:'
+        version: 4.22.4
 
   tools/action-tool-types:
     dependencies:

@@ -1,0 +1,12 @@
+trigger: |
+  ticket:
+    source: github_fixture
+    event: issues.opened
+checkout: |
+      - key: checkout_github
+        run: git clone https://github.com/acme/repo.git
+
+        # option:mode=thorough begin
+        gate:
+          success: step.exit_code == 0
+        # option:mode=thorough end

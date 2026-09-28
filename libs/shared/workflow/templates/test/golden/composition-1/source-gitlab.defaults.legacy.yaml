@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+# Leading comments stay above the template header.
+# shipfox-template: composer-fixture@1 source=gitlab
+
+name: Composer fixture
+triggers:
+  # bind:source
+  ticket:
+    source: gitlab_fixture
+    event: issue.opened
+jobs:
+  build:
+    steps:
+      - key: checkout_gitlab
+        run: git clone https://gitlab.com/acme/repo.git
+      # slot:setup_commands
+      # option:mode
+      - key: quick_check
+        run: echo fast
+      - key: describe
+        detail_level: high
+        model: fixture-model # model:describe
+        thinking: low
+  # bind:report

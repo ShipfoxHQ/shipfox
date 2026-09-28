@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+# Leading comments stay above the template header.
+
+name: Composer fixture
+triggers:
+  # bind:source
+  # part:source.trigger
+jobs:
+  build:
+    steps:
+      # part:source.checkout
+      # slot:setup_commands
+      # option:mode
+      # option:mode=fast begin
+      - key: quick_check
+        run: echo fast
+      # option:mode=fast end
+      # option:mode=thorough begin
+      - key: full_check
+        run: echo thorough
+      # option:mode=thorough end
+      # option:notify=summary,detail begin
+      - key: describe
+        # option:notify=detail begin
+        detail_level: high
+        # option:notify=detail end
+        # option:notify=summary begin
+        summary_only: true
+        # option:notify=summary end
+        model: fixture-model # model:describe
+        thinking: low
+      # option:notify=summary,detail end
+      # option:notify=none begin
+      - key: skip_notice
+        run: echo no notification
+      # option:notify=none end
+  # bind:report
+  # part:report.job

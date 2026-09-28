@@ -58,6 +58,7 @@
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "depcruise": "shipfox-depcruise",
+    "golden:generate": "tsx --conditions=workspace-source test/golden/generate.ts",
     "test": "shipfox-vitest-run",
     "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
@@ -76,6 +77,7 @@
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vitest": "workspace:*"
+    "@shipfox/vitest": "workspace:*",
+    "tsx": "catalog:"
   }
 }

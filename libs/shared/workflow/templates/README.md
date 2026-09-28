@@ -7,6 +7,7 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`composeWorkflow`** replaces `# part:<role>.<name>` markers with text blocks at the marker indentation.
 - **`composeTemplate`** selects one provider part for every bound role, composes the workflow, and writes its `# shipfox-template:` header. An optional third argument takes the chosen `options` and a `header` choice.
 - **`applyTemplateOptions`** keeps the `# option:X=Y` blocks whose choice is chosen, deletes the other blocks of that option, and removes the marker lines.
+- **`SUPPORTED_COMPOSITIONS`** lists the composition formats `composeTemplate` and `applyTemplateOptions` accept through their `composition` input. See [Composition formats](#composition-formats).
 - **`parseTemplateHeader`** reads a `# shipfox-template:` header, in its registry or legacy form, without the manifest. It is also exported from the browser-safe `@shipfox/workflow-templates/header` subpath, with `formatTemplateHeader`.
 - **`templateRoleBindings`** lists every role binding a template supports, with each optional role both bound and unbound.
 - **`computeTemplateBump`** returns the minimum semantic-version bump between two parsed manifests. The registry and the release tool use it. See [Version bumps](#version-bumps).
@@ -86,6 +87,20 @@ Ask for it with `composeTemplate(template, bindings, {header: {kind: 'registry',
 `parseTemplateHeader(text)` reads either form from workflow YAML or from the header line alone, and returns `{ref, bindings, options}` or `{legacy: {id, revision, bindings}}`. The group names tell roles from options, so a role and an option can share a name and no manifest is needed. It searches only the leading comment lines. It returns `undefined` when there is no header, or when it is malformed: a range or tag instead of an exact version, an unknown, empty, repeated, or misordered group, or a repeated key.
 
 `applyTemplateOptions(yaml, options)` resolves the option blocks. `# option:X=Y,Z begin` keeps its block when either `Y` or `Z` is chosen for `X`. Blocks can nest. An option with no chosen value keeps its blocks and markers, so `{}` changes nothing. An unclosed block, or an end marker that does not match, throws. Lines such as `# option:bot_identity`, `# slot:`, `# bind:`, and `# model:` stay.
+
+### Composition formats
+
+A composition format freezes how the composer handles markers and indentation, writes the header, and applies options. Template upgrades rebuild an adopted base byte for byte, possibly on a newer composer, so the behavior of a supported format never changes. A change to any of those is a new format with its own code path, added to `SUPPORTED_COMPOSITIONS`. A caller that passes an unsupported `composition` gets an `UnsupportedCompositionError`.
+
+`test/golden/composition-<n>/` holds the composer's output for one fixture template in `test/golden/fixture/`. The fixture exists to exercise every composer behavior, not to mirror a shipped template: part markers, dedenting and indentation, a role with several providers, an optional role, multi-choice and nested option blocks, an option block inside a part, and model, slot, and bind comments. It composes every binding with its default choices under both header grammars, and the richest binding with no options and with each option choice alone. A test compares the composer with those files byte for byte and fails when a supported format has no corpus.
+
+Two more tests keep the fixture representative. One fails when the fixture stops using a behavior it is meant to cover. The other fails when a shipped template uses a behavior the fixture does not cover. Extend the fixture in that case. Do not change what an existing format produces, because that requires a new format.
+
+Shipped templates can change freely. The corpus changes only when the composer does. To regenerate the current format's files after a deliberate fixture extension, and review the diff:
+
+```sh
+pnpm --filter @shipfox/workflow-templates golden:generate
+```
 
 ### Optional roles
 

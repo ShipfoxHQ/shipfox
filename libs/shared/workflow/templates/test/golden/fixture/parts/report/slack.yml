@@ -1,0 +1,7 @@
+job: |
+  report:
+    needs: build
+    steps:
+      - key: post
+        tool: chat_write.post
+        connection: slack_fixture
