@@ -1,12 +1,12 @@
 id: ticket-to-pr
-revision: 6
+revision: 7
 added_at: 2026-09-23
 rank: 1
 title: Task to pull request
 summary: Turn a ticket or a request into a tested GitHub pull request.
 roles:
   tracker:
-    providers: [linear, jira, clickup]
+    providers: [linear, jira, clickup, github]
     optional: true
     question: Should tickets in an issue tracker start the workflow and receive its results?
     tradeoff: Starts from the tracker's ticket events and can comment on or move the ticket. Without a tracker, only manual starts with explicit task inputs, such as from a Slack dispatcher, run the workflow.
@@ -47,6 +47,17 @@ options:
       - id: status
         label: Move to a ClickUp status
         tradeoff: Starts when a task in the chosen List moves to the status, including a task created in it. Requires the status's exact name.
+  - id: github_trigger
+    question: What should start the workflow?
+    applies_to: [github]
+    choices:
+      - id: label
+        label: Add a GitHub label
+        default: true
+        tradeoff: Starts when an open issue in the project's repository gets the label. Anyone who can label issues can start a run.
+      - id: assignee
+        label: Assign a GitHub user
+        tradeoff: Starts when someone assigns an open issue in the project's repository to the chosen user, such as a machine user. GitHub cannot assign an issue to a GitHub App.
   - id: feedback_loop
     question: Should the workflow handle inline review comments and failed GitHub Actions runs after opening a PR?
     choices:
@@ -79,7 +90,7 @@ options:
         tradeoff: Opens the PR for review right away, which can notify reviewers.
   - id: ticket_write_back
     question: How should the workflow update the ticket?
-    applies_to: [linear, jira, clickup]
+    applies_to: [linear, jira, clickup, github]
     choices:
       - id: comment
         label: Comment only
@@ -87,7 +98,7 @@ options:
       - id: comment_and_transition
         label: Comment and set in-progress status
         default: true
-        tradeoff: Moves the issue to its in-progress status when work starts; posts the PR link or clarification questions.
+        tradeoff: Moves the issue to its in-progress status when work starts; posts the PR link or clarification questions. On GitHub, adds an in-progress label.
       - id: none
         label: No updates
         tradeoff: Makes no ticket updates.

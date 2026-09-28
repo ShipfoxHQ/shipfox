@@ -1,0 +1,124 @@
+run_name: |
+  run_name: 'Implement ${{ trigger.source == "manual" ? (has(inputs.identifier) ? inputs.identifier : (has(inputs.title) ? inputs.title : "a task")) : "#" + string(event.issue.number) }}'
+trigger: |
+  # Replace replace-with-owner/repository with the selected project repository before enabling this workflow.
+  # option:github_trigger=label begin
+  on_issue_labeled:
+    source: github_source # bind:source
+    event: issues.labeled
+    filter: >-
+      event.repository.full_name == "replace-with-owner/repository" &&
+      event.issue.state == "open" &&
+      event.label.name == "replace-with-label-name"
+  # option:github_trigger=label end
+  # option:github_trigger=assignee begin
+  on_issue_assigned:
+    source: github_source # bind:source
+    event: issues.assigned
+    filter: >-
+      event.repository.full_name == "replace-with-owner/repository" &&
+      event.issue.state == "open" &&
+      event.assignee.login == "replace-with-assignee-login"
+  # option:github_trigger=assignee end
+load_ticket: ''
+ticket_env: |
+  TICKET_ID: '${{ trigger.source == "manual" ? "" : string(event.issue.number) }}'
+  TICKET_IDENTIFIER: '${{ trigger.source == "manual" ? "" : "issue-" + string(event.issue.number) }}'
+  TICKET_TITLE: '${{ trigger.source == "manual" ? "" : event.issue.title }}'
+  TICKET_URL: '${{ trigger.source == "manual" ? "" : event.issue.html_url }}'
+  TICKET_DESCRIPTION: '${{ trigger.source == "manual" || !has(event.issue.body) || event.issue.body == null ? "" : event.issue.body }}'
+  TICKET_REQUEST: ''
+  TICKET_REFERENCE: '${{ trigger.source != "manual" ? "Fixes #" + string(event.issue.number) : has(inputs.ticket_id) && inputs.ticket_id != "" ? "Fixes #" + inputs.ticket_id : "" }}'
+read_tools: |
+  integrations:
+    - connection: github_source # bind:source
+      include: [issue_read.get, issue_read.get_comments]
+ask_questions: |
+  # option:ticket_write_back=comment begin
+  - key: ask_questions
+    if: ${{ steps.fix.outputs.status == "needs_clarification" && steps.task.outputs.ticket_id != "" }}
+    tool: add_issue_comment
+    connection: github_source # bind:source
+    with:
+      owner: ${{ steps.prepare.outputs.owner }}
+      repo: ${{ steps.prepare.outputs.repo }}
+      issue_number: ${{ int(steps.task.outputs.ticket_id) }}
+      body: |-
+        Shipfox needs answers before it can implement this issue:
+
+        ${{ steps.fix.outputs.questions }}
+  # option:ticket_write_back=comment end
+  # option:ticket_write_back=comment_and_transition begin
+  - key: ask_questions
+    if: ${{ steps.fix.outputs.status == "needs_clarification" && steps.task.outputs.ticket_id != "" }}
+    tool: add_issue_comment
+    connection: github_source # bind:source
+    with:
+      owner: ${{ steps.prepare.outputs.owner }}
+      repo: ${{ steps.prepare.outputs.repo }}
+      issue_number: ${{ int(steps.task.outputs.ticket_id) }}
+      body: |-
+        Shipfox needs answers before it can implement this issue:
+
+        ${{ steps.fix.outputs.questions }}
+  # option:ticket_write_back=comment_and_transition end
+mark_in_progress: |
+  # option:ticket_write_back=comment_and_transition begin
+  - key: read_labels
+    if: ${{ steps.task.outputs.ticket_id != "" }}
+    tool: issue_read.get
+    connection: github_source # bind:source
+    with:
+      owner: ${{ steps.prepare.outputs.owner }}
+      repo: ${{ steps.prepare.outputs.repo }}
+      issue_number: ${{ int(steps.task.outputs.ticket_id) }}
+    outputs:
+      labels: ${{ result.labels.map(label, label.name) }}
+    gate:
+      on_failure:
+        restart_from: task
+  - key: mark_in_progress
+    if: ${{ steps.task.outputs.ticket_id != "" && !steps.read_labels.outputs.labels.exists(name, name == "replace-with-in-progress-label") }}
+    tool: issue_write.update
+    connection: github_source # bind:source
+    with:
+      owner: ${{ steps.prepare.outputs.owner }}
+      repo: ${{ steps.prepare.outputs.repo }}
+      issue_number: ${{ int(steps.task.outputs.ticket_id) }}
+      # GitHub replaces the whole label set, so keep the issue's other labels.
+      labels: ${{ steps.read_labels.outputs.labels + ["replace-with-in-progress-label"] }}
+    gate:
+      on_failure:
+        restart_from: task
+  # option:ticket_write_back=comment_and_transition end
+write_back: |
+  # option:ticket_write_back=comment begin
+  comment_only:
+    needs: implement
+    if: ${{ needs.all(n, n.status == "succeeded") && jobs.implement.outputs.pr_url != "" && jobs.implement.outputs.ticket_id != "" }}
+    checkout: false
+    steps:
+      - key: write_back
+        tool: add_issue_comment
+        connection: github_source # bind:source
+        with:
+          owner: ${{ jobs.implement.outputs.owner }}
+          repo: ${{ jobs.implement.outputs.repo }}
+          issue_number: ${{ int(jobs.implement.outputs.ticket_id) }}
+          body: 'Opened pull request: ${{ jobs.implement.outputs.pr_url }}'
+  # option:ticket_write_back=comment end
+  # option:ticket_write_back=comment_and_transition begin
+  comment_on_ticket:
+    needs: implement
+    if: ${{ needs.all(n, n.status == "succeeded") && jobs.implement.outputs.pr_url != "" && jobs.implement.outputs.ticket_id != "" }}
+    checkout: false
+    steps:
+      - key: write_back
+        tool: add_issue_comment
+        connection: github_source # bind:source
+        with:
+          owner: ${{ jobs.implement.outputs.owner }}
+          repo: ${{ jobs.implement.outputs.repo }}
+          issue_number: ${{ int(jobs.implement.outputs.ticket_id) }}
+          body: 'Opened pull request: ${{ jobs.implement.outputs.pr_url }}'
+  # option:ticket_write_back=comment_and_transition end

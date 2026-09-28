@@ -138,7 +138,7 @@ A tracker part supplies these blocks:
 | `tracker.run_name` | Names the run from the ticket, or from the `identifier` or `title` input on a manual start. |
 | `tracker.trigger` | Starts from ticket events of one team or project. It must not match the workflow's own ticket writes. |
 | `tracker.load_ticket` | Adds steps before `task` that fetch ticket fields the event lacks. They fetch nothing when `trigger.source` is `manual`. Can be empty. |
-| `tracker.ticket_env` | Sets `TICKET_ID`, `TICKET_IDENTIFIER`, `TICKET_TITLE`, `TICKET_URL`, `TICKET_DESCRIPTION`, and `TICKET_REQUEST` on the `task` step. Each is empty when `trigger.source` is `manual`. |
+| `tracker.ticket_env` | Sets `TICKET_ID`, `TICKET_IDENTIFIER`, `TICKET_TITLE`, `TICKET_URL`, `TICKET_DESCRIPTION`, and `TICKET_REQUEST` on the `task` step. Each is empty when `trigger.source` is `manual`. It can also set `TICKET_REFERENCE`, the PR body line that links a task with a ticket ID, for event and manual starts. Without it, the line is `Fixes <identifier>`. |
 | `tracker.read_tools` | Gives the `fix` step read-only tracker tools. |
 | `tracker.mark_in_progress` | Moves a ticket to its in-progress status before the `fix` step when the default `comment_and_transition` choice is selected. |
 | `tracker.ask_questions` | Adds an `ask_questions` step for each `ticket_write_back` choice that writes. It runs only for `needs_clarification` when `steps.task.outputs.ticket_id` is set. |
@@ -153,6 +153,8 @@ The source part supplies these blocks:
 | `source.push` and `source.open_pr` | Push the branch and open the PR with `steps.task.outputs.reference` in its body. `open_pr` outputs `pr_number` and `pr_url`. |
 | `source.feedback_listener` | Matches only the opened PR and stops when it closes. |
 | `source.checkout_pr_branch`, `source.respond`, `source.push_feedback`, and `source.reply` | Check out the PR branch, handle review comments and failed CI, push, and reply. |
+
+A tracker on the source provider, such as GitHub issues, binds the project's source connection with `# bind:source`. Its trigger filter must match only the project's repository.
 
 The `implement` job publishes task, PR, and branch outputs. The feedback listener uses them to match one PR and check out its branch.
 

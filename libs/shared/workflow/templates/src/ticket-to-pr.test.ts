@@ -17,6 +17,7 @@ const manualOnly: TemplateRoleBindings = {source: 'github'};
 const linear: TemplateRoleBindings = {tracker: 'linear', source: 'github'};
 const jira: TemplateRoleBindings = {tracker: 'jira', source: 'github'};
 const clickup: TemplateRoleBindings = {tracker: 'clickup', source: 'github'};
+const githubIssues: TemplateRoleBindings = {tracker: 'github', source: 'github'};
 const defaults: Readonly<Record<string, string>> = Object.fromEntries(
   template.manifest.options.flatMap((option) => {
     const defaultChoice = option.choices.find((choice) => choice.default === true);
@@ -185,7 +186,7 @@ describe('ticket to PR template', () => {
     const document = workflow(manualOnly);
 
     expect(render(manualOnly).split('\n')[1]).toBe(
-      '# shipfox-template: ticket-to-pr@6 source=github',
+      '# shipfox-template: ticket-to-pr@7 source=github',
     );
     expect(Object.keys(at(document, 'triggers') as YamlRecord)).toEqual(['manual']);
     expect(Object.keys(at(document, 'jobs') as YamlRecord)).toEqual([
@@ -266,7 +267,7 @@ describe('ticket to PR template', () => {
     const document = workflow(jira);
 
     expect(render(jira).split('\n')[1]).toBe(
-      '# shipfox-template: ticket-to-pr@6 tracker=jira source=github',
+      '# shipfox-template: ticket-to-pr@7 tracker=jira source=github',
     );
     expect(Object.keys(at(document, 'triggers') as YamlRecord)).toEqual([
       'manual',
@@ -477,7 +478,7 @@ describe('ticket to PR template', () => {
     const document = workflow(clickup);
 
     expect(render(clickup).split('\n')[1]).toBe(
-      '# shipfox-template: ticket-to-pr@6 tracker=clickup source=github',
+      '# shipfox-template: ticket-to-pr@7 tracker=clickup source=github',
     );
     expect(Object.keys(at(document, 'triggers') as YamlRecord)).toEqual(['manual', 'on_tag_added']);
     expect(
@@ -605,6 +606,154 @@ describe('ticket to PR template', () => {
       },
       gate: {on_failure: {restart_from: 'task'}},
     });
+    expect(steps.findIndex((entry) => entry.key === 'mark_in_progress')).toBeLessThan(
+      steps.findIndex((entry) => entry.key === 'fix'),
+    );
+  });
+
+  it('keeps the manual trigger next to the GitHub issue triggers and write-back', () => {
+    const document = workflow(githubIssues);
+
+    expect(render(githubIssues).split('\n')[1]).toBe(
+      '# shipfox-template: ticket-to-pr@7 tracker=github source=github',
+    );
+    expect(Object.keys(at(document, 'triggers') as YamlRecord)).toEqual([
+      'manual',
+      'on_issue_labeled',
+    ]);
+    expect(
+      Object.keys(
+        at(workflow(githubIssues, {github_trigger: 'assignee'}), 'triggers') as YamlRecord,
+      ),
+    ).toEqual(['manual', 'on_issue_assigned']);
+    expect(step(document, 'implement', 'fix').integrations).toEqual([
+      {connection: 'github_source', include: ['issue_read.get', 'issue_read.get_comments']},
+    ]);
+    expect(Object.keys(at(document, 'jobs') as YamlRecord)).toEqual([
+      'implement',
+      'comment_on_ticket',
+      'respond_to_feedback',
+    ]);
+    expect(toolSteps(document)).toEqual([
+      'issue_read.get',
+      'issue_write.update',
+      'add_issue_comment',
+      'create_pull_request',
+      'add_issue_comment',
+    ]);
+    expect(toolSteps(workflow(githubIssues, {ticket_write_back: 'none'}))).toEqual([
+      'create_pull_request',
+    ]);
+    expect(render(githubIssues)).not.toContain('# bind:tracker');
+  });
+
+  it.each([
+    {name: 'the trigger label is added', label: 'shipfox', state: 'open', matches: true},
+    {
+      name: 'the in-progress label is added',
+      label: 'shipfox:in-progress',
+      state: 'open',
+      matches: false,
+    },
+    {name: 'a closed issue gets the label', label: 'shipfox', state: 'closed', matches: false},
+    {
+      name: 'the label is added in another repository',
+      label: 'shipfox',
+      state: 'open',
+      repository: 'acme/web',
+      matches: false,
+    },
+  ])('starts the GitHub label trigger when $name: $matches', ({
+    label,
+    state,
+    repository,
+    matches,
+  }) => {
+    const yaml = render(githubIssues)
+      .replaceAll('replace-with-owner/repository', 'acme/api')
+      .replaceAll('replace-with-label-name', 'shipfox');
+    const {event, filter} = trigger(parseYaml(yaml) as YamlRecord, 'on_issue_labeled');
+    const payload = {
+      repository: {full_name: repository ?? 'acme/api'},
+      issue: {number: 42n, state},
+      label: {name: label},
+    };
+
+    expect(event).toBe('issues.labeled');
+    expect(evaluate(filter, {event: payload})).toBe(matches);
+  });
+
+  it('reads the GitHub issue and references it so GitHub links the PR', () => {
+    const task = step(workflow(githubIssues), 'implement', 'task');
+
+    const result = runStep(task, {
+      trigger: {source: 'github_source'},
+      run: {number: 7},
+      event: {
+        issue: {
+          number: 42n,
+          title: 'Add a health check',
+          html_url: 'https://github.com/acme/api/issues/42',
+          body: null,
+        },
+      },
+      inputs: {},
+    });
+
+    expect(result.outputs).toMatchObject({
+      ticket_id: '42',
+      identifier: 'issue-42',
+      title: 'Add a health check',
+      url: 'https://github.com/acme/api/issues/42',
+      reference: 'Fixes #42',
+      description: '',
+    });
+    expect(
+      evaluate(String(at(workflow(githubIssues), 'run_name')).replace(runNamePrefix, ''), {
+        trigger: {source: 'github_source'},
+        event: {issue: {number: 42n}},
+      }),
+    ).toBe('#42');
+  });
+
+  it('references the GitHub issue a ticket loader passes', () => {
+    const task = step(workflow(githubIssues), 'implement', 'task');
+    const inputs = {...manualInputs, ticket_id: '42', identifier: 'issue-42'};
+
+    const result = runStep(task, {trigger: {source: 'manual'}, run: {number: 7}, inputs});
+
+    expect(result.outputs).toMatchObject({
+      ticket_id: '42',
+      identifier: 'issue-42',
+      reference: 'Fixes #42',
+    });
+  });
+
+  it.each([
+    {name: 'adds the in-progress label', labels: ['bug'], updates: true},
+    {
+      name: 'skips an issue already in progress',
+      labels: ['bug', 'replace-with-in-progress-label'],
+      updates: false,
+    },
+  ])('$name to a GitHub issue before the fix', ({labels, updates}) => {
+    const document = workflow(githubIssues);
+    const steps = at(document, 'jobs', 'implement', 'steps') as YamlRecord[];
+    const mark = step(document, 'implement', 'mark_in_progress');
+    const context = {
+      steps: {
+        task: {outputs: {ticket_id: '42'}},
+        prepare: {outputs: {owner: 'acme', repo: 'api'}},
+        read_labels: {outputs: {labels}},
+      },
+    };
+
+    expect(evaluate(mark.if, context)).toBe(updates);
+    expect(evaluate(at(mark, 'with', 'issue_number'), context)).toBe(42n);
+    expect(evaluate(at(mark, 'with', 'labels'), context)).toEqual([
+      ...labels,
+      'replace-with-in-progress-label',
+    ]);
     expect(steps.findIndex((entry) => entry.key === 'mark_in_progress')).toBeLessThan(
       steps.findIndex((entry) => entry.key === 'fix'),
     );

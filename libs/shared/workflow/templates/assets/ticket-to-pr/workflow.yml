@@ -77,7 +77,7 @@ jobs:
             REPOSITORY=""
           fi
           if [ -n "$TICKET_ID" ]; then
-            REFERENCE="Fixes $IDENTIFIER"
+            REFERENCE="${TICKET_REFERENCE:-Fixes $IDENTIFIER}"
           elif [ -n "$URL" ]; then
             REFERENCE="Requested in $URL"
           else

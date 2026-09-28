@@ -190,7 +190,7 @@ exports[`agent-access template tools > lists the shipped templates for a GitHub-
         "compatible": true,
         "id": "ticket-to-pr",
         "missing_providers": [],
-        "revision": 6,
+        "revision": 7,
         "roles": [
           {
             "from_project": false,
@@ -210,6 +210,13 @@ exports[`agent-access template tools > lists the shipped templates for a GitHub-
                 "compatible": false,
                 "provider": "clickup",
                 "suggested_bindings": [],
+              },
+              {
+                "compatible": true,
+                "provider": "github",
+                "suggested_bindings": [
+                  "github-main",
+                ],
               },
             ],
             "question": "Should tickets in an issue tracker start the workflow and receive its results?",

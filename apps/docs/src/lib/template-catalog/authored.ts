@@ -16,14 +16,13 @@ export const authoredTemplateMetadata: Record<string, AuthoredMetadata> = {
   'ticket-to-pr': {
     group: 'deliver',
     starts:
-      'Your coding agent or another workflow sends a task, or a Linear, Jira, or ClickUp ticket is ready',
-    upcoming: {tracker: ['github']},
+      'Your coding agent or another workflow sends a task, or a Linear, Jira, or ClickUp ticket or a GitHub issue is ready',
     flow: [
       {
         kind: 'trigger',
         title: 'The agent gets a task',
         detail:
-          'Your coding agent or another workflow, such as a Slack dispatcher, sends the task with its acceptance criteria. Optional: assign the agent to a Linear issue or mention it, add a label in Linear or Jira, add a tag in ClickUp, or move a Jira issue or ClickUp task to a status.',
+          'Your coding agent or another workflow, such as a Slack dispatcher, sends the task with its acceptance criteria. Optional: assign the agent to a Linear issue or mention it, add a label in Linear or Jira, add a tag in ClickUp, or move a Jira issue or ClickUp task to a status. On a GitHub issue, add a label or assign a user.',
       },
       {
         kind: 'agent',
@@ -57,11 +56,12 @@ export const authoredTemplateMetadata: Record<string, AuthoredMetadata> = {
       {icon: 'linear', action: 'Comments on the issue and can change its status (optional)'},
       {icon: 'jira', action: 'Comments on the issue and can change its status (optional)'},
       {icon: 'clickup', action: 'Comments on the task and can change its status (optional)'},
+      {icon: 'github', action: 'Comments on the issue and can add a status label (optional)'},
     ],
     prerequisites: [
       'Connect GitHub.',
       'Run CI on GitHub Actions to use the feedback loop.',
-      'To start from Linear, Jira, or ClickUp tickets, connect that tracker.',
+      'To start from Linear, Jira, or ClickUp tickets, connect that tracker. GitHub issues need no extra connection.',
     ],
     related: ['fix-dependency-ci', 'report-failed-runs'],
   },
