@@ -24,6 +24,10 @@ export {
   type FirstWorkflowSurface,
 } from './components/first-workflow-panel.js';
 export {
+  ProjectFirstWorkflowPanel,
+  type ProjectFirstWorkflowPanelProps,
+} from './components/project-first-workflow-panel.js';
+export {
   SetupChecklistBody,
   type SetupChecklistBodyProps,
   type WorkspaceReference,

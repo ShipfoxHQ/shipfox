@@ -27,6 +27,12 @@ export interface ChromeSlots {
    */
   WorkspaceSetupChecklist?: ComponentType;
   /**
+   * Optional component the project workflows page renders under its empty
+   * state, once the project has no definitions and sync is not in progress.
+   * The page renders today's empty state alone when the slot is absent.
+   */
+  FirstWorkflowPanel?: ComponentType<{projectId: string}>;
+  /**
    * Optional component the nav bar renders right of the breadcrumbs. The bar
    * renders nothing when the slot is absent, and never on the pre-project gate
    * pages (while hideProjectNavigation is true).

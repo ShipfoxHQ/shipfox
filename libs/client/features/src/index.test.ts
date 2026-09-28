@@ -70,11 +70,13 @@ describe('defaultFeatures', () => {
 });
 
 describe('defaultChrome', () => {
-  it('wires the workspace setup checklist and indicator into the default chrome', () => {
-    // Dropping either slot silently removes the Get-started guide from the hub
-    // and the top bar, so the composition contract is asserted here.
+  it('wires the onboarding slots into the default chrome', () => {
+    // Dropping a slot silently removes the Get-started guide from the hub and
+    // the top bar, or the first workflow panel from an empty workflows page, so
+    // the composition contract is asserted here.
     expect(defaultChrome.WorkspaceSetupChecklist).toBeDefined();
     expect(defaultChrome.WorkspaceSetupIndicator).toBeDefined();
+    expect(defaultChrome.FirstWorkflowPanel).toBeDefined();
     expect(defaultChrome.ProjectBreadcrumb).toBeDefined();
     expect(defaultChrome.projectSlugResolver).toBeDefined();
   });

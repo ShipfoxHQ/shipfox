@@ -7,6 +7,7 @@ import {
   useDefinitionsInfiniteQuery,
   useProjectQuery,
 } from '@shipfox/client-projects';
+import {useChrome} from '@shipfox/client-shell/runtime';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Callout} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
@@ -120,6 +121,13 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
                 void handleRun(definition);
               }}
             />
+
+            <FirstWorkflowSlot
+              projectId={projectId}
+              definitionsLoaded={definitionsQuery.isSuccess}
+              definitionCount={definitions.length}
+              sync={sync}
+            />
           </>
         ) : null}
 
@@ -132,6 +140,29 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
       </div>
     </div>
   );
+}
+
+/**
+ * Offers the first workflow only once the page knows the project has none and
+ * no sync in progress is about to find one.
+ */
+function FirstWorkflowSlot({
+  projectId,
+  definitionsLoaded,
+  definitionCount,
+  sync,
+}: {
+  projectId: string;
+  definitionsLoaded: boolean;
+  definitionCount: number;
+  sync: DefinitionSyncSummary | null | undefined;
+}) {
+  const {FirstWorkflowPanel} = useChrome();
+  const syncInProgress = sync?.status === 'pending' || sync?.status === 'syncing';
+  if (!FirstWorkflowPanel || !definitionsLoaded || definitionCount > 0 || syncInProgress) {
+    return null;
+  }
+  return <FirstWorkflowPanel projectId={projectId} />;
 }
 
 function WorkflowSyncAlert({sync}: {sync: DefinitionSyncSummary | null | undefined}) {

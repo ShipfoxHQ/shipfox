@@ -14,3 +14,8 @@ export const WorkspaceSetupIndicator = lazy(async () => {
   const module = await import('./components/setup-checklist.js');
   return {default: module.WorkspaceSetupIndicator};
 });
+
+export const ProjectFirstWorkflowPanel = lazy(async () => {
+  const module = await import('./components/project-first-workflow-panel.js');
+  return {default: module.ProjectFirstWorkflowPanel};
+});

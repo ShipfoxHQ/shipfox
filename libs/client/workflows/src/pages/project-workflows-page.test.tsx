@@ -1,4 +1,5 @@
 import {configureApiClient} from '@shipfox/client-api';
+import type {ChromeSlots} from '@shipfox/client-shell/runtime';
 import {fireEvent, screen, waitFor, within} from '@testing-library/react';
 import {
   jsonResponse,
@@ -113,6 +114,91 @@ describe('ProjectWorkflowsPage', () => {
       screen.getByText('Step gate success must be a valid CEL boolean expression: No such key'),
     ).toHaveClass('text-tag-error-text');
     expect(screen.getByText('jobs.build.steps.1.gate.success')).toBeInTheDocument();
+  });
+
+  describe('first workflow panel slot', () => {
+    function FirstWorkflowPanel({projectId}: {projectId: string}) {
+      return <div>First workflow panel for {projectId}</div>;
+    }
+
+    function emptyDefinitions(status: 'pending' | 'syncing' | 'succeeded' | 'failed') {
+      return jsonResponse(
+        definitionsDto({
+          definitions: [],
+          sync: {
+            ref: 'main',
+            status,
+            last_sync_at: '2026-05-07T01:00:00.000Z',
+            started_at: '2026-05-07T01:00:00.000Z',
+            finished_at: null,
+            last_error_code: status === 'failed' ? 'no-workflow-files' : null,
+            last_error_message: status === 'failed' ? 'No workflow files found' : null,
+            diagnostics: [],
+          },
+        }),
+      );
+    }
+
+    test('renders the slot for the project under the empty state', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({definitions: emptyDefinitions('failed')}),
+      });
+
+      renderWorkflowsPage({FirstWorkflowPanel});
+
+      const emptyState = await screen.findByText(
+        'No workflow files found under .shipfox/workflows/.',
+      );
+      const panel = await screen.findByText(`First workflow panel for ${PROJECT_ID}`);
+      expect(emptyState.compareDocumentPosition(panel)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+
+    test('does not render the slot when the project has definitions', async () => {
+      configureApiClient({fetchImpl: createProjectDetailFetch()});
+
+      renderWorkflowsPage({FirstWorkflowPanel});
+
+      expect((await screen.findAllByText('Deploy production'))[0]).toBeInTheDocument();
+      expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
+    });
+
+    test.each([
+      'pending',
+      'syncing',
+    ] as const)('does not render the slot while sync is %s', async (status) => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({definitions: emptyDefinitions(status)}),
+      });
+
+      renderWorkflowsPage({FirstWorkflowPanel});
+
+      expect(await screen.findByText('No workflows')).toBeInTheDocument();
+      expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
+    });
+
+    test('does not render the slot when definitions fail to load', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          definitions: jsonResponse({code: 'server-error'}, {status: 500}),
+        }),
+      });
+
+      renderWorkflowsPage({FirstWorkflowPanel});
+
+      expect(await screen.findByText("Couldn't load workflows")).toBeInTheDocument();
+      expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
+    });
+
+    test('renders only the empty state when the slot is absent', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({definitions: emptyDefinitions('succeeded')}),
+      });
+
+      renderWorkflowsPage();
+
+      expect(await screen.findByText('No workflow definitions found.')).toBeInTheDocument();
+      expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
+    });
   });
 
   test('shows definition warnings without rendering a sync failure', async () => {
@@ -395,10 +481,12 @@ describe('ProjectWorkflowsPage', () => {
   });
 });
 
-function renderWorkflowsPage() {
-  return renderProjectPage(`/w/${PROJECT_TEST_WSLUG}/p/project/workflows`, () => (
-    <ProjectWorkflowsPage projectId={PROJECT_ID} />
-  ));
+function renderWorkflowsPage(chrome: Partial<ChromeSlots> = {}) {
+  return renderProjectPage(
+    `/w/${PROJECT_TEST_WSLUG}/p/project/workflows`,
+    () => <ProjectWorkflowsPage projectId={PROJECT_ID} />,
+    chrome,
+  );
 }
 
 function createProjectDetailFetch({
