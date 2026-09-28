@@ -186,6 +186,7 @@ const jobStatusReasonSchema = z.enum([
   'step_failed',
   'unknown',
   'output_invalid',
+  'runner_not_allowed',
 ]);
 
 // A skipped job never had an execution, so completion carries none.

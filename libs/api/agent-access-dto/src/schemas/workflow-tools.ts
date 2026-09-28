@@ -117,6 +117,7 @@ const jobStatusReasonSchema = z.enum([
   'step_failed',
   'unknown',
   'output_invalid',
+  'runner_not_allowed',
 ]);
 const jobModeSchema = z.enum(['one_shot', 'listening']);
 const listenerStatusSchema = z.enum(['inactive', 'listening', 'resolved']);
@@ -529,6 +530,7 @@ const executionSummaryJsonSchema = {
         'step_failed',
         'unknown',
         'output_invalid',
+        'runner_not_allowed',
       ],
     }),
     status_reason_message: nullable(text),
@@ -591,6 +593,7 @@ const jobReasonJsonSchema = nullable({
     'step_failed',
     'unknown',
     'output_invalid',
+    'runner_not_allowed',
   ],
 });
 const jobSummaryJsonSchema = {

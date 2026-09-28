@@ -1,6 +1,8 @@
+import {logger} from '@shipfox/node-opentelemetry';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {
   and,
+  arrayContained,
   arrayContains,
   asc,
   eq,
@@ -11,13 +13,19 @@ import {
   isNull,
   lt,
   lte,
+  not,
   notExists,
   notInArray,
   or,
   sql,
 } from 'drizzle-orm';
-import type {InstallationPlacementPolicy} from '#installation-provisioning.js';
+import {runnerReservedLabels} from '#config.js';
+import type {
+  InstallationPlacementPolicy,
+  WorkspacePlacementRules,
+} from '#installation-provisioning.js';
 import {
+  recordPlacementResolveError,
   recordPlacementTemplateChanged,
   recordProviderRunnerActivationOutcome,
 } from '#metrics/instance.js';
@@ -28,6 +36,7 @@ import {
 } from './capacity-holds.js';
 import type {Tx} from './db.js';
 import {db} from './db.js';
+import {denyPendingJobExecutionsTx} from './placement-denials.js';
 import {lockRunnerReservationAdvisoryKeysTx} from './reservation-locks.js';
 import {terminalStates} from './runner-states.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
@@ -101,6 +110,8 @@ interface BindableRunnerParams {
   workspaceId: string;
   requiredLabels: string[];
   scope: DemandScope;
+  /** Label sets of templates the workspace may not use. Runners of those templates stay idle. */
+  refusedTemplateLabels?: string[][];
 }
 
 interface IdleRunnerSelectionParams extends BindableRunnerParams {
@@ -109,6 +120,7 @@ interface IdleRunnerSelectionParams extends BindableRunnerParams {
 
 type PollDemandAndReserveLockedParams = PollDemandAndReserveParams & {
   scope: DemandScope;
+  placementRules?: WorkspacePlacementRules;
 };
 
 interface NormalizedTemplate {
@@ -147,6 +159,7 @@ interface PollDemandAndReserveResult {
 
 interface DemandReservationState {
   readonly templates: NormalizedTemplate[];
+  readonly placementRules: WorkspacePlacementRules | undefined;
   readonly reservedByLabels: ReadonlyMap<string, number>;
   readonly stats: DemandStat[];
   readonly grants: ReservationGrant[];
@@ -182,6 +195,8 @@ export async function pollInstallationDemandAndReserve(
   const candidateWorkspaceIds = await listInstallationDemandWorkspaceIds(
     params.eligibleWorkspaceIds,
   );
+  const placementRules = await resolvePlacementRules(params.placement, candidateWorkspaceIds);
+  if (!placementRules) return {stats: [], reservations: []};
   const results: PollDemandAndReserveResult[] = [];
   let remainingMaxReservations = params.maxReservations;
   const remainingTemplates = params.templates.map((template) => ({
@@ -190,7 +205,10 @@ export async function pollInstallationDemandAndReserve(
     remainingSlots: template.availableSlots,
   }));
   for (const workspaceId of candidateWorkspaceIds) {
-    if (params.signal?.aborted || remainingMaxReservations === 0) break;
+    if (params.signal?.aborted) break;
+    const workspacePlacementRules = placementRules.get(workspaceId);
+    // A workspace with placement rules still needs its denial pass once the grant budget is spent.
+    if (remainingMaxReservations === 0 && !workspacePlacementRules) continue;
     const result = await db().transaction(async (tx) => {
       const lockResult = await tx.execute<{locked: boolean}>(
         sql`select pg_try_advisory_xact_lock(hashtext(${workspaceId})) as locked`,
@@ -212,10 +230,16 @@ export async function pollInstallationDemandAndReserve(
         capabilityWindowSeconds: params.capabilityWindowSeconds,
         scope: 'installation',
         ...(params.placement ? {placement: params.placement} : {}),
+        ...(workspacePlacementRules ? {placementRules: workspacePlacementRules} : {}),
       });
     });
     results.push(result);
-    consumeInstallationTemplateSlots(remainingTemplates, result.reservations, params.placement);
+    consumeInstallationTemplateSlots(
+      remainingTemplates,
+      result.reservations,
+      params.placement,
+      workspacePlacementRules,
+    );
     params.onReservations?.(result.reservations);
     remainingMaxReservations -= result.newlyReservedUnits.reduce(
       (total, reservation) => total + reservation.count,
@@ -235,19 +259,52 @@ export async function pollInstallationDemandAndReserve(
   };
 }
 
+// A thrown error skips every candidate workspace for this poll. Jobs stay queued rather than
+// being refused or granted on missing data.
+async function resolvePlacementRules(
+  placement: InstallationPlacementPolicy | undefined,
+  workspaceIds: readonly string[],
+): Promise<ReadonlyMap<string, WorkspacePlacementRules> | undefined> {
+  if (!placement?.resolve || workspaceIds.length === 0) return new Map();
+  try {
+    return await placement.resolve(workspaceIds);
+  } catch (error) {
+    recordPlacementResolveError();
+    logger().error(
+      {err: error, workspaceCount: workspaceIds.length},
+      'Failed to resolve placement rules; skipping workspaces for this poll',
+    );
+    return undefined;
+  }
+}
+
 function consumeInstallationTemplateSlots(
   templates: NormalizedTemplate[],
   launchGrants: ReservationGrant[],
   placement: InstallationPlacementPolicy | undefined,
+  placementRules?: WorkspacePlacementRules,
 ): void {
   // Adopted runners are already included in the running count behind availableSlots.
   // Only units that still need a launch consume advertised template capacity.
   for (const reservation of launchGrants) {
     drawSlots(
-      orderSatisfyingTemplates(templates, reservation.labels, placement),
+      orderSatisfyingTemplates(
+        allowedByRules(templates, placementRules),
+        reservation.labels,
+        placement,
+      ),
       reservation.count,
     );
   }
+}
+
+function allowedByRules(
+  templates: NormalizedTemplate[],
+  placementRules: WorkspacePlacementRules | undefined,
+): NormalizedTemplate[] {
+  return placementRules
+    ? templates.filter((template) => placementRules.allowsTemplate(template.labels))
+    : templates;
 }
 
 async function pollDemandAndReserveLockedTx(
@@ -301,6 +358,7 @@ async function pollDemandAndReserveLockedTx(
   );
   const state: DemandReservationState = {
     templates,
+    placementRules: params.placementRules,
     reservedByLabels,
     stats: [],
     grants: [],
@@ -309,6 +367,10 @@ async function pollDemandAndReserveLockedTx(
       params.capabilityWindowSeconds === undefined ? {} : {workspaceId: params.workspaceId},
     remainingMaxReservations: params.maxReservations,
   };
+
+  if (params.placementRules) {
+    demandRows = await denyRefusedDemandRowsTx(tx, params, demandRows, state);
+  }
 
   for (const demand of sortDemandRows(demandRows)) {
     await reserveDemandRowTx(tx, params, demand, state);
@@ -321,30 +383,59 @@ async function pollDemandAndReserveLockedTx(
   };
 }
 
+// Runs over every demand group before any grant, so a refused job fails within one poll even
+// behind a group that is waiting for capacity. A group with no reserved label is only skipped: a
+// self-hosted runner could still serve it.
+async function denyRefusedDemandRowsTx(
+  tx: Tx,
+  params: PollDemandAndReserveLockedParams,
+  demandRows: DemandRow[],
+  state: DemandReservationState,
+): Promise<DemandRow[]> {
+  const rules = state.placementRules;
+  if (!rules) return demandRows;
+  const remaining: DemandRow[] = [];
+  for (const demand of demandRows) {
+    const matching = state.templates.filter((template) =>
+      isSubset(demand.requiredLabels, template.labels),
+    );
+    const refusedEverywhere =
+      matching.length > 0 && matching.every((template) => !rules.allowsTemplate(template.labels));
+    const reserved = demand.requiredLabels.some((label) => runnerReservedLabels.includes(label));
+    if (!refusedEverywhere || !reserved) {
+      remaining.push(demand);
+      continue;
+    }
+    await denyPendingJobExecutionsTx(tx, {
+      workspaceId: params.workspaceId,
+      requiredLabels: demand.requiredLabels,
+      notice: rules.denial(demand.requiredLabels),
+    });
+  }
+  return remaining;
+}
+
 async function reserveDemandRowTx(
   tx: Tx,
   params: PollDemandAndReserveLockedParams,
   demand: DemandRow,
   state: DemandReservationState,
 ): Promise<void> {
-  const satisfyingTemplates = orderSatisfyingTemplates(
-    state.templates,
+  const allowedTemplates = orderSatisfyingTemplates(
+    allowedByRules(state.templates, state.placementRules),
     demand.requiredLabels,
     params.placement,
   );
-  if (satisfyingTemplates.length === 0) return;
+  if (allowedTemplates.length === 0) return;
   const reserved = state.reservedByLabels.get(labelKey(demand.requiredLabels)) ?? 0;
-  const capacity = satisfyingTemplates.reduce(
-    (total, template) => total + template.remainingSlots,
-    0,
-  );
+  const capacity = allowedTemplates.reduce((total, template) => total + template.remainingSlots, 0);
   const grant = Math.min(
     Math.max(0, demand.queued - reserved),
     capacity,
     state.remainingMaxReservations,
   );
   if (grant > 0 && params.maxReservations > 0) {
-    await grantDemandReservationTx(tx, params, demand, satisfyingTemplates, grant, state);
+    await grantDemandReservationTx(tx, params, demand, allowedTemplates, grant, state);
   }
   state.stats.push({
     ...state.workspaceIdField,
@@ -359,7 +450,7 @@ async function grantDemandReservationTx(
   tx: Tx,
   params: PollDemandAndReserveLockedParams,
   demand: DemandRow,
-  satisfyingTemplates: NormalizedTemplate[],
+  allowedTemplates: NormalizedTemplate[],
   grant: number,
   state: DemandReservationState,
 ): Promise<void> {
@@ -369,6 +460,9 @@ async function grantDemandReservationTx(
     count: grant,
     workspaceId: params.workspaceId,
     scope: params.scope,
+    refusedTemplateLabels: state.templates
+      .filter((template) => state.placementRules?.allowsTemplate(template.labels) === false)
+      .map((template) => template.labels),
   });
   state.remainingMaxReservations -= grant;
   if (idleRunners.length > 0) {
@@ -376,10 +470,10 @@ async function grantDemandReservationTx(
   }
   const launchCount = grant - idleRunners.length;
   const launchUnits = params.placement
-    ? allocateLaunchUnits(satisfyingTemplates, launchCount, params.placement)
+    ? allocateLaunchUnits(allowedTemplates, launchCount, params.placement)
     : [];
-  if (params.placement) countChangedTemplates(satisfyingTemplates, launchCount, params.placement);
-  drawSlots(satisfyingTemplates, launchCount);
+  if (params.placement) countChangedTemplates(allowedTemplates, launchCount, params.placement);
+  drawSlots(allowedTemplates, launchCount);
   const launchReservation = await insertLaunchReservationTx(tx, params, demand, launchCount);
   if (launchReservation && params.placement) {
     await insertLaunchCapacityHoldsTx(tx, {
@@ -656,6 +750,14 @@ function isBindableRunner(tx: Tx, params: BindableRunnerParams) {
     isNotNull(providerRunners.providerRunnerId),
     eq(providerRunners.state, 'running'),
     arrayContains(providerRunners.labels, params.requiredLabels),
+    ...(params.refusedTemplateLabels ?? []).map((labels) =>
+      not(
+        and(
+          arrayContains(providerRunners.labels, labels),
+          arrayContained(providerRunners.labels, labels),
+        ) ?? sql`false`,
+      ),
+    ),
     exists(
       tx
         .select({id: runnerControlSessions.id})

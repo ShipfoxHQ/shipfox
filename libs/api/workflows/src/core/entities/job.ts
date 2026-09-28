@@ -34,6 +34,7 @@ export const JOB_STATUS_REASONS = [
   'step_failed',
   'unknown',
   'output_invalid',
+  'runner_not_allowed',
 ] as const;
 
 export type JobStatusReason = (typeof JOB_STATUS_REASONS)[number];

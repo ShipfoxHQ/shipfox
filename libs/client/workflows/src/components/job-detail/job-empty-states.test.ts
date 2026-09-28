@@ -190,6 +190,49 @@ describe('runner-loss failure descriptions', () => {
   });
 });
 
+describe('runner_not_allowed failure', () => {
+  function deniedJob(message: string | null) {
+    const job = workflowJob({
+      status: 'failed',
+      status_reason: 'runner_not_allowed',
+      job_executions: [
+        workflowJobExecutionDto({
+          status: 'failed',
+          status_reason: 'runner_not_allowed',
+          status_reason_message: message,
+          steps: [],
+        }),
+      ],
+    });
+    const execution = job.jobExecutions[0];
+    if (!execution) throw new Error('Expected a job execution');
+    return {job, execution};
+  }
+
+  test('shows the stored notice message with its required action', () => {
+    const {job, execution} = deniedJob('This workspace cannot use 16 vCPU runners.');
+    execution.statusReasonNotice = {
+      reason: 'machine-not-allowed',
+      message: 'This workspace cannot use 16 vCPU runners.',
+      requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/settings/billing'},
+    };
+
+    expect(emptyStateForJob(job, execution)).toMatchObject({
+      description: 'This workspace cannot use 16 vCPU runners.',
+      action: {label: 'Add credits', href: '/settings/billing'},
+    });
+  });
+
+  test('falls back to generic copy without a stored notice', () => {
+    const {job, execution} = deniedJob(null);
+
+    const emptyState = emptyStateForJob(job, execution);
+
+    expect(emptyState?.description).toContain('cannot use the requested runner');
+    expect(emptyState?.action).toBeUndefined();
+  });
+});
+
 describe('materialized output failure descriptions', () => {
   const fallback =
     'A materialized job output could not be persisted: it exceeded a size or entry cap, contained a non-JSON-safe value, or referenced an unresolved value. Check the output mapping and values before re-running the workflow.';

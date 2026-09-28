@@ -37,7 +37,9 @@ export {
 } from '#db/index.js';
 export type {
   CreateRunnersModuleOptions,
+  InstallationPlacementPolicy,
   InstallationProvisioningPolicy,
+  WorkspacePlacementRules,
 } from '#installation-provisioning.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');

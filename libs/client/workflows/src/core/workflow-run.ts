@@ -22,6 +22,7 @@ export type {
   JobExecutionDisplayStatus,
   JobExecutionStatus,
   JobExecutionTime,
+  StatusReasonNotice,
   WorkflowExecutionEvent,
 } from './entities/job-execution.js';
 export {

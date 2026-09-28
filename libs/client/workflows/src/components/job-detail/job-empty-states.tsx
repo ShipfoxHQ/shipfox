@@ -112,6 +112,7 @@ export function emptyStateForJob(
         jobExecution.statusReasonMessage,
       ),
       status: displayStatus,
+      ...noticeAction(jobExecution),
     };
   }
 
@@ -124,6 +125,12 @@ export function emptyStateForJob(
   }
 
   return undefined;
+}
+
+function noticeAction(jobExecution: JobExecution): Pick<StepListEmptyState, 'action'> {
+  const requiredAction = jobExecution.statusReasonNotice?.requiredAction;
+  if (jobExecution.statusReason !== 'runner_not_allowed' || !requiredAction) return {};
+  return {action: {label: requiredAction.message, href: requiredAction.url}};
 }
 
 export function emptyStateForMissingExecution(job: Job): StepListEmptyState {
@@ -218,6 +225,7 @@ export function skippedJobDescription(reason: Job['statusReason']): string {
     case 'lifecycle_violation':
     case 'runner_lost':
     case 'output_invalid':
+    case 'runner_not_allowed':
     case 'step_failed':
     case 'unknown':
     case null:
@@ -247,6 +255,11 @@ function preStepFailureDescription(
       return (
         statusReasonMessage ||
         'Not started within the queue timeout. Try the workflow again when a runner is available.'
+      );
+    case 'runner_not_allowed':
+      return (
+        statusReasonMessage ||
+        'This workspace cannot use the requested runner. Choose a different runner or contact your workspace administrator.'
       );
     case 'timed_out':
       return (

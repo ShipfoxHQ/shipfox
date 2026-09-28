@@ -6,6 +6,7 @@ import {
   AccordionTrigger,
 } from '@shipfox/react-ui/accordion';
 import {Badge, type BadgeVariant} from '@shipfox/react-ui/badge';
+import {Button} from '@shipfox/react-ui/button';
 import {Dot} from '@shipfox/react-ui/dot';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {Icon} from '@shipfox/react-ui/icon';
@@ -54,6 +55,7 @@ export interface StepListEmptyState {
   title: string;
   description: string;
   status?: JobDisplayStatus | undefined;
+  action?: {label: string; href: string} | undefined;
 }
 
 export interface StepListProps {
@@ -352,6 +354,11 @@ function StepListEmptyStateView({
           {emptyState.description}
         </Text>
       </div>
+      {emptyState.action ? (
+        <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
+          <a href={emptyState.action.href}>{emptyState.action.label}</a>
+        </Button>
+      ) : null}
     </div>
   );
 }

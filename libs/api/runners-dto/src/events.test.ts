@@ -1,8 +1,10 @@
 import {
   RUNNER_JOB_CLAIMED,
+  RUNNER_JOB_EXECUTION_PLACEMENT_DENIED,
   RUNNER_JOB_LEASE_EXPIRED,
   type RunnersEventMap,
   runnerJobClaimedEventSchema,
+  runnerJobExecutionPlacementDeniedEventSchema,
   runnerJobLeaseExpiredEventSchema,
   runnersEventSchemas,
 } from './events.js';
@@ -113,10 +115,31 @@ describe('runners events', () => {
     expect(runnerJobLeaseExpiredEventSchema.strict().parse(payload)).toEqual(payload);
   });
 
+  it('validates the placement denial event with its notice', () => {
+    const payload = {
+      workspaceId: crypto.randomUUID(),
+      workflowRunId: crypto.randomUUID(),
+      workflowRunAttemptId: crypto.randomUUID(),
+      jobId: crypto.randomUUID(),
+      jobExecutionId: crypto.randomUUID(),
+      notice: {
+        reason: 'machine-not-allowed',
+        message: 'This workspace cannot use 16 vCPU runners.',
+        requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/billing'},
+      },
+    };
+
+    expect(runnerJobExecutionPlacementDeniedEventSchema.strict().parse(payload)).toEqual(payload);
+    expect(() =>
+      runnerJobExecutionPlacementDeniedEventSchema.parse({...payload, notice: undefined}),
+    ).toThrow();
+  });
+
   it('covers every event map key with a schema', () => {
     expect(Object.keys(runnersEventSchemas)).toEqual([
       RUNNER_JOB_LEASE_EXPIRED,
       RUNNER_JOB_CLAIMED,
+      RUNNER_JOB_EXECUTION_PLACEMENT_DENIED,
     ] satisfies Array<keyof RunnersEventMap>);
   });
 });

@@ -1009,6 +1009,8 @@ function failureTitle(reason: string | JobStatusReason, error: StepError | null)
       return 'Job output exceeded its size limit';
     case 'queue_timed_out':
       return 'Job was not started within the queue timeout';
+    case 'runner_not_allowed':
+      return 'This workspace cannot use the requested runner';
     case 'timed_out':
       return 'Step timed out';
     case 'step_failed':
@@ -1132,6 +1134,8 @@ function failureDescription(
       return 'No runner claimed this job before the queue timeout. Try the workflow again when a runner is available.';
     case 'output_too_large':
       return 'The materialized job output exceeded its configured size limit.';
+    case 'runner_not_allowed':
+      return 'Choose a runner this workspace can use, or contact your workspace administrator.';
     case 'dependency_not_completed':
       return 'A required job did not complete, so this job could not start.';
     case 'condition_false':

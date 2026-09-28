@@ -60,6 +60,7 @@ export interface JobExecution {
   status: JobExecutionStatus;
   statusReason: JobStatusReason | null;
   statusReasonMessage?: string | null;
+  statusReasonNotice?: PolicyNotice | null;
   triggerEvents: WorkflowExecutionEvent[];
   /** Metadata-only event projection used for historical execution context. */
   triggerEventMetadata?: WorkflowExecutionEventMetadata[];

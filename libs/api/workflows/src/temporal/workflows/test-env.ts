@@ -152,7 +152,14 @@ export function setJobStatusCalls() {
 export function setExecutionStatusCalls() {
   return callsNamed('setJobExecutionStatus') as Array<{
     name: string;
-    params: {jobExecutionId: string; status: string; version: number; statusReason?: string | null};
+    params: {
+      jobExecutionId: string;
+      status: string;
+      version: number;
+      statusReason?: string | null;
+      statusReasonMessage?: string | null;
+      statusReasonNotice?: {reason: string; message: string} | null;
+    };
   }>;
 }
 

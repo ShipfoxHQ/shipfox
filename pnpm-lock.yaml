@@ -4937,6 +4937,9 @@ importers:
       '@shipfox/node-tokens':
         specifier: workspace:*
         version: link:../../shared/node/tokens
+      '@shipfox/policy-notice':
+        specifier: workspace:*
+        version: link:../../shared/common/policy-notice
       '@shipfox/runner-labels':
         specifier: workspace:*
         version: link:../../shared/common/runner-labels
