@@ -192,14 +192,13 @@ describe('downloadLinearUpload', () => {
     expect(error.reason).toBe('malformed-provider-response');
   });
 
-  it('rejects a file that announces a size over the limit', async () => {
+  it.each([
+    String(MAX_AGENT_TOOL_FILE_BYTES + 1),
+    '99999999999999999999',
+  ])('rejects a file that announces a size of %s bytes', async (length) => {
     const cancel = vi.fn();
     const body = new ReadableStream<Uint8Array>({cancel});
-    const {fetch} = fakeFetch([
-      new Response(body, {
-        headers: {'content-length': String(MAX_AGENT_TOOL_FILE_BYTES + 1)},
-      }),
-    ]);
+    const {fetch} = fakeFetch([new Response(body, {headers: {'content-length': length}})]);
 
     const error = await rejection(download({url: fileUrl, fetch}));
 

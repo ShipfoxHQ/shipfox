@@ -62,13 +62,8 @@ export async function downloadLinearUpload(
 function uploadUrl(value: unknown, uploadsUrl: URL): URL {
   const prefix = uploadsUrl.href;
   const parsed = typeof value === 'string' && value.startsWith(prefix) ? parseUrl(value) : null;
-  if (
-    parsed === null ||
-    parsed.origin !== uploadsUrl.origin ||
-    !parsed.pathname.startsWith(uploadsUrl.pathname) ||
-    parsed.username !== '' ||
-    parsed.password !== ''
-  ) {
+  // The prefix fixes the origin; the path check stops `..` segments from leaving it.
+  if (parsed === null || !parsed.pathname.startsWith(uploadsUrl.pathname)) {
     throw locationNotAllowed(`The URL must start with ${prefix}.`);
   }
   parsed.searchParams.delete('signature');
@@ -192,8 +187,7 @@ function contentDispositionFilename(header: string | null): string | undefined {
 
 function contentLength(header: string | null): number | undefined {
   if (header === null || !DIGITS_PATTERN.test(header)) return undefined;
-  const value = Number(header);
-  return Number.isSafeInteger(value) ? value : undefined;
+  return Number(header);
 }
 
 function retryAfterSeconds(header: string | null): number | undefined {
