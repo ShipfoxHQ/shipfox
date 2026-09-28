@@ -10,6 +10,7 @@ import {parse as parseYaml} from 'yaml';
 const execFileAsync = promisify(execFile);
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const assetsRoot = join(packageRoot, 'assets');
+const catalogTemplatesRoot = resolve(packageRoot, '../catalog/templates');
 const compatibilityPath = join(packageRoot, 'embedded-templates.yaml');
 const outputPath = join(packageRoot, 'src/generated/assets.ts');
 const formatterPath = resolve(packageRoot, 'node_modules/@shipfox/biome/bin/biome-format.js');
@@ -69,10 +70,10 @@ for (const entry of (await readdir(skillRoot, {withFileTypes: true})).sort(byNam
 
 const templates = [];
 const templateIds = new Set();
-for (const entry of await readdir(assetsRoot, {withFileTypes: true})) {
-  if (!entry.isDirectory() || entry.name === 'skills') continue;
+for (const entry of await readdir(catalogTemplatesRoot, {withFileTypes: true})) {
+  if (!entry.isDirectory()) continue;
 
-  const templateRoot = join(assetsRoot, entry.name);
+  const templateRoot = join(catalogTemplatesRoot, entry.name);
   const metadata = compatibility[entry.name];
   validateCompatibility(entry.name, metadata, compatibilityPath);
   templateIds.add(entry.name);
@@ -135,7 +136,7 @@ for (const entry of await readdir(assetsRoot, {withFileTypes: true})) {
 const staleTemplateIds = Object.keys(compatibility).filter((id) => !templateIds.has(id));
 if (staleTemplateIds.length > 0) {
   throw new Error(
-    `${compatibilityPath} includes templates without an asset directory: ${staleTemplateIds.join(', ')}.`,
+    `${compatibilityPath} includes templates without a catalog package: ${staleTemplateIds.join(', ')}.`,
   );
 }
 

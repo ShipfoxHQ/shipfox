@@ -23,7 +23,7 @@ The package does not evaluate expressions or implement conditionals and loops. I
 pnpm add @shipfox/workflow-templates
 ```
 
-The package build reads `assets/skills/` and template directories from `assets/`. It embeds the skill files, manifests, workflows, guides, and provider parts into a generated TypeScript module. The API image therefore does not copy these files at runtime.
+The package build reads `assets/skills/` and the first-party template packages in `libs/shared/workflow/catalog/templates/`. It embeds the skill files, manifests, workflows, guides, and provider parts into a generated TypeScript module. The API image therefore does not copy these files at runtime.
 
 ## Usage
 
@@ -108,17 +108,18 @@ The embedded loader takes each template id from its asset directory. It reads `r
 
 ### Asset layout
 
-A shipped asset uses this layout:
+Skills and the compatibility file live in this package. Each first-party template is a private workspace package (`@shipfox/template-<template-id>`, version `1.0.0`) under the catalog. A shipped asset uses this layout:
 
 ```text
 assets/skills/<skill-name>/SKILL.md
 assets/skills/<skill-name>/references/*.md
-assets/<template-id>/
+embedded-templates.yaml
+../catalog/templates/<template-id>/
+  package.json
   template.yaml
   workflow.yml
   GUIDE.md
   parts/<role>/<provider>.yml
-embedded-templates.yaml
 ```
 
 To check a local workflow without starting a run, read `skill://shipfox/validate-workflow-change/SKILL.md` through MCP. It covers trigger inputs, retained events, dry-run refusals, and verification.
@@ -141,7 +142,7 @@ The build also serves each template guide as a `create-workflow-from-template/re
 
 ### Ticket to PR part contract
 
-The [ticket to PR template](https://github.com/ShipfoxHQ/shipfox/blob/main/libs/shared/workflow/templates/assets/ticket-to-pr/workflow.yml) composes the source part and, when the user chooses one, a tracker part. The tracker role is optional, so every tracker block must be self-contained.
+The [ticket to PR template](https://github.com/ShipfoxHQ/shipfox/blob/main/libs/shared/workflow/catalog/templates/ticket-to-pr/workflow.yml) composes the source part and, when the user chooses one, a tracker part. The tracker role is optional, so every tracker block must be self-contained.
 
 The base workflow owns the `manual` trigger, the workflow outputs, and the `task` step. The `task` step reads manual inputs or the tracker's ticket and outputs `ticket_id`, `identifier`, `title`, `url`, `repository`, `reference`, `description`, `acceptance_criteria`, and `request`. The adaptation guide lists the manual inputs.
 

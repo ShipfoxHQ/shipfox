@@ -69,7 +69,17 @@ const architecturePackages = {
     ],
     expression: ['libs/shared/expression'],
     registry: ['libs/shared/registry/format'],
-    workflow: ['libs/shared/workflow/document', 'libs/shared/workflow/templates'],
+    workflow: [
+      'libs/shared/workflow/catalog/templates/ask-codebase',
+      'libs/shared/workflow/catalog/templates/fix-default-branch-ci',
+      'libs/shared/workflow/catalog/templates/fix-dependency-ci',
+      'libs/shared/workflow/catalog/templates/report-failed-runs',
+      'libs/shared/workflow/catalog/templates/slack-dispatcher',
+      'libs/shared/workflow/catalog/templates/slack-to-ticket',
+      'libs/shared/workflow/catalog/templates/ticket-to-pr',
+      'libs/shared/workflow/document',
+      'libs/shared/workflow/templates',
+    ],
   },
   'shared-infrastructure': {
     api: ['libs/api/auth-context', 'libs/api/dispatcher', 'libs/api/email-challenges'],

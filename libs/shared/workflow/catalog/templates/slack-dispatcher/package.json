@@ -1,0 +1,11 @@
+{
+  "name": "@shipfox/template-slack-dispatcher",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "libs/shared/workflow/catalog/templates/slack-dispatcher"
+  },
+  "license": "MIT",
+  "private": true,
+  "version": "1.0.0"
+}

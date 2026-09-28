@@ -1,0 +1,11 @@
+{
+  "name": "@shipfox/template-report-failed-runs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "libs/shared/workflow/catalog/templates/report-failed-runs"
+  },
+  "license": "MIT",
+  "private": true,
+  "version": "1.0.0"
+}

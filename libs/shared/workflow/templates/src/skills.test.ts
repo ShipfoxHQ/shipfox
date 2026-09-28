@@ -15,43 +15,64 @@ describe('shipped skill resources', () => {
       'skill://shipfox/create-workflow-from-template/references/ticket-to-pr.md',
     );
     expect(guide?.text).toBe(
-      readFileSync(new URL('../assets/ticket-to-pr/GUIDE.md', import.meta.url), 'utf8'),
+      readFileSync(
+        new URL('../../catalog/templates/ticket-to-pr/GUIDE.md', import.meta.url),
+        'utf8',
+      ),
     );
     const dependencyGuide = getShippedSkillResource(
       'skill://shipfox/create-workflow-from-template/references/fix-dependency-ci.md',
     );
     expect(dependencyGuide?.text).toBe(
-      readFileSync(new URL('../assets/fix-dependency-ci/GUIDE.md', import.meta.url), 'utf8'),
+      readFileSync(
+        new URL('../../catalog/templates/fix-dependency-ci/GUIDE.md', import.meta.url),
+        'utf8',
+      ),
     );
     const failedRunGuide = getShippedSkillResource(
       'skill://shipfox/create-workflow-from-template/references/report-failed-runs.md',
     );
     expect(failedRunGuide?.text).toBe(
-      readFileSync(new URL('../assets/report-failed-runs/GUIDE.md', import.meta.url), 'utf8'),
+      readFileSync(
+        new URL('../../catalog/templates/report-failed-runs/GUIDE.md', import.meta.url),
+        'utf8',
+      ),
     );
     const askCodebaseGuide = getShippedSkillResource(
       'skill://shipfox/create-workflow-from-template/references/ask-codebase.md',
     );
     expect(askCodebaseGuide?.text).toBe(
-      readFileSync(new URL('../assets/ask-codebase/GUIDE.md', import.meta.url), 'utf8'),
+      readFileSync(
+        new URL('../../catalog/templates/ask-codebase/GUIDE.md', import.meta.url),
+        'utf8',
+      ),
     );
     const slackDispatcherGuide = getShippedSkillResource(
       'skill://shipfox/create-workflow-from-template/references/slack-dispatcher.md',
     );
     expect(slackDispatcherGuide?.text).toBe(
-      readFileSync(new URL('../assets/slack-dispatcher/GUIDE.md', import.meta.url), 'utf8'),
+      readFileSync(
+        new URL('../../catalog/templates/slack-dispatcher/GUIDE.md', import.meta.url),
+        'utf8',
+      ),
     );
     const slackTicketGuide = getShippedSkillResource(
       'skill://shipfox/create-workflow-from-template/references/slack-to-ticket.md',
     );
     expect(slackTicketGuide?.text).toBe(
-      readFileSync(new URL('../assets/slack-to-ticket/GUIDE.md', import.meta.url), 'utf8'),
+      readFileSync(
+        new URL('../../catalog/templates/slack-to-ticket/GUIDE.md', import.meta.url),
+        'utf8',
+      ),
     );
     const defaultBranchGuide = getShippedSkillResource(
       'skill://shipfox/create-workflow-from-template/references/fix-default-branch-ci.md',
     );
     expect(defaultBranchGuide?.text).toBe(
-      readFileSync(new URL('../assets/fix-default-branch-ci/GUIDE.md', import.meta.url), 'utf8'),
+      readFileSync(
+        new URL('../../catalog/templates/fix-default-branch-ci/GUIDE.md', import.meta.url),
+        'utf8',
+      ),
     );
 
     for (const name of [

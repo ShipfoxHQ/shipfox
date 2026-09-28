@@ -1,0 +1,11 @@
+{
+  "name": "@shipfox/template-ask-codebase",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "libs/shared/workflow/catalog/templates/ask-codebase"
+  },
+  "license": "MIT",
+  "private": true,
+  "version": "1.0.0"
+}
