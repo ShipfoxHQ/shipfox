@@ -82,12 +82,9 @@ describe('templateCatalogIssues', () => {
     expect(
       templateCatalogIssues({workflow: unbound, bindings: {tracker: 'linear'}, catalog}),
     ).toEqual(['tool save_comment uses connection linear_main, which is not bound to a role']);
-    expect(templateCatalogIssues({workflow, bindings: {}, catalog})).toEqual(
-      expect.arrayContaining([
-        'connection linear_tracker is bound to role tracker, which has no provider',
-        'event Issue.create uses connection linear_tracker, which is not bound to a role',
-      ]),
-    );
+    expect(templateCatalogIssues({workflow, bindings: {}, catalog})).toEqual([
+      'connection linear_tracker is bound to role tracker, which has no provider',
+    ]);
   });
 
   it('reports a workflow that is not YAML', () => {

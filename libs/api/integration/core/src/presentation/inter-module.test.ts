@@ -1414,7 +1414,16 @@ describe('integrations template conformance', () => {
       {
         provider: 'github',
         displayName: 'GitHub',
-        adapters: {agent_tools: agentToolsProvider()},
+        adapters: {
+          agent_tools: {
+            ...agentToolsProvider(),
+            selectionCatalog: () => ({
+              selectors: [
+                {token: 'issue_read', kind: 'family', sensitivity: 'read', sensitive: false},
+              ],
+            }),
+          },
+        },
       },
     ]);
     const sourceControl = createSourceControlIntegrationService({
@@ -1437,6 +1446,9 @@ describe('integrations template conformance', () => {
       'jobs:',
       '  work:',
       '    steps:',
+      '      - key: read',
+      '        tool: issue_read',
+      '        connection: github_source # bind:source',
       '      - key: comment',
       '        tool: add_issue_comment',
       '        connection: github_source # bind:source',

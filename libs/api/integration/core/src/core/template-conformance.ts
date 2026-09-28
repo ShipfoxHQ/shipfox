@@ -73,15 +73,21 @@ export function templateCatalogIssues(params: {
 
   const issues: string[] = [];
   const providerByConnection = new Map(params.catalog.builtinConnections);
+  const unprovidedConnections = new Set<string>();
   for (const [connection, role] of boundConnectionRoles(params.workflow)) {
     const provider = params.bindings[role];
     if (provider === undefined) {
       issues.push(`connection ${connection} is bound to role ${role}, which has no provider`);
+      unprovidedConnections.add(connection);
     } else {
       providerByConnection.set(connection, provider);
     }
   }
   for (const reference of collectCatalogReferences(document)) {
+    // The missing role binding is already reported once for the connection.
+    if (reference.connection !== undefined && unprovidedConnections.has(reference.connection)) {
+      continue;
+    }
     const issue = referenceIssue(reference, providerByConnection, params.catalog);
     if (issue !== undefined) issues.push(issue);
   }
