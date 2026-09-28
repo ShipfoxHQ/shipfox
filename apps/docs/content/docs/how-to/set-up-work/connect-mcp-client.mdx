@@ -10,23 +10,12 @@ start or manage workflow runs. Your browser handles sign-in. For server details
 and the tool list, see the [reference for the Shipfox MCP
 server](/reference/mcp-server).
 
-## Before you begin
-
-You need:
-
-- A Shipfox account with access to the workspace.
-- An MCP client: Claude Code, Codex CLI, Cursor, or VS Code. Other clients work
-  if they support MCP OAuth and browser sign-in.
-- The Shipfox MCP server endpoint. For Shipfox Cloud, use
-  `https://api.shipfox.io/mcp`. For a self-hosted installation, open **Settings
-  → Shipfox MCP server** and copy the **Shipfox MCP server endpoint**.
-
-The commands below use the Shipfox Cloud endpoint. For a self-hosted
-installation, replace it with the endpoint you copied.
-
 ## Add the Shipfox MCP server to your client
 
-Add the Shipfox MCP server to your client:
+<Callout type="info">
+  Self-hosted installations use their own endpoint instead of
+  `https://api.shipfox.io/mcp`. Copy it from **Settings → Shipfox MCP server**.
+</Callout>
 
 <include>../../../snippets/connect-coding-agent.mdx</include>
 
