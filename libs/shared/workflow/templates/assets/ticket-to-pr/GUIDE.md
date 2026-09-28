@@ -131,7 +131,7 @@ Ticket write-back can add a tracker comment and, if selected, change the ticket 
 
 A feedback execution can push one commit, reply to review comments, and resolve threads. It pushes only when the PR head has not moved since checkout. The implementing and feedback agents get only read tools. Shell steps, tool steps, and the `reply` step own the writes. Agent steps can still reach the repository's write credential from their shell.
 
-Before a full dev run, show the user these writes and let them choose a real journaled event or manual inputs. Check the event filter and the repository first. A failed run can already have pushed a branch, opened a PR, or posted a comment; inspect those writes before retrying.
+Before a full dev run, check the event filter and the repository. Use a real journaled event, or manual inputs when none matches. A failed run can already have pushed a branch, opened a PR, or posted a comment; inspect those writes before retrying.
 
 ## Verify the workflow
 

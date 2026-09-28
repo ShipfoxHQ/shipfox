@@ -7,8 +7,8 @@ const semanticVersionPattern = /^\d+\.\d+\.\d+$/u;
 describe('shipped skill resources', () => {
   test('embeds the template procedure and template guide bytes', () => {
     const skill = getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md');
-    expect(skill?.revision).toBe(7);
-    expect(skill?.text).toContain('revision: 7');
+    expect(skill?.revision).toBe(8);
+    expect(skill?.text).toContain('revision: 8');
     expect(skill?.text).toContain('## 1. Orient');
     expect(skill?.text).toContain('## 9. Deliver');
     expect(skill?.text).toContain('skill://shipfox/validate-workflow-change/SKILL.md');
@@ -68,7 +68,7 @@ describe('shipped skill resources', () => {
     }
   });
 
-  test('requires model confirmation, project-scoped replay, and a decision on partial writes', () => {
+  test('requires model confirmation and project-scoped replay', () => {
     const text =
       getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';
 
@@ -82,8 +82,7 @@ describe('shipped skill resources', () => {
     expect(text).toContain("Never reconstruct a template's YAML by hand.");
     expect(text).toContain('If `model_provider_configured` is `false`, stop');
     expect(text).not.toContain('no-compatible-model');
-    expect(text).toContain('state what a real run will write before listing events');
-    expect(text).toContain('Keep only events of the selected project');
+    expect(text).toContain('keep only events of the selected project');
     expect(text).toContain('The event check does not verify this');
     expect(text).toContain(
       'Tell them they can say they cannot trigger the event or ask to skip the dev run.',
@@ -91,12 +90,27 @@ describe('shipped skill resources', () => {
     expect(text).toContain(
       'Skip the dev run only if the user says they cannot trigger an event or asks to skip it.',
     );
-    expect(text).toContain('Repeat the expected writes from step 6 in one line');
+    expect(text).toContain('pick the most recent matching event yourself');
     expect(text).toContain('Before any repeat real run, after a failure or after edits');
-    expect(text).toContain('stop, or repeat the writes with their agreement');
-    expect(text).toContain(
-      'Never rerun a writing step without one of these. Stop and ask the user after five failed real runs.',
+    expect(text).toContain('Stop and ask the user after five failed real runs.');
+  });
+
+  test('asks before a dev run only when it can make a write that cannot be undone', () => {
+    const template =
+      getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';
+    const testing =
+      getShippedSkillResource('skill://shipfox/test-workflow-change/SKILL.md')?.text ?? '';
+
+    expect(template).toContain(
+      "It decides whether the real run needs the user's confirmation; never ask otherwise.",
     );
+    expect(template).not.toContain('decide explicitly with the user');
+    expect(testing).toContain('revision: 2');
+    expect(testing).toContain(
+      'Start the real run without asking unless it can make a write that cannot be undone.',
+    );
+    expect(testing).toContain('Runner time and inference need no confirmation.');
+    expect(testing).not.toContain('The user must authorize a real run');
   });
 
   test('asks about an optional role only when its provider is connected', () => {
