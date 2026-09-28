@@ -59,7 +59,7 @@ describe('shipped skill resources', () => {
     }
   });
 
-  test('keeps workflow authoring and dev-run contract identifiers in the skills', () => {
+  test('keeps workflow tool identifiers in their corresponding skills', () => {
     const template = getShippedSkillResource(
       'skill://shipfox/create-workflow-from-template/SKILL.md',
     );
@@ -68,13 +68,14 @@ describe('shipped skill resources', () => {
 
     expect(authoring?.revision).toBe(3);
     expect(testing?.revision).toBe(2);
+    for (const identifier of ['get_workflow_template', 'get_workflow_authoring_context']) {
+      expect(template?.text).toContain(identifier);
+    }
     for (const identifier of [
-      'get_workflow_template',
       'get_workflow_authoring_context',
       'list_workspace_models',
       'list_trigger_events',
     ]) {
-      expect(template?.text).toContain(identifier);
       expect(authoring?.text).toContain(identifier);
     }
     for (const identifier of [
