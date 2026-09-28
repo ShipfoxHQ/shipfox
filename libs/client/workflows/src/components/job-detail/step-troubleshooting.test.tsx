@@ -29,6 +29,7 @@ const ATTEMPT_ID = '66666666-6666-4666-8666-666666666666';
 const EXECUTION_ID = '77777777-7777-4777-8777-777777777777';
 const INSPECTOR_TRIGGER_NAME = 'Open inspector';
 const INVOCATION_LOG_DESCRIPTION = /The full result remains available in the invocation log\./u;
+const MASKED_SECRET_INPUT = /\*\*\* \(secrets\.SLACK_TOKEN\)/u;
 
 describe('StepInspectorSheet', () => {
   afterEach(() => {
@@ -831,6 +832,88 @@ describe('StepInspectorSheet', () => {
   });
 });
 
+describe('StepInspectorSheet for action steps', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetApiClient();
+  });
+
+  it('shows the action, its masked inputs, and each binding with read and write grants', async () => {
+    const user = userEvent.setup();
+    configureActionDetailResponse();
+
+    await renderPanel({entry: actionStepEntry()});
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    const action = await screen.findByRole('region', {name: 'Action'});
+    expect(within(action).getByText('./.shipfox/actions/slack-thread')).toBeInTheDocument();
+    expect(within(action).getByText('sha256:0123456789ab')).toBeInTheDocument();
+    expect(within(action).getByText('Slack thread to Markdown')).toBeInTheDocument();
+    expect(screen.getByText('Attempt #1').nextElementSibling).toHaveTextContent('Action');
+    const inputs = screen.getByRole('region', {name: 'Inputs'});
+    expect(within(inputs).getByText('C0123')).toBeInTheDocument();
+    expect(within(inputs).getByText(MASKED_SECRET_INPUT)).toBeInTheDocument();
+    const tools = screen.getByRole('list', {name: 'Tools granted to slack'});
+    expect(within(tools).getByText('read_thread').parentElement).toHaveTextContent('Read');
+    expect(within(tools).getByText('post_message').parentElement).toHaveTextContent('Write');
+    expect(screen.getByText('team-slack')).toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      name: 'an unavailable snapshot',
+      error: {reason: 'action_unavailable', message: 'Digest mismatch'},
+      title: 'Action code was unavailable',
+      code: 'action_unavailable',
+    },
+    {
+      name: 'an invalid input',
+      error: {reason: 'action_input_invalid', message: 'Action input "limit" is required.'},
+      title: 'Action input is invalid',
+      code: 'action_input_invalid',
+    },
+    {
+      name: 'an early exit',
+      error: {message: 'The action exited before it finished.', exit_code: 0},
+      title: 'The action exited before it finished',
+      code: 'exit 0',
+    },
+    {
+      name: 'an out-of-memory kill',
+      error: {
+        message: 'The action was killed (SIGKILL). It likely ran out of memory.',
+        signal: 'SIGKILL',
+      },
+      title: 'The action ran out of memory',
+      code: 'SIGKILL',
+    },
+    {
+      name: 'a missing, undeclared, or mistyped output',
+      error: {reason: 'output_invalid', message: 'Output "path" is required.'},
+      title: 'Action output was invalid',
+      code: 'output_invalid',
+    },
+    {
+      name: 'an output over its size limit',
+      error: {reason: 'step_result_too_large', message: 'Output "report" is too large.'},
+      title: 'Action output is too large',
+      code: 'step_result_too_large',
+    },
+  ] as const)('explains $name', async ({error, title, code}) => {
+    const user = userEvent.setup();
+    configureActionDetailResponse();
+
+    await renderPanel({entry: actionStepEntry(error), onViewLogs: () => undefined});
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText(title)).toBeInTheDocument();
+    expect(within(alert).getByText(error.message)).toBeInTheDocument();
+    expect(within(alert).getByText(code)).toBeInTheDocument();
+    expect(within(alert).getByRole('button', {name: 'View logs'})).toBeInTheDocument();
+  });
+});
+
 async function renderPanel({
   annotationCount,
   entry,
@@ -1270,6 +1353,89 @@ function configureToolDetailResponse() {
           evaluation_trace: null,
         }),
       ),
+    ),
+  });
+}
+
+function actionStepEntry(
+  error: Partial<NonNullable<WorkflowStepFixtureDto['error']>> | null = null,
+): StepListEntryModel {
+  const jobId = '44444444-4444-4444-8444-444444444444';
+  const status = error ? 'failed' : 'succeeded';
+  const stepError = error ? {message: 'Action failed', ...error} : null;
+  const job = workflowJob({
+    id: jobId,
+    name: 'investigate',
+    key: 'investigate',
+    status,
+    job_executions: [
+      workflowJobExecutionDto({
+        id: EXECUTION_ID,
+        job_id: jobId,
+        status,
+        steps: [
+          workflowStepDto({
+            id: STEP_ID,
+            job_execution_id: EXECUTION_ID,
+            name: 'Save the thread',
+            status,
+            type: 'action',
+            source_location: {start_line: 8, end_line: 14},
+            error: stepError,
+            attempts: [
+              workflowStepAttemptDto({
+                id: ATTEMPT_ID,
+                step_id: STEP_ID,
+                status,
+                error: stepError,
+                finished_at: '2026-09-27T12:01:00.000Z',
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+  const execution = job.jobExecutions[0];
+  if (!execution) throw new Error('Test fixture is missing an execution.');
+  const entry = buildStepListModel({job, jobExecution: execution}).entries[0];
+  if (!entry) throw new Error('Test fixture is missing a step attempt.');
+  return entry;
+}
+
+function configureActionDetailResponse() {
+  const detail = stepDetailResponse({
+    config: {
+      action: {
+        uses: './.shipfox/actions/slack-thread',
+        digest: `sha256:0123456789ab${'c'.repeat(52)}`,
+        main: 'index.ts',
+        name: 'Slack thread to Markdown',
+      },
+      inputs: {channel_id: 'C0123'},
+      secret_bindings: [
+        {target: {kind: 'input', name: 'token'}, segments: [{kind: 'secret', key: 'SLACK_TOKEN'}]},
+      ],
+      integrations: [
+        {
+          alias: 'slack',
+          provider: 'slack',
+          connection_slug: 'team-slack',
+          tools: [
+            {id: 'read_thread', sensitivity: 'read', result: 'json'},
+            {id: 'post_message', sensitivity: 'write', result: 'json'},
+          ],
+        },
+      ],
+    },
+  });
+  configureApiClient({
+    fetchImpl: vi.fn(async (input: RequestInfo | URL) =>
+      (input instanceof Request ? input.url : String(input)).includes(
+        `/workflows/runs/steps/${STEP_ID}/attempts/1`,
+      )
+        ? jsonResponse(detail)
+        : jsonResponse({code: 'not-found'}, {status: 404}),
     ),
   });
 }

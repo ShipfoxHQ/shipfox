@@ -1,10 +1,13 @@
 import type {IntegrationActionTool} from '@shipfox/client-logs';
+import {type ActionBinding, readActionStepConfig} from '#core/action-step.js';
 
 /** Keep only frozen identity and read classification needed by log presentation. */
 export function toIntegrationActionTools(
   config: Record<string, unknown> | null | undefined,
 ): IntegrationActionTool[] {
   if (isRecord(config?.tool)) return toolStepActionTools(config.tool);
+  const action = readActionStepConfig(config);
+  if (action) return actionStepTools(action.bindings);
   return integrationConfigs(config).flatMap(toIntegrationTools);
 }
 
@@ -81,4 +84,19 @@ function toolStepActionTools(tool: Record<string, unknown>): IntegrationActionTo
       ...(method ? {methods: [{id: method, sensitivity}]} : {}),
     },
   ];
+}
+
+function actionStepTools(bindings: readonly ActionBinding[]): IntegrationActionTool[] {
+  return bindings.flatMap((binding) =>
+    binding.tools.map((tool) => ({
+      provider: binding.provider,
+      connectionId: binding.connectionId ?? binding.connectionSlug,
+      connectionSlug: binding.connectionSlug,
+      toolId: tool.id,
+      sensitivity: tool.sensitivity,
+      alias: binding.alias,
+      result: tool.result,
+      ...(tool.methods === undefined ? {} : {methods: tool.methods}),
+    })),
+  );
 }

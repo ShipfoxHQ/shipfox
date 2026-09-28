@@ -29,6 +29,7 @@ import {Code} from '@shipfox/react-ui/typography';
 import {formatDuration} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import {Fragment, type ReactNode} from 'react';
+import {readActionStepConfig} from '#core/action-step.js';
 import type {
   JobStatusReason,
   Step,
@@ -43,6 +44,7 @@ import {useStepAttemptDetailQuery} from '#hooks/api/step-attempt-detail.js';
 import {workflowRunSearchParams} from '#routes/inputs.js';
 import {EvaluationTraceList} from '../evaluation-trace-list.js';
 import {humanizeStatus, type StepListEntryModel} from '../step-list/step-list-model.js';
+import {ActionStepDetails} from './action-step-details.js';
 import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
 import {DiagnosticUnavailableAnnouncement, diagnosticFieldLabel} from './diagnostic-unavailable.js';
 import {toSelectedAttemptError} from './job-empty-states.js';
@@ -95,13 +97,7 @@ export function StepInspectorSheet({
             {entry.statusVisual.label}
           </Badge>
         }
-        badges={
-          entry.step.toolConfig?.sensitivity === 'write' ? (
-            <Badge variant="warning" size="2xs" radius="rounded">
-              Write tool
-            </Badge>
-          ) : null
-        }
+        badges={<StepKindBadge step={entry.step} />}
       />
       <InspectorBody>
         <StepInspector
@@ -122,6 +118,24 @@ export function StepInspectorSheet({
       </InspectorBody>
     </Inspector>
   );
+}
+
+function StepKindBadge({step}: {step: Step}) {
+  if (step.type === 'action') {
+    return (
+      <Badge variant="neutral" size="2xs" radius="rounded">
+        Action
+      </Badge>
+    );
+  }
+  if (step.toolConfig?.sensitivity === 'write') {
+    return (
+      <Badge variant="warning" size="2xs" radius="rounded">
+        Write tool
+      </Badge>
+    );
+  }
+  return null;
 }
 
 function StepFailureCallout({
@@ -146,7 +160,8 @@ function StepFailureCallout({
   onViewLogs: (() => void) | undefined;
 }) {
   const reason = failureReason(step, error, jobStatusReason);
-  const toolGuidance = toolFailureGuidance(reason, step, attempt, error);
+  const toolGuidance =
+    toolFailureGuidance(reason, step, attempt, error) ?? actionFailureGuidance(reason, step, error);
   const title = toolGuidance?.title ?? failureTitle(reason, error);
   const description =
     toolGuidance?.description ?? failureDescription(reason, step, error, step.gateMaxAttempts);
@@ -209,10 +224,12 @@ function StepFailureCallout({
           </div>
         </CalloutDescription>
       </CalloutContent>
-      {step.type === 'tool' && reason !== 'config_unresolvable' && onViewLogs ? (
+      {(step.type === 'tool' || step.type === 'action') &&
+      reason !== 'config_unresolvable' &&
+      onViewLogs ? (
         <CalloutActions>
           <Button type="button" size="2xs" variant="secondary" onClick={onViewLogs}>
-            View invocation log
+            {step.type === 'tool' ? 'View invocation log' : 'View logs'}
           </Button>
         </CalloutActions>
       ) : null}
@@ -294,6 +311,8 @@ function StepInspector({
         attempt={attempt}
         showFailure={showFailure}
         hasAnnotations={hasAnnotations}
+        workflowRunId={workflowRunId}
+        runAttempt={runAttempt}
       />
       {hasAnnotations ? (
         <InspectorSection
@@ -325,6 +344,8 @@ function InspectorQueryContent({
   attempt,
   showFailure,
   hasAnnotations,
+  workflowRunId,
+  runAttempt,
 }: {
   query: ReturnType<typeof useStepAttemptDetailQuery>;
   detail: ReturnType<typeof useStepAttemptDetailQuery>['data'];
@@ -332,6 +353,8 @@ function InspectorQueryContent({
   attempt: StepAttempt;
   showFailure: boolean;
   hasAnnotations: boolean;
+  workflowRunId: string;
+  runAttempt: number;
 }) {
   if (query.isPending) {
     return (
@@ -378,6 +401,8 @@ function InspectorQueryContent({
         attempt={attempt}
         showFailure={showFailure}
         hasAnnotations={hasAnnotations}
+        workflowRunId={workflowRunId}
+        runAttempt={runAttempt}
       />
     </>
   );
@@ -403,18 +428,23 @@ function InspectorDetailContent({
   attempt,
   showFailure,
   hasAnnotations,
+  workflowRunId,
+  runAttempt,
 }: {
   detail: NonNullable<ReturnType<typeof useStepAttemptDetailQuery>['data']>;
   step: Step;
   attempt: StepAttempt;
   showFailure: boolean;
   hasAnnotations: boolean;
+  workflowRunId: string;
+  runAttempt: number;
 }) {
   const trace = detail.evaluationTrace ?? [];
   const resolvedConfig = detail.config ?? null;
   const presentedAttempt = presentStepAttemptDiagnostics(attempt, detail);
   const unavailableFields = detail.oversizedFields ?? [];
   const isToolStep = step.type === 'tool';
+  const actionConfig = step.type === 'action' ? readActionStepConfig(resolvedConfig) : null;
   const hasInputValues = inspectorHasInputValues(detail.authoredConfig, resolvedConfig);
   const hasOutputValues = inspectorHasOutputValues(presentedAttempt);
   const hasDetails =
@@ -429,7 +459,17 @@ function InspectorDetailContent({
       {isToolStep ? (
         <ToolStepDetails detail={detail} attempt={presentedAttempt} showFailure={showFailure} />
       ) : null}
-      {!isToolStep && hasInputValues ? (
+      {actionConfig ? (
+        <ActionStepDetails
+          config={actionConfig}
+          stepLabel={step.name}
+          stepId={step.id}
+          attempt={attempt.attempt}
+          workflowRunId={workflowRunId}
+          runAttempt={runAttempt}
+        />
+      ) : null}
+      {!isToolStep && !actionConfig && hasInputValues ? (
         <ConfigSection authoredConfig={detail.authoredConfig} resolvedConfig={resolvedConfig} />
       ) : null}
       {!isToolStep && hasOutputValues ? <InspectorOutputs attempt={presentedAttempt} /> : null}
@@ -440,7 +480,9 @@ function InspectorDetailContent({
       ) : null}
       <UnavailableDiagnosticsSection fields={unavailableFields} />
       <AttemptDiagnostics detail={detail} />
-      {isToolStep || hasDetails || showFailure || hasAnnotations ? null : <EmptyInspector />}
+      {isToolStep || actionConfig || hasDetails || showFailure || hasAnnotations ? null : (
+        <EmptyInspector />
+      )}
     </>
   );
 }
@@ -841,6 +883,11 @@ function isProviderStreamFailure(error: StepError | null): boolean {
 function failureCodeForStep(step: Step, error: StepError | null, reason: string): string {
   if (isProviderStreamFailure(error)) return error?.category ?? 'provider';
   if (step.type === 'tool') return error?.code ?? reason;
+  // A crashed or killed action process has no reason; its signal or exit code says more.
+  if (step.type === 'action' && reason === 'unknown') {
+    if (error?.signal) return error.signal;
+    if (error?.exitCode !== null && error?.exitCode !== undefined) return `exit ${error.exitCode}`;
+  }
   return reason;
 }
 
@@ -939,6 +986,10 @@ function failureTitle(reason: string | JobStatusReason, error: StepError | null)
       return 'Tool configuration is invalid';
     case 'invocation_interrupted':
       return 'Tool invocation was interrupted';
+    case 'action_input_invalid':
+      return 'Action input is invalid';
+    case 'action_unavailable':
+      return 'Action code was unavailable';
     case 'gate_failed':
     case 'gate_uncheckable':
       return 'Step validation failed';
@@ -1057,6 +1108,10 @@ function failureDescription(
       return step.toolConfig?.sensitivity === 'write'
         ? 'The provider call was interrupted. Confirm whether the write completed before re-running it.'
         : 'The provider call was interrupted before its outcome could be recorded. Review the invocation log before retrying.';
+    case 'action_input_invalid':
+      return 'A with: value does not match the input declared in action.yml. Fix the value or the declaration, then re-run.';
+    case 'action_unavailable':
+      return 'The runner could not load the action snapshot for this run. Re-run the job. If it keeps failing, contact your workspace administrator.';
     case 'gate_failed':
       return "The step completed, but its success condition was not met. Review the step's result and success condition before trying again.";
     case 'gate_uncheckable':
@@ -1134,11 +1189,53 @@ function toolFailureGuidance(
   return error?.code ? (TOOL_FAILURE_GUIDANCE_BY_CODE[error.code] ?? null) : null;
 }
 
+const OUT_OF_MEMORY_MESSAGE = /out of memory/iu;
+
+const ACTION_EARLY_EXIT_GUIDANCE: ToolFailureGuidance = {
+  title: 'The action exited before it finished',
+  description:
+    'The process ended before its handler returned, for example through an early process.exit(). Return from the handler, or throw to fail the step.',
+};
+
+const ACTION_OUT_OF_MEMORY_GUIDANCE: ToolFailureGuidance = {
+  title: 'The action ran out of memory',
+  description:
+    'The system stopped the action process; the runner kept running. Hold less in memory, for example by writing large data to files as it arrives.',
+};
+
+const ACTION_OUTPUT_INVALID_GUIDANCE: ToolFailureGuidance = {
+  title: 'Action output was invalid',
+  description:
+    'An output is missing, not declared in action.yml, or of the wrong type. Match the outputs to the manifest, then re-run.',
+};
+
+const ACTION_OUTPUT_TOO_LARGE_GUIDANCE: ToolFailureGuidance = {
+  title: 'Action output is too large',
+  description:
+    'Outputs are limited to 64 KiB per value and 256 KiB in total. Write large results to a file and output its path.',
+};
+
+// The runner reports early exits and out-of-memory kills in the failure message.
+function actionFailureGuidance(
+  reason: string | JobStatusReason,
+  step: Step,
+  error: StepError | null,
+): ToolFailureGuidance | null {
+  if (step.type !== 'action') return null;
+  if (reason === 'output_invalid') return ACTION_OUTPUT_INVALID_GUIDANCE;
+  if (reason === 'step_result_too_large') return ACTION_OUTPUT_TOO_LARGE_GUIDANCE;
+  const message = error?.message ?? '';
+  if (message.includes('exited before it finished')) return ACTION_EARLY_EXIT_GUIDANCE;
+  if (OUT_OF_MEMORY_MESSAGE.test(message)) return ACTION_OUT_OF_MEMORY_GUIDANCE;
+  return null;
+}
+
 function sourceLinkForFailure(reason: string | JobStatusReason): boolean {
   return (
     reason === 'config_unresolvable' ||
     reason === 'agent_config_invalid' ||
     reason === 'tool_config_invalid' ||
+    reason === 'action_input_invalid' ||
     reason === 'output_invalid' ||
     reason === 'default_gate_rejected' ||
     reason === 'condition_rejected' ||

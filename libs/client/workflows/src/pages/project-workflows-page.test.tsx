@@ -163,6 +163,46 @@ describe('ProjectWorkflowsPage', () => {
     expect(screen.queryByText('Workflow sync failed')).not.toBeInTheDocument();
   });
 
+  test('points an action manifest diagnostic at its action.yml path', async () => {
+    configureApiClient({
+      fetchImpl: createProjectDetailFetch({
+        definitions: jsonResponse(
+          definitionsDto({
+            sync: {
+              ref: 'main',
+              status: 'succeeded',
+              last_sync_at: '2026-09-27T01:00:00.000Z',
+              started_at: '2026-09-27T00:59:55.000Z',
+              finished_at: '2026-09-27T01:00:00.000Z',
+              last_error_code: null,
+              last_error_message: null,
+              diagnostics: [
+                {
+                  code: 'action-invalid',
+                  message: 'Action main file index.ts is not in ./.shipfox/actions/thread',
+                  path: 'main',
+                  file_path: '.shipfox/actions/thread/action.yml',
+                  severity: 'error',
+                },
+              ],
+            },
+          }),
+        ),
+      }),
+    });
+
+    renderWorkflowsPage();
+
+    const title = await screen.findByText('Workflow definition errors');
+    const callout = title.closest('[data-slot="callout"]');
+    if (!(callout instanceof HTMLElement)) throw new Error('Diagnostics callout was not rendered');
+    const file = within(callout).getByText('.shipfox/actions/thread/action.yml');
+    expect(file.parentElement).toHaveTextContent('main');
+    expect(file.parentElement).toHaveTextContent(
+      'Error: Action main file index.ts is not in ./.shipfox/actions/thread',
+    );
+  });
+
   test('shows errors and warnings together with severity labels, grouped by file path', async () => {
     configureApiClient({
       fetchImpl: createProjectDetailFetch({

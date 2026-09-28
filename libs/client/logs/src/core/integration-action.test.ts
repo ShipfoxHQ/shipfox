@@ -129,3 +129,136 @@ test('leaves absent and colliding identities unresolved', () => {
     readClassification: 'unknown',
   });
 });
+
+describe('action step calls', () => {
+  const slack: IntegrationActionTool = {
+    provider: 'slack',
+    connectionId: 'team-slack',
+    connectionSlug: 'team-slack',
+    toolId: 'read_thread',
+    sensitivity: 'read',
+    alias: 'chat',
+    result: 'json',
+  };
+
+  function settled(
+    name: string,
+    output: unknown,
+    {isError = false, input = '{}'}: {isError?: boolean; input?: string} = {},
+  ): PairedAction {
+    const request = action(name, input);
+    return {
+      ...request,
+      result: {
+        kind: 'tool-result',
+        timestamp: 2,
+        toolCallId: 'call-1',
+        toolName: name,
+        output: JSON.stringify(output),
+        isError,
+      },
+      state: isError ? 'failed' : 'succeeded',
+      durationMs: 1,
+    };
+  }
+
+  test('resolves a call by its alias and shows the alias and connection', () => {
+    const lookup = createIntegrationActionPresentationLookup([slack]);
+
+    const presentation = lookup(action('chat__read_thread', '{"channel_id":"C1"}'));
+
+    expect(presentation).toMatchObject({
+      label: 'Read Thread',
+      target: 'C1',
+      readClassification: 'read',
+      meta: [
+        {label: 'Alias', value: 'chat'},
+        {label: 'Connection', value: 'team-slack'},
+      ],
+      integration: {provider: 'slack', toolId: 'read_thread'},
+    });
+    expect(presentation?.detail).toBeUndefined();
+    expect(lookup(action('team_slack__read_thread'))).toBeUndefined();
+  });
+
+  test('resolves a family method called as family.method', () => {
+    const lookup = createIntegrationActionPresentationLookup([
+      {
+        ...slack,
+        provider: 'github',
+        alias: 'code',
+        toolId: 'issues',
+        sensitivity: 'write',
+        methods: [{id: 'update', sensitivity: 'write'}],
+      },
+    ]);
+
+    expect(lookup(action('code__issues.update'))).toMatchObject({
+      label: 'Issues Update',
+      readClassification: 'write',
+      integration: {methodId: 'update'},
+    });
+    expect(lookup(action('code__issues.missing'))?.readClassification).toBe('unknown');
+  });
+
+  test('labels an outcome-unknown write as outcome unknown, never failed', () => {
+    const lookup = createIntegrationActionPresentationLookup([{...slack, sensitivity: 'write'}]);
+
+    const presentation = lookup(
+      settled(
+        'chat__read_thread',
+        {code: 'provider-timeout', message: 'No answer', outcome_unknown: true},
+        {isError: true},
+      ),
+    );
+
+    expect(presentation?.outcome).toEqual({label: 'outcome unknown', tone: 'warning'});
+  });
+
+  test('keeps a caught failure as a plain failure', () => {
+    const lookup = createIntegrationActionPresentationLookup([slack]);
+
+    const presentation = lookup(
+      settled(
+        'chat__read_thread',
+        {code: 'not-found', message: 'No thread', outcome_unknown: false},
+        {isError: true},
+      ),
+    );
+
+    expect(presentation?.outcome).toBeUndefined();
+  });
+
+  test('labels a call the step ended during as interrupted', () => {
+    const lookup = createIntegrationActionPresentationLookup([slack]);
+
+    const presentation = lookup({...action('chat__read_thread'), state: 'no-result'});
+
+    expect(presentation?.outcome).toEqual({label: 'interrupted', tone: 'neutral'});
+  });
+
+  test('shows a download as its file name, size, media type, and SHA-256', () => {
+    const lookup = createIntegrationActionPresentationLookup([
+      {...slack, provider: 'linear', alias: 'tickets', toolId: 'download_file', result: 'file'},
+    ]);
+
+    const presentation = lookup(
+      settled('tickets__download_file', {
+        path: 'context/files/design.pdf',
+        filename: 'design.pdf',
+        bytes: 2_621_440,
+        media_type: 'application/pdf',
+        sha256: 'ab12',
+      }),
+    );
+
+    expect(presentation).toMatchObject({target: 'design.pdf', statusDetail: '2.5 MiB'});
+    expect(JSON.parse(presentation?.detail?.value ?? '{}')).toEqual({
+      File: 'design.pdf',
+      Size: '2.5 MiB',
+      'Media type': 'application/pdf',
+      'SHA-256': 'ab12',
+      Path: 'context/files/design.pdf',
+    });
+  });
+});
