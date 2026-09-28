@@ -11,7 +11,6 @@ import {getProjectRootPath, overlayBuiltOutputs} from '@shipfox/tool-utils';
 import {findProducedAmiId, readPackerAmiArtifact} from './aws.js';
 import {qemuSourceImageArgs} from './qemu.js';
 
-const WHITESPACE_PATTERN = /\s+/;
 const PACKER_OUTPUT_TAIL_LENGTH = 1024 * 1024;
 
 export type RunnerImagePlatform = 'aws' | 'qemu';
@@ -30,17 +29,9 @@ export interface RunnerImageBuild {
   candidateKmsKeyId?: string;
   candidateConsumerAccountIds?: string[];
   lifecycle: RunnerImageLifecycle;
-  nodeVersion: string;
   revision: string;
   runnerVersion?: string;
   extraPackerArgs: string[];
-}
-
-export function readMiseNodeVersion(
-  run: (command: string, args: string[]) => string = (command, args) =>
-    execFileSync(command, args, {encoding: 'utf8'}),
-): string {
-  return run('mise', ['current', 'node']).trim().split(WHITESPACE_PATTERN)[0] ?? '';
 }
 
 export function packerBuildArgs(
@@ -64,8 +55,6 @@ export function packerBuildArgs(
     `build_number=${build.buildNumber}`,
     '-var',
     `image_lifecycle=${build.lifecycle}`,
-    '-var',
-    `node_version=${build.nodeVersion}`,
     '-var',
     `revision=${build.revision}`,
     '-var',

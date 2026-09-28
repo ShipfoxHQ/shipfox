@@ -60,7 +60,6 @@ esac
     `#!/bin/sh\nprintf "%s\\n" "\${RUNNER_BASE_NODE_VERSION:-v24.17.0}"\n`,
   );
   fixture.environment.SHIPFOX_RUNNER_BASE_ARCHITECTURE = 'amd64';
-  fixture.environment.SHIPFOX_RUNNER_BASE_NODE_VERSION = '24.17.0';
   return fixture;
 }
 
@@ -120,9 +119,9 @@ describe('runner base fresh-instance verification', () => {
     expect(() => verify({RUNNER_BASE_INSTALLED_PACKAGES: packages})).toThrow('snapd');
   });
 
-  it('fails when the base holds another Node version', () => {
-    expect(() => verify({RUNNER_BASE_NODE_VERSION: 'v24.18.0'})).toThrow(
-      'Node is v24.18.0, expected v24.17.0',
+  it('fails when the base holds another Node major', () => {
+    expect(() => verify({RUNNER_BASE_NODE_VERSION: 'v22.20.0'})).toThrow(
+      'Node is v22.20.0, expected v24.x',
     );
   });
 

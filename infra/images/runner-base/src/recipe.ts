@@ -8,7 +8,6 @@ const RECIPE_VERSION = 1;
 const UBUNTU_RELEASE = 'noble';
 const PACKER_TEMPLATE_PATTERN = /\.pkr\.hcl$/u;
 const MISE_PACKER_PIN_PATTERN = /^packer\s*=\s*"([^"]+)"\s*$/mu;
-const MISE_NODE_PIN_PATTERN = /^"?node"?\s*=\s*"([^"]+)"\s*$/mu;
 // Scripts that run on the base or verify it. Package tooling, tests, and docs stay out.
 const RECIPE_SCRIPT_DIRECTORIES = ['scripts/build', 'scripts/verify'] as const;
 
@@ -22,7 +21,6 @@ export interface RunnerBaseRecipe {
   imageOs: string;
   ubuntuRelease: string;
   packerVersion: string;
-  nodeVersion: string;
   files: RunnerBaseRecipeFile[];
 }
 
@@ -31,9 +29,10 @@ export interface RunnerBaseRecipeOptions {
   miseConfigPath?: string;
 }
 
-// The digest identifies base compatibility. The base installs Node, so its pin counts with the
-// base's own templates and scripts and the Packer pin. pnpm and application changes must not
-// invalidate a base. Plugin pins and storage settings live in the hashed templates.
+// The digest identifies base compatibility: the base's own templates and scripts, including the
+// Node major pinned in install-node.sh, and the Packer pin. The mise Node and pnpm pins and
+// application changes must not invalidate a base. Plugin pins and storage settings live in the
+// hashed templates.
 export function computeRunnerBaseRecipe(options: RunnerBaseRecipeOptions = {}): RunnerBaseRecipe {
   const packageRoot = options.packageRoot ?? fileURLToPath(new URL('..', import.meta.url));
   const miseConfigPath = options.miseConfigPath ?? resolve(packageRoot, '../../../mise.toml');
@@ -47,7 +46,6 @@ export function computeRunnerBaseRecipe(options: RunnerBaseRecipeOptions = {}): 
     imageOs: RUNNER_BASE_IMAGE_OS,
     ubuntuRelease: UBUNTU_RELEASE,
     packerVersion: readPackerVersion(miseConfig),
-    nodeVersion: readNodeVersion(miseConfig),
     files,
   };
   return {
@@ -55,7 +53,6 @@ export function computeRunnerBaseRecipe(options: RunnerBaseRecipeOptions = {}): 
     imageOs: inputs.imageOs,
     ubuntuRelease: inputs.ubuntuRelease,
     packerVersion: inputs.packerVersion,
-    nodeVersion: inputs.nodeVersion,
     files,
   };
 }
@@ -63,12 +60,6 @@ export function computeRunnerBaseRecipe(options: RunnerBaseRecipeOptions = {}): 
 export function readPackerVersion(miseConfig: string): string {
   const version = MISE_PACKER_PIN_PATTERN.exec(miseConfig)?.[1];
   if (!version) throw new Error('mise.toml does not pin packer.');
-  return version;
-}
-
-export function readNodeVersion(miseConfig: string): string {
-  const version = MISE_NODE_PIN_PATTERN.exec(miseConfig)?.[1];
-  if (!version) throw new Error('mise.toml does not pin node.');
   return version;
 }
 

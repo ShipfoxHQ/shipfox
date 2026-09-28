@@ -2,7 +2,7 @@ import {cp, mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {computeRunnerBaseRecipe, readNodeVersion, readPackerVersion} from '#recipe.js';
+import {computeRunnerBaseRecipe, readPackerVersion} from '#recipe.js';
 
 const SHA256_DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const packageRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -50,7 +50,6 @@ describe('runner base recipe', () => {
     ]);
     expect(recipe).toMatchObject({
       imageOs: 'ubuntu24',
-      nodeVersion: '24.17.0',
       packerVersion: '1.15.4',
     });
     expect(recipe.ubuntuRelease).toBe('noble');
@@ -80,16 +79,12 @@ describe('runner base recipe', () => {
     expect(digest()).not.toBe(before);
   });
 
-  it('changes when the Node pin changes', async () => {
+  it.each([
+    ['Node', '24.17.0', '24.18.0'],
+    ['pnpm', '11.7.0', '11.8.0'],
+  ])('ignores %s pin changes', async (_label, pin, next) => {
     const before = digest();
-    await writeFile(miseConfigPath, MISE_CONFIG.replace('24.17.0', '24.18.0'));
-
-    expect(digest()).not.toBe(before);
-  });
-
-  it('ignores pnpm pin changes', async () => {
-    const before = digest();
-    await writeFile(miseConfigPath, MISE_CONFIG.replace('11.7.0', '11.8.0'));
+    await writeFile(miseConfigPath, MISE_CONFIG.replace(pin, next));
 
     expect(digest()).toBe(before);
   });
@@ -109,13 +104,5 @@ describe('runner base recipe', () => {
 
   it('requires a Packer pin', () => {
     expect(() => readPackerVersion('[tools]\nnode = "24.17.0"\n')).toThrow('packer');
-  });
-
-  it('reads a quoted Node pin', () => {
-    expect(readNodeVersion('[tools]\n"node" = "24.17.0"\n')).toBe('24.17.0');
-  });
-
-  it('requires a Node pin', () => {
-    expect(() => readNodeVersion('[tools]\npacker = "1.15.4"\n')).toThrow('node');
   });
 });

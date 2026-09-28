@@ -15,8 +15,6 @@ try {
     '-var',
     'build_number=ci',
     '-var',
-    `node_version=${process.versions.node}`,
-    '-var',
     'platform=aws',
     '-var',
     'revision=ci',
