@@ -21,7 +21,7 @@ writes:
   - provider: github
     action: Pushes one commit to the pull request branch, unless it is set to comment only.
   - provider: github
-    action: Comments on the pull request with the result, a tested patch, or a diagnosis.
+    action: Comments on the pull request with the result.
 prerequisites:
   - To push fixes, make sure branch rules let the Shipfox app push to the pull request branches.
 related: [shipfox/fix-default-branch-ci]

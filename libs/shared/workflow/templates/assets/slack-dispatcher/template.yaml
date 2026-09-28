@@ -25,7 +25,7 @@ writes:
   - provider: shipfox
     action: Starts one listed workflow per request.
   - provider: slack
-    action: Replies in the thread with the start message, questions, the earlier run, or a failure notice, and later the pull request link for a change.
+    action: Replies once in the thread, and later posts the pull request link for a change.
 prerequisites:
   - Invite the Shipfox app to each Slack channel where it routes requests.
   - Set up each workflow it starts in the same project first. Set the codebase question and Slack ticket workflows to start only from another workflow.

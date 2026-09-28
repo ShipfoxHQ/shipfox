@@ -22,7 +22,7 @@ writes:
   - provider: linear
     action: Creates one ticket per thread in the chosen team, and in the chosen project when set.
   - provider: slack
-    action: Replies in the thread with the ticket link, questions, or a failure notice.
+    action: Replies once in the thread.
 prerequisites:
   - Invite the Shipfox app to each Slack channel where it creates tickets.
 related: [shipfox/slack-dispatcher, shipfox/ask-codebase, shipfox/ticket-to-pr]
