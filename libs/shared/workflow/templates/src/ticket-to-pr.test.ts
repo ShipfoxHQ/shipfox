@@ -619,4 +619,49 @@ describe('ticket to PR template', () => {
       'The task names acme/web, but this project checks out acme/api.',
     );
   });
+
+  it('names the branch after a Jira key with an underscore', () => {
+    const root = tempRoot();
+    const remote = join(root, 'github.com', 'acme', 'api.git');
+    const checkout = join(root, 'checkout');
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync('git', args, {cwd, encoding: 'utf8'});
+    git(root, 'init', '--quiet', '--bare', '--initial-branch=main', remote);
+    git(root, 'init', '--quiet', '--initial-branch=main', checkout);
+    git(
+      checkout,
+      '-c',
+      'user.name=Test',
+      '-c',
+      'commit.gpgsign=false',
+      '-c',
+      'user.email=test@example.com',
+      'commit',
+      '--quiet',
+      '--allow-empty',
+      '-m',
+      'init',
+    );
+    git(checkout, 'remote', 'add', 'origin', remote);
+    git(checkout, 'push', '--quiet', 'origin', 'main');
+    const prepare = step(workflow(jira), 'implement', 'prepare');
+
+    const result = runStep(
+      prepare,
+      {
+        steps: {task: {outputs: {identifier: 'PROJ_1-123', repository: ''}}},
+        run: {number: 7, attempt: 1},
+      },
+      checkout,
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.outputs).toEqual({
+      branch: 'shipfox/PROJ_1-123-7-1',
+      base: 'main',
+      repository: 'acme/api',
+      owner: 'acme',
+      repo: 'api',
+    });
+  });
 });
