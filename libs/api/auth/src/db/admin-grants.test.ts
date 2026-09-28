@@ -1,4 +1,4 @@
-import {eq} from 'drizzle-orm';
+import {eq, sql} from 'drizzle-orm';
 import {LastAdminOwnerError} from '#core/errors.js';
 import {userFactory} from '#test/index.js';
 import {
@@ -11,6 +11,10 @@ import {db} from './db.js';
 import {users} from './schema/users.js';
 
 describe('admin grants db', () => {
+  beforeEach(async () => {
+    await db().execute(sql`TRUNCATE auth_admin_grants CASCADE`);
+  });
+
   test('evaluates the highest active grant independently of workspace roles', async () => {
     const user = await userFactory.create({emailVerifiedAt: new Date()});
     const observer = await createAdminGrant({userId: user.id, role: 'admin-observer'});
