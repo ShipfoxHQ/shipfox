@@ -18,14 +18,10 @@ export function loadSigningKey({pem, keyid}: {pem: string; keyid: string}): Regi
   if (privateKey.asymmetricKeyType !== 'ed25519') {
     throw new Error('REGISTRY_SIGNING_KEY must be an Ed25519 key');
   }
-  const jwk = createPublicKey(privateKey).export({format: 'jwk'});
+  const spki = createPublicKey(privateKey).export({format: 'der', type: 'spki'});
   return {
     keyid,
     privateKey,
-    publicKey: {
-      keyid,
-      algorithm: 'ed25519',
-      public_key: Buffer.from(jwk.x ?? '', 'base64url').toString('base64'),
-    },
+    publicKey: {keyid, algorithm: 'ed25519', public_key: spki.toString('base64')},
   };
 }
