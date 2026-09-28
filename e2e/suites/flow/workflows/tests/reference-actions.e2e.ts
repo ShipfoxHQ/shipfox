@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {createApiClient} from '@shipfox/e2e-core';
-import {createConnectedOrg, deleteOrg} from '@shipfox/e2e-driver-gitea';
+import {type ConnectedOrg, createConnectedOrg, deleteOrg} from '@shipfox/e2e-driver-gitea';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import {fetchStepLogs} from '@shipfox/e2e-observe-logs';
 import type {WorkflowRunObservation, WorkflowStepObservation} from '@shipfox/e2e-observe-workflows';
@@ -246,17 +246,18 @@ test('the verified commit action publishes a pull request change whole or not at
   const installationId = Number.parseInt(uniqueId.slice(0, 7), 16) + 1;
   const installationToken = `ghs_${uniqueId}.${'e'.repeat(36)}.${'f'.repeat(36)}`;
   const githubApi = await startGithubApiMock({installationId, installationToken});
-  // A GitHub connection resyncs every project in its workspace when it becomes available, so
-  // this test gets a workspace, and a gitea org, of its own.
-  const user = await createUser({name: `Reference actions ${uniqueId}`});
-  const workspace = await createWorkspace({
-    userId: user.user.id,
-    userEmail: user.email,
-    name: `Reference actions ${uniqueId}`,
-  });
-  const session = await createSession({user_id: user.user.id});
-  const org = await createConnectedOrg({workspaceId: workspace.id, sessionToken: session.token});
+  let org: ConnectedOrg | undefined;
   try {
+    // A GitHub connection resyncs every project in its workspace when it becomes available, so
+    // this test gets a workspace, and a gitea org, of its own.
+    const user = await createUser({name: `Reference actions ${uniqueId}`});
+    const workspace = await createWorkspace({
+      userId: user.user.id,
+      userEmail: user.email,
+      name: `Reference actions ${uniqueId}`,
+    });
+    const session = await createSession({user_id: user.user.id});
+    org = await createConnectedOrg({workspaceId: workspace.id, sessionToken: session.token});
     const isolatedSuite: SuiteContext = {
       ...suite,
       userId: user.user.id,
@@ -415,7 +416,7 @@ ${commitStep(10)}
     );
   } finally {
     await githubApi.stop();
-    await deleteOrg({org: org.org}).catch(() => undefined);
+    if (org !== undefined) await deleteOrg({org: org.org}).catch(() => undefined);
   }
 });
 

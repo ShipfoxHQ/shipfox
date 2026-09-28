@@ -84,7 +84,10 @@ export async function listAll<T>(params: {
       const page = readJson<Record<string, unknown>>(await params.fetchPage(cursor));
       pages += 1;
       items.push(...((page[params.key] as T[] | undefined) ?? []));
-      if (page.hasNextPage !== true) return {items, report: report(true)};
+      if (page.hasNextPage === false) return {items, report: report(true)};
+      if (page.hasNextPage !== true) {
+        return {items, report: report(false, 'Linear did not say whether more pages exist.')};
+      }
       cursor = typeof page.cursor === 'string' ? page.cursor : undefined;
     } while (cursor !== undefined);
     return {items, report: report(false, 'Linear reported more pages without a cursor.')};

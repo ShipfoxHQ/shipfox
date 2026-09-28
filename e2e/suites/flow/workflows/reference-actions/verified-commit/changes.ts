@@ -41,7 +41,8 @@ export async function collectChanges(params: {
     await copyFile(resolve((await git(['rev-parse', '--git-path', 'index'])).trim()), index);
     const env = {...process.env, GIT_INDEX_FILE: index};
     await git(['add', '--all', '--', ':/'], env);
-    const pathspec = params.paths.length === 0 ? [':/'] : params.paths.map((path) => `:/${path}`);
+    const pathspec =
+      params.paths.length === 0 ? [':/'] : params.paths.map((path) => `:(top,literal)${path}`);
     const raw = await git(
       ['diff', '--cached', '--raw', '-z', '--no-renames', params.base, '--', ...pathspec],
       env,

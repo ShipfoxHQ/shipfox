@@ -20,7 +20,7 @@ inputs:
     type: number
     default: 250
   max_file_bytes:
-    description: Most bytes to download across all files.
+    description: Downloads stop once this many bytes, across all files, have been downloaded.
     type: number
     default: 262144000
   max_duration:

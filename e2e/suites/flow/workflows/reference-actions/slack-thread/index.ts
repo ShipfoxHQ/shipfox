@@ -50,6 +50,7 @@ export default defineAction<Inputs>(async ({inputs, tools, log, signal}) => {
     tools,
     channelId: inputs.channel_id,
     messages,
+    log,
     signal,
   });
   const markdown = renderThread({
@@ -107,6 +108,7 @@ async function lookUpPermalinks(params: {
   tools: Tools;
   channelId: string;
   messages: SlackMessage[];
+  log: ActionLog;
   signal: AbortSignal;
 }): Promise<Map<string, string>> {
   const permalinks = new Map<string, string>();
@@ -121,6 +123,7 @@ async function lookUpPermalinks(params: {
       if (permalink !== undefined) permalinks.set(message.ts, permalink);
     } catch (error) {
       if (!(error instanceof ToolCallError)) throw error;
+      params.log.warn(`Could not get a permalink for message ${message.ts}: ${error.message}`);
     }
   }
   return permalinks;

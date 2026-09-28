@@ -1,4 +1,5 @@
 import {readdir, readFile} from 'node:fs/promises';
+import {join, relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {LinearWorkspaceFixture} from './linear-mcp.js';
 import type {SlackThreadPage} from './slack-api.js';
@@ -18,7 +19,7 @@ export async function referenceActionFiles(
     entries
       .filter((entry) => entry.isFile())
       .map(async (entry) => {
-        const path = `${entry.parentPath}/${entry.name}`.slice(directory.length);
+        const path = relative(directory, join(entry.parentPath, entry.name));
         return {
           path: `.shipfox/actions/${name}/${path}`,
           content: await readFile(`${directory}${path}`, 'utf8'),
