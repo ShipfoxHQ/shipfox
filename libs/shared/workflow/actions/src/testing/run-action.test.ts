@@ -92,6 +92,21 @@ describe('runAction', () => {
     });
   });
 
+  it('fails outputs above the runner total size limit', async () => {
+    const names = ['a', 'b', 'c', 'd', 'e'];
+    const dir = await writeAction({
+      'action.yml': `name: Big\nmain: index.mjs\noutputs:\n${names.map((name) => `  ${name}: {}\n`).join('')}`,
+      'index.mjs': `import {defineAction} from '@shipfox/actions';\nconst value = 'x'.repeat(60 * 1024);\nexport default defineAction(() => ({${names.map((name) => `${name}: value`).join(', ')}}));\n`,
+    });
+
+    const result = await runAction(dir);
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: {message: expect.stringContaining('Step outputs exceed the total size limit')},
+    });
+  });
+
   it('rejects a missing required input before the action starts', async () => {
     const run = runAction(slackThread, {inputs: {channel_id: 'C1'}});
 
