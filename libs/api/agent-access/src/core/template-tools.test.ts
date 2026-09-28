@@ -324,6 +324,27 @@ describe('agent-access template tools', () => {
     expect(getWorkflowTemplateResultSchema.safeParse(response.result).success).toBe(true);
   });
 
+  test("binds a role on the source provider to the project's source connection", async () => {
+    const integrations = integrationClient([
+      connection('github-main', 'github'),
+      connection('github-secondary', 'github'),
+    ]);
+    integrations.resolveConnectionById.mockResolvedValue(projectSource('github'));
+
+    const response = await getTool(
+      createTools(integrations, projectClient()),
+      'get_workflow_template',
+    ).execute({
+      context,
+      arguments: {template_id: 'fixture-template', project_id: projectId, tracker: 'github'},
+    });
+
+    expect(response).toMatchObject({
+      ok: true,
+      result: {suggested_bindings: {tracker: ['github-project'], source: ['github-project']}},
+    });
+  });
+
   test('composes an optional role only when it is passed', async () => {
     const integrations = integrationClient([
       connection('linear-main', 'linear'),

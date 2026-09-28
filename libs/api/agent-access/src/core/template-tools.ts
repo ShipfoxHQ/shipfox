@@ -143,9 +143,7 @@ function createGetWorkflowTemplateTool(options: AgentAccessTemplateToolsOptions)
           template.manifest,
           resolution.bindings,
           connections,
-          resolution.source === undefined
-            ? {}
-            : {[resolution.source.role]: resolution.source.connectionSlug},
+          resolution.source,
         ),
         model_recommendations: modelRecommendations,
       });
@@ -160,7 +158,7 @@ async function resolveTemplateBindings(
   input: GetWorkflowTemplateInputDto,
   bindings: Record<string, string>,
 ): Promise<
-  | {bindings: Record<string, string>; source?: {role: string; connectionSlug: string}}
+  | {bindings: Record<string, string>; source?: ProjectSourceBinding}
   | {error: AgentAccessEnvelopeDto}
 > {
   let project: {sourceConnectionId: string};
@@ -206,7 +204,14 @@ async function resolveTemplateBindings(
     };
   }
   bindings[roleName] = sourceConnection.provider;
-  return {bindings, source: {role: roleName, connectionSlug: sourceConnection.slug}};
+  return {
+    bindings,
+    source: {
+      role: roleName,
+      provider: sourceConnection.provider,
+      connectionSlug: sourceConnection.slug,
+    },
+  };
 }
 
 /** Project roles pass through here; the project source check tells the agent to omit a wrong one. */
@@ -285,11 +290,12 @@ function toListTemplateResult({template, roles, compatible, missingProviders}: W
   };
 }
 
+/** A role on the project's source provider, such as GitHub issues as the tracker, shares the source connection. */
 function suggestedBindings(
   manifest: WorkflowTemplateManifest,
   bindings: Record<string, string>,
   connections: readonly WorkspaceConnection[],
-  exactBindings: Record<string, string>,
+  source: ProjectSourceBinding | undefined,
 ): Record<string, string[]> {
   return Object.fromEntries(
     Object.entries(manifest.roles)
@@ -297,10 +303,17 @@ function suggestedBindings(
         ([role, declaration]) => declaration.optional !== true || Object.hasOwn(bindings, role),
       )
       .map(([role]) => {
-        const exact = exactBindings[role];
-        if (exact !== undefined) return [role, [exact]];
         const provider = bindings[role];
+        if (source !== undefined && (role === source.role || provider === source.provider)) {
+          return [role, [source.connectionSlug]];
+        }
         return [role, provider === undefined ? [] : connectionSlugs(connections, provider)];
       }),
   );
+}
+
+interface ProjectSourceBinding {
+  role: string;
+  provider: string;
+  connectionSlug: string;
 }
