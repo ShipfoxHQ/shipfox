@@ -13,8 +13,6 @@ Answer questions about the project's repository in the Slack thread where someon
 The agent answers from the project's repository only. It reads the default branch through a read-only checkout without saved Git credentials.
 The agent has no Slack, GitHub, or other integration tools. It cannot read other channels, other repositories, issue trackers, or documentation sites.
 
-Replace `replace-with-channel-id` with the IDs of the channels where the app answers, such as `["C0ABC12345", "C0DEF67890"]`.
-Use channel IDs, not names. The app ignores mentions everywhere else, even in channels it belongs to.
 Mentions from other apps and bots are ignored, so another bot cannot start a run.
 
 ## Choose the options
@@ -24,6 +22,8 @@ Mentions from other apps and bots are ignored, so another bot cannot start a run
 Keep the marked trigger block for `mention`, or remove it for `dispatch_only`.
 
 - `mention` answers every mention of the app in the listed channels. It also keeps the manual trigger.
+  Replace `replace-with-channel-id` with the IDs of the channels where the app answers, such as `["C0ABC12345", "C0DEF67890"]`.
+  The app ignores mentions everywhere else, even in channels it belongs to.
 - `dispatch_only` keeps only the manual trigger. Use it when a Slack dispatcher already handles mentions. Otherwise, one mention gets two replies.
 
 ### Manual inputs

@@ -11,15 +11,15 @@ roles:
     providers: [github]
 options:
   - id: entry_point
-    question: What should start the workflow?
+    question: How should people ask a question?
     choices:
       - id: mention
-        label: Mention the app in allowed channels
+        label: Mention the app in Slack
         default: true
-        tradeoff: Answers every mention of the Shipfox app in the listed channels. Manual starts with thread inputs still work.
+        tradeoff: The app answers when someone mentions it in the channels you pick.
       - id: dispatch_only
-        label: Manual starts only
-        tradeoff: Answers only when a Slack dispatcher or a person starts the workflow with thread inputs. Use it when a dispatcher already handles mentions, so one mention does not get two replies.
+        label: Through another workflow
+        tradeoff: Another workflow, such as a Slack dispatcher, starts this one. Pick it when another workflow already answers mentions, or each mention gets two replies.
 models:
   answer:
     note: Analyzes the repository to answer the Slack thread's question with one grounded reply. Needs a strong model with high thinking.

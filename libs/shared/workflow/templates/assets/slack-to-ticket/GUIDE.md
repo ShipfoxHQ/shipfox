@@ -18,8 +18,6 @@ Tool steps outside the agent create the ticket and post in the thread.
 Shipfox cannot limit `read_thread` to one thread. The prompt tells the agent to read only the thread that started the run. A message in that thread could still ask it to read another one.
 The agent can read threads in any channel the app belongs to, and what it reads can reach the ticket and the reply. Invite the app only to channels whose content can appear in your tickets.
 
-Replace `replace-with-channel-id` with the IDs of the channels where the app creates tickets, such as `["C0ABC12345", "C0DEF67890"]`.
-Use channel IDs, not names. The app ignores mentions everywhere else, even in channels it belongs to.
 Mentions from other apps and bots are ignored, so another bot cannot start a run.
 
 Do not list a channel in this workflow and in another workflow that answers mentions, such as the codebase question template. Both would reply to one mention. Use a Slack dispatcher to route mentions in shared channels.
@@ -33,6 +31,8 @@ Replace `replace-with-team-key` with the key of the Linear team that owns new ti
 Keep the marked trigger block for `mention`, or remove it for `dispatch_only`.
 
 - `mention` creates a ticket for every mention of the app in the listed channels. It also keeps the manual trigger.
+  Replace `replace-with-channel-id` with the IDs of the channels where the app creates tickets, such as `["C0ABC12345", "C0DEF67890"]`.
+  The app ignores mentions everywhere else, even in channels it belongs to.
 - `dispatch_only` keeps only the manual trigger. Use it when a Slack dispatcher already handles mentions.
 
 ### Linear project
