@@ -84,7 +84,7 @@ function readSecretInputs(value: unknown): ReadonlyMap<string, string> {
     const record = asRecord(binding);
     const target = asRecord(record?.target);
     const name = target?.kind === 'input' ? stringValue(target.name) : null;
-    const key = stringValue(record?.key) ?? secretSegmentKey(record?.segments);
+    const key = secretSegmentKey(record?.segments);
     if (name && key) inputs.set(name, key);
   }
   return inputs;

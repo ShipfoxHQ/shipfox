@@ -197,7 +197,9 @@ describe('ProjectWorkflowsPage', () => {
     const callout = title.closest('[data-slot="callout"]');
     if (!(callout instanceof HTMLElement)) throw new Error('Diagnostics callout was not rendered');
     const file = within(callout).getByText('.shipfox/actions/thread/action.yml');
-    expect(file.parentElement).toHaveTextContent('main');
+    if (!(file.parentElement instanceof HTMLElement))
+      throw new Error('File group was not rendered');
+    expect(within(file.parentElement).getByText('main')).toBeInTheDocument();
     expect(file.parentElement).toHaveTextContent(
       'Error: Action main file index.ts is not in ./.shipfox/actions/thread',
     );
