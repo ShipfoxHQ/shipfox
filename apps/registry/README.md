@@ -108,6 +108,12 @@ turbo type --filter=@shipfox/registry
 turbo test --filter=@shipfox/registry
 ```
 
+Build the image with:
+
+```sh
+mise exec -- pnpm --filter=@shipfox/registry image
+```
+
 ## License
 
 MIT

@@ -1,0 +1,18 @@
+# The image is assembled solely from the pruned context the build tool writes
+# under out/ (out/json for the prod install, out/full for the prebuilt dist).
+# Ignore everything else so stray files, such as the development .env and its
+# signing key, never enter the context or bust the layer cache, then re-include
+# out/. The /** line is required because re-including a directory does not
+# re-include its contents (moby/moby#30018).
+*
+!out
+!out/**
+
+# The workspace is built before Docker runs. Keep source and test assets out of
+# the context so pnpm deploy cannot copy them into the production dependency tree.
+out/full/**/src
+out/full/**/test
+out/full/**/tests
+out/full/**/fixture
+out/full/**/fixtures
+out/full/**/coverage
