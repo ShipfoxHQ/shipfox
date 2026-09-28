@@ -9,16 +9,21 @@ import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {RepositoryAuthorizer} from '#core/repository-authorizer.js';
 import {createIntegrationToolCallRecorder} from '#core/tool-call-audit.js';
 import type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
-import {createIntegrationToolDispatcher} from './dispatch.js';
+import {createIntegrationToolDispatcher, type LeasedIntegrationToolCaller} from './dispatch.js';
 import {buildAgentToolsMcpServer} from './mcp-server.js';
 import {
   type LeasedAgentStepLoader,
+  type LeasedToolStepType,
   resolveAuthorizedIntegrationTools,
 } from './resolve-authorized-tools.js';
 
 // A create_commit near its 1,000,000 decoded-byte file limit grows past Fastify's 1 MiB default
 // once base64 and JSON framing are added. The runner bridge caps requests at the same size.
 const GATEWAY_MCP_BODY_LIMIT = 2 * 1024 * 1024;
+
+const CALL_ID_HEADER = 'x-shipfox-call-id';
+// Call ids are runner-generated identifiers; anything else stays out of the audit line.
+const CALL_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 
 export type {LeasedAgentStepLoader} from './resolve-authorized-tools.js';
 export {createWorkflowsLeasedAgentStepLoader} from './resolve-authorized-tools.js';
@@ -45,21 +50,23 @@ export function createAgentToolsGatewayRoutes(
         options: {bodyLimit: GATEWAY_MCP_BODY_LIMIT},
         handler: async (request, reply) => {
           const lease = requireLeasedJobContext(request);
-          const authorizedTools = await resolveAuthorizedIntegrationTools({
+          const {stepType, tools: authorizedTools} = await resolveAuthorizedIntegrationTools({
             request,
             loadLeasedAgentStep: params.loadLeasedAgentStep,
             registry: params.registry,
             getIntegrationConnectionById: params.getIntegrationConnectionById,
             builtinConnections: params.builtinConnections,
           });
+          const caller = leasedToolCaller({stepType, callId: request.headers[CALL_ID_HEADER]});
           const server = buildAgentToolsMcpServer({
             authorizedTools,
             dispatch: createIntegrationToolDispatcher({
               registry: params.registry,
               lease,
+              caller,
               repositoryAuthorizer: params.repositoryAuthorizer,
             }),
-            recordCall: createIntegrationToolCallRecorder({caller: 'agent', lease}),
+            recordCall: createIntegrationToolCallRecorder({...caller, lease}),
           });
           const transport = new StreamableHTTPServerTransport();
 
@@ -87,4 +94,15 @@ export function createAgentToolsGatewayRoutes(
       }),
     ],
   };
+}
+
+export function leasedToolCaller(params: {
+  stepType: LeasedToolStepType;
+  callId: string | string[] | undefined;
+}): LeasedIntegrationToolCaller {
+  const callId =
+    typeof params.callId === 'string' && CALL_ID_PATTERN.test(params.callId)
+      ? params.callId
+      : undefined;
+  return {caller: params.stepType, ...(callId === undefined ? {} : {callId})};
 }

@@ -209,6 +209,7 @@ export {
   getStepsByJobExecutionId,
   getStepsByJobExecutionIdForUpdate,
   getStepsByJobId,
+  getStepToolMaterializationSource,
   insertRunningStepAttempt,
   listStepAttemptIdsByJobId,
   markStepRunning,

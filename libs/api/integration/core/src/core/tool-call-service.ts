@@ -483,6 +483,8 @@ function toAgentToolsCaller(
   const lease = caller.lease;
   if (lease?.currentStepId === undefined || lease.currentStepAttempt === undefined)
     return undefined;
+  // Providers only distinguish deterministic tool steps from lease callers, and
+  // an action is a lease caller like an agent.
   return {
     callerKind: 'agent',
     workspaceId: lease.workspaceId,
@@ -516,7 +518,7 @@ function syntheticConnection(params: {
 }
 
 function runProjectId(caller: IntegrationToolCallCaller): string | undefined {
-  return caller.caller === 'agent' ? caller.lease?.projectId : caller.projectId;
+  return caller.caller === 'tool_step' ? caller.projectId : caller.lease?.projectId;
 }
 
 function repositoryAuthorizationErrorMessage(reason: RepositoryAuthorizationDenial): string {

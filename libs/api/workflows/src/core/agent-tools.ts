@@ -264,6 +264,76 @@ function resolveToolMethod(
   return method;
 }
 
+/**
+ * Finds the frozen grants of a materialized action step. Step rows keep their
+ * position in the model job, after the setup step at position 0, so the model
+ * supplies the stable step id the snapshot is keyed by.
+ */
+export function findFrozenActionIntegrations(params: {
+  readonly model: WorkflowModel;
+  readonly snapshot: AgentToolMaterializationSnapshot | null;
+  readonly jobKey: string;
+  readonly stepPosition: number;
+}): Readonly<Record<string, MaterializedActionIntegration>> | undefined {
+  const job = params.model.jobs.find((candidate) => candidate.key === params.jobKey);
+  const step = job?.steps[params.stepPosition - 1];
+  if (step?.kind !== 'action') return undefined;
+  if (Object.keys(step.action.integrations).length === 0) return {};
+  return findSnapshotStep({jobKey: params.jobKey, stepId: step.id, snapshot: params.snapshot})
+    ?.actionIntegrations;
+}
+
+/**
+ * Gateway tool names are namespaced by connection slug, so aliases bound to the
+ * same connection share one entry, with their tools and methods unioned.
+ */
+export function flattenActionIntegrations(
+  grants: Readonly<Record<string, MaterializedActionIntegration>>,
+): MaterializedActionIntegration[] {
+  const byConnection = new Map<string, MaterializedActionIntegration>();
+  for (const grant of Object.values(grants)) {
+    const existing = byConnection.get(grant.connectionId);
+    byConnection.set(
+      grant.connectionId,
+      existing === undefined ? grant : mergeActionIntegrations(existing, grant),
+    );
+  }
+  return [...byConnection.values()];
+}
+
+function mergeActionIntegrations(
+  first: MaterializedActionIntegration,
+  second: MaterializedActionIntegration,
+): MaterializedActionIntegration {
+  const toolsById = new Map(first.tools.map((tool) => [tool.id, tool]));
+  for (const tool of second.tools) {
+    const existing = toolsById.get(tool.id);
+    toolsById.set(tool.id, existing === undefined ? tool : mergeActionTools(existing, tool));
+  }
+  const tools = [...toolsById.values()];
+  return {
+    ...first,
+    requiredScope: mergeRequiredScopes(tools.map((tool) => tool.requiredScope)),
+    tools,
+  };
+}
+
+function mergeActionTools(
+  first: MaterializedActionTool,
+  second: MaterializedActionTool,
+): MaterializedActionTool {
+  if (first.methods === undefined || second.methods === undefined) return first;
+  const known = new Set(first.methods.map((method) => method.id));
+  const methods = [...first.methods, ...second.methods.filter((method) => !known.has(method.id))];
+  return {
+    ...first,
+    sensitivity: methods.some((method) => method.sensitivity === 'write') ? 'write' : 'read',
+    sensitive: methods.some((method) => method.sensitive),
+    requiredScope: mergeRequiredScopes(methods.map((method) => method.requiredScope)),
+    methods,
+  };
+}
+
 function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }

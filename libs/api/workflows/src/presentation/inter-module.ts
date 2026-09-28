@@ -44,7 +44,8 @@ import {
 import type {RunnerCatalog} from '@shipfox/runner-labels';
 import {DEFAULT_HARNESS, harnessSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
-import type {Step} from '#core/entities/step.js';
+import {findFrozenActionIntegrations, flattenActionIntegrations} from '#core/agent-tools.js';
+import type {Step, StepType} from '#core/entities/step.js';
 import type {WorkflowRunTriggerReference} from '#core/entities/workflow-run.js';
 import {
   InvalidJobRunnerLabelsError,
@@ -88,6 +89,7 @@ import {
   getStepAttemptDetail,
   getStepById,
   getStepByIdForJobExecution,
+  getStepToolMaterializationSource,
   getWorkflowJobDetail,
   getWorkflowJobExecutionContext,
   getWorkflowJobReadScope,
@@ -273,11 +275,15 @@ export function createWorkflowsInterModulePresentation(params: {
    * returns the run scope (trigger reference/origin state), skips the
    * agent-type check, and speaks HTTP `ClientError`s instead of contract
    * known errors.
+   *
+   * The tool context also accepts action steps, which call integration tools
+   * through the same gateway.
    */
   async function resolveLeasedAgentStep(resolution: {
     method:
       | typeof workflowsInterModuleContract.methods.getLeasedAgentToolContext
       | typeof workflowsInterModuleContract.methods.getLeasedAgentSessionContext;
+    stepTypes?: readonly StepType[];
     input: {
       jobId: string;
       jobExecutionId: string;
@@ -310,7 +316,7 @@ export function createWorkflowsInterModulePresentation(params: {
     }
     if (step.status !== 'running')
       throw createInterModuleKnownError(resolution.method, 'step-not-running', {});
-    if (step.type !== 'agent')
+    if (!(resolution.stepTypes ?? ['agent']).includes(step.type))
       throw createInterModuleKnownError(resolution.method, 'leased-step-not-agent', {});
 
     return {step, scope};
@@ -882,13 +888,28 @@ export function createWorkflowsInterModulePresentation(params: {
     }),
     getLeasedAgentToolContext: async (input) => {
       const method = workflowsInterModuleContract.methods.getLeasedAgentToolContext;
-      const {step, scope} = await resolveLeasedAgentStep({method, input});
+      const {step, scope} = await resolveLeasedAgentStep({
+        method,
+        input,
+        stepTypes: ['agent', 'action'],
+      });
 
+      if (step.type === 'action') {
+        const integrations = await loadFrozenActionIntegrations(step.id);
+        if (integrations === undefined) {
+          throw createInterModuleKnownError(method, 'agent-step-config-invalid', {});
+        }
+        return {workspaceId: scope.workspaceId, stepType: 'action', integrations};
+      }
       const config = materializedAgentStepConfigSchema.safeParse(step.config);
       if (!config.success) {
         throw createInterModuleKnownError(method, 'agent-step-config-invalid', {});
       }
-      return {workspaceId: scope.workspaceId, integrations: config.data.integrations ?? []};
+      return {
+        workspaceId: scope.workspaceId,
+        stepType: 'agent',
+        integrations: config.data.integrations ?? [],
+      };
     },
     getLeasedAgentSessionContext: async (input) => {
       const method = workflowsInterModuleContract.methods.getLeasedAgentSessionContext;
@@ -924,6 +945,26 @@ export function createWorkflowsInterModulePresentation(params: {
     },
   });
 }
+
+async function loadFrozenActionIntegrations(
+  stepId: string,
+): Promise<LeasedToolIntegration[] | undefined> {
+  const source = await getStepToolMaterializationSource(stepId);
+  if (source?.model == null) return undefined;
+  const grants = findFrozenActionIntegrations({
+    model: source.model,
+    snapshot: source.agentToolMaterialization,
+    jobKey: source.jobKey,
+    stepPosition: source.stepPosition,
+  });
+  return grants === undefined
+    ? undefined
+    : flattenActionIntegrations(grants).map((grant) => ({...grant, tools: [...grant.tools]}));
+}
+
+type LeasedToolIntegration = z.infer<
+  typeof workflowsInterModuleContract.methods.getLeasedAgentToolContext.output
+>['integrations'][number];
 
 type WorkflowRunAccessScope = NonNullable<
   Awaited<ReturnType<typeof getWorkflowRunAccessScopeById>>

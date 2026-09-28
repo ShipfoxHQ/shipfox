@@ -57,6 +57,35 @@ describe('resolveAuthorizedIntegrationTools', () => {
     expect(error).toMatchObject({code, status});
   });
 
+  it('resolves the frozen grants of a leased action step', async () => {
+    const request = {};
+    const lease = leaseContext();
+    const integration = materializedIntegration({connectionId: 'connection-1'});
+    setLeasedJobContext(request, lease);
+    const workflows = {
+      getLeasedAgentToolContext: async () => ({
+        workspaceId: lease.workspaceId,
+        stepType: 'action',
+        integrations: [integration],
+      }),
+    };
+
+    const result = await resolveAuthorizedIntegrationTools({
+      request,
+      registry: registryWithAgentTools([catalogTool()]),
+      getIntegrationConnectionById: async () =>
+        connection({
+          id: 'connection-1',
+          workspaceId: lease.workspaceId,
+          slug: integration.connectionSlug,
+        }),
+      loadLeasedAgentStep: createWorkflowsLeasedAgentStepLoader(workflows as never),
+    });
+
+    expect(result.stepType).toBe('action');
+    expect([...result.tools.keys()]).toEqual(['github_main__issue_read']);
+  });
+
   it('resolves namespaced tools with live descriptions and Anthropic-compatible method schemas', async () => {
     const request = {};
     const lease = leaseContext();
@@ -78,7 +107,7 @@ describe('resolveAuthorizedIntegrationTools', () => {
       }),
     });
 
-    const authorizedTool = result.get('github_main__issue_read');
+    const authorizedTool = result.tools.get('github_main__issue_read');
     expect(authorizedTool?.description).toBe('Live issue reader');
     const properties = authorizedTool?.inputSchema.properties as Record<string, unknown>;
     expect(properties.method).toMatchObject({
@@ -122,7 +151,7 @@ describe('resolveAuthorizedIntegrationTools', () => {
       }),
     });
 
-    expect(result.get('posthog_analytics__execute-sql')).toMatchObject({
+    expect(result.tools.get('posthog_analytics__execute-sql')).toMatchObject({
       tool: expect.objectContaining({id: 'execute-sql'}),
     });
   });
@@ -193,7 +222,7 @@ describe('resolveAuthorizedIntegrationTools', () => {
       }),
     });
 
-    const authorizedTool = result.get('github_main__check_run_write');
+    const authorizedTool = result.tools.get('github_main__check_run_write');
     const properties = authorizedTool?.inputSchema.properties as Record<string, unknown>;
     expect(properties.method).toMatchObject({enum: ['update']});
     expect(authorizedTool?.inputSchema.oneOf).toBeUndefined();

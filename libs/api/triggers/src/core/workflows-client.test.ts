@@ -103,6 +103,7 @@ function localWorkflowsClient(): WorkflowsModuleClient {
       listJobStepAttempts: () => ({stepAttemptIds: []}),
       getLeasedAgentToolContext: () => ({
         workspaceId: '00000000-0000-4000-8000-000000000006',
+        stepType: 'agent' as const,
         integrations: [],
       }),
       getLeasedAgentSessionContext: () => ({

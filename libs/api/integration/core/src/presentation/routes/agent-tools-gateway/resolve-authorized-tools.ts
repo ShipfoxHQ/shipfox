@@ -31,9 +31,13 @@ export type LeasedAgentStepLoader = (params: {
   attempt: number;
 }) => Promise<{
   workspaceId: string;
+  /** Absent for loaders that predate action steps, which only serve agents. */
+  stepType?: LeasedToolStepType | undefined;
   integrations?: MaterializedAgentIntegrationConfigDto[];
   step?: {type: string; config: Record<string, unknown>};
 }>;
+
+export type LeasedToolStepType = 'agent' | 'action';
 
 export function createWorkflowsLeasedAgentStepLoader(
   workflows: WorkflowsModuleClient,
@@ -50,6 +54,7 @@ export function createWorkflowsLeasedAgentStepLoader(
       });
       return {
         workspaceId: context.workspaceId,
+        stepType: context.stepType,
         integrations: context.integrations,
       };
     } catch (error) {
@@ -87,6 +92,11 @@ export interface AuthorizedIntegrationTool {
 
 export type AuthorizedIntegrationToolMap = Map<string, AuthorizedIntegrationTool>;
 
+export interface AuthorizedIntegrationTools {
+  stepType: LeasedToolStepType;
+  tools: AuthorizedIntegrationToolMap;
+}
+
 export interface ResolveAuthorizedToolsParams {
   request: object;
   loadLeasedAgentStep: LeasedAgentStepLoader;
@@ -97,7 +107,7 @@ export interface ResolveAuthorizedToolsParams {
 
 export async function resolveAuthorizedIntegrationTools(
   params: ResolveAuthorizedToolsParams,
-): Promise<AuthorizedIntegrationToolMap> {
+): Promise<AuthorizedIntegrationTools> {
   const leasedJob = requireLeasedJobContext(params.request);
   if (!leasedJob.currentStepId || leasedJob.currentStepAttempt === undefined) {
     throw new ClientError('Lease does not identify a current step', 'lease-missing-step', {
@@ -138,7 +148,7 @@ export async function resolveAuthorizedIntegrationTools(
     }
   }
 
-  return authorizedTools;
+  return {stepType: loaded.stepType ?? 'agent', tools: authorizedTools};
 }
 
 function addAuthorizedTool(

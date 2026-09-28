@@ -18,13 +18,18 @@ import type {IntegrationConnection} from './entities/connection.js';
 import type {RepositoryAuthorizationDenial} from './repository-authorizer.js';
 
 /**
- * Who asked for an integration tool call. The agent caller is the MCP gateway
- * serving a model under a job lease; the tool-step caller is the workflow tool
- * step executor. The metric label stays `agent` | `tool_step`, while the audit
- * line expands each caller's identity fields.
+ * Who asked for an integration tool call. The agent and action callers are the
+ * MCP gateway serving a model or action code under a job lease; the tool-step
+ * caller is the workflow tool step executor. The metric label is the caller
+ * kind, while the audit line expands each caller's identity fields.
  */
 export type IntegrationToolCallCaller =
-  | {caller: 'agent'; lease?: LeasedJobContext | undefined}
+  | {
+      caller: 'agent' | 'action';
+      lease?: LeasedJobContext | undefined;
+      /** The runner's `x-shipfox-call-id`, which pairs the audit line with its step log row. */
+      callId?: string | undefined;
+    }
   | {
       caller: 'tool_step';
       workspaceId: string;
@@ -42,9 +47,10 @@ export type IntegrationToolCallCaller =
  * enrichment never drifts between the two.
  */
 export function callerLogContext(caller: IntegrationToolCallCaller): Record<string, unknown> {
-  return caller.caller === 'agent'
+  return caller.caller !== 'tool_step'
     ? {
-        caller: 'agent',
+        caller: caller.caller,
+        ...(caller.callId === undefined ? {} : {callId: caller.callId}),
         ...(caller.lease === undefined
           ? {}
           : {

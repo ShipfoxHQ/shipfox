@@ -9,7 +9,7 @@ export type IntegrationAgentToolCallOutcome =
   | 'invalid-request'
   | 'exception';
 
-export type IntegrationToolCallCallerLabel = 'agent' | 'tool_step';
+export type IntegrationToolCallCallerLabel = 'agent' | 'tool_step' | 'action';
 
 export type IntegrationToolRepositoryAccessMode = 'selected' | 'all';
 export type IntegrationToolRepositoryClassification =

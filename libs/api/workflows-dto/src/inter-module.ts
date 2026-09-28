@@ -2,6 +2,7 @@ import {
   agentSessionDescriptorSchema,
   harnessSchema,
   materializedAgentIntegrationSchema,
+  materializedAgentIntegrationToolSchema,
 } from '@shipfox/api-agent-dto';
 import {workflowModelSnapshotSchema} from '@shipfox/api-definitions-dto';
 import {secretKeySchema} from '@shipfox/api-secrets-dto';
@@ -238,6 +239,15 @@ const workflowRunFiltersSchema = z
  * Producer-owned Workflows commands used by synchronous callers. Commands carry
  * stable identities whenever a retry could create a duplicate run.
  */
+/** Frozen integration grant of a leased step; action tools carry their result kind. */
+const leasedToolIntegrationSchema = materializedAgentIntegrationSchema.extend({
+  tools: z
+    .array(
+      materializedAgentIntegrationToolSchema.extend({result: z.enum(['json', 'file']).optional()}),
+    )
+    .min(1),
+});
+
 export const workflowsInterModuleContract = defineInterModuleContract({
   module: 'workflows',
   methods: {
@@ -443,7 +453,8 @@ export const workflowsInterModuleContract = defineInterModuleContract({
       }),
       output: z.object({
         workspaceId: idSchema,
-        integrations: z.array(materializedAgentIntegrationSchema),
+        stepType: z.enum(['agent', 'action']),
+        integrations: z.array(leasedToolIntegrationSchema),
       }),
       errors: {
         'lease-not-active': z.object({}),
