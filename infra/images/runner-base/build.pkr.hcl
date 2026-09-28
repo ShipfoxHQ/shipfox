@@ -6,6 +6,7 @@ build {
     execute_command = "sudo -E sh -c '{{ .Vars }} {{ .Path }}'"
     scripts = [
       "${path.root}/scripts/build/prepare-os.sh",
+      "${path.root}/scripts/build/install-docker.sh",
       "${path.root}/scripts/build/install-node.sh",
       "${path.root}/scripts/build/clean-identity.sh"
     ]

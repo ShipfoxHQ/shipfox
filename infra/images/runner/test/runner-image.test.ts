@@ -3,6 +3,7 @@ import {chmod, mkdir, mkdtemp, readFile, readlink, rm, stat, writeFile} from 'no
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {
+  RUNNER_BASE_INSTALL_DOCKER_SCRIPT,
   RUNNER_BASE_INSTALL_NODE_SCRIPT,
   RUNNER_BASE_PREPARE_OS_SCRIPT,
   type RunnerBaseSelection,
@@ -136,6 +137,8 @@ describe('packerBuildArgs', () => {
       'platform=aws',
       '-var',
       `runner_base_prepare_script=${RUNNER_BASE_PREPARE_OS_SCRIPT}`,
+      '-var',
+      `runner_base_install_docker_script=${RUNNER_BASE_INSTALL_DOCKER_SCRIPT}`,
       '-var',
       `runner_base_install_node_script=${RUNNER_BASE_INSTALL_NODE_SCRIPT}`,
       '-var',
@@ -2110,11 +2113,25 @@ describe('runner image composition', () => {
     }
   });
 
-  it('runs the runner base OS preparation before the runner stage of a complete build only', async () => {
+  it('lets the shipfox user reach the Docker daemon', async () => {
+    const script = new URL('../scripts/build/setup-runner.sh', import.meta.url);
+    const fixture = await createRunnerImageSetupFixture();
+
+    try {
+      execFileSync('/bin/sh', [script.pathname], {env: fixture.environment, stdio: 'pipe'});
+
+      const events = (await readFile(fixture.commandLog, 'utf8')).trim().split('\n');
+      expect(events).toContain('usermod --append --groups docker shipfox');
+    } finally {
+      await rm(fixture.root, {force: true, recursive: true});
+    }
+  });
+
+  it('runs the runner base OS and Docker scripts before the runner stage of a complete build only', async () => {
     const build = await readFile(new URL('../build.pkr.hcl', import.meta.url), 'utf8');
 
     const baseIndex = build.indexOf(
-      'concat(local.from_runner_base ? [] : [var.runner_base_prepare_script], [',
+      'concat(local.from_runner_base ? [] : [var.runner_base_prepare_script, var.runner_base_install_docker_script], [',
     );
     expect(baseIndex).toBeGreaterThanOrEqual(0);
     expect(build.indexOf('scripts/build/setup-runner.sh')).toBeGreaterThan(baseIndex);
@@ -2268,7 +2285,7 @@ async function createRunnerImageSetupFixture() {
   await mkdir(commandDirectory, {recursive: true});
   await writeFile(join(root, 'etc/fstab'), '# fstab\n');
 
-  for (const command of ['apt-get', 'mkswap', 'swapon']) {
+  for (const command of ['apt-get', 'mkswap', 'swapon', 'usermod']) {
     await writeExecutable(
       join(commandDirectory, command),
       `#!/bin/sh\nprintf '${command} %s\\n' "$*" >> "$RUNNER_IMAGE_COMMAND_LOG"\n`,

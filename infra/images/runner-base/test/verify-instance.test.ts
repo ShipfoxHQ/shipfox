@@ -11,6 +11,7 @@ import {
 
 const script = new URL('../scripts/verify/verify-instance.sh', import.meta.url).pathname;
 const prepareScript = new URL('../scripts/build/prepare-os.sh', import.meta.url).pathname;
+const installDockerScript = new URL('../scripts/build/install-docker.sh', import.meta.url).pathname;
 
 async function installedPackages(): Promise<string> {
   const packages = await readScriptPackages(
@@ -18,7 +19,12 @@ async function installedPackages(): Promise<string> {
     'ca-certificates',
     'ec2-instance-connect',
   );
-  return [...packages, 'cloud-init'].join(' ');
+  const dockerPackages = await readScriptPackages(
+    installDockerScript,
+    'docker-ce',
+    'docker-compose-plugin',
+  );
+  return [...packages, 'cloud-init', ...dockerPackages].join(' ');
 }
 
 async function createVerifyFixture(): Promise<ShellFixture> {
@@ -59,6 +65,18 @@ esac
     join(fixture.commandDirectory, 'node'),
     `#!/bin/sh\nprintf "%s\\n" "\${RUNNER_BASE_NODE_VERSION:-v24.17.0}"\n`,
   );
+  await writeExecutable(
+    join(fixture.commandDirectory, 'docker'),
+    `#!/bin/sh
+case "$*" in
+  info) [ -z "\${RUNNER_BASE_DOCKER_DAEMON_DOWN:-}" ] ;;
+  --version) echo 'Docker version 29.0.0' ;;
+  'buildx version') [ -z "\${RUNNER_BASE_DOCKER_BUILDX_MISSING:-}" ] && echo 'buildx v0.30.0' ;;
+  'compose version') echo 'Docker Compose version v2.40.0' ;;
+  *) exit 1 ;;
+esac
+`,
+  );
   fixture.environment.SHIPFOX_RUNNER_BASE_ARCHITECTURE = 'amd64';
   return fixture;
 }
@@ -83,7 +101,12 @@ describe('runner base fresh-instance verification', () => {
   }
 
   it('accepts a new instance that satisfies the base contract', () => {
-    expect(verify()).toContain('runner base verified: ubuntu24/amd64');
+    const output = verify();
+
+    expect(output).toContain(
+      'runner base docker: Docker version 29.0.0; buildx v0.30.0; Docker Compose version v2.40.0',
+    );
+    expect(output).toContain('runner base verified: ubuntu24/amd64');
   });
 
   it('accepts cloud-init completion with recoverable warnings', () => {
@@ -95,6 +118,8 @@ describe('runner base fresh-instance verification', () => {
     ['cloud-init did not finish', {RUNNER_BASE_CLOUD_INIT_STATUS: 'running'}, 'did not finish'],
     ['the architecture differs', {RUNNER_BASE_DPKG_ARCHITECTURE: 'arm64'}, 'expected amd64'],
     ['the shipfox user exists', {RUNNER_BASE_SHIPFOX_USER: '1'}, 'shipfox user'],
+    ['the Docker daemon is down', {RUNNER_BASE_DOCKER_DAEMON_DOWN: '1'}, 'Docker daemon'],
+    ['Buildx is missing', {RUNNER_BASE_DOCKER_BUILDX_MISSING: '1'}, 'Docker Buildx is missing'],
   ])('fails when %s', (_label, environment, message) => {
     expect(() => verify(environment)).toThrow(message);
   });
@@ -111,6 +136,14 @@ describe('runner base fresh-instance verification', () => {
     expect(() =>
       verify({RUNNER_BASE_INSTALLED_PACKAGES: packages.replace(' cloud-init', '')}),
     ).toThrow('required package is missing: cloud-init');
+  });
+
+  it('fails when a Docker package is missing', () => {
+    const packages = String(fixture.environment.RUNNER_BASE_INSTALLED_PACKAGES);
+
+    expect(() =>
+      verify({RUNNER_BASE_INSTALLED_PACKAGES: packages.replace(' docker-compose-plugin', '')}),
+    ).toThrow('required package is missing: docker-compose-plugin');
   });
 
   it('fails when snapd remains installed', () => {

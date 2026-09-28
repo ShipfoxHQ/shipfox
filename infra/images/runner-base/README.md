@@ -5,8 +5,9 @@
 ## What it does
 
 - **Base build**: Packer's `base` build prepares an exact Canonical Ubuntu 24.04 AMI and captures an encrypted base AMI in `eu-central-1`.
-- **Fresh-instance verification**: Packer's `verify` build launches the captured AMI with a new key pair, checks the base contract, including the pinned Node major, and records the kernel, boot timing, and root filesystem usage. It creates no image.
+- **Fresh-instance verification**: Packer's `verify` build launches the captured AMI with a new key pair, checks the base contract, including the pinned Node major and a running Docker daemon, and records the kernel, boot timing, Docker versions, and root filesystem usage. It creates no image.
 - **`RUNNER_BASE_PREPARE_OS_SCRIPT`**: the absolute path of the OS preparation script. Release and QEMU runner image builds in `@shipfox/runner-image` run it before their runner stage. Candidate builds start from a published base instead.
+- **`RUNNER_BASE_INSTALL_DOCKER_SCRIPT`**: the absolute path of the Docker installation script. The base build runs it after the OS preparation, and so do release and QEMU runner image builds. Candidate builds keep the base's Docker.
 - **`RUNNER_BASE_INSTALL_NODE_SCRIPT`**: the absolute path of the Node installation script. The base build runs it, and every runner image build runs it again. It pins the Node major and installs that major's latest release from nodejs.org. It downloads Node only when that major is missing, so candidates keep the base's Node.
 - **`computeRunnerBaseRecipe`**: computes the deterministic recipe digest that identifies base compatibility.
 - **`parseRunnerBaseMetadata`**: validates one published base generation against [`schema/runner-base.v1.schema.json`](schema/runner-base.v1.schema.json).
@@ -14,9 +15,9 @@
 - **Publication**: the `plan-runner-base` and `publish-runner-base` commands decide whether a new generation is needed, then mark a verified pair and write it to the single SSM pointer. The [**Publish runner base**](../../../.github/workflows/publish-runner-base.yml) workflow runs them.
 - **Selection**: `selectRunnerBase` and the `select-runner-base` command choose one verified generation for a candidate build. `revalidateRunnerBaseImage` rechecks a selected AMI immediately before launch. `parseRunnerBaseSelection` reads a selection passed between jobs.
 
-The base holds the OS packages and the latest release of the Node major pinned in `scripts/build/install-node.sh`, and removes snapd and the bundled SSM agent. It keeps cloud-init, SSH, and the source network configuration, so each new instance receives its own identity and launch key. Before capture, the build cleans cloud-init instance state, the machine ID, the hostname, SSH host keys, and Packer's temporary authorized keys.
+The base holds the OS packages, the latest stable Docker Engine with the Buildx and Compose plugins from Docker's apt repository, and the latest release of the Node major pinned in `scripts/build/install-node.sh`. It removes snapd and the bundled SSM agent. It keeps cloud-init, SSH, and the source network configuration, so each new instance receives its own identity and launch key. Before capture, the build cleans cloud-init instance state, the machine ID, the hostname, SSH host keys, and Packer's temporary authorized keys.
 
-The base contains no pnpm, Shipfox software, runtime services, or credentials. The runner image stage installs them and applies the final boot, network, and hardening policy. Node lives in the base because candidate snapshots store every block their bake writes, and Node changes far less often than the runner.
+Apart from Docker, the base contains no pnpm, Shipfox software, runtime services, or credentials. The runner image stage installs them and applies the final boot, network, and hardening policy. Node lives in the base because candidate snapshots store every block their bake writes, and Node changes far less often than the runner.
 
 ## Installation and setup
 
@@ -79,7 +80,7 @@ The command needs AWS credentials in the candidate account.
 
 ## Behavior notes
 
-The recipe digest covers the Packer templates, the scripts under `scripts/build` and `scripts/verify`, the Packer pin from `mise.toml`, and the Ubuntu release. Plugin pins, storage settings, and the Node major live in the hashed files. A Node major change therefore publishes a new base before the next candidate. A Node patch or minor release does not change the digest: the next scheduled generation picks it up. The Node and pnpm pins in `mise.toml`, application code, package tooling, tests, and documentation do not change it.
+The recipe digest covers the Packer templates, the scripts under `scripts/build` and `scripts/verify`, the Packer pin from `mise.toml`, and the Ubuntu release. Plugin pins, storage settings, and the Node major live in the hashed files. A Node major change therefore publishes a new base before the next candidate. A Node patch or minor release does not change the digest: the next scheduled generation picks it up. Docker is not pinned either: each generation installs the latest stable release. The Node and pnpm pins in `mise.toml`, application code, package tooling, tests, and documentation do not change it.
 
 The base build tags the AMI, its snapshot, and the build instance with `shipfox.base_status=building`.
 

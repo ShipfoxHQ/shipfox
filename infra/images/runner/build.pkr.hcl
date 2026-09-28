@@ -21,11 +21,11 @@ build {
     source      = abspath("${path.root}/scripts")
   }
 
-  # A verified runner base already ran the OS preparation and installed the pinned Node major, so
-  # the Node script only confirms it. Complete builds run both first.
+  # A verified runner base already ran the OS preparation and installed Docker and the pinned Node
+  # major, so the Node script only confirms it. Complete builds run the base scripts first.
   provisioner "shell" {
     execute_command = "sudo -E sh -c '{{ .Vars }} {{ .Path }}'"
-    scripts = concat(local.from_runner_base ? [] : [var.runner_base_prepare_script], [
+    scripts = concat(local.from_runner_base ? [] : [var.runner_base_prepare_script, var.runner_base_install_docker_script], [
       "${path.root}/scripts/build/setup-runner.sh",
       var.runner_base_install_node_script,
       "${path.root}/scripts/build/install-runner.sh",

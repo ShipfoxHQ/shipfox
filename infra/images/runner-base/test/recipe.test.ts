@@ -42,6 +42,7 @@ describe('runner base recipe', () => {
       'locals.pkr.hcl',
       'requirements.pkr.hcl',
       'scripts/build/clean-identity.sh',
+      'scripts/build/install-docker.sh',
       'scripts/build/install-node.sh',
       'scripts/build/prepare-os.sh',
       'scripts/verify/verify-instance.sh',
