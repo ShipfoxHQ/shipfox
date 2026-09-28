@@ -146,6 +146,8 @@ describe('workflow diagnostic Agent Access schemas', () => {
             'tool_error',
             'tool_config_invalid',
             'invocation_interrupted',
+            'action_input_invalid',
+            'action_unavailable',
             'gate_failed',
             'gate_uncheckable',
             'restart_unresolved',

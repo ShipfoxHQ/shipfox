@@ -12,7 +12,6 @@ import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelStep = WorkflowModelJob['steps'][number];
 type WorkflowSourceLocation = NonNullable<WorkflowModelStep['sourceLocation']>;
-type MaterializedStepKind = Exclude<WorkflowModelStep['kind'], 'action'>;
 
 const FIRST_LINE_PATTERN = /\r?\n/;
 
@@ -21,7 +20,7 @@ export interface MaterializedWorkflowStep {
   readonly name: string;
   readonly sourceLocation: WorkflowSourceLocation | null;
   readonly status: 'pending';
-  readonly type: MaterializedStepKind | 'setup';
+  readonly type: WorkflowModelStep['kind'] | 'setup';
   readonly config: Readonly<Record<string, unknown>>;
   readonly condition?: WorkflowExpression;
   readonly configPlan?: StepConfigDispatchPlan;
@@ -75,7 +74,6 @@ export async function materializeJobExecutionSteps(
     setupStepForJob(job),
     ...(await Promise.all(
       job.steps.map(async (step, stepPosition) => {
-        const type = materializedStepKind(step);
         const stepContext = {
           ...context.values,
           job: {key: job.key, name: job.name ?? job.key},
@@ -99,7 +97,7 @@ export async function materializeJobExecutionSteps(
           name: resolved.name ?? stepDisplayName(step, resolved.config),
           sourceLocation: step.sourceLocation ?? null,
           status: 'pending' as const,
-          type,
+          type: step.kind,
           config: materializedStepConfig({
             config: resolved.config,
             step,
@@ -114,14 +112,6 @@ export async function materializeJobExecutionSteps(
       }),
     )),
   ];
-}
-
-// Definitions can normalize action steps before run creation can execute them.
-function materializedStepKind(step: WorkflowModelStep): MaterializedStepKind {
-  if (step.kind === 'action') {
-    throw new Error(`Action step "${step.key ?? step.id}" cannot run yet`);
-  }
-  return step.kind;
 }
 
 function setupStepForJob(job: WorkflowModelJob): MaterializedWorkflowStep {

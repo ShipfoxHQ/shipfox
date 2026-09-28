@@ -623,6 +623,34 @@ describe('completeStepDispatchConfig', () => {
     });
   });
 
+  it('completes a dispatch-time integer into a tool input named segments', async () => {
+    const pending = step({
+      type: 'tool',
+      config: {
+        tool: {
+          id: 'issue_write',
+          input_schema: {
+            type: 'object',
+            properties: {segments: {type: 'integer'}},
+            required: ['segments'],
+            additionalProperties: false,
+          },
+        },
+      },
+      configPlan: {
+        tool: {with: {segments: plannedToolField(template('step.attempt')).segments}},
+      },
+    });
+
+    const result = await completeStepDispatchConfig({
+      step: pending,
+      context: {site: 'step-dispatch', values: {step: {attempt: 2n}}},
+      definitionId: 'def-1',
+    });
+
+    expect(result.config.tool).toMatchObject({with: {segments: 2}});
+  });
+
   it('rechecks secret destinations after merging a legacy whole-with plan', async () => {
     const pending = step({
       type: 'tool',

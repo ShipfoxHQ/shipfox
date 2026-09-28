@@ -25,6 +25,8 @@ export type StepErrorReason =
   | 'tool_error'
   | 'tool_config_invalid'
   | 'invocation_interrupted'
+  | 'action_input_invalid'
+  | 'action_unavailable'
   | 'gate_failed'
   | 'gate_uncheckable'
   | 'restart_unresolved'
@@ -61,6 +63,8 @@ export const STEP_ERROR_REASONS = new Set<StepErrorReason>([
   'tool_error',
   'tool_config_invalid',
   'invocation_interrupted',
+  'action_input_invalid',
+  'action_unavailable',
   'gate_failed',
   'gate_uncheckable',
   'restart_unresolved',

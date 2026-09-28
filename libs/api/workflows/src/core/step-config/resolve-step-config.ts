@@ -13,6 +13,7 @@ import type {
 } from '#core/agent-tools.js';
 import type {StepConfigDispatchPlan} from '#core/entities/step.js';
 import {DEFAULT_RESTART_ATTEMPT_CAP} from '../step-transition/decide-step-transition.js';
+import {resolveActionStepConfig} from './action.js';
 import {resolveAgentStepConfig} from './agent.js';
 import {
   freezeStepField,
@@ -31,6 +32,7 @@ type WorkflowModelRunStep = Extract<WorkflowModelStep, {kind: 'run'}>;
 type WorkflowModelAgentStep = Extract<WorkflowModelStep, {kind: 'agent'}>;
 type WorkflowModelCheckoutStep = Extract<WorkflowModelStep, {kind: 'checkout'}>;
 type WorkflowModelToolStep = Extract<WorkflowModelStep, {kind: 'tool'}>;
+type WorkflowModelActionStep = Extract<WorkflowModelStep, {kind: 'action'}>;
 
 export type {StepConfigField, WorkflowStepTemplateDiagnostic};
 
@@ -143,6 +145,18 @@ async function buildStepConfig(
       diagnostics: tool.diagnostics,
       trace: tool.trace,
       hasTemplates: tool.hasTemplates,
+    };
+  }
+
+  const actionStep = actionStepOrNull(params.step);
+  if (actionStep !== null) {
+    const action = resolveActionStepConfig({...params, step: actionStep});
+    return {
+      config: {...workingDirectory.config, ...action.config, ...gate, ...outputs},
+      configPlan: mergeConfigPlans(action.configPlan, workingDirectory.configPlan),
+      diagnostics: [...workingDirectory.diagnostics, ...action.diagnostics],
+      trace: [...workingDirectory.trace, ...action.trace],
+      hasTemplates: action.hasTemplates || workingDirectory.hasTemplates,
     };
   }
 
@@ -270,6 +284,11 @@ function checkoutStepOrNull(step: WorkflowModelStep): WorkflowModelCheckoutStep 
 function toolStepOrNull(step: WorkflowModelStep): WorkflowModelToolStep | null {
   const isToolStep = step.kind === 'tool';
   return isToolStep ? step : null;
+}
+
+function actionStepOrNull(step: WorkflowModelStep): WorkflowModelActionStep | null {
+  const isActionStep = step.kind === 'action';
+  return isActionStep ? step : null;
 }
 
 function resolveCheckoutStepConfig(

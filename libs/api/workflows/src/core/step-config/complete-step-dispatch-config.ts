@@ -4,7 +4,7 @@ import {
   agentStepSessionDescriptorSchema,
   assertWorkingDirectory,
 } from '@shipfox/api-workflows-dto';
-import {capTraceEntries, type ResolvedFieldSegment} from '@shipfox/expression';
+import {capTraceEntries} from '@shipfox/expression';
 import {Ajv, type AnySchema} from 'ajv';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import type {
@@ -13,10 +13,11 @@ import type {
   StepConfigDispatchPlan,
 } from '#core/entities/step.js';
 import {AgentStepSessionClaimError, ToolConfigInvalidError} from '#core/errors.js';
+import {completeActionConfig} from './action.js';
 import {completeAgentConfig, readAgentStepSessionIntent} from './agent.js';
-import {completeStepFieldWithTrace, completeStepFieldWithTypeAndTrace} from './fields.js';
+import {completeStepFieldWithTrace} from './fields.js';
 import {completeRunDispatchConfig} from './run.js';
-import {assertSecretInputDestinations} from './tool.js';
+import {assertSecretInputDestinations, completeWith} from './tool.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 /** True when any deferred segment in the plan reads `root`. */
@@ -75,6 +76,13 @@ export async function completeStepDispatchConfig(params: {
     authoredWith: authoredToolWith(params.step),
   });
   completeRunDispatchConfig({
+    config,
+    plan,
+    context: params.context,
+    definitionId: params.definitionId,
+    trace,
+  });
+  completeActionConfig({
     config,
     plan,
     context: params.context,
@@ -144,7 +152,7 @@ function completeToolConfig(params: {
   }
   const toolConfig = {...tool} as Record<string, unknown>;
   const baseWith = toolConfig.with;
-  const mergedWith = mergeToolWith(baseWith, toolPlan?.with, params, 'tool.with');
+  const mergedWith = completeWith(baseWith, toolPlan?.with, {...params, field: 'tool.with'});
   toolConfig.with = mergedWith;
   assertSecretInputDestinations({
     toolId: dispatchToolId(toolConfig),
@@ -193,66 +201,6 @@ function dispatchToolId(toolConfig: Record<string, unknown>): string {
     return 'shipfox.start_workflow_run';
   }
   return typeof toolConfig.id === 'string' ? toolConfig.id : '';
-}
-
-function mergeToolWith(
-  base: unknown,
-  plan: NonNullable<NonNullable<Step['configPlan']>['tool']>['with'] | null | undefined,
-  params: {
-    readonly context: WorkflowEvaluationContext;
-    readonly definitionId: string;
-    readonly trace: PersistedEvaluationTraceEntry[];
-  },
-  field: 'tool.with',
-): unknown {
-  if (isMissingToolWithPlan(plan)) return base;
-  if (isFieldTemplate(plan)) {
-    const resolved = completeStepFieldWithTypeAndTrace({
-      field,
-      template: {segments: plan},
-      context: params.context,
-      definitionId: params.definitionId,
-      errorField: field,
-    });
-    params.trace.push(...resolved.trace.map((entry) => ({...entry, field})));
-    return resolved.value;
-  }
-  if (Array.isArray(plan)) {
-    const values = Array.isArray(base) ? [...base] : [];
-    plan.forEach((child, index) => {
-      if (child !== undefined) values[index] = mergeToolWith(values[index], child, params, field);
-    });
-    return values;
-  }
-  if (typeof plan === 'object' && plan !== null && !('segments' in plan)) {
-    const source =
-      base !== null && typeof base === 'object' && !Array.isArray(base)
-        ? (base as Record<string, unknown>)
-        : {};
-    const values = {...source};
-    for (const [key, child] of Object.entries(plan)) {
-      if (child !== undefined) values[key] = mergeToolWith(source[key], child, params, field);
-    }
-    return values;
-  }
-  throw new ToolConfigInvalidError('Tool input template plan is invalid');
-}
-
-function isMissingToolWithPlan(plan: unknown): plan is null | undefined {
-  return plan === undefined || plan === null;
-}
-
-function isFieldTemplate(value: unknown): value is readonly ResolvedFieldSegment[] {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      (segment) =>
-        segment !== null &&
-        typeof segment === 'object' &&
-        'kind' in segment &&
-        (segment.kind === 'literal' || segment.kind === 'deferred'),
-    )
-  );
 }
 
 function completeCheckoutConfig(params: {

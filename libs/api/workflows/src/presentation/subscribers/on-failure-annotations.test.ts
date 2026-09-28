@@ -210,6 +210,18 @@ const STEP_FAILURE_CASES = [
     title: 'Tool configuration needs attention',
     description: 'Review the connection and tool inputs before trying again.',
   },
+  {
+    reason: 'action_input_invalid',
+    type: 'action',
+    title: 'Action inputs need attention',
+    description: "Review the step's `with` values against the action's inputs before trying again.",
+  },
+  {
+    reason: 'action_unavailable',
+    type: 'action',
+    title: 'Action code is unavailable',
+    description: 'The runner could not load the action code. Try again.',
+  },
 ] as const satisfies readonly {
   reason: MappedStepErrorReason;
   type: Step['type'];
