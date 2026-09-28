@@ -5,6 +5,7 @@ export {
   DefinitionParseError,
   DefinitionSyncPermanentError,
 } from './errors.js';
+export {FILE_FETCH_CONCURRENCY} from './integrations.js';
 export {parseDefinition} from './parse-definition.js';
 export {
   type DefinitionAtRefFile,
@@ -23,7 +24,6 @@ export {
   type DiscoverWorkflowFilesParams,
   discoverWorkflowFiles,
   type FetchAndParseWorkflowsParams,
-  FILE_FETCH_CONCURRENCY,
   fetchAndParseWorkflows,
   MAX_WORKFLOW_FILES,
   type ParsedWorkflow,

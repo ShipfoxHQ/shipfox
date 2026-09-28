@@ -2,6 +2,9 @@ import {
   type IntegrationsModuleClient,
   integrationsInterModuleContract,
 } from '@shipfox/api-integration-core-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
+
+export const FILE_FETCH_CONCURRENCY = 4;
 
 export type DefinitionsSourceControl = {
   resolveRepository: IntegrationsModuleClient['resolveSourceRepository'];
@@ -17,6 +20,15 @@ export function createDefinitionsSourceControl(
     listFiles: integrations.listSourceFiles,
     fetchFile: integrations.fetchSourceFile,
   };
+}
+
+/** Whether a source file fetch failed because the file is not UTF-8 text. */
+export function isBinaryFileError(error: unknown): boolean {
+  return (
+    isInterModuleKnownError(integrationsInterModuleContract.methods.fetchSourceFile, error) &&
+    error.code === 'provider-failure' &&
+    error.details.reason === 'binary-file-unsupported'
+  );
 }
 
 export async function loadIntegrationValidationContext(

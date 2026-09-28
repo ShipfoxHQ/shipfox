@@ -28,14 +28,16 @@ import {
   type DefinitionAtRefErrorCode,
   DefinitionParseError,
 } from './errors.js';
-import {loadIntegrationValidationContext} from './integrations.js';
+import {
+  FILE_FETCH_CONCURRENCY,
+  isBinaryFileError,
+  loadIntegrationValidationContext,
+} from './integrations.js';
 import {needsIntegrationValidationContext} from './needs-integration-validation-context.js';
 import type {ParsedDefinition} from './parse-definition.js';
 import {parseDefinitionWithDiagnostics} from './parse-definition.js';
 import {
   DEFAULT_WORKFLOW_PATH,
-  FILE_FETCH_CONCURRENCY,
-  isBinaryFileError,
   isWorkflowFile,
   MAX_WORKFLOW_FILE_BYTES,
   MAX_WORKFLOW_FILES,

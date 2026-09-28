@@ -35,6 +35,36 @@ export function limitDefinitionSyncErrorMessage(message: string): string {
   return `${message.slice(0, contentLength)}…`;
 }
 
+export type ActionResolutionErrorCode =
+  | 'action-not-found'
+  | 'action-invalid'
+  | 'action-too-large'
+  | 'action-unsupported-file';
+
+/**
+ * Rejects an action directory referenced with `uses`. `filePath` names the
+ * repository file the problem belongs to: the manifest, the offending file,
+ * or the workflow file for a per-workflow limit.
+ */
+export class ActionResolutionError extends Error {
+  readonly code: ActionResolutionErrorCode;
+  readonly details: readonly ValidationError[];
+  readonly filePath: string | undefined;
+
+  constructor(params: {
+    code: ActionResolutionErrorCode;
+    message: string;
+    details?: readonly ValidationError[] | undefined;
+    filePath?: string | undefined;
+  }) {
+    super(params.message);
+    this.name = 'ActionResolutionError';
+    this.code = params.code;
+    this.details = params.details ?? [];
+    this.filePath = params.filePath;
+  }
+}
+
 export type DefinitionAtRefErrorCode =
   | 'project-not-found'
   | 'ref-not-found'
