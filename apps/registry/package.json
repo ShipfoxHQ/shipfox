@@ -18,6 +18,7 @@
   "scripts": {
     "build": "shipfox-swc",
     "dev": "tsx watch --conditions=workspace-source --env-file-if-exists=../../.env --env-file-if-exists=.env --env-file-if-exists=.env.local src/index.ts",
+    "image": "shipfox-docker --setup-context --image registry",
     "reindex": "tsx --conditions=workspace-source --env-file-if-exists=../../.env --env-file-if-exists=.env --env-file-if-exists=.env.local src/cli.ts reindex",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
@@ -38,6 +39,7 @@
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
+    "@shipfox/docker": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",

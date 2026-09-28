@@ -65,6 +65,7 @@ describe('generated release CI path', () => {
     assert.ok(workflow.includes('--image-repository ghcr.io/shipfoxhq/client'));
     assert.ok(workflow.includes('--image-repository ghcr.io/shipfoxhq/provisioner-docker'));
     assert.ok(workflow.includes('--image-repository ghcr.io/shipfoxhq/provisioner-ec2'));
+    assert.ok(workflow.includes('--image-repository ghcr.io/shipfoxhq/registry'));
     assert.ok(workflow.includes('--image-repository ghcr.io/shipfoxhq/runner'));
     assert.ok(workflow.includes('Reuse previous application image digest'));
     assert.ok(workflow.includes("needs.release-mode.outputs.mode == 'version-only-main'"));
