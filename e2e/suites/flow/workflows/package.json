@@ -10,6 +10,7 @@
   "type": "module",
   "imports": {
     "#test/*": "./tests/*",
+    "#agent-access-mcp.js": "./src/agent-access-mcp.ts",
     "#attachments.js": "./src/attachments.ts",
     "#clickup-api.js": "./src/clickup-api.ts",
     "#clickup-events.js": "./src/clickup-events.ts",

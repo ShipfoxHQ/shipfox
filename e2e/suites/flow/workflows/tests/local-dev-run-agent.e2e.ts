@@ -1,27 +1,24 @@
-import {Client} from '@modelcontextprotocol/sdk/client/index.js';
-import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
-import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
+import type {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {
-  agentAccessEnvelopeSchema,
   createDevRunResultSchema,
-  getTriggerEventResultSchema,
-  getWorkflowRunResultSchema,
   getWorkflowRunSourceResultSchema,
-  listTriggerEventsResultSchema,
   listWorkflowDefinitionsResultSchema,
-  listWorkflowRunsResultSchema,
 } from '@shipfox/api-agent-access-dto';
-import {config, PollTimeoutError, pollUntil} from '@shipfox/e2e-core';
+import {PollTimeoutError, pollUntil} from '@shipfox/e2e-core';
 import {commitFiles} from '@shipfox/e2e-driver-gitea';
-import {authorizeAgentAccess} from '@shipfox/e2e-setup-auth';
+import {
+  callTool,
+  connectAgentAccessMcp,
+  getRun,
+  getRuns,
+  getTriggerEvent,
+  waitForIntegrationEvent,
+} from '#agent-access-mcp.js';
 import {renderWorkflowYaml, seedWorkflowProject} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
 const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/u;
-const EVENT_PAGE_LIMIT = 10;
 const MAIN_REF = 'refs/heads/main';
-const MCP_POLL_INTERVAL_MS = 5_000;
 const RUN_STABILITY_TIMEOUT_MS = 2_000;
 const textEncoder = new TextEncoder();
 
@@ -61,32 +58,14 @@ jobs:
     definitionDelivery: 'api',
   });
 
-  const apiOrigin = new URL(config.API_URL).origin;
-  const publicOrigin = new URL(config.API_PUBLIC_URL).origin;
-  const clientOrigin = new URL(config.CLIENT_BASE_URL).origin;
-  const token = await authorizeAgentAccess({
+  const client = await connectAgentAccessMcp({
     request,
-    apiOrigin,
-    publicOrigin,
-    sessionToken: suite.sessionToken,
-    workspaceId: suite.workspaceId,
-    clientName: `Local dev run E2E ${uniqueId}`,
-    redirectUri: `http://127.0.0.1:43123/${uniqueId}/oauth/callback`,
-  });
-
-  const client = new Client({name: 'local-dev-run-agent-e2e-client', version: '0.0.0'});
-  const transport = new StreamableHTTPClientTransport(new URL('/mcp', apiOrigin), {
-    requestInit: {
-      headers: {
-        authorization: `Bearer ${token.access_token}`,
-        origin: clientOrigin,
-      },
-    },
+    suite,
+    uniqueId,
+    clientName: 'Local dev run',
   });
 
   try {
-    await client.connect(transport as unknown as Transport);
-
     const sourceEventFrom = new Date().toISOString();
     const sourceCommit = await commitFiles({
       org: suite.org,
@@ -272,106 +251,6 @@ jobs:
   }
 });
 
-type McpCall = Awaited<ReturnType<Client['callTool']>>;
-type McpEnvelope = ReturnType<typeof agentAccessEnvelopeSchema.parse>;
-
-async function callTool(
-  client: Client,
-  name: string,
-  arguments_: Record<string, unknown>,
-): Promise<{call: McpCall; envelope: McpEnvelope}> {
-  const call = await client.callTool({name, arguments: arguments_}, CallToolResultSchema);
-  return {call, envelope: agentAccessEnvelopeSchema.parse(call.structuredContent)};
-}
-
-async function getRuns(client: Client, projectId: string) {
-  const response = await callTool(client, 'list_workflow_runs', {project_id: projectId});
-  if (!response.envelope.ok) throw new Error('Runs list returned an MCP error');
-  return listWorkflowRunsResultSchema.parse(response.envelope.result).runs;
-}
-
-async function getRun(client: Client, runId: string) {
-  const response = await callTool(client, 'get_workflow_run', {run_id: runId});
-  if (!response.envelope.ok) throw new Error('Run lookup returned an MCP error');
-  return getWorkflowRunResultSchema.parse(response.envelope.result);
-}
-
-async function getTriggerEvent(client: Client, eventId: string) {
-  const response = await callTool(client, 'get_trigger_event', {event_id: eventId});
-  if (!response.envelope.ok) throw new Error('Trigger event lookup returned an MCP error');
-  return getTriggerEventResultSchema.parse(response.envelope.result);
-}
-
-async function waitForIntegrationEvent(params: {
-  client: Client;
-  source: string;
-  event: string;
-  repositoryFullName: string;
-  after?: string;
-  from: string;
-  requireProcessed?: boolean;
-  description: string;
-  excludedIds?: Set<string>;
-}) {
-  const inspectedIds = new Set<string>();
-  return await pollUntil(
-    {
-      timeoutMs: 60_000,
-      intervalMs: MCP_POLL_INTERVAL_MS,
-      maxIntervalMs: MCP_POLL_INTERVAL_MS,
-      describe: () => params.description,
-    },
-    async () => {
-      const response = await callTool(params.client, 'list_trigger_events', {
-        source: [params.source],
-        event: [params.event],
-        origin: ['integration'],
-        from: params.from,
-        limit: EVENT_PAGE_LIMIT,
-      });
-      if (!response.envelope.ok) throw new Error('Trigger event list returned an MCP error');
-      const events = listTriggerEventsResultSchema.parse(response.envelope.result).trigger_events;
-      return await findMatchingIntegrationEvent({...params, events, inspectedIds});
-    },
-  );
-}
-
-async function findMatchingIntegrationEvent(params: {
-  client: Client;
-  events: ReturnType<typeof listTriggerEventsResultSchema.parse>['trigger_events'];
-  repositoryFullName: string;
-  after?: string;
-  requireProcessed?: boolean;
-  excludedIds?: Set<string>;
-  inspectedIds: Set<string>;
-}) {
-  for (const candidate of params.events) {
-    const excluded = params.excludedIds?.has(candidate.id) ?? false;
-    if (candidate.origin !== 'integration' || excluded || params.inspectedIds.has(candidate.id)) {
-      continue;
-    }
-    const detail = await getTriggerEvent(params.client, candidate.id);
-    if (!triggerEventMatches(detail, params)) {
-      params.inspectedIds.add(candidate.id);
-      continue;
-    }
-    if (!params.requireProcessed || detail.processed_at !== null) return detail;
-  }
-  return null;
-}
-
-function triggerEventMatches(
-  detail: ReturnType<typeof getTriggerEventResultSchema.parse>,
-  params: {repositoryFullName: string; after?: string; requireProcessed?: boolean},
-): boolean {
-  const payload = JSON.parse(detail.payload_preview) as unknown;
-  const repositoryMatches =
-    nestedString(payload, ['repository', 'full_name']) === params.repositoryFullName;
-  const commitMatches =
-    params.after === undefined || nestedString(payload, ['after']) === params.after;
-  return repositoryMatches && commitMatches;
-}
-
 async function expectRunIdsToRemain(
   client: Client,
   projectId: string,
@@ -402,15 +281,4 @@ async function expectRunIdsToRemain(
     if (error instanceof PollTimeoutError && observedSuccessfully) return;
     throw error;
   }
-}
-
-function nestedString(value: unknown, path: string[]): string | undefined {
-  let current = value;
-  for (const segment of path) {
-    if (typeof current !== 'object' || current === null || Array.isArray(current)) {
-      return undefined;
-    }
-    current = (current as Record<string, unknown>)[segment];
-  }
-  return typeof current === 'string' ? current : undefined;
 }
