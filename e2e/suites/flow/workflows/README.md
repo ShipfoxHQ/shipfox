@@ -135,6 +135,9 @@ exported to Markdown, local changes published as a verified commit on a pull req
 and a Linear issue's context with its uploaded files. `tests/reference-actions.e2e.ts` commits
 each one under `.shipfox/actions/` and runs it against the Slack, GitHub, and Linear mocks in
 `src/`. The package type check covers the recipes, so they stay valid against `@shipfox/actions`.
+Each recipe also has an `index.test.ts` beside it, written with `runAction` and fake tools from
+`@shipfox/actions/testing`. The package's Vitest run includes them, and the docs publish them
+with the recipes.
 
 Keep the recipes readable as user code: they import only their own files, Node built-ins, and
 `@shipfox/actions`, and they use only erasable TypeScript syntax, since Node strips the types.
