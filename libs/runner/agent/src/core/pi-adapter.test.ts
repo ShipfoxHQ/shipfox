@@ -169,6 +169,10 @@ function piServices(
   return {
     cwd,
     diagnostics,
+    settingsManager: {
+      getShellCommandPrefix: vi.fn((): string | undefined => undefined),
+      applyOverrides: vi.fn(),
+    },
     resourceLoader: {
       getExtensions: () => ({
         extensions: loadedDirectories.map((directory) => ({resolvedPath: `${directory}/index.ts`})),
@@ -529,6 +533,24 @@ describe('piHarnessAdapter', () => {
     );
     expect(createAgentSessionMock.mock.calls[0]?.[0]).not.toHaveProperty('customTools');
   });
+
+  it.runIf(process.platform === 'linux')(
+    'resets the OOM score before the configured shell prefix of Pi bash commands',
+    async () => {
+      const services = piServices();
+      services.settingsManager.getShellCommandPrefix.mockReturnValue('source .envrc');
+      createAgentSessionServicesMock.mockResolvedValue(services);
+
+      await piHarnessAdapter.run(invocation());
+
+      expect(services.settingsManager.applyOverrides).toHaveBeenCalledWith({
+        shellCommandPrefix: '{ echo 0 > /proc/self/oom_score_adj; } 2>/dev/null\nsource .envrc',
+      });
+      expect(services.settingsManager.applyOverrides.mock.invocationCallOrder[0]).toBeLessThan(
+        createAgentSessionMock.mock.invocationCallOrder[0] ?? 0,
+      );
+    },
+  );
 
   it('binds the inline image normalizer for sessions without MCP', async () => {
     await piHarnessAdapter.run(invocation());

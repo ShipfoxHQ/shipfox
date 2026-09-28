@@ -68,6 +68,7 @@ import {
 import {logger} from '@shipfox/node-opentelemetry';
 import {claudeHarnessAdapter} from '#core/claude-adapter.js';
 import {CLAUDE_AUTH_HELPER_PATH} from '#core/claude-auth-helper.js';
+import {resolveBundledClaudeCodeExecutable} from '#core/claude-code.js';
 import {
   CLAUDE_CREDENTIAL_CAPABILITY_ENV,
   CLAUDE_CREDENTIAL_HELPER_TTL_MS,
@@ -788,6 +789,28 @@ describe('claudeHarnessAdapter', () => {
     expect(lastQueryOptions()).not.toHaveProperty('tools');
     expect(lastQueryOptions().mcpServers).toBeUndefined();
   });
+
+  it.runIf(process.platform === 'linux')(
+    'starts the bundled Claude Code through a shell that resets its OOM score',
+    async () => {
+      queryMock.mockReturnValue(makeQuery([successMessage]));
+
+      await claudeHarnessAdapter.run(invocation());
+
+      expect(queryMock).toHaveBeenCalledWith({
+        prompt: expect.any(Object),
+        options: expect.objectContaining({
+          pathToClaudeCodeExecutable: '/bin/sh',
+          executableArgs: [
+            '-c',
+            '{ echo 0 > /proc/self/oom_score_adj; } 2>/dev/null; exec "$@"',
+            'sh',
+            resolveBundledClaudeCodeExecutable(),
+          ],
+        }),
+      });
+    },
+  );
 
   it('sends budget-based extended thinking without effort for Claude Haiku 4.5', async () => {
     queryMock.mockReturnValue(makeQuery([successMessage]));

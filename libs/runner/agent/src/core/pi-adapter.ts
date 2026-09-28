@@ -51,6 +51,7 @@ import type {
   HarnessResult,
   HarnessToolSurface,
 } from '#core/harness.js';
+import {withDefaultOomScoreShellPrefix} from '#core/oom-score.js';
 import {
   OutputCollector,
   RequiredOutputsMissingError,
@@ -812,6 +813,12 @@ async function preparePiSessionServices(params: {
       },
     }),
   );
+  // Resource loading reloads settings, which drops earlier overrides.
+  const shellCommandPrefix = withDefaultOomScoreShellPrefix(
+    services.settingsManager.getShellCommandPrefix(),
+  );
+  if (shellCommandPrefix !== undefined)
+    services.settingsManager.applyOverrides({shellCommandPrefix});
   const extensionResult = services.resourceLoader?.getExtensions?.();
   assertPiServiceDiagnostics(
     services.diagnostics,
