@@ -45,5 +45,9 @@ describe('buildTemplatePagePrompt', () => {
       buildTemplatePagePrompt('ticket-to-pr', [chat, tracker, source], {chat: 'slack'}),
       'Use Shipfox to create a workflow from the ticket-to-pr template, with Slack as the chat and without the tracker part.',
     );
+    assert.equal(
+      buildTemplatePagePrompt('ticket-to-pr', [tracker, source], {source: 'github'}),
+      'Use Shipfox to create a workflow from the ticket-to-pr template, without the tracker part.',
+    );
   });
 });

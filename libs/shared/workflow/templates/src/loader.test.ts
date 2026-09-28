@@ -171,6 +171,7 @@ describe('workflow template loader', () => {
 
     const [loaded] = createTemplateLoader([withManualReport]).list();
 
+    expect(withManualReport.workflow).toContain('# part:report.trigger');
     expect(loaded?.startsManually).toBe(false);
   });
 

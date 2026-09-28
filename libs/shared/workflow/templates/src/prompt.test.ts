@@ -12,7 +12,7 @@ describe('buildTemplatePrompt', () => {
     expect(
       buildTemplatePrompt({
         templateId: 'ticket-to-pr',
-        choices: ['Linear as the tracker', 'without the report part'],
+        choices: ['with Linear as the tracker', 'without the report part'],
       }),
     ).toBe(
       'Use Shipfox to create a workflow from the ticket-to-pr template, with Linear as the tracker and without the report part.',

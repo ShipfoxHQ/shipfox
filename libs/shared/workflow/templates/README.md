@@ -88,7 +88,7 @@ The loader derives `startsManually` from the workflow. It composes every role bi
 
 ### Setup prompts
 
-`buildTemplatePrompt({templateId, choices})` returns `Use Shipfox to create a workflow from the <id> template.` Each `choices` phrase, such as `Slack as the report`, is appended, so the create-workflow-from-template skill confirms it instead of asking. Browser code imports it from `@shipfox/workflow-templates/prompt`, because the package root embeds every template asset.
+`buildTemplatePrompt({templateId, choices})` returns `Use Shipfox to create a workflow from the <id> template.` Each `choices` clause, such as `with Slack as the report` or `without the tracker part`, is appended, so the create-workflow-from-template skill confirms it instead of asking. Browser code imports it from `@shipfox/workflow-templates/prompt`, because the package root embeds every template asset.
 
 ### Model recommendations
 

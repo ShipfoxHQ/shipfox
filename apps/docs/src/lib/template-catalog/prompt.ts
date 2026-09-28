@@ -12,7 +12,7 @@ export function buildTemplatePagePrompt(
     .map((role) => {
       const provider = bindings[role.role];
       if (provider === undefined) return `without the ${role.role} part`;
-      return `${templateIconLabels[provider as keyof typeof templateIconLabels]} as the ${role.role}`;
+      return `with ${templateIconLabels[provider as keyof typeof templateIconLabels]} as the ${role.role}`;
     });
   return buildTemplatePrompt({templateId, choices});
 }
