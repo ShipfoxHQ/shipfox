@@ -9,20 +9,20 @@ import {parse as parseYaml} from 'yaml';
 import {composeTemplate} from './composer.js';
 import {loadShippedTemplates} from './loader.js';
 
-type ReportOutcomes = 'pull_requests' | 'pull_requests_and_diagnoses';
+type ReportOutcomes = 'needs_person' | 'pull_requests' | 'both';
 type YamlRecord = Record<string, unknown>;
 
 const template = loadShippedTemplates().find(
   (entry) => entry.manifest.id === 'fix-default-branch-ci',
 );
 if (template === undefined) throw new Error('Missing default-branch CI template');
-const reportMarker = /^\s*# option:report_outcomes=(\w+) (begin|end)$/;
+const reportMarker = /^\s*# option:report_outcomes=([\w,]+) (begin|end)$/;
 const expressionPattern = /^\$\{\{\s*([\s\S]*?)\s*\}\}$/;
 const interpolationPattern = /\$\{\{\s*([\s\S]*?)\s*\}\}/g;
 const environment = createWorkflowEnvironment();
 const roots: string[] = [];
 
-function render(report: boolean, outcomes: ReportOutcomes = 'pull_requests'): string {
+function render(report: boolean, outcomes: ReportOutcomes = 'needs_person'): string {
   if (template === undefined) throw new Error('Missing default-branch CI template');
   const composed = composeTemplate(
     template,
@@ -34,7 +34,7 @@ function render(report: boolean, outcomes: ReportOutcomes = 'pull_requests'): st
     .filter((line) => {
       const marker = reportMarker.exec(line);
       if (marker !== null) {
-        selected = marker[2] === 'end' || marker[1] === outcomes;
+        selected = marker[2] === 'end' || (marker[1] ?? '').split(',').includes(outcomes);
         return false;
       }
       return selected;
@@ -42,7 +42,7 @@ function render(report: boolean, outcomes: ReportOutcomes = 'pull_requests'): st
     .join('\n');
 }
 
-function workflow(report = false, outcomes: ReportOutcomes = 'pull_requests'): YamlRecord {
+function workflow(report = false, outcomes: ReportOutcomes = 'needs_person'): YamlRecord {
   const yaml = render(report, outcomes);
   parseWorkflowDocument(parseYaml(yaml));
   return parseYaml(yaml) as YamlRecord;
@@ -180,8 +180,9 @@ describe('default-branch CI repair template', () => {
   });
 
   it.each([
+    {outcomes: 'needs_person', steps: ['report_diagnosis']},
     {outcomes: 'pull_requests', steps: ['report_pull_request']},
-    {outcomes: 'pull_requests_and_diagnoses', steps: ['report_pull_request', 'report_diagnosis']},
+    {outcomes: 'both', steps: ['report_diagnosis', 'report_pull_request']},
   ] as const)('posts $outcomes to Slack', ({outcomes, steps}) => {
     const report = at(workflow(true, outcomes), 'jobs', 'report', 'steps') as YamlRecord[];
 
@@ -418,7 +419,7 @@ describe('default-branch CI repair template', () => {
     outcome,
     posts,
   }) => {
-    const document = workflow(true, 'pull_requests_and_diagnoses');
+    const document = workflow(true, 'both');
     const jobs = {
       investigate: {status: 'succeeded', outputs: {status, outcome}},
       deliver: {status: deliver},
