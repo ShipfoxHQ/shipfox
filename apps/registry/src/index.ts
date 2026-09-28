@@ -1,6 +1,9 @@
 import {closeApp, createApp, listen} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import {config, publishHooks} from '#config.js';
+import {createPublishTokenExchange} from '#publish/exchange.js';
+import {createGithubOidcVerifier} from '#publish/oidc.js';
+import {publishRoutes} from '#publish/routes.js';
 import {readRoutes} from '#reads.js';
 import {loadSigningKey} from '#signing-key.js';
 import {prepareRegistry} from '#startup.js';
@@ -13,14 +16,24 @@ try {
     keyid: config.REGISTRY_SIGNING_KEY_ID,
   });
   publishHooks();
-  await prepareRegistry({
+  const bootstrap = await prepareRegistry({
     storage,
     bootstrapPath: config.REGISTRY_BOOTSTRAP_PATH,
     publicUrl: config.REGISTRY_PUBLIC_URL,
     signingKey,
   });
+  const exchange = createPublishTokenExchange({
+    storage,
+    bootstrap,
+    signingKey,
+    publicUrl: config.REGISTRY_PUBLIC_URL,
+    verifyOidcToken: createGithubOidcVerifier({audience: config.REGISTRY_PUBLIC_URL}),
+  });
   await createApp({
-    routes: config.REGISTRY_SERVE_READS ? readRoutes(storage) : [],
+    routes: [
+      ...(config.REGISTRY_SERVE_READS ? readRoutes(storage) : []),
+      ...publishRoutes({exchange}),
+    ],
     swagger: false,
   });
   const address = await listen();

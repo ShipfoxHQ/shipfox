@@ -961,6 +961,9 @@ importers:
       '@shipfox/registry-format':
         specifier: workspace:*
         version: link:../../libs/shared/registry/format
+      jose:
+        specifier: 'catalog:'
+        version: 6.2.3
       yaml:
         specifier: 'catalog:'
         version: 2.9.0
