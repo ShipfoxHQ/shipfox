@@ -26,7 +26,8 @@ import {
 } from '@shipfox/actions/download-writer';
 
 export const ACTION_TOOL_CALL_TIMEOUT_MS = 120_000;
-export const ACTION_TOOL_DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
+// Under the 300 s response header timeout of the SDK's fetch, so the action gets `timeout`.
+export const ACTION_TOOL_DOWNLOAD_TIMEOUT_MS = 290_000;
 /** Calls and downloads share these slots. */
 export const MAX_CONCURRENT_ACTION_TOOL_CALLS = 8;
 // Bounded below the step log's upload window, which never splits a record.

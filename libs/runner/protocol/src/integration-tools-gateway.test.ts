@@ -89,6 +89,8 @@ describe('integration tools gateway protocol helpers', () => {
     expect(new URL(request?.url ?? '').pathname).toBe(
       '/runs/jobs/current/integration-tools/download',
     );
+    expect(request?.method).toBe('POST');
+    expect(request?.headers.get('content-type')).toBe('application/json');
     expect(request?.headers.get('authorization')).toBe('Bearer lease-current');
     expect(request?.headers.get('x-shipfox-call-id')).toBe('call-1');
     expect(request?.redirect).toBe('error');

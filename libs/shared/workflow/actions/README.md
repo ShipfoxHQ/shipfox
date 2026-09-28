@@ -89,8 +89,8 @@ declare module '@shipfox/actions' {
   the job workspace, symlinks included. A trailing `/` means a directory: the file keeps the
   provider's name, made safe, or `download-<call id>`, and a taken name gets ` (2)`, ` (3)`, and
   so on. A destination without a trailing `/` names the file and replaces it. A file is limited
-  to 100 MiB, all downloads of a step to 1 GiB, and each download to 5 minutes. A failed download
-  leaves no file behind.
+  to 100 MiB, all downloads of a step to 1 GiB, and each download to 290 seconds. A failed
+  download leaves no file behind.
 - **Cancellation** through `signal` throws `ToolCallError` with code `cancelled`. It sets
   `outcomeUnknown` when the request was already sent.
 

@@ -190,6 +190,8 @@ export async function writeDownloadedFile(params: {
       createWriteStream(partial, {flags: 'wx'}),
       params.signal === undefined ? {} : {signal: params.signal},
     );
+    // Resolved before the file is placed, so a failure here never hides a placed file.
+    const cwd = await realpath(params.cwd);
     let filename = name;
     if (target.fileName === undefined) {
       filename = await linkUnderFreeName(partial, target.directory, name);
@@ -197,7 +199,7 @@ export async function writeDownloadedFile(params: {
       await rename(partial, join(target.directory, name));
     }
     return {
-      path: relative(await realpath(params.cwd), join(target.directory, filename)),
+      path: relative(cwd, join(target.directory, filename)),
       bytes,
       sha256: hash.digest('hex'),
       filename,
