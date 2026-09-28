@@ -36,8 +36,6 @@ release tool, Shipfox instances, and the docs build.
     payload names the requested package, version, and kind. It throws a
     `RegistryEnvelopeError` whose `reason` is `malformed`,
     `signature-invalid`, `schema-unsupported`, or `payload-mismatch`.
-  - `decodeUnverifiedRegistryVersionEnvelope` reads the payload without
-    checking signatures. Use it only for envelopes you wrote yourself.
 
 The package is browser-safe: hashing, signing, and verification use WebCrypto,
 and base64 uses `atob` and `btoa`. Signing and verification need WebCrypto

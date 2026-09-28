@@ -33,7 +33,6 @@ export {
 } from '#documents.js';
 export {
   createEd25519Signer,
-  decodeUnverifiedRegistryVersionEnvelope,
   dssePreAuthenticationEncoding,
   type RegistryEnvelope,
   RegistryEnvelopeError,

@@ -1,7 +1,6 @@
 import {decodeBase64, encodeBase64} from '#base64.js';
 import {REGISTRY_VERSION_PAYLOAD_TYPE} from '#documents.js';
 import {
-  decodeUnverifiedRegistryVersionEnvelope,
   dssePreAuthenticationEncoding,
   type RegistryEnvelope,
   RegistryEnvelopeError,
@@ -9,6 +8,7 @@ import {
   signRegistryVersionDocument,
   verifyRegistryVersionEnvelope,
 } from '#envelope.js';
+import {canonicalJson} from '#fingerprint.js';
 import {actionVersionDocument, templateVersionDocument} from '#test/fixtures/documents.js';
 import {createTestKey, type TestKey} from '#test/fixtures/keys.js';
 
@@ -78,7 +78,9 @@ describe('signRegistryVersionDocument', () => {
     expect(registryEnvelopeSchema.parse(envelope)).toEqual(envelope);
     expect(envelope.payloadType).toBe(REGISTRY_VERSION_PAYLOAD_TYPE);
     expect(envelope.signatures).toEqual([{keyid: 'reg-2026-2', sig: expect.any(String)}]);
-    expect(payloadJson(envelope)).toEqual(actionVersionDocument());
+    expect(new TextDecoder().decode(decodeBase64(envelope.payload))).toBe(
+      canonicalJson(actionVersionDocument()),
+    );
   });
 
   it('rejects a document that is not a version document', async () => {
@@ -258,15 +260,5 @@ describe('verifyRegistryVersionEnvelope', () => {
 
       expect(result.keyid).toBe('reg-2026-2');
     });
-  });
-});
-
-describe('decodeUnverifiedRegistryVersionEnvelope', () => {
-  it('reads the document without trusted keys', async () => {
-    const envelope = await signAction();
-
-    const result = decodeUnverifiedRegistryVersionEnvelope(envelope);
-
-    expect(result).toEqual(actionVersionDocument());
   });
 });

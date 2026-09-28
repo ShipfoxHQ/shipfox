@@ -148,17 +148,6 @@ export async function verifyRegistryVersionEnvelope({
   return {document, keyid};
 }
 
-/**
- * Reads a version envelope without checking its signatures. Only for
- * envelopes the caller wrote itself, such as the registry reading its own
- * storage. Throws {@link RegistryEnvelopeError}.
- */
-export function decodeUnverifiedRegistryVersionEnvelope(
-  envelope: unknown,
-): RegistryVersionDocument {
-  return parseVersionDocument(parseEnvelope(envelope).payload);
-}
-
 function parseEnvelope(envelope: unknown): {
   payloadType: string;
   payload: Uint8Array<ArrayBuffer>;
