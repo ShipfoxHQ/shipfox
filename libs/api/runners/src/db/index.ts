@@ -20,7 +20,9 @@ export type {
 } from './job-executions.js';
 export {
   claimPendingJobExecution,
+  deleteExpiredJobExecutionTombstones,
   enqueueJobExecution,
+  expirePendingJobExecution,
   expireStuckJobExecutions,
   getJobExecutionCleanupStats,
   getJobLeaseState,

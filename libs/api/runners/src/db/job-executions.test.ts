@@ -28,6 +28,7 @@ import {db} from './db.js';
 import {
   claimPendingJobExecution as claimPendingJobExecutionDb,
   enqueueJobExecution,
+  expirePendingJobExecution,
   expireStuckJobExecutions,
   getJobExecutionCleanupStats,
   getJobExecutionQueueDepth,
@@ -36,6 +37,7 @@ import {
   reconcileTerminalJobExecution,
   recordHeartbeat,
 } from './job-executions.js';
+import {expiredJobExecutions} from './schema/expired-job-executions.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {reservations} from './schema/reservations.js';
@@ -166,6 +168,115 @@ describe('enqueueJobExecution', () => {
       .from(pendingJobExecutions)
       .where(eq(pendingJobExecutions.jobExecutionId, params.jobExecutionId));
     expect(rows).toHaveLength(1);
+  });
+});
+
+describe('expirePendingJobExecution', () => {
+  it('expires a pending execution and blocks a late enqueue', async () => {
+    const params = {
+      workspaceId: crypto.randomUUID(),
+      workflowRunId: crypto.randomUUID(),
+      workflowRunAttemptId: crypto.randomUUID(),
+      jobId: crypto.randomUUID(),
+      jobExecutionId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      requiredLabels: ['linux'],
+      queuedAt: new Date(),
+    };
+    await enqueueJobExecution(params);
+
+    await expect(
+      expirePendingJobExecution({jobExecutionId: params.jobExecutionId}),
+    ).resolves.toEqual({
+      kind: 'expired',
+    });
+    await expect(enqueueJobExecution(params)).resolves.toBeUndefined();
+
+    const pending = await db()
+      .select()
+      .from(pendingJobExecutions)
+      .where(eq(pendingJobExecutions.jobExecutionId, params.jobExecutionId));
+    const tombstones = await db()
+      .select()
+      .from(expiredJobExecutions)
+      .where(eq(expiredJobExecutions.jobExecutionId, params.jobExecutionId));
+    expect(pending).toEqual([]);
+    expect(tombstones).toHaveLength(1);
+  });
+
+  it('returns a running execution claim without creating a tombstone', async () => {
+    const workspaceId = crypto.randomUUID();
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+    const created = await pendingJobFactory.create({workspaceId});
+    await claimPendingJobExecutionDb({
+      workspaceId,
+      runnerSessionId: runnerSession.id,
+      maxClaims: null,
+      sessionLabels,
+      runnerSessionLivenessThrottleSeconds: 10,
+    });
+
+    const result = await expirePendingJobExecution({jobExecutionId: created.jobExecutionId});
+
+    expect(result).toMatchObject({kind: 'claimed', provisionerScope: null});
+    expect(result.kind === 'claimed' ? result.claimedAt : null).toBeInstanceOf(Date);
+    const tombstones = await db()
+      .select()
+      .from(expiredJobExecutions)
+      .where(eq(expiredJobExecutions.jobExecutionId, created.jobExecutionId));
+    expect(tombstones).toEqual([]);
+  });
+
+  it('returns absent and records a tombstone for a missing execution', async () => {
+    const jobExecutionId = crypto.randomUUID();
+
+    await expect(expirePendingJobExecution({jobExecutionId})).resolves.toEqual({kind: 'absent'});
+
+    const tombstones = await db()
+      .select()
+      .from(expiredJobExecutions)
+      .where(eq(expiredJobExecutions.jobExecutionId, jobExecutionId));
+    expect(tombstones).toHaveLength(1);
+  });
+
+  it('allows exactly one of expiry and claim to win', async () => {
+    const workspaceId = crypto.randomUUID();
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+    const created = await pendingJobFactory.create({workspaceId});
+
+    const [expired, claimed] = await Promise.all([
+      expirePendingJobExecution({jobExecutionId: created.jobExecutionId}),
+      claimPendingJobExecutionDb({
+        workspaceId,
+        runnerSessionId: runnerSession.id,
+        maxClaims: null,
+        sessionLabels,
+        runnerSessionLivenessThrottleSeconds: 10,
+      }),
+    ]);
+
+    const pending = await db()
+      .select()
+      .from(pendingJobExecutions)
+      .where(eq(pendingJobExecutions.jobExecutionId, created.jobExecutionId));
+    const running = await db()
+      .select()
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.jobExecutionId, created.jobExecutionId));
+    const tombstones = await db()
+      .select()
+      .from(expiredJobExecutions)
+      .where(eq(expiredJobExecutions.jobExecutionId, created.jobExecutionId));
+    expect(pending).toEqual([]);
+    if (claimed === null) {
+      expect(expired).toEqual({kind: 'expired'});
+      expect(running).toEqual([]);
+      expect(tombstones).toHaveLength(1);
+    } else {
+      expect(expired.kind).toBe('claimed');
+      expect(running).toHaveLength(1);
+      expect(tombstones).toEqual([]);
+    }
   });
 });
 

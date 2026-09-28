@@ -36,6 +36,18 @@ export const runnersInterModuleContract = defineInterModuleContract({
         ),
       }),
     },
+    expirePendingJobExecution: {
+      input: z.object({jobExecutionId: idSchema}),
+      output: z.discriminatedUnion('kind', [
+        z.object({
+          kind: z.literal('claimed'),
+          claimedAt: z.string().datetime(),
+          provisionerScope: z.enum(['installation', 'workspace']).nullable(),
+        }),
+        z.object({kind: z.literal('expired')}),
+        z.object({kind: z.literal('absent')}),
+      ]),
+    },
   },
 });
 

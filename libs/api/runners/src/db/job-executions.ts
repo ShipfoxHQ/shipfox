@@ -52,6 +52,7 @@ import {
   releaseTerminalRunnerInstanceReservationsByIds,
 } from './reservations.js';
 import {terminalStates} from './runner-states.js';
+import {expiredJobExecutions} from './schema/expired-job-executions.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
@@ -680,6 +681,13 @@ export async function enqueueJobExecution(params: EnqueueJobExecutionParams): Pr
       .limit(1);
     if (running) return false;
 
+    const [expired] = await tx
+      .select({jobExecutionId: expiredJobExecutions.jobExecutionId})
+      .from(expiredJobExecutions)
+      .where(eq(expiredJobExecutions.jobExecutionId, params.jobExecutionId))
+      .limit(1);
+    if (expired) return false;
+
     const [leaseExpired] = await tx
       .select({id: runnersOutbox.id})
       .from(runnersOutbox)
@@ -711,6 +719,77 @@ export async function enqueueJobExecution(params: EnqueueJobExecutionParams): Pr
   });
 
   if (enqueued) jobExecutionEnqueuedCount.add(1);
+}
+
+export type ExpirePendingJobExecutionResult =
+  | {
+      kind: 'claimed';
+      claimedAt: Date;
+      provisionerScope: 'installation' | 'workspace' | null;
+    }
+  | {kind: 'expired'}
+  | {kind: 'absent'};
+
+export async function expirePendingJobExecution(params: {
+  jobExecutionId: string;
+}): Promise<ExpirePendingJobExecutionResult> {
+  return await db().transaction(async (tx) => {
+    await lockJobExecution(tx, params.jobExecutionId);
+
+    const [pending] = await tx
+      .delete(pendingJobExecutions)
+      .where(eq(pendingJobExecutions.jobExecutionId, params.jobExecutionId))
+      .returning({jobExecutionId: pendingJobExecutions.jobExecutionId});
+    if (pending) {
+      await tx
+        .insert(expiredJobExecutions)
+        .values({jobExecutionId: params.jobExecutionId})
+        .onConflictDoNothing();
+      return {kind: 'expired'};
+    }
+
+    const [running] = await tx
+      .select({
+        claimedAt: runningJobExecutions.startedAt,
+        provisionerId: runningJobExecutions.provisionerId,
+      })
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.jobExecutionId, params.jobExecutionId))
+      .limit(1);
+    if (running) {
+      return {
+        kind: 'claimed',
+        claimedAt: running.claimedAt,
+        provisionerScope: await loadProvisionerScopeTx(tx, running.provisionerId),
+      };
+    }
+
+    await tx
+      .insert(expiredJobExecutions)
+      .values({jobExecutionId: params.jobExecutionId})
+      .onConflictDoNothing();
+    return {kind: 'absent'};
+  });
+}
+
+export async function deleteExpiredJobExecutionTombstones(params: {
+  retentionDays: number;
+  limit?: number;
+}): Promise<number> {
+  const retentionCutoff = sql`now() - (${params.retentionDays} || ' days')::interval`;
+  const deletableIds = db()
+    .select({jobExecutionId: expiredJobExecutions.jobExecutionId})
+    .from(expiredJobExecutions)
+    .where(lt(expiredJobExecutions.expiredAt, retentionCutoff))
+    .orderBy(asc(expiredJobExecutions.expiredAt), asc(expiredJobExecutions.jobExecutionId))
+    .limit(params.limit ?? 1000);
+
+  const deleted = await db()
+    .delete(expiredJobExecutions)
+    .where(inArray(expiredJobExecutions.jobExecutionId, deletableIds))
+    .returning({jobExecutionId: expiredJobExecutions.jobExecutionId});
+
+  return deleted.length;
 }
 
 export interface ClaimedJobExecution {

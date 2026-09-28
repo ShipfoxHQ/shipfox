@@ -5,6 +5,7 @@ import type {createRunnersMaintenanceActivities} from '../activities/index.js';
 
 const {
   deleteExpiredEphemeralRegistrationTokensActivity,
+  deleteExpiredJobExecutionTombstonesActivity,
   deleteExpiredReservationsActivity,
   deleteExpiredRunnerSessionsActivity,
   detectAndExpireStuckJobsActivity,
@@ -25,6 +26,8 @@ export async function stuckJobDetector(): Promise<void> {
       error: error instanceof Error ? error.message : String(error),
     });
   }
+
+  await deleteExpiredJobExecutionTombstonesIfPossible();
 
   try {
     const {deleted} = await deleteExpiredRunnerSessionsActivity();
@@ -65,6 +68,19 @@ export async function stuckJobDetector(): Promise<void> {
     log.info('Stuck-job detector reaped stale provisioned runners', {
       reaped,
       reservationsReleased,
+    });
+  }
+}
+
+async function deleteExpiredJobExecutionTombstonesIfPossible(): Promise<void> {
+  try {
+    const {deleted} = await deleteExpiredJobExecutionTombstonesActivity();
+    if (deleted > 0) {
+      log.info('Stuck-job detector deleted expired job execution tombstones', {deleted});
+    }
+  } catch (error) {
+    log.warn('Stuck-job detector failed to delete expired job execution tombstones', {
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 }
