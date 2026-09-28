@@ -630,6 +630,31 @@ export async function requestSessionTranscript(
   };
 }
 
+/** Loads the gzipped bundle for the leased action step. The caller checks the digest. */
+export async function requestActionBundle(
+  leaseClient: KyInstance,
+  params: {stepId: string; signal?: AbortSignal},
+): Promise<Buffer> {
+  let response: Response;
+  try {
+    response = await leaseClient.get(`runs/jobs/current/steps/${params.stepId}/action-bundle`, {
+      retry: {methods: ['get'], statusCodes: [429, 500, 502, 503, 504]},
+      ...(params.signal ? {signal: params.signal} : {}),
+    });
+  } catch (error) {
+    if (error instanceof HTTPError) {
+      const code = codeFromBody(error.data);
+      throw new Error(
+        `Action bundle load failed with status ${error.response.status}${code === undefined ? '' : ` (${code})`}`,
+      );
+    }
+    throw error;
+  }
+  const bundle = Buffer.from(await response.arrayBuffer());
+  if (bundle.length === 0) throw new Error('Empty action bundle response');
+  return bundle;
+}
+
 export async function commitSessionTranscript(
   leaseClient: KyInstance,
   params: {
