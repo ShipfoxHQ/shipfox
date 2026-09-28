@@ -2,14 +2,6 @@
 
 Turn a failed GitHub Actions run on the default branch into a tested repair pull request, or a diagnosis when a person must act.
 
-## Prerequisites
-
-- The repository runs GitHub Actions on pushes or schedules to its default branch.
-- The project's GitHub connection can read pull requests and Actions logs, push branches, and open pull requests.
-- The runner has Bash, Git, and Base64 utilities.
-- Setup provides the toolchain and services that the watched workflow's checks need.
-- Slack reporting needs the Shipfox app in the chosen channel.
-
 ## Scope the workflow
 
 Replace `replace-with-owner/repository` with the selected project's exact GitHub repository name.
@@ -91,16 +83,14 @@ A generic unit-test command does not prove that a failed build, lint, or type ch
 The agent chooses narrower commands to reproduce the failure. After a repair, the configured command must pass before delivery.
 Output goes to `.git/shipfox-test.log`, which the agent reads on retries.
 
-## Expected writes
+## Behavior and failures
 
 The investigation uses a read-only checkout of the default branch without saved Git credentials.
 The agent has only read integration tools, so it cannot push, comment, or rerun GitHub Actions.
 
-A repair creates one branch and one draft pull request into the default branch.
-To open it ready for review, which can notify reviewers right away, set `draft: false` on the `open_pr` step in the `deliver` job.
+To open the repair pull request ready for review, which can notify reviewers right away, set `draft: false` on the `open_pr` step in the `deliver` job.
 A separate job checks out the investigated commit with write access, applies the tested patch, commits it, and pushes the branch. No repository code runs in that job.
 The shell commit is not signed by this template. Check signing and sign-off requirements before enabling the workflow.
-With Slack, each reported outcome posts one message.
 
 Delivery rejects changed commit history, unstaged changes, unignored untracked files, and empty repairs.
 Patches larger than 30,000 bytes are not delivered. They are posted as a diagnosis when the Slack report uses `needs_person` or `both`.

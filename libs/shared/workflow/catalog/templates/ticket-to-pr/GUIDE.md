@@ -2,14 +2,6 @@
 
 Use this template when a task should produce a tested GitHub pull request. A task comes from a Linear, Jira, or ClickUp ticket, a GitHub issue, or a manual start with explicit task inputs. A Slack dispatcher, a ticket loader, or a person can start it.
 
-## Prerequisites
-
-- Connect GitHub as the project's source.
-- Give the GitHub connection permission to read and write repository contents and pull requests.
-- Use GitHub Actions for the feedback loop, which is on by default.
-- For the optional tracker, connect Linear, Jira, or ClickUp, or use GitHub issues in the project's repository. GitHub issues use the project's GitHub connection, which also needs permission to read and write issues.
-- For ClickUp, connect it as a dedicated service account. Give that account access to every Space, Folder, and List the workflow monitors. ClickUp sends events and serves tasks only from locations the account can see.
-
 ## Choose a tracker
 
 The `tracker` role is optional.
@@ -175,11 +167,11 @@ Replace each `# slot:setup_commands` line with the repository's setup steps at t
 
 Replace each `replace-with-test-command` with the test command that proves the change, and keep the rest of the line. The output goes to `.git/shipfox-test.log`, which the agent reads when the gate restarts it.
 
-## Expected writes
+## Behavior and failures
 
-Each run creates one branch named `shipfox/<identifier>-<run number>-<attempt>`, pushes one commit, and opens one task pull request. Merging the task pull request ships the change but does not install the workflow. The PR body ends with `Fixes <identifier>` for a ticket, so Linear links the PR to the issue when the workspace has Linear's GitHub integration. Jira shows the PR on the issue when the site has the GitHub for Jira app, because the branch name and PR body contain the issue key. A ClickUp task's identifier is `CU-<task ID>`, which ClickUp's GitHub integration links to the task. For a GitHub issue, the PR body ends with `Fixes #<number>`. GitHub links the PR to the issue and closes the issue when the PR merges into the default branch. Without a ticket, it links the task's `url`. The run stops before the agent starts when another run already has a branch for the same identifier. Close that PR and delete its branch to start again.
+Each run's branch is named `shipfox/<identifier>-<run number>-<attempt>`. Merging the task pull request ships the change but does not install the workflow. The PR body ends with `Fixes <identifier>` for a ticket, so Linear links the PR to the issue when the workspace has Linear's GitHub integration. Jira shows the PR on the issue when the site has the GitHub for Jira app, because the branch name and PR body contain the issue key. A ClickUp task's identifier is `CU-<task ID>`, which ClickUp's GitHub integration links to the task. For a GitHub issue, the PR body ends with `Fixes #<number>`. GitHub links the PR to the issue and closes the issue when the PR merges into the default branch. Without a ticket, it links the task's `url`. The run stops before the agent starts when another run already has a branch for the same identifier. Close that PR and delete its branch to start again.
 
-Ticket updates can move an issue to its in-progress status when work starts and post a comment with the PR link. Jira comments and transitions appear as the Atlassian user who connected Jira. When the agent asks questions instead, the run posts at most one comment and opens no PR.
+Jira comments and transitions appear as the Atlassian user who connected Jira. When the agent asks questions instead, the run posts at most one comment and opens no PR.
 
 A feedback execution can push one commit, reply to review comments, and resolve threads. It pushes only when the PR head has not moved since checkout. The implementing and feedback agents get only read tools. Shell steps, tool steps, and the `reply` step own the writes. Agent steps can still reach the repository's write credential from their shell.
 

@@ -2,13 +2,6 @@
 
 Turn a request in a Slack thread into one Linear ticket grounded in the project's repository. The workflow links the ticket in the thread.
 
-## Prerequisites
-
-- Connect Slack with the Shipfox app, and invite the app to every channel where it creates tickets.
-- Connect Linear. The integration connection needs write access to the team that owns new tickets.
-- The project's GitHub source integration connection can read the repository.
-- The runner has Bash and Git. The workflow needs no build setup, installation, or test command.
-
 ## Scope the workflow
 
 The agent drafts from the Slack thread and the project's repository only. It reads the default branch through a read-only checkout without saved Git credentials.
@@ -76,13 +69,9 @@ The agent records only what the thread states or the code shows. Disagreements a
 
 After the agent asks questions, answer them in the thread and mention the app again. The new run reads the whole thread.
 
-## Expected writes and failures
+## Behavior and failures
 
-Each run makes at most these writes:
-
-- One Linear ticket in the configured team, and project when chosen. The workflow never updates or closes tickets.
-- One message in the thread: the ticket link, the questions, the existing ticket's identifier, or a failure notice.
-
+The workflow never updates or closes tickets.
 The workflow never changes the repository, and the checkout saves no Git credentials.
 The workflow does not copy thread messages into step or job outputs. The agent's session transcript holds what it read.
 

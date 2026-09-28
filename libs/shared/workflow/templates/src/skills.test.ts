@@ -7,7 +7,7 @@ const semanticVersionPattern = /^\d+\.\d+\.\d+$/u;
 describe('shipped skill resources', () => {
   test('embeds the template procedure and template guide bytes', () => {
     const skill = getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md');
-    expect(skill?.revision).toBe(13);
+    expect(skill?.revision).toBe(14);
     expect(skill?.text).toContain('skill://shipfox/validate-workflow-change/SKILL.md');
     expect(skill?.text).toContain('skill://shipfox/test-workflow-change/SKILL.md');
 
@@ -84,6 +84,27 @@ describe('shipped skill resources', () => {
         readFileSync(new URL(`../assets/skills/${name}/SKILL.md`, import.meta.url), 'utf8'),
       );
     }
+  });
+
+  test('keeps every skill under the 8 KiB limit', () => {
+    const skills = listShippedSkillResources().filter(({uri}) => uri.endsWith('/SKILL.md'));
+
+    expect(skills.length).toBeGreaterThan(0);
+    for (const {uri, text} of skills) {
+      expect(Buffer.byteLength(text, 'utf8'), uri).toBeLessThanOrEqual(8 * 1024);
+    }
+  });
+
+  test('passes options to the template tool and reads writes and prerequisites from its result', () => {
+    const template = getShippedSkillResource(
+      'skill://shipfox/create-workflow-from-template/SKILL.md',
+    )?.text;
+
+    expect(template).toContain('`options`');
+    expect(template).toContain('`prerequisites`');
+    expect(template).toContain('`writes`');
+    expect(template).not.toContain('Expected writes');
+    expect(template).not.toContain('keep chosen `# option:` blocks');
   });
 
   test('keeps workflow tool identifiers in their corresponding skills', () => {

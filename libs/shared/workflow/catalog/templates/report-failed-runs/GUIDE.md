@@ -2,14 +2,6 @@
 
 Post a Slack report when a workflow run fails, independent of the workflow that failed.
 
-## Prerequisites
-
-- Connect Slack. The Slack app needs the `chat:write` scope, and a person must invite it to the report channel.
-- The workflow uses the built-in `shipfox` connection for its trigger and reads. It needs no other connection or secret.
-- Configure a model provider for the diagnosis agent.
-
-The template has no repository commands to fill.
-
 ## How the report works
 
 The workflow starts on the Shipfox `run.completed` event, which every run attempt sends when it ends.
@@ -54,9 +46,9 @@ Confirm the provider, model, harness, and thinking setting for `# model:diagnose
 The manifest has no tested model reference or scored suggestion.
 The step reads logs and summarizes them, so a small model is usually enough.
 
-## Expected writes
+## Behavior and failures
 
-Each reported run posts one Slack message and one thread reply with the diagnosis. Each diagnosis uses model inference.
+Each diagnosis uses model inference.
 A burst of failures posts one message per failed run.
 The workflow never reruns, cancels, or changes a run.
 

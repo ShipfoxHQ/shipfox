@@ -83,6 +83,7 @@ export const getWorkflowTemplateInputSchema = z
   .object({
     template_id: identifierSchema,
     project_id: idSchema,
+    options: z.record(identifierSchema, identifierSchema).optional(),
   })
   .catchall(identifierSchema);
 export type GetWorkflowTemplateInputDto = z.output<typeof getWorkflowTemplateInputSchema>;
@@ -136,6 +137,13 @@ export const listWorkflowTemplatesResultSchema = z
   .strict();
 export type ListWorkflowTemplatesResultDto = z.infer<typeof listWorkflowTemplatesResultSchema>;
 
+const writeResultSchema = z
+  .object({
+    provider: identifierSchema.optional(),
+    action: z.string().min(1),
+  })
+  .strict();
+
 export const getWorkflowTemplateResultSchema = z
   .object({
     template_id: identifierSchema,
@@ -143,6 +151,8 @@ export const getWorkflowTemplateResultSchema = z
     options: z.array(optionSchema),
     workflow_yaml: textSchema,
     guide_markdown: textSchema,
+    writes: z.array(writeResultSchema),
+    prerequisites: z.array(z.string().min(1)),
     suggested_bindings: providerBindingSchema,
     model_recommendations: z.array(modelRecommendationGroupSchema),
   })
@@ -323,6 +333,18 @@ const option = {
   required: ['id', 'choices'],
   additionalProperties: false,
 } as const;
+const writeResult = {
+  type: 'object',
+  properties: {
+    provider: {
+      ...identifier,
+      description: 'The provider written to. Omitted when it depends on the user choices.',
+    },
+    action: {type: 'string', minLength: 1},
+  },
+  required: ['action'],
+  additionalProperties: false,
+} as const;
 
 export const listWorkflowTemplatesInputJsonSchema = {
   type: 'object',
@@ -335,6 +357,12 @@ export const getWorkflowTemplateInputJsonSchema = {
   properties: {
     template_id: identifier,
     project_id: uuid,
+    options: {
+      type: 'object',
+      description:
+        'The user answer for each template option, keyed by option ID, such as `pr_mode: "ready"`. The returned `workflow_yaml` keeps only the chosen blocks. Omit an option to keep all of its blocks.',
+      additionalProperties: identifier,
+    },
   },
   required: ['template_id', 'project_id'],
   additionalProperties: {
@@ -394,6 +422,18 @@ export const getWorkflowTemplateResultJsonSchema = {
     options: {type: 'array', items: option},
     workflow_yaml: text,
     guide_markdown: text,
+    writes: {
+      type: 'array',
+      description:
+        'Every write the template can make, as authored and without conditions. Tell the user the ones that apply to their choices.',
+      items: writeResult,
+    },
+    prerequisites: {
+      type: 'array',
+      description:
+        'Every user action the template can need, as authored and without conditions. Tell the user the ones that apply to their choices.',
+      items: {type: 'string', minLength: 1},
+    },
     suggested_bindings: {
       type: 'object',
       additionalProperties: {type: 'array', items: identifier},
@@ -411,6 +451,8 @@ export const getWorkflowTemplateResultJsonSchema = {
     'options',
     'workflow_yaml',
     'guide_markdown',
+    'writes',
+    'prerequisites',
     'suggested_bindings',
     'model_recommendations',
   ],

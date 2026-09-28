@@ -544,6 +544,146 @@ describe('agent-access template tools', () => {
       type: 'string',
       minLength: 1,
     });
+    expect(getWorkflowTemplateInputJsonSchema.properties.options).toMatchObject({
+      type: 'object',
+      additionalProperties: {type: 'string', minLength: 1},
+    });
+  });
+
+  describe('options', () => {
+    const input = {template_id: 'fixture-template', project_id: projectId, tracker: 'linear'};
+
+    async function getTemplate(args: Record<string, unknown>) {
+      const integrations = integrationClient([connection('linear-main', 'linear')]);
+      integrations.resolveConnectionById.mockResolvedValue(projectSource('github'));
+      return await getTool(
+        createTools(integrations, projectClient(), undefined, optionTemplateAsset()),
+        'get_workflow_template',
+      ).execute({context, arguments: args});
+    }
+
+    test('keeps only the chosen option blocks and the legacy header', async () => {
+      const response = await getTemplate({...input, options: {mode: 'thorough'}});
+
+      if (!response.ok) throw new Error('Expected a successful template response');
+      const result = getWorkflowTemplateResultSchema.parse(response.result);
+      expect(result.workflow_yaml).toContain('key: verify');
+      expect(result.workflow_yaml).not.toContain('key: review');
+      expect(result.workflow_yaml).not.toContain('# option:');
+      expect(result.workflow_yaml.split('\n')[0]).toBe(
+        '# shipfox-template: fixture-template@1 tracker=linear source=github',
+      );
+      expect(result.options).toEqual([
+        {id: 'mode', choices: [{id: 'safe', default: true}, {id: 'thorough'}]},
+      ]);
+    });
+
+    test('keeps every option block until options are passed', async () => {
+      const response = await getTemplate(input);
+
+      if (!response.ok) throw new Error('Expected a successful template response');
+      const {workflow_yaml: yaml} = getWorkflowTemplateResultSchema.parse(response.result);
+      expect(yaml).toContain('key: review');
+      expect(yaml).toContain('key: verify');
+      expect(yaml).toContain('# option:mode=safe begin');
+    });
+
+    test('takes model anchors before options are applied', async () => {
+      const templateAsset = optionTemplateAsset();
+      const manifest = workflowTemplateManifestSchema.parse(templateAsset.manifest);
+      const integrations = integrationClient([connection('linear-main', 'linear')]);
+      integrations.resolveConnectionById.mockResolvedValue(projectSource('github'));
+      const agent = createTestAgentClient({
+        models: [
+          scoredModel({
+            id: 'tested',
+            provider: 'shipfox',
+            lab: 'Anthropic',
+            thinking: 'medium',
+            index: 80,
+            cost: 4,
+          }),
+        ],
+        runtimeProvider: 'shipfox',
+        managedProviderId: 'shipfox',
+      });
+      const template = {
+        ...templateAsset,
+        manifest: {...manifest, models: {fix: {}}},
+        workflow: templateAsset.workflow.replace(
+          '- key: fix',
+          '- key: fix\n        model: tested # model:fix\n        thinking: medium',
+        ),
+      };
+
+      const response = await getTool(
+        createTools(integrations, projectClient(), agent, template),
+        'get_workflow_template',
+      ).execute({context, arguments: {...input, options: {mode: 'safe'}}});
+
+      expect(response).toMatchObject({
+        ok: true,
+        result: {model_recommendations: [{placeholders: ['fix'], mode: 'recommended'}]},
+      });
+    });
+
+    test('returns the manifest writes and prerequisites as authored', async () => {
+      const response = await getTemplate(input);
+
+      expect(response).toMatchObject({
+        ok: true,
+        result: {
+          writes: [
+            {provider: 'github', action: 'Opens a pull request.'},
+            {action: 'With a tracker, comments on the ticket.'},
+          ],
+          prerequisites: ['Invite the Shipfox app to the report channel.'],
+        },
+      });
+      if (!response.ok) throw new Error('Expected a successful template response');
+      expect(getWorkflowTemplateResultSchema.safeParse(response.result).success).toBe(true);
+    });
+
+    test.each([
+      {
+        name: 'an unknown option',
+        options: {speed: 'fast'},
+        message:
+          'Unknown option "speed". Pass each answer as `<option ID>: <choice ID>` in `options`: mode (safe or thorough).',
+      },
+      {
+        name: 'an unsupported choice',
+        options: {mode: 'reckless'},
+        message: 'Option "mode" takes safe or thorough, not "reckless".',
+      },
+    ])('explains $name', async ({options, message}) => {
+      const response = await getTemplate({...input, options});
+
+      expect(response).toEqual({ok: false, error: {code: 'invalid-request', message}});
+    });
+
+    test('explains options on a template that declares none', async () => {
+      const response = await getTool(
+        createTools(
+          integrationClient([connection('linear-main', 'linear')]),
+          projectClient(),
+          undefined,
+          {
+            ...asset,
+            manifest: {...workflowTemplateManifestSchema.parse(asset.manifest), options: []},
+          },
+        ),
+        'get_workflow_template',
+      ).execute({context, arguments: {...input, options: {mode: 'safe'}}});
+
+      expect(response).toEqual({
+        ok: false,
+        error: {
+          code: 'invalid-request',
+          message: 'Unknown option "mode". This template has no options.',
+        },
+      });
+    });
   });
 });
 
@@ -582,6 +722,40 @@ function projectClient() {
   return {
     requireProjectForWorkspace: vi.fn().mockResolvedValue({project: {sourceConnectionId}}),
   } as unknown as ProjectsModuleClient;
+}
+
+function optionTemplateAsset(): WorkflowTemplateAsset {
+  return {
+    ...asset,
+    manifest: {
+      ...workflowTemplateManifestSchema.parse(asset.manifest),
+      writes: [
+        {provider: 'github', action: 'Opens a pull request.'},
+        {action: 'With a tracker, comments on the ticket.'},
+      ],
+      prerequisites: ['Invite the Shipfox app to the report channel.'],
+      options: [{id: 'mode', choices: [{id: 'safe', default: true}, {id: 'thorough'}]}],
+    },
+    workflow: [
+      'name: fixture',
+      'triggers:',
+      '  # part:tracker.trigger',
+      '  # part:report.trigger',
+      'jobs:',
+      '  fix:',
+      '    steps:',
+      '      - key: fix',
+      '        prompt: Fix the issue.',
+      '      # option:mode=safe begin',
+      '      - key: review',
+      '        prompt: Review the change by hand.',
+      '      # option:mode=safe end',
+      '      # option:mode=thorough begin',
+      '      - key: verify',
+      '        prompt: Add tests for the change.',
+      '      # option:mode=thorough end',
+    ].join('\n'),
+  };
 }
 
 function modelTemplateAsset(models: {reply?: string} = {}): WorkflowTemplateAsset {

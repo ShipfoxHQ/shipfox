@@ -4,17 +4,6 @@ Let people mention one Slack app for any request. The dispatcher reads the threa
 
 This template connects the starter factory. Questions go to the codebase question workflow, ticket requests to the Slack ticket workflow, and change requests to the task to pull request workflow. Each routed workflow runs on its own and reports in the same thread.
 
-## Prerequisites
-
-- Connect Slack with the Shipfox app, and invite the app to every channel where it routes requests.
-- Set up each workflow the dispatcher starts in the same project, and merge it so it syncs. Each needs a `manual` trigger.
-  - `ask-codebase`, with the `dispatch_only` entry point.
-  - `slack-to-ticket`, with the `dispatch_only` entry point.
-  - `ticket-to-pr`. Without a tracker, it starts only from the dispatcher or another manual start.
-- The runner has Bash. The dispatcher needs no checkout, build setup, or test command.
-
-Set up the routed workflows first. A dispatcher that lists a workflow that does not exist fails when it routes a request there.
-
 ## Scope the workflow
 
 The dispatcher starts only the workflows that its prompt lists. The route agent picks one path from the `workflow` output's `enum`, so it cannot start any other workflow, even when a message asks it to.
@@ -103,13 +92,7 @@ A routed workflow whose first job fails posts nothing, for example when no runne
 - The dispatcher has no `manual` trigger. `start_workflow_run` needs one, so no routed workflow can start the dispatcher again.
 - Shipfox limits a chain of started runs to five levels and 100 runs per root run.
 
-## Expected writes and failures
-
-Each run makes at most these writes:
-
-- One started run of a listed workflow in the project.
-- One message in the thread: the start message, questions, the earlier run, the list of routes, or a failure notice.
-- For the task to pull request workflow, one more message with the pull request link, the questions, or the stopped run.
+## Behavior and failures
 
 The routed workflows make their own writes, as their guides describe.
 The dispatcher never changes a repository.

@@ -3,14 +3,6 @@
 Diagnose failed CI on a pull request and deliver a tested repair or an actionable explanation.
 The workflow repairs dependency-bot pull requests by default. Labeled or all same-repository pull requests are opt-in.
 
-## Prerequisites
-
-- The repository uses GitHub Actions. Dependency-bot selection also needs a dependency bot.
-- The GitHub connection can read pull requests and Actions logs, and post PR comments.
-- Push mode also requires repository write access and compatible commit rules.
-- The runner has Bash, Git, and Base64 utilities.
-- Bootstrap provides the toolchain and services needed for the selected checks.
-
 ## Scope the workflow
 
 Replace `replace-with-owner/repository` with the selected project's exact GitHub repository name.
@@ -142,9 +134,8 @@ The workflow checks the live PR and remote branch again before delivery.
 Pushes never force-update the branch. A concurrent update can still reject a push after the check.
 A later CI failure needs a separate investigation; this template does not listen for follow-up results or rerun GitHub Actions.
 
-## Expected writes and failures
+## Behavior and failures
 
-Push mode creates one commit on the PR branch. Both modes can post one result or failure comment.
 The report runs separately, so a failed comment does not undo a completed push.
 Failure notices do not recheck PR eligibility. They report a past run, even if the PR has since changed or closed.
 Inspect existing commits and comments before rerunning a failed workflow.

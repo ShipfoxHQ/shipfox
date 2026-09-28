@@ -3,13 +3,14 @@ import {describe, expect, it} from '@shipfox/vitest/vi';
 import {parseWorkflowDocument} from '@shipfox/workflow-document';
 import {parse as parseYaml} from 'yaml';
 import type {PartBlocks} from './composer.js';
-import {composeTemplate, templateRoleBindings} from './composer.js';
+import {applyTemplateOptions, composeTemplate, templateRoleBindings} from './composer.js';
 import type {WorkflowTemplate, WorkflowTemplateAsset} from './loader.js';
 import {createTemplateLoader, loadShippedTemplates} from './loader.js';
 import {workflowTemplateManifestSchema} from './manifest.js';
 import {extractModelAnchors} from './model-anchors.js';
 
 const missingThinkingPattern = /thinking: high\s*/u;
+const guideWritesSectionPattern = /^#+ (Prerequisites|Expected writes)/mu;
 const fixtureRoot = new URL('../test/fixtures/', import.meta.url);
 const fixture: WorkflowTemplateAsset = {
   id: 'fixture-ticket-to-pr',
@@ -96,6 +97,29 @@ describe('workflow template loader', () => {
       expect(manifest.writes, id).not.toHaveLength(0);
       for (const related of manifest.related) {
         expect(packages, `${id} links ${related}`).toContain(related);
+      }
+    }
+  });
+
+  it('leaves writes and prerequisites to the manifest, not the guides', () => {
+    for (const {id, guide} of loadShippedTemplates()) {
+      expect(guide, id).not.toMatch(guideWritesSectionPattern);
+    }
+  });
+
+  it('applies every structural option choice to every shipped role combination', () => {
+    for (const template of loadShippedTemplates()) {
+      for (const bindings of templateRoleBindings(template.manifest.roles)) {
+        const composed = composeTemplate(template, bindings);
+        for (const option of template.manifest.options) {
+          for (const choice of option.choices) {
+            const applied = applyTemplateOptions(composed, {[option.id]: choice.id});
+
+            expect(applied, `${template.id} ${option.id}=${choice.id}`).not.toContain(
+              `# option:${option.id}=`,
+            );
+          }
+        }
       }
     }
   });
