@@ -39,6 +39,9 @@ post-activation Get-started checklist, and its panel and top-bar hosts.
   the latest succeeded test run and explains which pull request turns the
   workflow on. The template cards move behind a disclosure.
   `WorkspaceSetupChecklist` mounts it below the checklist on the home.
+- **`ProjectFirstWorkflowPanel`**: slot-ready host that renders
+  `FirstWorkflowPanel` for one project, in place of the project workflows
+  page's empty list.
 
 The derivations are pure functions. They test without React and decide what
 the checklist shows, while the hosts own query freshness, loading and failure
@@ -104,6 +107,7 @@ shell slot composition:
 
 ```ts
 import {
+  ProjectFirstWorkflowPanel,
   WorkspaceSetupChecklist,
   WorkspaceSetupIndicator,
 } from '@shipfox/client-onboarding/feature';
@@ -162,6 +166,13 @@ The caller maps its own query results to the derivation inputs:
   loading or failed. It does not wait for the tools row, so a GitHub-only
   workspace sees the panel while "Connect your tools" is the next step. A
   dismissed checklist hides the panel too.
+- `ProjectFirstWorkflowPanel` reads the definitions and succeeded dev runs of
+  its project only, so a definition or a test run in another project never
+  changes its mode or run link. It ignores the checklist's dismissal and polls
+  only while mounted. The workflows page shows it in place of the empty list,
+  so it shows a skeleton while its progress loads and falls back to choose
+  mode if that read fails. Once the project has a definition, it renders nothing and refreshes
+  the project's definitions list, which does not poll.
 - The panel reads `GET /workspaces/:workspaceId/workflow-templates`, which
   returns templates grouped and ranked for the workspace's connections. The
   recommended template and the list come from the `try_now` and

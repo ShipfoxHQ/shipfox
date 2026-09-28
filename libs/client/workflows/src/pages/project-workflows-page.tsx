@@ -7,6 +7,7 @@ import {
   useDefinitionsInfiniteQuery,
   useProjectQuery,
 } from '@shipfox/client-projects';
+import {useChrome} from '@shipfox/client-shell/runtime';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Callout} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
@@ -95,31 +96,38 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
               isPending={definitionsQuery.isPending}
             />
 
-            <WorkflowSyncAlert sync={sync} />
+            <WorkflowSyncAlert sync={sync} hasDefinitions={definitions.length > 0} />
             <WorkflowSyncDiagnostics sync={sync} />
 
-            <WorkflowDefinitionsTable
-              definitions={definitions}
-              isPending={definitionsQuery.isPending}
-              isError={definitionsQuery.isError}
-              isRefreshing={definitionsQuery.isRefetching}
-              sync={sync ?? null}
-              runError={runError}
-              runningDefinitionId={
-                fireManual.isPending && fireManual.variables
-                  ? fireManual.variables.definitionId
-                  : null
-              }
-              hasNextPage={definitionsQuery.hasNextPage}
-              isFetchingNextPage={definitionsQuery.isFetchingNextPage}
-              isFetchNextPageError={definitionsQuery.isFetchNextPageError}
-              onRetry={() => definitionsQuery.refetch()}
-              onLoadMore={() => definitionsQuery.fetchNextPage()}
-              onOpenDefinition={setSelectedDefinition}
-              onRun={(definition) => {
-                void handleRun(definition);
-              }}
-            />
+            <FirstWorkflowSlot
+              projectId={projectId}
+              definitionsLoaded={definitionsQuery.isSuccess && !definitionsQuery.isPlaceholderData}
+              definitionCount={definitions.length}
+              sync={sync}
+            >
+              <WorkflowDefinitionsTable
+                definitions={definitions}
+                isPending={definitionsQuery.isPending}
+                isError={definitionsQuery.isError}
+                isRefreshing={definitionsQuery.isRefetching}
+                sync={sync ?? null}
+                runError={runError}
+                runningDefinitionId={
+                  fireManual.isPending && fireManual.variables
+                    ? fireManual.variables.definitionId
+                    : null
+                }
+                hasNextPage={definitionsQuery.hasNextPage}
+                isFetchingNextPage={definitionsQuery.isFetchingNextPage}
+                isFetchNextPageError={definitionsQuery.isFetchNextPageError}
+                onRetry={() => definitionsQuery.refetch()}
+                onLoadMore={() => definitionsQuery.fetchNextPage()}
+                onOpenDefinition={setSelectedDefinition}
+                onRun={(definition) => {
+                  void handleRun(definition);
+                }}
+              />
+            </FirstWorkflowSlot>
           </>
         ) : null}
 
@@ -134,8 +142,43 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
   );
 }
 
-function WorkflowSyncAlert({sync}: {sync: DefinitionSyncSummary | null | undefined}) {
+/**
+ * Replaces the definitions table with the first workflow panel once the page
+ * knows the project has none and no sync in progress is about to find one.
+ */
+function FirstWorkflowSlot({
+  projectId,
+  definitionsLoaded,
+  definitionCount,
+  sync,
+  children,
+}: {
+  projectId: string;
+  definitionsLoaded: boolean;
+  definitionCount: number;
+  sync: DefinitionSyncSummary | null | undefined;
+  children: ReactNode;
+}) {
+  const {FirstWorkflowPanel} = useChrome();
+  const syncInProgress = sync?.status === 'pending' || sync?.status === 'syncing';
+  if (!FirstWorkflowPanel || !definitionsLoaded || definitionCount > 0 || syncInProgress) {
+    return children;
+  }
+  return <FirstWorkflowPanel projectId={projectId} />;
+}
+
+function WorkflowSyncAlert({
+  sync,
+  hasDefinitions,
+}: {
+  sync: DefinitionSyncSummary | null | undefined;
+  hasDefinitions: boolean;
+}) {
   if (sync?.status !== 'failed') return null;
+  // A repository without workflow files is where every project starts, and the
+  // empty state already says so. With definitions still listed, the files were
+  // removed and the failed sync kept the old rows, so the callout explains them.
+  if (sync.lastErrorCode === 'no-workflow-files' && !hasDefinitions) return null;
 
   return (
     <Callout role="alert" type="error">

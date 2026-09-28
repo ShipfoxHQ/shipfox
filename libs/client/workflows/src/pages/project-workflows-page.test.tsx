@@ -1,5 +1,7 @@
 import {configureApiClient} from '@shipfox/client-api';
+import type {ChromeSlots} from '@shipfox/client-shell/runtime';
 import {fireEvent, screen, waitFor, within} from '@testing-library/react';
+import {useState} from 'react';
 import {
   jsonResponse,
   PROJECT_TEST_WID,
@@ -64,7 +66,7 @@ describe('ProjectWorkflowsPage', () => {
     expect(screen.getByRole('region', {name: 'Project source'})).toBeInTheDocument();
   });
 
-  test('shows failed sync empty state', async () => {
+  test('shows the sync failure and its diagnostics when definitions are invalid', async () => {
     configureApiClient({
       fetchImpl: createProjectDetailFetch({
         definitions: jsonResponse(
@@ -76,8 +78,8 @@ describe('ProjectWorkflowsPage', () => {
               last_sync_at: '2026-05-07T01:00:00.000Z',
               started_at: '2026-05-07T01:00:00.000Z',
               finished_at: null,
-              last_error_code: 'no-workflow-files',
-              last_error_message: 'No workflow files found',
+              last_error_code: 'invalid-definition',
+              last_error_message: 'Workflow definitions are invalid',
               diagnostics: [
                 {
                   code: 'invalid-definition',
@@ -102,10 +104,8 @@ describe('ProjectWorkflowsPage', () => {
 
     renderWorkflowsPage();
 
-    expect(
-      await screen.findByText('No workflow files found under .shipfox/workflows/.'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Workflow sync failed')).toBeInTheDocument();
+    expect(await screen.findByText('Workflow sync failed')).toBeInTheDocument();
+    expect(screen.getAllByText('Workflow definitions are invalid').length).toBeGreaterThan(0);
     expect(screen.getByText('Workflow definition errors')).toBeInTheDocument();
     expect(screen.getByText('.shipfox/workflows/invalid.yml')).toHaveClass('break-all');
     expect(screen.getByText('jobs.build.steps.0.gate.success')).toHaveClass('break-all');
@@ -113,6 +113,225 @@ describe('ProjectWorkflowsPage', () => {
       screen.getByText('Step gate success must be a valid CEL boolean expression: No such key'),
     ).toHaveClass('text-tag-error-text');
     expect(screen.getByText('jobs.build.steps.1.gate.success')).toBeInTheDocument();
+  });
+
+  test('shows no sync failure when the repository has no workflow files', async () => {
+    configureApiClient({
+      fetchImpl: createProjectDetailFetch({
+        definitions: jsonResponse(
+          definitionsDto({
+            definitions: [],
+            sync: {
+              ref: 'main',
+              status: 'failed',
+              last_sync_at: '2026-05-07T01:00:00.000Z',
+              started_at: '2026-05-07T01:00:00.000Z',
+              finished_at: null,
+              last_error_code: 'no-workflow-files',
+              last_error_message: 'No workflow files found',
+              diagnostics: [],
+            },
+          }),
+        ),
+      }),
+    });
+
+    renderWorkflowsPage();
+
+    expect(
+      await screen.findByText('No workflow files found under .shipfox/workflows/.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Workflow sync failed')).not.toBeInTheDocument();
+  });
+
+  test('keeps the sync failure when definitions remain after the workflow files are removed', async () => {
+    configureApiClient({
+      fetchImpl: createProjectDetailFetch({
+        definitions: jsonResponse(
+          definitionsDto({
+            sync: {
+              ref: 'main',
+              status: 'failed',
+              last_sync_at: '2026-05-07T01:00:00.000Z',
+              started_at: '2026-05-07T01:00:00.000Z',
+              finished_at: null,
+              last_error_code: 'no-workflow-files',
+              last_error_message: 'No workflow files found',
+              diagnostics: [],
+            },
+          }),
+        ),
+      }),
+    });
+
+    renderWorkflowsPage();
+
+    expect((await screen.findAllByText('Deploy production'))[0]).toBeInTheDocument();
+    expect(screen.getByText('Workflow sync failed')).toBeInTheDocument();
+  });
+
+  describe('first workflow panel slot', () => {
+    function FirstWorkflowPanel({projectId}: {projectId: string}) {
+      return <div>First workflow panel for {projectId}</div>;
+    }
+
+    function emptyDefinitions(status: 'pending' | 'syncing' | 'succeeded' | 'failed') {
+      return jsonResponse(
+        definitionsDto({
+          definitions: [],
+          sync: {
+            ref: 'main',
+            status,
+            last_sync_at: '2026-05-07T01:00:00.000Z',
+            started_at: '2026-05-07T01:00:00.000Z',
+            finished_at: null,
+            last_error_code: status === 'failed' ? 'no-workflow-files' : null,
+            last_error_message: status === 'failed' ? 'No workflow files found' : null,
+            diagnostics: [],
+          },
+        }),
+      );
+    }
+
+    test.each([
+      'succeeded',
+      'failed',
+    ] as const)('renders the slot in place of the empty list after a %s sync', async (status) => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({definitions: emptyDefinitions(status)}),
+      });
+
+      renderWorkflowsPage({FirstWorkflowPanel});
+
+      expect(await screen.findByText(`First workflow panel for ${PROJECT_ID}`)).toBeInTheDocument();
+      expect(screen.getByRole('region', {name: 'Project source'})).toBeInTheDocument();
+      expect(screen.queryByRole('region', {name: 'Workflow definitions'})).not.toBeInTheDocument();
+      expect(screen.queryByText('Workflow sync failed')).not.toBeInTheDocument();
+    });
+
+    test('renders the slot with the sync failure when the only files are invalid', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          definitions: jsonResponse(
+            definitionsDto({
+              definitions: [],
+              sync: {
+                ref: 'main',
+                status: 'failed',
+                last_sync_at: '2026-05-07T01:00:00.000Z',
+                started_at: '2026-05-07T01:00:00.000Z',
+                finished_at: null,
+                last_error_code: 'invalid-definition',
+                last_error_message: 'Workflow definitions are invalid',
+                diagnostics: [],
+              },
+            }),
+          ),
+        }),
+      });
+
+      renderWorkflowsPage({FirstWorkflowPanel});
+
+      expect(await screen.findByText(`First workflow panel for ${PROJECT_ID}`)).toBeInTheDocument();
+      expect(screen.getByText('Workflow sync failed')).toBeInTheDocument();
+    });
+
+    test('does not render the slot when the project has definitions', async () => {
+      configureApiClient({fetchImpl: createProjectDetailFetch()});
+
+      renderWorkflowsPage({FirstWorkflowPanel});
+
+      expect((await screen.findAllByText('Deploy production'))[0]).toBeInTheDocument();
+      expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
+    });
+
+    test.each([
+      'pending',
+      'syncing',
+    ] as const)('does not render the slot while sync is %s', async (status) => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({definitions: emptyDefinitions(status)}),
+      });
+
+      renderWorkflowsPage({FirstWorkflowPanel});
+
+      expect(await screen.findByText('No workflows')).toBeInTheDocument();
+      expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
+    });
+
+    test('does not render the slot when definitions fail to load', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          definitions: jsonResponse({code: 'server-error'}, {status: 500}),
+        }),
+      });
+
+      renderWorkflowsPage({FirstWorkflowPanel});
+
+      expect(await screen.findByText("Couldn't load workflows")).toBeInTheDocument();
+      expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
+    });
+
+    test("does not render the slot from the previous project's definitions", async () => {
+      const emptyProjectId = '66666666-6666-4666-8666-666666666666';
+      const detailFetch = createProjectDetailFetch({definitions: emptyDefinitions('succeeded')});
+      configureApiClient({
+        fetchImpl: vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+          const url = new URL(requestInputUrl(input));
+          if (url.pathname === `/projects/${emptyProjectId}`) {
+            return Promise.resolve(jsonResponse({...projectDto(), id: emptyProjectId}));
+          }
+          if (
+            url.pathname === '/definitions' &&
+            url.searchParams.get('project_id') === PROJECT_ID
+          ) {
+            return new Promise<Response>(() => undefined);
+          }
+          return detailFetch(input, init);
+        }),
+      });
+
+      function SwitchingPage() {
+        const [projectId, setProjectId] = useState(emptyProjectId);
+        return (
+          <>
+            <button type="button" onClick={() => setProjectId(PROJECT_ID)}>
+              Switch project
+            </button>
+            <ProjectWorkflowsPage projectId={projectId} />
+          </>
+        );
+      }
+      renderProjectPage(`/w/${PROJECT_TEST_WSLUG}/p/project/workflows`, () => <SwitchingPage />, {
+        FirstWorkflowPanel,
+      });
+
+      expect(
+        await screen.findByText(`First workflow panel for ${emptyProjectId}`),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', {name: 'Switch project'}));
+
+      await waitFor(() =>
+        expect(
+          screen.queryByText(`First workflow panel for ${emptyProjectId}`),
+        ).not.toBeInTheDocument(),
+      );
+      // The new project's page renders with the previous project's empty list
+      // as placeholder data while its own definitions load.
+      expect(await screen.findByText('No workflows')).toBeInTheDocument();
+      expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
+    });
+
+    test('renders only the empty state when the slot is absent', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({definitions: emptyDefinitions('succeeded')}),
+      });
+
+      renderWorkflowsPage();
+
+      expect(await screen.findByText('No workflow definitions found.')).toBeInTheDocument();
+      expect(screen.queryByText(`First workflow panel for ${PROJECT_ID}`)).not.toBeInTheDocument();
+    });
   });
 
   test('shows definition warnings without rendering a sync failure', async () => {
@@ -395,10 +614,12 @@ describe('ProjectWorkflowsPage', () => {
   });
 });
 
-function renderWorkflowsPage() {
-  return renderProjectPage(`/w/${PROJECT_TEST_WSLUG}/p/project/workflows`, () => (
-    <ProjectWorkflowsPage projectId={PROJECT_ID} />
-  ));
+function renderWorkflowsPage(chrome: Partial<ChromeSlots> = {}) {
+  return renderProjectPage(
+    `/w/${PROJECT_TEST_WSLUG}/p/project/workflows`,
+    () => <ProjectWorkflowsPage projectId={PROJECT_ID} />,
+    chrome,
+  );
 }
 
 function createProjectDetailFetch({
