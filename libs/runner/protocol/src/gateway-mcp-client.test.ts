@@ -109,6 +109,7 @@ describe('createGatewayMcpClient', () => {
     await expect(cancelled).rejects.toThrow('step cancelled');
     const result = await other;
     const otherAborted = requests.find((r) => r.callId === 'call-2')?.signal.aborted;
+    const initializeAborted = requests.find((r) => r.method === 'initialize')?.signal.aborted;
     await client.close();
 
     const initialize = requests.find((request) => request.method === 'initialize');
@@ -118,6 +119,26 @@ describe('createGatewayMcpClient', () => {
     expect(calls.map((call) => call.callId).sort()).toEqual(['call-1', 'call-2']);
     expect(calls.find((call) => call.callId === 'call-1')?.signal.aborted).toBe(true);
     expect(otherAborted).toBe(false);
+    expect(initializeAborted).toBe(false);
+  });
+
+  it('stops waiting for a hung connect when the caller aborts', async () => {
+    const url = await startFakeGateway();
+    const client = createGatewayMcpClient({
+      url,
+      name: 'test',
+      fetch: (input, init) =>
+        requestMethod(init) === 'initialize'
+          ? new Promise<Response>(() => undefined)
+          : fetch(input, init),
+    });
+    const cancel = new AbortController();
+
+    const pending = client.callTool({name: 'github_main__issue_read'}, {signal: cancel.signal});
+    cancel.abort(new Error('step cancelled'));
+
+    await expect(pending).rejects.toThrow('step cancelled');
+    await client.close();
   });
 
   it('rejects requests after close', async () => {

@@ -163,10 +163,25 @@ describe('startActionEndpoint', () => {
       await first.close();
       const next = await start();
 
-      await expect(call(first, {alias: 'slack', tool: 'read_thread'})).rejects.toThrow();
+      // The next endpoint may reuse the freed port, so the stale URL is either refused or a 401.
+      const stale = await call(first, {alias: 'slack', tool: 'read_thread'}).then(
+        (response) => response.status,
+        () => 'refused',
+      );
       const response = await call(next, {alias: 'slack', tool: 'read_thread'}, {token: oldToken});
 
+      expect([401, 'refused']).toContain(stale);
       expect(response.status).toBe(401);
+    });
+
+    it('refuses calls when the step was cancelled before the endpoint started', async () => {
+      const {upstream, calls} = fakeUpstream();
+      const target = await start({upstream, signal: AbortSignal.abort()});
+
+      const response = await callJson(target, {alias: 'slack', tool: 'read_thread'});
+
+      expect(response).toMatchObject({ok: false, call_id: null, error: {code: 'cancelled'}});
+      expect(calls).toHaveLength(0);
     });
 
     it('refuses a body above 2 MiB', async () => {
@@ -253,6 +268,10 @@ describe('startActionEndpoint', () => {
         name: 'acme_linear__issues',
         arguments: {id: 'ENG-1', method: 'get'},
       });
+      expect(rows.map((row) => (row.kind === 'tool-call' ? row.name : row.toolName))).toEqual([
+        'linear__issues.get',
+        'linear__issues.get',
+      ]);
     });
 
     it('turns a gateway tool error into a failure', async () => {
@@ -412,14 +431,14 @@ describe('startActionEndpoint', () => {
         kind: 'tool-call',
         timestamp: 1000,
         id: response.call_id,
-        name: 'team_slack__read_secret',
+        name: 'slack__read_secret',
         input: '[sensitive tool arguments redacted]',
       },
       {
         kind: 'tool-result',
         timestamp: 1000,
         toolCallId: response.call_id,
-        toolName: 'team_slack__read_secret',
+        toolName: 'slack__read_secret',
         output: '[sensitive tool result redacted]',
         isError: false,
       },

@@ -109,7 +109,8 @@ export function createGatewayMcpClient(params: {
     options: GatewayMcpRequestOptions | undefined,
     request: (requestClient: Client, requestOptions: RequestOptions | undefined) => Promise<T>,
   ): Promise<T> => {
-    await ensureConnected();
+    // The connect is shared, so a caller stops waiting on its own signal without cancelling it.
+    await untilAborted(ensureConnected(), options?.signal);
     const {headers, ...requestOptions} = options ?? {};
     return await requestScope.run({signal: requestOptions.signal, headers}, () =>
       request(client, options === undefined ? undefined : requestOptions),
@@ -139,4 +140,17 @@ export function createGatewayMcpClient(params: {
       return closePromise;
     },
   };
+}
+
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (signal === undefined) return promise;
+  if (signal.aborted) {
+    promise.catch(() => undefined);
+    return Promise.reject(signal.reason);
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, {once: true});
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+  });
 }

@@ -89,6 +89,11 @@ export interface StartActionEndpointParams {
 interface ResolvedTool {
   /** The gateway MCP name, `<slug with - replaced by _>__<toolId>`. */
   name: string;
+  /**
+   * The step log name, `<alias>__<tool>` as the action called it. Two aliases can bind the same
+   * connection, and the run page matches rows by alias.
+   */
+  rowName: string;
   arguments: Record<string, unknown>;
   sensitivity: 'read' | 'write';
   sensitive: boolean;
@@ -113,7 +118,8 @@ export async function startActionEndpoint(
     accepting = false;
     for (const controller of inFlight) controller.abort(new Error('The step ended.'));
   };
-  params.signal?.addEventListener('abort', stopCalls, {once: true});
+  if (params.signal?.aborted) stopCalls();
+  else params.signal?.addEventListener('abort', stopCalls, {once: true});
 
   // Parses and checks a call before it reaches the gateway. Refusals carry no call id.
   const admitCall = async (
@@ -271,7 +277,7 @@ async function forward(params: {
     kind: 'tool-call',
     timestamp: params.now(),
     id: callId,
-    name: tool.name,
+    name: tool.rowName,
     input: tool.sensitive ? '[sensitive tool arguments redacted]' : preview(tool.arguments),
   });
 
@@ -320,7 +326,7 @@ async function forward(params: {
     kind: 'tool-result',
     timestamp: params.now(),
     toolCallId: callId,
-    toolName: tool.name,
+    toolName: tool.rowName,
     output: tool.sensitive
       ? '[sensitive tool result redacted]'
       : preview(response.ok ? response.result : response.error),
@@ -356,6 +362,7 @@ function resolveTool(
 
   return {
     name: `${integration.connectionSlug.replaceAll('-', '_')}__${grant.id}`,
+    rowName: `${call.alias}__${call.tool}`,
     arguments: method === undefined ? call.arguments : {...call.arguments, method: method.id},
     sensitivity: method?.sensitivity ?? grant.sensitivity,
     sensitive: method?.sensitive ?? grant.sensitive,

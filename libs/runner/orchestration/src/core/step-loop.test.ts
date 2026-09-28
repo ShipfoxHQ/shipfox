@@ -332,9 +332,6 @@ describe('runJobSteps', () => {
     appendStepLogsMock.mockReset();
     writeStepAnnotationsMock.mockReset();
     integrationToolsGatewayUrlMock.mockReset();
-    integrationToolsGatewayUrlMock.mockReturnValue(
-      new URL('http://api.test/runs/jobs/current/integration-tools/mcp'),
-    );
     gatewayClientCloseMock.mockReset();
     gatewayClientCloseMock.mockResolvedValue(undefined);
     createGatewayMcpClientMock.mockReset();
