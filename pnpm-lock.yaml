@@ -7883,6 +7883,9 @@ importers:
 
   libs/runner/execution:
     dependencies:
+      '@shipfox/actions':
+        specifier: workspace:*
+        version: link:../../shared/workflow/actions
       '@shipfox/annotations-dto':
         specifier: workspace:*
         version: link:../../api/annotations-dto
@@ -7901,6 +7904,9 @@ importers:
       '@shipfox/runner-workspace':
         specifier: workspace:*
         version: link:../workspace
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../../shared/workflow/document
       ky:
         specifier: 'catalog:'
         version: 2.0.2

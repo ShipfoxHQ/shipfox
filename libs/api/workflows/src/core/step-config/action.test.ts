@@ -144,6 +144,7 @@ describe('action step config', () => {
           main: 'index.ts',
           name: 'Slack thread to Markdown',
         },
+        job_key: 'investigate',
         inputs: {channel_id: 'C0123'},
         env: {REGION: 'eu', LOG_LEVEL: 'debug'},
         integrations: [
@@ -185,6 +186,7 @@ describe('action step config', () => {
       'env',
       'inputs',
       'integrations',
+      'job_key',
       'outputs',
       'working_directory',
     ]);

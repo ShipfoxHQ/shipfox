@@ -57,12 +57,14 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/actions": "workspace:*",
     "@shipfox/annotations-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/redact": "workspace:*",
     "@shipfox/runner-protocol": "workspace:*",
     "@shipfox/runner-workspace": "workspace:*",
+    "@shipfox/workflow-document": "workspace:*",
     "ky": "catalog:",
     "zod": "catalog:"
   },
