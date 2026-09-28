@@ -35,6 +35,8 @@ export interface SeededWorkflowProject {
   repo: string;
   renderedWorkflowYaml: string;
   syncStartedAfter?: string | undefined;
+  /** The seed commit, when the seed committed files. */
+  headSha?: string | undefined;
   giteaIssue?: CreatedIssue;
 }
 
@@ -143,9 +145,10 @@ export async function seedWorkflowProject(params: {
     }
   }
 
+  let headSha: string | undefined;
   if (files.length > 0) {
     syncStartedAfter ??= new Date().toISOString();
-    await commitFiles({
+    headSha = await commitFiles({
       org: params.suite.org,
       repo: params.repo,
       message: `seed ${params.name}`,
@@ -157,6 +160,7 @@ export async function seedWorkflowProject(params: {
     repo: params.repo,
     renderedWorkflowYaml,
     ...(syncStartedAfter === undefined ? {} : {syncStartedAfter}),
+    ...(headSha === undefined ? {} : {headSha}),
     ...(giteaIssue === undefined ? {} : {giteaIssue}),
   };
 }

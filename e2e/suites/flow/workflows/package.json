@@ -25,6 +25,7 @@
     "#polling.js": "./src/polling.ts",
     "#posthog-api.js": "./src/posthog-api.ts",
     "#production-payloads.js": "./src/production-payloads.ts",
+    "#reference-actions.js": "./src/reference-actions.ts",
     "#renewable-credentials-workflows.js": "./src/renewable-credentials-workflows.ts",
     "#report-failed-runs.js": "./src/report-failed-runs.ts",
     "#run-scenario.js": "./src/run-scenario.ts",
@@ -48,6 +49,7 @@
     "type": "shipfox-tsc-check"
   },
   "devDependencies": {
+    "@shipfox/actions": "workspace:*",
     "@shipfox/api-agent-access-dto": "workspace:*",
     "@shipfox/api-common-dto": "workspace:*",
     "@shipfox/api-definitions-dto": "workspace:*",

@@ -1,12 +1,15 @@
 {
   "extends": "@shipfox/ts-config/node",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true
   },
   "include": [
     "playwright.config.ts",
     "vitest.config.ts",
     "src",
+    "reference-actions",
     "tests",
     "node_modules/@shipfox/vitest/globals.d.ts"
   ]

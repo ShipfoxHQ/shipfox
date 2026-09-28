@@ -412,4 +412,57 @@ describe('GitHub API mock', () => {
       await mock.stop();
     }
   });
+
+  it('serves pull requests and lands a commit only on the expected branch head', async () => {
+    const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
+    const headers = {
+      authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`,
+      'content-type': 'application/json',
+    };
+    const commit = (expectedHeadOid: string) =>
+      fetch(new URL('/graphql', mock.endpoint), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query: 'mutation CreateCommitOnBranch { createCommitOnBranch { commit { oid } } }',
+          variables: {
+            input: {
+              branch: {repositoryNameWithOwner: 'shipfox/e2e', branchName: 'feature'},
+              expectedHeadOid,
+            },
+          },
+        }),
+      }).then((response) => response.json());
+
+    try {
+      mock.pullRequests.set(7, {ref: 'feature', sha: 'a'.repeat(40)});
+      mock.branchHeads.set('feature', 'a'.repeat(40));
+      const pullRequest = await fetch(new URL('/repos/shipfox/e2e/pulls/7', mock.endpoint), {
+        headers,
+      });
+      const missing = await fetch(new URL('/repos/shipfox/e2e/pulls/8', mock.endpoint), {headers});
+      const landed = await commit('a'.repeat(40));
+      const stale = await commit('a'.repeat(40));
+
+      await expect(pullRequest.json()).resolves.toMatchObject({
+        number: 7,
+        head: {ref: 'feature', sha: 'a'.repeat(40)},
+      });
+      expect(missing.status).toBe(404);
+      const oid = mock.branchHeads.get('feature');
+      expect(landed).toEqual({
+        data: {
+          createCommitOnBranch: {
+            commit: {oid, url: `https://github.com/shipfox/e2e/commit/${oid}`},
+          },
+        },
+      });
+      expect(stale).toMatchObject({data: null, errors: [{type: 'STALE_DATA'}]});
+      expect(
+        mock.calls.map((call) => (call.kind === 'create-commit' ? call.accepted : call.kind)),
+      ).toEqual(['read-pull-request', 'read-pull-request', true, false]);
+    } finally {
+      await mock.stop();
+    }
+  });
 });

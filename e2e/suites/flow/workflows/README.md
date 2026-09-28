@@ -128,6 +128,17 @@ The harness seeds the workflow, waits for the definition sync to settle, asserts
 sync failed with the expected error code and message substrings, then polls briefly to
 confirm the project has no workflow runs.
 
+## Reference actions
+
+`reference-actions/` holds the three workflow action recipes the docs publish: a Slack thread
+exported to Markdown, local changes published as a verified commit on a pull request branch,
+and a Linear issue's context with its uploaded files. `tests/reference-actions.e2e.ts` commits
+each one under `.shipfox/actions/` and runs it against the Slack, GitHub, and Linear mocks in
+`src/`. The package type check covers the recipes, so they stay valid against `@shipfox/actions`.
+
+Keep the recipes readable as user code: they import only their own files, Node built-ins, and
+`@shipfox/actions`, and they use only erasable TypeScript syntax, since Node strips the types.
+
 ## Local run
 
 Each scenario starts a local runner process from `apps/runner/src/index.ts` through
