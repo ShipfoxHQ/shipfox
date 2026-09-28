@@ -9273,6 +9273,20 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/vitest
 
+  libs/shared/workflow/catalog/templates/ask-codebase: {}
+
+  libs/shared/workflow/catalog/templates/fix-default-branch-ci: {}
+
+  libs/shared/workflow/catalog/templates/fix-dependency-ci: {}
+
+  libs/shared/workflow/catalog/templates/report-failed-runs: {}
+
+  libs/shared/workflow/catalog/templates/slack-dispatcher: {}
+
+  libs/shared/workflow/catalog/templates/slack-to-ticket: {}
+
+  libs/shared/workflow/catalog/templates/ticket-to-pr: {}
+
   libs/shared/workflow/document:
     dependencies:
       zod:

@@ -1,0 +1,11 @@
+{
+  "name": "@shipfox/template-fix-default-branch-ci",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "libs/shared/workflow/catalog/templates/fix-default-branch-ci"
+  },
+  "license": "MIT",
+  "private": true,
+  "version": "1.0.0"
+}

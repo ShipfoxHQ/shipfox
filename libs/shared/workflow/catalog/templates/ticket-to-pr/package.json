@@ -1,0 +1,11 @@
+{
+  "name": "@shipfox/template-ticket-to-pr",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "libs/shared/workflow/catalog/templates/ticket-to-pr"
+  },
+  "license": "MIT",
+  "private": true,
+  "version": "1.0.0"
+}

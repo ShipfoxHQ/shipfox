@@ -6,6 +6,7 @@
       "cache": true,
       "inputs": [
         "assets/**",
+        "$TURBO_ROOT$/libs/shared/workflow/catalog/templates/**",
         "embedded-templates.yaml",
         "scripts/embed-assets.mjs",
         "package.json"
