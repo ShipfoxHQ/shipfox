@@ -53,27 +53,28 @@ for bucket in $BUCKETS; do
   api POST /AllowBucketKey "{\"bucketId\":\"$bucket_id\",\"accessKeyId\":\"$ACCESS_KEY_ID\",\"permissions\":{\"read\":true,\"write\":true,\"owner\":true}}" >/dev/null
 done
 
+# Bucket-level S3 calls signed with curl's SigV4 support, so bootstrap needs no aws CLI.
+s3() {
+  curl -fsS --aws-sigv4 "aws:amz:garage:s3" --user "$ACCESS_KEY_ID:$SECRET_ACCESS_KEY" "$@"
+}
+
 # Expire incomplete multipart uploads so a crashed compaction leaves no dangling parts.
 # Provisioned here (infra), never by the worker, so the worker's S3 credentials stay limited
 # to object read/write. Self-hosters should set the same rule on their bucket. Best-effort:
-# skipped when the aws CLI or the store's lifecycle API is unavailable (dev then relies on the
-# upload's abort-on-cancel; the rule only matters for a hard crash mid-upload).
-if command -v aws >/dev/null 2>&1; then
-  cors_configuration="$(printf '%s' "$CORS_ALLOWED_ORIGINS" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0)) | {CORSRules: [{AllowedOrigins: ., AllowedMethods: ["GET", "HEAD"], AllowedHeaders: ["*"], ExposeHeaders: ["ETag", "Content-Length", "Content-Type", "Content-Range", "Accept-Ranges"], MaxAgeSeconds: 3600}]}')"
+# skipped when the store's lifecycle API is unavailable (dev then relies on the upload's
+# abort-on-cancel; the rule only matters for a hard crash mid-upload).
+lifecycle_configuration='<LifecycleConfiguration><Rule><ID>shipfox-abort-incomplete-multipart</ID><Status>Enabled</Status><Filter><Prefix></Prefix></Filter><AbortIncompleteMultipartUpload><DaysAfterInitiation>1</DaysAfterInitiation></AbortIncompleteMultipartUpload></Rule></LifecycleConfiguration>'
+cors_origins="$(printf '%s' "$CORS_ALLOWED_ORIGINS" | jq -Rr 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0)) | map("<AllowedOrigin>\(@html)</AllowedOrigin>") | join("")')"
+cors_configuration="<CORSConfiguration><CORSRule>$cors_origins<AllowedMethod>GET</AllowedMethod><AllowedMethod>HEAD</AllowedMethod><AllowedHeader>*</AllowedHeader><ExposeHeader>ETag</ExposeHeader><ExposeHeader>Content-Length</ExposeHeader><ExposeHeader>Content-Type</ExposeHeader><ExposeHeader>Content-Range</ExposeHeader><ExposeHeader>Accept-Ranges</ExposeHeader><MaxAgeSeconds>3600</MaxAgeSeconds></CORSRule></CORSConfiguration>"
 
-  for bucket in $BUCKETS; do
-    AWS_ACCESS_KEY_ID="$ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$SECRET_ACCESS_KEY" AWS_REGION=garage \
-      aws --endpoint-url "$S3_ENDPOINT" s3api put-bucket-lifecycle-configuration \
-      --bucket "$bucket" \
-      --lifecycle-configuration '{"Rules":[{"ID":"shipfox-abort-incomplete-multipart","Status":"Enabled","Filter":{"Prefix":""},"AbortIncompleteMultipartUpload":{"DaysAfterInitiation":1}}]}' \
-      >/dev/null 2>&1 || echo "Lifecycle rule skipped for '$bucket' (aws CLI or lifecycle API unavailable)."
+for bucket in $BUCKETS; do
+  s3 -X PUT "$S3_ENDPOINT/$bucket?lifecycle" -H 'Content-Type: application/xml' \
+    --data-binary "$lifecycle_configuration" >/dev/null 2>&1 \
+    || echo "Lifecycle rule skipped for '$bucket' (lifecycle API unavailable)."
 
-    AWS_ACCESS_KEY_ID="$ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$SECRET_ACCESS_KEY" AWS_REGION=garage \
-      aws --endpoint-url "$S3_ENDPOINT" s3api put-bucket-cors \
-      --bucket "$bucket" \
-      --cors-configuration "$cors_configuration" \
-      >/dev/null 2>&1 || echo "CORS rule skipped for '$bucket' (aws CLI or CORS API unavailable)."
-  done
-fi
+  s3 -X PUT "$S3_ENDPOINT/$bucket?cors" -H 'Content-Type: application/xml' \
+    --data-binary "$cors_configuration" >/dev/null 2>&1 \
+    || echo "CORS rule skipped for '$bucket' (CORS API unavailable)."
+done
 
 echo "Garage ready: buckets [$BUCKETS], key '$KEY_NAME' ($ACCESS_KEY_ID), CORS origins [$CORS_ALLOWED_ORIGINS]."
