@@ -73,7 +73,7 @@ describe('shipped skill resources', () => {
       getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';
 
     expect(text).toContain('Bind only models from `model_recommendations` or the catalog.');
-    expect(text).toContain('Use tested template models; else workspace default.');
+    expect(text).toContain('Use the tested model; otherwise, use the workspace default.');
     expect(text).toContain(
       'skill://shipfox/create-workflow-from-template/references/choose-models.md',
     );
