@@ -150,7 +150,16 @@ describe('formatTemplateHeader', () => {
     expect(parseTemplateHeader(formatTemplateHeader(header))).toEqual(header);
   });
 
-  it('refuses a reference and pairs the parser would reject', () => {
+  it('refuses an identity, reference, and pairs the parser would reject', () => {
+    expect(() =>
+      formatTemplateHeader({legacy: {id: 'Ticket To PR', revision: 3, bindings: {}}}),
+    ).toThrow('Invalid legacy template identity: Ticket To PR@3');
+    expect(() =>
+      formatTemplateHeader({legacy: {id: 'ticket-to-pr', revision: 1.5, bindings: {}}}),
+    ).toThrow('Invalid legacy template identity: ticket-to-pr@1.5');
+    expect(() =>
+      formatTemplateHeader({legacy: {id: 'ticket-to-pr', revision: -1, bindings: {}}}),
+    ).toThrow('Invalid legacy template identity: ticket-to-pr@-1');
     expect(() =>
       formatTemplateHeader({ref: {...ref, version: '1.x'}, bindings: {}, options: {}}),
     ).toThrow('Invalid registry reference for the template header');

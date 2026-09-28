@@ -216,7 +216,6 @@ describe('composeTemplate', () => {
 });
 
 const optionModeMarkerPattern = /# option:mode/;
-const blockKeyPattern = /key: (quick|deep)/;
 
 describe('applyTemplateOptions', () => {
   const workflow = [
@@ -277,7 +276,18 @@ describe('applyTemplateOptions', () => {
   });
 
   it('deletes every block when the option has a choice none of them lists', () => {
-    expect(applyTemplateOptions(workflow, {mode: 'unlisted'})).not.toMatch(blockKeyPattern);
+    expect(applyTemplateOptions(workflow, {mode: 'unlisted'})).toBe(
+      [
+        '# shipfox-template: shipfox/fixture@1.2.0; roles: source=github; options: mode=fast',
+        'jobs:',
+        '  build:',
+        '    # bind:source',
+        '    # slot:test_command',
+        '    # option:bot_identity',
+        '    steps:',
+        '      - key: always',
+      ].join('\n'),
+    );
   });
 
   it('keeps the blocks and markers of an option that has no choice', () => {

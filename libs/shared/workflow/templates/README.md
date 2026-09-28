@@ -83,7 +83,7 @@ Ask for it with `composeTemplate(template, bindings, {header: {kind: 'registry',
 
 `parseTemplateHeader(text)` reads either form from workflow YAML or from the header line alone, and returns `{ref, bindings, options}` or `{legacy: {id, revision, bindings}}`. The group names tell roles from options, so a role and an option can share a name and no manifest is needed. It searches only the leading comment lines. It returns `undefined` when there is no header, or when it is malformed: a range or tag instead of an exact version, an unknown, empty, repeated, or misordered group, or a repeated key.
 
-`applyTemplateOptions(yaml, options)` resolves the option blocks. `# option:X=Y,Z begin` keeps its block when either `Y` or `Z` is chosen for `X`. Blocks can nest. An option with no chosen value keeps its blocks and markers, so `{}` changes nothing. An unclosed block, or an end marker that does not match, throws. Lines such as `# option:bot_identity`, `# slot:`, `# bind:`, and `# model:` stay. The adopted base of a workflow is `applyTemplateOptions(composeTemplate(template, bindings), options)`.
+`applyTemplateOptions(yaml, options)` resolves the option blocks. `# option:X=Y,Z begin` keeps its block when either `Y` or `Z` is chosen for `X`. Blocks can nest. An option with no chosen value keeps its blocks and markers, so `{}` changes nothing. An unclosed block, or an end marker that does not match, throws. Lines such as `# option:bot_identity`, `# slot:`, `# bind:`, and `# model:` stay.
 
 ### Optional roles
 

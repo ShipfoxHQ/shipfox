@@ -45,6 +45,9 @@ export function parseTemplateHeader(text: string): TemplateHeader | undefined {
 export function formatTemplateHeader(header: TemplateHeader): string {
   if ('legacy' in header) {
     const {id, revision, bindings} = header.legacy;
+    if (!(identifierPattern.test(id) && Number.isSafeInteger(revision) && revision >= 0)) {
+      throw new Error(`Invalid legacy template identity: ${id}@${revision}`);
+    }
     return `# shipfox-template: ${[`${id}@${revision}`, ...formatPairs(bindings)].join(' ')}`;
   }
 
