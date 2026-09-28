@@ -5,7 +5,7 @@ title: Task to pull request
 summary: Turn a ticket or a request into a tested GitHub pull request.
 roles:
   tracker:
-    providers: [linear]
+    providers: [linear, jira]
     optional: true
     question: Should tickets in an issue tracker start the workflow and receive its results?
     tradeoff: Starts from the tracker's ticket events and can comment on or move the ticket. Without a tracker, only manual starts with explicit task inputs, such as from a Slack dispatcher, run the workflow.
@@ -24,6 +24,17 @@ options:
       - id: label
         label: Add a Linear label
         tradeoff: Starts when an issue in the chosen Linear team is created with the label or gets it later. Requires the label's exact name.
+  - id: jira_trigger
+    question: What should start the workflow?
+    applies_to: [jira]
+    choices:
+      - id: label
+        label: Add a Jira label
+        default: true
+        tradeoff: Starts when an issue in the chosen Jira project is created with the label or gets it later. Requires the label's exact name.
+      - id: status
+        label: Move the issue to a status
+        tradeoff: Starts when an issue in the chosen Jira project moves to the status. Requires the status's exact name. Issues created directly in that status do not start it.
   - id: feedback_loop
     question: Should the workflow handle inline review comments and failed GitHub Actions runs after opening a PR?
     choices:
@@ -55,8 +66,8 @@ options:
         label: Ready for review
         tradeoff: Opens the PR for review right away, which can notify reviewers.
   - id: ticket_write_back
-    question: How should the workflow update Linear?
-    applies_to: [linear]
+    question: How should the workflow update the ticket?
+    applies_to: [linear, jira]
     choices:
       - id: comment
         label: Comment only
@@ -67,7 +78,7 @@ options:
         tradeoff: Moves the issue to its in-progress status when work starts; posts the PR link or clarification questions.
       - id: none
         label: No updates
-        tradeoff: Makes no Linear updates.
+        tradeoff: Makes no ticket updates.
 models:
   fix:
     note: Implements the task and handles review comments and CI failures in one conversation.
