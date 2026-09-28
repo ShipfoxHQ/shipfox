@@ -3,6 +3,7 @@ import {
   workspacesInterModuleContract,
 } from '@shipfox/api-workspaces-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
+import type {RequiredAction} from '@shipfox/policy-notice';
 import {
   WorkflowAdmissionDeniedError,
   WorkspaceDeletedError,
@@ -16,11 +17,7 @@ export interface WorkflowAdmissionInput {
   definitionId: string;
 }
 
-export interface RequiredAction {
-  reason: string;
-  message: string;
-  url: string;
-}
+export type {RequiredAction} from '@shipfox/policy-notice';
 
 export type WorkflowAdmissionDecision =
   | {allowed: true}

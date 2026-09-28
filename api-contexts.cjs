@@ -65,6 +65,7 @@ const architecturePackages = {
       'libs/shared/common/redact',
       'libs/shared/common/regex',
       'libs/shared/common/runner-labels',
+      'libs/shared/common/policy-notice',
     ],
     expression: ['libs/shared/expression'],
     registry: ['libs/shared/registry/format'],

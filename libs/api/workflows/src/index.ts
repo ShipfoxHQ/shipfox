@@ -54,6 +54,7 @@ import {
 import {createWorkflowsInterModulePresentation} from '#presentation/inter-module.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
 
+export type {RequiredAction} from '@shipfox/policy-notice';
 export type {WorkflowConcurrencyClaim} from '#core/entities/workflow-concurrency-claim.js';
 export type {
   Job,
@@ -95,7 +96,6 @@ export {
   workflowConcurrencyOriginScope,
 } from '#core/workflow-concurrency.js';
 export type {
-  RequiredAction,
   WorkflowAdmissionDecision,
   WorkflowAdmissionInput,
   WorkflowAdmissionPolicy,

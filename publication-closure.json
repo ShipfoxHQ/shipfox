@@ -139,6 +139,7 @@
     "@shipfox/node-rate-limit",
     "@shipfox/node-temporal",
     "@shipfox/node-tokens",
+    "@shipfox/policy-notice",
     "@shipfox/react-ui",
     "@shipfox/redact",
     "@shipfox/regex",
