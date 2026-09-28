@@ -26,84 +26,10 @@ installation, replace it with the endpoint you copied.
 
 ## Add the Shipfox MCP server to your client
 
-Follow the section for your client. Each client stores a separate sign-in.
-Repeat these instructions for every client you use.
+Each client stores a separate sign-in. Repeat these instructions for every
+client you use. The server URL is:
 
-### Claude Code
-
-Run this command in your terminal:
-
-```sh
-claude mcp add --transport http shipfox https://api.shipfox.io/mcp
-```
-
-Open Claude Code and run `/mcp`. Select **shipfox** and complete the browser
-sign-in.
-
-Claude Code reads the server's skill and docs resources on its own.
-
-### Codex CLI
-
-Run these commands in your terminal:
-
-```sh
-codex mcp add shipfox --url https://api.shipfox.io/mcp
-codex mcp login shipfox
-```
-
-The second command opens the Shipfox sign-in page in your browser.
-
-Codex CLI 0.47.0 and later reads the server's skill and docs resources on its
-own.
-
-### Cursor
-
-Cursor reads MCP servers from two files. Use `.cursor/mcp.json` for one
-project. Use `~/.cursor/mcp.json` for every project. Add this server entry:
-
-```json
-{
-  "mcpServers": {
-    "shipfox": {
-      "url": "https://api.shipfox.io/mcp"
-    }
-  }
-}
-```
-
-Don't add Cursor's `auth` block for static OAuth clients. Shipfox registers the
-OAuth client during sign-in.
-
-Open **Customize** from the Cursor sidebar to see the server. Cursor opens the
-browser sign-in when it first connects to Shipfox.
-
-For the file format and the Customize page, see the [Cursor MCP
-documentation](https://cursor.com/docs/mcp).
-
-Cursor 1.6 and later supports the server's skill and docs resources. Only user
-reports show its agent reading them on its own.
-
-### VS Code
-
-Add the server to `.vscode/mcp.json` in your project. To use it in every
-workspace, run **MCP: Open User Configuration** instead.
-
-```json
-{
-  "servers": {
-    "shipfox": {
-      "type": "http",
-      "url": "https://api.shipfox.io/mcp"
-    }
-  }
-}
-```
-
-Run **MCP: List Servers** and select **shipfox**. Start the server. VS Code asks
-you to approve the sign-in and opens your browser.
-
-VS Code 1.101 and later supports the server's skill and docs resources. Attach
-one to a chat with **Add Context** > **MCP Resources**.
+<include>../../../snippets/connect-coding-agent.mdx</include>
 
 ## Approve access in Shipfox
 
