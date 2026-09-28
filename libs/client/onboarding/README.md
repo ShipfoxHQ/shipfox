@@ -170,8 +170,8 @@ The caller maps its own query results to the derivation inputs:
   its project only, so a definition or a test run in another project never
   changes its mode or run link. It ignores the checklist's dismissal and polls
   only while mounted. The workflows page shows it in place of the empty list,
-  so it shows a skeleton while its progress loads and choose mode if that read
-  fails. Once the project has a definition, it renders nothing and refreshes
+  so it shows a skeleton while its progress loads and falls back to choose
+  mode if that read fails. Once the project has a definition, it renders nothing and refreshes
   the project's definitions list, which does not poll.
 - The panel reads `GET /workspaces/:workspaceId/workflow-templates`, which
   returns templates grouped and ranked for the workspace's connections. The

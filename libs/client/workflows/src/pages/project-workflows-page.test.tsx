@@ -144,6 +144,32 @@ describe('ProjectWorkflowsPage', () => {
     expect(screen.queryByText('Workflow sync failed')).not.toBeInTheDocument();
   });
 
+  test('keeps the sync failure when definitions remain after the workflow files are removed', async () => {
+    configureApiClient({
+      fetchImpl: createProjectDetailFetch({
+        definitions: jsonResponse(
+          definitionsDto({
+            sync: {
+              ref: 'main',
+              status: 'failed',
+              last_sync_at: '2026-05-07T01:00:00.000Z',
+              started_at: '2026-05-07T01:00:00.000Z',
+              finished_at: null,
+              last_error_code: 'no-workflow-files',
+              last_error_message: 'No workflow files found',
+              diagnostics: [],
+            },
+          }),
+        ),
+      }),
+    });
+
+    renderWorkflowsPage();
+
+    expect((await screen.findAllByText('Deploy production'))[0]).toBeInTheDocument();
+    expect(screen.getByText('Workflow sync failed')).toBeInTheDocument();
+  });
+
   describe('first workflow panel slot', () => {
     function FirstWorkflowPanel({projectId}: {projectId: string}) {
       return <div>First workflow panel for {projectId}</div>;
@@ -181,6 +207,33 @@ describe('ProjectWorkflowsPage', () => {
       expect(screen.getByRole('region', {name: 'Project source'})).toBeInTheDocument();
       expect(screen.queryByRole('region', {name: 'Workflow definitions'})).not.toBeInTheDocument();
       expect(screen.queryByText('Workflow sync failed')).not.toBeInTheDocument();
+    });
+
+    test('renders the slot with the sync failure when the only files are invalid', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          definitions: jsonResponse(
+            definitionsDto({
+              definitions: [],
+              sync: {
+                ref: 'main',
+                status: 'failed',
+                last_sync_at: '2026-05-07T01:00:00.000Z',
+                started_at: '2026-05-07T01:00:00.000Z',
+                finished_at: null,
+                last_error_code: 'invalid-definition',
+                last_error_message: 'Workflow definitions are invalid',
+                diagnostics: [],
+              },
+            }),
+          ),
+        }),
+      });
+
+      renderWorkflowsPage({FirstWorkflowPanel});
+
+      expect(await screen.findByText(`First workflow panel for ${PROJECT_ID}`)).toBeInTheDocument();
+      expect(screen.getByText('Workflow sync failed')).toBeInTheDocument();
     });
 
     test('does not render the slot when the project has definitions', async () => {

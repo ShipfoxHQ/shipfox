@@ -96,7 +96,7 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
               isPending={definitionsQuery.isPending}
             />
 
-            <WorkflowSyncAlert sync={sync} />
+            <WorkflowSyncAlert sync={sync} hasDefinitions={definitions.length > 0} />
             <WorkflowSyncDiagnostics sync={sync} />
 
             <FirstWorkflowSlot
@@ -167,10 +167,18 @@ function FirstWorkflowSlot({
   return <FirstWorkflowPanel projectId={projectId} />;
 }
 
-function WorkflowSyncAlert({sync}: {sync: DefinitionSyncSummary | null | undefined}) {
+function WorkflowSyncAlert({
+  sync,
+  hasDefinitions,
+}: {
+  sync: DefinitionSyncSummary | null | undefined;
+  hasDefinitions: boolean;
+}) {
+  if (sync?.status !== 'failed') return null;
   // A repository without workflow files is where every project starts, and the
-  // empty state already says so.
-  if (sync?.status !== 'failed' || sync.lastErrorCode === 'no-workflow-files') return null;
+  // empty state already says so. With definitions still listed, the files were
+  // removed and the failed sync kept the old rows, so the callout explains them.
+  if (sync.lastErrorCode === 'no-workflow-files' && !hasDefinitions) return null;
 
   return (
     <Callout role="alert" type="error">
