@@ -247,7 +247,7 @@ describe('computeTemplateBump', () => {
     expect(result).toBe('patch');
   });
 
-  it('treats a role id that matches an object prototype key as absent', () => {
+  it('treats a role id that matches an object prototype key as an added role', () => {
     const previous = manifest();
     const next = manifest({
       roles: {

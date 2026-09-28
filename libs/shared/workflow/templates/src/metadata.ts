@@ -2,7 +2,7 @@ import {z} from 'zod';
 import type {WorkflowTemplateManifest} from './manifest.js';
 
 export const workflowTemplateMetadataSchema = z.object({
-  /** Providers of every role, unique, in manifest order so the source provider leads. */
+  /** Providers of every role, sorted and unique. */
   integrations: z.array(z.string()),
   interface: z.object({
     slots: z.array(z.object({id: z.string(), description: z.string()})),
@@ -61,7 +61,7 @@ export function deriveTemplateMetadata({
 }: DeriveTemplateMetadataParams): WorkflowTemplateMetadata {
   const roles = Object.entries(manifest.roles);
   return {
-    integrations: [...new Set(roles.flatMap(([, role]) => role.providers))],
+    integrations: [...new Set(roles.flatMap(([, role]) => role.providers))].sort(),
     interface: {
       slots: manifest.slots.map(({id, description}) => ({id, description})),
       secrets: manifest.secrets.map(({name, description}) => ({name, description})),

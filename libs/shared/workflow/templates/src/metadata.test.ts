@@ -33,7 +33,7 @@ function manifest(fields: Record<string, unknown> = {}) {
 }
 
 describe('deriveTemplateMetadata', () => {
-  it('lists the providers of every role once, in manifest order', () => {
+  it('lists the providers of every role once, sorted', () => {
     const template = manifest({
       roles: {
         source: {providers: ['github', 'gitea']},
@@ -43,7 +43,7 @@ describe('deriveTemplateMetadata', () => {
 
     const metadata = deriveTemplateMetadata({manifest: template, contentBytes: 0});
 
-    expect(metadata.integrations).toEqual(['github', 'gitea', 'linear']);
+    expect(metadata.integrations).toEqual(['gitea', 'github', 'linear']);
   });
 
   it('describes the slots, secrets, and variables', () => {
