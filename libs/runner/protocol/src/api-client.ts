@@ -40,6 +40,7 @@ import {
 } from '@shipfox/api-runners-dto';
 import {type StepSecretsResponseDto, stepSecretsResponseSchema} from '@shipfox/api-secrets-dto';
 import {
+  AGENT_RUNTIME_CONFIG_RENEWAL_HEADER,
   type AgentConfigIssueDto,
   type CheckoutResultDto,
   type CheckoutTokenResponseDto,
@@ -56,6 +57,7 @@ import {
   type StepErrorDto,
 } from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {type PolicyNotice, policyNoticeSchema} from '@shipfox/policy-notice';
 import {isUuid} from '@shipfox/regex';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import ky, {HTTPError, isTimeoutError, type KyInstance} from 'ky';
@@ -138,6 +140,7 @@ export class AgentRuntimeConfigRequestError extends Error {
       code,
     ),
     public readonly managedProviderId: string | undefined = undefined,
+    public readonly notice: PolicyNotice | undefined = undefined,
   ) {
     super(
       code === undefined
@@ -168,7 +171,7 @@ export type AgentRuntimeConfigResponse = {
   timing: AgentRuntimeConfigResponseTiming;
 };
 
-export const AGENT_RUNTIME_CONFIG_RENEWAL_HEADER = 'x-shipfox-runtime-config-renewal';
+export {AGENT_RUNTIME_CONFIG_RENEWAL_HEADER};
 
 export class StepSecretsRequestError extends Error {
   constructor(
@@ -540,6 +543,7 @@ export async function requestAgentRuntimeConfigWithTiming(
         info.code,
         agentConfigIssueForCode(info.code),
         info.managedProviderId,
+        info.notice,
       );
     }
     throw error;
@@ -574,6 +578,7 @@ export async function requestAgentRuntimeConfigWithTiming(
     info.code,
     agentConfigIssueForCode(info.code),
     info.managedProviderId,
+    info.notice,
   );
 }
 
@@ -898,22 +903,23 @@ async function errorCode(response: Response): Promise<string | undefined> {
   }
 }
 
-async function runtimeConfigErrorInfo(
-  response: Response,
-): Promise<{code: string | undefined; managedProviderId: string | undefined}> {
+async function runtimeConfigErrorInfo(response: Response): Promise<RuntimeConfigErrorInfo> {
   try {
     return errorInfoFromBody((await response.json()) as unknown);
   } catch {
-    return {code: undefined, managedProviderId: undefined};
+    return {code: undefined, managedProviderId: undefined, notice: undefined};
   }
 }
 
-function errorInfoFromBody(body: unknown): {
+interface RuntimeConfigErrorInfo {
   code: string | undefined;
   managedProviderId: string | undefined;
-} {
+  notice: PolicyNotice | undefined;
+}
+
+function errorInfoFromBody(body: unknown): RuntimeConfigErrorInfo {
   if (typeof body !== 'object' || body === null) {
-    return {code: undefined, managedProviderId: undefined};
+    return {code: undefined, managedProviderId: undefined, notice: undefined};
   }
 
   const code = 'code' in body && typeof body.code === 'string' ? body.code : undefined;
@@ -928,7 +934,11 @@ function errorInfoFromBody(body: unknown): {
       ? details.managed_provider_id
       : undefined;
 
-  return {code, managedProviderId};
+  const notice = policyNoticeSchema.safeParse(
+    details !== undefined && 'notice' in details ? details.notice : undefined,
+  );
+
+  return {code, managedProviderId, notice: notice.success ? notice.data : undefined};
 }
 
 function codeFromBody(body: unknown): string | undefined {

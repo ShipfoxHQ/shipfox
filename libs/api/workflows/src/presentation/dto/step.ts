@@ -13,6 +13,7 @@ import {
   WORKFLOW_STEP_ATTEMPT_INVOCATION_READ_MAX,
   WORKFLOW_STEP_CONFIG_INLINE_MAX_BYTES,
 } from '@shipfox/api-workflows-dto';
+import {policyNoticeSchema} from '@shipfox/policy-notice';
 import type {Step, StepAttempt} from '#core/entities/step.js';
 import {GATE_EVALUATION_ERROR_REASON} from '#core/step-transition/evaluate-gate.js';
 import type {StepAttemptDetailStep} from '#db/workflow-runs/steps.js';
@@ -42,6 +43,7 @@ export function toStepErrorDto(
   const code = typeof error.code === 'string' ? error.code : undefined;
   const managedProviderId =
     typeof error.managedProviderId === 'string' ? error.managedProviderId : undefined;
+  const notice = policyNoticeSchema.safeParse(error.notice);
   const exitCode = error.exitCode;
   const signal = typeof error.signal === 'string' ? error.signal : undefined;
   const field = typeof error.field === 'string' ? error.field : undefined;
@@ -56,6 +58,7 @@ export function toStepErrorDto(
   return {
     message,
     ...toStepErrorScalarFields({code, managedProviderId, exitCode, signal}),
+    ...(notice.success ? {notice: notice.data} : {}),
     ...(reason.success ? {reason: reason.data} : {}),
     ...toStepErrorSourceFields(field, source),
     ...toStepErrorGateFields(error),
@@ -134,6 +137,7 @@ export function fromStepErrorDto(error: StepErrorDto | undefined): Record<string
     ...(error.managed_provider_id === undefined
       ? {}
       : {managedProviderId: error.managed_provider_id}),
+    ...(error.notice === undefined ? {} : {notice: error.notice}),
     ...(error.exit_code === null || typeof error.exit_code === 'number'
       ? {exitCode: error.exit_code}
       : {}),

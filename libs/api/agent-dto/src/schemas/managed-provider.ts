@@ -1,3 +1,4 @@
+import {type PolicyNotice, policyNoticeSchema} from '@shipfox/policy-notice';
 import type {AgentThinking} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {type CustomAgentModelDto, customAgentModelSchema} from './custom-model-provider.js';
@@ -34,6 +35,16 @@ export type ManagedProviderJobIdentity = z.infer<typeof managedProviderJobIdenti
 
 /** Stable provider error code for a runner that cannot use renewable inference credentials. */
 export const RUNNER_CAPABILITY_REQUIRED_ERROR_CODE = 'runner-capability-required';
+
+/** Stable provider error code for a managed model that the workspace may not use. */
+export const MODEL_UNAVAILABLE_ERROR_CODE = 'agent-model-unavailable';
+
+export const modelUnavailableDetailsSchema = z.object({
+  model: z.string().min(1),
+  notice: policyNoticeSchema,
+});
+
+export type ModelUnavailableDetails = z.infer<typeof modelUnavailableDetailsSchema>;
 
 export const managedModelMetadataSchema = customAgentModelSchema
   .omit({
@@ -118,12 +129,40 @@ export interface ManagedProviderRuntimeConfig {
     | undefined;
 }
 
+export interface ManagedModelLock {
+  /** Badge text, for example `Add credits to use`. */
+  readonly label: string;
+  readonly notice: PolicyNotice;
+}
+
+/** Thrown by the agent module when a managed provider locks the requested model. */
+export class ManagedModelUnavailableError extends Error {
+  readonly code = MODEL_UNAVAILABLE_ERROR_CODE;
+
+  constructor(
+    readonly model: string,
+    readonly notice: PolicyNotice,
+  ) {
+    super(notice.message);
+    this.name = 'ManagedModelUnavailableError';
+  }
+}
+
 export interface ManagedModelProvider {
   readonly id: string;
   readonly label: string;
   readonly models: readonly ManagedModelEntry[];
   readonly defaultModel: string;
   readonly defaultThinking?: AgentThinking | undefined;
+  /**
+   * Locked models for one workspace. Models not in the map are available.
+   *
+   * Checked before the first `resolveCredentials` of a step attempt and never on renewal, so a
+   * running step is not cut off. A rejection is reported as a retryable 503.
+   */
+  readonly availability?:
+    | ((params: {workspaceId: string}) => Promise<ReadonlyMap<string, ManagedModelLock>>)
+    | undefined;
   /**
    * Resolves credentials for one leased step attempt.
    *

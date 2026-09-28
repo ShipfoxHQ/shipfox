@@ -590,6 +590,53 @@ describe('api-client auth contexts', () => {
     );
   });
 
+  it('preserves the policy notice from a model-unavailable response', async () => {
+    const notice = {
+      reason: 'model-locked',
+      message: 'Managed model needs credits.',
+      requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/billing'},
+    };
+    stubFetch(() =>
+      jsonResponse(
+        {code: 'agent-model-unavailable', details: {model: 'managed-model', notice}},
+        422,
+      ),
+    );
+    const leaseClient = createLeaseClient('lease-runtime');
+
+    const request = requestAgentRuntimeConfig(leaseClient, {stepId: STEP_ID, attempt: 2});
+
+    await expect(request).rejects.toMatchObject({
+      status: 422,
+      code: 'agent-model-unavailable',
+      agentConfigIssue: 'model_unavailable',
+      notice,
+    });
+  });
+
+  it('retries a 503 model availability failure', async () => {
+    const responses = [
+      jsonResponse({code: 'model-availability-unavailable'}, 503),
+      jsonResponse({
+        harness: 'pi',
+        provider_id: 'openai',
+        model: 'gpt-5.1',
+        thinking: 'medium',
+        credentials: {api_key: 'sk-runtime'},
+      }),
+    ];
+    stubFetch(() => responses.shift() ?? new Response(null, {status: 500}));
+    const leaseClient = createLeaseClient('lease-runtime');
+
+    const runtimeConfig = await requestAgentRuntimeConfig(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 2,
+    });
+
+    expect(runtimeConfig.model).toBe('gpt-5.1');
+    expect(responses).toHaveLength(0);
+  });
+
   it('requestAgentRuntimeConfig retries transient 429 and 5xx responses', async () => {
     const responses = [
       new Response(null, {status: 429}),

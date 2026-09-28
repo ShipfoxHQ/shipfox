@@ -1,3 +1,4 @@
+import type {RequiredAction} from '@shipfox/policy-notice';
 import {
   Alert,
   AlertActions,
@@ -40,6 +41,13 @@ export function AgentConfigFailureCallout({
             </Button>
           </AlertActions>
         ) : null}
+        {copy.requiredAction ? (
+          <AlertActions>
+            <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
+              <a href={copy.requiredAction.url}>{copy.requiredAction.message}</a>
+            </Button>
+          </AlertActions>
+        ) : null}
       </AlertContent>
     </Alert>
   );
@@ -48,7 +56,12 @@ export function AgentConfigFailureCallout({
 function agentConfigFailureCopy(
   config: AgentStepConfig | null,
   error: StepError | null,
-): {title: string; description: string; showProviderCta: boolean} {
+): {
+  title: string;
+  description: string;
+  showProviderCta: boolean;
+  requiredAction?: RequiredAction | undefined;
+} {
   const managedOnlyProvider = managedOnlyProviderFromError(error);
   if (managedOnlyProvider) {
     return {
@@ -81,6 +94,14 @@ function agentConfigFailureCopy(
         showProviderCta: false,
       };
     case 'model_unavailable':
+      if (error.notice !== undefined) {
+        return {
+          title: 'This model is not available to your workspace',
+          description: error.notice.message,
+          showProviderCta: false,
+          requiredAction: error.notice.requiredAction,
+        };
+      }
       return {
         title: 'Choose an available model',
         description: `This step uses ${model} with ${provider}, but that model is not available for the provider. Update the model or provider in the workflow, then re-run it.`,

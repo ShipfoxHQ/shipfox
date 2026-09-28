@@ -2,7 +2,12 @@ import {existsSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {gzipSync} from 'node:zlib';
-import type {AgentConfigIssueDto, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
+import type {
+  AgentConfigIssueDto,
+  NextStepResponseDto,
+  StepDto,
+  StepErrorDto,
+} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {
   CredentialFailureEvent,
@@ -20,6 +25,7 @@ const {AgentRuntimeConfigRequestError, StepSecretsRequestError, resolveWorkingDi
         public readonly code: string | undefined,
         public readonly agentConfigIssue: AgentConfigIssueDto | undefined = undefined,
         public readonly managedProviderId: string | undefined = undefined,
+        public readonly notice: NonNullable<StepErrorDto>['notice'] = undefined,
       ) {
         super(
           code === undefined
@@ -3938,6 +3944,45 @@ describe('runJobSteps', () => {
         error: expect.objectContaining({
           reason: 'agent_config_invalid',
           agent_config_issue: 'provider_not_configured',
+        }),
+      }),
+    );
+  });
+
+  it('reports a locked managed model with its policy notice', async () => {
+    const notice = {
+      reason: 'model-locked',
+      message: 'Managed model needs credits.',
+      requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/billing'},
+    };
+    const setup = buildSetupStep();
+    const agent = buildAgentStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'failed'});
+    requestAgentRuntimeConfigMock.mockRejectedValueOnce(
+      new AgentRuntimeConfigRequestError(
+        422,
+        'agent-model-unavailable',
+        'model_unavailable',
+        undefined,
+        notice,
+      ),
+    );
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({
+        stepId: agent.id,
+        error: expect.objectContaining({
+          reason: 'agent_config_invalid',
+          agent_config_issue: 'model_unavailable',
+          code: 'agent-model-unavailable',
+          notice,
         }),
       }),
     );

@@ -1917,6 +1917,7 @@ function agentRuntimeConfigFailure(error: unknown): StepResult {
         ...(error.managedProviderId === undefined
           ? {}
           : {managed_provider_id: error.managedProviderId}),
+        ...(error.notice === undefined ? {} : {notice: error.notice}),
       },
       exit_code: null,
     };

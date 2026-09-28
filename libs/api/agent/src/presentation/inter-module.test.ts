@@ -1,5 +1,6 @@
 import {
   type ManagedModelProvider,
+  MODEL_UNAVAILABLE_ERROR_CODE,
   RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
 } from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
@@ -202,5 +203,96 @@ describe('agent inter-module presentation', () => {
     }
     expect(result.code).toBe(RUNNER_CAPABILITY_REQUIRED_ERROR_CODE);
     expect(result.details).toEqual({});
+  });
+
+  describe('managed model availability', () => {
+    const notice = {
+      reason: 'model-locked',
+      message: 'Managed model needs credits.',
+      requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/billing'},
+    };
+
+    function presentationWith(availability: ManagedModelProvider['availability']) {
+      return createAgentInterModulePresentation({
+        secrets: agentTestSecretsClient,
+        workspaceProviders: 'disabled',
+        managedProvider: {
+          id: 'shipfox',
+          label: 'Shipfox',
+          models: [{id: 'managed-model', label: 'Managed model', api: 'openai-responses'}],
+          defaultModel: 'managed-model',
+          availability,
+          resolveCredentials: vi.fn(() =>
+            Promise.resolve({
+              api: 'openai-responses' as const,
+              baseUrl: 'https://gateway.example.test/',
+              credentials: {api_key: 'managed-token'},
+            }),
+          ),
+        },
+      });
+    }
+
+    function resolve(
+      presentation: ReturnType<typeof presentationWith>,
+      overrides: {renewal?: boolean} = {},
+    ) {
+      return Promise.resolve(
+        presentation.handlers.resolveRuntimeCredentials(
+          {
+            workspaceId: crypto.randomUUID(),
+            runId: crypto.randomUUID(),
+            stepAttemptId: crypto.randomUUID(),
+            harness: 'pi',
+            provider: 'shipfox',
+            model: 'managed-model',
+            thinking: 'high',
+            renewableInference: true,
+            ...overrides,
+          },
+          {signal: new AbortController().signal},
+        ),
+      ).catch((error: unknown) => error);
+    }
+
+    test('maps a locked model to the agent-model-unavailable known error with its notice', async () => {
+      const presentation = presentationWith(() =>
+        Promise.resolve(new Map([['managed-model', {label: 'Locked', notice}]])),
+      );
+
+      const result = await resolve(presentation);
+
+      if (
+        !isInterModuleKnownError(agentInterModuleContract.methods.resolveRuntimeCredentials, result)
+      ) {
+        throw new Error('Expected a known error');
+      }
+      expect(result.code).toBe(MODEL_UNAVAILABLE_ERROR_CODE);
+      expect(result.details).toEqual({model: 'managed-model', notice});
+    });
+
+    test('maps an availability failure to model-availability-unavailable', async () => {
+      const presentation = presentationWith(() => Promise.reject(new Error('down')));
+
+      const result = await resolve(presentation);
+
+      if (
+        !isInterModuleKnownError(agentInterModuleContract.methods.resolveRuntimeCredentials, result)
+      ) {
+        throw new Error('Expected a known error');
+      }
+      expect(result.code).toBe('model-availability-unavailable');
+    });
+
+    test('does not check availability on renewal', async () => {
+      const availability = vi.fn(() =>
+        Promise.resolve(new Map([['managed-model', {label: 'Locked', notice}]])),
+      );
+
+      const result = await resolve(presentationWith(availability), {renewal: true});
+
+      expect(result).toMatchObject({provider_id: 'shipfox'});
+      expect(availability).not.toHaveBeenCalled();
+    });
   });
 });

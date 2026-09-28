@@ -71,6 +71,7 @@ const errorCases: Array<{
   {label: 'Credentials invalid', error: makeError('credentials_invalid')},
   {label: 'Provider unsupported', error: makeError('provider_unsupported')},
   {label: 'Model unavailable', error: makeError('model_unavailable')},
+  {label: 'Model locked by policy', error: makeLockedModelError()},
   {label: 'Step config invalid', error: makeError('step_config_invalid')},
   {
     label: 'Unknown config failure',
@@ -119,6 +120,22 @@ export const TestProviderNotConfigured: Story = {
   play: assertCallout('Configure credentials for anthropic', true),
 };
 
+export const TestModelLockedByPolicy: Story = {
+  args: {
+    error: makeLockedModelError(),
+  },
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+
+    await canvas.findByText('This model is not available to your workspace');
+    await canvas.findByText('Claude Opus 4.8 is not included in your current plan.');
+    const action = await canvas.findByRole('link', {name: 'Add credits'});
+    if (action.getAttribute('href') !== 'https://example.test/billing') {
+      throw new Error('Expected the required action link to target the notice URL');
+    }
+  },
+};
+
 export const TestProviderUnsupported: Story = {
   args: {
     error: makeError('provider_unsupported'),
@@ -141,6 +158,22 @@ export const TestManagedOnlyPolicy: Story = {
   },
   play: assertCallout('Use shipfox for this instance', false),
 };
+
+function makeLockedModelError(): StepError {
+  return {
+    ...makeError('model_unavailable'),
+    code: 'agent-model-unavailable',
+    notice: {
+      reason: 'model-locked',
+      message: 'Claude Opus 4.8 is not included in your current plan.',
+      requiredAction: {
+        reason: 'add-credits',
+        message: 'Add credits',
+        url: 'https://example.test/billing',
+      },
+    },
+  };
+}
 
 function makeError(agentConfigIssue: AgentConfigIssueValue): StepError {
   return {

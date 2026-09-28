@@ -39,6 +39,16 @@ export class WorkspaceProvidersDisabledError extends Error {
   }
 }
 
+export class ManagedModelAvailabilityError extends Error {
+  constructor(
+    public readonly managedProviderId: string,
+    options: {cause: unknown},
+  ) {
+    super(`Managed provider ${managedProviderId} could not report model availability.`, options);
+    this.name = 'ManagedModelAvailabilityError';
+  }
+}
+
 export class UnsupportedHarnessProviderError extends Error {
   constructor(
     public readonly harness: Harness,

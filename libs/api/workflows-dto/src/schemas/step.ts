@@ -1,4 +1,5 @@
 import {type AgentSessionDescriptorDto, agentSessionDescriptorSchema} from '@shipfox/api-agent-dto';
+import {policyNoticeSchema} from '@shipfox/policy-notice';
 import {z} from 'zod';
 import {evaluationTraceSchema} from './evaluation-trace.js';
 import {WORKFLOW_STEP_ATTEMPT_INVOCATION_READ_MAX} from './workflow-run-diagnostics.js';
@@ -130,6 +131,8 @@ export const stepErrorDtoSchema = z
     message: z.string().max(STEP_ERROR_MESSAGE_MAX_LENGTH),
     code: z.string().min(1).optional(),
     managed_provider_id: z.string().min(1).optional(),
+    /** Customer-facing explanation and required action for a policy-driven failure. */
+    notice: policyNoticeSchema.optional(),
     exit_code: z.number().int().nullable().optional(),
     signal: z.string().optional(),
     reason: stepErrorReasonSchema.optional(),

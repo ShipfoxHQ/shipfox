@@ -1,4 +1,5 @@
 export {
+  AGENT_RUNTIME_CONFIG_RENEWAL_HEADER,
   type AgentConfigIssueDto,
   type AgentRuntimeConfigQueryDto,
   type AgentStepSessionDescriptorDto,
