@@ -1,4 +1,5 @@
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
+import {config} from '../config.js';
 import {validateDefinition as validateDefinitionBase} from './validate-definition.js';
 
 function validateDefinition(yaml: string, options = {}) {
@@ -325,5 +326,58 @@ jobs:
         }),
       ]);
     }
+  });
+
+  describe('action steps', () => {
+    function actionYaml(extra = '') {
+      return `
+name: Actions
+runner: ubuntu-latest
+jobs:
+  build:
+    steps:
+      - uses: ./.shipfox/actions/slack-thread${extra}
+`;
+    }
+    const notSupported = {
+      message: 'Action steps (`uses`) are not supported yet.',
+      path: 'jobs.build.steps.0.uses',
+    };
+    const runOnAction = {
+      message: '"run" is not valid on an action step.',
+      path: 'jobs.build.steps.0.run',
+    };
+
+    test('DEFINITION_ACTIONS_ENABLED defaults to true outside production', () => {
+      expect(config.DEFINITION_ACTIONS_ENABLED).toBe(true);
+    });
+
+    test('rejects uses as not supported yet when actions are disabled', () => {
+      const result = validateDefinition(actionYaml('\n        run: echo hi'), {
+        actionsEnabled: false,
+      });
+
+      expect(result).toEqual({valid: false, errors: [notSupported]});
+    });
+
+    test('applies action step rules when actions are enabled', () => {
+      const result = validateDefinition(actionYaml('\n        run: echo hi'), {
+        actionsEnabled: true,
+      });
+
+      expect(result).toEqual({valid: false, errors: [runOnAction]});
+    });
+
+    test('uses DEFINITION_ACTIONS_ENABLED when the option is omitted', () => {
+      const result = validateDefinition(actionYaml('\n        run: echo hi'));
+
+      expect(result).toEqual({valid: false, errors: [runOnAction]});
+    });
+
+    test('reports a valid action step as unsupported by the workflow model', () => {
+      const result = validateDefinition(actionYaml(), {actionsEnabled: true});
+
+      expect(result).toEqual({valid: false, errors: [notSupported]});
+    });
   });
 });

@@ -15,10 +15,13 @@ type JsonSchema = Record<string, unknown>;
 
 export interface BuildWorkflowJsonSchemaOptions {
   id?: string;
+  /** Includes action step fields (`uses`, `connections`). Defaults to `false`. */
+  actions?: boolean;
 }
 
 export function buildWorkflowJsonSchema({
   id = 'https://www.shipfox.io/docs/workflow.schema.json',
+  actions = false,
 }: BuildWorkflowJsonSchemaOptions = {}): JsonSchema {
   const schema = z.toJSONSchema(workflowDocumentSchema, {
     io: 'input',
@@ -36,7 +39,11 @@ export function buildWorkflowJsonSchema({
   // `agent` remains reserved. Tool-step fields are now part of the authoring
   // schema and are constrained below by the projected discriminator.
   delete stepProperties.agent;
-  projectWorkflowValidation(schema, stepSchema);
+  if (!actions) {
+    delete stepProperties.uses;
+    delete stepProperties.connections;
+  }
+  projectWorkflowValidation(schema, stepSchema, actions);
   const thinkingConditionals = (['pi', 'claude'] as const).map((harness) => {
     const conditional: JsonSchema = {
       if: {
@@ -73,7 +80,12 @@ export function buildWorkflowJsonSchema({
   return schema;
 }
 
-function projectWorkflowValidation(schema: JsonSchema, stepSchema: JsonSchema) {
+function projectWorkflowValidation(schema: JsonSchema, stepSchema: JsonSchema, actions: boolean) {
+  // Without actions, the other kinds must not name the omitted action fields.
+  const invalidFields = (kind: keyof typeof workflowDocumentStepKindInvalidFields) =>
+    workflowDocumentStepKindInvalidFields[kind].filter(
+      (field) => actions || (field !== 'uses' && field !== 'connections'),
+    );
   const rootProperties = propertiesOf(schema);
   const jobs = object(rootProperties.jobs);
   const triggers = object(rootProperties.triggers);
@@ -89,18 +101,14 @@ function projectWorkflowValidation(schema: JsonSchema, stepSchema: JsonSchema) {
         {
           required: ['run'],
           not: {
-            anyOf: workflowDocumentStepKindInvalidFields.run.map((field) => ({
-              required: [field],
-            })),
+            anyOf: invalidFields('run').map((field) => ({required: [field]})),
           },
         },
         {
           required: ['prompt'],
           not: {
             anyOf: [
-              ...workflowDocumentStepKindInvalidFields.agent.map((field) => ({
-                required: [field],
-              })),
+              ...invalidFields('agent').map((field) => ({required: [field]})),
               {required: ['env']},
             ],
           },
@@ -108,19 +116,27 @@ function projectWorkflowValidation(schema: JsonSchema, stepSchema: JsonSchema) {
         {
           required: ['checkout'],
           not: {
-            anyOf: workflowDocumentStepKindInvalidFields.checkout.map((field) => ({
-              required: [field],
-            })),
+            anyOf: invalidFields('checkout').map((field) => ({required: [field]})),
           },
         },
         {
           required: ['tool'],
           not: {
-            anyOf: workflowDocumentStepKindInvalidFields.tool.map((field) => ({
-              required: [field],
-            })),
+            anyOf: invalidFields('tool').map((field) => ({required: [field]})),
           },
         },
+        ...(actions
+          ? [
+              {
+                required: ['uses'],
+                not: {
+                  anyOf: workflowDocumentStepKindInvalidFields.action.map((field) => ({
+                    required: [field],
+                  })),
+                },
+              },
+            ]
+          : []),
       ],
     },
   ];

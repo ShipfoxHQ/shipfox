@@ -1,4 +1,16 @@
 export {
+  ACTION_MANIFEST_RUNTIMES,
+  ACTION_MANIFEST_VALUES_MAX_ENTRIES,
+  type ActionManifest,
+  type ActionManifestInput,
+  type ActionManifestInputDeclaration,
+  type ActionManifestIntegration,
+  type ActionManifestOutputDeclaration,
+  actionManifestSchema,
+  type BuildActionManifestJsonSchemaOptions,
+  buildActionManifestJsonSchema,
+} from './action-manifest.js';
+export {
   type CheckoutTargetValidationIssue,
   checkoutTargetValidationIssues,
 } from './checkout-target-validation.js';
@@ -47,6 +59,8 @@ export {
   type WorkflowDocumentToolStepOutputs,
   type WorkflowDocumentToolWith,
   type WorkflowDocumentTrigger,
+  workflowDocumentActionAliasSchema,
+  workflowDocumentActionPathIssue,
   workflowDocumentCheckoutSchema,
   workflowDocumentConcurrencySchema,
   workflowDocumentEnvSchema,
@@ -65,6 +79,7 @@ export {
 export {
   InvalidWorkflowDocumentError,
   invalidWorkflowDocumentErrorCode,
+  type ParseWorkflowDocumentOptions,
   parseWorkflowDocument,
 } from './workflow-document-parser.js';
 export {

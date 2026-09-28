@@ -1,6 +1,7 @@
 export const invalidWorkflowModelErrorCode = 'invalid-workflow-model';
 
 export type WorkflowModelValidationIssueCode =
+  | 'action-step-unsupported'
   | 'agent-session-harness-mismatch'
   | 'agent-session-parallel-resume'
   | 'context-unavailable-at-fill-site'

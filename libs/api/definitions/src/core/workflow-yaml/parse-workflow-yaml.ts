@@ -1,4 +1,8 @@
-import {parseWorkflowDocument, type WorkflowDocument} from '@shipfox/workflow-document';
+import {
+  type ParseWorkflowDocumentOptions,
+  parseWorkflowDocument,
+  type WorkflowDocument,
+} from '@shipfox/workflow-document';
 import yaml from 'js-yaml';
 import type {WorkflowStepSourceLocationMap} from '../entities/workflow-model.js';
 import {
@@ -12,15 +16,21 @@ export interface ParsedWorkflowYaml {
   stepSourceLocations: WorkflowStepSourceLocationMap;
 }
 
-export function parseWorkflowYaml(source: string): WorkflowDocument {
-  return parseWorkflowDocument(loadWorkflowYaml(source));
+export function parseWorkflowYaml(
+  source: string,
+  options?: ParseWorkflowDocumentOptions,
+): WorkflowDocument {
+  return parseWorkflowDocument(loadWorkflowYaml(source), options);
 }
 
-export function parseWorkflowYamlWithLocations(source: string): ParsedWorkflowYaml {
+export function parseWorkflowYamlWithLocations(
+  source: string,
+  options?: ParseWorkflowDocumentOptions,
+): ParsedWorkflowYaml {
   const parsed = loadWorkflowYaml(source);
 
   return {
-    document: parseWorkflowDocument(parsed),
+    document: parseWorkflowDocument(parsed, options),
     stepSourceLocations: extractWorkflowStepSourceLocations(source),
   };
 }

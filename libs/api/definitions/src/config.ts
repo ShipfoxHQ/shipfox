@@ -1,10 +1,15 @@
-import {createConfig, str} from '@shipfox/config';
+import {bool, createConfig, str} from '@shipfox/config';
 import {findInvalidLabels, MAX_RUNNER_LABELS, parseLabelList} from '@shipfox/runner-labels';
 
 export const config = createConfig({
   DEFINITION_DEFAULT_RUNNER_LABEL: str({
     desc: 'Default runner label(s) applied to workflow jobs that do not declare a "runner" at the job or workflow level. Set it to a comma-separated list, for example ubuntu-latest or ubuntu-latest,node-22. Leave it empty to require every workflow job to declare runner labels explicitly; with no value set, a job without a runner fails definition validation.',
     default: '',
+  }),
+  DEFINITION_ACTIONS_ENABLED: bool({
+    desc: 'Whether workflow steps can run repository actions with `uses`. Use true or false. Defaults to false; local development defaults to true. When false, a workflow with a `uses` step fails validation with "not supported yet".',
+    default: false,
+    devDefault: true,
   }),
   DEFINITION_WORKFLOW_PATH: str({
     desc: 'Repository-relative path that contains workflow YAML files. Set a different path for each Shipfox instance when staging and production share a repository.',
@@ -36,3 +41,5 @@ export const definitionDefaultRunnerLabels = parseDefinitionDefaultRunnerLabels(
 );
 
 export const definitionWorkflowPath = config.DEFINITION_WORKFLOW_PATH;
+
+export const definitionActionsEnabled = config.DEFINITION_ACTIONS_ENABLED;

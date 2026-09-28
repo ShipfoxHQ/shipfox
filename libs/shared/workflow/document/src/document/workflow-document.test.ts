@@ -1508,7 +1508,7 @@ describe('workflowDocumentSchema', () => {
         expect.objectContaining({
           path: ['jobs', 'build', 'steps', 0, 'tool'],
           message:
-            'A tool step requires `tool`; `connection` and `with` are only valid alongside it.',
+            'A tool step requires `tool`; `connection` is only valid alongside it, and `with` alongside `tool` or `uses`.',
         }),
       );
       return;
@@ -1558,7 +1558,7 @@ describe('workflowDocumentSchema', () => {
           (candidate) => candidate.path.join('.') === 'jobs.fix.steps.0.with',
         );
     expect(issue?.message).toBe(
-      `Tool \`with\` cannot serialize to more than ${WORKFLOW_DOCUMENT_TOOL_WITH_MAX_SERIALIZED_BYTES} bytes.`,
+      `\`with\` cannot serialize to more than ${WORKFLOW_DOCUMENT_TOOL_WITH_MAX_SERIALIZED_BYTES} bytes.`,
     );
   });
 
@@ -1579,7 +1579,7 @@ describe('workflowDocumentSchema', () => {
           (candidate) => candidate.path.join('.') === 'jobs.fix.steps.0.with',
         );
     expect(issue?.message).toBe(
-      `Tool \`with\` cannot be nested deeper than ${WORKFLOW_DOCUMENT_TOOL_WITH_MAX_DEPTH} levels.`,
+      `\`with\` cannot be nested deeper than ${WORKFLOW_DOCUMENT_TOOL_WITH_MAX_DEPTH} levels.`,
     );
   });
 
@@ -1630,7 +1630,7 @@ describe('workflowDocumentSchema', () => {
           (candidate) => candidate.path.join('.') === 'jobs.build.steps.0.with',
         );
     expect(issue?.message).toBe(
-      `Tool \`with\` cannot be nested deeper than ${WORKFLOW_DOCUMENT_TOOL_WITH_MAX_DEPTH} levels.`,
+      `\`with\` cannot be nested deeper than ${WORKFLOW_DOCUMENT_TOOL_WITH_MAX_DEPTH} levels.`,
     );
   });
 
@@ -1710,7 +1710,7 @@ describe('workflowDocumentSchema', () => {
 
     const issue = result.success ? undefined : result.error.issues[0];
     expect(issue?.message).toBe(
-      'A step must define either "run", an agent "prompt", a "checkout", or a "tool".',
+      'A step must define either "run", an agent "prompt", a "checkout", a "tool", or "uses".',
     );
   });
 

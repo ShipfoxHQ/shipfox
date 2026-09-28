@@ -1,0 +1,18 @@
+{
+  "name": "Slack thread to Markdown",
+  "description": "Saves every message of a Slack thread to a Markdown file.",
+  "main": "index.ts",
+  "inputs": {
+    "channel_id": { "required": true },
+    "thread_ts": { "required": true },
+    "destination": { "default": "context/slack-thread.md" }
+  },
+  "outputs": {
+    "path": { "required": true },
+    "message_count": { "type": "number", "required": true },
+    "complete": { "type": "boolean" }
+  },
+  "integrations": {
+    "slack": { "provider": "slack", "include": ["read_thread", "read_user_profile"] }
+  }
+}
