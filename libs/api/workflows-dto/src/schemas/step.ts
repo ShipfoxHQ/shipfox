@@ -24,6 +24,8 @@ export type StepStatusReasonDto = z.infer<typeof stepStatusReasonSchema>;
 // error and carries an `agent_config_issue`; the other reasons carry no issue code because
 // they describe the provider call, harness startup, or session claim. Aborts stop the loop
 // unless a session commit has completed, in which case the committed attempt is reported.
+// For action steps, `action_input_invalid` is a dispatch-time input coercion failure, and
+// `action_unavailable` means the runner could not get the action snapshot.
 export const stepErrorReasonSchema = z.enum([
   'checkout_failed',
   'checkout_auth_failed',
@@ -49,6 +51,8 @@ export const stepErrorReasonSchema = z.enum([
   'tool_error',
   'tool_config_invalid',
   'invocation_interrupted',
+  'action_input_invalid',
+  'action_unavailable',
   'gate_failed',
   'gate_uncheckable',
   'restart_unresolved',
@@ -66,6 +70,7 @@ const SETUP_ERROR_REASONS = new Set<StepErrorReasonDto>([
   'git_unavailable',
   'workspace_prep_failed',
   'setup_aborted',
+  'action_unavailable',
 ]);
 
 const PROVIDER_STEP_ERROR_CODES = ['provider_stream_interrupted'] as const;

@@ -3,9 +3,11 @@ import {
   type WorkflowJsonTemplateTree,
   type WorkflowJsonValue,
   type WorkflowModel,
+  type WorkflowModelAction,
 } from '@shipfox/api-definitions-dto';
 import {
   createWorkflowExpression,
+  type OutputDeclarations,
   parseWorkflowTemplate,
   planInterpolationField,
   type ResolvedFieldSegment,
@@ -56,7 +58,20 @@ interface TestToolStep extends TestWorkflowStepBase {
   readonly outputs?: Readonly<Record<string, string>> | undefined;
 }
 
-type TestWorkflowStep = TestRunStep | TestAgentStep | TestCheckoutStep | TestToolStep;
+interface TestActionStep extends TestWorkflowStepBase {
+  readonly uses: string;
+  readonly action?: Partial<Omit<WorkflowModelAction, 'uses'>> | undefined;
+  readonly with?: WorkflowJsonValue | undefined;
+  readonly env?: WorkflowModel['env'] | undefined;
+  readonly outputs?: OutputDeclarations | undefined;
+}
+
+export type TestWorkflowStep =
+  | TestRunStep
+  | TestAgentStep
+  | TestCheckoutStep
+  | TestToolStep
+  | TestActionStep;
 
 const DEFAULT_RUNNER_LABELS = ['ubuntu-latest'] as const;
 
@@ -197,6 +212,7 @@ function normalizeStep(step: TestWorkflowStep, jobId: string, stepIndex: number)
   if ('run' in step) return normalizeRunStep(step, base);
   if ('prompt' in step) return normalizeAgentStep(step, base);
   if ('tool' in step) return normalizeToolStep(step, base);
+  if ('uses' in step) return normalizeActionStep(step, base);
   return {...base, kind: 'checkout', checkout: step.checkout};
 }
 
@@ -236,6 +252,32 @@ function normalizeToolStep(step: TestToolStep, base: ReturnType<typeof stepBase>
     ...(step.with === undefined ? {} : {with: step.with}),
     ...(step.outputs === undefined ? {} : {outputMappings: outputMappings(step.outputs)}),
     ...optionalToolTemplates(step),
+  };
+}
+
+function normalizeActionStep(step: TestActionStep, base: ReturnType<typeof stepBase>): ModelStep {
+  const withTree = step.with === undefined ? undefined : withTemplateTree(step.with, 'action.with');
+  const env = envTemplates(step.env);
+  const templates = {
+    ...(withTree === undefined ? {} : {with: withTree}),
+    ...(env === undefined ? {} : {env}),
+  };
+  return {
+    ...base,
+    kind: 'action',
+    action: {
+      uses: step.uses,
+      digest: `sha256:${'0'.repeat(64)}`,
+      name: 'Test action',
+      main: 'index.ts',
+      inputs: {},
+      integrations: {},
+      ...step.action,
+    },
+    ...(step.with === undefined ? {} : {with: step.with}),
+    ...optionalStepEnv(step.env),
+    outputs: step.outputs ?? {},
+    ...(Object.keys(templates).length === 0 ? {} : {templates}),
   };
 }
 
@@ -347,7 +389,7 @@ function optionalAgentTemplates(step: TestAgentStep) {
 }
 
 function optionalToolTemplates(step: TestToolStep) {
-  const withTree = step.with === undefined ? undefined : withTemplateTree(step.with);
+  const withTree = step.with === undefined ? undefined : withTemplateTree(step.with, 'tool.with');
   const name = step.name === undefined ? undefined : fieldTemplate('step.name', step.name);
   if (withTree === undefined && name === undefined) return {};
   return {
@@ -358,20 +400,23 @@ function optionalToolTemplates(step: TestToolStep) {
   };
 }
 
-function withTemplateTree(value: WorkflowJsonValue): WorkflowJsonTemplateTree | undefined {
+function withTemplateTree(
+  value: WorkflowJsonValue,
+  field: 'tool.with' | 'action.with',
+): WorkflowJsonTemplateTree | undefined {
   if (Array.isArray(value)) {
-    const trees = value.map((child) => withTemplateTree(child));
+    const trees = value.map((child) => withTemplateTree(child, field));
     return trees.every((tree) => tree === undefined) ? undefined : trees;
   }
   if (typeof value === 'object' && value !== null) {
     const entries = Object.entries(value).flatMap(([key, child]) => {
-      const tree = withTemplateTree(child);
+      const tree = withTemplateTree(child, field);
       return tree === undefined ? [] : [[key, tree] as const];
     });
     return entries.length === 0 ? undefined : Object.fromEntries(entries);
   }
   if (typeof value !== 'string') return undefined;
-  return fieldTemplate('tool.with', value);
+  return fieldTemplate(field, value);
 }
 
 function outputMappings(outputs: Readonly<Record<string, string>>) {

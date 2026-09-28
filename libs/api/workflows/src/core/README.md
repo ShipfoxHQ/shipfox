@@ -39,6 +39,8 @@ Step config starts from the authored workflow model. Authoring validation record
 
 Fully resolved fields are frozen into `steps.config`. Deferred segments stay in the plan until their fill site. `completeStepDispatchConfig` handles the dispatch site, using the latest step context to finish server-side segments before the runner receives the step. Runner-only segments, such as secrets, remain references for runner fill and are never persisted as plaintext values.
 
+Action steps always keep a plan, because it carries the manifest input declarations. At dispatch, the `with` values are completed, defaults fill omitted inputs, and each value is coerced to its declared type. A value that fails coercion fails the attempt with `action_input_invalid`.
+
 The context wrapper is:
 
 ```ts

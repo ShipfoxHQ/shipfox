@@ -48,6 +48,7 @@ import type {
   StepStatusReason,
 } from './entities/step.js';
 import {
+  ActionInputInvalidError,
   AgentConfigUnresolvableError,
   AgentStepSessionClaimError,
   InterpolationUnresolvableError,
@@ -132,6 +133,7 @@ type DispatchConfigError =
   | AgentConfigUnresolvableError
   | AgentStepSessionClaimError
   | ToolConfigInvalidError
+  | ActionInputInvalidError
   | WorkflowExecutionPayloadTooLargeError;
 
 interface PendingStepDispatchParams {
@@ -920,6 +922,9 @@ function toDispatchConfigError(error: unknown): DispatchConfigError | null {
   const isToolConfigError = error instanceof ToolConfigInvalidError;
   if (isToolConfigError) return error;
 
+  const isActionInputError = error instanceof ActionInputInvalidError;
+  if (isActionInputError) return error;
+
   const isExecutionPayloadError = error instanceof WorkflowExecutionPayloadTooLargeError;
   if (isExecutionPayloadError) return error;
 
@@ -944,6 +949,16 @@ function dispatchConfigError(error: DispatchConfigError): Record<string, unknown
       source: 'tool',
       code: error.code,
       agentConfigIssue: 'step_config_invalid',
+    };
+  }
+
+  if (error instanceof ActionInputInvalidError) {
+    return {
+      message: error.message,
+      reason: 'action_input_invalid',
+      field: `action.with.${error.input}`,
+      source: 'action',
+      code: error.code,
     };
   }
 

@@ -48,7 +48,7 @@ const stepStatusSchema = z.enum([
   'skipped',
   'cancelled',
 ]);
-const stepTypeSchema = z.enum(['setup', 'run', 'agent', 'checkout', 'tool']);
+const stepTypeSchema = z.enum(['setup', 'run', 'agent', 'checkout', 'tool', 'action']);
 const stepErrorReasonSchema = z.enum([
   'checkout_failed',
   'checkout_auth_failed',
@@ -74,6 +74,8 @@ const stepErrorReasonSchema = z.enum([
   'tool_error',
   'tool_config_invalid',
   'invocation_interrupted',
+  'action_input_invalid',
+  'action_unavailable',
   'gate_failed',
   'gate_uncheckable',
   'restart_unresolved',

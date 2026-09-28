@@ -141,6 +141,14 @@ const STEP_FAILURE_COPY: Readonly<
     title: 'Tool configuration needs attention',
     description: 'Review the connection and tool inputs before trying again.',
   },
+  action_input_invalid: {
+    title: 'Action inputs need attention',
+    description: "Review the step's `with` values against the action's inputs before trying again.",
+  },
+  action_unavailable: {
+    title: 'Action code is unavailable',
+    description: 'The runner could not load the action code. Try again.',
+  },
   gate_failed: {
     title: 'Step validation failed',
     description:

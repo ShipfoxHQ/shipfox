@@ -33,7 +33,7 @@ import {agentTestClient, resolveTestAgentDefaults} from '#test/fixtures/agent-in
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {bulkUpdateJobStepStatuses} from '#test/helpers/workflow-runs.js';
-import {workflowModel} from '#test/index.js';
+import {type TestWorkflowStep, workflowModel} from '#test/index.js';
 import type {Step} from './entities/step.js';
 import {
   JobNotFoundError,
@@ -1692,6 +1692,100 @@ describe('recordStepResult', () => {
     expect(outcome).toEqual({jobFinished: true, status: 'succeeded'});
     const [attempt] = await getStepAttempts(jobId);
     expect(attempt?.output).toEqual({count: 'not typed', extra: 'allowed'});
+  });
+});
+
+describe('action steps', () => {
+  const inputs = {
+    limit: {type: 'number' as const, required: false, default: 200},
+  };
+
+  async function arrangeActionJob(
+    steps: readonly TestWorkflowStep[],
+  ): Promise<{jobId: string; steps: Step[]}> {
+    const run = await createWorkflowRun({
+      workspaceId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      definitionId: crypto.randomUUID(),
+      model: workflowModel({jobs: {build: {steps}}}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const jobId = (await getJobsByWorkflowRunId(run.id))[0]?.id as string;
+    await stripSetupStep(jobId);
+    return {jobId, steps: await getStepsByJobId(jobId)};
+  }
+
+  test('records an input that fails coercion at dispatch as a failed attempt', async () => {
+    const {jobId, steps} = await arrangeActionJob([
+      {key: 'count', run: 'echo count'},
+      {
+        key: 'export',
+        uses: './.shipfox/actions/export',
+        action: {inputs},
+        with: {limit: '$'.concat('{{ steps.count.outputs.limit }}')},
+      },
+    ]);
+    const [producer, action] = steps;
+    if (!producer || !action) throw new Error('Expected arranged steps');
+    await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: producer.id,
+      status: 'succeeded',
+      output: {limit: 'many'},
+    });
+
+    const next = await nextStepForJob(jobId);
+
+    const error = {
+      message: 'Action input "limit" must be a number value.',
+      reason: 'action_input_invalid',
+      field: 'action.with.limit',
+      source: 'action',
+      code: 'action_input_invalid',
+    };
+    expect(next).toEqual({kind: 'done', status: 'failed'});
+    expect((await getStepsByJobId(jobId))[1]).toMatchObject({status: 'failed', error});
+    const attempts = await getStepAttempts(jobId);
+    expect(attempts.find((attempt) => attempt.stepId === action.id)).toMatchObject({
+      status: 'failed',
+      error,
+    });
+  });
+
+  test('succeeds when the report omits an optional output', async () => {
+    const {jobId, steps} = await arrangeActionJob([
+      {
+        uses: './.shipfox/actions/export',
+        action: {inputs},
+        outputs: {
+          path: {type: 'string', required: true},
+          complete: {type: 'boolean', required: false},
+        },
+      },
+    ]);
+    const stepId = steps[0]?.id as string;
+
+    const next = await nextStepForJob(jobId);
+    const outcome = await recordStepResult({
+      jobId,
+      stepId,
+      status: 'succeeded',
+      output: {path: 'context/export.md'},
+    });
+
+    expect(next).toMatchObject({
+      kind: 'step',
+      step: {type: 'action', config: {inputs: {limit: 200}}},
+    });
+    expect(outcome).toEqual({jobFinished: true, status: 'succeeded'});
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({status: 'succeeded', output: {path: 'context/export.md'}});
   });
 });
 

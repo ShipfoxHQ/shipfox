@@ -782,6 +782,12 @@ function collectStepVariableReferences(
     case 'tool':
       collectToolStepVariableReferences(step, references);
       return;
+    case 'action':
+      collectTemplateTreeVariableReferences(step.templates?.with, references, {
+        field: 'action.with',
+      });
+      collectTemplateVariableReferences(step.templates?.env, references);
+      return;
     case 'checkout':
       for (const [key, field] of WORKFLOW_MODEL_CHECKOUT_TARGET_FIELDS) {
         collectFieldVariableReferences(step.checkout.templates?.[key], references, {field});

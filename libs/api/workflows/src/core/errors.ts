@@ -110,6 +110,18 @@ export class ToolConfigInvalidError extends Error {
   }
 }
 
+export class ActionInputInvalidError extends Error {
+  readonly code = 'action_input_invalid';
+
+  constructor(
+    message: string,
+    readonly input: string,
+  ) {
+    super(message);
+    this.name = 'ActionInputInvalidError';
+  }
+}
+
 export type InterpolationUnresolvableField =
   | 'run'
   | 'env'
@@ -129,6 +141,7 @@ export type InterpolationUnresolvableField =
   | 'step.feedback'
   | 'tool.with'
   | 'tool.outputs'
+  | 'action.with'
   | 'checkout.project'
   | 'checkout.connection'
   | 'checkout.repository'

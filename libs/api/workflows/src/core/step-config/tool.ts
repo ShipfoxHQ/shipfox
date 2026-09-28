@@ -6,9 +6,9 @@ import type {
   MaterializedToolStep,
 } from '#core/agent-tools.js';
 import {materializeToolStep} from '#core/agent-tools.js';
-import type {StepConfigDispatchPlan} from '#core/entities/step.js';
+import type {PersistedEvaluationTraceEntry, StepConfigDispatchPlan} from '#core/entities/step.js';
 import {ToolConfigInvalidError} from '#core/errors.js';
-import {resolveStepFieldWithType} from './fields.js';
+import {completeStepFieldWithTypeAndTrace, resolveStepFieldWithType} from './fields.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 type Job = WorkflowModel['jobs'][number];
@@ -44,6 +44,7 @@ export function resolveToolStepConfig(params: {
     tree === undefined || params.mode === 'authored'
       ? {value: withValue}
       : resolveWith({
+          field: 'tool.with',
           value: withValue,
           tree,
           context: params.context,
@@ -91,7 +92,10 @@ export function resolveToolStepConfig(params: {
   };
 }
 
-function resolveWith(params: {
+export type WithField = 'tool.with' | 'action.with';
+
+export function resolveWith(params: {
+  field: WithField;
   value: unknown;
   tree: WorkflowJsonTemplateTree;
   context: WorkflowEvaluationContext;
@@ -103,7 +107,7 @@ function resolveWith(params: {
   if (typeof params.tree === 'object' && params.tree !== null) {
     return resolveWithObject(params);
   }
-  throw new Error('Invalid tool input template tree');
+  throw new Error(`Invalid ${params.field} template tree`);
 }
 
 type ResolveWithParams = Parameters<typeof resolveWith>[0];
@@ -111,17 +115,17 @@ type ResolveWithResult = ReturnType<typeof resolveWith>;
 
 function resolveWithField(params: ResolveWithParams): ResolveWithResult {
   const resolved = resolveStepFieldWithType({
-    field: 'tool.with',
+    field: params.field,
     template: {segments: params.tree as readonly ResolvedFieldSegment[]},
     context: params.context,
     definitionId: params.definitionId,
-    errorField: 'tool.with',
+    errorField: params.field,
   });
   if (resolved.kind === 'frozen') return {value: normalizeCelIntegersForJson(resolved.value)};
   return {value: undefined, plan: resolved.field.segments};
 }
 
-function normalizeCelIntegersForJson(value: unknown): unknown {
+export function normalizeCelIntegersForJson(value: unknown): unknown {
   if (typeof value === 'bigint') {
     const numberValue = Number(value);
     return Number.isSafeInteger(numberValue) ? numberValue : value.toString();
@@ -168,6 +172,48 @@ function resolveWithObject(params: ResolveWithParams): ResolveWithResult {
     hasPlan = true;
   }
   return {value: values, ...(hasPlan ? {plan: plans} : {})};
+}
+
+/** Fills the dispatch-time `with` plan over the values frozen at materialization. */
+export function completeWith(
+  base: unknown,
+  plan: WorkflowJsonTemplateTree | null | undefined,
+  params: {
+    readonly field: WithField;
+    readonly context: WorkflowEvaluationContext;
+    readonly definitionId: string;
+    readonly trace: PersistedEvaluationTraceEntry[];
+  },
+): unknown {
+  if (plan === undefined || plan === null) return base;
+  const {field} = params;
+  if (isFieldTemplate(plan)) {
+    const resolved = completeStepFieldWithTypeAndTrace({
+      field,
+      template: {segments: plan},
+      context: params.context,
+      definitionId: params.definitionId,
+      errorField: field,
+    });
+    params.trace.push(...resolved.trace.map((entry) => ({...entry, field})));
+    return resolved.value;
+  }
+  if (Array.isArray(plan)) {
+    const values = Array.isArray(base) ? [...base] : [];
+    plan.forEach((child, index) => {
+      if (child !== undefined) values[index] = completeWith(values[index], child, params);
+    });
+    return values;
+  }
+  if (typeof plan === 'object' && !('segments' in plan)) {
+    const source = objectWithValue(base);
+    const values = {...source};
+    for (const [key, child] of Object.entries(plan)) {
+      if (child !== undefined) values[key] = completeWith(source[key], child, params);
+    }
+    return values;
+  }
+  throw new ToolConfigInvalidError(`${field} template plan is invalid`);
 }
 
 function objectWithValue(value: unknown): Record<string, unknown> {

@@ -40,7 +40,7 @@ const stepStatusSchema = z.enum([
   'skipped',
 ]);
 
-const stepTypeSchema = z.enum(['setup', 'run', 'agent', 'checkout', 'tool']);
+const stepTypeSchema = z.enum(['setup', 'run', 'agent', 'checkout', 'tool', 'action']);
 
 const stepGateResultSummarySchema = z
   .union([stepGateResultDtoSchema.unwrap(), z.object({kind: z.literal('unknown')})])

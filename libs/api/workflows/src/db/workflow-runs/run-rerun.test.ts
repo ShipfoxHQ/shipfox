@@ -867,6 +867,47 @@ describe('workflow run queries', () => {
       expect(reloadedRerunAttempt?.model).toEqual(sourceAttempt?.model);
     });
 
+    test('reruns run the same action snapshot as the source attempt', async () => {
+      const digest = `sha256:${'b'.repeat(64)}`;
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {steps: [{key: 'export', uses: './.shipfox/actions/export', action: {digest}}]},
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      await markJob(await getJobsByWorkflowRunId(source.id), 'build', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'failed',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const rerunJob = (await getJobsByWorkflowRunId(source.id)).find((job) => job.key === 'build');
+      const rerunStep = (await getStepsByJobId(rerunJob?.id as string)).find(
+        (step) => step.key === 'export',
+      );
+      expect(rerunStep).toMatchObject({
+        type: 'action',
+        config: {action: {uses: './.shipfox/actions/export', digest}},
+      });
+    });
+
     test('failed and full reruns preserve the materialized gate attempt limit', async () => {
       async function createTerminalGatedSourceRun() {
         const source = await createWorkflowRun({

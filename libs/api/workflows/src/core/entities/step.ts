@@ -2,7 +2,10 @@ import type {
   AgentIntegrationMcpServerConfigDto,
   MaterializedAgentIntegrationConfigDto,
 } from '@shipfox/api-agent-dto';
-import type {WorkflowJsonTemplateTree} from '@shipfox/api-definitions-dto';
+import type {
+  WorkflowJsonTemplateTree,
+  WorkflowModelActionInput,
+} from '@shipfox/api-definitions-dto';
 import type {
   EvaluationTraceEntry,
   EvaluationTraceLimitEntry,
@@ -14,7 +17,7 @@ import type {InterpolationUnresolvableField} from '../errors.js';
 
 export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'skipped';
 
-export const STEP_TYPES = ['setup', 'run', 'agent', 'checkout', 'tool'] as const;
+export const STEP_TYPES = ['setup', 'run', 'agent', 'checkout', 'tool', 'action'] as const;
 
 export type StepType = (typeof STEP_TYPES)[number];
 
@@ -93,6 +96,12 @@ export interface StepConfigDispatchPlan {
     path?: ResolvedField;
   };
   tool?: {
+    with?: WorkflowJsonTemplateTree;
+  };
+  // Always present on action steps: dispatch applies input defaults and types
+  // from these declarations, even when every `with` value is a literal.
+  action?: {
+    inputs: Readonly<Record<string, WorkflowModelActionInput>>;
     with?: WorkflowJsonTemplateTree;
   };
   agent?: {

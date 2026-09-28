@@ -29,6 +29,7 @@ import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelStep = WorkflowModelJob['steps'][number];
 type WorkflowModelRunStep = Extract<WorkflowModelStep, {kind: 'run'}>;
+type WorkflowModelActionStep = Extract<WorkflowModelStep, {kind: 'action'}>;
 
 export type StepConfigMode = 'effective' | 'authored';
 
@@ -59,8 +60,7 @@ export interface RunStepConfig {
 }
 
 export function resolveRunStepConfig(params: ResolveRunStepConfigParams): RunStepConfig {
-  const env = winningEnv(params);
-  const envResolution = resolveEnv(env, params.context, params.mode, params.definitionId);
+  const envResolution = resolveStepEnv(params);
   const commandResolution = resolveCommand({
     step: params.step,
     envKeys: [...Object.keys(envResolution.env), ...Object.keys(envResolution.configPlan)],
@@ -332,6 +332,15 @@ function hoistCommand(
   }
 }
 
+/** Merges workflow, job, and step `env`, resolving what the current site can fill. */
+export function resolveStepEnv(
+  params: Omit<ResolveRunStepConfigParams, 'step'> & {
+    readonly step: WorkflowModelRunStep | WorkflowModelActionStep;
+  },
+): ReturnType<typeof resolveEnv> {
+  return resolveEnv(winningEnv(params), params.context, params.mode, params.definitionId);
+}
+
 function resolveEnv(
   env: Readonly<Record<string, WinningEnvValue>>,
   context: WorkflowEvaluationContext,
@@ -427,10 +436,8 @@ function winningEnv(params: {
   readonly workflowEnvTemplates: WorkflowEnvTemplates | undefined;
   readonly jobEnv: WorkflowModelJob['env'];
   readonly jobEnvTemplates: WorkflowEnvTemplates | undefined;
-  readonly step: WorkflowModelStep;
+  readonly step: WorkflowModelRunStep | WorkflowModelActionStep;
 }): Readonly<Record<string, WinningEnvValue>> {
-  if (params.step.kind !== 'run') return {};
-
   return mergeEnvLayers(
     {env: params.workflowEnv, templates: params.workflowEnvTemplates},
     {env: params.jobEnv, templates: params.jobEnvTemplates},
