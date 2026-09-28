@@ -2,7 +2,10 @@ import {authInterModuleContract} from '@shipfox/api-auth-dto/inter-module';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
+import {eq} from 'drizzle-orm';
 import {createAdminGrant} from '#db/admin-grants.js';
+import {db} from '#db/db.js';
+import {users} from '#db/schema/users.js';
 import {userFactory} from '#test/index.js';
 import {createAuthInterModulePresentation} from './inter-module.js';
 
@@ -39,6 +42,44 @@ describe('Auth inter-module administration role presentation', () => {
     const client = createClient();
 
     await expect(client.getUserSummary({userId: crypto.randomUUID()})).resolves.toBeUndefined();
+  });
+
+  test('returns a user summary by email', async () => {
+    const client = createClient();
+    const user = await userFactory.create({name: 'Email Summary User'});
+
+    await expect(client.getUserSummaryByEmail({email: user.email})).resolves.toEqual({
+      id: user.id,
+      email: user.email,
+      name: 'Email Summary User',
+    });
+  });
+
+  test('returns null for a missing email summary', async () => {
+    const client = createClient();
+
+    await expect(
+      client.getUserSummaryByEmail({email: `missing-${crypto.randomUUID()}@example.com`}),
+    ).resolves.toBeNull();
+  });
+
+  test('normalizes the email before looking up a summary', async () => {
+    const client = createClient();
+    const user = await userFactory.create({name: 'Case Summary User'});
+
+    await expect(client.getUserSummaryByEmail({email: user.email.toUpperCase()})).resolves.toEqual({
+      id: user.id,
+      email: user.email,
+      name: 'Case Summary User',
+    });
+  });
+
+  test('returns null for a deleted user email', async () => {
+    const client = createClient();
+    const user = await userFactory.create({name: 'Deleted Summary User'});
+    await db().update(users).set({status: 'deleted'}).where(eq(users.id, user.id));
+
+    await expect(client.getUserSummaryByEmail({email: user.email})).resolves.toBeNull();
   });
 
   test('returns the current role from Auth storage', async () => {

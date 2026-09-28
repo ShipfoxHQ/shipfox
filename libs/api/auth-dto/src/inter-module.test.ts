@@ -34,6 +34,15 @@ describe('Auth inter-module subject summary contract', () => {
     ).toEqual({id: userId, email: 'alex@example.com', name: 'Alex Shipfox'});
     expect(summaryMethod.output.parse(undefined)).toBeUndefined();
   });
+
+  it('normalizes email lookup input and accepts a missing result', () => {
+    const summaryMethod = authInterModuleContract.methods.getUserSummaryByEmail;
+
+    expect(summaryMethod.input.parse({email: ' Alex@Example.COM '})).toEqual({
+      email: 'alex@example.com',
+    });
+    expect(summaryMethod.output.parse(null)).toBeNull();
+  });
 });
 
 describe('Auth impersonation eligibility inter-module contract', () => {

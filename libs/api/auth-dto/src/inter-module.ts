@@ -1,3 +1,4 @@
+import {emailSchema} from '@shipfox/api-common-dto';
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
 import {z} from 'zod';
 import {adminRoleSchema} from './schemas/admin.js';
@@ -143,6 +144,10 @@ export const authInterModuleContract = defineInterModuleContract({
     getUserSummary: {
       input: z.object({userId: idSchema}),
       output: userSummaryInterModuleSchema.optional(),
+    },
+    getUserSummaryByEmail: {
+      input: z.object({email: emailSchema}),
+      output: userSummaryInterModuleSchema.nullable(),
     },
     getCurrentAdminRole: {
       input: z.object({userId: z.string().uuid()}),

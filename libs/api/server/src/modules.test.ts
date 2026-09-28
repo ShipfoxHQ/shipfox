@@ -54,6 +54,7 @@ const mocks = vi.hoisted(() => ({
   getIntegrationConnectionById: vi.fn(),
   getSecret: vi.fn(),
   getUserSummary: vi.fn(),
+  getUserSummaryByEmail: vi.fn(),
   getSecretsByNamespace: vi.fn(),
   getWorkspaceCreator: vi.fn(),
   getWorkspaceOperatingState: vi.fn(),
@@ -145,6 +146,7 @@ describe('defaultModules', () => {
     mocks.getIntegrationConnectionById.mockReset();
     mocks.getSecret.mockReset();
     mocks.getUserSummary.mockReset();
+    mocks.getUserSummaryByEmail.mockReset();
     mocks.getSecretsByNamespace.mockReset();
     mocks.getWorkspaceCreator.mockReset();
     mocks.getWorkspaceSummary.mockReset();
@@ -203,6 +205,7 @@ describe('defaultModules', () => {
             checkAgentGrantAuthority: vi.fn(),
             getCurrentAdminRole: vi.fn(),
             getUserSummary: mocks.getUserSummary,
+            getUserSummaryByEmail: mocks.getUserSummaryByEmail,
             requireAdminRole: vi.fn(),
             listImpersonationEligibleUserSummaries: vi.fn(),
           },
@@ -217,6 +220,7 @@ describe('defaultModules', () => {
     mocks.getWorkspaceCreator.mockResolvedValue({creatorUserId: null});
     mocks.getWorkspaceSummary.mockResolvedValue(undefined);
     mocks.getUserSummary.mockResolvedValue(undefined);
+    mocks.getUserSummaryByEmail.mockResolvedValue(null);
     mocks.setSecrets.mockResolvedValue({});
     mocks.createProjectsModule.mockReturnValue({
       name: 'projects',
@@ -830,7 +834,7 @@ describe('defaultModules', () => {
       ({
         workspaces,
       }: {
-        auth: Pick<AuthInterModuleClient, 'getUserSummary'>;
+        auth: Pick<AuthInterModuleClient, 'getUserSummary' | 'getUserSummaryByEmail'>;
         workspaces: WorkspacesInterModuleClient;
         usage: UsageModuleClient;
       }) => {
@@ -936,12 +940,12 @@ describe('defaultModules', () => {
   });
 
   it('extends the default module list with the composed subject clients', async () => {
-    let auth: Pick<AuthInterModuleClient, 'getUserSummary'> | undefined;
+    let auth: Pick<AuthInterModuleClient, 'getUserSummary' | 'getUserSummaryByEmail'> | undefined;
     let workspaces: WorkspacesInterModuleClient | undefined;
     const extensionModule = {name: 'cloud'};
     const extension = vi.fn(
       (options: {
-        auth: Pick<AuthInterModuleClient, 'getUserSummary'>;
+        auth: Pick<AuthInterModuleClient, 'getUserSummary' | 'getUserSummaryByEmail'>;
         workspaces: WorkspacesInterModuleClient;
         usage: UsageModuleClient;
       }) => {
@@ -962,6 +966,7 @@ describe('defaultModules', () => {
     const memberships = await workspaces?.listMembershipsForTokenClaims({userId});
     const workspaceSummary = await workspaces?.getWorkspaceSummary({workspaceId});
     const summary = await auth?.getUserSummary({userId});
+    const summaryByEmail = await auth?.getUserSummaryByEmail({email: 'extension@example.com'});
 
     expect(extension).toHaveBeenCalledWith({
       auth: expect.any(Object),
@@ -977,6 +982,7 @@ describe('defaultModules', () => {
       email: 'extension@example.com',
       name: 'Extension User',
     });
+    expect(summaryByEmail).toBeNull();
 
     expect(mocks.listMembershipsForTokenClaims).toHaveBeenCalledWith(
       {userId},
