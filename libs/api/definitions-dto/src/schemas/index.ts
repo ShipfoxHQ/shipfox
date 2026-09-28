@@ -1,4 +1,9 @@
 export {
+  type ActionUploadDto,
+  actionUploadsSchema,
+  MAX_LOCAL_UPLOAD_BYTES,
+} from './action-uploads.js';
+export {
   type CreateDefinitionBodyDto,
   createDefinitionBodySchema,
   DEFINITION_SYNC_DIAGNOSTIC_FILE_PATH_MAX_LENGTH,

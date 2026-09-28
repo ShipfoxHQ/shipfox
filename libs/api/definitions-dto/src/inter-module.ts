@@ -1,6 +1,7 @@
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
 import {actionBundleDigestSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
+import {actionUploadsSchema} from '#schemas/action-uploads.js';
 import {
   DEFINITION_SYNC_LAST_ERROR_MESSAGE_MAX_LENGTH,
   definitionValidationErrorSchema,
@@ -169,6 +170,8 @@ export const definitionsInterModuleContract = defineInterModuleContract({
           configPath: configPathSchema,
           content: z.string().optional(),
           expectedCommit: z.string().optional(),
+          /** Replace the ref's copy of each action directory they name. */
+          actions: actionUploadsSchema.optional(),
         })
         .superRefine(({content, ref, expectedCommit}, ctx) => {
           if (ref === undefined && content === undefined) {

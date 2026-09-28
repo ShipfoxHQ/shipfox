@@ -9,6 +9,7 @@ import {eq, sql} from 'drizzle-orm';
 import {DefinitionAtRefError} from '#core/errors.js';
 import {listDefinitionsAtRef, resolveDefinitionAtRef} from '#core/resolve-definition-at-ref.js';
 import {db} from '#db/db.js';
+import {definitionActionSnapshots} from '#db/schema/action-snapshots.js';
 import {workflowDefinitions} from '#db/schema/definitions.js';
 import {definitionsOutbox} from '#db/schema/outbox.js';
 import {workflowWorkflows} from '#db/schema/workflows.js';
@@ -1118,5 +1119,253 @@ describe('listDefinitionsAtRef', () => {
       }),
       'project-not-found',
     );
+  });
+});
+
+describe('resolveDefinitionAtRef with actions', () => {
+  const NOTIFY = './.shipfox/actions/notify';
+  const REPORT = './.shipfox/actions/report';
+
+  const actionWorkflowYaml = `
+name: Actions
+runner: ubuntu-latest
+triggers:
+  on_demand:
+    source: manual
+    event: fire
+jobs:
+  build:
+    steps:
+      - uses: ${NOTIFY}
+`;
+
+  const twoActionsYaml = `${actionWorkflowYaml}      - uses: ${REPORT}
+`;
+
+  function actionRepository(overrides: Record<string, string> = {}): Record<string, string> {
+    return {
+      [CONFIG_PATH]: actionWorkflowYaml,
+      '.shipfox/actions/notify/action.yml': 'name: Notify\nmain: index.ts\n',
+      '.shipfox/actions/notify/index.ts': "import {format} from './lib/format.ts';\n",
+      '.shipfox/actions/notify/lib/format.ts': 'export const format = 1;\n',
+      '.shipfox/actions/report/action.yml': 'name: Report\nmain: index.js\n',
+      '.shipfox/actions/report/index.js': 'console.log(1);\n',
+      ...overrides,
+    };
+  }
+
+  function clientsFor(repository: Record<string, string>) {
+    const projectId = crypto.randomUUID();
+    const workspaceId = crypto.randomUUID();
+    const clients = makeClients(projectId, workspaceId);
+    vi.mocked(clients.integrations.listSourceFiles).mockImplementation(async ({prefix}) => ({
+      files: Object.entries(repository)
+        .filter(([path]) => path.startsWith(prefix ?? ''))
+        .map(([path, content]) => ({
+          path,
+          type: 'file' as const,
+          size: Buffer.byteLength(content, 'utf8'),
+        })),
+      nextCursor: null,
+    }));
+    vi.mocked(clients.integrations.fetchSourceFile).mockImplementation(async ({path, ref}) => ({
+      path,
+      ref,
+      content: repository[path] ?? '',
+    }));
+    return {projectId, workspaceId, clients};
+  }
+
+  async function snapshotRows(workspaceId: string) {
+    return await db()
+      .select({
+        source: definitionActionSnapshots.source,
+        fileCount: definitionActionSnapshots.fileCount,
+        manifest: definitionActionSnapshots.manifest,
+      })
+      .from(definitionActionSnapshots)
+      .where(eq(definitionActionSnapshots.workspaceId, workspaceId));
+  }
+
+  const uploadedNotify = {
+    path: NOTIFY,
+    files: [
+      {path: 'action.yml', content: 'name: Uploaded notify\nmain: index.ts\n'},
+      {path: 'index.ts', content: 'console.log(2);\n'},
+    ],
+  };
+
+  test('reads referenced actions at the pinned commit', async () => {
+    const {projectId, workspaceId, clients} = clientsFor(actionRepository());
+
+    const result = await resolveDefinitionAtRef({
+      projectId,
+      ref: 'fix-branch',
+      configPath: CONFIG_PATH,
+      actionsEnabled: true,
+      ...clients,
+    });
+
+    expect(clients.integrations.listSourceFiles).toHaveBeenCalledWith(
+      expect.objectContaining({prefix: '.shipfox/actions/notify/', ref: COMMIT}),
+    );
+    expect(JSON.stringify(result.model)).toContain('"kind":"action"');
+    expect(result.warnings).toEqual([]);
+    expect(await snapshotRows(workspaceId)).toEqual([
+      expect.objectContaining({source: 'vcs', fileCount: 3}),
+    ]);
+  });
+
+  test('replaces uploaded directories and reads the others from the ref', async () => {
+    const {projectId, workspaceId, clients} = clientsFor(actionRepository());
+
+    await resolveDefinitionAtRef({
+      projectId,
+      configPath: CONFIG_PATH,
+      content: twoActionsYaml,
+      actions: [uploadedNotify],
+      actionsEnabled: true,
+      ...clients,
+    });
+
+    expect(clients.integrations.listSourceFiles).toHaveBeenCalledOnce();
+    expect(clients.integrations.listSourceFiles).toHaveBeenCalledWith(
+      expect.objectContaining({prefix: '.shipfox/actions/report/', ref: COMMIT}),
+    );
+    const rows = await snapshotRows(workspaceId);
+    expect(rows).toHaveLength(2);
+    // The upload's two files, not the three at the ref: nothing is merged.
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: 'dev_local',
+          fileCount: 2,
+          manifest: expect.objectContaining({name: 'Uploaded notify'}),
+        }),
+        expect.objectContaining({
+          source: 'vcs',
+          manifest: expect.objectContaining({name: 'Report'}),
+        }),
+      ]),
+    );
+  });
+
+  test('names the missing helper of a partial upload', async () => {
+    const {projectId, workspaceId, clients} = clientsFor(actionRepository());
+
+    const error = await expectRefError(
+      resolveDefinitionAtRef({
+        projectId,
+        configPath: CONFIG_PATH,
+        content: actionWorkflowYaml,
+        actions: [
+          {
+            path: NOTIFY,
+            files: [
+              {path: 'action.yml', content: 'name: Notify\nmain: index.ts\n'},
+              {path: 'index.ts', content: "import {format} from './lib/format.ts';\n"},
+            ],
+          },
+        ],
+        actionsEnabled: true,
+        ...clients,
+      }),
+      'invalid-definition',
+    );
+
+    expect(error.details.errors).toEqual([
+      {message: `Action ${NOTIFY}: index.ts imports ./lib/format.ts, which is not in the action`},
+    ]);
+    expect(await snapshotRows(workspaceId)).toEqual([]);
+    expect(await countLineageRows(projectId)).toHaveLength(0);
+  });
+
+  test('warns about an upload no step uses', async () => {
+    const {projectId, clients} = clientsFor(actionRepository());
+
+    const result = await resolveDefinitionAtRef({
+      projectId,
+      configPath: CONFIG_PATH,
+      content: actionWorkflowYaml,
+      actions: [{...uploadedNotify, path: REPORT}],
+      actionsEnabled: true,
+      ...clients,
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        code: 'action-upload-unused',
+        message: `Uploaded action ${REPORT} is not used by any step`,
+      },
+    ]);
+  });
+
+  test('caps content and action files at 1 MiB combined', async () => {
+    const {projectId, clients} = clientsFor(actionRepository());
+    const half = 'a'.repeat(512 * 1024);
+
+    const error = await expectRefError(
+      resolveDefinitionAtRef({
+        projectId,
+        configPath: CONFIG_PATH,
+        content: actionWorkflowYaml,
+        actions: [
+          {
+            path: NOTIFY,
+            files: [
+              {path: 'action.yml', content: 'name: Notify\nmain: index.ts\n'},
+              {path: 'index.ts', content: half},
+              {path: 'other.ts', content: half},
+            ],
+          },
+        ],
+        actionsEnabled: true,
+        ...clients,
+      }),
+      'content-too-large',
+    );
+
+    expect(error.details).toEqual({configPath: CONFIG_PATH});
+    expect(clients.projects.getProjectById).not.toHaveBeenCalled();
+  });
+
+  test('applies the sync file limit to an uploaded action', async () => {
+    const {projectId, clients} = clientsFor(actionRepository());
+    const files = Array.from({length: 101}, (_, index) => ({
+      path: `file-${index}.ts`,
+      content: '',
+    }));
+
+    const error = await expectRefError(
+      resolveDefinitionAtRef({
+        projectId,
+        configPath: CONFIG_PATH,
+        content: actionWorkflowYaml,
+        actions: [{path: NOTIFY, files}],
+        actionsEnabled: true,
+        ...clients,
+      }),
+      'invalid-definition',
+    );
+
+    expect(error.details.errors).toEqual([{message: `Action ${NOTIFY} has more than 100 files`}]);
+  });
+
+  test('rejects uses when actions are disabled', async () => {
+    const {projectId, workspaceId, clients} = clientsFor(actionRepository());
+
+    await expectRefError(
+      resolveDefinitionAtRef({
+        projectId,
+        ref: 'fix-branch',
+        configPath: CONFIG_PATH,
+        actionsEnabled: false,
+        ...clients,
+      }),
+      'invalid-definition',
+    );
+
+    expect(clients.integrations.listSourceFiles).not.toHaveBeenCalled();
+    expect(await snapshotRows(workspaceId)).toEqual([]);
   });
 });

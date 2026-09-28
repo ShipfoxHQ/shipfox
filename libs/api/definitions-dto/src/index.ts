@@ -1,4 +1,6 @@
 export {
+  type ActionUploadDto,
+  actionUploadsSchema,
   type CreateDefinitionBodyDto,
   createDefinitionBodySchema,
   DEFINITION_SYNC_DIAGNOSTIC_FILE_PATH_MAX_LENGTH,
@@ -29,6 +31,7 @@ export {
   definitionValidationDiagnosticSchema,
   definitionValidationErrorSchema,
   definitionValidationWarningSchema,
+  MAX_LOCAL_UPLOAD_BYTES,
   MAX_WORKFLOW_FILE_BYTES,
   type TriggerDto,
 } from '#schemas/index.js';

@@ -11,6 +11,7 @@ import {
   DEFINITION_SYNC_WARNING_CODE_MAX_LENGTH,
   DEFINITION_SYNC_WARNING_MESSAGE_MAX_LENGTH,
   DEFINITION_SYNC_WARNING_PATH_MAX_LENGTH,
+  MAX_LOCAL_UPLOAD_BYTES,
 } from '@shipfox/api-definitions-dto';
 import {
   type IntegrationsModuleClient,
@@ -19,11 +20,18 @@ import {
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {boundedMap} from '@shipfox/node-module';
+import type {ActionBundleFile, WorkflowDocument} from '@shipfox/workflow-document';
+import {upsertActionSnapshot} from '#db/action-snapshots.js';
 import {definitionTriggersFor} from '#db/definition-triggers.js';
 import {findOrCreateWorkflowLineage} from '#db/definitions.js';
 import {recordDefinitionRefResolution} from '#metrics/index.js';
+import {definitionActionsEnabled} from '../config.js';
+import {checkActionImports} from './check-action-imports.js';
+import {collectActionReferences} from './collect-action-references.js';
+import type {ResolvedActions} from './entities/action-snapshot.js';
 import type {ValidationDiagnostic} from './entities/validation-diagnostic.js';
 import {
+  ActionResolutionError,
   DefinitionAtRefError,
   type DefinitionAtRefErrorCode,
   DefinitionParseError,
@@ -34,8 +42,9 @@ import {
   loadIntegrationValidationContext,
 } from './integrations.js';
 import {needsIntegrationValidationContext} from './needs-integration-validation-context.js';
-import type {ParsedDefinition} from './parse-definition.js';
+import type {ParseDefinitionOptions, ParsedDefinition} from './parse-definition.js';
 import {parseDefinitionWithDiagnostics} from './parse-definition.js';
+import {type ResolvedAction, resolveWorkflowActions} from './resolve-actions.js';
 import {
   DEFAULT_WORKFLOW_PATH,
   isWorkflowFile,
@@ -43,8 +52,16 @@ import {
   MAX_WORKFLOW_FILES,
 } from './sync-definitions.js';
 import type {ValidationError} from './validate-definition.js';
+import {parseWorkflowYaml} from './workflow-yaml/index.js';
 
 const MAX_LOCAL_WORKFLOW_CONTENT_BYTES = 256 * 1024;
+
+export interface ActionUpload {
+  /** The `uses` path the upload replaces, for example `./.shipfox/actions/notify`. */
+  path: string;
+  /** Every file of the directory, relative to it. */
+  files: ActionBundleFile[];
+}
 
 export interface ResolveDefinitionAtRefParams {
   projectId: string;
@@ -52,6 +69,10 @@ export interface ResolveDefinitionAtRefParams {
   configPath: string;
   content?: string | undefined;
   expectedCommit?: string | undefined;
+  /** Each upload replaces the ref's copy of its action directory completely. */
+  actions?: readonly ActionUpload[] | undefined;
+  /** Accepts action steps (`uses`). Defaults to `DEFINITION_ACTIONS_ENABLED`. */
+  actionsEnabled?: boolean | undefined;
   projects: ProjectsModuleClient;
   agent: AgentInterModuleClient;
   integrations: IntegrationsModuleClient;
@@ -113,8 +134,10 @@ interface ResolvedProjectSource {
 /**
  * Resolves a workflow definition at a git ref without persisting it.
  * The ref is pinned to a commit and the content is validated with the sync
- * pipeline. Only the workflow lineage row is created so the dev run can be
- * numbered; no definition row and no outbox event are written.
+ * pipeline. Referenced actions are read at that commit unless uploaded. Only
+ * the workflow lineage row and the action snapshots are written, so the dev
+ * run can be numbered and its runner can fetch the action code; no definition
+ * row and no outbox event are written.
  */
 export async function resolveDefinitionAtRef(
   params: ResolveDefinitionAtRefParams,
@@ -133,6 +156,8 @@ async function resolveDefinitionAtRefUnsafe(
   params: ResolveDefinitionAtRefParams,
 ): Promise<ResolvedDefinitionAtRef> {
   throwIfAborted(params.signal);
+  const uploads = params.actions ?? [];
+  assertLocalUploadSize({content: params.content, uploads, configPath: params.configPath});
   const source = await requireProjectSource(
     params.projects,
     params.projectId,
@@ -174,14 +199,53 @@ async function resolveDefinitionAtRefUnsafe(
       : {path: params.configPath, content: params.content};
   assertFileSize(snapshot.content, snapshot.path, params.content !== undefined);
 
+  const agentValidationCatalog = await callWithSignal(
+    params.agent.getValidationCatalogV2,
+    {workspaceId: source.workspaceId},
+    params.signal,
+  );
+  throwIfAborted(params.signal);
+  const actionsEnabled = params.actionsEnabled ?? definitionActionsEnabled;
+  const document = parseWorkflowDocumentAtRef(snapshot.content, {
+    agentValidationCatalog,
+    actionsEnabled,
+  });
+  const uploadedPaths = new Set(uploads.map((upload) => upload.path));
+  const actions = await resolveDevRunActions({
+    integrations: params.integrations,
+    source,
+    commit: resolved.commit,
+    configPath: params.configPath,
+    document,
+    uploads: new Map(uploads.map((upload) => [upload.path, upload.files])),
+    signal: params.signal,
+  });
+  const actionManifests: ResolvedActions = new Map(
+    [...actions].map(([uses, action]) => [
+      uses,
+      {manifest: action.manifest, digest: action.bundle.digest},
+    ]),
+  );
+
   const parsed = await parseDefinitionAtRef({
     content: snapshot.content,
-    agent: params.agent,
+    document,
+    options: {agentValidationCatalog, actionsEnabled, actionManifests},
     integrations: params.integrations,
     source,
     signal: params.signal,
   });
   throwIfAborted(params.signal);
+  // The model references snapshots by digest, so they exist before the run does.
+  for (const action of actions.values()) {
+    await upsertActionSnapshot({
+      workspaceId: source.workspaceId,
+      projectId: params.projectId,
+      manifest: action.manifest,
+      bundle: action.bundle,
+      source: uploadedPaths.has(action.uses) ? 'dev_local' : 'vcs',
+    });
+  }
   const workflowId = await findOrCreateWorkflowLineage({
     projectId: params.projectId,
     configPath: params.configPath,
@@ -195,7 +259,7 @@ async function resolveDefinitionAtRefUnsafe(
     model: createWorkflowModelSnapshot(parsed.model),
     sourceSnapshot: {content: snapshot.content, format: 'yaml'},
     triggers: definitionTriggersFor(parsed.model),
-    warnings: warningsFor(parsed.diagnostics),
+    warnings: [...warningsFor(parsed.diagnostics), ...unusedUploadWarnings(document, uploads)],
   };
 }
 
@@ -482,21 +546,128 @@ function assertFileSize(content: string, path: string, isLocalContent = false): 
   }
 }
 
+function assertLocalUploadSize(params: {
+  content: string | undefined;
+  uploads: readonly ActionUpload[];
+  configPath: string;
+}): void {
+  let bytes = params.content === undefined ? 0 : Buffer.byteLength(params.content, 'utf8');
+  for (const upload of params.uploads) {
+    for (const file of upload.files) bytes += Buffer.byteLength(file.content, 'utf8');
+  }
+  if (bytes > MAX_LOCAL_UPLOAD_BYTES) {
+    throw new DefinitionAtRefError(
+      'content-too-large',
+      `Local workflow content and action files are larger than ${MAX_LOCAL_UPLOAD_BYTES} bytes`,
+      {configPath: params.configPath},
+    );
+  }
+}
+
+/** Parses the document alone, to learn which actions to read before full validation. */
+function parseWorkflowDocumentAtRef(
+  content: string,
+  options: ParseDefinitionOptions & {actionsEnabled: boolean},
+): WorkflowDocument {
+  try {
+    return parseWorkflowYaml(content, {actions: options.actionsEnabled});
+  } catch (error) {
+    // Full validation fails the same way and reports the failure with its details.
+    parseWorkflowDefinition(content, options);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new DefinitionAtRefError(
+      'invalid-definition',
+      `Invalid workflow definition: ${message}`,
+      {errors: boundedValidationErrors([{message}])},
+    );
+  }
+}
+
+async function resolveDevRunActions(params: {
+  integrations: IntegrationsModuleClient;
+  source: ResolvedProjectSource;
+  commit: string;
+  configPath: string;
+  document: WorkflowDocument;
+  uploads: ReadonlyMap<string, readonly ActionBundleFile[]>;
+  signal: AbortSignal | undefined;
+}): Promise<Map<string, ResolvedAction>> {
+  if (collectActionReferences(params.document).length === 0) return new Map();
+
+  let actions: Map<string, ResolvedAction>;
+  try {
+    actions = await resolveWorkflowActions({
+      workspaceId: params.source.workspaceId,
+      sourceConnectionId: params.source.connectionId,
+      sourceExternalRepositoryId: params.source.externalRepositoryId,
+      ref: params.commit,
+      sourceControl: {
+        listFiles: (input) =>
+          callWithSignal(params.integrations.listSourceFiles, input, params.signal),
+        fetchFile: (input) =>
+          callWithSignal(params.integrations.fetchSourceFile, input, params.signal),
+      },
+      workflows: [{path: params.configPath, document: params.document}],
+      uploads: params.uploads,
+    });
+  } catch (error) {
+    throwIfAborted(params.signal);
+    if (error instanceof ActionResolutionError) throw invalidAction(error);
+    if (
+      isInterModuleKnownError(integrationsInterModuleContract.methods.listSourceFiles, error) ||
+      isInterModuleKnownError(integrationsInterModuleContract.methods.fetchSourceFile, error)
+    ) {
+      throw sourceUnavailable(error, 'The action files at the ref could not be read');
+    }
+    throw error;
+  }
+
+  // A dev run fails on an import the runner could not load, unlike sync, which
+  // only warns, so a forgotten upload is caught before any code runs.
+  const errors: ValidationError[] = [];
+  for (const action of actions.values()) {
+    for (const issue of await checkActionImports({files: action.files})) {
+      errors.push({message: `Action ${action.uses}: ${issue.message}`});
+    }
+  }
+  const [first] = errors;
+  if (first !== undefined) {
+    throw new DefinitionAtRefError(
+      'invalid-definition',
+      `Invalid workflow definition: ${first.message}`,
+      {errors: boundedValidationErrors(errors)},
+    );
+  }
+  return actions;
+}
+
+function invalidAction(error: ActionResolutionError): DefinitionAtRefError {
+  const errors =
+    error.details.length === 0
+      ? [{message: error.message}]
+      : error.details.map((detail) =>
+          error.filePath === undefined
+            ? detail
+            : {...detail, message: `${error.filePath}: ${detail.message}`},
+        );
+  return new DefinitionAtRefError(
+    'invalid-definition',
+    `Invalid workflow definition: ${error.message}`,
+    {errors: boundedValidationErrors(errors)},
+  );
+}
+
 async function parseDefinitionAtRef(params: {
   content: string;
-  agent: AgentInterModuleClient;
+  document: WorkflowDocument;
+  options: ParseDefinitionOptions;
   integrations: IntegrationsModuleClient;
   source: ResolvedProjectSource;
   signal: AbortSignal | undefined;
 }): Promise<ParsedDefinition> {
-  const agentValidationCatalog = await callWithSignal(
-    params.agent.getValidationCatalogV2,
-    {workspaceId: params.source.workspaceId},
-    params.signal,
-  );
-  throwIfAborted(params.signal);
-  const firstPass = parseWorkflowDefinition(params.content, {agentValidationCatalog});
-  if (!needsIntegrationValidationContext(firstPass.document)) return firstPass;
+  if (!needsIntegrationValidationContext(params.document, params.options.actionManifests)) {
+    return parseWorkflowDefinition(params.content, params.options);
+  }
 
   const integrationValidationContext = await loadAtRefIntegrationValidationContext({
     integrations: params.integrations,
@@ -504,7 +675,7 @@ async function parseDefinitionAtRef(params: {
     signal: params.signal,
   });
   return parseWorkflowDefinition(params.content, {
-    agentValidationCatalog,
+    ...params.options,
     integrationValidationContext,
   });
 }
@@ -606,6 +777,22 @@ function warningsFor(diagnostics: readonly ValidationDiagnostic[]): ValidationWa
       ...(diagnostic.path === undefined
         ? {}
         : {path: diagnostic.path.slice(0, DEFINITION_SYNC_WARNING_PATH_MAX_LENGTH)}),
+    }));
+}
+
+function unusedUploadWarnings(
+  document: WorkflowDocument,
+  uploads: readonly ActionUpload[],
+): ValidationWarning[] {
+  const used = new Set(collectActionReferences(document));
+  return uploads
+    .filter((upload) => !used.has(upload.path))
+    .map((upload) => ({
+      code: 'action-upload-unused',
+      message: `Uploaded action ${upload.path} is not used by any step`.slice(
+        0,
+        DEFINITION_SYNC_WARNING_MESSAGE_MAX_LENGTH,
+      ),
     }));
 }
 

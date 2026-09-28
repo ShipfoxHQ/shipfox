@@ -51,6 +51,11 @@ export interface ResolveWorkflowActionsParams extends ActionSourceContext {
   workflows: readonly {path: string; document: WorkflowDocument}[];
   /** Called with each `uses` path before its directory is read. */
   onProgress?: ((uses: string) => void) | undefined;
+  /**
+   * Action directories supplied by the caller, keyed by `uses` path. Each one
+   * replaces the directory at `ref` completely.
+   */
+  uploads?: ReadonlyMap<string, readonly ActionBundleFile[]> | undefined;
 }
 
 /** Reads every action the workflows reference, once per `uses` path. */
@@ -73,6 +78,11 @@ export async function resolveWorkflowActions(
   const resolved = new Map<string, ResolvedAction>();
   // One directory at a time, so file fetches stay within FILE_FETCH_CONCURRENCY.
   for (const uses of references) {
+    const upload = params.uploads?.get(uses);
+    if (upload !== undefined) {
+      resolved.set(uses, await resolveUploadedAction({uses, files: upload}));
+      continue;
+    }
     params.onProgress?.(uses);
     resolved.set(uses, await readActionDirectory({...params, uses}));
   }
@@ -83,7 +93,7 @@ export async function readActionDirectory(
   params: ActionSourceContext & {uses: string},
 ): Promise<ResolvedAction> {
   const {uses} = params;
-  const prefix = `${uses.slice('./'.length)}/`;
+  const prefix = actionDirectoryPrefix(uses);
   const page = await params.sourceControl.listFiles({
     workspaceId: params.workspaceId,
     connectionId: params.sourceConnectionId,
@@ -108,10 +118,11 @@ export async function readActionDirectory(
     });
   }
 
-  const manifestPath = ACTION_MANIFEST_FILE_NAMES.map((name) => `${prefix}${name}`).find((path) =>
-    page.files.some((entry) => entry.path === path),
+  // A directory without a manifest fails before any file is fetched.
+  const hasManifest = ACTION_MANIFEST_FILE_NAMES.some((name) =>
+    page.files.some((entry) => entry.path === `${prefix}${name}`),
   );
-  if (manifestPath === undefined) {
+  if (!hasManifest) {
     throw new ActionResolutionError({
       code: 'action-not-found',
       message: `No action.yml or action.yaml found in ${uses}`,
@@ -136,8 +147,47 @@ export async function readActionDirectory(
     {stopOnError: true},
   );
 
-  const manifestContent = files.find((file) => `${prefix}${file.path}` === manifestPath)?.content;
-  const manifest = parseActionManifest({manifestPath, content: manifestContent ?? ''});
+  return await assembleAction({uses, files});
+}
+
+/** Validates an uploaded action directory with the limits a synced one gets. */
+export async function resolveUploadedAction(params: {
+  uses: string;
+  files: readonly ActionBundleFile[];
+}): Promise<ResolvedAction> {
+  const {uses, files} = params;
+  if (files.length > MAX_ACTION_FILES) {
+    throw new ActionResolutionError({
+      code: 'action-too-large',
+      message: `Action ${uses} has more than ${MAX_ACTION_FILES} files`,
+    });
+  }
+  const prefix = actionDirectoryPrefix(uses);
+  const sizes = createActionSizeCounter(uses);
+  for (const file of files) {
+    sizes.add(`${prefix}${file.path}`, Buffer.byteLength(file.content, 'utf8'));
+  }
+  return await assembleAction({uses, files: [...files]});
+}
+
+async function assembleAction(params: {
+  uses: string;
+  files: ActionBundleFile[];
+}): Promise<ResolvedAction> {
+  const {uses, files} = params;
+  const prefix = actionDirectoryPrefix(uses);
+  const manifestFile = ACTION_MANIFEST_FILE_NAMES.map((name) =>
+    files.find((file) => file.path === name),
+  ).find((file) => file !== undefined);
+  if (manifestFile === undefined) {
+    throw new ActionResolutionError({
+      code: 'action-not-found',
+      message: `No action.yml or action.yaml found in ${uses}`,
+    });
+  }
+
+  const manifestPath = `${prefix}${manifestFile.path}`;
+  const manifest = parseActionManifest({manifestPath, content: manifestFile.content});
   if (!files.some((file) => file.path === manifest.main)) {
     const message = `Action main file ${manifest.main} is not in ${uses}`;
     throw new ActionResolutionError({
@@ -160,6 +210,10 @@ export async function readActionDirectory(
   }
 
   return {uses, manifestPath, manifest, files, bundle};
+}
+
+function actionDirectoryPrefix(uses: string): string {
+  return `${uses.slice('./'.length)}/`;
 }
 
 function createActionSizeCounter(uses: string) {
