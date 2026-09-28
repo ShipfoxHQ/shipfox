@@ -29,10 +29,14 @@ post-activation Get-started checklist, and its panel and top-bar hosts.
   above a page's own content, so it shows only the next step. A header toggle
   opens the full list, and that choice is remembered per device. The popover
   always carries the whole checklist.
-- **`FirstWorkflowPanel`**: an exported two-step panel that links to Shipfox MCP
-  settings and copies the fixed setup prompt. It reads the signed-in user's
-  agent grants and shows the MCP step as connected when one belongs to the
-  workspace. The activation flow mounts it separately.
+- **`FirstWorkflowPanel`**: the first workflow panel. In choose mode it shows
+  the MCP setup inline, collapsing to "Connected: <client>" once the signed-in
+  user has an agent grant for the workspace. It suggests up to four workflow
+  templates the workspace can use, with a copyable prompt each. Templates
+  that need a connection get one line linking to integration settings. In
+  finish mode it links the latest succeeded test run and explains which pull
+  request turns the workflow on. The template cards move behind a disclosure.
+  `WorkspaceSetupChecklist` mounts it below the checklist on the home.
 
 The derivations are pure functions. They test without React and decide what
 the checklist shows, while the hosts own query freshness, loading and failure
@@ -45,8 +49,9 @@ pnpm add @shipfox/client-onboarding
 ```
 
 The package is part of the `libs/client` workspace. Its runtime dependencies
-are `client-agent`, `client-integrations`, `client-projects`, `client-runners`,
-`client-shell`, `client-workflows`, and `client-workspace-settings`.
+are `api-agent-access-dto`, `client-agent`, `client-api`,
+`client-integrations`, `client-projects`, `client-runners`, `client-shell`,
+`client-workflows`, and `client-workspace-settings`.
 
 ## Usage
 
@@ -83,9 +88,13 @@ checklist.complete; // false
 
 selectNextSetupStep(checklist)?.id; // 'tools'
 
-// Render inside the application's TanStack Router and React Query contexts
-// when activating the flow.
-<FirstWorkflowPanel workspace={{id: 'workspace-id', slug: 'acme'}} />;
+// Render inside the application's TanStack Router and React Query contexts.
+// `surface` is reported with the panel's analytics events.
+<FirstWorkflowPanel
+  workspace={{id: 'workspace-id', slug: 'acme'}}
+  progress={{state: 'open'}}
+  surface="workflows_empty"
+/>;
 ```
 
 The rendered hosts can be exported through the package feature entry point for
@@ -143,9 +152,21 @@ The caller maps its own query results to the derivation inputs:
   same transition completes the checklist, only the completion burst plays.
 - Both hosts capture `first_workflow_test_run_shown` once per mount, the first
   time they show the row as "A test run succeeded".
-- `FirstWorkflowPanel` captures `first_workflow_panel_opened` on mount and
-  `first_workflow_prompt_copied` after a successful copy. It is exported but not
-  mounted by this package until the activation flow is ready.
+- The panel host renders `FirstWorkflowPanel` below the checklist when runners
+  are available (installation-managed or workspace capacity), a model is
+  available (installation-provided or configured), and the workspace has no
+  definition. It reads these facts from their queries, not from row
+  visibility, and renders no panel while the runner or model family is
+  loading or failed. It does not wait for the tools row, so a GitHub-only
+  workspace sees the panel while "Connect your tools" is the next step. A
+  dismissed checklist hides the panel too.
+- The panel reads `GET /workspaces/:workspaceId/workflow-templates`, which
+  returns templates grouped and ranked for the workspace's connections. Cards
+  come from the `try_now` and `starts_on_event` groups in that order.
+- `FirstWorkflowPanel` captures `first_workflow_panel_opened` with `surface`
+  and `mode` once per mode it shows, and `first_workflow_prompt_copied` with
+  `surface`, `template_id` (or `generic`), and `group` after a successful
+  copy.
 - Dismissal is scoped to the workspace and device. A dismissed host does not
   subscribe to checklist queries until the flag is cleared.
 

@@ -19,7 +19,9 @@ export {
 export {
   FIRST_WORKFLOW_PROMPT,
   FirstWorkflowPanel,
+  type FirstWorkflowPanelProgress,
   type FirstWorkflowPanelProps,
+  type FirstWorkflowSurface,
 } from './components/first-workflow-panel.js';
 export {
   SetupChecklistBody,

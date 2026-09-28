@@ -1,1 +1,1 @@
-export {McpSetup} from './agent-access/components/mcp-setup.js';
+export {McpSetup, McpSetupInstructions} from './agent-access/components/mcp-setup.js';

@@ -6446,9 +6446,15 @@ importers:
 
   libs/client/onboarding:
     dependencies:
+      '@shipfox/api-agent-access-dto':
+        specifier: workspace:*
+        version: link:../../api/agent-access-dto
       '@shipfox/client-agent':
         specifier: workspace:*
         version: link:../agent
+      '@shipfox/client-api':
+        specifier: workspace:*
+        version: link:../api
       '@shipfox/client-integrations':
         specifier: workspace:*
         version: link:../integrations
@@ -6483,9 +6489,6 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
-      '@shipfox/client-api':
-        specifier: workspace:*
-        version: link:../api
       '@shipfox/client-test-setup':
         specifier: workspace:*
         version: link:../test-setup
