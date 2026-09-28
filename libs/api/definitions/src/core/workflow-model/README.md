@@ -20,9 +20,10 @@ Code that turns a checked workflow document into the model used by definitions.
 - **Action steps**: `normalizeActionFields` reads the action's manifest from
   the `actionManifests` option, keyed by the `uses` path. It checks `with`
   against the manifest inputs, allows a secret only as the whole value of a
-  top-level input, and checks that `connections` binds every alias to a
-  matching agent-tools connection. The step's outputs come from the manifest,
-  with `required` always written.
+  top-level input, and checks that `connections` binds every alias. With the
+  optional integration context, it also checks that each connection exists,
+  matches the alias provider, and serves agent tools. The step's outputs come
+  from the manifest, with `required` always written.
 - **Workflow outputs**: Parse top-level `outputs` as `workflow.outputs`
   templates, typed against every job's declared outputs. A job without
   `outputs` exposes none, so any reference to one of its outputs is an error.

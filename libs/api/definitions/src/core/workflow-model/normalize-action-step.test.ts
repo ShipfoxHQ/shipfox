@@ -201,6 +201,12 @@ describe('normalizeWorkflowDocument action steps', () => {
     ]);
   });
 
+  test('accepts literals that dispatch coerces to the declared type', () => {
+    const step = actionStep({with: {channel_id: 'C1', thread_ts: '1.0', limit: '42'}});
+
+    expect(issuesFor(document(step))).toEqual([]);
+  });
+
   test('allows write tools when the manifest sets allow_write', () => {
     const writer = manifest({
       integrations: {slack: {provider: 'slack', include: ['post_message'], allow_write: true}},
