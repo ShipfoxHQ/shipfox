@@ -119,12 +119,17 @@ function actionToolConfig(tool: MaterializedActionTool): Record<string, unknown>
   return {
     id: tool.id,
     sensitivity: tool.sensitivity,
+    sensitive: tool.sensitive,
     result: tool.result,
     input_schema: tool.inputSchema,
     ...(tool.methods === undefined
       ? {}
       : {
-          methods: tool.methods.map((method) => ({id: method.id, sensitivity: method.sensitivity})),
+          methods: tool.methods.map((method) => ({
+            id: method.id,
+            sensitivity: method.sensitivity,
+            sensitive: method.sensitive,
+          })),
         }),
   };
 }

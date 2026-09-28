@@ -2,7 +2,7 @@ import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {LogRecord} from '@shipfox/api-logs-dto';
-import {logRecordSchema} from '@shipfox/api-logs-dto';
+import {logRecordSchema, rawLogRecordSchema} from '@shipfox/api-logs-dto';
 import {secretWireForms} from '@shipfox/redact';
 import type {LogAppendFn} from '@shipfox/runner-protocol';
 import {AttemptSpool} from '#api/spool.js';
@@ -538,6 +538,100 @@ describe('createStepLogStream', () => {
     }
     expect(raw).not.toContain(`user:${secret}@`);
     expect(raw).toContain('***');
+  });
+
+  it('writes masked tool rows as tool_row records between output records', async () => {
+    const secret = 'sf/tool+SECRET=12';
+    const stream = createStepLogStream({
+      logsDir: join(dir, 'logs'),
+      stepId: STEP_ID,
+      attempt: 17,
+      append: hangingAppend,
+      secrets: [secret],
+      flushIntervalMs: 100000,
+      now: () => 1,
+    });
+
+    stream.writeOutputLine('before');
+    stream.writeToolRow({
+      kind: 'tool-call',
+      timestamp: 1,
+      id: 'call-1',
+      name: 'team_slack__read_thread',
+      input: `{"token": "${secret}"}`,
+    });
+    stream.writeToolRow({
+      kind: 'tool-result',
+      timestamp: 2,
+      toolCallId: 'call-1',
+      toolName: 'team_slack__read_thread',
+      output: `echo ${secret}`,
+      isError: false,
+    });
+    stream.writeOutputLine('after');
+    await stream.close();
+    stream.dispose();
+
+    const raw = await readFile(join(dir, 'logs', `${STEP_ID}-17.ndjson`), 'utf8');
+    const records = raw
+      .split('\n')
+      .filter((line) => line.length > 0)
+      .map((line) => rawLogRecordSchema.parse(JSON.parse(line)));
+    expect(records).toEqual([
+      {v: 1, ts: 1, type: 'output', stream: 'stdout', data: 'before\n'},
+      {
+        v: 1,
+        ts: 1,
+        type: 'tool_row',
+        row: {
+          kind: 'tool-call',
+          timestamp: 1,
+          id: 'call-1',
+          name: 'team_slack__read_thread',
+          input: '{"token": "***"}',
+        },
+      },
+      {
+        v: 1,
+        ts: 1,
+        type: 'tool_row',
+        row: {
+          kind: 'tool-result',
+          timestamp: 2,
+          toolCallId: 'call-1',
+          toolName: 'team_slack__read_thread',
+          output: 'echo ***',
+          isError: false,
+        },
+      },
+      {v: 1, ts: 1, type: 'output', stream: 'stdout', data: 'after\n'},
+      {v: 1, ts: 1, type: 'end', total_bytes: 13},
+    ]);
+  });
+
+  it('drops a tool row larger than one upload window with a gap', async () => {
+    const stream = createStepLogStream({
+      logsDir: join(dir, 'logs'),
+      stepId: STEP_ID,
+      attempt: 18,
+      append: hangingAppend,
+      flushBytes: 1024,
+      flushIntervalMs: 100000,
+      now: () => 1,
+    });
+
+    stream.writeToolRow({
+      kind: 'tool-call',
+      timestamp: 1,
+      id: 'call-1',
+      name: 'team_slack__read_thread',
+      input: 'x'.repeat(2048),
+    });
+    await stream.close();
+    stream.dispose();
+
+    const records = await readRecords(18);
+    expect(records.map((record) => record.type)).toEqual(['gap', 'end']);
   });
 
   it('redacts secrets registered after the stream is created', async () => {

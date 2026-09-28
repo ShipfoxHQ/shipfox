@@ -27,7 +27,7 @@ describe('createGatewayMcpClient', () => {
     expect(result.structuredContent).toEqual({name: 'github_main__issue_read', arguments: {id: 1}});
   });
 
-  it('replaces the connection after a failed request', async () => {
+  it('keeps the connection after a failed request', async () => {
     const url = await startFakeGateway();
     let failNextCall = true;
     let initializeRequests = 0;
@@ -35,10 +35,9 @@ describe('createGatewayMcpClient', () => {
       url,
       name: 'test',
       fetch: (input, init) => {
-        const body =
-          typeof init?.body === 'string' ? (JSON.parse(init.body) as {method?: string}) : undefined;
-        if (body?.method === 'initialize') initializeRequests += 1;
-        if (failNextCall && body?.method === 'tools/call') {
+        const method = requestMethod(init);
+        if (method === 'initialize') initializeRequests += 1;
+        if (failNextCall && method === 'tools/call') {
           failNextCall = false;
           return Promise.resolve(new Response('temporarily unavailable', {status: 503}));
         }
@@ -51,7 +50,74 @@ describe('createGatewayMcpClient', () => {
     await client.close();
 
     expect(result.isError).not.toBe(true);
-    expect(initializeRequests).toBe(2);
+    expect(initializeRequests).toBe(1);
+  });
+
+  it('replaces the connection after a failed connect', async () => {
+    const url = await startFakeGateway();
+    let failNextInitialize = true;
+    const client = createGatewayMcpClient({
+      url,
+      name: 'test',
+      fetch: (input, init) => {
+        if (failNextInitialize && requestMethod(init) === 'initialize') {
+          failNextInitialize = false;
+          return Promise.resolve(new Response('temporarily unavailable', {status: 503}));
+        }
+        return fetch(input, init);
+      },
+    });
+
+    await expect(client.callTool({name: 'github_main__issue_read'})).rejects.toThrow();
+    const result = await client.callTool({name: 'github_main__issue_read'});
+    await client.close();
+
+    expect(result.isError).not.toBe(true);
+  });
+
+  it('aborts only the cancelled call and connects without caller options', async () => {
+    const url = await startFakeGateway({holdCallsNamed: 'slow'});
+    const requests: {method: string | undefined; callId: string | null; signal: AbortSignal}[] = [];
+    const client = createGatewayMcpClient({
+      url,
+      name: 'test',
+      fetch: (input, init) => {
+        const headers = new Headers(init?.headers);
+        requests.push({
+          method: requestMethod(init),
+          callId: headers.get('x-shipfox-call-id'),
+          signal: init?.signal as AbortSignal,
+        });
+        return fetch(input, init);
+      },
+    });
+    const cancel = new AbortController();
+
+    const cancelled = client.callTool(
+      {name: 'slow'},
+      {signal: cancel.signal, headers: {'x-shipfox-call-id': 'call-1'}},
+    );
+    const other = client.callTool(
+      {name: 'github_main__issue_read'},
+      {headers: {'x-shipfox-call-id': 'call-2'}},
+    );
+    await vi.waitFor(() =>
+      expect(requests.filter((r) => r.method === 'tools/call')).toHaveLength(2),
+    );
+    cancel.abort(new Error('step cancelled'));
+
+    await expect(cancelled).rejects.toThrow('step cancelled');
+    const result = await other;
+    const otherAborted = requests.find((r) => r.callId === 'call-2')?.signal.aborted;
+    await client.close();
+
+    const initialize = requests.find((request) => request.method === 'initialize');
+    const calls = requests.filter((request) => request.method === 'tools/call');
+    expect(result.isError).not.toBe(true);
+    expect(initialize?.callId).toBeNull();
+    expect(calls.map((call) => call.callId).sort()).toEqual(['call-1', 'call-2']);
+    expect(calls.find((call) => call.callId === 'call-1')?.signal.aborted).toBe(true);
+    expect(otherAborted).toBe(false);
   });
 
   it('rejects requests after close', async () => {
@@ -63,7 +129,12 @@ describe('createGatewayMcpClient', () => {
     await expect(client.listTools()).rejects.toThrow('Gateway MCP client is closed.');
   });
 
-  async function startFakeGateway(): Promise<URL> {
+  function requestMethod(init: RequestInit | undefined): string | undefined {
+    if (typeof init?.body !== 'string') return undefined;
+    return (JSON.parse(init.body) as {method?: string}).method;
+  }
+
+  async function startFakeGateway(options: {holdCallsNamed?: string} = {}): Promise<URL> {
     gateway = createServer(async (request, response) => {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(chunk as Buffer);
@@ -75,13 +146,18 @@ describe('createGatewayMcpClient', () => {
       server.setRequestHandler(ListToolsRequestSchema, () => ({
         tools: [{name: 'github_main__issue_read', inputSchema: {type: 'object'}}],
       }));
-      server.setRequestHandler(CallToolRequestSchema, (toolRequest) => ({
-        content: [{type: 'text', text: 'called'}],
-        structuredContent: {
-          name: toolRequest.params.name,
-          arguments: toolRequest.params.arguments,
-        },
-      }));
+      server.setRequestHandler(CallToolRequestSchema, async (toolRequest) => {
+        if (toolRequest.params.name === options.holdCallsNamed) {
+          await once(response, 'close');
+        }
+        return {
+          content: [{type: 'text', text: 'called'}],
+          structuredContent: {
+            name: toolRequest.params.name,
+            arguments: toolRequest.params.arguments,
+          },
+        };
+      });
       const transport = new StreamableHTTPServerTransport();
       await server.connect(transport as unknown as Transport);
       response.on('close', () => {

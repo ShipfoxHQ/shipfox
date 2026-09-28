@@ -3,9 +3,14 @@ import {
   MAX_RECORD_DATA_BYTES,
   MAX_RECORD_NAME_BYTES,
   type RawLogRecord,
+  type SessionViewToolCallRow,
+  type SessionViewToolResultRow,
 } from '@shipfox/api-logs-dto';
 
 export type OutputSource = 'stdout' | 'stderr';
+
+/** A tool call or tool result row for a call the runner proxied, such as an action tool call. */
+export type ToolLogRow = SessionViewToolCallRow | SessionViewToolResultRow;
 
 export const PIPES: readonly OutputSource[] = ['stdout', 'stderr'];
 
@@ -47,6 +52,10 @@ function endRecord(args: {ts: number; totalBytes: number}): RawLogRecord {
 
 function agentSessionRecord(args: {ts: number; data: string}): RawLogRecord {
   return {v: 1, ts: args.ts, type: 'agent_session', data: args.data};
+}
+
+function toolRowRecord(args: {ts: number; row: ToolLogRow}): RawLogRecord {
+  return {v: 1, ts: args.ts, type: 'tool_row', row: args.row};
 }
 
 export interface FramedOutput {
@@ -143,6 +152,12 @@ export class StreamFramer {
 
   frameEnd(totalBytes: number): Buffer {
     return encodeRecord(endRecord({ts: this.now(), totalBytes}));
+  }
+
+  // A tool row is one whole record, never split. It carries no `data`, so it adds nothing to
+  // the stream's end total.
+  frameToolRow(row: ToolLogRow): Buffer {
+    return encodeRecord(toolRowRecord({ts: this.now(), row}));
   }
 
   // One verbatim agent session entry per record: never split (splitting would break the

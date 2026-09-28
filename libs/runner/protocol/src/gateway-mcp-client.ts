@@ -1,3 +1,4 @@
+import {AsyncLocalStorage} from 'node:async_hooks';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type {RequestOptions} from '@modelcontextprotocol/sdk/shared/protocol.js';
@@ -10,27 +11,56 @@ import {
   type ListToolsResult,
 } from '@modelcontextprotocol/sdk/types.js';
 
+export interface GatewayMcpRequestOptions extends RequestOptions {
+  /** Extra HTTP headers for this request only, such as `x-shipfox-call-id`. */
+  readonly headers?: Readonly<Record<string, string>>;
+}
+
 export interface GatewayMcpClient {
   listTools(
     params?: ListToolsRequest['params'],
-    options?: RequestOptions,
+    options?: GatewayMcpRequestOptions,
   ): Promise<ListToolsResult>;
-  callTool(params: CallToolRequest['params'], options?: RequestOptions): Promise<CallToolResult>;
+  callTool(
+    params: CallToolRequest['params'],
+    options?: GatewayMcpRequestOptions,
+  ): Promise<CallToolResult>;
   close(): Promise<void>;
 }
 
+interface RequestScope {
+  readonly signal: AbortSignal | undefined;
+  readonly headers: Readonly<Record<string, string>> | undefined;
+}
+
 /**
- * Connects lazily to the integration tools gateway and replaces the MCP client after any failed
- * request, so one failure never leaves a broken session behind for the next call.
+ * Connects lazily to the integration tools gateway and shares one connection between concurrent
+ * callers. Each request's signal and headers reach only that request's HTTP fetch, so cancelling
+ * one call never aborts another. The gateway is stateless, so a failed request leaves the
+ * connection usable; only a failed connect replaces it.
  */
 export function createGatewayMcpClient(params: {
   url: URL;
   fetch: typeof fetch;
   name: string;
 }): GatewayMcpClient {
+  const requestScope = new AsyncLocalStorage<RequestScope>();
+  const scopedFetch: typeof fetch = (input, init) => {
+    const scope = requestScope.getStore();
+    if (scope === undefined) return params.fetch(input, init);
+    const headers = new Headers(init?.headers);
+    for (const [key, value] of Object.entries(scope.headers ?? {})) headers.set(key, value);
+    const signals = [init?.signal, scope.signal].filter(
+      (signal): signal is AbortSignal => signal !== undefined && signal !== null,
+    );
+    return params.fetch(input, {
+      ...init,
+      headers,
+      ...(signals.length === 0 ? {} : {signal: AbortSignal.any(signals)}),
+    });
+  };
   const createClient = () => new Client({name: params.name, version: '0.0.0'});
-  const createTransport = () =>
-    new StreamableHTTPClientTransport(params.url, {fetch: params.fetch});
+  const createTransport = () => new StreamableHTTPClientTransport(params.url, {fetch: scopedFetch});
   let client = createClient();
   let transport = createTransport();
   let connectPromise: Promise<void> | undefined;
@@ -53,7 +83,9 @@ export function createGatewayMcpClient(params: {
     return resetPromise;
   };
 
-  const ensureConnected = async (options?: RequestOptions) => {
+  // The shared connect runs outside every caller's scope, so no caller's signal or headers
+  // reach the initialize request.
+  const ensureConnected = async () => {
     if (closed) throw new Error('Gateway MCP client is closed.');
     await resetPromise;
     if (closed) throw new Error('Gateway MCP client is closed.');
@@ -62,8 +94,8 @@ export function createGatewayMcpClient(params: {
     const connectingClient = client;
     const connectingTransport = transport;
     let pendingConnection: Promise<void>;
-    pendingConnection = connectingClient
-      .connect(connectingTransport as unknown as Transport, options)
+    pendingConnection = requestScope
+      .exit(() => connectingClient.connect(connectingTransport as unknown as Transport))
       .catch(async (error: unknown) => {
         if (connectPromise === pendingConnection) connectPromise = undefined;
         await resetConnection(connectingClient);
@@ -74,31 +106,30 @@ export function createGatewayMcpClient(params: {
   };
 
   const withClient = async <T>(
-    options: RequestOptions | undefined,
-    request: (requestClient: Client) => Promise<T>,
+    options: GatewayMcpRequestOptions | undefined,
+    request: (requestClient: Client, requestOptions: RequestOptions | undefined) => Promise<T>,
   ): Promise<T> => {
-    await ensureConnected(options);
-    const requestClient = client;
-    try {
-      return await request(requestClient);
-    } catch (error) {
-      await resetConnection(requestClient);
-      throw error;
-    }
+    await ensureConnected();
+    const {headers, ...requestOptions} = options ?? {};
+    return await requestScope.run({signal: requestOptions.signal, headers}, () =>
+      request(client, options === undefined ? undefined : requestOptions),
+    );
   };
 
   return {
     listTools(listParams, options) {
-      return withClient(options, (requestClient) => requestClient.listTools(listParams, options));
+      return withClient(options, (requestClient, requestOptions) =>
+        requestClient.listTools(listParams, requestOptions),
+      );
     },
     callTool(callParams, options) {
       return withClient(
         options,
-        async (requestClient) =>
+        async (requestClient, requestOptions) =>
           (await requestClient.callTool(
             callParams,
             CallToolResultSchema,
-            options,
+            requestOptions,
           )) as CallToolResult,
       );
     },

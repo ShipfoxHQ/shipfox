@@ -12,7 +12,12 @@ import type {StepDto} from '@shipfox/api-workflows-dto';
 import {actionBundleDigestSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {prepareActionBundle} from '#core/action-bundle.js';
-import {startActionEndpoint} from '#core/action-endpoint.js';
+import {
+  type ActionIntegrationGrant,
+  type ActionToolRow,
+  type ActionToolsUpstream,
+  startActionEndpoint,
+} from '#core/action-endpoint.js';
 import {executeStepProcess, type StepProcessOptions} from '#core/run-step.js';
 import type {StepResult} from '#core/step-result.js';
 
@@ -42,6 +47,36 @@ const INHERITED_ENV_KEYS = new Set([
   'NODE_EXTRA_CA_CERTS',
 ]);
 
+const sensitivitySchema = z.enum(['read', 'write']);
+
+const actionIntegrationsSchema = z
+  .array(
+    z.object({
+      alias: z.string().min(1),
+      connection_slug: z.string().min(1),
+      tools: z.array(
+        z.object({
+          id: z.string().min(1),
+          sensitivity: sensitivitySchema,
+          // A config written before `sensitive` existed redacts rather than leaks.
+          sensitive: z.boolean().default(true),
+          result: z.enum(['json', 'file']).default('json'),
+          input_schema: z.unknown(),
+          methods: z
+            .array(
+              z.object({
+                id: z.string().min(1),
+                sensitivity: sensitivitySchema,
+                sensitive: z.boolean().default(true),
+              }),
+            )
+            .optional(),
+        }),
+      ),
+    }),
+  )
+  .default([]);
+
 const actionStepConfigSchema = z.object({
   action: z.object({
     uses: z.string().min(1),
@@ -52,6 +87,7 @@ const actionStepConfigSchema = z.object({
   job_key: z.string().default(''),
   inputs: z.record(z.string(), z.unknown()).default({}),
   env: z.record(z.string(), z.string()).default({}),
+  integrations: actionIntegrationsSchema,
   outputs: z
     .record(
       z.string(),
@@ -92,6 +128,10 @@ export interface ActionStepOptions
   onLogLine?: (line: string) => void;
   /** Receives the per-step endpoint token, so the step log can mask it. */
   onSecret?: (secret: string) => void;
+  /** The integration tools gateway. Without it, the action's tool calls fail. */
+  toolsUpstream?: ActionToolsUpstream;
+  /** Receives the tool call and result rows for the step log. */
+  onToolRow?: (row: ActionToolRow) => void;
 }
 
 /**
@@ -124,7 +164,12 @@ export async function executeActionStep(
 
   await mkdir(join(options.jobTempDir, 'steps'), {recursive: true});
   const stepTemp = await mkdtemp(join(options.jobTempDir, 'steps', 'step-'));
-  const endpoint = await startActionEndpoint();
+  const endpoint = await startActionEndpoint({
+    integrations: integrationGrants(config.integrations),
+    upstream: options.toolsUpstream,
+    signal: options.signal,
+    onToolRow: options.onToolRow,
+  });
   options.onSecret?.(endpoint.token);
   try {
     const paths = {
@@ -178,6 +223,23 @@ export async function executeActionStep(
     await endpoint.close();
     await rm(stepTemp, {recursive: true, force: true});
   }
+}
+
+function integrationGrants(
+  integrations: ActionStepConfig['integrations'],
+): ActionIntegrationGrant[] {
+  return integrations.map((integration) => ({
+    alias: integration.alias,
+    connectionSlug: integration.connection_slug,
+    tools: integration.tools.map((tool) => ({
+      id: tool.id,
+      sensitivity: tool.sensitivity,
+      sensitive: tool.sensitive,
+      result: tool.result,
+      inputSchema: tool.input_schema,
+      methods: tool.methods,
+    })),
+  }));
 }
 
 function inheritedEnv(): Record<string, string> {

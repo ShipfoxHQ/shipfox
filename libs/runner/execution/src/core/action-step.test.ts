@@ -290,18 +290,69 @@ describe('executeActionStep', () => {
     expect(env).not.toHaveProperty('SHIPFOX_ACTION_INPUTS');
   });
 
-  it('hands the endpoint token out for masking and refuses tool calls for now', async () => {
+  it('serves the action tool calls through the gateway and hands the token out for masking', async () => {
+    const step = await actionStep(
+      action(
+        "async ({tools}) => ({text: (await tools.slack.call('read_thread', {channel: 'C1'})).text()})",
+      ),
+      {
+        config: {
+          integrations: [
+            {
+              alias: 'slack',
+              provider: 'slack',
+              connection_slug: 'team-slack',
+              tools: [
+                {
+                  id: 'read_thread',
+                  sensitivity: 'read',
+                  sensitive: false,
+                  result: 'json',
+                  input_schema: {type: 'object'},
+                },
+              ],
+            },
+          ],
+          outputs: {text: {type: 'string'}},
+        },
+      },
+    );
+    const callTool = vi.fn().mockResolvedValue({content: [{type: 'text', text: 'thread body'}]});
+    const onSecret = vi.fn();
+    const onToolRow = vi.fn();
+
+    const result = await run(step, {onSecret, onToolRow, toolsUpstream: {callTool}});
+
+    expect(result).toMatchObject({success: true, outputs: {text: 'thread body'}});
+    expect(callTool).toHaveBeenCalledWith(
+      {name: 'team_slack__read_thread', arguments: {channel: 'C1'}},
+      expect.objectContaining({headers: {'x-shipfox-call-id': expect.any(String)}}),
+    );
+    expect(onSecret).toHaveBeenCalledWith(expect.any(String));
+    expect(onToolRow.mock.calls.map(([row]) => row.kind)).toEqual(['tool-call', 'tool-result']);
+  });
+
+  it('fails tool calls when the runner has no gateway', async () => {
     const step = await actionStep(
       action(
         "async ({tools}) => { try { await tools.slack.call('read_thread', {}); } catch (error) { return {code: error.code}; } }",
       ),
-      {config: {outputs: {code: {type: 'string'}}}},
+      {
+        config: {
+          integrations: [
+            {
+              alias: 'slack',
+              connection_slug: 'team-slack',
+              tools: [{id: 'read_thread', sensitivity: 'read', input_schema: {}}],
+            },
+          ],
+          outputs: {code: {type: 'string'}},
+        },
+      },
     );
-    const onSecret = vi.fn();
 
-    const result = await run(step, {onSecret});
+    const result = await run(step);
 
-    expect(onSecret).toHaveBeenCalledWith(expect.any(String));
     expect(result).toMatchObject({success: true, outputs: {code: 'tools-unavailable'}});
   });
 });
