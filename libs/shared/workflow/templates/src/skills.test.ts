@@ -109,7 +109,7 @@ describe('shipped skill resources', () => {
     expect(testing).toContain(
       'Start the real run without asking unless it can make a write that cannot be undone.',
     );
-    expect(testing).toContain('so they need no confirmation');
+    expect(testing).toContain('Runner time and inference need no confirmation.');
     expect(testing).not.toContain('The user must authorize a real run');
   });
 
