@@ -23,6 +23,10 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
   required output is missing.
 - **`log.info`, `log.warn`, `log.error`, and `log.group(name, fn)`** write to the step log.
   `group` prints collapsible `::group::` and `::endgroup::` markers.
+- **`@shipfox/actions/bootstrap`** and **`@shipfox/actions/loader`** are the action process
+  runtime, not modules to import. The runner and the testing helper start every action as
+  `node --import <loader> <bootstrap>`, with the step working directory as `cwd` and the `v1`
+  environment variables set.
 - **`@shipfox/actions/contract`** exports the `v1` local contract between the action process and
   the runner: routes, request and response shapes, limits, and environment variable names.
 
@@ -66,6 +70,36 @@ export default defineAction(async ({inputs, tools, log, signal}) => {
   fits a 1 MB `create_commit` after base64.
 - **Cancellation** through `signal` throws `ToolCallError` with code `cancelled`. It sets
   `outcomeUnknown` when the request was already sent.
+
+## Action process
+
+The bootstrap:
+
+- raises its own `/proc/self/oom_score_adj` to 1000, so the kernel OOM killer picks the action
+  over the runner;
+- removes `SHIPFOX_ACTIONS_TOKEN` and `SHIPFOX_ACTION_INPUTS` from `process.env` before it loads
+  the action, so processes the action spawns do not inherit endpoint access;
+- imports `SHIPFOX_ACTION_MAIN` and fails with the expected shape when its default export was not
+  made by `defineAction`;
+- aborts the handler's `signal` on `SIGTERM`;
+- fails, naming the calls, when tool calls are still running after the handler settles;
+- fails when the handler waits on a promise that nothing is left to settle;
+- writes `{"status": "succeeded"}` or `{"status": "failed"}` to `SHIPFOX_ACTION_RESULT`. A throw
+  or an unhandled rejection prints the stack and exits 1. An action that calls `process.exit`
+  before the handler settles leaves no result, so the runner cannot count it as a success.
+
+The loader decides by importer:
+
+- `@shipfox/actions` and its entry points resolve to the bootstrap's own copy, for every importer.
+- A bare specifier imported from an action file resolves from the step working directory. A
+  missing package fails with "Install it in an earlier step; actions resolve packages from the
+  step working directory."
+- Imports from installed packages keep Node's resolution, so a package finds its own
+  dependencies under pnpm's isolated layout.
+- A relative import that leaves the action directory fails.
+
+TypeScript action files run through Node's type stripping. TypeScript packages under
+`node_modules` are not supported.
 
 ## Development
 

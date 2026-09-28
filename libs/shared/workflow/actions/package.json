@@ -15,6 +15,7 @@
     "dist"
   ],
   "imports": {
+    "#test/*": "./test/*",
     "#*": {
       "workspace-source": "./src/*",
       "default": "./dist/*"
@@ -40,7 +41,9 @@
         "types": "./dist/contract.d.ts",
         "default": "./dist/contract.js"
       }
-    }
+    },
+    "./bootstrap": "./dist/bootstrap.js",
+    "./loader": "./dist/loader.js"
   },
   "scripts": {
     "build": "shipfox-swc",
