@@ -13,6 +13,9 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
 - **`tools.<alias>.download(tool, args, {destination})`** calls a file tool. The runner writes the
   file into the workspace and returns a `DownloadedFile` with `path`, `bytes`, `sha256`,
   `mediaType`, and `filename`.
+- **`Aliases`** maps manifest aliases to provider slugs through module augmentation. Tool names
+  and arguments are then typed from the provider catalogs. Without it, any tool name and
+  `Record<string, unknown>` arguments are accepted. Results stay `unknown` either way.
 - **`ToolResult`** holds `structured` (or `null`) and the raw `content` blocks. `text()` joins
   the text blocks. `json()` parses that text and throws when it is not JSON. Text is never parsed
   silently.
@@ -52,6 +55,16 @@ export default defineAction(async ({inputs, tools, log, signal}) => {
 });
 ```
 
+To type tool arguments, declare every alias of the manifest once, for example in the entry file:
+
+```ts
+declare module '@shipfox/actions' {
+  interface Aliases {
+    slack: 'slack';
+  }
+}
+```
+
 ## Behavior notes
 
 - **Outputs follow their declared type.** A `json` output is always written with
@@ -64,6 +77,8 @@ export default defineAction(async ({inputs, tools, log, signal}) => {
   waiting `retry_after_seconds` when the runner sends it. No other error is retried.
 - **A request above 2 MiB fails with `request-too-large`** before any network call. The limit
   fits a 1 MB `create_commit` after base64.
+- **Argument types are generated** from the provider catalogs into `src/generated/tool-catalog.ts`.
+  Regenerate them with `pnpm --filter @shipfox/action-tool-types generate`.
 - **Cancellation** through `signal` throws `ToolCallError` with code `cancelled`. It sets
   `outcomeUnknown` when the request was already sent.
 

@@ -3,7 +3,8 @@ import type {AddressInfo} from 'node:net';
 import {MAX_TOOL_REQUEST_BYTES} from '#contract.js';
 import {ToolCallError} from '#tool-call-error.js';
 import {ToolResult} from '#tool-result.js';
-import {createToolsClient, type RetryClock, type Tools} from '#tools-client.js';
+import type {Tools} from '#tool-types.js';
+import {createToolsClient, type RetryClock} from '#tools-client.js';
 
 interface RecordedRequest {
   method: string | undefined;

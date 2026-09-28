@@ -15,9 +15,14 @@ export {ActionOutputError, type ActionOutputValues} from '#outputs.js';
 export {ToolCallError} from '#tool-call-error.js';
 export {type DownloadedFile, ToolResult} from '#tool-result.js';
 export type {
+  Aliases,
   AliasTools,
+  ProviderToolArguments,
+  ProviderToolName,
+  ProviderTools,
   ToolArguments,
   ToolCallOptions,
   ToolDownloadOptions,
+  ToolProvider,
   Tools,
-} from '#tools-client.js';
+} from '#tool-types.js';
