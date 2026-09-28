@@ -315,7 +315,7 @@ export function recordCapacityHoldReleaseLag(seconds: number): void {
 
 export const placementTemplateChangedCount = meter.createCounter<{
   order: 'default' | 'smallest';
-}>('runners_placement_template_changed_total', {
+}>('runners_placement_template_changed', {
   description:
     'Launch grants whose template would differ between the default and smallest template orders',
 });
