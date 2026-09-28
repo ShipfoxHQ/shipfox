@@ -26,7 +26,7 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router';
-import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {deriveIntegrationReadiness} from '#core/integration-readiness.js';
 import {deriveSetupChecklist, type FirstWorkflowProgress} from '#core/setup-checklist.js';
 import {firstWorkflowQueryKeys} from '#hooks/api/first-workflow.js';
@@ -853,9 +853,10 @@ describe('first workflow row', () => {
 
     renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {capture});
 
-    expect(await screen.findByText('Create your first workflow')).toBeInTheDocument();
-    expect(screen.getByText('Your coding agent sets it up from a template')).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'Choose a workflow'})).toHaveAttribute(
+    const checklist = within(await screen.findByRole('region', {name: 'Get started'}));
+    expect(await checklist.findByText('Create your first workflow')).toBeInTheDocument();
+    expect(checklist.getByText('Your coding agent sets it up from a template')).toBeInTheDocument();
+    expect(checklist.getByRole('link', {name: 'Choose a workflow'})).toHaveAttribute(
       'href',
       `/w/${WORKSPACE.slug}`,
     );
@@ -870,7 +871,7 @@ describe('first workflow row', () => {
         'Merge the workflow pull request from your coding agent to turn the workflow on',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'View run'})).toHaveAttribute('href', '/runs/run-1');
+    expect(checklist.getByRole('link', {name: 'View run'})).toHaveAttribute('href', '/runs/run-1');
     expect(capture).toHaveBeenCalledWith('first_workflow_test_run_shown', {host: 'panel'});
 
     act(() => {
@@ -931,12 +932,15 @@ describe('first workflow row', () => {
 
     renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {capture});
 
-    expect(await screen.findByText('Create your first workflow')).toBeInTheDocument();
+    const checklist = within(await screen.findByRole('region', {name: 'Get started'}));
+    expect(await checklist.findByText('Create your first workflow')).toBeInTheDocument();
 
     act(() => {
       seedFirstWorkflow(queryClient, {state: 'done'});
     });
-    await waitFor(() => expect(screen.queryByText('Create your first workflow')).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryAllByText('Create your first workflow')).toHaveLength(0),
+    );
     expect(screen.queryByText('Your first workflow is on')).not.toBeInTheDocument();
     expect(captured(capture, 'first_workflow_activated')).toHaveLength(0);
 
@@ -1003,5 +1007,119 @@ describe('first workflow row', () => {
 
     expect(await screen.findByText('A test run succeeded')).toBeInTheDocument();
     expect(capture).toHaveBeenCalledWith('first_workflow_test_run_shown', {host: 'popover'});
+  });
+});
+
+describe('first workflow panel on the home', () => {
+  const PANEL_HEADING = {name: 'Create your first workflow'} as const;
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: vi.fn()});
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  function renderHome(queryClient: QueryClient) {
+    renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {
+      capture: vi.fn(),
+    });
+  }
+
+  async function expectNoPanel() {
+    expect(await screen.findByText('Connect your tools')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', PANEL_HEADING)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', {name: 'Finish your first workflow'}),
+    ).not.toBeInTheDocument();
+  }
+
+  test('shows below the checklist for a GitHub-only workspace', async () => {
+    const queryClient = createQueryClient();
+    seedQueries(queryClient, false, WORKSPACE, {state: 'open'});
+
+    renderHome(queryClient);
+
+    expect(await screen.findByRole('heading', PANEL_HEADING)).toBeVisible();
+    const checklist = within(screen.getByRole('region', {name: 'Get started'}));
+    expect(checklist.getByText('Connect your tools')).toBeVisible();
+  });
+
+  test('shows the finish mode once a test run succeeded', async () => {
+    const queryClient = createQueryClient();
+    seedQueries(queryClient, false, WORKSPACE, {state: 'test_run_succeeded', testRunId: 'run-1'});
+
+    renderHome(queryClient);
+
+    expect(await screen.findByRole('heading', {name: 'Finish your first workflow'})).toBeVisible();
+  });
+
+  test('does not show once the workspace has a definition', async () => {
+    const queryClient = createQueryClient();
+    seedQueries(queryClient, false, WORKSPACE, {state: 'done'});
+
+    renderHome(queryClient);
+
+    await expectNoPanel();
+  });
+
+  test.each([
+    ['pending', () => pendingResponse()],
+    ['failed', () => Promise.reject(new Error('request failed'))],
+  ])('does not show while the runner query is %s', async (_state, fetchImpl) => {
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: vi.fn(fetchImpl)});
+    const queryClient = createQueryClient();
+    seedQueries(queryClient, false, WORKSPACE, {state: 'open'});
+    queryClient.removeQueries({queryKey: provisionerTokenQueryKeys.active(WORKSPACE.id)});
+
+    renderHome(queryClient);
+
+    await expectNoPanel();
+  });
+
+  test.each([
+    ['pending', () => pendingResponse()],
+    ['failed', () => Promise.reject(new Error('request failed'))],
+  ])('does not show while the model query is %s', async (_state, fetchImpl) => {
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: vi.fn(fetchImpl)});
+    const queryClient = createQueryClient();
+    seedQueries(queryClient, false, WORKSPACE, {state: 'open'});
+    queryClient.removeQueries({queryKey: modelProviderQueryKeys.catalog()});
+
+    renderHome(queryClient);
+
+    await expectNoPanel();
+  });
+
+  test('does not show without runner capacity', async () => {
+    const queryClient = createQueryClient();
+    seedQueries(queryClient, false, WORKSPACE, {state: 'open'});
+    queryClient.setQueryData(provisionerTokenQueryKeys.active(WORKSPACE.id), {
+      provisioners: [],
+      installationRunners: 'none' as const,
+    });
+
+    renderHome(queryClient);
+
+    await expectNoPanel();
+  });
+
+  test('does not show without a model', async () => {
+    const queryClient = createQueryClient();
+    seedQueries(queryClient, false, WORKSPACE, {state: 'open'});
+    queryClient.setQueryData(modelProviderQueryKeys.catalog(), {
+      providers: [],
+      workspaceProviders: 'enabled' as const,
+      managedProviderId: null,
+      instanceDefaultProviderId: null,
+    });
+
+    renderHome(queryClient);
+
+    await expectNoPanel();
   });
 });

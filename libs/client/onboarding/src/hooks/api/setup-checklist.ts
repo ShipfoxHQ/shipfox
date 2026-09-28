@@ -38,6 +38,12 @@ export interface ChecklistQueryState {
    */
   trackedRowsSettled: boolean;
   completionReady: boolean;
+  /**
+   * Runners and a model are known to be available: the installation provides
+   * them or the workspace set them up. False while either family is loading or
+   * failed, because an unknown answer is not a yes.
+   */
+  canRunWorkflows: boolean;
 }
 
 /**
@@ -141,6 +147,14 @@ export function useSetupChecklistQueryState(
     baseSettled: families.baseSettled,
     trackedRowsSettled: families.trackedRowsSettled,
     completionReady: families.completionReady,
+    canRunWorkflows: canRunWorkflows({
+      runnerReady: families.runnerReady,
+      modelReady: families.modelReady,
+      installationRunners: runnersStatusQuery.data,
+      provisionerCount: activeProvisionersQuery.data?.length ?? 0,
+      catalog: catalogQuery.data,
+      configCount: configsQuery.data?.configs.length ?? 0,
+    }),
     checklist: {
       items,
       openCount,
@@ -206,6 +220,27 @@ function hiddenChecklistRows(readiness: {
   if (!readiness.membersReady) hiddenRows.add('teammates');
   if (!readiness.firstWorkflowReady) hiddenRows.add('first-workflow');
   return hiddenRows;
+}
+
+function canRunWorkflows({
+  runnerReady,
+  modelReady,
+  installationRunners,
+  provisionerCount,
+  catalog,
+  configCount,
+}: {
+  runnerReady: boolean;
+  modelReady: boolean;
+  installationRunners: 'managed' | 'none' | undefined;
+  provisionerCount: number;
+  catalog: Parameters<typeof hasInstallationProvider>[0];
+  configCount: number;
+}): boolean {
+  const runnersAvailable =
+    runnerReady && (installationRunners === 'managed' || provisionerCount > 0);
+  const modelAvailable = modelReady && (hasInstallationProvider(catalog) || configCount > 0);
+  return runnersAvailable && modelAvailable;
 }
 
 function hasInstallationProvider(

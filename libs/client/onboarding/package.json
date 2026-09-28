@@ -15,7 +15,8 @@
       "types": "./src/*",
       "workspace-source": "./src/*",
       "default": "./dist/*"
-    }
+    },
+    "#test/*": "./test/*"
   },
   "exports": {
     ".": {
@@ -50,7 +51,9 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-agent-access-dto": "workspace:*",
     "@shipfox/client-agent": "workspace:*",
+    "@shipfox/client-api": "workspace:*",
     "@shipfox/client-integrations": "workspace:*",
     "@shipfox/client-projects": "workspace:*",
     "@shipfox/client-runners": "workspace:*",
@@ -70,7 +73,6 @@
     "@argos-ci/cli": "catalog:",
     "@argos-ci/storybook": "catalog:",
     "@shipfox/biome": "workspace:*",
-    "@shipfox/client-api": "workspace:*",
     "@shipfox/client-test-setup": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",

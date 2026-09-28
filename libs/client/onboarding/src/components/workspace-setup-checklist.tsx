@@ -11,6 +11,7 @@ import {
 } from '#hooks/use-checklist-analytics.js';
 import {useChecklistDismissal} from '#hooks/use-checklist-dismissal.js';
 import {useChecklistExpansion} from '#hooks/use-checklist-expansion.js';
+import {FirstWorkflowPanel, type FirstWorkflowPanelProgress} from './first-workflow-panel.js';
 import {SetupChecklistBody} from './setup-checklist-body.js';
 import {FirstWorkflowCelebration, SetupChecklistCompletion} from './setup-checklist-completion.js';
 import {
@@ -110,7 +111,8 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
       }
     : undefined;
 
-  return (
+  const firstWorkflowPanelProgress = homeFirstWorkflowPanelProgress(queryState);
+  const checklistPanel = (
     <Panel asChild className="w-full">
       <section aria-label="Get started">
         <ChecklistHeader count={countLabel} expansion={expansionControl} onDismiss={dismiss} />
@@ -134,6 +136,34 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
       </section>
     </Panel>
   );
+
+  if (!firstWorkflowPanelProgress) return checklistPanel;
+
+  return (
+    <>
+      {checklistPanel}
+      <FirstWorkflowPanel
+        workspace={workspace}
+        progress={firstWorkflowPanelProgress}
+        surface="home"
+      />
+    </>
+  );
+}
+
+/**
+ * The home offers the first workflow only once a run could succeed: runners and
+ * a model are known to be available and the workspace has no definition. It
+ * reads those facts rather than row visibility, since the checklist hides a row
+ * while its family loads, and it does not wait on the tools row, which a
+ * GitHub-only workspace never finishes.
+ */
+function homeFirstWorkflowPanelProgress(
+  queryState: ChecklistQueryState,
+): FirstWorkflowPanelProgress | undefined {
+  const progress = queryState.firstWorkflow;
+  if (!queryState.canRunWorkflows || !progress || progress.state === 'done') return undefined;
+  return progress;
 }
 
 /**

@@ -1,4 +1,4 @@
-import {modelProviderQueryKeys} from '@shipfox/client-agent';
+import {agentGrantsQueryOptions, modelProviderQueryKeys} from '@shipfox/client-agent';
 import {
   type IntegrationConnection,
   type IntegrationProvider,
@@ -26,7 +26,9 @@ import type {ReactNode} from 'react';
 import {useEffect, useMemo, useState} from 'react';
 import {deriveSetupChecklist, type FirstWorkflowProgress} from '#core/setup-checklist.js';
 import {firstWorkflowQueryKeys} from '#hooks/api/first-workflow.js';
+import {workflowTemplateQueryKeys} from '#hooks/api/workflow-templates.js';
 import {setWorkspaceSetupChecklistExpanded} from '#hooks/use-checklist-expansion.js';
+import {githubOnlyWorkflowTemplates} from '#test/fixtures/workflow-templates.js';
 import {
   SetupChecklistBody,
   SetupChecklistCompletion,
@@ -366,6 +368,21 @@ function createScenarioQueryClient(scenario: Scenario, workspace: WorkspaceRefer
   queryClient.setQueryData(
     firstWorkflowQueryKeys.scope({kind: 'workspace', workspaceId: workspace.id}),
     SCENARIO_FIRST_WORKFLOW[scenario],
+  );
+  // The home renders the first workflow panel under the checklist when runners
+  // and a model are available, so its reads are seeded too.
+  queryClient.setQueryData(agentGrantsQueryOptions().queryKey, [
+    {
+      id: 'grant-1',
+      clientName: 'Claude Code',
+      workspaceId: workspace.id,
+      createdAt: now,
+      lastRefreshedAt: null,
+    },
+  ]);
+  queryClient.setQueryData(
+    workflowTemplateQueryKeys.workspace(workspace.id),
+    githubOnlyWorkflowTemplates,
   );
 
   return queryClient;

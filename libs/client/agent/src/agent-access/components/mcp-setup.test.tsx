@@ -1,7 +1,7 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {McpSetup} from './mcp-setup.js';
+import {McpSetup, McpSetupInstructions} from './mcp-setup.js';
 
 describe('McpSetup', () => {
   beforeEach(() => {
@@ -36,5 +36,13 @@ describe('McpSetup', () => {
       servers: {shipfox: {type: 'http', url: 'https://api.example.test/proxy/mcp'}},
     });
     expect(within(instructions).getByText('.vscode/mcp.json')).toBeVisible();
+  });
+
+  test('renders the instructions without a heading for a host that frames them', () => {
+    render(<McpSetupInstructions />);
+
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+    expect(screen.getByText('https://api.example.test/proxy/mcp')).toBeVisible();
+    expect(screen.getByRole('tab', {name: 'Claude Code'})).toBeVisible();
   });
 });
