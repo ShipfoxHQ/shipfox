@@ -47,7 +47,7 @@ The first test run needs a task. When the user has no task in mind, read the rep
 
 ## Start the next task
 
-Without a tracker, the workflow starts only manually, with inputs. The dashboard Run button sends no inputs, so it cannot start this workflow. After the workflow pull request, which adds the file under `.shipfox/workflows/`, merges, the user asks their coding agent to start it with a new task. The agent calls `fire_manual_trigger` with the inputs above. With the Linear tracker, a Linear ticket also starts it, as the trigger option sets.
+Without a tracker, the workflow starts only manually, with inputs. A run started from the dashboard Run button has no inputs, so it fails before the agent starts and writes nothing. After the user merges the workflow pull request, which adds the file under `.shipfox/workflows/`, they ask their coding agent to start it with a new task. The agent calls `fire_manual_trigger` with the inputs above. With the Linear tracker, a Linear ticket also starts it, as the trigger option sets.
 
 ## Read the outcome
 
