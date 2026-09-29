@@ -100,7 +100,11 @@ export function LogDisclosureTrigger({
               className="size-16 flex-none text-foreground-contrast-secondary motion-safe:transition-transform group-data-[state=open]/disc:rotate-90"
             />
           )}
-          {children != null && <span className="min-w-0 truncate font-medium">{children}</span>}
+          {/* The label keeps its full width and only the summary shrinks; it
+              truncates only when it alone overflows the row. */}
+          {children != null && (
+            <span className="max-w-full flex-none truncate font-medium">{children}</span>
+          )}
           {summary != null && (
             <span className="min-w-0 truncate text-foreground-contrast-secondary group-data-[state=open]/disc:hidden">
               {summary}
