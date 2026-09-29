@@ -59,6 +59,7 @@
     "@shipfox/api-email-challenges",
     "@shipfox/api-integration-core",
     "@shipfox/api-integration-core-dto",
+    "@shipfox/api-integration-discord-dto",
     "@shipfox/api-integration-clickup",
     "@shipfox/api-integration-clickup-dto",
     "@shipfox/api-integration-notion",
