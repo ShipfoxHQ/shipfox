@@ -1,5 +1,6 @@
 export {computeTemplateBump, type TemplateBump, type TemplateManifestChange} from './bump.js';
 export {
+  type ApplyTemplateOptionsInput,
   applyTemplateOptions,
   type ComposeTemplateInput,
   composeTemplate,
@@ -11,6 +12,12 @@ export {
   type TemplateRoleBindings,
   templateRoleBindings,
 } from './composer.js';
+export {
+  assertSupportedComposition,
+  CURRENT_COMPOSITION,
+  SUPPORTED_COMPOSITIONS,
+  UnsupportedCompositionError,
+} from './composition.js';
 export {
   formatTemplateHeader,
   type LegacyTemplateHeader,

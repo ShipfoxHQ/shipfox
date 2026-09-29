@@ -1,4 +1,5 @@
 import type {RegistryReference} from '@shipfox/registry-format';
+import {assertSupportedComposition, CURRENT_COMPOSITION} from './composition.js';
 import {formatTemplateHeader} from './header.js';
 import type {WorkflowTemplateManifest} from './manifest.js';
 import {validateModelAnchors} from './model-anchors.js';
@@ -19,6 +20,13 @@ export type TemplateHeaderChoice =
 export interface ComposeTemplateInput {
   options?: TemplateOptions;
   header?: TemplateHeaderChoice;
+  /** The composition format, one of `SUPPORTED_COMPOSITIONS`. Defaults to the current format. */
+  composition?: number;
+}
+
+export interface ApplyTemplateOptionsInput {
+  /** The composition format, one of `SUPPORTED_COMPOSITIONS`. Defaults to the current format. */
+  composition?: number;
 }
 
 interface OptionMarker {
@@ -71,7 +79,13 @@ export function composeWorkflow(workflow: string, parts: PartBlocks): string {
  * when either choice is chosen. Other comments, such as `# slot:` and `# bind:`, stay. An option
  * with no entry in `options` keeps its blocks and markers, so an empty `options` changes nothing.
  */
-export function applyTemplateOptions(yaml: string, options: TemplateOptions): string {
+export function applyTemplateOptions(
+  yaml: string,
+  options: TemplateOptions,
+  {composition = CURRENT_COMPOSITION}: ApplyTemplateOptionsInput = {},
+): string {
+  assertSupportedComposition(composition);
+
   const open: OpenOptionBlock[] = [];
   const kept: string[] = [];
   const emit = (line: string) => {
@@ -124,8 +138,13 @@ export function composeTemplate(
     parts: PartProviderBlocks;
   },
   bindings: TemplateRoleBindings,
-  {options = {}, header = {kind: 'legacy'}}: ComposeTemplateInput = {},
+  {
+    options = {},
+    header = {kind: 'legacy'},
+    composition = CURRENT_COMPOSITION,
+  }: ComposeTemplateInput = {},
 ): string {
+  assertSupportedComposition(composition);
   validateOptions(template.id, template.manifest, options);
 
   const selectedParts: Record<string, string> = {};

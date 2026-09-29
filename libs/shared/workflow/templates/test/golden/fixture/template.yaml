@@ -1,0 +1,30 @@
+title: Composer fixture
+summary: Exercises every composer behavior. Frozen with the composition corpus.
+starts: A test event starts this workflow
+roles:
+  source:
+    from: project
+    providers: [github, gitlab]
+  report:
+    providers: [slack]
+    optional: true
+    question: Should the workflow report to Slack?
+    tradeoff: Posts one Slack message per run.
+options:
+  - id: mode
+    choices:
+      - id: fast
+        default: true
+      - id: thorough
+  - id: notify
+    choices:
+      - id: summary
+      - id: detail
+        default: true
+      - id: none
+models:
+  describe:
+    note: Any small model is enough.
+slots:
+  - id: setup_commands
+    description: Commands to prepare the repository.

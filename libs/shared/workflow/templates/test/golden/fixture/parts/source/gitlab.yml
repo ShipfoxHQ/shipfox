@@ -1,0 +1,7 @@
+trigger: |
+  ticket:
+    source: gitlab_fixture
+    event: issue.opened
+checkout: |
+  - key: checkout_gitlab
+    run: git clone https://gitlab.com/acme/repo.git
