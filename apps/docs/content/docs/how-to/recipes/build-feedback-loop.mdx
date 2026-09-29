@@ -4,9 +4,10 @@ sidebarTitle: "Retry Until Checks Pass"
 description: "Route two objective checks to independent recovery steps until both checks pass or an attempt bound is reached."
 ---
 
-This guide builds one job with test and lint feedback loops. Each failed check
-routes to its own recovery step by the checking step's key. The recovery step
-reads the log of the failed check, so no step has to capture its own output.
+This guide builds a job where an agent fixes failing tests and lint errors. The
+job runs two checks: `npm test` and `npm run lint`. Each check has its own
+recovery step. When a check fails, Shipfox runs the recovery step for that
+check. The recovery step reads the log of the failed check to find the error.
 
 ## Before you begin
 
@@ -107,27 +108,6 @@ Exact gate fields and validation rules live in [Gate
 fields](/reference/workflow-schema#gate-fields). The [Contexts
 reference](/reference/contexts#context-properties) owns the exact restart field
 shape and availability.
-
-## Replace output captured by hand
-
-A workflow may pass a failed check's output through step outputs. In that
-pattern, the check script saves its output to a file and writes the end of it
-to `$SHIPFOX_OUTPUT`, often from an `EXIT` trap. The checking step declares an
-output such as `summary`, and the handler reads
-`step.restart.from.outputs.summary`.
-
-`log_path` replaces that pattern:
-
-1. Remove the output capture, the write to `$SHIPFOX_OUTPUT`, and the output
-   half of the `EXIT` trap from the check script.
-2. Remove the output declaration from the checking step.
-3. In the handler, replace `step.restart.from.outputs.summary` with
-   `step.restart.from.log_path`, guarded with `has()`.
-4. Keep `gate.on_failure.feedback` for the message that names the failed
-   property.
-
-Keep a declared output when it carries structured data that the log doesn't
-have, such as a list of failed test names.
 
 ## Migrate from feedback-prefix routing
 

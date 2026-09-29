@@ -621,7 +621,7 @@ const workflowDocumentStepGateSchema = z
   .strictObject({
     success: z.string().min(1).optional().meta({
       description:
-        'Marks the step as successful when the condition returns `true`. See [Gate outcomes](/understand/feedback-loops#gate-outcomes).',
+        'Marks the step as successful when the condition returns `true`. See [Check and restart are separate](/understand/feedback-loops#check-and-restart-are-separate).',
     }),
     on_failure: z
       .strictObject({
