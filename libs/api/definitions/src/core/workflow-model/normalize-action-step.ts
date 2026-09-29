@@ -148,6 +148,10 @@ function createModelAction(
   }
   return {
     uses,
+    origin: resolved.registry === undefined ? 'local' : 'registry',
+    ...(resolved.registry === undefined
+      ? {}
+      : {package: resolved.registry.package, version: resolved.registry.version}),
     digest: resolved.digest,
     name: resolved.manifest.name,
     main: resolved.manifest.main,

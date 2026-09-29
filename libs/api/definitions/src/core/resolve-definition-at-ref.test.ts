@@ -14,6 +14,12 @@ import {workflowDefinitions} from '#db/schema/definitions.js';
 import {definitionsOutbox} from '#db/schema/outbox.js';
 import {workflowWorkflows} from '#db/schema/workflows.js';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
+import {
+  fakeRegistry,
+  REGISTRY_ACTION_REF,
+  registryError,
+  registryVersion,
+} from '#test/fixtures/registry-action.js';
 import {MAX_WORKFLOW_FILES} from './sync-definitions.js';
 
 const metrics = vi.hoisted(() => ({
@@ -1371,5 +1377,158 @@ jobs:
 
     expect(clients.integrations.listSourceFiles).not.toHaveBeenCalled();
     expect(await snapshotRows(workspaceId)).toEqual([]);
+  });
+
+  describe('registry actions', () => {
+    const registryWorkflowYaml = `
+name: Actions
+runner: ubuntu-latest
+triggers:
+  on_demand:
+    source: manual
+    event: fire
+jobs:
+  build:
+    steps:
+      - uses: ${REGISTRY_ACTION_REF}
+`;
+
+    test('resolves a registry action and stores its snapshot as registry', async () => {
+      const version = await registryVersion();
+      const registry = fakeRegistry(version);
+      const {projectId, workspaceId, clients} = clientsFor(actionRepository());
+
+      const result = await resolveDefinitionAtRef({
+        projectId,
+        configPath: CONFIG_PATH,
+        content: registryWorkflowYaml,
+        actionsEnabled: true,
+        registryActionsEnabled: true,
+        registry,
+        ...clients,
+      });
+
+      expect(clients.integrations.listSourceFiles).not.toHaveBeenCalled();
+      expect(result.model.model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'action',
+        action: {
+          uses: REGISTRY_ACTION_REF,
+          origin: 'registry',
+          package: 'shipfox/slack-thread-digest',
+          version: '1.4.2',
+          digest: version.digest,
+        },
+      });
+      expect(await snapshotRows(workspaceId)).toEqual([
+        expect.objectContaining({source: 'registry', fileCount: 2}),
+      ]);
+    });
+
+    test('resolves registry and repository actions together', async () => {
+      const registry = fakeRegistry(await registryVersion());
+      const {projectId, workspaceId, clients} = clientsFor(actionRepository());
+
+      await resolveDefinitionAtRef({
+        projectId,
+        configPath: CONFIG_PATH,
+        content: `${actionWorkflowYaml}      - uses: ${REGISTRY_ACTION_REF}\n`,
+        actions: [uploadedNotify],
+        actionsEnabled: true,
+        registryActionsEnabled: true,
+        registry,
+        ...clients,
+      });
+
+      // Uploads apply to the repository path only.
+      expect((await snapshotRows(workspaceId)).map((row) => row.source).sort()).toEqual([
+        'dev_local',
+        'registry',
+      ]);
+    });
+
+    test('does not warn that an upload named like a registry reference is unused', async () => {
+      const registry = fakeRegistry(await registryVersion());
+      const {projectId, clients} = clientsFor(actionRepository());
+
+      const result = await resolveDefinitionAtRef({
+        projectId,
+        configPath: CONFIG_PATH,
+        content: registryWorkflowYaml,
+        actions: [{...uploadedNotify, path: NOTIFY}],
+        actionsEnabled: true,
+        registryActionsEnabled: true,
+        registry,
+        ...clients,
+      });
+
+      expect(result.warnings).toEqual([
+        {
+          code: 'action-upload-unused',
+          message: `Uploaded action ${NOTIFY} is not used by any step`,
+        },
+      ]);
+    });
+
+    test('rejects a missing registry version as an invalid definition', async () => {
+      const {projectId, workspaceId, clients} = clientsFor(actionRepository());
+
+      const error = await expectRefError(
+        resolveDefinitionAtRef({
+          projectId,
+          configPath: CONFIG_PATH,
+          content: registryWorkflowYaml,
+          actionsEnabled: true,
+          registryActionsEnabled: true,
+          registry: fakeRegistry(registryError('registry-version-not-found')),
+          ...clients,
+        }),
+        'invalid-definition',
+      );
+
+      expect(error.details.errors).toEqual([
+        {message: `${CONFIG_PATH}: Registry action ${REGISTRY_ACTION_REF} was not found`},
+      ]);
+      expect(await snapshotRows(workspaceId)).toEqual([]);
+    });
+
+    test('asks the caller to try again while the registry is unavailable', async () => {
+      const {projectId, workspaceId, clients} = clientsFor(actionRepository());
+
+      const error = await expectRefError(
+        resolveDefinitionAtRef({
+          projectId,
+          configPath: CONFIG_PATH,
+          content: registryWorkflowYaml,
+          actionsEnabled: true,
+          registryActionsEnabled: true,
+          registry: fakeRegistry(registryError('registry-unavailable')),
+          ...clients,
+        }),
+        'invalid-definition',
+      );
+
+      expect(error.message).toContain('registry is unavailable');
+      expect(await snapshotRows(workspaceId)).toEqual([]);
+    });
+
+    test('rejects a registry reference without registry actions', async () => {
+      const registry = fakeRegistry(await registryVersion());
+      const {projectId, clients} = clientsFor(actionRepository());
+
+      await expectRefError(
+        resolveDefinitionAtRef({
+          projectId,
+          configPath: CONFIG_PATH,
+          content: registryWorkflowYaml,
+          actionsEnabled: true,
+          registryActionsEnabled: false,
+          registry,
+          ...clients,
+        }),
+        'invalid-definition',
+      );
+
+      expect(registry.resolveVersion).not.toHaveBeenCalled();
+    });
   });
 });

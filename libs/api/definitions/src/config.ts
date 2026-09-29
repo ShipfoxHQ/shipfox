@@ -11,6 +11,10 @@ export const config = createConfig({
     default: false,
     devDefault: true,
   }),
+  REGISTRY_URL: str({
+    desc: 'URL of the Shipfox Registry API, such as https://api.registry.shipfox.io. When it is set and DEFINITION_ACTIONS_ENABLED is on, workflow steps can run registry actions with `uses: namespace/name@1.4.2`. Leave it empty to accept repository actions only. The registry module reads the same variable.',
+    default: '',
+  }),
   DEFINITION_WORKFLOW_PATH: str({
     desc: 'Repository-relative path that contains workflow YAML files. Set a different path for each Shipfox instance when staging and production share a repository.',
     default: '.shipfox/workflows/',
@@ -43,3 +47,6 @@ export const definitionDefaultRunnerLabels = parseDefinitionDefaultRunnerLabels(
 export const definitionWorkflowPath = config.DEFINITION_WORKFLOW_PATH;
 
 export const definitionActionsEnabled = config.DEFINITION_ACTIONS_ENABLED;
+
+export const definitionRegistryActionsEnabled =
+  config.DEFINITION_ACTIONS_ENABLED && config.REGISTRY_URL.trim() !== '';

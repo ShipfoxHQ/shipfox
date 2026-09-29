@@ -237,6 +237,12 @@ export interface WorkflowModelActionStep extends WorkflowModelStepBase {
 /** The action snapshot a step runs, with the manifest fields dispatch needs. */
 export interface WorkflowModelAction {
   readonly uses: string;
+  /** Where the action comes from. Models stored before registry actions omit it and mean `local`. */
+  readonly origin?: 'local' | 'registry';
+  /** Registry package name, such as `shipfox/slack-thread-digest`. Set when `origin` is `registry`. */
+  readonly package?: string;
+  /** Exact registry version. Set when `origin` is `registry`. */
+  readonly version?: string;
   readonly digest: string;
   readonly name: string;
   readonly main: string;

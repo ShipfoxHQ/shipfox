@@ -7,6 +7,7 @@ import {
   type ProjectsModuleClient,
   projectsInterModuleContract,
 } from '@shipfox/api-projects-dto/inter-module';
+import type {RegistryInterModuleClient} from '@shipfox/api-registry-dto/inter-module';
 import {
   createInterModuleKnownError,
   defineInterModulePresentation,
@@ -29,6 +30,7 @@ export interface CreateDefinitionsInterModulePresentationParams {
   projects: ProjectsModuleClient;
   agent: AgentInterModuleClient;
   integrations: IntegrationsModuleClient;
+  registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
 }
 
 export function createDefinitionsInterModulePresentation(

@@ -20,6 +20,7 @@ import {logsInterModuleContract} from '@shipfox/api-logs-dto/inter-module';
 import {createProjectsModule} from '@shipfox/api-projects';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {createRegistryModule} from '@shipfox/api-registry';
+import {registryInterModuleContract} from '@shipfox/api-registry-dto/inter-module';
 import {type CreateRunnersModuleOptions, createRunnersModule} from '@shipfox/api-runners';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {createSecretsModule} from '@shipfox/api-secrets';
@@ -152,6 +153,7 @@ export async function defaultModules(
   const usageClient = interModuleTransport.createClient(usageInterModuleContract);
   const integrationsClient = interModuleTransport.createClient(integrationsInterModuleContract);
   const logsClient = interModuleTransport.createClient(logsInterModuleContract);
+  const registryClient = interModuleTransport.createClient(registryInterModuleContract);
   const triggersClient = interModuleTransport.createClient(triggersInterModuleContract);
   const integrations = await createIntegrationsContext({
     workspaces: workspacesClient,
@@ -374,6 +376,7 @@ export async function defaultModules(
     projects: projectsClient,
     agent: agentClient,
     integrations: integrationsClient,
+    registry: registryClient,
   });
   const extensionModules =
     options.extension?.({

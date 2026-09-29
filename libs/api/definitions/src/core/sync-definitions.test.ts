@@ -3,6 +3,12 @@ import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {LOWERCASE_SHA256_HEX_RE} from '@shipfox/regex';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
+import {
+  fakeRegistry,
+  REGISTRY_ACTION_REF,
+  registryError,
+  registryVersion,
+} from '#test/fixtures/registry-action.js';
 import type {IntegrationValidationContext} from './entities/integration-context.js';
 import {DefinitionSyncPermanentError} from './errors.js';
 import type {DefinitionsSourceControl} from './integrations.js';
@@ -809,6 +815,8 @@ jobs:
     repository: Record<string, string>;
     paths?: string[];
     actionsEnabled?: boolean;
+    registryActionsEnabled?: boolean;
+    registry?: ReturnType<typeof fakeRegistry>;
     source?: DefinitionsSourceControl;
     onProgress?: (path: string) => void;
     loadIntegrationValidationContext?: () => Promise<IntegrationValidationContext>;
@@ -820,6 +828,8 @@ jobs:
       sourceControl: params.source ?? repositorySourceControl(params.repository),
       agentValidationCatalog,
       actionsEnabled: params.actionsEnabled ?? true,
+      registryActionsEnabled: params.registryActionsEnabled ?? true,
+      registry: params.registry,
       onProgress: params.onProgress,
       loadIntegrationValidationContext: params.loadIntegrationValidationContext,
     });
@@ -975,6 +985,169 @@ jobs:
         filePath: '.shipfox/actions/notify/index.ts',
       },
     ]);
+  });
+
+  describe('registry actions', () => {
+    const registryWorkflowYaml = `
+name: Actions
+runner: ubuntu-latest
+jobs:
+  build:
+    steps:
+      - uses: ${REGISTRY_ACTION_REF}
+`;
+
+    it('resolves the registry action and records its origin on the step', async () => {
+      const version = await registryVersion();
+      const registry = fakeRegistry(version);
+      const source = repositorySourceControl({[workflowPath]: registryWorkflowYaml});
+
+      const result = await sync({repository: {}, source, registry});
+
+      expect(source.listFiles).not.toHaveBeenCalled();
+      expect(result.actions).toHaveLength(1);
+      expect(result.actions[0]).toMatchObject({
+        registry: {package: 'shipfox/slack-thread-digest', version: '1.4.2'},
+        bundle: {digest: version.digest},
+      });
+      expect(result.workflows[0]?.definition.model.jobs[0]?.steps[0]).toMatchObject({
+        kind: 'action',
+        action: {
+          uses: REGISTRY_ACTION_REF,
+          origin: 'registry',
+          package: 'shipfox/slack-thread-digest',
+          version: '1.4.2',
+          digest: version.digest,
+          name: 'Slack thread digest',
+        },
+      });
+      expect(result.actionDiagnostics).toEqual([]);
+    });
+
+    it('marks repository actions with the local origin', async () => {
+      const result = await sync({repository: actionRepository()});
+
+      expect(result.workflows[0]?.definition.model.jobs[0]?.steps[0]).toMatchObject({
+        action: {origin: 'local'},
+      });
+      expect(result.workflows[0]?.definition.model.jobs[0]?.steps[0]).not.toHaveProperty(
+        'action.package',
+      );
+    });
+
+    it('does not warn about the imports of a bundled registry action', async () => {
+      const version = await registryVersion({
+        files: [
+          {path: 'action.yml', content: 'name: Slack thread digest\nmain: index.mjs\n'},
+          {path: 'index.mjs', content: "import {x} from './missing.mjs';\n"},
+        ],
+      });
+
+      const result = await sync({
+        repository: {[workflowPath]: registryWorkflowYaml},
+        registry: fakeRegistry(version),
+      });
+
+      expect(result.actionDiagnostics).toEqual([]);
+    });
+
+    it('changes the hash when the pinned version changes bytes', async () => {
+      const first = await sync({
+        repository: {[workflowPath]: registryWorkflowYaml},
+        registry: fakeRegistry(await registryVersion()),
+      });
+      const second = await sync({
+        repository: {[workflowPath]: registryWorkflowYaml},
+        registry: fakeRegistry(
+          await registryVersion({
+            files: [
+              {path: 'action.yml', content: 'name: Slack thread digest\nmain: index.mjs\n'},
+              {path: 'index.mjs', content: 'export default 2;\n'},
+            ],
+          }),
+        ),
+      });
+
+      expect(second.workflows[0]?.contentHash).not.toBe(first.workflows[0]?.contentHash);
+    });
+
+    it('rejects a registry reference as not supported yet without registry actions', async () => {
+      const registry = fakeRegistry(await registryVersion());
+
+      const error = await sync({
+        repository: {[workflowPath]: registryWorkflowYaml},
+        registry,
+        registryActionsEnabled: false,
+      }).catch((caught: unknown) => caught);
+
+      expect(error).toMatchObject({
+        code: 'invalid-definition',
+        filePath: workflowPath,
+        details: [{message: expect.stringContaining('Remote actions are not supported yet')}],
+      });
+      expect(registry.resolveVersion).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['registry-version-not-found', 'action-not-found'],
+      ['registry-signature-invalid', 'action-invalid'],
+      ['registry-schema-unsupported', 'action-invalid'],
+    ] as const)('surfaces %s as %s diagnostics on the workflow file', async (registryCode, code) => {
+      const error = await sync({
+        repository: {[workflowPath]: registryWorkflowYaml},
+        registry: fakeRegistry(registryError(registryCode)),
+      }).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(DefinitionSyncPermanentError);
+      expect(classifySyncFailure(error)).toMatchObject({
+        code,
+        retryable: false,
+        diagnostics: [
+          {
+            code,
+            severity: 'error',
+            filePath: workflowPath,
+            message: expect.stringContaining(REGISTRY_ACTION_REF),
+          },
+        ],
+      });
+    });
+
+    it('retries sync while the registry is unavailable', async () => {
+      const error = await sync({
+        repository: {[workflowPath]: registryWorkflowYaml},
+        registry: fakeRegistry(registryError('registry-unavailable')),
+      }).catch((caught: unknown) => caught);
+
+      expect(classifySyncFailure(error)).toEqual({
+        code: 'unknown',
+        message: 'The registry is unavailable',
+        retryable: true,
+      });
+    });
+
+    it('counts registry and repository actions toward the 20-action limit', async () => {
+      const local = Array.from(
+        {length: 10},
+        (_, index) => `      - uses: ./.shipfox/actions/a${index}`,
+      );
+      const remote = Array.from(
+        {length: 11},
+        (_, index) => `      - uses: shipfox/action-${index}@1.0.0`,
+      );
+      const yaml = `name: Many\nrunner: ubuntu-latest\njobs:\n  build:\n    steps:\n${[...local, ...remote].join('\n')}\n`;
+      const registry = fakeRegistry(await registryVersion());
+
+      const error = await sync({repository: {[workflowPath]: yaml}, registry}).catch(
+        (caught: unknown) => caught,
+      );
+
+      expect(classifySyncFailure(error)).toMatchObject({
+        code: 'action-too-large',
+        diagnostics: [{filePath: workflowPath}],
+      });
+      expect(registry.resolveVersion).not.toHaveBeenCalled();
+    });
   });
 });
 

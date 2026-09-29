@@ -9,6 +9,7 @@ import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {logsInterModuleContract} from '@shipfox/api-logs-dto/inter-module';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
+import {registryInterModuleContract} from '@shipfox/api-registry-dto/inter-module';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {
   type SecretsInterModuleClient,
@@ -225,7 +226,16 @@ describe('defaultModules', () => {
     mocks.getUserSummary.mockResolvedValue(undefined);
     mocks.getUserSummaryByEmail.mockResolvedValue(null);
     mocks.setSecrets.mockResolvedValue({});
-    mocks.createRegistryModule.mockReturnValue({name: 'registry'});
+    mocks.createRegistryModule.mockReturnValue({
+      name: 'registry',
+      interModulePresentations: [
+        defineInterModulePresentation(registryInterModuleContract, {
+          resolveVersion: vi.fn(),
+          getSource: vi.fn(),
+          getReadme: vi.fn(),
+        }),
+      ],
+    });
     mocks.createProjectsModule.mockReturnValue({
       name: 'projects',
       interModulePresentations: [
@@ -443,6 +453,7 @@ describe('defaultModules', () => {
       integrationsInterModuleContract,
       logsInterModuleContract,
       projectsInterModuleContract,
+      registryInterModuleContract,
       runnersInterModuleContract,
       secretsInterModuleContract,
       triggersInterModuleContract,
@@ -452,6 +463,14 @@ describe('defaultModules', () => {
     ].map((contract) => contract.module);
 
     expect(presentationModules.sort()).toEqual(composedClientModules.sort());
+  });
+
+  it('gives Definitions the Registry client', async () => {
+    await defaultModules();
+
+    expect(mocks.createDefinitionsModule).toHaveBeenCalledWith(
+      expect.objectContaining({registry: expect.any(Object)}),
+    );
   });
 
   it('injects Auth into the Runners module', async () => {
