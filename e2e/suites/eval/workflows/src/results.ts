@@ -10,6 +10,7 @@ export interface CaseResult {
   duration_ms: number;
   cost_usd: number;
   error?: string;
+  composed_yaml?: string;
 }
 
 export interface ResultsRun {

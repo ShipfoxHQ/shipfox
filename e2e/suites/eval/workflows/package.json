@@ -14,6 +14,7 @@
   "imports": {
     "#cli.js": "./src/cli.ts",
     "#discovery.js": "./src/discovery.ts",
+    "#langfuse.js": "./src/langfuse.ts",
     "#results.js": "./src/results.ts",
     "#schema.js": "./src/schema.ts"
   },
@@ -29,6 +30,10 @@
     "type": "shipfox-tsc-check"
   },
   "dependencies": {
+    "@langfuse/client": "catalog:",
+    "@langfuse/otel": "catalog:",
+    "@langfuse/tracing": "catalog:",
+    "@opentelemetry/sdk-trace-node": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:"
   },

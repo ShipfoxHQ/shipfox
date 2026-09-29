@@ -2,6 +2,7 @@
 import {join} from 'node:path';
 import {parseArgs} from 'node:util';
 import {caseSupportsMode, discoverCases} from './discovery.js';
+import {exportToLangfuse, isLangfuseConfigured} from './langfuse.js';
 import {type ResultsRun, writeResults} from './results.js';
 
 const usage = `Usage: shipfox-eval-workflows [options]
@@ -136,6 +137,28 @@ export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
   });
 }
 
+// Results are already on disk, so an export failure is reported without failing the run.
+async function exportRun({
+  options,
+  run,
+  stdout,
+  stderr,
+}: {
+  options: EvalCliOptions;
+  run: ResultsRun;
+  stdout: (message: string) => void;
+  stderr: (message: string) => void;
+}): Promise<void> {
+  if (!isLangfuseConfigured()) return;
+  try {
+    const exported = await exportToLangfuse({suite: options.suite, mode: options.mode, run});
+    if (exported)
+      stdout(`Exported ${exported.items} items to Langfuse as ${exported.experiment}.\n`);
+  } catch (error) {
+    stderr(`Langfuse export failed: ${error instanceof Error ? error.message : String(error)}\n`);
+  }
+}
+
 export async function runCli(
   argv: string[],
   environment: EvalCliEnvironment = {},
@@ -159,6 +182,7 @@ export async function runCli(
       ...(environment.cwd === undefined ? {} : {resultsDirectory: `${environment.cwd}/results`}),
     });
     stdout(`Validated ${run.results.length} case runs. Results: ${run.directory}\n`);
+    await exportRun({options, run, stdout, stderr});
     return 0;
   } catch (error) {
     stderr(`Eval failed: ${error instanceof Error ? error.message : String(error)}\n`);

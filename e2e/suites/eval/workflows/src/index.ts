@@ -1,5 +1,15 @@
 export {type EvalCliOptions, type EvalRunOptions, parseEvalArgs, runCli, runEval} from './cli.js';
 export {caseSupportsMode, type DiscoveredCase, discoverCases} from './discovery.js';
+export {
+  describeRun,
+  exportToLangfuse,
+  isLangfuseConfigured,
+  type LangfuseExport,
+  type LangfuseExportOptions,
+  resultScores,
+  runScores,
+  safeTask,
+} from './langfuse.js';
 export {type CaseResult, createRunId, type ResultsRun, writeResults} from './results.js';
 export {
   CaseValidationError,
