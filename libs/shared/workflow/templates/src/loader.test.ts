@@ -415,6 +415,25 @@ describe('workflow template loader', () => {
 
     parseWorkflowDocument(parseYaml(withSetupCommand));
   });
+
+  it('fills slot markers without matching prefixing slot ids', () => {
+    const template = shippedTemplate('ticket-to-pr');
+    const withPrefixingSlots = {
+      ...template,
+      manifest: {
+        ...template.manifest,
+        slots: [
+          {id: 'test', description: 'A short test slot.'},
+          {id: 'test_command', description: 'A longer test slot.'},
+        ],
+      },
+    };
+    const yaml = ['steps:', '  # slot:test', '  # slot:test_command'].join('\n');
+
+    expect(fillSlots(yaml, withPrefixingSlots)).toBe(
+      ['steps:', '  - run: echo slot-placeholder', '  - run: echo slot-placeholder'].join('\n'),
+    );
+  });
 });
 
 function fillSlots(yaml: string, template: WorkflowTemplate): string {
@@ -422,7 +441,7 @@ function fillSlots(yaml: string, template: WorkflowTemplate): string {
   for (const {id} of template.manifest.slots) {
     const marker = new RegExp(`^(\\s*)# slot:${id}\\s*$`, 'gm');
     filled = filled.replace(marker, '$1- run: echo slot-placeholder');
-    filled = filled.replaceAll(`# slot:${id}`, '');
+    filled = filled.replaceAll(new RegExp(`# slot:${id}(?![a-z0-9_-])`, 'g'), '');
   }
   return filled.replace(/replace-with-[a-z0-9_-]+/g, 'echo slot-placeholder');
 }
