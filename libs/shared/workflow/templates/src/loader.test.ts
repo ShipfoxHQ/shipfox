@@ -352,12 +352,17 @@ describe('workflow template loader', () => {
     expect(bare).toBe(full);
   });
 
-  it('lists every shipped template with its catalog package version', async () => {
-    const templates = await shippedTemplateLoader.list();
+  it('gives each shipped template the version of its catalog package', async () => {
+    for (const template of await shippedTemplateLoader.list()) {
+      const {version} = JSON.parse(
+        readFileSync(
+          new URL(`../../catalog/templates/${template.id}/package.json`, import.meta.url),
+          'utf8',
+        ),
+      ) as {version: string};
 
-    expect(templates.map(({package: name, version}) => `${name}@${version}`)).toEqual(
-      loadShippedTemplates().map(({id}) => `shipfox/${id}@1.0.0`),
-    );
+      expect(`${template.package}@${template.version}`).toBe(`shipfox/${template.id}@${version}`);
+    }
   });
 
   it('applies options to the composed YAML and keeps the legacy header', async () => {

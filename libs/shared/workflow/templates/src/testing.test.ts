@@ -1,21 +1,23 @@
+import {fileURLToPath} from 'node:url';
 import {describe, expect, it} from '@shipfox/vitest/vi';
 import {templateRoleBindings} from './composer.js';
-import {shippedTemplateLoader} from './loader.js';
+import {shippedTemplateLoader, type TemplateLoader} from './loader.js';
 import {createDirectoryTemplateLoader} from './testing.js';
 
 const headerLine = /^# shipfox-template:.*\n/m;
-const catalog = new URL('../../catalog/templates', import.meta.url).pathname;
+const catalog = fileURLToPath(new URL('../../catalog/templates', import.meta.url));
 
 describe('createDirectoryTemplateLoader', () => {
   const loader = createDirectoryTemplateLoader(catalog);
 
-  it('serves the catalog packages at their package.json versions', async () => {
-    const templates = await loader.list();
+  it('serves the same packages and versions as the embedded copy', async () => {
+    const summary = async (source: TemplateLoader) =>
+      (await source.list()).map(({package: name, version}) => `${name}@${version}`);
 
-    expect(templates.map(({package: name, version}) => `${name}@${version}`)).toEqual(
-      (await shippedTemplateLoader.list()).map(({id}) => `shipfox/${id}@1.0.0`),
+    expect(await summary(loader)).toEqual(await summary(shippedTemplateLoader));
+    await expect(loader.versions({package: 'ticket-to-pr'})).resolves.toEqual(
+      await shippedTemplateLoader.versions({package: 'ticket-to-pr'}),
     );
-    await expect(loader.versions({package: 'ticket-to-pr'})).resolves.toEqual(['1.0.0']);
   });
 
   it('composes the same workflow as the embedded copy for every binding, apart from the header revision', async () => {
