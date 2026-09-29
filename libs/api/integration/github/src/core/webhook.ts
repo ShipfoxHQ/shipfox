@@ -19,6 +19,10 @@ import {
 } from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import {getGithubInstallationByInstallationId} from '#db/installations.js';
+import {
+  deleteGithubUnlinkedInstallationByInstallationId,
+  upsertGithubUnlinkedInstallation,
+} from '#db/unlinked-installations.js';
 
 const REFS_HEADS_PREFIX = 'refs/heads/';
 const GITHUB_SOURCE = 'github';
@@ -234,12 +238,26 @@ export async function handleGithubEvent(
     return {outcome: 'no-installation-id'};
   }
 
+  await deleteGithubUnlinkedInstallationForDeletedEvent({
+    tx: params.tx,
+    event: params.event,
+    action,
+    installationId,
+  });
+
   const installation = await getGithubInstallationByInstallationId(String(installationId), {
     tx: params.tx,
   });
   if (!installation) {
     logUnknownGithubInstallation({
       deliveryId: params.deliveryId,
+      installationId,
+      event: params.event,
+      action,
+      payload: params.payload,
+    });
+    await recordUnknownGithubInstallation({
+      tx: params.tx,
       installationId,
       event: params.event,
       action,
@@ -298,6 +316,52 @@ export async function handleGithubEvent(
   }
 
   return dispatchGithubEvent(params, connection, installationId, action);
+}
+
+const UNLINKED_INSTALLATION_ACTIONS = new Set(['created', 'new_permissions_accepted', 'unsuspend']);
+
+async function deleteGithubUnlinkedInstallationForDeletedEvent(params: {
+  tx: IntegrationTx;
+  event: string;
+  action: string | undefined;
+  installationId: number;
+}): Promise<void> {
+  if (params.event !== 'installation' || params.action !== 'deleted') return;
+  await deleteGithubUnlinkedInstallationByInstallationId(String(params.installationId), {
+    tx: params.tx,
+  });
+}
+
+async function recordUnknownGithubInstallation(params: {
+  tx: IntegrationTx;
+  installationId: number;
+  event: string;
+  action: string | undefined;
+  payload: unknown;
+}): Promise<void> {
+  if (params.event !== 'installation') return;
+
+  if (!params.action || !UNLINKED_INSTALLATION_ACTIONS.has(params.action)) return;
+
+  const parsed = githubWebhookInstallationSchema.safeParse(params.payload);
+  const details = parsed.success ? parsed.data : undefined;
+  const installation = details?.installation;
+  const account = installation?.account;
+  const repositorySelection = installation?.repository_selection;
+  if (!account || !repositorySelection) return;
+
+  await upsertGithubUnlinkedInstallation(
+    {
+      installationId: String(params.installationId),
+      accountLogin: account.login,
+      accountType: account.type,
+      repositorySelection,
+      senderLogin: details?.sender?.login,
+      requesterLogin: details?.requester?.login,
+      lastAction: params.action,
+    },
+    {tx: params.tx},
+  );
 }
 
 function logUnknownGithubInstallation(params: {

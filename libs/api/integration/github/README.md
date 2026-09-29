@@ -59,6 +59,13 @@ The provider reads the GitHub App credentials, webhook secret, API base URL, and
 
 The link flow carries its S256 PKCE verifier inside authenticated encrypted state. It requires the completing Shipfox actor's JWT and workspace membership. Existing installations are never repointed. Multiple linkable installations return a typed conflict until the selection flow is available.
 
+## Observability
+
+The provider registers the service-level gauge `integrations_github_unlinked_installations`.
+It counts installations recorded from lifecycle webhooks whose `first_seen_at` is more than
+one hour old and whose installation is not linked. The gauge is intentionally a shared-state
+observable gauge rather than a per-instance metric.
+
 ## Development
 
 Run package checks from the repository root:

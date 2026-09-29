@@ -115,6 +115,13 @@ export {
   getGithubInstallationByInstallationId,
   upsertGithubInstallation,
 } from '#db/installations.js';
+export {
+  countStaleGithubUnlinkedInstallations,
+  deleteGithubUnlinkedInstallationByInstallationId,
+  type UpsertGithubUnlinkedInstallationParams,
+  upsertGithubUnlinkedInstallation,
+} from '#db/unlinked-installations.js';
+export {registerGithubServiceMetrics} from '#metrics/service.js';
 export {type CreateGithubE2eRoutesOptions, closeDb, createGithubE2eRoutes, db, migrationsPath};
 
 export interface CreateGithubIntegrationProviderOptions

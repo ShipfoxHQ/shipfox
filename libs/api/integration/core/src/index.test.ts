@@ -1,6 +1,11 @@
 import type {StoredWebhookRequest, WebhookRequestProcessor} from '@shipfox/api-integration-spi';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
-import {createOutboxRegistry, type ModuleService, startModuleServices} from '@shipfox/node-module';
+import {
+  createOutboxRegistry,
+  type ModuleService,
+  registerModuleMetrics,
+  startModuleServices,
+} from '@shipfox/node-module';
 import {
   createIntegrationsContext,
   createRepositoryAuthorizer,
@@ -67,6 +72,52 @@ describe('createIntegrationsContext', () => {
     });
 
     expect(context.module.services).toBeUndefined();
+  });
+
+  it('registers provider-owned metrics without a delivery source', async () => {
+    const registerMetrics = vi.fn();
+
+    const context = await createIntegrationsContext({
+      parts: [
+        {
+          provider: {provider: 'github', displayName: 'GitHub', adapters: {}},
+          metrics: registerMetrics,
+        },
+      ],
+      repositoryAuthorizer: disabledRepositoryAuthorizer,
+    });
+
+    expect(context.module.metrics).toBeDefined();
+    context.module.metrics?.({outboxRegistry: createOutboxRegistry()});
+    expect(registerMetrics).toHaveBeenCalledOnce();
+  });
+
+  it('continues registering provider-owned metrics after one provider fails', async () => {
+    const failure = new Error('metrics registration failed');
+    const later = vi.fn();
+
+    const context = await createIntegrationsContext({
+      parts: [
+        {
+          provider: {provider: 'github', displayName: 'GitHub', adapters: {}},
+          metrics: () => {
+            throw failure;
+          },
+        },
+        {
+          provider: {provider: 'linear', displayName: 'Linear', adapters: {}},
+          metrics: later,
+        },
+      ],
+      repositoryAuthorizer: disabledRepositoryAuthorizer,
+    });
+
+    registerModuleMetrics({
+      modules: [context.module],
+      context: {outboxRegistry: createOutboxRegistry()},
+    });
+
+    expect(later).toHaveBeenCalledOnce();
   });
 
   it('registers provider-owned services without a delivery source', async () => {

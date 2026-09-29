@@ -367,6 +367,10 @@ export async function createIntegrationsContext(
   }
 
   const services = parts.flatMap((part) => part.services ?? []);
+  const metrics = parts.flatMap((part) => {
+    const register = part.metrics;
+    return register === undefined ? [] : [{provider: part.provider.provider, register}];
+  });
   if (options.webhookDeliverySource !== undefined) {
     services.push(options.webhookDeliverySource.createService(webhookProcessor));
   }
@@ -424,6 +428,30 @@ export async function createIntegrationsContext(
       ...parts.flatMap((part) => part.workers ?? []),
     ],
     ...(services.length === 0 ? {} : {services}),
+    ...(metrics.length === 0
+      ? {}
+      : {
+          metrics: (context) => {
+            const failures: unknown[] = [];
+            for (const metric of metrics) {
+              try {
+                metric.register(context);
+              } catch (error) {
+                logger().warn(
+                  {err: error, provider: metric.provider},
+                  'Failed to register integration provider metrics',
+                );
+                failures.push(error);
+              }
+            }
+            if (failures.length > 0) {
+              throw new AggregateError(
+                failures,
+                'Failed to register one or more integration provider metrics',
+              );
+            }
+          },
+        }),
   };
 
   return {

@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {eq} from 'drizzle-orm';
 import {GithubInstallationAlreadyLinkedError} from '#core/errors.js';
 import {db} from './db.js';
 import {
@@ -8,6 +9,11 @@ import {
   upsertGithubInstallation,
 } from './installations.js';
 import {githubInstallations} from './schema/installations.js';
+import {githubUnlinkedInstallations} from './schema/unlinked-installations.js';
+import {
+  countStaleGithubUnlinkedInstallations,
+  upsertGithubUnlinkedInstallation,
+} from './unlinked-installations.js';
 
 function installationParams(
   overrides: Partial<UpsertGithubInstallationParams> = {},
@@ -25,6 +31,7 @@ function installationParams(
 
 describe('github installations persistence', () => {
   beforeEach(async () => {
+    await db().delete(githubUnlinkedInstallations);
     await db().delete(githubInstallations);
   });
 
@@ -60,6 +67,45 @@ describe('github installations persistence', () => {
     expect(fetched?.connectionId).toBe(firstConnectionId);
   });
 
+  test('upserts lifecycle details while retaining the first-seen timestamp', async () => {
+    const installationId = `${Date.now()}`;
+    await upsertGithubUnlinkedInstallation({
+      installationId,
+      accountLogin: 'shipfox',
+      accountType: 'Organization',
+      repositorySelection: 'selected',
+      senderLogin: 'octocat',
+      lastAction: 'created',
+    });
+    const [first] = await db()
+      .select()
+      .from(githubUnlinkedInstallations)
+      .where(eq(githubUnlinkedInstallations.installationId, installationId));
+
+    await upsertGithubUnlinkedInstallation({
+      installationId,
+      accountLogin: 'shipfox-renamed',
+      accountType: 'Organization',
+      repositorySelection: 'all',
+      requesterLogin: 'member',
+      lastAction: 'new_permissions_accepted',
+    });
+    const [updated] = await db()
+      .select()
+      .from(githubUnlinkedInstallations)
+      .where(eq(githubUnlinkedInstallations.installationId, installationId));
+
+    expect(updated).toMatchObject({
+      installationId,
+      accountLogin: 'shipfox-renamed',
+      repositorySelection: 'all',
+      senderLogin: null,
+      requesterLogin: 'member',
+      lastAction: 'new_permissions_accepted',
+    });
+    expect(updated?.firstSeenAt).toEqual(first?.firstSeenAt);
+  });
+
   test('deletes an installation by connection', async () => {
     const installation = installationParams();
     await upsertGithubInstallation(installation);
@@ -70,6 +116,69 @@ describe('github installations persistence', () => {
     await expect(getGithubInstallationByInstallationId(installation.installationId)).resolves.toBe(
       undefined,
     );
+  });
+
+  test('deletes an unlinked record when an installation is linked', async () => {
+    const installation = installationParams();
+    await upsertGithubUnlinkedInstallation({
+      installationId: installation.installationId,
+      accountLogin: installation.accountLogin,
+      accountType: installation.accountType,
+      repositorySelection: installation.repositorySelection,
+      lastAction: 'created',
+    });
+
+    await upsertGithubInstallation(installation);
+
+    expect(
+      await db()
+        .select()
+        .from(githubUnlinkedInstallations)
+        .where(eq(githubUnlinkedInstallations.installationId, installation.installationId)),
+    ).toHaveLength(0);
+  });
+
+  test('counts only stale installations that are still unlinked', async () => {
+    const staleInstallationId = `${Date.now()}`;
+    const linkedInstallationId = `${Date.now() + 1}`;
+    const freshInstallationId = `${Date.now() + 2}`;
+    const firstSeenAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const freshFirstSeenAt = new Date();
+
+    await upsertGithubInstallation(installationParams({installationId: linkedInstallationId}));
+    await db()
+      .insert(githubUnlinkedInstallations)
+      .values([
+        {
+          installationId: staleInstallationId,
+          accountLogin: 'orphan',
+          accountType: 'Organization',
+          repositorySelection: 'all',
+          lastAction: 'created',
+          firstSeenAt,
+          lastSeenAt: firstSeenAt,
+        },
+        {
+          installationId: linkedInstallationId,
+          accountLogin: 'linked',
+          accountType: 'Organization',
+          repositorySelection: 'all',
+          lastAction: 'created',
+          firstSeenAt,
+          lastSeenAt: firstSeenAt,
+        },
+        {
+          installationId: freshInstallationId,
+          accountLogin: 'fresh-orphan',
+          accountType: 'Organization',
+          repositorySelection: 'all',
+          lastAction: 'created',
+          firstSeenAt: freshFirstSeenAt,
+          lastSeenAt: freshFirstSeenAt,
+        },
+      ]);
+
+    await expect(countStaleGithubUnlinkedInstallations()).resolves.toBe(1);
   });
 
   test('getGithubInstallationByInstallationId returns undefined for a miss', async () => {

@@ -8,8 +8,10 @@ import type {
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
+import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {githubInstallations} from '#db/schema/installations.js';
+import {githubUnlinkedInstallations} from '#db/schema/unlinked-installations.js';
 import {githubInstallationFactory, githubPushPayload} from '#test/index.js';
 import {handleGithubEvent} from './webhook.js';
 
@@ -96,6 +98,7 @@ async function seedInstallation(installationId: number, connectionId?: string): 
 
 describe('handleGithubEvent', () => {
   beforeEach(async () => {
+    await db().delete(githubUnlinkedInstallations);
     await db().delete(githubInstallations);
   });
 
@@ -541,6 +544,41 @@ describe('handleGithubEvent', () => {
     });
   });
 
+  it('deletes a stale unlinked record when a linked installation is deleted', async () => {
+    const installationId = 7790;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const firstSeenAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    await db()
+      .insert(githubUnlinkedInstallations)
+      .values({
+        installationId: String(installationId),
+        accountLogin: 'opsmill',
+        accountType: 'Organization',
+        repositorySelection: 'selected',
+        lastAction: 'created',
+        firstSeenAt,
+        lastSeenAt: firstSeenAt,
+      });
+    const handlers = deps({connection});
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: 'delivery-linked-deleted',
+      event: 'installation',
+      payload: {action: 'deleted', installation: {id: installationId}},
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('published-envelope');
+    await expect(
+      db()
+        .select()
+        .from(githubUnlinkedInstallations)
+        .where(eq(githubUnlinkedInstallations.installationId, String(installationId))),
+    ).resolves.toHaveLength(0);
+  });
+
   it('keeps the cleanup handle for duplicate lifecycle deliveries', async () => {
     const installationId = 7792;
     const connection = fakeConnection();
@@ -828,6 +866,7 @@ describe('handleGithubEvent', () => {
         installation: {
           id: 999999,
           account: {login: 'opsmill', type: 'Organization'},
+          repository_selection: 'selected',
         },
         sender: {login: 'octocat'},
         requester: {login: 'member'},
@@ -850,6 +889,78 @@ describe('handleGithubEvent', () => {
       }),
       'github webhook: unknown installation, dropping',
     );
+  });
+
+  it.each([
+    'created',
+    'new_permissions_accepted',
+    'unsuspend',
+  ] as const)('records unknown installation.%s details for detection', async (action) => {
+    const handlers = deps();
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: `delivery-${action}`,
+      event: 'installation',
+      payload: {
+        action,
+        installation: {
+          id: 999996,
+          account: {login: 'opsmill', type: 'Organization'},
+          repository_selection: 'selected',
+        },
+        sender: {login: 'octocat'},
+        requester: null,
+      },
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('unknown-installation');
+    await expect(
+      db()
+        .select()
+        .from(githubUnlinkedInstallations)
+        .where(eq(githubUnlinkedInstallations.installationId, '999996')),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        installationId: '999996',
+        accountLogin: 'opsmill',
+        accountType: 'Organization',
+        repositorySelection: 'selected',
+        senderLogin: 'octocat',
+        requesterLogin: null,
+        lastAction: action,
+      }),
+    ]);
+  });
+
+  it('deletes an unlinked record for an unknown installation uninstall', async () => {
+    await db().insert(githubUnlinkedInstallations).values({
+      installationId: '999995',
+      accountLogin: 'opsmill',
+      accountType: 'Organization',
+      repositorySelection: 'selected',
+      lastAction: 'created',
+      firstSeenAt: new Date(),
+      lastSeenAt: new Date(),
+    });
+    const handlers = deps();
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: 'delivery-deleted',
+      event: 'installation',
+      payload: {action: 'deleted', installation: {id: 999995}},
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('unknown-installation');
+    await expect(
+      db()
+        .select()
+        .from(githubUnlinkedInstallations)
+        .where(eq(githubUnlinkedInstallations.installationId, '999995')),
+    ).resolves.toHaveLength(0);
   });
 
   it('logs minimal non-installation payloads at info for an unknown installation', async () => {
