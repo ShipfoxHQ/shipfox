@@ -32,6 +32,19 @@ describe('classifyDiscordCallbackError', () => {
     expect(failure.message).not.toContain('permissions needed');
   });
 
+  it('uses generic recovery for unauthorized sessions', () => {
+    expect(
+      classifyDiscordCallbackError(
+        new ApiError({code: 'unauthorized', message: 'session expired', status: 401}),
+      ),
+    ).toEqual({
+      title: 'Discord install could not be completed',
+      message: 'Could not complete the Discord install. Start again from workspace settings.',
+      startOver: true,
+      signIn: false,
+    });
+  });
+
   it('uses the generic recovery for unexpected errors', () => {
     expect(classifyDiscordCallbackError(new Error('network down'))).toEqual({
       title: 'Discord install could not be completed',

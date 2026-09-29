@@ -288,6 +288,10 @@ describe('Discord transport', () => {
 
     expect(install).toEqual({installUrl: 'https://discord.example.test/install'});
     expect(connected.provider).toBe('discord');
+    expect(requests[0]?.method).toBe('POST');
+    expect(await requests[0]?.json()).toEqual({
+      workspace_id: '11111111-1111-4111-8111-111111111111',
+    });
     expect(requests[0]?.url).toBe('https://api.example.test/integrations/discord/install');
     expect(requests[1]?.url).toBe(
       'https://api.example.test/integrations/discord/callback/api?code=grant+code&state=signed+state',

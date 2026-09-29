@@ -25,7 +25,6 @@ function classifyDiscordApiError(error: ApiError): DiscordCallbackFailure {
         true,
       );
     case 'discord-install-state-actor-mismatch':
-    case 'unauthorized':
       return {
         ...failure(
           'Different Shipfox account',
