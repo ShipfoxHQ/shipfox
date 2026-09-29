@@ -1,0 +1,6 @@
+# Bootstrap file of the E2E registry. Fixtures are imported, so no publisher is declared.
+reserved: [shipfox-*, admin]
+featured: [fixture/example-template]
+namespaces:
+  fixture:
+    profile: {display_name: Fixture}

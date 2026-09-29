@@ -6,7 +6,7 @@ Builds, checks, and publishes the first-party packages of the Shipfox Registry f
 
 The `shipfox-registry-release` command runs the deterministic recipe that turns a package directory into a registry version. The registry never builds: it validates what this tool uploads.
 
-- **`build <dir>`** builds one package into `.shipfox-registry/` (ignored by Git) and prints its digests.
+- **`build <dir>`** builds one package into `.shipfox-registry/<ns>/<name>/<version>/` (ignored by Git) and prints its digests. The directory holds the blobs, `README.md` when present, the publish `draft.json`, and a `build.json` summary. The registry's operator `import` command reads it.
 - **`check --mode pr`** builds every configured package. A package whose fingerprint differs from its published version needs a pending changeset that bumps it by at least the computed minimum. An unpublished package needs no changeset.
 - **`check --mode release`** builds every configured package and compares it with the registry. A published version must keep its fingerprint. A new version must meet the bump rules against the highest lower published version, and every action a template uses must be a published action or part of the same release.
 - **`publish`** runs `check --mode release`, exchanges a GitHub OIDC token for a publish token, then uploads the versions the registry does not have. Actions upload before templates.

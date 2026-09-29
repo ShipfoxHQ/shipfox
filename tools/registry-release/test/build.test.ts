@@ -177,7 +177,7 @@ describe('buildPackage for a template', () => {
     await expect(buildFixture(repository)).resolves.toBeDefined();
   });
 
-  it('writes the blobs and a summary below .shipfox-registry', async () => {
+  it('writes the blobs, the publish draft, and a summary below .shipfox-registry', async () => {
     const built = await buildFixture(repository);
 
     const directory = await writeBuildOutput({root: repository.root, built});
@@ -189,10 +189,18 @@ describe('buildPackage for a template', () => {
       'README.md',
       'build.json',
       'content.gz',
+      'draft.json',
       'source.gz',
     ]);
     expect(JSON.parse(readFileSync(join(directory, 'build.json'), 'utf8'))).toMatchObject({
       fingerprint: built.fingerprint,
+    });
+    expect(JSON.parse(readFileSync(join(directory, 'draft.json'), 'utf8'))).toEqual({
+      kind: 'template',
+      license: 'MIT',
+      builder: built.builder,
+      path: built.path,
+      composition: built.composition,
     });
   });
 });

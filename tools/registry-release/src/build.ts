@@ -199,8 +199,26 @@ export async function writeBuildOutput({
   await writeFile(join(directory, 'content.gz'), built.content.gzip);
   await writeFile(join(directory, 'source.gz'), built.source.gzip);
   if (built.readme) await writeFile(join(directory, 'README.md'), built.readme.text);
+  await writeFile(
+    join(directory, 'draft.json'),
+    `${JSON.stringify(publishDraft(built), null, 2)}\n`,
+  );
   await writeFile(join(directory, 'build.json'), `${JSON.stringify(summarize(built), null, 2)}\n`);
   return directory;
+}
+
+/** The `draft` part of a publish upload. The registry derives everything else. */
+export function publishDraft(built: BuiltPackage) {
+  const common = {
+    kind: built.kind,
+    license: built.license,
+    changelog: built.changelog,
+    builder: built.builder,
+    path: built.path,
+  };
+  return built.kind === 'action'
+    ? {...common, dependencies: built.dependencies ?? []}
+    : {...common, composition: built.composition};
 }
 
 export function summarize(built: BuiltPackage) {

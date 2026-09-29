@@ -35,7 +35,7 @@ import {
   summaryOf,
 } from '#publish/prepared-package.js';
 import type {PublishTokenVerifier} from '#publish/publish-token.js';
-import {parsePublishRequest} from '#publish/request.js';
+import {type PublishRequestParts, parsePublishRequest} from '#publish/request.js';
 import {checkSourceArchive} from '#publish/source-archive.js';
 import {
   checkBump,
@@ -72,6 +72,35 @@ export type VersionPublisher = (params: PublishVersionParams) => Promise<Publish
 
 type PublishClaims = Awaited<ReturnType<PublishTokenVerifier>>;
 
+export interface ImportVersionParams {
+  namespace: string;
+  name: string;
+  version: string;
+  parts: PublishRequestParts;
+}
+
+export type VersionImporter = (params: ImportVersionParams) => Promise<PublishVersionResult>;
+
+/** Whoever vouches for an imported version: the operator who ran the import, not a CI run. */
+export const IMPORT_PROVENANCE = {
+  issuer: 'urn:shipfox:registry:import',
+  repository: 'import',
+  repository_id: 'import',
+  repository_owner_id: 'import',
+  commit: 'import',
+  ref: 'import',
+  workflow_ref: 'import',
+  run_id: 'import',
+  run_attempt: 'import',
+} as const satisfies PublishClaims['provenance'];
+
+interface VersionWriterDependencies {
+  bootstrap: RegistryBootstrap;
+  signer: RegistrySigner;
+  blobs: BlobStore;
+  hooks: readonly string[];
+}
+
 /**
  * Publishes one package version: checks the request against the rules of the registry, derives
  * the version document, signs it, and stores it. The bundles go to the blob store first, keyed by
@@ -79,24 +108,49 @@ type PublishClaims = Awaited<ReturnType<PublishTokenVerifier>>;
  * blobs no version row points to, and the same request publishes normally afterwards.
  */
 export function createVersionPublisher({
-  bootstrap,
-  signer,
   verifyToken,
-  blobs,
-  hooks,
-}: {
-  bootstrap: RegistryBootstrap;
-  signer: RegistrySigner;
-  verifyToken: PublishTokenVerifier;
-  blobs: BlobStore;
-  hooks: readonly string[];
-}): VersionPublisher {
-  return async (params) => {
+  ...dependencies
+}: VersionWriterDependencies & {verifyToken: PublishTokenVerifier}): VersionPublisher {
+  const writeVersion = createVersionWriter(dependencies);
+  return async ({token, body, contentType, ...target}) => {
     // A request without a valid token is not recorded, so nobody can grow the audit table with it.
-    const claims = await verifyToken(params.token);
+    const claims = await verifyToken(token);
+    return await writeVersion({
+      ...target,
+      claims,
+      readParts: () => parsePublishRequest({body, contentType}),
+    });
+  };
+}
+
+/**
+ * Stores a version that the operator built with the release tool, under the same rules as a
+ * publish. No OIDC token vouches for it, so its provenance is `IMPORT_PROVENANCE`.
+ */
+export function createVersionImporter(dependencies: VersionWriterDependencies): VersionImporter {
+  const writeVersion = createVersionWriter(dependencies);
+  return async ({parts, ...target}) =>
+    await writeVersion({
+      ...target,
+      claims: {namespace: target.namespace, provenance: IMPORT_PROVENANCE},
+      readParts: async () => parts,
+    });
+}
+
+interface WriteVersionParams {
+  claims: PublishClaims;
+  namespace: string;
+  name: string;
+  version: string;
+  readParts: () => Promise<PublishRequestParts>;
+}
+
+function createVersionWriter({bootstrap, signer, blobs, hooks}: VersionWriterDependencies) {
+  return async (params: WriteVersionParams): Promise<PublishVersionResult> => {
+    const {claims} = params;
     const packageName = `${params.namespace}/${params.name}`;
     try {
-      const result = await publish({...params, claims});
+      const result = await publish(params);
       await callPublishHooks({hooks, event: result.event});
       if (!result.created) {
         await recordVersionAttempt({
@@ -126,17 +180,10 @@ export function createVersionPublisher({
     }
   };
 
-  async function publish({
-    claims,
-    namespace,
-    name,
-    version,
-    body,
-    contentType,
-  }: PublishVersionParams & {claims: PublishClaims}) {
+  async function publish({claims, namespace, name, version, readParts}: WriteVersionParams) {
     checkTarget({bootstrap, claims, namespace, name, version});
     const packageName = `${namespace}/${name}`;
-    const submission = await readSubmission({packageName, name, version, body, contentType});
+    const submission = await readSubmission({packageName, name, version, readParts});
 
     const stored = await findStoredVersion({package: packageName, version});
     if (stored) {
@@ -253,16 +300,14 @@ async function readSubmission({
   packageName,
   name,
   version,
-  body,
-  contentType,
+  readParts,
 }: {
   packageName: string;
   name: string;
   version: string;
-  body: Buffer;
-  contentType: string | undefined;
+  readParts: () => Promise<PublishRequestParts>;
 }) {
-  const parts = await parsePublishRequest({body, contentType});
+  const parts = await readParts();
   const draft = parseDraft(parts.draft);
   const existingKind = await findPackageKind(packageName);
   if (existingKind !== undefined && existingKind !== draft.kind) {

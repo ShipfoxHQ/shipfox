@@ -68,7 +68,7 @@ run = 'node e2e/harness/src/e2e.mjs run --task=evals'
 
 [tasks."e2e:build"]
 description = "Build the runtime dependencies used by E2E dev servers"
-run = "turbo build --filter @shipfox/api --filter @shipfox/vite --filter @shipfox/client-features..."
+run = "turbo build --filter @shipfox/api --filter @shipfox/registry --filter @shipfox/registry-release --filter @shipfox/vite --filter @shipfox/client-features..."
 
 [settings]
 lockfile = true

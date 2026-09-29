@@ -1352,7 +1352,19 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/typescript
 
-  e2e/harness: {}
+  e2e/harness:
+    dependencies:
+      pg:
+        specifier: 'catalog:'
+        version: 8.21.0
+
+  e2e/harness/registry/actions/example:
+    devDependencies:
+      '@shipfox/actions':
+        specifier: workspace:*
+        version: link:../../../../../libs/shared/workflow/actions
+
+  e2e/harness/registry/templates/example-template: {}
 
   e2e/kit:
     dependencies:
