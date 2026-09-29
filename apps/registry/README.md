@@ -24,7 +24,9 @@ declares namespaces and curation.
 - **Version publishing** (`PUT /v1/packages/{namespace}/{name}/versions/{version}`)
   validates a package, signs its version document, and stores it. A publish
   token is the bearer token.
-
+- **Import** (`node dist/import.js <directory>`) is an operator command that
+  stores versions the release tool built, without an OIDC token. E2E seeds its
+  local registry with it.
 - **Read routes** answer anonymously from the tables and the bootstrap file, with
   the cache headers below. Every package is public in v1, and a package that is
   not public answers 404.
@@ -147,6 +149,27 @@ Every attempt of a verified token is a row in `registry_audit`: accepted
 publishes, retries, and refusals with their reason. Requests whose token fails
 verification are not recorded. After a publish or a retry, the service posts
 `{package, kind, version, published_at}` to each `REGISTRY_PUBLISH_HOOKS` URL.
+
+### Import built versions
+
+The operator `import` command stores every version that
+`shipfox-registry-release build` wrote below a directory. It runs with the
+registry's configuration and applies its migrations first.
+
+```sh
+node tools/registry-release/dist/cli.js build libs/shared/workflow/catalog/templates/ask-codebase
+node apps/registry/dist/import.js .shipfox-registry
+# Imported shipfox/ask-codebase@1.0.0
+```
+
+Each version directory holds `build.json`, `draft.json`, `content.gz`,
+`source.gz`, and `README.md` when present. Actions are imported before
+templates, and lower versions first. An import goes through the same checks,
+signing, and audit rows as a publish, so a changed version without a bump is
+refused. Its namespace must be declared in the bootstrap file, but needs no
+publisher. No CI run vouches for the version, so its provenance names the
+issuer `urn:shipfox:registry:import` and the value `import` in every other
+field except `path`.
 
 ## Environment
 

@@ -6,6 +6,13 @@ import {cp, mkdir, readdir, stat} from 'node:fs/promises';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {startPosthogMock} from './posthog-mock.mjs';
+import {
+  e2eRegistryEnv,
+  e2eRegistryTrustedKeys,
+  e2eRegistryUrl,
+  registryServerArgs,
+  seedLocalRegistry,
+} from './registry.mjs';
 
 const defaultE2eAdminApiKey = 'e2e-admin-api-key';
 const defaultApiUrl = 'http://localhost:16101';
@@ -69,6 +76,18 @@ export async function main(argv) {
     ) {
       posthogMock = await startPosthogMock(new URL(env.POSTHOG_API_BASE_URL));
     }
+    const registryEnv = e2eRegistryEnv(env);
+    await seedLocalRegistry({env: registryEnv, logFile: join(logDir, 'shipfox-registry-seed.log')});
+    servers.push(
+      await startServer({
+        name: 'registry',
+        command: process.execPath,
+        args: registryServerArgs,
+        env: registryEnv,
+        logFile: join(logDir, 'shipfox-registry.log'),
+      }),
+    );
+    await waitForUrl(`${env.REGISTRY_URL}/readyz`, {timeoutMs: options.readinessTimeoutMs});
     servers.push(
       await startServer({
         name: 'api',
@@ -284,6 +303,9 @@ export function e2eEnv(sourceEnv) {
     // Workflow actions stay dark in production until launch. Its `devDefault` does not
     // apply here, because the E2E API runs without NODE_ENV.
     DEFINITION_ACTIONS_ENABLED: valueOr(sourceEnv.DEFINITION_ACTIONS_ENABLED, 'true'),
+    // The harness starts this registry, which signs with a key generated for the run.
+    REGISTRY_URL: valueOr(sourceEnv.REGISTRY_URL, () => e2eRegistryUrl(apiUrl)),
+    REGISTRY_TRUSTED_KEYS: e2eRegistryTrustedKeys(),
     ADMIN_BOOTSTRAP_TOKEN: valueOr(sourceEnv.ADMIN_BOOTSTRAP_TOKEN, e2eBootstrapToken),
     AUTH_SIGNUP_GATE_ENABLED: valueOr(
       sourceEnv.AUTH_SIGNUP_GATE_ENABLED,

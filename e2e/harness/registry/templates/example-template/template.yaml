@@ -1,0 +1,8 @@
+title: Example template
+summary: Greets someone from the project's repository, for E2E tests of registry templates.
+starts: Someone starts it manually
+keywords: [fixture]
+roles:
+  source:
+    from: project
+    providers: [github]

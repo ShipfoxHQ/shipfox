@@ -6,5 +6,8 @@
   "scripts": {
     "e2e": "node src/e2e.mjs run",
     "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "pg": "catalog:"
   }
 }

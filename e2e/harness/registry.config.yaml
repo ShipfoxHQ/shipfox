@@ -1,0 +1,7 @@
+# Fixture packages that the E2E harness builds and imports into its local registry.
+# `build` reads only the namespace and the packages; the harness picks the registry URL.
+registry: http://localhost:16118
+namespace: fixture
+packages:
+  - {kind: action, path: e2e/harness/registry/actions/*}
+  - {kind: template, path: e2e/harness/registry/templates/*}

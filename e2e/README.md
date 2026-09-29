@@ -327,6 +327,19 @@ starts the API with E2E routes enabled, starts the client with the test VCS
 provider enabled, waits for both to become ready, and then runs
 `turbo test:e2e`.
 
+The harness also runs a local Shipfox Registry on the API port plus 17. It
+recreates the `registry_e2e` database and a file store, builds the fixture
+packages under `harness/registry/` with the release tool, imports them, and
+starts `apps/registry`. It signs with a key generated for the run, and the API
+trusts only that key through `REGISTRY_URL` and `REGISTRY_TRUSTED_KEYS`. The
+fixtures live in the `fixture` namespace: `fixture/example` is an action and
+`fixture/example-template` is a template that uses it, with this
+[guide](harness/registry/templates/example-template/GUIDE.md). Add a fixture as a
+directory under `harness/registry/actions/` or `harness/registry/templates/`.
+The directory name is the package name. The seed and server logs are
+`shipfox-registry-seed.log` and `shipfox-registry.log` in the diagnostics
+directory.
+
 Diagnostics land in `.context/shipfox-e2e-logs/` locally. In CI, a failed browser
 and API job uploads the same logs as the `e2e-diagnostics` artifact. A failed flow job
 uploads `e2e-diagnostics-flow`. Runner logs from the Flow workflow

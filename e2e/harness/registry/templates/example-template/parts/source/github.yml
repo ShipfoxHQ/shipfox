@@ -1,0 +1,5 @@
+checkout: |
+  checkout:
+    permissions:
+      contents: read
+    persist-credentials: false

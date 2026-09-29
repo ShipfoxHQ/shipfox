@@ -1,0 +1,9 @@
+name: Example
+description: Greets someone, for E2E tests of registry actions.
+main: src/main.ts
+inputs:
+  name:
+    required: true
+outputs:
+  greeting:
+    required: true

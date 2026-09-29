@@ -7,7 +7,7 @@ import {
   registryVersionDocumentSchema,
 } from '@shipfox/registry-format';
 import {z} from 'zod';
-import type {BuiltPackage} from './build.js';
+import {type BuiltPackage, publishDraft} from './build.js';
 
 export class RegistryRequestError extends Error {
   readonly status: number;
@@ -109,7 +109,10 @@ export function createRegistryClient({
     async publishVersion({token, built}) {
       const path = versionPath(built.package, built.version);
       const form = new FormData();
-      form.set('draft', new Blob([JSON.stringify(draftOf(built))], {type: 'application/json'}));
+      form.set(
+        'draft',
+        new Blob([JSON.stringify(publishDraft(built))], {type: 'application/json'}),
+      );
       form.set('content', new Blob([built.content.gzip], {type: 'application/gzip'}));
       form.set('source', new Blob([built.source.gzip], {type: 'application/gzip'}));
       if (built.readme) {
@@ -122,20 +125,6 @@ export function createRegistryClient({
       );
     },
   };
-}
-
-/** The `draft` part of a publish upload. The registry derives everything else. */
-function draftOf(built: BuiltPackage) {
-  const common = {
-    kind: built.kind,
-    license: built.license,
-    changelog: built.changelog,
-    builder: built.builder,
-    path: built.path,
-  };
-  return built.kind === 'action'
-    ? {...common, dependencies: built.dependencies ?? []}
-    : {...common, composition: built.composition};
 }
 
 function decodeEnvelopePayload(envelope: RegistryEnvelope): RegistryVersionDocument {

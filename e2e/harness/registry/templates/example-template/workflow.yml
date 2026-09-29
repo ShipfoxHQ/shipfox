@@ -1,0 +1,15 @@
+name: Example template
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+
+jobs:
+  greet:
+    # part:source.checkout
+    steps:
+      - key: greet
+        uses: fixture/example@1.0.0
+        with:
+          name: Shipfox
