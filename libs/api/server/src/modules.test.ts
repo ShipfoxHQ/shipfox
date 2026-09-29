@@ -233,6 +233,8 @@ describe('defaultModules', () => {
           resolveVersion: vi.fn(),
           getSource: vi.fn(),
           getReadme: vi.fn(),
+          getPackageIndex: vi.fn(),
+          getCatalog: vi.fn(),
         }),
       ],
     });

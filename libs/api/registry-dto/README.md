@@ -4,9 +4,10 @@ Registry DTOs define the inter-module contract that lets other API modules resol
 
 ## What it does
 
-- **`registryInterModuleContract`**: Declares `resolveVersion`, `getSource`, and `getReadme` on the `registry` module, with their known errors.
-- **Version schemas**: `resolveRegistryVersionRequestSchema`, `registryVersionRefSchema`, `resolvedRegistryVersionSchema`, `registrySourceSchema`, and `registryReadmeSchema` describe each input and output.
-- **Known errors**: Every method can fail with `registry-disabled`, `registry-version-not-found`, `registry-unavailable`, `registry-signature-invalid`, or `registry-schema-unsupported`. Only `registry-unavailable` is worth retrying.
+- **`registryInterModuleContract`**: Declares `resolveVersion`, `getSource`, `getReadme`, `getPackageIndex`, and `getCatalog` on the `registry` module, with their known errors.
+- **Version schemas**: `resolveRegistryVersionRequestSchema`, `registryVersionRefSchema`, `resolvedRegistryVersionSchema`, `registrySourceSchema`, and `registryReadmeSchema` describe each version input and output.
+- **Index schemas**: `registryPackageRequestSchema`, `registryPackageIndexResponseSchema`, and `registryCatalogResponseSchema` describe the catalog and package index calls. The index shapes come from `@shipfox/registry-format`.
+- **Known errors**: Every method can fail with `registry-disabled`, `registry-version-not-found`, `registry-unavailable`, `registry-signature-invalid`, or `registry-schema-unsupported`. Only `registry-unavailable` is worth retrying. `getCatalog` and `getPackageIndex` are unsigned reads, so they fail only with `registry-disabled` or `registry-unavailable`.
 
 ## Installation and setup
 
@@ -46,6 +47,7 @@ try {
 - Inter-module calls carry JSON only, so bundles travel as base64 strings. `content` is the gzip content bundle and `source` is the gzip source archive. Both were checked against the digests in the signed document.
 - `document` is the signed version document, verified against the instance's trusted keys.
 - `getSource` and `getReadme` need no `kind`, because a package has one kind. `getReadme` returns `null` for a version without a README.
+- The catalog and package indexes are unsigned and mutable. `getPackageIndex` returns `{index: null}` for a package the registry does not know.
 
 ## Development
 

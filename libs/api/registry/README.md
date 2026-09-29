@@ -7,6 +7,7 @@
 - **`createRegistryModule`**: Declares the `registry` module: its database, its inter-module presentation, and a startup task that purges cached rows of other registries.
 - **`resolveVersion`**: Returns a version whose signed document verifies under the instance's trusted keys, with its content bundle. A stored version is verified again on every read. When the check fails, the row is deleted and the version is fetched again.
 - **`getSource` and `getReadme`**: Return the source archive and the README of a version. Both are fetched on first use, checked against the signed digests, and stored.
+- **`getCatalog` and `getPackageIndex`**: Return the registry catalog and the index of one package. Both are stored, and a stale copy is refreshed in the background.
 
 ## Installation and setup
 
@@ -33,8 +34,9 @@ await initializeModules({modules: [createRegistryModule()]});
 | --- | --- | --- |
 | `REGISTRY_URL` | empty | URL of the registry API. Empty disables the module: every call fails with `registry-disabled`. |
 | `REGISTRY_TRUSTED_KEYS` | `[]` | JSON list of `{keyid, public_key}`. A public key is a base64 DER Ed25519 key. Required when `REGISTRY_URL` is set. |
+| `REGISTRY_CATALOG_REFRESH_SECONDS` | `900` | Seconds a stored catalog or package index is served before the next read refreshes it in the background. |
 
-Startup fails when `REGISTRY_URL` is not an HTTP or HTTPS URL, when `REGISTRY_TRUSTED_KEYS` is invalid, or when a URL is set without a key. The URL is normalized: the query, fragment, credentials, and trailing slashes are dropped.
+Startup fails when `REGISTRY_CATALOG_REFRESH_SECONDS` is negative, when `REGISTRY_URL` is not an HTTP or HTTPS URL, when `REGISTRY_TRUSTED_KEYS` is invalid, or when a URL is set without a key. The URL is normalized: the query, fragment, credentials, and trailing slashes are dropped.
 
 ## Data model
 
@@ -42,6 +44,7 @@ This module owns tables with the `registry_` prefix.
 
 | Table | Purpose |
 | --- | --- |
+| `registry_indexes` | Stores the last good catalog and package index by `(registry, key)`, where `key` is `catalog` or a package name: the body, the `ETag`, and the fetch time. |
 | `registry_versions` | Stores each verified version by `(registry, package, version)`: the envelope as fetched, the verified document, the gzip content bundle, and, once fetched, the source archive and README. |
 
 Rows are global across workspaces, because registry content is identical for all workspaces. A row is never updated, except to fill the source or README the first time they are read.
@@ -53,6 +56,8 @@ Rows are global across workspaces, because registry content is identical for all
 - **Registry switch:** Reads only use rows of the configured registry. At startup, the module deletes rows of any other registry.
 - **Errors:** A missing envelope is `registry-version-not-found`. A network failure, a timeout, a non-404 error status, or a missing blob is `registry-unavailable`. A failed signature, a document that names another version or kind, and a digest mismatch are `registry-signature-invalid`. An unknown document schema is `registry-schema-unsupported`.
 - **Cache hits and outages:** A stored version is served with no network call, so it keeps working while the registry is down.
+- **Indexes:** The catalog and package indexes are unsigned and mutable. The first read fetches and stores them. A later read serves the stored copy, and when it is older than `REGISTRY_CATALOG_REFRESH_SECONDS`, it also starts one background refresh with `If-None-Match`. A `304` renews the copy, a new body replaces it, and a failed refresh keeps the last good copy, so a restart during a registry outage still lists packages. A missing first copy while the registry is down is `registry-unavailable`. A package the registry no longer knows is dropped from the store, and `getPackageIndex` returns `undefined` for it.
+- **Catalog size:** `getCatalog` reads the first response of `GET /v1/packages` and does not follow cursors.
 
 ## Development
 
