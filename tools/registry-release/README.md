@@ -7,8 +7,8 @@ Builds, checks, and publishes the first-party packages of the Shipfox Registry f
 The `shipfox-registry-release` command runs the deterministic recipe that turns a package directory into a registry version. The registry never builds: it validates what this tool uploads.
 
 - **`build <dir>`** builds one package into `.shipfox-registry/` (ignored by Git) and prints its digests.
-- **`check --mode pr`** builds every configured package. A package whose fingerprint differs from its published version needs a pending changeset that bumps it by at least the computed minimum. An unpublished package passes.
-- **`check --mode release`** builds every configured package and compares it with the registry. A published version must keep its fingerprint. A new version must meet the bump rules against the highest lower published version, and every action a template uses must exist in the registry or in the same release.
+- **`check --mode pr`** builds every configured package. A package whose fingerprint differs from its published version needs a pending changeset that bumps it by at least the computed minimum. An unpublished package needs no changeset.
+- **`check --mode release`** builds every configured package and compares it with the registry. A published version must keep its fingerprint. A new version must meet the bump rules against the highest lower published version, and every action a template uses must be a published action or part of the same release.
 - **`publish`** runs `check --mode release`, exchanges a GitHub OIDC token for a publish token, then uploads the versions the registry does not have. Actions upload before templates.
 - **`verify <ns/name@version>`** checks out the provenance commit of a published version in a temporary worktree, runs the recipe, and compares the content and source digests.
 
@@ -37,7 +37,7 @@ turbo build --filter=@shipfox/registry-release...
 ## Usage
 
 ```sh
-pnpm --filter=@shipfox/registry-release exec shipfox-registry-release check --mode pr
+node tools/registry-release/dist/cli.js check --mode pr
 ```
 
 `registry.config.yaml` names the registry, the namespace, and the package directories. The package name is the directory name.

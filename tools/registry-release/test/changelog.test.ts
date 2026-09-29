@@ -30,6 +30,15 @@ describe('extractChangelogSection', () => {
     expect(extractChangelogSection({changelog, version: '1.0.0'})).toBe('- First release.');
   });
 
+  it('keeps a heading that is not a version heading in the body', () => {
+    const text =
+      '## 1.0.0\n\n- Adds a `## Setup` step:\n\n## Setup\n\nRun it.\n\n## 0.9.0\n\n- Old.\n';
+
+    expect(extractChangelogSection({changelog: text, version: '1.0.0'})).toBe(
+      '- Adds a `## Setup` step:\n\n## Setup\n\nRun it.',
+    );
+  });
+
   it('does not match a version that only shares a prefix', () => {
     expect(extractChangelogSection({changelog, version: '1.1.0'})).toBeUndefined();
     expect(extractChangelogSection({changelog, version: '1.2'})).toBeUndefined();

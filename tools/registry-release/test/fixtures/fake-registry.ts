@@ -1,4 +1,4 @@
-import type {RegistryTemplateVersionDocument} from '@shipfox/registry-format';
+import type {RegistryVersionDocument} from '@shipfox/registry-format';
 
 const VERSION_ROUTE = /^\/v1\/packages\/([^/]+\/[^/]+)\/versions\/([^/]+)$/;
 const INDEX_ROUTE = /^\/v1\/packages\/([^/]+\/[^/]+)$/;
@@ -17,7 +17,7 @@ export interface RecordedRequest {
 export class FakeRegistry {
   readonly requests: RecordedRequest[] = [];
   readonly publishes: {package: string; version: string; parts: Record<string, string>}[] = [];
-  private readonly documents = new Map<string, RegistryTemplateVersionDocument>();
+  private readonly documents = new Map<string, RegistryVersionDocument>();
 
   readonly fetch: typeof globalThis.fetch = async (input, init) => {
     const url = new URL(String(input));
@@ -40,7 +40,7 @@ export class FakeRegistry {
     return new Response('not found', {status: 404});
   };
 
-  seed(document: RegistryTemplateVersionDocument): void {
+  seed(document: RegistryVersionDocument): void {
     this.documents.set(`${document.package}@${document.version}`, document);
   }
 
@@ -49,7 +49,7 @@ export class FakeRegistry {
     if (versions.length === 0) return new Response('not found', {status: 404});
     return Response.json({
       package: name,
-      kind: 'template',
+      kind: versions[0]?.kind,
       versions: versions.map((document) => ({
         version: document.version,
         digest: document.content.digest,

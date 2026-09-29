@@ -4,7 +4,7 @@ import type {PendingChangeset} from '../src/changesets.js';
 import {type CheckMode, runCheck} from '../src/check.js';
 import {createRegistryClient} from '../src/registry-client.js';
 import {FakeRegistry} from './fixtures/fake-registry.js';
-import {publishedDocument} from './fixtures/registry-documents.js';
+import {publishedActionDocument, publishedDocument} from './fixtures/registry-documents.js';
 import {
   TEMPLATE_FILES,
   TEMPLATE_MANIFEST,
@@ -236,13 +236,12 @@ describe('check', () => {
       const result = await check({mode: 'release'});
 
       expect(messages(result)).toEqual([
-        'error: Uses shipfox/digest@1.0.0, which is neither published nor part of this release.',
+        'error: Uses shipfox/digest@1.0.0, which is not a published action or part of this release.',
       ]);
     });
 
     it('accepts an action the registry has', async () => {
-      const action = await buildFixture(repository);
-      registry.seed(publishedDocument({...action, package: 'shipfox/digest'}));
+      registry.seed(publishedActionDocument({package: 'shipfox/digest'}));
       repository.write(
         'parts/source/github.yml',
         `open_pr: |\n  - key: open_pr\n    uses: shipfox/digest@1.0.0\n`,
@@ -252,6 +251,33 @@ describe('check', () => {
       const result = await check({mode: 'release'});
 
       expect(result.ok).toBe(true);
+    });
+
+    it('rejects a used package that is a template, published or in the same batch', async () => {
+      repository.write(
+        'parts/source/github.yml',
+        `open_pr: |\n  - key: open_pr\n    uses: shipfox/digest@1.0.0\n`,
+      );
+      repository.commit();
+      const template = await buildFixture(repository);
+      registry.seed(publishedDocument({...template, package: 'shipfox/digest'}));
+      const sibling: BuiltPackage = {
+        ...template,
+        package: 'shipfox/other',
+        version: '2.0.0',
+        actions: [],
+      };
+
+      const published = await check({mode: 'release'});
+      const inBatch = await check({
+        mode: 'release',
+        packages: [{...template, actions: ['shipfox/other@2.0.0']}, sibling],
+      });
+
+      const expected = (reference: string) =>
+        `error: Uses ${reference}, which is not a published action or part of this release.`;
+      expect(messages(published)).toEqual([expected('shipfox/digest@1.0.0')]);
+      expect(messages(inBatch)).toEqual([expected('shipfox/other@2.0.0')]);
     });
 
     it('accepts an action published in the same batch', async () => {

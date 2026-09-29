@@ -8,7 +8,7 @@
     "shipfox-registry-release": "./dist/cli.js"
   },
   "scripts": {
-    "build": "shipfox-swc",
+    "build": "shipfox-swc && chmod +x dist/cli.js",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "test": "shipfox-vitest-run",

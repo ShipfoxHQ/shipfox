@@ -123,7 +123,7 @@ async function checkRelease({
   }
 }
 
-// Every action a template uses must exist in the registry or be published in the same batch.
+// Every action a template uses must exist in the registry, or be an action published in the same batch.
 async function checkActionsExist({
   built,
   packages,
@@ -135,7 +135,11 @@ async function checkActionsExist({
   registry: RegistryReader;
   report: Report;
 }) {
-  const batch = new Set(packages.map((entry) => `${entry.package}@${entry.version}`));
+  const batch = new Set(
+    packages
+      .filter((entry) => entry.kind === 'action')
+      .map((entry) => `${entry.package}@${entry.version}`),
+  );
   for (const reference of built.actions) {
     if (batch.has(reference)) continue;
     const separator = reference.lastIndexOf('@');
@@ -143,8 +147,11 @@ async function checkActionsExist({
       package: reference.slice(0, separator),
       version: reference.slice(separator + 1),
     });
-    if (published === undefined) {
-      report('error', `Uses ${reference}, which is neither published nor part of this release.`);
+    if (published?.kind !== 'action') {
+      report(
+        'error',
+        `Uses ${reference}, which is not a published action or part of this release.`,
+      );
     }
   }
 }

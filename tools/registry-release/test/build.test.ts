@@ -1,3 +1,4 @@
+import {readdirSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {decodeActionBundle} from '@shipfox/workflow-document';
 import {buildPackage, writeBuildOutput} from '../src/build.js';
@@ -198,6 +199,15 @@ describe('buildPackage for a template', () => {
     expect(directory).toBe(
       join(repository.root, '.shipfox-registry', 'shipfox/fixture-template', '1.0.0'),
     );
+    expect(readdirSync(directory).sort()).toEqual([
+      'README.md',
+      'build.json',
+      'content.gz',
+      'source.gz',
+    ]);
+    expect(JSON.parse(readFileSync(join(directory, 'build.json'), 'utf8'))).toMatchObject({
+      fingerprint: built.fingerprint,
+    });
   });
 });
 
