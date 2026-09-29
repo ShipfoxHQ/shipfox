@@ -75,27 +75,56 @@ export function collectTemplateActions({
 }): string[] {
   const references = new Set<string>();
   for (const bindings of templateRoleBindings(bundle.manifest.roles)) {
-    let composed: string;
-    try {
-      composed = composeTemplate({id: name, revision: 1, ...bundle}, bindings, {composition});
-    } catch (error) {
-      if (error instanceof UnsupportedCompositionError) {
-        throw new VersionRefusedError('unsupported-composition', error.message, {cause: error});
-      }
-      throw new VersionRefusedError(
-        'invalid-template',
-        `The template does not compose: ${error instanceof Error ? error.message : String(error)}`,
-        {cause: error},
-      );
-    }
-    for (const uses of usesOf(
-      parseYamlFile({path: WORKFLOW_PATH, content: composed, reason: 'invalid-template'}),
-    )) {
-      const ref = parseWorkflowActionRef(uses);
-      if (ref.ok && ref.ref.kind === 'registry') references.add(formatRegistryReference(ref.ref));
+    const composed = composeBinding({name, bundle, bindings, composition});
+    const workflow = parseYamlFile({
+      path: WORKFLOW_PATH,
+      content: composed,
+      reason: 'invalid-template',
+    });
+    for (const uses of usesOf(workflow)) {
+      const reference = registryReference(uses);
+      if (reference !== undefined) references.add(reference);
     }
   }
   return [...references].sort();
+}
+
+function composeBinding({
+  name,
+  bundle,
+  bindings,
+  composition,
+}: {
+  name: string;
+  bundle: TemplateBundle;
+  bindings: Record<string, string>;
+  composition: number;
+}): string {
+  try {
+    return composeTemplate({id: name, revision: 1, ...bundle}, bindings, {composition});
+  } catch (error) {
+    if (error instanceof UnsupportedCompositionError) {
+      throw new VersionRefusedError('unsupported-composition', error.message, {cause: error});
+    }
+    throw new VersionRefusedError(
+      'invalid-template',
+      `The template does not compose: ${error instanceof Error ? error.message : String(error)}`,
+      {cause: error},
+    );
+  }
+}
+
+/** The formatted reference of a registry `uses`, or undefined for a repository path. */
+function registryReference(uses: string): string | undefined {
+  const ref = parseWorkflowActionRef(uses);
+  // A malformed registry reference cannot run, and skipping it would bypass the existence check.
+  if (!ref.ok && ref.registry) {
+    throw new VersionRefusedError(
+      'invalid-template',
+      `The template uses ${JSON.stringify(uses)}: ${ref.message}`,
+    );
+  }
+  return ref.ok && ref.ref.kind === 'registry' ? formatRegistryReference(ref.ref) : undefined;
 }
 
 function readPart({path, content}: ActionBundleFile): Record<string, string> {

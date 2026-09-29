@@ -3,6 +3,7 @@ import {VersionRefusedError} from '#publish/errors.js';
 
 const PARTS = ['draft', 'content', 'source', 'readme'] as const;
 type PartName = (typeof PARTS)[number];
+const BINARY_PARTS: readonly PartName[] = ['content', 'source'];
 
 export interface PublishRequestParts {
   /** The JSON text of the `draft` part. */
@@ -65,7 +66,10 @@ async function part(form: FormData, name: PartName): Promise<Buffer | undefined>
   }
   const [value] = values;
   if (value === undefined) return undefined;
-  return typeof value === 'string'
-    ? Buffer.from(value, 'utf8')
-    : Buffer.from(await value.arrayBuffer());
+  if (typeof value !== 'string') return Buffer.from(await value.arrayBuffer());
+  // A part without a filename arrives as text, which would corrupt gzip bytes.
+  if (BINARY_PARTS.includes(name)) {
+    throw new VersionRefusedError('invalid-request', `Part ${name} must be sent as a file`);
+  }
+  return Buffer.from(value, 'utf8');
 }

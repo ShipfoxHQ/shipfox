@@ -113,7 +113,7 @@ export interface PublishFixture {
   content: BundleFixture;
   source?: BundleFixture;
   readme?: string;
-  /** Extra parts, or a replacement of a standard one with `undefined` to omit it. */
+  /** Parts added after the standard ones, so a repeated name appears twice. */
   extraParts?: Record<string, string> | undefined;
 }
 

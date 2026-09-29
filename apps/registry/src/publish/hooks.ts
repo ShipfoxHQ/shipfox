@@ -19,6 +19,7 @@ export async function callPublishHooks({
           body: JSON.stringify(event),
           signal: AbortSignal.timeout(HOOK_TIMEOUT_MS),
         });
+        await response.body?.cancel();
         if (!response.ok) {
           logger().warn(
             {hook: new URL(hook).origin, status: response.status},

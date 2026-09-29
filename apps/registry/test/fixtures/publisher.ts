@@ -92,7 +92,7 @@ export async function startPublishApp({
       ...fixture
     }) {
       const {payload, contentType} = await multipartRequest(fixture);
-      const bearer = token === undefined ? await publishTokenFor({signingKey}) : token;
+      const bearer = token === undefined ? await publishTokenFor({signingKey, namespace}) : token;
       return app.inject({
         method: 'PUT',
         url: `/v1/packages/${namespace}/${name}/versions/${version}`,

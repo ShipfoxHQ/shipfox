@@ -35,6 +35,7 @@ import {
 import {testSigningKey} from '#test/fixtures/signing-key.js';
 
 const SOURCE_PART = /name="source"/;
+const CONTENT_FILENAME = /; filename="content.gz"/;
 
 describe('PUT /v1/packages/:namespace/:name/versions/:version', () => {
   const signingKey = testSigningKey();
@@ -231,6 +232,19 @@ describe('PUT /v1/packages/:namespace/:name/versions/:version', () => {
       expect([first.statusCode, second.statusCode]).toEqual([201, 201]);
     });
 
+    it.each([
+      'shipfox/slack-thread-digest@latest',
+      'shipfox/slack-thread-digest',
+    ])('refuses a registry reference that is not pinned: %s', async (uses) => {
+      await publishAction();
+      const content = await bundleOf(templateFiles({steps: ['- key: digest', `  uses: ${uses}`]}));
+
+      const response = await publishTemplate({content});
+
+      expect(response.statusCode).toBe(422);
+      expect(response.json()).toMatchObject({code: 'invalid-template'});
+    });
+
     it('refuses a composition format the registry cannot write', async () => {
       const response = await publishTemplate({draft: {...TEMPLATE_DRAFT, composition: 99}});
 
@@ -396,7 +410,6 @@ describe('PUT /v1/packages/:namespace/:name/versions/:version', () => {
 
   describe('refusals', () => {
     it.each([
-      ['a namespace other than the token’s', {namespace: 'other'}, 403, 'namespace-mismatch'],
       ['a reserved name', {name: 'github'}, 403, 'reserved-name'],
       ['a name under a reserved prefix', {name: 'shipfox-labs'}, 403, 'reserved-name'],
       ['a name that is not a slug', {name: 'Digest'}, 400, 'invalid-package-name'],
@@ -408,6 +421,15 @@ describe('PUT /v1/packages/:namespace/:name/versions/:version', () => {
       expect(response.statusCode).toBe(status);
       expect(response.json()).toMatchObject({code});
       expect(await db().select().from(versions)).toEqual([]);
+    });
+
+    it('refuses a namespace other than the token’s', async () => {
+      const token = await publishTokenFor({signingKey, namespace: 'shipfox'});
+
+      const response = await publishAction({namespace: 'acme', token});
+
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({code: 'namespace-mismatch'});
     });
 
     it('refuses a suspended namespace', async () => {
@@ -530,18 +552,21 @@ describe('PUT /v1/packages/:namespace/:name/versions/:version', () => {
     });
 
     it.each([
-      ['a missing part', undefined],
-      ['a part it does not know', {extra: 'x'}],
-    ])('refuses a request with %s', async (name, extraParts) => {
+      ['a missing part', undefined, (text: string) => text.replace(SOURCE_PART, 'name="other"')],
+      ['a part it does not know', {extra: 'x'}, (text: string) => text],
+      [
+        'a file part without a filename',
+        undefined,
+        (text: string) => text.replace(CONTENT_FILENAME, ''),
+      ],
+    ])('refuses a request with %s', async (_name, extraParts, edit) => {
       const {payload, contentType} = await multipartRequest({
         draft: ACTION_DRAFT,
         content: await bundleOf(actionFiles()),
         extraParts,
       });
-      const body =
-        name === 'a missing part'
-          ? Buffer.from(payload.toString('latin1').replace(SOURCE_PART, 'name="other"'), 'latin1')
-          : payload;
+      // latin1 keeps every byte of the gzip parts through the round trip.
+      const body = Buffer.from(edit(payload.toString('latin1')), 'latin1');
 
       const response = await publisher.app.inject({
         method: 'PUT',
