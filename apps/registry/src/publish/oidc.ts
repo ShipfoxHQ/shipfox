@@ -2,6 +2,7 @@ import {registryJtiPath} from '@shipfox/registry-format';
 import {createRemoteJWKSet, errors, jwtVerify} from 'jose';
 import {z} from 'zod';
 import {PublishTokenRefusedError} from '#publish/errors.js';
+import {describeIssues} from '#publish/issues.js';
 
 export const GITHUB_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';
 export const CLOCK_SKEW_SECONDS = 60;
@@ -69,9 +70,7 @@ export function createGithubOidcVerifier({
     if (!claims.success) {
       throw new PublishTokenRefusedError({
         reason: 'invalid-oidc-token',
-        detail: claims.error.issues
-          .map((issue) => `${issue.path.join('.') || '(root)'} ${issue.message}`)
-          .join('; '),
+        detail: describeIssues(claims.error),
       });
     }
     return claims.data;

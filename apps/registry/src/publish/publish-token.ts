@@ -1,7 +1,12 @@
-import {randomUUID} from 'node:crypto';
-import type {RegistryVersionDocument} from '@shipfox/registry-format';
-import {SignJWT} from 'jose';
+import {createPublicKey, randomUUID} from 'node:crypto';
+import {
+  type RegistryVersionDocument,
+  registryActionVersionDocumentSchema,
+} from '@shipfox/registry-format';
+import {errors, jwtVerify, SignJWT} from 'jose';
+import {z} from 'zod';
 import type {RegistryBootstrapNamespace} from '#bootstrap.js';
+import {VersionRefusedError} from '#publish/errors.js';
 import type {GithubOidcClaims} from '#publish/oidc.js';
 import type {RegistrySigningKey} from '#signing-key.js';
 
@@ -66,4 +71,48 @@ export async function mintPublishToken({
     .setExpirationTime(expiresAt)
     .sign(signingKey.privateKey);
   return {token, expiresAt: new Date(expiresAt * 1000)};
+}
+
+const publishTokenClaimsSchema = z.object({
+  namespace: z.string().min(1),
+  provenance: registryActionVersionDocumentSchema.shape.provenance.omit({path: true}),
+});
+
+export type PublishTokenVerifier = (
+  token: string | undefined,
+) => Promise<Pick<PublishTokenClaims, 'namespace' | 'provenance'>>;
+
+/** Verifies the publish tokens this registry minted, and returns the claims a publish uses. */
+export function createPublishTokenVerifier({
+  signingKey,
+  publicUrl,
+}: {
+  signingKey: RegistrySigningKey;
+  publicUrl: string;
+}): PublishTokenVerifier {
+  const publicKey = createPublicKey(signingKey.privateKey);
+  return async (token) => {
+    if (token === undefined) {
+      throw new VersionRefusedError(
+        'invalid-publish-token',
+        'Send the publish token as a bearer token',
+      );
+    }
+    try {
+      const {payload} = await jwtVerify(token, publicKey, {
+        issuer: publicUrl,
+        audience: PUBLISH_TOKEN_AUDIENCE,
+        algorithms: ['EdDSA'],
+        requiredClaims: ['exp', 'iat'],
+      });
+      return publishTokenClaimsSchema.parse(payload);
+    } catch (error) {
+      if (error instanceof errors.JOSEError || error instanceof z.ZodError) {
+        throw new VersionRefusedError('invalid-publish-token', 'The publish token is not valid', {
+          cause: error,
+        });
+      }
+      throw error;
+    }
+  };
 }

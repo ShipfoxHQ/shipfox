@@ -1,5 +1,5 @@
-import {createPrivateKey, createPublicKey, type KeyObject} from 'node:crypto';
-import type {RegistryPublicKey} from '@shipfox/registry-format';
+import {createPrivateKey, createPublicKey, type KeyObject, sign} from 'node:crypto';
+import type {RegistryPublicKey, RegistrySigner} from '@shipfox/registry-format';
 
 export interface RegistrySigningKey {
   readonly keyid: string;
@@ -24,4 +24,9 @@ export function loadSigningKey({pem, keyid}: {pem: string; keyid: string}): Regi
     privateKey,
     publicKey: {keyid, algorithm: 'ed25519', public_key: spki.toString('base64')},
   };
+}
+
+/** Signs version documents with the loaded key. A KMS signer would replace this one. */
+export function registrySigner({keyid, privateKey}: RegistrySigningKey): RegistrySigner {
+  return {keyid, sign: async (data) => sign(null, data, privateKey)};
 }

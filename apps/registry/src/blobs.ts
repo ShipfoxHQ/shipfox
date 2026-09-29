@@ -1,5 +1,7 @@
 import {createHash} from 'node:crypto';
+import {gunzipSync} from 'node:zlib';
 import {REGISTRY_DIGEST_PATTERN} from '@shipfox/registry-format';
+import {SOURCE_LIMIT_BYTES} from '#publish/limits.js';
 import {type RegistryStorage, StoragePreconditionFailedError} from '#storage/storage.js';
 
 export const BLOB_CONTENT_TYPE = 'application/gzip';
@@ -10,7 +12,7 @@ export class BlobDigestMismatchError extends Error {
   override name = 'BlobDigestMismatchError';
 
   constructor(digest: string) {
-    super(`The bytes do not match ${digest}`);
+    super(`The gzip data does not hold content with digest ${digest}`);
   }
 }
 
@@ -18,7 +20,7 @@ export class BlobConflictError extends Error {
   override name = 'BlobConflictError';
 
   constructor(digest: string) {
-    super(`The store already holds different bytes at the key of ${digest}`);
+    super(`The store already holds different content at the key of ${digest}`);
   }
 }
 
@@ -30,22 +32,34 @@ export function blobKey(digest: string): string {
   return `blobs/sha256/${digest.slice('sha256:'.length)}`;
 }
 
+/**
+ * The digest of a bundle covers its canonical JSON, not the gzip that stores it, so two gzip
+ * encodings of one bundle share a digest. Undefined when `gzip` is not gzip data or inflates past
+ * the largest bundle the registry accepts.
+ */
+function contentDigest(gzip: Buffer): string | undefined {
+  try {
+    const bytes = gunzipSync(gzip, {maxOutputLength: SOURCE_LIMIT_BYTES});
+    return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+  } catch {
+    return undefined;
+  }
+}
+
 export interface BlobStore {
   put(params: {digest: string; body: Buffer}): Promise<void>;
 }
 
 /**
- * Content bundles and source archives, keyed by digest. Blobs are written create-only, so an
- * existing key already holds the same bytes and is never overwritten. Versions with identical
- * bytes share one blob.
+ * Content bundles and source archives as gzip, keyed by the digest of their content. Blobs are
+ * written create-only, so an existing key is never overwritten. Versions with identical content
+ * share one blob.
  */
 export function createBlobStore(storage: RegistryStorage): BlobStore {
   return {
     async put({digest, body}) {
       const key = blobKey(digest);
-      if (`sha256:${createHash('sha256').update(body).digest('hex')}` !== digest) {
-        throw new BlobDigestMismatchError(digest);
-      }
+      if (contentDigest(body) !== digest) throw new BlobDigestMismatchError(digest);
       try {
         await storage.put({
           key,
@@ -57,9 +71,12 @@ export function createBlobStore(storage: RegistryStorage): BlobStore {
         });
       } catch (error) {
         if (!(error instanceof StoragePreconditionFailedError)) throw error;
-        // A concurrent publish of the same bytes is a retry. Anything else means the store is wrong.
+        // The same content already stored is a retry, even when another gzip encoding wrote it.
+        // Anything else means the store is wrong.
         const existing = await storage.get(key);
-        if (!existing?.body.equals(body)) throw new BlobConflictError(digest);
+        if (existing === null || contentDigest(existing.body) !== digest) {
+          throw new BlobConflictError(digest);
+        }
       }
     },
   };
