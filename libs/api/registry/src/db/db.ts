@@ -1,8 +1,9 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
+import {registryIndexes} from './schema/indexes.js';
 import {registryVersions} from './schema/versions.js';
 
-export const schema = {registryVersions};
+export const schema = {registryIndexes, registryVersions};
 
 export type Database = NodePgDatabase<typeof schema>;
 

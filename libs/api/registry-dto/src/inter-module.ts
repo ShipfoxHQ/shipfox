@@ -1,6 +1,9 @@
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
 import {z} from 'zod';
 import {
+  registryCatalogResponseSchema,
+  registryPackageIndexResponseSchema,
+  registryPackageRequestSchema,
   registryReadmeSchema,
   registrySourceSchema,
   registryVersionRefSchema,
@@ -15,6 +18,12 @@ const versionErrors = {
   'registry-unavailable': z.object({}),
   'registry-signature-invalid': registryVersionRefSchema,
   'registry-schema-unsupported': registryVersionRefSchema,
+};
+
+// The indexes are unsigned, so they cannot fail verification, and a missing package is a value.
+const indexErrors = {
+  'registry-disabled': z.object({}),
+  'registry-unavailable': z.object({}),
 };
 
 export const registryInterModuleContract = defineInterModuleContract({
@@ -34,6 +43,16 @@ export const registryInterModuleContract = defineInterModuleContract({
       input: registryVersionRefSchema,
       output: registryReadmeSchema,
       errors: versionErrors,
+    },
+    getPackageIndex: {
+      input: registryPackageRequestSchema,
+      output: registryPackageIndexResponseSchema,
+      errors: indexErrors,
+    },
+    getCatalog: {
+      input: z.object({}),
+      output: registryCatalogResponseSchema,
+      errors: indexErrors,
     },
   },
 });

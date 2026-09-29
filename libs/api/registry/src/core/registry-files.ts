@@ -7,13 +7,54 @@ export async function fetchRegistryFile(params: {
   registry: string;
   path: string;
 }): Promise<Uint8Array | undefined> {
+  const response = await fetchRegistryResponse(params);
+  if (response.status === 404) {
+    await discardBody(response);
+    return undefined;
+  }
+  return await readBody({response, path: params.path});
+}
+
+export type RegistryIndexFetch =
+  | {status: 'ok'; body: Uint8Array; etag: string | null}
+  | {status: 'not-modified'}
+  | {status: 'not-found'};
+
+/** Fetches a mutable index. With `etag`, the registry can answer that the stored copy is current. */
+export async function fetchRegistryIndex(params: {
+  registry: string;
+  path: string;
+  etag?: string | null | undefined;
+}): Promise<RegistryIndexFetch> {
+  const response = await fetchRegistryResponse({
+    registry: params.registry,
+    path: params.path,
+    headers: params.etag ? {'if-none-match': params.etag} : {},
+  });
+  if (response.status === 304) {
+    await discardBody(response);
+    return {status: 'not-modified'};
+  }
+  if (response.status === 404) {
+    await discardBody(response);
+    return {status: 'not-found'};
+  }
+  const body = await readBody({response, path: params.path});
+  return {status: 'ok', body, etag: response.headers.get('etag')};
+}
+
+async function fetchRegistryResponse(params: {
+  registry: string;
+  path: string;
+  headers?: Record<string, string>;
+}): Promise<Response> {
   const url = `${params.registry}${params.path}`;
-  let response: Response;
   try {
     // Downloads answer 307 to a presigned URL. The request carries no credentials, so
     // the redirect leaks none.
-    response = await fetch(url, {
+    return await fetch(url, {
       redirect: 'follow',
+      headers: params.headers ?? {},
       signal: AbortSignal.timeout(REGISTRY_FETCH_TIMEOUT_MS),
     });
   } catch (error) {
@@ -21,20 +62,18 @@ export async function fetchRegistryFile(params: {
       cause: error,
     });
   }
-  if (response.status === 404) {
-    await discardBody(response);
-    return undefined;
-  }
+}
+
+async function readBody(params: {response: Response; path: string}): Promise<Uint8Array> {
+  const {response, path} = params;
   if (!response.ok) {
     await discardBody(response);
-    throw new RegistryUnavailableError(
-      `The registry answered ${response.status} for ${params.path}`,
-    );
+    throw new RegistryUnavailableError(`The registry answered ${response.status} for ${path}`);
   }
   try {
     return new Uint8Array(await response.arrayBuffer());
   } catch (error) {
-    throw new RegistryUnavailableError(`The registry response for ${params.path} was cut short`, {
+    throw new RegistryUnavailableError(`The registry response for ${path} was cut short`, {
       cause: error,
     });
   }

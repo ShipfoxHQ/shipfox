@@ -180,7 +180,7 @@ describe('resolveVersion', () => {
     await publishVersion({registry, key});
 
     const result = resolveVersion({
-      settings: {registry: '', trustedKeys: [key.trusted]},
+      settings: {registry: '', trustedKeys: [key.trusted], catalogRefreshSeconds: 900},
       package: PACKAGE,
       version: VERSION,
       kind: 'action',
@@ -389,7 +389,9 @@ describe('resolveVersion', () => {
         kind: 'action',
       });
 
-      await purgeOtherRegistries({settings: {registry: '', trustedKeys: []}});
+      await purgeOtherRegistries({
+        settings: {registry: '', trustedKeys: [], catalogRefreshSeconds: 900},
+      });
 
       expect(await storedVersion(registry)).toBeUndefined();
     });

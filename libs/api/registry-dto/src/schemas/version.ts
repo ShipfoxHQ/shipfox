@@ -1,5 +1,7 @@
 import {
+  registryCatalogSchema,
   registryDigestSchema,
+  registryPackageIndexSchema,
   registryPackageKindSchema,
   registryPackageNameSchema,
   registryVersionDocumentSchema,
@@ -39,3 +41,18 @@ export const registryReadmeSchema = z.object({
   readme: z.string().nullable(),
 });
 export type RegistryReadmeDto = z.infer<typeof registryReadmeSchema>;
+
+export const registryPackageRequestSchema = z.object({
+  package: registryPackageNameSchema,
+});
+export type RegistryPackageRequestDto = z.infer<typeof registryPackageRequestSchema>;
+
+/** Unsigned and mutable: the registry can change it between two reads. */
+export const registryCatalogResponseSchema = registryCatalogSchema;
+export type RegistryCatalogResponseDto = z.infer<typeof registryCatalogResponseSchema>;
+
+export const registryPackageIndexResponseSchema = z.object({
+  /** `null` when the registry has no such package. */
+  index: registryPackageIndexSchema.nullable(),
+});
+export type RegistryPackageIndexResponseDto = z.infer<typeof registryPackageIndexResponseSchema>;

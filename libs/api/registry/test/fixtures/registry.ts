@@ -1,16 +1,20 @@
 import {createHash, generateKeyPairSync, randomUUID} from 'node:crypto';
-import {createServer} from 'node:http';
+import {createServer, type IncomingHttpHeaders} from 'node:http';
 import type {AddressInfo} from 'node:net';
 import {
   createEd25519Signer,
   dssePreAuthenticationEncoding,
+  REGISTRY_CATALOG_PATH,
+  type RegistryCatalog,
   type RegistryEnvelope,
+  type RegistryPackageIndex,
   type RegistryPackageKind,
   type RegistrySigner,
   type RegistryTrustedKey,
   type RegistryVersionDocument,
   registryBlobKey,
   registryContentPath,
+  registryPackagePath,
   registryReadmePath,
   registrySourcePath,
   registryVersionPath,
@@ -39,7 +43,10 @@ export interface TestRegistry {
   url: string;
   /** Paths requested so far, in order. */
   requests: string[];
-  put(path: string, body: Uint8Array | string): void;
+  /** Headers of the requests so far, in the order of `requests`. */
+  requestHeaders: IncomingHttpHeaders[];
+  /** With `etag`, the server answers a request whose `If-None-Match` matches with a 304. */
+  put(path: string, body: Uint8Array | string, options?: {etag?: string}): void;
   /** Answers `path` with a 307 to `target`, like a presigned download URL. */
   redirect(path: string, target: string): void;
   fail(path: string, status: number): void;
@@ -48,14 +55,17 @@ export interface TestRegistry {
 
 export async function startTestRegistry(): Promise<TestRegistry> {
   const files = new Map<string, Uint8Array | string>();
+  const etags = new Map<string, string>();
   const redirects = new Map<string, string>();
   const failures = new Map<string, number>();
   const requests: string[] = [];
+  const requestHeaders: IncomingHttpHeaders[] = [];
   // The OS can hand out a port again, and cached rows are keyed by URL, so the prefix keeps URLs unique.
   const prefix = `/${randomUUID()}/`;
   const server = createServer((request, response) => {
     const path = (request.url ?? '').slice(prefix.length - 1);
     requests.push(path);
+    requestHeaders.push(request.headers);
     const status = failures.get(path);
     if (status) {
       response.writeHead(status).end();
@@ -71,7 +81,12 @@ export async function startTestRegistry(): Promise<TestRegistry> {
       response.writeHead(404).end();
       return;
     }
-    response.writeHead(200).end(body);
+    const etag = etags.get(path);
+    if (etag !== undefined && request.headers['if-none-match'] === etag) {
+      response.writeHead(304, {etag}).end();
+      return;
+    }
+    response.writeHead(200, etag === undefined ? {} : {etag}).end(body);
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const {port} = server.address() as AddressInfo;
@@ -79,7 +94,12 @@ export async function startTestRegistry(): Promise<TestRegistry> {
   return {
     url: `http://127.0.0.1:${port}${prefix.slice(0, -1)}`,
     requests,
-    put: (path, body) => files.set(path, body),
+    requestHeaders,
+    put: (path, body, options) => {
+      files.set(path, body);
+      if (options?.etag === undefined) etags.delete(path);
+      else etags.set(path, options.etag);
+    },
     redirect: (path, target) => redirects.set(path, target),
     fail: (path, status) => failures.set(path, status),
     close: () =>
@@ -90,8 +110,64 @@ export async function startTestRegistry(): Promise<TestRegistry> {
   };
 }
 
-export function settingsFor(params: {registry: TestRegistry; keys: TestKey[]}): RegistrySettings {
-  return {registry: params.registry.url, trustedKeys: params.keys.map((key) => key.trusted)};
+export function settingsFor(params: {
+  registry: TestRegistry;
+  keys: TestKey[];
+  catalogRefreshSeconds?: number;
+}): RegistrySettings {
+  return {
+    registry: params.registry.url,
+    trustedKeys: params.keys.map((key) => key.trusted),
+    catalogRefreshSeconds: params.catalogRefreshSeconds ?? 900,
+  };
+}
+
+/** Serves `GET /v1/packages` with a version of `etag`. */
+export function publishCatalog(params: {
+  registry: TestRegistry;
+  etag: string;
+  packages?: string[];
+}): RegistryCatalog {
+  const catalog: RegistryCatalog = {
+    packages: (params.packages ?? ['fixture/example']).map((name) => ({
+      package: name,
+      kind: 'template',
+      title: `Template ${name}`,
+      summary: 'A template.',
+      keywords: [],
+      integrations: [],
+      latest: '1.0.0',
+      published_at: '2026-10-12T09:14:03Z',
+      first_published_at: '2026-10-12T09:14:03Z',
+      publisher: {namespace: 'fixture', display_name: 'Fixture', verified: true},
+    })),
+  };
+  params.registry.put(REGISTRY_CATALOG_PATH, JSON.stringify(catalog), {etag: params.etag});
+  return catalog;
+}
+
+/** Serves `GET /v1/packages/{ns}/{name}` with the given versions and an etag. */
+export function publishPackageIndex(params: {
+  registry: TestRegistry;
+  etag: string;
+  package?: string;
+  versions?: string[];
+}): RegistryPackageIndex {
+  const packageName = params.package ?? 'fixture/example';
+  const index: RegistryPackageIndex = {
+    package: packageName,
+    kind: 'template',
+    versions: (params.versions ?? ['1.0.0']).map((version) => ({
+      version,
+      digest: digestOf('a'),
+      published_at: '2026-10-12T09:14:03Z',
+      capability_change: false,
+    })),
+  };
+  params.registry.put(registryPackagePath(packageName), JSON.stringify(index), {
+    etag: params.etag,
+  });
+  return index;
 }
 
 /** Where the test registry serves a blob that a download route redirects to. */
