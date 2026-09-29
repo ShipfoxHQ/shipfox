@@ -19,6 +19,10 @@ import {
 } from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import {getGithubInstallationByInstallationId} from '#db/installations.js';
+import {
+  deleteGithubUnlinkedInstallationByInstallationId,
+  upsertGithubUnlinkedInstallation,
+} from '#db/unlinked-installations.js';
 
 const REFS_HEADS_PREFIX = 'refs/heads/';
 const GITHUB_SOURCE = 'github';
@@ -245,6 +249,13 @@ export async function handleGithubEvent(
       action,
       payload: params.payload,
     });
+    await recordUnknownGithubInstallation({
+      tx: params.tx,
+      installationId,
+      event: params.event,
+      action,
+      payload: params.payload,
+    });
     await params.recordDeliveryOnly({
       tx: params.tx,
       provider: GITHUB_SOURCE,
@@ -298,6 +309,47 @@ export async function handleGithubEvent(
   }
 
   return dispatchGithubEvent(params, connection, installationId, action);
+}
+
+const UNLINKED_INSTALLATION_ACTIONS = new Set(['created', 'new_permissions_accepted', 'unsuspend']);
+
+async function recordUnknownGithubInstallation(params: {
+  tx: IntegrationTx;
+  installationId: number;
+  event: string;
+  action: string | undefined;
+  payload: unknown;
+}): Promise<void> {
+  if (params.event !== 'installation') return;
+
+  if (params.action === 'deleted') {
+    await deleteGithubUnlinkedInstallationByInstallationId(String(params.installationId), {
+      tx: params.tx,
+    });
+    return;
+  }
+
+  if (!params.action || !UNLINKED_INSTALLATION_ACTIONS.has(params.action)) return;
+
+  const parsed = githubWebhookInstallationSchema.safeParse(params.payload);
+  const details = parsed.success ? parsed.data : undefined;
+  const installation = details?.installation;
+  const account = installation?.account;
+  const repositorySelection = installation?.repository_selection;
+  if (!account || !repositorySelection) return;
+
+  await upsertGithubUnlinkedInstallation(
+    {
+      installationId: String(params.installationId),
+      accountLogin: account.login,
+      accountType: account.type,
+      repositorySelection,
+      senderLogin: details?.sender?.login,
+      requesterLogin: details?.requester?.login,
+      lastAction: params.action,
+    },
+    {tx: params.tx},
+  );
 }
 
 function logUnknownGithubInstallation(params: {

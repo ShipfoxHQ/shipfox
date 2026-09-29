@@ -1,9 +1,11 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
 import {githubInstallations} from './schema/installations.js';
+import {githubUnlinkedInstallations} from './schema/unlinked-installations.js';
 
 export const schema = {
   githubInstallations,
+  githubUnlinkedInstallations,
 };
 
 let _db: NodePgDatabase<typeof schema> | undefined;

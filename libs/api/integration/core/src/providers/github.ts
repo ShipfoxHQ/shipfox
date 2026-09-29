@@ -35,6 +35,7 @@ async function loadGithubModuleParts(
     GITHUB_INSTALLATION_TOKEN_GENERATION_KEY,
     createGithubIntegrationProvider,
     getGithubInstallationByInstallationId,
+    registerGithubServiceMetrics,
     deleteGithubInstallationByConnectionId,
     githubInstallationTokenGenerationNamespace,
     githubInstallationTokenNamespace,
@@ -218,6 +219,7 @@ async function loadGithubModuleParts(
       migrationsPath: githubMigrationsPath,
       databaseNamespace: 'integrations_github',
     },
+    metrics: registerGithubServiceMetrics,
     ...(checkoutTokenCacheMaintenanceWorker
       ? {workers: [checkoutTokenCacheMaintenanceWorker]}
       : {}),

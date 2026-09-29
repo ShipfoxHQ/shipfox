@@ -14,6 +14,7 @@ describe('githubWebhookInstallationSchema', () => {
         installation: {
           id: 123,
           account: {login: 'opsmill', type: 'Organization'},
+          repository_selection: 'selected',
         },
         sender: {login: 'octocat'},
         requester: {login: 'member'},

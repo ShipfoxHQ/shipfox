@@ -2,6 +2,7 @@ import {eq} from 'drizzle-orm';
 import {GithubInstallationAlreadyLinkedError} from '#core/errors.js';
 import {db} from './db.js';
 import {githubInstallations, toGithubInstallation} from './schema/installations.js';
+import {deleteGithubUnlinkedInstallationByInstallationId} from './unlinked-installations.js';
 
 export interface GithubInstallation {
   id: string;
@@ -37,7 +38,11 @@ export async function upsertGithubInstallation(
   params: UpsertGithubInstallationParams,
   options: {tx?: unknown} = {},
 ): Promise<GithubInstallation> {
-  const executor = (options.tx ?? db()) as GithubDb | GithubTx;
+  if (options.tx === undefined) {
+    return await db().transaction(async (tx) => await upsertGithubInstallation(params, {tx}));
+  }
+
+  const executor = options.tx as GithubDb | GithubTx;
   const now = new Date();
   const [row] = await executor
     .insert(githubInstallations)
@@ -76,6 +81,7 @@ export async function upsertGithubInstallation(
     .returning();
 
   if (!row) throw new GithubInstallationAlreadyLinkedError(params.installationId);
+  await deleteGithubUnlinkedInstallationByInstallationId(params.installationId, {tx: executor});
   return toGithubInstallation(row);
 }
 

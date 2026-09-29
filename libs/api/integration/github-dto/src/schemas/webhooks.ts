@@ -30,6 +30,7 @@ export const githubWebhookInstallationSchema = z.object({
     .object({
       id: z.number().int().positive(),
       account: githubWebhookAccountSchema.nullish(),
+      repository_selection: z.string().min(1).nullish(),
     })
     .optional(),
   sender: githubWebhookActorSchema.nullish(),

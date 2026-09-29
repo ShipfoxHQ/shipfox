@@ -69,6 +69,24 @@ describe('createIntegrationsContext', () => {
     expect(context.module.services).toBeUndefined();
   });
 
+  it('registers provider-owned metrics without a delivery source', async () => {
+    const registerMetrics = vi.fn();
+
+    const context = await createIntegrationsContext({
+      parts: [
+        {
+          provider: {provider: 'github', displayName: 'GitHub', adapters: {}},
+          metrics: registerMetrics,
+        },
+      ],
+      repositoryAuthorizer: disabledRepositoryAuthorizer,
+    });
+
+    expect(context.module.metrics).toBeDefined();
+    context.module.metrics?.({outboxRegistry: createOutboxRegistry()});
+    expect(registerMetrics).toHaveBeenCalledOnce();
+  });
+
   it('registers provider-owned services without a delivery source', async () => {
     const stop = vi.fn().mockResolvedValue(undefined);
     const service: ModuleService = {
