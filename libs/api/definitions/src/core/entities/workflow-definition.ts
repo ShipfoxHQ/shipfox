@@ -31,7 +31,7 @@ export interface WorkflowDefinition {
   model: WorkflowModel;
   sourceSnapshot: WorkflowSourceSnapshot | null;
   contentHash: string | null;
-  /** The registry versions the definition uses, recorded at sync. */
+  /** The registry references the definition uses, recorded with the definition. */
   registryRefs: RegistryRef[];
   fetchedAt: Date;
   createdAt: Date;

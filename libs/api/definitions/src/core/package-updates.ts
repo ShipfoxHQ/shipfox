@@ -65,7 +65,7 @@ async function packageUpdate(
     kind: ref.kind,
     package: ref.package,
     version: ref.version,
-    latest: behind ? latest : ref.version,
+    latest,
     behind,
     bump: highestBump(newer.map((entry) => entry.bump)),
     changelog: await changelogEntries({

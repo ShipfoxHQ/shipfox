@@ -1,5 +1,3 @@
-import {FIRST_PARTY_TEMPLATE_NAMESPACE} from './first-party.js';
-
 export interface BuildTemplatePromptInput {
   templateId: string;
   /** Clauses naming the choices the user already made, such as `with Slack as the report`. */
@@ -11,6 +9,10 @@ export function buildTemplatePrompt({templateId, choices = []}: BuildTemplatePro
   const suffix = choices.length > 0 ? `, ${choices.join(' and ')}` : '';
   return `Use Shipfox to create a workflow from the ${templateId} template${suffix}.`;
 }
+
+// Stays free of imports: the docs build runs this file directly under Node. Mirrors
+// FIRST_PARTY_TEMPLATE_NAMESPACE in loader.ts.
+const FIRST_PARTY_PREFIX = 'shipfox/';
 
 export interface BuildUpgradePromptInput {
   /** The registry package, such as `shipfox/ticket-to-pr`. A first-party template is named by its bare id. */
@@ -27,9 +29,8 @@ export function buildUpgradePrompt({
   configPath,
   version,
 }: BuildUpgradePromptInput): string {
-  const firstPartyPrefix = `${FIRST_PARTY_TEMPLATE_NAMESPACE}/`;
-  const template = packageName.startsWith(firstPartyPrefix)
-    ? packageName.slice(firstPartyPrefix.length)
+  const template = packageName.startsWith(FIRST_PARTY_PREFIX)
+    ? packageName.slice(FIRST_PARTY_PREFIX.length)
     : packageName;
   const location = configPath ? ` in \`${configPath}\`` : '';
   return `Use Shipfox to upgrade the ${template} workflow${location} to ${version}.`;

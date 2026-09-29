@@ -37,7 +37,9 @@ afterEach(async () => {
 
 describe('definition route auth', () => {
   test('uses user auth', () => {
-    expect(definitionRoutes[0]?.auth).toBe(AUTH_USER);
+    expect(definitionRoutes.map((group) => group.auth)).toEqual(
+      definitionRoutes.map(() => AUTH_USER),
+    );
   });
 
   test('rejects API-key-only requests', async () => {

@@ -9,11 +9,11 @@ import {
   type TemplateRoleBindings,
   templateRoleBindings,
 } from './composer.js';
-import {FIRST_PARTY_TEMPLATE_NAMESPACE} from './first-party.js';
 import {embeddedWorkflowTemplateAssets} from './generated/assets.js';
 import {type WorkflowTemplateManifest, workflowTemplateManifestSchema} from './manifest.js';
 
-export {FIRST_PARTY_TEMPLATE_NAMESPACE};
+/** The registry namespace of first-party templates, which a bare template id belongs to. */
+export const FIRST_PARTY_TEMPLATE_NAMESPACE = 'shipfox';
 
 export interface EmbeddedWorkflowTemplateAsset {
   id: string;
