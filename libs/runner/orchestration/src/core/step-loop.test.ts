@@ -910,6 +910,7 @@ describe('runJobSteps', () => {
         expect.objectContaining({stepId: run.id, status: 'succeeded'}),
       );
       expect(reportedLogPath(run.id)).toBeUndefined();
+      expect(createdStreams.has(run.id)).toBe(false);
     });
 
     it('reports the step without a log path when finalization throws', async () => {
