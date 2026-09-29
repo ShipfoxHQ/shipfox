@@ -1,4 +1,4 @@
-import {createConfig, str, url} from '@shipfox/config';
+import {createConfig, num, str, url} from '@shipfox/config';
 
 export const config = createConfig({
   REGISTRY_PUBLIC_URL: url({
@@ -6,6 +6,14 @@ export const config = createConfig({
   }),
   REGISTRY_STORAGE_URL: str({
     desc: 'Where package blobs are stored. Use s3://bucket/prefix for S3, R2, or MinIO, with the connection from the OBJECT_STORAGE_S3_* settings. Use file:///absolute/path for development and E2E. The store must support conditional writes. Package metadata lives in Postgres, configured with the POSTGRES_* settings.',
+  }),
+  REGISTRY_CONTENT_URL: str({
+    desc: 'Optional http(s) URL whose host replaces the storage endpoint host in presigned download URLs, such as https://content.registry.shipfox.io for a Tigris bucket on a custom domain. Leave it empty to keep the storage endpoint host. The file:// store streams downloads itself and ignores it.',
+    default: undefined,
+  }),
+  REGISTRY_DOWNLOAD_TTL_SECONDS: num({
+    desc: 'How long a presigned download URL stays valid, in seconds. Use a whole number from 1 to 604800. Clients follow the redirect at once, so keep it short.',
+    default: 300,
   }),
   REGISTRY_SIGNING_KEY: str({
     desc: 'Ed25519 private key in PEM format that signs version documents. Escaped \\n sequences are read as newlines. Generate one with `openssl genpkey -algorithm ed25519`.',
@@ -35,3 +43,25 @@ export function publishHooks(value = config.REGISTRY_PUBLISH_HOOKS): string[] {
   }
   return hooks;
 }
+
+export function contentUrl(value = config.REGISTRY_CONTENT_URL): URL | undefined {
+  const trimmed = value?.trim() ?? '';
+  if (trimmed === '') return undefined;
+  const parsed = URL.canParse(trimmed) ? new URL(trimmed) : undefined;
+  if (parsed?.protocol !== 'http:' && parsed?.protocol !== 'https:') {
+    throw new Error(`REGISTRY_CONTENT_URL ${JSON.stringify(value)} is not an http(s) URL`);
+  }
+  return parsed;
+}
+
+export function downloadTtlSeconds(value = config.REGISTRY_DOWNLOAD_TTL_SECONDS): number {
+  if (!Number.isInteger(value) || value < 1 || value > MAX_DOWNLOAD_TTL_SECONDS) {
+    throw new Error(
+      `REGISTRY_DOWNLOAD_TTL_SECONDS must be a whole number from 1 to ${MAX_DOWNLOAD_TTL_SECONDS}, got ${value}`,
+    );
+  }
+  return value;
+}
+
+// The longest lifetime S3 accepts for a presigned URL.
+const MAX_DOWNLOAD_TTL_SECONDS = 604_800;

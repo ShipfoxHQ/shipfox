@@ -19,6 +19,11 @@ export interface PutObjectParams {
  */
 export interface RegistryStorage {
   get(key: string): Promise<StoredObject | null>;
+  /**
+   * A URL that serves the object to anyone for `expiresInSeconds`, or undefined when the driver
+   * cannot presign and the caller must serve the bytes itself.
+   */
+  presignGet(params: {key: string; expiresInSeconds: number}): Promise<string | undefined>;
   put(params: PutObjectParams): Promise<{etag: string}>;
   close(): void;
 }

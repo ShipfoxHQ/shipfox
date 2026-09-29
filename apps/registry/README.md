@@ -25,6 +25,12 @@ declares namespaces and curation.
   validates a package, signs its version document, and stores it. A publish
   token is the bearer token.
 
+- **Read routes** answer anonymously from the tables and the bootstrap file, with
+  the cache headers below. Every package is public in v1, and a package that is
+  not public answers 404.
+- **Downloads** (`/content` and `/source` of a version) redirect with a 307 to a
+  presigned URL of the blob. No route serves a blob by digest.
+
 A self-hosted registry is this container, a Postgres database, and an
 S3-compatible store (or a directory in development).
 
@@ -61,6 +67,31 @@ curl -X POST http://localhost:16120/v1/publish/token \
 | 401 | `oidc-token-replayed` | The token was already exchanged. |
 | 403 | `publish-grant-not-found` | No grant matches the token. The response never says which claim differed. |
 | 403 | `namespace-suspended` | The matching grant belongs to a suspended namespace. |
+
+### Read the registry
+
+| Route | Returns | `Cache-Control` |
+| --- | --- | --- |
+| `GET /.well-known/shipfox-registry.json` | The public key and the publish URL (`REGISTRY_PUBLIC_URL`). | `public, max-age=300` |
+| `GET /v1/packages?kind=&q=&cursor=` | Catalog entries, featured ones first in the bootstrap order, then the latest publications first. 100 per page, with `next_cursor` when more follow. `q` matches names, titles, summaries, keywords, and integrations without case. | `public, max-age=60`, with an `ETag` |
+| `GET /v1/namespaces/{ns}` | The namespace profile. A suspended namespace stays readable. | `public, max-age=300` |
+| `GET /v1/packages/{ns}/{name}` | The kind and every version, lowest first, with its content digest, `published_at`, `bump`, and `capability_change`. | `public, max-age=60`, with an `ETag` |
+| `GET /v1/packages/{ns}/{name}/versions/{v}` | The signed envelope, as stored. | `public, max-age=31536000, immutable` |
+| `GET /v1/packages/{ns}/{name}/versions/{v}/readme` | The README as `text/markdown`, or 404. | `public, max-age=31536000, immutable` |
+| `GET /v1/packages/{ns}/{name}/versions/{v}/content` | A 307 to the content bundle. | `no-store` |
+| `GET /v1/packages/{ns}/{name}/versions/{v}/source` | A 307 to the source archive. | `no-store` |
+
+An unknown package or version answers 404 on every route. The catalog and the
+package index answer `If-None-Match` with 304. A cursor the registry did not
+issue is a 400 `invalid-cursor`.
+
+A download redirects to a URL that the S3 driver presigns for
+`REGISTRY_DOWNLOAD_TTL_SECONDS` (300 by default). When `REGISTRY_CONTENT_URL` is
+set, the URL is signed for the bucket host and then carries the host of
+`REGISTRY_CONTENT_URL`, which is how a Tigris bucket serves a custom domain.
+Clients follow the redirect without credentials, and they check the bytes
+against the digest in the signed version document. The `file://` driver cannot
+presign, so the route streams the bytes itself after the same check.
 
 ### Publish a version
 
@@ -119,7 +150,8 @@ verification are not recorded. After a publish or a retry, the service posts
 
 ## Environment
 
-`src/config.ts` owns the variables and their descriptions. The database uses the
+`src/config.ts` owns the variables and their descriptions, including
+`REGISTRY_CONTENT_URL` and `REGISTRY_DOWNLOAD_TTL_SECONDS` for downloads. The database uses the
 shared `POSTGRES_*` settings of
 [`@shipfox/node-postgres`](../../libs/shared/node/postgres), with a database of
 the registry's own. An `s3://` store reads its endpoint, region, and credentials

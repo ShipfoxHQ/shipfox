@@ -110,6 +110,8 @@ const {document, keyid} = await verifyRegistryVersionEnvelope({
   documents are signed, and only they decide what runs.
 - The `.well-known` metadata is informational. Instances trust the keys in
   their own configuration, never the keys it lists.
+- A catalog page carries `next_cursor` when more entries follow. Pass it as the
+  `cursor` query parameter of `REGISTRY_CATALOG_PATH`.
 - A version document's `bump` is absent on a package's first version.
 - Public keys are base64 DER SubjectPublicKeyInfo: the body of the PEM that
   `openssl pkey -pubout` writes, without the armor lines.
