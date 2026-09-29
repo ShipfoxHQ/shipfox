@@ -322,6 +322,8 @@ function materializeRerunGraphJobs(
     sourceStepsByJobId.set(sourceJob.id, sourceJobSteps);
   }
 
+  const carriedOverJobKeys = rerunCarriedOverJobKeys(params);
+
   return Promise.all(
     params.sourceJobs.map((sourceJob) =>
       materializeRerunGraphJob(
@@ -330,9 +332,33 @@ function materializeRerunGraphJobs(
         sourceJob,
         sourceModelJobByKey.get(sourceJob.key),
         sourceStepsByJobId.get(sourceJob.id) ?? [],
+        carriedOverJobKeys.has(sourceJob.key),
       ),
     ),
   );
+}
+
+// A succeeded job is only reused when every job it needs is reused too: a job
+// downstream of a rerun job may consume its outputs or side effects.
+function rerunCarriedOverJobKeys(params: MaterializeRerunGraphParams): ReadonlySet<string> {
+  if (params.mode !== 'failed') return new Set();
+
+  const sourceJobByKey = new Map(params.sourceJobs.map((job) => [job.key, job]));
+  const carriedOverByKey = new Map<string, boolean>();
+  const isCarriedOver = (key: string): boolean => {
+    const known = carriedOverByKey.get(key);
+    if (known !== undefined) return known;
+    const job = sourceJobByKey.get(key);
+    // Guards against a malformed cyclic graph while the result is computed.
+    carriedOverByKey.set(key, false);
+    const carriedOver =
+      job?.status === 'succeeded' &&
+      job.dependencies.every((dependency) => isCarriedOver(dependency));
+    carriedOverByKey.set(key, carriedOver);
+    return carriedOver;
+  };
+
+  return new Set(params.sourceJobs.map((job) => job.key).filter(isCarriedOver));
 }
 
 async function materializeRerunGraphJob(
@@ -341,8 +367,8 @@ async function materializeRerunGraphJob(
   sourceJob: JobDb,
   modelJob: ReturnType<typeof readPersistedWorkflowModel>['jobs'][number] | undefined,
   sourceJobSteps: readonly StepDb[],
+  carriedOver: boolean,
 ): Promise<MaterializedRunGraphJob> {
-  const carriedOver = params.mode === 'failed' && sourceJob.status === 'succeeded';
   const modelCheckout = modelJob?.checkout;
   const resolvedModelCheckout = modelCheckout === false ? undefined : modelCheckout;
   const rematerializedSteps = await rematerializeRerunSteps({
