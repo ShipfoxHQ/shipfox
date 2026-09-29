@@ -144,7 +144,7 @@ export const ManagedOnly: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await canvas.findByText('Managed by this instance. No workspace credentials are required.');
-    await canvas.findByText('Claude Opus 4.8 is locked');
+    await canvas.findByText('Claude Opus 4.8 is not available');
     await canvas.findByText('A step that uses this model fails until you add credits.');
     await canvas.findByRole('link', {name: 'Add credits'});
     await canvas.findByRole('button', {name: 'Use in a workflow'});

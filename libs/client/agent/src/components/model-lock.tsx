@@ -9,7 +9,7 @@ import {Button} from '@shipfox/react-ui/button';
 import {Icon} from '@shipfox/react-ui/icon';
 import type {AgentModel, ModelLock} from '#core/models.js';
 
-/** Marks a locked model in a list. The reason is explained once by `ModelLockNotices`. */
+/** Marks an unavailable model in a list. The reason is explained once by `ModelLockNotices`. */
 export function ModelLockIcon({lock}: {lock: ModelLock}) {
   return (
     <>
@@ -18,12 +18,12 @@ export function ModelLockIcon({lock}: {lock: ModelLock}) {
         aria-hidden="true"
         className="size-16 shrink-0 text-foreground-neutral-muted"
       />
-      <span className="sr-only">Locked: {lock.label}</span>
+      <span className="sr-only">Not available: {lock.label}</span>
     </>
   );
 }
 
-/** One callout per distinct reason, so a list of locked models explains itself once. */
+/** One callout per distinct reason, so a list of unavailable models explains itself once. */
 export function ModelLockNotices({models}: {models: readonly AgentModel[]}) {
   const groups = groupByNotice(models);
   if (groups.length === 0) return null;
@@ -51,9 +51,9 @@ export function ModelLockNotices({models}: {models: readonly AgentModel[]}) {
 
 function lockedTitle(labels: readonly string[]): string {
   const [first, second] = labels;
-  if (labels.length === 1) return `${first} is locked`;
-  if (labels.length === 2) return `${first} and ${second} are locked`;
-  return `${labels.length} models are locked`;
+  if (labels.length === 1) return `${first} is not available`;
+  if (labels.length === 2) return `${first} and ${second} are not available`;
+  return `${labels.length} models are not available`;
 }
 
 function groupByNotice(

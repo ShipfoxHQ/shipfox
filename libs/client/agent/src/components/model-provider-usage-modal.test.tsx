@@ -60,11 +60,11 @@ describe('ModelProviderUsageModal', () => {
     );
 
     const row = screen.getByRole('button', {
-      name: 'Copy Claude Opus 4.8 model id claude-opus-4-8. Locked: Add credits to use',
+      name: 'Copy Claude Opus 4.8 model id claude-opus-4-8. Not available: Add credits to use',
     });
     expect(within(row).queryByRole('button')).toBeNull();
     expect(row.querySelector('[tabindex]')).toBeNull();
-    expect(screen.getByText('Claude Opus 4.8 is locked')).toBeInTheDocument();
+    expect(screen.getByText('Claude Opus 4.8 is not available')).toBeInTheDocument();
     expect(screen.getByText('Add credits to run this model.')).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Add credits'})).toHaveAttribute('href', '/billing');
   });

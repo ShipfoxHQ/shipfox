@@ -53,7 +53,7 @@ export const LockedModel: Story = {
   args: {variant: 'locked'},
   play: async ({canvasElement}) => {
     const dialog = within(canvasElement.ownerDocument.body);
-    await dialog.findByText('Claude Opus 4.8 is locked');
+    await dialog.findByText('Claude Opus 4.8 is not available');
     await dialog.findByText('A step that uses this model fails until you add credits.');
     await dialog.findByRole('link', {name: 'Add credits'});
   },

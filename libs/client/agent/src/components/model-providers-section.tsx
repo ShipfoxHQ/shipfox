@@ -110,7 +110,7 @@ function ManagedProviderSection({
 
             <div className="flex flex-col gap-inline">
               <Text size="sm" bold>
-                Available models ({provider.models.length})
+                Models ({provider.models.length})
               </Text>
               <ModelLockNotices models={provider.models} />
               <ul

@@ -22,7 +22,7 @@ describe('ModelLockNotices', () => {
   test('names the locked model and links to the required action', () => {
     render(<ModelLockNotices models={[model('Claude Opus 4.8', CREDITS_LOCK)]} />);
 
-    expect(screen.getByText('Claude Opus 4.8 is locked')).toBeInTheDocument();
+    expect(screen.getByText('Claude Opus 4.8 is not available')).toBeInTheDocument();
     expect(screen.getByText(CREDITS_LOCK.message)).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Add credits'})).toHaveAttribute('href', '/billing');
   });
@@ -39,7 +39,7 @@ describe('ModelLockNotices', () => {
     );
 
     expect(
-      screen.getByText('Claude Opus 4.8 and Claude Sonnet 4.8 are locked'),
+      screen.getByText('Claude Opus 4.8 and Claude Sonnet 4.8 are not available'),
     ).toBeInTheDocument();
     expect(screen.getAllByRole('link', {name: 'Add credits'})).toHaveLength(1);
   });
@@ -51,7 +51,7 @@ describe('ModelLockNotices', () => {
       />,
     );
 
-    expect(screen.getByText('3 models are locked')).toBeInTheDocument();
+    expect(screen.getByText('3 models are not available')).toBeInTheDocument();
   });
 
   test('renders one notice per distinct reason', () => {
@@ -59,12 +59,15 @@ describe('ModelLockNotices', () => {
       <ModelLockNotices
         models={[
           model('Claude Opus 4.8', CREDITS_LOCK),
-          model('GPT-5.5 Pro', {label: 'Locked', message: 'Ask an owner to enable this model.'}),
+          model('GPT-5.5 Pro', {
+            label: 'Ask an owner',
+            message: 'Ask an owner to enable this model.',
+          }),
         ]}
       />,
     );
 
-    expect(screen.getByText('Claude Opus 4.8 is locked')).toBeInTheDocument();
-    expect(screen.getByText('GPT-5.5 Pro is locked')).toBeInTheDocument();
+    expect(screen.getByText('Claude Opus 4.8 is not available')).toBeInTheDocument();
+    expect(screen.getByText('GPT-5.5 Pro is not available')).toBeInTheDocument();
   });
 });

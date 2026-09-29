@@ -102,7 +102,7 @@ export function ModelProviderUsageModal({
     () =>
       compatibleModels.map((model) => ({
         value: model.id,
-        label: model.locked ? `${model.label} (locked)` : model.label,
+        label: model.locked ? `${model.label} (not available)` : model.label,
       })),
     [compatibleModels],
   );
@@ -248,7 +248,7 @@ export function ModelProviderUsageModal({
 
                 <div className="flex flex-col gap-inline">
                   <Text size="sm" bold>
-                    Available models ({compatibleModels.length})
+                    Models ({compatibleModels.length})
                   </Text>
                   <ul className="rounded-8 border border-border-neutral-base">
                     {compatibleModels.map((model) => (
@@ -334,7 +334,7 @@ function ModelProviderModelRow({
         <TooltipTrigger asChild>
           <button
             type="button"
-            aria-label={`Copy ${label} model id ${id}${locked ? `. Locked: ${locked.label}` : ''}`}
+            aria-label={`Copy ${label} model id ${id}${locked ? `. Not available: ${locked.label}` : ''}`}
             className="flex min-h-40 w-full min-w-0 flex-col items-start gap-tight px-row py-row text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none sm:flex-row sm:items-center sm:gap-inline"
             onClick={() => {
               void handleCopy();
