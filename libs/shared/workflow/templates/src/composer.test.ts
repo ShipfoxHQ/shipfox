@@ -216,7 +216,7 @@ describe('composeTemplate', () => {
     ]);
   });
 
-  it('lists default bindings and each individual option choice', () => {
+  it('lists default bindings and each non-default option choice', () => {
     expect(templateVariants(template)).toEqual([
       {bindings: {source: 'github'}, options: {mode: 'fast', report: 'daily'}},
       {
@@ -225,15 +225,7 @@ describe('composeTemplate', () => {
       },
       {
         bindings: {report: 'slack', source: 'github'},
-        options: {mode: 'fast', report: 'daily'},
-      },
-      {
-        bindings: {report: 'slack', source: 'github'},
         options: {mode: 'thorough', report: 'daily'},
-      },
-      {
-        bindings: {report: 'slack', source: 'github'},
-        options: {mode: 'fast', report: 'daily'},
       },
       {
         bindings: {report: 'slack', source: 'github'},

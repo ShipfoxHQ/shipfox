@@ -202,7 +202,7 @@ export interface TemplateVariant {
 
 /**
  * Lists the static compositions needed to exercise a template: every role binding with its
- * default choices, followed by each individual choice on the richest role binding.
+ * default choices, followed by each non-default choice on the richest role binding.
  */
 export function templateVariants(template: {
   manifest: Pick<WorkflowTemplateManifest, 'roles' | 'options'>;
@@ -221,10 +221,12 @@ export function templateVariants(template: {
   return [
     ...bindings.map((binding) => ({bindings: binding, options: defaults})),
     ...template.manifest.options.flatMap((option) =>
-      option.choices.map((choice) => ({
-        bindings: richest,
-        options: {...defaults, [option.id]: choice.id},
-      })),
+      option.choices
+        .filter((choice) => choice.id !== defaults[option.id])
+        .map((choice) => ({
+          bindings: richest,
+          options: {...defaults, [option.id]: choice.id},
+        })),
     ),
   ];
 }
