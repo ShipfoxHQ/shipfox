@@ -8,12 +8,12 @@ import {
 } from './model-provider-usage-target.js';
 
 interface ModelProviderUsageModalStoryProps {
-  variant: 'anthropic' | 'custom' | 'long-list';
+  variant: 'anthropic' | 'custom' | 'long-list' | 'locked';
 }
 
 function ModelProviderUsageModalStory({variant}: ModelProviderUsageModalStoryProps) {
   const [open, setOpen] = useState(true);
-  const entry = variant === 'long-list' ? longListEntry() : anthropicEntry();
+  const entry = entryForVariant(variant);
   const target =
     variant === 'custom'
       ? usageTargetFromCustomConfig(customProviderConfig())
@@ -48,6 +48,10 @@ export const LongModelList: Story = {
   args: {variant: 'long-list'},
 };
 
+export const LockedModel: Story = {
+  args: {variant: 'locked'},
+};
+
 export const CustomProvider: Story = {
   args: {variant: 'custom'},
 };
@@ -64,6 +68,30 @@ function anthropicEntry(): SupportedProvider {
       {id: 'claude-sonnet-4-8', label: 'Claude Sonnet 4.8'},
       {id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5'},
     ],
+  };
+}
+
+function entryForVariant(variant: ModelProviderUsageModalStoryProps['variant']): SupportedProvider {
+  if (variant === 'long-list') return longListEntry();
+  if (variant === 'locked') return lockedEntry();
+  return anthropicEntry();
+}
+
+function lockedEntry(): SupportedProvider {
+  const entry = anthropicEntry();
+  return {
+    ...entry,
+    models: entry.models.map((model) =>
+      model.id === 'claude-opus-4-8'
+        ? {
+            ...model,
+            locked: {
+              label: 'Add credits to use',
+              message: 'This model needs a credit purchase. Add credits to run it.',
+            },
+          }
+        : model,
+    ),
   };
 }
 

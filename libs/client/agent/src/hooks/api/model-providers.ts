@@ -49,7 +49,10 @@ import {
 
 export const modelProviderQueryKeys = {
   all: ['model-providers'] as const,
-  catalog: () => [...modelProviderQueryKeys.all, 'catalog'] as const,
+  catalog: (workspaceId?: string) =>
+    workspaceId === undefined
+      ? ([...modelProviderQueryKeys.all, 'catalog'] as const)
+      : ([...modelProviderQueryKeys.all, 'catalog', workspaceId] as const),
   configs: (workspaceId: string) =>
     [...modelProviderQueryKeys.all, 'configs', workspaceId] as const,
 };
@@ -72,15 +75,25 @@ type ModelProviderCatalogQueryOptions = FetchQueryOptions<
   ReturnType<typeof modelProviderQueryKeys.catalog>
 >;
 
+const CATALOG_STALE_TIME_MS = 1000 * 60 * 60;
+// Model locks follow the workspace's limits, which change.
+const WORKSPACE_CATALOG_STALE_TIME_MS = 1000 * 60;
+
 export async function getModelProviderCatalog({
+  workspaceId,
   signal,
 }: {
+  workspaceId?: string | undefined;
   signal?: AbortSignal;
 } = {}): Promise<ProviderCatalog> {
   return toProviderCatalog(
-    await checkedApiRequest(modelProviderCatalogResponseSchema, '/agent/model-provider-catalog', {
-      signal,
-    }),
+    await checkedApiRequest(
+      modelProviderCatalogResponseSchema,
+      workspaceId === undefined
+        ? '/agent/model-provider-catalog'
+        : `/workspaces/${workspaceId}/agent/model-provider-catalog`,
+      {signal},
+    ),
   );
 }
 
@@ -260,15 +273,18 @@ export async function setDefaultHarness({
   );
 }
 
-export function useModelProviderCatalogQuery() {
-  return useQuery(modelProviderCatalogQueryOptions());
+/** Pass `workspaceId` to get the catalog with the models that workspace cannot run marked locked. */
+export function useModelProviderCatalogQuery(workspaceId?: string) {
+  return useQuery(modelProviderCatalogQueryOptions(workspaceId));
 }
 
-export function modelProviderCatalogQueryOptions(): ModelProviderCatalogQueryOptions {
+export function modelProviderCatalogQueryOptions(
+  workspaceId?: string,
+): ModelProviderCatalogQueryOptions {
   return queryOptions({
-    queryKey: modelProviderQueryKeys.catalog(),
-    queryFn: ({signal}) => getModelProviderCatalog({signal}),
-    staleTime: 1000 * 60 * 60,
+    queryKey: modelProviderQueryKeys.catalog(workspaceId),
+    queryFn: ({signal}) => getModelProviderCatalog({workspaceId, signal}),
+    staleTime: workspaceId === undefined ? CATALOG_STALE_TIME_MS : WORKSPACE_CATALOG_STALE_TIME_MS,
   });
 }
 

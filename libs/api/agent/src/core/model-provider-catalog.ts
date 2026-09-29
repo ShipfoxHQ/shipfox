@@ -1,4 +1,5 @@
 import {
+  type ManagedModelLock,
   type ManagedModelProvider,
   MODEL_PROVIDER_CATALOG_SEED,
   type ModelProviderCatalogEntryDto,
@@ -21,6 +22,7 @@ export function buildModelProviderCatalogResponse(
   options: {
     managedProvider?: ManagedModelProvider | undefined;
     workspaceProviders?: WorkspaceProvidersPolicy | undefined;
+    lockedModels?: ReadonlyMap<string, ManagedModelLock> | undefined;
   } = {},
 ): ModelProviderCatalogResponse {
   const workspaceProviders = options.workspaceProviders ?? 'enabled';
@@ -28,6 +30,7 @@ export function buildModelProviderCatalogResponse(
     providers: buildModelProviderCatalog({
       managedProvider: options.managedProvider,
       workspaceProviders,
+      lockedModels: options.lockedModels,
     }),
     workspaceProviders,
     managedProviderId: options.managedProvider?.id ?? null,
@@ -39,6 +42,7 @@ export function buildModelProviderCatalog(
   options: {
     managedProvider?: ManagedModelProvider | undefined;
     workspaceProviders?: WorkspaceProvidersPolicy | undefined;
+    lockedModels?: ReadonlyMap<string, ManagedModelLock> | undefined;
   } = {},
 ): readonly ModelProviderCatalogEntryDto[] {
   const workspaceProviders = options.workspaceProviders ?? 'enabled';
@@ -48,13 +52,18 @@ export function buildModelProviderCatalog(
         'workspace provider configuration is disabled but no managed provider is registered',
       );
     }
-    return Object.freeze([toManagedProviderCatalogEntry(options.managedProvider)]);
+    return Object.freeze([
+      toManagedProviderCatalogEntry(options.managedProvider, options.lockedModels),
+    ]);
   }
 
   const catalog = getCatalog();
   if (options.managedProvider === undefined) return catalog;
 
-  return Object.freeze([...catalog, toManagedProviderCatalogEntry(options.managedProvider)]);
+  return Object.freeze([
+    ...catalog,
+    toManagedProviderCatalogEntry(options.managedProvider, options.lockedModels),
+  ]);
 }
 
 function getCatalog(): readonly ModelProviderCatalogEntryDto[] {
@@ -74,6 +83,7 @@ function getCatalog(): readonly ModelProviderCatalogEntryDto[] {
 
 function toManagedProviderCatalogEntry(
   managedProvider: ManagedModelProvider,
+  lockedModels: ReadonlyMap<string, ManagedModelLock> = new Map(),
 ): ModelProviderCatalogEntryDto {
   return deepFreeze(
     modelProviderCatalogEntrySchema.parse({
@@ -83,13 +93,17 @@ function toManagedProviderCatalogEntry(
       default_model: managedProvider.defaultModel,
       credential_fields: [],
       unsupported_reason: null,
-      models: managedProvider.models.map(({id, label, api, price, references}) => ({
-        id,
-        label,
-        api,
-        ...(price === undefined ? {} : {price}),
-        ...(references === undefined ? {} : {references}),
-      })),
+      models: managedProvider.models.map(({id, label, api, price, references}) => {
+        const lock = lockedModels.get(id);
+        return {
+          id,
+          label,
+          api,
+          ...(price === undefined ? {} : {price}),
+          ...(references === undefined ? {} : {references}),
+          ...(lock === undefined ? {} : {locked: {label: lock.label, notice: lock.notice}}),
+        };
+      }),
     }),
   );
 }

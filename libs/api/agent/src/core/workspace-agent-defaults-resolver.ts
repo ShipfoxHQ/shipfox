@@ -5,6 +5,7 @@ import {
 } from '@shipfox/api-agent-dto';
 import type {AgentValidationCatalogV2} from '@shipfox/api-agent-dto/inter-module';
 import {getAgentWorkspaceDefaultsSnapshot, getAgentWorkspaceSettings} from '#db/index.js';
+import {getManagedModelLocks} from './managed-model-locks.js';
 import type {AgentDefaultsResolver} from './resolve-agent-config.js';
 import {resolveAgentConfig} from './resolve-agent-config.js';
 import {getAgentValidationCatalogV2} from './validation-catalog.js';
@@ -15,12 +16,17 @@ export async function getWorkspaceAgentValidationCatalog(
   managedProvider?: ManagedModelProvider | undefined,
   workspaceProviders?: WorkspaceProvidersPolicy | undefined,
 ): Promise<AgentValidationCatalogV2> {
-  const settings = await getAgentWorkspaceSettings(workspaceId);
-  return getAgentValidationCatalogV2(
+  const [settings, locks] = await Promise.all([
+    getAgentWorkspaceSettings(workspaceId),
+    getManagedModelLocks(managedProvider, workspaceId),
+  ]);
+  const catalog = getAgentValidationCatalogV2(
     managedProvider,
     workspaceProviders,
     settings?.defaultHarnessId ?? DEFAULT_HARNESS,
   );
+  if (managedProvider === undefined || locks.size === 0) return catalog;
+  return {...catalog, locked_model_ids_by_provider: {[managedProvider.id]: [...locks.keys()]}};
 }
 
 export async function createWorkspaceAgentDefaultsResolver(

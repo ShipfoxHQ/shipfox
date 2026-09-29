@@ -1,4 +1,5 @@
 import {
+  type ManagedModelLock,
   type ManagedModelProvider,
   MODEL_UNAVAILABLE_ERROR_CODE,
   RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
@@ -95,6 +96,83 @@ describe('agent inter-module presentation', () => {
     );
 
     expect(catalog.default_harness_id).toBe('claude');
+  });
+
+  describe('locked managed models', () => {
+    const lock: ManagedModelLock = {
+      label: 'Add credits to use',
+      notice: {reason: 'model-locked', message: 'Managed model needs credits.'},
+    };
+
+    function presentationWith(availability: ManagedModelProvider['availability']) {
+      return createAgentInterModulePresentation({
+        secrets: agentTestSecretsClient,
+        managedProvider: {
+          id: 'shipfox',
+          label: 'Shipfox',
+          models: [
+            {id: 'managed-model', label: 'Managed model', api: 'anthropic-messages'},
+            {id: 'other-model', label: 'Other model', api: 'anthropic-messages'},
+          ],
+          defaultModel: 'managed-model',
+          availability,
+          resolveCredentials: vi.fn(),
+        },
+      });
+    }
+
+    test('returns the locked model ids for a workspace and keeps them in the model list', async () => {
+      const workspaceId = crypto.randomUUID();
+      const availability = vi.fn().mockResolvedValue(new Map([['managed-model', lock]]));
+      const presentation = presentationWith(availability);
+
+      const catalog = await presentation.handlers.getValidationCatalogV2(
+        {workspaceId},
+        {signal: new AbortController().signal},
+      );
+
+      expect(catalog.locked_model_ids_by_provider).toEqual({shipfox: ['managed-model']});
+      expect(
+        catalog.harnesses.find((harness) => harness.id === 'pi')?.model_ids_by_provider?.shipfox,
+      ).toContain('managed-model');
+      expect(availability).toHaveBeenCalledWith({workspaceId});
+    });
+
+    test('omits locked ids without workspace context', async () => {
+      const availability = vi.fn().mockResolvedValue(new Map([['managed-model', lock]]));
+      const presentation = presentationWith(availability);
+
+      const catalog = await presentation.handlers.getValidationCatalogV2(
+        {workspaceId: null},
+        {signal: new AbortController().signal},
+      );
+
+      expect(catalog.locked_model_ids_by_provider).toBeUndefined();
+      expect(availability).not.toHaveBeenCalled();
+    });
+
+    test('omits locked ids when nothing is locked', async () => {
+      const presentation = presentationWith(vi.fn().mockResolvedValue(new Map()));
+
+      const catalog = await presentation.handlers.getValidationCatalogV2(
+        {workspaceId: crypto.randomUUID()},
+        {signal: new AbortController().signal},
+      );
+
+      expect(catalog.locked_model_ids_by_provider).toBeUndefined();
+    });
+
+    test('still returns the catalog when availability fails', async () => {
+      const presentation = presentationWith(vi.fn().mockRejectedValue(new Error('unavailable')));
+
+      const catalog = await presentation.handlers.getValidationCatalogV2(
+        {workspaceId: crypto.randomUUID()},
+        {signal: new AbortController().signal},
+      );
+
+      expect(catalog.locked_model_ids_by_provider).toBeUndefined();
+      expect(catalog.version).toBe(2);
+    });
   });
 
   test('returns an empty model result for a workspace without configured providers', async () => {

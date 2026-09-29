@@ -1,3 +1,4 @@
+import {policyNoticeSchema} from '@shipfox/policy-notice';
 import {
   agentThinkingByHarness,
   agentThinkingSchema,
@@ -40,12 +41,19 @@ export {
   thinkingLevelsForHarness,
 };
 
+const modelLockSchema = z.object({
+  label: z.string().min(1),
+  notice: policyNoticeSchema,
+});
+
 export const agentModelOptionSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
   api: managedModelApiSchema.optional(),
   price: modelPriceSchema.optional(),
   references: modelReferencesSchema.optional(),
+  /** Set on a managed model that the workspace cannot run right now. The model stays selectable. */
+  locked: modelLockSchema.optional(),
 });
 
 export type AgentModelOptionDto = z.infer<typeof agentModelOptionSchema>;

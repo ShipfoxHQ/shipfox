@@ -1,8 +1,19 @@
-import {type ManagedModelProvider, MODEL_PROVIDER_IDS} from '@shipfox/api-agent-dto';
-import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import {
+  type ManagedModelLock,
+  type ManagedModelProvider,
+  MODEL_PROVIDER_IDS,
+} from '@shipfox/api-agent-dto';
+import {
+  AUTH_USER,
+  buildUserContext,
+  setUserContext,
+  type UserContextMembership,
+} from '@shipfox/api-auth-context';
 import type {AuthMethod, FastifyRequest} from '@shipfox/node-fastify';
 import {ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import {agentRoutes, createAgentRoutes} from './index.js';
+
+let authenticatedMemberships: UserContextMembership[] = [];
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,
@@ -16,7 +27,7 @@ const fakeUserAuth: AuthMethod = {
       buildUserContext({
         userId: 'user-1',
         email: 'user@example.com',
-        memberships: [],
+        memberships: authenticatedMemberships,
       }),
     );
     return Promise.resolve();
@@ -28,6 +39,7 @@ describe('model provider catalog route', () => {
 
   beforeEach(async () => {
     await closeApp();
+    authenticatedMemberships = [];
     app = await createApp({
       auth: [fakeUserAuth],
       routes: agentRoutes,
@@ -197,10 +209,86 @@ describe('model provider catalog route', () => {
       });
     });
   });
+
+  describe('GET /workspaces/:workspaceId/agent/model-provider-catalog', () => {
+    const workspaceId = crypto.randomUUID();
+
+    async function appWithManagedProvider(availability?: ManagedModelProvider['availability']) {
+      await closeApp();
+      authenticatedMemberships = [{workspaceId, role: 'admin', workspaceStatus: 'active'}];
+      app = await createApp({
+        auth: [fakeUserAuth],
+        routes: createAgentRoutes(undefined as never, {
+          managedProvider: managedProvider(availability),
+          workspaceProviders: 'disabled',
+        }),
+        swagger: false,
+      });
+      await app.ready();
+    }
+
+    function getCatalog() {
+      return app.inject({
+        method: 'GET',
+        url: `/workspaces/${workspaceId}/agent/model-provider-catalog`,
+        headers: {authorization: 'Bearer user'},
+      });
+    }
+
+    it('marks a locked managed model with its label and notice', async () => {
+      const availability = vi.fn().mockResolvedValue(new Map([['managed-claude', lock]]));
+      await appWithManagedProvider(availability);
+
+      const res = await getCatalog();
+
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().providers[0].models).toEqual([
+        {id: 'managed-claude', label: 'Managed Claude', api: 'anthropic-messages', locked: lock},
+      ]);
+      expect(availability).toHaveBeenCalledWith({workspaceId});
+    });
+
+    it('leaves models unmarked when the provider reports no locks', async () => {
+      await appWithManagedProvider(vi.fn().mockResolvedValue(new Map()));
+
+      const res = await getCatalog();
+
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().providers[0].models).toEqual([
+        {id: 'managed-claude', label: 'Managed Claude', api: 'anthropic-messages'},
+      ]);
+    });
+
+    it('still lists models when availability fails', async () => {
+      await appWithManagedProvider(vi.fn().mockRejectedValue(new Error('limits unavailable')));
+
+      const res = await getCatalog();
+
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().providers[0].models[0]).not.toHaveProperty('locked');
+    });
+
+    it('returns 403 when the user is not a workspace member', async () => {
+      await appWithManagedProvider();
+      authenticatedMemberships = [];
+
+      const res = await getCatalog();
+
+      expect(res.statusCode).toBe(403);
+    });
+  });
 });
 
-function managedProvider(): ManagedModelProvider {
+const lock: ManagedModelLock = {
+  label: 'Add credits to use',
+  notice: {reason: 'model-locked', message: 'Managed Claude needs credits.'},
+};
+
+function managedProvider(
+  availability?: ManagedModelProvider['availability'],
+): ManagedModelProvider {
   return {
+    ...(availability === undefined ? {} : {availability}),
     id: 'shipfox',
     label: 'Shipfox',
     models: [{id: 'managed-claude', label: 'Managed Claude', api: 'anthropic-messages'}],

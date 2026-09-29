@@ -109,6 +109,7 @@ export function toCustomProviderConfig(config: CustomModelProviderConfigDto): Cu
 function toAgentModel(model: {
   id: string;
   label: string;
+  locked?: {label: string; notice: {message: string}} | undefined;
   api?: AgentModel['api'];
   context_window?: number | undefined;
   max_output_tokens?: number | undefined;
@@ -118,6 +119,9 @@ function toAgentModel(model: {
   return {
     id: model.id,
     label: model.label,
+    ...(model.locked === undefined
+      ? {}
+      : {locked: {label: model.locked.label, message: model.locked.notice.message}}),
     ...(model.api === undefined ? {} : {api: model.api}),
     ...(model.context_window === undefined ? {} : {contextWindow: model.context_window}),
     ...(model.max_output_tokens === undefined ? {} : {maxOutputTokens: model.max_output_tokens}),

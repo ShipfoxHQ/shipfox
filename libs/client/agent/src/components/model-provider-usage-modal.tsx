@@ -28,9 +28,10 @@ import {
   listHarnesses,
   managedModelSupportsHarness,
 } from '#core/harness-policy.js';
-import type {HarnessId} from '#core/models.js';
+import type {HarnessId, ModelLock} from '#core/models.js';
 import {buildAgentWorkflowExample} from './agent-workflow-example.js';
 import {compatibleHarnessIds} from './harness-availability.js';
+import {ModelLockBadge} from './model-lock-badge.js';
 import type {ModelProviderUsageTarget} from './model-provider-usage-target.js';
 
 type CopyState = 'idle' | 'copied' | 'failed';
@@ -98,7 +99,11 @@ export function ModelProviderUsageModal({
       : target.models;
   }, [selectedHarness, target]);
   const modelOptions = useMemo(
-    () => compatibleModels.map((model) => ({value: model.id, label: model.label})),
+    () =>
+      compatibleModels.map((model) => ({
+        value: model.id,
+        label: model.locked ? `${model.label} (${model.locked.label})` : model.label,
+      })),
     [compatibleModels],
   );
   useEffect(() => {
@@ -242,7 +247,12 @@ export function ModelProviderUsageModal({
                   </Text>
                   <ul className="rounded-8 border border-border-neutral-base">
                     {compatibleModels.map((model) => (
-                      <ModelProviderModelRow key={model.id} label={model.label} id={model.id} />
+                      <ModelProviderModelRow
+                        key={model.id}
+                        label={model.label}
+                        id={model.id}
+                        locked={model.locked}
+                      />
                     ))}
                   </ul>
                 </div>
@@ -275,7 +285,15 @@ function isHarness(value: string): value is HarnessId {
   return listHarnesses().some((descriptor) => descriptor.id === value);
 }
 
-function ModelProviderModelRow({label, id}: {label: string; id: string}) {
+function ModelProviderModelRow({
+  label,
+  id,
+  locked,
+}: {
+  label: string;
+  id: string;
+  locked: ModelLock | undefined;
+}) {
   const [copyState, setCopyState] = useState<CopyState>('idle');
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const {copy} = useCopyToClipboard({
@@ -320,6 +338,7 @@ function ModelProviderModelRow({label, id}: {label: string; id: string}) {
             <Text as="span" size="sm" bold className="max-w-full shrink-0 truncate sm:max-w-[48%]">
               {label}
             </Text>
+            {locked ? <ModelLockBadge lock={locked} /> : null}
             <Code
               as="span"
               variant="label"

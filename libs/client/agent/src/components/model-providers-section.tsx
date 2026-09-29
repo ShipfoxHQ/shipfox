@@ -62,6 +62,7 @@ import {AvailableProvidersGrid} from './available-providers-grid.js';
 import {ChangeDefaultModelForm} from './change-default-model-form.js';
 import {CustomModelProviderForm} from './custom-model-provider-form.js';
 import {modelProviderConfigErrorToFormError} from './form-errors.js';
+import {ModelLockBadge} from './model-lock-badge.js';
 import {ModelProviderGridSkeleton} from './model-provider-grid-skeleton.js';
 import {ModelProviderUsageModal} from './model-provider-usage-modal.js';
 import {
@@ -122,13 +123,16 @@ function ManagedProviderSection({
                     <Text as="span" size="sm" bold className="min-w-0 truncate">
                       {model.label}
                     </Text>
-                    <Code
-                      as="span"
-                      variant="label"
-                      className="min-w-0 truncate text-foreground-neutral-muted"
-                    >
-                      {model.id}
-                    </Code>
+                    <span className="flex min-w-0 items-center gap-inline">
+                      {model.locked ? <ModelLockBadge lock={model.locked} /> : null}
+                      <Code
+                        as="span"
+                        variant="label"
+                        className="min-w-0 truncate text-foreground-neutral-muted"
+                      >
+                        {model.id}
+                      </Code>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -516,7 +520,7 @@ function CustomProviderModal({
 }
 
 export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: string}) {
-  const catalogQuery = useModelProviderCatalogQuery();
+  const catalogQuery = useModelProviderCatalogQuery(workspaceId);
   const configsQuery = useModelProviderConfigsQuery(workspaceId);
   const [modal, dispatchModal] = useReducer(managementModalReducer, {kind: 'closed'});
   const [pendingUsageTarget, setPendingUsageTarget] = useState<UsageTarget | null>(null);

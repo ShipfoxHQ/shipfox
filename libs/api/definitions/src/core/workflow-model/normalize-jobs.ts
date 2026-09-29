@@ -1685,7 +1685,11 @@ function validateAgentModel(
 
   const descriptor = params.agentValidationCatalog.harnesses.find((entry) => entry.id === harness);
   const modelIds = descriptor?.model_ids_by_provider?.[providerId];
-  if (modelIds === undefined || modelIds.includes(model)) return;
+  if (modelIds === undefined) return;
+  if (modelIds.includes(model)) {
+    warnWhenModelLocked(params, providerId, model);
+    return;
+  }
 
   params.issues.push(
     issue({
@@ -1693,6 +1697,28 @@ function validateAgentModel(
       message: `Agent model "${model}" is not available for harness "${harness}" and provider "${providerId}".`,
       path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
       details: {harness, provider: providerId, model},
+    }),
+  );
+}
+
+// A warning, never an error: workspace limits change, so a locked model can be available again
+// by the time the step runs.
+function warnWhenModelLocked(
+  params: ValidateAgentStepParams,
+  providerId: string,
+  model: string,
+): void {
+  if (!params.agentValidationCatalog.locked_model_ids_by_provider?.[providerId]?.includes(model)) {
+    return;
+  }
+
+  params.issues.push(
+    issue({
+      code: 'model-locked',
+      message: `Agent model "${model}" is not available to this workspace right now. The step fails when it starts until the model is available.`,
+      path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
+      severity: 'warning',
+      details: {provider: providerId, model},
     }),
   );
 }
