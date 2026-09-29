@@ -80,11 +80,13 @@ export function emptyStateForJob(
   }
 
   if (displayStatus === 'pending') {
-    return {
-      title: 'Waiting for this job to start',
-      description: 'Steps will appear here once the job starts.',
-      status: displayStatus,
-    };
+    return (
+      workspaceCapacityEmptyState(jobExecution, displayStatus) ?? {
+        title: 'Waiting for this job to start',
+        description: 'Steps will appear here once the job starts.',
+        status: displayStatus,
+      }
+    );
   }
 
   if (displayStatus === 'running') {
@@ -106,11 +108,7 @@ export function emptyStateForJob(
   if (displayStatus === 'failed') {
     return {
       title: 'Job failed before its first step started',
-      description: preStepFailureDescription(
-        jobExecution.statusReason ?? job.statusReason,
-        runner,
-        jobExecution.statusReasonMessage,
-      ),
+      description: failureDescription(job, jobExecution, runner),
       status: displayStatus,
       ...noticeAction(jobExecution),
     };
@@ -127,9 +125,40 @@ export function emptyStateForJob(
   return undefined;
 }
 
+function workspaceCapacityEmptyState(
+  jobExecution: JobExecution,
+  status: StepListEmptyState['status'],
+): StepListEmptyState | undefined {
+  const waitDetail =
+    jobExecution.waitReason === 'workspace-capacity' ? jobExecution.waitDetail : undefined;
+  if (!waitDetail) return undefined;
+  const {inUse, capacity, unitLabel, requiredAction} = waitDetail;
+  return {
+    title: 'Queued for workspace capacity',
+    description: `Queued: this workspace is using ${inUse} of ${capacity} ${unitLabel} it can run at once. The job starts when a running job finishes.`,
+    status,
+    ...(requiredAction ? {action: {label: requiredAction.message, href: requiredAction.url}} : {}),
+  };
+}
+
+function failureDescription(job: Job, jobExecution: JobExecution, runner: string[] | null): string {
+  const description = preStepFailureDescription(
+    jobExecution.statusReason ?? job.statusReason,
+    runner,
+    jobExecution.statusReasonMessage,
+  );
+  const notice = jobExecution.statusReasonNotice;
+  return notice?.reason === 'workspace-capacity' ? `${description} ${notice.message}` : description;
+}
+
 function noticeAction(jobExecution: JobExecution): Pick<StepListEmptyState, 'action'> {
   const requiredAction = jobExecution.statusReasonNotice?.requiredAction;
-  if (jobExecution.statusReason !== 'runner_not_allowed' || !requiredAction) return {};
+  if (!requiredAction) return {};
+  if (
+    jobExecution.statusReason !== 'runner_not_allowed' &&
+    jobExecution.statusReason !== 'queue_timed_out'
+  )
+    return {};
   return {action: {label: requiredAction.message, href: requiredAction.url}};
 }
 

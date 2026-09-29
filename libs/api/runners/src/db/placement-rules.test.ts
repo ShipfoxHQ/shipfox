@@ -1,5 +1,5 @@
 import {vi} from '@shipfox/vitest/vi';
-import {and, eq, isNull} from 'drizzle-orm';
+import {and, asc, eq, isNull} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {pollInstallationDemandAndReserve} from '#db/reservations.js';
 import {capacityHolds} from '#db/schema/capacity-holds.js';
@@ -153,6 +153,102 @@ describe('installation placement rules', () => {
     expect(await deniedEvents(workspaceId)).toEqual([]);
   });
 
+  it('fills capacity exactly and records the wait detail for the next job', async () => {
+    const first = await pendingJobFactory.create({
+      workspaceId,
+      requiredLabels: ['shipfox-managed', 'cpu.2'],
+    });
+    const second = await pendingJobFactory.create({
+      workspaceId,
+      requiredLabels: ['shipfox-managed', 'cpu.2'],
+      queuedAt: new Date(first.queuedAt.getTime() + 1),
+    });
+
+    const result = await poll({
+      placement: capacityPlacement(2),
+      templates: [template('shipfox-2cpu', 2, 5)],
+    });
+
+    expect(result.reservations).toHaveLength(1);
+    const [waiting] = await db()
+      .select({
+        waitReason: pendingJobExecutions.waitReason,
+        waitDetail: pendingJobExecutions.waitDetail,
+      })
+      .from(pendingJobExecutions)
+      .where(eq(pendingJobExecutions.jobExecutionId, second.jobExecutionId));
+    expect(waiting).toEqual({
+      waitReason: 'workspace-capacity',
+      waitDetail: {
+        inUse: 2,
+        capacity: 2,
+        unitLabel: 'vCPU',
+        requiredAction: null,
+      },
+    });
+    const [granted] = await db()
+      .select({waitReason: pendingJobExecutions.waitReason})
+      .from(pendingJobExecutions)
+      .where(eq(pendingJobExecutions.jobExecutionId, first.jobExecutionId));
+    expect(granted?.waitReason).toBeNull();
+  });
+
+  it('stops at the first FIFO job that does not fit instead of filling around it', async () => {
+    const first = await pendingJobFactory.create({
+      workspaceId,
+      requiredLabels: ['shipfox-managed', 'cpu.2'],
+      queuedAt: new Date(Date.now() - 3_000),
+    });
+    const blocking = await pendingJobFactory.create({
+      workspaceId,
+      requiredLabels: ['shipfox-managed', 'cpu.4'],
+      queuedAt: new Date(Date.now() - 2_000),
+    });
+    const afterBlocking = await pendingJobFactory.create({
+      workspaceId,
+      requiredLabels: ['shipfox-managed', 'cpu.2'],
+      queuedAt: new Date(Date.now() - 1_000),
+    });
+
+    await poll({
+      placement: capacityPlacement(4),
+      templates: [template('shipfox-2cpu', 2, 5), template('shipfox-4cpu', 4, 5)],
+    });
+
+    const reservations = await db()
+      .select()
+      .from(capacityHolds)
+      .where(and(eq(capacityHolds.workspaceId, workspaceId), isNull(capacityHolds.releasedAt)));
+    expect(reservations.map((hold) => hold.units)).toEqual([2]);
+    const waiting = await db()
+      .select({
+        jobExecutionId: pendingJobExecutions.jobExecutionId,
+        waitReason: pendingJobExecutions.waitReason,
+      })
+      .from(pendingJobExecutions)
+      .where(eq(pendingJobExecutions.workspaceId, workspaceId))
+      .orderBy(asc(pendingJobExecutions.createdAt), asc(pendingJobExecutions.id));
+    expect(
+      waiting
+        .filter((job) => job.waitReason === 'workspace-capacity')
+        .map((job) => job.jobExecutionId),
+    ).toEqual([blocking.jobExecutionId, afterBlocking.jobExecutionId]);
+    expect(
+      waiting.find((job) => job.jobExecutionId === first.jobExecutionId)?.waitReason,
+    ).toBeNull();
+  });
+
+  it('refuses a capacity rule unless holds are required', async () => {
+    await pendingJobFactory.create({workspaceId, requiredLabels: ['shipfox-managed', 'cpu.2']});
+
+    await expect(
+      poll({
+        placement: {...capacityPlacement(2), holds: 'record'},
+        templates: [template('shipfox-2cpu', 2, 5)],
+      }),
+    ).rejects.toThrow('Capacity limits require placement holds in require mode');
+  });
+
   it('does not adopt an idle runner of a refused template, even with extra labels', async () => {
     await pendingJobFactory.create({workspaceId, requiredLabels: ['shipfox-managed']});
     const idle = await createIdleRunner(['cpu.16', 'shipfox-managed', 'x64']);
@@ -168,9 +264,27 @@ describe('installation placement rules', () => {
 
   function rulesRefusing16(): WorkspacePlacementRules {
     return {
+      capacityUnits: null,
+      unitLabel: 'vCPU',
       allowsTemplate: (labels) => !labels.includes('cpu.16'),
       denial: () => notice,
     };
+  }
+
+  function capacityPlacement(capacityUnits: number): InstallationPlacementPolicy {
+    return placement({
+      holds: 'require',
+      resolve: async () =>
+        new Map([
+          [
+            workspaceId,
+            {
+              ...rulesRefusing16(),
+              capacityUnits,
+            },
+          ],
+        ]),
+    });
   }
 
   function placement(overrides: Partial<InstallationPlacementPolicy> = {}) {

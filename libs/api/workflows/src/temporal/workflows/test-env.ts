@@ -50,7 +50,7 @@ export interface TestConfig {
   /** Result returned by the mocked runners expiry command. */
   queueExpiry?:
     | {kind: 'claimed'; claimedAt: string; provisionerScope: 'installation' | 'workspace' | null}
-    | {kind: 'expired'}
+    | {kind: 'expired'; waitNotice?: PolicyNotice}
     | {kind: 'absent'};
   /** If true, signal job-lease-expired instead of job-finished */
   signalLeaseExpired?: boolean;

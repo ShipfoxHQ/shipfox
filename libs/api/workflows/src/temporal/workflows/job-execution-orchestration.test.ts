@@ -478,6 +478,33 @@ describe('jobExecutionOrchestration', () => {
     expect(callsNamed('resolveLeaseExpiredJobExecutionActivity')).toHaveLength(0);
   });
 
+  test('persists the capacity notice when the queued execution times out', async () => {
+    const waitNotice = {
+      reason: 'workspace-capacity',
+      message: 'Queued: this workspace is using 8 of 8 vCPU it can run at once.',
+      requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/billing'},
+    };
+    setCfg({
+      dag: makeDag([dagJob('job-capacity-timeout', 'build')]),
+      jobResults: new Map(),
+      skipSignal: true,
+      queueTimeoutMs: 25,
+      queueExpiry: {kind: 'expired', waitNotice},
+    });
+
+    const result = await executeJob({
+      ...defaultJobInput,
+      jobId: 'job-capacity-timeout',
+      jobExecutionId: 'execution-capacity-timeout',
+    });
+
+    expect(result.status).toBe('failed');
+    expect(terminalSetJobCall('execution-capacity-timeout')?.params).toMatchObject({
+      statusReason: 'queue_timed_out',
+      statusReasonNotice: waitNotice,
+    });
+  });
+
   test('a claim committed before the queue deadline wins over the late signal', async () => {
     setCfg({
       dag: makeDag([]),

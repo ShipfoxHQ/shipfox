@@ -12,6 +12,7 @@ import {
   isNull,
   lt,
   lte,
+  ne,
   not,
   notExists,
   notInArray,
@@ -21,6 +22,7 @@ import {
 import {runnerReservedLabels} from '#config.js';
 import type {
   InstallationPlacementPolicy,
+  WorkspaceCapacityWaitDetail,
   WorkspacePlacementRules,
 } from '#installation-provisioning.js';
 import {
@@ -38,6 +40,7 @@ import {db} from './db.js';
 import {denyPendingJobExecutionsTx} from './placement-denials.js';
 import {lockRunnerReservationAdvisoryKeysTx} from './reservation-locks.js';
 import {terminalStates} from './runner-states.js';
+import {capacityHolds} from './schema/capacity-holds.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {provisionerCapabilitySnapshots} from './schema/provisioner-capability-snapshots.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
@@ -102,6 +105,11 @@ type DemandScope = 'installation' | 'workspace';
 interface IdleRunnerCandidate {
   id: string;
   launchKind: (typeof providerRunnerLaunchKindEnum.enumValues)[number];
+  labels: string[];
+}
+
+interface CapacityIdleRunnerCandidate extends IdleRunnerCandidate {
+  capacityHold: {workspaceId: string; units: number} | undefined;
 }
 
 interface BindableRunnerParams {
@@ -134,6 +142,12 @@ interface DemandRow {
   oldestQueuedAt: Date;
 }
 
+interface PendingCapacityJob {
+  id: string;
+  requiredLabels: string[];
+  createdAt: Date;
+}
+
 interface NewReservationUnits {
   labels: string[];
   count: number;
@@ -159,7 +173,7 @@ interface PollDemandAndReserveResult {
 interface DemandReservationState {
   readonly templates: NormalizedTemplate[];
   readonly placementRules: WorkspacePlacementRules | undefined;
-  readonly reservedByLabels: ReadonlyMap<string, number>;
+  readonly reservedByLabels: Map<string, number>;
   readonly stats: DemandStat[];
   readonly grants: ReservationGrant[];
   readonly newlyReservedUnits: NewReservationUnits[];
@@ -324,13 +338,14 @@ async function pollDemandAndReserveLockedTx(
     ...row,
     oldestQueuedAt: new Date(row.oldestQueuedAt),
   }));
+  let capabilityLabels: string[][] = [];
   if (params.capabilityWindowSeconds !== undefined) {
-    const capabilityLabels = await listActiveWorkspaceCapabilityLabelsTx(tx, {
+    capabilityLabels = await listActiveWorkspaceCapabilityLabelsTx(tx, {
       workspaceId: params.workspaceId,
       windowSeconds: params.capabilityWindowSeconds,
     });
     demandRows = demandRows.filter(
-      (demand) => !capabilityLabels.some((labels) => isSubset(demand.requiredLabels, labels)),
+      (demand) => !isCoveredByWorkspaceCapability(demand.requiredLabels, capabilityLabels),
     );
   }
 
@@ -371,8 +386,13 @@ async function pollDemandAndReserveLockedTx(
     demandRows = await denyRefusedDemandRowsTx(tx, params, demandRows, state);
   }
 
-  for (const demand of sortDemandRows(demandRows)) {
-    await reserveDemandRowTx(tx, params, demand, state);
+  const capacityRules = capacityRulesFor(params.placement, params.placementRules);
+  if (capacityRules) {
+    await reserveCapacityJobsTx(tx, params, state, capacityRules, capabilityLabels);
+  } else {
+    for (const demand of sortDemandRows(demandRows)) {
+      await reserveDemandRowTx(tx, params, demand, state);
+    }
   }
 
   return {
@@ -414,6 +434,250 @@ async function denyRefusedDemandRowsTx(
   return remaining;
 }
 
+function capacityRulesFor(
+  placement: InstallationPlacementPolicy | undefined,
+  rules: WorkspacePlacementRules | undefined,
+): (WorkspacePlacementRules & {capacityUnits: number}) | undefined {
+  if (!rules || rules.capacityUnits === null) return undefined;
+  if (placement?.holds !== 'require') {
+    throw new Error('Capacity limits require placement holds in require mode');
+  }
+  return rules as WorkspacePlacementRules & {capacityUnits: number};
+}
+
+async function reserveCapacityJobsTx(
+  tx: Tx,
+  params: PollDemandAndReserveLockedParams,
+  state: DemandReservationState,
+  rules: WorkspacePlacementRules & {capacityUnits: number},
+  capabilityLabels: readonly string[][],
+): Promise<void> {
+  if (!params.placement) return;
+
+  const pendingJobs = (
+    await tx
+      .select({
+        id: pendingJobExecutions.id,
+        requiredLabels: pendingJobExecutions.requiredLabels,
+        createdAt: pendingJobExecutions.createdAt,
+      })
+      .from(pendingJobExecutions)
+      .where(eq(pendingJobExecutions.workspaceId, params.workspaceId))
+      .orderBy(asc(pendingJobExecutions.createdAt), asc(pendingJobExecutions.id))
+      .limit(1000)
+  ).filter(
+    (job) =>
+      !isCoveredByWorkspaceCapability(job.requiredLabels, capabilityLabels) &&
+      capacityTemplatesForJob(state, rules, job.requiredLabels, params.placement).length > 0,
+  );
+  const initialReservedByLabels = new Map(state.reservedByLabels);
+  const newlyGrantedByLabels = new Map<string, number>();
+  let inUse = await workspaceCapacityInUseTx(tx, params.workspaceId);
+
+  for (let index = 0; index < pendingJobs.length; index += 1) {
+    const job = pendingJobs[index];
+    if (!job) continue;
+    const stopped = await reserveCapacityJobTx(
+      tx,
+      params,
+      state,
+      rules,
+      job,
+      {
+        inUse,
+        newlyGrantedByLabels,
+        remainingJobs: pendingJobs.slice(index + 1),
+      },
+      capabilityLabels,
+    );
+    inUse = stopped.inUse;
+    if (stopped.stop) break;
+  }
+
+  const demandRows = await tx
+    .select({
+      requiredLabels: pendingJobExecutions.requiredLabels,
+      queued: sql<number>`count(*)::int`,
+      oldestQueuedAt: sql<Date | string>`min(${pendingJobExecutions.createdAt})`,
+    })
+    .from(pendingJobExecutions)
+    .where(eq(pendingJobExecutions.workspaceId, params.workspaceId))
+    .groupBy(pendingJobExecutions.requiredLabels);
+  for (const demand of demandRows) {
+    if (
+      isCoveredByWorkspaceCapability(demand.requiredLabels, capabilityLabels) ||
+      capacityTemplatesForJob(state, rules, demand.requiredLabels, params.placement).length === 0
+    )
+      continue;
+    const key = labelKey(demand.requiredLabels);
+    state.stats.push({
+      ...state.workspaceIdField,
+      labels: demand.requiredLabels,
+      queued: demand.queued,
+      reserved: (initialReservedByLabels.get(key) ?? 0) + (newlyGrantedByLabels.get(key) ?? 0),
+      oldestQueuedAt: new Date(demand.oldestQueuedAt),
+    });
+  }
+}
+
+interface CapacityJobProgress {
+  inUse: number;
+  newlyGrantedByLabels: Map<string, number>;
+  remainingJobs: readonly PendingCapacityJob[];
+}
+
+async function reserveCapacityJobTx(
+  tx: Tx,
+  params: PollDemandAndReserveLockedParams,
+  state: DemandReservationState,
+  rules: WorkspacePlacementRules & {capacityUnits: number},
+  job: PendingCapacityJob,
+  progress: CapacityJobProgress,
+  capabilityLabels: readonly string[][],
+): Promise<{inUse: number; stop: boolean}> {
+  const allowedTemplates = capacityTemplatesForJob(
+    state,
+    rules,
+    job.requiredLabels,
+    params.placement,
+  );
+  if (allowedTemplates.length === 0) return {inUse: progress.inUse, stop: false};
+
+  const key = labelKey(job.requiredLabels);
+  const reserved = state.reservedByLabels.get(key) ?? 0;
+  if (reserved > 0) {
+    state.reservedByLabels.set(key, reserved - 1);
+    await clearCapacityWaitTx(tx, job.id);
+    return {inUse: progress.inUse, stop: false};
+  }
+
+  const idleRunners = await listCapacityIdleRunnerInstancesTx(tx, {
+    provisionerId: params.provisionerId,
+    requiredLabels: job.requiredLabels,
+    count: 1,
+    workspaceId: params.workspaceId,
+    scope: params.scope,
+    refusedTemplateLabels: state.templates
+      .filter((template) => state.placementRules?.allowsTemplate(template.labels) === false)
+      .map((template) => template.labels),
+  });
+  const idleRunner = idleRunners[0];
+  const template = allowedTemplates.find((candidate) => candidate.remainingSlots > 0);
+  if (!idleRunner && !template) return {inUse: progress.inUse, stop: false};
+  const units = idleRunner
+    ? capacityDeltaForIdleRunner(idleRunner, params.workspaceId, params.placement)
+    : (params.placement?.units(template?.labels ?? []) ?? 0);
+  if (progress.inUse + units > rules.capacityUnits) {
+    const waitDetail = {
+      inUse: progress.inUse,
+      capacity: rules.capacityUnits,
+      unitLabel: rules.unitLabel,
+      requiredAction: rules.capacityAction ?? null,
+    };
+    await markCapacityWaitTx(tx, params.workspaceId, job, waitDetail);
+    await markCapacityWaitForRemainingJobsTx(
+      tx,
+      params.workspaceId,
+      progress.remainingJobs.filter((remainingJob) => {
+        if (isCoveredByWorkspaceCapability(remainingJob.requiredLabels, capabilityLabels))
+          return false;
+        return (
+          capacityTemplatesForJob(state, rules, remainingJob.requiredLabels, params.placement)
+            .length > 0
+        );
+      }),
+      waitDetail,
+    );
+    return {inUse: progress.inUse, stop: true};
+  }
+  if (state.remainingMaxReservations === 0) return {inUse: progress.inUse, stop: true};
+
+  await grantDemandReservationTx(
+    tx,
+    params,
+    {requiredLabels: job.requiredLabels, queued: 1, oldestQueuedAt: job.createdAt},
+    allowedTemplates,
+    1,
+    state,
+    idleRunners,
+  );
+  progress.newlyGrantedByLabels.set(key, (progress.newlyGrantedByLabels.get(key) ?? 0) + 1);
+  await clearCapacityWaitTx(tx, job.id);
+  return {inUse: progress.inUse + units, stop: false};
+}
+
+async function workspaceCapacityInUseTx(tx: Tx, workspaceId: string): Promise<number> {
+  const [row] = await tx
+    .select({units: sql<number>`coalesce(sum(${capacityHolds.units}), 0)::int`})
+    .from(capacityHolds)
+    .where(and(eq(capacityHolds.workspaceId, workspaceId), isNull(capacityHolds.releasedAt)));
+  return Number(row?.units ?? 0);
+}
+
+async function clearCapacityWaitTx(tx: Tx, pendingJobId: string): Promise<void> {
+  await tx
+    .update(pendingJobExecutions)
+    .set({waitReason: null, waitDetail: null})
+    .where(
+      and(
+        eq(pendingJobExecutions.id, pendingJobId),
+        or(isNotNull(pendingJobExecutions.waitReason), isNotNull(pendingJobExecutions.waitDetail)),
+      ),
+    );
+}
+
+async function markCapacityWaitTx(
+  tx: Tx,
+  workspaceId: string,
+  job: PendingCapacityJob,
+  waitDetail: WorkspaceCapacityWaitDetail,
+): Promise<void> {
+  await tx
+    .update(pendingJobExecutions)
+    .set({waitReason: 'workspace-capacity', waitDetail})
+    .where(
+      and(
+        eq(pendingJobExecutions.workspaceId, workspaceId),
+        eq(pendingJobExecutions.id, job.id),
+        or(
+          isNull(pendingJobExecutions.waitReason),
+          ne(pendingJobExecutions.waitReason, 'workspace-capacity'),
+          isNull(pendingJobExecutions.waitDetail),
+          ne(pendingJobExecutions.waitDetail, waitDetail),
+        ),
+      ),
+    );
+}
+
+async function markCapacityWaitForRemainingJobsTx(
+  tx: Tx,
+  workspaceId: string,
+  jobs: readonly PendingCapacityJob[],
+  waitDetail: WorkspaceCapacityWaitDetail,
+): Promise<void> {
+  const boundaryJob = jobs[0];
+  if (!boundaryJob) return;
+  await tx
+    .update(pendingJobExecutions)
+    .set({waitReason: 'workspace-capacity', waitDetail})
+    .where(
+      and(
+        eq(pendingJobExecutions.workspaceId, workspaceId),
+        sql`(${pendingJobExecutions.createdAt}, ${pendingJobExecutions.id}) >= (
+          select ${pendingJobExecutions.createdAt}, ${pendingJobExecutions.id}
+          from ${pendingJobExecutions}
+          where ${eq(pendingJobExecutions.id, boundaryJob.id)}
+        )`,
+        or(
+          isNull(pendingJobExecutions.waitReason),
+          ne(pendingJobExecutions.waitReason, 'workspace-capacity'),
+          isNull(pendingJobExecutions.waitDetail),
+          ne(pendingJobExecutions.waitDetail, waitDetail),
+        ),
+      ),
+    );
+}
+
 async function reserveDemandRowTx(
   tx: Tx,
   params: PollDemandAndReserveLockedParams,
@@ -452,17 +716,20 @@ async function grantDemandReservationTx(
   allowedTemplates: NormalizedTemplate[],
   grant: number,
   state: DemandReservationState,
+  selectedIdleRunners?: IdleRunnerCandidate[],
 ): Promise<void> {
-  const idleRunners = await listIdleRunnerInstancesTx(tx, {
-    provisionerId: params.provisionerId,
-    requiredLabels: demand.requiredLabels,
-    count: grant,
-    workspaceId: params.workspaceId,
-    scope: params.scope,
-    refusedTemplateLabels: state.templates
-      .filter((template) => state.placementRules?.allowsTemplate(template.labels) === false)
-      .map((template) => template.labels),
-  });
+  const idleRunners =
+    selectedIdleRunners ??
+    (await listIdleRunnerInstancesTx(tx, {
+      provisionerId: params.provisionerId,
+      requiredLabels: demand.requiredLabels,
+      count: grant,
+      workspaceId: params.workspaceId,
+      scope: params.scope,
+      refusedTemplateLabels: state.templates
+        .filter((template) => state.placementRules?.allowsTemplate(template.labels) === false)
+        .map((template) => template.labels),
+    }));
   state.remainingMaxReservations -= grant;
   if (idleRunners.length > 0) {
     await bindDemandReservationTx(tx, params, demand, idleRunners);
@@ -785,6 +1052,42 @@ async function listIdleRunnerInstancesTx(
   });
 }
 
+async function listCapacityIdleRunnerInstancesTx(
+  tx: Tx,
+  params: IdleRunnerSelectionParams & {count: number},
+): Promise<CapacityIdleRunnerCandidate[]> {
+  const idleRunners = await listIdleRunnerInstancesTx(tx, params);
+  if (idleRunners.length === 0) return [];
+  const holdRows = await tx
+    .select({
+      runnerInstanceId: capacityHolds.runnerInstanceId,
+      workspaceId: capacityHolds.workspaceId,
+      units: capacityHolds.units,
+    })
+    .from(capacityHolds)
+    .where(
+      and(
+        inArray(
+          capacityHolds.runnerInstanceId,
+          idleRunners.map((runner) => runner.id),
+        ),
+        isNull(capacityHolds.releasedAt),
+      ),
+    );
+  const holdsByRunner = new Map<string, {workspaceId: string; units: number}>();
+  for (const hold of holdRows) {
+    if (hold.runnerInstanceId)
+      holdsByRunner.set(hold.runnerInstanceId, {
+        workspaceId: hold.workspaceId,
+        units: hold.units,
+      });
+  }
+  return idleRunners.map((runner) => ({
+    ...runner,
+    capacityHold: holdsByRunner.get(runner.id),
+  }));
+}
+
 async function selectIdleRunnerInstancesTx(
   tx: Tx,
   params: IdleRunnerSelectionParams & {count: number; runnerIds?: string[]},
@@ -793,7 +1096,11 @@ async function selectIdleRunnerInstancesTx(
     // The first pass retains the row locks. Recheck the full predicate in a fresh statement so
     // reservation subqueries see the state that was current when the lock was acquired.
     return await tx
-      .select({id: providerRunners.id, launchKind: providerRunners.launchKind})
+      .select({
+        id: providerRunners.id,
+        launchKind: providerRunners.launchKind,
+        labels: providerRunners.labels,
+      })
       .from(providerRunners)
       .where(and(inArray(providerRunners.id, params.runnerIds), isBindableRunner(tx, params)))
       .orderBy(asc(providerRunners.createdAt), asc(providerRunners.id))
@@ -829,7 +1136,11 @@ async function lockIdleRunnerCandidateBatch(
   retrySelection: symbol,
 ): Promise<IdleRunnerCandidate[]> {
   const candidateRunners = await tx
-    .select({id: providerRunners.id, launchKind: providerRunners.launchKind})
+    .select({
+      id: providerRunners.id,
+      launchKind: providerRunners.launchKind,
+      labels: providerRunners.labels,
+    })
     .from(providerRunners)
     .where(isBindableRunner(tx, params))
     .orderBy(asc(providerRunners.createdAt), asc(providerRunners.id))
@@ -839,7 +1150,11 @@ async function lockIdleRunnerCandidateBatch(
   const lockedRunners: typeof candidateRunners = [];
   for (const candidate of [...candidateRunners].sort(compareRunnerIds)) {
     const [runner] = await tx
-      .select({id: providerRunners.id, launchKind: providerRunners.launchKind})
+      .select({
+        id: providerRunners.id,
+        launchKind: providerRunners.launchKind,
+        labels: providerRunners.labels,
+      })
       .from(providerRunners)
       .where(and(eq(providerRunners.id, candidate.id), isBindableRunner(tx, params)))
       .for('update');
@@ -865,17 +1180,11 @@ async function bindIdleRunnerInstancesTx(
 
   if (params.scope === 'installation' && params.placement) {
     for (const runner of params.idleRunners) {
-      const [runnerRow] = await tx
-        .select({labels: providerRunners.labels})
-        .from(providerRunners)
-        .where(eq(providerRunners.id, runner.id))
-        .limit(1);
-      if (runnerRow)
-        await assignRunnerCapacityHoldTx(tx, {
-          workspaceId: params.workspaceId,
-          runnerInstanceId: runner.id,
-          units: params.placement.units(runnerRow.labels),
-        });
+      await assignRunnerCapacityHoldTx(tx, {
+        workspaceId: params.workspaceId,
+        runnerInstanceId: runner.id,
+        units: params.placement.units(runner.labels),
+      });
     }
   }
 
@@ -1517,7 +1826,27 @@ function isSubset(requiredLabels: string[], availableLabels: string[]): boolean 
   return requiredLabels.every((label) => availableLabels.includes(label));
 }
 
+function isCoveredByWorkspaceCapability(
+  requiredLabels: string[],
+  capabilityLabels: readonly string[][],
+): boolean {
+  return capabilityLabels.some((labels) => isSubset(requiredLabels, labels));
+}
+
 type TemplateOrder = InstallationPlacementPolicy['templateOrder'];
+
+function capacityTemplatesForJob(
+  state: DemandReservationState,
+  rules: WorkspacePlacementRules & {capacityUnits: number},
+  requiredLabels: string[],
+  placement: InstallationPlacementPolicy | undefined,
+): NormalizedTemplate[] {
+  return orderSatisfyingTemplates(
+    allowedByRules(state.templates, rules),
+    requiredLabels,
+    placement,
+  );
+}
 
 function orderSatisfyingTemplates(
   templates: readonly NormalizedTemplate[],
@@ -1548,6 +1877,16 @@ function drawSlots(templates: NormalizedTemplate[], count: number): void {
 
 function labelKey(labels: string[]): string {
   return JSON.stringify(labels);
+}
+
+function capacityDeltaForIdleRunner(
+  runner: CapacityIdleRunnerCandidate,
+  workspaceId: string,
+  placement: InstallationPlacementPolicy | undefined,
+): number {
+  const units = placement?.units(runner.labels) ?? 0;
+  if (runner.capacityHold?.workspaceId !== workspaceId) return units;
+  return units - runner.capacityHold.units;
 }
 
 function allocateLaunchUnits(

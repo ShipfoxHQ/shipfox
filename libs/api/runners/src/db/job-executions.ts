@@ -8,6 +8,7 @@ import {
 } from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
+import type {PolicyNotice} from '@shipfox/policy-notice';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {
   and,
@@ -32,7 +33,10 @@ import {
   RunnerSessionExhaustedError,
   RunningJobExecutionNotFoundError,
 } from '#core/errors.js';
-import type {InstallationPlacementPolicy} from '#installation-provisioning.js';
+import type {
+  InstallationPlacementPolicy,
+  WorkspaceCapacityWaitDetail,
+} from '#installation-provisioning.js';
 import {
   type JobExecutionQueueTimeObservation,
   jobExecutionEnqueuedCount,
@@ -733,8 +737,26 @@ export type ExpirePendingJobExecutionResult =
       claimedAt: Date;
       provisionerScope: 'installation' | 'workspace' | null;
     }
-  | {kind: 'expired'}
+  | {kind: 'expired'; waitNotice?: PolicyNotice}
   | {kind: 'absent'};
+
+export async function getPendingJobExecutionWait(params: {jobExecutionId: string}): Promise<{
+  waitReason: string | null;
+  waitDetail: WorkspaceCapacityWaitDetail | null;
+}> {
+  const [pending] = await db()
+    .select({
+      waitReason: pendingJobExecutions.waitReason,
+      waitDetail: pendingJobExecutions.waitDetail,
+    })
+    .from(pendingJobExecutions)
+    .where(eq(pendingJobExecutions.jobExecutionId, params.jobExecutionId))
+    .limit(1);
+  return {
+    waitReason: pending?.waitReason ?? null,
+    waitDetail: pending?.waitDetail ?? null,
+  };
+}
 
 export async function expirePendingJobExecution(params: {
   jobExecutionId: string;
@@ -745,13 +767,18 @@ export async function expirePendingJobExecution(params: {
     const [pending] = await tx
       .delete(pendingJobExecutions)
       .where(eq(pendingJobExecutions.jobExecutionId, params.jobExecutionId))
-      .returning({jobExecutionId: pendingJobExecutions.jobExecutionId});
+      .returning({
+        jobExecutionId: pendingJobExecutions.jobExecutionId,
+        waitReason: pendingJobExecutions.waitReason,
+        waitDetail: pendingJobExecutions.waitDetail,
+      });
     if (pending) {
       await tx
         .insert(expiredJobExecutions)
         .values({jobExecutionId: params.jobExecutionId})
         .onConflictDoNothing();
-      return {kind: 'expired'};
+      const waitNotice = capacityWaitNotice(pending.waitReason, pending.waitDetail);
+      return waitNotice ? {kind: 'expired', waitNotice} : {kind: 'expired'};
     }
 
     const [running] = await tx
@@ -776,6 +803,26 @@ export async function expirePendingJobExecution(params: {
       .onConflictDoNothing();
     return {kind: 'absent'};
   });
+}
+
+function capacityWaitNotice(
+  waitReason: string | null,
+  waitDetail: WorkspaceCapacityWaitDetail | null,
+): PolicyNotice | undefined {
+  if (
+    waitReason !== 'workspace-capacity' ||
+    waitDetail === null ||
+    typeof waitDetail.inUse !== 'number' ||
+    typeof waitDetail.capacity !== 'number' ||
+    typeof waitDetail.unitLabel !== 'string'
+  ) {
+    return undefined;
+  }
+  return {
+    reason: 'workspace-capacity',
+    message: `Queued: this workspace is using ${waitDetail.inUse} of ${waitDetail.capacity} ${waitDetail.unitLabel} it can run at once. The job starts when a running job finishes.`,
+    ...(waitDetail.requiredAction ? {requiredAction: waitDetail.requiredAction} : {}),
+  };
 }
 
 export async function deleteExpiredJobExecutionTombstones(params: {

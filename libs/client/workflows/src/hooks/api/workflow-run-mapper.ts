@@ -299,6 +299,15 @@ export function toWorkflowRunOverviewExecution(
     timedOutAt: dto.timed_out_at,
     durationCapped: dto.duration_capped,
     durationNotice: dto.duration_notice,
+    waitReason: dto.wait_reason,
+    waitDetail: dto.wait_detail
+      ? {
+          inUse: dto.wait_detail.in_use,
+          capacity: dto.wait_detail.capacity,
+          unitLabel: dto.wait_detail.unit_label,
+          requiredAction: dto.wait_detail.required_action ?? null,
+        }
+      : dto.wait_detail,
     updatedAt: dto.updated_at,
     displayDuration: toWorkflowRunOverviewExecutionDuration({
       queuedAt: dto.queued_at,

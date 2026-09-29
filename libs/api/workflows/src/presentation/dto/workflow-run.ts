@@ -422,6 +422,19 @@ export function toJobExecutionSummaryDto(
     timed_out_at: execution.timedOutAt?.toISOString() ?? null,
     duration_capped: execution.durationCapped,
     duration_notice: execution.durationNotice,
+    ...(execution.waitReason !== undefined ? {wait_reason: execution.waitReason} : {}),
+    ...(execution.waitDetail !== undefined
+      ? {
+          wait_detail: execution.waitDetail
+            ? {
+                in_use: execution.waitDetail.inUse,
+                capacity: execution.waitDetail.capacity,
+                unit_label: execution.waitDetail.unitLabel,
+                required_action: execution.waitDetail.requiredAction,
+              }
+            : null,
+        }
+      : {}),
     updated_at: execution.updatedAt.toISOString(),
   };
 }

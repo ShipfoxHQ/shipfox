@@ -240,6 +240,8 @@ function toJobExecutionForJobDetail(
     timedOutAt: detail.timedOutAt,
     durationCapped: detail.durationCapped,
     durationNotice: detail.durationNotice,
+    waitReason: detail.waitReason,
+    waitDetail: detail.waitDetail,
     evaluationTrace: null,
     createdAt: detail.updatedAt,
     updatedAt: detail.updatedAt,

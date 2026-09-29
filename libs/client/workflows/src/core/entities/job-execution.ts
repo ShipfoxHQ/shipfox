@@ -47,6 +47,16 @@ interface JobExecutionFields {
   timedOutAt: string | null;
   durationCapped?: boolean | undefined;
   durationNotice?: PolicyNotice | null | undefined;
+  waitReason?: string | null | undefined;
+  waitDetail?:
+    | {
+        inUse: number;
+        capacity: number;
+        unitLabel: string;
+        requiredAction: {reason: string; message: string; url: string} | null;
+      }
+    | null
+    | undefined;
   evaluationTrace: EvaluationTraceEntry[] | null;
   createdAt: string;
   updatedAt: string;
@@ -71,6 +81,16 @@ export class JobExecution {
   timedOutAt!: string | null;
   durationCapped?: boolean | undefined;
   durationNotice?: PolicyNotice | null | undefined;
+  waitReason?: string | null | undefined;
+  waitDetail?:
+    | {
+        inUse: number;
+        capacity: number;
+        unitLabel: string;
+        requiredAction: {reason: string; message: string; url: string} | null;
+      }
+    | null
+    | undefined;
   evaluationTrace!: EvaluationTraceEntry[] | null;
   createdAt!: string;
   updatedAt!: string;
