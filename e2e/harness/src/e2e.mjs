@@ -358,6 +358,10 @@ export function e2eEnv(sourceEnv) {
       sourceEnv.INTEGRATIONS_ENABLE_LINEAR_PROVIDER,
       'true',
     ),
+    INTEGRATIONS_ENABLE_JIRA_PROVIDER: valueOr(
+      sourceEnv.INTEGRATIONS_ENABLE_JIRA_PROVIDER,
+      'true',
+    ),
     INTEGRATIONS_ENABLE_SLACK_PROVIDER: valueOr(
       sourceEnv.INTEGRATIONS_ENABLE_SLACK_PROVIDER,
       'true',
@@ -374,6 +378,16 @@ export function e2eEnv(sourceEnv) {
       sourceEnv.INTEGRATIONS_ENABLE_TEST_VCS_PROVIDER,
       'true',
     ),
+    JIRA_OAUTH_CLIENT_ID: valueOr(sourceEnv.JIRA_OAUTH_CLIENT_ID, 'e2e-jira-client-id'),
+    JIRA_OAUTH_CLIENT_SECRET: valueOr(
+      sourceEnv.JIRA_OAUTH_CLIENT_SECRET,
+      'e2e-jira-client-secret',
+    ),
+    JIRA_OAUTH_REDIRECT_URL: valueOr(
+      sourceEnv.JIRA_OAUTH_REDIRECT_URL,
+      `${clientUrl}/integrations/jira/callback`,
+    ),
+    JIRA_WEBHOOK_BASE_URL: valueOr(sourceEnv.JIRA_WEBHOOK_BASE_URL, apiUrl),
     INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS: valueOr(
       sourceEnv.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS,
       '600',

@@ -28,6 +28,7 @@ async function loadJiraModuleParts(
 ): Promise<IntegrationModuleParts> {
   const {
     createJiraApiClient,
+    createJiraE2eRoutes,
     createJiraIntegrationProvider,
     createJiraMaintenanceWorker,
     createJiraPendingSelectionStore,
@@ -250,6 +251,15 @@ async function loadJiraModuleParts(
 
   return {
     provider: integrationProvider,
+    e2eRoutes: [
+      createJiraE2eRoutes({
+        tokenStore,
+        getExistingJiraConnection,
+        connectJiraInstallation,
+        disconnectJiraInstallation,
+        connectionCapabilities: providerCapabilities,
+      }),
+    ],
     workers: [
       createJiraMaintenanceWorker({
         jira,

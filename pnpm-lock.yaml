@@ -1597,6 +1597,9 @@ importers:
       '@shipfox/api-integration-github-dto':
         specifier: workspace:*
         version: link:../../../libs/api/integration/github-dto
+      '@shipfox/api-integration-jira-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/integration/jira-dto
       '@shipfox/api-integration-linear-dto':
         specifier: workspace:*
         version: link:../../../libs/api/integration/linear-dto
@@ -1761,6 +1764,12 @@ importers:
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/auth-dto
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/core-dto
+      '@shipfox/api-integration-jira-dto':
+        specifier: workspace:*
+        version: link:../../../../libs/api/integration/jira-dto
       '@shipfox/api-server':
         specifier: workspace:*
         version: link:../../../../libs/api/server
