@@ -6,6 +6,8 @@ import {
   createAnthropicFakeModelProviderConfig,
   createOpenAiCompatibleCustomProvider,
   deleteModelProviderConfig,
+  getScriptedManagedProviderRequests,
+  registerScriptedManagedProvider,
 } from '@shipfox/e2e-setup-agent';
 import {attachLocalRunnerLog} from '#attachments.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
@@ -20,8 +22,135 @@ const OPENAI_FAKE_MODEL = 'deterministic-openai-smoke-agent';
 const OPENAI_SMOKE_MAX_OUTPUT_TOKENS = 64;
 const OPENAI_SMOKE_RESPONSE_COUNT = 4;
 const TERMINAL_TIMEOUT_MS = 60_000;
+const SCRIPTED_CATALOG_MODEL = 'gpt-6-luna';
 
 test.describe.configure({mode: 'serial'});
+
+test('runs a catalog Pi step from a project-scoped script', async ({suite}, testInfo) => {
+  const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
+  const scenario = `scripted-managed-provider-${uniqueId}`;
+  const runnerLabel = `e2e-${scenario}`;
+  const token = suite.sessionToken;
+  const client = createApiClient({token});
+  const localRunner = await startSuiteLocalRunner({
+    workspaceId: suite.workspaceId,
+    userToken: token,
+    name: `E2E ${scenario}`,
+    runnerLabel,
+    extraEnv: {SHIPFOX_POLL_MAX_DURATION_MS: String(TERMINAL_TIMEOUT_MS)},
+  });
+
+  try {
+    const seeded = await seedAndWaitForDefinition({
+      suite,
+      token,
+      name: scenario,
+      repo: scenario,
+      runnerLabel,
+      workflowYaml: scriptedCatalogWorkflow({runnerLabel}),
+      configPath: `.shipfox/workflows/${scenario}.yml`,
+      extraFiles: [{path: 'src/report.ts', content: 'before'}],
+    });
+    await registerScriptedManagedProvider({
+      projectId: seeded.project.id,
+      entries: [
+        {
+          match: {prompt_contains: 'Implement task-1'},
+          replies: [
+            {tool: 'edit', args: {path: 'src/report.ts', oldText: 'before', newText: 'after'}},
+            {tool: 'set_output', args: {key: 'status', value: 'implemented'}},
+          ],
+        },
+      ],
+    });
+    const runId = await fireManualAndAwaitRun({
+      client,
+      definitionId: seeded.definition.id,
+      inputs: {},
+      scenario,
+    });
+    const terminal = await waitForRunTerminalOrFailedRunner({
+      runId,
+      token,
+      timeoutMs: TERMINAL_TIMEOUT_MS,
+      runner: localRunner.runner,
+    });
+
+    expect(terminal.status).toBe('succeeded');
+    expect(terminal.jobs.find((job) => job.key === 'fix')?.status).toBe('succeeded');
+    const requests = await getScriptedManagedProviderRequests({projectId: seeded.project.id});
+    expect(requests).toHaveLength(2);
+    expect(requests.every((request) => !request.surprise)).toBe(true);
+  } finally {
+    await attachLocalRunnerLog(
+      (attachment) =>
+        testInfo.attach(attachment.name, {
+          body: attachment.body,
+          contentType: attachment.contentType,
+        }),
+      localRunner.logFile,
+    );
+    await stopLocalRunner(localRunner.runner).catch(() => undefined);
+  }
+});
+
+test('fails a catalog Pi step on an unexpected scripted request', async ({suite}, testInfo) => {
+  const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
+  const scenario = `scripted-managed-surprise-${uniqueId}`;
+  const runnerLabel = `e2e-${scenario}`;
+  const token = suite.sessionToken;
+  const client = createApiClient({token});
+  const localRunner = await startSuiteLocalRunner({
+    workspaceId: suite.workspaceId,
+    userToken: token,
+    name: `E2E ${scenario}`,
+    runnerLabel,
+    extraEnv: {SHIPFOX_POLL_MAX_DURATION_MS: String(TERMINAL_TIMEOUT_MS)},
+  });
+
+  try {
+    const seeded = await seedAndWaitForDefinition({
+      suite,
+      token,
+      name: scenario,
+      repo: scenario,
+      runnerLabel,
+      workflowYaml: scriptedCatalogWorkflow({runnerLabel}),
+      configPath: `.shipfox/workflows/${scenario}.yml`,
+      extraFiles: [{path: 'src/report.ts', content: 'before'}],
+    });
+    await registerScriptedManagedProvider({
+      projectId: seeded.project.id,
+      entries: [{match: {prompt_contains: 'never sent'}, replies: [{text: 'Done.'}]}],
+    });
+    const runId = await fireManualAndAwaitRun({
+      client,
+      definitionId: seeded.definition.id,
+      inputs: {},
+      scenario,
+    });
+    const terminal = await waitForRunTerminalOrFailedRunner({
+      runId,
+      token,
+      timeoutMs: TERMINAL_TIMEOUT_MS,
+      runner: localRunner.runner,
+    });
+
+    expect(terminal.status).toBe('failed');
+    const requests = await getScriptedManagedProviderRequests({projectId: seeded.project.id});
+    expect(requests.some((request) => request.surprise)).toBe(true);
+  } finally {
+    await attachLocalRunnerLog(
+      (attachment) =>
+        testInfo.attach(attachment.name, {
+          body: attachment.body,
+          contentType: attachment.contentType,
+        }),
+      localRunner.logFile,
+    );
+    await stopLocalRunner(localRunner.runner).catch(() => undefined);
+  }
+});
 
 test('runs a Claude harness smoke workflow against the fake Anthropic endpoint', async ({
   suite,
@@ -129,6 +258,32 @@ test('runs a Pi harness smoke workflow against the fake OpenAI-compatible endpoi
     });
   }
 });
+
+function scriptedCatalogWorkflow(params: {runnerLabel: string}): string {
+  return `
+name: Scripted catalog model
+runner: ${params.runnerLabel}
+triggers:
+  manual:
+    source: manual
+    event: fire
+jobs:
+  fix:
+    steps:
+      - key: edit
+        harness: pi
+        provider: shipfox
+        model: ${SCRIPTED_CATALOG_MODEL}
+        thinking: off
+        prompt: Implement task-1 in src/report.ts, then set the status output.
+        outputs:
+          status: string
+      - key: verify
+        run: |
+          test "\${{ steps.edit.outputs.status }}" = implemented
+          test "$(cat src/report.ts)" = after
+`;
+}
 
 function workflowYaml(params: {
   name: string;

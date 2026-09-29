@@ -168,6 +168,57 @@ describe('agent e2e helper', () => {
     expect(helper.createOpenAiCompatibleCustomProvider).toBe(createOpenAiCompatibleCustomProvider);
   });
 
+  it('registers a scripted managed provider for a project', async () => {
+    const {registerScriptedManagedProvider} = await import('./index.js');
+
+    await registerScriptedManagedProvider({
+      projectId: '11111111-1111-4111-8111-111111111111',
+      entries: [
+        {
+          match: {prompt_contains: 'Implement task-1'},
+          replies: [{tool: 'edit', args: {path: 'src/report.ts', new: 'done'}}],
+        },
+      ],
+    });
+
+    expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/managed-inference/scripts', {
+      json: {
+        project_id: '11111111-1111-4111-8111-111111111111',
+        entries: [
+          {
+            match: {prompt_contains: 'Implement task-1'},
+            replies: [{tool: 'edit', args: {path: 'src/report.ts', new: 'done'}}],
+          },
+        ],
+      },
+    });
+  });
+
+  it('reads recorded scripted managed provider requests', async () => {
+    requestJson.mockResolvedValueOnce({
+      requests: [{index: 0, project_id: workspaceId, surprise: false}],
+    });
+    const {getScriptedManagedProviderRequests} = await import('./index.js');
+
+    await expect(getScriptedManagedProviderRequests({projectId: workspaceId})).resolves.toEqual([
+      {index: 0, project_id: workspaceId, surprise: false},
+    ]);
+    expect(requestJson).toHaveBeenCalledWith(
+      'get',
+      `/__e2e/managed-inference/scripts/${workspaceId}/requests`,
+      {},
+    );
+  });
+
+  it('exposes scripted managed provider helpers through the fixture helper', async () => {
+    const {createAgentHelper, getScriptedManagedProviderRequests, registerScriptedManagedProvider} =
+      await import('./index.js');
+    const helper = createAgentHelper();
+
+    expect(helper.getScriptedManagedProviderRequests).toBe(getScriptedManagedProviderRequests);
+    expect(helper.registerScriptedManagedProvider).toBe(registerScriptedManagedProvider);
+  });
+
   it('deletes a model provider config through the product route', async () => {
     requestJson.mockResolvedValueOnce(undefined);
     const {deleteModelProviderConfig} = await import('./index.js');
