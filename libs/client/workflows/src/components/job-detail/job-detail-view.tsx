@@ -112,6 +112,8 @@ function resolveAllowedExternalUrl(url: string): string | undefined {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+    parsed.username = '';
+    parsed.password = '';
     return parsed.href;
   } catch {
     return undefined;
