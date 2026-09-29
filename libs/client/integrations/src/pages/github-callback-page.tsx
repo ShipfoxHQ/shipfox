@@ -24,8 +24,10 @@ import {
   classifyGithubCallbackError,
   clearGithubInstallWorkspace,
   type GithubCallbackFailure,
+  GithubCallbackIncompleteError,
   type GithubCallbackIntent,
   type GithubCallbackSearch,
+  getGithubCallbackTelemetry,
   readGithubInstallWorkspace,
   serializeGithubCallback,
 } from '#github-callback.js';
@@ -36,7 +38,9 @@ const callbackRequests = createSingleFlight<string, IntegrationConnection>({
   maxTerminalResults: 32,
 });
 const capturedCompletions = new Set<string>();
+const capturedCallbackOutcomes = new Set<string>();
 const reportedFailures = new Set<string>();
+const reportedIncompleteCallbacks = new Set<string>();
 const toastedCallbacks = new Set<string>();
 type GithubOutcomeStatus = 'error' | 'info' | 'success' | 'warning';
 
@@ -49,6 +53,7 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
   const refreshAuth = useRefreshAuth();
   const resolveIntegrationWorkspaceSlug = useResolveIntegrationWorkspaceSlug();
   const intent = useMemo(() => classifyGithubCallback(search), [search]);
+  const landingKey = useMemo(() => serializeGithubCallbackLanding(search), [search]);
   const storedWorkspaceId = useMemo(
     () => readGithubInstallWorkspace(sessionStorageOrUndefined()),
     [],
@@ -61,6 +66,27 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
     auth.isAuthenticated &&
     !auth.hasWorkspace &&
     queryClient.getQueryState(userWorkspacesQueryKey)?.status === 'error';
+
+  useEffect(() => {
+    if (
+      intent.kind !== 'invalid' ||
+      reportedIncompleteCallbacks.has(landingKey) ||
+      typeof globalThis.reportError !== 'function'
+    ) {
+      return;
+    }
+    rememberCallbackKey(reportedIncompleteCallbacks, landingKey);
+    globalThis.reportError(new GithubCallbackIncompleteError(intent.missing));
+  }, [intent, landingKey]);
+
+  useEffect(() => {
+    if (auth.isLoading || capturedCallbackOutcomes.has(landingKey)) return;
+    rememberCallbackKey(capturedCallbackOutcomes, landingKey);
+    analytics.capture(
+      'github_callback_outcome',
+      getGithubCallbackTelemetry(search, intent, auth.isAuthenticated),
+    );
+  }, [analytics, auth.isAuthenticated, auth.isLoading, intent, landingKey, search]);
 
   useEffect(() => {
     if (auth.isLoading) return;
@@ -470,6 +496,17 @@ function failureCopy(failure: GithubCallbackFailure): {
         status: 'error',
       };
   }
+}
+
+function serializeGithubCallbackLanding(search: GithubCallbackSearch): string {
+  return JSON.stringify([
+    search.code ?? null,
+    search.error ?? null,
+    search.errorDescription ?? null,
+    search.installationId ?? null,
+    search.state ?? null,
+    search.setupAction ?? null,
+  ]);
 }
 
 function captureViewOnce(

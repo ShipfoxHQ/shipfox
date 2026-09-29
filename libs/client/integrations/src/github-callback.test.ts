@@ -4,6 +4,8 @@ import {
   classifyGithubCallbackError,
   clearGithubInstallWorkspace,
   GITHUB_INSTALL_WORKSPACE_KEY,
+  GithubCallbackIncompleteError,
+  getGithubCallbackTelemetry,
   parseGithubCallbackSearch,
   readGithubInstallWorkspace,
   saveGithubInstallWorkspace,
@@ -53,7 +55,78 @@ describe('GitHub callback classification', () => {
     });
     expect(classifyGithubCallback(parseGithubCallbackSearch({state: 7}))).toEqual({
       kind: 'invalid',
+      missing: ['code', 'installation_id', 'state'],
     });
+  });
+
+  test('returns the sorted missing parameter set without callback values', () => {
+    const search = parseGithubCallbackSearch({
+      code: 'callback-code',
+      setup_action: 'update',
+      state: 'callback-state',
+    });
+
+    expect(classifyGithubCallback(search)).toEqual({
+      kind: 'invalid',
+      missing: ['installation_id'],
+      setupAction: 'update',
+    });
+  });
+});
+
+describe('GitHub callback telemetry', () => {
+  test.each([
+    [
+      'complete',
+      {code: 'code', installation_id: 42, state: 'state', setup_action: 'install'},
+      true,
+      'install',
+    ],
+    ['request', {setup_action: 'request'}, true, 'request'],
+    ['invalid', {state: 'state'}, true, 'other'],
+    ['provider-error', {error: 'access_denied'}, true, 'other'],
+  ] as const)('normalizes the %s outcome', (kind, search, authenticated, setupAction) => {
+    const parsed = parseGithubCallbackSearch(search);
+    const intent = classifyGithubCallback(parsed);
+
+    expect(getGithubCallbackTelemetry(parsed, intent, authenticated)).toMatchObject({
+      outcome: kind,
+      setup_action: setupAction,
+      authenticated,
+    });
+  });
+
+  test('uses guest as the outcome while preserving safe callback dimensions', () => {
+    const search = parseGithubCallbackSearch({
+      code: 'secret-code',
+      state: 'secret-state',
+      setup_action: 'unexpected',
+    });
+    const intent = classifyGithubCallback(search);
+
+    expect(getGithubCallbackTelemetry(search, intent, false)).toEqual({
+      outcome: 'guest',
+      missing: 'installation_id',
+      setup_action: 'other',
+      authenticated: false,
+    });
+    expect(JSON.stringify(getGithubCallbackTelemetry(search, intent, false))).not.toContain(
+      'secret-code',
+    );
+    expect(JSON.stringify(getGithubCallbackTelemetry(search, intent, false))).not.toContain(
+      'secret-state',
+    );
+  });
+
+  test('groups incomplete callbacks by the sorted missing set only', () => {
+    const error = new GithubCallbackIncompleteError(['state', 'code']);
+
+    expect(error).toMatchObject({
+      name: 'GithubCallbackIncompleteError',
+      message: 'GitHub callback missing code, state',
+    });
+    expect(error.message).not.toContain('secret-code');
+    expect(error.message).not.toContain('secret-state');
   });
 });
 

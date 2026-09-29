@@ -52,11 +52,56 @@ export interface GithubCallbackSearch {
   setupAction?: string;
 }
 
+export type GithubCallbackMissingParameter = 'code' | 'installation_id' | 'state';
+
 export type GithubCallbackIntent =
   | {kind: 'request'}
   | {kind: 'provider-error'}
   | {kind: 'complete'; params: GithubCallbackParams}
-  | {kind: 'invalid'};
+  | {kind: 'invalid'; missing: GithubCallbackMissingParameter[]; setupAction?: string};
+
+export type GithubCallbackTelemetryOutcome =
+  | 'complete'
+  | 'link'
+  | 'request'
+  | 'invalid'
+  | 'provider-error'
+  | 'guest';
+
+export class GithubCallbackIncompleteError extends Error {
+  constructor(missing: readonly GithubCallbackMissingParameter[]) {
+    const sortedMissing = [...missing].sort();
+    super(`GitHub callback missing ${sortedMissing.join(', ')}`);
+    this.name = 'GithubCallbackIncompleteError';
+  }
+}
+
+export function getGithubCallbackTelemetry(
+  search: GithubCallbackSearch,
+  intent: GithubCallbackIntent,
+  authenticated: boolean,
+): {
+  outcome: GithubCallbackTelemetryOutcome;
+  missing: string;
+  setup_action: 'install' | 'update' | 'request' | 'other';
+  authenticated: boolean;
+} {
+  return {
+    outcome: authenticated ? intent.kind : 'guest',
+    missing: intent.kind === 'invalid' ? [...intent.missing].sort().join(',') : '',
+    setup_action: normalizeGithubSetupAction(search.setupAction),
+    authenticated,
+  };
+}
+
+function normalizeGithubSetupAction(
+  setupAction: string | undefined,
+): 'install' | 'update' | 'request' | 'other' {
+  if (setupAction === 'install' || setupAction === 'update' || setupAction === 'request') {
+    return setupAction;
+  }
+  return 'other';
+}
 
 export function parseGithubCallbackSearch(input: Record<string, unknown>): GithubCallbackSearch {
   const code = stringParam(input.code);
@@ -80,7 +125,17 @@ export function classifyGithubCallback(search: GithubCallbackSearch): GithubCall
   if (search.error) return {kind: 'provider-error'};
 
   const params = githubCallbackParams(search);
-  return params ? {kind: 'complete', params} : {kind: 'invalid'};
+  if (params) return {kind: 'complete', params};
+
+  const missing: GithubCallbackMissingParameter[] = [];
+  if (!search.code) missing.push('code');
+  if (search.installationId === undefined) missing.push('installation_id');
+  if (!search.state) missing.push('state');
+  return {
+    kind: 'invalid',
+    missing,
+    ...(search.setupAction ? {setupAction: search.setupAction} : {}),
+  };
 }
 
 export function githubCallbackParams(
