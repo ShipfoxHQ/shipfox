@@ -1,5 +1,6 @@
 import {
   registryBumpSchema,
+  registryDigestSchema,
   registryPackageKindSchema,
   registryPackageNameSchema,
   registryVersionSchema,
@@ -20,7 +21,7 @@ const packageSchema = registryPackageNameSchema.meta({
   description: 'A package name, such as `shipfox/slack-thread-digest`.',
 });
 const versionSchema = (description: string) => registryVersionSchema.meta({description});
-const timestampSchema = z.string();
+const timestampSchema = z.iso.datetime();
 const jsonObjectSchema = z.record(z.string(), z.unknown());
 
 export const listRegistryPackagesInputSchema = z.strictObject({
@@ -71,7 +72,7 @@ export type ListRegistryPackagesResultDto = z.output<typeof listRegistryPackages
 
 const versionEntrySchema = z.strictObject({
   version: registryVersionSchema,
-  digest: z.string(),
+  digest: registryDigestSchema,
   published_at: timestampSchema,
   bump: registryBumpSchema.optional(),
   capability_change: z.boolean(),
@@ -92,10 +93,10 @@ export const getRegistryPackageResultSchema = z.strictObject({
   changelog: z.string().optional(),
   provenance: jsonObjectSchema,
   digests: z.strictObject({
-    fingerprint: z.string(),
-    content: z.string(),
-    source: z.string(),
-    readme: z.string().optional(),
+    fingerprint: registryDigestSchema,
+    content: registryDigestSchema,
+    source: registryDigestSchema,
+    readme: registryDigestSchema.optional(),
   }),
   readme: z.string().nullable(),
   readme_truncated: z.boolean(),

@@ -105,6 +105,7 @@ describe('pageSourceDiff', () => {
     });
 
     expect(page.text).toContain('cut at the page limit');
+    expect(Buffer.byteLength(JSON.stringify(page.text)) - 2).toBeLessThanOrEqual(301);
     expect(page.text).not.toMatch(UNPAIRED_SURROGATE);
     expect(page.next).toBeNull();
   });
