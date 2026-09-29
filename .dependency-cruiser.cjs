@@ -37,7 +37,9 @@ const e2eLayerPathPatterns = (workspacePath) =>
     ? [`^${escapeRegExp(toPosixPath(path.relative(currentDirectory, path.join(workspaceRoot, workspacePath))))}/[^.][^/]*/`]
     : [workspacePathPattern(workspacePath)];
 const e2eSuitePathPatterns =
-  currentE2eLayer === 'suite' ? ['^\\.\\./[^.][^/]*/', '^\\.\\./\\.\\./(?:api|client|flow)/'] : [workspacePathPattern('e2e/suites')];
+  currentE2eLayer === 'suite'
+    ? ['^\\.\\./[^.][^/]*/', '^\\.\\./\\.\\./(?:api|client|eval|flow)/']
+    : [workspacePathPattern('e2e/suites')];
 const e2eLayerTargets = {
   core: {
     paths: ['e2e/core'],
@@ -57,7 +59,7 @@ const e2eLayerTargets = {
   },
   suite: {
     paths: e2eSuitePathPatterns,
-    packages: ['^@shipfox/e2e-(?:client|api|flow)-'],
+    packages: ['^@shipfox/e2e-(?:client|api|eval|flow)-'],
   },
 };
 const e2eTargetPatterns = (layers) =>

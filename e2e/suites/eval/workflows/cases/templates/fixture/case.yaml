@@ -1,0 +1,22 @@
+template: shipfox/fixture
+bindings:
+  source: github
+options: {}
+slots:
+  setup_commands: "- key: setup\n  run: npm ci"
+  test_command: npm test
+modes: [scripted, live]
+repository: acme/fixture
+scenario:
+  - start:
+      manual:
+        inputs:
+          repository: acme/fixture
+  - await:
+      run: succeeded
+expect:
+  outputs:
+    status: implemented
+  writes: []
+covers:
+  - fixture workflow writes

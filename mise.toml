@@ -61,6 +61,11 @@ description = "Run E2E tests with local API and client dev servers"
 depends = ["e2e:build"]
 run = 'node e2e/harness/src/e2e.mjs run'
 
+[tasks.evals]
+description = "Run workflow evals with the local E2E stack"
+depends = ["e2e:build"]
+run = 'node e2e/harness/src/e2e.mjs run --task=evals'
+
 [tasks."e2e:build"]
 description = "Build the runtime dependencies used by E2E dev servers"
 run = "turbo build --filter @shipfox/api --filter @shipfox/vite --filter @shipfox/client-features..."
