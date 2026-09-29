@@ -95,7 +95,7 @@ describe('shipped skill resources', () => {
     }
   });
 
-  test('passes options to the template tool and reads writes and prerequisites from its result', () => {
+  test('mentions options, writes, and prerequisites instead of guide wording', () => {
     const template = getShippedSkillResource(
       'skill://shipfox/create-workflow-from-template/SKILL.md',
     )?.text;

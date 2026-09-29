@@ -611,8 +611,8 @@ describe('agent-access template tools', () => {
         ...templateAsset,
         manifest: {...manifest, models: {fix: {}}},
         workflow: templateAsset.workflow.replace(
-          '- key: fix',
-          '- key: fix\n        model: tested # model:fix\n        thinking: medium',
+          '- key: verify',
+          '- key: verify\n        model: tested # model:fix\n        thinking: medium',
         ),
       };
 
@@ -623,7 +623,10 @@ describe('agent-access template tools', () => {
 
       expect(response).toMatchObject({
         ok: true,
-        result: {model_recommendations: [{placeholders: ['fix'], mode: 'recommended'}]},
+        result: {
+          workflow_yaml: expect.not.stringContaining('model:fix'),
+          model_recommendations: [{placeholders: ['fix'], mode: 'recommended'}],
+        },
       });
     });
 

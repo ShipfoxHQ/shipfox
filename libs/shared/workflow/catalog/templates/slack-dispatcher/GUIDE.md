@@ -94,6 +94,8 @@ A routed workflow whose first job fails posts nothing, for example when no runne
 
 ## Behavior and failures
 
+A dispatcher that lists a workflow that does not exist fails when it routes a request there.
+
 The routed workflows make their own writes, as their guides describe.
 The dispatcher never changes a repository.
 

@@ -6,11 +6,12 @@ import type {PartBlocks} from './composer.js';
 import {applyTemplateOptions, composeTemplate, templateRoleBindings} from './composer.js';
 import type {WorkflowTemplate, WorkflowTemplateAsset} from './loader.js';
 import {createTemplateLoader, loadShippedTemplates} from './loader.js';
-import {workflowTemplateManifestSchema} from './manifest.js';
+import {type WorkflowTemplateOption, workflowTemplateManifestSchema} from './manifest.js';
 import {extractModelAnchors} from './model-anchors.js';
 
 const missingThinkingPattern = /thinking: high\s*/u;
 const guideWritesSectionPattern = /^#+ (Prerequisites|Expected writes)/mu;
+const optionBlockMarkerPattern = /# option:[a-z0-9_-]+=/u;
 const fixtureRoot = new URL('../test/fixtures/', import.meta.url);
 const fixture: WorkflowTemplateAsset = {
   id: 'fixture-ticket-to-pr',
@@ -30,6 +31,13 @@ const fixture: WorkflowTemplateAsset = {
     source: {github: parsePart('parts/source/github.yml')},
   },
 };
+
+function defaultChoice(option: WorkflowTemplateOption): string {
+  const choice =
+    option.choices.find(({default: isDefault}) => isDefault === true) ?? option.choices[0];
+  if (choice === undefined) throw new Error(`Option ${option.id} has no choices`);
+  return choice.id;
+}
 
 function parsePart(path: string): PartBlocks {
   return parseYaml(readFileSync(new URL(path, fixtureRoot), 'utf8')) as PartBlocks;
@@ -107,18 +115,26 @@ describe('workflow template loader', () => {
     }
   });
 
-  it('applies every structural option choice to every shipped role combination', () => {
+  it('applies every option choice over the defaults to a valid workflow for every role combination', () => {
     for (const template of loadShippedTemplates()) {
+      const defaults = Object.fromEntries(
+        template.manifest.options.map((option) => [option.id, defaultChoice(option)]),
+      );
+      const selections = [
+        defaults,
+        ...template.manifest.options.flatMap((option) =>
+          option.choices.map((choice) => ({...defaults, [option.id]: choice.id})),
+        ),
+      ];
+
       for (const bindings of templateRoleBindings(template.manifest.roles)) {
         const composed = composeTemplate(template, bindings);
-        for (const option of template.manifest.options) {
-          for (const choice of option.choices) {
-            const applied = applyTemplateOptions(composed, {[option.id]: choice.id});
+        for (const selection of selections) {
+          const applied = applyTemplateOptions(composed, selection);
+          const label = `${template.id} ${JSON.stringify(bindings)} ${JSON.stringify(selection)}`;
 
-            expect(applied, `${template.id} ${option.id}=${choice.id}`).not.toContain(
-              `# option:${option.id}=`,
-            );
-          }
+          expect(applied, label).not.toMatch(optionBlockMarkerPattern);
+          expect(() => parseWorkflowDocument(parseYaml(applied)), label).not.toThrow();
         }
       }
     }
