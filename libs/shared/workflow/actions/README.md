@@ -180,6 +180,10 @@ The loader decides by importer:
 - Imports from installed packages keep Node's resolution, so a package finds its own
   dependencies under pnpm's isolated layout.
 - A relative import that leaves the action directory fails.
+- With `SHIPFOX_ACTION_ORIGIN=registry`, the loader is strict: a bare specifier imported from an
+  action file, other than `@shipfox/actions*` or a Node built-in, fails with
+  `ERR_SHIPFOX_REGISTRY_ACTION_IMPORT`. Registry actions bundle their dependencies. Any other
+  value resolves from the step working directory.
 
 TypeScript action files run through Node's type stripping. TypeScript packages under
 `node_modules` are not supported.

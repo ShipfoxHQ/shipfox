@@ -11,6 +11,8 @@ const URL_SCHEME_RE = /^[a-z][a-z\d+.-]*:/i;
 export const PACKAGE_NOT_FOUND_HINT =
   'Install it in an earlier step; actions resolve packages from the step working directory.';
 
+export const REGISTRY_IMPORT_ERROR_MESSAGE = 'Registry actions bundle their dependencies.';
+
 export interface ActionResolveHookParams {
   /** The extracted bundle directory, already passed through `realpath`. */
   bundleDir: string;
@@ -18,6 +20,11 @@ export interface ActionResolveHookParams {
   workspaceDir: string;
   /** A module URL inside this package, used to resolve the SDK by self-reference. */
   sdkUrl: string;
+  /**
+   * `registry` turns on strict mode: a bare import from the bundle other than the SDK or a Node
+   * built-in fails. Any other value, or none, resolves from the step working directory.
+   */
+  origin?: string | undefined;
 }
 
 /**
@@ -52,6 +59,15 @@ export function createActionResolveHook(params: ActionResolveHookParams): Resolv
     }
   };
 
+  const strict = params.origin === 'registry';
+
+  const rejectBareImport = (specifier: string, context: ResolveHookContext): never => {
+    throw moduleError({
+      code: 'ERR_SHIPFOX_REGISTRY_ACTION_IMPORT',
+      message: `'${specifier}' imported from ${importerPath(context)} is not bundled with the action. ${REGISTRY_IMPORT_ERROR_MESSAGE}`,
+    });
+  };
+
   const resolveInsideBundle = (
     specifier: string,
     context: ResolveHookContext,
@@ -76,9 +92,10 @@ export function createActionResolveHook(params: ActionResolveHookParams): Resolv
     if (!isInsideBundle(context.parentURL) || isBuiltin(specifier)) {
       return nextResolve(specifier, context);
     }
-    return isBareSpecifier(specifier)
-      ? resolveFromWorkspace(specifier, context, nextResolve)
-      : resolveInsideBundle(specifier, context, nextResolve);
+    if (!isBareSpecifier(specifier)) return resolveInsideBundle(specifier, context, nextResolve);
+    return strict
+      ? rejectBareImport(specifier, context)
+      : resolveFromWorkspace(specifier, context, nextResolve);
   };
 }
 

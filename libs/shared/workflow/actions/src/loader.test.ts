@@ -1,6 +1,6 @@
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {PACKAGE_NOT_FOUND_HINT} from '#module-resolution.js';
+import {PACKAGE_NOT_FOUND_HINT, REGISTRY_IMPORT_ERROR_MESSAGE} from '#module-resolution.js';
 import {
   type ActionSandbox,
   createActionSandbox,
@@ -29,8 +29,8 @@ describe('loader', () => {
     await sandbox.cleanup();
   });
 
-  function run() {
-    return runActionProcess({sandbox, outputs: {value: {type: 'string'}}});
+  function run(origin?: 'local' | 'registry') {
+    return runActionProcess({sandbox, origin, outputs: {value: {type: 'string'}}});
   }
 
   it('resolves packages from an npm hoisted layout in the step working directory', async () => {
@@ -164,5 +164,55 @@ describe('loader', () => {
       `Cannot find module '${join(sandbox.workspace, 'node_modules', 'pkg', 'missing.js')}'`,
     );
     expect(result.stderr).not.toContain(PACKAGE_NOT_FOUND_HINT);
+  });
+
+  describe('registry origin', () => {
+    it('rejects a workspace package for a registry action and allows it for a local one', async () => {
+      await writePackage(join(sandbox.workspace, 'node_modules', 'helper'), {
+        name: 'helper',
+        index: "export const help = () => 'helped';",
+      });
+      await writeFiles(sandbox.bundle, {
+        'index.js': reportAction("import {help} from 'helper';", 'help()'),
+      });
+
+      const registry = await run('registry');
+      const local = await run('local');
+
+      expect(registry.exitCode).toBe(1);
+      expect(registry.result).toEqual({status: 'failed'});
+      expect(registry.stderr).toContain('ERR_SHIPFOX_REGISTRY_ACTION_IMPORT');
+      expect(registry.stderr).toContain(REGISTRY_IMPORT_ERROR_MESSAGE);
+      expect(local).toMatchObject({result: {status: 'succeeded'}, outputs: {value: 'helped'}});
+    });
+
+    it('rejects a scoped package for a registry action', async () => {
+      await writePackage(join(sandbox.workspace, 'node_modules', '@acme', 'util'), {
+        name: '@acme/util',
+        index: "export const util = () => 'util';",
+      });
+      await writeFiles(sandbox.bundle, {
+        'index.js': reportAction("import {util} from '@acme/util';", 'util()'),
+      });
+
+      const result = await run('registry');
+
+      expect(result.stderr).toContain('ERR_SHIPFOX_REGISTRY_ACTION_IMPORT');
+      expect(result.stderr).toContain("'@acme/util'");
+    });
+
+    it('allows the SDK, node: built-ins, and files inside the bundle', async () => {
+      await writeFiles(sandbox.bundle, {
+        'helper.js': "export const greet = () => 'hi';",
+        'index.js': reportAction(
+          "import {basename} from 'node:path'; import {greet} from './helper.js';",
+          "greet() + basename('/a/b')",
+        ),
+      });
+
+      const result = await run('registry');
+
+      expect(result).toMatchObject({result: {status: 'succeeded'}, outputs: {value: 'hib'}});
+    });
   });
 });

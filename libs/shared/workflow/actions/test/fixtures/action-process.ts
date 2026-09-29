@@ -80,6 +80,8 @@ export async function linkDirectory(target: string, path: string): Promise<void>
 export interface RunActionProcessParams {
   sandbox: ActionSandbox;
   main?: string;
+  /** The step config origin. Omitted means the runner did not set it. */
+  origin?: 'local' | 'registry' | undefined;
   inputs?: Record<string, unknown>;
   outputs?: ActionOutputDeclarations;
   actionsUrl?: string;
@@ -142,6 +144,7 @@ export async function runActionProcess(
         SHIPFOX_OUTPUT: paths.output,
         SHIPFOX_ACTION_PATH: sandbox.bundle,
         SHIPFOX_ACTION_MAIN: params.main ?? 'index.js',
+        ...(params.origin ? {SHIPFOX_ACTION_ORIGIN: params.origin} : {}),
         SHIPFOX_ACTION_INPUTS: paths.inputs,
         SHIPFOX_ACTION_CONTEXT: paths.context,
         SHIPFOX_ACTION_RESULT: paths.result,

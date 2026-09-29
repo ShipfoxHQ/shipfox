@@ -57,6 +57,8 @@ const actionIntegrationsSchema = z
 const actionStepConfigSchema = z.object({
   action: z.object({
     uses: z.string().min(1),
+    // A config written before `origin` existed is a local action.
+    origin: z.enum(['local', 'registry']).default('local'),
     digest: actionBundleDigestSchema,
     main: z.string().min(1),
     name: z.string(),
@@ -182,6 +184,7 @@ export async function executeActionStep(
           ...options.secretEnv,
           [ACTION_ENV.actionPath]: actionPath,
           [ACTION_ENV.actionMain]: config.action.main,
+          [ACTION_ENV.actionOrigin]: config.action.origin,
           [ACTION_ENV.actionInputs]: paths.inputs,
           [ACTION_ENV.actionContext]: paths.context,
           [ACTION_ENV.actionResult]: paths.result,
