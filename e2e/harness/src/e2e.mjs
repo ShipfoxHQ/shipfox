@@ -304,7 +304,7 @@ export function e2eEnv(sourceEnv) {
     // apply here, because the E2E API runs without NODE_ENV.
     DEFINITION_ACTIONS_ENABLED: valueOr(sourceEnv.DEFINITION_ACTIONS_ENABLED, 'true'),
     // The harness starts this registry, which signs with a key generated for the run.
-    REGISTRY_URL: valueOr(sourceEnv.REGISTRY_URL, () => e2eRegistryUrl(apiUrl)),
+    REGISTRY_URL: e2eRegistryUrl(apiUrl),
     REGISTRY_TRUSTED_KEYS: e2eRegistryTrustedKeys(),
     ADMIN_BOOTSTRAP_TOKEN: valueOr(sourceEnv.ADMIN_BOOTSTRAP_TOKEN, e2eBootstrapToken),
     AUTH_SIGNUP_GATE_ENABLED: valueOr(

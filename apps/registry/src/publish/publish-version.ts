@@ -91,7 +91,7 @@ export const IMPORT_PROVENANCE = {
   ref: 'import',
   workflow_ref: 'import',
   run_id: 'import',
-  run_attempt: '1',
+  run_attempt: 'import',
 } as const satisfies PublishClaims['provenance'];
 
 interface VersionWriterDependencies {
