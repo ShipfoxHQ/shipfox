@@ -3,7 +3,7 @@ import {join} from 'node:path';
 import {decodeActionBundle} from '@shipfox/workflow-document';
 import {buildPackage, writeBuildOutput} from '../src/build.js';
 import {discoverPackages, loadConfig} from '../src/config.js';
-import {TEMPLATE_FILES, TEMPLATE_PATH, TemplateRepository} from './fixtures/template-repository.js';
+import {TEMPLATE_FILES, TemplateRepository} from './fixtures/template-repository.js';
 import {buildFixture, TOOL_VERSION} from './helpers.js';
 
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
@@ -175,20 +175,6 @@ describe('buildPackage for a template', () => {
     repository.commit();
 
     await expect(buildFixture(repository)).resolves.toBeDefined();
-  });
-
-  it('has no action recipe yet', async () => {
-    await expect(
-      buildPackage({
-        configured: {
-          package: 'shipfox/an-action',
-          kind: 'action',
-          path: TEMPLATE_PATH,
-          directory: repository.directory,
-        },
-        toolVersion: TOOL_VERSION,
-      }),
-    ).rejects.toThrow('the action recipe is not available yet');
   });
 
   it('writes the blobs and a summary below .shipfox-registry', async () => {

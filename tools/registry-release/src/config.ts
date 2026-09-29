@@ -24,6 +24,8 @@ export interface ConfiguredPackage {
   /** `namespace/name`. The name is the directory name. */
   package: string;
   kind: RegistryReleaseConfig['packages'][number]['kind'];
+  /** The repository root. */
+  root: string;
   /** Repository-relative, with `/` separators. */
   path: string;
   directory: string;
@@ -58,6 +60,7 @@ export async function discoverPackages({
       found.push({
         package: `${config.namespace}/${name}`,
         kind,
+        root,
         path: `${parent}/${name}`,
         directory: join(root, parent, name),
       });

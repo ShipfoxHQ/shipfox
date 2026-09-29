@@ -20,6 +20,7 @@
     "@shipfox/registry-format": "workspace:*",
     "@shipfox/workflow-document": "workspace:*",
     "@shipfox/workflow-templates": "workspace:*",
+    "esbuild": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:"
   },
