@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {GithubInstallationAlreadyLinkedError} from '#core/errors.js';
 import {db} from './db.js';
 import {
+  deleteGithubInstallationByConnectionId,
   getGithubInstallationByInstallationId,
   type UpsertGithubInstallationParams,
   upsertGithubInstallation,
@@ -57,6 +58,18 @@ describe('github installations persistence', () => {
     await expect(repoint).rejects.toBeInstanceOf(GithubInstallationAlreadyLinkedError);
     const fetched = await getGithubInstallationByInstallationId(installationId);
     expect(fetched?.connectionId).toBe(firstConnectionId);
+  });
+
+  test('deletes an installation by connection', async () => {
+    const installation = installationParams();
+    await upsertGithubInstallation(installation);
+
+    await expect(deleteGithubInstallationByConnectionId(installation.connectionId)).resolves.toBe(
+      true,
+    );
+    await expect(getGithubInstallationByInstallationId(installation.installationId)).resolves.toBe(
+      undefined,
+    );
   });
 
   test('getGithubInstallationByInstallationId returns undefined for a miss', async () => {

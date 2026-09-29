@@ -35,6 +35,7 @@ async function loadGithubModuleParts(
     GITHUB_INSTALLATION_TOKEN_GENERATION_KEY,
     createGithubIntegrationProvider,
     getGithubInstallationByInstallationId,
+    deleteGithubInstallationByConnectionId,
     githubInstallationTokenGenerationNamespace,
     githubInstallationTokenNamespace,
     db: githubDb,
@@ -183,6 +184,11 @@ async function loadGithubModuleParts(
     deleteSecrets: options.secrets?.deleteSecrets,
     checkoutTokenCache,
     agentTools: {tokenProvider},
+    cleanup: {
+      deleteConnectionRecords: async (connection, {tx}) => {
+        await deleteGithubInstallationByConnectionId(connection.id, {tx});
+      },
+    },
     ...(options.requireActiveWorkspaceMembership
       ? {requireActiveWorkspaceMembership: options.requireActiveWorkspaceMembership}
       : {}),
