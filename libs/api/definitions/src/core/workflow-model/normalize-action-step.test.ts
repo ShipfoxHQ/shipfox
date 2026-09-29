@@ -136,6 +136,7 @@ describe('normalizeWorkflowDocument action steps', () => {
       kind: 'action',
       action: {
         uses: USES,
+        origin: 'local',
         digest: DIGEST,
         name: 'Slack thread to Markdown',
         main: 'index.ts',
@@ -176,6 +177,31 @@ describe('normalizeWorkflowDocument action steps', () => {
     expect(step?.kind === 'action' ? step.templates?.with : undefined).toEqual({
       channel_id: [expect.objectContaining({kind: 'deferred', roots: ['vars']})],
       token: [expect.objectContaining({kind: 'deferred', fillTarget: 'runner-fill'})],
+    });
+  });
+
+  test('records the package and version of a registry action', () => {
+    const registryUses = 'shipfox/slack-thread@1.4.2';
+    const resolved: ResolvedActions = new Map([
+      [
+        registryUses,
+        {
+          manifest: manifest(),
+          digest: DIGEST,
+          registry: {package: 'shipfox/slack-thread', version: '1.4.2'},
+        },
+      ],
+    ]);
+
+    const model = normalize(document(actionStep({uses: registryUses})), resolved);
+
+    const step = model.jobs[0]?.steps[0];
+    expect(step?.kind === 'action' ? step.action : undefined).toMatchObject({
+      uses: registryUses,
+      origin: 'registry',
+      package: 'shipfox/slack-thread',
+      version: '1.4.2',
+      digest: DIGEST,
     });
   });
 

@@ -18,6 +18,10 @@ import {
   integrationsInterModuleContract,
 } from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import {
+  type RegistryInterModuleClient,
+  registryInterModuleContract,
+} from '@shipfox/api-registry-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {boundedMap} from '@shipfox/node-module';
 import type {ActionBundleFile, WorkflowDocument} from '@shipfox/workflow-document';
@@ -25,10 +29,10 @@ import {upsertActionSnapshot} from '#db/action-snapshots.js';
 import {definitionTriggersFor} from '#db/definition-triggers.js';
 import {findOrCreateWorkflowLineage} from '#db/definitions.js';
 import {recordDefinitionRefResolution} from '#metrics/index.js';
-import {definitionActionsEnabled} from '../config.js';
+import {definitionActionsEnabled, definitionRegistryActionsEnabled} from '../config.js';
 import {checkActionImports} from './check-action-imports.js';
 import {collectActionReferences} from './collect-action-references.js';
-import type {ResolvedActions} from './entities/action-snapshot.js';
+import type {ActionSnapshotSource} from './entities/action-snapshot.js';
 import type {ValidationDiagnostic} from './entities/validation-diagnostic.js';
 import {
   ActionResolutionError,
@@ -44,7 +48,11 @@ import {
 import {needsIntegrationValidationContext} from './needs-integration-validation-context.js';
 import type {ParseDefinitionOptions, ParsedDefinition} from './parse-definition.js';
 import {parseDefinitionWithDiagnostics} from './parse-definition.js';
-import {type ResolvedAction, resolveWorkflowActions} from './resolve-actions.js';
+import {
+  type ResolvedAction,
+  resolveWorkflowActions,
+  summarizeResolvedActions,
+} from './resolve-actions.js';
 import {
   DEFAULT_WORKFLOW_PATH,
   isWorkflowFile,
@@ -73,9 +81,16 @@ export interface ResolveDefinitionAtRefParams {
   actions?: readonly ActionUpload[] | undefined;
   /** Accepts action steps (`uses`). Defaults to `DEFINITION_ACTIONS_ENABLED`. */
   actionsEnabled?: boolean | undefined;
+  /**
+   * Accepts registry references in `uses`. Defaults to on when
+   * `DEFINITION_ACTIONS_ENABLED` is on and `REGISTRY_URL` is set.
+   */
+  registryActionsEnabled?: boolean | undefined;
   projects: ProjectsModuleClient;
   agent: AgentInterModuleClient;
   integrations: IntegrationsModuleClient;
+  /** Resolves registry actions. Without it, a registry reference fails. */
+  registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
   signal?: AbortSignal;
 }
 
@@ -206,9 +221,11 @@ async function resolveDefinitionAtRefUnsafe(
   );
   throwIfAborted(params.signal);
   const actionsEnabled = params.actionsEnabled ?? definitionActionsEnabled;
+  const registryActionsEnabled = params.registryActionsEnabled ?? definitionRegistryActionsEnabled;
   const document = parseWorkflowDocumentAtRef(snapshot.content, {
     agentValidationCatalog,
     actionsEnabled,
+    registryActionsEnabled,
   });
   const uploadedPaths = new Set(uploads.map((upload) => upload.path));
   const actions = await resolveDevRunActions({
@@ -218,19 +235,15 @@ async function resolveDefinitionAtRefUnsafe(
     configPath: params.configPath,
     document,
     uploads: new Map(uploads.map((upload) => [upload.path, upload.files])),
+    registry: params.registry,
     signal: params.signal,
   });
-  const actionManifests: ResolvedActions = new Map(
-    [...actions].map(([uses, action]) => [
-      uses,
-      {manifest: action.manifest, digest: action.bundle.digest},
-    ]),
-  );
+  const actionManifests = summarizeResolvedActions(actions);
 
   const parsed = await parseDefinitionAtRef({
     content: snapshot.content,
     document,
-    options: {agentValidationCatalog, actionsEnabled, actionManifests},
+    options: {agentValidationCatalog, actionsEnabled, registryActionsEnabled, actionManifests},
     integrations: params.integrations,
     source,
     signal: params.signal,
@@ -243,7 +256,7 @@ async function resolveDefinitionAtRefUnsafe(
       projectId: params.projectId,
       manifest: action.manifest,
       bundle: action.bundle,
-      source: uploadedPaths.has(action.uses) ? 'dev_local' : 'vcs',
+      source: snapshotSourceOf(action, uploadedPaths),
     });
   }
   const workflowId = await findOrCreateWorkflowLineage({
@@ -567,10 +580,13 @@ function assertLocalUploadSize(params: {
 /** Parses the document alone, to learn which actions to read before full validation. */
 function parseWorkflowDocumentAtRef(
   content: string,
-  options: ParseDefinitionOptions & {actionsEnabled: boolean},
+  options: ParseDefinitionOptions & {actionsEnabled: boolean; registryActionsEnabled: boolean},
 ): WorkflowDocument {
   try {
-    return parseWorkflowYaml(content, {actions: options.actionsEnabled});
+    return parseWorkflowYaml(content, {
+      actions: options.actionsEnabled,
+      registryActions: options.registryActionsEnabled,
+    });
   } catch (error) {
     // Full validation fails the same way and reports the failure with its details.
     parseWorkflowDefinition(content, options);
@@ -590,6 +606,7 @@ async function resolveDevRunActions(params: {
   configPath: string;
   document: WorkflowDocument;
   uploads: ReadonlyMap<string, readonly ActionBundleFile[]>;
+  registry: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
   signal: AbortSignal | undefined;
 }): Promise<Map<string, ResolvedAction>> {
   if (collectActionReferences(params.document).length === 0) return new Map();
@@ -609,6 +626,7 @@ async function resolveDevRunActions(params: {
       },
       workflows: [{path: params.configPath, document: params.document}],
       uploads: params.uploads,
+      registry: params.registry,
     });
   } catch (error) {
     throwIfAborted(params.signal);
@@ -619,6 +637,17 @@ async function resolveDevRunActions(params: {
     ) {
       throw sourceUnavailable(error, 'The action files at the ref could not be read');
     }
+    if (isInterModuleKnownError(registryInterModuleContract.methods.resolveVersion, error)) {
+      // A dev run has no retry, so the caller reads the reason and tries again.
+      const message = 'A registry action could not be resolved because the registry is unavailable';
+      throw new DefinitionAtRefError(
+        'invalid-definition',
+        `Invalid workflow definition: ${message}`,
+        {
+          errors: boundedValidationErrors([{message}]),
+        },
+      );
+    }
     throw error;
   }
 
@@ -626,6 +655,8 @@ async function resolveDevRunActions(params: {
   // only warns, so a forgotten upload is caught before any code runs.
   const errors: ValidationError[] = [];
   for (const action of actions.values()) {
+    // Registry actions are bundled, and the runner loads them strictly.
+    if (action.registry !== undefined) continue;
     for (const issue of await checkActionImports({files: action.files})) {
       errors.push({message: `Action ${action.uses}: ${issue.message}`});
     }
@@ -639,6 +670,14 @@ async function resolveDevRunActions(params: {
     );
   }
   return actions;
+}
+
+function snapshotSourceOf(
+  action: ResolvedAction,
+  uploadedPaths: ReadonlySet<string>,
+): ActionSnapshotSource {
+  if (action.registry !== undefined) return 'registry';
+  return uploadedPaths.has(action.uses) ? 'dev_local' : 'vcs';
 }
 
 function invalidAction(error: ActionResolutionError): DefinitionAtRefError {

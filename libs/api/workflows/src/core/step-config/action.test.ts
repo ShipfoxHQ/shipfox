@@ -124,6 +124,45 @@ function stepFrom(materialized: Awaited<ReturnType<typeof materializeActionStep>
 }
 
 describe('action step config', () => {
+  test('marks an action from a model that predates origins as local', async () => {
+    const step = slackThreadStep({channel_id: 'C1', thread_ts: '1.0'});
+
+    const materialized = await materializeActionStep(step);
+
+    expect(materialized.config.action).toEqual({
+      uses: './.shipfox/actions/slack-thread',
+      origin: 'local',
+      digest: DIGEST,
+      main: 'index.ts',
+      name: 'Slack thread to Markdown',
+    });
+  });
+
+  test('carries the package and version of a registry action', async () => {
+    const step = slackThreadStep({channel_id: 'C1', thread_ts: '1.0'});
+
+    const materialized = await materializeActionStep({
+      ...step,
+      uses: 'shipfox/slack-thread@1.4.2',
+      action: {
+        ...step.action,
+        origin: 'registry',
+        package: 'shipfox/slack-thread',
+        version: '1.4.2',
+      },
+    });
+
+    expect(materialized.config.action).toEqual({
+      uses: 'shipfox/slack-thread@1.4.2',
+      origin: 'registry',
+      package: 'shipfox/slack-thread',
+      version: '1.4.2',
+      digest: DIGEST,
+      main: 'index.ts',
+      name: 'Slack thread to Markdown',
+    });
+  });
+
   test('materializes the action, known inputs, env, bindings, and outputs', async () => {
     const materialized = await materializeActionStep(
       slackThreadStep({

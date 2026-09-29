@@ -2904,6 +2904,9 @@ importers:
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
+      '@shipfox/api-registry-dto':
+        specifier: workspace:*
+        version: link:../registry-dto
       '@shipfox/api-secrets-dto':
         specifier: workspace:*
         version: link:../secrets-dto
@@ -5187,6 +5190,9 @@ importers:
       '@shipfox/api-registry':
         specifier: workspace:*
         version: link:../registry
+      '@shipfox/api-registry-dto':
+        specifier: workspace:*
+        version: link:../registry-dto
       '@shipfox/api-runners':
         specifier: workspace:*
         version: link:../runners

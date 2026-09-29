@@ -1,5 +1,6 @@
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {RegistryInterModuleClient} from '@shipfox/api-registry-dto/inter-module';
 import {markErrorReported} from '@shipfox/node-error-monitoring';
 import {Context} from '@temporalio/activity';
 import {ApplicationFailure} from '@temporalio/common';
@@ -68,6 +69,8 @@ export interface MarkSyncSucceededActivityInput extends SyncRefScopedInput {
 
 export interface DefinitionSyncActivityOptions {
   workflowPath: string;
+  /** Resolves registry actions during sync. */
+  registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
 }
 
 export function createDefinitionSyncActivities(
@@ -80,6 +83,7 @@ export function createDefinitionSyncActivities(
     sourceControl,
     agent,
     integrations,
+    options?.registry,
   );
   const markDefinitionSyncSucceeded = createMarkSyncSucceededActivity();
   const markDefinitionSyncFailed = createMarkSyncFailedActivity();
@@ -147,6 +151,7 @@ function createFetchAndApplyActivity(
   sourceControl: DefinitionsSourceControl,
   agent: AgentInterModuleClient,
   integrations?: IntegrationsModuleClient | undefined,
+  registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined,
 ) {
   return async function fetchAndApplyDefinitionWorkflows(
     input: FetchAndApplyActivityInput,
@@ -156,6 +161,7 @@ function createFetchAndApplyActivity(
         ...input,
         ref: input.sourceCommitSha ?? input.sourceRef,
         sourceControl,
+        registry,
         agentValidationCatalog: await agent.getValidationCatalogV2({
           workspaceId: input.workspaceId,
         }),
@@ -179,7 +185,7 @@ function createFetchAndApplyActivity(
           projectId: input.projectId,
           manifest: action.manifest,
           bundle: action.bundle,
-          source: 'vcs',
+          source: action.registry === undefined ? 'vcs' : 'registry',
         });
       }
 

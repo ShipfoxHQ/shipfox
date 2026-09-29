@@ -73,6 +73,9 @@ export function resolveActionStepConfig(
     config: {
       action: {
         uses: step.action.uses,
+        origin: step.action.origin ?? 'local',
+        ...(step.action.package === undefined ? {} : {package: step.action.package}),
+        ...(step.action.version === undefined ? {} : {version: step.action.version}),
         digest: step.action.digest,
         main: step.action.main,
         name: step.action.name,

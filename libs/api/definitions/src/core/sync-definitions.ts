@@ -2,10 +2,14 @@ import {createHash} from 'node:crypto';
 import type {AgentValidationCatalogV2} from '@shipfox/api-agent-dto/inter-module';
 import {MAX_WORKFLOW_FILE_BYTES} from '@shipfox/api-definitions-dto';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
+import {
+  type RegistryInterModuleClient,
+  registryInterModuleContract,
+} from '@shipfox/api-registry-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {boundedMap} from '@shipfox/node-module';
 import type {WorkflowDocument} from '@shipfox/workflow-document';
-import {definitionActionsEnabled} from '../config.js';
+import {definitionActionsEnabled, definitionRegistryActionsEnabled} from '../config.js';
 import {checkActionImports} from './check-action-imports.js';
 import {collectActionReferences} from './collect-action-references.js';
 import type {ResolvedActions} from './entities/action-snapshot.js';
@@ -29,7 +33,11 @@ import {
 } from './integrations.js';
 import {needsIntegrationValidationContext} from './needs-integration-validation-context.js';
 import {parseDefinitionWithDiagnostics, stripDefinitionDiagnostics} from './parse-definition.js';
-import {type ResolvedAction, resolveWorkflowActions} from './resolve-actions.js';
+import {
+  type ResolvedAction,
+  resolveWorkflowActions,
+  summarizeResolvedActions,
+} from './resolve-actions.js';
 import type {ValidationError} from './validate-definition.js';
 import {parseWorkflowYaml} from './workflow-yaml/index.js';
 
@@ -115,6 +123,13 @@ export interface FetchAndParseWorkflowsParams extends SyncSourceContext {
   loadIntegrationValidationContext?: (() => Promise<IntegrationValidationContext>) | undefined;
   /** Accepts action steps (`uses`). Defaults to `DEFINITION_ACTIONS_ENABLED`. */
   actionsEnabled?: boolean | undefined;
+  /**
+   * Accepts registry references in `uses`. Defaults to on when
+   * `DEFINITION_ACTIONS_ENABLED` is on and `REGISTRY_URL` is set.
+   */
+  registryActionsEnabled?: boolean | undefined;
+  /** Resolves registry actions. Without it, a registry reference fails sync. */
+  registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
 }
 
 export interface ParsedWorkflows {
@@ -133,6 +148,7 @@ export async function fetchAndParseWorkflows(
   params: FetchAndParseWorkflowsParams,
 ): Promise<ParsedWorkflows> {
   const actionsEnabled = params.actionsEnabled ?? definitionActionsEnabled;
+  const registryActionsEnabled = params.registryActionsEnabled ?? definitionRegistryActionsEnabled;
   const fetched = await boundedMap(
     params.paths,
     FILE_FETCH_CONCURRENCY,
@@ -161,16 +177,12 @@ export async function fetchAndParseWorkflows(
       ...entry,
       agentValidationCatalog: params.agentValidationCatalog,
       actionsEnabled,
+      registryActionsEnabled,
     }),
   }));
 
   const resolvedActions = await resolveSyncActions(params, documents);
-  const actionManifests: ResolvedActions = new Map(
-    [...resolvedActions].map(([uses, action]) => [
-      uses,
-      {manifest: action.manifest, digest: action.bundle.digest},
-    ]),
-  );
+  const actionManifests = summarizeResolvedActions(resolvedActions);
 
   const integrationValidationContext =
     params.loadIntegrationValidationContext !== undefined &&
@@ -185,6 +197,7 @@ export async function fetchAndParseWorkflows(
       agentValidationCatalog: params.agentValidationCatalog,
       integrationValidationContext,
       actionsEnabled,
+      registryActionsEnabled,
       actionManifests,
     });
     return {
@@ -206,9 +219,13 @@ function parseWorkflowDocumentForSync(params: {
   content: string;
   agentValidationCatalog: AgentValidationCatalogV2;
   actionsEnabled: boolean;
+  registryActionsEnabled: boolean;
 }): WorkflowDocument {
   try {
-    return parseWorkflowYaml(params.content, {actions: params.actionsEnabled});
+    return parseWorkflowYaml(params.content, {
+      actions: params.actionsEnabled,
+      registryActions: params.registryActionsEnabled,
+    });
   } catch (error) {
     // Full validation fails the same way and reports the failure with its
     // details, before any action is read.
@@ -263,6 +280,8 @@ async function actionImportDiagnostics(
 ): Promise<DefinitionSyncDiagnostic[]> {
   const diagnostics: DefinitionSyncDiagnostic[] = [];
   for (const action of actions) {
+    // Registry actions are bundled, and the runner loads them strictly.
+    if (action.registry !== undefined) continue;
     const directory = action.uses.slice('./'.length);
     for (const issue of await checkActionImports({files: action.files})) {
       diagnostics.push({
@@ -300,12 +319,14 @@ function parseWorkflowSnapshot(params: {
   integrationValidationContext?: IntegrationValidationContext | undefined;
   agentValidationCatalog: AgentValidationCatalogV2;
   actionsEnabled: boolean;
+  registryActionsEnabled: boolean;
   actionManifests: ResolvedActions;
 }): Omit<ParsedWorkflow, 'contentHash'> {
   try {
     const definition = parseDefinitionWithDiagnostics(params.content, {
       agentValidationCatalog: params.agentValidationCatalog,
       actionsEnabled: params.actionsEnabled,
+      registryActionsEnabled: params.registryActionsEnabled,
       actionManifests: params.actionManifests,
       ...(params.integrationValidationContext === undefined
         ? {}
@@ -350,6 +371,12 @@ export function classifySyncFailure(error: unknown): SyncFailureClassification {
       retryable: false,
       ...(diagnostics.length === 0 ? {} : {diagnostics}),
     };
+  }
+  if (
+    isInterModuleKnownError(registryInterModuleContract.methods.resolveVersion, error) &&
+    error.code === 'registry-unavailable'
+  ) {
+    return {code: 'unknown', message: 'The registry is unavailable', retryable: true};
   }
   const methods = [
     integrationsInterModuleContract.methods.resolveSourceRepository,

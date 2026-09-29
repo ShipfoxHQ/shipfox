@@ -17,6 +17,7 @@ import {
   type ProjectsEventMap,
 } from '@shipfox/api-projects-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {RegistryInterModuleClient} from '@shipfox/api-registry-dto/inter-module';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {createDefinitionsSourceControl} from '#core/integrations.js';
@@ -75,12 +76,14 @@ export interface CreateDefinitionsModuleOptions {
   projects: ProjectsModuleClient;
   agent: AgentInterModuleClient;
   integrations: IntegrationsModuleClient;
+  registry: RegistryInterModuleClient;
 }
 
 export function createDefinitionsModule({
   projects,
   agent,
   integrations,
+  registry,
 }: CreateDefinitionsModuleOptions): ShipfoxModule {
   const sourceControl = createDefinitionsSourceControl(integrations);
 
@@ -111,12 +114,13 @@ export function createDefinitionsModule({
         activities: () =>
           createDefinitionSyncActivities(sourceControl, agent, integrations, {
             workflowPath: definitionWorkflowPath,
+            registry,
           }),
         workflows: [],
       },
     ],
     interModulePresentations: [
-      createDefinitionsInterModulePresentation({projects, agent, integrations}),
+      createDefinitionsInterModulePresentation({projects, agent, integrations, registry}),
     ],
   };
 }

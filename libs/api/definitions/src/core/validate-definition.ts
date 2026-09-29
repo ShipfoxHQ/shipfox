@@ -1,7 +1,11 @@
 import type {AgentValidationCatalogV2} from '@shipfox/api-agent-dto/inter-module';
 import {DEFINITION_SYNC_LAST_ERROR_MESSAGE_MAX_LENGTH} from '@shipfox/api-definitions-dto';
 import {InvalidWorkflowDocumentError} from '@shipfox/workflow-document';
-import {definitionActionsEnabled, definitionDefaultRunnerLabels} from '../config.js';
+import {
+  definitionActionsEnabled,
+  definitionDefaultRunnerLabels,
+  definitionRegistryActionsEnabled,
+} from '../config.js';
 import type {ResolvedActions} from './entities/action-snapshot.js';
 import type {IntegrationValidationContext} from './entities/integration-context.js';
 import type {ValidationDiagnostic} from './entities/validation-diagnostic.js';
@@ -24,6 +28,11 @@ export interface DefinitionValidationOptions {
   defaultRunnerLabels?: readonly string[];
   /** Accepts action steps (`uses`). Defaults to `DEFINITION_ACTIONS_ENABLED`. */
   actionsEnabled?: boolean;
+  /**
+   * Accepts registry references in `uses`. Defaults to on when
+   * `DEFINITION_ACTIONS_ENABLED` is on and `REGISTRY_URL` is set.
+   */
+  registryActionsEnabled?: boolean;
   /** Manifests of the actions the document references, keyed by `uses` path. */
   actionManifests?: ResolvedActions;
   agentValidationCatalog: AgentValidationCatalogV2;
@@ -46,6 +55,7 @@ export function validateDefinition(
   try {
     const {document, stepSourceLocations} = parseWorkflowYamlWithLocations(yamlContent, {
       actions: options.actionsEnabled ?? definitionActionsEnabled,
+      registryActions: options.registryActionsEnabled ?? definitionRegistryActionsEnabled,
     });
     const diagnostics: WorkflowModelValidationIssue[] = [];
     const model = normalizeWorkflowDocument(document, {

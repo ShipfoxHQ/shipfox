@@ -1,6 +1,13 @@
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {decodeActionBundle} from '@shipfox/workflow-document';
+import {
+  fakeRegistry,
+  REGISTRY_ACTION_MANIFEST_YAML,
+  REGISTRY_ACTION_REF,
+  registryError,
+  registryVersion,
+} from '#test/fixtures/registry-action.js';
 import {collectActionReferences} from './collect-action-references.js';
 import {ActionResolutionError} from './errors.js';
 import {
@@ -96,7 +103,7 @@ function workflow(path: string, uses: string[]) {
     path,
     document: parseWorkflowYaml(
       `name: CI\nrunner: ubuntu-latest\njobs:\n  build:\n    steps:\n${steps}\n`,
-      {actions: true},
+      {actions: true, registryActions: true},
     ),
   };
 }
@@ -507,5 +514,217 @@ describe('resolveWorkflowActions', () => {
     const result = await resolveWorkflowActions({...sourceContext(repository), workflows});
 
     expect(result.size).toBe(MAX_ACTIONS_PER_WORKFLOW * 2);
+  });
+});
+
+describe('resolveWorkflowActions with registry references', () => {
+  it('resolves a registry action to its verified bundle', async () => {
+    const version = await registryVersion();
+    const registry = fakeRegistry(version);
+    const context = sourceContext({});
+
+    const result = await resolveWorkflowActions({
+      ...context,
+      registry,
+      workflows: [workflow('.shipfox/workflows/a.yml', [REGISTRY_ACTION_REF])],
+    });
+
+    const action = result.get(REGISTRY_ACTION_REF);
+    expect(action?.registry).toEqual({package: 'shipfox/slack-thread-digest', version: '1.4.2'});
+    expect(action?.bundle.digest).toBe(version.digest);
+    expect(action?.manifest.name).toBe('Slack thread digest');
+    expect(registry.resolveVersion).toHaveBeenCalledWith({
+      package: 'shipfox/slack-thread-digest',
+      version: '1.4.2',
+      kind: 'action',
+    });
+    expect(context.sourceControl.listFiles).not.toHaveBeenCalled();
+  });
+
+  it('resolves local and registry actions of one workflow', async () => {
+    const registry = fakeRegistry(await registryVersion());
+
+    const result = await resolveWorkflowActions({
+      ...sourceContext(slackAction()),
+      registry,
+      workflows: [
+        workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/slack', REGISTRY_ACTION_REF]),
+      ],
+    });
+
+    expect(result.get('./.shipfox/actions/slack')?.registry).toBeUndefined();
+    expect(result.get(REGISTRY_ACTION_REF)?.registry?.version).toBe('1.4.2');
+  });
+
+  it('ignores an upload named like a registry reference', async () => {
+    const registry = fakeRegistry(await registryVersion());
+
+    const result = await resolveWorkflowActions({
+      ...sourceContext({}),
+      registry,
+      uploads: new Map([
+        [REGISTRY_ACTION_REF, [{path: 'action.yml', content: 'name: Fake\nmain: a.js\n'}]],
+      ]),
+      workflows: [workflow('.shipfox/workflows/a.yml', [REGISTRY_ACTION_REF])],
+    });
+
+    expect(result.get(REGISTRY_ACTION_REF)?.manifest.name).toBe('Slack thread digest');
+  });
+
+  it('counts registry and local actions toward the per-workflow limit', async () => {
+    const registry = fakeRegistry(await registryVersion());
+    const local = Array.from({length: 10}, (_, index) => `./.shipfox/actions/a${index}`);
+    const remote = Array.from({length: 11}, (_, index) => `shipfox/action-${index}@1.0.0`);
+
+    const error = await captureError(
+      resolveWorkflowActions({
+        ...sourceContext({}),
+        registry,
+        workflows: [workflow('.shipfox/workflows/a.yml', [...local, ...remote])],
+      }),
+    );
+
+    expect(error.code).toBe('action-too-large');
+    expect(error.filePath).toBe('.shipfox/workflows/a.yml');
+    expect(registry.resolveVersion).not.toHaveBeenCalled();
+  });
+
+  it('accepts exactly the limit across local and registry actions', async () => {
+    const version = await registryVersion();
+    const repository: Record<string, RepositoryEntry> = {};
+    const local = Array.from({length: 10}, (_, index) => {
+      repository[`.shipfox/actions/a${index}/action.yml`] = {content: manifestYaml};
+      repository[`.shipfox/actions/a${index}/index.ts`] = {content: ''};
+      return `./.shipfox/actions/a${index}`;
+    });
+    const remote = Array.from({length: 10}, (_, index) => `shipfox/action-${index}@1.0.0`);
+
+    const result = await resolveWorkflowActions({
+      ...sourceContext(repository),
+      registry: fakeRegistry(version),
+      workflows: [workflow('.shipfox/workflows/a.yml', [...local, ...remote])],
+    });
+
+    expect(result.size).toBe(MAX_ACTIONS_PER_WORKFLOW);
+  });
+
+  it.each([
+    ['registry-version-not-found', 'action-not-found', 'was not found'],
+    ['registry-signature-invalid', 'action-invalid', 'does not verify'],
+    ['registry-disabled', 'action-invalid', 'not available'],
+  ] as const)('reports %s as %s on the workflow file', async (registryCode, code, text) => {
+    const error = await captureError(
+      resolveWorkflowActions({
+        ...sourceContext({}),
+        registry: fakeRegistry(registryError(registryCode)),
+        workflows: [workflow('.shipfox/workflows/a.yml', [REGISTRY_ACTION_REF])],
+      }),
+    );
+
+    expect(error.code).toBe(code);
+    expect(error.message).toContain(REGISTRY_ACTION_REF);
+    expect(error.message).toContain(text);
+    expect(error.filePath).toBe('.shipfox/workflows/a.yml');
+    expect(error.details).toEqual([{message: error.message}]);
+  });
+
+  it('lets an unavailable registry through for a retry', async () => {
+    const unavailable = registryError('registry-unavailable');
+
+    await expect(
+      resolveWorkflowActions({
+        ...sourceContext({}),
+        registry: fakeRegistry(unavailable),
+        workflows: [workflow('.shipfox/workflows/a.yml', [REGISTRY_ACTION_REF])],
+      }),
+    ).rejects.toBe(unavailable);
+  });
+
+  it('fails a registry reference when no registry is configured', async () => {
+    const error = await captureError(
+      resolveWorkflowActions({
+        ...sourceContext({}),
+        workflows: [workflow('.shipfox/workflows/a.yml', [REGISTRY_ACTION_REF])],
+      }),
+    );
+
+    expect(error.code).toBe('action-invalid');
+    expect(error.filePath).toBe('.shipfox/workflows/a.yml');
+  });
+
+  it('rejects a bundle whose action.yml differs from the signed manifest', async () => {
+    const version = await registryVersion({
+      manifest: {name: 'Something else', main: 'index.mjs'},
+    });
+
+    const error = await captureError(
+      resolveWorkflowActions({
+        ...sourceContext({}),
+        registry: fakeRegistry(version),
+        workflows: [workflow('.shipfox/workflows/a.yml', [REGISTRY_ACTION_REF])],
+      }),
+    );
+
+    expect(error.code).toBe('action-invalid');
+    expect(error.message).toContain('differs from its signed manifest');
+  });
+
+  it('accepts a signed manifest that omits the manifest defaults', async () => {
+    const version = await registryVersion({
+      files: [
+        {
+          path: 'action.yml',
+          content: 'name: Digest\nmain: index.mjs\ninputs:\n  channel:\n    type: string\n',
+        },
+        {path: 'index.mjs', content: ''},
+      ],
+      manifest: {name: 'Digest', main: 'index.mjs', inputs: {channel: {}}},
+    });
+
+    const result = await resolveWorkflowActions({
+      ...sourceContext({}),
+      registry: fakeRegistry(version),
+      workflows: [workflow('.shipfox/workflows/a.yml', [REGISTRY_ACTION_REF])],
+    });
+
+    expect(result.get(REGISTRY_ACTION_REF)?.manifest.inputs?.channel?.required).toBe(false);
+  });
+
+  it('rejects a bundle that does not match the signed digest', async () => {
+    const version = await registryVersion();
+    const other = await registryVersion({
+      files: [
+        {path: 'action.yml', content: REGISTRY_ACTION_MANIFEST_YAML},
+        {path: 'index.mjs', content: 'export default 2;\n'},
+      ],
+    });
+
+    const error = await captureError(
+      resolveWorkflowActions({
+        ...sourceContext({}),
+        registry: fakeRegistry({...version, content: other.content}),
+        workflows: [workflow('.shipfox/workflows/a.yml', [REGISTRY_ACTION_REF])],
+      }),
+    );
+
+    expect(error.code).toBe('action-invalid');
+    expect(error.message).toContain('invalid bundle');
+  });
+
+  it('rejects a bundle without its main file on the workflow file', async () => {
+    const version = await registryVersion({
+      files: [{path: 'action.yml', content: REGISTRY_ACTION_MANIFEST_YAML}],
+    });
+
+    const error = await captureError(
+      resolveWorkflowActions({
+        ...sourceContext({}),
+        registry: fakeRegistry(version),
+        workflows: [workflow('.shipfox/workflows/a.yml', [REGISTRY_ACTION_REF])],
+      }),
+    );
+
+    expect(error.code).toBe('action-invalid');
+    expect(error.filePath).toBe('.shipfox/workflows/a.yml');
   });
 });
