@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {gunzipSync} from 'node:zlib';
-import {REGISTRY_DIGEST_PATTERN} from '@shipfox/registry-format';
+import {registryBlobKey} from '@shipfox/registry-format';
 import {SOURCE_LIMIT_BYTES} from '#publish/limits.js';
 import {type RegistryStorage, StoragePreconditionFailedError} from '#storage/storage.js';
 
@@ -22,14 +22,6 @@ export class BlobConflictError extends Error {
   constructor(digest: string) {
     super(`The store already holds different content at the key of ${digest}`);
   }
-}
-
-/** The bucket key of a `sha256:<hex>` digest. */
-export function blobKey(digest: string): string {
-  if (!REGISTRY_DIGEST_PATTERN.test(digest)) {
-    throw new TypeError(`${JSON.stringify(digest)} is not a sha256 digest`);
-  }
-  return `blobs/sha256/${digest.slice('sha256:'.length)}`;
 }
 
 /**
@@ -58,7 +50,7 @@ export interface BlobStore {
 export function createBlobStore(storage: RegistryStorage): BlobStore {
   return {
     async put({digest, body}) {
-      const key = blobKey(digest);
+      const key = registryBlobKey(digest);
       if (contentDigest(body) !== digest) throw new BlobDigestMismatchError(digest);
       try {
         await storage.put({

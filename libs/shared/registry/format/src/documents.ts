@@ -78,7 +78,7 @@ export const registryTemplateVersionDocumentSchema = versionDocumentBaseSchema.e
   composition: z.number().int().positive(),
 });
 
-/** The signed payload of a version envelope, `v1/packages/<ns>/<name>/versions/<v>.json`. */
+/** The signed payload of a version envelope, `GET /v1/packages/{ns}/{name}/versions/{v}`. */
 export const registryVersionDocumentSchema = z.discriminatedUnion('kind', [
   registryActionVersionDocumentSchema,
   registryTemplateVersionDocumentSchema,

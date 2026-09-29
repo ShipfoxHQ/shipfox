@@ -2,9 +2,8 @@ import {generateKeyPairSync} from 'node:crypto';
 import {createServer} from 'node:http';
 import type {AddressInfo} from 'node:net';
 import {closeApp} from '@shipfox/node-fastify';
-import {verifyRegistryVersionEnvelope} from '@shipfox/registry-format';
+import {registryBlobKey, verifyRegistryVersionEnvelope} from '@shipfox/registry-format';
 import {and, eq} from 'drizzle-orm';
-import {blobKey} from '#blobs.js';
 import {db} from '#db/db.js';
 import {audit} from '#db/schema/audit.js';
 import {packages} from '#db/schema/packages.js';
@@ -146,8 +145,12 @@ describe('PUT /v1/packages/:namespace/:name/versions/:version', () => {
         capabilityChange: false,
       });
       expect(version?.document).toEqual(documentOf(envelope));
-      expect((await registry.storage.get(blobKey(content.digest)))?.body).toEqual(content.gzip);
-      expect((await registry.storage.get(blobKey(source.digest)))?.body).toEqual(source.gzip);
+      expect((await registry.storage.get(registryBlobKey(content.digest)))?.body).toEqual(
+        content.gzip,
+      );
+      expect((await registry.storage.get(registryBlobKey(source.digest)))?.body).toEqual(
+        source.gzip,
+      );
       expect(await auditRows()).toMatchObject([
         {
           event: 'version-published',
@@ -261,7 +264,7 @@ describe('PUT /v1/packages/:namespace/:name/versions/:version', () => {
 
       const crashed = await publishAction({content, source});
       const afterCrash = {
-        blob: (await registry.storage.get(blobKey(content.digest)))?.body,
+        blob: (await registry.storage.get(registryBlobKey(content.digest)))?.body,
         versions: await storedVersions(),
       };
       const retried = await publishAction({content, source});
