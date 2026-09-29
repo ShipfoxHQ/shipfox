@@ -12,6 +12,7 @@ import {ProjectWorkflowsPage} from './project-workflows-page.js';
 
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
+const DEFINITION_ID = '55555555-5555-4555-8555-555555555555';
 const DEPLOY_WORKFLOW_ROW_REGEX = /Deploy production/;
 
 describe('ProjectWorkflowsPage', () => {
@@ -581,6 +582,37 @@ describe('ProjectWorkflowsPage', () => {
     });
   });
 
+  test('shows the registry packages of the opened definition', async () => {
+    configureApiClient({
+      fetchImpl: createProjectDetailFetch({
+        packageUpdates: jsonResponse({
+          updates: [
+            {
+              kind: 'action',
+              package: 'shipfox/slack-thread-digest',
+              version: '1.4.2',
+              latest: '1.6.0',
+              behind: true,
+              bump: 'minor',
+              capability_change: false,
+              steps: ['deploy.0'],
+              changelog: [],
+            },
+          ],
+        }),
+      }),
+    });
+
+    renderWorkflowsPage();
+
+    const workflowName = (await screen.findAllByText('Deploy production'))[0];
+    if (!workflowName) throw new Error('Workflow row was not rendered');
+    fireEvent.click(workflowName);
+
+    expect(await screen.findByText('Update available: 1.4.2 to 1.6.0')).toBeInTheDocument();
+    expect(screen.getByRole('region', {name: 'Packages'})).toBeInTheDocument();
+  });
+
   test('queues a run from a workflow definition', async () => {
     configureApiClient({fetchImpl: createProjectDetailFetch()});
 
@@ -627,11 +659,13 @@ function createProjectDetailFetch({
   definitions = jsonResponse(definitionsDto()),
   run = jsonResponse(runDto(), {status: 201}),
   connections = jsonResponse(connectionsDto()),
+  packageUpdates = jsonResponse({updates: []}),
 }: {
   project?: Response;
   definitions?: Response;
   run?: Response;
   connections?: Response;
+  packageUpdates?: Response;
 } = {}) {
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(requestInputUrl(input));
@@ -645,6 +679,12 @@ function createProjectDetailFetch({
     }
     if (url.pathname === '/integration-connections') {
       return Promise.resolve(connections.clone());
+    }
+    if (
+      url.pathname ===
+      `/workspaces/${PROJECT_TEST_WID}/definitions/${DEFINITION_ID}/package-updates`
+    ) {
+      return Promise.resolve(packageUpdates.clone());
     }
     if (
       url.pathname.startsWith('/workflow-definitions/') &&
@@ -706,7 +746,7 @@ function baseDefinitionsDto() {
   return {
     definitions: [
       {
-        id: '55555555-5555-4555-8555-555555555555',
+        id: DEFINITION_ID,
         project_id: PROJECT_ID,
         config_path: '.shipfox/workflows/deploy.yml',
         source: 'vcs',

@@ -24,7 +24,9 @@ import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {type ReactNode, useState} from 'react';
+import {DefinitionPackagesPanel} from '#components/definition-packages-panel/definition-packages-panel.js';
 import {WorkflowDefinitionsTable} from '#components/workflow-definitions-table.js';
+import {usePackageUpdatesQuery} from '#hooks/api/package-updates.js';
 import {useFireManualWorkflowMutation} from '#hooks/api/workflow-runs.js';
 
 export function ProjectWorkflowsPage({projectId}: {projectId: string}) {
@@ -132,6 +134,7 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
         ) : null}
 
         <DefinitionSheet
+          workspaceId={projectQuery.data?.workspaceId}
           definition={selectedDefinition}
           onOpenChange={(open) => {
             if (!open) setSelectedDefinition(null);
@@ -284,9 +287,11 @@ function groupDiagnosticsByFilePath(
 }
 
 function DefinitionSheet({
+  workspaceId,
   definition,
   onOpenChange,
 }: {
+  workspaceId: string | undefined;
   definition: Definition | null;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -319,6 +324,9 @@ function DefinitionSheet({
                 <Metadata label="Ref" value={definition.ref ?? 'Not set'} />
                 <Metadata label="SHA" value={definition.sha ?? 'Not set'} />
               </div>
+              {workspaceId ? (
+                <DefinitionPackages workspaceId={workspaceId} definitionId={definition.id} />
+              ) : null}
               <div className="flex w-full flex-col gap-inline">
                 <Text size="sm" bold>
                   Normalized definition
@@ -335,6 +343,21 @@ function DefinitionSheet({
       </SheetContent>
     </Sheet>
   );
+}
+
+/**
+ * The notice is informational: it stays hidden until the first load succeeds, and a refetch keeps
+ * the last answer on screen, even when the refetch fails.
+ */
+function DefinitionPackages({
+  workspaceId,
+  definitionId,
+}: {
+  workspaceId: string;
+  definitionId: string;
+}) {
+  const packageUpdatesQuery = usePackageUpdatesQuery(workspaceId, definitionId);
+  return <DefinitionPackagesPanel updates={packageUpdatesQuery.data ?? []} />;
 }
 
 function Metadata({label, value}: {label: string; value: string}) {
