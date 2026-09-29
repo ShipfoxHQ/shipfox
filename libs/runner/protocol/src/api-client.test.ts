@@ -726,6 +726,43 @@ describe('api-client auth contexts', () => {
     expect(calls[0]?.authorization).toBe('Bearer lease-def');
   });
 
+  it('reportStep includes log_path when a finalized log exists', async () => {
+    stubFetch(() => jsonResponse({ok: true, cancel: false}));
+    const leaseClient = createLeaseClient('lease-log-path');
+
+    await reportStep(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      status: 'succeeded',
+      exitCode: 0,
+      logPath: '/runner/logs/job/text/step-1.log',
+      logOutcome: 'drained',
+    });
+
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      status: 'succeeded',
+      attempt: 1,
+      exit_code: 0,
+      log_path: '/runner/logs/job/text/step-1.log',
+      log_outcome: 'drained',
+    });
+  });
+
+  it('reportStep omits log_path when there is no finalized log', async () => {
+    stubFetch(() => jsonResponse({ok: true, cancel: false}));
+    const leaseClient = createLeaseClient('lease-no-log-path');
+
+    await reportStep(leaseClient, {
+      stepId: STEP_ID,
+      attempt: 1,
+      status: 'succeeded',
+      exitCode: 0,
+      logOutcome: 'drained',
+    });
+
+    expect(JSON.parse(calls[0]?.body ?? '{}')).not.toHaveProperty('log_path');
+  });
+
   it('reportStep includes output when present', async () => {
     stubFetch(() => jsonResponse({ok: true, cancel: false}));
     const leaseClient = createLeaseClient('lease-output');

@@ -1,4 +1,4 @@
-import {existsSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {gzipSync} from 'node:zlib';
@@ -219,6 +219,7 @@ interface FakeStream {
   close: ReturnType<typeof vi.fn>;
   drain: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
+  finalizeTextLog: ReturnType<typeof vi.fn>;
 }
 
 function makeFakeStream(
@@ -260,6 +261,10 @@ function makeFakeStream(
     dispose: vi.fn(() => {
       events.push(`dispose:${label}`);
     }),
+    finalizeTextLog: vi.fn((): string | undefined => {
+      events.push(`finalize:${label}`);
+      return undefined;
+    }),
   };
   const prior = createdStreams.get(label) ?? [];
   prior.push(stream);
@@ -285,6 +290,7 @@ function runLoop(params: {
   leaseToken?: () => string;
   secrets?: string[];
   cwd?: string;
+  logsDir?: string;
   agentStateDir?: string;
   subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
   registerSecrets?: (secrets: string[]) => void;
@@ -319,7 +325,7 @@ function runLoop(params: {
     signal: params.signal,
     cwd: params.cwd ?? '/work',
     gitConfigPath: GIT_CONFIG_PATH,
-    logsDir: LOGS_DIR,
+    logsDir: params.logsDir ?? LOGS_DIR,
     agentStateDir: params.agentStateDir ?? AGENT_STATE_DIR,
     jobContext: JOB_CONTEXT,
     ...(params.prepareAgentState ? {prepareAgentState: params.prepareAgentState} : {}),
@@ -678,6 +684,307 @@ describe('runJobSteps', () => {
         error: {message: 'Working directory does not exist: missing'},
       }),
     );
+  });
+
+  describe('text log path', () => {
+    let logsDir: string;
+
+    beforeEach(() => {
+      logsDir = mkdtempSync(join(tmpdir(), 'shipfox-runner-text-log-'));
+    });
+
+    afterEach(() => {
+      rmSync(logsDir, {recursive: true, force: true});
+    });
+
+    async function useRealLogStream(): Promise<void> {
+      const actual =
+        await vi.importActual<typeof import('@shipfox/runner-logs')>('@shipfox/runner-logs');
+      appendStepLogsMock.mockImplementation(
+        (_client: unknown, {offset, body}: {offset: number; body: Buffer}) =>
+          Promise.resolve({
+            status: 'committed',
+            committedLength: offset + body.length,
+            capped: false,
+          }),
+      );
+      createStepLogStreamMock.mockImplementation(
+        (opts: Parameters<typeof actual.createStepLogStream>[0]) =>
+          actual.createStepLogStream({...opts, flushIntervalMs: 5}),
+      );
+    }
+
+    function reportedLogPath(stepId: string): string | undefined {
+      const call = reportStepMock.mock.calls.find(
+        ([, params]) => (params as {stepId: string}).stepId === stepId,
+      );
+      if (!call) throw new Error(`No report for ${stepId}`);
+      return (call[1] as {logPath?: string}).logPath;
+    }
+
+    it('reports the finalized log of a run step', async () => {
+      const setup = buildSetupStep();
+      const run = buildRunStep();
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(run, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      await useRealLogStream();
+      executeRunStepMock.mockImplementation(
+        (_step, opts: {onOutput: (chunk: Buffer, src: string) => void}) => {
+          opts.onOutput(Buffer.from('compiling\nall good\n'), 'stdout');
+          return Promise.resolve({success: true, error: null, exit_code: 0});
+        },
+      );
+
+      await runLoop({signal: new AbortController().signal, logsDir});
+
+      const logPath = reportedLogPath(run.id);
+      expect(logPath).toBeDefined();
+      expect(readFileSync(logPath as string, 'utf8')).toContain('compiling\nall good\n');
+    });
+
+    it('reports the finalized log of an action step', async () => {
+      const setup = buildSetupStep();
+      const actionStep = buildStep({
+        id: '00000000-0000-0000-0000-0000000000d1',
+        name: 'Notify',
+        type: 'action',
+        position: 1,
+        config: {
+          action: {uses: './.shipfox/actions/notify', digest: 'sha256:abc', main: 'index.ts'},
+        },
+      });
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(actionStep, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      await useRealLogStream();
+      executeActionStepMock.mockImplementation(
+        (_step: StepDto, options: {onLogLine: (line: string) => void}) => {
+          options.onLogLine('notified the channel');
+          return Promise.resolve({success: true, error: null, exit_code: 0});
+        },
+      );
+
+      await runLoop({signal: new AbortController().signal, logsDir});
+
+      const logPath = reportedLogPath(actionStep.id);
+      expect(logPath).toBeDefined();
+      expect(readFileSync(logPath as string, 'utf8')).toContain('notified the channel\n');
+    });
+
+    it('reports the finalized log of a checkout step', async () => {
+      const setup = buildSetupStep();
+      const checkout = buildCheckoutStep();
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(checkout, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      await useRealLogStream();
+      executeCheckoutStepMock.mockImplementation(
+        (options: {log: {writeOutputLine: (line: string) => void}}) => {
+          options.log.writeOutputLine('Cloned acme/api');
+          return Promise.resolve({result: {success: true, error: null, exit_code: 0}});
+        },
+      );
+
+      await runLoop({signal: new AbortController().signal, logsDir});
+
+      const logPath = reportedLogPath(checkout.id);
+      expect(logPath).toBeDefined();
+      expect(readFileSync(logPath as string, 'utf8')).toContain('Cloned acme/api\n');
+    });
+
+    it('reports the log of a failed run step', async () => {
+      const setup = buildSetupStep();
+      const run = buildRunStep();
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(run, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'failed'});
+      await useRealLogStream();
+      executeRunStepMock.mockImplementation(
+        (_step, opts: {onOutput: (chunk: Buffer, src: string) => void}) => {
+          opts.onOutput(Buffer.from('boom\n'), 'stderr');
+          return Promise.resolve({
+            success: false,
+            error: {message: 'Process exited with code 2'},
+            exit_code: 2,
+          });
+        },
+      );
+
+      await runLoop({signal: new AbortController().signal, logsDir});
+
+      const logPath = reportedLogPath(run.id);
+      expect(logPath).toBeDefined();
+      expect(readFileSync(logPath as string, 'utf8')).toContain('boom\n');
+    });
+
+    it('reports no log path for a setup step', async () => {
+      const setup = buildSetupStep();
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(reportedLogPath(setup.id)).toBeUndefined();
+      expect(streamFor(setup.id).finalizeTextLog).not.toHaveBeenCalled();
+    });
+
+    it('reports no log path for an agent step', async () => {
+      const setup = buildSetupStep();
+      const agent = buildAgentStep();
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(agent, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeAgentStepMock.mockResolvedValue({
+        result: {success: true, error: null, exit_code: 0},
+      });
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(reportedLogPath(agent.id)).toBeUndefined();
+    });
+
+    it('reports no log path for an invalid working directory', async () => {
+      const setup = buildSetupStep();
+      const run = buildRunStep({config: {run: 'echo test', working_directory: 'missing'}});
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(run, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'failed'});
+      resolveWorkingDirectoryMock.mockRejectedValueOnce(new Error('Working directory missing'));
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(reportedLogPath(run.id)).toBeUndefined();
+      expect(createdStreams.has(run.id)).toBe(false);
+    });
+
+    it('reports no log path when loading the step secrets fails', async () => {
+      const setup = buildSetupStep();
+      const run = buildRunStep({
+        config: {
+          run: 'echo "$TOKEN"',
+          secret_bindings: [
+            {target: 'TOKEN', segments: [{kind: 'secret', store: 'local', key: 'API_TOKEN'}]},
+          ],
+        },
+      });
+      requestStepSecretsMock.mockRejectedValueOnce(
+        new StepSecretsRequestError(422, 'secret-not-found'),
+      );
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(run, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'failed'});
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(reportedLogPath(run.id)).toBeUndefined();
+      expect(createdStreams.has(run.id)).toBe(false);
+    });
+
+    it('reports no log path when the log stream fails to open', async () => {
+      const setup = buildSetupStep();
+      const run = buildRunStep();
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(run, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      createStepLogStreamMock
+        .mockImplementationOnce((opts: {stepId: string}) => makeFakeStream(opts.stepId))
+        .mockImplementationOnce(() => {
+          throw new Error('logs dir is a file');
+        });
+      executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(reportStepMock).toHaveBeenCalledWith(
+        leaseClient,
+        expect.objectContaining({stepId: run.id, status: 'succeeded'}),
+      );
+      expect(reportedLogPath(run.id)).toBeUndefined();
+      expect(createdStreams.has(run.id)).toBe(false);
+    });
+
+    it('reports the step without a log path when finalization throws', async () => {
+      const setup = buildSetupStep();
+      const run = buildRunStep();
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(run, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      createStepLogStreamMock.mockImplementation((opts: {stepId: string}) => {
+        const stream = makeFakeStream(opts.stepId);
+        stream.finalizeTextLog.mockImplementation(() => {
+          throw new Error('disk full');
+        });
+        return stream;
+      });
+      executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+      vi.spyOn(logger(), 'error').mockImplementation(() => undefined);
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(reportStepMock).toHaveBeenCalledWith(
+        leaseClient,
+        expect.objectContaining({stepId: run.id, status: 'succeeded'}),
+      );
+      expect(reportedLogPath(run.id)).toBeUndefined();
+    });
+
+    it('reports the step without a log path when the stream has no finalized file', async () => {
+      const setup = buildSetupStep();
+      const run = buildRunStep();
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(run, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      createStepLogStreamMock.mockImplementation((opts: {stepId: string}) => {
+        const stream = makeFakeStream(opts.stepId);
+        stream.finalizeTextLog.mockReturnValue(undefined);
+        return stream;
+      });
+      executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(reportedLogPath(run.id)).toBeUndefined();
+    });
+
+    it('finalizes the log after the stream closes and before the step is reported', async () => {
+      const setup = buildSetupStep();
+      const run = buildRunStep();
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(run, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      createStepLogStreamMock.mockImplementation((opts: {stepId: string}) => {
+        const stream = makeFakeStream(opts.stepId);
+        stream.finalizeTextLog.mockImplementation(() => {
+          events.push(`finalize:${opts.stepId}`);
+          return `${LOGS_DIR}/text/${opts.stepId}-1.log`;
+        });
+        return stream;
+      });
+      executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+      reportStepMock.mockImplementation((_client, params: {stepId: string}) => {
+        events.push(`report:${params.stepId}`);
+        return Promise.resolve({ok: true, cancel: false});
+      });
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(events.indexOf(`close:${run.id}`)).toBeLessThan(events.indexOf(`finalize:${run.id}`));
+      expect(events.indexOf(`finalize:${run.id}`)).toBeLessThan(events.indexOf(`report:${run.id}`));
+      expect(reportedLogPath(run.id)).toBe(`${LOGS_DIR}/text/${run.id}-1.log`);
+    });
   });
 
   it('reports empty response strings instead of omitting them', async () => {
