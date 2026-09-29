@@ -79,6 +79,17 @@ export async function upsertGithubInstallation(
   return toGithubInstallation(row);
 }
 
+export async function deleteGithubInstallationByConnectionId(
+  connectionId: string,
+  options: {tx?: unknown} = {},
+): Promise<boolean> {
+  const executor = (options.tx ?? db()) as GithubDb | GithubTx;
+  const result = await executor
+    .delete(githubInstallations)
+    .where(eq(githubInstallations.connectionId, connectionId));
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function getGithubInstallationByConnectionId(
   connectionId: string,
 ): Promise<GithubInstallation | undefined> {

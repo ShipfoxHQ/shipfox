@@ -94,6 +94,7 @@ export type {
 export {createGithubWebhookProcessor} from '#core/webhook-processor.js';
 export type {GithubInstallation, UpsertGithubInstallationParams} from '#db/installations.js';
 export {
+  deleteGithubInstallationByConnectionId,
   getGithubInstallationByConnectionId,
   getGithubInstallationByInstallationId,
   upsertGithubInstallation,
@@ -121,6 +122,14 @@ export interface CreateGithubIntegrationProviderOptions
   agentTools?: {tokenProvider: GithubInstallationTokenProvider} | undefined;
   /** Optional exact-scope cache for checkout credential delivery. */
   checkoutTokenCache?: GithubCheckoutTokenCachePort | undefined;
+  cleanup?:
+    | {
+        deleteConnectionRecords?: (
+          connection: {id: string},
+          options: {tx: unknown},
+        ) => Promise<void>;
+      }
+    | undefined;
 }
 
 export function createGithubIntegrationProvider(options: CreateGithubIntegrationProviderOptions) {
@@ -226,6 +235,7 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
         tokenProvider: installationTokenProvider,
       }),
     },
+    ...options.cleanup,
     ...(deleteConnectionSecrets ? {deleteConnectionSecrets} : {}),
     async connectionExternalUrl(connection: {id: string}): Promise<string | undefined> {
       const installation = await getInstallationByConnectionId(connection.id);

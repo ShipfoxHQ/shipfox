@@ -26,6 +26,7 @@ vi.mock('@shipfox/api-integration-github', async (importOriginal) => {
 });
 
 import type {
+  ConnectGithubInstallationInput,
   GithubCheckoutTokenCachePort,
   GithubCheckoutTokenScope,
 } from '@shipfox/api-integration-github';
@@ -39,6 +40,7 @@ import {
   githubInstallationTokenNamespace,
 } from '@shipfox/api-integration-github';
 import {githubProviderModule} from '#providers/github.js';
+import {createTestApp, useIntegrationRouteTest} from '#test/route-utils.js';
 
 const checkoutTokenStorageKeyPattern = /^CHECKOUT_TOKEN_V1_[A-F0-9]{64}$/u;
 
@@ -59,6 +61,46 @@ type SecretStore = {
 };
 
 describe('githubProviderModule', () => {
+  const context = useIntegrationRouteTest();
+
+  it('deletes the installation before reconnecting the same installation', async () => {
+    const part = await githubProviderModule.load();
+    const app = await createTestApp([part.provider]);
+    const providerOptions = captured.integrationProviderOptions as {
+      connectGithubInstallation: (input: ConnectGithubInstallationInput) => Promise<{id: string}>;
+    };
+    const installerUserId = crypto.randomUUID();
+    const installation: ConnectGithubInstallationInput['installation'] = {
+      installationId: '123456',
+      accountLogin: 'shipfox',
+      accountType: 'Organization',
+      repositorySelection: 'all',
+      suspendedAt: null,
+      deletedAt: null,
+      latestEvent: {id: 'installation-created'},
+      installerUserId,
+    };
+    const input: ConnectGithubInstallationInput = {
+      workspaceId: context.workspaceId,
+      installationId: installation.installationId,
+      displayName: 'GitHub shipfox',
+      installerUserId,
+      installation,
+    };
+
+    const firstConnection = await providerOptions.connectGithubInstallation(input);
+    const deleteResponse = await app.inject({
+      method: 'DELETE',
+      url: `/integration-connections/${firstConnection.id}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(deleteResponse.statusCode).toBe(204);
+    const secondConnection = await providerOptions.connectGithubInstallation(input);
+
+    expect(secondConnection.id).not.toBe(firstConnection.id);
+  });
+
   it('uses the GitHub package contract for the shared installation-token envelope', async () => {
     const cachedEnvelope = '{"token":"ghs_cached"}';
     const getSecret = vi.fn();
