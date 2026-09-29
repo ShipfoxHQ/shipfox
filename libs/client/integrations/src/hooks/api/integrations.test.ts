@@ -299,16 +299,10 @@ describe('Discord transport', () => {
     expect(requests[1]?.headers.get('authorization')).toBe('Bearer session-token');
   });
 
-  it.each([
-    ['access_denied', 'access-denied', 403],
-    ['already-linked', 'discord-installation-already-linked', 409],
-    ['state-invalid', 'invalid-discord-install-state', 400],
-    ['bot-not-in-guild', 'discord-bot-not-in-guild', 422],
-    ['provider-unavailable', 'provider-unavailable', 503],
-  ])('turns the %s callback outcome into a classified API error', async (outcome, code, status) => {
+  it('turns a denied callback outcome into a classified API error', async () => {
     configureApiClient({
       baseUrl: 'https://api.example.test',
-      fetchImpl: vi.fn(() => Promise.resolve(jsonResponse({outcome}))),
+      fetchImpl: vi.fn(() => Promise.resolve(jsonResponse({outcome: 'access_denied'}))),
     });
 
     await expect(
@@ -316,7 +310,28 @@ describe('Discord transport', () => {
         query: {error: 'access_denied', state: 'signed state'},
         token: 'session-token',
       }),
-    ).rejects.toMatchObject({code, status});
+    ).rejects.toMatchObject({code: 'access-denied', status: 403});
+  });
+
+  it('surfaces callback API errors with their code and status', async () => {
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse(
+            {code: 'discord-installation-already-linked', message: 'Already linked'},
+            {status: 409},
+          ),
+        ),
+      ),
+    });
+
+    await expect(
+      completeDiscordCallback({
+        query: {code: 'grant code', state: 'signed state'},
+        token: 'session-token',
+      }),
+    ).rejects.toMatchObject({code: 'discord-installation-already-linked', status: 409});
   });
 });
 

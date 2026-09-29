@@ -125,6 +125,15 @@ describe('Discord DTO schemas', () => {
     });
   });
 
+  it.each([
+    'already-linked',
+    'state-invalid',
+    'bot-not-in-guild',
+    'provider-unavailable',
+  ])('rejects %s as a successful callback outcome', (outcome) => {
+    expect(discordCallbackResponseSchema.safeParse({outcome}).success).toBe(false);
+  });
+
   it('accepts the E2E seed and dispatch request shapes', () => {
     expect(
       createE2eDiscordConnectionBodySchema.parse({

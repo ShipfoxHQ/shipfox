@@ -504,37 +504,14 @@ export async function completeDiscordCallback({
     `/integrations/discord/callback/api?${serializeDiscordCallbackQuery(query)}`,
     {headers: {authorization: `Bearer ${token}`}},
   );
-  if ('connection' in response) return toIntegrationConnection(response.connection);
-
-  const outcomeErrors = {
-    access_denied: {
+  if (response.outcome === 'access_denied') {
+    throw new ApiError({
       code: 'access-denied',
       message: 'Discord did not grant access.',
       status: 403,
-    },
-    'already-linked': {
-      code: 'discord-installation-already-linked',
-      message: 'This Discord server is already linked to another workspace.',
-      status: 409,
-    },
-    'state-invalid': {
-      code: 'invalid-discord-install-state',
-      message: 'The Discord install state is invalid or expired.',
-      status: 400,
-    },
-    'bot-not-in-guild': {
-      code: 'discord-bot-not-in-guild',
-      message: 'Shipfox could not find its bot in this Discord server.',
-      status: 422,
-    },
-    'provider-unavailable': {
-      code: 'provider-unavailable',
-      message: 'Discord is temporarily unavailable.',
-      status: 503,
-    },
-  } as const;
-  const error = outcomeErrors[response.outcome];
-  throw new ApiError(error);
+    });
+  }
+  return toIntegrationConnection(response.connection);
 }
 
 export async function completeNotionCallback({

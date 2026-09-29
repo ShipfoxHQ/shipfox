@@ -196,17 +196,6 @@ export const discordCallbackQuerySchema = z.union([
 ]);
 export type DiscordCallbackQueryDto = z.infer<typeof discordCallbackQuerySchema>;
 
-export const discordCallbackOutcomeSchema = z.enum([
-  'connected',
-  'reconnected',
-  'access_denied',
-  'already-linked',
-  'state-invalid',
-  'bot-not-in-guild',
-  'provider-unavailable',
-]);
-export type DiscordCallbackOutcome = z.infer<typeof discordCallbackOutcomeSchema>;
-
 const discordConnectedCallbackResponseSchema = z.object({
   outcome: z.literal('connected'),
   connection: integrationConnectionDtoSchema,
@@ -218,26 +207,11 @@ const discordReconnectedCallbackResponseSchema = z.object({
 const discordAccessDeniedCallbackResponseSchema = z.object({
   outcome: z.literal('access_denied'),
 });
-const discordAlreadyLinkedCallbackResponseSchema = z.object({
-  outcome: z.literal('already-linked'),
-});
-const discordStateInvalidCallbackResponseSchema = z.object({
-  outcome: z.literal('state-invalid'),
-});
-const discordBotNotInGuildCallbackResponseSchema = z.object({
-  outcome: z.literal('bot-not-in-guild'),
-});
-const discordProviderUnavailableCallbackResponseSchema = z.object({
-  outcome: z.literal('provider-unavailable'),
-});
 
+// Other callback failures are non-2xx API errors, not 200 outcomes.
 export const discordCallbackResponseSchema = z.discriminatedUnion('outcome', [
   discordConnectedCallbackResponseSchema,
   discordReconnectedCallbackResponseSchema,
   discordAccessDeniedCallbackResponseSchema,
-  discordAlreadyLinkedCallbackResponseSchema,
-  discordStateInvalidCallbackResponseSchema,
-  discordBotNotInGuildCallbackResponseSchema,
-  discordProviderUnavailableCallbackResponseSchema,
 ]);
 export type DiscordCallbackResponseDto = z.infer<typeof discordCallbackResponseSchema>;
