@@ -1446,7 +1446,7 @@ jobs:
       ]);
     });
 
-    test('does not warn that an upload named like a registry reference is unused', async () => {
+    test('warns about a repository upload that a registry-only workflow does not use', async () => {
       const registry = fakeRegistry(await registryVersion());
       const {projectId, clients} = clientsFor(actionRepository());
 
