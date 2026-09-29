@@ -75,6 +75,7 @@ export {
   resolutionReasonSchema,
   runnerCatalogNamesResponseSchema,
   STEP_ERROR_MESSAGE_MAX_LENGTH,
+  STEP_LOG_PATH_MAX_BYTES,
   STEP_RESPONSE_MAX_LENGTH,
   STEP_STATUS_REASONS,
   type StepAttemptDetailDto,

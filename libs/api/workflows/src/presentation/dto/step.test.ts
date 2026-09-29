@@ -503,6 +503,7 @@ const baseAttempt: StepAttempt = {
   response: null,
   error: null,
   exitCode: 1,
+  logPath: null,
   gateResult: {passed: 'yes'},
   restartFeedback: null,
   logOutcome: null,

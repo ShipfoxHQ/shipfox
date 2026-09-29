@@ -155,6 +155,7 @@ function stepAttemptEntity(): StepAttempt {
     response: null,
     error: {reason: 'command_failed', message: 'Command failed'},
     exitCode: 1,
+    logPath: null,
     gateResult: null,
     restartFeedback: null,
     logOutcome: 'drained',

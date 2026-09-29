@@ -1110,6 +1110,7 @@ function attemptFields(attempt: StepAttempt): Record<string, unknown> {
     outputs: attempt.output ?? {},
     ...(attempt.response === null ? {} : {response: attempt.response}),
     ...(attempt.exitCode === null ? {} : {exit_code: BigInt(attempt.exitCode)}),
+    ...(attempt.logPath === null ? {} : {log_path: attempt.logPath}),
     ...(attempt.gateResult === null ? {} : {gate: attempt.gateResult}),
   };
 }

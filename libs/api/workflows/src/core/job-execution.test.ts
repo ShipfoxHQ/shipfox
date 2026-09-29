@@ -2426,7 +2426,13 @@ describe('durable gate restart', () => {
     return {jobId, producer, reviewer};
   }
 
-  async function runStep(jobId: string, stepId: string, exitCode: number, response?: string) {
+  async function runStep(
+    jobId: string,
+    stepId: string,
+    exitCode: number,
+    response?: string,
+    logPath?: string,
+  ) {
     await nextStepForJob(jobId);
     return recordStepResult({
       jobId,
@@ -2435,6 +2441,7 @@ describe('durable gate restart', () => {
       ...(exitCode === 0 ? {} : {error: {message: `exit ${exitCode}`}}),
       exitCode,
       ...(response === undefined ? {} : {response}),
+      ...(logPath === undefined ? {} : {logPath}),
     });
   }
 
@@ -2442,7 +2449,13 @@ describe('durable gate restart', () => {
     const {jobId, producer, reviewer} = await arrangeGatedJob({source: 'step.exit_code == 0'});
 
     await runStep(jobId, producer, 0); // producer succeeds, attempt 1
-    const restart = await runStep(jobId, reviewer, 1, 'Needs another build.'); // reviewer gate fails → restart
+    const restart = await runStep(
+      jobId,
+      reviewer,
+      1,
+      'Needs another build.',
+      '/runner/logs/reviewer-attempt-1.log',
+    ); // reviewer gate fails → restart
 
     expect(restart).toEqual({jobFinished: false});
     const after = await getStepsByJobId(jobId);
@@ -2457,6 +2470,7 @@ describe('durable gate restart', () => {
     const reviewerAttempt = attempts.find((a) => a.stepId === reviewer && a.attempt === 1);
     expect(reviewerAttempt?.status).toBe('failed');
     expect(reviewerAttempt?.response).toBe('Needs another build.');
+    expect(reviewerAttempt?.logPath).toBe('/runner/logs/reviewer-attempt-1.log');
     expect(reviewerAttempt?.restartFeedback).toBeTruthy();
   });
 

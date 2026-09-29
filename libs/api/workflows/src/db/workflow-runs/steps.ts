@@ -727,6 +727,7 @@ export interface FinishStepAttemptParams {
   output?: Record<string, unknown> | null;
   response?: string | null;
   exitCode?: number | null;
+  logPath?: string | null;
   logOutcome: LogOutcomeDto;
   gateResult?: Record<string, unknown> | null;
   restartFeedback?: string | null;
@@ -783,6 +784,7 @@ export async function finishStepAttempt(params: FinishStepAttemptParams, tx: Tx)
       response: boundedResponse.value,
       error,
       exitCode: params.exitCode ?? null,
+      logPath: params.logPath ?? null,
       logOutcome: params.logOutcome,
       gateResult: boundedGateResult.value,
       restartFeedback: boundedRestartFeedback.value,

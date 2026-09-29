@@ -225,6 +225,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
       payload: reportPayload({
         status: 'succeeded',
         output: {artifact: 'dist/app.tgz'},
+        log_path: '/runner/logs/step-1.log',
         exit_code: 0,
       }),
     });
@@ -233,6 +234,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     const [attempt] = await getStepAttempts(jobId);
     expect(attempt?.output).toEqual({artifact: 'dist/app.tgz'});
     expect(attempt?.exitCode).toBe(0);
+    expect(attempt?.logPath).toBe('/runner/logs/step-1.log');
   });
 
   test('turns a UTF-8 response overflow into a terminal failed attempt', async () => {
