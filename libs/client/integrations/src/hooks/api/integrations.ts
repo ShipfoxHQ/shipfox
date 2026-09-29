@@ -25,12 +25,14 @@ import type {
   CompleteGithubLinkBodyDto,
   CreateGithubInstallBodyDto,
   CreateGithubLinkBodyDto,
+  SelectGithubLinkBodyDto,
 } from '@shipfox/api-integration-github-dto';
 import {
   completeGithubLinkResponseSchema,
   createGithubInstallResponseSchema,
   createGithubLinkResponseSchema,
   githubCallbackResponseSchema,
+  selectGithubLinkResponseSchema,
 } from '@shipfox/api-integration-github-dto';
 import type {
   CompleteJiraSiteSelectionBodyDto,
@@ -93,6 +95,7 @@ import {
 import {serializeClickUpCallbackQuery} from '#clickup-callback.js';
 import {
   type GithubAuthorizeRedirect,
+  type GithubLinkSelection,
   type InstallRedirect,
   type IntegrationConnection,
   type IntegrationProvider,
@@ -109,6 +112,7 @@ import {serializeNotionCallbackQuery} from '#notion-callback.js';
 import {serializeSlackCallbackQuery} from '#slack-callback.js';
 import {
   toGithubAuthorizeRedirect,
+  toGithubLinkSelection,
   toInstallRedirect,
   toIntegrationConnection,
   toIntegrationProvider,
@@ -357,10 +361,28 @@ export async function createGithubLink(
 export async function completeGithubLink(
   body: CompleteGithubLinkBodyDto,
   token: string,
-): Promise<IntegrationConnection> {
+): Promise<IntegrationConnection | GithubLinkSelection> {
   const response = await checkedApiRequest(
     completeGithubLinkResponseSchema,
     '/integrations/github/link/complete',
+    {
+      method: 'POST',
+      body,
+      headers: {authorization: `Bearer ${token}`},
+    },
+  );
+  return 'selection_token' in response
+    ? toGithubLinkSelection(response)
+    : toIntegrationConnection(response);
+}
+
+export async function selectGithubLinkInstallation(
+  body: SelectGithubLinkBodyDto,
+  token: string,
+): Promise<IntegrationConnection> {
+  const response = await checkedApiRequest(
+    selectGithubLinkResponseSchema,
+    '/integrations/github/link/select',
     {
       method: 'POST',
       body,

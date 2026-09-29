@@ -8,13 +8,15 @@ import {ClientError} from '@shipfox/node-fastify';
 import {
   GithubInstallationAlreadyLinkedError,
   GithubInstallationNotAuthorizedError,
+  GithubInstallationSuspendedError,
   GithubInstallStateActorMismatchError,
   GithubInstallStateError,
   GithubIntegrationProviderError,
+  GithubLinkSelectionError,
   GithubLinkStateActorMismatchError,
   GithubLinkStateError,
-  GithubMultipleLinkableInstallationsError,
   GithubNoLinkableInstallationError,
+  GithubTooManyLinkableInstallationsError,
 } from '#core/errors.js';
 
 export function githubRouteErrorCode(error: unknown): string | undefined {
@@ -41,6 +43,9 @@ export function githubRouteErrorHandler(error: unknown): never {
   if (error instanceof GithubLinkStateError) {
     throw new ClientError(error.message, 'invalid-github-link-state', {status: 400});
   }
+  if (error instanceof GithubLinkSelectionError) {
+    throw new ClientError(error.message, 'invalid-github-link-selection', {status: 400});
+  }
   if (error instanceof GithubLinkStateActorMismatchError) {
     throw new ClientError(error.message, 'github-link-state-actor-mismatch', {status: 403});
   }
@@ -50,11 +55,14 @@ export function githubRouteErrorHandler(error: unknown): never {
       details: {accessible: error.accessible, linked_elsewhere: error.linkedElsewhere},
     });
   }
-  if (error instanceof GithubMultipleLinkableInstallationsError) {
-    throw new ClientError(error.message, 'github-multiple-linkable-installations', {
+  if (error instanceof GithubTooManyLinkableInstallationsError) {
+    throw new ClientError(error.message, 'github-too-many-linkable-installations', {
       status: 409,
       details: {count: error.count},
     });
+  }
+  if (error instanceof GithubInstallationSuspendedError) {
+    throw new ClientError(error.message, 'github-installation-suspended', {status: 409});
   }
   if (error instanceof GithubInstallStateError) {
     throw new ClientError(error.message, 'invalid-github-install-state', {status: 400});

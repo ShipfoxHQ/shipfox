@@ -87,18 +87,26 @@ export {
   connectAuthorizedGithubInteraction,
 } from '#core/connection.js';
 export {
+  GithubInstallationSuspendedError,
   GithubIntegrationProviderError,
+  GithubLinkSelectionError,
   GithubLinkStateActorMismatchError,
   GithubLinkStateError,
-  GithubMultipleLinkableInstallationsError,
   GithubNoLinkableInstallationError,
+  GithubTooManyLinkableInstallationsError,
 } from '#core/errors.js';
 export {handleGithubCallback} from '#core/install.js';
-export {handleGithubLinkCallback} from '#core/link.js';
+export {
+  type GithubLinkSelection,
+  handleGithubLinkCallback,
+  handleGithubLinkSelection,
+} from '#core/link.js';
 export {
   createGithubLinkState,
   signGithubInstallState,
+  signGithubLinkSelection,
   verifyGithubInstallState,
+  verifyGithubLinkSelection,
   verifyGithubLinkState,
 } from '#core/state.js';
 export type {HandleGithubEventOutcome} from '#core/webhook.js';

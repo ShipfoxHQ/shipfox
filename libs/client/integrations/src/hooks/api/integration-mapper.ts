@@ -5,10 +5,12 @@ import type {
   IntegrationProviderDto,
   RepositoryDto,
 } from '@shipfox/api-integration-core-dto';
+import type {GithubLinkSelectionResponseDto} from '@shipfox/api-integration-github-dto';
 import type {JiraAccessibleResourceDto} from '@shipfox/api-integration-jira-dto';
 import type {WebhookConnectionDto} from '@shipfox/api-integration-webhook-dto';
 import type {
   GithubAuthorizeRedirect,
+  GithubLinkSelection,
   InstallRedirect,
   IntegrationConnection,
   IntegrationProvider,
@@ -29,6 +31,18 @@ export function toInstallRedirect(dto: {install_url: string}): InstallRedirect {
 
 export function toGithubAuthorizeRedirect(dto: {authorize_url: string}): GithubAuthorizeRedirect {
   return {authorizeUrl: dto.authorize_url};
+}
+
+export function toGithubLinkSelection(dto: GithubLinkSelectionResponseDto): GithubLinkSelection {
+  return {
+    candidates: dto.candidates.map((candidate) => ({
+      installationId: candidate.installation_id,
+      accountLogin: candidate.account_login,
+      accountType: candidate.account_type,
+      repositorySelection: candidate.repository_selection,
+    })),
+    selectionToken: dto.selection_token,
+  };
 }
 
 export function toJiraSite(dto: JiraAccessibleResourceDto): JiraSite {

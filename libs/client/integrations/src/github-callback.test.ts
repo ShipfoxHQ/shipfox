@@ -179,7 +179,10 @@ describe('GitHub callback failures', () => {
     ['invalid-github-link-state', 'Expired GitHub link state', {kind: 'expired'}],
     ['invalid-github-link-state', 'Invalid GitHub link state signature', {kind: 'invalid'}],
     ['github-link-state-actor-mismatch', 'wrong actor', {kind: 'actor-mismatch'}],
-    ['github-multiple-linkable-installations', 'many', {kind: 'multiple-linkable'}],
+    ['github-too-many-linkable-installations', 'many', {kind: 'too-many-linkable'}],
+    ['invalid-github-link-selection', 'Expired GitHub link selection', {kind: 'expired'}],
+    ['invalid-github-link-selection', 'Invalid GitHub link selection', {kind: 'invalid'}],
+    ['github-installation-suspended', 'suspended', {kind: 'suspended'}],
   ])('classifies link failure %s (%s)', (code, message, expected) => {
     const error = new ApiError({code, message, status: 409});
 

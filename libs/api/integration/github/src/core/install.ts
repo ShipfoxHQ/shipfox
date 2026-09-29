@@ -88,7 +88,7 @@ async function userCanAccessInstallation(params: {
       userAccessToken: params.userAccessToken,
       cursor,
     });
-    if (page.installationIds.includes(params.installationId)) return true;
+    if (page.installations.some(({id}) => id === params.installationId)) return true;
     cursor = page.nextCursor ?? undefined;
   } while (cursor);
   return false;

@@ -8,7 +8,9 @@ const meter = instanceMetrics.getMeter('github');
 export type GithubConnectOutcome =
   | 'success'
   | 'no-linkable-installation'
-  | 'multiple-linkable-installations'
+  | 'selection-required'
+  | 'too-many-linkable-installations'
+  | 'installation-suspended'
   | 'already-linked'
   | 'error';
 

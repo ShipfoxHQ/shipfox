@@ -1,9 +1,12 @@
-import {createHash} from 'node:crypto';
-import {GithubInstallStateError, GithubLinkStateError} from './errors.js';
+import {createHash, createHmac} from 'node:crypto';
+import {config} from '#config.js';
+import {GithubInstallStateError, GithubLinkSelectionError, GithubLinkStateError} from './errors.js';
 import {
   createGithubLinkState,
   signGithubInstallState,
+  signGithubLinkSelection,
   verifyGithubInstallState,
+  verifyGithubLinkSelection,
   verifyGithubLinkState,
 } from './state.js';
 
@@ -109,5 +112,100 @@ describe('GitHub install state', () => {
     const result = () => verifyGithubInstallState(`${state}tampered`);
 
     expect(result).toThrow(GithubInstallStateError);
+  });
+});
+
+describe('GitHub link selection', () => {
+  const issuedAt = new Date('2026-09-29T12:00:00.000Z');
+
+  function selection() {
+    const claims = {
+      workspaceId: crypto.randomUUID(),
+      userId: crypto.randomUUID(),
+      installationIds: [123, 456],
+    };
+    return {claims, token: signGithubLinkSelection({...claims, now: issuedAt})};
+  }
+
+  function decodePayload(token: string): Record<string, unknown> {
+    const [payload] = token.split('.');
+    return JSON.parse(Buffer.from(payload ?? '', 'base64url').toString('utf8'));
+  }
+
+  // Re-signs with the real secret and domain so only the payload checks can reject it.
+  function resign(payload: Record<string, unknown>): string {
+    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const signature = createHmac('sha256', config.GITHUB_INSTALL_STATE_SECRET)
+      .update(`shipfox/github/link-selection/v1.${encoded}`)
+      .digest('base64url');
+    return `${encoded}.${signature}`;
+  }
+
+  it('binds the actor, workspace, allowed ids, purpose, version and app', () => {
+    const {claims, token} = selection();
+
+    expect(verifyGithubLinkSelection(token, issuedAt)).toEqual(claims);
+    expect(decodePayload(token)).toEqual({
+      version: 1,
+      purpose: 'link-selection',
+      appId: config.GITHUB_APP_ID,
+      proofId: expect.any(String),
+      ...claims,
+      issuedAt: 1_790_683_200,
+      expiresAt: 1_790_683_500,
+    });
+  });
+
+  it('expires five minutes after issuance', () => {
+    const {token} = selection();
+
+    expect(() =>
+      verifyGithubLinkSelection(token, new Date('2026-09-29T12:05:00.000Z')),
+    ).not.toThrow();
+    expect(() => verifyGithubLinkSelection(token, new Date('2026-09-29T12:05:01.000Z'))).toThrow(
+      'Expired GitHub link selection',
+    );
+  });
+
+  it('rejects tampered payloads and signatures', () => {
+    const {token} = selection();
+    const [, signature] = token.split('.');
+    const forged = Buffer.from(
+      JSON.stringify({...decodePayload(token), userId: crypto.randomUUID()}),
+    ).toString('base64url');
+
+    expect(() => verifyGithubLinkSelection(`${forged}.${signature}`, issuedAt)).toThrow(
+      GithubLinkSelectionError,
+    );
+    expect(() => verifyGithubLinkSelection(`${token}x`, issuedAt)).toThrow(
+      GithubLinkSelectionError,
+    );
+  });
+
+  it.each([
+    ['purpose', {purpose: 'link'}],
+    ['version', {version: 2}],
+    ['app', {appId: 'another-app'}],
+    ['lifetime', {expiresAt: 1_790_683_200 + 60 * 60}],
+    ['installation ids', {installationIds: []}],
+  ])('rejects a validly signed payload with the wrong %s', (_label, override) => {
+    const {token} = selection();
+
+    expect(() =>
+      verifyGithubLinkSelection(resign({...decodePayload(token), ...override}), issuedAt),
+    ).toThrow('Invalid GitHub link selection payload');
+  });
+
+  it('is never accepted as install or link state, and neither is accepted as a selection', () => {
+    const {claims, token} = selection();
+
+    expect(() => verifyGithubInstallState(token, issuedAt)).toThrow(GithubInstallStateError);
+    expect(() => verifyGithubLinkState(token, issuedAt)).toThrow(GithubLinkStateError);
+    expect(() =>
+      verifyGithubLinkSelection(signGithubInstallState({...claims, now: issuedAt}), issuedAt),
+    ).toThrow(GithubLinkSelectionError);
+    expect(() =>
+      verifyGithubLinkSelection(createGithubLinkState({...claims, now: issuedAt}).state, issuedAt),
+    ).toThrow(GithubLinkSelectionError);
   });
 });

@@ -8,6 +8,8 @@ import {
   createGithubLinkResponseSchema,
   githubCallbackQuerySchema,
   githubCallbackResponseSchema,
+  selectGithubLinkBodySchema,
+  selectGithubLinkResponseSchema,
 } from '@shipfox/api-integration-github-dto';
 import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
@@ -17,21 +19,24 @@ import {config} from '#config.js';
 import type {ConnectGithubInstallationInput} from '#core/connection.js';
 import {
   GithubInstallationAlreadyLinkedError,
-  GithubLinkStateActorMismatchError,
-  GithubLinkStateError,
-  GithubMultipleLinkableInstallationsError,
+  GithubInstallationSuspendedError,
   GithubNoLinkableInstallationError,
+  GithubTooManyLinkableInstallationsError,
 } from '#core/errors.js';
 import {handleGithubCallback} from '#core/install.js';
-import {handleGithubLinkCallback} from '#core/link.js';
+import {handleGithubLinkCallback, handleGithubLinkSelection} from '#core/link.js';
 import {
   createGithubLinkState,
   signGithubInstallState,
   verifyGithubInstallState,
+  verifyGithubLinkSelection,
   verifyGithubLinkState,
 } from '#core/state.js';
-import {recordGithubConnectOutcome} from '#metrics/index.js';
-import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
+import {type GithubConnectOutcome, recordGithubConnectOutcome} from '#metrics/index.js';
+import {
+  toGithubLinkSelectionDto,
+  toIntegrationConnectionDto,
+} from '#presentation/dto/integrations.js';
 import {githubRouteErrorCode, githubRouteErrorHandler} from './errors.js';
 
 export interface CreateGithubIntegrationRoutesOptions {
@@ -127,7 +132,7 @@ export function createGithubIntegrationRoutes({
       let stateClaims: ReturnType<typeof verifyGithubLinkState> | undefined;
       try {
         stateClaims = verifyGithubLinkState(request.body.state);
-        const connection = await handleGithubLinkCallback({
+        const result = await handleGithubLinkCallback({
           github,
           code: request.body.code,
           state: request.body.state,
@@ -138,6 +143,19 @@ export function createGithubIntegrationRoutes({
           getExistingGithubConnection,
           connectGithubInstallation,
         });
+        if ('selectionToken' in result) {
+          recordGithubConnectOutcome({flow: 'link', outcome: 'selection-required'});
+          logger().info(
+            {
+              outcome: 'selection-required',
+              workspaceId: stateClaims.workspaceId,
+              candidates: result.candidates.length,
+            },
+            'github link completed',
+          );
+          return toGithubLinkSelectionDto(result);
+        }
+        const connection = result;
         recordGithubConnectOutcome({flow: 'link', outcome: 'success'});
         logger().info(
           {
@@ -150,14 +168,68 @@ export function createGithubIntegrationRoutes({
         return toIntegrationConnectionDto(connection);
       } catch (error) {
         const outcome = githubConnectOutcome(error);
+        const errorCode = githubRouteErrorCode(error);
         recordGithubConnectOutcome({flow: 'link', outcome});
         logger().warn(
           {
             outcome,
             ...(stateClaims ? {workspaceId: stateClaims.workspaceId} : {}),
-            ...githubLinkErrorContext(error),
+            ...(errorCode ? {errorCode} : {}),
           },
           'github link completed with an error',
+        );
+        throw error;
+      }
+    },
+  });
+
+  const selectLinkRoute = defineRoute({
+    method: 'POST',
+    path: '/link/select',
+    auth: AUTH_USER,
+    description: 'Connect one installation offered by a GitHub link selection token.',
+    schema: {
+      body: selectGithubLinkBodySchema,
+      response: {
+        200: selectGithubLinkResponseSchema,
+      },
+    },
+    errorHandler: githubRouteErrorHandler,
+    handler: async (request) => {
+      const actor = requireUserContext(request);
+      const installationId = String(request.body.installation_id);
+      let workspaceId: string | undefined;
+      try {
+        workspaceId = verifyGithubLinkSelection(request.body.selection_token).workspaceId;
+        const connection = await handleGithubLinkSelection({
+          github,
+          selectionToken: request.body.selection_token,
+          installationId: request.body.installation_id,
+          sessionUserId: actor.userId,
+          sessionMemberships: actor.memberships,
+          requireWorkspaceMembership:
+            requireActiveWorkspaceMembership ?? unavailableWorkspaceMembershipCheck,
+          getExistingGithubConnection,
+          connectGithubInstallation,
+        });
+        recordGithubConnectOutcome({flow: 'link', outcome: 'success'});
+        logger().info(
+          {outcome: 'success', workspaceId: connection.workspaceId, installationId},
+          'github link selection completed',
+        );
+        return toIntegrationConnectionDto(connection);
+      } catch (error) {
+        const outcome = githubConnectOutcome(error);
+        const errorCode = githubRouteErrorCode(error);
+        recordGithubConnectOutcome({flow: 'link', outcome});
+        logger().warn(
+          {
+            outcome,
+            installationId,
+            ...(workspaceId ? {workspaceId} : {}),
+            ...(errorCode ? {errorCode} : {}),
+          },
+          'github link selection completed with an error',
         );
         throw error;
       }
@@ -229,41 +301,24 @@ export function createGithubIntegrationRoutes({
 
   return {
     prefix: '/integrations/github',
-    routes: [createInstallRoute, createLinkRoute, completeLinkRoute, callbackApiRoute],
+    routes: [
+      createInstallRoute,
+      createLinkRoute,
+      completeLinkRoute,
+      selectLinkRoute,
+      callbackApiRoute,
+    ],
   };
 }
 
-function githubConnectOutcome(
-  error: unknown,
-): 'no-linkable-installation' | 'multiple-linkable-installations' | 'already-linked' | 'error' {
+function githubConnectOutcome(error: unknown): GithubConnectOutcome {
   if (error instanceof GithubNoLinkableInstallationError) return 'no-linkable-installation';
-  if (error instanceof GithubMultipleLinkableInstallationsError) {
-    return 'multiple-linkable-installations';
+  if (error instanceof GithubTooManyLinkableInstallationsError) {
+    return 'too-many-linkable-installations';
   }
+  if (error instanceof GithubInstallationSuspendedError) return 'installation-suspended';
   if (error instanceof GithubInstallationAlreadyLinkedError) return 'already-linked';
   return 'error';
-}
-
-function githubLinkErrorContext(error: unknown): {
-  errorCode?: string;
-  installationId?: string;
-} {
-  if (error instanceof GithubNoLinkableInstallationError) {
-    return {errorCode: 'github-no-linkable-installation'};
-  }
-  if (error instanceof GithubMultipleLinkableInstallationsError) {
-    return {errorCode: 'github-multiple-linkable-installations'};
-  }
-  if (error instanceof GithubInstallationAlreadyLinkedError) {
-    return {errorCode: 'github-installation-already-linked'};
-  }
-  if (error instanceof GithubLinkStateActorMismatchError) {
-    return {errorCode: 'github-link-state-actor-mismatch'};
-  }
-  if (error instanceof GithubLinkStateError) {
-    return {errorCode: 'invalid-github-link-state'};
-  }
-  return {};
 }
 
 function workspaceIdFromInstallState(state: string): string | undefined {

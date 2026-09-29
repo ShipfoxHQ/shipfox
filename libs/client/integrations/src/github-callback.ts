@@ -185,7 +185,8 @@ export type GithubCallbackFailure =
   | {kind: 'not-authorized'}
   | {kind: 'already-linked'}
   | {kind: 'no-linkable'; accessible: number; linkedElsewhere: number}
-  | {kind: 'multiple-linkable'}
+  | {kind: 'too-many-linkable'}
+  | {kind: 'suspended'}
   | {kind: 'provider-error'}
   | {kind: 'unknown'};
 
@@ -239,8 +240,12 @@ function classifyGithubLinkError(error: ApiError): GithubCallbackFailure | undef
       return {kind: 'actor-mismatch'};
     case 'github-no-linkable-installation':
       return {kind: 'no-linkable', ...linkableCounts(error.details)};
-    case 'github-multiple-linkable-installations':
-      return {kind: 'multiple-linkable'};
+    case 'invalid-github-link-selection':
+      return EXPIRED_STATE_MESSAGE.test(error.message) ? {kind: 'expired'} : {kind: 'invalid'};
+    case 'github-too-many-linkable-installations':
+      return {kind: 'too-many-linkable'};
+    case 'github-installation-suspended':
+      return {kind: 'suspended'};
     default:
       return undefined;
   }

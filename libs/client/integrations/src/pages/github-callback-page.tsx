@@ -9,6 +9,7 @@ import {createSingleFlight, sessionStorageOrUndefined} from '@shipfox/client-ui'
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
+import {Panel} from '@shipfox/react-ui/panel';
 import {toast} from '@shipfox/react-ui/toast';
 import {Text} from '@shipfox/react-ui/typography';
 import {useQueryClient} from '@tanstack/react-query';
@@ -16,10 +17,15 @@ import {Link, useNavigate} from '@tanstack/react-router';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {
   useCompleteIntegrationCallback,
+  useCompleteIntegrationCallbackResult,
   useResolveIntegrationWorkspaceSlug,
 } from '#application/complete-integration-callback.js';
 import {useGithubRecovery} from '#application/use-github-recovery.js';
-import type {IntegrationConnection} from '#core/models.js';
+import type {
+  GithubLinkCandidate,
+  GithubLinkSelection,
+  IntegrationConnection,
+} from '#core/models.js';
 import {
   classifyGithubCallback,
   classifyGithubCallbackError,
@@ -33,12 +39,17 @@ import {
   serializeGithubCallback,
   serializeGithubLinkCallback,
 } from '#github-callback.js';
-import {completeGithubCallback, completeGithubLink} from '#hooks/api/integrations.js';
+import {
+  completeGithubCallback,
+  completeGithubLink,
+  selectGithubLinkInstallation,
+} from '#hooks/api/integrations.js';
 import {rememberCallbackKey} from '#workspace-navigation.js';
 
-const callbackRequests = createSingleFlight<string, IntegrationConnection>({
+const callbackRequests = createSingleFlight<string, IntegrationConnection | GithubLinkSelection>({
   maxTerminalResults: 32,
 });
+const selectionRequests = createSingleFlight<string, IntegrationConnection>();
 const capturedCompletions = new Set<string>();
 const capturedCallbackOutcomes = new Set<string>();
 const reportedFailures = new Set<string>();
@@ -57,6 +68,7 @@ export function GithubCallbackPage({
   const auth = useAuthState();
   const analytics = useClientAnalytics();
   const completeIntegrationCallback = useCompleteIntegrationCallback();
+  const completeIntegrationCallbackResult = useCompleteIntegrationCallbackResult();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const refreshAuth = useRefreshAuth();
@@ -69,6 +81,7 @@ export function GithubCallbackPage({
   );
   const storedWorkspace = auth.workspaces.find(({id}) => id === storedWorkspaceId);
   const [failure, setFailure] = useState<GithubCallbackFailure>();
+  const [selection, setSelection] = useState<GithubLinkSelection>();
   const [completedWorkspaceId, setCompletedWorkspaceId] = useState<string>();
   const capturedViews = useRef(new Set<string>());
   const membershipHydrationFailed =
@@ -173,17 +186,19 @@ export function GithubCallbackPage({
             refreshAuth,
             complete: async (input, token) => await completeGithubCallback({...input, token}),
           })
-        : await completeIntegrationCallback({
+        : await completeIntegrationCallbackResult({
             input: intent.params,
             refreshAuth,
             complete: completeGithubLink,
+            getConnection: linkedConnection,
           }),
     );
 
     request.then(
-      async (connection) =>
-        await handleGithubCallbackSuccess({
-          connection,
+      async (result) =>
+        await handleGithubCallbackResult({
+          result,
+          setSelection,
           callbackKey,
           linked: intent.kind === 'link',
           analytics,
@@ -196,15 +211,8 @@ export function GithubCallbackPage({
       (error: unknown) => {
         if (!active) return;
         const classified = classifyGithubCallbackError(error);
-        if (intent.kind === 'link' && !capturedLinkFailures.has(callbackKey)) {
-          rememberCallbackKey(capturedLinkFailures, callbackKey);
-          analytics.capture('github_link_failed', {reason: classified.kind});
-        }
-        const shouldReport = !(error instanceof ApiError) || error.code === 'network-error';
-        if (shouldReport && !reportedFailures.has(callbackKey)) {
-          rememberCallbackKey(reportedFailures, callbackKey);
-          globalThis.reportError?.(new Error('Failed to complete the GitHub callback.'));
-        }
+        if (intent.kind === 'link') captureLinkFailure(analytics, callbackKey, classified);
+        reportUnexpectedFailure(error, callbackKey);
         setFailure((previous) => (previous?.kind === classified.kind ? previous : classified));
       },
     );
@@ -219,6 +227,7 @@ export function GithubCallbackPage({
     auth.isLoading,
     auth.workspaces,
     completeIntegrationCallback,
+    completeIntegrationCallbackResult,
     completedWorkspaceId,
     intent,
     navigate,
@@ -245,18 +254,26 @@ export function GithubCallbackPage({
   const terminal = terminalIntentOutcome(intent);
   if (terminal) return terminal;
 
-  if (completedWorkspaceId) {
-    return (
-      <GithubOutcome
-        title="GitHub installed"
-        message="The connection is ready. Go to Shipfox to continue."
-        status="success"
-      >
-        <ShipfoxHomeAction />
-      </GithubOutcome>
-    );
-  }
+  return (
+    <GithubCallbackResult
+      completedWorkspaceId={completedWorkspaceId}
+      selection={selection}
+      failure={failure}
+    />
+  );
+}
 
+function GithubCallbackResult({
+  completedWorkspaceId,
+  selection,
+  failure,
+}: {
+  completedWorkspaceId: string | undefined;
+  selection: GithubLinkSelection | undefined;
+  failure: GithubCallbackFailure | undefined;
+}) {
+  if (completedWorkspaceId) return <GithubInstalledOutcome />;
+  if (selection) return <GithubInstallationPicker selection={selection} />;
   if (failure) {
     const outcome = failureCopy(failure);
     return (
@@ -265,14 +282,40 @@ export function GithubCallbackPage({
       </GithubOutcome>
     );
   }
-
   return <FullPageLoader aria-label="Connecting GitHub" />;
+}
+
+function linkedConnection(
+  result: IntegrationConnection | GithubLinkSelection,
+): IntegrationConnection | undefined {
+  return 'selectionToken' in result ? undefined : result;
+}
+
+async function handleGithubCallbackResult({
+  result,
+  setSelection,
+  linked,
+  ...params
+}: Omit<Parameters<typeof handleGithubCallbackSuccess>[0], 'connection' | 'linkCandidates'> & {
+  result: IntegrationConnection | GithubLinkSelection;
+  setSelection: (selection: GithubLinkSelection) => void;
+  linked: boolean;
+}) {
+  if (!('selectionToken' in result)) {
+    await handleGithubCallbackSuccess({
+      ...params,
+      connection: result,
+      linkCandidates: linked ? '1' : undefined,
+    });
+    return;
+  }
+  if (params.isActive()) setSelection(result);
 }
 
 async function handleGithubCallbackSuccess({
   connection,
   callbackKey,
-  linked,
+  linkCandidates,
   analytics,
   workspaces,
   resolveIntegrationWorkspaceSlug,
@@ -282,7 +325,7 @@ async function handleGithubCallbackSuccess({
 }: {
   connection: IntegrationConnection;
   callbackKey: string;
-  linked: boolean;
+  linkCandidates: '1' | 'many' | undefined;
   analytics: ReturnType<typeof useClientAnalytics>;
   workspaces: ReturnType<typeof useAuthState>['workspaces'];
   resolveIntegrationWorkspaceSlug: ReturnType<typeof useResolveIntegrationWorkspaceSlug>;
@@ -293,7 +336,7 @@ async function handleGithubCallbackSuccess({
   if (!capturedCompletions.has(callbackKey)) {
     rememberCallbackKey(capturedCompletions, callbackKey);
     analytics.capture('github_connection_completed', {workspace_id: connection.workspaceId});
-    if (linked) analytics.capture('github_link_completed', {candidates: '1'});
+    if (linkCandidates) analytics.capture('github_link_completed', {candidates: linkCandidates});
   }
   if (!isActive()) return;
   const workspaceSlug = await resolveIntegrationWorkspaceSlug({
@@ -318,6 +361,135 @@ async function handleGithubCallbackSuccess({
   } catch {
     if (isActive()) setCompletedWorkspaceId(connection.workspaceId);
   }
+}
+
+function reportUnexpectedFailure(error: unknown, key: string) {
+  const shouldReport = !(error instanceof ApiError) || error.code === 'network-error';
+  if (!shouldReport || reportedFailures.has(key)) return;
+  rememberCallbackKey(reportedFailures, key);
+  globalThis.reportError?.(new Error('Failed to complete the GitHub callback.'));
+}
+
+function captureLinkFailure(
+  analytics: ReturnType<typeof useClientAnalytics>,
+  key: string,
+  failure: GithubCallbackFailure,
+) {
+  if (capturedLinkFailures.has(key)) return;
+  rememberCallbackKey(capturedLinkFailures, key);
+  analytics.capture('github_link_failed', {reason: failure.kind});
+}
+
+/** Holds the selection token in component memory only: never in the URL or storage. */
+function GithubInstallationPicker({selection}: {selection: GithubLinkSelection}) {
+  const auth = useAuthState();
+  const analytics = useClientAnalytics();
+  const completeIntegrationCallback = useCompleteIntegrationCallback();
+  const navigate = useNavigate();
+  const refreshAuth = useRefreshAuth();
+  const resolveIntegrationWorkspaceSlug = useResolveIntegrationWorkspaceSlug();
+  const [selectedInstallationId, setSelectedInstallationId] = useState<number>();
+  const [failure, setFailure] = useState<GithubCallbackFailure>();
+  const [completedWorkspaceId, setCompletedWorkspaceId] = useState<string>();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => headingRef.current?.focus(), []);
+
+  function select(candidate: GithubLinkCandidate) {
+    if (selectedInstallationId !== undefined) return;
+    setSelectedInstallationId(candidate.installationId);
+    setFailure(undefined);
+    const selectionKey = `${selection.selectionToken}:${candidate.installationId}`;
+    selectionRequests
+      .run(selectionKey, async () =>
+        completeIntegrationCallback({
+          input: {
+            selection_token: selection.selectionToken,
+            installation_id: candidate.installationId,
+          },
+          refreshAuth,
+          complete: selectGithubLinkInstallation,
+        }),
+      )
+      .then(
+        async (connection) =>
+          await handleGithubCallbackSuccess({
+            connection,
+            callbackKey: selectionKey,
+            linkCandidates: 'many',
+            analytics,
+            workspaces: auth.workspaces,
+            resolveIntegrationWorkspaceSlug,
+            navigate,
+            isActive: () => true,
+            setCompletedWorkspaceId,
+          }),
+        (error: unknown) => {
+          const classified = classifyGithubCallbackError(error);
+          captureLinkFailure(analytics, selectionKey, classified);
+          reportUnexpectedFailure(error, selectionKey);
+          setSelectedInstallationId(undefined);
+          setFailure(classified);
+        },
+      );
+  }
+
+  if (completedWorkspaceId) return <GithubInstalledOutcome />;
+
+  return (
+    <main className="flex min-h-screen px-frame py-frame">
+      <FocusedFrame className="flex flex-col justify-center gap-section">
+        <header className="flex flex-col gap-inline">
+          <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold outline-none">
+            Choose a GitHub account
+          </h1>
+          <Text size="sm" className="text-foreground-neutral-muted">
+            Shipfox is installed on several GitHub accounts you can access. Choose the one to
+            connect to this workspace.
+          </Text>
+        </header>
+
+        {failure ? (
+          <Callout role="alert" type="error">
+            <Text size="sm">{failureCopy(failure).message}</Text>
+          </Callout>
+        ) : null}
+
+        <section className="flex flex-col gap-inline" aria-label="GitHub accounts">
+          {selection.candidates.map((candidate) => (
+            <Panel key={candidate.installationId} className="p-panel-compact">
+              <div className="flex items-center justify-between gap-cluster">
+                <div className="min-w-0">
+                  <Text size="md" bold className="truncate">
+                    {candidate.accountLogin}
+                  </Text>
+                  <Text size="sm" className="text-foreground-neutral-muted">
+                    {githubAccountTypeLabel(candidate.accountType)}
+                  </Text>
+                </div>
+                <Button
+                  variant="secondary"
+                  aria-label={`Connect ${candidate.accountLogin}`}
+                  disabled={selectedInstallationId !== undefined}
+                  isLoading={selectedInstallationId === candidate.installationId}
+                  onClick={() => select(candidate)}
+                >
+                  Connect
+                </Button>
+              </div>
+            </Panel>
+          ))}
+        </section>
+
+        <ShipfoxHomeAction />
+      </FocusedFrame>
+    </main>
+  );
+}
+
+function githubAccountTypeLabel(accountType: string): string {
+  if (accountType === 'Organization') return 'Organization';
+  if (accountType === 'User') return 'Personal account';
+  return accountType;
 }
 
 function terminalIntentOutcome(intent: GithubCallbackIntent) {
@@ -345,6 +517,18 @@ function terminalIntentOutcome(intent: GithubCallbackIntent) {
     );
   }
   return undefined;
+}
+
+function GithubInstalledOutcome() {
+  return (
+    <GithubOutcome
+      title="GitHub installed"
+      message="The connection is ready. Go to Shipfox to continue."
+      status="success"
+    >
+      <ShipfoxHomeAction />
+    </GithubOutcome>
+  );
 }
 
 function RequestOutcome() {
@@ -528,11 +712,18 @@ function failureCopy(failure: GithubCallbackFailure): {
         } If your organization uses SAML single sign-on, authorize your GitHub session for it and try again. Go to Shipfox to install GitHub.`,
         status: 'warning',
       };
-    case 'multiple-linkable':
+    case 'too-many-linkable':
       return {
-        title: 'More than one GitHub installation found',
+        title: 'Too many GitHub installations found',
         message:
-          'Shipfox cannot pick between them yet. Contact support and we will connect the right one.',
+          'Shipfox is installed on more GitHub accounts than it can list here. Contact support and we will connect the right one.',
+        status: 'warning',
+      };
+    case 'suspended':
+      return {
+        title: 'This GitHub installation is suspended',
+        message:
+          'An owner of the GitHub account must unsuspend the Shipfox app before it can be connected.',
         status: 'warning',
       };
     case 'provider-error':

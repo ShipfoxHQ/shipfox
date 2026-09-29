@@ -28,8 +28,37 @@ export const completeGithubLinkBodySchema = z.object({
 });
 export type CompleteGithubLinkBodyDto = z.infer<typeof completeGithubLinkBodySchema>;
 
-export const completeGithubLinkResponseSchema = integrationConnectionDtoSchema;
+/** The picker is a short list: more candidates than this is a typed conflict instead. */
+export const GITHUB_LINK_SELECTION_MAX_CANDIDATES = 20;
+
+export const githubLinkCandidateSchema = z.object({
+  installation_id: z.number().int().positive(),
+  account_login: z.string().min(1),
+  account_type: z.string().min(1),
+  repository_selection: z.string().min(1),
+});
+export type GithubLinkCandidateDto = z.infer<typeof githubLinkCandidateSchema>;
+
+export const githubLinkSelectionResponseSchema = z.object({
+  candidates: z.array(githubLinkCandidateSchema).min(2).max(GITHUB_LINK_SELECTION_MAX_CANDIDATES),
+  selection_token: z.string().min(1),
+});
+export type GithubLinkSelectionResponseDto = z.infer<typeof githubLinkSelectionResponseSchema>;
+
+export const completeGithubLinkResponseSchema = z.union([
+  integrationConnectionDtoSchema,
+  githubLinkSelectionResponseSchema,
+]);
 export type CompleteGithubLinkResponseDto = z.infer<typeof completeGithubLinkResponseSchema>;
+
+export const selectGithubLinkBodySchema = z.object({
+  selection_token: z.string().min(1).max(4096),
+  installation_id: z.number().int().positive(),
+});
+export type SelectGithubLinkBodyDto = z.infer<typeof selectGithubLinkBodySchema>;
+
+export const selectGithubLinkResponseSchema = integrationConnectionDtoSchema;
+export type SelectGithubLinkResponseDto = z.infer<typeof selectGithubLinkResponseSchema>;
 
 export const githubCallbackQuerySchema = z.object({
   code: z.string().min(1),

@@ -4,6 +4,7 @@ import {
   setUserContext,
   type UserContextMembership,
 } from '@shipfox/api-auth-context';
+import {GITHUB_LINK_SELECTION_MAX_CANDIDATES} from '@shipfox/api-integration-github-dto';
 import {
   ConnectionSlugConflictError,
   type IntegrationConnection,
@@ -15,10 +16,12 @@ import type {GithubApiClient} from '#api/client.js';
 import type {ConnectGithubInstallationInput} from '#core/connection.js';
 import {
   createGithubLinkState,
+  signGithubLinkSelection,
   verifyGithubInstallState,
   verifyGithubLinkState,
 } from '#core/state.js';
 import {createGithubIntegrationProvider} from '#index.js';
+import {githubUserInstallationPage} from '#test/index.js';
 
 const requireWorkspaceMembershipMock = vi.fn(() => Promise.resolve());
 let authenticatedMemberships: UserContextMembership[] = [];
@@ -45,7 +48,7 @@ const fakeUserAuth: AuthMethod = {
 function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient {
   return {
     exchangeOAuthCode: vi.fn(() => Promise.resolve('user-token')),
-    listUserInstallations: vi.fn(() => Promise.resolve({installationIds: [123], nextCursor: null})),
+    listUserInstallations: vi.fn(() => Promise.resolve(githubUserInstallationPage([123]))),
     getInstallation: vi.fn(() =>
       Promise.resolve({
         id: 123,
@@ -236,12 +239,139 @@ describe('GitHub integration routes', () => {
     expect(res.json().external_account_id).toBe('123');
   });
 
-  it('returns a typed conflict for multiple linkable installations', async () => {
+  it('returns candidates and a selection token, then links the selected installation', async () => {
+    const infoSpy = vi.spyOn(logger(), 'info');
+    const github = githubClient({
+      listUserInstallations: vi.fn(() => Promise.resolve(githubUserInstallationPage([123, 456]))),
+    });
+    const app = await createTestApp({github});
+    const workspaceId = crypto.randomUUID();
+    authenticatedMemberships = [{workspaceId, role: 'admin', workspaceStatus: 'active'}];
+    const state = createGithubLinkState({workspaceId, userId: 'user-1'}).state;
+
+    const completed = await app.inject({
+      method: 'POST',
+      url: '/integrations/github/link/complete',
+      headers: {authorization: 'Bearer user'},
+      payload: {code: 'oauth-code', state},
+    });
+
+    expect(completed.statusCode).toBe(200);
+    const selection = completed.json();
+    expect(selection.candidates).toEqual([
+      {
+        installation_id: 123,
+        account_login: 'account-123',
+        account_type: 'Organization',
+        repository_selection: 'all',
+      },
+      {
+        installation_id: 456,
+        account_login: 'account-456',
+        account_type: 'Organization',
+        repository_selection: 'all',
+      },
+    ]);
+    expect(selection.selection_token).toEqual(expect.any(String));
+    expect(infoSpy).toHaveBeenCalledWith(
+      {outcome: 'selection-required', workspaceId, candidates: 2},
+      'github link completed',
+    );
+    expect(JSON.stringify(infoSpy.mock.calls)).not.toContain(selection.selection_token);
+
+    const selected = await app.inject({
+      method: 'POST',
+      url: '/integrations/github/link/select',
+      headers: {authorization: 'Bearer user'},
+      payload: {selection_token: selection.selection_token, installation_id: 123},
+    });
+
+    expect(selected.statusCode).toBe(200);
+    expect(selected.json()).toMatchObject({workspace_id: workspaceId, external_account_id: '123'});
+    expect(github.getInstallation).toHaveBeenCalledWith(123);
+    expect(requireWorkspaceMembershipMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({workspaceId, userId: 'user-1'}),
+    );
+  });
+
+  it.each([
+    ['a tampered token', 'forged.token', 123, 400, 'invalid-github-link-selection'],
+    ['a disallowed installation id', undefined, 789, 403, 'github-installation-not-authorized'],
+  ])('rejects link selection with %s', async (_label, token, installationId, status, code) => {
+    const github = githubClient();
+    const app = await createTestApp({github});
+    const workspaceId = crypto.randomUUID();
+    authenticatedMemberships = [{workspaceId, role: 'admin', workspaceStatus: 'active'}];
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/github/link/select',
+      headers: {authorization: 'Bearer user'},
+      payload: {
+        selection_token:
+          token ??
+          signGithubLinkSelection({workspaceId, userId: 'user-1', installationIds: [123, 456]}),
+        installation_id: installationId,
+      },
+    });
+
+    expect(res.statusCode).toBe(status);
+    expect(res.json()).toMatchObject({code});
+    expect(github.getInstallation).not.toHaveBeenCalled();
+  });
+
+  it('rejects link selection for a suspended installation', async () => {
     const app = await createTestApp({
       github: githubClient({
-        listUserInstallations: vi.fn(() =>
-          Promise.resolve({installationIds: [123, 456], nextCursor: null}),
+        getInstallation: vi.fn(() =>
+          Promise.resolve({
+            id: 123,
+            account: {login: 'shipfox', type: 'Organization'},
+            repositorySelection: 'all',
+            suspendedAt: new Date(),
+            htmlUrl: 'https://github.com/apps/shipfox/installations/123',
+            raw: {id: 123},
+          }),
         ),
+      }),
+    });
+    const workspaceId = crypto.randomUUID();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/github/link/select',
+      headers: {authorization: 'Bearer user'},
+      payload: {
+        selection_token: signGithubLinkSelection({
+          workspaceId,
+          userId: 'user-1',
+          installationIds: [123, 456],
+        }),
+        installation_id: 123,
+      },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({code: 'github-installation-suspended'});
+  });
+
+  it('requires auth on link selection', async () => {
+    const app = await createTestApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/github/link/select',
+      payload: {selection_token: 'token', installation_id: 123},
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns a typed conflict for more linkable installations than the picker shows', async () => {
+    const ids = Array.from({length: GITHUB_LINK_SELECTION_MAX_CANDIDATES + 1}, (_, i) => i + 1);
+    const app = await createTestApp({
+      github: githubClient({
+        listUserInstallations: vi.fn(() => Promise.resolve(githubUserInstallationPage(ids))),
       }),
     });
     const workspaceId = crypto.randomUUID();
@@ -256,7 +386,7 @@ describe('GitHub integration routes', () => {
     });
 
     expect(res.statusCode).toBe(409);
-    expect(res.json()).toMatchObject({code: 'github-multiple-linkable-installations'});
+    expect(res.json()).toMatchObject({code: 'github-too-many-linkable-installations'});
   });
 
   it('requires auth on the GitHub callback API', async () => {
@@ -307,9 +437,7 @@ describe('GitHub integration routes', () => {
     const warnSpy = vi.spyOn(logger(), 'warn');
     const app = await createTestApp({
       github: githubClient({
-        listUserInstallations: vi.fn(() =>
-          Promise.resolve({installationIds: [999], nextCursor: null}),
-        ),
+        listUserInstallations: vi.fn(() => Promise.resolve(githubUserInstallationPage([999]))),
       }),
     });
     const workspaceId = crypto.randomUUID();
@@ -337,9 +465,7 @@ describe('GitHub integration routes', () => {
   it('rejects callbacks for inaccessible installations', async () => {
     const app = await createTestApp({
       github: githubClient({
-        listUserInstallations: vi.fn(() =>
-          Promise.resolve({installationIds: [999], nextCursor: null}),
-        ),
+        listUserInstallations: vi.fn(() => Promise.resolve(githubUserInstallationPage([999]))),
       }),
     });
     const state = await createInstallState(app, crypto.randomUUID());

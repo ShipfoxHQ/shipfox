@@ -1,18 +1,31 @@
 import type {UserContextMembership} from '@shipfox/api-auth-context';
+import {GITHUB_LINK_SELECTION_MAX_CANDIDATES} from '@shipfox/api-integration-github-dto';
 import type {IntegrationConnection} from '@shipfox/api-integration-spi';
-import type {GithubApiClient} from '#api/client.js';
+import type {GithubApiClient, GithubUserInstallation} from '#api/client.js';
 import {
   authorizeGithubInteraction,
   type ConnectGithubInteractionParams,
   connectAuthorizedGithubInteraction,
+  connectGithubInteraction,
   type GithubConnectionInteraction,
 } from './connection.js';
 import {
+  GithubInstallationNotAuthorizedError,
+  GithubInstallationSuspendedError,
   GithubLinkStateActorMismatchError,
-  GithubMultipleLinkableInstallationsError,
   GithubNoLinkableInstallationError,
+  GithubTooManyLinkableInstallationsError,
 } from './errors.js';
-import {verifyGithubLinkState} from './state.js';
+import {
+  signGithubLinkSelection,
+  verifyGithubLinkSelection,
+  verifyGithubLinkState,
+} from './state.js';
+
+export interface GithubLinkSelection {
+  candidates: GithubUserInstallation[];
+  selectionToken: string;
+}
 
 export interface HandleGithubLinkCallbackParams {
   github: GithubApiClient;
@@ -27,7 +40,7 @@ export interface HandleGithubLinkCallbackParams {
 
 export async function handleGithubLinkCallback(
   params: HandleGithubLinkCallbackParams,
-): Promise<IntegrationConnection<'github'>> {
+): Promise<IntegrationConnection<'github'> | GithubLinkSelection> {
   const claims = verifyGithubLinkState(params.state);
   if (claims.userId !== params.sessionUserId) {
     throw new GithubLinkStateActorMismatchError();
@@ -54,18 +67,28 @@ export async function handleGithubLinkCallback(
     });
 
     if (result.existingConnection) return result.existingConnection;
-    if (result.candidateIds.length === 0) {
+    if (result.candidates.length === 0) {
       throw new GithubNoLinkableInstallationError(result.accessible, result.linkedElsewhere);
     }
-    if (result.candidateIds.length > 1) {
-      throw new GithubMultipleLinkableInstallationsError(result.candidateIds.length);
+    if (result.candidates.length > GITHUB_LINK_SELECTION_MAX_CANDIDATES) {
+      throw new GithubTooManyLinkableInstallationsError(result.candidates.length);
+    }
+    if (result.candidates.length > 1) {
+      return {
+        candidates: result.candidates,
+        selectionToken: signGithubLinkSelection({
+          workspaceId: claims.workspaceId,
+          userId: claims.userId,
+          installationIds: result.candidates.map(({id}) => id),
+        }),
+      };
     }
 
     const interaction: GithubConnectionInteraction = {
       kind: 'link',
       actorUserId: claims.userId,
       workspaceId: claims.workspaceId,
-      installationId: result.candidateIds[0] as number,
+      installationId: (result.candidates[0] as GithubUserInstallation).id,
     };
     return await connectAuthorizedGithubInteraction({
       interaction,
@@ -83,6 +106,53 @@ export async function handleGithubLinkCallback(
   }
 }
 
+export interface HandleGithubLinkSelectionParams {
+  github: GithubApiClient;
+  selectionToken: string;
+  installationId: number;
+  sessionUserId: string;
+  sessionMemberships: ReadonlyArray<UserContextMembership>;
+  requireWorkspaceMembership: ConnectGithubInteractionParams['requireWorkspaceMembership'];
+  getExistingGithubConnection: ConnectGithubInteractionParams['getExistingGithubConnection'];
+  connectGithubInstallation: ConnectGithubInteractionParams['connectGithubInstallation'];
+  now?: Date | undefined;
+}
+
+/**
+ * Links one installation from a selection token. GitHub user access is not
+ * rechecked: the token is the proof, and it can be up to five minutes stale.
+ */
+export async function handleGithubLinkSelection(
+  params: HandleGithubLinkSelectionParams,
+): Promise<IntegrationConnection<'github'>> {
+  const claims = verifyGithubLinkSelection(params.selectionToken, params.now);
+  if (claims.userId !== params.sessionUserId) {
+    throw new GithubLinkStateActorMismatchError();
+  }
+  if (!claims.installationIds.includes(params.installationId)) {
+    throw new GithubInstallationNotAuthorizedError(params.installationId);
+  }
+
+  return await connectGithubInteraction({
+    interaction: {
+      kind: 'link',
+      actorUserId: claims.userId,
+      workspaceId: claims.workspaceId,
+      installationId: params.installationId,
+    },
+    sessionUserId: params.sessionUserId,
+    sessionMemberships: params.sessionMemberships,
+    requireWorkspaceMembership: params.requireWorkspaceMembership,
+    getExistingGithubConnection: params.getExistingGithubConnection,
+    acquireInstallationProof: async ({installationId}) => {
+      const installation = await params.github.getInstallation(installationId);
+      if (installation.suspendedAt) throw new GithubInstallationSuspendedError(installationId);
+      return {installation};
+    },
+    connectGithubInstallation: params.connectGithubInstallation,
+  });
+}
+
 async function findLinkableInstallation(params: {
   github: GithubApiClient;
   userAccessToken: string;
@@ -91,27 +161,27 @@ async function findLinkableInstallation(params: {
 }): Promise<{
   accessible: number;
   linkedElsewhere: number;
-  candidateIds: number[];
+  candidates: GithubUserInstallation[];
   existingConnection?: IntegrationConnection<'github'>;
 }> {
   let cursor: string | undefined;
   let accessible = 0;
   let linkedElsewhere = 0;
   let existingConnection: IntegrationConnection<'github'> | undefined;
-  const candidateIds: number[] = [];
+  const candidates: GithubUserInstallation[] = [];
 
   do {
     const page = await params.github.listUserInstallations({
       userAccessToken: params.userAccessToken,
       cursor,
     });
-    accessible += page.installationIds.length;
-    for (const installationId of page.installationIds) {
+    accessible += page.installations.length;
+    for (const installation of page.installations) {
       const existing = await params.getExistingGithubConnection({
-        installationId: String(installationId),
+        installationId: String(installation.id),
       });
       if (!existing) {
-        candidateIds.push(installationId);
+        candidates.push(installation);
         continue;
       }
       if (existing.workspaceId !== params.workspaceId) {
@@ -122,7 +192,7 @@ async function findLinkableInstallation(params: {
         existingConnection ??= existing;
         continue;
       }
-      candidateIds.push(installationId);
+      candidates.push(installation);
     }
     cursor = page.nextCursor ?? undefined;
   } while (cursor);
@@ -130,7 +200,7 @@ async function findLinkableInstallation(params: {
   return {
     accessible,
     linkedElsewhere,
-    candidateIds,
+    candidates,
     ...(existingConnection ? {existingConnection} : {}),
   };
 }
