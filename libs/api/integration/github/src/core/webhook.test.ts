@@ -855,6 +855,30 @@ describe('handleGithubEvent', () => {
     );
   });
 
+  it('logs installation repository events at info for an unknown installation', async () => {
+    const infoSpy = vi.spyOn(logger(), 'info');
+    const warnSpy = vi.spyOn(logger(), 'warn');
+    const handlers = deps();
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: 'delivery-installation-repositories',
+      event: 'installation_repositories',
+      payload: {installation: {id: 999997}},
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('unknown-installation');
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.objectContaining({event: 'installation_repositories'}),
+      'github webhook: unknown installation, dropping',
+    );
+    expect(warnSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({event: 'installation_repositories'}),
+      expect.any(String),
+    );
+  });
+
   it('records the delivery only for an unknown installation', async () => {
     const handlers = deps();
     const deliveryId = randomUUID();

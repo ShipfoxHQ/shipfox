@@ -318,8 +318,11 @@ function logUnknownGithubInstallation(params: {
     sender: details?.sender,
     requester: details?.requester,
   };
-  const log = params.event.startsWith('installation') ? logger().warn : logger().info;
-  log(logContext, 'github webhook: unknown installation, dropping');
+  if (params.event === 'installation') {
+    logger().warn(logContext, 'github webhook: unknown installation, dropping');
+  } else {
+    logger().info(logContext, 'github webhook: unknown installation, dropping');
+  }
 }
 
 function normalizeRepositoryUpdates(

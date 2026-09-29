@@ -216,7 +216,10 @@ export function createGithubIntegrationRoutes({
         if (errorCode) {
           logger().warn(outcomeContext, 'github install callback failed');
         } else {
-          logger().error(outcomeContext, 'github install callback failed unexpectedly');
+          logger().error(
+            {...outcomeContext, err: error},
+            'github install callback failed unexpectedly',
+          );
         }
         recordGithubConnectOutcome({flow: 'install', outcome: outcomeContext.outcome});
         throw error;
