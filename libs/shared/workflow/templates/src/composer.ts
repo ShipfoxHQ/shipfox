@@ -195,6 +195,42 @@ export function templateRoleBindings(
   );
 }
 
+export interface TemplateVariant {
+  bindings: TemplateRoleBindings;
+  options: TemplateOptions;
+}
+
+/**
+ * Lists the static compositions needed to exercise a template: every role binding with its
+ * default choices, followed by each non-default choice on the richest role binding.
+ */
+export function templateVariants(template: {
+  manifest: Pick<WorkflowTemplateManifest, 'roles' | 'options'>;
+}): TemplateVariant[] {
+  const defaults = Object.fromEntries(
+    template.manifest.options.flatMap(({id, choices}) => {
+      const choice = choices.find(({default: isDefault}) => isDefault === true) ?? choices[0];
+      return choice === undefined ? [] : [[id, choice.id]];
+    }),
+  );
+  const bindings = templateRoleBindings(template.manifest.roles);
+  const richest = bindings.reduce((most, next) =>
+    Object.keys(next).length > Object.keys(most).length ? next : most,
+  );
+
+  return [
+    ...bindings.map((binding) => ({bindings: binding, options: defaults})),
+    ...template.manifest.options.flatMap((option) =>
+      option.choices
+        .filter((choice) => choice.id !== defaults[option.id])
+        .map((choice) => ({
+          bindings: richest,
+          options: {...defaults, [option.id]: choice.id},
+        })),
+    ),
+  ];
+}
+
 export type PartProviderBlocks = Readonly<Record<string, Readonly<Record<string, PartBlocks>>>>;
 
 export const composeWorkflowTemplate = composeTemplate;

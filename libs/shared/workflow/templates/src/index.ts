@@ -10,7 +10,9 @@ export {
   type TemplateHeaderChoice,
   type TemplateOptions,
   type TemplateRoleBindings,
+  type TemplateVariant,
   templateRoleBindings,
+  templateVariants,
 } from './composer.js';
 export {
   assertSupportedComposition,

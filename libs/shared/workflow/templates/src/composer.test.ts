@@ -4,6 +4,7 @@ import {
   composeTemplate,
   composeWorkflow,
   templateRoleBindings,
+  templateVariants,
 } from './composer.js';
 import {SUPPORTED_COMPOSITIONS, UnsupportedCompositionError} from './composition.js';
 import {parseTemplateHeader} from './header.js';
@@ -212,6 +213,24 @@ describe('composeTemplate', () => {
     expect(templateRoleBindings(template.manifest.roles)).toEqual([
       {source: 'github'},
       {report: 'slack', source: 'github'},
+    ]);
+  });
+
+  it('lists default bindings and each non-default option choice', () => {
+    expect(templateVariants(template)).toEqual([
+      {bindings: {source: 'github'}, options: {mode: 'fast', report: 'daily'}},
+      {
+        bindings: {report: 'slack', source: 'github'},
+        options: {mode: 'fast', report: 'daily'},
+      },
+      {
+        bindings: {report: 'slack', source: 'github'},
+        options: {mode: 'thorough', report: 'daily'},
+      },
+      {
+        bindings: {report: 'slack', source: 'github'},
+        options: {mode: 'fast', report: 'weekly'},
+      },
     ]);
   });
 });
