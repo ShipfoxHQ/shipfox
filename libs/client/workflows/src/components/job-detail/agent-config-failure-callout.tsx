@@ -83,14 +83,14 @@ function agentConfigFailureCopy(
       };
     case 'credentials_invalid':
       return {
-        title: `Update your ${provider} credentials`,
+        title: `Update credentials for ${provider}`,
         description: `${provider} rejected the saved credentials. Update them in Agents settings, then rerun the job.`,
         showProviderCta: true,
       };
     case 'provider_unsupported':
       return {
         title: 'Choose another model provider',
-        description: `Shipfox does not support ${provider}. Change the provider in this step, then start a new run.`,
+        description: `The harness of this step cannot use ${provider}. Change the provider or the harness, then start a new run.`,
         showProviderCta: false,
       };
     case 'model_unavailable':

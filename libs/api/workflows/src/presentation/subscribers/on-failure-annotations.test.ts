@@ -43,7 +43,8 @@ const STEP_FAILURE_CASES = [
     reason: 'checkout_failed',
     type: 'checkout',
     title: 'Checkout failed',
-    description: 'Check the repository and ref of the checkout. The step logs show the Git output.',
+    description:
+      'Read the Git output in the step logs to find the cause. Then check the repository and ref of the checkout.',
   },
   {
     reason: 'checkout_auth_failed',
@@ -103,7 +104,7 @@ const STEP_FAILURE_CASES = [
     type: 'run',
     title: 'The step output has the wrong shape',
     description:
-      'The step output does not match the declared outputs. Fix the step or the declaration.',
+      'The step output does not match the declared outputs. Fix the step or the declaration, then start a new run.',
   },
   {
     reason: 'execution_payload_too_large',
@@ -167,14 +168,14 @@ const STEP_FAILURE_CASES = [
     type: 'run',
     title: 'The success condition failed',
     description:
-      'The step finished, but its success condition is false. Check the step result and the condition.',
+      'The step finished, but its success condition is false. Fix the step or the condition, then start a new run.',
   },
   {
     reason: 'gate_uncheckable',
     type: 'run',
     title: 'The success condition failed',
     description:
-      'Shipfox cannot evaluate the success condition. Check the condition and the values it uses.',
+      'Shipfox cannot evaluate the success condition. Fix the condition or the values it uses, then start a new run.',
   },
   {
     reason: 'restart_unresolved',
@@ -246,7 +247,7 @@ const AGENT_CONFIG_FAILURE_CASES = [
     issue: 'provider_unsupported',
     title: 'Choose another model provider',
     description:
-      'Shipfox does not support the provider of this step. Change the provider, then start a new run.',
+      'The harness of this step cannot use its provider. Change the provider or the harness, then start a new run.',
   },
   {
     issue: 'model_unavailable',

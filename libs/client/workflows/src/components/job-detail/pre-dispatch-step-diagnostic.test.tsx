@@ -69,7 +69,9 @@ describe('PreDispatchStepDiagnostic', () => {
 
     expect(screen.getByRole('heading', {name: 'Step did not run'})).toBeInTheDocument();
     expect(
-      screen.getByText('Shipfox cannot compute a value in this step, so the step did not start.'),
+      screen.getByText(
+        'Shipfox cannot compute a value in this step, so the step did not start. Fix the expression, then start a new run.',
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText('Configuration field')).toBeInTheDocument();
     expect(screen.getByText('agent.session')).toBeInTheDocument();

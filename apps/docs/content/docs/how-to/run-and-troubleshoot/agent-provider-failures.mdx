@@ -36,7 +36,7 @@ Open the failed agent step. Shipfox shows a warning for known setup errors.
 | Update your credentials | Replace the saved key. Make sure **Test & save** succeeds. | Rerun the job. |
 | Choose another model provider | Change the provider or harness to a compatible pair. | Start a new run. |
 | Choose another model | Choose a model from that provider or use its default. | Start a new run. |
-| Model is not available in this workspace | Follow the action in the warning, or choose another model. | Start a new run if you change the model. |
+| Model is not available in this workspace | Follow the action in the warning, or choose another model. | Rerun the job. Start a new run if you change the model. |
 | Complete the agent step | Check the prompt and any explicitly set provider, model, and thinking fields. | Start a new run. |
 
 A rerun keeps the workflow file of the original run. After you change the
@@ -94,7 +94,8 @@ Do not keep re-running a request that is invalid. Fix its setup first.
 
 ## Verify the repair
 
-Re-run the same workflow and open the new attempt.
+Rerun the job after a settings fix. Start a new run after a workflow file change.
+Open the new attempt.
 
 1. Check the resolved harness, provider, and model.
 2. Check that tool calls stay in the intended integration connection and repository.

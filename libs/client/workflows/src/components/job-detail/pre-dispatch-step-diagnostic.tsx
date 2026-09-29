@@ -66,7 +66,7 @@ export function PreDispatchStepDiagnostic({
         <Text size="sm" className="text-foreground-neutral-subtle">
           {diagnostic.actionInputProblem
             ? 'An action input does not match action.yml. Fix the with: value of the step or the input, then start a new run.'
-            : 'Shipfox cannot compute a value in this step, so the step did not start.'}
+            : 'Shipfox cannot compute a value in this step, so the step did not start. Fix the expression, then start a new run.'}
         </Text>
       </div>
       {diagnostic.field || diagnostic.source || diagnostic.actionInputProblem ? (

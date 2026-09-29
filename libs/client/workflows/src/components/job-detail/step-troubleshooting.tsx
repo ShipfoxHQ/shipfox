@@ -1066,7 +1066,7 @@ function failureDescription(
 
   switch (reason) {
     case 'checkout_failed':
-      return 'Check the repository and ref of the checkout. The logs show the Git output.';
+      return 'Read the Git output in the step logs to find the cause. Then check the repository and ref of the checkout.';
     case 'checkout_auth_failed':
       return 'Check that the integration connection can read this repository. Then rerun the job.';
     case 'checkout_unavailable':
@@ -1084,7 +1084,7 @@ function failureDescription(
     case 'config_unresolvable':
       return 'Shipfox cannot compute a value in this step. Fix the expression, then start a new run.';
     case 'output_invalid':
-      return 'The step output does not match the declared outputs. Fix the step or the declaration.';
+      return 'The step output does not match the declared outputs. Fix the step or the declaration, then start a new run.';
     case 'agent_config_invalid':
       return 'Shipfox cannot read the settings of this agent step. Check the step in the workflow file.';
     case 'agent_invocation_failed':
@@ -1116,9 +1116,9 @@ function failureDescription(
     case 'action_unavailable':
       return 'Rerun the job. If it fails again, contact your workspace admin.';
     case 'gate_failed':
-      return 'The step finished, but its success condition is false. Check the step result and the condition.';
+      return 'The step finished, but its success condition is false. Fix the step or the condition, then start a new run.';
     case 'gate_uncheckable':
-      return 'Shipfox cannot evaluate the success condition. Check the condition and the values it uses.';
+      return 'Shipfox cannot evaluate the success condition. Fix the condition or the values it uses, then start a new run.';
     case 'restart_unresolved':
       return 'Shipfox cannot find the step in gate.on_failure.restart_from. Fix it, then start a new run.';
     case 'restart_exhausted':
@@ -1127,8 +1127,9 @@ function failureDescription(
     case 'provider_lost':
     case 'lifecycle_violation':
     case 'runner_lost':
-    case 'timed_out':
       return 'Rerun the job. If it fails again, contact your workspace admin.';
+    case 'timed_out':
+      return 'The step did not finish before its timeout. Raise the timeout or make the step faster, then start a new run.';
     case 'queue_timed_out':
       return 'No runner was free before the queue timeout. Rerun the job when a runner is free.';
     case 'output_too_large':

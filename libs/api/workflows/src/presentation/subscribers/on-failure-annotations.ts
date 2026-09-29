@@ -46,7 +46,8 @@ const STEP_FAILURE_COPY: Readonly<
 > = {
   checkout_failed: {
     title: 'Checkout failed',
-    description: 'Check the repository and ref of the checkout. The step logs show the Git output.',
+    description:
+      'Read the Git output in the step logs to find the cause. Then check the repository and ref of the checkout.',
   },
   checkout_auth_failed: {
     title: 'The repository rejected the checkout',
@@ -88,7 +89,7 @@ const STEP_FAILURE_COPY: Readonly<
   output_invalid: {
     title: 'The step output has the wrong shape',
     description:
-      'The step output does not match the declared outputs. Fix the step or the declaration.',
+      'The step output does not match the declared outputs. Fix the step or the declaration, then start a new run.',
   },
   diagnostic_too_large: {
     title: 'The step details are too large',
@@ -153,12 +154,12 @@ const STEP_FAILURE_COPY: Readonly<
   gate_failed: {
     title: 'The success condition failed',
     description:
-      'The step finished, but its success condition is false. Check the step result and the condition.',
+      'The step finished, but its success condition is false. Fix the step or the condition, then start a new run.',
   },
   gate_uncheckable: {
     title: 'The success condition failed',
     description:
-      'Shipfox cannot evaluate the success condition. Check the condition and the values it uses.',
+      'Shipfox cannot evaluate the success condition. Fix the condition or the values it uses, then start a new run.',
   },
   restart_unresolved: {
     title: 'The restart step does not exist',
@@ -190,7 +191,7 @@ const AGENT_CONFIG_FAILURE_COPY: Readonly<Record<AgentConfigIssueDto, FailureCop
   provider_unsupported: {
     title: 'Choose another model provider',
     description:
-      'Shipfox does not support the provider of this step. Change the provider, then start a new run.',
+      'The harness of this step cannot use its provider. Change the provider or the harness, then start a new run.',
   },
   model_unavailable: {
     title: 'Choose another model',
@@ -467,13 +468,6 @@ function stepFailureCopy(step: StepAttemptDetailStep, attempt: StepAttempt): Fai
 
   const toolFailure = toolStepFailureCopy(step, attempt, error, reason);
   if (toolFailure !== undefined) return toolFailure;
-
-  if (reason === 'restart_exhausted' && attempt.gateResult === null) {
-    return {
-      title: 'The step reached its attempt limit',
-      description: 'Fix the cause, or raise `gate.on_failure.max_attempts`. Then start a new run.',
-    };
-  }
 
   if (reason === 'restart_unresolved' || reason === 'restart_exhausted') {
     return knownStepFailureCopy(reason);

@@ -116,7 +116,8 @@ describe('StepInspectorSheet', () => {
     {
       reason: 'timed_out',
       title: 'The step took too long',
-      description: 'Rerun the job. If it fails again, contact your workspace admin.',
+      description:
+        'The step did not finish before its timeout. Raise the timeout or make the step faster, then start a new run.',
     },
     {
       reason: 'lease_expired',
