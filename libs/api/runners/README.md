@@ -56,8 +56,9 @@ migration directory is registered with the module database namespace.
 
 An installation provisioning policy can pass `placement.resolve(workspaceIds)`, which
 returns per-workspace rules: `allowsTemplate(labels)` and `denial(requiredLabels)`. Each
-demand poll runs a denial pass over every demand group before any grant. When a workspace
-may use none of the templates that match a group and the group requires a reserved label,
+demand poll runs a denial pass over every demand group before any grant. When at least one
+template matches a group, the workspace may use none of the matching templates, and the group
+requires a reserved label,
 the poll deletes the pending rows and publishes `runners.job_execution.placement_denied`
 with the notice. A group without a reserved label is skipped, because a self-hosted runner
 could serve it. Grants choose among the allowed templates in the usual order, and idle

@@ -2,7 +2,6 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {
   and,
-  arrayContained,
   arrayContains,
   asc,
   eq,
@@ -751,12 +750,7 @@ function isBindableRunner(tx: Tx, params: BindableRunnerParams) {
     eq(providerRunners.state, 'running'),
     arrayContains(providerRunners.labels, params.requiredLabels),
     ...(params.refusedTemplateLabels ?? []).map((labels) =>
-      not(
-        and(
-          arrayContains(providerRunners.labels, labels),
-          arrayContained(providerRunners.labels, labels),
-        ) ?? sql`false`,
-      ),
+      not(arrayContains(providerRunners.labels, labels)),
     ),
     exists(
       tx

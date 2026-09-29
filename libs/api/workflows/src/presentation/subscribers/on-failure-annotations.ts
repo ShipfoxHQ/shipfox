@@ -212,10 +212,6 @@ const JOB_FAILURE_COPY: Readonly<Partial<Record<JobStatusReason, FailureCopy>>> 
     title: 'Job output is too large',
     description: 'Reduce the declared output before trying again.',
   },
-  runner_not_allowed: {
-    title: 'Runner not allowed for this workspace',
-    description: 'Choose a runner this workspace can use, or contact support, before trying again.',
-  },
   output_invalid: {
     title: 'Job output could not be used',
     description: 'Ensure every declared output resolves to a valid JSON value before trying again.',

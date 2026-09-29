@@ -153,9 +153,9 @@ describe('installation placement rules', () => {
     expect(await deniedEvents(workspaceId)).toEqual([]);
   });
 
-  it('does not adopt an idle runner of a refused template', async () => {
+  it('does not adopt an idle runner of a refused template, even with extra labels', async () => {
     await pendingJobFactory.create({workspaceId, requiredLabels: ['shipfox-managed']});
-    const idle = await createIdleRunner(['cpu.16', 'shipfox-managed']);
+    const idle = await createIdleRunner(['cpu.16', 'shipfox-managed', 'x64']);
 
     const result = await poll({
       templates: [template('shipfox-1cpu', 1, 5), template('shipfox-16cpu', 16, 5)],
