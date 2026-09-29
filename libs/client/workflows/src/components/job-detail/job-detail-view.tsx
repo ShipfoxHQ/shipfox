@@ -108,9 +108,22 @@ import {StepInspectorSheet} from './step-troubleshooting.js';
 
 type InspectorState = {key: string; attemptId: string | null};
 
+function resolveAllowedExternalUrl(url: string): string | undefined {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+    return parsed.href;
+  } catch {
+    return undefined;
+  }
+}
+
 function DurationLimitNotice({execution}: {execution: JobExecution | undefined}) {
   if (!execution?.durationCapped || !execution.durationNotice) return null;
   const {durationNotice} = execution;
+  const requiredAction = durationNotice.requiredAction;
+  const actionUrl =
+    requiredAction === undefined ? undefined : resolveAllowedExternalUrl(requiredAction.url);
   return (
     <Alert
       variant="warning"
@@ -120,11 +133,11 @@ function DurationLimitNotice({execution}: {execution: JobExecution | undefined})
       <AlertContent>
         <AlertTitle>Job duration limited</AlertTitle>
         <AlertDescription>{durationNotice.message}</AlertDescription>
-        {durationNotice.requiredAction ? (
+        {requiredAction !== undefined && actionUrl !== undefined ? (
           <AlertActions>
             <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
-              <a href={durationNotice.requiredAction.url}>
-                {durationNotice.requiredAction.message}
+              <a href={actionUrl} target="_blank" rel="noreferrer noopener">
+                {requiredAction.message}
               </a>
             </Button>
           </AlertActions>

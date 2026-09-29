@@ -124,13 +124,6 @@ async function resolveJobStatusOrFailClosed(
 }
 
 async function queueJobExecution(input: JobExecutionOrchestrationInput) {
-  if (hasNoRequiredRunnerLabels(input.requiredLabels)) {
-    throw ApplicationFailure.nonRetryable(
-      `Job ${input.jobId} has no required runner labels`,
-      'EmptyRequiredLabelsError',
-    );
-  }
-
   const queued = await queueJobExecutionActivity({
     jobId: input.jobId,
     jobExecutionId: input.jobExecutionId,
@@ -496,6 +489,12 @@ export async function jobExecutionOrchestration(
   // Register every signal before enqueue can block or publish a claim/outcome event. The
   // handlers retain signals that arrive while the enqueue activity is in flight.
   registerJobExecutionSignalHandlers(input.jobExecutionId, signals);
+  if (hasNoRequiredRunnerLabels(input.requiredLabels)) {
+    throw ApplicationFailure.nonRetryable(
+      `Job ${input.jobId} has no required runner labels`,
+      'EmptyRequiredLabelsError',
+    );
+  }
   const durationLimits = patched('job-execution-limits')
     ? await resolveExecutionLimitsActivity({
         workspaceId: input.workspaceId ?? '',

@@ -411,11 +411,11 @@ export interface UpdateJobExecutionStatusParams {
   secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }
 
-export async function updateJobExecutionStatus(
+async function updateJobExecutionStatusWithResult(
   params: UpdateJobExecutionStatusParams,
-): Promise<JobExecution> {
+): Promise<{execution: JobExecution; changed: boolean}> {
   const statusReason = params.statusReason ?? null;
-  const result = await db().transaction(async (tx) => {
+  return await db().transaction(async (tx) => {
     return await optimisticLockRetry({
       updateFn: () =>
         updateJobExecutionStatusAtVersion(tx, {
@@ -449,9 +449,13 @@ export async function updateJobExecutionStatus(
       failureMessage: `Optimistic lock failure: job execution ${params.jobExecutionId} version ${params.expectedVersion}`,
     });
   });
+}
 
+export async function updateJobExecutionStatus(
+  params: UpdateJobExecutionStatusParams,
+): Promise<JobExecution> {
+  const result = await updateJobExecutionStatusWithResult(params);
   if (result.changed) recordWorkflowJobExecutionStatusChanged(result.execution.status);
-
   return result.execution;
 }
 
@@ -478,7 +482,7 @@ export async function markJobExecutionRunning(params: {
     provisionerScope: params.provisionerScope,
     limits: params.durationLimits,
   });
-  const updated = await updateJobExecutionStatus({
+  const result = await updateJobExecutionStatusWithResult({
     jobExecutionId: params.jobExecutionId,
     status: 'running',
     expectedVersion: params.expectedVersion,
@@ -487,8 +491,11 @@ export async function markJobExecutionRunning(params: {
     durationNotice: resolution.notice,
     secrets: params.secrets,
   });
-  recordWorkflowJobDurationLimit(resolution.outcome, durationLimitScope(params.provisionerScope));
-  return updated;
+  if (result.changed) {
+    recordWorkflowJobExecutionStatusChanged(result.execution.status);
+    recordWorkflowJobDurationLimit(resolution.outcome, durationLimitScope(params.provisionerScope));
+  }
+  return result.execution;
 }
 
 function durationLimitScope(
