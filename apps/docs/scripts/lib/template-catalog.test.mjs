@@ -4,12 +4,13 @@ import {shippedTemplateLoader} from '@shipfox/workflow-templates';
 import {buildTemplateCatalogDocument} from './template-catalog.mjs';
 
 const SHIPFOX_NAMESPACE_PREFIX = 'shipfox/';
-const {templates} = buildTemplateCatalogDocument();
+const {templates} = await buildTemplateCatalogDocument();
+const shipped = await shippedTemplateLoader.list();
+const byId = new Map(shipped.map((template) => [template.id, template]));
 
 describe('buildTemplateCatalogDocument', () => {
   it('lists every shipped template in rank order', () => {
-    const shipped = shippedTemplateLoader.list();
-    const ranks = templates.map((template) => shippedTemplateLoader.get(template.id).rank);
+    const ranks = templates.map((template) => byId.get(template.id).rank);
 
     assert.equal(templates.length, shipped.length);
     assert.deepEqual(
@@ -20,7 +21,7 @@ describe('buildTemplateCatalogDocument', () => {
 
   it('takes the page metadata from the manifest', () => {
     for (const template of templates) {
-      const {manifest} = shippedTemplateLoader.get(template.id);
+      const {manifest} = byId.get(template.id);
 
       assert.equal(template.starts, manifest.starts, template.id);
       assert.deepEqual(template.keywords, manifest.keywords, template.id);
@@ -31,8 +32,7 @@ describe('buildTemplateCatalogDocument', () => {
   });
 
   it('renames the manifest loop key and keeps the flow providers', () => {
-    const [step] = shippedTemplateLoader
-      .list()
+    const [step] = shipped
       .flatMap(({id, manifest}) => manifest.flow.map((flowStep, index) => ({id, index, flowStep})))
       .filter(({flowStep}) => flowStep.loops_to !== undefined);
     assert.ok(step, 'a shipped template has a looping flow step');
@@ -46,7 +46,7 @@ describe('buildTemplateCatalogDocument', () => {
 
   it('resolves related packages to catalog entries', () => {
     for (const template of templates) {
-      const {manifest} = shippedTemplateLoader.get(template.id);
+      const {manifest} = byId.get(template.id);
 
       assert.deepEqual(
         template.related.map((related) => related.id),

@@ -101,7 +101,7 @@ function createGetWorkflowTemplateTool(options: AgentAccessTemplateToolsOptions)
       const input = parseInput(getWorkflowTemplateInputSchema, rawInput);
       if (!input) return invalidRequest();
 
-      const template = options.templates.get(input.template_id);
+      const template = await options.templates.get({package: input.template_id});
       if (template === undefined) {
         return notFound(
           `Unknown template_id ${quote(input.template_id)}. Call list_workflow_templates for template IDs.`,
@@ -123,7 +123,11 @@ function createGetWorkflowTemplateTool(options: AgentAccessTemplateToolsOptions)
       if ('error' in resolution) return resolution.error;
 
       const connections = await listActiveConnections(options.integrations, context.workspaceId);
-      const composedYaml = options.templates.compose(input.template_id, resolution.bindings);
+      const composedYaml = await options.templates.compose({
+        package: template.package,
+        version: template.version,
+        bindings: resolution.bindings,
+      });
       if (composedYaml === undefined) return notFound();
       const workspaceModels = await getWorkspaceModels(options.agent, context.workspaceId);
       const modelRecommendations = await buildModelRecommendations({

@@ -28,9 +28,9 @@ export {
 export {
   createTemplateLoader,
   type EmbeddedWorkflowTemplateAsset,
-  getShippedTemplate,
-  listShippedTemplates,
+  FIRST_PARTY_TEMPLATE_NAMESPACE,
   loadShippedTemplates,
+  resolveTemplatePackage,
   shippedTemplateLoader,
   type TemplateLoader,
   type WorkflowTemplate,

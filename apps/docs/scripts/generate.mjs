@@ -205,7 +205,7 @@ const regions = [
   {
     file: `content/generated/${TEMPLATE_CATALOG_DOCUMENT_ID}.json`,
     document: true,
-    render: () => JSON.stringify(buildTemplateCatalogDocument(), null, 2),
+    render: async () => JSON.stringify(await buildTemplateCatalogDocument(), null, 2),
   },
   {
     file: 'content/generated/reference/workflow-schema.mdx',
@@ -560,7 +560,7 @@ function renderMcpToolLimits() {
 
 for (const region of regions) {
   const path = join(docsRoot, region.file);
-  const rendered = region.render();
+  const rendered = await region.render();
   const content = typeof rendered === 'string' ? rendered : rendered.content;
   writeGeneratedFile(path, `${content}\n`);
 

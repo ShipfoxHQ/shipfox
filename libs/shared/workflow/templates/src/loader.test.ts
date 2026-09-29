@@ -5,7 +5,7 @@ import {parse as parseYaml} from 'yaml';
 import type {PartBlocks} from './composer.js';
 import {applyTemplateOptions, composeTemplate, templateRoleBindings} from './composer.js';
 import type {WorkflowTemplate, WorkflowTemplateAsset} from './loader.js';
-import {createTemplateLoader, loadShippedTemplates} from './loader.js';
+import {createTemplateLoader, loadShippedTemplates, shippedTemplateLoader} from './loader.js';
 import {type WorkflowTemplateOption, workflowTemplateManifestSchema} from './manifest.js';
 import {extractModelAnchors} from './model-anchors.js';
 
@@ -15,6 +15,7 @@ const optionBlockMarkerPattern = /# option:[a-z0-9_-]+=/u;
 const fixtureRoot = new URL('../test/fixtures/', import.meta.url);
 const fixture: WorkflowTemplateAsset = {
   id: 'fixture-ticket-to-pr',
+  version: '1.0.0',
   revision: 1,
   added_at: '2026-10-01',
   rank: 1,
@@ -44,9 +45,9 @@ function parsePart(path: string): PartBlocks {
 }
 
 describe('workflow template loader', () => {
-  it('composes and parses every role combination within the payload limit', () => {
+  it('composes and parses every role combination within the payload limit', async () => {
     const loader = createTemplateLoader([fixture]);
-    const template = loader.get('fixture-ticket-to-pr');
+    const template = await loader.get({package: 'fixture-ticket-to-pr'});
     if (template === undefined) throw new Error('Fixture template was not loaded');
 
     const trackerRole = template.manifest.roles.tracker;
@@ -268,7 +269,7 @@ describe('workflow template loader', () => {
     });
   });
 
-  it('does not start manually when only an optional role adds the manual trigger', () => {
+  it('does not start manually when only an optional role adds the manual trigger', async () => {
     const template = shippedTemplate('fix-default-branch-ci');
     const withManualReport: WorkflowTemplateAsset = {
       ...template,
@@ -284,15 +285,112 @@ describe('workflow template loader', () => {
       },
     };
 
-    const [loaded] = createTemplateLoader([withManualReport]).list();
+    const [loaded] = await createTemplateLoader([withManualReport]).list();
 
     expect(withManualReport.workflow).toContain('# part:report.trigger');
     expect(loaded?.startsManually).toBe(false);
   });
 
-  it('keeps setup command insertion inside job steps', () => {
+  describe('versions', () => {
+    const loader = createTemplateLoader([
+      {...fixture, version: '1.2.0'},
+      {...fixture, version: '1.10.0'},
+      {...fixture, version: '1.9.3'},
+    ]);
+
+    it('lists each template once at its highest version', async () => {
+      const templates = await loader.list();
+
+      expect(templates.map(({package: name, version}) => `${name}@${version}`)).toEqual([
+        'shipfox/fixture-ticket-to-pr@1.10.0',
+      ]);
+    });
+
+    it('lists versions newest first, comparing each part as a number', async () => {
+      await expect(loader.versions({package: 'shipfox/fixture-ticket-to-pr'})).resolves.toEqual([
+        '1.10.0',
+        '1.9.3',
+        '1.2.0',
+      ]);
+    });
+
+    it('gets the requested version, or the latest without one', async () => {
+      const name = 'shipfox/fixture-ticket-to-pr';
+
+      expect((await loader.get({package: name, version: '1.9.3'}))?.version).toBe('1.9.3');
+      expect((await loader.get({package: name}))?.version).toBe('1.10.0');
+      await expect(loader.get({package: name, version: '2.0.0'})).resolves.toBeUndefined();
+      await expect(loader.get({package: 'shipfox/unknown'})).resolves.toBeUndefined();
+    });
+
+    it('composes the requested version and returns nothing for an unknown one', async () => {
+      const bindings = {tracker: 'linear', source: 'github'};
+
+      await expect(
+        loader.compose({package: 'fixture-ticket-to-pr', version: '1.9.3', bindings}),
+      ).resolves.toContain('# shipfox-template: fixture-ticket-to-pr@1');
+      await expect(
+        loader.compose({package: 'fixture-ticket-to-pr', version: '9.9.9', bindings}),
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects a repeated version and a version that is not exact', () => {
+      expect(() => createTemplateLoader([fixture, fixture])).toThrow(
+        'Duplicate template version: shipfox/fixture-ticket-to-pr@1.0.0',
+      );
+      expect(() => createTemplateLoader([{...fixture, version: '^1.0.0'}])).toThrow(
+        'invalid version: ^1.0.0',
+      );
+    });
+  });
+
+  it('accepts a bare id as a first-party package', async () => {
+    const bare = await shippedTemplateLoader.get({package: 'ticket-to-pr'});
+    const full = await shippedTemplateLoader.get({package: 'shipfox/ticket-to-pr'});
+
+    expect(bare?.package).toBe('shipfox/ticket-to-pr');
+    expect(bare).toBe(full);
+  });
+
+  it('lists every shipped template with its catalog package version', async () => {
+    const templates = await shippedTemplateLoader.list();
+
+    expect(templates.map(({package: name, version}) => `${name}@${version}`)).toEqual(
+      loadShippedTemplates().map(({id}) => `shipfox/${id}@1.0.0`),
+    );
+  });
+
+  it('applies options to the composed YAML and keeps the legacy header', async () => {
+    const bindings = {notify: 'slack'};
+    const withMarkers = await shippedTemplateLoader.compose({
+      package: 'report-failed-runs',
+      bindings,
+    });
+    const withOptions = await shippedTemplateLoader.compose({
+      package: 'report-failed-runs',
+      bindings,
+      options: {scope: 'project', workflow_filter: 'all'},
+    });
+
+    expect(withMarkers).toContain('# option:scope=project begin');
+    expect(withOptions).not.toContain('# option:');
+    expect(withOptions).toContain('# shipfox-template: report-failed-runs@');
+    expect(withOptions).not.toContain('options:');
+  });
+
+  it('rejects options the manifest does not declare', async () => {
+    await expect(
+      shippedTemplateLoader.compose({
+        package: 'report-failed-runs',
+        bindings: {notify: 'slack'},
+        options: {unknown: 'value'},
+      }),
+    ).rejects.toThrow('unknown option unknown');
+  });
+
+  it('keeps setup command insertion inside job steps', async () => {
     const loader = createTemplateLoader([fixture]);
-    const template = loader.get('fixture-ticket-to-pr');
+    const template = await loader.get({package: 'fixture-ticket-to-pr'});
     if (template === undefined) throw new Error('Fixture template was not loaded');
     const composed = composeTemplate(template, {tracker: 'linear', source: 'github'});
     const setupSlot = '      # slot:setup_commands';
