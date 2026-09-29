@@ -1,6 +1,7 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
 import {check, index, jsonb, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import type {RegistryRef} from '#core/entities/registry-ref.js';
 import type {
   WorkflowDefinition,
   WorkflowDefinitionPayload,
@@ -24,6 +25,8 @@ export const workflowDefinitions = pgTable(
     name: text('name').notNull(),
     definition: jsonb('definition').notNull().$type<WorkflowDefinitionPayload>(),
     contentHash: text('content_hash'),
+    // What the definition takes from the registry, written at sync. Rows synced before it hold none.
+    registryRefs: jsonb('registry_refs').notNull().default([]).$type<RegistryRef[]>(),
     fetchedAt: timestamp('fetched_at', {withTimezone: true}).notNull().defaultNow(),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
@@ -79,6 +82,7 @@ export function toDefinition(row: DefinitionDb): WorkflowDefinition {
     model: row.definition.model,
     sourceSnapshot: row.definition.sourceSnapshot ?? null,
     contentHash: row.contentHash,
+    registryRefs: row.registryRefs,
     fetchedAt: row.fetchedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

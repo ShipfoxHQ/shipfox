@@ -33,6 +33,14 @@ export {
   definitionValidationWarningSchema,
   MAX_LOCAL_UPLOAD_BYTES,
   MAX_WORKFLOW_FILE_BYTES,
+  PACKAGE_UPDATE_CHANGELOG_ENTRY_MAX_LENGTH,
+  PACKAGE_UPDATE_CHANGELOG_MAX_ENTRIES,
+  type PackageUpdateChangelogEntryDto,
+  type PackageUpdateDto,
+  type PackageUpdatesResponseDto,
+  packageUpdateChangelogEntrySchema,
+  packageUpdateSchema,
+  packageUpdatesResponseSchema,
   type TriggerDto,
 } from '#schemas/index.js';
 export {

@@ -25,6 +25,7 @@ describe('toDefinition', () => {
       name: 'Manual workflow',
       definition: {document, model: normalizeWorkflowDocument(document, {agentValidationCatalog})},
       contentHash: null,
+      registryRefs: [],
       fetchedAt: new Date('2026-06-09T10:00:00.000Z'),
       createdAt: new Date('2026-06-09T10:00:01.000Z'),
       updatedAt: new Date('2026-06-09T10:00:02.000Z'),

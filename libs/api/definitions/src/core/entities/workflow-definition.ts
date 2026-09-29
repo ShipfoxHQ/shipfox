@@ -1,5 +1,6 @@
 import type {WorkflowModel, WorkflowSourceSnapshot} from '@shipfox/api-definitions-dto';
 import type {WorkflowDocument} from '@shipfox/workflow-document';
+import type {RegistryRef} from './registry-ref.js';
 
 export type {WorkflowSourceSnapshot};
 
@@ -30,6 +31,8 @@ export interface WorkflowDefinition {
   model: WorkflowModel;
   sourceSnapshot: WorkflowSourceSnapshot | null;
   contentHash: string | null;
+  /** The registry versions the definition uses, recorded at sync. */
+  registryRefs: RegistryRef[];
   fetchedAt: Date;
   createdAt: Date;
   updatedAt: Date;

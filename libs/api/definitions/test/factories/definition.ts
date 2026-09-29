@@ -39,6 +39,7 @@ export const definitionFactory = Factory.define<WorkflowDefinition, DefinitionTr
         model: definition.model,
         sourceSnapshot: definition.sourceSnapshot,
         contentHash: definition.contentHash ?? undefined,
+        registryRefs: definition.registryRefs,
         sha: definition.sha ?? undefined,
         ref: definition.ref ?? undefined,
       });
@@ -59,6 +60,7 @@ export const definitionFactory = Factory.define<WorkflowDefinition, DefinitionTr
       ...definition,
       sourceSnapshot: definition.sourceSnapshot ?? null,
       contentHash: null,
+      registryRefs: [],
       fetchedAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),

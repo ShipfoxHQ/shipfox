@@ -1024,6 +1024,49 @@ jobs:
       expect(result.actionDiagnostics).toEqual([]);
     });
 
+    it('records the registry action and the template header of one workflow file', async () => {
+      const registry = fakeRegistry(await registryVersion());
+      const header =
+        '# shipfox-template: shipfox/ticket-to-pr@1.2.0; roles: source=github; options: feedback_loop=on';
+
+      const result = await sync({
+        repository: {[workflowPath]: `${header}${registryWorkflowYaml}`},
+        registry,
+      });
+
+      expect(result.workflows[0]?.registryRefs).toEqual([
+        {
+          kind: 'action',
+          package: 'shipfox/slack-thread-digest',
+          version: '1.4.2',
+          steps: ['build.0'],
+        },
+        {
+          kind: 'template',
+          package: 'shipfox/ticket-to-pr',
+          version: '1.2.0',
+          bindings: {source: 'github'},
+          options: {feedback_loop: 'on'},
+        },
+      ]);
+    });
+
+    it('records a legacy template header as legacy', async () => {
+      const result = await sync({
+        repository: {
+          [workflowPath]: `# shipfox-template: ticket-to-pr@5 source=github\n${registryWorkflowYaml}`,
+        },
+        registry: fakeRegistry(await registryVersion()),
+      });
+
+      expect(result.workflows[0]?.registryRefs).toContainEqual({
+        kind: 'template',
+        legacy: true,
+        id: 'ticket-to-pr',
+        revision: 5,
+      });
+    });
+
     it('marks repository actions with the local origin', async () => {
       const result = await sync({repository: actionRepository()});
 

@@ -1,5 +1,6 @@
 export * from './action-snapshot.js';
 export * from './integration-context.js';
+export * from './registry-ref.js';
 export * from './sync-state.js';
 export * from './validation-diagnostic.js';
 export * from './workflow-definition.js';

@@ -36,4 +36,14 @@ export {
   definitionValidationWarningSchema,
   MAX_WORKFLOW_FILE_BYTES,
 } from './dto.js';
+export {
+  PACKAGE_UPDATE_CHANGELOG_ENTRY_MAX_LENGTH,
+  PACKAGE_UPDATE_CHANGELOG_MAX_ENTRIES,
+  type PackageUpdateChangelogEntryDto,
+  type PackageUpdateDto,
+  type PackageUpdatesResponseDto,
+  packageUpdateChangelogEntrySchema,
+  packageUpdateSchema,
+  packageUpdatesResponseSchema,
+} from './package-updates.js';
 export type {TriggerDto} from './trigger.js';

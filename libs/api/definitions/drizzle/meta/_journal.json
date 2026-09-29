@@ -50,6 +50,13 @@
       "when": 1790562235460,
       "tag": "0006_action_sync_error_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790700467131,
+      "tag": "0007_registry_refs",
+      "breakpoints": true
     }
   ]
 }
