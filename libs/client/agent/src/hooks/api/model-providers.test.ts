@@ -64,7 +64,15 @@ describe('model provider transport', () => {
                 label: 'Claude Opus 4.8',
                 locked: {
                   label: 'Add credits to use',
-                  notice: {reason: 'model-locked', message: 'Add credits to run this model.'},
+                  notice: {
+                    reason: 'model-locked',
+                    message: 'Add credits to run this model.',
+                    requiredAction: {
+                      reason: 'add-credits',
+                      message: 'Add credits',
+                      url: '/billing',
+                    },
+                  },
                 },
               },
               {id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5'},
@@ -87,7 +95,11 @@ describe('model provider transport', () => {
       {
         id: 'claude-opus-4-8',
         label: 'Claude Opus 4.8',
-        locked: {label: 'Add credits to use', message: 'Add credits to run this model.'},
+        locked: {
+          label: 'Add credits to use',
+          message: 'Add credits to run this model.',
+          action: {message: 'Add credits', url: '/billing'},
+        },
       },
       {id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5'},
     ]);

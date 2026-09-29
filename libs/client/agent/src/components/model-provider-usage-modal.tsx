@@ -1,4 +1,3 @@
-import {Badge} from '@shipfox/react-ui/badge';
 import {Button} from '@shipfox/react-ui/button';
 import {
   CodeBlock,
@@ -32,6 +31,7 @@ import {
 import type {HarnessId, ModelLock} from '#core/models.js';
 import {buildAgentWorkflowExample} from './agent-workflow-example.js';
 import {compatibleHarnessIds} from './harness-availability.js';
+import {ModelLockIcon, ModelLockNotices} from './model-lock.js';
 import type {ModelProviderUsageTarget} from './model-provider-usage-target.js';
 
 type CopyState = 'idle' | 'copied' | 'failed';
@@ -102,7 +102,7 @@ export function ModelProviderUsageModal({
     () =>
       compatibleModels.map((model) => ({
         value: model.id,
-        label: model.locked ? `${model.label} (${model.locked.label})` : model.label,
+        label: model.locked ? `${model.label} (locked)` : model.label,
       })),
     [compatibleModels],
   );
@@ -114,6 +114,7 @@ export function ModelProviderUsageModal({
         : (compatibleModels[0]?.id ?? ''),
     );
   }, [compatibleModels, target]);
+  const selectedModelEntry = compatibleModels.find((model) => model.id === selectedModel);
   const example = target
     ? buildAgentWorkflowExample({
         harness: selectedHarness,
@@ -204,6 +205,10 @@ export function ModelProviderUsageModal({
                     />
                   </div>
                 )}
+
+                {selectedModelEntry?.locked ? (
+                  <ModelLockNotices models={[selectedModelEntry]} />
+                ) : null}
 
                 <div className="flex flex-col gap-inline">
                   <CodeBlock data={data} className="h-auto min-h-0 rounded-8">
@@ -329,7 +334,7 @@ function ModelProviderModelRow({
         <TooltipTrigger asChild>
           <button
             type="button"
-            aria-label={`Copy ${label} model id ${id}${locked ? `. ${locked.label}. ${locked.message}` : ''}`}
+            aria-label={`Copy ${label} model id ${id}${locked ? `. Locked: ${locked.label}` : ''}`}
             className="flex min-h-40 w-full min-w-0 flex-col items-start gap-tight px-row py-row text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none sm:flex-row sm:items-center sm:gap-inline"
             onClick={() => {
               void handleCopy();
@@ -338,11 +343,7 @@ function ModelProviderModelRow({
             <Text as="span" size="sm" bold className="max-w-full shrink-0 truncate sm:max-w-[48%]">
               {label}
             </Text>
-            {locked ? (
-              <Badge variant="warning" aria-hidden="true">
-                {locked.label}
-              </Badge>
-            ) : null}
+            {locked ? <ModelLockIcon lock={locked} /> : null}
             <Code
               as="span"
               variant="label"

@@ -14,6 +14,7 @@ import type {
   CustomProviderConfig,
   DefaultHarnessSelection,
   DefaultModelProviderSelection,
+  ModelLock,
   ProviderCatalog,
   ProviderCatalogEntry,
   ProviderConfig,
@@ -109,7 +110,12 @@ export function toCustomProviderConfig(config: CustomModelProviderConfigDto): Cu
 function toAgentModel(model: {
   id: string;
   label: string;
-  locked?: {label: string; notice: {message: string}} | undefined;
+  locked?:
+    | {
+        label: string;
+        notice: {message: string; requiredAction?: {message: string; url: string} | undefined};
+      }
+    | undefined;
   api?: AgentModel['api'];
   context_window?: number | undefined;
   max_output_tokens?: number | undefined;
@@ -119,13 +125,22 @@ function toAgentModel(model: {
   return {
     id: model.id,
     label: model.label,
-    ...(model.locked === undefined
-      ? {}
-      : {locked: {label: model.locked.label, message: model.locked.notice.message}}),
+    ...(model.locked === undefined ? {} : {locked: toModelLock(model.locked)}),
     ...(model.api === undefined ? {} : {api: model.api}),
     ...(model.context_window === undefined ? {} : {contextWindow: model.context_window}),
     ...(model.max_output_tokens === undefined ? {} : {maxOutputTokens: model.max_output_tokens}),
     ...(model.input_image === undefined ? {} : {inputImage: model.input_image}),
     ...(model.reasoning === undefined ? {} : {reasoning: model.reasoning}),
+  };
+}
+
+function toModelLock(locked: NonNullable<Parameters<typeof toAgentModel>[0]['locked']>): ModelLock {
+  const {requiredAction} = locked.notice;
+  return {
+    label: locked.label,
+    message: locked.notice.message,
+    ...(requiredAction === undefined
+      ? {}
+      : {action: {message: requiredAction.message, url: requiredAction.url}}),
   };
 }

@@ -1,5 +1,6 @@
 import type {Meta, StoryObj} from '@storybook/react';
 import {useState} from 'react';
+import {within} from 'storybook/test';
 import type {CustomProviderConfig, SupportedProvider} from '#core/models.js';
 import {ModelProviderUsageModal} from './model-provider-usage-modal.js';
 import {
@@ -50,6 +51,11 @@ export const LongModelList: Story = {
 
 export const LockedModel: Story = {
   args: {variant: 'locked'},
+  play: async ({canvasElement}) => {
+    const dialog = within(canvasElement.ownerDocument.body);
+    await dialog.findByText('This model needs credits. Add credits to run it in this workspace.');
+    await dialog.findByRole('link', {name: 'Add credits'});
+  },
 };
 
 export const CustomProvider: Story = {
@@ -87,7 +93,8 @@ function lockedEntry(): SupportedProvider {
             ...model,
             locked: {
               label: 'Add credits to use',
-              message: 'This model needs a credit purchase. Add credits to run it.',
+              message: 'This model needs credits. Add credits to run it in this workspace.',
+              action: {message: 'Add credits', url: '/billing'},
             },
           }
         : model,

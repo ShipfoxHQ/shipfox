@@ -17,6 +17,7 @@ export interface HarnessDescriptor {
 export interface ModelLock {
   readonly label: string;
   readonly message: string;
+  readonly action?: {readonly message: string; readonly url: string} | undefined;
 }
 
 export interface AgentModel {

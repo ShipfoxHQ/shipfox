@@ -33,15 +33,20 @@ function renderUsageModal() {
 }
 
 describe('ModelProviderUsageModal', () => {
-  test('describes a locked model in its row button without a nested tab stop', () => {
+  test('marks a locked model on its row and explains it once for the selected model', () => {
     const entry = supportedProvider({
       defaultModel: 'claude-opus-4-8',
       models: [
         {
           id: 'claude-opus-4-8',
           label: 'Claude Opus 4.8',
-          locked: {label: 'Add credits to use', message: 'Add credits to run this model.'},
+          locked: {
+            label: 'Add credits to use',
+            message: 'Add credits to run this model.',
+            action: {message: 'Add credits', url: '/billing'},
+          },
         },
+        {id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5'},
       ],
     });
 
@@ -55,11 +60,37 @@ describe('ModelProviderUsageModal', () => {
     );
 
     const row = screen.getByRole('button', {
-      name: 'Copy Claude Opus 4.8 model id claude-opus-4-8. Add credits to use. Add credits to run this model.',
+      name: 'Copy Claude Opus 4.8 model id claude-opus-4-8. Locked: Add credits to use',
     });
-    expect(row).toHaveTextContent('Add credits to use');
     expect(within(row).queryByRole('button')).toBeNull();
     expect(row.querySelector('[tabindex]')).toBeNull();
+    expect(screen.getByText('Add credits to run this model.')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Add credits'})).toHaveAttribute('href', '/billing');
+  });
+
+  test('shows no lock notice when the selected model is not locked', () => {
+    const entry = supportedProvider({
+      defaultModel: 'claude-haiku-4-5',
+      models: [
+        {
+          id: 'claude-opus-4-8',
+          label: 'Claude Opus 4.8',
+          locked: {label: 'Add credits to use', message: 'Add credits to run this model.'},
+        },
+        {id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5'},
+      ],
+    });
+
+    render(
+      <ModelProviderUsageModal
+        target={usageTargetFromCatalogEntry(entry)}
+        initialModel="claude-haiku-4-5"
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText('Add credits to run this model.')).toBeNull();
   });
 
   test('changes the selected model in the workflow example', async () => {
