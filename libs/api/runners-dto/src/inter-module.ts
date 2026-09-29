@@ -58,7 +58,7 @@ export const runnersInterModuleContract = defineInterModuleContract({
             inUse: z.number().int().nonnegative(),
             capacity: z.number().int().positive(),
             unitLabel: z.string().min(1),
-            requiredAction: policyNoticeSchema.shape.requiredAction.nullable(),
+            requiredAction: policyNoticeSchema.shape.requiredAction.unwrap().nullable(),
           })
           .nullable(),
       }),

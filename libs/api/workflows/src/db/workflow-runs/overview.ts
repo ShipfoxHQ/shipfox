@@ -6,7 +6,7 @@ import {
   WORKFLOW_RUN_OVERVIEW_LARGE_JOB_PAGE_LIMIT,
   WORKFLOW_RUN_STATUS_REASON_MESSAGE_MAX_LENGTH,
 } from '@shipfox/api-workflows-dto';
-import type {PolicyNotice} from '@shipfox/policy-notice';
+import type {PolicyNotice, RequiredAction} from '@shipfox/policy-notice';
 import {and, asc, count, desc, eq, gt, inArray, or, sql} from 'drizzle-orm';
 import {alias} from 'drizzle-orm/pg-core';
 import {
@@ -86,7 +86,7 @@ export interface WorkflowRunJobExecutionSummary {
     inUse: number;
     capacity: number;
     unitLabel: string;
-    requiredAction: PolicyNotice['requiredAction'] | null;
+    requiredAction: RequiredAction | null;
   } | null;
   updatedAt: Date;
 }
@@ -112,7 +112,7 @@ export interface WorkflowRunJobExecutionSummaryRow {
     inUse: number;
     capacity: number;
     unitLabel: string;
-    requiredAction: PolicyNotice['requiredAction'] | null;
+    requiredAction: RequiredAction | null;
   } | null;
   updatedAt: Date;
   hasRunningStep?: boolean;

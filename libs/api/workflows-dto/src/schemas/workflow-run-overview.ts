@@ -54,7 +54,7 @@ export const capacityWaitDetailDtoSchema = z.object({
   in_use: z.number().int().nonnegative(),
   capacity: z.number().int().positive(),
   unit_label: z.string().min(1),
-  required_action: policyNoticeSchema.shape.requiredAction.nullable(),
+  required_action: policyNoticeSchema.shape.requiredAction.unwrap().nullable(),
 });
 
 export type CapacityWaitDetailDto = z.infer<typeof capacityWaitDetailDtoSchema>;
