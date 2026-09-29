@@ -90,7 +90,7 @@ export function createDefinitionsModule({
   return {
     name: 'definitions',
     database: {db, migrationsPath, databaseNamespace: 'definitions'},
-    routes: createDefinitionRoutes({projects, agent, integrations}),
+    routes: createDefinitionRoutes({projects, agent, integrations, registry}),
     publishers: [
       {name: 'definitions', table: definitionsOutbox, db, eventSchemas: definitionsEventSchemas},
     ],

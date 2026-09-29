@@ -1,0 +1,1 @@
+ALTER TABLE "definitions_workflow_definitions" ADD COLUMN "registry_refs" jsonb DEFAULT '[]'::jsonb NOT NULL;

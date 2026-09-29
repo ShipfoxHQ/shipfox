@@ -18,6 +18,7 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm';
+import type {RegistryRef} from '#core/entities/registry-ref.js';
 import type {
   WorkflowDefinition,
   WorkflowDefinitionPayload,
@@ -49,6 +50,7 @@ export interface UpsertDefinitionParams {
   model: WorkflowModel;
   sourceSnapshot?: WorkflowSourceSnapshot | null | undefined;
   contentHash?: string | null | undefined;
+  registryRefs?: RegistryRef[] | undefined;
   sha?: string | undefined;
   ref?: string | undefined;
 }
@@ -229,6 +231,7 @@ function buildUpsertQuery(tx: Tx, params: UpsertDefinitionParams & {workflowId: 
     source,
     definition,
     contentHash: params.contentHash ?? null,
+    registryRefs: params.registryRefs ?? [],
     fetchedAt: sql`now()`,
     updatedAt: sql`now()`,
     deletedAt: null,
@@ -244,6 +247,7 @@ function buildUpsertQuery(tx: Tx, params: UpsertDefinitionParams & {workflowId: 
     name: params.name,
     definition,
     contentHash: params.contentHash ?? null,
+    registryRefs: params.registryRefs ?? [],
   };
 
   if (params.sha) {
@@ -548,6 +552,7 @@ export interface ApplyVcsDefinitionsBatchParams {
     model: WorkflowModel;
     sourceSnapshot?: WorkflowSourceSnapshot | null | undefined;
     contentHash: string;
+    registryRefs?: RegistryRef[] | undefined;
   }>;
 }
 
@@ -622,6 +627,7 @@ async function applyPreparedVcsDefinition(
     model: prepared.item.model,
     sourceSnapshot: prepared.item.sourceSnapshot ?? null,
     contentHash: prepared.item.contentHash,
+    registryRefs: prepared.item.registryRefs,
   });
   const row = rows[0];
   if (!row) throw new Error('Upsert returned no rows');

@@ -15,6 +15,7 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`extractModelAnchors`** reads each placeholder's tested model and thinking setting from composed YAML.
 - **`recommendModels`** selects up to four scored alternatives to a tested model and labels their intelligence and cost tradeoffs.
 - **`buildTemplatePrompt`** builds the prompt a user pastes into a coding agent to set up a template. It is also exported from the browser-safe `@shipfox/workflow-templates/prompt` subpath.
+- **`buildUpgradePrompt`** builds the prompt a user pastes into a coding agent to upgrade an adopted template to a version. See [Upgrade prompts](#upgrade-prompts). It is exported from the same `/prompt` subpath.
 - **`TemplateLoader`** is the asynchronous, version-aware loader interface. See [Template loader](#template-loader).
 - **`createTemplateLoader`** creates an injectable loader for tests or other asset sources. Each loaded template reports its package name, version, identity, and embedded compatibility values beside the manifest, plus `startsManually`.
 - **`shippedTemplateLoader`** serves only assets embedded during the package build.
@@ -177,6 +178,10 @@ A `writes` entry has no id, so its provider, when it has one, and its text ident
 ### Setup prompts
 
 `buildTemplatePrompt({templateId, choices})` returns `Use Shipfox to create a workflow from the <id> template.` Each `choices` clause, such as `with Slack as the report` or `without the tracker part`, is appended, so the create-workflow-from-template skill confirms it instead of asking. Browser code imports it from `@shipfox/workflow-templates/prompt`, because the package root embeds every template asset.
+
+### Upgrade prompts
+
+`buildUpgradePrompt({package, configPath, version})` returns ``Use Shipfox to upgrade the <id> workflow in `<path>` to <version>.`` A first-party package is named by its bare id, and the path is left out when the workflow has none. The upgrade-workflow skill takes the prompt from there.
 
 ### Model recommendations
 

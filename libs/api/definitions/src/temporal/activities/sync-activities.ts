@@ -200,6 +200,7 @@ function createFetchAndApplyActivity(
           model: entry.definition.model,
           sourceSnapshot: entry.definition.sourceSnapshot,
           contentHash: entry.contentHash,
+          registryRefs: entry.registryRefs,
         })),
       });
 

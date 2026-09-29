@@ -516,6 +516,44 @@ describe('definition queries', () => {
       expect(secondLineages[0]?.id).toBe(firstLineages[0]?.id);
     });
 
+    test('applyVcsDefinitionsBatch stores the registry refs and refreshes them when the content is unchanged', async () => {
+      const refs = [
+        {kind: 'action' as const, package: 'shipfox/x', version: '1.0.0', steps: ['build.0']},
+      ];
+      const upsert = {
+        configPath: 'refs.yml',
+        name: 'Refs',
+        ...definitionFields('Refs'),
+        contentHash: 'h-refs',
+      };
+      await applyVcsDefinitionsBatch({
+        projectId,
+        workspaceId,
+        ref: 'main',
+        upserts: [{...upsert, registryRefs: refs}],
+      });
+      const stored = await getDefinitionByConfigPath({
+        projectId,
+        configPath: 'refs.yml',
+        ref: 'main',
+      });
+      expect(stored?.registryRefs).toEqual(refs);
+
+      // A re-sync with unchanged content still rewrites the refs, so an earlier sync cannot leave them stale.
+      await applyVcsDefinitionsBatch({
+        projectId,
+        workspaceId,
+        ref: 'main',
+        upserts: [{...upsert, registryRefs: []}],
+      });
+      const refreshed = await getDefinitionByConfigPath({
+        projectId,
+        configPath: 'refs.yml',
+        ref: 'main',
+      });
+      expect(refreshed?.registryRefs).toEqual([]);
+    });
+
     test('soft-deleting a synced row keeps the lineage', async () => {
       await applyVcsDefinitionsBatch({
         projectId,

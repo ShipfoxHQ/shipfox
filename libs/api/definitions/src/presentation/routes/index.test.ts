@@ -13,6 +13,7 @@ const definitionRoutes = createDefinitionRoutes({
   projects,
   agent: {getValidationCatalogV2: vi.fn(() => agentValidationCatalog)} as never,
   integrations: {} as never,
+  registry: {} as never,
 });
 
 const fakeUserAuth: AuthMethod = {
@@ -36,7 +37,9 @@ afterEach(async () => {
 
 describe('definition route auth', () => {
   test('uses user auth', () => {
-    expect(definitionRoutes[0]?.auth).toBe(AUTH_USER);
+    expect(definitionRoutes.map((group) => group.auth)).toEqual(
+      definitionRoutes.map(() => AUTH_USER),
+    );
   });
 
   test('rejects API-key-only requests', async () => {

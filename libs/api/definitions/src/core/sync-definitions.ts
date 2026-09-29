@@ -12,8 +12,10 @@ import type {WorkflowDocument} from '@shipfox/workflow-document';
 import {definitionActionsEnabled, definitionRegistryActionsEnabled} from '../config.js';
 import {checkActionImports} from './check-action-imports.js';
 import {collectActionReferences} from './collect-action-references.js';
+import {collectRegistryRefs} from './collect-registry-refs.js';
 import type {ResolvedActions} from './entities/action-snapshot.js';
 import type {IntegrationValidationContext} from './entities/integration-context.js';
+import type {RegistryRef} from './entities/registry-ref.js';
 import {
   type DefinitionSyncDiagnostic,
   type DefinitionSyncErrorCode,
@@ -111,6 +113,8 @@ export interface ParsedWorkflow {
   name: string;
   definition: WorkflowDefinitionPayload;
   contentHash: string;
+  /** The registry actions and template the file uses. */
+  registryRefs: RegistryRef[];
   diagnostics: ValidationDiagnostic[];
 }
 
@@ -207,6 +211,7 @@ export async function fetchAndParseWorkflows(
         document: entry.document,
         actionManifests,
       }),
+      registryRefs: collectRegistryRefs({content: entry.content, document: entry.document}),
     };
   });
 
@@ -321,7 +326,7 @@ function parseWorkflowSnapshot(params: {
   actionsEnabled: boolean;
   registryActionsEnabled: boolean;
   actionManifests: ResolvedActions;
-}): Omit<ParsedWorkflow, 'contentHash'> {
+}): Omit<ParsedWorkflow, 'contentHash' | 'registryRefs'> {
   try {
     const definition = parseDefinitionWithDiagnostics(params.content, {
       agentValidationCatalog: params.agentValidationCatalog,

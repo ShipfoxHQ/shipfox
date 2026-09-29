@@ -2946,12 +2946,18 @@ importers:
       '@shipfox/node-temporal':
         specifier: workspace:*
         version: link:../../shared/node/temporal
+      '@shipfox/registry-format':
+        specifier: workspace:*
+        version: link:../../shared/registry/format
       '@shipfox/runner-labels':
         specifier: workspace:*
         version: link:../../shared/common/runner-labels
       '@shipfox/workflow-document':
         specifier: workspace:*
         version: link:../../shared/workflow/document
+      '@shipfox/workflow-templates':
+        specifier: workspace:*
+        version: link:../../shared/workflow/templates
       '@temporalio/activity':
         specifier: 'catalog:'
         version: 1.18.1
