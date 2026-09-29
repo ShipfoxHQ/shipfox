@@ -5,8 +5,10 @@ import {
   RegistryEnvelopeError,
   type RegistryPackageKind,
   type RegistryVersionDocument,
-  registryBlobPath,
+  registryContentPath,
   registryEnvelopeSchema,
+  registryReadmePath,
+  registrySourcePath,
   registryVersionPath,
   verifyRegistryVersionEnvelope,
 } from '@shipfox/registry-format';
@@ -74,7 +76,10 @@ export async function getSource(params: VersionRequest): Promise<Uint8Array> {
   if (version.source) return version.source;
 
   const {digest} = version.document.source;
-  const source = await fetchBlob({...params, digest});
+  const source = await fetchDownload({
+    ...params,
+    path: registrySourcePath({package: params.package, version: params.version}),
+  });
   await assertBundleDigest({...params, bytes: source, digest});
   await setRegistryVersionSource({
     registry: params.settings.registry,
@@ -91,7 +96,10 @@ export async function getReadme(params: VersionRequest): Promise<string | undefi
   if (version.readme !== null) return version.readme;
 
   const {digest} = version.document.readme;
-  const bytes = await fetchBlob({...params, digest});
+  const bytes = await fetchDownload({
+    ...params,
+    path: registryReadmePath({package: params.package, version: params.version}),
+  });
   if (sha256Digest(bytes) !== digest) {
     throw new RegistrySignatureInvalidError({
       package: params.package,
@@ -158,7 +166,10 @@ async function fetchAndVerifyVersion(
   const envelope = parseJson(envelopeBytes);
   const document = await verifyEnvelope({...params, envelope});
   const {digest} = document.content;
-  const content = await fetchBlob({...params, digest});
+  const content = await fetchDownload({
+    ...params,
+    path: registryContentPath({package: packageName, version}),
+  });
   await assertBundleDigest({...params, bytes: content, digest});
 
   return {
@@ -209,14 +220,11 @@ async function verifyEnvelope(
   });
 }
 
-async function fetchBlob(params: VersionRequest & {digest: string}): Promise<Uint8Array> {
-  const bytes = await fetchRegistryFile({
-    registry: params.settings.registry,
-    path: registryBlobPath(params.digest),
-  });
+async function fetchDownload(params: VersionRequest & {path: string}): Promise<Uint8Array> {
+  const bytes = await fetchRegistryFile({registry: params.settings.registry, path: params.path});
   if (!bytes) {
     throw new RegistryUnavailableError(
-      `The registry has no file ${params.digest} for ${params.package}@${params.version}`,
+      `The registry has no file at ${params.path} for ${params.package}@${params.version}`,
     );
   }
   return bytes;

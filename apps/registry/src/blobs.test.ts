@@ -1,12 +1,12 @@
 import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
+import {registryBlobKey} from '@shipfox/registry-format';
 import {
   BLOB_CACHE_CONTROL,
   BLOB_CONTENT_DISPOSITION,
   BLOB_CONTENT_TYPE,
   BlobConflictError,
   BlobDigestMismatchError,
-  blobKey,
   createBlobStore,
 } from '#blobs.js';
 import type {PutObjectParams} from '#storage/storage.js';
@@ -68,14 +68,14 @@ describe('createBlobStore', () => {
 
     await blobs.put({digest: digestOf(content), body: other});
 
-    expect((await registry.storage.get(blobKey(digestOf(content))))?.body).toEqual(stored);
+    expect((await registry.storage.get(registryBlobKey(digestOf(content))))?.body).toEqual(stored);
   });
 
   it('refuses to overwrite a key that holds other content', async () => {
     const digest = digestOf('bundle');
     const tampered = gzipOf('tampered');
     await registry.storage.put({
-      key: blobKey(digest),
+      key: registryBlobKey(digest),
       body: tampered,
       contentType: BLOB_CONTENT_TYPE,
     });
@@ -83,7 +83,7 @@ describe('createBlobStore', () => {
     const write = createBlobStore(registry.storage).put({digest, body: gzipOf('bundle')});
 
     await expect(write).rejects.toBeInstanceOf(BlobConflictError);
-    expect((await registry.storage.get(blobKey(digest)))?.body).toEqual(tampered);
+    expect((await registry.storage.get(registryBlobKey(digest)))?.body).toEqual(tampered);
   });
 
   it.each([

@@ -1,7 +1,13 @@
 import {Buffer} from 'node:buffer';
-import {registryBlobPath, registryVersionPath} from '@shipfox/registry-format';
+import {
+  registryContentPath,
+  registryReadmePath,
+  registrySourcePath,
+  registryVersionPath,
+} from '@shipfox/registry-format';
 import {getRegistryVersion} from '#db/versions.js';
 import {
+  blobPath,
   createTestKey,
   publishVersion,
   settingsFor,
@@ -128,6 +134,26 @@ describe('resolveVersion', () => {
     await expect(result).rejects.toBeInstanceOf(RegistryUnavailableError);
   });
 
+  it('fetches the content through the content route and follows its redirect', async () => {
+    const registry = await newRegistry();
+    const published = await publishVersion({registry, key});
+    const settings = settingsFor({registry, keys: [key]});
+
+    const result = await resolveVersion({
+      settings,
+      package: PACKAGE,
+      version: VERSION,
+      kind: 'action',
+    });
+
+    expect(Buffer.from(result.content)).toEqual(Buffer.from(published.contentGzip));
+    expect(registry.requests).toEqual([
+      versionPath(),
+      registryContentPath({package: PACKAGE, version: VERSION}),
+      blobPath(published.document.content.digest),
+    ]);
+  });
+
   it('reports the registry unavailable when it cannot be reached', async () => {
     const registry = await newRegistry();
     const settings = settingsFor({registry, keys: [key]});
@@ -141,7 +167,7 @@ describe('resolveVersion', () => {
   it('reports the registry unavailable when a signed blob is missing', async () => {
     const registry = await newRegistry();
     const published = await publishVersion({registry, key});
-    registry.fail(registryBlobPath(published.document.content.digest), 404);
+    registry.fail(blobPath(published.document.content.digest), 404);
     const settings = settingsFor({registry, keys: [key]});
 
     const result = resolveVersion({settings, package: PACKAGE, version: VERSION, kind: 'action'});
@@ -255,7 +281,7 @@ describe('resolveVersion', () => {
     it('rejects content that does not match the signed digest', async () => {
       const registry = await newRegistry();
       const published = await publishVersion({registry, key});
-      registry.put(registryBlobPath(published.document.content.digest), published.sourceGzip);
+      registry.put(blobPath(published.document.content.digest), published.sourceGzip);
       const settings = settingsFor({registry, keys: [key]});
 
       const result = resolveVersion({settings, package: PACKAGE, version: VERSION, kind: 'action'});
@@ -375,7 +401,7 @@ describe('getSource', () => {
     const registry = await newRegistry();
     const published = await publishVersion({registry, key, kind: 'template'});
     const settings = settingsFor({registry, keys: [key]});
-    const sourcePath = registryBlobPath(published.document.source.digest);
+    const sourcePath = registrySourcePath({package: PACKAGE, version: VERSION});
 
     const first = await getSource({settings, package: PACKAGE, version: VERSION});
     const second = await getSource({settings, package: PACKAGE, version: VERSION});
@@ -389,7 +415,7 @@ describe('getSource', () => {
   it('rejects a source that does not match the signed digest', async () => {
     const registry = await newRegistry();
     const published = await publishVersion({registry, key});
-    registry.put(registryBlobPath(published.document.source.digest), published.contentGzip);
+    registry.put(blobPath(published.document.source.digest), published.contentGzip);
     const settings = settingsFor({registry, keys: [key]});
 
     const result = getSource({settings, package: PACKAGE, version: VERSION});
@@ -412,9 +438,9 @@ describe('getReadme', () => {
 
   it('fetches the README once and serves it from the stored version', async () => {
     const registry = await newRegistry();
-    const published = await publishVersion({registry, key, readme: '# Example\n'});
+    await publishVersion({registry, key, readme: '# Example\n'});
     const settings = settingsFor({registry, keys: [key]});
-    const readmePath = registryBlobPath(published.document.readme?.digest ?? '');
+    const readmePath = registryReadmePath({package: PACKAGE, version: VERSION});
 
     const first = await getReadme({settings, package: PACKAGE, version: VERSION});
     const second = await getReadme({settings, package: PACKAGE, version: VERSION});
@@ -426,8 +452,8 @@ describe('getReadme', () => {
 
   it('rejects a README that does not match the signed digest', async () => {
     const registry = await newRegistry();
-    const published = await publishVersion({registry, key, readme: '# Example\n'});
-    registry.put(registryBlobPath(published.document.readme?.digest ?? ''), '# Tampered\n');
+    await publishVersion({registry, key, readme: '# Example\n'});
+    registry.put(registryReadmePath({package: PACKAGE, version: VERSION}), '# Tampered\n');
     const settings = settingsFor({registry, keys: [key]});
 
     const result = getReadme({settings, package: PACKAGE, version: VERSION});

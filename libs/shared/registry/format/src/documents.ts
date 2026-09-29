@@ -78,13 +78,13 @@ export const registryTemplateVersionDocumentSchema = versionDocumentBaseSchema.e
   composition: z.number().int().positive(),
 });
 
-/** The signed payload of a version envelope, `v1/packages/<ns>/<name>/versions/<v>.json`. */
+/** The signed payload of a version envelope, `GET /v1/packages/{ns}/{name}/versions/{v}`. */
 export const registryVersionDocumentSchema = z.discriminatedUnion('kind', [
   registryActionVersionDocumentSchema,
   registryTemplateVersionDocumentSchema,
 ]);
 
-/** `v1/packages/<ns>/<name>/index.json`. Unsigned and mutable. */
+/** `GET /v1/packages/{ns}/{name}`. Unsigned and mutable. */
 export const registryPackageIndexSchema = z.object({
   package: registryPackageNameSchema,
   kind: registryPackageKindSchema,
@@ -118,12 +118,12 @@ export const registryCatalogEntrySchema = z.object({
   }),
 });
 
-/** `v1/index.json`. Unsigned and mutable. */
+/** `GET /v1/packages`. Unsigned and mutable. */
 export const registryCatalogSchema = z.object({
   packages: z.array(registryCatalogEntrySchema),
 });
 
-/** `v1/namespaces/<ns>.json`. Unsigned and mutable. */
+/** `GET /v1/namespaces/{ns}`. Unsigned and mutable. */
 export const registryNamespaceProfileSchema = z.object({
   namespace: registrySlugSchema,
   display_name: z.string().min(1),
@@ -164,7 +164,7 @@ export const registryTrustedKeySchema = registryPublicKeySchema.pick({
 });
 
 /**
- * `.well-known/shipfox-registry.json`. Informational only: instances trust the
+ * `GET /.well-known/shipfox-registry.json`. Informational only: instances trust the
  * keys in their own configuration, never the keys listed here.
  */
 export const registryMetadataSchema = z.object({

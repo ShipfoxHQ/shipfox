@@ -56,15 +56,14 @@ export {canonicalJson, computeFingerprint, type FingerprintSource} from '#finger
 export {
   REGISTRY_CATALOG_PATH,
   REGISTRY_METADATA_PATH,
-  REGISTRY_PRIVATE_PREFIX,
-  REGISTRY_PUBLIC_PREFIXES,
-  registryAuditPath,
-  registryBlobPath,
-  registryJtiPath,
+  registryBlobKey,
+  registryContentPath,
   registryNamespacePath,
-  registryPackageIndexPath,
+  registryPackagePath,
+  registryReadmePath,
+  registrySourcePath,
   registryVersionPath,
-} from '#layout.js';
+} from '#paths.js';
 export {
   compareRegistryVersions,
   formatRegistryPackageName,

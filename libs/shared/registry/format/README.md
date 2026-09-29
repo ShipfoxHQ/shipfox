@@ -11,13 +11,15 @@ release tool, Shipfox instances, and the docs build.
   ranges, tags, pre-release, or build metadata. `parseRegistryReference`,
   `parseRegistryPackageName`, and `parseRegistryVersion` return `undefined` on
   anything else. Matching Zod schemas are exported.
-- **Document schemas** validate every registry file: the version document
+- **Document schemas** validate every registry document: the version document
   (`registryVersionDocumentSchema`, for actions and templates), the package
   index, the catalog and its entries, the namespace profile, and the
   `.well-known` metadata.
-- **Storage layout** helpers return the object key of each file, such as
-  `registryVersionPath` and `registryBlobPath`. They throw on a segment outside
-  the grammar, so a crafted name can never reach another prefix.
+- **API path** helpers return the route of each registry resource, such as
+  `registryVersionPath`, `registryContentPath`, and `registrySourcePath`.
+  `registryBlobKey` returns the key of a bundle in the private blob store,
+  which is never a public path. All of them throw on a segment outside the
+  grammar, so a crafted name can never reach another route.
 - **`computeFingerprint(document)`** identifies a publication by its content.
   It hashes the canonical JSON of the package, kind, version, license, blob
   digests, manifest, changelog, dependencies, actions, and builder recipe.
@@ -79,11 +81,11 @@ import {
 
 const reference = parseRegistryReference('shipfox/slack-thread-digest@1.4.2');
 if (reference) {
-  const key = registryVersionPath({
+  const path = registryVersionPath({
     package: formatRegistryPackageName(reference),
     version: reference.version,
   });
-  // v1/packages/shipfox/slack-thread-digest/versions/1.4.2.json
+  // /v1/packages/shipfox/slack-thread-digest/versions/1.4.2
 }
 
 ['1.10.0', '1.2.0'].sort(compareRegistryVersions); // ['1.2.0', '1.10.0']
@@ -104,7 +106,7 @@ const {document, keyid} = await verifyRegistryVersionEnvelope({
 
 ## Behavior notes
 
-- Index, catalog, and profile files are unsigned and mutable. Only version
+- Index, catalog, and profile responses are unsigned and mutable. Only version
   documents are signed, and only they decide what runs.
 - The `.well-known` metadata is informational. Instances trust the keys in
   their own configuration, never the keys it lists.
