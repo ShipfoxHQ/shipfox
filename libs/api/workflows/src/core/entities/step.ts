@@ -162,6 +162,7 @@ export interface StepAttempt {
   response: string | null;
   error: Record<string, unknown> | null;
   exitCode: number | null;
+  logPath: string | null;
   gateResult: Record<string, unknown> | null;
   restartFeedback: string | null;
   logOutcome: StepAttemptLogOutcome | null;

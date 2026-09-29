@@ -1430,6 +1430,7 @@ function stepAttemptEntity(overrides: Partial<StepAttempt> = {}): StepAttempt {
     response: null,
     error: null,
     exitCode: 1,
+    logPath: null,
     gateResult: null,
     restartFeedback: null,
     logOutcome: 'drained',

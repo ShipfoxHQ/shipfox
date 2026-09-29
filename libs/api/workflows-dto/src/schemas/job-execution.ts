@@ -3,6 +3,31 @@ import {logOutcomeSchema} from './log-outcome.js';
 import {stepDtoSchema, stepErrorDtoSchema} from './step.js';
 
 export const STEP_RESPONSE_MAX_LENGTH = 8 * 1024;
+export const STEP_LOG_PATH_MAX_BYTES = 1024;
+
+const utf8Encoder = new TextEncoder();
+
+function hasControlCharacter(value: string): boolean {
+  return [...value].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return (
+      codePoint <= 0x1f ||
+      (codePoint >= 0x7f && codePoint <= 0x9f) ||
+      codePoint === 0x2028 ||
+      codePoint === 0x2029
+    );
+  });
+}
+
+const stepLogPathSchema = z
+  .string()
+  .min(1)
+  .refine((value) => value.startsWith('/'), 'log_path must be an absolute path')
+  .refine((value) => !hasControlCharacter(value), 'log_path must not contain control characters')
+  .refine(
+    (value) => utf8Encoder.encode(value).byteLength <= STEP_LOG_PATH_MAX_BYTES,
+    `log_path must be at most ${STEP_LOG_PATH_MAX_BYTES} bytes`,
+  );
 
 /**
  * The job to progress is identified by the caller's lease-token claims, never by
@@ -86,6 +111,11 @@ export const reportStepBodySchema = z
     checkout: checkoutResultSchema
       .optional()
       .describe('Resolved repository checkout details captured for attempt history.'),
+    log_path: stepLogPathSchema
+      .optional()
+      .describe(
+        'Absolute path to the finalized plain-text log for this step attempt, when available.',
+      ),
     response: z
       .string()
       .max(STEP_RESPONSE_MAX_LENGTH)

@@ -1,0 +1,1 @@
+ALTER TABLE "workflows_step_attempts" ADD COLUMN "log_path" text;

@@ -104,6 +104,7 @@ type ReportedStepResult = {
   readonly output: Record<string, unknown> | null;
   readonly response: string | null;
   readonly exitCode: number | null;
+  readonly logPath: string | null;
 };
 
 export type NextStep =
@@ -1048,6 +1049,7 @@ export interface RecordStepResultParams {
   output?: Record<string, unknown> | null;
   response?: string | null;
   exitCode?: number | null;
+  logPath?: string | null;
   // The attempt the runner was dispatched. Omitted = "the step's current
   // attempt" (back-compat for callers that don't track attempts yet).
   attempt?: number;
@@ -1152,6 +1154,7 @@ function normalizeReportedStepResult(
     output: params.output ?? null,
     response: params.response ?? null,
     exitCode: params.exitCode ?? null,
+    logPath: params.logPath ?? null,
   };
   const reportedDiagnostic = findOversizedReportedDiagnostic(reported);
   if (reportedDiagnostic) return failedReportedStepResult(reported, reportedDiagnostic);
@@ -1173,6 +1176,7 @@ function normalizeReportedStepResult(
         output: null,
         response: reported.response,
         exitCode: reported.exitCode,
+        logPath: reported.logPath,
       },
       gateEvaluationAllowed: false,
     };
@@ -1227,6 +1231,7 @@ function failedReportedStepResult(
       output: null,
       response: null,
       exitCode: reported.exitCode,
+      logPath: reported.logPath,
     },
     gateEvaluationAllowed: false,
   };

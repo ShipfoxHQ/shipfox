@@ -22,6 +22,7 @@ export interface StepReport {
   error?: Record<string, unknown> | null;
   output?: Record<string, unknown> | null;
   response?: string | null;
+  logPath?: string | null;
 }
 
 // Precomputed gate evaluation (the CEL engine runs in evaluate-gate.ts, never

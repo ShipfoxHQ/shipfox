@@ -38,6 +38,7 @@ export {
   type ReportStepResponseDto,
   reportStepBodySchema,
   reportStepResponseSchema,
+  STEP_LOG_PATH_MAX_BYTES,
   STEP_RESPONSE_MAX_LENGTH,
 } from './job-execution.js';
 export {

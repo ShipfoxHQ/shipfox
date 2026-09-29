@@ -2075,6 +2075,40 @@ describe('assembleStepDispatchContext', () => {
     });
   });
 
+  it('includes reported log paths and omits missing paths from the dispatch context', () => {
+    const targetStep = step({id: 'step-2', key: 'deploy'});
+    const buildStep = step({id: 'step-1', key: 'build', status: 'succeeded'});
+    const context = assembleStepDispatchContext({
+      steps: [buildStep, targetStep],
+      attempts: [
+        attempt({stepId: buildStep.id, logPath: '/runner/logs/build.log'}),
+        attempt({stepId: targetStep.id, status: 'succeeded', logPath: null}),
+      ],
+      targetStepId: targetStep.id,
+    });
+
+    const stepsContext = context.values.steps as Record<string, Record<string, unknown>>;
+    expect(stepsContext).toMatchObject({
+      build: {
+        log_path: '/runner/logs/build.log',
+        attempts: [{log_path: '/runner/logs/build.log'}],
+      },
+      deploy: {
+        attempts: [{status: 'succeeded'}],
+      },
+    });
+    const deployAttempts = (stepsContext.deploy?.attempts ?? []) as Array<Record<string, unknown>>;
+    expect(deployAttempts).toHaveLength(1);
+    expect(deployAttempts[0]).not.toHaveProperty('log_path');
+    expect(stepsContext.deploy).not.toHaveProperty('log_path');
+
+    const expression = createWorkflowExpression({
+      source: 'has(steps.build.log_path) && !has(steps.deploy.log_path)',
+      check: {mode: 'syntax'},
+    });
+    expect(evaluateWorkflowExpression(expression, context.values)).toBe(true);
+  });
+
   it('carries run-scoped roots so a segment mixing them with steps can fill', () => {
     const targetStep = step({id: 'step-2', key: 'post'});
     const steps = [step({id: 'step-1', key: 'read', status: 'succeeded'}), targetStep];
@@ -2256,6 +2290,7 @@ describe('assembleStepDispatchContext', () => {
         status: 'failed',
         output: {summary: 'tests failed'},
         exitCode: 1,
+        logPath: '/runner/logs/reviewer.log',
         gateResult: {passed: false, source: 'step.exit_code == 0', exit_code: 1},
         config: {gate: {on_failure: {restart_from: 'producer'}}},
         restartFeedback: 'failed: tests failed',
@@ -2277,12 +2312,14 @@ describe('assembleStepDispatchContext', () => {
           status: 'failed',
           exit_code: 1n,
           outputs: {summary: 'tests failed'},
+          log_path: '/runner/logs/reviewer.log',
           gate: {passed: false, source: 'step.exit_code == 0', exit_code: 1},
           attempts: [
             {
               status: 'failed',
               exit_code: 1n,
               outputs: {summary: 'tests failed'},
+              log_path: '/runner/logs/reviewer.log',
               gate: {passed: false, source: 'step.exit_code == 0', exit_code: 1},
             },
           ],
@@ -2711,6 +2748,7 @@ function attempt(overrides: Partial<StepAttempt> = {}): StepAttempt {
     response: null,
     error: null,
     exitCode: 0,
+    logPath: null,
     gateResult: null,
     restartFeedback: null,
     logOutcome: null,
