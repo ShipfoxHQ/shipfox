@@ -52,6 +52,7 @@ describe('GithubLinkPage', () => {
     renderLinkPage(vi.fn(), {capture});
 
     expect(await screen.findByText('GitHub is unavailable')).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Back to integrations'})).toBeVisible();
     expect(capture).toHaveBeenCalledWith('github_link_failed', {reason: 'start-failed'});
   });
 });
