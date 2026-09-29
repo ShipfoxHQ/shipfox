@@ -1,4 +1,4 @@
-import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
+import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {LogRecord} from '@shipfox/api-logs-dto';
@@ -6,6 +6,7 @@ import {logRecordSchema, rawLogRecordSchema} from '@shipfox/api-logs-dto';
 import {secretWireForms} from '@shipfox/redact';
 import type {LogAppendFn} from '@shipfox/runner-protocol';
 import {AttemptSpool} from '#api/spool.js';
+import type {ToolLogRow} from '#core/framing.js';
 import {createStepLogStream} from '#core/step-log-stream.js';
 
 const STEP_ID = '00000000-0000-0000-0000-000000000abc';
@@ -829,6 +830,167 @@ describe('createStepLogStream', () => {
       // The ends are the exact reverse (g32 down to g1): no real parent was popped early by an
       // overflow end, and there is no underflow.
       expect(ends).toEqual(Array.from({length: 32}, (_, i) => `g${32 - i}`));
+    });
+  });
+
+  describe('text log', () => {
+    function textStream(attempt: number, append: LogAppendFn, secrets: string[] = []) {
+      return createStepLogStream({
+        logsDir: join(dir, 'logs'),
+        stepId: STEP_ID,
+        attempt,
+        append,
+        secrets,
+        flushIntervalMs: 100000, // drive flushes via drain(), not the timer
+        now: () => 1,
+      });
+    }
+
+    async function readFinalized(path: string | undefined): Promise<string> {
+      if (path === undefined) throw new Error('expected a finalized text log path');
+      return await readFile(path, 'utf8');
+    }
+
+    it('keeps capturing after the server caps the upload', async () => {
+      const server = cappingServer(20);
+      const stream = textStream(30, server.append);
+
+      stream.write(Buffer.from('a'.repeat(30)), 'stdout');
+      await stream.drain({timeoutMs: 1000}); // uploader learns capped
+      stream.write(Buffer.from('b'.repeat(30)), 'stdout');
+      await stream.close();
+      stream.dispose();
+
+      const outputs = (await readRecords(30)).filter((r) => r.type === 'output');
+      expect(outputs).toHaveLength(1);
+      await expect(readFinalized(stream.finalizeTextLog())).resolves.toBe(
+        `${'a'.repeat(30)}${'b'.repeat(30)}`,
+      );
+    });
+
+    it('keeps capturing after the upload fails', async () => {
+      let appends = 0;
+      const appendSpy = vi.spyOn(AttemptSpool.prototype, 'append').mockImplementation(() => {
+        appends += 1;
+        if (appends >= 2) throw Object.assign(new Error('ENOSPC'), {code: 'ENOSPC'});
+      });
+      const stream = textStream(31, hangingAppend);
+
+      stream.write(Buffer.from('first\n'), 'stdout');
+      stream.write(Buffer.from('second\n'), 'stdout'); // fails the spool
+      stream.write(Buffer.from('third\n'), 'stderr');
+      stream.writeOutputLine('runner line');
+      await stream.close();
+      stream.dispose();
+      appendSpy.mockRestore();
+
+      await expect(readFinalized(stream.finalizeTextLog())).resolves.toBe(
+        'first\nsecond\nthird\nrunner line\n',
+      );
+    });
+
+    it('keeps capturing after the upload is stopped', async () => {
+      const stream = textStream(32, hangingAppend);
+
+      stream.write(Buffer.from('before\n'), 'stdout');
+      stream.dispose(); // stops the uploader mid-step
+      stream.write(Buffer.from('after\n'), 'stdout');
+      await stream.close();
+
+      const outputs = (await readRecords(32)).filter((r) => r.type === 'output');
+      expect(outputs).toEqual([{v: 1, ts: 1, type: 'output', stream: 'stdout', data: 'before\n'}]);
+      await expect(readFinalized(stream.finalizeTextLog())).resolves.toBe('before\nafter\n');
+    });
+
+    it('does not fail the upload when a text write fails, and finalizes nothing', async () => {
+      const server = casServer();
+      const stream = textStream(33, server.append);
+      // A file where the text directory should be makes the first text write fail.
+      await mkdir(join(dir, 'logs'), {recursive: true});
+      await writeFile(join(dir, 'logs', 'text'), 'not a directory');
+
+      stream.write(Buffer.from('one\n'), 'stdout');
+      stream.write(Buffer.from('two\n'), 'stdout');
+      const {streamLength} = await stream.close();
+      await stream.drain({timeoutMs: 1000});
+      stream.dispose();
+
+      const records = await readRecords(33);
+      expect(records.filter((r) => r.type === 'output')).toHaveLength(2);
+      expect(records.at(-1)?.type).toBe('end');
+      expect(server.committed()).toBe(streamLength);
+      expect(stream.finalizeTextLog()).toBeUndefined();
+    });
+
+    it('masks a secret added mid-step in the text file', async () => {
+      const stream = textStream(34, hangingAppend);
+
+      stream.write(Buffer.from('early hunter2\n'), 'stdout');
+      stream.addSecrets(['hunter2']);
+      stream.write(Buffer.from('late hunter2\n'), 'stdout');
+      stream.writeOutputLine('runner hunter2');
+      stream.setSecrets(['rotated']);
+      stream.write(Buffer.from('rotated value\n'), 'stderr');
+      await stream.close();
+      stream.dispose();
+
+      const text = await readFinalized(stream.finalizeTextLog());
+      expect(text).toContain('late ***\n');
+      expect(text).toContain('runner ***\n');
+      expect(text).toContain('*** value\n');
+      expect(text).not.toContain('late hunter2');
+      expect(text).not.toContain('rotated');
+    });
+
+    it('renders groups and tool rows as plain text', async () => {
+      const stream = textStream(35, hangingAppend, ['s3cret']);
+
+      stream.writeGroupStart('Setup');
+      stream.write(Buffer.from('::group::Inner\nbody\n::endgroup::\n'), 'stdout');
+      stream.writeGroupEnd();
+      stream.writeGroup({name: 'Run s3cret', lines: ['a', 'b']});
+      stream.writeToolRow({
+        kind: 'tool-call',
+        id: 't1',
+        name: 'github__get_pr',
+        input: '{"token":"s3cret"}',
+      } as ToolLogRow);
+      stream.writeToolRow({
+        kind: 'tool-result',
+        toolCallId: 't1',
+        toolName: 'github__get_pr',
+        output: 'ok',
+      } as ToolLogRow);
+      await stream.close();
+      stream.dispose();
+
+      await expect(readFinalized(stream.finalizeTextLog())).resolves.toBe(
+        [
+          '::group::Setup',
+          '::group::Inner',
+          'body',
+          '::endgroup::',
+          '::endgroup::',
+          '::group::Run ***',
+          '  a',
+          '  b',
+          '::endgroup::',
+          '[tool call] github__get_pr: {"token":"***"}',
+          '[tool result] github__get_pr: ok',
+          '',
+        ].join('\n'),
+      );
+    });
+
+    it('does not capture output written after the stream is closed', async () => {
+      const stream = textStream(36, hangingAppend);
+
+      stream.write(Buffer.from('kept\n'), 'stdout');
+      await stream.close();
+      stream.write(Buffer.from('late\n'), 'stdout');
+      stream.dispose();
+
+      await expect(readFinalized(stream.finalizeTextLog())).resolves.toBe('kept\n');
     });
   });
 });
