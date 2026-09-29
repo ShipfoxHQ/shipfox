@@ -1,7 +1,7 @@
 ---
 title: "Feedback loops"
 sidebarTitle: "Feedback Loops"
-description: "Understand how a gate and a restart form a loop, why the check must be independent, and how to bound retries and protect writes."
+description: "Understand how a gate and a restart form a loop, why the check must be independent, how the next attempt reads the failed log, and how to bound retries and protect writes."
 ---
 
 A **feedback loop** repeats part of a job after a check rejects the result. One
@@ -54,11 +54,14 @@ jobs:
       - key: fix
         prompt: >
           Fix the failing tests in this repository.
-          Previous check: ${{ step.is_retry
-            ? step.restart.feedback
-            : "No previous check. Run the tests and inspect the failures." }}
+          ${{ !has(step.restart)
+            ? "Run the tests and inspect the failures."
+            : has(step.restart.from.log_path)
+              ? "The tests still fail. Read their log at " + step.restart.from.log_path + " and fix the cause."
+              : step.restart.feedback }}
 
-      - run: npm test
+      - key: test
+        run: npm test
         gate:
           success: step.exit_code == 0
           on_failure:
@@ -67,8 +70,9 @@ jobs:
 ```
 
 The first attempt gets initial guidance. A failed test restarts `fix` in the
-same job checkout, so the agent can revise its files. A passing test lets the
-job continue.
+same job checkout, so the agent can revise its files. The agent reads the
+failed test log, or the gate feedback when there is no log. A passing test lets
+the job continue.
 
 The [Gate fields
 reference](/reference/workflow-schema#gate-fields) defines the exact fields.
@@ -85,13 +89,54 @@ workflow and how to route each failure.
 
 ## Give the next attempt useful feedback
 
-A retry without new evidence can repeat the same mistake. Useful feedback names
-the failed property and points the repeated step to evidence it can inspect.
+A retry without new evidence can repeat the same mistake. The repeated step
+needs to know which property failed and why. Two kinds of evidence answer that:
+the gate feedback and the log of the failed check.
 
 Feedback isn't a new event. It belongs to the restart decision, and only the
 repeated attempt can read it. [Context and
 templating](/understand/data-and-templating) explains when each kind of data
 becomes available.
+
+## Give the next attempt the failed log
+
+The output of the failed check usually explains the failure better than a
+fixed feedback message. Shipfox keeps a copy of each step attempt's log on the
+runner, so the workflow doesn't need to capture it. `step.restart.from.log_path`
+is the path to the log of the failed check. The repeated step passes the path
+to an agent or a script, which reads what it needs from the file.
+
+The file holds the attempt's output as plain text:
+
+- Standard output and standard error appear in the order they arrived, with the
+  lines Shipfox adds, such as the exit code. Lines have no timestamps.
+- Secrets are masked, as they are on the run page.
+- A long log keeps only its end, where failures usually appear. The file then
+  starts with a `[shipfox] Log truncated:` line. [Limits](/reference/limits#logs)
+  gives the size.
+- The file exists until the job execution ends. Later steps of that execution
+  can read it, including after gate restarts.
+- Other jobs, other runs, and `tool` steps can't read it.
+
+`log_path` is sometimes absent, even after a failure. For example, a step that
+fails before it starts its command has no log. Guard the field with `has()` and
+give the next attempt another source of evidence, such as the gate feedback:
+
+```text
+has(step.restart.from.log_path)
+  ? "Read the failed log at " + step.restart.from.log_path + "."
+  : step.restart.feedback
+```
+
+The [Contexts reference](/reference/contexts#context-properties) lists when the
+field is absent and the steps that have one.
+
+A log is untrusted input, like any step output. Test names, dependency output,
+and pull request titles can contain text that reads like an instruction. Tell
+the agent to treat the log as data, and give it only the tools the fix needs.
+
+Gate feedback stays useful next to the log. It can name the failed property in
+plain words or carry values from the step's outputs.
 
 ## Loop bounds
 
@@ -123,6 +168,13 @@ Prefer this order:
 When a write must happen inside the repeated range, make it safe to repeat. Use
 a stable identity, and update or read back the existing result instead of
 creating a new one on every attempt.
+
+A failed log helps an agent fix the cause of a failed write. It doesn't make
+the write safe to run again. A push step that failed after it created a branch
+or a commit finds them on the next attempt, and its script must accept them.
+[Turn a Sentry issue into a verified pull
+request](/how-to/recipes/event-to-verified-pull-request) shows a push step that
+is safe to run again.
 
 A loop can repeat a bad side effect as easily as it can improve code. Don't use
 it to retry a deploy or an external write that has no check in front of it.

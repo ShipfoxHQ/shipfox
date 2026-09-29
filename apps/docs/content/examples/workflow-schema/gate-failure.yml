@@ -6,6 +6,7 @@ jobs:
         prompt: |
           Fix the failing test.
           Feedback: ${{ step.is_retry ? step.restart.feedback : "No previous feedback." }}
+          Test log: ${{ has(step.restart) && has(step.restart.from.log_path) ? step.restart.from.log_path : "None." }}
       - key: test
         run: pnpm test
         gate:
