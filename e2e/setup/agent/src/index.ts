@@ -143,6 +143,32 @@ export interface DeleteModelProviderConfigParams {
   providerId: ModelProviderRef;
 }
 
+export type ScriptedManagedProviderReply =
+  | {text: string}
+  | {tool: string; args?: Record<string, unknown> | undefined};
+
+export interface ScriptedManagedProviderEntry {
+  match: {prompt_contains: string};
+  replies: ScriptedManagedProviderReply[];
+}
+
+export interface RegisterScriptedManagedProviderParams {
+  projectId: string;
+  entries: ScriptedManagedProviderEntry[];
+}
+
+export interface ScriptedManagedProviderRequest {
+  index: number;
+  project_id: string;
+  step_attempt_id: string;
+  model: string;
+  prompt: string;
+  surprise: boolean;
+  served_reply: string | null;
+  error?: string;
+  created_at: string;
+}
+
 export function ollamaConfig(env: NodeJS.ProcessEnv = process.env): OllamaConfig {
   const baseUrl = normalizeBaseUrl(
     env.OLLAMA_BASE_URL || env.SHIPFOX_OLLAMA_BASE_URL || DEFAULT_OLLAMA_BASE_URL,
@@ -273,6 +299,35 @@ export async function createAnthropicFakeModelProviderConfig(
   };
 }
 
+export async function registerScriptedManagedProvider(
+  params: RegisterScriptedManagedProviderParams,
+): Promise<void> {
+  await requestJson('post', '/__e2e/managed-inference/scripts', {
+    json: {
+      project_id: params.projectId,
+      entries: params.entries,
+    },
+  });
+}
+
+export async function getScriptedManagedProviderRequests(params: {
+  projectId: string;
+}): Promise<ScriptedManagedProviderRequest[]> {
+  const response = await requestJson<{requests: ScriptedManagedProviderRequest[]}>(
+    'get',
+    `/__e2e/managed-inference/scripts/${params.projectId}/requests`,
+    {},
+  );
+  return response.requests;
+}
+
+export const registerManagedInferenceScript = registerScriptedManagedProvider;
+export const registerManagedProviderScript = registerScriptedManagedProvider;
+export const createScriptedManagedProviderScript = registerScriptedManagedProvider;
+export const getManagedInferenceRequests = getScriptedManagedProviderRequests;
+export const readManagedInferenceRequests = getScriptedManagedProviderRequests;
+export const readScriptedManagedProviderRequests = getScriptedManagedProviderRequests;
+
 export async function deleteModelProviderConfig(
   params: DeleteModelProviderConfigParams,
 ): Promise<void> {
@@ -288,6 +343,14 @@ export function createAgentHelper() {
   return {
     createAnthropicFakeModelProviderConfig,
     createAnthropicModelProviderConfig,
+    createScriptedManagedProviderScript,
+    getManagedInferenceRequests,
+    getScriptedManagedProviderRequests,
+    readManagedInferenceRequests,
+    readScriptedManagedProviderRequests,
+    registerManagedInferenceScript,
+    registerManagedProviderScript,
+    registerScriptedManagedProvider,
     createOpenAiCompatibleCustomProvider,
     createOllamaCustomProvider,
     deleteModelProviderConfig,

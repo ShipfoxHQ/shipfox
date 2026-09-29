@@ -28,6 +28,7 @@ const E2E_CLAUDE_MODEL_ID = 'claude-opus-4-8';
 // template tools can recommend scored alternatives against this catalog.
 const E2E_SCORED_REFERENCE_MODEL = 'gpt-6-luna';
 const E2E_SCORED_EFFICIENT_MODEL = 'e2e-scored-efficient';
+const E2E_CATALOG_MODELS = ['gpt-6-sol', 'glm-5.3-flash'] as const;
 const E2E_REFERENCE_SCALE = 'e2e-fixture-v1';
 const E2E_RESPONSE_TEXT = 'ok';
 const E2E_CREDENTIAL_LIFETIME_MS = 300_000;
@@ -38,6 +39,7 @@ const E2E_INFERENCE_ROUTE_PREFIX = '/__e2e-managed-inference';
 const E2E_INFERENCE_STATS_ROUTE_PREFIX = '/managed-inference';
 const E2E_MANAGED_INFERENCE_AUTH = 'e2e-managed-inference';
 const TOKEN_PATTERN = /^shipfox-e2e-(.+)-g(\d+)$/u;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 const E2E_MODELS = [
   {id: E2E_PI_MODEL, label: 'E2E renewable Pi', api: 'openai-completions' as const},
@@ -76,6 +78,18 @@ const E2E_MODELS = [
     ],
   },
   {
+    id: E2E_CATALOG_MODELS[0],
+    label: 'E2E catalog efficient',
+    lab: 'OpenAI',
+    api: 'openai-completions',
+  },
+  {
+    id: E2E_CATALOG_MODELS[1],
+    label: 'E2E catalog fast',
+    lab: 'Zhipu',
+    api: 'openai-completions',
+  },
+  {
     id: E2E_SCORED_EFFICIENT_MODEL,
     label: 'E2E scored efficient',
     lab: 'DeepSeek',
@@ -104,10 +118,47 @@ function onlyThinkingLevels(
   );
 }
 
+interface ScriptedReply {
+  text?: string;
+  tool?: string;
+  args?: Record<string, unknown>;
+}
+
+interface ScriptedEntry {
+  promptContains: string;
+  replies: ScriptedReply[];
+}
+
+interface ScriptedRequest {
+  index: number;
+  project_id: string;
+  step_attempt_id: string;
+  model: string;
+  prompt: string;
+  surprise: boolean;
+  served_reply: string | null;
+  error?: string;
+  created_at: string;
+}
+
+interface ScriptedProject {
+  entries: ScriptedEntry[];
+  requests: ScriptedRequest[];
+}
+
+interface ScriptedAttempt {
+  project: ScriptedProject;
+  entry: ScriptedEntry | undefined;
+  cursor: number;
+}
+
 interface CredentialState {
+  stepAttemptId: string;
   nextGeneration: number;
   model: string;
   renewableInference: boolean;
+  projectId: string;
+  scriptedAttempt: ScriptedAttempt | undefined;
   lastTouchedAt: number;
 }
 
@@ -123,6 +174,7 @@ interface InferenceStats {
 interface InferenceState {
   readonly credentials: Map<string, CredentialState>;
   readonly tombstones: Map<string, CredentialState>;
+  readonly scripts: Map<string, ScriptedProject>;
   readonly stats: InferenceStats;
 }
 
@@ -135,6 +187,7 @@ export function createE2eManagedInferenceProvider(
   const state: InferenceState = {
     credentials: new Map(),
     tombstones: new Map(),
+    scripts: new Map(),
     stats: {
       resolutions: 0,
       expiredRequests: 0,
@@ -151,62 +204,7 @@ export function createE2eManagedInferenceProvider(
     models: E2E_MODELS,
     defaultModel: E2E_PI_MODEL,
     defaultThinking: 'low',
-    resolveCredentials: (params) => {
-      if (params.jobIdentity === undefined) {
-        throw new Error('E2E managed provider requires the leased job identity');
-      }
-
-      const model = E2E_MODELS.find((candidate) => candidate.id === params.model);
-      if (model === undefined) {
-        throw new Error(`E2E managed provider does not know model ${params.model}`);
-      }
-
-      const key = params.stepAttemptId;
-      const now = Date.now();
-      pruneCredentialStates(state, now);
-      const renewableInference = params.renewableInference;
-      const credentialState = state.credentials.get(key) ??
-        state.tombstones.get(key) ?? {
-          nextGeneration: 1,
-          model: model.id,
-          renewableInference,
-          lastTouchedAt: now,
-        };
-      if (credentialState.model !== model.id) {
-        throw new Error('E2E managed provider model changed during credential renewal');
-      }
-      if (credentialState.renewableInference !== renewableInference) {
-        throw new Error('E2E managed provider renewable mode changed during credential renewal');
-      }
-      const generation = credentialState.nextGeneration;
-      credentialState.nextGeneration += 1;
-      credentialState.lastTouchedAt = now;
-      state.tombstones.delete(key);
-      state.credentials.set(key, credentialState);
-      state.stats.resolutions += 1;
-      state.stats.resolutionsByModel[model.id] =
-        (state.stats.resolutionsByModel[model.id] ?? 0) + 1;
-
-      const token = `shipfox-e2e-${params.stepAttemptId}-g${generation}`;
-      const runtimeConfig: ManagedProviderRuntimeConfig = {
-        api: model.api,
-        baseUrl,
-        credentials: {api_key: token},
-      };
-      if (!renewableInference) return Promise.resolve(runtimeConfig);
-
-      return Promise.resolve({
-        ...runtimeConfig,
-        expiresAt: new Date(now + E2E_CREDENTIAL_LIFETIME_MS),
-        generation: randomUUID(),
-        renewal: {
-          mode: 'refresh-at',
-          refreshAt: new Date(
-            now + (isRefreshAtModel(model.id) && generation === 1 ? -1_000 : E2E_RENEWAL_DELAY_MS),
-          ),
-        },
-      });
-    },
+    resolveCredentials: (params) => Promise.resolve(resolveE2eCredentials(state, baseUrl, params)),
   };
 
   return {
@@ -214,13 +212,147 @@ export function createE2eManagedInferenceProvider(
     module: {
       name: 'e2e-managed-inference',
       auth: [createInferenceAuth(state, adminApiKey)],
-      routes: [createInferenceRoutes()],
+      routes: [createInferenceRoutes(state)],
       e2eRoutes: [createInferenceStatsRoutes(state)],
     },
   };
 }
 
-function createInferenceRoutes(): RouteGroup {
+function resolveE2eCredentials(
+  state: InferenceState,
+  baseUrl: string,
+  params: Parameters<ManagedModelProvider['resolveCredentials']>[0],
+): ManagedProviderRuntimeConfig {
+  if (params.jobIdentity === undefined) {
+    throw new Error('E2E managed provider requires the leased job identity');
+  }
+
+  const model = E2E_MODELS.find((candidate) => candidate.id === params.model);
+  if (model === undefined) {
+    throw new Error(`E2E managed provider does not know model ${params.model}`);
+  }
+
+  const key = params.stepAttemptId;
+  const now = Date.now();
+  pruneCredentialStates(state, now);
+  const renewableInference = params.renewableInference;
+  const projectId = params.jobIdentity.projectId;
+  const credentialState = state.credentials.get(key) ??
+    state.tombstones.get(key) ?? {
+      stepAttemptId: key,
+      nextGeneration: 1,
+      model: model.id,
+      renewableInference,
+      projectId,
+      scriptedAttempt: createScriptedAttempt(state, projectId),
+      lastTouchedAt: now,
+    };
+  if (credentialState.model !== model.id) {
+    throw new Error('E2E managed provider model changed during credential renewal');
+  }
+  if (credentialState.renewableInference !== renewableInference) {
+    throw new Error('E2E managed provider renewable mode changed during credential renewal');
+  }
+  if (credentialState.projectId !== projectId) {
+    throw new Error('E2E managed provider project changed during credential renewal');
+  }
+  const generation = credentialState.nextGeneration;
+  credentialState.nextGeneration += 1;
+  credentialState.lastTouchedAt = now;
+  state.tombstones.delete(key);
+  state.credentials.set(key, credentialState);
+  state.stats.resolutions += 1;
+  state.stats.resolutionsByModel[model.id] = (state.stats.resolutionsByModel[model.id] ?? 0) + 1;
+
+  const token = `shipfox-e2e-${params.stepAttemptId}-g${generation}`;
+  const runtimeConfig: ManagedProviderRuntimeConfig = {
+    api: model.api,
+    baseUrl,
+    credentials: {api_key: token},
+  };
+  if (!renewableInference) return runtimeConfig;
+
+  return {
+    ...runtimeConfig,
+    expiresAt: new Date(now + E2E_CREDENTIAL_LIFETIME_MS),
+    generation: randomUUID(),
+    renewal: {
+      mode: 'refresh-at',
+      refreshAt: new Date(
+        now + (isRefreshAtModel(model.id) && generation === 1 ? -1_000 : E2E_RENEWAL_DELAY_MS),
+      ),
+    },
+  };
+}
+
+function parseScriptRegistration(body: unknown): {
+  project_id: string;
+  entries: Array<{match: {prompt_contains: string}; replies: ScriptedReply[]}>;
+} {
+  if (!isRecord(body) || typeof body.project_id !== 'string' || !isUuid(body.project_id)) {
+    throw new ClientError('Invalid scripted provider project', 'invalid-script', {status: 400});
+  }
+  if (!Array.isArray(body.entries) || body.entries.length === 0) {
+    throw new ClientError('A scripted provider needs entries', 'invalid-script', {status: 400});
+  }
+  const entries = body.entries.map((entry) => parseScriptEntry(entry));
+  return {project_id: body.project_id, entries};
+}
+
+function parseScriptEntry(value: unknown): {
+  match: {prompt_contains: string};
+  replies: ScriptedReply[];
+} {
+  if (
+    !isRecord(value) ||
+    !isRecord(value.match) ||
+    typeof value.match.prompt_contains !== 'string'
+  ) {
+    throw new ClientError('Invalid scripted provider match', 'invalid-script', {status: 400});
+  }
+  if (!Array.isArray(value.replies) || value.replies.length === 0) {
+    throw new ClientError('A scripted provider entry needs replies', 'invalid-script', {
+      status: 400,
+    });
+  }
+  return {
+    match: {prompt_contains: value.match.prompt_contains},
+    replies: value.replies.map((reply) => parseScriptReply(reply)),
+  };
+}
+
+function parseScriptReply(value: unknown): ScriptedReply {
+  if (!isRecord(value)) {
+    throw new ClientError('Invalid scripted provider reply', 'invalid-script', {status: 400});
+  }
+  if (typeof value.text === 'string') return {text: value.text};
+  if (typeof value.tool === 'string') {
+    return {
+      tool: value.tool,
+      args: isRecord(value.args) ? value.args : {},
+    };
+  }
+  throw new ClientError('A scripted provider reply needs text or tool', 'invalid-script', {
+    status: 400,
+  });
+}
+
+function routeProjectId(value: unknown): string {
+  if (isRecord(value) && typeof value.projectId === 'string' && isUuid(value.projectId)) {
+    return value.projectId;
+  }
+  throw new ClientError('Invalid scripted provider project', 'invalid-script', {status: 400});
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isUuid(value: string): boolean {
+  return UUID_PATTERN.test(value);
+}
+
+function createInferenceRoutes(state: InferenceState): RouteGroup {
   return {
     prefix: E2E_INFERENCE_ROUTE_PREFIX,
     auth: E2E_MANAGED_INFERENCE_AUTH,
@@ -234,7 +366,9 @@ function createInferenceRoutes(): RouteGroup {
           respondToInferenceRequest({
             api: 'openai-completions',
             body: request.body,
+            headers: request.headers,
             reply,
+            state,
           }),
       }),
       defineRoute({
@@ -246,7 +380,9 @@ function createInferenceRoutes(): RouteGroup {
           respondToInferenceRequest({
             api: 'anthropic-messages',
             body: request.body,
+            headers: request.headers,
             reply,
+            state,
           }),
       }),
     ],
@@ -257,6 +393,36 @@ function createInferenceStatsRoutes(state: InferenceState): RouteGroup {
   return {
     prefix: E2E_INFERENCE_STATS_ROUTE_PREFIX,
     routes: [
+      defineRoute({
+        method: 'POST',
+        path: '/scripts',
+        description: 'Registers a project-scoped scripted E2E managed inference backend.',
+        handler: (request, reply) => {
+          const body = parseScriptRegistration(request.body);
+          const script = {
+            entries: body.entries.map((entry) => ({
+              promptContains: entry.match.prompt_contains,
+              replies: entry.replies,
+            })),
+            requests: [],
+          } satisfies ScriptedProject;
+          state.scripts.set(body.project_id, script);
+          reply.code(201);
+          return {project_id: body.project_id};
+        },
+      }),
+      defineRoute({
+        method: 'GET',
+        path: '/scripts/:projectId/requests',
+        description: 'Returns requests recorded by a scripted managed inference backend.',
+        handler: (request) => {
+          const projectId = routeProjectId(request.params);
+          return {
+            project_id: projectId,
+            requests: state.scripts.get(projectId)?.requests ?? [],
+          };
+        },
+      }),
       defineRoute({
         method: 'GET',
         path: '/stats',
@@ -321,7 +487,10 @@ function inferenceAuthenticationErrorHandler(
 function respondToInferenceRequest(params: {
   api: ManagedModelApi;
   body: unknown;
+  headers: Record<string, unknown>;
+  state: InferenceState;
   reply: {
+    code(statusCode: number): {send(payload: unknown): unknown};
     header(name: string, value: string): unknown;
     hijack(): unknown;
     raw: {
@@ -333,10 +502,218 @@ function respondToInferenceRequest(params: {
   };
 }): unknown {
   const requestModel = bodyString(params.body, 'model') ?? 'unknown';
+  const credentialState = credentialStateForRequest(params.state, params.headers);
+  if (params.api === 'openai-completions' && credentialState?.scriptedAttempt !== undefined) {
+    return respondWithScriptedOpenAiCompletion(
+      params.reply,
+      requestModel,
+      params.body,
+      credentialState,
+    );
+  }
   if (params.api === 'openai-completions') {
     return respondWithOpenAiCompletion(params.reply, requestModel, params.body);
   }
   return respondWithAnthropicMessage(params.reply, requestModel, params.body);
+}
+
+function credentialStateForRequest(
+  state: InferenceState,
+  headers: Record<string, unknown>,
+): CredentialState | undefined {
+  const token = requestToken(headers);
+  const tokenDetails = parseToken(token);
+  return tokenDetails === undefined
+    ? undefined
+    : currentCredentialState(state, tokenDetails.stepAttemptId);
+}
+
+function createScriptedAttempt(
+  state: InferenceState,
+  projectId: string,
+): ScriptedAttempt | undefined {
+  const project = state.scripts.get(projectId);
+  return project === undefined ? undefined : {project, entry: undefined, cursor: 0};
+}
+
+function credentialStateKey(state: CredentialState): string {
+  return state.stepAttemptId;
+}
+
+function requestPrompt(body: unknown): string {
+  if (!body || typeof body !== 'object') return '';
+  const messages = (body as {messages?: unknown}).messages;
+  if (!Array.isArray(messages)) return '';
+  return messages
+    .flatMap((message) => {
+      if (!message || typeof message !== 'object') return [];
+      return contentText((message as {content?: unknown}).content);
+    })
+    .join('\\n');
+}
+
+function contentText(content: unknown): string[] {
+  if (typeof content === 'string') return [content];
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((part) => {
+    if (typeof part === 'string') return [part];
+    if (!part || typeof part !== 'object') return [];
+    const text = (part as {text?: unknown}).text;
+    return typeof text === 'string' ? [text] : [];
+  });
+}
+
+function scriptedCompletion(params: {
+  model: string;
+  reply: ScriptedReply;
+  requestIndex: number;
+  stepAttemptId: string;
+}) {
+  const toolCall =
+    params.reply.tool === undefined
+      ? undefined
+      : {
+          id: `call-${params.stepAttemptId}-${params.requestIndex}`,
+          type: 'function' as const,
+          function: {
+            name: params.reply.tool,
+            arguments: JSON.stringify(params.reply.args ?? {}),
+          },
+        };
+  const message =
+    toolCall === undefined
+      ? {role: 'assistant' as const, content: params.reply.text ?? ''}
+      : {role: 'assistant' as const, content: '', tool_calls: [toolCall]};
+  return {
+    id: `chatcmpl-e2e-scripted-${params.requestIndex}`,
+    object: 'chat.completion' as const,
+    created: 1_783_344_000,
+    model: params.model,
+    choices: [
+      {
+        index: 0 as const,
+        message,
+        finish_reason: toolCall === undefined ? ('stop' as const) : ('tool_calls' as const),
+      },
+    ],
+    usage: {prompt_tokens: 1, completion_tokens: 1, total_tokens: 2},
+  };
+}
+
+function respondWithScriptedOpenAiCompletion(
+  reply: {
+    code(statusCode: number): {send(payload: unknown): unknown};
+    hijack(): unknown;
+    raw: {
+      end(chunk?: string): unknown;
+      write(chunk: string): unknown;
+      writeHead(statusCode: number, headers: Record<string, string>): unknown;
+    };
+    send(payload: unknown): unknown;
+  },
+  model: string,
+  body: unknown,
+  credentialState: CredentialState,
+): unknown {
+  const attempt = credentialState.scriptedAttempt;
+  if (attempt === undefined) return respondWithOpenAiCompletion(reply, model, body);
+
+  const prompt = requestPrompt(body);
+  if (attempt.entry === undefined) {
+    attempt.entry = attempt.project.entries.find((entry) => prompt.includes(entry.promptContains));
+  }
+
+  const requestIndex = attempt.project.requests.length;
+  const replyDefinition = attempt.entry?.replies[attempt.cursor];
+  if (attempt.entry === undefined || replyDefinition === undefined) {
+    const error =
+      attempt.entry === undefined
+        ? `No scripted response matched prompt for project ${credentialState.projectId}.`
+        : `Scripted response entry for project ${credentialState.projectId} is exhausted.`;
+    attempt.project.requests.push({
+      index: requestIndex,
+      project_id: credentialState.projectId,
+      step_attempt_id: credentialStateKey(credentialState),
+      model,
+      prompt,
+      surprise: true,
+      served_reply: null,
+      error,
+      created_at: new Date().toISOString(),
+    });
+    return reply.code(attempt.entry === undefined ? 422 : 409).send({
+      error: {
+        message: error,
+        type: attempt.entry === undefined ? 'script_no_match' : 'script_exhausted',
+      },
+    });
+  }
+
+  attempt.cursor += 1;
+  const completion = scriptedCompletion({
+    model,
+    reply: replyDefinition,
+    requestIndex,
+    stepAttemptId: credentialStateKey(credentialState),
+  });
+  attempt.project.requests.push({
+    index: requestIndex,
+    project_id: credentialState.projectId,
+    step_attempt_id: credentialStateKey(credentialState),
+    model,
+    prompt,
+    surprise: false,
+    served_reply: replyDefinition.text ?? `tool:${replyDefinition.tool}`,
+    created_at: new Date().toISOString(),
+  });
+
+  if (!bodyBoolean(body, 'stream')) return reply.send(completion);
+  reply.hijack();
+  reply.raw.writeHead(200, {
+    'cache-control': 'no-cache',
+    'content-type': 'text/event-stream; charset=utf-8',
+  });
+  const base = {
+    id: completion.id,
+    object: 'chat.completion.chunk' as const,
+    created: completion.created,
+    model,
+  };
+  const message = completion.choices[0]?.message;
+  if (message !== undefined && 'tool_calls' in message) {
+    reply.raw.write(
+      `data: ${JSON.stringify({
+        ...base,
+        choices: [{index: 0, delta: message, finish_reason: null}],
+      })}\n\n`,
+    );
+    reply.raw.write(
+      `data: ${JSON.stringify({
+        ...base,
+        choices: [{index: 0, delta: {}, finish_reason: 'tool_calls'}],
+      })}\n\n`,
+    );
+    return reply.raw.end('data: [DONE]\n\n');
+  }
+  reply.raw.write(
+    `data: ${JSON.stringify({
+      ...base,
+      choices: [
+        {
+          index: 0,
+          delta: {role: 'assistant', content: message?.content ?? ''},
+          finish_reason: null,
+        },
+      ],
+    })}\n\n`,
+  );
+  reply.raw.write(
+    `data: ${JSON.stringify({
+      ...base,
+      choices: [{index: 0, delta: {}, finish_reason: 'stop'}],
+    })}\n\n`,
+  );
+  return reply.raw.end('data: [DONE]\n\n');
 }
 
 function respondWithOpenAiCompletion(
