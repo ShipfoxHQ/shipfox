@@ -88,5 +88,5 @@
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "privatePackages": { "version": true, "tag": false },
-  "ignore": ["@shipfox/api", "@shipfox/client", "@shipfox/runner", "@shipfox/provisioner-docker", "@shipfox/provisioner-ec2", "@shipfox/registry"]
+  "ignore": ["@shipfox/api", "@shipfox/client", "@shipfox/runner", "@shipfox/provisioner-docker", "@shipfox/provisioner-ec2", "@shipfox/registry", "@shipfox/registry-client"]
 }

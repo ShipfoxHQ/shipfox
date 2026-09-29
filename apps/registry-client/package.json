@@ -1,0 +1,48 @@
+{
+  "name": "@shipfox/registry-client",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "apps/registry-client"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#test/*": "./test/*"
+  },
+  "scripts": {
+    "build": "next build",
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "dev": "next dev --port ${SHIPFOX_REGISTRY_CLIENT_PORT:-16130}",
+    "test": "shipfox-vitest-run",
+    "type": "shipfox-tsc-check"
+  },
+  "dependencies": {
+    "@shipfox/config": "workspace:*",
+    "@shipfox/integration-icons": "workspace:*",
+    "@shipfox/react-ui": "workspace:*",
+    "@shipfox/registry-format": "workspace:*",
+    "@shipfox/workflow-document": "workspace:*",
+    "@shipfox/workflow-templates": "workspace:*",
+    "lucide-react": "catalog:",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-markdown": "catalog:",
+    "remark-gfm": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*",
+    "@tailwindcss/postcss": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "postcss": "catalog:",
+    "tailwindcss": "catalog:"
+  }
+}
