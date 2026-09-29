@@ -18,6 +18,7 @@ import {
   useCompleteIntegrationCallback,
   useResolveIntegrationWorkspaceSlug,
 } from '#application/complete-integration-callback.js';
+import {useGithubRecovery} from '#application/use-github-recovery.js';
 import type {IntegrationConnection} from '#core/models.js';
 import {
   classifyGithubCallback,
@@ -30,8 +31,9 @@ import {
   getGithubCallbackTelemetry,
   readGithubInstallWorkspace,
   serializeGithubCallback,
+  serializeGithubLinkCallback,
 } from '#github-callback.js';
-import {completeGithubCallback} from '#hooks/api/integrations.js';
+import {completeGithubCallback, completeGithubLink} from '#hooks/api/integrations.js';
 import {rememberCallbackKey} from '#workspace-navigation.js';
 
 const callbackRequests = createSingleFlight<string, IntegrationConnection>({
@@ -40,11 +42,18 @@ const callbackRequests = createSingleFlight<string, IntegrationConnection>({
 const capturedCompletions = new Set<string>();
 const capturedCallbackOutcomes = new Set<string>();
 const reportedFailures = new Set<string>();
+const capturedLinkFailures = new Set<string>();
 const reportedIncompleteCallbacks = new Set<string>();
 const toastedCallbacks = new Set<string>();
 type GithubOutcomeStatus = 'error' | 'info' | 'success' | 'warning';
 
-export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
+export function GithubCallbackPage({
+  search,
+  assignLocation,
+}: {
+  search: GithubCallbackSearch;
+  assignLocation?: (url: string) => void;
+}) {
   const auth = useAuthState();
   const analytics = useClientAnalytics();
   const completeIntegrationCallback = useCompleteIntegrationCallback();
@@ -124,9 +133,16 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
     storedWorkspace,
   ]);
 
+  const isRecovering = useGithubRecovery({
+    intent,
+    landingKey,
+    storedWorkspaceId: storedWorkspace?.id,
+    ...(assignLocation ? {assignLocation} : {}),
+  });
+
   const isTerminalWithoutApi =
     !membershipHydrationFailed &&
-    (intent.kind !== 'complete' ||
+    ((intent.kind !== 'complete' && intent.kind !== 'link') ||
       (!auth.isLoading && (!auth.isAuthenticated || !auth.hasWorkspace)));
   useEffect(() => {
     if (!isTerminalWithoutApi) return;
@@ -135,7 +151,7 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
 
   useEffect(() => {
     if (
-      intent.kind !== 'complete' ||
+      (intent.kind !== 'complete' && intent.kind !== 'link') ||
       auth.isLoading ||
       !auth.isAuthenticated ||
       !auth.hasWorkspace ||
@@ -145,16 +161,23 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
     }
 
     let active = true;
-    const callbackKey = serializeGithubCallback(intent.params);
+    const callbackKey =
+      intent.kind === 'complete'
+        ? serializeGithubCallback(intent.params)
+        : `link:${serializeGithubLinkCallback(intent.params)}`;
     clearGithubInstallWorkspace(sessionStorageOrUndefined());
-    const request = callbackRequests.run(
-      callbackKey,
-      async () =>
-        await completeIntegrationCallback({
-          input: intent.params,
-          refreshAuth,
-          complete: async (input, token) => await completeGithubCallback({...input, token}),
-        }),
+    const request = callbackRequests.run(callbackKey, async () =>
+      intent.kind === 'complete'
+        ? await completeIntegrationCallback({
+            input: intent.params,
+            refreshAuth,
+            complete: async (input, token) => await completeGithubCallback({...input, token}),
+          })
+        : await completeIntegrationCallback({
+            input: intent.params,
+            refreshAuth,
+            complete: completeGithubLink,
+          }),
     );
 
     request.then(
@@ -162,6 +185,7 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
         await handleGithubCallbackSuccess({
           connection,
           callbackKey,
+          linked: intent.kind === 'link',
           analytics,
           workspaces: auth.workspaces,
           resolveIntegrationWorkspaceSlug,
@@ -172,6 +196,10 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
       (error: unknown) => {
         if (!active) return;
         const classified = classifyGithubCallbackError(error);
+        if (intent.kind === 'link' && !capturedLinkFailures.has(callbackKey)) {
+          rememberCallbackKey(capturedLinkFailures, callbackKey);
+          analytics.capture('github_link_failed', {reason: classified.kind});
+        }
         const shouldReport = !(error instanceof ApiError) || error.code === 'network-error';
         if (shouldReport && !reportedFailures.has(callbackKey)) {
           rememberCallbackKey(reportedFailures, callbackKey);
@@ -212,33 +240,10 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
     return <NoMembershipOutcome />;
   }
 
-  if (intent.kind === 'request') {
-    return <RequestOutcome />;
-  }
+  if (isRecovering) return <FullPageLoader aria-label="Connecting GitHub" />;
 
-  if (intent.kind === 'provider-error') {
-    return (
-      <GithubOutcome
-        title="GitHub did not complete installation"
-        message="No connection was changed. Go to Shipfox to start the installation again."
-        status="warning"
-      >
-        <ShipfoxHomeAction />
-      </GithubOutcome>
-    );
-  }
-
-  if (intent.kind === 'invalid') {
-    return (
-      <GithubOutcome
-        title="Invalid GitHub callback"
-        message="This link is missing required callback information. Go to Shipfox to start the installation again."
-        status="error"
-      >
-        <ShipfoxHomeAction />
-      </GithubOutcome>
-    );
-  }
+  const terminal = terminalIntentOutcome(intent);
+  if (terminal) return terminal;
 
   if (completedWorkspaceId) {
     return (
@@ -267,6 +272,7 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
 async function handleGithubCallbackSuccess({
   connection,
   callbackKey,
+  linked,
   analytics,
   workspaces,
   resolveIntegrationWorkspaceSlug,
@@ -276,6 +282,7 @@ async function handleGithubCallbackSuccess({
 }: {
   connection: IntegrationConnection;
   callbackKey: string;
+  linked: boolean;
   analytics: ReturnType<typeof useClientAnalytics>;
   workspaces: ReturnType<typeof useAuthState>['workspaces'];
   resolveIntegrationWorkspaceSlug: ReturnType<typeof useResolveIntegrationWorkspaceSlug>;
@@ -286,6 +293,7 @@ async function handleGithubCallbackSuccess({
   if (!capturedCompletions.has(callbackKey)) {
     rememberCallbackKey(capturedCompletions, callbackKey);
     analytics.capture('github_connection_completed', {workspace_id: connection.workspaceId});
+    if (linked) analytics.capture('github_link_completed', {candidates: '1'});
   }
   if (!isActive()) return;
   const workspaceSlug = await resolveIntegrationWorkspaceSlug({
@@ -310,6 +318,33 @@ async function handleGithubCallbackSuccess({
   } catch {
     if (isActive()) setCompletedWorkspaceId(connection.workspaceId);
   }
+}
+
+function terminalIntentOutcome(intent: GithubCallbackIntent) {
+  if (intent.kind === 'request') return <RequestOutcome />;
+  if (intent.kind === 'provider-error') {
+    return (
+      <GithubOutcome
+        title="GitHub did not complete installation"
+        message="No connection was changed. Go to Shipfox to start the installation again."
+        status="warning"
+      >
+        <ShipfoxHomeAction />
+      </GithubOutcome>
+    );
+  }
+  if (intent.kind === 'invalid') {
+    return (
+      <GithubOutcome
+        title="Invalid GitHub callback"
+        message="This link is missing required callback information. Go to Shipfox to start the installation again."
+        status="error"
+      >
+        <ShipfoxHomeAction />
+      </GithubOutcome>
+    );
+  }
+  return undefined;
 }
 
 function RequestOutcome() {
@@ -481,6 +516,23 @@ function failureCopy(failure: GithubCallbackFailure): {
         title: 'GitHub is already connected elsewhere',
         message:
           'This GitHub installation cannot be moved from another workspace. Go to Shipfox to choose another installation.',
+        status: 'warning',
+      };
+    case 'no-linkable':
+      return {
+        title: 'No GitHub installation to connect',
+        message: `${
+          failure.linkedElsewhere > 0
+            ? 'The Shipfox GitHub App on your account is already connected to another workspace.'
+            : 'Shipfox is not installed on any GitHub account you can access.'
+        } If your organization uses SAML single sign-on, authorize your GitHub session for it and try again. Go to Shipfox to install GitHub.`,
+        status: 'warning',
+      };
+    case 'multiple-linkable':
+      return {
+        title: 'More than one GitHub installation found',
+        message:
+          'Shipfox cannot pick between them yet. Contact support and we will connect the right one.',
         status: 'warning',
       };
     case 'provider-error':

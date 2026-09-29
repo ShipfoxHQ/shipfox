@@ -29,39 +29,84 @@ async function stubCallback(page: Page, response: {status: number; body: unknown
   });
 }
 
+const GITHUB_API_CALL = /\/integrations\/github\/(callback\/api|link)/u;
+const GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize?state=link-state';
+
+// The support route shares its path with the link API, so only POSTs are API calls.
+async function stubLinkStart(page: Page): Promise<{
+  navigated: Promise<string>;
+  requestedWorkspaces: string[];
+}> {
+  const requestedWorkspaces: string[] = [];
+  let resolveNavigation!: (url: string) => void;
+  const navigated = new Promise<string>((resolve) => {
+    resolveNavigation = resolve;
+  });
+  await page.route('https://github.com/**', async (route) => {
+    resolveNavigation(route.request().url());
+    await route.abort();
+  });
+  await page.route('**/integrations/github/link', async (route) => {
+    if (route.request().method() !== 'POST') return await route.fallback();
+    requestedWorkspaces.push(route.request().postDataJSON().workspace_id);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({authorize_url: GITHUB_AUTHORIZE_URL}),
+    });
+  });
+  return {navigated, requestedWorkspaces};
+}
+
+async function stubLinkComplete(
+  page: Page,
+  response: {status: number; body: unknown},
+): Promise<void> {
+  await page.route('**/integrations/github/link/complete', async (route) => {
+    await route.fulfill({
+      status: response.status,
+      contentType: 'application/json',
+      body: JSON.stringify(response.body),
+    });
+  });
+}
+
+async function trackApiCalls(page: Page): Promise<string[]> {
+  const calls: string[] = [];
+  await page.route(GITHUB_API_CALL, async (route) => {
+    if (route.request().method() !== 'POST') return await route.fallback();
+    calls.push(route.request().url());
+    await route.abort();
+  });
+  return calls;
+}
+
 test('GitHub request callback gives guests a terminal explanation', async ({
   githubCallback,
   page,
 }) => {
-  let callbackRequested = false;
-  await page.route('**/integrations/github/callback/api**', async (route) => {
-    callbackRequested = true;
-    await route.abort();
-  });
+  const apiCalls = await trackApiCalls(page);
 
   await githubCallback.goto('setup_action=request');
 
   await expect(githubCallback.heading('GitHub request approved')).toBeVisible();
   await expect(githubCallback.message('They can now continue setup in Shipfox.')).toBeVisible();
   await expect(githubCallback.goToShipfoxLink()).toHaveAttribute('href', '/');
-  expect(callbackRequested).toBe(false);
+  expect(apiCalls).toEqual([]);
   await stableScreenshot(page, 'integrations/github-callback-guest');
 });
 
-test('GitHub callback keeps malformed requests on Shipfox recovery', async ({
+test('GitHub callback keeps malformed requests on Shipfox recovery with several workspaces', async ({
   auth,
   githubCallback,
   page,
   workspaces,
 }) => {
   const user = await auth.createUser();
-  await workspaces.create({userId: user.user.id});
+  await workspaces.create({userId: user.user.id, name: 'First Workspace'});
+  await workspaces.create({userId: user.user.id, name: 'Second Workspace'});
   await auth.loginAs(page, user);
-  let callbackRequested = false;
-  await page.route('**/integrations/github/callback/api**', async (route) => {
-    callbackRequested = true;
-    await route.abort();
-  });
+  const apiCalls = await trackApiCalls(page);
 
   await githubCallback.goto('setup_action=install&installation_id=42');
 
@@ -72,7 +117,7 @@ test('GitHub callback keeps malformed requests on Shipfox recovery', async ({
     ),
   ).toBeVisible();
   await expect(githubCallback.goToShipfoxLink()).toHaveAttribute('href', '/');
-  expect(callbackRequested).toBe(false);
+  expect(apiCalls).toEqual([]);
   await stableScreenshot(page, 'integrations/github-callback-invalid');
 });
 
@@ -124,4 +169,108 @@ test('GitHub callback navigates to the API-confirmed workspace on direct success
   await expect(githubCallback.message('GitHub installed.')).toBeVisible();
   await expect(integrationsCatalogue.emptyInstalledState()).toBeVisible();
   await stableScreenshot(page, 'integrations/github-callback-success');
+});
+
+test('GitHub callback recovers an orphaned installation from a missing state', async ({
+  auth,
+  githubCallback,
+  page,
+  workspaces,
+}) => {
+  const user = await auth.createUser();
+  const workspace = await workspaces.create({userId: user.user.id});
+  await auth.loginAs(page, user);
+  const link = await stubLinkStart(page);
+
+  await githubCallback.goto('setup_action=install&installation_id=42&code=orphan-code');
+
+  expect(await link.navigated).toBe(GITHUB_AUTHORIZE_URL);
+  expect(link.requestedWorkspaces).toEqual([workspace.id]);
+});
+
+test('The support route starts the GitHub link flow for its workspace', async ({
+  auth,
+  page,
+  workspaces,
+}) => {
+  const user = await auth.createUser();
+  const workspace = await workspaces.create({userId: user.user.id});
+  await auth.loginAs(page, user);
+  const link = await stubLinkStart(page);
+
+  await page.goto(`/w/${workspace.slug}/integrations/github/link`);
+
+  expect(await link.navigated).toBe(GITHUB_AUTHORIZE_URL);
+  expect(link.requestedWorkspaces).toEqual([workspace.id]);
+});
+
+test('GitHub link callback connects the installation and opens the workspace', async ({
+  auth,
+  githubCallback,
+  integrationsCatalogue,
+  page,
+  workspaces,
+}) => {
+  const user = await auth.createUser();
+  const workspace = await workspaces.create({userId: user.user.id});
+  await auth.loginAs(page, user);
+  await stubLinkComplete(page, {status: 200, body: githubConnectionFixture(workspace.id)});
+
+  await githubCallback.goto('code=link-code&state=link-state');
+
+  await expect(page).toHaveURL(new RegExp(`/w/${workspace.slug}/settings/integrations/?$`, 'u'));
+  await expect(githubCallback.message('GitHub installed.')).toBeVisible();
+  await expect(integrationsCatalogue.emptyInstalledState()).toBeVisible();
+});
+
+test('GitHub link callback explains when no installation can be linked', async ({
+  auth,
+  githubCallback,
+  page,
+  workspaces,
+}) => {
+  const user = await auth.createUser();
+  await workspaces.create({userId: user.user.id});
+  await auth.loginAs(page, user);
+  await stubLinkComplete(page, {
+    status: 409,
+    body: {
+      code: 'github-no-linkable-installation',
+      message: 'No linkable GitHub installation was found',
+      details: {accessible: 0, linked_elsewhere: 0},
+    },
+  });
+
+  await githubCallback.goto('code=none-code&state=none-state');
+
+  await expect(githubCallback.heading('No GitHub installation to connect')).toBeVisible();
+  await expect(
+    githubCallback.message('Shipfox is not installed on any GitHub account you can access.'),
+  ).toBeVisible();
+  await expect(githubCallback.message('SAML single sign-on')).toBeVisible();
+  await expect(githubCallback.goToShipfoxLink()).toHaveAttribute('href', '/');
+});
+
+test('GitHub link callback sends users with several installations to support', async ({
+  auth,
+  githubCallback,
+  page,
+  workspaces,
+}) => {
+  const user = await auth.createUser();
+  await workspaces.create({userId: user.user.id});
+  await auth.loginAs(page, user);
+  await stubLinkComplete(page, {
+    status: 409,
+    body: {
+      code: 'github-multiple-linkable-installations',
+      message: 'Multiple linkable GitHub installations were found',
+      details: {count: 2},
+    },
+  });
+
+  await githubCallback.goto('code=many-code&state=many-state');
+
+  await expect(githubCallback.heading('More than one GitHub installation found')).toBeVisible();
+  await expect(githubCallback.message('Contact support')).toBeVisible();
 });

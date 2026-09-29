@@ -8,6 +8,7 @@ import {
   getGithubCallbackTelemetry,
   parseGithubCallbackSearch,
   readGithubInstallWorkspace,
+  resolveGithubRecoveryWorkspace,
   saveGithubInstallWorkspace,
 } from './github-callback.js';
 
@@ -59,16 +60,25 @@ describe('GitHub callback classification', () => {
     });
   });
 
+  test('classifies code and state without an installation as a link landing', () => {
+    const search = parseGithubCallbackSearch({code: 'link-code', state: 'link-state'});
+
+    expect(classifyGithubCallback(search)).toEqual({
+      kind: 'link',
+      params: {code: 'link-code', state: 'link-state'},
+    });
+  });
+
   test('returns the sorted missing parameter set without callback values', () => {
     const search = parseGithubCallbackSearch({
       code: 'callback-code',
+      installation_id: '42',
       setup_action: 'update',
-      state: 'callback-state',
     });
 
     expect(classifyGithubCallback(search)).toEqual({
       kind: 'invalid',
-      missing: ['installation_id'],
+      missing: ['state'],
       setupAction: 'update',
     });
   });
@@ -83,6 +93,7 @@ describe('GitHub callback telemetry', () => {
       'install',
     ],
     ['request', {setup_action: 'request'}, true, 'request'],
+    ['link', {code: 'code', state: 'state'}, true, 'other'],
     ['invalid', {state: 'state'}, true, 'other'],
     ['provider-error', {error: 'access_denied'}, true, 'other'],
   ] as const)('normalizes the %s outcome', (kind, search, authenticated, setupAction) => {
@@ -99,22 +110,19 @@ describe('GitHub callback telemetry', () => {
   test('uses guest as the outcome while preserving safe callback dimensions', () => {
     const search = parseGithubCallbackSearch({
       code: 'secret-code',
-      state: 'secret-state',
+      installation_id: '42',
       setup_action: 'unexpected',
     });
     const intent = classifyGithubCallback(search);
 
     expect(getGithubCallbackTelemetry(search, intent, false)).toEqual({
       outcome: 'guest',
-      missing: 'installation_id',
+      missing: 'state',
       setup_action: 'other',
       authenticated: false,
     });
     expect(JSON.stringify(getGithubCallbackTelemetry(search, intent, false))).not.toContain(
       'secret-code',
-    );
-    expect(JSON.stringify(getGithubCallbackTelemetry(search, intent, false))).not.toContain(
-      'secret-state',
     );
   });
 
@@ -130,6 +138,33 @@ describe('GitHub callback telemetry', () => {
   });
 });
 
+describe('GitHub recovery workspace', () => {
+  const workspaces = [{id: 'ws-1'}, {id: 'ws-2'}];
+
+  test('prefers the stored workspace while the user is still a member', () => {
+    expect(resolveGithubRecoveryWorkspace({storedWorkspaceId: 'ws-2', workspaces})).toBe('ws-2');
+  });
+
+  test('ignores a stale hint and falls back to the only membership', () => {
+    expect(
+      resolveGithubRecoveryWorkspace({storedWorkspaceId: 'gone', workspaces: [{id: 'ws-1'}]}),
+    ).toBe('ws-1');
+  });
+
+  test('uses the only membership when there is no hint', () => {
+    expect(
+      resolveGithubRecoveryWorkspace({storedWorkspaceId: undefined, workspaces: [{id: 'ws-1'}]}),
+    ).toBe('ws-1');
+  });
+
+  test('gives up with several memberships and no usable hint', () => {
+    expect(resolveGithubRecoveryWorkspace({storedWorkspaceId: 'gone', workspaces})).toBeUndefined();
+    expect(
+      resolveGithubRecoveryWorkspace({storedWorkspaceId: undefined, workspaces: []}),
+    ).toBeUndefined();
+  });
+});
+
 describe('GitHub callback failures', () => {
   test.each([
     ['Expired GitHub install state', 'expired'],
@@ -138,6 +173,45 @@ describe('GitHub callback failures', () => {
     const error = new ApiError({code: 'invalid-github-install-state', message, status: 400});
 
     expect(classifyGithubCallbackError(error)).toEqual({kind});
+  });
+
+  test.each([
+    ['invalid-github-link-state', 'Expired GitHub link state', {kind: 'expired'}],
+    ['invalid-github-link-state', 'Invalid GitHub link state signature', {kind: 'invalid'}],
+    ['github-link-state-actor-mismatch', 'wrong actor', {kind: 'actor-mismatch'}],
+    ['github-multiple-linkable-installations', 'many', {kind: 'multiple-linkable'}],
+  ])('classifies link failure %s (%s)', (code, message, expected) => {
+    const error = new ApiError({code, message, status: 409});
+
+    expect(classifyGithubCallbackError(error)).toEqual(expected);
+  });
+
+  test('reads bounded counts from a no-linkable-installation failure', () => {
+    const error = new ApiError({
+      code: 'github-no-linkable-installation',
+      message: 'none',
+      status: 409,
+      details: {
+        code: 'github-no-linkable-installation',
+        details: {accessible: 3, linked_elsewhere: 2},
+      },
+    });
+    const withoutDetails = new ApiError({
+      code: 'github-no-linkable-installation',
+      message: 'none',
+      status: 409,
+    });
+
+    expect(classifyGithubCallbackError(error)).toEqual({
+      kind: 'no-linkable',
+      accessible: 3,
+      linkedElsewhere: 2,
+    });
+    expect(classifyGithubCallbackError(withoutDetails)).toEqual({
+      kind: 'no-linkable',
+      accessible: 0,
+      linkedElsewhere: 0,
+    });
   });
 
   test('classifies actor mismatch and transient provider failures', () => {

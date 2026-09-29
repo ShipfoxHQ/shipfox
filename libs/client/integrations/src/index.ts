@@ -16,6 +16,7 @@ export * from './pages/clickup-callback-page.js';
 export * from './pages/clickup-install-page.js';
 export * from './pages/gitea-install-page.js';
 export * from './pages/github-install-page.js';
+export * from './pages/github-link-page.js';
 export * from './pages/jira-callback-page.js';
 export * from './pages/jira-install-page.js';
 export * from './pages/linear-callback-page.js';
