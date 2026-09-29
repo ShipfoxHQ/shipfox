@@ -15,6 +15,7 @@ import {
 } from '#core/errors.js';
 import {claimJobExecution} from '#core/job-executions.js';
 import {detectAndExpireStuckJobs} from '#core/maintenance.js';
+import type {InstallationPlacementPolicy} from '#installation-provisioning.js';
 import * as runnerMetrics from '#metrics/instance.js';
 import {
   getLeaseTokenClaims,
@@ -37,6 +38,7 @@ import {
   reconcileTerminalJobExecution,
   recordHeartbeat,
 } from './job-executions.js';
+import {capacityHolds} from './schema/capacity-holds.js';
 import {expiredJobExecutions} from './schema/expired-job-executions.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
@@ -288,6 +290,146 @@ describe('claimPendingJobExecution', () => {
     workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});
     runnerSessionId = runnerSession.id;
+  });
+
+  it('refuses an installation claim without a hold in require mode and observes a record rollback', async () => {
+    const provisioner = await provisionerTokenFactory.create({scope: 'installation'});
+    const providerRunner = await providerRunnerFactory.create({
+      workspaceId,
+      provisionerId: provisioner.id,
+      providerRunnerId: `provisioned-runner-${crypto.randomUUID()}`,
+      labels: sessionLabels,
+      state: 'running',
+    });
+    await db()
+      .update(runnerSessions)
+      .set({
+        registrationTokenKind: 'ephemeral',
+        maxClaims: 1,
+        provisionerId: provisioner.id,
+        providerRunnerId: providerRunner.providerRunnerId,
+      })
+      .where(eq(runnerSessions.id, runnerSessionId));
+    const created = await pendingJobFactory.create({workspaceId});
+    const placement: InstallationPlacementPolicy = {
+      units: () => 1,
+      holds: 'require',
+      templateOrder: 'default',
+    };
+    const refusedMetric = vi.spyOn(runnerMetrics.runnerClaimsRefusedCount, 'add');
+
+    try {
+      const refused = await claimPendingJobExecution({
+        workspaceId,
+        runnerSessionId,
+        maxClaims: 1,
+        placement,
+      });
+
+      expect(refused).toBeNull();
+      expect(
+        await db()
+          .select()
+          .from(pendingJobExecutions)
+          .where(eq(pendingJobExecutions.jobExecutionId, created.jobExecutionId)),
+      ).toHaveLength(1);
+      expect(refusedMetric).toHaveBeenCalledWith(1, {reason: 'no-capacity-hold'});
+
+      placement.holds = 'record';
+      const claimed = await claimPendingJobExecution({
+        workspaceId,
+        runnerSessionId,
+        maxClaims: 1,
+        placement,
+      });
+      expect(claimed?.jobExecutionId).toBe(created.jobExecutionId);
+    } finally {
+      refusedMetric.mockRestore();
+    }
+  });
+
+  it('allows a late installation claim when its bound hold outlives the reservation', async () => {
+    const provisioner = await provisionerTokenFactory.create({scope: 'installation'});
+    const providerRunner = await providerRunnerFactory.create({
+      workspaceId,
+      provisionerId: provisioner.id,
+      providerRunnerId: `provisioned-runner-${crypto.randomUUID()}`,
+      labels: sessionLabels,
+      state: 'running',
+    });
+    await db()
+      .update(runnerSessions)
+      .set({
+        registrationTokenKind: 'ephemeral',
+        maxClaims: 1,
+        provisionerId: provisioner.id,
+        providerRunnerId: providerRunner.providerRunnerId,
+      })
+      .where(eq(runnerSessions.id, runnerSessionId));
+    await db().insert(capacityHolds).values({
+      workspaceId,
+      reservationId: crypto.randomUUID(),
+      runnerInstanceId: providerRunner.id,
+      units: 1,
+    });
+    const created = await pendingJobFactory.create({workspaceId});
+
+    const claimed = await claimPendingJobExecution({
+      workspaceId,
+      runnerSessionId,
+      maxClaims: 1,
+      placement: {units: () => 1, holds: 'require', templateOrder: 'default'},
+    });
+
+    expect(claimed?.jobExecutionId).toBe(created.jobExecutionId);
+    const [hold] = await db()
+      .select({jobExecutionId: capacityHolds.jobExecutionId})
+      .from(capacityHolds)
+      .where(eq(capacityHolds.runnerInstanceId, providerRunner.id));
+    expect(hold?.jobExecutionId).toBe(created.jobExecutionId);
+  });
+
+  it('does not require a hold for manual claims', async () => {
+    const created = await pendingJobFactory.create({workspaceId});
+
+    const claimed = await claimPendingJobExecution({
+      workspaceId,
+      runnerSessionId,
+      maxClaims: null,
+      placement: {units: () => 1, holds: 'require', templateOrder: 'default'},
+    });
+
+    expect(claimed?.jobExecutionId).toBe(created.jobExecutionId);
+  });
+
+  it('does not require a hold for workspace-scope claims', async () => {
+    const provisioner = await provisionerTokenFactory.create({scope: 'workspace'});
+    const providerRunner = await providerRunnerFactory.create({
+      workspaceId,
+      provisionerId: provisioner.id,
+      providerRunnerId: `workspace-runner-${crypto.randomUUID()}`,
+      labels: sessionLabels,
+      state: 'running',
+    });
+    await db()
+      .update(runnerSessions)
+      .set({
+        registrationTokenKind: 'ephemeral',
+        maxClaims: 1,
+        provisionerId: provisioner.id,
+        providerRunnerId: providerRunner.providerRunnerId,
+      })
+      .where(eq(runnerSessions.id, runnerSessionId));
+    const created = await pendingJobFactory.create({workspaceId});
+
+    const claimed = await claimPendingJobExecution({
+      workspaceId,
+      runnerSessionId,
+      maxClaims: 1,
+      placement: {units: () => 1, holds: 'require', templateOrder: 'default'},
+    });
+
+    expect(claimed?.jobExecutionId).toBe(created.jobExecutionId);
   });
 
   it('emits runners.job.claimed with the claimed row and runner identity', async () => {

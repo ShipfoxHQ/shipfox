@@ -1,5 +1,6 @@
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import {claimPendingJobExecution} from '#db/job-executions.js';
+import type {InstallationPlacementPolicy} from '#installation-provisioning.js';
 import {jobExecutionClaimedCount} from '#metrics/instance.js';
 import {config} from '../config.js';
 
@@ -19,10 +20,12 @@ export async function claimJobExecution(params: {
   sessionLabels: string[];
   maxClaims: number | null;
   lifecycleCapabilities?: ReadonlyArray<string> | null | undefined;
+  placement?: InstallationPlacementPolicy;
 }): Promise<ClaimJobExecutionResult | null> {
   const claimed = await claimPendingJobExecution({
     ...params,
     runnerSessionLivenessThrottleSeconds: config.RUNNER_SESSION_LIVENESS_THROTTLE_SECONDS,
+    ...(params.placement ? {placement: params.placement} : {}),
   });
   if (!claimed) {
     jobExecutionClaimedCount.add(1, {outcome: 'empty'});

@@ -4,8 +4,12 @@ import {claimedJobResponseSchema} from '@shipfox/api-runners-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {RunnerSessionExhaustedError} from '#core/errors.js';
 import {claimJobExecution} from '#core/job-executions.js';
+import type {InstallationProvisioningPolicy} from '#installation-provisioning.js';
 
-export function createRequestJobRoute(auth: AuthInterModuleClient) {
+export function createRequestJobRoute(
+  auth: AuthInterModuleClient,
+  installationProvisioning?: InstallationProvisioningPolicy,
+) {
   return defineRoute({
     method: 'POST',
     path: '/request',
@@ -33,6 +37,9 @@ export function createRequestJobRoute(auth: AuthInterModuleClient) {
         sessionLabels: runner.labels,
         maxClaims: runner.maxClaims,
         lifecycleCapabilities: runner.lifecycleCapabilities,
+        ...(installationProvisioning?.placement
+          ? {placement: installationProvisioning.placement}
+          : {}),
       });
 
       if (!jobExecution) {
