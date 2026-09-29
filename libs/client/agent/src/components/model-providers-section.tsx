@@ -22,6 +22,7 @@ import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {toast} from '@shipfox/react-ui/toast';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import {
   type Dispatch,
   type RefObject,
@@ -62,6 +63,7 @@ import {AvailableProvidersGrid} from './available-providers-grid.js';
 import {ChangeDefaultModelForm} from './change-default-model-form.js';
 import {CustomModelProviderForm} from './custom-model-provider-form.js';
 import {modelProviderConfigErrorToFormError} from './form-errors.js';
+import {ModelLockIcon, ModelLockNotices} from './model-lock.js';
 import {ModelProviderGridSkeleton} from './model-provider-grid-skeleton.js';
 import {ModelProviderUsageModal} from './model-provider-usage-modal.js';
 import {
@@ -108,8 +110,9 @@ function ManagedProviderSection({
 
             <div className="flex flex-col gap-inline">
               <Text size="sm" bold>
-                Available models ({provider.models.length})
+                Models ({provider.models.length})
               </Text>
+              <ModelLockNotices models={provider.models} />
               <ul
                 aria-label={`${provider.label} models`}
                 className="rounded-8 border border-border-neutral-base"
@@ -119,16 +122,27 @@ function ManagedProviderSection({
                     key={model.id}
                     className="flex min-w-0 items-center justify-between gap-inline border-b border-border-neutral-base px-row py-row last:border-b-0"
                   >
-                    <Text as="span" size="sm" bold className="min-w-0 truncate">
+                    <Text
+                      as="span"
+                      size="sm"
+                      bold
+                      className={cn(
+                        'min-w-0 truncate',
+                        model.locked && 'text-foreground-neutral-muted',
+                      )}
+                    >
                       {model.label}
                     </Text>
-                    <Code
-                      as="span"
-                      variant="label"
-                      className="min-w-0 truncate text-foreground-neutral-muted"
-                    >
-                      {model.id}
-                    </Code>
+                    <span className="flex min-w-0 items-center gap-inline">
+                      {model.locked ? <ModelLockIcon lock={model.locked} /> : null}
+                      <Code
+                        as="span"
+                        variant="label"
+                        className="min-w-0 truncate text-foreground-neutral-muted"
+                      >
+                        {model.id}
+                      </Code>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -516,7 +530,7 @@ function CustomProviderModal({
 }
 
 export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: string}) {
-  const catalogQuery = useModelProviderCatalogQuery();
+  const catalogQuery = useModelProviderCatalogQuery(workspaceId);
   const configsQuery = useModelProviderConfigsQuery(workspaceId);
   const [modal, dispatchModal] = useReducer(managementModalReducer, {kind: 'closed'});
   const [pendingUsageTarget, setPendingUsageTarget] = useState<UsageTarget | null>(null);

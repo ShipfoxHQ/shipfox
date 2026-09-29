@@ -13,7 +13,10 @@ import {createDeleteModelProviderConfigRoute} from './delete-model-provider-conf
 import {createDiscoverCustomModelProviderModelsRoute} from './discover-custom-model-provider-models.js';
 import {createDiscoverCustomModelProviderModelsBySlugRoute} from './discover-custom-model-provider-models-by-slug.js';
 import {createGetSessionTranscriptRoute} from './get-session-transcript.js';
-import {createListModelProviderCatalogRoute} from './list-model-provider-catalog.js';
+import {
+  createListModelProviderCatalogRoute,
+  createListWorkspaceModelProviderCatalogRoute,
+} from './list-model-provider-catalog.js';
 import {listModelProviderConfigsRoute} from './list-model-provider-configs.js';
 import {setDefaultHarnessRoute} from './set-default-harness.js';
 import {createSetDefaultModelProviderRoute} from './set-default-model-provider.js';
@@ -86,6 +89,10 @@ export function createAgentRoutes(
       auth: AUTH_USER,
       routes: [
         listModelProviderConfigsRoute,
+        createListWorkspaceModelProviderCatalogRoute({
+          managedProvider: options.managedProvider,
+          workspaceProviders: options.workspaceProviders,
+        }),
         createCustomModelProviderRoute(secrets, workspaceProviderPolicy),
         createDiscoverCustomModelProviderModelsRoute(workspaceProviderPolicy),
         createDiscoverCustomModelProviderModelsBySlugRoute(secrets, workspaceProviderPolicy),

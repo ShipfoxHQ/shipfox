@@ -60,6 +60,7 @@ export type WorkflowModelValidationIssueCode =
   | 'missing-job-needs-edge'
   | 'missing-cron-schedule'
   | 'missing-runner-label'
+  | 'model-locked'
   | 'multiple-manual-triggers'
   | 'runner-context-not-bare'
   | 'runner-context-in-field'

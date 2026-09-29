@@ -144,6 +144,9 @@ export const ManagedOnly: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await canvas.findByText('Managed by this instance. No workspace credentials are required.');
+    await canvas.findByText('Claude Opus 4.8 is not available');
+    await canvas.findByText('A step that uses this model fails until you add credits.');
+    await canvas.findByRole('link', {name: 'Add credits'});
     await canvas.findByRole('button', {name: 'Use in a workflow'});
   },
 };
@@ -262,7 +265,23 @@ function catalogForScenario(scenario: Scenario): ModelProviderCatalogEntryDto[] 
         default_model: 'claude-opus-4-8',
         credential_fields: [],
         models: [
-          {id: 'claude-opus-4-8', label: 'Claude Opus 4.8', api: 'anthropic-messages'},
+          {
+            id: 'claude-opus-4-8',
+            label: 'Claude Opus 4.8',
+            api: 'anthropic-messages',
+            locked: {
+              label: 'Add credits to use',
+              notice: {
+                reason: 'model-locked',
+                message: 'A step that uses this model fails until you add credits.',
+                requiredAction: {
+                  reason: 'add-credits',
+                  message: 'Add credits',
+                  url: '/billing',
+                },
+              },
+            },
+          },
           {id: 'gpt-5.5-pro', label: 'GPT-5.5 Pro', api: 'openai-responses'},
         ],
       }),

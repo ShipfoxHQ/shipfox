@@ -2160,6 +2160,73 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  describe('locked managed models', () => {
+    const providerId = 'shipfox-managed';
+    const lockedCatalog: AgentValidationCatalogV2 = {
+      ...agentValidationCatalog,
+      providers: [
+        ...agentValidationCatalog.providers,
+        {id: providerId, support_status: 'supported'},
+      ],
+      harnesses: agentValidationCatalog.harnesses.map((harness) =>
+        harness.id === 'pi'
+          ? {
+              ...harness,
+              supported_provider_ids: [...harness.supported_provider_ids, providerId],
+              model_ids_by_provider: {
+                ...harness.model_ids_by_provider,
+                [providerId]: ['managed-locked', 'managed-open'],
+              },
+            }
+          : harness,
+      ),
+      locked_model_ids_by_provider: {[providerId]: ['managed-locked']},
+    };
+
+    function documentWithModel(model: string): WorkflowDocument {
+      return {
+        name: 'agent build',
+        jobs: {
+          fix: {steps: [{harness: 'pi', provider: providerId, model, prompt: 'Fix it.'}]},
+        },
+      };
+    }
+
+    it('warns about a locked model and keeps the workflow valid', () => {
+      const {model, diagnostics} = normalizeWithDiagnostics(documentWithModel('managed-locked'), {
+        agentValidationCatalog: lockedCatalog,
+      });
+
+      expect(model.jobs[0]?.steps[0]).toMatchObject({kind: 'agent', model: 'managed-locked'});
+      expect(diagnostics).toEqual([
+        {
+          code: 'model-locked',
+          message: expect.stringContaining('"managed-locked"'),
+          path: ['jobs', 'fix', 'steps', 0, 'model'],
+          details: {provider: providerId, model: 'managed-locked'},
+          severity: 'warning',
+          scope: 'definition',
+        },
+      ]);
+    });
+
+    it('does not warn about a model that is not locked', () => {
+      const {diagnostics} = normalizeWithDiagnostics(documentWithModel('managed-open'), {
+        agentValidationCatalog: lockedCatalog,
+      });
+
+      expect(diagnostics).toEqual([]);
+    });
+
+    it('still rejects a model missing from the catalog as invalid-model', () => {
+      const error = expectInvalid(documentWithModel('managed-missing'), {
+        agentValidationCatalog: lockedCatalog,
+      });
+
+      expect(error.issues).toEqual([expect.objectContaining({code: 'invalid-model'})]);
+    });
+  });
+
   it('allows custom providers without an explicit harness', () => {
     const document: WorkflowDocument = {
       name: 'agent build',

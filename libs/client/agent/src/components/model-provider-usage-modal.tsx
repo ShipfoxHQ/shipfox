@@ -28,9 +28,10 @@ import {
   listHarnesses,
   managedModelSupportsHarness,
 } from '#core/harness-policy.js';
-import type {HarnessId} from '#core/models.js';
+import type {HarnessId, ModelLock} from '#core/models.js';
 import {buildAgentWorkflowExample} from './agent-workflow-example.js';
 import {compatibleHarnessIds} from './harness-availability.js';
+import {ModelLockIcon, ModelLockNotices} from './model-lock.js';
 import type {ModelProviderUsageTarget} from './model-provider-usage-target.js';
 
 type CopyState = 'idle' | 'copied' | 'failed';
@@ -98,7 +99,11 @@ export function ModelProviderUsageModal({
       : target.models;
   }, [selectedHarness, target]);
   const modelOptions = useMemo(
-    () => compatibleModels.map((model) => ({value: model.id, label: model.label})),
+    () =>
+      compatibleModels.map((model) => ({
+        value: model.id,
+        label: model.locked ? `${model.label} (not available)` : model.label,
+      })),
     [compatibleModels],
   );
   useEffect(() => {
@@ -109,6 +114,7 @@ export function ModelProviderUsageModal({
         : (compatibleModels[0]?.id ?? ''),
     );
   }, [compatibleModels, target]);
+  const selectedModelEntry = compatibleModels.find((model) => model.id === selectedModel);
   const example = target
     ? buildAgentWorkflowExample({
         harness: selectedHarness,
@@ -200,6 +206,10 @@ export function ModelProviderUsageModal({
                   </div>
                 )}
 
+                {selectedModelEntry?.locked ? (
+                  <ModelLockNotices models={[selectedModelEntry]} />
+                ) : null}
+
                 <div className="flex flex-col gap-inline">
                   <CodeBlock data={data} className="h-auto min-h-0 rounded-8">
                     <CodeBlockHeader>
@@ -238,11 +248,16 @@ export function ModelProviderUsageModal({
 
                 <div className="flex flex-col gap-inline">
                   <Text size="sm" bold>
-                    Available models ({compatibleModels.length})
+                    Models ({compatibleModels.length})
                   </Text>
                   <ul className="rounded-8 border border-border-neutral-base">
                     {compatibleModels.map((model) => (
-                      <ModelProviderModelRow key={model.id} label={model.label} id={model.id} />
+                      <ModelProviderModelRow
+                        key={model.id}
+                        label={model.label}
+                        id={model.id}
+                        locked={model.locked}
+                      />
                     ))}
                   </ul>
                 </div>
@@ -275,7 +290,15 @@ function isHarness(value: string): value is HarnessId {
   return listHarnesses().some((descriptor) => descriptor.id === value);
 }
 
-function ModelProviderModelRow({label, id}: {label: string; id: string}) {
+function ModelProviderModelRow({
+  label,
+  id,
+  locked,
+}: {
+  label: string;
+  id: string;
+  locked: ModelLock | undefined;
+}) {
   const [copyState, setCopyState] = useState<CopyState>('idle');
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const {copy} = useCopyToClipboard({
@@ -311,7 +334,7 @@ function ModelProviderModelRow({label, id}: {label: string; id: string}) {
         <TooltipTrigger asChild>
           <button
             type="button"
-            aria-label={`Copy ${label} model id ${id}`}
+            aria-label={`Copy ${label} model id ${id}${locked ? `. Not available: ${locked.label}` : ''}`}
             className="flex min-h-40 w-full min-w-0 flex-col items-start gap-tight px-row py-row text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none sm:flex-row sm:items-center sm:gap-inline"
             onClick={() => {
               void handleCopy();
@@ -320,6 +343,7 @@ function ModelProviderModelRow({label, id}: {label: string; id: string}) {
             <Text as="span" size="sm" bold className="max-w-full shrink-0 truncate sm:max-w-[48%]">
               {label}
             </Text>
+            {locked ? <ModelLockIcon lock={locked} /> : null}
             <Code
               as="span"
               variant="label"

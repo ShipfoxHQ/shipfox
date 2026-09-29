@@ -13,9 +13,17 @@ export interface HarnessDescriptor {
   readonly supportedProviderIds: readonly string[];
 }
 
+/** A managed model the workspace cannot run right now. It stays selectable. */
+export interface ModelLock {
+  readonly label: string;
+  readonly message: string;
+  readonly action?: {readonly message: string; readonly url: string} | undefined;
+}
+
 export interface AgentModel {
   readonly id: string;
   readonly label: string;
+  readonly locked?: ModelLock | undefined;
   readonly api?: ProviderApi | undefined;
   readonly contextWindow?: number | undefined;
   readonly maxOutputTokens?: number | undefined;

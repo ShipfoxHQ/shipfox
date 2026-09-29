@@ -4,6 +4,7 @@ import {
   modelProviderCatalogResponse,
   modelProviderConfig,
   modelProviderConfigsResponse,
+  modelProviderEntry,
 } from '#test/fixtures/model-providers.js';
 import {
   deleteModelProviderConfig,
@@ -49,6 +50,59 @@ describe('model provider transport', () => {
     const result = await getModelProviderCatalog();
 
     expect(result.workspaceProviders).toBe('disabled');
+  });
+
+  test('fetches the workspace catalog and maps a locked model', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(
+        modelProviderCatalogResponse([
+          modelProviderEntry({
+            id: 'shipfox',
+            models: [
+              {
+                id: 'claude-opus-4-8',
+                label: 'Claude Opus 4.8',
+                locked: {
+                  label: 'Add credits to use',
+                  notice: {
+                    reason: 'model-locked',
+                    message: 'Add credits to run this model.',
+                    requiredAction: {
+                      reason: 'add-credits',
+                      message: 'Add credits',
+                      url: '/billing',
+                    },
+                  },
+                },
+              },
+              {id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5'},
+            ],
+            default_model: 'claude-haiku-4-5',
+          }),
+        ]),
+      ),
+    );
+    configureApiClient({fetchImpl});
+
+    const result = await getModelProviderCatalog({workspaceId: AGENT_TEST_WORKSPACE_ID});
+
+    const request = fetchImpl.mock.calls[0]?.[0] as Request;
+    expect(request.url).toBe(
+      `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/model-provider-catalog`,
+    );
+    const provider = result.providers[0];
+    expect(provider?.kind === 'supported' ? provider.models : []).toEqual([
+      {
+        id: 'claude-opus-4-8',
+        label: 'Claude Opus 4.8',
+        locked: {
+          label: 'Add credits to use',
+          message: 'Add credits to run this model.',
+          action: {message: 'Add credits', url: '/billing'},
+        },
+      },
+      {id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5'},
+    ]);
   });
 
   test('fetches workspace model provider configs', async () => {

@@ -40,6 +40,8 @@ const agentValidationCatalogSchema = agentValidationCatalogFieldsSchema.extend({
 const agentValidationCatalogV2Schema = agentValidationCatalogFieldsSchema.extend({
   version: z.literal(2),
   default_harness_id: harnessSchema,
+  /** Managed model ids the workspace cannot run right now, by provider. Validation only warns. */
+  locked_model_ids_by_provider: z.record(z.string().min(1), z.array(z.string().min(1))).optional(),
 });
 
 export type AgentValidationCatalog = z.infer<typeof agentValidationCatalogSchema>;
