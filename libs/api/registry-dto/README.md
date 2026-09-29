@@ -7,7 +7,7 @@ Registry DTOs define the inter-module contract that lets other API modules resol
 - **`registryInterModuleContract`**: Declares `resolveVersion`, `getSource`, `getReadme`, `getPackageIndex`, and `getCatalog` on the `registry` module, with their known errors.
 - **Version schemas**: `resolveRegistryVersionRequestSchema`, `registryVersionRefSchema`, `resolvedRegistryVersionSchema`, `registrySourceSchema`, and `registryReadmeSchema` describe each version input and output.
 - **Index schemas**: `registryPackageRequestSchema`, `registryPackageIndexResponseSchema`, and `registryCatalogResponseSchema` describe the catalog and package index calls. The index shapes come from `@shipfox/registry-format`.
-- **Known errors**: Every method can fail with `registry-disabled`, `registry-version-not-found`, `registry-unavailable`, `registry-signature-invalid`, or `registry-schema-unsupported`. Only `registry-unavailable` is worth retrying. `getCatalog` and `getPackageIndex` are unsigned reads, so they fail only with `registry-disabled` or `registry-unavailable`.
+- **Known errors**: The version methods can fail with `registry-disabled`, `registry-version-not-found`, `registry-unavailable`, `registry-signature-invalid`, or `registry-schema-unsupported`. Only `registry-unavailable` is worth retrying. `getCatalog` and `getPackageIndex` are unsigned reads, so they fail only with `registry-disabled` or `registry-unavailable`.
 
 ## Installation and setup
 

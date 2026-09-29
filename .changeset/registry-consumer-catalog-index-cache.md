@@ -3,4 +3,4 @@
 "@shipfox/api-registry": minor
 ---
 
-Adds `getCatalog` and `getPackageIndex` to the Registry module. It stores the last good copy of the catalog and of each package index, serves it, and refreshes a copy older than `REGISTRY_CATALOG_REFRESH_SECONDS` (default 900) in the background with `If-None-Match`. A registry outage after the first fetch keeps serving the stored copy.
+Adds `getCatalog` and `getPackageIndex` to the Registry module. The catalog and each package index are served from the last good copy, so a registry outage after the first fetch keeps serving the stored data.

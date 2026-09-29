@@ -47,7 +47,7 @@ This module owns tables with the `registry_` prefix.
 | `registry_indexes` | Stores the last good catalog and package index by `(registry, key)`, where `key` is `catalog` or a package name: the body, the `ETag`, and the fetch time. |
 | `registry_versions` | Stores each verified version by `(registry, package, version)`: the envelope as fetched, the verified document, the gzip content bundle, and, once fetched, the source archive and README. |
 
-Rows are global across workspaces, because registry content is identical for all workspaces. A row is never updated, except to fill the source or README the first time they are read.
+Rows are global across workspaces, because registry content is identical for all workspaces. A `registry_versions` row is never updated, except to fill the source or README the first time they are read. A `registry_indexes` row is replaced whenever a refresh brings a new body, and its fetch time is renewed when the registry answers 304.
 
 ## Behavior notes
 

@@ -238,9 +238,13 @@ describe('getPackageIndex', () => {
     await getPackageIndex({settings, package: PACKAGE});
     registry.fail(PACKAGE_PATH, 500);
 
-    const index = await getPackageIndex({settings, package: PACKAGE});
+    const first = await getPackageIndex({settings, package: PACKAGE});
+    await vi.waitFor(() => expect(requestsFor(registry, PACKAGE_PATH)).toBe(2));
+    const second = await getPackageIndex({settings, package: PACKAGE});
 
-    expect(index).toEqual(published);
+    expect(first).toEqual(published);
+    expect(second).toEqual(published);
+    expect(await getRegistryIndex({registry: registry.url, key: PACKAGE})).toBeDefined();
   });
 
   it('refreshes a stale index with the new versions', async () => {
@@ -265,7 +269,6 @@ describe('getPackageIndex', () => {
     publishPackageIndex({registry, etag: '"v1"'});
     const settings = settingsFor({registry, keys: [key], catalogRefreshSeconds: 0});
     await getPackageIndex({settings, package: PACKAGE});
-    registry.put(PACKAGE_PATH, 'gone');
     registry.fail(PACKAGE_PATH, 404);
 
     await getPackageIndex({settings, package: PACKAGE});
@@ -285,5 +288,6 @@ describe('getPackageIndex', () => {
     const result = getPackageIndex({settings, package: PACKAGE});
 
     await expect(result).rejects.toBeInstanceOf(RegistryUnavailableError);
+    expect(await getRegistryIndex({registry: registry.url, key: PACKAGE})).toBeUndefined();
   });
 });

@@ -79,7 +79,11 @@ describe('createRegistrySettings', () => {
     });
   });
 
-  it.each([-1, Number.NaN])('rejects a refresh interval of %s', (seconds) => {
+  it.each([
+    -1,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+  ])('rejects a refresh interval of %s', (seconds) => {
     expect(() =>
       createRegistrySettings({
         REGISTRY_URL: '',
@@ -87,5 +91,15 @@ describe('createRegistrySettings', () => {
         REGISTRY_CATALOG_REFRESH_SECONDS: seconds,
       }),
     ).toThrow('REGISTRY_CATALOG_REFRESH_SECONDS');
+  });
+
+  it('accepts a refresh interval of zero', () => {
+    const settings = createRegistrySettings({
+      REGISTRY_URL: '',
+      REGISTRY_TRUSTED_KEYS: '[]',
+      REGISTRY_CATALOG_REFRESH_SECONDS: 0,
+    });
+
+    expect(settings.catalogRefreshSeconds).toBe(0);
   });
 });
