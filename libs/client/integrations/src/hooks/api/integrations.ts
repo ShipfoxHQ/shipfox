@@ -21,9 +21,15 @@ import {
 } from '@shipfox/api-integration-core-dto';
 import type {CreateGiteaConnectionBodyDto} from '@shipfox/api-integration-gitea-dto';
 import {createGiteaConnectionResponseSchema} from '@shipfox/api-integration-gitea-dto';
-import type {CreateGithubInstallBodyDto} from '@shipfox/api-integration-github-dto';
+import type {
+  CompleteGithubLinkBodyDto,
+  CreateGithubInstallBodyDto,
+  CreateGithubLinkBodyDto,
+} from '@shipfox/api-integration-github-dto';
 import {
+  completeGithubLinkResponseSchema,
   createGithubInstallResponseSchema,
+  createGithubLinkResponseSchema,
   githubCallbackResponseSchema,
 } from '@shipfox/api-integration-github-dto';
 import type {
@@ -86,6 +92,7 @@ import {
 } from '@tanstack/react-query';
 import {serializeClickUpCallbackQuery} from '#clickup-callback.js';
 import {
+  type GithubAuthorizeRedirect,
   type InstallRedirect,
   type IntegrationConnection,
   type IntegrationProvider,
@@ -101,6 +108,7 @@ import {serializeLinearCallbackQuery} from '#linear-callback.js';
 import {serializeNotionCallbackQuery} from '#notion-callback.js';
 import {serializeSlackCallbackQuery} from '#slack-callback.js';
 import {
+  toGithubAuthorizeRedirect,
   toInstallRedirect,
   toIntegrationConnection,
   toIntegrationProvider,
@@ -333,6 +341,33 @@ export async function createGithubInstall(
       body,
     }),
   );
+}
+
+export async function createGithubLink(
+  body: CreateGithubLinkBodyDto,
+): Promise<GithubAuthorizeRedirect> {
+  return toGithubAuthorizeRedirect(
+    await checkedApiRequest(createGithubLinkResponseSchema, '/integrations/github/link', {
+      method: 'POST',
+      body,
+    }),
+  );
+}
+
+export async function completeGithubLink(
+  body: CompleteGithubLinkBodyDto,
+  token: string,
+): Promise<IntegrationConnection> {
+  const response = await checkedApiRequest(
+    completeGithubLinkResponseSchema,
+    '/integrations/github/link/complete',
+    {
+      method: 'POST',
+      body,
+      headers: {authorization: `Bearer ${token}`},
+    },
+  );
+  return toIntegrationConnection(response);
 }
 
 export async function completeGithubCallback({

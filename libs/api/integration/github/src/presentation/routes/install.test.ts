@@ -12,7 +12,11 @@ import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-f
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {GithubApiClient} from '#api/client.js';
 import type {ConnectGithubInstallationInput} from '#core/connection.js';
-import {verifyGithubInstallState} from '#core/state.js';
+import {
+  createGithubLinkState,
+  verifyGithubInstallState,
+  verifyGithubLinkState,
+} from '#core/state.js';
 import {createGithubIntegrationProvider} from '#index.js';
 
 const requireWorkspaceMembershipMock = vi.fn(() => Promise.resolve());
@@ -165,6 +169,72 @@ describe('GitHub integration routes', () => {
     );
     expect(claims.workspaceId).toBe(workspaceId);
     expect(claims.userId).toBe('user-1');
+  });
+
+  it('returns an actor-bound PKCE URL for GitHub user OAuth', async () => {
+    const app = await createTestApp();
+    const workspaceId = crypto.randomUUID();
+    authenticatedMemberships = [{workspaceId, role: 'admin', workspaceStatus: 'active'}];
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/github/link',
+      headers: {authorization: 'Bearer user'},
+      payload: {workspace_id: workspaceId},
+    });
+
+    const authorizeUrl = new URL(res.json().authorize_url);
+    const state = authorizeUrl.searchParams.get('state');
+    expect(res.statusCode).toBe(200);
+    expect(authorizeUrl.origin + authorizeUrl.pathname).toBe(
+      'https://github.com/login/oauth/authorize',
+    );
+    expect(authorizeUrl.searchParams.get('client_id')).toBe('test-client-id');
+    expect(authorizeUrl.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(verifyGithubLinkState(state ?? '')).toMatchObject({
+      workspaceId,
+      userId: 'user-1',
+    });
+  });
+
+  it('completes link OAuth and uses app-authenticated installation details', async () => {
+    const app = await createTestApp();
+    const workspaceId = crypto.randomUUID();
+    authenticatedMemberships = [{workspaceId, role: 'admin', workspaceStatus: 'active'}];
+    const state = createGithubLinkState({workspaceId, userId: 'user-1'}).state;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/github/link/complete',
+      headers: {authorization: 'Bearer user'},
+      payload: {code: 'oauth-code', state},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().external_account_id).toBe('123');
+  });
+
+  it('returns a typed conflict for multiple linkable installations', async () => {
+    const app = await createTestApp({
+      github: githubClient({
+        listUserInstallations: vi.fn(() =>
+          Promise.resolve({installationIds: [123, 456], nextCursor: null}),
+        ),
+      }),
+    });
+    const workspaceId = crypto.randomUUID();
+    authenticatedMemberships = [{workspaceId, role: 'admin', workspaceStatus: 'active'}];
+    const state = createGithubLinkState({workspaceId, userId: 'user-1'}).state;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/github/link/complete',
+      headers: {authorization: 'Bearer user'},
+      payload: {code: 'oauth-code', state},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({code: 'github-multiple-linkable-installations'});
   });
 
   it('requires auth on the GitHub callback API', async () => {

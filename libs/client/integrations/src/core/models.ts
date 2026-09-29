@@ -84,6 +84,10 @@ export interface InstallRedirect {
   installUrl: string;
 }
 
+export interface GithubAuthorizeRedirect {
+  authorizeUrl: string;
+}
+
 export type IntegrationUsageEvent = {
   value: string;
   label: string;

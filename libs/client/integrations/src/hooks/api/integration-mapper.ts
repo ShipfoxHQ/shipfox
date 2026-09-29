@@ -8,6 +8,7 @@ import type {
 import type {JiraAccessibleResourceDto} from '@shipfox/api-integration-jira-dto';
 import type {WebhookConnectionDto} from '@shipfox/api-integration-webhook-dto';
 import type {
+  GithubAuthorizeRedirect,
   InstallRedirect,
   IntegrationConnection,
   IntegrationProvider,
@@ -24,6 +25,10 @@ export function toIntegrationProvider(dto: IntegrationProviderDto): IntegrationP
 
 export function toInstallRedirect(dto: {install_url: string}): InstallRedirect {
   return {installUrl: dto.install_url};
+}
+
+export function toGithubAuthorizeRedirect(dto: {authorize_url: string}): GithubAuthorizeRedirect {
+  return {authorizeUrl: dto.authorize_url};
 }
 
 export function toJiraSite(dto: JiraAccessibleResourceDto): JiraSite {

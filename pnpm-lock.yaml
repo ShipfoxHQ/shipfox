@@ -3631,6 +3631,9 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle
+      '@shipfox/node-envelope-encryption':
+        specifier: workspace:*
+        version: link:../../../shared/node/envelope-encryption
       '@shipfox/node-error-monitoring':
         specifier: workspace:*
         version: link:../../../shared/node/error-monitoring

@@ -30,7 +30,7 @@ export interface ConnectGithubInstallationInput {
 }
 
 export interface GithubInstallInteraction {
-  kind: 'install';
+  kind: 'install' | 'link';
   actorUserId: string;
   workspaceId: string;
   installationId: number;
@@ -62,19 +62,40 @@ export interface ConnectGithubInteractionParams {
   ) => Promise<IntegrationConnection<'github'>>;
 }
 
+export async function authorizeGithubInteraction(params: {
+  interaction: Pick<GithubConnectionInteraction, 'actorUserId' | 'workspaceId'>;
+  sessionUserId: string;
+  sessionMemberships: ReadonlyArray<UserContextMembership>;
+  requireWorkspaceMembership: ConnectGithubInteractionParams['requireWorkspaceMembership'];
+}): Promise<void> {
+  if (params.interaction.actorUserId !== params.sessionUserId) {
+    throw new GithubInstallStateActorMismatchError();
+  }
+  await params.requireWorkspaceMembership({
+    workspaceId: params.interaction.workspaceId,
+    userId: params.interaction.actorUserId,
+    memberships: params.sessionMemberships,
+  });
+}
+
 export async function connectGithubInteraction(
   params: ConnectGithubInteractionParams,
 ): Promise<IntegrationConnection<'github'>> {
   const {interaction} = params;
-  if (interaction.actorUserId !== params.sessionUserId) {
-    throw new GithubInstallStateActorMismatchError();
-  }
-  await params.requireWorkspaceMembership({
-    workspaceId: interaction.workspaceId,
-    userId: interaction.actorUserId,
-    memberships: params.sessionMemberships,
+  await authorizeGithubInteraction({
+    interaction,
+    sessionUserId: params.sessionUserId,
+    sessionMemberships: params.sessionMemberships,
+    requireWorkspaceMembership: params.requireWorkspaceMembership,
   });
 
+  return await connectAuthorizedGithubInteraction(params);
+}
+
+export async function connectAuthorizedGithubInteraction(
+  params: ConnectGithubInteractionParams,
+): Promise<IntegrationConnection<'github'>> {
+  const {interaction} = params;
   const installationId = String(interaction.installationId);
   const existing = await params.getExistingGithubConnection({installationId});
   if (existing && existing.workspaceId !== interaction.workspaceId) {
