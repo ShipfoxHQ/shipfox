@@ -53,6 +53,10 @@ export class FileRegistryStorage implements RegistryStorage {
     return {etag: etagOf(body)};
   }
 
+  presignGet(_params: {key: string; expiresInSeconds: number}): Promise<string | undefined> {
+    return Promise.resolve(undefined);
+  }
+
   close(): void {
     // Nothing to release: every operation opens and closes its own files.
   }

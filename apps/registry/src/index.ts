@@ -3,7 +3,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {closePostgresClient, createPostgresClient} from '@shipfox/node-postgres';
 import {createBlobStore} from '#blobs.js';
 import {loadBootstrap} from '#bootstrap.js';
-import {config, publishHooks} from '#config.js';
+import {config, contentUrl, downloadTtlSeconds, publishHooks} from '#config.js';
 import {closeDb} from '#db/db.js';
 import {migrateRegistryDatabase} from '#db/migrations.js';
 import {createPublishTokenExchange} from '#publish/exchange.js';
@@ -13,11 +13,12 @@ import {createVersionPublisher} from '#publish/publish-version.js';
 import {publishRoutes} from '#publish/routes.js';
 import {startTokenSweep} from '#publish/token-sweep.js';
 import {versionRoutes} from '#publish/version-routes.js';
+import {readRoutes} from '#read/routes.js';
 import {loadSigningKey, registrySigner} from '#signing-key.js';
 import {createRegistryStorage} from '#storage/create.js';
 
 try {
-  const storage = createRegistryStorage(config.REGISTRY_STORAGE_URL);
+  const storage = createRegistryStorage(config.REGISTRY_STORAGE_URL, {contentUrl: contentUrl()});
   const signingKey = loadSigningKey({
     pem: config.REGISTRY_SIGNING_KEY,
     keyid: config.REGISTRY_SIGNING_KEY_ID,
@@ -41,7 +42,17 @@ try {
     hooks,
   });
   await createApp({
-    routes: [...publishRoutes({exchange}), versionRoutes({publishVersion})],
+    routes: [
+      ...publishRoutes({exchange}),
+      versionRoutes({publishVersion}),
+      ...readRoutes({
+        bootstrap,
+        signingKey,
+        storage,
+        publicUrl: config.REGISTRY_PUBLIC_URL,
+        downloadTtlSeconds: downloadTtlSeconds(),
+      }),
+    ],
     swagger: false,
   });
   const address = await listen();

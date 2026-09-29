@@ -958,6 +958,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: 'catalog:'
         version: 3.1089.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: 'catalog:'
+        version: 3.1089.0
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../libs/shared/common/config

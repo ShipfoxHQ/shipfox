@@ -119,6 +119,7 @@ describe('index and profile schemas', () => {
           publisher: {namespace: 'shipfox', display_name: 'Shipfox', verified: true},
         },
       ],
+      next_cursor: 'MQ',
     };
 
     const result = roundTrip(registryCatalogSchema, catalog);

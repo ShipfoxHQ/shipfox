@@ -121,6 +121,8 @@ export const registryCatalogEntrySchema = z.object({
 /** `GET /v1/packages`. Unsigned and mutable. */
 export const registryCatalogSchema = z.object({
   packages: z.array(registryCatalogEntrySchema),
+  /** Passed as `cursor` to fetch the next page. Absent on the last page. */
+  next_cursor: z.string().min(1).optional(),
 });
 
 /** `GET /v1/namespaces/{ns}`. Unsigned and mutable. */

@@ -7,6 +7,7 @@ import {GITHUB_OIDC_ISSUER, type GithubOidcClaims} from '#publish/oidc.js';
 import {createPublishTokenVerifier, mintPublishToken} from '#publish/publish-token.js';
 import {createVersionPublisher} from '#publish/publish-version.js';
 import {versionRoutes} from '#publish/version-routes.js';
+import {readRoutes} from '#read/routes.js';
 import {type RegistrySigningKey, registrySigner} from '#signing-key.js';
 import type {RegistryStorage} from '#storage/storage.js';
 import {githubClaims, REGISTRY_PUBLIC_URL} from '#test/fixtures/fake-oidc-issuer.js';
@@ -47,11 +48,16 @@ export async function publishTokenFor({
 
 export interface PublishResponse {
   statusCode: number;
+  headers: Record<string, unknown>;
+  body: string;
+  rawPayload: Buffer;
   json<T = unknown>(): T;
 }
 
 export interface PublishApp {
   app: FastifyInstance;
+  /** Reads a route of the registry API, anonymously unless `headers` say otherwise. */
+  get(url: string, headers?: Record<string, string>): Promise<PublishResponse>;
   /** Publishes as the `shipfox` namespace unless `token` or `namespace` says otherwise. */
   publish(
     params: PublishFixture & {
@@ -68,22 +74,38 @@ export async function startPublishApp({
   storage,
   bootstrapPath,
   hooks = [],
+  downloadTtlSeconds = 300,
 }: {
   signingKey: RegistrySigningKey;
   storage: RegistryStorage;
   bootstrapPath: string;
   hooks?: string[];
+  downloadTtlSeconds?: number;
 }): Promise<PublishApp> {
+  const bootstrap = await loadBootstrap(bootstrapPath);
   const publishVersion = createVersionPublisher({
-    bootstrap: await loadBootstrap(bootstrapPath),
+    bootstrap,
     signer: registrySigner(signingKey),
     verifyToken: createPublishTokenVerifier({signingKey, publicUrl: REGISTRY_PUBLIC_URL}),
     blobs: createBlobStore(storage),
     hooks,
   });
-  const app = await createApp({routes: [versionRoutes({publishVersion})], swagger: false});
+  const app = await createApp({
+    routes: [
+      versionRoutes({publishVersion}),
+      ...readRoutes({
+        bootstrap,
+        signingKey,
+        storage,
+        publicUrl: REGISTRY_PUBLIC_URL,
+        downloadTtlSeconds,
+      }),
+    ],
+    swagger: false,
+  });
   return {
     app,
+    get: (url, headers = {}) => app.inject({method: 'GET', url, headers}),
     async publish({
       namespace = 'shipfox',
       name = 'slack-thread-digest',

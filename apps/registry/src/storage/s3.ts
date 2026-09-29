@@ -1,4 +1,5 @@
 import {GetObjectCommand, PutObjectCommand, S3Client} from '@aws-sdk/client-s3';
+import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
 import type {ObjectStorageS3Profile} from '@shipfox/node-object-storage';
 import {
   assertStorageKey,
@@ -13,9 +14,20 @@ export class S3RegistryStorage implements RegistryStorage {
   readonly #client: S3Client;
   readonly #bucket: string;
   readonly #prefix: string;
+  readonly #contentUrl: URL | undefined;
 
-  constructor({profile, prefix}: {profile: ObjectStorageS3Profile; prefix: string}) {
+  /** `contentUrl` names the host that presigned URLs use instead of the endpoint's. */
+  constructor({
+    profile,
+    prefix,
+    contentUrl,
+  }: {
+    profile: ObjectStorageS3Profile;
+    prefix: string;
+    contentUrl?: URL | undefined;
+  }) {
     this.#bucket = profile.bucket;
+    this.#contentUrl = contentUrl;
     this.#prefix = prefix === '' ? '' : `${prefix}/`;
     this.#client = new S3Client({
       endpoint: profile.endpoint,
@@ -66,6 +78,31 @@ export class S3RegistryStorage implements RegistryStorage {
       if (status === 412 || status === 409) throw new StoragePreconditionFailedError(key);
       throw error;
     }
+  }
+
+  /**
+   * The URL is signed for the bucket host, then its host is swapped for the content host. Tigris
+   * accepts that signature on its custom domain.
+   */
+  async presignGet({
+    key,
+    expiresInSeconds,
+  }: {
+    key: string;
+    expiresInSeconds: number;
+  }): Promise<string> {
+    const signed = new URL(
+      await getSignedUrl(
+        this.#client,
+        new GetObjectCommand({Bucket: this.#bucket, Key: this.#key(key)}),
+        {expiresIn: expiresInSeconds},
+      ),
+    );
+    if (this.#contentUrl) {
+      signed.protocol = this.#contentUrl.protocol;
+      signed.host = this.#contentUrl.host;
+    }
+    return signed.toString();
   }
 
   close(): void {

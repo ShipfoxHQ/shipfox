@@ -4,7 +4,10 @@ import {FileRegistryStorage} from '#storage/file.js';
 import {S3RegistryStorage} from '#storage/s3.js';
 import type {RegistryStorage} from '#storage/storage.js';
 
-export function createRegistryStorage(storageUrl: string): RegistryStorage {
+export function createRegistryStorage(
+  storageUrl: string,
+  {contentUrl}: {contentUrl?: URL | undefined} = {},
+): RegistryStorage {
   const url = URL.canParse(storageUrl) ? new URL(storageUrl) : undefined;
   if (url?.protocol === 'file:') return new FileRegistryStorage(fileURLToPath(url));
   if (url?.protocol === 's3:' && url.hostname !== '') {
@@ -15,6 +18,7 @@ export function createRegistryStorage(storageUrl: string): RegistryStorage {
         'REGISTRY_STORAGE',
       ),
       prefix: url.pathname.replace(/^\/+|\/+$/g, ''),
+      contentUrl,
     });
   }
   throw new Error(
