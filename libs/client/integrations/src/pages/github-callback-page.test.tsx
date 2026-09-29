@@ -109,6 +109,12 @@ describe('GithubCallbackPage', () => {
       viewer: 'member',
       workspace_id: INTEGRATIONS_TEST_WID,
     });
+    expect(capture).toHaveBeenCalledWith('github_callback_outcome', {
+      outcome: 'request',
+      missing: '',
+      setup_action: 'request',
+      authenticated: true,
+    });
   });
 
   test('renders a terminal guest explanation without forcing signup', async () => {
@@ -135,6 +141,12 @@ describe('GithubCallbackPage', () => {
     expect(capture).toHaveBeenCalledWith('github_callback_guest_viewed', {
       outcome: 'complete',
     });
+    expect(capture).toHaveBeenCalledWith('github_callback_outcome', {
+      outcome: 'guest',
+      missing: '',
+      setup_action: 'other',
+      authenticated: false,
+    });
     expect(JSON.stringify(capture.mock.calls)).not.toContain('secret-code');
     expect(JSON.stringify(capture.mock.calls)).not.toContain('secret-state');
   });
@@ -156,6 +168,12 @@ describe('GithubCallbackPage', () => {
     expect(capture).toHaveBeenCalledWith('github_callback_guest_viewed', {
       outcome: 'provider-error',
     });
+    expect(capture).toHaveBeenCalledWith('github_callback_outcome', {
+      outcome: 'guest',
+      missing: '',
+      setup_action: 'other',
+      authenticated: false,
+    });
   });
 
   test('tells a guest when the callback link is invalid', async () => {
@@ -174,6 +192,12 @@ describe('GithubCallbackPage', () => {
     expect(screen.getByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
     expect(completeGithubCallbackMock).not.toHaveBeenCalled();
     expect(capture).toHaveBeenCalledWith('github_callback_guest_viewed', {outcome: 'invalid'});
+    expect(capture).toHaveBeenCalledWith('github_callback_outcome', {
+      outcome: 'guest',
+      missing: 'code,installation_id,state',
+      setup_action: 'other',
+      authenticated: false,
+    });
   });
 
   test('falls back to Shipfox when the workspace hint is stale', async () => {
@@ -254,6 +278,46 @@ describe('GithubCallbackPage', () => {
     expect(screen.getByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
     expect(screen.queryByRole('link', {name: WORKSPACE_ACTION_LINK_NAME})).not.toBeInTheDocument();
     expect(completeGithubCallbackMock).not.toHaveBeenCalled();
+  });
+
+  test('reports and measures an incomplete callback once across remounts', async () => {
+    const capture = vi.fn<ClientAnalytics['capture']>();
+    const reportError = vi.fn();
+    vi.stubGlobal('reportError', reportError);
+    const search = {
+      code: 'incomplete-secret-code',
+      state: 'incomplete-secret-state',
+      setupAction: 'update',
+    } satisfies GithubCallbackSearch;
+
+    const firstRender = renderCallback(search, {analytics: {capture}, strict: true});
+
+    expect(await screen.findByRole('heading', {name: 'Invalid GitHub callback'})).toBeVisible();
+    await waitFor(() => expect(reportError).toHaveBeenCalledOnce());
+    expect(reportError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'GithubCallbackIncompleteError',
+        message: 'GitHub callback missing installation_id',
+      }),
+    );
+    expect(JSON.stringify(reportError.mock.calls)).not.toContain('incomplete-secret-code');
+    expect(JSON.stringify(reportError.mock.calls)).not.toContain('incomplete-secret-state');
+    expect(capture).toHaveBeenCalledWith('github_callback_outcome', {
+      outcome: 'invalid',
+      missing: 'installation_id',
+      setup_action: 'update',
+      authenticated: true,
+    });
+
+    firstRender.unmount();
+    renderCallback(search, {analytics: {capture}});
+
+    await waitFor(() => {
+      expect(
+        capture.mock.calls.filter(([event]) => event === 'github_callback_outcome'),
+      ).toHaveLength(1);
+      expect(reportError).toHaveBeenCalledOnce();
+    });
   });
 
   test('renders actor mismatch recovery and clears the stale handoff', async () => {
@@ -453,15 +517,23 @@ describe('GithubCallbackPage', () => {
       state: 'success-state',
       token: 'test-token',
     });
+    await waitFor(() => {
+      expect(resolveWorkspaceSlugMock).toHaveBeenCalledWith(
+        expect.objectContaining({workspaceId: SECOND_WORKSPACE_ID, fallbackWorkspaces: workspaces}),
+      );
+    });
     expect(
       await screen.findByTestId('route:/w/$workspaceSlug/settings/integrations'),
     ).toBeInTheDocument();
-    expect(resolveWorkspaceSlugMock).toHaveBeenCalledWith(
-      expect.objectContaining({workspaceId: SECOND_WORKSPACE_ID, fallbackWorkspaces: workspaces}),
-    );
     expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBeNull();
     expect(capture).toHaveBeenCalledWith('github_connection_completed', {
       workspace_id: SECOND_WORKSPACE_ID,
+    });
+    expect(capture).toHaveBeenCalledWith('github_callback_outcome', {
+      outcome: 'complete',
+      missing: '',
+      setup_action: 'other',
+      authenticated: true,
     });
     expect(JSON.stringify(capture.mock.calls)).not.toContain('success-code');
     expect(JSON.stringify(capture.mock.calls)).not.toContain('success-state');
