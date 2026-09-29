@@ -549,7 +549,7 @@ function requestPrompt(body: unknown): string {
       if (!message || typeof message !== 'object') return [];
       return contentText((message as {content?: unknown}).content);
     })
-    .join('\\n');
+    .join('\n');
 }
 
 function contentText(content: unknown): string[] {
