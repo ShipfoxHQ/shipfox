@@ -2,12 +2,6 @@
 
 Answer questions about the project's repository in the Slack thread where someone asked them.
 
-## Prerequisites
-
-- Connect Slack with the Shipfox app, and invite the app to every channel where it answers.
-- The project's GitHub source integration connection can read the repository.
-- The runner has Bash and Git. The workflow needs no build setup, installation, or test command.
-
 ## Scope the workflow
 
 The agent answers from the project's repository only. It reads the default branch through a read-only checkout without saved Git credentials.
@@ -67,9 +61,8 @@ The workflow reads the thread's parent message and its first 49 replies, and kee
 The prompt still includes the full message that started the run. For a longer thread, the agent learns that messages are missing.
 A thread can still exceed the 64 KiB step output limit, for example with many long non-Latin messages. That run fails before the agent starts and posts nothing.
 
-## Expected writes and failures
+## Behavior and failures
 
-Each run posts one message in the thread: the answer or a failure notice.
 The workflow never changes the repository, and the checkout job saves no Git credentials.
 Slack retries of the same event are recorded once, so they do not start a second run.
 Two mentions in one thread start two runs, and each run answers its own message.

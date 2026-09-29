@@ -3,13 +3,15 @@ import {describe, expect, it} from '@shipfox/vitest/vi';
 import {parseWorkflowDocument} from '@shipfox/workflow-document';
 import {parse as parseYaml} from 'yaml';
 import type {PartBlocks} from './composer.js';
-import {composeTemplate, templateRoleBindings} from './composer.js';
+import {applyTemplateOptions, composeTemplate, templateRoleBindings} from './composer.js';
 import type {WorkflowTemplate, WorkflowTemplateAsset} from './loader.js';
 import {createTemplateLoader, loadShippedTemplates} from './loader.js';
-import {workflowTemplateManifestSchema} from './manifest.js';
+import {type WorkflowTemplateOption, workflowTemplateManifestSchema} from './manifest.js';
 import {extractModelAnchors} from './model-anchors.js';
 
 const missingThinkingPattern = /thinking: high\s*/u;
+const guideWritesSectionPattern = /^#+ (Prerequisites|Expected writes)/mu;
+const optionBlockMarkerPattern = /# option:[a-z0-9_-]+=/u;
 const fixtureRoot = new URL('../test/fixtures/', import.meta.url);
 const fixture: WorkflowTemplateAsset = {
   id: 'fixture-ticket-to-pr',
@@ -29,6 +31,13 @@ const fixture: WorkflowTemplateAsset = {
     source: {github: parsePart('parts/source/github.yml')},
   },
 };
+
+function defaultChoice(option: WorkflowTemplateOption): string {
+  const choice =
+    option.choices.find(({default: isDefault}) => isDefault === true) ?? option.choices[0];
+  if (choice === undefined) throw new Error(`Option ${option.id} has no choices`);
+  return choice.id;
+}
 
 function parsePart(path: string): PartBlocks {
   return parseYaml(readFileSync(new URL(path, fixtureRoot), 'utf8')) as PartBlocks;
@@ -96,6 +105,37 @@ describe('workflow template loader', () => {
       expect(manifest.writes, id).not.toHaveLength(0);
       for (const related of manifest.related) {
         expect(packages, `${id} links ${related}`).toContain(related);
+      }
+    }
+  });
+
+  it('leaves writes and prerequisites to the manifest, not the guides', () => {
+    for (const {id, guide} of loadShippedTemplates()) {
+      expect(guide, id).not.toMatch(guideWritesSectionPattern);
+    }
+  });
+
+  it('applies every option choice over the defaults to a valid workflow for every role combination', () => {
+    for (const template of loadShippedTemplates()) {
+      const defaults = Object.fromEntries(
+        template.manifest.options.map((option) => [option.id, defaultChoice(option)]),
+      );
+      const selections = [
+        defaults,
+        ...template.manifest.options.flatMap((option) =>
+          option.choices.map((choice) => ({...defaults, [option.id]: choice.id})),
+        ),
+      ];
+
+      for (const bindings of templateRoleBindings(template.manifest.roles)) {
+        const composed = composeTemplate(template, bindings);
+        for (const selection of selections) {
+          const applied = applyTemplateOptions(composed, selection);
+          const label = `${template.id} ${JSON.stringify(bindings)} ${JSON.stringify(selection)}`;
+
+          expect(applied, label).not.toMatch(optionBlockMarkerPattern);
+          expect(() => parseWorkflowDocument(parseYaml(applied)), label).not.toThrow();
+        }
       }
     }
   });

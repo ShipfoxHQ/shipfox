@@ -1,7 +1,7 @@
 ---
 name: create-workflow-from-template
 description: Use when setting up a Shipfox workflow from a template.
-revision: 13
+revision: 14
 catalog_title: Create a workflow from a template
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to create a workflow from a template.
@@ -36,7 +36,7 @@ For Linear triggers, use local Linear MCP `list_teams` to find the repo team. If
 
 Use `search_docs` for `workflow schema` and read the returned `docs://` reference. Search for the template's triggers, steps, and providers.
 
-Ask about the options the template declares for the chosen providers, one option per message, in the template's order. Wait for each answer before asking the next. Skip options that known facts decide.
+Ask about the options the template declares for the chosen providers, one option per message, in the template's order. Skip options that known facts decide. Then call `get_workflow_template` again with the same inputs and `options` as `{"<option ID>": "<choice ID>"}` for every settled option; its `workflow_yaml` keeps only those blocks.
 
 ## 4. Learn the repository
 
@@ -48,7 +48,7 @@ Choose repository commands and any CI workflow to watch. Tell the user what will
 
 ## 5. Assemble the workflow and check prerequisites
 
-Edit the complete `workflow_yaml`: keep chosen `# option:` blocks, fill `# slot:` with repository commands, and set `# bind:<role>` from `suggested_bindings`. Ask only if a role has several bindings.
+Edit the complete `workflow_yaml`: fill `# slot:` with repository commands, set `# bind:<role>` from `suggested_bindings`, and follow the guide for any `# option:` line left. Ask only if a role has several bindings.
 
 Call `get_workflow_authoring_context` before any run. If `model_provider_configured` is `false`, stop and ask the user to add a provider under Settings > Agents. Compare required secrets, variables, and runner with the context; stop and request missing entries under Settings > Secrets, Variables, or Runners.
 
@@ -56,13 +56,13 @@ Use the tested model; otherwise, use the workspace default. If recommendations r
 
 Read `skill://shipfox/create-workflow-from-template/references/choose-models.md` only when they ask to change models.
 
-Check the guide's repository prerequisites, such as a dependency bot or CI provider.
+Tell the user which `prerequisites` and `writes` apply to their choices.
 
 ## 6. Validate the workflow and select an event
 
 Follow `skill://shipfox/validate-workflow-change/SKILL.md` with the YAML, project ID, config path, and trigger key. Complete its shape check. Skip event selection for manual and cron triggers; go to step 7.
 
-For integration triggers, state **Expected writes** and runner/inference cost. Keep project events matching the repo or selected ticket team, project, or space. Check payload and issue status; discard completed or high-risk issues and let the user choose another event. Never change an answered option to make a test safer. Event lookup does not verify project scope; connections may cover multiple repos or teams.
+For integration triggers, state those `writes` and runner/inference cost. Keep project events matching the repo or selected ticket team, project, or space. Check payload and issue status; discard completed or high-risk issues and let the user choose another event. Never change an answered option to make a test safer. Event lookup does not verify project scope; connections may cover multiple repos or teams.
 
 If no safe event matches, use Linear MCP only for Linear triggers. Suggest up to three open, low-risk issues in the selected team matching the repo filter. Ask which issue to use and give the guide's exact event-creation action; do not edit it. For other triggers, ask for a matching event and its guide action. If Linear MCP is unavailable or finds no issue, ask for a matching Linear issue and its trigger action. They can skip; report "shape validated, not executed" and go to step 9.
 
@@ -70,7 +70,7 @@ After they trigger it, poll `list_trigger_events` every 30 seconds for 5 minutes
 
 ## 7. Test the workflow
 
-Follow `skill://shipfox/test-workflow-change/SKILL.md` with the validated YAML and event. It decides whether the run needs confirmation; never ask otherwise. Before starting, state the guide's **Expected writes** in one line. Share the dev run's `run_url` as soon as it appears.
+Follow `skill://shipfox/test-workflow-change/SKILL.md` with the validated YAML and event. It decides whether the run needs confirmation; never ask otherwise. Before starting, state those `writes` in one line. Share the dev run's `run_url` as soon as it appears.
 
 If setup fails, isolate it with a manual setup workflow: checkout, install, test. Before repeating after failure or edits, inspect the prior branch, PR, and comment. Reuse prior writes where allowed; close or delete any write blocking the next run. Stop and ask after five failed real runs.
 

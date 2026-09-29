@@ -50,6 +50,11 @@ const result = {
   options: [],
   workflow_yaml: 'name: workflow',
   guide_markdown: '# Guide',
+  writes: [
+    {provider: 'github', action: 'Opens a pull request.'},
+    {action: 'Comments on a ticket.'},
+  ],
+  prerequisites: ['Invite the Shipfox app to the channel.'],
   suggested_bindings: {source: ['github-main']},
   model_recommendations: [
     recommended,
@@ -139,6 +144,28 @@ describe('workflow template result schemas', () => {
   test('rejects a group without placeholders', () => {
     expect(schemasAccept(withGroup({...recommended, placeholders: []}))).toEqual([false, false]);
     expect(schemasAccept(withGroup({...recommended, placeholders: ['']}))).toEqual([false, false]);
+  });
+
+  test('requires writes and prerequisites', () => {
+    const {writes: _writes, ...withoutWrites} = result;
+    const {prerequisites: _prerequisites, ...withoutPrerequisites} = result;
+
+    expect(getWorkflowTemplateResultJsonSchema.required).toEqual(
+      expect.arrayContaining(['writes', 'prerequisites']),
+    );
+    expect(schemasAccept(withoutWrites)).toEqual([false, false]);
+    expect(schemasAccept(withoutPrerequisites)).toEqual([false, false]);
+  });
+
+  test('rejects a write without an action or with a condition', () => {
+    expect(schemasAccept({...result, writes: [{provider: 'github'}]})).toEqual([false, false]);
+    expect(
+      schemasAccept({...result, writes: [{action: 'Comments.', when: {role: 'tracker'}}]}),
+    ).toEqual([false, false]);
+    expect(schemasAccept({...result, prerequisites: [{text: 'Invite the app.'}]})).toEqual([
+      false,
+      false,
+    ]);
   });
 
   test('rejects the removed suggested_models field', () => {

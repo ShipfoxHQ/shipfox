@@ -135,7 +135,7 @@ The embedded loader takes each template id from its asset directory. It reads `r
 - `prerequisites` lists user actions that the roles do not imply, such as inviting the Shipfox app to a channel. Do not list connections: binding each role already requires one.
 - `related` holds registry package names, such as `shipfox/fix-dependency-ci`.
 
-`writes` and `prerequisites` carry no conditions. Consumers show them as authored, and the coding agent applies them to the user's choices.
+`writes` and `prerequisites` carry no conditions. Consumers show them as authored, and the coding agent applies them to the user's choices. Guides do not repeat either list.
 
 ### Version bumps
 
@@ -186,13 +186,13 @@ Each part file is a YAML map from part name to a literal text block. The source 
 
 Provider tool IDs, event names, and connection bindings belong in parts. The one exception is the built-in `shipfox` connection, which exists in every workspace: `workflow.yml` can bind it directly with `source: shipfox` and `connection: shipfox`.
 
-Shipped templates keep an adaptation guide beside their workflow. For pull request CI repair, read `skill://shipfox/create-workflow-from-template/references/fix-dependency-ci.md` through MCP. It covers prerequisites, PR selection, repair limits, choices, and customization slots.
-For Slack codebase questions, read `skill://shipfox/create-workflow-from-template/references/ask-codebase.md`. It covers channel scope, manual dispatch inputs, and outcomes.
-For default-branch CI failures, read `skill://shipfox/create-workflow-from-template/references/fix-default-branch-ci.md`. It covers duplicate limits, outcomes, and the optional Slack report.
-For failed run reports, read `skill://shipfox/create-workflow-from-template/references/report-failed-runs.md`. It covers run event filters, options, and Slack writes.
-For tasks to pull requests, read `skill://shipfox/create-workflow-from-template/references/ticket-to-pr.md`. It covers manual task inputs, workflow outputs, the optional tracker, and expected writes.
-For Slack conversations that become tickets, read `skill://shipfox/create-workflow-from-template/references/slack-to-ticket.md`. It covers channel and team scope, manual dispatch inputs, duplicate tickets, and expected writes.
-For routing Slack requests to other workflows, read `skill://shipfox/create-workflow-from-template/references/slack-dispatcher.md`. It covers the workflow list, destination limits, the result handoff, duplicates, and expected writes.
+Shipped templates keep an adaptation guide beside their workflow. For pull request CI repair, read `skill://shipfox/create-workflow-from-template/references/fix-dependency-ci.md` through MCP. It covers PR selection, repair limits, choices, and customization slots.
+For Slack codebase questions, read `skill://shipfox/create-workflow-from-template/references/ask-codebase.md`. It covers channel scope, manual dispatch inputs, outcomes, and failures.
+For default-branch CI failures, read `skill://shipfox/create-workflow-from-template/references/fix-default-branch-ci.md`. It covers duplicate limits, outcomes, the optional Slack report, and delivery failures.
+For failed run reports, read `skill://shipfox/create-workflow-from-template/references/report-failed-runs.md`. It covers run event filters, options, and failed reports.
+For tasks to pull requests, read `skill://shipfox/create-workflow-from-template/references/ticket-to-pr.md`. It covers manual task inputs, workflow outputs, the optional tracker, and how runs link and fail.
+For Slack conversations that become tickets, read `skill://shipfox/create-workflow-from-template/references/slack-to-ticket.md`. It covers channel and team scope, manual dispatch inputs, duplicate tickets, and failures.
+For routing Slack requests to other workflows, read `skill://shipfox/create-workflow-from-template/references/slack-dispatcher.md`. It covers the workflow list, destination limits, the result handoff, duplicates, and failures.
 
 The build also serves each template guide as a `create-workflow-from-template/references/<template-id>.md` resource. The manifest lists the SHA-256 digest and byte size of every skill file.
 
