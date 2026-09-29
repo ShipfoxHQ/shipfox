@@ -159,12 +159,15 @@ export {
 } from '#schemas/index.js';
 export {
   RUNNER_JOB_CLAIMED,
+  RUNNER_JOB_EXECUTION_PLACEMENT_DENIED,
   RUNNER_JOB_LEASE_EXPIRED,
   type RunnerJobClaimedEvent,
+  type RunnerJobExecutionPlacementDeniedEvent,
   type RunnerJobLeaseExpiredEvent,
   type RunnerJobLossCauseDto,
   type RunnersEventMap,
   runnerJobClaimedEventSchema,
+  runnerJobExecutionPlacementDeniedEventSchema,
   runnerJobLeaseExpiredEventSchema,
   runnerJobLossCauseSchema,
   runnersEventSchemas,

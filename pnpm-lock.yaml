@@ -381,6 +381,9 @@ catalogs:
     es-module-lexer:
       specifier: ^2.1.0
       version: 2.1.0
+    esbuild:
+      specifier: 0.28.1
+      version: 0.28.1
     fastify:
       specifier: ^5.3.3
       version: 5.8.5
@@ -4940,6 +4943,9 @@ importers:
       '@shipfox/node-tokens':
         specifier: workspace:*
         version: link:../../shared/node/tokens
+      '@shipfox/policy-notice':
+        specifier: workspace:*
+        version: link:../../shared/common/policy-notice
       '@shipfox/runner-labels':
         specifier: workspace:*
         version: link:../../shared/common/runner-labels
@@ -9904,6 +9910,9 @@ importers:
       '@shipfox/workflow-templates':
         specifier: workspace:*
         version: link:../../libs/shared/workflow/templates
+      esbuild:
+        specifier: 'catalog:'
+        version: 0.28.1
       yaml:
         specifier: 'catalog:'
         version: 2.9.0

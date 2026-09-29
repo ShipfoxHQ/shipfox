@@ -19,5 +19,6 @@ registerHooks({
     bundleDir: realpathSync(bundleDir),
     workspaceDir: process.cwd(),
     sdkUrl: import.meta.url,
+    origin: process.env[ACTION_ENV.actionOrigin],
   }),
 });

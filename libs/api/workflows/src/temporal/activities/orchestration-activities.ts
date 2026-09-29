@@ -4,6 +4,7 @@ import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module'
 import type {RunnerJobLossCauseDto} from '@shipfox/api-runners-dto';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
+import type {PolicyNotice} from '@shipfox/policy-notice';
 import {ApplicationFailure} from '@temporalio/common';
 import {jobQueueTimeoutMs} from '#config.js';
 import {defaultJobConditionTrace} from '#core/condition-trace.js';
@@ -212,6 +213,7 @@ export async function setJobExecutionStatus(
     executionTimeoutMs?: number | null | undefined;
     provisionerScope?: string | null | undefined;
     durationLimits?: JobExecutionLimits | null | undefined;
+    statusReasonNotice?: PolicyNotice | null | undefined;
   },
   secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>,
 ): Promise<{newVersion: number; status: Exclude<JobStatus, 'skipped'>}> {
@@ -232,6 +234,7 @@ export async function setJobExecutionStatus(
     expectedVersion: params.version,
     statusReason: params.statusReason,
     statusReasonMessage: params.statusReasonMessage,
+    statusReasonNotice: params.statusReasonNotice,
     secrets,
   });
   return {newVersion: updated.version, status: updated.status};

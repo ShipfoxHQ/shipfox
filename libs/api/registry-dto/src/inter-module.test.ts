@@ -53,6 +53,36 @@ describe('registryInterModuleContract', () => {
     ]);
   });
 
+  it('declares only the disabled and unavailable errors on the unsigned indexes', () => {
+    expect(Object.keys(methods.getCatalog.errors).sort()).toEqual([
+      'registry-disabled',
+      'registry-unavailable',
+    ]);
+    expect(Object.keys(methods.getPackageIndex.errors).sort()).toEqual([
+      'registry-disabled',
+      'registry-unavailable',
+    ]);
+  });
+
+  it.each([
+    ['a package outside the grammar', {package: 'Shipfox/example'}],
+    ['a package without a namespace', {package: 'example'}],
+    ['no package', {}],
+  ])('rejects a package index request with %s', (_name, input) => {
+    expect(methods.getPackageIndex.input.safeParse(input).success).toBe(false);
+  });
+
+  it('accepts a package index request for one package', () => {
+    const input = methods.getPackageIndex.input.parse({package: 'shipfox/example'});
+
+    expect(input).toEqual({package: 'shipfox/example'});
+  });
+
+  it('accepts an absent package index and rejects a missing field', () => {
+    expect(methods.getPackageIndex.output.safeParse({index: null}).success).toBe(true);
+    expect(methods.getPackageIndex.output.safeParse({}).success).toBe(false);
+  });
+
   it('accepts a base64 bundle and rejects other strings', () => {
     expect(registrySourceSchema.safeParse({source: 'H4sIAAAAAAAAA0tLLAEA'}).success).toBe(true);
     expect(registrySourceSchema.safeParse({source: 'not base64!'}).success).toBe(false);

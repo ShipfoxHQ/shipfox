@@ -65,8 +65,8 @@ export function PreDispatchStepDiagnostic({
         </Text>
         <Text size="sm" className="text-foreground-neutral-subtle">
           {diagnostic.actionInputProblem
-            ? 'An action input does not match its declaration in action.yml. Fix the step’s with: value or the declaration, then run again.'
-            : 'Shipfox could not resolve this step’s configuration before dispatch.'}
+            ? 'An action input does not match action.yml. Fix the with: value of the step or the input, then start a new run.'
+            : 'Shipfox cannot compute a value in this step, so the step did not start. Fix the expression, then start a new run.'}
         </Text>
       </div>
       {diagnostic.field || diagnostic.source || diagnostic.actionInputProblem ? (
@@ -94,7 +94,7 @@ export function PreDispatchStepDiagnostic({
           {diagnostic.source ? (
             <div className="flex min-w-0 flex-col gap-tight">
               <Text as="dt" size="xs" bold className="text-foreground-neutral-muted">
-                Unavailable reference
+                Missing value
               </Text>
               <Code as="dd" variant="label" className="break-all text-foreground-neutral-base">
                 {diagnostic.source}

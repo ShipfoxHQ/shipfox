@@ -17,6 +17,15 @@ import {
   GithubNoLinkableInstallationError,
 } from '#core/errors.js';
 
+export function githubRouteErrorCode(error: unknown): string | undefined {
+  try {
+    githubRouteErrorHandler(error);
+  } catch (translated) {
+    if (translated instanceof ClientError) return translated.code;
+  }
+  return undefined;
+}
+
 function providerStatus(reason: IntegrationProviderErrorReason): number {
   if (reason === 'rate-limited') return 429;
   if (reason === 'timeout' || reason === 'provider-unavailable') return 503;

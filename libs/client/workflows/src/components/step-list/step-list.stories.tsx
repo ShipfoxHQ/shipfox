@@ -84,7 +84,7 @@ const withAgentSettingsRoute: Decorator = (Story) => {
 async function assertAgentConfigFailureCallout(ctx: StepListStoryContext) {
   const canvas = within(ctx.canvasElement);
 
-  await canvas.findByText('Configure credentials for anthropic');
+  await canvas.findByText('Connect anthropic');
   await canvas.findByRole('link', {name: AGENTS_LINK_NAME});
 }
 

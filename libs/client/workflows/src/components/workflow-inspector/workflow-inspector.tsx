@@ -571,7 +571,11 @@ function ExecutionDecisions({
   return (
     <>
       {statusReason ? (
-        <StatusReasonSection reason={statusReason} message={execution.statusReasonMessage} />
+        <StatusReasonSection
+          reason={statusReason}
+          message={execution.statusReasonMessage}
+          requiredAction={execution.statusReasonNotice?.requiredAction}
+        />
       ) : null}
       {condition || conditionUnavailable ? (
         <EvaluationSection
@@ -604,9 +608,11 @@ function ExecutionDecisions({
 function StatusReasonSection({
   reason,
   message,
+  requiredAction,
 }: {
   reason: string;
   message: string | null | undefined;
+  requiredAction?: {message: string; url: string} | undefined;
 }) {
   const label =
     reason === 'queue_timed_out' ? (message ?? 'Not started within 1 h') : humanize(reason);
@@ -615,6 +621,13 @@ function StatusReasonSection({
       {message && reason !== 'queue_timed_out' ? (
         <InspectorSectionBody>
           <Text size="xs">{message}</Text>
+        </InspectorSectionBody>
+      ) : null}
+      {requiredAction ? (
+        <InspectorSectionBody>
+          <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
+            <a href={requiredAction.url}>{requiredAction.message}</a>
+          </Button>
         </InspectorSectionBody>
       ) : null}
     </InspectorSection>

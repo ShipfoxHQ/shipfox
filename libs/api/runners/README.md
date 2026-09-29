@@ -54,6 +54,18 @@ migration directory is registered with the module database namespace.
 
 ## Behavior notes
 
+An installation provisioning policy can pass `placement.resolve(workspaceIds)`, which
+returns per-workspace rules: `allowsTemplate(labels)` and `denial(requiredLabels)`. Each
+demand poll runs a denial pass over every demand group before any grant. When at least one
+template matches a group, the workspace may use none of the matching templates, and the group
+requires a reserved label,
+the poll deletes the pending rows and publishes `runners.job_execution.placement_denied`
+with the notice. A group without a reserved label is skipped, because a self-hosted runner
+could serve it. Grants choose among the allowed templates in the usual order, and idle
+runners of refused templates are not adopted. If `resolve` throws, the poll skips those
+workspaces and increments `runners_placement_resolve_errors_total`. Rules must not throw
+from `allowsTemplate` or `denial`.
+
 The runners module records instance counters and service-level gauges through
 `@shipfox/node-opentelemetry`. Instance metrics are emitted when a decision or
 report occurs. Service gauges read current runner database state.
@@ -72,6 +84,7 @@ report occurs. Service gauges read current runner database state.
 | `runners_provider_runner_by_state` | `state` | Active provider-runner count. |
 | `runners_provider_runner_by_state_oldest_age` | `state` | Age in milliseconds of the oldest active provider runner in that state. |
 | `runners_placement_template_changed` | `order` | Launches whose template would differ between the `default` and `smallest` template orders. `order` is the mode in use. |
+| `runners_placement_resolve_errors_total` | none | Installation demand polls that skipped every candidate workspace because `placement.resolve` threw. |
 
 Lifecycle telemetry label cardinality is bounded. `reason` is one of the ten
 values in the `RunnerTerminationReason` union, plus `unknown-reason` or

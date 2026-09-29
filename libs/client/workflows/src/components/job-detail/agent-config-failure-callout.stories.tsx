@@ -71,7 +71,7 @@ const errorCases: Array<{
   {label: 'Credentials invalid', error: makeError('credentials_invalid')},
   {label: 'Provider unsupported', error: makeError('provider_unsupported')},
   {label: 'Model unavailable', error: makeError('model_unavailable')},
-  {label: 'Model locked by policy', error: makeLockedModelError()},
+  {label: 'Model not available in workspace', error: makeLockedModelError()},
   {label: 'Step config invalid', error: makeError('step_config_invalid')},
   {
     label: 'Unknown config failure',
@@ -117,18 +117,20 @@ export const ErrorVariants: Story = {
 };
 
 export const TestProviderNotConfigured: Story = {
-  play: assertCallout('Configure credentials for anthropic', true),
+  play: assertCallout('Connect anthropic', true),
 };
 
-export const TestModelLockedByPolicy: Story = {
+export const TestModelNotAvailableInWorkspace: Story = {
   args: {
     error: makeLockedModelError(),
   },
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
 
-    await canvas.findByText('This model is not available to your workspace');
-    await canvas.findByText('Claude Opus 4.8 is not included in your current plan.');
+    await canvas.findByText('claude-opus-4-8 is not available in this workspace');
+    await canvas.findByText(
+      'Claude Opus 4.8 is not included in your current plan. To continue without it, choose another model and start a new run.',
+    );
     const action = await canvas.findByRole('link', {name: 'Add credits'});
     if (action.getAttribute('href') !== 'https://example.test/billing') {
       throw new Error('Expected the required action link to target the notice URL');
@@ -140,7 +142,7 @@ export const TestProviderUnsupported: Story = {
   args: {
     error: makeError('provider_unsupported'),
   },
-  play: assertCallout('Choose a supported model provider', false),
+  play: assertCallout('Choose another model provider', false),
 };
 
 export const TestManagedOnlyPolicy: Story = {
@@ -156,7 +158,7 @@ export const TestManagedOnlyPolicy: Story = {
       category: 'user',
     },
   },
-  play: assertCallout('Use shipfox for this instance', false),
+  play: assertCallout('Use shipfox models', false),
 };
 
 function makeLockedModelError(): StepError {

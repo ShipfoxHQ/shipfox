@@ -16,6 +16,12 @@ export interface WorkflowExecutionEvent {
   commit: string | null;
   data: unknown;
 }
+/** The policy notice behind a status reason, with the action that can resolve it. */
+export interface StatusReasonNotice {
+  reason: string;
+  message: string;
+  requiredAction?: {reason: string; message: string; url: string} | undefined;
+}
 export type JobExecutionTime =
   | {state: 'fixed'; elapsed: Duration}
   | {state: 'live'; fromIso: string};
@@ -31,6 +37,7 @@ interface JobExecutionFields {
   status: JobExecutionStatus;
   statusReason: string | null;
   statusReasonMessage: string | null;
+  statusReasonNotice?: StatusReasonNotice | null | undefined;
   runner: string[] | null;
   outputs: Record<string, unknown> | null;
   triggerEvents: WorkflowExecutionEvent[];
@@ -54,6 +61,7 @@ export class JobExecution {
   status!: JobExecutionStatus;
   statusReason!: string | null;
   statusReasonMessage!: string | null;
+  statusReasonNotice?: StatusReasonNotice | null | undefined;
   runner!: string[] | null;
   outputs!: Record<string, unknown> | null;
   triggerEvents!: WorkflowExecutionEvent[];

@@ -190,6 +190,14 @@
       "rangeStrategy": "bump"
     },
     {
+      "description": "The registry action recipe bundles with esbuild, so a new version can change the digest of every action it builds. Keep the exact catalog pin and review each update in its own PR.",
+      "groupName": "esbuild",
+      "groupSlug": "esbuild",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["esbuild"],
+      "rangeStrategy": "bump"
+    },
+    {
       "description": "Do not enable pnpmDedupe: it runs after every pnpm lockfile update and can create unrelated lockfile churn. The committed lockfile audit owns deterministic duplicate enforcement.",
       "matchManagers": ["npm"],
       "postUpdateOptions": []

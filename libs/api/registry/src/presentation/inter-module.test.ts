@@ -4,6 +4,8 @@ import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
 import {
   createTestKey,
+  publishCatalog,
+  publishPackageIndex,
   publishVersion,
   settingsFor,
   startTestRegistry,
@@ -74,6 +76,50 @@ describe('Registry inter-module presentation', () => {
     expect(readme).toEqual({readme: null});
   });
 
+  it('returns the catalog and the index of a package', async () => {
+    const catalog = publishCatalog({registry, etag: '"c"'});
+    const index = publishPackageIndex({registry, etag: '"p"'});
+    const client = createClient();
+
+    const fromCatalog = await client.getCatalog({});
+    const fromIndex = await client.getPackageIndex({package: PACKAGE});
+
+    expect(fromCatalog).toEqual(catalog);
+    expect(fromIndex).toEqual({index});
+  });
+
+  it('returns a null index for a package the registry does not know', async () => {
+    const client = createClient();
+
+    const result = await client.getPackageIndex({package: PACKAGE});
+
+    expect(result).toEqual({index: null});
+  });
+
+  it('mints registry-unavailable for a catalog the registry cannot serve', async () => {
+    const client = createClient();
+
+    const error = await client.getCatalog({}).catch((caught: unknown) => caught);
+
+    expect(isInterModuleKnownError(registryInterModuleContract.methods.getCatalog, error)).toBe(
+      true,
+    );
+    expect(error).toHaveProperty('code', 'registry-unavailable');
+  });
+
+  it('mints registry-disabled for an index when the registry is disabled', async () => {
+    const client = createClient({registry: '', trustedKeys: [], catalogRefreshSeconds: 900});
+
+    const error = await client
+      .getPackageIndex({package: PACKAGE})
+      .catch((caught: unknown) => caught);
+
+    expect(
+      isInterModuleKnownError(registryInterModuleContract.methods.getPackageIndex, error),
+    ).toBe(true);
+    expect(error).toHaveProperty('code', 'registry-disabled');
+  });
+
   it.each([
     [
       'registry-version-not-found',
@@ -83,7 +129,7 @@ describe('Registry inter-module presentation', () => {
     [
       'registry-disabled',
       () =>
-        createClient({registry: '', trustedKeys: []}).resolveVersion({
+        createClient({registry: '', trustedKeys: [], catalogRefreshSeconds: 900}).resolveVersion({
           package: PACKAGE,
           version: VERSION,
           kind: 'action',

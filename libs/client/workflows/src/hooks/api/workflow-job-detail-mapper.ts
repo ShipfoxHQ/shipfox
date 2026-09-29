@@ -230,6 +230,7 @@ function toJobExecutionForJobDetail(
     status: detail.status,
     statusReason: detail.statusReason,
     statusReasonMessage: detail.statusReasonMessage,
+    statusReasonNotice: detail.statusReasonNotice ?? null,
     runner: null,
     outputs: null,
     triggerEvents: [],

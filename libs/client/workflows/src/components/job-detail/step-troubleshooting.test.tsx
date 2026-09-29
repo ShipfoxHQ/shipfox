@@ -28,7 +28,7 @@ const STEP_ID = '55555555-5555-4555-8555-555555555555';
 const ATTEMPT_ID = '66666666-6666-4666-8666-666666666666';
 const EXECUTION_ID = '77777777-7777-4777-8777-777777777777';
 const INSPECTOR_TRIGGER_NAME = 'Open inspector';
-const INVOCATION_LOG_DESCRIPTION = /The full result remains available in the invocation log\./u;
+const INVOCATION_LOG_DESCRIPTION = /The invocation log has the full result\./u;
 const MASKED_SECRET_INPUT = /\*\*\* \(secrets\.SLACK_TOKEN\)/u;
 
 describe('StepInspectorSheet', () => {
@@ -68,31 +68,31 @@ describe('StepInspectorSheet', () => {
   it.each([
     {
       reason: 'agent_session_key_invalid',
-      title: 'Agent session key is invalid',
-      description: 'The resolved agent session key does not match the allowed key format.',
+      title: 'The session name is not valid',
+      description:
+        'Start the session name with a letter or digit. Use only letters, digits, dots, underscores, or hyphens.',
     },
     {
       reason: 'agent_inference_credentials_unavailable',
-      title: 'Inference credentials are unavailable',
-      description:
-        'Shipfox could not obtain inference credentials for this agent. Try again. If the problem continues, check the model provider configuration.',
+      title: 'Shipfox cannot reach the model provider',
+      description: 'Rerun the job. If it fails again, check the model provider in Agents settings.',
     },
     {
       reason: 'agent_session_held',
-      title: 'Agent session is held by another attempt',
+      title: 'Another step is using this session',
       description:
-        'Another running step currently holds this agent session. Parallel steps cannot share a session in resume mode.',
+        'Two steps that run at the same time cannot continue one session. Give each step its own session.',
     },
     {
       reason: 'agent_session_harness_mismatch',
-      title: 'Agent session harness does not match',
-      description: 'The step harness differs from the harness the agent session is pinned to.',
+      title: 'This session uses another harness',
+      description:
+        'A session works with one harness only. Use the harness of the first step, or use a new session.',
     },
     {
       reason: 'agent_session_unavailable',
-      title: 'Agent session is unavailable',
-      description:
-        'The agent session was unavailable during dispatch. Review the error details below and retry after resolving the cause.',
+      title: 'Shipfox cannot load the session',
+      description: 'Rerun the failed jobs. If it fails again, use a new session.',
     },
   ] as const)('explains the $reason failure', async ({reason, title, description}) => {
     const user = userEvent.setup();
@@ -110,38 +110,34 @@ describe('StepInspectorSheet', () => {
   it.each([
     {
       reason: 'run_cancelled',
-      title: 'The run was cancelled',
+      title: 'The run is cancelled',
       description: 'Start a new run if you still need the result.',
     },
     {
       reason: 'timed_out',
-      title: 'Step timed out',
+      title: 'The step took too long',
       description:
-        'Try the workflow again. If the problem continues, contact your workspace administrator.',
+        'The step did not finish before its timeout. Raise the timeout or make the step faster, then start a new run.',
     },
     {
       reason: 'lease_expired',
-      title: 'Connection to the runner was lost',
-      description:
-        'Try the workflow again. If the problem continues, contact your workspace administrator.',
+      title: 'The runner stopped responding',
+      description: 'Rerun the job. If it fails again, contact your workspace admin.',
     },
     {
       reason: 'provider_lost',
-      title: 'The runner became unavailable',
-      description:
-        'Try the workflow again. If the problem continues, contact your workspace administrator.',
+      title: 'The runner stopped responding',
+      description: 'Rerun the job. If it fails again, contact your workspace admin.',
     },
     {
       reason: 'lifecycle_violation',
-      title: 'Runner stopped unexpectedly',
-      description:
-        'Try the workflow again. If the problem continues, contact your workspace administrator.',
+      title: 'The runner stopped responding',
+      description: 'Rerun the job. If it fails again, contact your workspace admin.',
     },
     {
       reason: 'runner_lost',
-      title: 'Runner stopped responding',
-      description:
-        'Try the workflow again. If the problem continues, contact your workspace administrator.',
+      title: 'The runner stopped responding',
+      description: 'Rerun the job. If it fails again, contact your workspace admin.',
     },
   ] as const)('distinguishes the $reason failure', async ({reason, title, description}) => {
     const user = userEvent.setup();
@@ -152,6 +148,7 @@ describe('StepInspectorSheet', () => {
 
     expect(await screen.findByText(title)).toBeInTheDocument();
     expect(screen.getByText(description)).toBeInTheDocument();
+    expect(screen.getByText(reason)).toBeInTheDocument();
   });
 
   it('does not replace a specific step failure with the job failure reason', async () => {
@@ -164,8 +161,8 @@ describe('StepInspectorSheet', () => {
     });
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
-    expect(await screen.findByText('Agent invocation failed')).toBeInTheDocument();
-    expect(screen.queryByText('The runner became unavailable')).toBeNull();
+    expect(await screen.findByText('The agent failed')).toBeInTheDocument();
+    expect(screen.queryByText('The runner stopped responding')).toBeNull();
   });
 
   it('shows the evaluation count only after the lazy detail response arrives', async () => {
@@ -423,9 +420,7 @@ describe('StepInspectorSheet', () => {
       });
     });
 
-    expect(
-      await screen.findByText('Could not refresh troubleshooting details.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Shipfox cannot refresh these details.')).toBeInTheDocument();
     expect(screen.getByRole('region', {name: 'Inputs'})).toBeInTheDocument();
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
@@ -517,11 +512,9 @@ describe('StepInspectorSheet', () => {
     });
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
-    expect(await screen.findByText('Tool access was denied')).toBeInTheDocument();
+    expect(await screen.findByText('The integration denied access')).toBeInTheDocument();
     expect(
-      screen.getByText(
-        'The integration rejected this call. Review its permissions before re-running the step.',
-      ),
+      screen.getByText('Check the permissions of the integration connection. Then rerun the job.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Slack rejected the token.')).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Review integration access'})).toHaveAttribute(
@@ -551,7 +544,7 @@ describe('StepInspectorSheet', () => {
     });
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
-    expect(await screen.findByText('Step configuration could not be resolved')).toBeInTheDocument();
+    expect(await screen.findByText('A value in this step has an error')).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'View in source'})).toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'View invocation log'})).toBeNull();
   });
@@ -569,10 +562,10 @@ describe('StepInspectorSheet', () => {
     });
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
-    expect(await screen.findByText('Tool credentials are unavailable')).toBeInTheDocument();
+    expect(await screen.findByText('Reconnect the integration')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'The integration credentials are missing or unavailable. Reconnect the integration before re-running the step.',
+        'Shipfox cannot use the credentials of this integration. Reconnect it, then rerun the job.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Reconnect integration'})).toHaveAttribute(
@@ -624,13 +617,12 @@ describe('StepInspectorSheet', () => {
   it.each([
     {
       sensitivity: 'write',
-      description:
-        'The provider call was interrupted. Confirm whether the write completed before re-running it.',
+      description: 'The change may already exist. Check the integration before you rerun the job.',
     },
     {
       sensitivity: 'read',
       description:
-        'The provider call was interrupted before its outcome could be recorded. Review the invocation log before retrying.',
+        'Shipfox does not know the result of the call. Read the invocation log, then rerun the job.',
     },
   ] as const)('explains an interrupted $sensitivity tool invocation', async ({
     sensitivity,
@@ -660,7 +652,9 @@ describe('StepInspectorSheet', () => {
     });
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
-    expect(await screen.findByText('Tool call succeeded, but the step failed')).toBeInTheDocument();
+    expect(
+      await screen.findByText('The tool call worked, but the step failed'),
+    ).toBeInTheDocument();
     expect(screen.getByText(INVOCATION_LOG_DESCRIPTION)).toBeInTheDocument();
     expect(screen.queryByRole('region', {name: 'Result'})).toBeNull();
   });
@@ -679,10 +673,10 @@ describe('StepInspectorSheet', () => {
     });
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
-    expect(await screen.findByText('Tool configuration is invalid')).toBeInTheDocument();
+    expect(await screen.findByText('A tool input is not valid')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'The resolved tool.with.channel value is invalid. Fix the step configuration before re-running.',
+        'The value of tool.with.channel is not valid. Fix it in the step, then start a new run.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'View in source'})).toBeInTheDocument();
@@ -702,10 +696,10 @@ describe('StepInspectorSheet', () => {
     });
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
-    expect(await screen.findByText('Gate attempt limit reached')).toBeInTheDocument();
+    expect(await screen.findByText('The step reached its attempt limit')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'The step failed after 3 attempts and reached the gate attempt limit of 3 attempts, including the first execution. Review the failed result. To allow more attempts, set gate.on_failure.max_attempts to a higher value and start a new run.',
+        'The step failed 3 times. The limit is 3 attempts. Fix the cause, or raise gate.on_failure.max_attempts. Then start a new run.',
       ),
     ).toBeInTheDocument();
   });
@@ -724,10 +718,10 @@ describe('StepInspectorSheet', () => {
     });
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
-    expect(await screen.findByText('Gate attempt limit reached')).toBeInTheDocument();
+    expect(await screen.findByText('The step reached its attempt limit')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'The success condition did not pass after 5 attempts and reached the gate attempt limit of 5 attempts, including the first execution. Review the failed result and gate.success condition. To allow more attempts, set gate.on_failure.max_attempts to a higher value and start a new run.',
+        'The success condition failed 5 times. The limit is 5 attempts. Fix the cause, or raise gate.on_failure.max_attempts. Then start a new run.',
       ),
     ).toBeInTheDocument();
   });
@@ -747,7 +741,7 @@ describe('StepInspectorSheet', () => {
 
     expect(
       await screen.findByText(
-        'The success condition did not pass after 5 attempts and reached the gate attempt limit of 5 attempts, including the first execution. Review the failed result and gate.success condition. To allow more attempts, set gate.on_failure.max_attempts to a higher value and start a new run.',
+        'The success condition failed 5 times. The limit is 5 attempts. Fix the cause, or raise gate.on_failure.max_attempts. Then start a new run.',
       ),
     ).toBeInTheDocument();
   });
@@ -759,12 +753,8 @@ describe('StepInspectorSheet', () => {
     await renderPanel({entry: stepEntry('future_failure' as StepErrorReason)});
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
-    expect(await screen.findByText('Step failed')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Future Failure. Review the details below and re-run after resolving the cause.',
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('The step failed')).toBeInTheDocument();
+    expect(screen.getByText('Read the details below. Then rerun the job.')).toBeInTheDocument();
   });
 
   it('shows provider recovery exhaustion without the raw provider message', async () => {
@@ -783,10 +773,10 @@ describe('StepInspectorSheet', () => {
     });
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
-    expect(await screen.findByText('Model response interrupted')).toBeInTheDocument();
+    expect(await screen.findByText('The model response stopped')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Shipfox lost the model response stream after 4 attempts. No workflow configuration error was detected. Rerun the failed jobs.',
+        'The connection to Shipfox dropped during the model response. Shipfox tried 4 times. Your workflow has no error. Rerun the failed jobs.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('provider')).toBeInTheDocument();
@@ -813,7 +803,7 @@ describe('StepInspectorSheet', () => {
 
     expect(
       await screen.findByText(
-        'Shipfox lost the model response stream after 4 attempts. No workflow configuration error was detected. Rerun the failed jobs.',
+        'The connection to Shipfox dropped during the model response. Shipfox tried 4 times. Your workflow has no error. Rerun the failed jobs.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('Shipfox')).toBeInTheDocument();
@@ -863,13 +853,13 @@ describe('StepInspectorSheet for action steps', () => {
     {
       name: 'an unavailable snapshot',
       error: {reason: 'action_unavailable', message: 'Digest mismatch'},
-      title: 'Action code was unavailable',
+      title: 'The runner cannot load the action',
       code: 'action_unavailable',
     },
     {
       name: 'an invalid input',
       error: {reason: 'action_input_invalid', message: 'Action input "limit" is required.'},
-      title: 'Action input is invalid',
+      title: 'An action input is not valid',
       code: 'action_input_invalid',
     },
     {
@@ -890,7 +880,7 @@ describe('StepInspectorSheet for action steps', () => {
     {
       name: 'a missing, undeclared, or mistyped output',
       error: {reason: 'output_invalid', message: 'Output "path" is required.'},
-      title: 'Action output was invalid',
+      title: 'An action output is not valid',
       code: 'output_invalid',
     },
     {

@@ -1,4 +1,5 @@
 import type {RunnerJobLossCauseDto} from '@shipfox/api-runners-dto';
+import type {PolicyNotice} from '@shipfox/policy-notice';
 import {ApplicationFailure} from '@temporalio/common';
 import {
   condition,
@@ -22,7 +23,12 @@ import {
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 
 import type {createOrchestrationActivities} from '../activities/index.js';
-import {JOB_CLAIMED_SIGNAL, JOB_FINISHED_SIGNAL, JOB_LEASE_EXPIRED_SIGNAL} from '../constants.js';
+import {
+  JOB_CLAIMED_SIGNAL,
+  JOB_FINISHED_SIGNAL,
+  JOB_LEASE_EXPIRED_SIGNAL,
+  JOB_PLACEMENT_DENIED_SIGNAL,
+} from '../constants.js';
 import {remainingMs} from './deadline.js';
 
 /**
@@ -30,7 +36,8 @@ import {remainingMs} from './deadline.js';
  *
  *   enqueue ──> PENDING ── job-claimed ──> RUNNING
  *                 │                          │
- *                 │ timeout                  ├─ job-finished
+ *                 │ timeout /                ├─ job-finished
+ *                 │ placement denied
  *                 │                          ├─ job-lease-expired
  *                 ▼                          └─ timeout
  *              TERMINAL
@@ -84,6 +91,13 @@ export interface JobClaimedSignalPayload {
   provisionerScope?: 'installation' | 'workspace' | null | undefined;
 }
 export const jobClaimedSignal = defineSignal<[JobClaimedSignalPayload]>(JOB_CLAIMED_SIGNAL);
+export interface JobPlacementDeniedSignalPayload {
+  jobExecutionId: string;
+  notice: PolicyNotice;
+}
+export const jobPlacementDeniedSignal = defineSignal<[JobPlacementDeniedSignalPayload]>(
+  JOB_PLACEMENT_DENIED_SIGNAL,
+);
 
 export interface JobExecutionOrchestrationInput {
   runAttemptId: string;
@@ -161,6 +175,7 @@ async function markJobExecutionRunning(
 
 interface JobExecutionSignals extends JobExecutionOutcomeSignals {
   claimed: JobClaimedSignalPayload | undefined;
+  placementDenied: PolicyNotice | undefined;
 }
 
 function registerJobExecutionSignalHandlers(
@@ -180,18 +195,24 @@ function registerJobExecutionSignalHandlers(
     if (payload.jobExecutionId !== jobExecutionId) return;
     signals.claimed ??= payload;
   });
+  setHandler(jobPlacementDeniedSignal, (payload) => {
+    if (payload.jobExecutionId !== jobExecutionId) return;
+    signals.placementDenied ??= payload.notice;
+  });
 }
 
 async function waitForJobExecutionSignal(
   signals: JobExecutionSignals,
   deadline: number,
   includeClaim: boolean,
+  includePlacementDenial = false,
 ): Promise<boolean> {
   return await condition(
     () =>
       signals.finished !== undefined ||
       signals.leaseExpired ||
-      (includeClaim && signals.claimed !== undefined),
+      (includeClaim && signals.claimed !== undefined) ||
+      (includePlacementDenial && signals.placementDenied !== undefined),
     remainingMs(deadline) ?? 0,
   );
 }
@@ -214,6 +235,27 @@ async function resolveQueueTimedOutJobExecution(
     version: input.executionVersion,
     statusReason: 'queue_timed_out',
     statusReasonMessage: queueTimeoutMessage(queueTimeoutMs),
+  });
+  if (input.resolveJobStatus === false) {
+    return {status: 'failed', jobVersion: input.jobVersion};
+  }
+  const {jobVersion} = await resolveJobStatusOrFailClosed(input);
+  return {status: 'failed', jobVersion};
+}
+
+// The runners poll removes a denied execution before it can be claimed, so this outcome only
+// exists while the execution is pending.
+async function resolvePlacementDeniedJobExecution(
+  input: JobExecutionOrchestrationInput,
+  notice: PolicyNotice,
+): Promise<JobExecutionOrchestrationResult> {
+  await setJobExecutionStatus({
+    jobExecutionId: input.jobExecutionId,
+    status: 'failed',
+    version: input.executionVersion,
+    statusReason: 'runner_not_allowed',
+    statusReasonMessage: notice.message,
+    statusReasonNotice: notice,
   });
   if (input.resolveJobStatus === false) {
     return {status: 'failed', jobVersion: input.jobVersion};
@@ -415,7 +457,7 @@ async function resolvePatchedBeforeRunning(
       'InvalidQueuedAtError',
     );
   }
-  await waitForJobExecutionSignal(signals, queuedAt + queued.queueTimeoutMs, true);
+  await waitForJobExecutionSignal(signals, queuedAt + queued.queueTimeoutMs, true, true);
   const resolution = resolveJobExecutionOutcomeSignal(signals);
   if (resolution === 'finished') {
     const {finished} = signals;
@@ -437,6 +479,12 @@ async function resolvePatchedBeforeRunning(
         runningVersion: input.executionVersion,
         cause: signals.leaseExpiredCause,
       }),
+    };
+  }
+  if (!signals.claimed && signals.placementDenied !== undefined) {
+    return {
+      kind: 'terminal',
+      result: await resolvePlacementDeniedJobExecution(input, signals.placementDenied),
     };
   }
   if (!signals.claimed) {
@@ -506,6 +554,7 @@ export async function jobExecutionOrchestration(
     leaseExpired: false,
     leaseExpiredCause: undefined,
     claimed: undefined,
+    placementDenied: undefined,
   };
   // Register every signal before enqueue can block or publish a claim/outcome event. The
   // handlers retain signals that arrive while the enqueue activity is in flight.

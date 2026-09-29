@@ -56,6 +56,8 @@ export const jobExecutions = pgTable(
     status: jobExecutionStatusEnum('status').notNull().default('pending'),
     statusReason: jobStatusReasonEnum('status_reason'),
     statusReasonMessage: text('status_reason_message'),
+    // The policy notice behind a status reason, with the action that can resolve it.
+    statusReasonNotice: jsonb('status_reason_notice').$type<PolicyNotice>(),
     // Retained for mixed-deployment reads. New listener executions keep their
     // canonical events in workflows_job_listener_events instead.
     triggerEvents: jsonb('trigger_events').$type<WorkflowExecutionEvent[] | null>(),
@@ -103,6 +105,7 @@ export const jobExecutionWithoutTriggerEventsSelection = {
   status: jobExecutions.status,
   statusReason: jobExecutions.statusReason,
   statusReasonMessage: jobExecutions.statusReasonMessage,
+  statusReasonNotice: jobExecutions.statusReasonNotice,
   outputs: jobExecutions.outputs,
   evaluationTrace: jobExecutions.evaluationTrace,
   version: jobExecutions.version,
@@ -131,6 +134,7 @@ export function toJobExecution(
     status: row.status,
     statusReason: toJobStatusReason(row.statusReason),
     statusReasonMessage: row.statusReasonMessage,
+    statusReasonNotice: row.statusReasonNotice,
     // Keep legacy/corrupt JSONB rows readable. The diagnostic context route
     // reports an invalid trigger-events shape as an empty collection rather
     // than allowing a mapper `.map` failure to abort the read.

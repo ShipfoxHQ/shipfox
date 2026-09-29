@@ -24,7 +24,20 @@ The `shipfox-registry-release` command runs the deterministic recipe that turns 
 
 `libs/shared/workflow/templates/embedded-templates.yaml` is never read.
 
-The action recipe is not available yet, so `build` rejects a package of kind `action`.
+### Action recipe, version 1
+
+1. Reads `action.yml` and `package.json`. `@shipfox/actions` in `dependencies` fails the build: the runner provides it, so it belongs in `devDependencies`. Other workspace packages are bundled from source.
+2. Runs `turbo prune <package> --production` into a temporary build tree, which keeps the monorepo layout.
+3. Trims the root files, so unrelated monorepo changes do not change the source archive:
+   - the root `package.json` keeps `name`, `private`, and `packageManager`;
+   - `pnpm-workspace.yaml` and the lockfile keep only the catalog entries the kept packages or `overrides` use;
+   - the lockfile's root importer is emptied, and packages no production dependency reaches are dropped;
+   - `turbo.json`, `turbo.jsonc`, and `.gitignore` are removed, because the install and the bundle never read them.
+4. Runs `pnpm install --frozen-lockfile --ignore-scripts --prod` in the tree. pnpm enforces `minimumReleaseAge` from the copied `pnpm-workspace.yaml` on frozen installs, so a dependency published less than 2 days ago fails the build.
+5. Bundles `main` with the pinned esbuild: `platform: node`, `format: esm`, `target: node24`, the `workspace-source` condition, `@shipfox/actions` external, legal comments at the end, no minify or source maps, and a `createRequire` banner. No tsconfig file is read. A `require` or `import()` esbuild cannot resolve fails the build, and so does a native `.node` file.
+6. Encodes the `action-bundle@1` from `action.yml` with `main: index.mjs`, `index.mjs`, and `LICENSE` when present, and the `source-archive@1` from the build tree without `node_modules`. The resolved production dependencies are recorded from the trimmed lockfile.
+
+The source digest depends on the action's path, on the bundled workspace packages, and on the root install settings the tree keeps, such as `overrides` and `packageExtensions`. A change to any of them needs a changeset for the action.
 
 ## Installation and setup
 
@@ -65,9 +78,10 @@ packages:
 
 ## Behavior notes
 
+- The action recipe runs `turbo` and `pnpm` from this tool's directory, so mise picks the versions pinned by the repository. esbuild has an exact catalog pin, because a new esbuild version can change every action's bundle.
 - The fingerprint comes from `@shipfox/registry-format`. Pull request checks compare it with the published version named in `package.json`.
 - The tool reads the signed version envelope without verifying its signature. It only compares fingerprints and manifests in CI, and it never decides what runs.
-- The source archive holds tracked files only, so run a build after committing.
+- A template source archive holds tracked files only, so run a build after committing. An action build tree also holds untracked files that `.gitignore` does not exclude.
 
 ## Development
 
@@ -78,7 +92,7 @@ turbo test --filter=@shipfox/registry-release
 turbo build --filter=@shipfox/registry-release
 ```
 
-Tests build fixture templates in throwaway Git repositories and run the checks against an in-memory fake registry.
+Tests build fixture templates and a fixture pnpm monorepo in throwaway Git repositories, and run the checks against an in-memory fake registry. The fixture monorepo installs from the local pnpm store; its lockfile is `test/fixtures/action-repository.lock.yaml`.
 
 ## License
 

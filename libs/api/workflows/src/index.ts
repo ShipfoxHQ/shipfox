@@ -9,6 +9,7 @@ import type {LogsModuleClient} from '@shipfox/api-logs-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
   RUNNER_JOB_CLAIMED,
+  RUNNER_JOB_EXECUTION_PLACEMENT_DENIED,
   RUNNER_JOB_LEASE_EXPIRED,
   type RunnersEventMap,
 } from '@shipfox/api-runners-dto';
@@ -44,6 +45,7 @@ import {
   onJobStepsSettled,
   onJobTerminatedFailureAnnotation,
   onRunnerJobClaimed,
+  onRunnerJobExecutionPlacementDenied,
   onRunnerJobLeaseExpired,
   onStepAttemptTerminatedFailureAnnotation,
   onWorkflowRunCancelled,
@@ -216,6 +218,7 @@ export function createWorkflowsModule({
       ),
       subscriber(WORKFLOWS_JOB_TERMINATED, onJobTerminatedFailureAnnotation(annotations)),
       subscriber(RUNNER_JOB_LEASE_EXPIRED, onRunnerJobLeaseExpired),
+      subscriber(RUNNER_JOB_EXECUTION_PLACEMENT_DENIED, onRunnerJobExecutionPlacementDenied),
       subscriber(RUNNER_JOB_CLAIMED, onRunnerJobClaimed),
     ],
     workers: [

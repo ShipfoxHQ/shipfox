@@ -12,6 +12,7 @@ import {
   RegistryUnavailableError,
   RegistryVersionNotFoundError,
 } from '#core/errors.js';
+import {getCatalog, getPackageIndex} from '#core/indexes.js';
 import {getReadme, getSource, resolveVersion} from '#core/resolve-version.js';
 import type {RegistrySettings} from '#core/settings.js';
 
@@ -47,11 +48,36 @@ export function createRegistryInterModulePresentation(params: {
         throw toKnownError('getReadme', error);
       }
     },
+    getPackageIndex: async (input) => {
+      try {
+        return {index: (await getPackageIndex({settings, ...input})) ?? null};
+      } catch (error) {
+        throw toIndexKnownError('getPackageIndex', error);
+      }
+    },
+    getCatalog: async () => {
+      try {
+        return await getCatalog({settings});
+      } catch (error) {
+        throw toIndexKnownError('getCatalog', error);
+      }
+    },
   });
 }
 
+function toIndexKnownError(methodName: 'getPackageIndex' | 'getCatalog', error: unknown): unknown {
+  const method = registryInterModuleContract.methods[methodName];
+  if (error instanceof RegistryDisabledError) {
+    return createInterModuleKnownError(method, 'registry-disabled', {});
+  }
+  if (error instanceof RegistryUnavailableError) {
+    return createInterModuleKnownError(method, 'registry-unavailable', {});
+  }
+  return error;
+}
+
 function toKnownError(
-  methodName: keyof typeof registryInterModuleContract.methods,
+  methodName: 'resolveVersion' | 'getSource' | 'getReadme',
   error: unknown,
 ): unknown {
   const method = registryInterModuleContract.methods[methodName];

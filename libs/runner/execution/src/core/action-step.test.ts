@@ -34,6 +34,7 @@ async function actionStep(
   entry: string,
   params: {
     config?: Record<string, unknown>;
+    origin?: 'local' | 'registry';
     extraFiles?: ActionBundleFile[];
   } = {},
 ): Promise<{step: StepDto; gzip: Uint8Array; digest: string}> {
@@ -52,6 +53,7 @@ async function actionStep(
     config: {
       action: {
         uses: './.shipfox/actions/greeter',
+        ...(params.origin ? {origin: params.origin} : {}),
         digest: bundle.digest,
         main: 'index.js',
         name: 'Greeter',
@@ -187,6 +189,31 @@ describe('executeActionStep', () => {
       exit_code: 1,
     });
     expect(pending.output()).toContain('Slack thread not found');
+  });
+
+  it('rejects a workspace package for a registry action and allows it for a local one', async () => {
+    const helperDir = join(sandbox.workspace, 'node_modules', 'helper');
+    await mkdir(helperDir, {recursive: true});
+    await writeFile(
+      join(helperDir, 'package.json'),
+      JSON.stringify({name: 'helper', type: 'module', exports: './index.js'}),
+    );
+    await writeFile(join(helperDir, 'index.js'), "export const help = () => 'helped';");
+    const entry = `import {defineAction} from '@shipfox/actions';
+import {help} from 'helper';
+export default defineAction(() => ({value: help()}));
+`;
+    const config = {outputs: {value: {type: 'string'}}};
+    const registry = await actionStep(entry, {origin: 'registry', config});
+    const local = await actionStep(entry, {origin: 'local', config});
+
+    const rejected = run(registry);
+    const rejectedResult = await rejected;
+    const allowed = await run(local);
+
+    expect(rejectedResult).toMatchObject({success: false, exit_code: 1});
+    expect(rejected.output()).toContain('ERR_SHIPFOX_REGISTRY_ACTION_IMPORT');
+    expect(allowed).toMatchObject({success: true, outputs: {value: 'helped'}});
   });
 
   it('fails an action that exits with code 0 before its handler finished', async () => {

@@ -224,6 +224,45 @@ describe('jobExecutionOrchestration', () => {
     ).rejects.toThrow();
   });
 
+  test('a placement denial fails the pending execution with the notice', async () => {
+    setCfg({dag: makeDag([]), jobResults: new Map(), skipSignal: true});
+    const notice = {
+      reason: 'machine-not-allowed',
+      message: 'This workspace cannot use 16 vCPU runners.',
+      requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/settings/billing'},
+    };
+
+    const handle = await testEnv.client.workflow.start('jobExecutionOrchestration', {
+      taskQueue: TASK_QUEUE,
+      workflowId: 'job:job-placement-denied',
+      args: [
+        {
+          ...defaultJobInput,
+          jobId: 'job-placement-denied',
+          jobExecutionId: 'job-placement-denied',
+        },
+      ],
+    });
+    await handle.signal('job-placement-denied', {
+      jobExecutionId: 'other-execution',
+      notice: {...notice, message: 'stale'},
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(setExecutionStatusCalls()).toHaveLength(0);
+    await handle.signal('job-placement-denied', {jobExecutionId: 'job-placement-denied', notice});
+
+    const result = await handle.result();
+
+    expect(result.status).toBe('failed');
+    expect(terminalSetJobCall('job-placement-denied')?.params).toMatchObject({
+      status: 'failed',
+      statusReason: 'runner_not_allowed',
+      statusReasonMessage: notice.message,
+      statusReasonNotice: notice,
+    });
+    expect(finalStatusesFor('job-placement-denied')).toEqual(['failed']);
+  });
+
   test('empty required labels fail before the job is marked running', async () => {
     setCfg({
       dag: makeDag([dagJob('job-empty-labels', 'build')]),

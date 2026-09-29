@@ -46,9 +46,13 @@ describe('parseTrustedKeys', () => {
 
 describe('createRegistrySettings', () => {
   it('disables the registry with an empty URL and no keys', () => {
-    const settings = createRegistrySettings({REGISTRY_URL: '', REGISTRY_TRUSTED_KEYS: '[]'});
+    const settings = createRegistrySettings({
+      REGISTRY_URL: '',
+      REGISTRY_TRUSTED_KEYS: '[]',
+      REGISTRY_CATALOG_REFRESH_SECONDS: 900,
+    });
 
-    expect(settings).toEqual({registry: '', trustedKeys: []});
+    expect(settings).toEqual({registry: '', trustedKeys: [], catalogRefreshSeconds: 900});
   });
 
   it('requires a trusted key once a URL is set', () => {
@@ -56,6 +60,7 @@ describe('createRegistrySettings', () => {
       createRegistrySettings({
         REGISTRY_URL: 'https://api.registry.shipfox.io',
         REGISTRY_TRUSTED_KEYS: '[]',
+        REGISTRY_CATALOG_REFRESH_SECONDS: 900,
       }),
     ).toThrow('at least one key');
   });
@@ -64,11 +69,37 @@ describe('createRegistrySettings', () => {
     const settings = createRegistrySettings({
       REGISTRY_URL: 'https://api.registry.shipfox.io/',
       REGISTRY_TRUSTED_KEYS: JSON.stringify([{keyid: 'reg-2026-1', public_key: PUBLIC_KEY}]),
+      REGISTRY_CATALOG_REFRESH_SECONDS: 60,
     });
 
     expect(settings).toEqual({
       registry: 'https://api.registry.shipfox.io',
       trustedKeys: [{keyid: 'reg-2026-1', public_key: PUBLIC_KEY}],
+      catalogRefreshSeconds: 60,
     });
+  });
+
+  it.each([
+    -1,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+  ])('rejects a refresh interval of %s', (seconds) => {
+    expect(() =>
+      createRegistrySettings({
+        REGISTRY_URL: '',
+        REGISTRY_TRUSTED_KEYS: '[]',
+        REGISTRY_CATALOG_REFRESH_SECONDS: seconds,
+      }),
+    ).toThrow('REGISTRY_CATALOG_REFRESH_SECONDS');
+  });
+
+  it('accepts a refresh interval of zero', () => {
+    const settings = createRegistrySettings({
+      REGISTRY_URL: '',
+      REGISTRY_TRUSTED_KEYS: '[]',
+      REGISTRY_CATALOG_REFRESH_SECONDS: 0,
+    });
+
+    expect(settings.catalogRefreshSeconds).toBe(0);
   });
 });

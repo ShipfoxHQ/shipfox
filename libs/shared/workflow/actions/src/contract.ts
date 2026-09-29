@@ -23,6 +23,7 @@ export const ACTION_ENV = {
   actionsToken: 'SHIPFOX_ACTIONS_TOKEN',
   actionPath: 'SHIPFOX_ACTION_PATH',
   actionMain: 'SHIPFOX_ACTION_MAIN',
+  actionOrigin: 'SHIPFOX_ACTION_ORIGIN',
   actionInputs: 'SHIPFOX_ACTION_INPUTS',
   actionContext: 'SHIPFOX_ACTION_CONTEXT',
   actionResult: 'SHIPFOX_ACTION_RESULT',

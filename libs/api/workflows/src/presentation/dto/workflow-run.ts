@@ -415,6 +415,7 @@ export function toJobExecutionSummaryDto(
     display_status: execution.displayStatus,
     status_reason: execution.statusReason,
     status_reason_message: execution.statusReasonMessage,
+    status_reason_notice: execution.statusReasonNotice,
     queued_at: execution.queuedAt?.toISOString() ?? null,
     started_at: execution.startedAt?.toISOString() ?? null,
     finished_at: execution.finishedAt?.toISOString() ?? null,

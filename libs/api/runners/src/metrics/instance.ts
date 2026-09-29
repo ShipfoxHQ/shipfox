@@ -298,6 +298,11 @@ export const capacityHoldsReconciledCount = meter.createCounter<Record<string, n
   {description: 'Capacity holds created for installation runners missing a hold'},
 );
 
+export const placementResolveErrorCount = meter.createCounter<Record<string, never>>(
+  'runners_placement_resolve_errors_total',
+  {description: 'Installation demand polls that skipped workspaces because placement rules failed'},
+);
+
 export const capacityHoldReleaseLag = meter.createHistogram<Record<string, never>>(
   'runners_capacity_hold_release_lag_seconds',
   {
@@ -560,6 +565,10 @@ export function recordRunnerReservationCapacityFailure(
 ): void {
   if (count <= 0) return;
   recordMetric(() => runnerReservationCapacityFailureCount.add(count, {reason}));
+}
+
+export function recordPlacementResolveError(): void {
+  recordMetric(() => placementResolveErrorCount.add(1));
 }
 
 export function recordProviderRunnerActivationOutcome(params: {

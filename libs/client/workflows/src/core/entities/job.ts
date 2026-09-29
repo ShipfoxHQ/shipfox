@@ -29,7 +29,8 @@ export type JobStatusReason =
   | 'output_too_large'
   | 'step_failed'
   | 'unknown'
-  | 'output_invalid';
+  | 'output_invalid'
+  | 'runner_not_allowed';
 export interface JobListening {
   on: Array<{
     source: string;

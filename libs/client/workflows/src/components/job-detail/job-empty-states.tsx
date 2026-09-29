@@ -12,11 +12,11 @@ import type {StepListEmptyState} from '../step-list/index.js';
 import {formatJobExecutionTime} from './job-execution-time-text.js';
 
 const MATERIALIZED_OUTPUT_FAILURE_DESCRIPTION =
-  'A materialized job output could not be persisted: it exceeded a size or entry cap, contained a non-JSON-safe value, or referenced an unresolved value. Check the output mapping and values before re-running the workflow.';
+  'Shipfox cannot save a job output. The output is too large, is not valid JSON, or uses a missing value. Fix the job outputs, then start a new run.';
 const OUTPUT_TOO_LARGE_FAILURE_DESCRIPTION =
-  'The materialized job output exceeded its configured size limit. Review the failure details before re-running the workflow.';
+  'The job output is too large. Make the outputs smaller, or write large data to a file. Then start a new run.';
 const LISTENER_FILTER_SNAPSHOT_TOO_LARGE_DESCRIPTION =
-  'The listener filter snapshot exceeded its configured size limit. Review the listener filter and dependency data before re-running the workflow.';
+  'The data for the listener filter is too large. Make the filter or the outputs of needed jobs smaller. Then start a new run.';
 
 export function outputFailureDescriptionForExecution(
   jobExecution: JobExecution,
@@ -44,7 +44,7 @@ export function MaterializedOutputFailureNotice({jobExecution}: {jobExecution: J
       className="border-b border-border-neutral-base px-row py-row"
     >
       <CalloutContent>
-        <CalloutTitle>Job output could not be persisted</CalloutTitle>
+        <CalloutTitle>Shipfox cannot save the job output</CalloutTitle>
         <CalloutDescription>{description}</CalloutDescription>
       </CalloutContent>
     </Callout>
@@ -74,7 +74,7 @@ export function emptyStateForJob(
       title: runner?.length ? 'Runner preparing job' : 'Waiting for a runner',
       description: runner?.length
         ? `Runner ${runner.join(', ')} is preparing the job. Steps will appear here when work begins.`
-        : 'No runner has claimed this job yet. Steps will appear here when a runner starts work.',
+        : 'No runner has picked up this job yet. Steps will appear here when a runner starts work.',
       status: displayStatus,
     };
   }
@@ -98,7 +98,7 @@ export function emptyStateForJob(
   if (displayStatus === 'cancelled') {
     return {
       title: 'Cancelled before start',
-      description: 'This job was cancelled before any step started.',
+      description: 'This job is cancelled. No step started.',
       status: displayStatus,
     };
   }
@@ -112,6 +112,7 @@ export function emptyStateForJob(
         jobExecution.statusReasonMessage,
       ),
       status: displayStatus,
+      ...noticeAction(jobExecution),
     };
   }
 
@@ -124,6 +125,12 @@ export function emptyStateForJob(
   }
 
   return undefined;
+}
+
+function noticeAction(jobExecution: JobExecution): Pick<StepListEmptyState, 'action'> {
+  const requiredAction = jobExecution.statusReasonNotice?.requiredAction;
+  if (jobExecution.statusReason !== 'runner_not_allowed' || !requiredAction) return {};
+  return {action: {label: requiredAction.message, href: requiredAction.url}};
 }
 
 export function emptyStateForMissingExecution(job: Job): StepListEmptyState {
@@ -170,14 +177,14 @@ export function emptyStateForMissingExecution(job: Job): StepListEmptyState {
   if (job.status === 'cancelled') {
     return {
       title: 'Cancelled before start',
-      description: 'This job was cancelled before an execution was created.',
+      description: 'This job is cancelled. It did not start.',
       status: 'cancelled',
     };
   }
 
   if (job.status === 'failed') {
     return {
-      title: 'Job failed before an execution was created',
+      title: 'The job failed before it started',
       description: missingExecutionFailureDescription(job),
       status: 'failed',
     };
@@ -200,14 +207,14 @@ function missingExecutionFailureDescription(job: Job): string {
 export function skippedJobDescription(reason: Job['statusReason']): string {
   switch (reason) {
     case 'dependency_not_completed':
-      return 'A required job did not complete, so this job was skipped.';
+      return 'This job needs another job that did not finish.';
     case 'default_gate_rejected':
-      return 'A required job did not succeed, so this job was skipped.';
+      return 'This job needs another job that did not succeed.';
     case 'condition_false':
     case 'condition_rejected':
-      return 'The job condition did not match, so this job was skipped.';
+      return 'The if condition of this job is false.';
     case 'condition_errored':
-      return 'The job condition could not be evaluated, so this job was skipped.';
+      return 'Shipfox cannot evaluate the if condition of this job. Fix it, then start a new run.';
     case 'user_cancelled':
     case 'run_cancelled':
     case 'concurrency_superseded':
@@ -218,12 +225,13 @@ export function skippedJobDescription(reason: Job['statusReason']): string {
     case 'lifecycle_violation':
     case 'runner_lost':
     case 'output_invalid':
+    case 'runner_not_allowed':
     case 'step_failed':
     case 'unknown':
     case null:
       return 'This job did not start.';
     case 'output_too_large':
-      return 'The materialized job output exceeded its configured size limit.';
+      return 'The job output is too large.';
   }
 }
 
@@ -236,51 +244,49 @@ function preStepFailureDescription(
 
   switch (reason) {
     case 'lease_expired':
-      return 'Shipfox lost contact with the runner before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';
     case 'provider_lost':
-      return 'The runner became unavailable before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';
     case 'lifecycle_violation':
-      return 'The runner stopped unexpectedly before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';
     case 'runner_lost':
-      return 'The runner stopped responding before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';
+      return 'The runner stopped responding before the job started. Rerun the job. If it fails again, contact your workspace admin.';
     case 'queue_timed_out':
       return (
         statusReasonMessage ||
-        'Not started within the queue timeout. Try the workflow again when a runner is available.'
+        'No runner picked up this job before the queue timeout. Rerun the job when a runner is free.'
+      );
+    case 'runner_not_allowed':
+      return (
+        statusReasonMessage ||
+        'This workspace cannot use the requested runner. Choose another runner, then start a new run. Or contact your workspace admin.'
       );
     case 'timed_out':
       return (
         statusReasonMessage ||
-        'The job timed out before work began. Try the workflow again. If the problem continues, contact your workspace administrator.'
+        'The job reached its timeout before it started. Rerun the job. If it fails again, contact your workspace admin.'
       );
     case 'user_cancelled':
-      return 'A user cancelled the job before work began. Start a new run if you still need the result.';
+      return 'A user cancelled the job before it started. Start a new run if you still need the result.';
     case 'run_cancelled':
-      return 'The run was cancelled before work began. Start a new run if you still need the result.';
+      return 'The run is cancelled, so this job did not start. Start a new run if you still need the result.';
     case 'step_failed':
-      return `The execution failed before step details were recorded.${runnerCopy} Review run annotations before re-running the workflow.`;
+      return `The job failed before Shipfox saved any step details.${runnerCopy} Read the run annotations, then rerun the job.`;
     case 'output_too_large':
       return statusReasonMessage || OUTPUT_TOO_LARGE_FAILURE_DESCRIPTION;
     case 'output_invalid':
       return statusReasonMessage || MATERIALIZED_OUTPUT_FAILURE_DESCRIPTION;
     case 'condition_errored':
-      return 'The job condition could not be evaluated. Review run annotations before re-running the workflow.';
+      return 'Shipfox cannot evaluate the if condition of this job. Fix it, then start a new run.';
     case 'dependency_not_completed':
     case 'default_gate_rejected':
-      return 'A required job did not complete successfully. Resolve that failure before re-running the workflow.';
+      return 'This job needs another job that did not succeed. Fix that job first.';
     case 'condition_false':
     case 'condition_rejected':
-      return 'The job condition did not match, so no work started.';
+      return 'The if condition of this job is false, so the job did not start.';
     case 'unknown':
     case null:
-      return `Shipfox did not record a failure reason.${runnerCopy} Re-run only after checking the runner and workflow configuration.`;
+      return `Shipfox does not know why this job failed.${runnerCopy} Check the runner and the workflow file, then rerun the job.`;
     default:
-      return `The execution ended because ${humanizeFailureReason(reason)}.${runnerCopy} Resolve that condition before re-running the workflow.`;
+      return `The job failed before it started.${runnerCopy} Read the run annotations, then rerun the job.`;
   }
-}
-
-function humanizeFailureReason(reason: string): string {
-  return reason.replaceAll('_', ' ').replaceAll('-', ' ');
 }
 
 export function CarriedOverStepPanel() {

@@ -370,7 +370,7 @@ function InspectorQueryContent({
           <CalloutContent>
             <CalloutTitle>Details unavailable</CalloutTitle>
             <CalloutDescription className="flex items-center justify-between gap-inline">
-              <span>We could not load the resolved configuration for this attempt.</span>
+              <span>Shipfox cannot load the details of this attempt.</span>
               <RetryButton query={query} />
             </CalloutDescription>
           </CalloutContent>
@@ -388,7 +388,7 @@ function InspectorQueryContent({
           <Callout role="status" aria-live="polite" type="warning" variant="secondary">
             <CalloutContent>
               <CalloutDescription className="flex items-center justify-between gap-inline">
-                <span>Could not refresh troubleshooting details.</span>
+                <span>Shipfox cannot refresh these details.</span>
                 <RetryButton query={query} />
               </CalloutDescription>
             </CalloutContent>
@@ -941,96 +941,94 @@ function displayModel(model: string | null | undefined): string | undefined {
 }
 
 function failureTitle(reason: string | JobStatusReason, error: StepError | null): string {
-  if (isProviderStreamFailure(error)) return 'Model response interrupted';
+  if (isProviderStreamFailure(error)) return 'The model response stopped';
 
   switch (reason) {
     case 'checkout_failed':
       return 'Checkout failed';
     case 'checkout_auth_failed':
-      return 'Checkout authentication failed';
+      return 'The repository rejected the checkout';
     case 'checkout_unavailable':
-      return 'Checkout service unavailable';
+      return 'The runner cannot reach the repository';
     case 'checkout_path_invalid':
-      return 'Checkout path is invalid';
+      return 'The checkout path is not valid';
     case 'checkout_destination_occupied':
-      return 'Checkout destination is already occupied';
+      return 'The checkout folder is not empty';
     case 'git_unavailable':
-      return 'Git was unavailable';
+      return 'The runner cannot start Git';
     case 'workspace_prep_failed':
-      return 'Workspace preparation failed';
+      return 'The runner cannot prepare the job';
     case 'setup_aborted':
-      return 'Step setup was aborted';
+      return 'The job stopped during setup';
     case 'config_unresolvable':
-      return 'Step configuration could not be resolved';
+      return 'A value in this step has an error';
     case 'output_invalid':
-      return 'Step output was invalid';
+      return 'The step output has the wrong shape';
     case 'agent_config_invalid':
-      return 'Agent configuration is invalid';
+      return 'Check the agent step';
     case 'agent_invocation_failed':
-      return 'Agent invocation failed';
+      return 'The agent failed';
     case 'agent_harness_unavailable':
-      return 'Agent harness was unavailable';
+      return 'The agent cannot start';
     case 'agent_inference_credentials_unavailable':
-      return 'Inference credentials are unavailable';
+      return 'Shipfox cannot reach the model provider';
     case 'agent_session_key_invalid':
-      return 'Agent session key is invalid';
+      return 'The session name is not valid';
     case 'agent_session_held':
-      return 'Agent session is held by another attempt';
+      return 'Another step is using this session';
     case 'agent_session_harness_mismatch':
-      return 'Agent session harness does not match';
+      return 'This session uses another harness';
     case 'agent_session_unavailable':
-      return 'Agent session is unavailable';
+      return 'Shipfox cannot load the session';
     case 'tool_error':
-      return 'Tool call failed';
+      return 'The integration returned an error';
     case 'tool_config_invalid':
-      return 'Tool configuration is invalid';
+      return 'A tool input is not valid';
     case 'invocation_interrupted':
-      return 'Tool invocation was interrupted';
+      return 'The tool call stopped before it finished';
     case 'action_input_invalid':
-      return 'Action input is invalid';
+      return 'An action input is not valid';
     case 'action_unavailable':
-      return 'Action code was unavailable';
+      return 'The runner cannot load the action';
     case 'gate_failed':
     case 'gate_uncheckable':
-      return 'Step validation failed';
+      return 'The success condition failed';
     case 'restart_unresolved':
-      return 'Gate restart target could not be resolved';
+      return 'The restart step does not exist';
     case 'restart_exhausted':
-      return 'Gate attempt limit reached';
+      return 'The step reached its attempt limit';
     case 'lease_expired':
-      return 'Connection to the runner was lost';
     case 'provider_lost':
-      return 'The runner became unavailable';
     case 'lifecycle_violation':
-      return 'Runner stopped unexpectedly';
     case 'runner_lost':
-      return 'Runner stopped responding';
+      return 'The runner stopped responding';
     case 'output_too_large':
-      return 'Job output exceeded its size limit';
+      return 'The job output is too large';
     case 'queue_timed_out':
-      return 'Job was not started within the queue timeout';
+      return 'No runner started this job in time';
+    case 'runner_not_allowed':
+      return 'This workspace cannot use the requested runner';
     case 'timed_out':
-      return 'Step timed out';
+      return 'The step took too long';
     case 'step_failed':
       return 'A step failed';
     case 'dependency_not_completed':
-      return 'A dependency did not complete';
+      return 'A needed job did not finish';
     case 'condition_false':
-      return 'The job condition was false';
-    case 'default_gate_rejected':
-      return 'The default gate rejected this job';
     case 'condition_rejected':
-      return 'The job condition rejected this job';
+      return 'The job condition skipped this job';
+    case 'default_gate_rejected':
+      return 'A needed job failed';
     case 'condition_errored':
-      return 'The job condition could not be evaluated';
+      return 'The job condition has an error';
     case 'user_cancelled':
-      return 'The job was cancelled by a user';
+      return 'A user cancelled this job';
     case 'run_cancelled':
-      return 'The run was cancelled';
+      return 'The run is cancelled';
     case 'unknown':
-      return 'The failure reason was not recorded';
+      return 'Shipfox does not know why this step failed';
     default:
-      return 'Step failed';
+      return 'The step failed';
   }
 }
 
@@ -1041,21 +1039,16 @@ function restartExhaustionDescription(
   const attemptCount = error?.attemptCount;
   const maxAttempts = error?.maxAttempts ?? effectiveMaxAttempts;
   const hasNoSuccessGateDiagnostic = error?.message.startsWith('The step failed after ') ?? false;
-  const subject = hasNoSuccessGateDiagnostic
-    ? 'The step failed'
-    : 'The success condition did not pass';
+  const subject = hasNoSuccessGateDiagnostic ? 'The step failed' : 'The success condition failed';
   const countCopy =
     attemptCount === undefined
-      ? subject
-      : `${subject} after ${attemptCount} ${attemptCount === 1 ? 'attempt' : 'attempts'}`;
+      ? `${subject}.`
+      : `${subject} ${attemptCount} ${attemptCount === 1 ? 'time' : 'times'}.`;
   const limitCopy =
     maxAttempts === undefined
-      ? 'and reached the gate attempt limit.'
-      : `and reached the gate attempt limit of ${maxAttempts} ${maxAttempts === 1 ? 'attempt' : 'attempts'}, including the first execution.`;
-  const recovery = hasNoSuccessGateDiagnostic
-    ? 'Review the failed result.'
-    : 'Review the failed result and gate.success condition.';
-  return `${countCopy} ${limitCopy} ${recovery} To allow more attempts, set gate.on_failure.max_attempts to a higher value and start a new run.`;
+      ? 'The step reached its limit.'
+      : `The limit is ${maxAttempts} ${maxAttempts === 1 ? 'attempt' : 'attempts'}.`;
+  return `${countCopy} ${limitCopy} Fix the cause, or raise gate.on_failure.max_attempts. Then start a new run.`;
 }
 
 function failureDescription(
@@ -1066,90 +1059,101 @@ function failureDescription(
 ): string {
   if (isProviderStreamFailure(error) && error) {
     const attemptCount = error.attemptCount ?? 1;
-    const attemptLabel = attemptCount === 1 ? 'attempt' : 'attempts';
+    const attemptLabel = attemptCount === 1 ? 'time' : 'times';
     const provider = providerDisplayName(step, error);
-    return `${provider} lost the model response stream after ${attemptCount} ${attemptLabel}. No workflow configuration error was detected. Rerun the failed jobs.`;
+    return `The connection to ${provider} dropped during the model response. Shipfox tried ${attemptCount} ${attemptLabel}. Your workflow has no error. Rerun the failed jobs.`;
   }
 
   switch (reason) {
+    case 'checkout_failed':
+      return 'Read the Git output in the step logs to find the cause. Then check the repository and ref of the checkout.';
     case 'checkout_auth_failed':
-      return 'Checkout credentials were rejected. Verify repository access before re-running.';
+      return 'Check that the integration connection can read this repository. Then rerun the job.';
     case 'checkout_unavailable':
-      return 'The checkout service was unavailable. Retry after the service recovers.';
+      return 'Rerun the job. If it fails again, check the network access of the runner.';
+    case 'checkout_path_invalid':
+      return 'Use a relative path inside the job folder, without .. or .git. Then start a new run.';
+    case 'checkout_destination_occupied':
+      return 'Choose an empty folder, or set force to replace its content. Then start a new run.';
     case 'git_unavailable':
-      return 'The runner could not start Git. Check the runner image before re-running.';
+      return 'Install Git in the runner image. Then rerun the job.';
     case 'workspace_prep_failed':
-      return 'The runner could not prepare its workspace. Review the runner setup details.';
+      return 'Read the setup logs for the cause. Then rerun the job.';
+    case 'setup_aborted':
+      return 'A user cancelled the job, or it reached its timeout, before setup finished. Rerun the job.';
     case 'config_unresolvable':
-      return 'The resolved configuration contains a value that could not be evaluated.';
+      return 'Shipfox cannot compute a value in this step. Fix the expression, then start a new run.';
     case 'output_invalid':
-      return 'The step returned output that did not match the declared contract.';
+      return 'The step output does not match the declared outputs. Fix the step or the declaration, then start a new run.';
     case 'agent_config_invalid':
-      return 'The agent configuration is not valid for this step.';
+      return 'Shipfox cannot read the settings of this agent step. Check the step in the workflow file.';
     case 'agent_invocation_failed':
-      return 'The agent invocation failed after configuration was accepted.';
+      return 'The agent stopped with an error. Read the step logs for the cause.';
     case 'agent_harness_unavailable':
-      return 'The runner could not start the agent harness.';
+      return 'The runner cannot start the agent. Rerun the job.';
     case 'agent_inference_credentials_unavailable':
-      return 'Shipfox could not obtain inference credentials for this agent. Try again. If the problem continues, check the model provider configuration.';
+      return 'Rerun the job. If it fails again, check the model provider in Agents settings.';
     case 'agent_session_key_invalid':
-      return 'The resolved agent session key does not match the allowed key format.';
+      return 'Start the session name with a letter or digit. Use only letters, digits, dots, underscores, or hyphens.';
     case 'agent_session_held':
-      return 'Another running step currently holds this agent session. Parallel steps cannot share a session in resume mode.';
+      return 'Two steps that run at the same time cannot continue one session. Give each step its own session.';
     case 'agent_session_harness_mismatch':
-      return 'The step harness differs from the harness the agent session is pinned to.';
+      return 'A session works with one harness only. Use the harness of the first step, or use a new session.';
     case 'agent_session_unavailable':
-      return 'The agent session was unavailable during dispatch. Review the error details below and retry after resolving the cause.';
+      return 'Rerun the failed jobs. If it fails again, use a new session.';
     case 'tool_error':
-      return 'The provider rejected or could not complete this tool call.';
+      return 'Read the error below. Fix the cause, then rerun the job.';
     case 'tool_config_invalid':
       return error?.field
-        ? `The resolved ${error.field} value is invalid. Fix the step configuration before re-running.`
-        : 'The resolved tool configuration is invalid. Fix the step configuration before re-running.';
+        ? `The value of ${error.field} is not valid. Fix it in the step, then start a new run.`
+        : 'A tool input is not valid. Fix it in the step, then start a new run.';
     case 'invocation_interrupted':
       return step.toolConfig?.sensitivity === 'write'
-        ? 'The provider call was interrupted. Confirm whether the write completed before re-running it.'
-        : 'The provider call was interrupted before its outcome could be recorded. Review the invocation log before retrying.';
+        ? 'The change may already exist. Check the integration before you rerun the job.'
+        : 'Shipfox does not know the result of the call. Read the invocation log, then rerun the job.';
     case 'action_input_invalid':
-      return 'A with: value does not match the input declared in action.yml. Fix the value or the declaration, then re-run.';
+      return 'A with: value does not match the input in action.yml. Fix the value or the input, then start a new run.';
     case 'action_unavailable':
-      return 'The runner could not load the action snapshot for this run. Re-run the job. If it keeps failing, contact your workspace administrator.';
+      return 'Rerun the job. If it fails again, contact your workspace admin.';
     case 'gate_failed':
-      return "The step completed, but its success condition was not met. Review the step's result and success condition before trying again.";
+      return 'The step finished, but its success condition is false. Fix the step or the condition, then start a new run.';
     case 'gate_uncheckable':
-      return "Shipfox could not evaluate the step's success condition. Review the condition and the values it references before trying again.";
+      return 'Shipfox cannot evaluate the success condition. Fix the condition or the values it uses, then start a new run.';
     case 'restart_unresolved':
-      return 'Shipfox could not resolve the configured restart target. Review gate.on_failure.restart_from before trying again.';
+      return 'Shipfox cannot find the step in gate.on_failure.restart_from. Fix it, then start a new run.';
     case 'restart_exhausted':
       return restartExhaustionDescription(error, gateMaxAttempts);
     case 'lease_expired':
     case 'provider_lost':
     case 'lifecycle_violation':
     case 'runner_lost':
+      return 'Rerun the job. If it fails again, contact your workspace admin.';
     case 'timed_out':
-      return 'Try the workflow again. If the problem continues, contact your workspace administrator.';
+      return 'The step did not finish before its timeout. Raise the timeout or make the step faster, then start a new run.';
     case 'queue_timed_out':
-      return 'No runner claimed this job before the queue timeout. Try the workflow again when a runner is available.';
+      return 'No runner was free before the queue timeout. Rerun the job when a runner is free.';
     case 'output_too_large':
-      return 'The materialized job output exceeded its configured size limit.';
+      return 'Make the job outputs smaller, or write large data to a file.';
+    case 'runner_not_allowed':
+      return 'Choose another runner, then start a new run. Or contact your workspace admin.';
     case 'dependency_not_completed':
-      return 'A required job did not complete, so this job could not start.';
+      return 'This job needs another job that did not finish.';
     case 'condition_false':
     case 'condition_rejected':
-      return 'The job condition did not allow this job to run.';
+      return 'The if condition of this job is false.';
     case 'condition_errored':
-      return 'The job condition could not be evaluated.';
+      return 'Shipfox cannot evaluate the if condition. Fix it, then start a new run.';
     case 'default_gate_rejected':
-      return 'A required job did not succeed, so this job was not allowed to run.';
+      return 'This job needs another job that did not succeed.';
     case 'step_failed':
-      return 'A step failed before this job could complete.';
+      return 'A step failed before this job could finish.';
     case 'user_cancelled':
     case 'run_cancelled':
       return 'Start a new run if you still need the result.';
     case 'unknown':
-      return 'No machine-readable failure reason was recorded.';
+      return 'Read the logs for details. Then rerun the job.';
     default:
-      return `${humanize(reason)}. Review the details below and re-run after resolving the cause.`;
+      return 'Read the details below. Then rerun the job.';
   }
 }
 
@@ -1161,23 +1165,22 @@ interface ToolFailureGuidance {
 
 const TOOL_FAILURE_GUIDANCE_BY_CODE: Readonly<Record<string, ToolFailureGuidance>> = {
   'access-denied': {
-    title: 'Tool access was denied',
-    description:
-      'The integration rejected this call. Review its permissions before re-running the step.',
+    title: 'The integration denied access',
+    description: 'Check the permissions of the integration connection. Then rerun the job.',
     recoveryLabel: 'Review integration access',
   },
   'credentials-unavailable': {
-    title: 'Tool credentials are unavailable',
+    title: 'Reconnect the integration',
     description:
-      'The integration credentials are missing or unavailable. Reconnect the integration before re-running the step.',
+      'Shipfox cannot use the credentials of this integration. Reconnect it, then rerun the job.',
     recoveryLabel: 'Reconnect integration',
   },
 };
 
 const SUCCESSFUL_TOOL_OUTPUT_FAILURE_GUIDANCE: ToolFailureGuidance = {
-  title: 'Tool call succeeded, but the step failed',
+  title: 'The tool call worked, but the step failed',
   description:
-    'The integration returned a result, but Shipfox could not map or store it because it did not satisfy the output contract or size limit. The full result remains available in the invocation log.',
+    'Shipfox cannot save the result as step output. The result is too large or has the wrong shape. The invocation log has the full result.',
 };
 
 function toolFailureGuidance(
@@ -1208,9 +1211,9 @@ const ACTION_OUT_OF_MEMORY_GUIDANCE: ToolFailureGuidance = {
 };
 
 const ACTION_OUTPUT_INVALID_GUIDANCE: ToolFailureGuidance = {
-  title: 'Action output was invalid',
+  title: 'An action output is not valid',
   description:
-    'An output is missing, not declared in action.yml, or of the wrong type. Match the outputs to the manifest, then re-run.',
+    'An output is missing, not declared in action.yml, or of the wrong type. Match the outputs to action.yml, then start a new run.',
 };
 
 const ACTION_OUTPUT_TOO_LARGE_GUIDANCE: ToolFailureGuidance = {
@@ -1259,10 +1262,6 @@ function toolCallSucceededBeforeFailure(
     reason === 'output_invalid' &&
     attempt.invocations.some((invocation) => invocation.outcome === 'success')
   );
-}
-
-function humanize(value: string): string {
-  return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function countConfigValues(value: unknown): number {

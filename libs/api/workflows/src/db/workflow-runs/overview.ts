@@ -74,6 +74,7 @@ export interface WorkflowRunJobExecutionSummary {
   displayStatus: JobExecutionStatus;
   statusReason: JobStatusReason | null;
   statusReasonMessage: string | null;
+  statusReasonNotice: PolicyNotice | null;
   queuedAt: Date | null;
   startedAt: Date | null;
   finishedAt: Date | null;
@@ -92,6 +93,7 @@ export interface WorkflowRunJobExecutionSummaryRow {
   status: JobExecutionStatus;
   statusReason: string | null;
   statusReasonMessage: string | null;
+  statusReasonNotice: PolicyNotice | null;
   queuedAt: Date | null;
   startedAt: Date | null;
   finishedAt: Date | null;
@@ -693,6 +695,7 @@ async function loadJobPresentation(
         status: jobExecutions.status,
         statusReason: jobExecutions.statusReason,
         statusReasonMessage: jobExecutions.statusReasonMessage,
+        statusReasonNotice: jobExecutions.statusReasonNotice,
         queuedAt: jobExecutions.queuedAt,
         startedAt: jobExecutions.startedAt,
         finishedAt: jobExecutions.finishedAt,
@@ -731,6 +734,7 @@ async function loadJobPresentation(
       status: selectedExecution.status,
       statusReason: selectedExecution.statusReason,
       statusReasonMessage: selectedExecution.statusReasonMessage,
+      statusReasonNotice: selectedExecution.statusReasonNotice,
       queuedAt: selectedExecution.queuedAt,
       startedAt: selectedExecution.startedAt,
       finishedAt: selectedExecution.finishedAt,
@@ -843,6 +847,7 @@ export function toExecutionSummary(
     statusReason: toJobStatusReason(row.statusReason),
     statusReasonMessage:
       row.statusReasonMessage?.slice(0, JOB_EXECUTION_STATUS_REASON_MESSAGE_MAX_LENGTH) ?? null,
+    statusReasonNotice: row.statusReasonNotice,
     queuedAt: row.queuedAt,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,

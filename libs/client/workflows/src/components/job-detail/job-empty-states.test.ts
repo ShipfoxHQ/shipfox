@@ -128,9 +128,7 @@ describe('toSelectedAttemptError', () => {
 
 describe('skippedJobDescription', () => {
   test('explains when materialized output exceeds the configured size limit', () => {
-    expect(skippedJobDescription('output_too_large')).toBe(
-      'The materialized job output exceeded its configured size limit.',
-    );
+    expect(skippedJobDescription('output_too_large')).toBe('The job output is too large.');
   });
 });
 
@@ -139,32 +137,32 @@ describe('runner-loss failure descriptions', () => {
     {
       reason: 'run_cancelled',
       description:
-        'The run was cancelled before work began. Start a new run if you still need the result.',
+        'The run is cancelled, so this job did not start. Start a new run if you still need the result.',
     },
     {
       reason: 'timed_out',
       description:
-        'The job timed out before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
+        'The job reached its timeout before it started. Rerun the job. If it fails again, contact your workspace admin.',
     },
     {
       reason: 'lease_expired',
       description:
-        'Shipfox lost contact with the runner before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
+        'The runner stopped responding before the job started. Rerun the job. If it fails again, contact your workspace admin.',
     },
     {
       reason: 'provider_lost',
       description:
-        'The runner became unavailable before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
+        'The runner stopped responding before the job started. Rerun the job. If it fails again, contact your workspace admin.',
     },
     {
       reason: 'lifecycle_violation',
       description:
-        'The runner stopped unexpectedly before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
+        'The runner stopped responding before the job started. Rerun the job. If it fails again, contact your workspace admin.',
     },
     {
       reason: 'runner_lost',
       description:
-        'The runner stopped responding before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
+        'The runner stopped responding before the job started. Rerun the job. If it fails again, contact your workspace admin.',
     },
   ] satisfies Array<{
     reason: NonNullable<Job['statusReason']>;
@@ -190,9 +188,52 @@ describe('runner-loss failure descriptions', () => {
   });
 });
 
+describe('runner_not_allowed failure', () => {
+  function deniedJob(message: string | null) {
+    const job = workflowJob({
+      status: 'failed',
+      status_reason: 'runner_not_allowed',
+      job_executions: [
+        workflowJobExecutionDto({
+          status: 'failed',
+          status_reason: 'runner_not_allowed',
+          status_reason_message: message,
+          steps: [],
+        }),
+      ],
+    });
+    const execution = job.jobExecutions[0];
+    if (!execution) throw new Error('Expected a job execution');
+    return {job, execution};
+  }
+
+  test('shows the stored notice message with its required action', () => {
+    const {job, execution} = deniedJob('This workspace cannot use 16 vCPU runners.');
+    execution.statusReasonNotice = {
+      reason: 'machine-not-allowed',
+      message: 'This workspace cannot use 16 vCPU runners.',
+      requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/settings/billing'},
+    };
+
+    expect(emptyStateForJob(job, execution)).toMatchObject({
+      description: 'This workspace cannot use 16 vCPU runners.',
+      action: {label: 'Add credits', href: '/settings/billing'},
+    });
+  });
+
+  test('falls back to generic copy without a stored notice', () => {
+    const {job, execution} = deniedJob(null);
+
+    const emptyState = emptyStateForJob(job, execution);
+
+    expect(emptyState?.description).toContain('cannot use the requested runner');
+    expect(emptyState?.action).toBeUndefined();
+  });
+});
+
 describe('materialized output failure descriptions', () => {
   const fallback =
-    'A materialized job output could not be persisted: it exceeded a size or entry cap, contained a non-JSON-safe value, or referenced an unresolved value. Check the output mapping and values before re-running the workflow.';
+    'Shipfox cannot save a job output. The output is too large, is not valid JSON, or uses a missing value. Fix the job outputs, then start a new run.';
 
   test('uses the server-authored message for an execution with recorded steps', () => {
     const job = workflowJob({
@@ -285,9 +326,9 @@ describe('materialized output failure descriptions', () => {
         workflowJob({mode: 'listening', status: 'failed', status_reason: 'output_too_large'}),
       ),
     ).toMatchObject({
-      title: 'Job failed before an execution was created',
+      title: 'The job failed before it started',
       description:
-        'The listener filter snapshot exceeded its configured size limit. Review the listener filter and dependency data before re-running the workflow.',
+        'The data for the listener filter is too large. Make the filter or the outputs of needed jobs smaller. Then start a new run.',
     });
   });
 
@@ -298,7 +339,7 @@ describe('materialized output failure descriptions', () => {
       ),
     ).toMatchObject({
       description:
-        'The materialized job output exceeded its configured size limit. Review the failure details before re-running the workflow.',
+        'The job output is too large. Make the outputs smaller, or write large data to a file. Then start a new run.',
     });
   });
 });

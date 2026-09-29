@@ -1,4 +1,4 @@
-import {createConfig, str} from '@shipfox/config';
+import {createConfig, num, str} from '@shipfox/config';
 import {type RegistryTrustedKey, registryTrustedKeySchema} from '@shipfox/registry-format';
 import type {RegistrySettings} from '#core/settings.js';
 
@@ -12,6 +12,10 @@ export const config = createConfig({
   REGISTRY_TRUSTED_KEYS: str({
     desc: 'JSON list of the registry signing keys this instance trusts, as objects with keyid and public_key (a base64 DER Ed25519 public key). Registry content is used only when a trusted key signed it. Required when REGISTRY_URL is set.',
     default: '[]',
+  }),
+  REGISTRY_CATALOG_REFRESH_SECONDS: num({
+    desc: 'Seconds a cached registry catalog or package index is served before the next read refreshes it in the background. A refresh failure keeps the last good copy.',
+    default: 900,
   }),
 });
 
@@ -45,13 +49,24 @@ export function parseTrustedKeys(value: string): RegistryTrustedKey[] {
 export function createRegistrySettings(values: {
   REGISTRY_URL: string;
   REGISTRY_TRUSTED_KEYS: string;
+  REGISTRY_CATALOG_REFRESH_SECONDS: number;
 }): RegistrySettings {
   const registry = normalizeRegistryUrl(values.REGISTRY_URL);
   const trustedKeys = parseTrustedKeys(values.REGISTRY_TRUSTED_KEYS);
   if (registry !== '' && trustedKeys.length === 0) {
     throw new Error('REGISTRY_TRUSTED_KEYS must list at least one key when REGISTRY_URL is set');
   }
-  return {registry, trustedKeys};
+  if (
+    !Number.isFinite(values.REGISTRY_CATALOG_REFRESH_SECONDS) ||
+    values.REGISTRY_CATALOG_REFRESH_SECONDS < 0
+  ) {
+    throw new Error('REGISTRY_CATALOG_REFRESH_SECONDS must be zero or more');
+  }
+  return {
+    registry,
+    trustedKeys,
+    catalogRefreshSeconds: values.REGISTRY_CATALOG_REFRESH_SECONDS,
+  };
 }
 
 export const registrySettings = createRegistrySettings(config);

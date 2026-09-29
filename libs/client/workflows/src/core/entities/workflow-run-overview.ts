@@ -11,6 +11,7 @@ import {
   type JobExecutionDisplayDuration,
   type JobExecutionStatus,
   jobExecutionDisplayDurationFromTimestamps,
+  type StatusReasonNotice,
 } from './job-execution.js';
 import type {StepSourceLocation} from './step.js';
 import type {
@@ -84,6 +85,7 @@ export interface WorkflowRunOverviewExecution {
   displayStatus: JobExecutionStatus;
   statusReason: JobStatusReason | null;
   statusReasonMessage: string | null;
+  statusReasonNotice?: StatusReasonNotice | null | undefined;
   queuedAt: string | null;
   startedAt: string | null;
   finishedAt: string | null;
