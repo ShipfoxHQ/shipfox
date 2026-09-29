@@ -197,6 +197,8 @@ describe('loader', () => {
 
       const result = await run('registry');
 
+      expect(result.exitCode).toBe(1);
+      expect(result.result).toEqual({status: 'failed'});
       expect(result.stderr).toContain('ERR_SHIPFOX_REGISTRY_ACTION_IMPORT');
       expect(result.stderr).toContain("'@acme/util'");
     });
