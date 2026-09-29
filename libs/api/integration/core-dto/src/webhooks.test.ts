@@ -50,6 +50,25 @@ describe('storedWebhookRequestSchema', () => {
     expect(decodeWebhookBody(queuedRequest.body)).toEqual(body);
   });
 
+  it('accepts and round-trips Discord interaction signature headers', () => {
+    const request = createStoredWebhookRequest({
+      requestId,
+      routeId: 'discord.interaction',
+      receivedAt,
+      rawQueryString: '',
+      headers: {
+        'content-type': 'application/json',
+        'x-signature-ed25519': 'signature',
+        'x-signature-timestamp': 'timestamp',
+      },
+      body: new Uint8Array([1, 2, 3]),
+    });
+
+    expect(request.route_id).toBe('discord.interaction');
+    expect(request.path_parameters).toEqual({});
+    expect(storedWebhookRequestSchema.parse(JSON.parse(JSON.stringify(request)))).toEqual(request);
+  });
+
   it('rejects unknown fields, routes, and schema versions', () => {
     const request = createStoredWebhookRequest({
       requestId,

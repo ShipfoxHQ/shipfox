@@ -13,6 +13,7 @@ const standardWebhookRouteIds = [
   'sentry',
   'slack.event',
   'slack.command',
+  'discord.interaction',
 ] as const;
 
 export const webhookRouteIds = [
