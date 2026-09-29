@@ -122,11 +122,16 @@ export function settingsFor(params: {
   };
 }
 
-/** Serves `GET /v1/packages` with a version of `etag`. */
+/**
+ * Serves `GET /v1/packages` with a version of `etag`. With `cursor`, serves the page that
+ * `next_cursor: cursor` points to, and `nextCursor` marks that page as followed by another.
+ */
 export function publishCatalog(params: {
   registry: TestRegistry;
   etag: string;
   packages?: string[];
+  cursor?: string;
+  nextCursor?: string;
 }): RegistryCatalog {
   const catalog: RegistryCatalog = {
     packages: (params.packages ?? ['fixture/example']).map((name) => ({
@@ -141,8 +146,13 @@ export function publishCatalog(params: {
       first_published_at: '2026-10-12T09:14:03Z',
       publisher: {namespace: 'fixture', display_name: 'Fixture', verified: true},
     })),
+    ...(params.nextCursor === undefined ? {} : {next_cursor: params.nextCursor}),
   };
-  params.registry.put(REGISTRY_CATALOG_PATH, JSON.stringify(catalog), {etag: params.etag});
+  const path =
+    params.cursor === undefined
+      ? REGISTRY_CATALOG_PATH
+      : `${REGISTRY_CATALOG_PATH}?cursor=${encodeURIComponent(params.cursor)}`;
+  params.registry.put(path, JSON.stringify(catalog), {etag: params.etag});
   return catalog;
 }
 

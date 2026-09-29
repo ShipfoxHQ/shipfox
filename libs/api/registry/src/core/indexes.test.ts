@@ -62,6 +62,100 @@ describe('getCatalog', () => {
     expect(requestsFor(registry, REGISTRY_CATALOG_PATH)).toBe(1);
   });
 
+  it('follows next_cursor and stores every page as one catalog', async () => {
+    const registry = await newRegistry();
+    publishCatalog({
+      registry,
+      etag: '"p1"',
+      packages: ['fixture/pkg-a', 'fixture/pkg-b'],
+      nextCursor: 'c2',
+    });
+    publishCatalog({
+      registry,
+      etag: '"p2"',
+      packages: ['fixture/pkg-c'],
+      cursor: 'c2',
+      nextCursor: 'c3',
+    });
+    publishCatalog({registry, etag: '"p3"', packages: ['fixture/pkg-d'], cursor: 'c3'});
+    const settings = settingsFor({registry, keys: [key]});
+
+    const catalog = await getCatalog({settings});
+
+    const stored = await getRegistryIndex({registry: registry.url, key: 'catalog'});
+    expect(catalog.packages.map((entry) => entry.package)).toEqual([
+      'fixture/pkg-a',
+      'fixture/pkg-b',
+      'fixture/pkg-c',
+      'fixture/pkg-d',
+    ]);
+    expect(catalog.next_cursor).toBeUndefined();
+    expect(stored).toMatchObject({body: catalog, etag: '"p1"'});
+  });
+
+  it('lists an entry once when two pages both carry it', async () => {
+    const registry = await newRegistry();
+    publishCatalog({
+      registry,
+      etag: '"p1"',
+      packages: ['fixture/pkg-a', 'fixture/pkg-b'],
+      nextCursor: 'c2',
+    });
+    publishCatalog({
+      registry,
+      etag: '"p2"',
+      packages: ['fixture/pkg-b', 'fixture/pkg-c'],
+      cursor: 'c2',
+    });
+    const settings = settingsFor({registry, keys: [key]});
+
+    const catalog = await getCatalog({settings});
+
+    expect(catalog.packages.map((entry) => entry.package)).toEqual([
+      'fixture/pkg-a',
+      'fixture/pkg-b',
+      'fixture/pkg-c',
+    ]);
+  });
+
+  it('keeps the last good catalog when a later page fails on refresh', async () => {
+    const registry = await newRegistry();
+    publishCatalog({registry, etag: '"p1"', packages: ['fixture/pkg-a'], nextCursor: 'c2'});
+    publishCatalog({registry, etag: '"p2"', packages: ['fixture/pkg-b'], cursor: 'c2'});
+    const settings = settingsFor({registry, keys: [key], catalogRefreshSeconds: 0});
+    const good = await getCatalog({settings});
+    publishCatalog({registry, etag: '"p1b"', packages: ['fixture/pkg-z'], nextCursor: 'c2'});
+    registry.fail(`${REGISTRY_CATALOG_PATH}?cursor=c2`, 503);
+
+    const stale = await getCatalog({settings});
+    await vi.waitFor(() =>
+      expect(requestsFor(registry, `${REGISTRY_CATALOG_PATH}?cursor=c2`)).toBe(2),
+    );
+    const afterFailure = await getCatalog({settings});
+
+    const stored = await getRegistryIndex({registry: registry.url, key: 'catalog'});
+    expect(stale).toEqual(good);
+    expect(afterFailure).toEqual(good);
+    expect(stored).toMatchObject({body: good, etag: '"p1"'});
+  });
+
+  it('reports the registry unavailable when a cursor comes back', async () => {
+    const registry = await newRegistry();
+    publishCatalog({registry, etag: '"p1"', nextCursor: 'c2'});
+    publishCatalog({
+      registry,
+      etag: '"p2"',
+      packages: ['fixture/pkg-b'],
+      cursor: 'c2',
+      nextCursor: 'c2',
+    });
+    const settings = settingsFor({registry, keys: [key]});
+
+    const result = getCatalog({settings});
+
+    await expect(result).rejects.toBeInstanceOf(RegistryUnavailableError);
+  });
+
   it('keeps serving the last good copy while the registry is down', async () => {
     const registry = await newRegistry();
     const published = publishCatalog({registry, etag: '"v1"'});
