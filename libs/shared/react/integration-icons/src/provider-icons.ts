@@ -11,6 +11,7 @@ export const PROVIDER_ICONS = {
   slack: 'slack',
   jira: 'jira',
   clickup: 'clickup',
+  discord: 'discord',
   gitea: 'gitea',
   webhook: 'webhookLine',
 } as const satisfies Record<string, IconName>;
