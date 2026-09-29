@@ -131,10 +131,15 @@ describe('handleGithubLinkCallback', () => {
     params.getExistingGithubConnection = vi.fn(() =>
       Promise.resolve(existing),
     ) as unknown as typeof params.getExistingGithubConnection;
+    params.connectGithubInstallation = vi.fn(() =>
+      Promise.resolve({...existing, lifecycleStatus: 'active'}),
+    ) as unknown as typeof params.connectGithubInstallation;
 
     const result = await handleGithubLinkCallback(params);
 
-    expect(result).not.toBe(existing);
+    expect(result.id).toBe(existing.id);
+    expect(result.externalAccountId).toBe(existing.externalAccountId);
+    expect(result.slug).toBe(existing.slug);
     expect(result.lifecycleStatus).toBe('active');
     expect(params.github.getInstallation).toHaveBeenCalledWith(123);
     expect(params.connectGithubInstallation).toHaveBeenCalledWith(
