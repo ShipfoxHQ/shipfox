@@ -2,4 +2,4 @@
 "@shipfox/api-integration-core": patch
 ---
 
-Add the config-gated Discord provider scaffold with guild installations, connection cleanup, and E2E seeding.
+Adds config-gated Discord connection support and persists guild installation data.

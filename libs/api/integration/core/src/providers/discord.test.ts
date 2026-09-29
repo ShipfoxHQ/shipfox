@@ -22,6 +22,10 @@ async function loadDiscordProvider() {
   return {part, discordPackage};
 }
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('Discord provider scaffold', () => {
   const context = useIntegrationRouteTest();
 

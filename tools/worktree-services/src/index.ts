@@ -41,7 +41,7 @@ export const standardPorts = {
   githubApi: 11,
   slackApi: 12,
   otelTemporalMetrics: 13,
-  discordApi: 17,
+  discordApi: 18,
 } as const;
 
 export type StandardPortName = keyof typeof standardPorts;

@@ -43,7 +43,7 @@ describe('portsFromBase', () => {
       githubApi: 20_011,
       slackApi: 20_012,
       otelTemporalMetrics: 20_013,
-      discordApi: 20_017,
+      discordApi: 20_018,
     });
   });
 });
@@ -81,7 +81,7 @@ describe('standardAppEnv', () => {
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:20010/mcp');
     assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:20011');
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:20012');
-    assert.equal(env.DISCORD_API_BASE_URL, 'http://127.0.0.1:20017');
+    assert.equal(env.DISCORD_API_BASE_URL, 'http://127.0.0.1:20018');
   });
 });
 
