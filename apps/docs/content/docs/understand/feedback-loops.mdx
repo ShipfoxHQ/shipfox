@@ -1,43 +1,45 @@
 ---
 title: "Feedback loops"
 sidebarTitle: "Feedback Loops"
-description: "Understand how a gate and a restart form a loop, why the check must be independent, and how to bound retries and protect writes."
+description: "Understand how a failed check sends work back to an earlier step, and how to keep these retries safe and limited."
 ---
 
-A **feedback loop** repeats part of a job after a check rejects the result. One
-step does the open-ended work. A later step measures it. The job returns to the
-earlier step only when the check fails.
+A **feedback loop** runs part of a job again when a check fails. For example,
+an agent step changes the code. A later step runs the tests. If the tests fail,
+the job goes back to the agent step.
 
-A **gate** is the decision point, not the loop itself. A gate can accept or
-reject a result without repeating anything. The restart rule creates the loop.
+A **gate** decides if a step passed. If the gate fails and has no restart rule,
+the job fails. If it has a restart rule, the job goes back to an earlier step.
+The restart rule creates the loop.
 
-## Gate outcomes
+## Check and restart are separate
 
-The check answers one question: is this result good enough to continue? The
-restart answers another: which earlier work gets another attempt?
+The gate checks the result. The restart rule chooses the step that runs again.
+You set them separately. This lets a workflow:
 
-Because the two are separate, a workflow can:
+- Stop the job when the check fails. Do this when a retry isn't safe.
+- Restart from the step that can fix the problem, not from the start of the
+  job.
+- Give the restarted step the gate feedback and the log of the failed check.
 
-- Fail the job without retrying unsafe work.
-- Restart only the part that can improve the result.
-- Give the repeated step evidence from the failed check.
+The run shows the result of each gate. The result explains why the job
+continued, failed, or ran a step again.
 
-This also makes the run readable. The check result explains why the job
-continued, failed, or created another step attempt.
+## Use a separate check
 
-## Use an independent check, not the agent's opinion
+An agent that checks its own work often repeats its own mistakes. Use a check
+that doesn't depend on the agent, such as tests, a type check, a linter, or a
+separate review.
 
-An agent that judges its own work repeats the same judgment. A test, a type
-check, a linter, a policy script, or an independent review measures something
-outside that judgment.
+The check doesn't need to test everything. It must test what makes the next
+step safe. For example:
 
-The check doesn't need to prove every property. It must prove the property that
-decides whether the next action is safe. A unit test can guard behavior before
-a commit. A policy check can guard a deploy. A read-back can confirm an
-external write.
+- Run unit tests before a commit.
+- Run a policy check before a deploy.
+- Read the result of an external change to confirm it worked.
 
-This complete workflow shows the loop. The project needs an `npm test` command
-and configured agent defaults.
+This complete workflow shows a loop. The project needs an `npm test` command and
+default agent settings.
 
 ```yaml title=".shipfox/workflows/fix-tests.yml"
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
@@ -54,11 +56,14 @@ jobs:
       - key: fix
         prompt: >
           Fix the failing tests in this repository.
-          Previous check: ${{ step.is_retry
-            ? step.restart.feedback
-            : "No previous check. Run the tests and inspect the failures." }}
+          ${{ !has(step.restart)
+            ? "Run the tests and inspect the failures."
+            : has(step.restart.from.log_path)
+              ? "The tests still fail. Read their log at " + step.restart.from.log_path + " and fix the cause."
+              : step.restart.feedback }}
 
-      - run: npm test
+      - key: test
+        run: npm test
         gate:
           success: step.exit_code == 0
           on_failure:
@@ -67,8 +72,9 @@ jobs:
 ```
 
 The first attempt gets initial guidance. A failed test restarts `fix` in the
-same job checkout, so the agent can revise its files. A passing test lets the
-job continue.
+same job checkout, so the agent can revise its files. The agent reads the
+failed test log, or the gate feedback when there is no log. A passing test lets
+the job continue.
 
 The [Gate fields
 reference](/reference/workflow-schema#gate-fields) defines the exact fields.
@@ -85,13 +91,47 @@ workflow and how to route each failure.
 
 ## Give the next attempt useful feedback
 
-A retry without new evidence can repeat the same mistake. Useful feedback names
-the failed property and points the repeated step to evidence it can inspect.
+A step that runs again with no new information can make the same mistake. It
+needs to know what failed and why. Two sources give this information: the gate
+feedback and the log of the failed check.
 
-Feedback isn't a new event. It belongs to the restart decision, and only the
-repeated attempt can read it. [Context and
-templating](/understand/data-and-templating) explains when each kind of data
-becomes available.
+Gate feedback doesn't start a new run. Shipfox gives the feedback to the steps
+that run after the restart. [Context and
+templating](/understand/data-and-templating) shows when each type of data is
+available.
+
+## Give the next attempt the failed log
+
+The output of the failed check usually explains the failure better than a
+fixed feedback message. Shipfox keeps a copy of each step attempt's log on the
+runner, so the workflow doesn't need to capture it. `step.restart.from.log_path`
+is the path to the log of the failed check. The repeated step passes the path
+to an agent or a script, which reads what it needs from the file.
+
+The file holds the attempt's output as plain text:
+
+- Standard output and standard error appear in the order they arrived, with the
+  lines Shipfox adds, such as the exit code. Lines have no timestamps.
+- Secrets are masked, as they are on the run page.
+- A long log keeps only its end, where failures usually appear. The file then
+  starts with a `[shipfox] Log truncated:` line. [Limits](/reference/limits#logs)
+  gives the size.
+- The file exists until the job execution ends. Later steps of that execution
+  can read it, including after gate restarts.
+- Other jobs, other runs, and `tool` steps can't read it.
+
+`log_path` is sometimes absent, even after a failure. For example, a step that
+fails before it starts its command has no log. Guard the field with `has()`.
+When the log is absent, give the next attempt the gate feedback instead:
+
+```text
+has(step.restart.from.log_path)
+  ? "Read the failed log at " + step.restart.from.log_path + "."
+  : step.restart.feedback
+```
+
+The [Contexts reference](/reference/contexts#context-properties) lists when the
+field is absent and the steps that have one.
 
 ## Loop bounds
 
@@ -108,23 +148,22 @@ The loop stops in one of two states:
 history](/understand/workflows-and-runs) keeps each step attempt and its
 feedback.
 
-## Keep external writes out of the loop
+## Avoid repeated writes
 
-A restart repeats every step from the restart point through the gate. A
-deploy, a notification, a comment, a payment, or a repository push inside that
-range can happen more than once.
+A restart runs every step again, from the restart step to the gate. Some steps
+change things outside the job, such as a deploy, a comment, or a push. These
+changes can happen more than once.
 
-Prefer this order:
+Put these steps after the gate, so they run only when the check passes.
 
-1. Make local or reversible changes.
-2. Run the check.
-3. Perform the external write only after the gate passes.
+If a step like this can still run more than once, make it safe to run again.
+It should find the result of the earlier attempt and reuse it.
 
-When a write must happen inside the repeated range, make it safe to repeat. Use
-a stable identity, and update or read back the existing result instead of
-creating a new one on every attempt.
+For example, a push step can fail after it creates a branch and a commit. On
+the next attempt, the branch and the commit already exist. The push script must
+use them instead of failing. [Turn a Sentry issue into a verified pull
+request](/how-to/recipes/event-to-verified-pull-request) shows a push step that
+does this.
 
-A loop can repeat a bad side effect as easily as it can improve code. Don't use
-it to retry a deploy or an external write that has no check in front of it.
-
-Use the linked authoring guide to add this pattern to a workflow.
+To add a feedback loop to a workflow, see [Build an agent feedback
+loop](/how-to/recipes/build-feedback-loop).
