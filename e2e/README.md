@@ -41,6 +41,7 @@ Suite levels are independent from layers:
 Driver-specific docs live with their drivers:
 
 - [`drivers/gitea/README.md`](drivers/gitea/README.md) explains direct Gitea admin/API usage.
+- [`drivers/github/README.md`](drivers/github/README.md) explains the fake GitHub API.
 - [`drivers/runner-process/README.md`](drivers/runner-process/README.md) explains local runner and provisioner processes.
 - [`suites/flow/workflows/README.md`](suites/flow/workflows/README.md) is the deep runbook for the workflow flow suite.
 
@@ -126,6 +127,7 @@ package when the helper needs typed request or response contracts.
 `drivers/*` is the only sanctioned bypass from product HTTP:
 
 - `drivers/gitea` talks directly to the local Gitea instance because Gitea is the external system under integration.
+- `drivers/github` fakes the GitHub API because GitHub is the external system under integration.
 - `drivers/runner-process` starts local runner/provisioner processes because runner capacity is process infrastructure, not product data.
 
 A new driver is justified only for an external system, host process, or local

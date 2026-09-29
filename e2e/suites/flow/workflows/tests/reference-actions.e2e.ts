@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {createApiClient} from '@shipfox/e2e-core';
 import {type ConnectedOrg, createConnectedOrg, deleteOrg} from '@shipfox/e2e-driver-gitea';
+import {type GithubApiMockCall, startGithubApiMock} from '@shipfox/e2e-driver-github';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import {fetchStepLogs} from '@shipfox/e2e-observe-logs';
 import type {WorkflowRunObservation, WorkflowStepObservation} from '@shipfox/e2e-observe-workflows';
@@ -17,7 +18,6 @@ import {
   fetchLogAttachment,
 } from '#attachments.js';
 import {logText} from '#expect.js';
-import {type GithubApiMockCall, startGithubApiMock} from '#github-api.js';
 import {LINEAR_UPLOADS_PATH, startLinearMcpMock} from '#linear-mcp.js';
 import {
   LINEAR_ROOT_PROJECT,

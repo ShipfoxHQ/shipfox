@@ -2,6 +2,17 @@ import {readFile} from 'node:fs/promises';
 import type {DefinitionResponseDto} from '@shipfox/api-definitions-dto';
 import type {ProjectResponseDto} from '@shipfox/api-projects-dto';
 import {createApiClient} from '@shipfox/e2e-core';
+import {
+  GITHUB_GRAPHQL_RESULT_MARKER,
+  GITHUB_READ_RESULT_MARKER,
+  GITHUB_SEARCH_RESULT_MARKER,
+  GITHUB_STATEFUL_INSTALLATION_TOKEN,
+  GITHUB_STATELESS_INSTALLATION_TOKEN,
+  GITHUB_WRITE_RESULT_MARKER,
+  type GithubApiMock,
+  type GithubApiMockOptions,
+  startGithubApiMock,
+} from '@shipfox/e2e-driver-github';
 import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import {waitForStepLogsContaining} from '@shipfox/e2e-observe-logs';
@@ -16,17 +27,6 @@ import {
   collectStepLogAttachmentRequests,
   fetchLogAttachment,
 } from '#attachments.js';
-import {
-  GITHUB_GRAPHQL_RESULT_MARKER,
-  GITHUB_READ_RESULT_MARKER,
-  GITHUB_SEARCH_RESULT_MARKER,
-  GITHUB_STATEFUL_INSTALLATION_TOKEN,
-  GITHUB_STATELESS_INSTALLATION_TOKEN,
-  GITHUB_WRITE_RESULT_MARKER,
-  type GithubApiMock,
-  type GithubApiMockOptions,
-  startGithubApiMock,
-} from '#github-api.js';
 import {waitForDefinitionSyncTerminal} from '#polling.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import type {SuiteContext} from '#suite-context.js';

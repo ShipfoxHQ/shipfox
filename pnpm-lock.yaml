@@ -1206,6 +1206,27 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/vitest
 
+  e2e/drivers/github:
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
   e2e/drivers/model-provider:
     devDependencies:
       '@shipfox/biome':
@@ -2184,6 +2205,9 @@ importers:
       '@shipfox/e2e-driver-gitea':
         specifier: workspace:*
         version: link:../../../drivers/gitea
+      '@shipfox/e2e-driver-github':
+        specifier: workspace:*
+        version: link:../../../drivers/github
       '@shipfox/e2e-driver-model-provider':
         specifier: workspace:*
         version: link:../../../drivers/model-provider

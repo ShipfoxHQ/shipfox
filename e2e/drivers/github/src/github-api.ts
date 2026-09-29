@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
 import {closeServer, listenOnEndpoint} from './mock-server.js';
+import type {RecordedWrite} from './recorded-write.js';
 
 const JWT_SEGMENT_LENGTH = 169;
 
@@ -113,6 +114,8 @@ export interface GithubApiMock {
   pullRequests: Map<number, GithubPullRequestFixture>;
   /** Branch tips for createCommitOnBranch's compare-and-swap, by branch name. */
   branchHeads: Map<string, string>;
+  /** Writes the fake accepted, in arrival order. */
+  writes(): RecordedWrite[];
   stop(): Promise<void>;
 }
 
@@ -177,6 +180,7 @@ export async function startGithubApiMock(
     endpoint: boundEndpoint,
     pullRequests,
     branchHeads,
+    writes: () => [],
     stop: async () => {
       try {
         await closeServer(server);
