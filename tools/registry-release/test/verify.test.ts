@@ -67,9 +67,9 @@ describe('verifyVersion', () => {
 });
 
 describe('verifyVersion for an action', () => {
-  let repository: ActionRepository;
+  let repository: ActionRepository | undefined;
   let registry: FakeRegistry;
-  afterEach(() => repository.remove());
+  afterEach(() => repository?.remove());
 
   it('rebuilds the provenance commit from its own build tree', async () => {
     repository = new ActionRepository();

@@ -72,7 +72,7 @@ describe('publishPackages', () => {
         package: 'shipfox/an-action',
         kind: 'action',
         manifest: {description: 'An action.'},
-        composition: undefined,
+        composition: template.composition,
         dependencies: [{name: 'ms', version: '2.1.3'}],
       },
     ]);
