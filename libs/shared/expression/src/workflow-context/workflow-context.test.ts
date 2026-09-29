@@ -490,6 +490,44 @@ describe('workflow context registry', () => {
     ).not.toThrow();
   });
 
+  it('types log_path on step entities, attempts, and restart provenance', () => {
+    const stepsEnvironment = buildTypedRootsEnvironment({steps: [{key: 'build'}]});
+
+    for (const [source, typeEnvironment] of [
+      ['steps.build.log_path', stepsEnvironment],
+      ['steps.build.attempts[0].log_path', stepsEnvironment],
+      ['has(steps.build.log_path) && steps.build.log_path != ""', stepsEnvironment],
+      ['step.restart.from.log_path', workflowContextDefinitions.step.typeEnvironment],
+      ['step.restart.from.attempts[0].log_path', workflowContextDefinitions.step.typeEnvironment],
+    ] as const) {
+      const expression = createWorkflowExpression({
+        source,
+        check: {mode: 'typed', typeEnvironment},
+      });
+
+      expect(expression.check, source).toBe('typed');
+    }
+  });
+
+  it('rejects log_path on job entities and tool step entities', () => {
+    const jobsEnvironment = buildTypedRootsEnvironment({jobs: [{key: 'build'}]});
+    const toolStepsEnvironment = buildTypedRootsEnvironment({
+      steps: [{key: 'notify', kind: 'tool'}],
+    });
+
+    for (const [source, typeEnvironment] of [
+      ['jobs.build.log_path', jobsEnvironment],
+      ['jobs.build.executions[0].log_path', jobsEnvironment],
+      ['steps.notify.log_path', toolStepsEnvironment],
+      ['steps.notify.attempts[0].log_path', toolStepsEnvironment],
+    ] as const) {
+      expect(
+        () => createWorkflowExpression({source, check: {mode: 'typed', typeEnvironment}}),
+        source,
+      ).toThrow(InvalidWorkflowExpressionError);
+    }
+  });
+
   it('exposes a tool step gate context without exit_code', () => {
     expect(() =>
       createWorkflowExpression({

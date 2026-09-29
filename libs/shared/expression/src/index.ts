@@ -111,6 +111,7 @@ export {
   planInterpolationField,
 } from './plan/plan-field.js';
 export {predicateSourceIsBooleanShaped} from './plan/predicate-shape.js';
+export {referencesStepLogPath} from './plan/references-step-log-path.js';
 export type {
   ResolvedField,
   ResolvedFieldDeferredSegment,

@@ -245,6 +245,7 @@ const stepAttemptType = {
     exit_code: 'int',
     outputs: {kind: 'map'},
     response: 'string',
+    log_path: 'string',
     gate: stepGateType,
   },
 } as const;

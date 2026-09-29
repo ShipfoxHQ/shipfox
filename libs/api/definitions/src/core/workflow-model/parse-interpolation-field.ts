@@ -14,6 +14,7 @@ import {
   type PlanViolation,
   parseWorkflowTemplate,
   planInterpolationField,
+  referencesStepLogPath,
   resolveContextRootAvailability,
   resolveContextRootHost,
   unavailableRootsAt,
@@ -174,6 +175,14 @@ function validateExpressionSegment(params: {
     return undefined;
   }
 
+  if (
+    fieldsWithoutRunnerPaths.has(params.field) &&
+    referencesStepLogPath(params.segment.expression)
+  ) {
+    params.issues.push(runnerPathInFieldIssue({...params, contextRoots}));
+    return undefined;
+  }
+
   const knownRoots = recognizedRoots.filter((root) => fieldRoots.has(root));
   const unknownRoots = contextRoots.filter((root) => !fieldRoots.has(root));
 
@@ -330,6 +339,34 @@ function runnerContextInFieldIssue(params: {
       source: params.source,
       contextRoots: params.contextRoots,
       rejectedRoots: params.rejectedHostRoots,
+    },
+  });
+}
+
+// A step log path only exists on the runner during the job execution, so a
+// field that outlives the execution or runs on the server cannot use it.
+const fieldsWithoutRunnerPaths: ReadonlySet<WorkflowInterpolationField> = new Set([
+  'job.outputs',
+  'workflow.outputs',
+  'tool.with',
+]);
+
+function runnerPathInFieldIssue(params: {
+  field: WorkflowInterpolationField;
+  source: string;
+  path: readonly WorkflowModelValidationIssuePathSegment[];
+  contextRoots: readonly string[];
+  segment: WorkflowTemplateExprSegment;
+}): WorkflowModelValidationIssue {
+  return issue({
+    code: 'runner-path-in-field',
+    message: `${fieldLabel(params.field)} interpolation cannot use log_path. The path only exists on the runner during the job execution, so use it in a run, env, prompt, or action input instead.`,
+    path: params.path,
+    details: {
+      field: params.field,
+      source: params.source,
+      expression: params.segment.expression.source,
+      contextRoots: params.contextRoots,
     },
   });
 }
