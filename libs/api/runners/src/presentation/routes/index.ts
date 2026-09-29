@@ -38,7 +38,10 @@ import {
   runnerControlHeartbeatRoute,
 } from './runner-enrollment.js';
 
-function createRunnerOnlyRoutes(auth: AuthInterModuleClient): RouteGroup[] {
+function createRunnerOnlyRoutes(
+  auth: AuthInterModuleClient,
+  options: CreateRunnersModuleOptions,
+): RouteGroup[] {
   return [
     {
       prefix: '/workspaces/:workspaceId/runners/manual-registration-tokens',
@@ -62,7 +65,7 @@ function createRunnerOnlyRoutes(auth: AuthInterModuleClient): RouteGroup[] {
     {
       prefix: '/runners/jobs',
       auth: AUTH_RUNNER_SESSION,
-      routes: [createRequestJobRoute(auth)],
+      routes: [createRequestJobRoute(auth, options.installationProvisioning?.policy)],
     },
     {
       prefix: '/runners/jobs',
@@ -130,7 +133,7 @@ export function createRunnerRoutes(
   auth: AuthInterModuleClient,
   options: CreateRunnersModuleOptions = {},
 ): RouteGroup[] {
-  const runnerOnlyRoutes = createRunnerOnlyRoutes(auth);
+  const runnerOnlyRoutes = createRunnerOnlyRoutes(auth, options);
   return adoptAdministrationActorGuard([
     ...runnerOnlyRoutes.map((route) =>
       route.routes.includes(pollDemandRoute)

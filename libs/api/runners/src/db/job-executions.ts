@@ -32,6 +32,7 @@ import {
   RunnerSessionExhaustedError,
   RunningJobExecutionNotFoundError,
 } from '#core/errors.js';
+import type {InstallationPlacementPolicy} from '#installation-provisioning.js';
 import {
   type JobExecutionQueueTimeObservation,
   jobExecutionEnqueuedCount,
@@ -43,6 +44,7 @@ import {
   recordRunnerReservationReleased,
   recordShadowedJobLeaseExpiry,
   recordStaleJobCandidateRatio,
+  runnerClaimsRefusedCount,
 } from '#metrics/instance.js';
 import {setCapacityHoldJobExecutionTx} from './capacity-holds.js';
 import type {Tx} from './db.js';
@@ -69,6 +71,12 @@ import {runningJobExecutions} from './schema/running-job-executions.js';
 const runnerJobExecutionLockPrefix = 'runners_job_execution:';
 const defaultJobStopHandoffCleanupLimit = 100;
 const localExecutionFenceCapability = 'local_execution_fence_v1' as const;
+
+class CapacityHoldRequiredError extends Error {
+  constructor() {
+    super('Installation runner claim requires an unreleased capacity hold');
+  }
+}
 
 export interface JobStopHandoffCleanupResult {
   removed: number;
@@ -834,6 +842,7 @@ interface ClaimPendingJobExecutionParams {
   sessionLabels: string[];
   maxClaims: number | null;
   runnerSessionLivenessThrottleSeconds: number;
+  placement?: InstallationPlacementPolicy;
 }
 
 interface ClaimRunnerContext {
@@ -857,87 +866,109 @@ export async function claimPendingJobExecution(
   let activationToFirstClaimObservation: ProviderRunnerLifecycleObservation | null = null;
   let queueTimeObservation: JobExecutionQueueTimeObservation | null = null;
   let firstClaimReservationReleaseCount = 0;
-  const result = await db().transaction(async (tx) => {
-    const {provisionerId, providerRunnerId, renewableInference, runnerInstanceCondition} =
-      await loadClaimRunnerContextTx(tx, params);
+  let refusedForMissingCapacityHold = false;
+  const result = await db()
+    .transaction(async (tx) => {
+      const {provisionerId, providerRunnerId, renewableInference, runnerInstanceCondition} =
+        await loadClaimRunnerContextTx(tx, params);
+      const provisionerScope = await loadProvisionerScopeTx(tx, provisionerId);
+      const requiresCapacityHold =
+        params.placement?.holds === 'require' && provisionerScope === 'installation';
 
-    // `id` is a uuidv7 (time-ordered), so it is a deterministic FIFO tiebreaker
-    // for rows sharing a created_at within a batch. Lock only the FIFO candidate before
-    // attempting its execution advisory lock; putting pg_try_advisory_xact_lock in this
-    // predicate would evaluate it while scanning and temporarily lock many queue entries.
-    const pendingClaim = await claimPendingCandidateTx(
-      tx,
-      params,
-      provisionerId,
-      providerRunnerId,
-      renewableInference,
-    );
-    if (!pendingClaim) return null;
-    const {row, claimed} = pendingClaim;
-    const provisionerScope = await loadProvisionerScopeTx(tx, claimed.provisionerId);
-
-    queueTimeObservation = {
-      durationMilliseconds: claimed.claimedAt.getTime() - row.createdAt.getTime(),
-      provider: null,
-      launchKind: params.maxClaims === null ? 'manual' : 'unknown',
-    };
-
-    let claimedRunner: ClaimedProviderRunner | undefined;
-    if (runnerInstanceCondition) {
-      const runnerClaim = await recordClaimedRunnerTx(
+      // `id` is a uuidv7 (time-ordered), so it is a deterministic FIFO tiebreaker
+      // for rows sharing a created_at within a batch. Lock only the FIFO candidate before
+      // attempting its execution advisory lock; putting pg_try_advisory_xact_lock in this
+      // predicate would evaluate it while scanning and temporarily lock many queue entries.
+      const pendingClaim = await claimPendingCandidateTx(
         tx,
-        params.runnerSessionId,
-        runnerInstanceCondition,
-        claimed.claimedAt,
-        row.jobExecutionId,
+        params,
+        provisionerId,
+        providerRunnerId,
+        renewableInference,
       );
-      claimedRunner = runnerClaim.claimedRunner;
-      if (claimedRunner && queueTimeObservation) {
-        queueTimeObservation.provider = claimedRunner.providerKind;
-        queueTimeObservation.launchKind = claimedRunner.launchKind;
+      if (!pendingClaim) return null;
+      const {row, claimed} = pendingClaim;
+
+      queueTimeObservation = {
+        durationMilliseconds: claimed.claimedAt.getTime() - row.createdAt.getTime(),
+        provider: null,
+        launchKind: params.maxClaims === null ? 'manual' : 'unknown',
+      };
+
+      let claimedRunner: ClaimedProviderRunner | undefined;
+      let capacityHoldConsumed = !requiresCapacityHold;
+      if (runnerInstanceCondition) {
+        const runnerClaim = await recordClaimedRunnerTx(
+          tx,
+          params.runnerSessionId,
+          runnerInstanceCondition,
+          claimed.claimedAt,
+          row.jobExecutionId,
+        );
+        claimedRunner = runnerClaim.claimedRunner;
+        if (claimedRunner && queueTimeObservation) {
+          queueTimeObservation.provider = claimedRunner.providerKind;
+          queueTimeObservation.launchKind = claimedRunner.launchKind;
+        }
+        firstClaimReservationReleaseCount += runnerClaim.reservationReleaseCount;
+        activationToFirstClaimObservation = runnerClaim.activationToFirstClaimObservation;
+        capacityHoldConsumed = runnerClaim.capacityHoldConsumed;
       }
-      firstClaimReservationReleaseCount += runnerClaim.reservationReleaseCount;
-      activationToFirstClaimObservation = runnerClaim.activationToFirstClaimObservation;
-    }
+      assertCapacityHoldAvailable({
+        requiresCapacityHold,
+        runnerInstanceCondition,
+        capacityHoldConsumed,
+      });
 
-    if (params.maxClaims !== null) {
-      await tx
-        .update(runnerSessions)
-        .set({claimsUsed: sql`${runnerSessions.claimsUsed} + 1`, updatedAt: sql`now()`})
-        .where(eq(runnerSessions.id, params.runnerSessionId));
-    }
+      if (params.maxClaims !== null) {
+        await tx
+          .update(runnerSessions)
+          .set({claimsUsed: sql`${runnerSessions.claimsUsed} + 1`, updatedAt: sql`now()`})
+          .where(eq(runnerSessions.id, params.runnerSessionId));
+      }
 
-    // The running-row insert is the runner claiming the job execution. Emit in the same tx; the
-    // payload carries the row's own claim instant so a consumer records the true time,
-    // not the outbox drain time.
-    await writeOutboxEvent<RunnersEventMap>(tx, runnersOutbox, {
-      type: RUNNER_JOB_CLAIMED,
-      payload: {
+      // The running-row insert is the runner claiming the job execution. Emit in the same tx; the
+      // payload carries the row's own claim instant so a consumer records the true time,
+      // not the outbox drain time.
+      await writeOutboxEvent<RunnersEventMap>(tx, runnersOutbox, {
+        type: RUNNER_JOB_CLAIMED,
+        payload: {
+          workflowRunId: row.workflowRunId,
+          workflowRunAttemptId: row.workflowRunAttemptId,
+          jobId: row.jobId,
+          jobExecutionId: row.jobExecutionId,
+          claimedAt: claimed.claimedAt.toISOString(),
+          workspaceId: claimed.workspaceId,
+          projectId: claimed.projectId,
+          runnerLabels: claimed.runnerLabels,
+          templateKey: claimedRunner?.templateKey ?? null,
+          provisionerId: claimed.provisionerId,
+          provisionerScope,
+          providerRunnerId: claimed.providerRunnerId,
+          providerKind: claimedRunner?.providerKind ?? null,
+          launchKind: getClaimedLaunchKind(claimedRunner, params.maxClaims),
+        },
+      });
+
+      return {
         workflowRunId: row.workflowRunId,
         workflowRunAttemptId: row.workflowRunAttemptId,
         jobId: row.jobId,
         jobExecutionId: row.jobExecutionId,
-        claimedAt: claimed.claimedAt.toISOString(),
-        workspaceId: claimed.workspaceId,
-        projectId: claimed.projectId,
-        runnerLabels: claimed.runnerLabels,
-        templateKey: claimedRunner?.templateKey ?? null,
-        provisionerId: claimed.provisionerId,
-        provisionerScope,
-        providerRunnerId: claimed.providerRunnerId,
-        providerKind: claimedRunner?.providerKind ?? null,
-        launchKind: getClaimedLaunchKind(claimedRunner, params.maxClaims),
-      },
+        projectId: row.projectId,
+      };
+    })
+    .catch((error) => {
+      if (!(error instanceof CapacityHoldRequiredError)) throw error;
+      refusedForMissingCapacityHold = true;
+      return null;
     });
-
-    return {
-      workflowRunId: row.workflowRunId,
-      workflowRunAttemptId: row.workflowRunAttemptId,
-      jobId: row.jobId,
-      jobExecutionId: row.jobExecutionId,
-      projectId: row.projectId,
-    };
-  });
+  if (refusedForMissingCapacityHold) {
+    runnerClaimsRefusedCount.add(1, {reason: 'no-capacity-hold'});
+    firstClaimReservationReleaseCount = 0;
+    queueTimeObservation = null;
+    activationToFirstClaimObservation = null;
+  }
   recordRunnerReservationReleased({
     count: firstClaimReservationReleaseCount,
     surface: 'first-claim',
@@ -946,6 +977,19 @@ export async function claimPendingJobExecution(
   if (activationToFirstClaimObservation)
     recordProviderRunnerActivationToFirstClaim(activationToFirstClaimObservation);
   return result;
+}
+
+function assertCapacityHoldAvailable(params: {
+  requiresCapacityHold: boolean;
+  runnerInstanceCondition: ReturnType<typeof eq> | undefined;
+  capacityHoldConsumed: boolean;
+}): void {
+  if (
+    params.requiresCapacityHold &&
+    (!params.runnerInstanceCondition || !params.capacityHoldConsumed)
+  ) {
+    throw new CapacityHoldRequiredError();
+  }
 }
 
 function getClaimedLaunchKind(
@@ -1158,6 +1202,7 @@ async function recordClaimedRunnerTx(
   jobExecutionId: string,
 ): Promise<{
   claimedRunner: ClaimedProviderRunner | undefined;
+  capacityHoldConsumed: boolean;
   reservationReleaseCount: number;
   activationToFirstClaimObservation: ProviderRunnerLifecycleObservation | null;
 }> {
@@ -1186,16 +1231,18 @@ async function recordClaimedRunnerTx(
         where ${runnerSessions.id} = ${runnerSessionId}
       )`,
     });
-  if (row)
-    await setCapacityHoldJobExecutionTx(tx, {
-      runnerInstanceId: row.id,
-      jobExecutionId,
-    });
+  const capacityHoldConsumed = row
+    ? await setCapacityHoldJobExecutionTx(tx, {
+        runnerInstanceId: row.id,
+        jobExecutionId,
+      })
+    : false;
   const reservationReleaseCount = row?.isFirstClaim
     ? await releaseFirstClaimReservationTx(tx, row)
     : 0;
   return {
     claimedRunner: row,
+    capacityHoldConsumed,
     reservationReleaseCount,
     activationToFirstClaimObservation: activationToFirstClaimObservationFor(row),
   };

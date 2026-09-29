@@ -44,6 +44,7 @@ export {
   recordRunnerReservationPromotionFailure,
   recordRunnerTerminationAuthorizationIssued,
   recordRunnerTerminationAuthorizationRejected,
+  runnerClaimsRefusedCount,
   runnerTerminationAuthorizationHonoredCount,
   runnerTerminationAuthorizationIssuedCount,
   runnerTerminationAuthorizationRejectedCount,
