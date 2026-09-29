@@ -818,16 +818,20 @@ describe('handleGithubEvent', () => {
     });
   });
 
-  it('records a newly created unknown installation for orphan detection', async () => {
+  it.each([
+    'created',
+    'new_permissions_accepted',
+    'unsuspend',
+  ] as const)('records an unknown lifecycle installation for orphan detection (%s)', async (action) => {
     const installationId = 999996;
     const handlers = deps();
 
     const result = await handleGithubEvent({
       tx: db(),
-      deliveryId: 'delivery-created',
+      deliveryId: `delivery-${action}`,
       event: 'installation',
       payload: {
-        action: 'created',
+        action,
         installation: {
           id: installationId,
           account: {login: 'opsmill', type: 'Organization'},
@@ -839,20 +843,21 @@ describe('handleGithubEvent', () => {
       ...handlers,
     });
 
-    const [record] = await db()
+    const rows = await db()
       .select()
       .from(githubUnlinkedInstallations)
       .where(eq(githubUnlinkedInstallations.installationId, String(installationId)));
 
     expect(result.outcome).toBe('unknown-installation');
-    expect(record).toMatchObject({
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
       installationId: String(installationId),
       accountLogin: 'opsmill',
       accountType: 'Organization',
       repositorySelection: 'selected',
       senderLogin: 'octocat',
       requesterLogin: 'member',
-      lastAction: 'created',
+      lastAction: action,
     });
   });
 

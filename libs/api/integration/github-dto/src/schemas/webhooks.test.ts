@@ -20,7 +20,10 @@ describe('githubWebhookInstallationSchema', () => {
         requester: {login: 'member'},
       }),
     ).toMatchObject({
-      installation: {account: {login: 'opsmill', type: 'Organization'}},
+      installation: {
+        account: {login: 'opsmill', type: 'Organization'},
+        repository_selection: 'selected',
+      },
       sender: {login: 'octocat'},
       requester: {login: 'member'},
     });

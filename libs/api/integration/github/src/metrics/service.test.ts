@@ -43,6 +43,17 @@ describe('GitHub service metrics', () => {
       firstSeenAt: sql`now() - interval '2 hours'`,
       lastSeenAt: sql`now() - interval '2 hours'`,
     });
+    await db().insert(githubUnlinkedInstallations).values({
+      installationId: 'unlinked-fresh',
+      accountLogin: 'opsmill',
+      accountType: 'Organization',
+      repositorySelection: 'all',
+      senderLogin: null,
+      requesterLogin: null,
+      lastAction: 'created',
+      firstSeenAt: sql`now()`,
+      lastSeenAt: sql`now()`,
+    });
     await db().insert(githubInstallations).values({
       connectionId: crypto.randomUUID(),
       installationId: 'linked-stale',

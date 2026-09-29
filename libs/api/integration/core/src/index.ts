@@ -429,7 +429,14 @@ export async function createIntegrationsContext(
       ? {}
       : {
           metrics: (context) => {
-            for (const registerMetrics of metrics) registerMetrics(context);
+            for (const registerMetrics of metrics) {
+              try {
+                registerMetrics(context);
+              } catch (error) {
+                logger().warn({err: error}, 'Failed to register integration metrics');
+                reportError(error, {boundary: 'integration.metrics'});
+              }
+            }
           },
         }),
   };
