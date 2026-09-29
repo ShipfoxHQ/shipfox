@@ -2,6 +2,7 @@ import type {
   CreateCustomModelProviderBodyDto,
   CustomAgentModelDto,
   CustomModelProviderConfigDto,
+  E2eSessionTranscriptResponseDto,
   ListModelProviderConfigsResponseDto,
   ModelProviderApi,
   ModelProviderRef,
@@ -52,6 +53,10 @@ export type OpenAiCompatibleCustomProviderModelMetadata = Omit<CustomAgentModelD
 export interface ListModelProviderConfigsParams {
   workspaceId: string;
   sessionToken: string;
+}
+
+export interface GetSessionTranscriptParams {
+  stepAttemptId: string;
 }
 
 export interface CreateAnthropicModelProviderConfigParams {
@@ -220,6 +225,16 @@ export async function createOllamaCustomProvider(
   });
 }
 
+export async function getSessionTranscript(
+  params: GetSessionTranscriptParams,
+): Promise<E2eSessionTranscriptResponseDto> {
+  return await requestJson<E2eSessionTranscriptResponseDto>(
+    'get',
+    `/__e2e/agent/sessions/${encodeURIComponent(params.stepAttemptId)}`,
+    {},
+  );
+}
+
 export async function listModelProviderConfigs(
   params: ListModelProviderConfigsParams,
 ): Promise<ListModelProviderConfigsResponseDto> {
@@ -291,6 +306,7 @@ export function createAgentHelper() {
     createOpenAiCompatibleCustomProvider,
     createOllamaCustomProvider,
     deleteModelProviderConfig,
+    getSessionTranscript,
     listModelProviderConfigs,
     requireOllamaModel,
   };

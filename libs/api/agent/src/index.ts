@@ -107,6 +107,7 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
           workspaceProviders: workspaceProvidersPolicy,
         },
         params.managedProvider,
+        params.workflows === undefined ? undefined : sessionArtifactStore(),
       ),
     ],
     interModulePresentations: [

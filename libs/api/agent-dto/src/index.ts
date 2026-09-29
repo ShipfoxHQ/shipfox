@@ -61,6 +61,8 @@ export {
   discoverCustomModelProviderModelsBodySchema,
   discoverCustomModelProviderModelsBySlugBodySchema,
   discoverCustomModelProviderModelsResponseSchema,
+  type E2eSessionTranscriptResponseDto,
+  e2eSessionTranscriptResponseSchema,
   getHarnessDescriptor,
   getHarnessToolDescriptor,
   getModelProviderCredentialKeys,

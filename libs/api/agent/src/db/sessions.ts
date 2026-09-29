@@ -314,6 +314,17 @@ export async function releaseSession(params: {
  * claims and never writes back, so the caller only needs whatever head exists
  * (or nothing, for a fresh ephemeral run).
  */
+export async function getSessionByStepAttemptId(
+  stepAttemptId: string,
+): Promise<AgentSession | undefined> {
+  const [row] = await db()
+    .select()
+    .from(sessions)
+    .where(eq(sessions.headCommittedByAttempt, stepAttemptId))
+    .limit(1);
+  return row ? toAgentSession(row) : undefined;
+}
+
 export async function getSessionByRunAttemptAndKey(params: {
   workspaceId: string;
   projectId: string;

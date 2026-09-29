@@ -3,6 +3,7 @@ import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
 import {
   createOpenAiCompatibleCustomProvider,
   deleteModelProviderConfig,
+  getSessionTranscript,
 } from '@shipfox/e2e-setup-agent';
 import {
   waitForListenerExecution,
@@ -182,6 +183,14 @@ test('resumes one Pi session across jobs and listening event batches', async ({
       terminal,
       resolved,
     });
+
+    const transcriptStep = sessionStep(terminal, LISTENER_JOB, 2, 'continue');
+    const transcriptStepAttemptId = transcriptStep.attempt_details[0]?.step_attempt_id;
+    if (transcriptStepAttemptId === undefined) {
+      throw new Error('The scripted agent step did not expose a step attempt id');
+    }
+    const transcript = await getSessionTranscript({stepAttemptId: transcriptStepAttemptId});
+    expect(transcript.jsonl).toContain(SESSION_RESPONSES[3]);
 
     const requests = await fakeModelProvider.getRequests(script.id);
     expect(requests).toHaveLength(5);
