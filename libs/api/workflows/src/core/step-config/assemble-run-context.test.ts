@@ -2082,7 +2082,7 @@ describe('assembleStepDispatchContext', () => {
       steps: [buildStep, targetStep],
       attempts: [
         attempt({stepId: buildStep.id, logPath: '/runner/logs/build.log'}),
-        attempt({stepId: targetStep.id, status: 'running', logPath: null}),
+        attempt({stepId: targetStep.id, status: 'succeeded', logPath: null}),
       ],
       targetStepId: targetStep.id,
     });
@@ -2093,8 +2093,13 @@ describe('assembleStepDispatchContext', () => {
         log_path: '/runner/logs/build.log',
         attempts: [{log_path: '/runner/logs/build.log'}],
       },
-      deploy: {attempts: []},
+      deploy: {
+        attempts: [{status: 'succeeded'}],
+      },
     });
+    const deployAttempts = (stepsContext.deploy?.attempts ?? []) as Array<Record<string, unknown>>;
+    expect(deployAttempts).toHaveLength(1);
+    expect(deployAttempts[0]).not.toHaveProperty('log_path');
     expect(stepsContext.deploy).not.toHaveProperty('log_path');
 
     const expression = createWorkflowExpression({

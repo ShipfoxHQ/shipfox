@@ -40,10 +40,23 @@ describe('reportStepBodySchema', () => {
     expect(parsed.log_path).toBe('/runner/logs/job-1/attempt-1.log');
   });
 
+  it('accepts a log path at the byte limit', () => {
+    const logPath = `/${'a'.repeat(1023)}`;
+    const parsed = reportStepBodySchema.parse({
+      status: 'succeeded',
+      log_outcome: 'drained',
+      log_path: logPath,
+    });
+
+    expect(parsed.log_path).toBe(logPath);
+  });
+
   it.each([
     ['a relative path', 'runner/logs/attempt.log'],
     ['a path over the byte limit', `/${'é'.repeat(512)}`],
     ['a path with a control character', '/runner/logs/attempt\n.log'],
+    ['a path with a line separator', '/runner/logs/attempt\u2028.log'],
+    ['a path with a paragraph separator', '/runner/logs/attempt\u2029.log'],
   ])('rejects %s', (_description, logPath) => {
     const result = reportStepBodySchema.safeParse({
       status: 'succeeded',
