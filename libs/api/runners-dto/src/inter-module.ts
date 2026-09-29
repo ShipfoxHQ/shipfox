@@ -1,4 +1,5 @@
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
+import {policyNoticeSchema} from '@shipfox/policy-notice';
 import {z} from 'zod';
 import {runnerToolCapabilitiesSchema} from '#schemas/tool-capabilities.js';
 
@@ -44,9 +45,23 @@ export const runnersInterModuleContract = defineInterModuleContract({
           claimedAt: z.string().datetime(),
           provisionerScope: z.enum(['installation', 'workspace']).nullable(),
         }),
-        z.object({kind: z.literal('expired')}),
+        z.object({kind: z.literal('expired'), waitNotice: policyNoticeSchema.optional()}),
         z.object({kind: z.literal('absent')}),
       ]),
+    },
+    getPendingJobExecutionWait: {
+      input: z.object({jobExecutionId: idSchema}),
+      output: z.object({
+        waitReason: z.string().nullable(),
+        waitDetail: z
+          .object({
+            inUse: z.number().int().nonnegative(),
+            capacity: z.number().int().positive(),
+            unitLabel: z.string().min(1),
+            requiredAction: policyNoticeSchema.shape.requiredAction.nullable(),
+          })
+          .nullable(),
+      }),
     },
     getWorkspaceCapacityUsage: {
       input: z.object({workspaceIds: z.array(idSchema).min(1).max(100)}),

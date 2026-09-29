@@ -1,4 +1,5 @@
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {
   type WorkflowJobDetailDto,
   workflowJobDetailQuerySchema,
@@ -13,7 +14,10 @@ import {toWorkflowJobDetailDto} from '#presentation/dto/index.js';
 import {requireAccessibleRunScope} from './require-accessible-run.js';
 import {serializedResponseByteLength} from './serialized-response-byte-length.js';
 
-export function getJobDetailRoute(projects: ProjectsModuleClient) {
+export function getJobDetailRoute(
+  projects: ProjectsModuleClient,
+  runners?: RunnersInterModuleClient,
+) {
   return defineRoute({
     method: 'GET',
     path: '/jobs/:jobId',
@@ -43,6 +47,7 @@ export function getJobDetailRoute(projects: ProjectsModuleClient) {
           jobId,
           executionId: request.query.execution_id,
           projects,
+          runners,
           onAccessDenied: () => {
             outcome = 'access_denied';
           },
@@ -85,6 +90,7 @@ async function readJobDetail({
   jobId,
   executionId,
   projects,
+  runners,
   onAccessDenied,
   serialize,
 }: {
@@ -92,6 +98,7 @@ async function readJobDetail({
   jobId: string;
   executionId: string | undefined;
   projects: ProjectsModuleClient;
+  runners: RunnersInterModuleClient | undefined;
   onAccessDenied: () => void;
   serialize: (response: WorkflowJobDetailDto) => string | ArrayBuffer | Buffer;
 }) {
@@ -114,6 +121,17 @@ async function readJobDetail({
     throw new ClientError('Job not found', 'not-found', {status: 404});
   }
 
+  const selectedExecution = detail.selectedExecution;
+  const wait =
+    runners && selectedExecution?.status === 'pending'
+      ? await runners.getPendingJobExecutionWait({jobExecutionId: selectedExecution.id})
+      : undefined;
+  if (wait && selectedExecution) {
+    selectedExecution.waitReason = wait.waitReason;
+    selectedExecution.waitDetail = wait.waitDetail
+      ? {...wait.waitDetail, requiredAction: wait.waitDetail.requiredAction ?? null}
+      : null;
+  }
   const response = toWorkflowJobDetailDto(detail);
   return {
     response,

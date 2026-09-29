@@ -7,11 +7,13 @@ import {
   eq,
   exists,
   gt,
+  gte,
   inArray,
   isNotNull,
   isNull,
   lt,
   lte,
+  ne,
   not,
   notExists,
   notInArray,
@@ -21,6 +23,7 @@ import {
 import {runnerReservedLabels} from '#config.js';
 import type {
   InstallationPlacementPolicy,
+  WorkspaceCapacityWaitDetail,
   WorkspacePlacementRules,
 } from '#installation-provisioning.js';
 import {
@@ -38,6 +41,7 @@ import {db} from './db.js';
 import {denyPendingJobExecutionsTx} from './placement-denials.js';
 import {lockRunnerReservationAdvisoryKeysTx} from './reservation-locks.js';
 import {terminalStates} from './runner-states.js';
+import {capacityHolds} from './schema/capacity-holds.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {provisionerCapabilitySnapshots} from './schema/provisioner-capability-snapshots.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
@@ -134,6 +138,12 @@ interface DemandRow {
   oldestQueuedAt: Date;
 }
 
+interface PendingCapacityJob {
+  id: string;
+  requiredLabels: string[];
+  createdAt: Date;
+}
+
 interface NewReservationUnits {
   labels: string[];
   count: number;
@@ -159,7 +169,7 @@ interface PollDemandAndReserveResult {
 interface DemandReservationState {
   readonly templates: NormalizedTemplate[];
   readonly placementRules: WorkspacePlacementRules | undefined;
-  readonly reservedByLabels: ReadonlyMap<string, number>;
+  readonly reservedByLabels: Map<string, number>;
   readonly stats: DemandStat[];
   readonly grants: ReservationGrant[];
   readonly newlyReservedUnits: NewReservationUnits[];
@@ -371,8 +381,13 @@ async function pollDemandAndReserveLockedTx(
     demandRows = await denyRefusedDemandRowsTx(tx, params, demandRows, state);
   }
 
-  for (const demand of sortDemandRows(demandRows)) {
-    await reserveDemandRowTx(tx, params, demand, state);
+  const capacityRules = capacityRulesFor(params.placement, params.placementRules);
+  if (capacityRules) {
+    await reserveCapacityJobsTx(tx, params, state, capacityRules);
+  } else {
+    for (const demand of sortDemandRows(demandRows)) {
+      await reserveDemandRowTx(tx, params, demand, state);
+    }
   }
 
   return {
@@ -412,6 +427,208 @@ async function denyRefusedDemandRowsTx(
     });
   }
   return remaining;
+}
+
+function capacityRulesFor(
+  placement: InstallationPlacementPolicy | undefined,
+  rules: WorkspacePlacementRules | undefined,
+): (WorkspacePlacementRules & {capacityUnits: number}) | undefined {
+  if (!rules || rules.capacityUnits === null) return undefined;
+  if (placement?.holds !== 'require') {
+    throw new Error('Capacity limits require placement holds in require mode');
+  }
+  return rules as WorkspacePlacementRules & {capacityUnits: number};
+}
+
+async function reserveCapacityJobsTx(
+  tx: Tx,
+  params: PollDemandAndReserveLockedParams,
+  state: DemandReservationState,
+  rules: WorkspacePlacementRules & {capacityUnits: number},
+): Promise<void> {
+  if (!params.placement) return;
+
+  const pendingJobs = await tx
+    .select({
+      id: pendingJobExecutions.id,
+      requiredLabels: pendingJobExecutions.requiredLabels,
+      createdAt: pendingJobExecutions.createdAt,
+    })
+    .from(pendingJobExecutions)
+    .where(eq(pendingJobExecutions.workspaceId, params.workspaceId))
+    .orderBy(asc(pendingJobExecutions.createdAt), asc(pendingJobExecutions.id))
+    .limit(1000);
+  const initialReservedByLabels = new Map(state.reservedByLabels);
+  const newlyGrantedByLabels = new Map<string, number>();
+  let inUse = await workspaceCapacityInUseTx(tx, params.workspaceId);
+
+  for (let index = 0; index < pendingJobs.length; index += 1) {
+    const job = pendingJobs[index];
+    if (!job) continue;
+    const stopped = await reserveCapacityJobTx(tx, params, state, rules, job, {
+      inUse,
+      newlyGrantedByLabels,
+      remainingJobs: pendingJobs.slice(index + 1),
+    });
+    inUse = stopped.inUse;
+    if (stopped.stop) break;
+  }
+
+  const demandRows = await tx
+    .select({
+      requiredLabels: pendingJobExecutions.requiredLabels,
+      queued: sql<number>`count(*)::int`,
+      oldestQueuedAt: sql<Date | string>`min(${pendingJobExecutions.createdAt})`,
+    })
+    .from(pendingJobExecutions)
+    .where(eq(pendingJobExecutions.workspaceId, params.workspaceId))
+    .groupBy(pendingJobExecutions.requiredLabels);
+  for (const demand of demandRows) {
+    const key = labelKey(demand.requiredLabels);
+    state.stats.push({
+      ...state.workspaceIdField,
+      labels: demand.requiredLabels,
+      queued: demand.queued,
+      reserved: (initialReservedByLabels.get(key) ?? 0) + (newlyGrantedByLabels.get(key) ?? 0),
+      oldestQueuedAt: new Date(demand.oldestQueuedAt),
+    });
+  }
+}
+
+interface CapacityJobProgress {
+  inUse: number;
+  newlyGrantedByLabels: Map<string, number>;
+  remainingJobs: readonly PendingCapacityJob[];
+}
+
+async function reserveCapacityJobTx(
+  tx: Tx,
+  params: PollDemandAndReserveLockedParams,
+  state: DemandReservationState,
+  rules: WorkspacePlacementRules & {capacityUnits: number},
+  job: PendingCapacityJob,
+  progress: CapacityJobProgress,
+): Promise<{inUse: number; stop: boolean}> {
+  const allowedTemplates = orderSatisfyingTemplates(
+    allowedByRules(state.templates, rules),
+    job.requiredLabels,
+    params.placement,
+  );
+  if (allowedTemplates.length === 0) return {inUse: progress.inUse, stop: false};
+
+  const key = labelKey(job.requiredLabels);
+  const reserved = state.reservedByLabels.get(key) ?? 0;
+  if (reserved > 0) {
+    state.reservedByLabels.set(key, reserved - 1);
+    await clearCapacityWaitTx(tx, job.id);
+    return {inUse: progress.inUse, stop: false};
+  }
+
+  const template = allowedTemplates.find((candidate) => candidate.remainingSlots > 0);
+  if (!template) return {inUse: progress.inUse, stop: false};
+  const units = params.placement?.units(template.labels) ?? 0;
+  if (progress.inUse + units > rules.capacityUnits) {
+    const waitDetail = {
+      inUse: progress.inUse,
+      capacity: rules.capacityUnits,
+      unitLabel: rules.unitLabel,
+      requiredAction: rules.capacityAction ?? null,
+    };
+    await markCapacityWaitTx(tx, params.workspaceId, job, waitDetail);
+    await markCapacityWaitForRemainingJobsTx(
+      tx,
+      params.workspaceId,
+      progress.remainingJobs,
+      waitDetail,
+    );
+    return {inUse: progress.inUse, stop: true};
+  }
+  if (state.remainingMaxReservations === 0) return {inUse: progress.inUse, stop: true};
+
+  await grantDemandReservationTx(
+    tx,
+    params,
+    {requiredLabels: job.requiredLabels, queued: 1, oldestQueuedAt: job.createdAt},
+    allowedTemplates,
+    1,
+    state,
+  );
+  progress.newlyGrantedByLabels.set(key, (progress.newlyGrantedByLabels.get(key) ?? 0) + 1);
+  await clearCapacityWaitTx(tx, job.id);
+  return {inUse: progress.inUse + units, stop: false};
+}
+
+async function workspaceCapacityInUseTx(tx: Tx, workspaceId: string): Promise<number> {
+  const [row] = await tx
+    .select({units: sql<number>`coalesce(sum(${capacityHolds.units}), 0)::int`})
+    .from(capacityHolds)
+    .where(and(eq(capacityHolds.workspaceId, workspaceId), isNull(capacityHolds.releasedAt)));
+  return Number(row?.units ?? 0);
+}
+
+async function clearCapacityWaitTx(tx: Tx, pendingJobId: string): Promise<void> {
+  await tx
+    .update(pendingJobExecutions)
+    .set({waitReason: null, waitDetail: null})
+    .where(
+      and(
+        eq(pendingJobExecutions.id, pendingJobId),
+        or(isNotNull(pendingJobExecutions.waitReason), isNotNull(pendingJobExecutions.waitDetail)),
+      ),
+    );
+}
+
+async function markCapacityWaitTx(
+  tx: Tx,
+  workspaceId: string,
+  job: PendingCapacityJob,
+  waitDetail: WorkspaceCapacityWaitDetail,
+): Promise<void> {
+  await tx
+    .update(pendingJobExecutions)
+    .set({waitReason: 'workspace-capacity', waitDetail})
+    .where(
+      and(
+        eq(pendingJobExecutions.workspaceId, workspaceId),
+        eq(pendingJobExecutions.id, job.id),
+        or(
+          isNull(pendingJobExecutions.waitReason),
+          ne(pendingJobExecutions.waitReason, 'workspace-capacity'),
+          isNull(pendingJobExecutions.waitDetail),
+          ne(pendingJobExecutions.waitDetail, waitDetail),
+        ),
+      ),
+    );
+}
+
+async function markCapacityWaitForRemainingJobsTx(
+  tx: Tx,
+  workspaceId: string,
+  jobs: readonly PendingCapacityJob[],
+  waitDetail: WorkspaceCapacityWaitDetail,
+): Promise<void> {
+  if (jobs.length === 0) return;
+  await tx
+    .update(pendingJobExecutions)
+    .set({waitReason: 'workspace-capacity', waitDetail})
+    .where(
+      and(
+        eq(pendingJobExecutions.workspaceId, workspaceId),
+        or(
+          gt(pendingJobExecutions.createdAt, jobs[0]?.createdAt ?? new Date()),
+          and(
+            eq(pendingJobExecutions.createdAt, jobs[0]?.createdAt ?? new Date()),
+            gte(pendingJobExecutions.id, jobs[0]?.id ?? ''),
+          ),
+        ),
+        or(
+          isNull(pendingJobExecutions.waitReason),
+          ne(pendingJobExecutions.waitReason, 'workspace-capacity'),
+          isNull(pendingJobExecutions.waitDetail),
+          ne(pendingJobExecutions.waitDetail, waitDetail),
+        ),
+      ),
+    );
 }
 
 async function reserveDemandRowTx(

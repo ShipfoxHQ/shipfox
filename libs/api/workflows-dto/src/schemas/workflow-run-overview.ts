@@ -50,6 +50,15 @@ export const jobExecutionDisplayStatusSchema = jobExecutionStatusSchema;
 
 export type JobExecutionDisplayStatusDto = z.infer<typeof jobExecutionDisplayStatusSchema>;
 
+export const capacityWaitDetailDtoSchema = z.object({
+  in_use: z.number().int().nonnegative(),
+  capacity: z.number().int().positive(),
+  unit_label: z.string().min(1),
+  required_action: policyNoticeSchema.shape.requiredAction.nullable(),
+});
+
+export type CapacityWaitDetailDto = z.infer<typeof capacityWaitDetailDtoSchema>;
+
 export const jobExecutionSummaryDtoSchema = z.object({
   id: z.string().uuid(),
   sequence: z.number().int().positive(),
@@ -65,6 +74,8 @@ export const jobExecutionSummaryDtoSchema = z.object({
   timed_out_at: z.string().datetime().nullable(),
   duration_capped: z.boolean().optional(),
   duration_notice: policyNoticeSchema.nullable().optional(),
+  wait_reason: z.string().nullable().optional(),
+  wait_detail: capacityWaitDetailDtoSchema.nullable().optional(),
   updated_at: z.string().datetime(),
 });
 

@@ -228,6 +228,7 @@ function queueTimeoutMessage(timeoutMs: number): string {
 async function resolveQueueTimedOutJobExecution(
   input: JobExecutionOrchestrationInput,
   queueTimeoutMs: number,
+  waitNotice?: PolicyNotice,
 ): Promise<JobExecutionOrchestrationResult> {
   await setJobExecutionStatus({
     jobExecutionId: input.jobExecutionId,
@@ -235,6 +236,7 @@ async function resolveQueueTimedOutJobExecution(
     version: input.executionVersion,
     statusReason: 'queue_timed_out',
     statusReasonMessage: queueTimeoutMessage(queueTimeoutMs),
+    ...(waitNotice ? {statusReasonNotice: waitNotice} : {}),
   });
   if (input.resolveJobStatus === false) {
     return {status: 'failed', jobVersion: input.jobVersion};
@@ -494,7 +496,11 @@ async function resolvePatchedBeforeRunning(
     if (expired.kind === 'expired' || expired.kind === 'absent') {
       return {
         kind: 'terminal',
-        result: await resolveQueueTimedOutJobExecution(input, queued.queueTimeoutMs),
+        result: await resolveQueueTimedOutJobExecution(
+          input,
+          queued.queueTimeoutMs,
+          expired.kind === 'expired' ? expired.waitNotice : undefined,
+        ),
       };
     }
     signals.claimed = {

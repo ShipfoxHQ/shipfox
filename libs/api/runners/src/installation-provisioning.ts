@@ -1,11 +1,24 @@
-import type {PolicyNotice} from '@shipfox/policy-notice';
+import type {PolicyNotice, RequiredAction} from '@shipfox/policy-notice';
 
 /**
  * Lets an application host choose which workspaces may receive installation-provisioned capacity.
  * The runners module passes candidate IDs in batches so host policy can apply its own entitlement
  * or tenancy rules without exposing those rules from this package.
  */
+export interface WorkspaceCapacityWaitDetail {
+  inUse: number;
+  capacity: number;
+  unitLabel: string;
+  requiredAction: RequiredAction | null;
+}
+
 export interface WorkspacePlacementRules {
+  /** `null` means unlimited. */
+  capacityUnits: number | null;
+  /** Unit name for display, for example `vCPU`. */
+  unitLabel: string;
+  /** Action shown when the workspace is waiting for capacity. */
+  capacityAction?: RequiredAction;
   allowsTemplate(templateLabels: readonly string[]): boolean;
   /** Called when every matching template is refused. */
   denial(requiredLabels: readonly string[]): PolicyNotice;

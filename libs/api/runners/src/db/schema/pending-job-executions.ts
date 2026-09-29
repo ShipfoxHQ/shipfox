@@ -1,5 +1,6 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {index, text, timestamp, uuid} from 'drizzle-orm/pg-core';
+import {index, jsonb, text, timestamp, uuid} from 'drizzle-orm/pg-core';
+import type {WorkspaceCapacityWaitDetail} from '#installation-provisioning.js';
 import {pgTable} from './common.js';
 
 export const pendingJobExecutions = pgTable(
@@ -13,6 +14,8 @@ export const pendingJobExecutions = pgTable(
     jobExecutionId: uuid('job_execution_id').notNull().unique(),
     projectId: uuid('project_id').notNull(),
     requiredLabels: text('required_labels').array().notNull(),
+    waitReason: text('wait_reason'),
+    waitDetail: jsonb('wait_detail').$type<WorkspaceCapacityWaitDetail>(),
     createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [

@@ -93,7 +93,7 @@ export function createWorkflowRoutes(params: WorkflowRouteClients): RouteGroup[]
         listRunAttemptsRoute(params.projects),
         getRunOverviewRoute(params.projects),
         getJobExecutionContextRoute(params.projects),
-        getJobDetailRoute(params.projects),
+        getJobDetailRoute(params.projects, params.runners),
         listJobExecutionsRoute(params.projects),
         listExecutionStepsRoute(params.projects),
         listStepAttemptsRoute(params.projects),

@@ -5,6 +5,7 @@ import {getWorkspaceCapacityUsage} from '#db/capacity-holds.js';
 import {
   expirePendingJobExecution,
   getJobLeaseState,
+  getPendingJobExecutionWait,
   getWorkspaceJobCounts,
 } from '#db/job-executions.js';
 
@@ -20,6 +21,7 @@ export function createRunnersInterModulePresentation(): InterModulePresentation<
     getWorkspaceJobCounts: async ({workspaceIds}) => ({
       counts: await getWorkspaceJobCounts({workspaceIds}),
     }),
+    getPendingJobExecutionWait,
     expirePendingJobExecution: async ({jobExecutionId}) => {
       const result = await expirePendingJobExecution({jobExecutionId});
       return result.kind === 'claimed'

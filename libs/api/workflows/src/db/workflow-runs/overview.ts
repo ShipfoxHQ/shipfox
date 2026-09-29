@@ -81,6 +81,13 @@ export interface WorkflowRunJobExecutionSummary {
   timedOutAt: Date | null;
   durationCapped: boolean;
   durationNotice: PolicyNotice | null;
+  waitReason?: string | null;
+  waitDetail?: {
+    inUse: number;
+    capacity: number;
+    unitLabel: string;
+    requiredAction: PolicyNotice['requiredAction'] | null;
+  } | null;
   updatedAt: Date;
 }
 
@@ -100,6 +107,13 @@ export interface WorkflowRunJobExecutionSummaryRow {
   timedOutAt: Date | null;
   durationCapped: boolean;
   durationNotice: PolicyNotice | null;
+  waitReason?: string | null;
+  waitDetail?: {
+    inUse: number;
+    capacity: number;
+    unitLabel: string;
+    requiredAction: PolicyNotice['requiredAction'] | null;
+  } | null;
   updatedAt: Date;
   hasRunningStep?: boolean;
 }

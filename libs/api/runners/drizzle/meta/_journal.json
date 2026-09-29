@@ -148,6 +148,13 @@
       "when": 1790627532731,
       "tag": "0020_capacity_holds",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790628000000,
+      "tag": "0021_pending_job_wait_reason",
+      "breakpoints": true
     }
   ]
 }
