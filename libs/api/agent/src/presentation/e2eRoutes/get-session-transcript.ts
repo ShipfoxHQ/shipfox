@@ -1,4 +1,5 @@
-import {gunzipSync} from 'node:zlib';
+import {promisify} from 'node:util';
+import {gunzip} from 'node:zlib';
 import {
   type E2eSessionTranscriptResponseDto,
   e2eSessionTranscriptResponseSchema,
@@ -14,6 +15,7 @@ import {toSessionTranscriptRouteError} from '../routes/session-transcript.js';
 // the E2E response so a highly compressible stored segment cannot expand
 // without bound while it is read.
 const MAX_DECOMPRESSED_SESSION_TRANSCRIPT_BYTES = config.AGENT_SESSION_BLOB_CAP_BYTES;
+const gunzipAsync = promisify(gunzip);
 
 export function createE2eSessionTranscriptRoute(params: {store: SessionArtifactStore}) {
   return defineRoute({
@@ -44,7 +46,7 @@ export function createE2eSessionTranscriptRoute(params: {store: SessionArtifactS
 
       let jsonl: Buffer;
       try {
-        jsonl = gunzipSync(head.blob, {
+        jsonl = await gunzipAsync(head.blob, {
           maxOutputLength: MAX_DECOMPRESSED_SESSION_TRANSCRIPT_BYTES,
         });
       } catch (error) {

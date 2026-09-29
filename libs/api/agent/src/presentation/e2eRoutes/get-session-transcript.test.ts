@@ -1,10 +1,13 @@
 import crypto from 'node:crypto';
 import {gzipSync} from 'node:zlib';
 import {closeApp, createApp} from '@shipfox/node-fastify';
+import {inArray} from 'drizzle-orm';
 import {config} from '#config.js';
 import type {SessionArtifactStore} from '#core/session-artifacts/store.js';
 import {db, sessions} from '#db/index.js';
 import {createE2eSessionTranscriptRoute} from './get-session-transcript.js';
+
+const workspaceIds = new Set<string>();
 
 function storeFor(blob: Buffer, stepAttemptId: string): SessionArtifactStore {
   return {
@@ -26,10 +29,12 @@ function storeFor(blob: Buffer, stepAttemptId: string): SessionArtifactStore {
 
 async function injectTranscript(blob: Buffer) {
   const stepAttemptId = crypto.randomUUID();
+  const workspaceId = crypto.randomUUID();
+  workspaceIds.add(workspaceId);
   await db()
     .insert(sessions)
     .values({
-      workspaceId: crypto.randomUUID(),
+      workspaceId,
       projectId: crypto.randomUUID(),
       workflowRunAttemptId: crypto.randomUUID(),
       key: 'main',
@@ -56,6 +61,11 @@ async function injectTranscript(blob: Buffer) {
 describe('E2E session transcript route', () => {
   afterEach(async () => {
     await closeApp();
+    const ids = [...workspaceIds];
+    if (ids.length > 0) {
+      await db().delete(sessions).where(inArray(sessions.workspaceId, ids));
+    }
+    workspaceIds.clear();
   });
 
   it('returns the decrypted transcript with a no-store cache directive', async () => {
