@@ -33,6 +33,35 @@ function renderUsageModal() {
 }
 
 describe('ModelProviderUsageModal', () => {
+  test('describes a locked model in its row button without a nested tab stop', () => {
+    const entry = supportedProvider({
+      defaultModel: 'claude-opus-4-8',
+      models: [
+        {
+          id: 'claude-opus-4-8',
+          label: 'Claude Opus 4.8',
+          locked: {label: 'Add credits to use', message: 'Add credits to run this model.'},
+        },
+      ],
+    });
+
+    render(
+      <ModelProviderUsageModal
+        target={usageTargetFromCatalogEntry(entry)}
+        initialModel="claude-opus-4-8"
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    const row = screen.getByRole('button', {
+      name: 'Copy Claude Opus 4.8 model id claude-opus-4-8. Add credits to use. Add credits to run this model.',
+    });
+    expect(row).toHaveTextContent('Add credits to use');
+    expect(within(row).queryByRole('button')).toBeNull();
+    expect(row.querySelector('[tabindex]')).toBeNull();
+  });
+
   test('changes the selected model in the workflow example', async () => {
     renderUsageModal();
     await waitFor(() =>
