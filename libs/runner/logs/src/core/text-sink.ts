@@ -33,6 +33,11 @@ export interface TextLogSinkOptions {
 export interface TextLogSink {
   /** Accepts one already transformed and masked event. Write failures are contained. */
   write(event: TransformEvent): void;
+  /**
+   * Releases the open segment file and ignores later writes. Finalization still works, so
+   * callers close as soon as capture ends without waiting for the final file.
+   */
+  close(): void;
   /** Finalizes the bounded tail and returns the file path, or undefined on failure. */
   finalize(): string | undefined;
   isFailed(): boolean;
@@ -53,6 +58,7 @@ export function createTextLogSink(options: TextLogSinkOptions): TextLogSink {
   let currentOffset = 0;
   let totalBytes = 0;
   let failed = false;
+  let closed = false;
   let finalizedPath: string | undefined;
 
   function closeCurrent(): void {
@@ -352,11 +358,21 @@ export function createTextLogSink(options: TextLogSinkOptions): TextLogSink {
 
   return {
     write(event) {
-      if (failed || finalizedPath) return;
+      if (failed || closed || finalizedPath) return;
       try {
         const bytes = render(event);
         if (bytes.length > 0) writeBytes(bytes);
       } catch (err) {
+        markFailed(err);
+      }
+    },
+    close() {
+      if (closed) return;
+      closed = true;
+      try {
+        closeCurrent();
+      } catch (err) {
+        currentFd = undefined;
         markFailed(err);
       }
     },

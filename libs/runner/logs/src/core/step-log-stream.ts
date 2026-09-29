@@ -310,6 +310,7 @@ export function createStepLogStream(options: StepLogStreamOptions): StepLogStrea
         failCapture(err);
       }
       writeText(events);
+      textSink.close();
       try {
         // Flush held partial lines and decoder tails; these final bytes bypass the backlog cap
         // (they are small and bounded) so the stream always ends cleanly.
