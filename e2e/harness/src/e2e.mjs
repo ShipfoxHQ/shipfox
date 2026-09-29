@@ -270,6 +270,9 @@ export function e2eEnv(sourceEnv) {
   const notionApiBaseUrl = valueOr(sourceEnv.NOTION_API_BASE_URL, () =>
     e2eNotionApiBaseUrl(apiUrl),
   );
+  const discordApiBaseUrl = valueOr(sourceEnv.DISCORD_API_BASE_URL, () =>
+    e2eDiscordApiBaseUrl(apiUrl),
+  );
   const testVcsPort = valueOr(sourceEnv.INTEGRATIONS_TEST_VCS_PORT, () => e2eTestVcsPort(apiUrl));
   const posthogApiBaseUrl = valueOr(sourceEnv.POSTHOG_API_BASE_URL, () =>
     e2ePosthogApiBaseUrl(apiUrl),
@@ -346,6 +349,19 @@ export function e2eEnv(sourceEnv) {
       'e2e-github-install-state-secret',
     ),
     CLICKUP_API_BASE_URL: clickupApiBaseUrl,
+    DISCORD_API_BASE_URL: discordApiBaseUrl,
+    DISCORD_APPLICATION_ID: valueOr(sourceEnv.DISCORD_APPLICATION_ID, 'e2e-discord-application-id'),
+    DISCORD_BOT_TOKEN: valueOr(sourceEnv.DISCORD_BOT_TOKEN, 'e2e-discord-bot-token'),
+    DISCORD_GATEWAY_ENABLED: valueOr(sourceEnv.DISCORD_GATEWAY_ENABLED, 'false'),
+    DISCORD_OAUTH_CLIENT_SECRET: valueOr(
+      sourceEnv.DISCORD_OAUTH_CLIENT_SECRET,
+      'e2e-discord-client-secret',
+    ),
+    DISCORD_OAUTH_REDIRECT_URL: valueOr(
+      sourceEnv.DISCORD_OAUTH_REDIRECT_URL,
+      `${clientUrl}/integrations/discord/callback`,
+    ),
+    DISCORD_PUBLIC_KEY: valueOr(sourceEnv.DISCORD_PUBLIC_KEY, 'e2e-discord-public-key'),
     POSTHOG_API_BASE_URL: posthogApiBaseUrl,
     POSTHOG_MCP_ENDPOINT: posthogMcpEndpoint,
     CLICKUP_AUTH_BASE_URL: valueOr(sourceEnv.CLICKUP_AUTH_BASE_URL, 'https://app.clickup.com'),
@@ -391,6 +407,10 @@ export function e2eEnv(sourceEnv) {
     ),
     INTEGRATIONS_ENABLE_CLICKUP_PROVIDER: valueOr(
       sourceEnv.INTEGRATIONS_ENABLE_CLICKUP_PROVIDER,
+      'true',
+    ),
+    INTEGRATIONS_ENABLE_DISCORD_PROVIDER: valueOr(
+      sourceEnv.INTEGRATIONS_ENABLE_DISCORD_PROVIDER,
       'true',
     ),
     INTEGRATIONS_ENABLE_NOTION_PROVIDER: valueOr(
@@ -478,6 +498,21 @@ export function e2eClickUpApiBaseUrl(apiUrl) {
   }
   endpoint.hostname = '127.0.0.1';
   endpoint.port = String(clickupApiPort);
+  endpoint.pathname = '/';
+  endpoint.search = '';
+  endpoint.hash = '';
+  return endpoint.toString();
+}
+
+export function e2eDiscordApiBaseUrl(apiUrl) {
+  const endpoint = new URL(apiUrl);
+  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
+  const discordApiPort = apiPort + 17;
+  if (discordApiPort > 65_535) {
+    throw new Error(`Cannot derive a Discord API port from API port ${apiPort}.`);
+  }
+  endpoint.hostname = '127.0.0.1';
+  endpoint.port = String(discordApiPort);
   endpoint.pathname = '/';
   endpoint.search = '';
   endpoint.hash = '';

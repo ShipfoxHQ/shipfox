@@ -8,6 +8,7 @@ import {
   copySharedOllamaLog,
   defaultLogDir,
   e2eClickUpApiBaseUrl,
+  e2eDiscordApiBaseUrl,
   e2eEnv,
   e2eNotionApiBaseUrl,
   e2ePosthogApiBaseUrl,
@@ -98,6 +99,9 @@ describe('e2eEnv', () => {
     assert.equal(env.INTEGRATIONS_ENABLE_GITHUB_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_SLACK_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_CLICKUP_PROVIDER, 'true');
+    assert.equal(env.INTEGRATIONS_ENABLE_DISCORD_PROVIDER, 'true');
+    assert.equal(env.DISCORD_API_BASE_URL, 'http://127.0.0.1:55368/');
+    assert.equal(env.DISCORD_GATEWAY_ENABLED, 'false');
     assert.equal(env.INTEGRATIONS_ENABLE_NOTION_PROVIDER, 'true');
     assert.equal(env.NOTION_API_BASE_URL, 'http://127.0.0.1:55366/');
     assert.equal(env.NOTION_WEBHOOK_VERIFICATION_TOKEN, 'e2e-notion-verification-token');
@@ -144,6 +148,7 @@ describe('e2eEnv', () => {
       GITHUB_INSTALLATION_TOKEN_FORMAT_OVERRIDE: 'disabled',
       SLACK_API_BASE_URL: 'http://127.0.0.1:16122',
       CLICKUP_API_BASE_URL: 'http://127.0.0.1:16123',
+      DISCORD_API_BASE_URL: 'http://127.0.0.1:16127',
       NOTION_API_BASE_URL: 'http://127.0.0.1:16124',
       POSTHOG_API_BASE_URL: 'https://posthog-api.example.test',
       POSTHOG_MCP_ENDPOINT: 'https://posthog-mcp.example.test/mcp',
@@ -167,6 +172,7 @@ describe('e2eEnv', () => {
     assert.equal(env.GITHUB_INSTALLATION_TOKEN_FORMAT_OVERRIDE, 'disabled');
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:16122');
     assert.equal(env.CLICKUP_API_BASE_URL, 'http://127.0.0.1:16123');
+    assert.equal(env.DISCORD_API_BASE_URL, 'http://127.0.0.1:16127');
     assert.equal(env.NOTION_API_BASE_URL, 'http://127.0.0.1:16124');
     assert.equal(env.POSTHOG_API_BASE_URL, 'https://posthog-api.example.test');
     assert.equal(env.POSTHOG_MCP_ENDPOINT, 'https://posthog-mcp.example.test/mcp');
@@ -241,10 +247,17 @@ describe('e2eEnv', () => {
       () =>
         e2eEnv({
           API_URL: 'http://localhost:65522',
+          DISCORD_API_BASE_URL: 'http://127.0.0.1:1',
           NOTION_API_BASE_URL: 'http://127.0.0.1:1',
         }),
       /Cannot derive a test VCS port/u,
     );
+  });
+});
+
+describe('e2eDiscordApiBaseUrl', () => {
+  test('reserves the Discord API port after the API port', () => {
+    assert.equal(e2eDiscordApiBaseUrl('http://localhost:16101'), 'http://127.0.0.1:16118/');
   });
 });
 

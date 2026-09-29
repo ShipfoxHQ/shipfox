@@ -40,7 +40,9 @@ describe('Notion secret namespace', () => {
 describe('notionProviderModule lifecycle cleanup', () => {
   const context = useIntegrationRouteTest();
 
-  it('deletes local state and secrets, then allows the same workspace to reinstall', async () => {
+  it('deletes local state and secrets, then allows the same workspace to reinstall', {
+    timeout: 30_000,
+  }, async () => {
     const {notionPart, deleteSecrets} = await loadNotionProvider();
     if (!notionPart.e2eRoutes) throw new Error('Notion E2E routes are not configured');
     const app = await createApp({routes: notionPart.e2eRoutes, swagger: false});

@@ -17,6 +17,13 @@ process.env.CLICKUP_OAUTH_CLIENT_SECRET = 'test-client-secret';
 process.env.CLICKUP_OAUTH_REDIRECT_URL =
   'https://shipfox.example.com/integrations/clickup/callback';
 process.env.CLICKUP_WEBHOOK_BASE_URL = 'https://shipfox.example.com';
+process.env.DISCORD_APPLICATION_ID = 'test-discord-application-id';
+process.env.DISCORD_OAUTH_CLIENT_SECRET = 'test-discord-client-secret';
+process.env.DISCORD_OAUTH_REDIRECT_URL =
+  'https://shipfox.example.com/integrations/discord/callback';
+process.env.DISCORD_PUBLIC_KEY = 'test-discord-public-key';
+process.env.DISCORD_BOT_TOKEN = 'test-discord-bot-token';
+process.env.DISCORD_GATEWAY_ENABLED = 'false';
 process.env.NOTION_OAUTH_CLIENT_ID = 'test-client-id';
 process.env.NOTION_OAUTH_CLIENT_SECRET = 'test-client-secret';
 process.env.NOTION_OAUTH_REDIRECT_URL = 'https://shipfox.example.com/integrations/notion/callback';

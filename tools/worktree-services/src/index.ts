@@ -41,6 +41,7 @@ export const standardPorts = {
   githubApi: 11,
   slackApi: 12,
   otelTemporalMetrics: 13,
+  discordApi: 18,
 } as const;
 
 export type StandardPortName = keyof typeof standardPorts;
@@ -116,6 +117,7 @@ export function standardAppEnv(ports: ResolvedPorts): Record<string, string> {
     OBJECT_STORAGE_S3_ENDPOINT: `http://localhost:${ports.garageS3}`,
     LINEAR_MCP_ENDPOINT: `http://127.0.0.1:${ports.linearMcp}/mcp`,
     SLACK_API_BASE_URL: `http://127.0.0.1:${ports.slackApi}`,
+    DISCORD_API_BASE_URL: `http://127.0.0.1:${ports.discordApi}`,
     OTEL_INSTANCE_METRICS_PORT: String(ports.otelInstanceMetrics),
     OTEL_SERVICE_METRICS_PORT: String(ports.otelServiceMetrics),
     OTEL_TEMPORAL_METRICS_PORT: String(ports.otelTemporalMetrics),
