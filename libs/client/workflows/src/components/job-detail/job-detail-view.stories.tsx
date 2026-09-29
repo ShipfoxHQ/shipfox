@@ -340,7 +340,7 @@ export const TestInvocationLogNavigation: Story = {
     await userEvent.click(
       canvas.getByRole('button', {name: 'Inspect step Post release notice, attempt 1'}),
     );
-    await documentBody.findByText('Tool access was denied');
+    await documentBody.findByText('The integration denied access');
     await userEvent.click(documentBody.getByRole('button', {name: 'View invocation log'}));
 
     await waitFor(() => expect(documentBody.queryByRole('dialog')).not.toBeInTheDocument());

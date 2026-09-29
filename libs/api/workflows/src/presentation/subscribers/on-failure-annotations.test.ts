@@ -42,185 +42,184 @@ const STEP_FAILURE_CASES = [
   {
     reason: 'checkout_failed',
     type: 'checkout',
-    title: 'Repository checkout failed',
-    description:
-      'Shipfox could not check out the repository. Verify repository access before trying again.',
+    title: 'Checkout failed',
+    description: 'Check the repository and ref of the checkout. The step logs show the Git output.',
   },
   {
     reason: 'checkout_auth_failed',
     type: 'checkout',
-    title: 'Repository access failed',
+    title: 'The repository rejected the checkout',
     description:
-      'Shipfox could not access the repository. Verify the connection and repository permissions before trying again.',
+      'Check that the integration connection can read this repository. Then rerun the job.',
   },
   {
     reason: 'checkout_unavailable',
     type: 'checkout',
-    title: 'Repository checkout unavailable',
-    description: 'The repository could not be checked out right now. Try again.',
+    title: 'The runner cannot reach the repository',
+    description: 'Rerun the job. If it fails again, check the network access of the runner.',
   },
   {
     reason: 'checkout_path_invalid',
     type: 'checkout',
-    title: 'Checkout path needs attention',
-    description: 'Review the checkout path in the workflow before trying again.',
+    title: 'The checkout path is not valid',
+    description:
+      'Use a relative path inside the job folder, without `..` or `.git`. Then start a new run.',
   },
   {
     reason: 'checkout_destination_occupied',
     type: 'checkout',
-    title: 'Checkout path is already in use',
-    description: 'Choose another checkout path or use a clean workspace before trying again.',
+    title: 'The checkout folder is not empty',
+    description:
+      'Choose an empty folder, or set `force` to replace its content. Then start a new run.',
   },
   {
     reason: 'git_unavailable',
     type: 'checkout',
-    title: 'Git is unavailable',
-    description:
-      'Git is not available on the selected runner. Check the runner setup before trying again.',
+    title: 'The runner cannot start Git',
+    description: 'Install Git in the runner image. Then rerun the job.',
   },
   {
     reason: 'workspace_prep_failed',
     type: 'setup',
-    title: 'Workspace setup failed',
-    description:
-      'Shipfox could not prepare the workspace. Try again. If the problem continues, check the runner setup.',
+    title: 'The runner cannot prepare the job',
+    description: 'Read the setup logs for the cause. Then rerun the job.',
   },
   {
     reason: 'setup_aborted',
     type: 'setup',
-    title: 'Workspace setup stopped',
-    description: 'Workspace setup did not finish. Try again.',
+    title: 'The job stopped during setup',
+    description:
+      'A user cancelled the job, or it reached its timeout, before setup finished. Rerun the job.',
   },
   {
     reason: 'config_unresolvable',
     type: 'run',
-    title: 'Step configuration needs attention',
-    description: 'Review the values referenced by this step before trying again.',
+    title: 'A value in this step has an error',
+    description:
+      'Shipfox cannot compute a value in this step. Fix the expression, then start a new run.',
   },
   {
     reason: 'output_invalid',
     type: 'run',
-    title: 'Step output could not be used',
+    title: 'The step output has the wrong shape',
     description:
-      'Review the declared outputs and the values returned by this step before trying again.',
+      'The step output does not match the declared outputs. Fix the step or the declaration.',
   },
   {
     reason: 'execution_payload_too_large',
     type: 'run',
-    title: 'Step execution payload is too large',
-    description: 'Reduce the workflow value required to execute this step before trying again.',
+    title: 'The step input is too large',
+    description: 'Make the values this step uses smaller. Then start a new run.',
   },
   {
     reason: 'step_result_too_large',
     type: 'run',
-    title: 'Step result is too large',
-    description: 'Reduce the value returned by this step before trying again.',
+    title: 'The step result is too large',
+    description: 'Make the values this step returns smaller. Then start a new run.',
   },
   {
     reason: 'agent_invocation_failed',
     type: 'agent',
-    title: 'Agent step failed',
-    description:
-      'The agent could not complete this step. Review the step logs before trying again.',
+    title: 'The agent failed',
+    description: 'The agent stopped with an error. Read the step logs for the cause.',
   },
   {
     reason: 'agent_harness_unavailable',
     type: 'agent',
-    title: 'Agent could not start',
-    description:
-      'Shipfox could not start the agent. Try again. If the problem continues, check the runner setup.',
+    title: 'The agent cannot start',
+    description: 'The runner cannot start the agent. Rerun the job.',
   },
   {
     reason: 'agent_inference_credentials_unavailable',
     type: 'agent',
-    title: 'Inference credentials are unavailable',
-    description:
-      'Shipfox could not obtain inference credentials for this agent. Try again. If the problem continues, check the model provider configuration.',
+    title: 'Shipfox cannot reach the model provider',
+    description: 'Rerun the job. If it fails again, check the model provider in Agents settings.',
   },
   {
     reason: 'agent_session_key_invalid',
     type: 'agent',
-    title: 'Agent session configuration needs attention',
-    description: 'Review the session key and mode before trying again.',
+    title: 'The session name is not valid',
+    description:
+      'Start the session name with a letter or digit. Use only letters, digits, dots, underscores, or hyphens.',
   },
   {
     reason: 'agent_session_held',
     type: 'agent',
-    title: 'Agent session is busy',
-    description: 'Another step is using this session. Try again after that step finishes.',
+    title: 'Another step is using this session',
+    description:
+      'Two steps that run at the same time cannot continue one session. Give each step its own session.',
   },
   {
     reason: 'agent_session_harness_mismatch',
     type: 'agent',
-    title: 'Agent session is incompatible',
-    description: 'Use the original harness for this session or start a new session.',
+    title: 'This session uses another harness',
+    description:
+      'A session works with one harness only. Use the harness of the first step, or use a new session.',
   },
   {
     reason: 'agent_session_unavailable',
     type: 'agent',
-    title: 'Agent session is unavailable',
-    description: 'Start a new session or try again.',
+    title: 'Shipfox cannot load the session',
+    description: 'Rerun the failed jobs. If it fails again, use a new session.',
   },
   {
     reason: 'gate_failed',
     type: 'run',
-    title: 'Step validation failed',
+    title: 'The success condition failed',
     description:
-      "The step completed, but its success condition was not met. Review the step's result and success condition before trying again.",
+      'The step finished, but its success condition is false. Check the step result and the condition.',
   },
   {
     reason: 'gate_uncheckable',
     type: 'run',
-    title: 'Step validation failed',
+    title: 'The success condition failed',
     description:
-      "Shipfox could not evaluate the step's success condition. Review the condition and the values it references before trying again.",
+      'Shipfox cannot evaluate the success condition. Check the condition and the values it uses.',
   },
   {
     reason: 'restart_unresolved',
     type: 'run',
-    title: 'Gate restart target could not be resolved',
+    title: 'The restart step does not exist',
     description:
-      'Shipfox could not resolve the configured restart target. Review gate.on_failure.restart_from before trying again.',
+      'Shipfox cannot find the step in `gate.on_failure.restart_from`. Fix it, then start a new run.',
   },
   {
     reason: 'restart_exhausted',
     type: 'run',
-    title: 'Gate attempt limit reached',
-    description:
-      'The gate reached its configured attempt limit. Review the failed result before trying again.',
+    title: 'The step reached its attempt limit',
+    description: 'Fix the cause, or raise `gate.on_failure.max_attempts`. Then start a new run.',
     gateResult: {passed: false, source: 'step.exit_code == 0', exit_code: 73},
   },
   {
     reason: 'restart_exhausted',
     type: 'run',
-    title: 'Step attempt limit reached',
-    description:
-      'The step reached its attempt limit. Review the failed result before trying again.',
+    title: 'The step reached its attempt limit',
+    description: 'Fix the cause, or raise `gate.on_failure.max_attempts`. Then start a new run.',
   },
   {
     reason: 'tool_error',
     type: 'tool',
-    title: 'Tool call failed',
-    description:
-      'The connected service could not complete the request. Review the connection and tool inputs before trying again.',
+    title: 'The integration returned an error',
+    description: 'Read the error in the step details. Fix the cause, then rerun the job.',
   },
   {
     reason: 'tool_config_invalid',
     type: 'tool',
-    title: 'Tool configuration needs attention',
-    description: 'Review the connection and tool inputs before trying again.',
+    title: 'A tool input is not valid',
+    description: 'Fix the tool input in the step, then start a new run.',
   },
   {
     reason: 'action_input_invalid',
     type: 'action',
-    title: 'Action inputs need attention',
-    description: "Review the step's `with` values against the action's inputs before trying again.",
+    title: 'An action input is not valid',
+    description:
+      'A `with` value does not match the input in `action.yml`. Fix the value or the input, then start a new run.',
   },
   {
     reason: 'action_unavailable',
     type: 'action',
-    title: 'Action code is unavailable',
-    description: 'The runner could not load the action code. Try again.',
+    title: 'The runner cannot load the action',
+    description: 'Rerun the job. If it fails again, contact your workspace admin.',
   },
 ] as const satisfies readonly {
   reason: MappedStepErrorReason;
@@ -233,28 +232,33 @@ const STEP_FAILURE_CASES = [
 const AGENT_CONFIG_FAILURE_CASES = [
   {
     issue: 'step_config_invalid',
-    title: 'Agent configuration needs attention',
-    description: 'Review the agent step configuration before trying again.',
+    title: 'Complete the agent step',
+    description:
+      'An agent step needs a prompt, a provider, a model, and a thinking level. Add the missing values, then start a new run.',
   },
   {
     issue: 'provider_not_configured',
-    title: 'Model provider is not connected',
-    description: 'Connect a model provider before running this step again.',
+    title: 'Connect the model provider',
+    description:
+      'Your workspace has no credentials for the provider of this step. Add them in Agents settings, then rerun the job.',
   },
   {
     issue: 'provider_unsupported',
-    title: 'Model provider is unavailable',
-    description: 'Choose a model provider supported by this Shipfox installation.',
+    title: 'Choose another model provider',
+    description:
+      'Shipfox does not support the provider of this step. Change the provider, then start a new run.',
   },
   {
     issue: 'model_unavailable',
-    title: 'Model is unavailable',
-    description: 'Choose an available model or update the provider access before trying again.',
+    title: 'Choose another model',
+    description:
+      'The model of this step is not available in this workspace. Change the model, then start a new run.',
   },
   {
     issue: 'credentials_invalid',
-    title: 'Model provider credentials need attention',
-    description: 'Update the model provider credentials before trying again.',
+    title: 'Update the model provider credentials',
+    description:
+      'The model provider rejected the saved credentials. Update them in Agents settings, then rerun the job.',
   },
 ] as const satisfies readonly {
   issue: AgentConfigIssueDto;
@@ -265,44 +269,46 @@ const AGENT_CONFIG_FAILURE_CASES = [
 const JOB_FAILURE_CASES = [
   {
     reason: 'timed_out',
-    title: 'Job timed out',
+    title: 'The job took too long',
     description:
-      'The job did not finish within its configured time limit. Review the timeout or workload before trying again.',
+      'The job did not finish before its timeout. Raise the timeout or make the job faster. Then start a new run.',
   },
   {
     reason: 'runner_lost',
-    title: 'Runner connection lost',
-    description: 'The runner stopped responding before the job finished. Try the job again.',
+    title: 'The runner stopped responding',
+    description: 'Rerun the job. If it fails again, contact your workspace admin.',
   },
   {
     reason: 'lease_expired',
-    title: 'Runner connection lost',
-    description: 'The runner stopped responding before the job finished. Try the job again.',
+    title: 'The runner stopped responding',
+    description: 'Rerun the job. If it fails again, contact your workspace admin.',
   },
   {
     reason: 'provider_lost',
-    title: 'Runner connection lost',
-    description: 'The runner stopped responding before the job finished. Try the job again.',
+    title: 'The runner stopped responding',
+    description: 'Rerun the job. If it fails again, contact your workspace admin.',
   },
   {
     reason: 'lifecycle_violation',
-    title: 'Runner connection lost',
-    description: 'The runner stopped responding before the job finished. Try the job again.',
+    title: 'The runner stopped responding',
+    description: 'Rerun the job. If it fails again, contact your workspace admin.',
   },
   {
     reason: 'condition_errored',
-    title: 'Job condition could not be evaluated',
-    description: 'Review the job condition and the values it references before trying again.',
+    title: 'The job condition has an error',
+    description: 'Shipfox cannot evaluate the `if` condition. Fix it, then start a new run.',
   },
   {
     reason: 'output_too_large',
-    title: 'Job output is too large',
-    description: 'Reduce the declared output before trying again.',
+    title: 'The job output is too large',
+    description:
+      'Make the job outputs smaller, or write large data to a file. Then start a new run.',
   },
   {
     reason: 'output_invalid',
-    title: 'Job output could not be used',
-    description: 'Ensure every declared output resolves to a valid JSON value before trying again.',
+    title: 'Shipfox cannot save the job output',
+    description:
+      'Every job output must be a valid JSON value. Fix the job outputs, then start a new run.',
   },
 ] as const satisfies readonly {
   reason: NonNullable<WorkflowsJobTerminatedEventDto['statusReason']>;
@@ -389,9 +395,9 @@ describe('failure annotations', () => {
           op: 'replace',
           style: 'error',
           body: [
-            '**Step configuration could not be resolved**',
+            '**A value in this step has an error**',
             '',
-            '`agent.session` references `steps.confirm_current_head.outputs.current_head_sha`, but that value was not available.',
+            '`agent.session` uses `steps.confirm_current_head.outputs.current_head_sha`, but that value does not exist. Fix it, then start a new run.',
           ].join('\n'),
         },
       }),
@@ -433,9 +439,9 @@ describe('failure annotations', () => {
           op: 'replace',
           style: 'error',
           body: [
-            '**Step configuration needs attention**',
+            '**A value in this step has an error**',
             '',
-            'Review the values referenced by this step before trying again.',
+            'Shipfox cannot compute a value in this step. Fix the expression, then start a new run.',
           ].join('\n'),
         },
       }),
@@ -476,7 +482,7 @@ describe('failure annotations', () => {
           op: 'replace',
           style: 'error',
           body: expect.stringContaining(
-            'The model response stream was interrupted after 4 attempts. Rerun the failed jobs.',
+            'The connection to the model provider dropped during the response. Shipfox tried 4 times. Rerun the failed jobs.',
           ),
         },
       }),
@@ -523,9 +529,9 @@ describe('failure annotations', () => {
           op: 'replace',
           style: 'error',
           body: [
-            '**Step result is too large**',
+            '**The step result is too large**',
             '',
-            'Reduce the value returned by this step before trying again.',
+            'Make the values this step returns smaller. Then start a new run.',
             '',
             'Measured 12345 bytes; limit 8192 bytes.',
           ].join('\n'),
@@ -607,9 +613,9 @@ describe('failure annotations', () => {
           op: 'replace',
           style: 'error',
           body: [
-            '**Step validation failed**',
+            '**The success condition failed**',
             '',
-            "The Slack call succeeded, but Shipfox could not evaluate the step's success condition. No workflow configuration change is required.",
+            'The Slack call worked, but Shipfox cannot evaluate the success condition. Your workflow has no error. Rerun the job.',
           ].join('\n'),
         },
       }),
@@ -652,9 +658,9 @@ describe('failure annotations', () => {
           op: 'replace',
           style: 'error',
           body: [
-            '**Step validation failed**',
+            '**The success condition failed**',
             '',
-            "The Slack call succeeded, but Shipfox could not evaluate the step's success condition. Review the condition and the values it references.",
+            'The Slack call worked, but Shipfox cannot evaluate the success condition. Check the condition and the values it uses.',
           ].join('\n'),
         },
       }),
@@ -692,9 +698,9 @@ describe('failure annotations', () => {
           op: 'replace',
           style: 'error',
           body: [
-            '**Step validation failed**',
+            '**The success condition failed**',
             '',
-            "The Slack call succeeded, but the step's success condition was not met. Review the result and success condition.",
+            'The Slack call worked, but the success condition is false. Check the result and the condition.',
           ].join('\n'),
         },
       }),
@@ -731,9 +737,9 @@ describe('failure annotations', () => {
           op: 'replace',
           style: 'error',
           body: [
-            '**Tool result could not be used**',
+            '**The tool call worked, but the step failed**',
             '',
-            'The Slack call succeeded, but Shipfox could not use its result as the step output. Review the declared outputs before trying again.',
+            'The Slack call worked, but Shipfox cannot save its result as step output. Check the declared outputs.',
           ].join('\n'),
         },
       }),
@@ -771,9 +777,9 @@ describe('failure annotations', () => {
           op: 'replace',
           style: 'error',
           body: [
-            '**Tool call failed**',
+            '**The integration returned an error**',
             '',
-            'The connected service could not complete the request. Review the connection and tool inputs before trying again.',
+            'Read the error in the step details. Fix the cause, then rerun the job.',
           ].join('\n'),
         },
       }),
@@ -808,9 +814,9 @@ describe('failure annotations', () => {
           op: 'replace',
           style: 'error',
           body: [
-            '**Step failed**',
+            '**The step failed**',
             '',
-            'Shipfox could not complete this step. Try again or review the step logs.',
+            'Read the step logs for the cause. Then rerun the job.',
           ].join('\n'),
         },
       }),
@@ -847,9 +853,9 @@ describe('failure annotations', () => {
           op: 'replace',
           style: 'error',
           body: [
-            '**Tool call outcome is uncertain**',
+            '**The tool call stopped before it finished**',
             '',
-            'The connected service may have completed the request. Check it before trying again.',
+            'The change may already exist. Check the integration before you rerun the job.',
           ].join('\n'),
         },
       }),
@@ -1032,7 +1038,7 @@ describe('failure annotations', () => {
         originStepAttempt: 2,
         annotation: expect.objectContaining({
           op: 'replace',
-          body: expect.stringContaining('Agent step failed'),
+          body: expect.stringContaining('The agent failed'),
         }),
       }),
     );
@@ -1139,11 +1145,11 @@ describe('failure annotations', () => {
       expect.objectContaining({
         annotation: expect.objectContaining({
           body: [
-            '**Job output is too large**',
+            '**The job output is too large**',
             '',
             'The job stopped while processing **Run tests**.',
             '',
-            'Reduce the declared output before trying again.',
+            'Make the job outputs smaller, or write large data to a file. Then start a new run.',
           ].join('\n'),
         }),
       }),
@@ -1179,11 +1185,11 @@ describe('failure annotations', () => {
       expect.objectContaining({
         annotation: expect.objectContaining({
           body: [
-            '**Job output could not be used**',
+            '**Shipfox cannot save the job output**',
             '',
             'The job stopped while processing **Run tests**.',
             '',
-            'Ensure every declared output resolves to a valid JSON value before trying again.',
+            'Every job output must be a valid JSON value. Fix the job outputs, then start a new run.',
           ].join('\n'),
         }),
       }),

@@ -45,176 +45,188 @@ const STEP_FAILURE_COPY: Readonly<
   >
 > = {
   checkout_failed: {
-    title: 'Repository checkout failed',
-    description:
-      'Shipfox could not check out the repository. Verify repository access before trying again.',
+    title: 'Checkout failed',
+    description: 'Check the repository and ref of the checkout. The step logs show the Git output.',
   },
   checkout_auth_failed: {
-    title: 'Repository access failed',
+    title: 'The repository rejected the checkout',
     description:
-      'Shipfox could not access the repository. Verify the connection and repository permissions before trying again.',
+      'Check that the integration connection can read this repository. Then rerun the job.',
   },
   checkout_unavailable: {
-    title: 'Repository checkout unavailable',
-    description: 'The repository could not be checked out right now. Try again.',
+    title: 'The runner cannot reach the repository',
+    description: 'Rerun the job. If it fails again, check the network access of the runner.',
   },
   checkout_path_invalid: {
-    title: 'Checkout path needs attention',
-    description: 'Review the checkout path in the workflow before trying again.',
+    title: 'The checkout path is not valid',
+    description:
+      'Use a relative path inside the job folder, without `..` or `.git`. Then start a new run.',
   },
   checkout_destination_occupied: {
-    title: 'Checkout path is already in use',
-    description: 'Choose another checkout path or use a clean workspace before trying again.',
+    title: 'The checkout folder is not empty',
+    description:
+      'Choose an empty folder, or set `force` to replace its content. Then start a new run.',
   },
   git_unavailable: {
-    title: 'Git is unavailable',
-    description:
-      'Git is not available on the selected runner. Check the runner setup before trying again.',
+    title: 'The runner cannot start Git',
+    description: 'Install Git in the runner image. Then rerun the job.',
   },
   workspace_prep_failed: {
-    title: 'Workspace setup failed',
-    description:
-      'Shipfox could not prepare the workspace. Try again. If the problem continues, check the runner setup.',
+    title: 'The runner cannot prepare the job',
+    description: 'Read the setup logs for the cause. Then rerun the job.',
   },
   setup_aborted: {
-    title: 'Workspace setup stopped',
-    description: 'Workspace setup did not finish. Try again.',
+    title: 'The job stopped during setup',
+    description:
+      'A user cancelled the job, or it reached its timeout, before setup finished. Rerun the job.',
   },
   config_unresolvable: {
-    title: 'Step configuration needs attention',
-    description: 'Review the values referenced by this step before trying again.',
+    title: 'A value in this step has an error',
+    description:
+      'Shipfox cannot compute a value in this step. Fix the expression, then start a new run.',
   },
   output_invalid: {
-    title: 'Step output could not be used',
+    title: 'The step output has the wrong shape',
     description:
-      'Review the declared outputs and the values returned by this step before trying again.',
+      'The step output does not match the declared outputs. Fix the step or the declaration.',
   },
   diagnostic_too_large: {
-    title: 'Step diagnostic is too large',
-    description: 'Reduce the step diagnostic before trying again.',
+    title: 'The step details are too large',
+    description: 'Make the step write less data. Then start a new run.',
   },
   execution_payload_too_large: {
-    title: 'Step execution payload is too large',
-    description: 'Reduce the workflow value required to execute this step before trying again.',
+    title: 'The step input is too large',
+    description: 'Make the values this step uses smaller. Then start a new run.',
   },
   step_result_too_large: {
-    title: 'Step result is too large',
-    description: 'Reduce the value returned by this step before trying again.',
+    title: 'The step result is too large',
+    description: 'Make the values this step returns smaller. Then start a new run.',
   },
   agent_invocation_failed: {
-    title: 'Agent step failed',
-    description:
-      'The agent could not complete this step. Review the step logs before trying again.',
+    title: 'The agent failed',
+    description: 'The agent stopped with an error. Read the step logs for the cause.',
   },
   agent_harness_unavailable: {
-    title: 'Agent could not start',
-    description:
-      'Shipfox could not start the agent. Try again. If the problem continues, check the runner setup.',
+    title: 'The agent cannot start',
+    description: 'The runner cannot start the agent. Rerun the job.',
   },
   agent_inference_credentials_unavailable: {
-    title: 'Inference credentials are unavailable',
-    description:
-      'Shipfox could not obtain inference credentials for this agent. Try again. If the problem continues, check the model provider configuration.',
+    title: 'Shipfox cannot reach the model provider',
+    description: 'Rerun the job. If it fails again, check the model provider in Agents settings.',
   },
   agent_session_key_invalid: {
-    title: 'Agent session configuration needs attention',
-    description: 'Review the session key and mode before trying again.',
+    title: 'The session name is not valid',
+    description:
+      'Start the session name with a letter or digit. Use only letters, digits, dots, underscores, or hyphens.',
   },
   agent_session_held: {
-    title: 'Agent session is busy',
-    description: 'Another step is using this session. Try again after that step finishes.',
+    title: 'Another step is using this session',
+    description:
+      'Two steps that run at the same time cannot continue one session. Give each step its own session.',
   },
   agent_session_harness_mismatch: {
-    title: 'Agent session is incompatible',
-    description: 'Use the original harness for this session or start a new session.',
+    title: 'This session uses another harness',
+    description:
+      'A session works with one harness only. Use the harness of the first step, or use a new session.',
   },
   agent_session_unavailable: {
-    title: 'Agent session is unavailable',
-    description: 'Start a new session or try again.',
+    title: 'Shipfox cannot load the session',
+    description: 'Rerun the failed jobs. If it fails again, use a new session.',
   },
   tool_error: {
-    title: 'Tool call failed',
-    description:
-      'The connected service could not complete the request. Review the connection and tool inputs before trying again.',
+    title: 'The integration returned an error',
+    description: 'Read the error in the step details. Fix the cause, then rerun the job.',
   },
   tool_config_invalid: {
-    title: 'Tool configuration needs attention',
-    description: 'Review the connection and tool inputs before trying again.',
+    title: 'A tool input is not valid',
+    description: 'Fix the tool input in the step, then start a new run.',
   },
   action_input_invalid: {
-    title: 'Action inputs need attention',
-    description: "Review the step's `with` values against the action's inputs before trying again.",
+    title: 'An action input is not valid',
+    description:
+      'A `with` value does not match the input in `action.yml`. Fix the value or the input, then start a new run.',
   },
   action_unavailable: {
-    title: 'Action code is unavailable',
-    description: 'The runner could not load the action code. Try again.',
+    title: 'The runner cannot load the action',
+    description: 'Rerun the job. If it fails again, contact your workspace admin.',
   },
   gate_failed: {
-    title: 'Step validation failed',
+    title: 'The success condition failed',
     description:
-      "The step completed, but its success condition was not met. Review the step's result and success condition before trying again.",
+      'The step finished, but its success condition is false. Check the step result and the condition.',
   },
   gate_uncheckable: {
-    title: 'Step validation failed',
+    title: 'The success condition failed',
     description:
-      "Shipfox could not evaluate the step's success condition. Review the condition and the values it references before trying again.",
+      'Shipfox cannot evaluate the success condition. Check the condition and the values it uses.',
   },
   restart_unresolved: {
-    title: 'Gate restart target could not be resolved',
+    title: 'The restart step does not exist',
     description:
-      'Shipfox could not resolve the configured restart target. Review gate.on_failure.restart_from before trying again.',
+      'Shipfox cannot find the step in `gate.on_failure.restart_from`. Fix it, then start a new run.',
   },
   restart_exhausted: {
-    title: 'Gate attempt limit reached',
-    description:
-      'The gate reached its configured attempt limit. Review the failed result before trying again.',
+    title: 'The step reached its attempt limit',
+    description: 'Fix the cause, or raise `gate.on_failure.max_attempts`. Then start a new run.',
   },
+};
+
+const UNKNOWN_STEP_FAILURE_COPY: FailureCopy = {
+  title: 'The step failed',
+  description: 'Read the step logs for the cause. Then rerun the job.',
 };
 
 const AGENT_CONFIG_FAILURE_COPY: Readonly<Record<AgentConfigIssueDto, FailureCopy>> = {
   step_config_invalid: {
-    title: 'Agent configuration needs attention',
-    description: 'Review the agent step configuration before trying again.',
+    title: 'Complete the agent step',
+    description:
+      'An agent step needs a prompt, a provider, a model, and a thinking level. Add the missing values, then start a new run.',
   },
   provider_not_configured: {
-    title: 'Model provider is not connected',
-    description: 'Connect a model provider before running this step again.',
+    title: 'Connect the model provider',
+    description:
+      'Your workspace has no credentials for the provider of this step. Add them in Agents settings, then rerun the job.',
   },
   provider_unsupported: {
-    title: 'Model provider is unavailable',
-    description: 'Choose a model provider supported by this Shipfox installation.',
+    title: 'Choose another model provider',
+    description:
+      'Shipfox does not support the provider of this step. Change the provider, then start a new run.',
   },
   model_unavailable: {
-    title: 'Model is unavailable',
-    description: 'Choose an available model or update the provider access before trying again.',
+    title: 'Choose another model',
+    description:
+      'The model of this step is not available in this workspace. Change the model, then start a new run.',
   },
   credentials_invalid: {
-    title: 'Model provider credentials need attention',
-    description: 'Update the model provider credentials before trying again.',
+    title: 'Update the model provider credentials',
+    description:
+      'The model provider rejected the saved credentials. Update them in Agents settings, then rerun the job.',
   },
 };
 
 const JOB_FAILURE_COPY: Readonly<Partial<Record<JobStatusReason, FailureCopy>>> = {
   timed_out: {
-    title: 'Job timed out',
+    title: 'The job took too long',
     description:
-      'The job did not finish within its configured time limit. Review the timeout or workload before trying again.',
+      'The job did not finish before its timeout. Raise the timeout or make the job faster. Then start a new run.',
   },
   runner_lost: {
-    title: 'Runner connection lost',
-    description: 'The runner stopped responding before the job finished. Try the job again.',
+    title: 'The runner stopped responding',
+    description: 'Rerun the job. If it fails again, contact your workspace admin.',
   },
   condition_errored: {
-    title: 'Job condition could not be evaluated',
-    description: 'Review the job condition and the values it references before trying again.',
+    title: 'The job condition has an error',
+    description: 'Shipfox cannot evaluate the `if` condition. Fix it, then start a new run.',
   },
   output_too_large: {
-    title: 'Job output is too large',
-    description: 'Reduce the declared output before trying again.',
+    title: 'The job output is too large',
+    description:
+      'Make the job outputs smaller, or write large data to a file. Then start a new run.',
   },
   output_invalid: {
-    title: 'Job output could not be used',
-    description: 'Ensure every declared output resolves to a valid JSON value before trying again.',
+    title: 'Shipfox cannot save the job output',
+    description:
+      'Every job output must be a valid JSON value. Fix the job outputs, then start a new run.',
   },
 };
 
@@ -438,8 +450,8 @@ function jobFailureBody(
   const copy =
     (copyReason === null ? undefined : JOB_FAILURE_COPY[copyReason]) ??
     ({
-      title: 'Job could not finish',
-      description: 'Try the job again. If the problem continues, contact support.',
+      title: 'The job failed',
+      description: 'Rerun the job. If it fails again, contact your workspace admin.',
     } satisfies FailureCopy);
   return [`**${copy.title}**`, '', progress, '', copy.description].join('\n');
 }
@@ -458,9 +470,8 @@ function stepFailureCopy(step: StepAttemptDetailStep, attempt: StepAttempt): Fai
 
   if (reason === 'restart_exhausted' && attempt.gateResult === null) {
     return {
-      title: 'Step attempt limit reached',
-      description:
-        'The step reached its attempt limit. Review the failed result before trying again.',
+      title: 'The step reached its attempt limit',
+      description: 'Fix the cause, or raise `gate.on_failure.max_attempts`. Then start a new run.',
     };
   }
 
@@ -488,8 +499,8 @@ function configUnresolvableFailureCopy(
   if (field === undefined || source === undefined) return undefined;
 
   return {
-    title: 'Step configuration could not be resolved',
-    description: `\`${field}\` references \`${source}\`, but that value was not available.`,
+    title: 'A value in this step has an error',
+    description: `\`${field}\` uses \`${source}\`, but that value does not exist. Fix it, then start a new run.`,
   };
 }
 
@@ -516,29 +527,29 @@ function successfulToolFailureCopy(
 ): FailureCopy | undefined {
   if (gateCouldNotUseToolResult(attempt, error)) {
     return {
-      title: 'Step validation failed',
-      description: `The ${toolCallName(step)} succeeded, but Shipfox could not evaluate the step's success condition. No workflow configuration change is required.`,
+      title: 'The success condition failed',
+      description: `The ${toolCallName(step)} worked, but Shipfox cannot evaluate the success condition. Your workflow has no error. Rerun the job.`,
     };
   }
 
   if (gateEvaluationFailed(attempt)) {
     return {
-      title: 'Step validation failed',
-      description: `The ${toolCallName(step)} succeeded, but Shipfox could not evaluate the step's success condition. Review the condition and the values it references.`,
+      title: 'The success condition failed',
+      description: `The ${toolCallName(step)} worked, but Shipfox cannot evaluate the success condition. Check the condition and the values it uses.`,
     };
   }
 
   if (reason === 'gate_failed' || gateConditionFailed(attempt)) {
     return {
-      title: 'Step validation failed',
-      description: `The ${toolCallName(step)} succeeded, but the step's success condition was not met. Review the result and success condition.`,
+      title: 'The success condition failed',
+      description: `The ${toolCallName(step)} worked, but the success condition is false. Check the result and the condition.`,
     };
   }
 
   if (reason === 'output_invalid') {
     return {
-      title: 'Tool result could not be used',
-      description: `The ${toolCallName(step)} succeeded, but Shipfox could not use its result as the step output. Review the declared outputs before trying again.`,
+      title: 'The tool call worked, but the step failed',
+      description: `The ${toolCallName(step)} worked, but Shipfox cannot save its result as step output. Check the declared outputs.`,
     };
   }
 
@@ -550,26 +561,17 @@ function gateFailureCopy(
   reason: string | undefined,
 ): FailureCopy | undefined {
   if (reason === 'gate_failed' || gateConditionFailed(attempt)) {
-    return {
-      title: 'Step validation failed',
-      description:
-        "The step completed, but its success condition was not met. Review the step's result and success condition before trying again.",
-    };
+    return STEP_FAILURE_COPY.gate_failed;
   }
 
-  return reason === 'gate_uncheckable'
-    ? {
-        title: 'Step validation failed',
-        description:
-          "Shipfox could not evaluate the step's success condition. Review the condition and the values it references before trying again.",
-      }
-    : undefined;
+  return reason === 'gate_uncheckable' ? STEP_FAILURE_COPY.gate_uncheckable : undefined;
 }
 
 function agentConfigFailureCopy(error: Record<string, unknown> | null): FailureCopy {
   const fallback = {
-    title: 'Agent configuration needs attention',
-    description: 'Review the agent step configuration before trying again.',
+    title: 'Check the agent step',
+    description:
+      'Shipfox cannot read the settings of this agent step. Check the step in the workflow file, then start a new run.',
   } satisfies FailureCopy;
   const issue = errorString(error, 'agentConfigIssue');
   return issue === undefined
@@ -580,13 +582,13 @@ function agentConfigFailureCopy(error: Record<string, unknown> | null): FailureC
 function interruptedToolFailureCopy(step: StepAttemptDetailStep): FailureCopy {
   return toolSensitivity(step) === 'write'
     ? {
-        title: 'Tool call outcome is uncertain',
+        title: 'The tool call stopped before it finished',
         description:
-          'The connected service may have completed the request. Check it before trying again.',
+          'The change may already exist. Check the integration before you rerun the job.',
       }
     : {
-        title: 'Tool call was interrupted',
-        description: 'Shipfox could not confirm the result. Try again.',
+        title: 'The tool call stopped before it finished',
+        description: 'Shipfox does not know the result of the call. Rerun the job.',
       };
 }
 
@@ -595,11 +597,11 @@ function providerStreamFailureCopy(error: Record<string, unknown> | null): Failu
 
   const attemptCount = positiveErrorInteger(error, 'attemptCount');
   return {
-    title: 'Model response interrupted',
+    title: 'The model response stopped',
     description:
       attemptCount === undefined
-        ? 'The model response stream was interrupted. Rerun the failed jobs.'
-        : `The model response stream was interrupted after ${attemptCount} ${attemptCount === 1 ? 'attempt' : 'attempts'}. Rerun the failed jobs.`,
+        ? 'The connection to the model provider dropped during the response. Rerun the failed jobs.'
+        : `The connection to the model provider dropped during the response. Shipfox tried ${attemptCount} ${attemptCount === 1 ? 'time' : 'times'}. Rerun the failed jobs.`,
   };
 }
 
@@ -617,14 +619,8 @@ function snakeCase(value: string): string {
 
 function knownStepFailureCopy(reason: string | undefined): FailureCopy {
   return reason === undefined
-    ? {
-        title: 'Step failed',
-        description: 'Shipfox could not complete this step. Try again or review the step logs.',
-      }
-    : (STEP_FAILURE_COPY[reason as keyof typeof STEP_FAILURE_COPY] ?? {
-        title: 'Step failed',
-        description: 'Shipfox could not complete this step. Try again or review the step logs.',
-      });
+    ? UNKNOWN_STEP_FAILURE_COPY
+    : (STEP_FAILURE_COPY[reason as keyof typeof STEP_FAILURE_COPY] ?? UNKNOWN_STEP_FAILURE_COPY);
 }
 
 function successfulToolCall(attempt: StepAttempt): boolean {

@@ -12,7 +12,7 @@ import {
   preDispatchStepDiagnostic,
 } from './pre-dispatch-step-diagnostic.js';
 
-const ACTION_INPUT_DESCRIPTION = /does not match its declaration in action\.yml/u;
+const ACTION_INPUT_DESCRIPTION = /does not match action\.yml/u;
 
 describe('preDispatchStepDiagnostic', () => {
   it('classifies only failed attempts with an unresolvable configuration', () => {
@@ -69,11 +69,11 @@ describe('PreDispatchStepDiagnostic', () => {
 
     expect(screen.getByRole('heading', {name: 'Step did not run'})).toBeInTheDocument();
     expect(
-      screen.getByText('Shipfox could not resolve this step’s configuration before dispatch.'),
+      screen.getByText('Shipfox cannot compute a value in this step, so the step did not start.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Configuration field')).toBeInTheDocument();
     expect(screen.getByText('agent.session')).toBeInTheDocument();
-    expect(screen.getByText('Unavailable reference')).toBeInTheDocument();
+    expect(screen.getByText('Missing value')).toBeInTheDocument();
     expect(
       screen.getByText('steps.confirm_current_head.outputs.current_head_sha'),
     ).toBeInTheDocument();
@@ -97,7 +97,7 @@ describe('PreDispatchStepDiagnostic', () => {
     expect(screen.getByText('Problem').nextElementSibling).toHaveTextContent(
       'Action input "limit" must be a number value.',
     );
-    expect(screen.queryByText('Unavailable reference')).toBeNull();
+    expect(screen.queryByText('Missing value')).toBeNull();
     expect(screen.getByRole('link', {name: 'View in source'})).toBeInTheDocument();
   });
 
@@ -106,7 +106,7 @@ describe('PreDispatchStepDiagnostic', () => {
 
     expect(screen.getByRole('heading', {name: 'Step did not run'})).toBeInTheDocument();
     expect(screen.queryByText('Configuration field')).toBeNull();
-    expect(screen.queryByText('Unavailable reference')).toBeNull();
+    expect(screen.queryByText('Missing value')).toBeNull();
     expect(screen.queryByRole('link', {name: 'View in source'})).toBeNull();
   });
 });

@@ -30,15 +30,17 @@ tool selection rules.
 
 Open the failed agent step. Shipfox shows a warning for known setup errors.
 
-| Warning | Repair |
-| --- | --- |
-| Configure credentials | Open **Settings → Agents**. Configure the selected provider and test the key. |
-| Update credentials | Replace the saved key. Make sure **Test & save** succeeds. |
-| Choose a supported provider | Change the provider or harness to a compatible pair. |
-| Choose an available model | Choose a model from that provider or use its default. |
-| Fix this step's agent settings | Check the prompt and any explicitly set provider, model, and thinking fields. |
+| Warning | Repair | Then |
+| --- | --- | --- |
+| Connect a provider | Open **Settings → Agents**. Configure the selected provider and test the key. | Rerun the job. |
+| Update your credentials | Replace the saved key. Make sure **Test & save** succeeds. | Rerun the job. |
+| Choose another model provider | Change the provider or harness to a compatible pair. | Start a new run. |
+| Choose another model | Choose a model from that provider or use its default. | Start a new run. |
+| Model is not available in this workspace | Follow the action in the warning, or choose another model. | Start a new run if you change the model. |
+| Complete the agent step | Check the prompt and any explicitly set provider, model, and thinking fields. | Start a new run. |
 
-Re-run the workflow after the fix. Change only fields named in the warning.
+A rerun keeps the workflow file of the original run. After you change the
+workflow file, start a new run. Change only fields named in the warning.
 
 ## Check tool and repository scope
 
