@@ -200,6 +200,7 @@ export async function setJobExecutionStatus(
     status: params.status,
     expectedVersion: params.version,
     statusReason: params.statusReason,
+    statusReasonMessage: params.statusReasonMessage,
     secrets,
   });
   return {newVersion: updated.version, status: updated.status};

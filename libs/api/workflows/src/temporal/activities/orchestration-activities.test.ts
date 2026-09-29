@@ -16,6 +16,7 @@ import {
   activateJobListenerActivity,
   queueJobExecutionActivity,
   resolveLeaseExpiredJobExecutionActivity,
+  setJobExecutionStatus,
   setJobStatus,
 } from './orchestration-activities.js';
 
@@ -92,6 +93,41 @@ describe('queueJobExecutionActivity', () => {
 
     expect(error).toBeInstanceOf(ApplicationFailure);
     expect((error as ApplicationFailure).nonRetryable).toBe(true);
+  });
+});
+
+describe('setJobExecutionStatus', () => {
+  test('persists the status reason message', async () => {
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model: workflowModel({jobs: {build: {steps: [{run: 'npm run build'}]}}}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const jobId = (await getJobsByWorkflowRunId(run.id))[0]?.id as string;
+    const execution = (await getJobExecutionsByJobId(jobId))[0];
+    if (!execution) throw new Error('Expected job execution');
+
+    await setJobExecutionStatus(
+      {
+        jobExecutionId: execution.id,
+        status: 'failed',
+        version: execution.version,
+        statusReason: 'queue_timed_out',
+        statusReasonMessage: 'Not started within 1 h',
+      },
+      secrets,
+    );
+
+    const [failed] = await getJobExecutionsByJobId(jobId);
+    expect(failed?.statusReason).toBe('queue_timed_out');
+    expect(failed?.statusReasonMessage).toBe('Not started within 1 h');
   });
 });
 
