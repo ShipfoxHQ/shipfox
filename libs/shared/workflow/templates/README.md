@@ -15,8 +15,11 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`extractModelAnchors`** reads each placeholder's tested model and thinking setting from composed YAML.
 - **`recommendModels`** selects up to four scored alternatives to a tested model and labels their intelligence and cost tradeoffs.
 - **`buildTemplatePrompt`** builds the prompt a user pastes into a coding agent to set up a template. It is also exported from the browser-safe `@shipfox/workflow-templates/prompt` subpath.
-- **`createTemplateLoader`** creates an injectable loader for tests or other asset sources. Each loaded template reports its identity and embedded compatibility values beside the manifest, plus `startsManually`.
+- **`TemplateLoader`** is the asynchronous, version-aware loader interface. See [Template loader](#template-loader).
+- **`createTemplateLoader`** creates an injectable loader for tests or other asset sources. Each loaded template reports its package name, version, identity, and embedded compatibility values beside the manifest, plus `startsManually`.
 - **`shippedTemplateLoader`** serves only assets embedded during the package build.
+- **`resolveTemplatePackage`** turns a bare template id, such as `ticket-to-pr`, into its first-party package name, `shipfox/ticket-to-pr`.
+- **`createDirectoryTemplateLoader`** serves a catalog directory. It is exported from the node-only `@shipfox/workflow-templates/testing` subpath.
 - **`listShippedSkillResources`** lists the embedded skill index, manifest, procedures, and references.
 - **`getShippedSkillResource`** reads one embedded resource by its exact `skill://shipfox/` URI.
 
@@ -41,9 +44,26 @@ const workflowYaml = composeWorkflow(
 );
 ```
 
-Tests can inject a fixture with `createTemplateLoader`. Fixture files live under the package `test/` directory, including the [fixture guide](test/fixtures/GUIDE.md). The shipped loader never reads or returns those files.
+Tests can inject a fixture with `createTemplateLoader`, or serve the catalog directory with `createDirectoryTemplateLoader`. Fixture files live under the package `test/` directory, including the [fixture guide](test/fixtures/GUIDE.md). The shipped loader never reads or returns those files.
 
 ## Behavior notes
+
+### Template loader
+
+Every method of `TemplateLoader` returns a promise, so a loader can read from the registry:
+
+```ts
+const loader: TemplateLoader = shippedTemplateLoader;
+
+await loader.list(); // the latest servable version of each template
+await loader.get({package: 'shipfox/ticket-to-pr', version: '1.0.0'}); // `version` is optional
+await loader.versions({package: 'shipfox/ticket-to-pr'}); // newest first
+await loader.compose({package: 'ticket-to-pr', bindings, options});
+```
+
+`package` is the registry package name. A bare id is the first-party package of that name. Without `version`, `get` and `compose` use the latest servable version, and `compose` returns `undefined` for an unknown package or version. `compose` applies `options` to the YAML with `applyTemplateOptions`, and the loader chooses the header form: the embedded loader always writes the legacy header, so it never claims a registry base.
+
+Assets passed to `createTemplateLoader` that share an `id` are versions of one template, ordered by semantic version. The embedded loader's `version` is the `version` of the template's catalog package. `createDirectoryTemplateLoader(path)` reads the same directory layout, and has no compatibility file, so its templates report `revision` as the major version, `rank` as the position in id order, and `added_at` as the epoch. Compare its output with the embedded copy only apart from the legacy header.
 
 ### Marker conventions
 

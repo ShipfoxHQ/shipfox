@@ -80,6 +80,7 @@ for (const entry of await readdir(catalogTemplatesRoot, {withFileTypes: true})) 
   const manifestPath = join(templateRoot, 'template.yaml');
   const workflowPath = join(templateRoot, 'workflow.yml');
   const guidePath = join(templateRoot, 'GUIDE.md');
+  const {version} = JSON.parse(await readFile(join(templateRoot, 'package.json'), 'utf8'));
   const manifestText = await readFile(manifestPath, 'utf8');
   const guide = await readFile(guidePath, 'utf8');
   const parts = {};
@@ -113,6 +114,7 @@ for (const entry of await readdir(catalogTemplatesRoot, {withFileTypes: true})) 
 
   templates.push({
     id: entry.name,
+    version,
     revision: metadata.revision,
     added_at: metadata.added_at,
     rank: metadata.rank,

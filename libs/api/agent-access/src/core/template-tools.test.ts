@@ -38,6 +38,7 @@ const context: AgentAccessContext = {
 
 const asset: WorkflowTemplateAsset = {
   id: 'fixture-template',
+  version: '1.0.0',
   revision: 1,
   added_at: '2026-10-01',
   rank: 1,

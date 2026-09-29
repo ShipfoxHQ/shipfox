@@ -41,6 +41,16 @@
         "default": "./dist/header.js"
       }
     },
+    "./testing": {
+      "workspace-source": {
+        "types": "./src/testing.ts",
+        "default": "./src/testing.ts"
+      },
+      "default": {
+        "types": "./dist/testing.d.ts",
+        "default": "./dist/testing.js"
+      }
+    },
     "./prompt": {
       "workspace-source": {
         "types": "./src/prompt.ts",

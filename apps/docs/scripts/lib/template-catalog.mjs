@@ -13,16 +13,15 @@ const TRAILING_MARKER_PATTERN = /\s+# (?:bind|model):[a-z0-9_-]+\s*$/;
 const EXTRA_BLANK_LINES_PATTERN = /\n{3,}/g;
 
 /** Builds the examples document the docs pages read, from the templates the API ships. */
-export function buildTemplateCatalogDocument() {
+export async function buildTemplateCatalogDocument() {
+  const templates = [...(await shippedTemplateLoader.list())].sort((a, b) => a.rank - b.rank);
   return {
     id: TEMPLATE_CATALOG_DOCUMENT_ID,
-    templates: [...shippedTemplateLoader.list()]
-      .sort((a, b) => a.rank - b.rank)
-      .map((template) => buildTemplateDetail(template)),
+    templates: await Promise.all(templates.map((template) => buildTemplateDetail(template))),
   };
 }
 
-function buildTemplateDetail(template) {
+async function buildTemplateDetail(template) {
   const {manifest} = template;
   const bindings = templateRoleBindings(manifest.roles);
   const anchors = extractModelAnchors(composeTemplate(template, bindings.at(-1) ?? {}));
@@ -41,13 +40,15 @@ function buildTemplateDetail(template) {
       bindings: {...binding},
       yaml: applyDefaultOptions(composeTemplate(template, binding), manifest.options),
     })),
-    related: manifest.related.map((name) => buildEntry(relatedTemplate({template, name}))),
+    related: (
+      await Promise.all(manifest.related.map((name) => relatedTemplate({template, name})))
+    ).map(buildEntry),
   };
 }
 
-function relatedTemplate({template, name}) {
+async function relatedTemplate({template, name}) {
   const related = name.startsWith(SHIPFOX_NAMESPACE_PREFIX)
-    ? shippedTemplateLoader.get(name.slice(SHIPFOX_NAMESPACE_PREFIX.length))
+    ? await shippedTemplateLoader.get({package: name})
     : undefined;
   if (!related) throw new Error(`Example "${template.id}" relates to unknown package "${name}".`);
   return related;

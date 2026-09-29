@@ -35,7 +35,8 @@ export async function listWorkspaceTemplates(params: {
   workspaceId: string;
 }): Promise<WorkspaceTemplate[]> {
   const connections = await listActiveConnections(params.integrations, params.workspaceId);
-  return params.templates.list().map((template) => toWorkspaceTemplate(template, connections));
+  const templates = await params.templates.list();
+  return templates.map((template) => toWorkspaceTemplate(template, connections));
 }
 
 /** Orders templates by group, then by their embedded compatibility rank. */
