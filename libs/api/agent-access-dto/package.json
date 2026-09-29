@@ -43,6 +43,7 @@
   "dependencies": {
     "@shipfox/api-definitions-dto": "workspace:*",
     "@shipfox/api-logs-dto": "workspace:*",
+    "@shipfox/registry-format": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

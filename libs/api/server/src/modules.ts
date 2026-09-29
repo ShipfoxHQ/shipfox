@@ -455,6 +455,7 @@ export async function defaultModules(
       integrations: integrationsClient,
       secrets: secretsClient,
       templates: shippedTemplateLoader,
+      registry: registryClient,
       ...(options.agentAccess ?? {}),
     }),
     createWorkspacesModule({auth: authClient, projects: projectsClient, runners: runnersClient}),

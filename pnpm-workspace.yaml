@@ -124,6 +124,7 @@ catalog:
   "cron-parser": "^5.6.1"
   "date-fns": "^4.1.0"
   "dependency-cruiser": "^17.3.10"
+  "diff": "^8.0.4"
   "dockerode": "^4.0.9"
   "drizzle-kit": "^0.31.10"
   "drizzle-orm": "^0.45.2"
