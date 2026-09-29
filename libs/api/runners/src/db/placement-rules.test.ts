@@ -1,5 +1,5 @@
 import {vi} from '@shipfox/vitest/vi';
-import {and, eq, isNull} from 'drizzle-orm';
+import {and, asc, eq, isNull} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {pollInstallationDemandAndReserve} from '#db/reservations.js';
 import {capacityHolds} from '#db/schema/capacity-holds.js';
@@ -226,7 +226,8 @@ describe('installation placement rules', () => {
         waitReason: pendingJobExecutions.waitReason,
       })
       .from(pendingJobExecutions)
-      .where(eq(pendingJobExecutions.workspaceId, workspaceId));
+      .where(eq(pendingJobExecutions.workspaceId, workspaceId))
+      .orderBy(asc(pendingJobExecutions.createdAt), asc(pendingJobExecutions.id));
     expect(
       waiting
         .filter((job) => job.waitReason === 'workspace-capacity')
