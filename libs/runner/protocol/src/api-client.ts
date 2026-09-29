@@ -377,6 +377,7 @@ export async function reportStep(
     response?: string | null;
     outputs?: Record<string, string> | null;
     checkout?: CheckoutResultDto | null;
+    logPath?: string;
     signal?: AbortSignal;
   },
 ): Promise<ReportStepResponseDto> {
@@ -394,6 +395,7 @@ export async function reportStep(
     ...(params.response ? {response: params.response.slice(0, STEP_RESPONSE_MAX_LENGTH)} : {}),
     ...(hasOutputs ? {output: params.outputs} : {}),
     ...(hasCheckout ? {checkout: params.checkout} : {}),
+    ...logPathField(params.logPath),
     log_outcome: params.logOutcome,
   });
 
@@ -423,6 +425,10 @@ export async function reportStep(
   }
 
   return reportStepResponseSchema.parse(await response.json());
+}
+
+function logPathField(logPath: string | undefined): {log_path?: string} {
+  return logPath ? {log_path: logPath} : {};
 }
 
 function stripStepErrorClassification(

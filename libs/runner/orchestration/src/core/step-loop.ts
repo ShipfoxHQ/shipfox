@@ -382,12 +382,14 @@ async function finishStepExecution(
     jobId: params.jobId,
     signal: reportSignal,
   });
+  const logPath = finalizeStepTextLog({execution, jobId: params.jobId, step, attempt});
   const {cancel} = await reportStepResult({
     leaseClient: params.leaseClient,
     step,
     attempt,
     result,
     logOutcome,
+    ...(logPath === undefined ? {} : {logPath}),
     jobId: params.jobId,
     jobExecutionId: params.jobContext.jobExecutionId,
     stepLabel,
@@ -399,6 +401,25 @@ async function finishStepExecution(
     'Job finished without full success; stopping step loop',
   );
   return 'stop';
+}
+
+// The stream is closed by now. A failed finalization must never fail the step: the result is
+// reported without a log path.
+function finalizeStepTextLog(params: {
+  execution: StepExecution;
+  jobId: string;
+  step: StepDto;
+  attempt: number;
+}): string | undefined {
+  try {
+    return params.execution.finalizeTextLog?.();
+  } catch (error) {
+    logger().error(
+      {err: error, jobId: params.jobId, stepId: params.step.id, attempt: params.attempt},
+      'Failed to finalize the text log; reporting the step without a log path',
+    );
+    return undefined;
+  }
 }
 
 function isCredentialFailureAttributionStep(step: StepDto): boolean {
@@ -611,6 +632,11 @@ export interface StepExecution {
   credentialScopes?: readonly CredentialScope[] | undefined;
   sessionCommit?: AgentSessionCommitContext | undefined;
   stream?: LogStreamLifecycle | undefined;
+  /**
+   * Finalizes the plain-text copy of the step log and returns its path. Only run, action and
+   * checkout steps that opened a log stream set it. Call it after the stream is closed.
+   */
+  finalizeTextLog?: (() => string | undefined) | undefined;
   logOutcome?: LogOutcomeDto | undefined;
   /** True when a setup step succeeded, unlocking the run steps that follow it. */
   preparedWorkspace: boolean;
@@ -683,6 +709,7 @@ export async function executeStep(params: {
 
   let stream: LogStreamLifecycle | undefined;
   let runStream: StepLogStream | undefined;
+  let textLogStream: StepLogStream | undefined;
   const unsubscribeSecrets: Array<() => void> = [];
   const secretState = {
     subscribedSecrets: [...secrets],
@@ -751,6 +778,7 @@ export async function executeStep(params: {
         append,
         onStream: (createdStream) => {
           stream = createdStream;
+          textLogStream = createdStream;
         },
         registerStreamSecrets,
       });
@@ -793,6 +821,7 @@ export async function executeStep(params: {
         append,
         onStream: (createdStream) => {
           stream = createdStream;
+          textLogStream = createdStream;
         },
         registerStreamSecrets,
         secretState,
@@ -808,6 +837,7 @@ export async function executeStep(params: {
       onStream: (createdStream) => {
         stream = createdStream;
         runStream = createdStream;
+        textLogStream = createdStream;
       },
       registerStreamSecrets,
       secretState,
@@ -823,6 +853,7 @@ export async function executeStep(params: {
       stepLabel,
       stream,
       runStream,
+      textLogStream,
       secretState,
       secrets,
     });
@@ -869,6 +900,7 @@ function crashedStepExecution(params: {
   stepLabel: string;
   stream: LogStreamLifecycle | undefined;
   runStream: StepLogStream | undefined;
+  textLogStream: StepLogStream | undefined;
   secretState: StepSecretState;
   secrets: string[];
 }): StepExecution {
@@ -895,7 +927,13 @@ function crashedStepExecution(params: {
   writeRunFailureContext(params.runStream, result);
   let logOutcome: LogOutcomeDto | undefined;
   if (!params.stream) logOutcome = params.step.type === 'setup' ? 'drained' : 'abandoned';
-  return {result, stream: params.stream, logOutcome, preparedWorkspace: false};
+  return {
+    result,
+    stream: params.stream,
+    ...textLogFinalizer(params.textLogStream),
+    logOutcome,
+    preparedWorkspace: false,
+  };
 }
 
 type SecretAwareStream =
@@ -1022,6 +1060,7 @@ async function executeCheckoutStepBranch(params: {
   return {
     result: checkout.result,
     stream: checkoutStream,
+    ...textLogFinalizer(checkoutStream),
     logOutcome: checkoutStream ? undefined : 'abandoned',
     preparedWorkspace: false,
     ...(checkout.ambientGitConfigPath ? {ambientGitConfigPath: checkout.ambientGitConfigPath} : {}),
@@ -1525,9 +1564,16 @@ function finishProcessStep(
   return {
     result,
     stream: stepStream,
+    ...textLogFinalizer(stepStream),
     logOutcome: stepStream ? undefined : 'abandoned',
     preparedWorkspace: false,
   };
+}
+
+function textLogFinalizer(
+  stream: StepLogStream | undefined,
+): {finalizeTextLog: () => string | undefined} | Record<string, never> {
+  return stream ? {finalizeTextLog: () => stream.finalizeTextLog()} : {};
 }
 
 async function executeRunStepBranch(params: ProcessStepBranchParams): Promise<StepExecution> {
@@ -2011,13 +2057,25 @@ export async function reportStepResult(params: {
   attempt: number;
   result: StepResult;
   logOutcome: LogOutcomeDto;
+  /** Finalized text log on the runner. Omitted when there is none. */
+  logPath?: string;
   jobId: string;
   jobExecutionId: string;
   stepLabel: string;
   signal: AbortSignal;
 }): Promise<{cancel: boolean}> {
-  const {leaseClient, step, attempt, result, logOutcome, jobId, jobExecutionId, stepLabel, signal} =
-    params;
+  const {
+    leaseClient,
+    step,
+    attempt,
+    result,
+    logOutcome,
+    logPath,
+    jobId,
+    jobExecutionId,
+    stepLabel,
+    signal,
+  } = params;
 
   if (result.success) {
     logger().info(
@@ -2052,6 +2110,7 @@ export async function reportStepResult(params: {
     ...(result.response === undefined ? {} : {response: result.response}),
     ...(result.outputs ? {outputs: result.outputs} : {}),
     ...(result.checkout === undefined ? {} : {checkout: result.checkout}),
+    ...(logPath === undefined ? {} : {logPath}),
     logOutcome,
     signal,
   });
