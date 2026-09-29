@@ -100,12 +100,19 @@ export function LogDisclosureTrigger({
               className="size-16 flex-none text-foreground-contrast-secondary motion-safe:transition-transform group-data-[state=open]/disc:rotate-90"
             />
           )}
-          {children != null && <span className="min-w-0 truncate font-medium">{children}</span>}
-          {summary != null && (
-            <span className="min-w-0 truncate text-foreground-contrast-secondary group-data-[state=open]/disc:hidden">
-              {summary}
-            </span>
-          )}
+          {/* The label keeps its full width and only the summary shrinks. This
+              wrapper excludes the chevron, so the label's `max-w-full` still
+              truncates it when it alone overflows the row. */}
+          <span className="flex min-w-0 flex-1 items-center gap-6">
+            {children != null && (
+              <span className="max-w-full flex-none truncate font-medium">{children}</span>
+            )}
+            {summary != null && (
+              <span className="min-w-0 truncate text-foreground-contrast-secondary group-data-[state=open]/disc:hidden">
+                {summary}
+              </span>
+            )}
+          </span>
         </CollapsibleTrigger>
         {trailing != null && (
           <span className="flex-none tabular-nums text-foreground-contrast-secondary">

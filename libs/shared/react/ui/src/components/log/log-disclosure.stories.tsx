@@ -15,6 +15,7 @@ const TOOL_RESULT_REGEX = /tool result/i;
 const COPY_REGEX = /copy/i;
 const EXPAND_REGEX = /expand/i;
 const COLLAPSE_REGEX = /collapse/i;
+const VERIFY_REGEX = /verify the public grpc client/i;
 
 const meta = {
   title: 'Components/Log/Disclosure',
@@ -189,6 +190,50 @@ export const ChevronNone: Story = {
       </LogRows>
     </div>
   ),
+};
+
+export const Overflow: Story = {
+  render: () => (
+    <div className="w-[420px]">
+      <LogRows>
+        <LogDisclosure indent={0}>
+          <LogDisclosureTrigger
+            lineNumber={1}
+            summary={
+              <>
+                cd /var/lib/shipfox/workspaces/job-01a0ecce/target && nix develop -c go test ./...
+              </>
+            }
+            trailing={<>48.1s</>}
+          >
+            Run Command
+          </LogDisclosureTrigger>
+          <LogDisclosureContent>
+            <LogContent variant="code">ok ./internal/query 13.5s</LogContent>
+          </LogDisclosureContent>
+        </LogDisclosure>
+        <LogDisclosure indent={0}>
+          <LogDisclosureTrigger lineNumber={2} summary={<>12 lines</>} trailing={<>2.3s</>}>
+            Verify the public gRPC client and the immutable Protobuf contract
+          </LogDisclosureTrigger>
+          <LogDisclosureContent>
+            <LogContent variant="code">buf breaking --against .git#branch=main</LogContent>
+          </LogDisclosureContent>
+        </LogDisclosure>
+      </LogRows>
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    const shortLabel = canvas.getByText('Run Command');
+    const longLabel = canvas.getByText(VERIFY_REGEX);
+    const longTrigger = canvas.getByRole('button', {name: VERIFY_REGEX});
+
+    await expect(shortLabel.scrollWidth).toBeLessThanOrEqual(shortLabel.clientWidth);
+    await expect(longLabel.getBoundingClientRect().right).toBeLessThanOrEqual(
+      longTrigger.getBoundingClientRect().right,
+    );
+  },
 };
 
 export const Toggle: Story = {
