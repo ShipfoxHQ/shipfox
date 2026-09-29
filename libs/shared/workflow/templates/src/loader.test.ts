@@ -3,10 +3,15 @@ import {describe, expect, it} from '@shipfox/vitest/vi';
 import {parseWorkflowDocument} from '@shipfox/workflow-document';
 import {parse as parseYaml} from 'yaml';
 import type {PartBlocks} from './composer.js';
-import {applyTemplateOptions, composeTemplate, templateRoleBindings} from './composer.js';
+import {
+  applyTemplateOptions,
+  composeTemplate,
+  templateRoleBindings,
+  templateVariants,
+} from './composer.js';
 import type {WorkflowTemplate, WorkflowTemplateAsset} from './loader.js';
 import {createTemplateLoader, loadShippedTemplates, shippedTemplateLoader} from './loader.js';
-import {type WorkflowTemplateOption, workflowTemplateManifestSchema} from './manifest.js';
+import {workflowTemplateManifestSchema} from './manifest.js';
 import {extractModelAnchors} from './model-anchors.js';
 
 const missingThinkingPattern = /thinking: high\s*/u;
@@ -32,13 +37,6 @@ const fixture: WorkflowTemplateAsset = {
     source: {github: parsePart('parts/source/github.yml')},
   },
 };
-
-function defaultChoice(option: WorkflowTemplateOption): string {
-  const choice =
-    option.choices.find(({default: isDefault}) => isDefault === true) ?? option.choices[0];
-  if (choice === undefined) throw new Error(`Option ${option.id} has no choices`);
-  return choice.id;
-}
 
 function parsePart(path: string): PartBlocks {
   return parseYaml(readFileSync(new URL(path, fixtureRoot), 'utf8')) as PartBlocks;
@@ -116,29 +114,38 @@ describe('workflow template loader', () => {
     }
   });
 
-  it('applies every option choice over the defaults to a valid workflow for every role combination', () => {
+  it('composes and parses every shipped template variant', () => {
     for (const template of loadShippedTemplates()) {
-      const defaults = Object.fromEntries(
-        template.manifest.options.map((option) => [option.id, defaultChoice(option)]),
-      );
-      const selections = [
-        defaults,
-        ...template.manifest.options.flatMap((option) =>
-          option.choices.map((choice) => ({...defaults, [option.id]: choice.id})),
-        ),
-      ];
-
-      for (const bindings of templateRoleBindings(template.manifest.roles)) {
+      for (const {bindings, options} of templateVariants(template)) {
         const composed = composeTemplate(template, bindings);
-        for (const selection of selections) {
-          const applied = applyTemplateOptions(composed, selection);
-          const label = `${template.id} ${JSON.stringify(bindings)} ${JSON.stringify(selection)}`;
+        const applied = fillSlots(applyTemplateOptions(composed, options), template);
+        const label = `${template.id} ${JSON.stringify(bindings)} ${JSON.stringify(options)}`;
 
-          expect(applied, label).not.toMatch(optionBlockMarkerPattern);
-          expect(() => parseWorkflowDocument(parseYaml(applied)), label).not.toThrow();
-        }
+        expect(applied, label).not.toMatch(optionBlockMarkerPattern);
+        expect(() => parseWorkflowDocument(parseYaml(applied)), label).not.toThrow();
       }
     }
+  });
+
+  it('rejects a fixture template with an unbalanced option block', async () => {
+    const brokenFixture = {
+      ...fixture,
+      workflow: fixture.workflow.replace(
+        '# option:ticket_write_back=comment end',
+        '# option:ticket_write_back=none end',
+      ),
+    };
+    const loader = createTemplateLoader([brokenFixture]);
+    const template = await loader.get({package: brokenFixture.id});
+    if (template === undefined) throw new Error('Broken fixture template was not loaded');
+    const variant = templateVariants(template)[0];
+    if (variant === undefined) throw new Error('Broken fixture has no variants');
+
+    const composed = composeTemplate(template, variant.bindings);
+
+    expect(() => applyTemplateOptions(composed, variant.options)).toThrow(
+      'Unbalanced option block',
+    );
   });
 
   it('keeps embedded compatibility metadata beside each manifest', () => {
@@ -409,6 +416,16 @@ describe('workflow template loader', () => {
     parseWorkflowDocument(parseYaml(withSetupCommand));
   });
 });
+
+function fillSlots(yaml: string, template: WorkflowTemplate): string {
+  let filled = yaml;
+  for (const {id} of template.manifest.slots) {
+    const marker = new RegExp(`^(\\s*)# slot:${id}\\s*$`, 'gm');
+    filled = filled.replace(marker, '$1- run: echo slot-placeholder');
+    filled = filled.replaceAll(`# slot:${id}`, '');
+  }
+  return filled.replace(/replace-with-[a-z0-9_-]+/g, 'echo slot-placeholder');
+}
 
 function shippedTemplate(id: string): WorkflowTemplate {
   const template = loadShippedTemplates().find((candidate) => candidate.id === id);

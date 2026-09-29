@@ -10,6 +10,7 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`SUPPORTED_COMPOSITIONS`** lists the composition formats `composeTemplate` and `applyTemplateOptions` accept through their `composition` input. See [Composition formats](#composition-formats).
 - **`parseTemplateHeader`** reads a `# shipfox-template:` header, in its registry or legacy form, without the manifest. It is also exported from the browser-safe `@shipfox/workflow-templates/header` subpath, with `formatTemplateHeader`.
 - **`templateRoleBindings`** lists every role binding a template supports, with each optional role both bound and unbound.
+- **`templateVariants`** lists the bindings and option selections needed to statically compose every template variant.
 - **`computeTemplateBump`** returns the minimum semantic-version bump between two parsed manifests. The registry and the release tool use it. See [Version bumps](#version-bumps).
 - **`deriveTemplateMetadata`** returns the `derived` field of a template version document from the manifest and the content bundle size: the integrations, the slots, secrets, and variables, the role and option choices, and the size. `workflowTemplateMetadataSchema` validates it.
 - **`extractModelAnchors`** reads each placeholder's tested model and thinking setting from composed YAML.
