@@ -7,6 +7,7 @@ import type {
   PublishSourceRepositoryUpdatedFn,
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-spi';
+import {logger} from '@shipfox/node-opentelemetry';
 import {db} from '#db/db.js';
 import {githubInstallations} from '#db/schema/installations.js';
 import {githubInstallationFactory, githubPushPayload} from '#test/index.js';
@@ -561,6 +562,32 @@ describe('handleGithubEvent', () => {
     });
   });
 
+  it('handles lifecycle deliveries whose requester is null', async () => {
+    const installationId = 7797;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: randomUUID(),
+      event: 'installation',
+      payload: {
+        action: 'deleted',
+        installation: {id: installationId, account: {login: 'acme', type: 'Organization'}},
+        sender: {login: 'octocat'},
+        requester: null,
+      },
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('published-envelope');
+    expect(result.installationTokenCleanup).toEqual({
+      workspaceId: connection.workspaceId,
+      installationId,
+    });
+  });
+
   it('returns the cleanup handle and publishes the approval event', async () => {
     const installationId = 7794;
     const connection = fakeConnection();
@@ -785,6 +812,97 @@ describe('handleGithubEvent', () => {
       provider: 'github',
       deliveryId,
     });
+  });
+
+  it('logs full identity details at warn for an unknown installation event', async () => {
+    const infoSpy = vi.spyOn(logger(), 'info');
+    const warnSpy = vi.spyOn(logger(), 'warn');
+    const handlers = deps();
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: 'delivery-full',
+      event: 'installation',
+      payload: {
+        action: 'created',
+        installation: {
+          id: 999999,
+          account: {login: 'opsmill', type: 'Organization'},
+        },
+        sender: {login: 'octocat'},
+        requester: {login: 'member'},
+      },
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('unknown-installation');
+    expect(infoSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({event: 'installation'}),
+      expect.any(String),
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'installation',
+        action: 'created',
+        account: {login: 'opsmill', type: 'Organization'},
+        sender: {login: 'octocat'},
+        requester: {login: 'member'},
+      }),
+      'github webhook: unknown installation, dropping',
+    );
+  });
+
+  it('logs minimal non-installation payloads at info for an unknown installation', async () => {
+    const infoSpy = vi.spyOn(logger(), 'info');
+    const warnSpy = vi.spyOn(logger(), 'warn');
+    const handlers = deps();
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: 'delivery-minimal',
+      event: 'push',
+      payload: {installation: {id: 999998}},
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('unknown-installation');
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'push',
+        account: undefined,
+        sender: undefined,
+        requester: undefined,
+      }),
+      'github webhook: unknown installation, dropping',
+    );
+    expect(warnSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({event: 'push'}),
+      expect.any(String),
+    );
+  });
+
+  it('logs installation repository events at info for an unknown installation', async () => {
+    const infoSpy = vi.spyOn(logger(), 'info');
+    const warnSpy = vi.spyOn(logger(), 'warn');
+    const handlers = deps();
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: 'delivery-installation-repositories',
+      event: 'installation_repositories',
+      payload: {installation: {id: 999997}},
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('unknown-installation');
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.objectContaining({event: 'installation_repositories'}),
+      'github webhook: unknown installation, dropping',
+    );
+    expect(warnSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({event: 'installation_repositories'}),
+      expect.any(String),
+    );
   });
 
   it('records the delivery only for an unknown installation', async () => {
