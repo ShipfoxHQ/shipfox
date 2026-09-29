@@ -60,13 +60,7 @@ export type GithubCallbackIntent =
   | {kind: 'complete'; params: GithubCallbackParams}
   | {kind: 'invalid'; missing: GithubCallbackMissingParameter[]; setupAction?: string};
 
-export type GithubCallbackTelemetryOutcome =
-  | 'complete'
-  | 'link'
-  | 'request'
-  | 'invalid'
-  | 'provider-error'
-  | 'guest';
+export type GithubCallbackTelemetryOutcome = GithubCallbackIntent['kind'] | 'guest';
 
 export class GithubCallbackIncompleteError extends Error {
   constructor(missing: readonly GithubCallbackMissingParameter[]) {
