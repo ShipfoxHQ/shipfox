@@ -1715,7 +1715,7 @@ function warnWhenModelLocked(
   params.issues.push(
     issue({
       code: 'model-locked',
-      message: `Agent model "${model}" is not available to this workspace right now. The step fails when it starts until the model is available.`,
+      message: `Model "${model}" is locked for this workspace. A step that uses it fails until the model is available.`,
       path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'model'],
       severity: 'warning',
       details: {provider: providerId, model},

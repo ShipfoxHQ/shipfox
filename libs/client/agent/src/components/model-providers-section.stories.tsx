@@ -144,7 +144,8 @@ export const ManagedOnly: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await canvas.findByText('Managed by this instance. No workspace credentials are required.');
-    await canvas.findByText('This model needs credits. Add credits to run it in this workspace.');
+    await canvas.findByText('Claude Opus 4.8 is locked');
+    await canvas.findByText('A step that uses this model fails until you add credits.');
     await canvas.findByRole('link', {name: 'Add credits'});
     await canvas.findByRole('button', {name: 'Use in a workflow'});
   },
@@ -272,7 +273,7 @@ function catalogForScenario(scenario: Scenario): ModelProviderCatalogEntryDto[] 
               label: 'Add credits to use',
               notice: {
                 reason: 'model-locked',
-                message: 'This model needs credits. Add credits to run it in this workspace.',
+                message: 'A step that uses this model fails until you add credits.',
                 requiredAction: {
                   reason: 'add-credits',
                   message: 'Add credits',

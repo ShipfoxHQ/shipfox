@@ -53,7 +53,8 @@ export const LockedModel: Story = {
   args: {variant: 'locked'},
   play: async ({canvasElement}) => {
     const dialog = within(canvasElement.ownerDocument.body);
-    await dialog.findByText('This model needs credits. Add credits to run it in this workspace.');
+    await dialog.findByText('Claude Opus 4.8 is locked');
+    await dialog.findByText('A step that uses this model fails until you add credits.');
     await dialog.findByRole('link', {name: 'Add credits'});
   },
 };
@@ -93,7 +94,7 @@ function lockedEntry(): SupportedProvider {
             ...model,
             locked: {
               label: 'Add credits to use',
-              message: 'This model needs credits. Add credits to run it in this workspace.',
+              message: 'A step that uses this model fails until you add credits.',
               action: {message: 'Add credits', url: '/billing'},
             },
           }

@@ -64,6 +64,7 @@ describe('ModelProviderUsageModal', () => {
     });
     expect(within(row).queryByRole('button')).toBeNull();
     expect(row.querySelector('[tabindex]')).toBeNull();
+    expect(screen.getByText('Claude Opus 4.8 is locked')).toBeInTheDocument();
     expect(screen.getByText('Add credits to run this model.')).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Add credits'})).toHaveAttribute('href', '/billing');
   });
