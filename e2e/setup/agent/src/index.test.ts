@@ -211,18 +211,11 @@ describe('agent e2e helper', () => {
   });
 
   it('exposes scripted managed provider helpers through the fixture helper', async () => {
-    const {
-      createAgentHelper,
-      getManagedInferenceRequests,
-      registerManagedInferenceScript,
-      getScriptedManagedProviderRequests,
-      registerScriptedManagedProvider,
-    } = await import('./index.js');
+    const {createAgentHelper, getScriptedManagedProviderRequests, registerScriptedManagedProvider} =
+      await import('./index.js');
     const helper = createAgentHelper();
 
-    expect(helper.getManagedInferenceRequests).toBe(getManagedInferenceRequests);
     expect(helper.getScriptedManagedProviderRequests).toBe(getScriptedManagedProviderRequests);
-    expect(helper.registerManagedInferenceScript).toBe(registerManagedInferenceScript);
     expect(helper.registerScriptedManagedProvider).toBe(registerScriptedManagedProvider);
   });
 

@@ -142,6 +142,7 @@ describe('E2E managed inference fixture', () => {
         ],
       },
     });
+    expect(retry.statusCode).toBe(200);
     expect(retry.json().choices[0].finish_reason).toBe('tool_calls');
 
     const requests = await app.inject({

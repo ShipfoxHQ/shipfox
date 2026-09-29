@@ -684,7 +684,16 @@ function respondWithScriptedOpenAiCompletion(
     reply.raw.write(
       `data: ${JSON.stringify({
         ...base,
-        choices: [{index: 0, delta: message, finish_reason: null}],
+        choices: [
+          {
+            index: 0,
+            delta: {
+              ...message,
+              tool_calls: message.tool_calls.map((toolCall, index) => ({...toolCall, index})),
+            },
+            finish_reason: null,
+          },
+        ],
       })}\n\n`,
     );
     reply.raw.write(

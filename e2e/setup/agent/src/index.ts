@@ -321,13 +321,6 @@ export async function getScriptedManagedProviderRequests(params: {
   return response.requests;
 }
 
-export const registerManagedInferenceScript = registerScriptedManagedProvider;
-export const registerManagedProviderScript = registerScriptedManagedProvider;
-export const createScriptedManagedProviderScript = registerScriptedManagedProvider;
-export const getManagedInferenceRequests = getScriptedManagedProviderRequests;
-export const readManagedInferenceRequests = getScriptedManagedProviderRequests;
-export const readScriptedManagedProviderRequests = getScriptedManagedProviderRequests;
-
 export async function deleteModelProviderConfig(
   params: DeleteModelProviderConfigParams,
 ): Promise<void> {
@@ -343,13 +336,7 @@ export function createAgentHelper() {
   return {
     createAnthropicFakeModelProviderConfig,
     createAnthropicModelProviderConfig,
-    createScriptedManagedProviderScript,
-    getManagedInferenceRequests,
     getScriptedManagedProviderRequests,
-    readManagedInferenceRequests,
-    readScriptedManagedProviderRequests,
-    registerManagedInferenceScript,
-    registerManagedProviderScript,
     registerScriptedManagedProvider,
     createOpenAiCompatibleCustomProvider,
     createOllamaCustomProvider,
