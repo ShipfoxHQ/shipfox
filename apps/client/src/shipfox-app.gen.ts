@@ -20,6 +20,7 @@ import * as slackCallbackRouteModule from "@shipfox/client-integrations/routes/s
 import * as integrationsRouteModule from "@shipfox/client-integrations/routes/integrations";
 import * as giteaRouteModule from "@shipfox/client-integrations/routes/gitea";
 import * as githubRouteModule from "@shipfox/client-integrations/routes/github";
+import * as githubLinkRouteModule from "@shipfox/client-integrations/routes/github-link";
 import * as linearRouteModule from "@shipfox/client-integrations/routes/linear";
 import * as jiraRouteModule from "@shipfox/client-integrations/routes/jira";
 import * as clickupRouteModule from "@shipfox/client-integrations/routes/clickup";
@@ -283,6 +284,12 @@ const githubRoute = createRoute({
   ...routeOptions(githubRouteModule.default, "@shipfox/client-integrations/routes/github", "/w/$workspaceSlug/integrations/github"),
 });
 
+const githubLinkRoute = createRoute({
+  getParentRoute: () => skeleton.workspaceLayout,
+  path: "/integrations/github/link",
+  ...routeOptions(githubLinkRouteModule.default, "@shipfox/client-integrations/routes/github-link", "/w/$workspaceSlug/integrations/github/link"),
+});
+
 const linearRoute = createRoute({
   getParentRoute: () => skeleton.workspaceLayout,
   path: "/integrations/linear",
@@ -474,7 +481,7 @@ const projectLayout = skeleton.projectLayout.addChildren([projectIndexRoute, wor
   projectSettings]);
 const workspaceSettings = skeleton.workspaceSettings.addChildren([integrationsSettingsRoute, connectionDetailsRoute, agentsSettingsRoute, agentAccessSettingsRoute, runnersSettingsRoute, provisionersSettingsRoute, secretsSettingsRoute, variablesSettingsRoute, eventsSettingsRoute, workspaceSettingsIndexRoute, workspaceSettingsMembersRoute, generalRoute]);
 const workspaceLayout = skeleton.workspaceLayout.addChildren([
-  integrationsRoute, giteaRoute, githubRoute, linearRoute, jiraRoute, clickupRoute, notionRoute, sentryRoute, slackRoute, homeRoute, createProjectRoute, modelProviderRoute, workspaceSetupMembersRoute,
+  integrationsRoute, giteaRoute, githubRoute, githubLinkRoute, linearRoute, jiraRoute, clickupRoute, notionRoute, sentryRoute, slackRoute, homeRoute, createProjectRoute, modelProviderRoute, workspaceSetupMembersRoute,
   projectLayout,
   workspaceSettings,
 ]);

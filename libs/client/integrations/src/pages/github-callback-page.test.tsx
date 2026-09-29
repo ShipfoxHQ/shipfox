@@ -10,8 +10,16 @@ import {GITHUB_INSTALL_WORKSPACE_KEY, type GithubCallbackSearch} from '#github-c
 import {INTEGRATIONS_TEST_WID, renderIntegrationsPage, testWorkspace} from '#test/render.js';
 import {GithubCallbackPage} from './github-callback-page.js';
 
-const {completeGithubCallbackMock, refreshAuthMock, resolveWorkspaceSlugMock} = vi.hoisted(() => ({
+const {
+  completeGithubCallbackMock,
+  completeGithubLinkMock,
+  createGithubLinkMock,
+  refreshAuthMock,
+  resolveWorkspaceSlugMock,
+} = vi.hoisted(() => ({
   completeGithubCallbackMock: vi.fn(),
+  completeGithubLinkMock: vi.fn(),
+  createGithubLinkMock: vi.fn(),
   refreshAuthMock: vi.fn(),
   resolveWorkspaceSlugMock: vi.fn(),
 }));
@@ -29,7 +37,12 @@ vi.mock('@shipfox/client-auth', async (importOriginal) => {
 
 vi.mock('#hooks/api/integrations.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('#hooks/api/integrations.js')>();
-  return {...actual, completeGithubCallback: completeGithubCallbackMock};
+  return {
+    ...actual,
+    completeGithubCallback: completeGithubCallbackMock,
+    completeGithubLink: completeGithubLinkMock,
+    createGithubLink: createGithubLinkMock,
+  };
 });
 
 vi.mock('#workspace-navigation.js', async (importOriginal) => {
@@ -40,16 +53,29 @@ vi.mock('#workspace-navigation.js', async (importOriginal) => {
   };
 });
 
+function twoWorkspaces() {
+  return [
+    testWorkspace(),
+    testWorkspace({id: SECOND_WORKSPACE_ID, name: 'Beta', slug: 'beta', membershipId: 'm-2'}),
+  ];
+}
+
 function renderCallback(
   search: GithubCallbackSearch,
   options: {
     analytics?: ClientAnalytics;
+    assignLocation?: (url: string) => void;
     guest?: boolean;
     strict?: boolean;
     workspaces?: ReturnType<typeof testWorkspace>[];
   } = {},
 ) {
-  const page = <GithubCallbackPage search={search} />;
+  const page = (
+    <GithubCallbackPage
+      search={search}
+      {...(options.assignLocation ? {assignLocation: options.assignLocation} : {})}
+    />
+  );
   return renderIntegrationsPage({
     path: '/integrations/github/callback',
     routePath: '/integrations/github/callback',
@@ -68,6 +94,10 @@ function renderCallback(
 beforeEach(() => {
   window.sessionStorage.clear();
   completeGithubCallbackMock.mockReset();
+  completeGithubLinkMock.mockReset();
+  createGithubLinkMock
+    .mockReset()
+    .mockResolvedValue({authorizeUrl: 'https://github.test/authorize'});
   refreshAuthMock.mockReset().mockResolvedValue({accessToken: 'test-token'});
   resolveWorkspaceSlugMock
     .mockReset()
@@ -286,31 +316,34 @@ describe('GithubCallbackPage', () => {
     vi.stubGlobal('reportError', reportError);
     const search = {
       code: 'incomplete-secret-code',
-      state: 'incomplete-secret-state',
+      installationId: 42,
       setupAction: 'update',
     } satisfies GithubCallbackSearch;
 
-    const firstRender = renderCallback(search, {analytics: {capture}, strict: true});
+    const firstRender = renderCallback(search, {
+      analytics: {capture},
+      strict: true,
+      workspaces: twoWorkspaces(),
+    });
 
     expect(await screen.findByRole('heading', {name: 'Invalid GitHub callback'})).toBeVisible();
     await waitFor(() => expect(reportError).toHaveBeenCalledOnce());
     expect(reportError).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'GithubCallbackIncompleteError',
-        message: 'GitHub callback missing installation_id',
+        message: 'GitHub callback missing state',
       }),
     );
     expect(JSON.stringify(reportError.mock.calls)).not.toContain('incomplete-secret-code');
-    expect(JSON.stringify(reportError.mock.calls)).not.toContain('incomplete-secret-state');
     expect(capture).toHaveBeenCalledWith('github_callback_outcome', {
       outcome: 'invalid',
-      missing: 'installation_id',
+      missing: 'state',
       setup_action: 'update',
       authenticated: true,
     });
 
     firstRender.unmount();
-    renderCallback(search, {analytics: {capture}});
+    renderCallback(search, {analytics: {capture}, workspaces: twoWorkspaces()});
 
     await waitFor(() => {
       expect(
@@ -538,5 +571,196 @@ describe('GithubCallbackPage', () => {
     expect(JSON.stringify(capture.mock.calls)).not.toContain('success-code');
     expect(JSON.stringify(capture.mock.calls)).not.toContain('success-state');
     expect(screen.getAllByText('GitHub installed.')).toHaveLength(1);
+  });
+
+  describe('orphaned installation recovery', () => {
+    test('starts the link flow for the stored workspace when it is still a membership', async () => {
+      const capture = vi.fn<ClientAnalytics['capture']>();
+      const assignLocation = vi.fn();
+      window.sessionStorage.setItem(GITHUB_INSTALL_WORKSPACE_KEY, SECOND_WORKSPACE_ID);
+
+      renderCallback(
+        {code: 'grant-secret', installationId: 42, setupAction: 'update'},
+        {analytics: {capture}, assignLocation, strict: true, workspaces: twoWorkspaces()},
+      );
+
+      await waitFor(() =>
+        expect(assignLocation).toHaveBeenCalledWith('https://github.test/authorize'),
+      );
+      expect(createGithubLinkMock).toHaveBeenCalledOnce();
+      expect(createGithubLinkMock).toHaveBeenCalledWith({workspace_id: SECOND_WORKSPACE_ID});
+      expect(screen.queryByRole('heading', {name: 'Invalid GitHub callback'})).toBeNull();
+      expect(capture).toHaveBeenCalledWith('github_link_started', {});
+      expect(capture).toHaveBeenCalledWith('github_callback_outcome', {
+        outcome: 'invalid',
+        missing: 'state',
+        setup_action: 'update',
+        authenticated: true,
+      });
+      expect(JSON.stringify(capture.mock.calls)).not.toContain('grant-secret');
+    });
+
+    test('ignores a stale hint and uses the only membership', async () => {
+      const assignLocation = vi.fn();
+      window.sessionStorage.setItem(GITHUB_INSTALL_WORKSPACE_KEY, 'deleted-workspace');
+
+      renderCallback({state: 'stale-hint'}, {assignLocation});
+
+      await waitFor(() => expect(assignLocation).toHaveBeenCalledOnce());
+      expect(createGithubLinkMock).toHaveBeenCalledWith({workspace_id: INTEGRATIONS_TEST_WID});
+    });
+
+    test('uses the only membership when there is no hint', async () => {
+      const assignLocation = vi.fn();
+
+      renderCallback({}, {assignLocation});
+
+      await waitFor(() => expect(assignLocation).toHaveBeenCalledOnce());
+      expect(createGithubLinkMock).toHaveBeenCalledWith({workspace_id: INTEGRATIONS_TEST_WID});
+    });
+
+    test('keeps the invalid outcome with several memberships and no usable hint', async () => {
+      window.sessionStorage.setItem(GITHUB_INSTALL_WORKSPACE_KEY, 'deleted-workspace');
+
+      renderCallback({state: 'several'}, {workspaces: twoWorkspaces()});
+
+      expect(await screen.findByRole('heading', {name: 'Invalid GitHub callback'})).toBeVisible();
+      expect(createGithubLinkMock).not.toHaveBeenCalled();
+    });
+
+    test('keeps the invalid outcome when the link flow cannot start', async () => {
+      const assignLocation = vi.fn();
+      createGithubLinkMock.mockRejectedValue(new Error('network down'));
+      const capture = vi.fn<ClientAnalytics['capture']>();
+
+      renderCallback({state: 'start-fails'}, {analytics: {capture}, assignLocation});
+
+      expect(await screen.findByRole('heading', {name: 'Invalid GitHub callback'})).toBeVisible();
+      expect(assignLocation).not.toHaveBeenCalled();
+      expect(capture).toHaveBeenCalledWith('github_link_failed', {reason: 'start-failed'});
+    });
+
+    test('makes no API call for guests', async () => {
+      renderCallback({state: 'guest'}, {guest: true});
+
+      expect(
+        await screen.findByRole('heading', {name: 'This GitHub request cannot be completed'}),
+      ).toBeVisible();
+      expect(createGithubLinkMock).not.toHaveBeenCalled();
+    });
+
+    test('makes no API call for members without a workspace', async () => {
+      renderCallback({state: 'no-membership'}, {workspaces: []});
+
+      expect(
+        await screen.findByText('This account is not a member of a Shipfox workspace.', {
+          exact: false,
+        }),
+      ).toBeVisible();
+      expect(createGithubLinkMock).not.toHaveBeenCalled();
+    });
+
+    test('makes no API call for request landings', async () => {
+      renderCallback({setupAction: 'request'});
+
+      expect(await screen.findByRole('heading', {name: 'GitHub approval requested'})).toBeVisible();
+      expect(createGithubLinkMock).not.toHaveBeenCalled();
+      expect(completeGithubLinkMock).not.toHaveBeenCalled();
+    });
+
+    test('completes a link landing, records telemetry and navigates to the workspace', async () => {
+      const capture = vi.fn<ClientAnalytics['capture']>();
+      completeGithubLinkMock.mockResolvedValue({
+        id: '22222222-2222-4222-8222-222222222222',
+        workspaceId: INTEGRATIONS_TEST_WID,
+        provider: 'github',
+        externalAccountId: 'github-org',
+        slug: 'github_acme',
+        displayName: 'GitHub Acme',
+        lifecycleStatus: 'active',
+        capabilities: ['source_control'],
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+
+      renderCallback(
+        {code: 'link-secret-code', state: 'link-secret-state'},
+        {analytics: {capture}, strict: true},
+      );
+
+      expect(
+        await screen.findByTestId('route:/w/$workspaceSlug/settings/integrations'),
+      ).toBeInTheDocument();
+      expect(completeGithubLinkMock).toHaveBeenCalledOnce();
+      expect(completeGithubLinkMock).toHaveBeenCalledWith(
+        {code: 'link-secret-code', state: 'link-secret-state'},
+        'test-token',
+      );
+      expect(completeGithubCallbackMock).not.toHaveBeenCalled();
+      expect(capture).toHaveBeenCalledWith('github_callback_outcome', {
+        outcome: 'link',
+        missing: '',
+        setup_action: 'other',
+        authenticated: true,
+      });
+      expect(capture).toHaveBeenCalledWith('github_link_completed', {candidates: '1'});
+      expect(capture).toHaveBeenCalledWith('github_connection_completed', {
+        workspace_id: INTEGRATIONS_TEST_WID,
+      });
+      expect(JSON.stringify(capture.mock.calls)).not.toContain('link-secret');
+    });
+
+    test.each([
+      [
+        'not installed on any account',
+        {accessible: 0, linked_elsewhere: 0},
+        'Shipfox is not installed on any GitHub account you can access.',
+      ],
+      [
+        'connected to another workspace',
+        {accessible: 1, linked_elsewhere: 1},
+        'already connected to another workspace',
+      ],
+    ])('explains when the installation is %s', async (name, details, text) => {
+      const capture = vi.fn<ClientAnalytics['capture']>();
+      completeGithubLinkMock.mockRejectedValue(
+        new ApiError({
+          code: 'github-no-linkable-installation',
+          message: 'No linkable GitHub installation was found',
+          status: 409,
+          details,
+        }),
+      );
+
+      renderCallback({code: `none-${name}`, state: 'none-state'}, {analytics: {capture}});
+
+      expect(
+        await screen.findByRole('heading', {name: 'No GitHub installation to connect'}),
+      ).toBeVisible();
+      expect(screen.getByText(text, {exact: false})).toBeVisible();
+      expect(screen.getByText('SAML single sign-on', {exact: false})).toBeVisible();
+      expect(screen.getByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
+      expect(capture).toHaveBeenCalledWith('github_link_failed', {reason: 'no-linkable'});
+    });
+
+    test('tells the user to contact support when several installations are linkable', async () => {
+      const capture = vi.fn<ClientAnalytics['capture']>();
+      completeGithubLinkMock.mockRejectedValue(
+        new ApiError({
+          code: 'github-multiple-linkable-installations',
+          message: 'Multiple linkable GitHub installations were found',
+          status: 409,
+          details: {count: 2},
+        }),
+      );
+
+      renderCallback({code: 'many-code', state: 'many-state'}, {analytics: {capture}});
+
+      expect(
+        await screen.findByRole('heading', {name: 'More than one GitHub installation found'}),
+      ).toBeVisible();
+      expect(screen.getByText('Contact support', {exact: false})).toBeVisible();
+      expect(capture).toHaveBeenCalledWith('github_link_failed', {reason: 'multiple-linkable'});
+    });
   });
 });

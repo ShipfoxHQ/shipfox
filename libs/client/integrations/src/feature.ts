@@ -64,6 +64,11 @@ export const integrationsFeature = defineClientFeature({
       impl: '@shipfox/client-integrations/routes/github',
     },
     {
+      path: '/w/$workspaceSlug/integrations/github/link',
+      parent: 'workspaceLayout',
+      impl: '@shipfox/client-integrations/routes/github-link',
+    },
+    {
       path: '/w/$workspaceSlug/integrations/linear',
       parent: 'workspaceLayout',
       impl: '@shipfox/client-integrations/routes/linear',

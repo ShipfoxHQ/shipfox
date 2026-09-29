@@ -43,6 +43,11 @@ export interface GithubCallbackParams {
   setupAction?: string;
 }
 
+export interface GithubLinkCallbackParams {
+  code: string;
+  state: string;
+}
+
 export interface GithubCallbackSearch {
   code?: string;
   error?: string;
@@ -58,6 +63,7 @@ export type GithubCallbackIntent =
   | {kind: 'request'}
   | {kind: 'provider-error'}
   | {kind: 'complete'; params: GithubCallbackParams}
+  | {kind: 'link'; params: GithubLinkCallbackParams}
   | {kind: 'invalid'; missing: GithubCallbackMissingParameter[]; setupAction?: string};
 
 export type GithubCallbackTelemetryOutcome = GithubCallbackIntent['kind'] | 'guest';
@@ -120,6 +126,10 @@ export function classifyGithubCallback(search: GithubCallbackSearch): GithubCall
 
   const params = githubCallbackParams(search);
   if (params) return {kind: 'complete', params};
+  // The server decides what the state means: the client never decodes it.
+  if (search.code && search.state && search.installationId === undefined) {
+    return {kind: 'link', params: {code: search.code, state: search.state}};
+  }
 
   const missing: GithubCallbackMissingParameter[] = [];
   if (!search.code) missing.push('code');
@@ -142,6 +152,22 @@ export function githubCallbackParams(
     : {code, installationId, state};
 }
 
+export function resolveGithubRecoveryWorkspace({
+  storedWorkspaceId,
+  workspaces,
+}: {
+  storedWorkspaceId: string | undefined;
+  workspaces: readonly {id: string}[];
+}): string | undefined {
+  const stored = workspaces.find(({id}) => id === storedWorkspaceId);
+  if (stored) return stored.id;
+  return workspaces.length === 1 ? workspaces[0]?.id : undefined;
+}
+
+export function serializeGithubLinkCallback(params: GithubLinkCallbackParams): string {
+  return new URLSearchParams({code: params.code, state: params.state}).toString();
+}
+
 export function serializeGithubCallback(params: GithubCallbackParams): string {
   const search = new URLSearchParams();
   search.set('code', params.code);
@@ -158,11 +184,15 @@ export type GithubCallbackFailure =
   | {kind: 'workspace-access-changed'}
   | {kind: 'not-authorized'}
   | {kind: 'already-linked'}
+  | {kind: 'no-linkable'; accessible: number; linkedElsewhere: number}
+  | {kind: 'multiple-linkable'}
   | {kind: 'provider-error'}
   | {kind: 'unknown'};
 
 export function classifyGithubCallbackError(error: unknown): GithubCallbackFailure {
   if (!(error instanceof ApiError)) return {kind: 'unknown'};
+  const linkFailure = classifyGithubLinkError(error);
+  if (linkFailure) return linkFailure;
   if (error.code === 'invalid-github-install-state') {
     return EXPIRED_STATE_MESSAGE.test(error.message) ? {kind: 'expired'} : {kind: 'invalid'};
   }
@@ -199,6 +229,32 @@ export function classifyGithubCallbackError(error: unknown): GithubCallbackFailu
     return {kind: 'provider-error'};
   }
   return {kind: 'unknown'};
+}
+
+function classifyGithubLinkError(error: ApiError): GithubCallbackFailure | undefined {
+  switch (error.code) {
+    case 'invalid-github-link-state':
+      return EXPIRED_STATE_MESSAGE.test(error.message) ? {kind: 'expired'} : {kind: 'invalid'};
+    case 'github-link-state-actor-mismatch':
+      return {kind: 'actor-mismatch'};
+    case 'github-no-linkable-installation':
+      return {kind: 'no-linkable', ...linkableCounts(error.details)};
+    case 'github-multiple-linkable-installations':
+      return {kind: 'multiple-linkable'};
+    default:
+      return undefined;
+  }
+}
+
+function linkableCounts(details: unknown): {accessible: number; linkedElsewhere: number} {
+  const {accessible, linked_elsewhere: linkedElsewhere} = (details ?? {}) as Record<
+    string,
+    unknown
+  >;
+  return {
+    accessible: typeof accessible === 'number' ? accessible : 0,
+    linkedElsewhere: typeof linkedElsewhere === 'number' ? linkedElsewhere : 0,
+  };
 }
 
 function stringParam(value: unknown): string | undefined {
