@@ -63,6 +63,7 @@
   },
   "dependencies": {
     "@shipfox/api-integration-clickup-dto": "workspace:*",
+    "@shipfox/api-integration-discord-dto": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-integration-gitea-dto": "workspace:*",
     "@shipfox/api-integration-github-dto": "workspace:*",

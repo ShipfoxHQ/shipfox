@@ -19,6 +19,14 @@ import {
   listRepositoriesResponseSchema,
   updateIntegrationConnectionRepositoryAccessResponseSchema,
 } from '@shipfox/api-integration-core-dto';
+import type {
+  CreateDiscordInstallBodyDto,
+  DiscordCallbackQueryDto,
+} from '@shipfox/api-integration-discord-dto';
+import {
+  createDiscordInstallResponseSchema,
+  discordCallbackResponseSchema,
+} from '@shipfox/api-integration-discord-dto';
 import type {CreateGiteaConnectionBodyDto} from '@shipfox/api-integration-gitea-dto';
 import {createGiteaConnectionResponseSchema} from '@shipfox/api-integration-gitea-dto';
 import type {
@@ -106,6 +114,7 @@ import {
   type RepositoryAccessMode,
   type RepositoryPage,
 } from '#core/models.js';
+import {serializeDiscordCallbackQuery} from '#discord-callback.js';
 import {serializeJiraCallbackQuery} from '#jira-callback.js';
 import {serializeLinearCallbackQuery} from '#linear-callback.js';
 import {serializeNotionCallbackQuery} from '#notion-callback.js';
@@ -325,6 +334,17 @@ export async function createClickUpInstall(
   );
 }
 
+export async function createDiscordInstall(
+  body: CreateDiscordInstallBodyDto,
+): Promise<InstallRedirect> {
+  return toInstallRedirect(
+    await checkedApiRequest(createDiscordInstallResponseSchema, '/integrations/discord/install', {
+      method: 'POST',
+      body,
+    }),
+  );
+}
+
 export async function createNotionInstall(
   body: CreateNotionInstallBodyDto,
 ): Promise<InstallRedirect> {
@@ -470,6 +490,51 @@ export async function completeClickUpCallback({
     {headers: {authorization: `Bearer ${token}`}},
   );
   return toIntegrationConnection(response);
+}
+
+export async function completeDiscordCallback({
+  query,
+  token,
+}: {
+  query: DiscordCallbackQueryDto;
+  token: string;
+}): Promise<IntegrationConnection> {
+  const response = await checkedApiRequest(
+    discordCallbackResponseSchema,
+    `/integrations/discord/callback/api?${serializeDiscordCallbackQuery(query)}`,
+    {headers: {authorization: `Bearer ${token}`}},
+  );
+  if ('connection' in response) return toIntegrationConnection(response.connection);
+
+  const outcomeErrors = {
+    access_denied: {
+      code: 'access-denied',
+      message: 'Discord did not grant access.',
+      status: 403,
+    },
+    'already-linked': {
+      code: 'discord-installation-already-linked',
+      message: 'This Discord server is already linked to another workspace.',
+      status: 409,
+    },
+    'state-invalid': {
+      code: 'invalid-discord-install-state',
+      message: 'The Discord install state is invalid or expired.',
+      status: 400,
+    },
+    'bot-not-in-guild': {
+      code: 'discord-bot-not-in-guild',
+      message: 'Shipfox could not find its bot in this Discord server.',
+      status: 422,
+    },
+    'provider-unavailable': {
+      code: 'provider-unavailable',
+      message: 'Discord is temporarily unavailable.',
+      status: 503,
+    },
+  } as const;
+  const error = outcomeErrors[response.outcome];
+  throw new ApiError(error);
 }
 
 export async function completeNotionCallback({
@@ -807,6 +872,10 @@ export function useCreateClickUpInstallMutation() {
   return useMutation({mutationFn: createClickUpInstall});
 }
 
+export function useCreateDiscordInstallMutation() {
+  return useMutation({mutationFn: createDiscordInstall});
+}
+
 export function useCreateNotionInstallMutation() {
   return useMutation({mutationFn: createNotionInstall});
 }
@@ -825,6 +894,10 @@ export function useCreateJiraInstallMutation() {
 
 export function useCompleteClickUpCallbackMutation() {
   return useMutation({mutationFn: completeClickUpCallback});
+}
+
+export function useCompleteDiscordCallbackMutation() {
+  return useMutation({mutationFn: completeDiscordCallback});
 }
 
 export function useCompleteNotionCallbackMutation() {

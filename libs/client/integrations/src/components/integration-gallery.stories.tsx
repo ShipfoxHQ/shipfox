@@ -29,6 +29,7 @@ const SETUP_PATHS = [
   '/w/$workspaceSlug/integrations/slack',
   '/w/$workspaceSlug/integrations/clickup',
   '/w/$workspaceSlug/integrations/notion',
+  '/w/$workspaceSlug/integrations/discord',
   '/w/$workspaceSlug/integrations/gitea',
   '/w/$workspaceSlug/settings/events',
 ] as const;
@@ -53,6 +54,7 @@ const PROVIDERS: IntegrationProviderDto[] = [
   {provider: 'slack', display_name: 'Slack', capabilities: ['agent_tools']},
   {provider: 'clickup', display_name: 'ClickUp', capabilities: ['agent_tools']},
   {provider: 'notion', display_name: 'Notion', capabilities: ['agent_tools']},
+  {provider: 'discord', display_name: 'Discord', capabilities: ['agent_tools']},
   {provider: 'gitea', display_name: 'Gitea', capabilities: ['source_control']},
   {provider: 'webhook', display_name: 'Webhook', capabilities: []},
 ];

@@ -172,3 +172,72 @@ export const injectDiscordDispatchBodySchema = z
 export const injectE2eDiscordDispatchBodySchema = injectDiscordDispatchBodySchema;
 export type InjectDiscordDispatchBodyDto = z.infer<typeof injectDiscordDispatchBodySchema>;
 export type InjectE2eDiscordDispatchBodyDto = InjectDiscordDispatchBodyDto;
+
+export const createDiscordInstallBodySchema = z.object({
+  workspace_id: z.string().uuid(),
+});
+export type CreateDiscordInstallBodyDto = z.infer<typeof createDiscordInstallBodySchema>;
+
+export const createDiscordInstallResponseSchema = z.object({
+  install_url: z.string().url(),
+});
+export type CreateDiscordInstallResponseDto = z.infer<typeof createDiscordInstallResponseSchema>;
+
+export const discordCallbackQuerySchema = z.union([
+  z.object({
+    code: z.string().min(1),
+    state: z.string().min(1),
+  }),
+  z.object({
+    error: z.string().min(1),
+    error_description: z.string().min(1).optional(),
+    state: z.string().min(1),
+  }),
+]);
+export type DiscordCallbackQueryDto = z.infer<typeof discordCallbackQuerySchema>;
+
+export const discordCallbackOutcomeSchema = z.enum([
+  'connected',
+  'reconnected',
+  'access_denied',
+  'already-linked',
+  'state-invalid',
+  'bot-not-in-guild',
+  'provider-unavailable',
+]);
+export type DiscordCallbackOutcome = z.infer<typeof discordCallbackOutcomeSchema>;
+
+const discordConnectedCallbackResponseSchema = z.object({
+  outcome: z.literal('connected'),
+  connection: integrationConnectionDtoSchema,
+});
+const discordReconnectedCallbackResponseSchema = z.object({
+  outcome: z.literal('reconnected'),
+  connection: integrationConnectionDtoSchema,
+});
+const discordAccessDeniedCallbackResponseSchema = z.object({
+  outcome: z.literal('access_denied'),
+});
+const discordAlreadyLinkedCallbackResponseSchema = z.object({
+  outcome: z.literal('already-linked'),
+});
+const discordStateInvalidCallbackResponseSchema = z.object({
+  outcome: z.literal('state-invalid'),
+});
+const discordBotNotInGuildCallbackResponseSchema = z.object({
+  outcome: z.literal('bot-not-in-guild'),
+});
+const discordProviderUnavailableCallbackResponseSchema = z.object({
+  outcome: z.literal('provider-unavailable'),
+});
+
+export const discordCallbackResponseSchema = z.discriminatedUnion('outcome', [
+  discordConnectedCallbackResponseSchema,
+  discordReconnectedCallbackResponseSchema,
+  discordAccessDeniedCallbackResponseSchema,
+  discordAlreadyLinkedCallbackResponseSchema,
+  discordStateInvalidCallbackResponseSchema,
+  discordBotNotInGuildCallbackResponseSchema,
+  discordProviderUnavailableCallbackResponseSchema,
+]);
+export type DiscordCallbackResponseDto = z.infer<typeof discordCallbackResponseSchema>;

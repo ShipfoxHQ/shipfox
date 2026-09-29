@@ -15,6 +15,7 @@ import * as linearCallbackRouteModule from "@shipfox/client-integrations/routes/
 import * as jiraCallbackRouteModule from "@shipfox/client-integrations/routes/jira-callback";
 import * as clickupCallbackRouteModule from "@shipfox/client-integrations/routes/clickup-callback";
 import * as notionCallbackRouteModule from "@shipfox/client-integrations/routes/notion-callback";
+import * as discordCallbackRouteModule from "@shipfox/client-integrations/routes/discord-callback";
 import * as sentryCallbackRouteModule from "@shipfox/client-integrations/routes/sentry-callback";
 import * as slackCallbackRouteModule from "@shipfox/client-integrations/routes/slack-callback";
 import * as integrationsRouteModule from "@shipfox/client-integrations/routes/integrations";
@@ -25,6 +26,7 @@ import * as linearRouteModule from "@shipfox/client-integrations/routes/linear";
 import * as jiraRouteModule from "@shipfox/client-integrations/routes/jira";
 import * as clickupRouteModule from "@shipfox/client-integrations/routes/clickup";
 import * as notionRouteModule from "@shipfox/client-integrations/routes/notion";
+import * as discordRouteModule from "@shipfox/client-integrations/routes/discord";
 import * as sentryRouteModule from "@shipfox/client-integrations/routes/sentry";
 import * as slackRouteModule from "@shipfox/client-integrations/routes/slack";
 import * as integrationsSettingsRouteModule from "@shipfox/client-integrations/routes/integrations-settings";
@@ -254,6 +256,12 @@ const notionCallbackRoute = createRoute({
   ...routeOptions(notionCallbackRouteModule.default, "@shipfox/client-integrations/routes/notion-callback", "/integrations/notion/callback"),
 });
 
+const discordCallbackRoute = createRoute({
+  getParentRoute: () => skeleton.rootRoute,
+  path: "/integrations/discord/callback",
+  ...routeOptions(discordCallbackRouteModule.default, "@shipfox/client-integrations/routes/discord-callback", "/integrations/discord/callback"),
+});
+
 const sentryCallbackRoute = createRoute({
   getParentRoute: () => skeleton.rootRoute,
   path: "/integrations/sentry/callback",
@@ -312,6 +320,12 @@ const notionRoute = createRoute({
   getParentRoute: () => skeleton.workspaceLayout,
   path: "/integrations/notion",
   ...routeOptions(notionRouteModule.default, "@shipfox/client-integrations/routes/notion", "/w/$workspaceSlug/integrations/notion"),
+});
+
+const discordRoute = createRoute({
+  getParentRoute: () => skeleton.workspaceLayout,
+  path: "/integrations/discord",
+  ...routeOptions(discordRouteModule.default, "@shipfox/client-integrations/routes/discord", "/w/$workspaceSlug/integrations/discord"),
 });
 
 const sentryRoute = createRoute({
@@ -481,13 +495,13 @@ const projectLayout = skeleton.projectLayout.addChildren([projectIndexRoute, wor
   projectSettings]);
 const workspaceSettings = skeleton.workspaceSettings.addChildren([integrationsSettingsRoute, connectionDetailsRoute, agentsSettingsRoute, agentAccessSettingsRoute, runnersSettingsRoute, provisionersSettingsRoute, secretsSettingsRoute, variablesSettingsRoute, eventsSettingsRoute, workspaceSettingsIndexRoute, workspaceSettingsMembersRoute, generalRoute]);
 const workspaceLayout = skeleton.workspaceLayout.addChildren([
-  integrationsRoute, giteaRoute, githubRoute, githubLinkRoute, linearRoute, jiraRoute, clickupRoute, notionRoute, sentryRoute, slackRoute, homeRoute, createProjectRoute, modelProviderRoute, workspaceSetupMembersRoute,
+  integrationsRoute, giteaRoute, githubRoute, githubLinkRoute, linearRoute, jiraRoute, clickupRoute, notionRoute, discordRoute, sentryRoute, slackRoute, homeRoute, createProjectRoute, modelProviderRoute, workspaceSetupMembersRoute,
   projectLayout,
   workspaceSettings,
 ]);
 
 export const routeTree = skeleton.rootRoute.addChildren([
-  rootIndexRoute, loginRoute, logoutRoute, resetRoute, signupRoute, workspaceOnboardingRoute, acceptRoute, githubCallbackRoute, linearCallbackRoute, jiraCallbackRoute, clickupCallbackRoute, notionCallbackRoute, sentryCallbackRoute, slackCallbackRoute, runPermalinkRoute, agentAccessConsentRoute,
+  rootIndexRoute, loginRoute, logoutRoute, resetRoute, signupRoute, workspaceOnboardingRoute, acceptRoute, githubCallbackRoute, linearCallbackRoute, jiraCallbackRoute, clickupCallbackRoute, notionCallbackRoute, discordCallbackRoute, sentryCallbackRoute, slackCallbackRoute, runPermalinkRoute, agentAccessConsentRoute,
   workspaceLayout,
 ]);
 

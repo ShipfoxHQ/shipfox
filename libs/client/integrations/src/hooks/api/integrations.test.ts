@@ -2,6 +2,7 @@ import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {
   completeClickUpCallback,
+  completeDiscordCallback,
   completeJiraCallback,
   completeJiraSiteSelection,
   completeLinearCallback,
@@ -9,6 +10,7 @@ import {
   completeSlackCallback,
   connectPosthog,
   createClickUpInstall,
+  createDiscordInstall,
   createJiraInstall,
   createLinearInstall,
   createNotionInstall,
@@ -251,6 +253,66 @@ describe('ClickUp transport', () => {
       'https://api.example.test/integrations/clickup/callback/api?error=access_denied&state=signed+error+state',
     );
     expect(requests[1]?.headers.get('authorization')).toBe('Bearer session-token');
+  });
+});
+
+describe('Discord transport', () => {
+  it('posts the install workspace and maps callback outcomes', async () => {
+    const requests: Request[] = [];
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn((input, init) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        const url = request.url;
+        return Promise.resolve(
+          jsonResponse(
+            url.endsWith('/install')
+              ? {install_url: 'https://discord.example.test/install'}
+              : {
+                  outcome: 'connected',
+                  connection: connection({provider: 'discord', capabilities: ['agent_tools']}),
+                },
+          ),
+        );
+      }),
+    });
+
+    const install = await createDiscordInstall({
+      workspace_id: '11111111-1111-4111-8111-111111111111',
+    });
+    const connected = await completeDiscordCallback({
+      query: {code: 'grant code', state: 'signed state'},
+      token: 'session-token',
+    });
+
+    expect(install).toEqual({installUrl: 'https://discord.example.test/install'});
+    expect(connected.provider).toBe('discord');
+    expect(requests[0]?.url).toBe('https://api.example.test/integrations/discord/install');
+    expect(requests[1]?.url).toBe(
+      'https://api.example.test/integrations/discord/callback/api?code=grant+code&state=signed+state',
+    );
+    expect(requests[1]?.headers.get('authorization')).toBe('Bearer session-token');
+  });
+
+  it.each([
+    ['access_denied', 'access-denied', 403],
+    ['already-linked', 'discord-installation-already-linked', 409],
+    ['state-invalid', 'invalid-discord-install-state', 400],
+    ['bot-not-in-guild', 'discord-bot-not-in-guild', 422],
+    ['provider-unavailable', 'provider-unavailable', 503],
+  ])('turns the %s callback outcome into a classified API error', async (outcome, code, status) => {
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() => Promise.resolve(jsonResponse({outcome}))),
+    });
+
+    await expect(
+      completeDiscordCallback({
+        query: {error: 'access_denied', state: 'signed state'},
+        token: 'session-token',
+      }),
+    ).rejects.toMatchObject({code, status});
   });
 });
 
