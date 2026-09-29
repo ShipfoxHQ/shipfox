@@ -39,7 +39,7 @@ const E2E_INFERENCE_ROUTE_PREFIX = '/__e2e-managed-inference';
 const E2E_INFERENCE_STATS_ROUTE_PREFIX = '/managed-inference';
 const E2E_MANAGED_INFERENCE_AUTH = 'e2e-managed-inference';
 const TOKEN_PATTERN = /^shipfox-e2e-(.+)-g(\d+)$/u;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 const E2E_MODELS = [
   {id: E2E_PI_MODEL, label: 'E2E renewable Pi', api: 'openai-completions' as const},

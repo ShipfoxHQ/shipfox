@@ -62,7 +62,7 @@ describe('E2E managed inference fixture', () => {
       routes: [...(fixture.module.routes ?? []), ...(fixture.module.e2eRoutes ?? [])],
       swagger: false,
     });
-    const projectId = '00000000-0000-4000-8000-000000000010';
+    const projectId = '00000000-0000-7000-8000-000000000010';
     const register = await app.inject({
       method: 'POST',
       url: '/managed-inference/scripts',
@@ -153,7 +153,7 @@ describe('E2E managed inference fixture', () => {
       routes: [...(fixture.module.routes ?? []), ...(fixture.module.e2eRoutes ?? [])],
       swagger: false,
     });
-    const projectId = '00000000-0000-4000-8000-000000000011';
+    const projectId = '00000000-0000-7000-8000-000000000011';
     await app.inject({
       method: 'POST',
       url: '/managed-inference/scripts',
