@@ -95,7 +95,7 @@ jobs:
           BASE_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD)"
           BASE_BRANCH="${BASE_BRANCH#origin/}"
           # An earlier attempt may have created the branch and committed.
-          git switch -C "$BRANCH_NAME"
+          git switch "$BRANCH_NAME" 2>/dev/null || git switch -c "$BRANCH_NAME"
           git add -A
           if ! git diff --cached --quiet; then
             git commit -m "Fix Sentry issue"
@@ -154,8 +154,8 @@ fix is tested before it's pushed.
 A failed push can leave work behind: the branch and a commit can already exist.
 The push script accepts that state instead of failing on it:
 
-- `git switch -C` creates the branch, or switches to it when an earlier attempt
-  created it.
+- The script switches to the branch when an earlier attempt created it, and
+  creates it otherwise.
 - The script commits only when changes are staged. A commit from an earlier
   attempt stays, and a fix from `recover_push` becomes a new commit.
 - `git push` only adds commits to the run's branch, so it works whether or not
@@ -163,6 +163,10 @@ The push script accepts that state instead of failing on it:
 
 The log path helps the agent find the cause of the failure. It doesn't make the
 push safe to run again; the script does.
+
+A failure the agent can't fix, such as a missing permission, repeats until the
+gate's [attempt limit](/reference/limits) and then fails the job. The response of each
+`recover_push` attempt explains the cause.
 
 Commit and push the workflow file to the project's default branch. Wait for
 **Turn a Sentry issue into a verified pull request** to appear in the project's
