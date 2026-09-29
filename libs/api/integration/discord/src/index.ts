@@ -9,13 +9,13 @@ export {config} from '#config.js';
 export {discordConnectionExternalUrl} from '#core/connection-url.js';
 export type {ConnectDiscordInstallationInput} from '#core/install.js';
 export type {
-  DiscordConnectionAlreadyLinkedError,
   DiscordInstallation,
-  DiscordInstallationAlreadyLinkedError,
   DiscordInstallationStatus,
   UpsertDiscordInstallationParams,
 } from '#db/installations.js';
 export {
+  DiscordConnectionAlreadyLinkedError,
+  DiscordInstallationAlreadyLinkedError,
   deleteDiscordInstallationByConnectionId,
   getDiscordInstallationByConnectionId,
   getDiscordInstallationByGuildId,
