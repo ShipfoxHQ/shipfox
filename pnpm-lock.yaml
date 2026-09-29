@@ -1767,9 +1767,6 @@ importers:
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/integration/core-dto
-      '@shipfox/api-integration-jira-dto':
-        specifier: workspace:*
-        version: link:../../../../libs/api/integration/jira-dto
       '@shipfox/api-server':
         specifier: workspace:*
         version: link:../../../../libs/api/server

@@ -23,7 +23,6 @@
     "@shipfox/api-agent-access-dto": "workspace:*",
     "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
-    "@shipfox/api-integration-jira-dto": "workspace:*",
     "@shipfox/api-server": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/depcruise": "workspace:*",
