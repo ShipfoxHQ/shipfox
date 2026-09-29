@@ -891,6 +891,36 @@ describe('handleGithubEvent', () => {
     expect(rows).toHaveLength(0);
   });
 
+  it('deletes a leftover unlinked record when a linked installation is uninstalled', async () => {
+    const installationId = 999994;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    await upsertGithubUnlinkedInstallation({
+      installationId: String(installationId),
+      accountLogin: 'opsmill',
+      accountType: 'Organization',
+      repositorySelection: 'all',
+      senderLogin: 'octocat',
+      requesterLogin: null,
+      lastAction: 'created',
+    });
+    const handlers = deps({connection});
+
+    await handleGithubEvent({
+      tx: db(),
+      deliveryId: randomUUID(),
+      event: 'installation',
+      payload: {action: 'deleted', installation: {id: installationId}},
+      ...handlers,
+    });
+
+    const rows = await db()
+      .select()
+      .from(githubUnlinkedInstallations)
+      .where(eq(githubUnlinkedInstallations.installationId, String(installationId)));
+    expect(rows).toHaveLength(0);
+  });
+
   it('does not record non-lifecycle events for an unknown installation', async () => {
     const handlers = deps();
 

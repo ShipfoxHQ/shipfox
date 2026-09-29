@@ -29,10 +29,10 @@ describe('githubWebhookInstallationSchema', () => {
     });
   });
 
-  it('accepts explicit null account, sender and requester', () => {
+  it('accepts explicit null account, repository selection, sender and requester', () => {
     expect(
       githubWebhookInstallationSchema.parse({
-        installation: {id: 123, account: null},
+        installation: {id: 123, account: null, repository_selection: null},
         sender: null,
         requester: null,
       }),

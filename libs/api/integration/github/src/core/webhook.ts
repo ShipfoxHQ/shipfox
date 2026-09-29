@@ -238,6 +238,8 @@ export async function handleGithubEvent(
     return {outcome: 'no-installation-id'};
   }
 
+  await clearUnlinkedGithubInstallationOnUninstall({...params, installationId, action});
+
   const installation = await getGithubInstallationByInstallationId(String(installationId), {
     tx: params.tx,
   });
@@ -302,6 +304,19 @@ export async function handleGithubEvent(
   return dispatchGithubEvent(params, connection, installationId, action);
 }
 
+// Runs even when linked: a webhook racing the link can leave a row behind.
+async function clearUnlinkedGithubInstallationOnUninstall(params: {
+  tx: IntegrationTx;
+  event: string;
+  installationId: number;
+  action: string | undefined;
+}): Promise<void> {
+  if (params.event !== 'installation' || params.action !== 'deleted') return;
+  await deleteGithubUnlinkedInstallationByInstallationId(String(params.installationId), {
+    tx: params.tx,
+  });
+}
+
 async function handleUnknownGithubInstallation(params: {
   tx: IntegrationTx;
   deliveryId: string;
@@ -310,11 +325,7 @@ async function handleUnknownGithubInstallation(params: {
   installationId: number;
   action: string | undefined;
 }): Promise<void> {
-  if (params.event === 'installation' && params.action === 'deleted') {
-    await deleteGithubUnlinkedInstallationByInstallationId(String(params.installationId), {
-      tx: params.tx,
-    });
-  } else if (
+  if (
     params.event === 'installation' &&
     (params.action === 'created' ||
       params.action === 'new_permissions_accepted' ||
