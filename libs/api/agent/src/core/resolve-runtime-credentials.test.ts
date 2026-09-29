@@ -2,13 +2,15 @@ import {type Context, complete, type Model} from '@earendil-works/pi-ai/compat';
 import type {
   AgentRuntimeCredentialsResponseDto,
   ManagedModelApi,
+  ManagedModelLock,
   ManagedModelProvider,
   ModelProviderRef,
 } from '@shipfox/api-agent-dto';
+import {ManagedModelUnavailableError} from '@shipfox/api-agent-dto';
 import {deleteModelProviderConfig, upsertModelProviderConfig} from '#db/index.js';
 import {setSecrets} from '#test/fixtures/secrets-client.js';
 import {agentSystemNamespace, customCredentialsToStoreValues} from './credential-fingerprints.js';
-import {ModelProviderConfigNotFoundError} from './errors.js';
+import {ManagedModelAvailabilityError, ModelProviderConfigNotFoundError} from './errors.js';
 import {resolveRuntimeCredentials} from './resolve-runtime-credentials.js';
 
 const managedGatewayBaseUrlVariants = [
@@ -147,6 +149,107 @@ describe('resolveRuntimeCredentials', () => {
         ],
         requires_api_key: true,
       },
+    });
+  });
+
+  describe('managed model availability', () => {
+    const lock: ManagedModelLock = {
+      label: 'Add credits to use',
+      notice: {
+        reason: 'model-locked',
+        message: 'Claude model needs credits.',
+        requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/billing'},
+      },
+    };
+
+    function resolveParams(overrides: {renewal?: boolean} = {}) {
+      return {
+        workspaceId,
+        runId: crypto.randomUUID(),
+        stepAttemptId: crypto.randomUUID(),
+        harness: 'pi' as const,
+        provider: 'shipfox',
+        model: 'claude-model',
+        thinking: 'high' as const,
+        renewableInference: true,
+        ...overrides,
+      };
+    }
+
+    function availabilityMock(locks: ReadonlyMap<string, ManagedModelLock>) {
+      return vi.fn<NonNullable<ManagedModelProvider['availability']>>().mockResolvedValue(locks);
+    }
+
+    function credentialsMock() {
+      return vi.fn<ManagedModelProvider['resolveCredentials']>().mockResolvedValue({
+        api: 'anthropic-messages',
+        baseUrl: 'https://gateway.example.test/inference/',
+        credentials: {api_key: 'managed-token'},
+      });
+    }
+
+    it('refuses a locked model with its notice before resolving credentials', async () => {
+      const resolveCredentials = credentialsMock();
+      const availability = availabilityMock(new Map([['claude-model', lock]]));
+
+      const result = await resolveRuntimeCredentials(resolveParams(), {
+        managedProvider: {...managedProvider(resolveCredentials), availability},
+      }).catch((error: unknown) => error);
+
+      expect(result).toBeInstanceOf(ManagedModelUnavailableError);
+      expect(result).toMatchObject({model: 'claude-model', notice: lock.notice});
+      expect(availability).toHaveBeenCalledWith({workspaceId});
+      expect(resolveCredentials).not.toHaveBeenCalled();
+    });
+
+    it('resolves credentials for a model that is not locked', async () => {
+      const resolveCredentials = credentialsMock();
+      const availability = availabilityMock(new Map([['other-model', lock]]));
+
+      const result = await resolveRuntimeCredentials(resolveParams(), {
+        managedProvider: {...managedProvider(resolveCredentials), availability},
+      });
+
+      expect(result.credentials).toEqual({api_key: 'managed-token'});
+      expect(resolveCredentials).toHaveBeenCalledOnce();
+    });
+
+    it('skips the availability check on renewal so a running step is never cut off', async () => {
+      const resolveCredentials = credentialsMock();
+      const availability = availabilityMock(new Map([['claude-model', lock]]));
+
+      const result = await resolveRuntimeCredentials(resolveParams({renewal: true}), {
+        managedProvider: {...managedProvider(resolveCredentials), availability},
+      });
+
+      expect(result.credentials).toEqual({api_key: 'managed-token'});
+      expect(availability).not.toHaveBeenCalled();
+    });
+
+    it('reports an availability failure without resolving credentials', async () => {
+      const resolveCredentials = credentialsMock();
+      const cause = new Error('limits unavailable');
+      const availability = vi
+        .fn<NonNullable<ManagedModelProvider['availability']>>()
+        .mockRejectedValue(cause);
+
+      const result = await resolveRuntimeCredentials(resolveParams(), {
+        managedProvider: {...managedProvider(resolveCredentials), availability},
+      }).catch((error: unknown) => error);
+
+      expect(result).toBeInstanceOf(ManagedModelAvailabilityError);
+      expect(result).toHaveProperty('cause', cause);
+      expect(resolveCredentials).not.toHaveBeenCalled();
+    });
+
+    it('behaves as before when the provider has no availability', async () => {
+      const resolveCredentials = credentialsMock();
+
+      const result = await resolveRuntimeCredentials(resolveParams(), {
+        managedProvider: managedProvider(resolveCredentials),
+      });
+
+      expect(result.credentials).toEqual({api_key: 'managed-token'});
     });
   });
 

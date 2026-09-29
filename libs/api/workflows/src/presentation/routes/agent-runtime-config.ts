@@ -1,6 +1,7 @@
 import {
   agentRuntimeCredentialsResponseSchema,
   type MaterializedAgentStepConfigDto,
+  MODEL_UNAVAILABLE_ERROR_CODE,
   materializedAgentStepConfigSchema,
   RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
 } from '@shipfox/api-agent-dto';
@@ -9,7 +10,10 @@ import {
   agentInterModuleContract,
 } from '@shipfox/api-agent-dto/inter-module';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
-import {agentRuntimeConfigQuerySchema} from '@shipfox/api-workflows-dto';
+import {
+  AGENT_RUNTIME_CONFIG_RENEWAL_HEADER,
+  agentRuntimeConfigQuerySchema,
+} from '@shipfox/api-workflows-dto';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {captureException} from '@shipfox/node-error-monitoring';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
@@ -33,68 +37,7 @@ export function createAgentRuntimeConfigRoute(params: {
       },
     },
     errorHandler: (error) => {
-      if (
-        isInterModuleKnownError(
-          agentInterModuleContract.methods.resolveRuntimeCredentials,
-          error,
-        ) &&
-        error.code === RUNNER_CAPABILITY_REQUIRED_ERROR_CODE
-      ) {
-        throw new ClientError(
-          'Runner does not support renewable inference credentials',
-          RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
-          {status: 409, cause: error},
-        );
-      }
-      if (
-        isInterModuleKnownError(
-          agentInterModuleContract.methods.resolveRuntimeCredentials,
-          error,
-        ) &&
-        error.code === 'model-provider-credentials-invalid'
-      ) {
-        captureException(error);
-        throw new ClientError(
-          'Model provider credentials could not be decrypted',
-          'model-provider-credentials-invalid',
-          {
-            status: 409,
-            cause: error,
-          },
-        );
-      }
-      if (
-        isInterModuleKnownError(
-          agentInterModuleContract.methods.resolveRuntimeCredentials,
-          error,
-        ) &&
-        error.code === 'model-provider-not-configured'
-      ) {
-        throw new ClientError(
-          'Model provider credentials are not configured',
-          'model-provider-not-configured',
-          {
-            status: 409,
-          },
-        );
-      }
-      if (
-        isInterModuleKnownError(
-          agentInterModuleContract.methods.resolveRuntimeCredentials,
-          error,
-        ) &&
-        error.code === 'workspace-providers-disabled'
-      ) {
-        const message = error.details.message ?? 'Workspace provider configuration is disabled';
-        throw new ClientError(message, 'workspace-providers-disabled', {
-          status: 422,
-          details: {
-            managed_provider_id: error.details.managed_provider_id,
-            message,
-          },
-        });
-      }
-      throw error;
+      throw toRuntimeConfigClientError(error);
     },
     handler: async (request, reply) => {
       const {step_id: stepId, attempt} = request.query;
@@ -145,6 +88,7 @@ export function createAgentRuntimeConfigRoute(params: {
         model: agentConfig.model,
         thinking: agentConfig.thinking,
         renewableInference,
+        ...(request.headers[AGENT_RUNTIME_CONFIG_RENEWAL_HEADER] === 'true' ? {renewal: true} : {}),
       });
 
       await loadRunningLeasedStep({
@@ -161,4 +105,52 @@ export function createAgentRuntimeConfigRoute(params: {
       };
     },
   });
+}
+
+function toRuntimeConfigClientError(error: unknown): unknown {
+  if (!isInterModuleKnownError(agentInterModuleContract.methods.resolveRuntimeCredentials, error)) {
+    return error;
+  }
+  switch (error.code) {
+    case RUNNER_CAPABILITY_REQUIRED_ERROR_CODE:
+      return new ClientError(
+        'Runner does not support renewable inference credentials',
+        RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
+        {status: 409, cause: error},
+      );
+    case 'model-provider-credentials-invalid':
+      captureException(error);
+      return new ClientError(
+        'Model provider credentials could not be decrypted',
+        'model-provider-credentials-invalid',
+        {status: 409, cause: error},
+      );
+    case 'model-provider-not-configured':
+      return new ClientError(
+        'Model provider credentials are not configured',
+        'model-provider-not-configured',
+        {status: 409},
+      );
+    case MODEL_UNAVAILABLE_ERROR_CODE:
+      return new ClientError(error.details.notice.message, MODEL_UNAVAILABLE_ERROR_CODE, {
+        status: 422,
+        details: {model: error.details.model, notice: error.details.notice},
+        cause: error,
+      });
+    case 'model-availability-unavailable':
+      return new ClientError(
+        'Model availability could not be checked',
+        'model-availability-unavailable',
+        {status: 503, cause: error},
+      );
+    case 'workspace-providers-disabled': {
+      const message = error.details.message ?? 'Workspace provider configuration is disabled';
+      return new ClientError(message, 'workspace-providers-disabled', {
+        status: 422,
+        details: {managed_provider_id: error.details.managed_provider_id, message},
+      });
+    }
+    default:
+      return error;
+  }
 }

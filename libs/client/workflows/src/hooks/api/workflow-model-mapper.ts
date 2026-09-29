@@ -19,6 +19,7 @@ export function toWorkflowJobStepError(dto: StepErrorDto): StepError | null {
     message: dto.message,
     ...(dto.code === undefined ? {} : {code: dto.code}),
     ...(dto.managed_provider_id === undefined ? {} : {managedProviderId: dto.managed_provider_id}),
+    ...(dto.notice === undefined ? {} : {notice: dto.notice}),
     ...(dto.field === undefined ? {} : {field: dto.field}),
     ...(dto.source === undefined ? {} : {source: dto.source}),
     exitCode: dto.exit_code ?? null,

@@ -1,9 +1,13 @@
-import {RUNNER_CAPABILITY_REQUIRED_ERROR_CODE} from '@shipfox/api-agent-dto';
+import {
+  MODEL_UNAVAILABLE_ERROR_CODE,
+  RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
+} from '@shipfox/api-agent-dto';
 import {
   type AgentInterModuleClient,
   agentInterModuleContract,
 } from '@shipfox/api-agent-dto/inter-module';
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
+import {AGENT_RUNTIME_CONFIG_RENEWAL_HEADER} from '@shipfox/api-workflows-dto';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createCapturingLogger} from '@shipfox/node-log/test';
@@ -498,6 +502,87 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
         managed_provider_id: 'shipfox',
       },
     });
+  });
+
+  test('returns 422 with the policy notice when the managed model is locked', async () => {
+    const {job, step} = await createRunningAgentStep();
+    const notice = {
+      reason: 'model-locked',
+      message: 'Managed model needs credits.',
+      requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/billing'},
+    };
+    resolveRuntimeCredentials.mockRejectedValueOnce(
+      createInterModuleKnownError(
+        agentInterModuleContract.methods.resolveRuntimeCredentials,
+        MODEL_UNAVAILABLE_ERROR_CODE,
+        {model: 'managed-model', notice},
+      ),
+    );
+    const token = await mintActiveLeaseToken({renewableInference: true, jobId: job.id});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: runtimeConfigUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({
+      code: MODEL_UNAVAILABLE_ERROR_CODE,
+      details: {model: 'managed-model', notice},
+    });
+  });
+
+  test('returns a retryable 503 when model availability cannot be checked', async () => {
+    const {job, step} = await createRunningAgentStep();
+    resolveRuntimeCredentials.mockRejectedValueOnce(
+      createInterModuleKnownError(
+        agentInterModuleContract.methods.resolveRuntimeCredentials,
+        'model-availability-unavailable',
+        {},
+      ),
+    );
+    const token = await mintActiveLeaseToken({renewableInference: true, jobId: job.id});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: runtimeConfigUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toMatchObject({code: 'model-availability-unavailable'});
+  });
+
+  test('marks renewal requests so the agent module skips the availability check', async () => {
+    const {run, job, step} = await createRunningAgentStep();
+    await saveWorkspaceCredential(run.workspaceId, 'sk-workspace-secret');
+    const token = await mintActiveLeaseToken({renewableInference: true, jobId: job.id});
+
+    const initial = await app.inject({
+      method: 'GET',
+      url: runtimeConfigUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+    const renewal = await app.inject({
+      method: 'GET',
+      url: runtimeConfigUrl(step.id, step.currentAttempt),
+      headers: {
+        authorization: `Bearer ${token}`,
+        [AGENT_RUNTIME_CONFIG_RENEWAL_HEADER]: 'true',
+      },
+    });
+
+    expect(initial.statusCode).toBe(200);
+    expect(renewal.statusCode).toBe(200);
+    expect(resolveRuntimeCredentials).toHaveBeenNthCalledWith(
+      1,
+      expect.not.objectContaining({renewal: true}),
+    );
+    expect(resolveRuntimeCredentials).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({renewal: true}),
+    );
   });
 
   test('includes a fallback message when managed provider details omit one', async () => {

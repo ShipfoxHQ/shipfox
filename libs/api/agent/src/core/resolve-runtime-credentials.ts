@@ -9,7 +9,7 @@ import type {
   SupportedModelProviderId,
   WorkspaceProvidersPolicy,
 } from '@shipfox/api-agent-dto';
-import {toCustomAgentModelDto} from '@shipfox/api-agent-dto';
+import {ManagedModelUnavailableError, toCustomAgentModelDto} from '@shipfox/api-agent-dto';
 import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {config, workspaceProvidersPolicy} from '#config.js';
@@ -21,7 +21,11 @@ import {
   storeValuesToRuntimeCredentials,
 } from './credential-fingerprints.js';
 import type {ModelProviderConfig} from './entities/model-provider-config.js';
-import {ModelProviderConfigNotFoundError, WorkspaceProvidersDisabledError} from './errors.js';
+import {
+  ManagedModelAvailabilityError,
+  ModelProviderConfigNotFoundError,
+  WorkspaceProvidersDisabledError,
+} from './errors.js';
 import {managedProviderAdapterBaseUrl} from './managed-provider-url.js';
 import {getModelProviderEntry, modelProviderCredentialKeysMatch} from './model-provider-policy.js';
 import {type AgentSecretsClient, requireAgentSecretsClient} from './secrets-client.js';
@@ -32,6 +36,8 @@ export interface ResolveRuntimeCredentialsParams {
   stepAttemptId: string;
   jobIdentity?: ManagedProviderJobIdentity | undefined;
   renewableInference: boolean;
+  /** A credential refresh of a running step, which must not be cut off by model availability. */
+  renewal?: boolean | undefined;
   harness: Harness;
   provider: ModelProviderRef;
   model: string;
@@ -93,6 +99,7 @@ async function resolveManagedCredentials(
   managedProvider: ManagedModelProvider | undefined,
 ): Promise<AgentRuntimeCredentialsResponseDto | undefined> {
   if (managedProvider?.id !== params.provider) return undefined;
+  if (params.renewal !== true) await assertManagedModelAvailable(params, managedProvider);
   const managedRuntimeConfig = await managedProvider.resolveCredentials({
     workspaceId: params.workspaceId,
     runId: params.runId,
@@ -108,11 +115,28 @@ async function resolveManagedCredentials(
   });
 }
 
+async function assertManagedModelAvailable(
+  params: ResolveRuntimeCredentialsParams,
+  managedProvider: ManagedModelProvider,
+): Promise<void> {
+  if (managedProvider.availability === undefined) return;
+  let locks: Awaited<ReturnType<NonNullable<ManagedModelProvider['availability']>>>;
+  try {
+    locks = await managedProvider.availability({workspaceId: params.workspaceId});
+  } catch (error) {
+    throw new ManagedModelAvailabilityError(managedProvider.id, {cause: error});
+  }
+  const lock = locks.get(params.model);
+  if (lock === undefined) return;
+  recordRuntimeConfigResolution(params, {source: 'instance', outcome: 'model_locked'});
+  throw new ManagedModelUnavailableError(params.model, lock.notice);
+}
+
 function recordRuntimeConfigResolution(
   params: Pick<ResolveRuntimeCredentialsParams, 'jobIdentity'>,
   result: {
     source: 'workspace' | 'instance';
-    outcome: 'resolved' | 'unavailable' | 'decryption_failed';
+    outcome: 'resolved' | 'unavailable' | 'decryption_failed' | 'model_locked';
   },
 ): void {
   agentRuntimeConfigResolvedCount.add(1, {

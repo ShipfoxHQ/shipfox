@@ -61,6 +61,18 @@ describe('fromStepErrorDto', () => {
     });
   });
 
+  it('persists the policy notice', () => {
+    const notice = {
+      reason: 'model-locked',
+      message: 'Managed model needs credits.',
+      requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/billing'},
+    };
+
+    const persisted = fromStepErrorDto({message: 'Model locked', notice});
+
+    expect(persisted).toEqual({message: 'Model locked', notice});
+  });
+
   it('round-trips an agent harness availability failure without inventing an issue code', () => {
     const persisted = fromStepErrorDto({
       message: 'Pi extension setup failed: Unknown option: --mcp-config',
@@ -371,6 +383,26 @@ describe('toStepDto error category', () => {
       agent_config_issue: 'provider_unsupported',
       category: 'user',
     });
+  });
+
+  it('surfaces a stored policy notice and drops a malformed one', () => {
+    const notice = {
+      reason: 'model-locked',
+      message: 'Managed model needs credits.',
+      requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/billing'},
+    };
+    const withNotice = toStepDto(
+      step({
+        type: 'agent',
+        error: {message: 'Model locked', reason: 'agent_config_invalid', notice},
+      }),
+    );
+    const malformed = toStepDto(
+      step({type: 'agent', error: {message: 'Model locked', notice: {message: 1}}}),
+    );
+
+    expect(withNotice.error).toMatchObject({notice});
+    expect(malformed.error).not.toHaveProperty('notice');
   });
 
   it('surfaces config error field and source diagnostics', () => {

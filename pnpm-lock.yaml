@@ -7616,6 +7616,9 @@ importers:
       '@shipfox/client-usage':
         specifier: workspace:*
         version: link:../usage
+      '@shipfox/policy-notice':
+        specifier: workspace:*
+        version: link:../../shared/common/policy-notice
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
@@ -8243,6 +8246,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/policy-notice':
+        specifier: workspace:*
+        version: link:../../shared/common/policy-notice
       '@shipfox/regex':
         specifier: workspace:*
         version: link:../../shared/common/regex

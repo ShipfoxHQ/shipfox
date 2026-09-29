@@ -56,6 +56,7 @@
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/policy-notice": "workspace:*",
     "@shipfox/regex": "workspace:*",
     "@shipfox/runner-labels": "workspace:*",
     "ky": "catalog:"

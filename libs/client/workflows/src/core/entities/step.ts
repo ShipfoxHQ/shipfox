@@ -1,3 +1,4 @@
+import type {PolicyNotice} from '@shipfox/policy-notice';
 import type {EvaluationTraceEntry, StepAttempt} from './step-attempt.js';
 
 export type StepErrorReason =
@@ -87,6 +88,7 @@ export interface StepError {
   message: string;
   code?: string | undefined;
   managedProviderId?: string | undefined;
+  notice?: PolicyNotice | undefined;
   field?: string | undefined;
   source?: string | undefined;
   exitCode: number | null;
