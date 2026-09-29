@@ -8,7 +8,7 @@ import {
 } from 'node:crypto';
 import {openEnvelopeText, sealEnvelopeText} from '@shipfox/node-envelope-encryption';
 import {config} from '#config.js';
-import {GithubInstallStateError, GithubLinkStateError} from './errors.js';
+import {GithubInstallStateError, GithubLinkSelectionError, GithubLinkStateError} from './errors.js';
 
 const STATE_TTL_SECONDS = 30 * 60;
 const LINK_STATE_VERSION = 1;
@@ -16,6 +16,12 @@ const LINK_STATE_PURPOSE = 'link';
 const LINK_STATE_KEY_INFO = 'shipfox/github/install-state/link/v1';
 const LINK_STATE_AAD_PREFIX = 'shipfox/github/install-state';
 const PKCE_VERIFIER_BYTES = 32;
+export const LINK_SELECTION_TTL_SECONDS = 5 * 60;
+const LINK_SELECTION_VERSION = 1;
+const LINK_SELECTION_PURPOSE = 'link-selection';
+// Install state signs the bare base64url payload. This prefix contains `/`, which
+// base64url never does, so a selection MAC can never verify as install state.
+const LINK_SELECTION_SIGNING_DOMAIN = 'shipfox/github/link-selection/v1';
 
 interface GithubInstallStatePayload {
   workspaceId: string;
@@ -77,9 +83,9 @@ export function verifyGithubInstallState(
   return {workspaceId: payload.workspaceId, userId: payload.userId};
 }
 
-function sign(encodedPayload: string): string {
+function sign(encodedPayload: string, domain?: string): string {
   return createHmac('sha256', config.GITHUB_INSTALL_STATE_SECRET)
-    .update(encodedPayload)
+    .update(domain ? `${domain}.${encodedPayload}` : encodedPayload)
     .digest('base64url');
 }
 
@@ -219,4 +225,105 @@ function parsePayload(encodedPayload: string): GithubInstallStatePayload {
   } catch (_error) {
     throw new GithubInstallStateError('Invalid GitHub install state payload');
   }
+}
+
+export interface GithubLinkSelectionClaims {
+  workspaceId: string;
+  userId: string;
+  installationIds: number[];
+}
+
+interface GithubLinkSelectionPayload {
+  version: number;
+  purpose: string;
+  appId: string;
+  proofId: string;
+  workspaceId: string;
+  userId: string;
+  installationIds: number[];
+  issuedAt: number;
+  expiresAt: number;
+}
+
+/**
+ * Signs the installation ids a GitHub user token listed at link completion. The
+ * token restates that proof for five minutes: selection never rechecks the
+ * user's GitHub access, so a revocation takes effect only once it expires.
+ */
+export function signGithubLinkSelection(params: {
+  workspaceId: string;
+  userId: string;
+  installationIds: number[];
+  now?: Date | undefined;
+}): string {
+  const issuedAt = Math.floor((params.now ?? new Date()).getTime() / 1000);
+  const payload = {
+    version: LINK_SELECTION_VERSION,
+    purpose: LINK_SELECTION_PURPOSE,
+    appId: config.GITHUB_APP_ID,
+    proofId: randomUUID(),
+    workspaceId: params.workspaceId,
+    userId: params.userId,
+    installationIds: params.installationIds,
+    issuedAt,
+    expiresAt: issuedAt + LINK_SELECTION_TTL_SECONDS,
+  } satisfies GithubLinkSelectionPayload;
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  return `${encodedPayload}.${sign(encodedPayload, LINK_SELECTION_SIGNING_DOMAIN)}`;
+}
+
+export function verifyGithubLinkSelection(
+  token: string,
+  now: Date = new Date(),
+): GithubLinkSelectionClaims {
+  const [encodedPayload, signature, extra] = token.split('.');
+  if (!encodedPayload || !signature || extra !== undefined) {
+    throw new GithubLinkSelectionError('Invalid GitHub link selection');
+  }
+  if (!constantTimeEqual(signature, sign(encodedPayload, LINK_SELECTION_SIGNING_DOMAIN))) {
+    throw new GithubLinkSelectionError('Invalid GitHub link selection signature');
+  }
+
+  const payload = parseLinkSelectionPayload(encodedPayload);
+  if (payload.expiresAt < Math.floor(now.getTime() / 1000)) {
+    throw new GithubLinkSelectionError('Expired GitHub link selection');
+  }
+  return {
+    workspaceId: payload.workspaceId,
+    userId: payload.userId,
+    installationIds: payload.installationIds,
+  };
+}
+
+function parseLinkSelectionPayload(encodedPayload: string): GithubLinkSelectionPayload {
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+    if (typeof parsed !== 'object' || parsed === null) throw new Error('Invalid payload shape');
+    const record = parsed as Record<string, unknown>;
+    if (
+      record.version !== LINK_SELECTION_VERSION ||
+      record.purpose !== LINK_SELECTION_PURPOSE ||
+      record.appId !== config.GITHUB_APP_ID ||
+      typeof record.proofId !== 'string' ||
+      typeof record.workspaceId !== 'string' ||
+      typeof record.userId !== 'string' ||
+      !isInstallationIdList(record.installationIds) ||
+      !Number.isSafeInteger(record.issuedAt) ||
+      !Number.isSafeInteger(record.expiresAt) ||
+      (record.expiresAt as number) - (record.issuedAt as number) > LINK_SELECTION_TTL_SECONDS
+    ) {
+      throw new Error('Invalid payload shape');
+    }
+    return record as unknown as GithubLinkSelectionPayload;
+  } catch {
+    throw new GithubLinkSelectionError('Invalid GitHub link selection payload');
+  }
+}
+
+function isInstallationIdList(value: unknown): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((id) => Number.isSafeInteger(id) && (id as number) > 0)
+  );
 }

@@ -3,7 +3,7 @@ import {
   GithubCheckoutTokenCache,
   type GithubCheckoutTokenCachePort,
 } from '#api/github-checkout-token-cache.js';
-import {githubInstallationFactory} from '#test/index.js';
+import {githubInstallationFactory, githubUserInstallationPage} from '#test/index.js';
 import {GithubIntegrationProviderError} from './errors.js';
 import {GithubSourceControlProvider} from './source-control.js';
 
@@ -24,7 +24,7 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
   return {
     exchangeOAuthCode: vi.fn(() => Promise.resolve('token')),
     getBotUser: vi.fn(() => Promise.resolve({id: 12_345, login: 'shipfox-test[bot]'})),
-    listUserInstallations: vi.fn(() => Promise.resolve({installationIds: [], nextCursor: null})),
+    listUserInstallations: vi.fn(() => Promise.resolve(githubUserInstallationPage([]))),
     getInstallation: vi.fn(() => {
       throw new Error('not used');
     }),

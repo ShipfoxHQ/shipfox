@@ -76,8 +76,14 @@ export interface GithubCommit {
   sha: string;
 }
 
+export interface GithubUserInstallation {
+  id: number;
+  account: GithubAccount;
+  repositorySelection: string;
+}
+
 export interface GithubUserInstallationPage {
-  installationIds: number[];
+  installations: GithubUserInstallation[];
   nextCursor: string | null;
 }
 
@@ -241,7 +247,11 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
 
     const installations = response.data.installations ?? [];
     return {
-      installationIds: installations.map((installation) => installation.id),
+      installations: installations.map((installation) => ({
+        id: installation.id,
+        account: toGithubAccount(installation.account),
+        repositorySelection: installation.repository_selection,
+      })),
       nextCursor: nextCursorFromLink(response.headers.link),
     };
   }
@@ -252,21 +262,9 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
       'installation-not-found',
     );
     const data = response.data;
-    const account = data.account;
-    if (!account) {
-      throw new GithubIntegrationProviderError(
-        'malformed-provider-response',
-        'GitHub installation response did not include an account',
-      );
-    }
-
-    const login = 'login' in account ? account.login : account.slug;
     return {
       id: data.id,
-      account: {
-        login,
-        type: 'type' in account ? account.type : 'Enterprise',
-      },
+      account: toGithubAccount(data.account),
       repositorySelection: data.repository_selection,
       suspendedAt: data.suspended_at ? new Date(data.suspended_at) : null,
       htmlUrl: data.html_url,
@@ -816,6 +814,19 @@ function nextCursorFromLink(link: string | undefined): string | null {
   if (!next) return null;
   const match = next.match(NEXT_PAGE_RE);
   return match?.[1] ?? null;
+}
+
+function toGithubAccount(
+  account: {login: string; type: string} | {slug: string} | null | undefined,
+): GithubAccount {
+  if (!account) {
+    throw new GithubIntegrationProviderError(
+      'malformed-provider-response',
+      'GitHub installation response did not include an account',
+    );
+  }
+  if ('login' in account) return {login: account.login, type: account.type};
+  return {login: account.slug, type: 'Enterprise'};
 }
 
 function toGithubRepository(repository: {

@@ -88,6 +88,19 @@ export interface GithubAuthorizeRedirect {
   authorizeUrl: string;
 }
 
+export interface GithubLinkCandidate {
+  installationId: number;
+  accountLogin: string;
+  accountType: string;
+  repositorySelection: string;
+}
+
+/** The selection token is a short-lived proof: keep it in memory only. */
+export interface GithubLinkSelection {
+  candidates: GithubLinkCandidate[];
+  selectionToken: string;
+}
+
 export type IntegrationUsageEvent = {
   value: string;
   label: string;

@@ -1,11 +1,12 @@
 import type {GithubApiClient} from '#api/client.js';
 import type {GithubInstallation} from '#db/installations.js';
 import {createGithubIntegrationProvider} from '#index.js';
+import {githubUserInstallationPage} from '#test/index.js';
 
 function githubClient(): GithubApiClient {
   return {
     exchangeOAuthCode: vi.fn(() => Promise.resolve('user-token')),
-    listUserInstallations: vi.fn(() => Promise.resolve({installationIds: [], nextCursor: null})),
+    listUserInstallations: vi.fn(() => Promise.resolve(githubUserInstallationPage([]))),
     getInstallation: vi.fn(() => Promise.reject(new Error('not used'))),
     listInstallationRepositories: vi.fn(() => Promise.reject(new Error('not used'))),
     getRepository: vi.fn(() => Promise.reject(new Error('not used'))),

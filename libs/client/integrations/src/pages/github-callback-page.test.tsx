@@ -21,9 +21,11 @@ const {
   createGithubLinkMock,
   refreshAuthMock,
   resolveWorkspaceSlugMock,
+  selectGithubLinkInstallationMock,
 } = vi.hoisted(() => ({
   completeGithubCallbackMock: vi.fn(),
   completeGithubLinkMock: vi.fn(),
+  selectGithubLinkInstallationMock: vi.fn(),
   createGithubLinkMock: vi.fn<(body: unknown) => Promise<Response>>(),
   refreshAuthMock: vi.fn(),
   resolveWorkspaceSlugMock: vi.fn(),
@@ -46,6 +48,7 @@ vi.mock('#hooks/api/integrations.js', async (importOriginal) => {
     ...actual,
     completeGithubCallback: completeGithubCallbackMock,
     completeGithubLink: completeGithubLinkMock,
+    selectGithubLinkInstallation: selectGithubLinkInstallationMock,
   };
 });
 
@@ -56,6 +59,41 @@ vi.mock('#workspace-navigation.js', async (importOriginal) => {
     resolveWorkspaceSlug: resolveWorkspaceSlugMock,
   };
 });
+
+function githubLinkSelection() {
+  return {
+    candidates: [
+      {
+        installationId: 123,
+        accountLogin: 'acme',
+        accountType: 'Organization',
+        repositorySelection: 'all',
+      },
+      {
+        installationId: 456,
+        accountLogin: 'octocat',
+        accountType: 'User',
+        repositorySelection: 'all',
+      },
+    ],
+    selectionToken: 'selection-secret-token',
+  };
+}
+
+function githubConnection() {
+  return {
+    id: 'connection-1',
+    workspaceId: INTEGRATIONS_TEST_WID,
+    provider: 'github',
+    externalAccountId: '456',
+    slug: 'github_octocat',
+    displayName: 'GitHub octocat',
+    lifecycleStatus: 'active',
+    capabilities: ['source_control'],
+    createdAt: '2026-09-29T12:00:00.000Z',
+    updatedAt: '2026-09-29T12:00:00.000Z',
+  };
+}
 
 function twoWorkspaces() {
   return [
@@ -99,6 +137,7 @@ beforeEach(() => {
   window.sessionStorage.clear();
   completeGithubCallbackMock.mockReset();
   completeGithubLinkMock.mockReset();
+  selectGithubLinkInstallationMock.mockReset();
   createGithubLinkMock
     .mockReset()
     .mockImplementation(async () => jsonResponse({authorize_url: 'https://github.test/authorize'}));
@@ -753,24 +792,74 @@ describe('GithubCallbackPage', () => {
       expect(capture).toHaveBeenCalledWith('github_link_failed', {reason: 'no-linkable'});
     });
 
-    test('tells the user to contact support when several installations are linkable', async () => {
+    test('lets the user choose among several installations and links the chosen one', async () => {
+      const user = userEvent.setup();
+      const capture = vi.fn<ClientAnalytics['capture']>();
+      completeGithubLinkMock.mockResolvedValue(githubLinkSelection());
+      selectGithubLinkInstallationMock.mockResolvedValue(githubConnection());
+
+      renderCallback({code: 'pick-code', state: 'pick-state'}, {analytics: {capture}});
+
+      expect(await screen.findByRole('heading', {name: 'Choose a GitHub account'})).toBeVisible();
+      expect(screen.getByText('acme')).toBeVisible();
+      expect(screen.getByText('Organization')).toBeVisible();
+      expect(screen.getByText('octocat')).toBeVisible();
+      expect(screen.getByText('Personal account')).toBeVisible();
+      await user.click(screen.getByRole('button', {name: 'Connect octocat'}));
+
+      expect(
+        await screen.findByTestId('route:/w/$workspaceSlug/settings/integrations'),
+      ).toBeInTheDocument();
+      expect(selectGithubLinkInstallationMock).toHaveBeenCalledWith(
+        {selection_token: 'selection-secret-token', installation_id: 456},
+        'test-token',
+      );
+      expect(capture).toHaveBeenCalledWith('github_link_completed', {candidates: 'many'});
+      expect(capture).not.toHaveBeenCalledWith('github_link_completed', {candidates: '1'});
+      expect(JSON.stringify(capture.mock.calls)).not.toContain('selection-secret');
+      expect(JSON.stringify(window.sessionStorage)).not.toContain('selection-secret');
+      expect(window.location.href).not.toContain('selection-secret');
+    });
+
+    test('keeps the picker and explains an expired selection', async () => {
+      const user = userEvent.setup();
+      const capture = vi.fn<ClientAnalytics['capture']>();
+      completeGithubLinkMock.mockResolvedValue(githubLinkSelection());
+      selectGithubLinkInstallationMock.mockRejectedValue(
+        new ApiError({
+          code: 'invalid-github-link-selection',
+          message: 'Expired GitHub link selection',
+          status: 400,
+        }),
+      );
+
+      renderCallback({code: 'expired-code', state: 'expired-state'}, {analytics: {capture}});
+
+      await user.click(await screen.findByRole('button', {name: 'Connect acme'}));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('expired');
+      expect(screen.getByRole('button', {name: 'Connect acme'})).toBeEnabled();
+      expect(capture).toHaveBeenCalledWith('github_link_failed', {reason: 'expired'});
+    });
+
+    test('tells the user to contact support when there are too many installations to list', async () => {
       const capture = vi.fn<ClientAnalytics['capture']>();
       completeGithubLinkMock.mockRejectedValue(
         new ApiError({
-          code: 'github-multiple-linkable-installations',
-          message: 'Multiple linkable GitHub installations were found',
+          code: 'github-too-many-linkable-installations',
+          message: 'Too many linkable GitHub installations were found to choose from',
           status: 409,
-          details: {count: 2},
+          details: {count: 21},
         }),
       );
 
       renderCallback({code: 'many-code', state: 'many-state'}, {analytics: {capture}});
 
       expect(
-        await screen.findByRole('heading', {name: 'More than one GitHub installation found'}),
+        await screen.findByRole('heading', {name: 'Too many GitHub installations found'}),
       ).toBeVisible();
       expect(screen.getByText('Contact support', {exact: false})).toBeVisible();
-      expect(capture).toHaveBeenCalledWith('github_link_failed', {reason: 'multiple-linkable'});
+      expect(capture).toHaveBeenCalledWith('github_link_failed', {reason: 'too-many-linkable'});
     });
   });
 });

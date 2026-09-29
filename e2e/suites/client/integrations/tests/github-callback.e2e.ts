@@ -251,7 +251,57 @@ test('GitHub link callback explains when no installation can be linked', async (
   await expect(githubCallback.goToShipfoxLink()).toHaveAttribute('href', '/');
 });
 
-test('GitHub link callback sends users with several installations to support', async ({
+test('GitHub link callback lets the user pick among several installations', async ({
+  auth,
+  githubCallback,
+  page,
+  workspaces,
+}) => {
+  const user = await auth.createUser();
+  const workspace = await workspaces.create({userId: user.user.id});
+  await auth.loginAs(page, user);
+  await stubLinkComplete(page, {
+    status: 200,
+    body: {
+      candidates: [
+        {
+          installation_id: 101,
+          account_login: 'acme',
+          account_type: 'Organization',
+          repository_selection: 'all',
+        },
+        {
+          installation_id: 202,
+          account_login: 'octocat',
+          account_type: 'User',
+          repository_selection: 'selected',
+        },
+      ],
+      selection_token: 'selection-token',
+    },
+  });
+  const selections: unknown[] = [];
+  await page.route('**/integrations/github/link/select', async (route) => {
+    selections.push(route.request().postDataJSON());
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(githubConnectionFixture(workspace.id)),
+    });
+  });
+
+  await githubCallback.goto('code=pick-code&state=pick-state');
+
+  await expect(githubCallback.heading('Choose a GitHub account')).toBeVisible();
+  await expect(githubCallback.message('Personal account')).toBeVisible();
+  await stableScreenshot(page, 'integrations/github-callback-installation-picker');
+  await githubCallback.connectAccountButton('acme').click();
+
+  await expect(page).toHaveURL(new RegExp(`/w/${workspace.slug}/settings/integrations/?$`, 'u'));
+  expect(selections).toEqual([{selection_token: 'selection-token', installation_id: 101}]);
+});
+
+test('GitHub link callback sends users with too many installations to support', async ({
   auth,
   githubCallback,
   page,
@@ -263,14 +313,14 @@ test('GitHub link callback sends users with several installations to support', a
   await stubLinkComplete(page, {
     status: 409,
     body: {
-      code: 'github-multiple-linkable-installations',
-      message: 'Multiple linkable GitHub installations were found',
-      details: {count: 2},
+      code: 'github-too-many-linkable-installations',
+      message: 'Too many linkable GitHub installations were found to choose from',
+      details: {count: 21},
     },
   });
 
   await githubCallback.goto('code=many-code&state=many-state');
 
-  await expect(githubCallback.heading('More than one GitHub installation found')).toBeVisible();
+  await expect(githubCallback.heading('Too many GitHub installations found')).toBeVisible();
   await expect(githubCallback.message('Contact support')).toBeVisible();
 });

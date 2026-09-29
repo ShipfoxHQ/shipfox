@@ -1,5 +1,6 @@
 import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {GithubApiClient} from '#api/client.js';
+import {githubUserInstallationPage} from '#test/index.js';
 import {
   GithubInstallationAlreadyLinkedError,
   GithubInstallationNotAuthorizedError,
@@ -12,10 +13,9 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
   return {
     exchangeOAuthCode: vi.fn(() => Promise.resolve('user-token')),
     listUserInstallations: vi.fn(({cursor}) =>
-      Promise.resolve({
-        installationIds: cursor ? [123] : [999],
-        nextCursor: cursor ? null : '2',
-      }),
+      Promise.resolve(
+        cursor ? githubUserInstallationPage([123]) : githubUserInstallationPage([999], '2'),
+      ),
     ),
     getInstallation: vi.fn(() =>
       Promise.resolve({
@@ -114,9 +114,7 @@ describe('handleGithubCallback', () => {
     const userId = crypto.randomUUID();
     const state = signGithubInstallState({workspaceId: crypto.randomUUID(), userId});
     const github = githubClient({
-      listUserInstallations: vi.fn(() =>
-        Promise.resolve({installationIds: [999], nextCursor: null}),
-      ),
+      listUserInstallations: vi.fn(() => Promise.resolve(githubUserInstallationPage([999]))),
     });
 
     const result = handleGithubCallback({

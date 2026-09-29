@@ -271,6 +271,10 @@ export class GithubCallbackScreen {
   goToShipfoxLink(): Locator {
     return this.page.getByRole('link', {name: 'Go to Shipfox'});
   }
+
+  connectAccountButton(accountLogin: string): Locator {
+    return this.page.getByRole('button', {name: `Connect ${accountLogin}`});
+  }
 }
 
 export interface IntegrationsScreenFixtures {

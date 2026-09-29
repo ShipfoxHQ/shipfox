@@ -6,7 +6,7 @@
 
 - **`createGithubIntegrationProvider`** composes the GitHub provider for the integrations module.
 - **Installation routes** create and complete the existing GitHub App installation flow.
-- **Link routes** authorize a Shipfox member with GitHub user OAuth and connect one accessible, unlinked installation.
+- **Link routes** authorize a Shipfox member with GitHub user OAuth and connect an accessible, unlinked installation, or let them choose one when there are several.
 - **Source-control adapters** expose GitHub repositories and files to the integrations core.
 - **Webhook processing** verifies and processes GitHub App deliveries.
 
@@ -55,9 +55,14 @@ The provider reads the GitHub App credentials, webhook secret, API base URL, and
 | `POST /integrations/github/install` | Create a GitHub App installation URL for a workspace. |
 | `GET /integrations/github/callback/api` | Complete a GitHub App installation callback. |
 | `POST /integrations/github/link` | Start actor-bound GitHub user OAuth for an existing installation. |
-| `POST /integrations/github/link/complete` | Exchange the OAuth code, inspect every accessible installation, and connect one candidate. |
+| `POST /integrations/github/link/complete` | Exchange the OAuth code, inspect every accessible installation, and connect one candidate or return candidates with a selection token. |
+| `POST /integrations/github/link/select` | Connect one installation named by a selection token. |
 
-The link flow carries its S256 PKCE verifier inside authenticated encrypted state. It requires the completing Shipfox actor's JWT and workspace membership. Existing installations are never repointed. Multiple linkable installations return a typed conflict until the selection flow is available.
+The link flow carries its S256 PKCE verifier inside authenticated encrypted state. It requires the completing Shipfox actor's JWT and workspace membership. Existing installations are never repointed.
+
+With 2 to 20 linkable installations, `/link/complete` returns their account names and a selection token. More than 20 return the `github-too-many-linkable-installations` conflict. The token is HMAC-signed with the install-state secret under its own signing domain. It binds the actor, the workspace, the allowed installation IDs, its purpose and version, and a five-minute expiry. It holds no GitHub token, and its payload is readable.
+
+`/link/select` checks the current actor, workspace membership, the token, and that it allows the selected ID. It then fetches the installation with the app JWT and rejects suspended or deleted installations. It does not recheck the user's GitHub access: a revocation after the token was issued takes effect only when the token expires, at most five minutes later. The token is not single-use. Selecting an installation that is already linked to the workspace returns the existing connection.
 
 ## Development
 

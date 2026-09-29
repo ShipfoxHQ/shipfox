@@ -18,6 +18,8 @@ export class GithubLinkStateActorMismatchError extends Error {
   }
 }
 
+export class GithubLinkSelectionError extends Error {}
+
 export class GithubNoLinkableInstallationError extends Error {
   constructor(
     public readonly accessible: number,
@@ -27,9 +29,15 @@ export class GithubNoLinkableInstallationError extends Error {
   }
 }
 
-export class GithubMultipleLinkableInstallationsError extends Error {
+export class GithubTooManyLinkableInstallationsError extends Error {
   constructor(public readonly count: number) {
-    super('Multiple linkable GitHub installations were found');
+    super('Too many linkable GitHub installations were found to choose from');
+  }
+}
+
+export class GithubInstallationSuspendedError extends Error {
+  constructor(installationId: number) {
+    super(`GitHub installation is suspended: ${installationId}`);
   }
 }
 
