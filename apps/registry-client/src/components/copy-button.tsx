@@ -1,5 +1,6 @@
 'use client';
 
+import {copyTextToClipboard} from '@shipfox/react-ui/utils/clipboard';
 import {Check, Copy} from 'lucide-react';
 import {useState} from 'react';
 
@@ -10,7 +11,7 @@ export function CopyButton({text, label}: {text: string; label: string}) {
       type="button"
       aria-label={label}
       onClick={() => {
-        navigator.clipboard.writeText(text).then(
+        copyTextToClipboard(text).then(
           () => {
             setCopied(true);
             window.setTimeout(() => setCopied(false), 1500);

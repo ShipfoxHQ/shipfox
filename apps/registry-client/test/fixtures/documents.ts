@@ -71,6 +71,16 @@ const TEMPLATE_MANIFEST = workflowTemplateManifestSchema.parse({
         {id: 'off', label: 'No'},
       ],
     },
+    {
+      id: 'pr_mode',
+      question: 'How should the pull request open?',
+      tradeoff: 'A draft waits for your review.',
+      tradeoffs: {ready: 'Reviewers are notified at once.'},
+      choices: [
+        {id: 'draft', label: 'As a draft'},
+        {id: 'ready', label: 'Ready for review'},
+      ],
+    },
   ],
   slots: [{id: 'test_command', description: 'The command that runs the tests.'}],
 });

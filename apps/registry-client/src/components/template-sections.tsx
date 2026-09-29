@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import type {TemplateDetails} from '@/lib/package-page';
+import {isChoosable} from '@/lib/prompts';
 import {providerLabel} from '@/lib/providers';
 import {packagePath} from '@/lib/urls';
 import {ProviderIcon} from './provider-icon';
@@ -28,6 +29,8 @@ const FLOW_ICONS: Record<WorkflowTemplateFlowStep['kind'], LucideIcon> = {
 export function TemplateSections({details}: {details: TemplateDetails}) {
   const {manifest, metadata, actions} = details;
   const {slots, secrets, variables} = metadata.interface;
+  // Roles set from the project or with one provider are never asked.
+  const roles = metadata.choices.roles.filter(isChoosable);
   return (
     <>
       {manifest.flow.length > 0 ? (
@@ -73,53 +76,63 @@ export function TemplateSections({details}: {details: TemplateDetails}) {
         </Section>
       ) : null}
 
-      <Section title="Choices you make">
-        <p className="text-sm text-foreground-neutral-subtle">
-          When you set up this workflow, your coding agent asks you these questions.
-        </p>
-        <RowList>
-          {metadata.choices.roles.map((role) => (
-            <Row key={role.id}>
-              <span className="font-medium text-foreground-neutral-base">
-                {role.question ?? `Which ${role.id}?`}
-              </span>
-              <span className="text-foreground-neutral-subtle">
-                {role.from === 'project'
-                  ? `${role.providers.map(providerLabel).join(' or ')}, from the project`
-                  : role.providers.map(providerLabel).join(', ')}
-                {role.optional ? ' (optional)' : ''}
-              </span>
-              {role.tradeoff ? (
-                <span className="text-xs text-foreground-neutral-muted">{role.tradeoff}</span>
-              ) : null}
-            </Row>
-          ))}
-          {metadata.choices.options.map((option) => (
-            <Row key={option.id}>
-              <span className="font-medium text-foreground-neutral-base">
-                {option.question ?? option.id}
-              </span>
-              <ul className="flex flex-col gap-tight">
-                {option.choices.map((choice) => (
-                  <li key={choice.id} className="flex flex-col">
-                    <span className="text-foreground-neutral-base">
-                      {choice.label ?? choice.id}
-                      {choice.default ? (
-                        <span className="text-foreground-neutral-muted"> (default)</span>
-                      ) : null}
-                    </span>
-                    {choice.tradeoff ? (
-                      <span className="text-xs text-foreground-neutral-muted">
-                        {choice.tradeoff}
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </Row>
-          ))}
-        </RowList>
-      </Section>
+      {roles.length + metadata.choices.options.length > 0 ? (
+        <Section title="Choices you make">
+          <p className="text-sm text-foreground-neutral-subtle">
+            When you set up this workflow, your coding agent asks you these questions.
+          </p>
+          <RowList>
+            {roles.map((role) => (
+              <Row key={role.id}>
+                <span className="font-medium text-foreground-neutral-base">
+                  {role.question ?? `Which ${role.id}?`}
+                </span>
+                <span className="text-foreground-neutral-subtle">
+                  {role.providers.map(providerLabel).join(', ')}
+                  {role.optional ? ' (optional)' : ''}
+                </span>
+                {role.tradeoff ? (
+                  <span className="text-xs text-foreground-neutral-muted">{role.tradeoff}</span>
+                ) : null}
+              </Row>
+            ))}
+            {metadata.choices.options.map((option) => {
+              // Without an explicit default, the first choice is the one the workflow uses.
+              const fallback = option.choices.find((choice) => choice.default) ?? option.choices[0];
+              return (
+                <Row key={option.id}>
+                  <span className="font-medium text-foreground-neutral-base">
+                    {option.question ?? option.id}
+                  </span>
+                  {option.tradeoff ? (
+                    <span className="text-xs text-foreground-neutral-muted">{option.tradeoff}</span>
+                  ) : null}
+                  <ul className="flex flex-col gap-tight">
+                    {option.choices.map((choice) => {
+                      const tradeoff = choice.tradeoff ?? option.tradeoffs?.[choice.id];
+                      return (
+                        <li key={choice.id} className="flex flex-col">
+                          <span className="text-foreground-neutral-base">
+                            {choice.label ?? choice.id}
+                            {choice.id === fallback?.id ? (
+                              <span className="text-foreground-neutral-muted"> (default)</span>
+                            ) : null}
+                          </span>
+                          {tradeoff ? (
+                            <span className="text-xs text-foreground-neutral-muted">
+                              {tradeoff}
+                            </span>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </Row>
+              );
+            })}
+          </RowList>
+        </Section>
+      ) : null}
 
       {slots.length + secrets.length + variables.length > 0 ? (
         <Section title="What you provide">
@@ -179,7 +192,7 @@ function Flow({steps}: {steps: WorkflowTemplateFlowStep[]}) {
         const Icon = FLOW_ICONS[step.kind];
         const loopsTo = step.loops_to === undefined ? undefined : steps[step.loops_to];
         return (
-          <li key={step.title} className="relative flex gap-group pb-group last:pb-0">
+          <li key={index} className="relative flex gap-group pb-group last:pb-0">
             {index === steps.length - 1 ? null : (
               <span
                 aria-hidden="true"

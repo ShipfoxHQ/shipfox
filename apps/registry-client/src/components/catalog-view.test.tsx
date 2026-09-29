@@ -18,9 +18,9 @@ describe('catalogFilters', () => {
 });
 
 describe('CatalogView', () => {
-  it('lists packages in the order the registry returns, featured ones first', () => {
+  it('keeps the order the registry returns', () => {
     const packages = [
-      catalogEntry({package: 'shipfox/ticket-to-pr', title: 'Task to pull request', featured: 1}),
+      catalogEntry({package: 'shipfox/ticket-to-pr', title: 'Task to pull request'}),
       catalogEntry({
         package: 'shipfox/slack-thread-digest',
         title: 'Slack thread digest',

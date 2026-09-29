@@ -34,7 +34,7 @@ const INLINE_CODE = /(`[^`]+`)/;
 /** Plain text with backtick spans set as code, the way manifests write command names. */
 export function InlineCode({text}: {text: string}) {
   return text.split(INLINE_CODE).map((part, index) =>
-    part.startsWith('`') && part.endsWith('`') && part.length > 1 ? (
+    part.startsWith('`') && part.endsWith('`') && part.length > 2 ? (
       <code
         key={index}
         className="rounded-4 bg-background-components-base px-4 font-code text-[0.9em]"

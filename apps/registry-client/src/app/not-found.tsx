@@ -4,7 +4,7 @@ import Link from 'next/link';
 export default function NotFound() {
   return (
     <div className="flex flex-col items-start gap-group">
-      <Header variant="h2" className="text-foreground-neutral-base">
+      <Header variant="h1" className="text-foreground-neutral-base">
         Package not found
       </Header>
       <p className="text-sm text-foreground-neutral-subtle">

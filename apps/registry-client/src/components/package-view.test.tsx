@@ -115,6 +115,18 @@ describe('package page', () => {
       );
     });
 
+    it('lists only the choices the agent asks, with their defaults and tradeoffs', async () => {
+      const {html} = await renderPackage(routes, 'ticket-to-pr');
+
+      expect(html).not.toContain('Which source?');
+      expect(html).toContain('Do you track tasks in a tracker?');
+      expect(html).toContain(
+        'As a draft<span class="text-foreground-neutral-muted"> (default)</span>',
+      );
+      expect(html).toContain('A draft waits for your review.');
+      expect(html).toContain('Reviewers are notified at once.');
+    });
+
     it('shows the adopt prompt with the first-party template id', async () => {
       const {html} = await renderPackage(routes, 'ticket-to-pr');
 
