@@ -334,6 +334,7 @@ describe('claimPendingJobExecution', () => {
           .where(eq(pendingJobExecutions.jobExecutionId, created.jobExecutionId)),
       ).toHaveLength(1);
       expect(refusedMetric).toHaveBeenCalledWith(1, {reason: 'no-capacity-hold'});
+      expect(refusedMetric).toHaveBeenCalledTimes(1);
 
       placement.holds = 'record';
       const claimed = await claimPendingJobExecution({
