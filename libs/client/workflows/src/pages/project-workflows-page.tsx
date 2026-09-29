@@ -345,7 +345,10 @@ function DefinitionSheet({
   );
 }
 
-/** The notice is informational, so it stays hidden while loading and when the request fails. */
+/**
+ * The notice is informational: it stays hidden until the first load succeeds, and a refetch keeps
+ * the last answer on screen, even when the refetch fails.
+ */
 function DefinitionPackages({
   workspaceId,
   definitionId,
