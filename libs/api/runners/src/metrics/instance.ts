@@ -126,7 +126,7 @@ export const jobExecutionClaimedCount = meter.createCounter<{outcome: 'claimed' 
 
 export const runnerClaimsRefusedCount = meter.createCounter<{
   reason: 'no-capacity-hold';
-}>('runners_claims_refused_total', {
+}>('runners_claims_refused', {
   description: 'Runner job claims refused for a bounded capacity reason',
 });
 

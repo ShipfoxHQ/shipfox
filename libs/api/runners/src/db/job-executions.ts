@@ -1136,6 +1136,7 @@ async function claimPendingCandidateTx(
     );
   if (!row) return null;
   if (requireCapacityHold) {
+    // Plain read: locking the hold here would invert adoption's runner-then-hold lock order.
     const [hold] = runnerInstanceId
       ? await tx
           .select({id: capacityHolds.id})
@@ -1147,7 +1148,6 @@ async function claimPendingCandidateTx(
             ),
           )
           .limit(1)
-          .for('update', {skipLocked: true})
       : [];
     if (!hold) {
       runnerClaimsRefusedCount.add(1, {reason: 'no-capacity-hold'});
