@@ -227,6 +227,44 @@ describe('normalizeWorkflowDocument action steps', () => {
     ]);
   });
 
+  test('types log_path in run, env, prompt, and action inputs', () => {
+    const logPath = `$${'{{ steps.thread.log_path }}'}`;
+    const attemptLogPath = `$${'{{ steps.thread.attempts[0].log_path }}'}`;
+    const restartLogPath = `$${'{{ step.restart.from.log_path }}'}`;
+    const workflow = document(
+      actionStep(),
+      {key: 'read', run: `cat "${logPath}"`, env: {ATTEMPT_LOG: attemptLogPath}},
+      {key: 'ask', prompt: `Read ${logPath} and fix the failure.`},
+      actionStep({key: 'again', with: {channel_id: 'C0123', thread_ts: logPath}}),
+      {key: 'recover', run: `cat "${restartLogPath}"`, env: {LOG: restartLogPath}},
+      {
+        key: 'ask_restart',
+        prompt: `Read ${restartLogPath} and fix the failure.`,
+        if: `$${'{{ has(step.restart) && has(step.restart.from.log_path) }}'}`,
+      },
+      {key: 'check', run: 'false', gate: {on_failure: {restart_from: 'recover'}}},
+    );
+
+    expect(issuesFor(workflow)).toEqual([]);
+  });
+
+  test('does not type log_path on jobs', () => {
+    const workflow: WorkflowDocument = {
+      name: 'jobs',
+      runner: 'ubuntu-latest',
+      jobs: {
+        build: {steps: [{run: 'echo build'}]},
+        deploy: {
+          needs: 'build',
+          if: `$${'{{ jobs.build.log_path != "" }}'}`,
+          steps: [{run: 'echo deploy'}],
+        },
+      },
+    };
+
+    expect(issuesFor(workflow)).toEqual([{code: 'invalid-job-if', path: 'jobs.deploy.if'}]);
+  });
+
   test('accepts literals that dispatch coerces to the declared type', () => {
     const step = actionStep({with: {channel_id: 'C1', thread_ts: '1.0', limit: '42'}});
 

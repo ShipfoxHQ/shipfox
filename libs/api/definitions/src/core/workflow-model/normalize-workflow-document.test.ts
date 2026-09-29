@@ -3938,6 +3938,63 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
+  it.each([
+    ['a step', 'steps.build.log_path'],
+    ['a step attempt', 'steps.build.attempts[0].log_path'],
+    ['a guard', 'has(steps.build.log_path) ? steps.build.log_path : ""'],
+  ])('rejects log_path of %s in job outputs', (_name, source) => {
+    const document: WorkflowDocument = {
+      name: 'job outputs',
+      jobs: {
+        build: {
+          steps: [{key: 'build', run: 'npm run build'}],
+          outputs: {log: interpolation(source)},
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'runner-path-in-field',
+        path: ['jobs', 'build', 'outputs', 'log'],
+        message: expect.stringContaining('only exists on the runner during the job execution'),
+      }),
+    ]);
+  });
+
+  it('accepts a step output named log_path in job outputs', () => {
+    const document: WorkflowDocument = {
+      name: 'job outputs',
+      jobs: {
+        build: {
+          steps: [{key: 'build', run: 'npm run build', outputs: {log_path: {type: 'string'}}}],
+          outputs: {log: interpolation('steps.build.outputs.log_path')},
+        },
+      },
+    };
+
+    expect(() => normalizeWorkflowDocument(document)).not.toThrow();
+  });
+
+  it('rejects log_path in workflow outputs', () => {
+    const document: WorkflowDocument = {
+      name: 'workflow outputs',
+      jobs: {build: {steps: [{key: 'build', run: 'npm run build'}]}},
+      outputs: {log: interpolation('steps.build.log_path')},
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'runner-path-in-field',
+        path: ['outputs', 'log'],
+      }),
+    ]);
+  });
+
   it('normalizes typed step output declarations', () => {
     const schema = {
       type: 'object',

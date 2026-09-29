@@ -758,6 +758,39 @@ describe('normalizeToolStep', () => {
     ]);
   });
 
+  it.each([
+    ['steps.build.log_path'],
+    ['steps.build.attempts[0].log_path'],
+    ['step.restart.from.log_path'],
+  ])('rejects %s in tool inputs', (source) => {
+    const error = expectInvalid(
+      {
+        name: 'tools',
+        jobs: {
+          use: {
+            steps: [
+              {key: 'build', run: 'npm run build'},
+              toolStep({
+                key: 'issue',
+                tool: 'get_issue',
+                connection: 'linear-main',
+                with: {id: '$' + '{{ ' + source + ' }}'},
+              }),
+            ],
+          },
+        },
+      },
+      {integrationValidationContext},
+    );
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'runner-path-in-field',
+        path: ['jobs', 'use', 'steps', 1, 'with', 'id'],
+      }),
+    ]);
+  });
+
   it('rejects a missing connection when no default source connection exists', () => {
     const error = expectInvalid(
       toolDocument(

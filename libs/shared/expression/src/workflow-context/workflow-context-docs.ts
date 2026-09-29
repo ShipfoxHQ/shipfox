@@ -63,6 +63,8 @@ const stepEntityFields = {
   exit_code: 'Exit code of the most recent finished attempt.',
   outputs: 'Declared step outputs of the most recent finished attempt.',
   response: 'Final agent response. Absent on a run step.',
+  log_path:
+    'Path on the runner to a masked plain-text copy of the log of the most recent finished attempt. Absent when the step has not run, was skipped, is not a `run`, `action`, or `checkout` step, failed before log capture started, could not write the file, or the runner stopped before reporting the attempt. Guard it with `has()`. Use it in `run`, `env`, `prompt`, and action inputs only: the file exists on the runner until the job execution ends.',
   gate: 'Gate result of the most recent finished attempt. Absent when the step has no gate.',
   'gate.passed': 'Whether the gate expression passed.',
   'gate.source': 'Gate expression that produced the result.',
@@ -73,6 +75,8 @@ const stepEntityFields = {
   'attempts[*].exit_code': 'Exit code the attempt reported.',
   'attempts[*].outputs': 'Declared outputs the attempt reported.',
   'attempts[*].response': 'Final agent response of the attempt. Absent on a run step.',
+  'attempts[*].log_path':
+    'Path on the runner to a masked plain-text copy of the log of the attempt. Absent in the same cases as `log_path`.',
   'attempts[*].gate': 'Gate result of the attempt. Absent when the step has no gate.',
   'attempts[*].gate.passed': 'Whether the gate expression passed.',
   'attempts[*].gate.source': 'Gate expression that produced the result.',

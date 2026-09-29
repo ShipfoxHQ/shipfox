@@ -63,6 +63,7 @@ export type WorkflowModelValidationIssueCode =
   | 'model-locked'
   | 'multiple-manual-triggers'
   | 'runner-context-not-bare'
+  | 'runner-path-in-field'
   | 'runner-context-in-field'
   | 'runner-context-in-server-predicate'
   | 'secret-input-destination-not-literal'
