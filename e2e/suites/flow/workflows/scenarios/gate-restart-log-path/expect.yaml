@@ -1,0 +1,22 @@
+trigger: push
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      prepare:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["prepare read the failed log"]
+      review:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["review passes after restart"]
+      verify:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["found in restarted step: review failure marker"]
