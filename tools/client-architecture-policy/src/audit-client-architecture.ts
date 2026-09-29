@@ -99,6 +99,13 @@ export const clientArchitectureExceptions = {
       test: 'libs/client/integrations/src/pages/notion-callback-page.test.tsx',
     },
     {
+      file: 'libs/client/integrations/src/pages/discord-callback-page.tsx',
+      owner: 'Discord callback coordinator',
+      reason:
+        'The OAuth callback passes the auth cache to the workspace navigation coordinator after completion.',
+      test: 'libs/client/integrations/src/pages/discord-callback-page.test.tsx',
+    },
+    {
       file: 'libs/client/integrations/src/pages/jira-callback-page.tsx',
       owner: 'Jira callback coordinator',
       reason:

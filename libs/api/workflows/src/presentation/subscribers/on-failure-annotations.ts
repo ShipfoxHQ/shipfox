@@ -242,6 +242,7 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   github: 'GitHub',
   jira: 'Jira',
   clickup: 'ClickUp',
+  discord: 'Discord',
   linear: 'Linear',
   notion: 'Notion',
   sentry: 'Sentry',

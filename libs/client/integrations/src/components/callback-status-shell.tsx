@@ -14,6 +14,7 @@ export function CallbackStatusShell({
   workspaceSlug,
   installPath,
   documentationUrl,
+  documentationLabel = 'Read the setup guide',
 }: {
   title: string;
   message: string;
@@ -26,8 +27,10 @@ export function CallbackStatusShell({
     | '/w/$workspaceSlug/integrations/slack'
     | '/w/$workspaceSlug/integrations/jira'
     | '/w/$workspaceSlug/integrations/clickup'
-    | '/w/$workspaceSlug/integrations/notion';
+    | '/w/$workspaceSlug/integrations/notion'
+    | '/w/$workspaceSlug/integrations/discord';
   documentationUrl?: string;
+  documentationLabel?: string;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => headingRef.current?.focus(), []);
@@ -63,7 +66,7 @@ export function CallbackStatusShell({
                 target="_blank"
                 rel="noreferrer"
               >
-                Read the Notion setup guide
+                {documentationLabel}
               </a>
             ) : null}
           </CalloutContent>

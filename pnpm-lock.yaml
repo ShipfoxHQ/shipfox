@@ -6521,6 +6521,9 @@ importers:
       '@shipfox/api-integration-clickup-dto':
         specifier: workspace:*
         version: link:../../api/integration/clickup-dto
+      '@shipfox/api-integration-discord-dto':
+        specifier: workspace:*
+        version: link:../../api/integration/discord-dto
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../../api/integration/core-dto

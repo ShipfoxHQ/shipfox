@@ -1,6 +1,9 @@
 import {
+  createDiscordInstallBodySchema,
+  createDiscordInstallResponseSchema,
   createE2eDiscordConnectionBodySchema,
   DISCORD_PROVIDER,
+  discordCallbackResponseSchema,
   discordInteractionEnvelopeSchema,
   discordMessageCommandPayloadSchema,
   discordMessageCreatePayloadSchema,
@@ -104,6 +107,31 @@ describe('Discord DTO schemas', () => {
     });
 
     expect(result.target_message.mentions_bot).toBe(true);
+  });
+
+  it('validates install and callback response shapes', () => {
+    expect(
+      createDiscordInstallBodySchema.parse({
+        workspace_id: '5c3583d6-ffb9-4486-a80d-4cf55b567462',
+      }).workspace_id,
+    ).toBe('5c3583d6-ffb9-4486-a80d-4cf55b567462');
+    expect(
+      createDiscordInstallResponseSchema.parse({
+        install_url: 'https://discord.example.test/install',
+      }).install_url,
+    ).toContain('discord.example.test');
+    expect(discordCallbackResponseSchema.parse({outcome: 'access_denied'})).toEqual({
+      outcome: 'access_denied',
+    });
+  });
+
+  it.each([
+    'already-linked',
+    'state-invalid',
+    'bot-not-in-guild',
+    'provider-unavailable',
+  ])('rejects %s as a successful callback outcome', (outcome) => {
+    expect(discordCallbackResponseSchema.safeParse({outcome}).success).toBe(false);
   });
 
   it('accepts the E2E seed and dispatch request shapes', () => {

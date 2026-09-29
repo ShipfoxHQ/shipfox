@@ -11,7 +11,8 @@ export type ProviderSetupPath =
   | '/w/$workspaceSlug/integrations/slack'
   | '/w/$workspaceSlug/integrations/jira'
   | '/w/$workspaceSlug/integrations/clickup'
-  | '/w/$workspaceSlug/integrations/notion';
+  | '/w/$workspaceSlug/integrations/notion'
+  | '/w/$workspaceSlug/integrations/discord';
 
 interface RouteProviderCatalogEntry {
   kind: 'redirect-install' | 'direct-connect';
@@ -70,6 +71,12 @@ export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
     displayName: 'Notion',
     iconName: PROVIDER_ICONS.notion,
     setupPath: '/w/$workspaceSlug/integrations/notion',
+  },
+  discord: {
+    kind: 'redirect-install',
+    displayName: 'Discord',
+    iconName: PROVIDER_ICONS.discord,
+    setupPath: '/w/$workspaceSlug/integrations/discord',
   },
   gitea: {
     kind: 'direct-connect',

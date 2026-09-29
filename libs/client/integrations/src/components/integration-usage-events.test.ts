@@ -115,6 +115,23 @@ describe('usageEventsForConnection', () => {
     ]);
   });
 
+  it('uses Discord event names directly', () => {
+    const connection = {
+      ...baseConnection,
+      provider: 'discord',
+      capabilities: ['agent_tools'],
+    } satisfies IntegrationConnectionDto;
+
+    const events = usageEventsForConnection(connection);
+
+    expect(events.map((event) => event.value)).toEqual([
+      'message_create',
+      'message_reaction_add',
+      'slash_command',
+      'message_command',
+    ]);
+  });
+
   it('uses Jira webhook names directly', () => {
     const connection = {
       ...baseConnection,

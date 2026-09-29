@@ -9,14 +9,14 @@ import {type Dispatch, type SetStateAction, useEffect, useMemo, useState} from '
 import {useCompleteIntegrationCallback} from '#application/complete-integration-callback.js';
 import {CallbackStatusShell} from '#components/callback-status-shell.js';
 import type {IntegrationConnection} from '#core/models.js';
-import {useCompleteNotionCallbackMutation} from '#hooks/api/integrations.js';
 import {
-  clearNotionInstallWorkspace,
-  parseNotionCallbackQuery,
-  readNotionInstallWorkspace,
-  serializeNotionCallbackQuery,
-} from '#notion-callback.js';
-import {classifyNotionCallbackError, type NotionCallbackFailure} from '#notion-form-errors.js';
+  clearDiscordInstallWorkspace,
+  parseDiscordCallbackQuery,
+  readDiscordInstallWorkspace,
+  serializeDiscordCallbackQuery,
+} from '#discord-callback.js';
+import {classifyDiscordCallbackError, type DiscordCallbackFailure} from '#discord-form-errors.js';
+import {useCompleteDiscordCallbackMutation} from '#hooks/api/integrations.js';
 import {rememberCallbackKey, resolveWorkspaceSlug} from '#workspace-navigation.js';
 
 const callbackRequests = createSingleFlight<string, IntegrationConnection>({
@@ -24,38 +24,38 @@ const callbackRequests = createSingleFlight<string, IntegrationConnection>({
 });
 const completedCallbacks = new Set<string>();
 const toastedCallbacks = new Set<string>();
-type CompletedNotionWorkspace = {slug?: string | undefined};
+type CompletedDiscordWorkspace = {slug?: string | undefined};
 
-export function NotionCallbackPage() {
+export function DiscordCallbackPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const refreshAuth = useRefreshAuth();
   const completeIntegrationCallback = useCompleteIntegrationCallback();
-  const {mutateAsync: completeNotionCallback} = useCompleteNotionCallbackMutation();
+  const {mutateAsync: completeDiscordCallback} = useCompleteDiscordCallbackMutation();
   const {workspaces, isLoading} = useAuthState();
-  const params = useRouteSearch(parseNotionCallbackQuery);
-  const workspaceId = useMemo(() => readNotionInstallWorkspace(sessionStorageOrUndefined()), []);
-  const [failure, setFailure] = useState<NotionCallbackFailure | undefined>();
-  const [completedWorkspace, setCompletedWorkspace] = useState<CompletedNotionWorkspace>();
+  const params = useRouteSearch(parseDiscordCallbackQuery);
+  const workspaceId = useMemo(() => readDiscordInstallWorkspace(sessionStorageOrUndefined()), []);
+  const [failure, setFailure] = useState<DiscordCallbackFailure | undefined>();
+  const [completedWorkspace, setCompletedWorkspace] = useState<CompletedDiscordWorkspace>();
 
   useEffect(() => {
     if (!params || isLoading) return;
 
     let disposed = false;
-    const key = serializeNotionCallbackQuery(params);
+    const key = serializeDiscordCallbackQuery(params);
     const request = callbackRequests.run(
       key,
       async () =>
         await completeIntegrationCallback({
           input: params,
           refreshAuth,
-          complete: async (query, token) => await completeNotionCallback({query, token}),
+          complete: async (query, token) => await completeDiscordCallback({query, token}),
         }),
     );
 
     request.then(
       async (connection) =>
-        await handleNotionCallbackSuccess({
+        await handleDiscordCallbackSuccess({
           connection,
           key,
           isDisposed: () => disposed,
@@ -65,7 +65,7 @@ export function NotionCallbackPage() {
           setCompletedWorkspace,
         }),
       (error: unknown) => {
-        if (!disposed) setFailure(classifyNotionCallbackError(error));
+        if (!disposed) setFailure(classifyDiscordCallbackError(error));
       },
     );
 
@@ -74,7 +74,7 @@ export function NotionCallbackPage() {
     };
   }, [
     completeIntegrationCallback,
-    completeNotionCallback,
+    completeDiscordCallback,
     isLoading,
     navigate,
     params,
@@ -85,10 +85,10 @@ export function NotionCallbackPage() {
 
   if (!params) {
     return (
-      <NotionCallbackFailurePage
+      <DiscordCallbackFailurePage
         failure={{
-          title: 'Invalid Notion callback',
-          message: 'Invalid Notion callback. Start the install again from workspace settings.',
+          title: 'Invalid Discord callback',
+          message: 'Invalid Discord callback. Start the install again from workspace settings.',
           startOver: true,
           signIn: false,
         }}
@@ -97,35 +97,35 @@ export function NotionCallbackPage() {
     );
   }
 
-  if (isLoading) return <FullPageLoader aria-label="Connecting Notion" />;
+  if (isLoading) return <FullPageLoader aria-label="Connecting Discord" />;
 
   if (completedWorkspace)
     return (
       <CallbackStatusShell
-        title="Notion connected"
+        title="Discord connected"
         status="success"
         message={
           completedWorkspace.slug
-            ? 'Notion is connected. Continue in integrations settings.'
-            : 'Notion is connected. Return to Shipfox to continue.'
+            ? 'Discord is connected. Continue in integrations settings.'
+            : 'Discord is connected. Return to Shipfox to continue.'
         }
         workspaceSlug={completedWorkspace.slug}
-        installPath="/w/$workspaceSlug/integrations/notion"
+        installPath="/w/$workspaceSlug/integrations/discord"
       />
     );
 
   if (failure)
     return (
-      <NotionCallbackFailurePage
+      <DiscordCallbackFailurePage
         failure={failure}
         workspaceSlug={workspaces.find(({id}) => id === workspaceId)?.slug}
       />
     );
 
-  return <FullPageLoader aria-label="Connecting Notion" />;
+  return <FullPageLoader aria-label="Connecting Discord" />;
 }
 
-async function handleNotionCallbackSuccess({
+async function handleDiscordCallbackSuccess({
   connection,
   key,
   isDisposed,
@@ -140,11 +140,11 @@ async function handleNotionCallbackSuccess({
   workspaces: ReturnType<typeof useAuthState>['workspaces'];
   queryClient: ReturnType<typeof useQueryClient>;
   navigate: ReturnType<typeof useNavigate>;
-  setCompletedWorkspace: Dispatch<SetStateAction<CompletedNotionWorkspace | undefined>>;
+  setCompletedWorkspace: Dispatch<SetStateAction<CompletedDiscordWorkspace | undefined>>;
 }) {
   if (isDisposed()) return;
   if (completedCallbacks.has(key)) {
-    await showResolvedNotionWorkspace({
+    await showResolvedDiscordWorkspace({
       connection,
       isDisposed,
       workspaces,
@@ -155,16 +155,16 @@ async function handleNotionCallbackSuccess({
   }
   rememberCallbackKey(completedCallbacks, key);
   try {
-    clearNotionInstallWorkspace(sessionStorageOrUndefined());
+    clearDiscordInstallWorkspace(sessionStorageOrUndefined());
   } catch {
     // The successful API response remains the source of truth for navigation.
   }
   if (isDisposed()) return;
   if (!toastedCallbacks.has(key)) {
     rememberCallbackKey(toastedCallbacks, key);
-    toast.success('Notion installed.');
+    toast.success('Discord installed.');
   }
-  await navigateToNotionWorkspace({
+  await navigateToDiscordWorkspace({
     connection,
     isDisposed,
     workspaces,
@@ -174,15 +174,15 @@ async function handleNotionCallbackSuccess({
   });
 }
 
-type NotionWorkspaceResolution = {
+type DiscordWorkspaceResolution = {
   connection: IntegrationConnection;
   isDisposed: () => boolean;
   workspaces: ReturnType<typeof useAuthState>['workspaces'];
   queryClient: ReturnType<typeof useQueryClient>;
-  setCompletedWorkspace: Dispatch<SetStateAction<CompletedNotionWorkspace | undefined>>;
+  setCompletedWorkspace: Dispatch<SetStateAction<CompletedDiscordWorkspace | undefined>>;
 };
 
-async function showResolvedNotionWorkspace(params: NotionWorkspaceResolution) {
+async function showResolvedDiscordWorkspace(params: DiscordWorkspaceResolution) {
   const workspaceSlug = await resolveWorkspaceSlug({
     workspaceId: params.connection.workspaceId,
     fallbackWorkspaces: params.workspaces,
@@ -193,8 +193,8 @@ async function showResolvedNotionWorkspace(params: NotionWorkspaceResolution) {
   }
 }
 
-async function navigateToNotionWorkspace(
-  params: NotionWorkspaceResolution & {navigate: ReturnType<typeof useNavigate>},
+async function navigateToDiscordWorkspace(
+  params: DiscordWorkspaceResolution & {navigate: ReturnType<typeof useNavigate>},
 ) {
   let workspaceSlug: string | undefined;
   try {
@@ -219,11 +219,11 @@ async function navigateToNotionWorkspace(
   }
 }
 
-function NotionCallbackFailurePage({
+function DiscordCallbackFailurePage({
   failure,
   workspaceSlug,
 }: {
-  failure: NotionCallbackFailure;
+  failure: DiscordCallbackFailure;
   workspaceSlug: string | undefined;
 }) {
   return (
@@ -233,9 +233,9 @@ function NotionCallbackFailurePage({
       startOver={failure.startOver}
       switchAccount={failure.signIn}
       workspaceSlug={workspaceSlug}
-      installPath="/w/$workspaceSlug/integrations/notion"
-      documentationUrl="https://docs.shipfox.io/integrations/notion/setup"
-      documentationLabel="Read the Notion setup guide"
+      installPath="/w/$workspaceSlug/integrations/discord"
+      documentationUrl="https://docs.shipfox.io/integrations/discord/setup"
+      documentationLabel="Read the Discord setup guide"
     />
   );
 }

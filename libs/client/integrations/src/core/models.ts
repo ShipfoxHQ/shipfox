@@ -234,6 +234,13 @@ const clickupUsageEvents = [
   'taskCommentUpdated',
 ] as const;
 
+const discordUsageEvents = [
+  'message_create',
+  'message_reaction_add',
+  'slash_command',
+  'message_command',
+] as const;
+
 const notionUsageEvents = [
   'page.created',
   'page.content_updated',
@@ -277,6 +284,8 @@ export function usageEventsForConnection(
     return linearUsageEvents.map((value) => ({value, label: value}));
   if (connection.provider === 'notion')
     return notionUsageEvents.map((value) => ({value, label: value}));
+  if (connection.provider === 'discord')
+    return discordUsageEvents.map((value) => ({value, label: value}));
   if (connection.capabilities.includes('source_control')) return [{value: 'push', label: 'push'}];
   return [{value: 'received', label: 'received'}];
 }

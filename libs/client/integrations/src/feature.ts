@@ -39,6 +39,11 @@ export const integrationsFeature = defineClientFeature({
       impl: '@shipfox/client-integrations/routes/notion-callback',
     },
     {
+      path: '/integrations/discord/callback',
+      parent: 'root',
+      impl: '@shipfox/client-integrations/routes/discord-callback',
+    },
+    {
       path: '/integrations/sentry/callback',
       parent: 'root',
       impl: '@shipfox/client-integrations/routes/sentry-callback',
@@ -87,6 +92,11 @@ export const integrationsFeature = defineClientFeature({
       path: '/w/$workspaceSlug/integrations/notion',
       parent: 'workspaceLayout',
       impl: '@shipfox/client-integrations/routes/notion',
+    },
+    {
+      path: '/w/$workspaceSlug/integrations/discord',
+      parent: 'workspaceLayout',
+      impl: '@shipfox/client-integrations/routes/discord',
     },
     {
       path: '/w/$workspaceSlug/integrations/sentry',
