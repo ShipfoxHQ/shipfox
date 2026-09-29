@@ -367,6 +367,7 @@ export async function createIntegrationsContext(
   }
 
   const services = parts.flatMap((part) => part.services ?? []);
+  const metrics = parts.flatMap((part) => (part.metrics ? [part.metrics] : []));
   if (options.webhookDeliverySource !== undefined) {
     services.push(options.webhookDeliverySource.createService(webhookProcessor));
   }
@@ -424,6 +425,13 @@ export async function createIntegrationsContext(
       ...parts.flatMap((part) => part.workers ?? []),
     ],
     ...(services.length === 0 ? {} : {services}),
+    ...(metrics.length === 0
+      ? {}
+      : {
+          metrics: (context) => {
+            for (const registerMetrics of metrics) registerMetrics(context);
+          },
+        }),
   };
 
   return {

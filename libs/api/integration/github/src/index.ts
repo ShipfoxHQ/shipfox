@@ -30,6 +30,7 @@ import {
   getGithubInstallationByInstallationId,
 } from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
+import {registerGithubServiceMetrics} from '#metrics/service.js';
 import {
   type CreateGithubE2eRoutesOptions,
   createGithubE2eRoutes,
@@ -115,6 +116,13 @@ export {
   getGithubInstallationByInstallationId,
   upsertGithubInstallation,
 } from '#db/installations.js';
+export {
+  countStaleGithubUnlinkedInstallations,
+  deleteGithubUnlinkedInstallationByInstallationId,
+  type UpsertGithubUnlinkedInstallationParams,
+  upsertGithubUnlinkedInstallation,
+} from '#db/unlinked-installations.js';
+export {registerGithubServiceMetrics} from '#metrics/service.js';
 export {type CreateGithubE2eRoutesOptions, closeDb, createGithubE2eRoutes, db, migrationsPath};
 
 export interface CreateGithubIntegrationProviderOptions
@@ -284,5 +292,6 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
       }),
     ],
     webhookProcessors: [{routeIds: ['github'] as const, processor: webhookProcessor}],
+    metrics: registerGithubServiceMetrics,
   };
 }

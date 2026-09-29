@@ -8,8 +8,11 @@ import type {
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
+import {eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {githubInstallations} from '#db/schema/installations.js';
+import {githubUnlinkedInstallations} from '#db/schema/unlinked-installations.js';
+import {upsertGithubUnlinkedInstallation} from '#db/unlinked-installations.js';
 import {githubInstallationFactory, githubPushPayload} from '#test/index.js';
 import {handleGithubEvent} from './webhook.js';
 
@@ -97,6 +100,7 @@ async function seedInstallation(installationId: number, connectionId?: string): 
 describe('handleGithubEvent', () => {
   beforeEach(async () => {
     await db().delete(githubInstallations);
+    await db().delete(githubUnlinkedInstallations);
   });
 
   it('publishes a mapped event for a valid push from a known installation', async () => {
@@ -812,6 +816,94 @@ describe('handleGithubEvent', () => {
       provider: 'github',
       deliveryId,
     });
+  });
+
+  it('records a newly created unknown installation for orphan detection', async () => {
+    const installationId = 999996;
+    const handlers = deps();
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: 'delivery-created',
+      event: 'installation',
+      payload: {
+        action: 'created',
+        installation: {
+          id: installationId,
+          account: {login: 'opsmill', type: 'Organization'},
+          repository_selection: 'selected',
+        },
+        sender: {login: 'octocat'},
+        requester: {login: 'member'},
+      },
+      ...handlers,
+    });
+
+    const [record] = await db()
+      .select()
+      .from(githubUnlinkedInstallations)
+      .where(eq(githubUnlinkedInstallations.installationId, String(installationId)));
+
+    expect(result.outcome).toBe('unknown-installation');
+    expect(record).toMatchObject({
+      installationId: String(installationId),
+      accountLogin: 'opsmill',
+      accountType: 'Organization',
+      repositorySelection: 'selected',
+      senderLogin: 'octocat',
+      requesterLogin: 'member',
+      lastAction: 'created',
+    });
+  });
+
+  it('deletes an unknown installation record on uninstall', async () => {
+    const installationId = 999995;
+    await upsertGithubUnlinkedInstallation({
+      installationId: String(installationId),
+      accountLogin: 'opsmill',
+      accountType: 'Organization',
+      repositorySelection: 'all',
+      senderLogin: 'octocat',
+      requesterLogin: null,
+      lastAction: 'created',
+    });
+    const handlers = deps();
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: 'delivery-deleted',
+      event: 'installation',
+      payload: {action: 'deleted', installation: {id: installationId}},
+      ...handlers,
+    });
+
+    const rows = await db()
+      .select()
+      .from(githubUnlinkedInstallations)
+      .where(eq(githubUnlinkedInstallations.installationId, String(installationId)));
+
+    expect(result.outcome).toBe('unknown-installation');
+    expect(rows).toHaveLength(0);
+  });
+
+  it('does not record non-lifecycle events for an unknown installation', async () => {
+    const handlers = deps();
+
+    await handleGithubEvent({
+      tx: db(),
+      deliveryId: 'delivery-push',
+      event: 'push',
+      payload: {
+        installation: {
+          id: 999994,
+          account: {login: 'opsmill', type: 'Organization'},
+          repository_selection: 'all',
+        },
+      },
+      ...handlers,
+    });
+
+    await expect(db().select().from(githubUnlinkedInstallations)).resolves.toHaveLength(0);
   });
 
   it('logs full identity details at warn for an unknown installation event', async () => {

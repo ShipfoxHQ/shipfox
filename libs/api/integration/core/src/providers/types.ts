@@ -7,7 +7,12 @@ import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module'
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {RouteExport} from '@shipfox/node-fastify';
-import type {ModuleDatabase, ModuleService, ModuleWorker} from '@shipfox/node-module';
+import type {
+  ModuleDatabase,
+  ModuleMetricsRegistration,
+  ModuleService,
+  ModuleWorker,
+} from '@shipfox/node-module';
 import type {IntegrationProvider} from '#core/entities/provider.js';
 
 /**
@@ -38,6 +43,7 @@ export interface IntegrationModuleParts {
   builtinConnection?: IntegrationBuiltinConnection | undefined;
   database?: ModuleDatabase | undefined;
   services?: ModuleService[] | undefined;
+  metrics?: ModuleMetricsRegistration | undefined;
   e2eRoutes?: RouteExport[] | undefined;
   workers?: ModuleWorker[] | undefined;
   startupTasks?: Array<() => Promise<void>> | undefined;
