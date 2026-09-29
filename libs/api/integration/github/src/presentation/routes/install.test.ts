@@ -191,7 +191,10 @@ describe('GitHub integration routes', () => {
     );
     expect(authorizeUrl.searchParams.get('client_id')).toBe('test-client-id');
     expect(authorizeUrl.searchParams.get('code_challenge_method')).toBe('S256');
-    expect(verifyGithubLinkState(state ?? '').workspaceId).toBe(workspaceId);
+    expect(verifyGithubLinkState(state ?? '')).toMatchObject({
+      workspaceId,
+      userId: 'user-1',
+    });
   });
 
   it('completes link OAuth and uses app-authenticated installation details', async () => {

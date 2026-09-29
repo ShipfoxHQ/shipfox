@@ -114,11 +114,15 @@ async function findLinkableInstallation(params: {
         candidateIds.push(installationId);
         continue;
       }
-      if (existing.workspaceId === params.workspaceId) {
-        existingConnection ??= existing;
-      } else {
+      if (existing.workspaceId !== params.workspaceId) {
         linkedElsewhere += 1;
+        continue;
       }
+      if (existing.lifecycleStatus === 'active') {
+        existingConnection ??= existing;
+        continue;
+      }
+      candidateIds.push(installationId);
     }
     cursor = page.nextCursor ?? undefined;
   } while (cursor);

@@ -7,6 +7,13 @@ import {
   verifyGithubLinkState,
 } from './state.js';
 
+const LINK_STATE_ENVELOPE_PATTERN = /^v1:[A-Za-z0-9+/]+={0,2}$/u;
+
+function decodeLinkStateEnvelope(state: string): Buffer {
+  if (!state.startsWith('v1:')) throw new Error('Expected a v1 link state envelope');
+  return Buffer.from(state.slice(3), 'base64');
+}
+
 describe('GitHub install state', () => {
   it('verifies a signed state payload', () => {
     const workspaceId = crypto.randomUUID();
@@ -62,7 +69,13 @@ describe('GitHub install state', () => {
     const userId = crypto.randomUUID();
     const link = createGithubLinkState({workspaceId, userId, nonce: 'nonce'});
 
-    expect(link.state).not.toContain(link.codeVerifier);
+    expect(link.state).toMatch(LINK_STATE_ENVELOPE_PATTERN);
+    const envelope = decodeLinkStateEnvelope(link.state);
+    expect(envelope.length).toBeGreaterThan(12 + 16);
+    expect(envelope.subarray(0, 12)).toHaveLength(12);
+    expect(envelope.subarray(12, 28)).toHaveLength(16);
+    expect(envelope.toString('utf8')).not.toContain(link.codeVerifier);
+    expect(() => JSON.parse(envelope.toString('utf8'))).toThrow();
     expect(link.codeChallenge).toBe(
       createHash('sha256').update(link.codeVerifier).digest('base64url'),
     );
@@ -78,7 +91,9 @@ describe('GitHub install state', () => {
     const first = createGithubLinkState(params);
     const second = createGithubLinkState(params);
 
-    expect(first.state).not.toBe(second.state);
+    const firstEnvelope = decodeLinkStateEnvelope(first.state);
+    const secondEnvelope = decodeLinkStateEnvelope(second.state);
+    expect(firstEnvelope.subarray(0, 12)).not.toEqual(secondEnvelope.subarray(0, 12));
     expect(() => verifyGithubLinkState(signGithubInstallState(params))).toThrow(
       GithubLinkStateError,
     );

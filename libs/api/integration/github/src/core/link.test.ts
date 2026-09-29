@@ -122,6 +122,26 @@ describe('handleGithubLinkCallback', () => {
     expect(params.connectGithubInstallation).not.toHaveBeenCalled();
   });
 
+  it('reconnects a same-workspace connection when it is not active', async () => {
+    const workspaceId = crypto.randomUUID();
+    const userId = crypto.randomUUID();
+    const existing = githubConnection(workspaceId, '123');
+    existing.lifecycleStatus = 'disabled';
+    const params = baseParams(workspaceId, userId, stateFor(workspaceId, userId).state);
+    params.getExistingGithubConnection = vi.fn(() =>
+      Promise.resolve(existing),
+    ) as unknown as typeof params.getExistingGithubConnection;
+
+    const result = await handleGithubLinkCallback(params);
+
+    expect(result).not.toBe(existing);
+    expect(result.lifecycleStatus).toBe('active');
+    expect(params.github.getInstallation).toHaveBeenCalledWith(123);
+    expect(params.connectGithubInstallation).toHaveBeenCalledWith(
+      expect.objectContaining({workspaceId, installationId: '123', actorUserId: userId}),
+    );
+  });
+
   it('reports accessible and elsewhere-linked counts when no candidate remains', async () => {
     const workspaceId = crypto.randomUUID();
     const userId = crypto.randomUUID();

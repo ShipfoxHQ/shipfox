@@ -15,7 +15,7 @@ export type GithubConnectOutcome =
 const githubConnectCount = meter.createCounter<{
   flow: 'install' | 'link';
   outcome: GithubConnectOutcome;
-}>('integrations_github_connect_total', {
+}>('integrations_github_connect', {
   description: 'GitHub integration connection outcomes by flow',
 });
 
