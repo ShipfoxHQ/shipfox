@@ -358,6 +358,8 @@ function launchListenerJob(
         ...(job.batchMaxSize === undefined ? {} : {batchMaxSize: job.batchMaxSize}),
         ...(job.batchMaxWaitMs === undefined ? {} : {batchMaxWaitMs: job.batchMaxWaitMs}),
         requiredLabels: job.runner,
+        workspaceId: run.workspaceId,
+        projectId: run.projectId,
       },
     ],
     parentClosePolicy: ParentClosePolicy.TERMINATE,
@@ -430,6 +432,8 @@ function launchOneShotJob(
           ? {}
           : {executionTimeoutMs: job.executionTimeoutMs}),
         requiredLabels: job.runner,
+        workspaceId: run.workspaceId,
+        projectId: run.projectId,
       },
     ],
     parentClosePolicy: ParentClosePolicy.TERMINATE,

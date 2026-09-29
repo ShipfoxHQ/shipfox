@@ -237,6 +237,8 @@ function toJobExecutionForJobDetail(
     startedAt: detail.startedAt,
     finishedAt: detail.finishedAt,
     timedOutAt: detail.timedOutAt,
+    durationCapped: detail.durationCapped,
+    durationNotice: detail.durationNotice,
     evaluationTrace: null,
     createdAt: detail.updatedAt,
     updatedAt: detail.updatedAt,

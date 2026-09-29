@@ -8,6 +8,11 @@ import {
   proxyActivities,
   setHandler,
 } from '@temporalio/workflow';
+import type {JobExecutionLimits} from '#core/execution-limits.js';
+import {
+  DEFAULT_EXECUTION_MAX_DURATION_MS,
+  resolveJobExecutionDuration,
+} from '#core/execution-limits.js';
 import {
   hasNoRequiredRunnerLabels,
   type JobExecutionOutcomeSignals,
@@ -49,14 +54,19 @@ const {
   startToCloseTimeout: '30s',
 });
 
+const {resolveExecutionLimitsActivity} = proxyActivities<
+  ReturnType<typeof createOrchestrationActivities>
+>({
+  startToCloseTimeout: '5s',
+  retry: {maximumAttempts: 3},
+});
+
 const {resolveJobStatusFromJobExecutionsActivity} = proxyActivities<
   ReturnType<typeof createOrchestrationActivities>
 >({
   startToCloseTimeout: '30s',
   retry: {maximumAttempts: 5},
 });
-
-const DEFAULT_EXECUTION_MAX_DURATION_MS = 6 * 60 * 60 * 1000;
 
 export const jobFinishedSignal =
   defineSignal<[{status: RuntimeCompletionStatus; jobExecutionId?: string | undefined}]>(
@@ -84,6 +94,8 @@ export interface JobExecutionOrchestrationInput {
   executionTimeoutMs?: number | null | undefined;
   resolveJobStatus?: boolean | undefined;
   requiredLabels: string[];
+  workspaceId?: string | undefined;
+  projectId?: string | undefined;
 }
 
 export interface JobExecutionOrchestrationResult {
@@ -113,13 +125,6 @@ async function resolveJobStatusOrFailClosed(
 }
 
 async function queueJobExecution(input: JobExecutionOrchestrationInput) {
-  if (hasNoRequiredRunnerLabels(input.requiredLabels)) {
-    throw ApplicationFailure.nonRetryable(
-      `Job ${input.jobId} has no required runner labels`,
-      'EmptyRequiredLabelsError',
-    );
-  }
-
   const queued = await queueJobExecutionActivity({
     jobId: input.jobId,
     jobExecutionId: input.jobExecutionId,
@@ -133,19 +138,25 @@ async function queueJobExecution(input: JobExecutionOrchestrationInput) {
 
 async function markJobExecutionRunning(
   input: JobExecutionOrchestrationInput,
+  runningVersion: number,
+  claim: JobClaimedSignalPayload,
+  durationLimits: JobExecutionLimits | null,
 ): Promise<
   | {kind: 'running'; runningVersion: number}
   | {kind: 'terminal'; result: JobExecutionOrchestrationResult}
 > {
-  const {newVersion: runningVersion, status} = await setJobExecutionStatus({
+  const {newVersion: markedVersion, status} = await setJobExecutionStatus({
     jobExecutionId: input.jobExecutionId,
     status: 'running',
-    version: input.executionVersion,
+    version: runningVersion,
+    executionTimeoutMs: input.executionTimeoutMs,
+    provisionerScope: claim.provisionerScope,
+    durationLimits,
   });
 
-  const start = jobExecutionStartOutcome({newVersion: runningVersion, status});
+  const start = jobExecutionStartOutcome({newVersion: markedVersion, status});
   if (start.kind === 'terminal') return start;
-  return {kind: 'running', runningVersion};
+  return {kind: 'running', runningVersion: markedVersion};
 }
 
 interface JobExecutionSignals extends JobExecutionOutcomeSignals {
@@ -323,10 +334,15 @@ async function resolveTimedOutJobExecution({
 
 type QueuedJobExecution = Awaited<ReturnType<typeof queueJobExecution>>;
 type PreRunningResolution =
-  | {kind: 'claimed'; deadline: number}
+  | {kind: 'claimed'; deadline: number; claim: JobClaimedSignalPayload}
   | {kind: 'terminal'; result: JobExecutionOrchestrationResult};
 
-function claimDeadline(input: JobExecutionOrchestrationInput, claimedAt: string): number {
+function claimDeadline(
+  input: JobExecutionOrchestrationInput,
+  claimedAt: string,
+  provisionerScope: string | null | undefined,
+  durationLimits: JobExecutionLimits | null,
+): number {
   const timestamp = Date.parse(claimedAt);
   if (!Number.isFinite(timestamp)) {
     throw ApplicationFailure.nonRetryable(
@@ -334,7 +350,12 @@ function claimDeadline(input: JobExecutionOrchestrationInput, claimedAt: string)
       'InvalidClaimedAtError',
     );
   }
-  return timestamp + (input.executionTimeoutMs ?? DEFAULT_EXECUTION_MAX_DURATION_MS);
+  const duration = resolveJobExecutionDuration({
+    requestedMs: input.executionTimeoutMs,
+    provisionerScope,
+    limits: durationLimits,
+  });
+  return timestamp + duration.effectiveMs;
 }
 
 async function resolveUnpatchedBeforeRunning(
@@ -372,13 +393,14 @@ async function resolveUnpatchedBeforeRunning(
       result: await resolveTimedOutJobExecution({input, runningVersion: input.executionVersion}),
     };
   }
-  return {kind: 'claimed', deadline};
+  return {kind: 'claimed', deadline, claim: signals.claimed};
 }
 
 async function resolvePatchedBeforeRunning(
   input: JobExecutionOrchestrationInput,
   queued: QueuedJobExecution,
   signals: JobExecutionSignals,
+  durationLimits: JobExecutionLimits | null,
 ): Promise<PreRunningResolution> {
   if (queued.queuedAt === null) {
     throw ApplicationFailure.nonRetryable(
@@ -433,17 +455,47 @@ async function resolvePatchedBeforeRunning(
       provisionerScope: expired.provisionerScope,
     };
   }
-  return {kind: 'claimed', deadline: claimDeadline(input, signals.claimed.claimedAt)};
+  return {
+    kind: 'claimed',
+    deadline: claimDeadline(
+      input,
+      signals.claimed.claimedAt,
+      signals.claimed.provisionerScope,
+      durationLimits,
+    ),
+    claim: signals.claimed,
+  };
 }
 
 function resolveBeforeRunning(
   input: JobExecutionOrchestrationInput,
   queued: QueuedJobExecution,
   signals: JobExecutionSignals,
+  durationLimits: JobExecutionLimits | null,
 ): Promise<PreRunningResolution> {
   return patched('job-queue-timeout')
-    ? resolvePatchedBeforeRunning(input, queued, signals)
+    ? resolvePatchedBeforeRunning(input, queued, signals, durationLimits)
     : resolveUnpatchedBeforeRunning(input, signals);
+}
+
+async function resolveExecutionLimits(
+  input: JobExecutionOrchestrationInput,
+): Promise<JobExecutionLimits | null> {
+  try {
+    return await resolveExecutionLimitsActivity({
+      workspaceId: input.workspaceId ?? '',
+      projectId: input.projectId ?? '',
+      jobExecutionId: input.jobExecutionId,
+    });
+  } catch (err) {
+    // A policy outage must not hold jobs in the queue; run without workspace limits instead.
+    log.warn('execution limits resolution failed; running without limits', {
+      jobId: input.jobId,
+      jobExecutionId: input.jobExecutionId,
+      error: String(err),
+    });
+    return null;
+  }
 }
 
 export async function jobExecutionOrchestration(
@@ -458,16 +510,30 @@ export async function jobExecutionOrchestration(
   // Register every signal before enqueue can block or publish a claim/outcome event. The
   // handlers retain signals that arrive while the enqueue activity is in flight.
   registerJobExecutionSignalHandlers(input.jobExecutionId, signals);
+  if (hasNoRequiredRunnerLabels(input.requiredLabels)) {
+    throw ApplicationFailure.nonRetryable(
+      `Job ${input.jobId} has no required runner labels`,
+      'EmptyRequiredLabelsError',
+    );
+  }
+  const durationLimits = patched('job-execution-limits')
+    ? await resolveExecutionLimits(input)
+    : null;
   const queued = await queueJobExecution(input);
   if (queued.kind === 'terminal') {
     return {status: queued.result.status, jobVersion: input.jobVersion};
   }
 
-  const preRunning = await resolveBeforeRunning(input, queued, signals);
+  const preRunning = await resolveBeforeRunning(input, queued, signals, durationLimits);
   if (preRunning.kind === 'terminal') return preRunning.result;
 
   const {deadline} = preRunning;
-  const running = await markJobExecutionRunning(input);
+  const running = await markJobExecutionRunning(
+    input,
+    input.executionVersion,
+    preRunning.claim,
+    durationLimits,
+  );
   if (running.kind === 'terminal') {
     if (input.resolveJobStatus === false) {
       return {status: running.result.status, jobVersion: input.jobVersion};

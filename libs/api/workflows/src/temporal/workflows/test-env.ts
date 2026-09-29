@@ -3,6 +3,7 @@ import type {RunnerJobLossCauseDto} from '@shipfox/api-runners-dto';
 import {ApplicationFailure} from '@temporalio/common';
 import {TestWorkflowEnvironment} from '@temporalio/testing';
 import {Worker} from '@temporalio/worker';
+import type {JobExecutionLimits} from '#core/execution-limits.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 import type {JobActivationDecision} from '#db/index.js';
 import type {
@@ -58,6 +59,10 @@ export interface TestConfig {
   leaseExpiredStatus?: RuntimeCompletionStatus;
   /** Cause carried by a runner lease-expired signal. */
   leaseExpiredCause?: RunnerJobLossCauseDto;
+  /** Effective execution limits returned before queueing. */
+  executionLimits?: JobExecutionLimits | null;
+  /** If set, resolveExecutionLimitsActivity throws with this message */
+  resolveExecutionLimitsError?: string;
   /** If set, resolveJobStatusFromJobExecutionsActivity throws with this message */
   resolveJobStatusError?: string;
   /** Scripted job activation decisions keyed by job id; defaults to start */
@@ -315,6 +320,19 @@ function createMockActivities() {
         const decision = cfg.activationDecisions?.get(job.jobId);
         return decision ?? {kind: 'start-job', jobId: job.jobId};
       });
+    },
+
+    resolveExecutionLimitsActivity: async (params: {
+      workspaceId: string;
+      projectId: string;
+      jobExecutionId: string;
+    }) => {
+      calls.push({name: 'resolveExecutionLimitsActivity', params});
+      if (cfg.resolveExecutionLimitsError) {
+        const {ApplicationFailure} = await import('@temporalio/common');
+        throw ApplicationFailure.nonRetryable(cfg.resolveExecutionLimitsError);
+      }
+      return cfg.executionLimits ?? null;
     },
 
     setJobExecutionStatus: async (params: {

@@ -60,6 +60,8 @@ export {
   getJobExecutionsByJobId,
   getJobExecutionsByWorkflowRunAttemptId,
   getLatestJobExecutionByJobId,
+  markJobExecutionRunning,
+  persistJobExecutionDurationLimits,
   queueJobExecution,
   recordJobExecutionStartedAt,
   resolveJobExecutionAfterLeaseExpiry,

@@ -117,6 +117,13 @@ const jobExecutionLeaseExpiryResolvedCount = meter.createCounter<{status: Runtim
   {description: 'Runner lease-expiry resolutions by resulting runtime status'},
 );
 
+const jobDurationLimitCount = meter.createCounter<{
+  outcome: 'within' | 'capped' | 'would_cap';
+  scope: 'installation' | 'workspace' | 'manual' | 'unknown';
+}>('workflows_job_duration_limit', {
+  description: 'Workflow job duration limit decisions by outcome and runner scope',
+});
+
 const jobQueueTimeoutCount = meter.createCounter<{
   outcome: 'expired' | 'absent' | 'claimed';
 }>('workflows_job_queue_timeouts_total', {
@@ -367,6 +374,13 @@ export function recordWorkflowJobExecutionLeaseExpiryResolved(
   status: RuntimeCompletionStatus,
 ): void {
   jobExecutionLeaseExpiryResolvedCount.add(1, {status});
+}
+
+export function recordWorkflowJobDurationLimit(
+  outcome: 'within' | 'capped' | 'would_cap',
+  scope: 'installation' | 'workspace' | 'manual' | 'unknown',
+): void {
+  recordMetric(() => jobDurationLimitCount.add(1, {outcome, scope}));
 }
 
 export function recordWorkflowJobQueueTimeout(outcome: 'expired' | 'absent' | 'claimed'): void {

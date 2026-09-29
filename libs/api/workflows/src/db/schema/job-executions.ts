@@ -1,6 +1,8 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
+import type {PolicyNotice} from '@shipfox/policy-notice';
 import {sql} from 'drizzle-orm';
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -17,6 +19,7 @@ import {
   type WorkflowExecutionEvent,
 } from '#core/entities/job-execution.js';
 import type {PersistedEvaluationTraceEntry} from '#core/entities/step.js';
+import type {JobExecutionLimits} from '#core/execution-limits.js';
 import {pgTable} from './common.js';
 import {jobStatusReasonEnum, jobs} from './jobs.js';
 
@@ -65,6 +68,9 @@ export const jobExecutions = pgTable(
     startedAt: timestamp('started_at', {withTimezone: true}),
     finishedAt: timestamp('finished_at', {withTimezone: true}),
     timedOutAt: timestamp('timed_out_at', {withTimezone: true}),
+    durationLimits: jsonb('duration_limits').$type<JobExecutionLimits>(),
+    durationCapped: boolean('duration_capped').notNull().default(false),
+    durationNotice: jsonb('duration_notice').$type<PolicyNotice>(),
   },
   (table) => [
     index('workflows_job_executions_job_id_idx').on(table.jobId),
@@ -106,6 +112,9 @@ export const jobExecutionWithoutTriggerEventsSelection = {
   startedAt: jobExecutions.startedAt,
   finishedAt: jobExecutions.finishedAt,
   timedOutAt: jobExecutions.timedOutAt,
+  durationLimits: jobExecutions.durationLimits,
+  durationCapped: jobExecutions.durationCapped,
+  durationNotice: jobExecutions.durationNotice,
 } satisfies Record<keyof JobExecutionDbWithoutTriggerEvents, unknown>;
 
 export function toJobExecution(
@@ -138,5 +147,8 @@ export function toJobExecution(
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
     timedOutAt: row.timedOutAt,
+    durationLimits: row.durationLimits ?? null,
+    durationCapped: row.durationCapped,
+    durationNotice: row.durationNotice ?? null,
   };
 }

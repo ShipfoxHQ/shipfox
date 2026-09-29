@@ -13,6 +13,11 @@ import type {WorkflowConcurrencyClaimState} from '#core/entities/workflow-concur
 import type {WorkflowRunStatus, WorkflowRunStatusReason} from '#core/entities/workflow-run.js';
 import {JobNotFoundError, WorkflowExecutionPayloadTooLargeError} from '#core/errors.js';
 import type {
+  JobExecutionLimits,
+  JobExecutionLimitsInput,
+  JobExecutionLimitsPolicy,
+} from '#core/execution-limits.js';
+import type {
   RuntimeCompletionStatus,
   RuntimeDagNode,
 } from '#core/workflow-scheduling/runtime-dag.js';
@@ -30,7 +35,9 @@ import {
   getWorkflowRunAttemptConcurrencyAdmission,
   getWorkflowRunByAttemptId,
   type JobActivationDecision,
+  markJobExecutionRunning,
   peekListenerBuffer,
+  persistJobExecutionDurationLimits,
   queueJobExecution,
   resolveJobExecutionAfterLeaseExpiry,
   resolveJobListener,
@@ -185,6 +192,16 @@ function jobStatusEvaluationTrace(params: {
     : undefined;
 }
 
+export async function resolveExecutionLimitsActivity(
+  input: JobExecutionLimitsInput,
+  policy: JobExecutionLimitsPolicy | undefined,
+): Promise<JobExecutionLimits | null> {
+  if (!policy) return null;
+  const limits = await policy.resolve(input);
+  await persistJobExecutionDurationLimits({jobExecutionId: input.jobExecutionId, limits});
+  return limits;
+}
+
 export async function setJobExecutionStatus(
   params: {
     jobExecutionId: string;
@@ -192,9 +209,23 @@ export async function setJobExecutionStatus(
     version: number;
     statusReason?: JobStatusReason | null | undefined;
     statusReasonMessage?: string | null | undefined;
+    executionTimeoutMs?: number | null | undefined;
+    provisionerScope?: string | null | undefined;
+    durationLimits?: JobExecutionLimits | null | undefined;
   },
   secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>,
 ): Promise<{newVersion: number; status: Exclude<JobStatus, 'skipped'>}> {
+  if (params.durationLimits !== undefined) {
+    const updated = await markJobExecutionRunning({
+      jobExecutionId: params.jobExecutionId,
+      expectedVersion: params.version,
+      executionTimeoutMs: params.executionTimeoutMs,
+      provisionerScope: params.provisionerScope,
+      durationLimits: params.durationLimits,
+      secrets,
+    });
+    return {newVersion: updated.version, status: updated.status};
+  }
   const updated = await updateJobExecutionStatus({
     jobExecutionId: params.jobExecutionId,
     status: params.status,

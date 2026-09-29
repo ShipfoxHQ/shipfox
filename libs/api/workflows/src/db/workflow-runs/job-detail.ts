@@ -1126,6 +1126,8 @@ async function loadExecutionProjection(
       startedAt: jobExecutions.startedAt,
       finishedAt: jobExecutions.finishedAt,
       timedOutAt: jobExecutions.timedOutAt,
+      durationCapped: jobExecutions.durationCapped,
+      durationNotice: jobExecutions.durationNotice,
       updatedAt: jobExecutions.updatedAt,
       hasRunningStep: runningStepExists(jobExecutions.id),
       hasContext: hasExecutionContext(),
@@ -1177,6 +1179,8 @@ async function loadExecutionPageRows(
       startedAt: jobExecutions.startedAt,
       finishedAt: jobExecutions.finishedAt,
       timedOutAt: jobExecutions.timedOutAt,
+      durationCapped: jobExecutions.durationCapped,
+      durationNotice: jobExecutions.durationNotice,
       updatedAt: jobExecutions.updatedAt,
       hasRunningStep: runningStepExists(jobExecutions.id),
     })

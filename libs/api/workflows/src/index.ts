@@ -31,6 +31,7 @@ import {
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {config} from '#config.js';
+import type {JobExecutionLimitsPolicy} from '#core/execution-limits.js';
 import {createToolStepExecutor} from '#core/tool-step/tool-step-executor.js';
 import {createWorkflowConcurrencyReconciler} from '#core/workflow-concurrency-reconciler.js';
 import type {WorkflowAdmissionPolicy} from '#core/workspace-admission.js';
@@ -56,6 +57,11 @@ import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/ind
 
 export type {RequiredAction} from '@shipfox/policy-notice';
 export type {WorkflowConcurrencyClaim} from '#core/entities/workflow-concurrency-claim.js';
+export type {
+  JobExecutionLimits,
+  JobExecutionLimitsInput,
+  JobExecutionLimitsPolicy,
+} from '#core/execution-limits.js';
 export type {
   Job,
   JobListenerEvent,
@@ -131,6 +137,7 @@ const subscriber = subscriberFactory<WorkflowsEventMapDto & RunnersEventMap>();
 
 export interface CreateWorkflowsModuleOptions {
   admission?: {policy: WorkflowAdmissionPolicy} | undefined;
+  executionLimits?: {policy: JobExecutionLimitsPolicy} | undefined;
 }
 
 export function createWorkflowsModule({
@@ -145,6 +152,7 @@ export function createWorkflowsModule({
   secrets,
   workspaces,
   admission,
+  executionLimits,
 }: CreateWorkflowsModuleOptions & {
   agent: AgentInterModuleClient;
   definitions: DefinitionsInterModuleClient;
@@ -215,7 +223,14 @@ export function createWorkflowsModule({
         taskQueue: WORKFLOWS_TASK_QUEUE,
         workflowsPath,
         activities: () =>
-          createOrchestrationActivities({agent, integrations, projects, runners, secrets}),
+          createOrchestrationActivities({
+            agent,
+            integrations,
+            projects,
+            runners,
+            secrets,
+            executionLimits,
+          }),
         workflows: [],
       },
     ],

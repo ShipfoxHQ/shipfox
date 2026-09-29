@@ -4,6 +4,13 @@
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {useJobExecutionUsageQuery} from '@shipfox/client-usage';
+import {
+  Alert,
+  AlertActions,
+  AlertContent,
+  AlertDescription,
+  AlertTitle,
+} from '@shipfox/react-ui/alert';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {
@@ -100,6 +107,47 @@ import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 import {StepInspectorSheet} from './step-troubleshooting.js';
 
 type InspectorState = {key: string; attemptId: string | null};
+
+function resolveAllowedExternalUrl(url: string): string | undefined {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+    parsed.username = '';
+    parsed.password = '';
+    return parsed.href;
+  } catch {
+    return undefined;
+  }
+}
+
+function DurationLimitNotice({execution}: {execution: JobExecution | undefined}) {
+  if (!execution?.durationCapped || !execution.durationNotice) return null;
+  const {durationNotice} = execution;
+  const requiredAction = durationNotice.requiredAction;
+  const actionUrl =
+    requiredAction === undefined ? undefined : resolveAllowedExternalUrl(requiredAction.url);
+  return (
+    <Alert
+      variant="warning"
+      animated={false}
+      className="rounded-none border-x-0 border-t border-b border-tag-warning-border bg-transparent px-row py-row"
+    >
+      <AlertContent>
+        <AlertTitle>Job duration limited</AlertTitle>
+        <AlertDescription>{durationNotice.message}</AlertDescription>
+        {requiredAction !== undefined && actionUrl !== undefined ? (
+          <AlertActions>
+            <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
+              <a href={actionUrl} target="_blank" rel="noreferrer noopener">
+                {requiredAction.message}
+              </a>
+            </Button>
+          </AlertActions>
+        ) : null}
+      </AlertContent>
+    </Alert>
+  );
+}
 type VisibleLogTimestampMode = Exclude<LogTimestampMode, 'off'>;
 type JobDetailQuery = ReturnType<typeof useWorkflowJobDetailQuery>;
 interface JobDetailData {
@@ -344,6 +392,7 @@ export function JobDetailView({
                     : undefined
                 }
               />
+              <DurationLimitNotice execution={selectedJobExecution} />
               <Panel data-job-log-panel className="min-w-0 overflow-clip">
                 <JobLogPanelHeader
                   stepLabel={expandedLogSelection?.stepLabel}

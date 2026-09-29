@@ -200,6 +200,8 @@ export {
   listWorkflowRunJobsPage,
   listWorkflowRuns,
   listWorkflowStepAttemptSummaries,
+  markJobExecutionRunning,
+  persistJobExecutionDurationLimits,
   queueJobExecution,
   recordJobExecutionStartedAt,
   resolveJobExecutionAfterLeaseExpiry,

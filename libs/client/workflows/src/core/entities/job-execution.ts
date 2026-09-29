@@ -1,3 +1,4 @@
+import type {PolicyNotice} from '@shipfox/policy-notice';
 import {type Duration, intervalToDuration} from 'date-fns';
 import type {Step} from './step.js';
 import type {EvaluationTraceEntry} from './step-attempt.js';
@@ -37,6 +38,8 @@ interface JobExecutionFields {
   startedAt: string | null;
   finishedAt: string | null;
   timedOutAt: string | null;
+  durationCapped?: boolean | undefined;
+  durationNotice?: PolicyNotice | null | undefined;
   evaluationTrace: EvaluationTraceEntry[] | null;
   createdAt: string;
   updatedAt: string;
@@ -58,6 +61,8 @@ export class JobExecution {
   startedAt!: string | null;
   finishedAt!: string | null;
   timedOutAt!: string | null;
+  durationCapped?: boolean | undefined;
+  durationNotice?: PolicyNotice | null | undefined;
   evaluationTrace!: EvaluationTraceEntry[] | null;
   createdAt!: string;
   updatedAt!: string;

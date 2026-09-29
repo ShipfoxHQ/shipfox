@@ -296,6 +296,8 @@ export function toWorkflowRunOverviewExecution(
     startedAt: dto.started_at,
     finishedAt: dto.finished_at,
     timedOutAt: dto.timed_out_at,
+    durationCapped: dto.duration_capped,
+    durationNotice: dto.duration_notice,
     updatedAt: dto.updated_at,
     displayDuration: toWorkflowRunOverviewExecutionDuration({
       queuedAt: dto.queued_at,

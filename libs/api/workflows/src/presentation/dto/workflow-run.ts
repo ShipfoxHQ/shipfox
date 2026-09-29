@@ -419,6 +419,8 @@ export function toJobExecutionSummaryDto(
     started_at: execution.startedAt?.toISOString() ?? null,
     finished_at: execution.finishedAt?.toISOString() ?? null,
     timed_out_at: execution.timedOutAt?.toISOString() ?? null,
+    duration_capped: execution.durationCapped,
+    duration_notice: execution.durationNotice,
     updated_at: execution.updatedAt.toISOString(),
   };
 }

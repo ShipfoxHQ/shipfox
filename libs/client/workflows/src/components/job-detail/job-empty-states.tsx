@@ -249,7 +249,10 @@ function preStepFailureDescription(
         'Not started within the queue timeout. Try the workflow again when a runner is available.'
       );
     case 'timed_out':
-      return 'The job timed out before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';
+      return (
+        statusReasonMessage ||
+        'The job timed out before work began. Try the workflow again. If the problem continues, contact your workspace administrator.'
+      );
     case 'user_cancelled':
       return 'A user cancelled the job before work began. Start a new run if you still need the result.';
     case 'run_cancelled':

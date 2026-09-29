@@ -6,6 +6,7 @@ import {
   WORKFLOW_RUN_OVERVIEW_LARGE_JOB_PAGE_LIMIT,
   WORKFLOW_RUN_STATUS_REASON_MESSAGE_MAX_LENGTH,
 } from '@shipfox/api-workflows-dto';
+import type {PolicyNotice} from '@shipfox/policy-notice';
 import {and, asc, count, desc, eq, gt, inArray, or, sql} from 'drizzle-orm';
 import {alias} from 'drizzle-orm/pg-core';
 import {
@@ -77,6 +78,8 @@ export interface WorkflowRunJobExecutionSummary {
   startedAt: Date | null;
   finishedAt: Date | null;
   timedOutAt: Date | null;
+  durationCapped: boolean;
+  durationNotice: PolicyNotice | null;
   updatedAt: Date;
 }
 
@@ -93,6 +96,8 @@ export interface WorkflowRunJobExecutionSummaryRow {
   startedAt: Date | null;
   finishedAt: Date | null;
   timedOutAt: Date | null;
+  durationCapped: boolean;
+  durationNotice: PolicyNotice | null;
   updatedAt: Date;
   hasRunningStep?: boolean;
 }
@@ -692,6 +697,8 @@ async function loadJobPresentation(
         startedAt: jobExecutions.startedAt,
         finishedAt: jobExecutions.finishedAt,
         timedOutAt: jobExecutions.timedOutAt,
+        durationCapped: jobExecutions.durationCapped,
+        durationNotice: jobExecutions.durationNotice,
         updatedAt: jobExecutions.updatedAt,
         hasRunningStep: runningStepExists(jobExecutions.id).as('has_running_step'),
       })
@@ -728,6 +735,8 @@ async function loadJobPresentation(
       startedAt: selectedExecution.startedAt,
       finishedAt: selectedExecution.finishedAt,
       timedOutAt: selectedExecution.timedOutAt,
+      durationCapped: selectedExecution.durationCapped,
+      durationNotice: selectedExecution.durationNotice,
       updatedAt: selectedExecution.updatedAt,
       hasRunningStep: selectedExecution.hasRunningStep,
     })
@@ -838,6 +847,8 @@ export function toExecutionSummary(
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
     timedOutAt: row.timedOutAt,
+    durationCapped: row.durationCapped,
+    durationNotice: row.durationNotice ?? null,
     updatedAt: row.updatedAt,
   };
 }
