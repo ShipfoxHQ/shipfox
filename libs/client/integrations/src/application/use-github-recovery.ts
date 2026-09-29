@@ -35,7 +35,11 @@ export function useGithubRecovery({
     rememberCallbackKey(startedRecoveries, landingKey);
     startGithubLink({workspace_id: workspaceId}).then(
       ({installUrl}) => assignLocation(installUrl),
-      () => setFailed(true),
+      () => {
+        // A remounted page must retry instead of waiting on a request that never runs.
+        startedRecoveries.delete(landingKey);
+        setFailed(true);
+      },
     );
   }, [assignLocation, landingKey, startGithubLink, workspaceId]);
 

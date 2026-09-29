@@ -1,13 +1,18 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import {ApiError} from '@shipfox/client-api';
+import {ApiError, configureApiClient} from '@shipfox/client-api';
 import type {ClientAnalytics} from '@shipfox/client-shell/runtime';
 import {QueryClient} from '@tanstack/react-query';
 import {act, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {StrictMode} from 'react';
 import {GITHUB_INSTALL_WORKSPACE_KEY, type GithubCallbackSearch} from '#github-callback.js';
-import {INTEGRATIONS_TEST_WID, renderIntegrationsPage, testWorkspace} from '#test/render.js';
+import {
+  INTEGRATIONS_TEST_WID,
+  jsonResponse,
+  renderIntegrationsPage,
+  testWorkspace,
+} from '#test/render.js';
 import {GithubCallbackPage} from './github-callback-page.js';
 
 const {
@@ -19,7 +24,7 @@ const {
 } = vi.hoisted(() => ({
   completeGithubCallbackMock: vi.fn(),
   completeGithubLinkMock: vi.fn(),
-  createGithubLinkMock: vi.fn(),
+  createGithubLinkMock: vi.fn<(body: unknown) => Promise<Response>>(),
   refreshAuthMock: vi.fn(),
   resolveWorkspaceSlugMock: vi.fn(),
 }));
@@ -41,7 +46,6 @@ vi.mock('#hooks/api/integrations.js', async (importOriginal) => {
     ...actual,
     completeGithubCallback: completeGithubCallbackMock,
     completeGithubLink: completeGithubLinkMock,
-    createGithubLink: createGithubLinkMock,
   };
 });
 
@@ -97,7 +101,13 @@ beforeEach(() => {
   completeGithubLinkMock.mockReset();
   createGithubLinkMock
     .mockReset()
-    .mockResolvedValue({authorizeUrl: 'https://github.test/authorize'});
+    .mockImplementation(async () => jsonResponse({authorize_url: 'https://github.test/authorize'}));
+  // The link start goes through fetch: start-github-link is shared with other test files, so a
+  // module mock would not reach it once another file has loaded it (isolate: false).
+  configureApiClient({
+    baseUrl: 'https://api.example.test',
+    fetchImpl: async (input) => await createGithubLinkMock(await (input as Request).clone().json()),
+  });
   refreshAuthMock.mockReset().mockResolvedValue({accessToken: 'test-token'});
   resolveWorkspaceSlugMock
     .mockReset()
@@ -728,7 +738,7 @@ describe('GithubCallbackPage', () => {
           code: 'github-no-linkable-installation',
           message: 'No linkable GitHub installation was found',
           status: 409,
-          details,
+          details: {code: 'github-no-linkable-installation', details},
         }),
       );
 

@@ -191,7 +191,10 @@ describe('GitHub callback failures', () => {
       code: 'github-no-linkable-installation',
       message: 'none',
       status: 409,
-      details: {accessible: 3, linked_elsewhere: 2},
+      details: {
+        code: 'github-no-linkable-installation',
+        details: {accessible: 3, linked_elsewhere: 2},
+      },
     });
     const withoutDetails = new ApiError({
       code: 'github-no-linkable-installation',

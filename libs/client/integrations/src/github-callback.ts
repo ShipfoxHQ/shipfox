@@ -247,14 +247,17 @@ function classifyGithubLinkError(error: ApiError): GithubCallbackFailure | undef
 }
 
 function linkableCounts(details: unknown): {accessible: number; linkedElsewhere: number} {
-  const {accessible, linked_elsewhere: linkedElsewhere} = (details ?? {}) as Record<
-    string,
-    unknown
-  >;
+  // ApiError.details is the whole response body: the counts sit in its own `details`.
+  const payload = isRecord(details) && isRecord(details.details) ? details.details : {};
+  const {accessible, linked_elsewhere: linkedElsewhere} = payload;
   return {
     accessible: typeof accessible === 'number' ? accessible : 0,
     linkedElsewhere: typeof linkedElsewhere === 'number' ? linkedElsewhere : 0,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 function stringParam(value: unknown): string | undefined {
