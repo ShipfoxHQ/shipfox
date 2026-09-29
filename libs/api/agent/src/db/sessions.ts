@@ -308,11 +308,8 @@ export async function releaseSession(params: {
 }
 
 /**
- * Reads the session for a run attempt and resolved key without claiming it.
- * Scoped to the caller-supplied workspace and project so a forwarded attempt id
- * can never read another tenant's session. `fork` mode uses this: it never
- * claims and never writes back, so the caller only needs whatever head exists
- * (or nothing, for a fresh ephemeral run).
+ * Reads the session whose head was committed by the given step attempt without
+ * claiming it. Returns undefined when that attempt has not committed a head.
  */
 export async function getSessionByStepAttemptId(
   stepAttemptId: string,
@@ -325,6 +322,13 @@ export async function getSessionByStepAttemptId(
   return row ? toAgentSession(row) : undefined;
 }
 
+/**
+ * Reads the session for a run attempt and resolved key without claiming it.
+ * Scoped to the caller-supplied workspace and project so a forwarded attempt id
+ * can never read another tenant's session. `fork` mode uses this: it never
+ * claims and never writes back, so the caller only needs whatever head exists
+ * (or nothing, for a fresh ephemeral run).
+ */
 export async function getSessionByRunAttemptAndKey(params: {
   workspaceId: string;
   projectId: string;

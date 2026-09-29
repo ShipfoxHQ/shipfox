@@ -3,4 +3,4 @@
 "@shipfox/api-agent": patch
 ---
 
-Adds an E2E route for reading decrypted agent session transcripts.
+Adds the GET /__e2e/agent/sessions/:stepAttemptId route and exports the e2eSessionTranscriptResponseSchema/E2eSessionTranscriptResponseDto contract for decrypted agent session transcripts.
