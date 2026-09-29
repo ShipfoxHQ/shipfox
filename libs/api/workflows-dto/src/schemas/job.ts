@@ -28,6 +28,7 @@ export const jobStatusReasonSchema = z.enum([
   'step_failed',
   'unknown',
   'output_invalid',
+  'runner_not_allowed',
 ]);
 
 export type JobStatusDto = z.infer<typeof jobStatusSchema>;

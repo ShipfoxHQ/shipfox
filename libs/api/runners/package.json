@@ -58,6 +58,7 @@
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/node-temporal": "workspace:*",
     "@shipfox/node-tokens": "workspace:*",
+    "@shipfox/policy-notice": "workspace:*",
     "@shipfox/runner-labels": "workspace:*",
     "@temporalio/workflow": "catalog:",
     "drizzle-orm": "catalog:",

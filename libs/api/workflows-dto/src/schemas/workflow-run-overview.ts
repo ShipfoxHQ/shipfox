@@ -58,6 +58,7 @@ export const jobExecutionSummaryDtoSchema = z.object({
   display_status: jobExecutionDisplayStatusSchema,
   status_reason: jobStatusReasonSchema.nullable(),
   status_reason_message: z.string().max(JOB_EXECUTION_STATUS_REASON_MESSAGE_MAX_LENGTH).nullable(),
+  status_reason_notice: policyNoticeSchema.nullable().optional(),
   queued_at: z.string().datetime().nullable(),
   started_at: z.string().datetime().nullable(),
   finished_at: z.string().datetime().nullable(),

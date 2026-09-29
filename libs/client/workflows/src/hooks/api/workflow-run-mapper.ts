@@ -292,6 +292,7 @@ export function toWorkflowRunOverviewExecution(
     displayStatus: dto.display_status,
     statusReason: dto.status_reason,
     statusReasonMessage: dto.status_reason_message,
+    statusReasonNotice: dto.status_reason_notice ?? null,
     queuedAt: dto.queued_at,
     startedAt: dto.started_at,
     finishedAt: dto.finished_at,

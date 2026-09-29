@@ -1,3 +1,4 @@
+import {policyNoticeSchema} from '@shipfox/policy-notice';
 import {z} from 'zod';
 
 const nonEmptyStringSchema = z.string().nonempty();
@@ -5,6 +6,8 @@ const isoDateTimeSchema = z.string().datetime();
 
 export const RUNNER_JOB_LEASE_EXPIRED = 'runners.job.lease_expired' as const;
 export const RUNNER_JOB_CLAIMED = 'runners.job.claimed' as const;
+export const RUNNER_JOB_EXECUTION_PLACEMENT_DENIED =
+  'runners.job_execution.placement_denied' as const;
 
 const runnerProvisionerScopeSchema = z.enum(['installation', 'workspace']);
 const runnerLaunchKindSchema = z.enum(['demand', 'warm', 'manual']);
@@ -52,12 +55,26 @@ export const runnerJobClaimedEventSchema = z.object({
 });
 export type RunnerJobClaimedEvent = z.infer<typeof runnerJobClaimedEventSchema>;
 
+export const runnerJobExecutionPlacementDeniedEventSchema = z.object({
+  workspaceId: nonEmptyStringSchema,
+  workflowRunId: nonEmptyStringSchema,
+  workflowRunAttemptId: nonEmptyStringSchema,
+  jobId: nonEmptyStringSchema,
+  jobExecutionId: nonEmptyStringSchema,
+  notice: policyNoticeSchema,
+});
+export type RunnerJobExecutionPlacementDeniedEvent = z.infer<
+  typeof runnerJobExecutionPlacementDeniedEventSchema
+>;
+
 export interface RunnersEventMap {
   [RUNNER_JOB_LEASE_EXPIRED]: RunnerJobLeaseExpiredEvent;
   [RUNNER_JOB_CLAIMED]: RunnerJobClaimedEvent;
+  [RUNNER_JOB_EXECUTION_PLACEMENT_DENIED]: RunnerJobExecutionPlacementDeniedEvent;
 }
 
 export const runnersEventSchemas = {
   [RUNNER_JOB_LEASE_EXPIRED]: runnerJobLeaseExpiredEventSchema,
   [RUNNER_JOB_CLAIMED]: runnerJobClaimedEventSchema,
+  [RUNNER_JOB_EXECUTION_PLACEMENT_DENIED]: runnerJobExecutionPlacementDeniedEventSchema,
 } satisfies Record<keyof RunnersEventMap, z.ZodType>;

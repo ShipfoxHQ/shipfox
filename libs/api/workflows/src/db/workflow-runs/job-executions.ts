@@ -1,6 +1,7 @@
 import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
 import type {RunnerJobLossCauseDto} from '@shipfox/api-runners-dto';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
+import type {PolicyNotice} from '@shipfox/policy-notice';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {and, asc, desc, eq, isNull, notInArray, sql} from 'drizzle-orm';
 import {assertWorkflowProductOutputSize} from '#core/diagnostics.js';
@@ -169,6 +170,7 @@ export interface UpdateJobExecutionStatusAtVersionParams {
   expectedVersion: number;
   statusReason?: JobStatusReason | null | undefined;
   statusReasonMessage?: string | null | undefined;
+  statusReasonNotice?: PolicyNotice | null | undefined;
   markTimedOut?: boolean;
   durationLimits?: JobExecutionLimits | null | undefined;
   durationCapped?: boolean | undefined;
@@ -293,6 +295,9 @@ async function updateJobExecutionStatusAtVersion(
     statusReason,
     statusReasonMessage,
   });
+  // An output failure replaces the caller's reason, so its notice no longer applies.
+  const statusReasonNotice =
+    resolved.status === status ? (params.statusReasonNotice ?? null) : null;
   status = resolved.status;
   statusReason = resolved.statusReason;
   statusReasonMessage = resolved.statusReasonMessage;
@@ -304,6 +309,7 @@ async function updateJobExecutionStatusAtVersion(
       status,
       statusReason,
       statusReasonMessage,
+      statusReasonNotice,
       ...(outputs === undefined ? {} : {outputs}),
       version: sql`${jobExecutions.version} + 1`,
       updatedAt: new Date(),
@@ -408,6 +414,7 @@ export interface UpdateJobExecutionStatusParams {
   durationLimits?: JobExecutionLimits | null | undefined;
   durationCapped?: boolean | undefined;
   durationNotice?: JobExecution['durationNotice'] | undefined;
+  statusReasonNotice?: PolicyNotice | null | undefined;
   secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }
 
@@ -427,6 +434,7 @@ async function updateJobExecutionStatusWithResult(
           durationLimits: params.durationLimits,
           durationCapped: params.durationCapped,
           durationNotice: params.durationNotice,
+          statusReasonNotice: params.statusReasonNotice,
           secrets: params.secrets,
         }),
       fetchFn: async () => {

@@ -187,6 +187,52 @@ describe('workflow run job executions', () => {
     ]);
   });
 
+  test('stores the policy notice with a failed pending execution', async () => {
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model: buildModel({jobs: {build: {steps: [{run: 'echo build'}]}}}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const [job] = await getJobsByWorkflowRunId(run.id);
+    if (!job) throw new Error('Expected workflow job');
+    const execution = await getFirstJobExecutionByJobId(job.id);
+    if (!execution) throw new Error('Expected job execution');
+    const notice = {
+      reason: 'machine-not-allowed',
+      message: 'This workspace cannot use 16 vCPU runners.',
+      requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/settings/billing'},
+    };
+
+    const failed = await updateJobExecutionStatus({
+      jobExecutionId: execution.id,
+      status: 'failed',
+      expectedVersion: execution.version,
+      statusReason: 'runner_not_allowed',
+      statusReasonMessage: notice.message,
+      statusReasonNotice: notice,
+    });
+
+    expect(failed).toMatchObject({
+      status: 'failed',
+      statusReason: 'runner_not_allowed',
+      statusReasonMessage: notice.message,
+      statusReasonNotice: notice,
+    });
+    expect(await jobExecutionTerminatedEvents(execution.id)).toEqual([
+      expect.objectContaining({
+        statusReason: 'runner_not_allowed',
+        statusReasonMessage: notice.message,
+      }),
+    ]);
+  });
+
   test('carries identity, queued, started, and runner identity in the terminated event for a claimed execution', async () => {
     const run = await createWorkflowRun({
       workspaceId,

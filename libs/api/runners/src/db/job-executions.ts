@@ -49,7 +49,11 @@ import {
 import {setCapacityHoldJobExecutionTx} from './capacity-holds.js';
 import type {Tx} from './db.js';
 import {db} from './db.js';
-import {lockRunnerReservationAdvisoryKeysTx} from './reservation-locks.js';
+import {
+  lockJobExecutionTx,
+  lockRunnerReservationAdvisoryKeysTx,
+  runnerJobExecutionLockPrefix,
+} from './reservation-locks.js';
 import {
   releaseReservationUnits,
   releaseTerminalRunnerInstanceReservationsByIds,
@@ -68,7 +72,6 @@ import {
 } from './schema/runner-sessions.js';
 import {runningJobExecutions} from './schema/running-job-executions.js';
 
-const runnerJobExecutionLockPrefix = 'runners_job_execution:';
 const defaultJobStopHandoffCleanupLimit = 100;
 const localExecutionFenceCapability = 'local_execution_fence_v1' as const;
 
@@ -82,12 +85,6 @@ export interface JobStopHandoffCleanupResult {
   removed: number;
   reservationsReleased: number;
   removedJobExecutionIds: string[];
-}
-
-async function lockJobExecution(tx: Tx, jobExecutionId: string): Promise<void> {
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtext(${`${runnerJobExecutionLockPrefix}${jobExecutionId}`}))`,
-  );
 }
 
 async function lockJobExecutionRunnerSessionsTx(tx: Tx, jobExecutionId: string): Promise<void> {
@@ -426,7 +423,7 @@ export async function removeJobStopHandoffsForTerminalProviderRunnersTx(
     )
     .orderBy(asc(runningJobExecutions.jobExecutionId));
 
-  for (const candidate of candidates) await lockJobExecution(tx, candidate.jobExecutionId);
+  for (const candidate of candidates) await lockJobExecutionTx(tx, candidate.jobExecutionId);
 
   if (candidates.length === 0) return 0;
 
@@ -537,7 +534,7 @@ async function removeExpiredJobStopHandoffsTx(
   for (const candidate of [...candidates].sort((a, b) =>
     a.jobExecutionId.localeCompare(b.jobExecutionId),
   )) {
-    await lockJobExecution(tx, candidate.jobExecutionId);
+    await lockJobExecutionTx(tx, candidate.jobExecutionId);
   }
 
   const deleted = await tx
@@ -611,7 +608,7 @@ export async function removeExpiredUnlinkedJobStopHandoffs(params: {
     for (const candidate of [...candidates].sort((a, b) =>
       a.jobExecutionId.localeCompare(b.jobExecutionId),
     )) {
-      await lockJobExecution(tx, candidate.jobExecutionId);
+      await lockJobExecutionTx(tx, candidate.jobExecutionId);
     }
 
     const deleted = await tx
@@ -681,7 +678,7 @@ export async function enqueueJobExecution(params: EnqueueJobExecutionParams): Pr
   if (requiredLabels.length === 0) throw new EmptyRequiredLabelsError();
 
   const enqueued = await db().transaction(async (tx) => {
-    await lockJobExecution(tx, params.jobExecutionId);
+    await lockJobExecutionTx(tx, params.jobExecutionId);
 
     const [running] = await tx
       .select({jobExecutionId: runningJobExecutions.jobExecutionId})
@@ -743,7 +740,7 @@ export async function expirePendingJobExecution(params: {
   jobExecutionId: string;
 }): Promise<ExpirePendingJobExecutionResult> {
   return await db().transaction(async (tx) => {
-    await lockJobExecution(tx, params.jobExecutionId);
+    await lockJobExecutionTx(tx, params.jobExecutionId);
 
     const [pending] = await tx
       .delete(pendingJobExecutions)
@@ -1805,7 +1802,7 @@ export async function reconcileTerminalJobExecution(params: {
     if (initialWorkspaceId) {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${initialWorkspaceId}))`);
     }
-    await lockJobExecution(tx, params.jobExecutionId);
+    await lockJobExecutionTx(tx, params.jobExecutionId);
     const workspaceId = await findJobExecutionWorkspaceId(tx, params.jobExecutionId);
     if (!workspaceId) return;
     if (!initialWorkspaceId) {

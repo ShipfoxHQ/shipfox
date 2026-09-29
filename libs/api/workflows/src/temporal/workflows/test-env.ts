@@ -1,5 +1,6 @@
 import {resolve} from 'node:path';
 import type {RunnerJobLossCauseDto} from '@shipfox/api-runners-dto';
+import type {PolicyNotice} from '@shipfox/policy-notice';
 import {ApplicationFailure} from '@temporalio/common';
 import {TestWorkflowEnvironment} from '@temporalio/testing';
 import {Worker} from '@temporalio/worker';
@@ -152,7 +153,14 @@ export function setJobStatusCalls() {
 export function setExecutionStatusCalls() {
   return callsNamed('setJobExecutionStatus') as Array<{
     name: string;
-    params: {jobExecutionId: string; status: string; version: number; statusReason?: string | null};
+    params: {
+      jobExecutionId: string;
+      status: string;
+      version: number;
+      statusReason?: string | null;
+      statusReasonMessage?: string | null;
+      statusReasonNotice?: PolicyNotice | null;
+    };
   }>;
 }
 

@@ -4,5 +4,6 @@ export const RUN_CONCURRENCY_ACQUIRED_SIGNAL = 'run-concurrency-acquired';
 export const JOB_FINISHED_SIGNAL = 'job-finished';
 export const JOB_LEASE_EXPIRED_SIGNAL = 'job-lease-expired';
 export const JOB_CLAIMED_SIGNAL = 'job-claimed';
+export const JOB_PLACEMENT_DENIED_SIGNAL = 'job-placement-denied';
 export const LISTENER_EVENTS_AVAILABLE_SIGNAL = 'events-available';
 export const LISTENER_RESOLVE_SIGNAL = 'resolve';

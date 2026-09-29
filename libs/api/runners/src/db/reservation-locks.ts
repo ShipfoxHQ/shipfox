@@ -20,3 +20,11 @@ export async function lockRunnerReservationAdvisoryKeysTx(
     order by lock_key
   `);
 }
+
+export const runnerJobExecutionLockPrefix = 'runners_job_execution:';
+
+export async function lockJobExecutionTx(tx: Tx, jobExecutionId: string): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${`${runnerJobExecutionLockPrefix}${jobExecutionId}`}))`,
+  );
+}
