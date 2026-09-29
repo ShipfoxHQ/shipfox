@@ -17,7 +17,10 @@ import {
   sql,
 } from 'drizzle-orm';
 import type {InstallationPlacementPolicy} from '#installation-provisioning.js';
-import {recordProviderRunnerActivationOutcome} from '#metrics/instance.js';
+import {
+  recordPlacementTemplateChanged,
+  recordProviderRunnerActivationOutcome,
+} from '#metrics/instance.js';
 import {
   assignRunnerCapacityHoldTx,
   insertLaunchCapacityHoldsTx,
@@ -212,7 +215,7 @@ export async function pollInstallationDemandAndReserve(
       });
     });
     results.push(result);
-    consumeInstallationTemplateSlots(remainingTemplates, result.reservations);
+    consumeInstallationTemplateSlots(remainingTemplates, result.reservations, params.placement);
     params.onReservations?.(result.reservations);
     remainingMaxReservations -= result.newlyReservedUnits.reduce(
       (total, reservation) => total + reservation.count,
@@ -235,16 +238,15 @@ export async function pollInstallationDemandAndReserve(
 function consumeInstallationTemplateSlots(
   templates: NormalizedTemplate[],
   launchGrants: ReservationGrant[],
+  placement: InstallationPlacementPolicy | undefined,
 ): void {
   // Adopted runners are already included in the running count behind availableSlots.
   // Only units that still need a launch consume advertised template capacity.
   for (const reservation of launchGrants) {
-    const satisfyingTemplates = templates
-      .filter((template) => isSubset(reservation.labels, template.labels))
-      .sort(
-        (a, b) => a.labels.length - b.labels.length || a.templateKey.localeCompare(b.templateKey),
-      );
-    drawSlots(satisfyingTemplates, reservation.count);
+    drawSlots(
+      orderSatisfyingTemplates(templates, reservation.labels, placement),
+      reservation.count,
+    );
   }
 }
 
@@ -295,6 +297,7 @@ async function pollDemandAndReserveLockedTx(
     activeProvisionerReservationRows.filter(
       (reservation) => reservation.provisionerId === params.provisionerId,
     ),
+    params.placement,
   );
   const state: DemandReservationState = {
     templates,
@@ -324,11 +327,11 @@ async function reserveDemandRowTx(
   demand: DemandRow,
   state: DemandReservationState,
 ): Promise<void> {
-  const satisfyingTemplates = state.templates
-    .filter((template) => isSubset(demand.requiredLabels, template.labels))
-    .sort(
-      (a, b) => a.labels.length - b.labels.length || a.templateKey.localeCompare(b.templateKey),
-    );
+  const satisfyingTemplates = orderSatisfyingTemplates(
+    state.templates,
+    demand.requiredLabels,
+    params.placement,
+  );
   if (satisfyingTemplates.length === 0) return;
   const reserved = state.reservedByLabels.get(labelKey(demand.requiredLabels)) ?? 0;
   const capacity = satisfyingTemplates.reduce(
@@ -375,6 +378,7 @@ async function grantDemandReservationTx(
   const launchUnits = params.placement
     ? allocateLaunchUnits(satisfyingTemplates, launchCount, params.placement)
     : [];
+  if (params.placement) countChangedTemplates(satisfyingTemplates, launchCount, params.placement);
   drawSlots(satisfyingTemplates, launchCount);
   const launchReservation = await insertLaunchReservationTx(tx, params, demand, launchCount);
   if (launchReservation && params.placement) {
@@ -1381,14 +1385,13 @@ function groupReservationReleasesByWorkspace(
 function deductProvisionerReservations(
   templates: NormalizedTemplate[],
   activeReservations: {requiredLabels: string[]; reserved: number}[],
+  placement: InstallationPlacementPolicy | undefined,
 ): void {
   for (const reservation of sortReservationRows(activeReservations)) {
-    const satisfyingTemplates = templates
-      .filter((template) => isSubset(reservation.requiredLabels, template.labels))
-      .sort(
-        (a, b) => a.labels.length - b.labels.length || a.templateKey.localeCompare(b.templateKey),
-      );
-    drawSlots(satisfyingTemplates, reservation.reserved);
+    drawSlots(
+      orderSatisfyingTemplates(templates, reservation.requiredLabels, placement),
+      reservation.reserved,
+    );
   }
 }
 
@@ -1416,6 +1419,25 @@ function sortReservationRows<T extends {requiredLabels: string[]}>(rows: T[]): T
 
 function isSubset(requiredLabels: string[], availableLabels: string[]): boolean {
   return requiredLabels.every((label) => availableLabels.includes(label));
+}
+
+type TemplateOrder = InstallationPlacementPolicy['templateOrder'];
+
+function orderSatisfyingTemplates(
+  templates: readonly NormalizedTemplate[],
+  requiredLabels: string[],
+  placement: InstallationPlacementPolicy | undefined,
+  order: TemplateOrder = placement?.templateOrder ?? 'default',
+): NormalizedTemplate[] {
+  return templates
+    .filter((template) => isSubset(requiredLabels, template.labels))
+    .sort((a, b) => {
+      if (order === 'smallest' && placement) {
+        const units = placement.units(a.labels) - placement.units(b.labels);
+        if (units !== 0) return units;
+      }
+      return a.labels.length - b.labels.length || a.templateKey.localeCompare(b.templateKey);
+    });
 }
 
 function drawSlots(templates: NormalizedTemplate[], count: number): void {
@@ -1446,4 +1468,31 @@ function allocateLaunchUnits(
     if (remaining === 0) break;
   }
   return units;
+}
+
+function countChangedTemplates(
+  satisfyingTemplates: readonly NormalizedTemplate[],
+  count: number,
+  placement: InstallationPlacementPolicy,
+): void {
+  if (count === 0) return;
+  const defaultKeys = drawnTemplateKeys(
+    orderSatisfyingTemplates(satisfyingTemplates, [], placement, 'default'),
+    count,
+  );
+  const smallestKeys = drawnTemplateKeys(
+    orderSatisfyingTemplates(satisfyingTemplates, [], placement, 'smallest'),
+    count,
+  );
+  const changed = defaultKeys.filter((key, index) => key !== smallestKeys[index]).length;
+  recordPlacementTemplateChanged({order: placement.templateOrder, count: changed});
+}
+
+function drawnTemplateKeys(templates: readonly NormalizedTemplate[], count: number): string[] {
+  const keys: string[] = [];
+  for (const template of templates) {
+    const take = Math.min(count - keys.length, template.remainingSlots);
+    for (let index = 0; index < take; index += 1) keys.push(template.templateKey);
+  }
+  return keys;
 }
