@@ -138,6 +138,14 @@ export {
   withJiraRefreshLockAndWait,
   withJiraWebhookRegistrationLock,
 } from '#db/installations.js';
+export {
+  type CreateE2eJiraConnectionRouteOptions,
+  createE2eJiraConnectionRoute,
+} from '#presentation/e2eRoutes/create-connection.js';
+export {
+  type CreateJiraE2eRoutesOptions,
+  createJiraE2eRoutes,
+} from '#presentation/e2eRoutes/index.js';
 export type {CreateJiraWebhookRoutesOptions} from '#presentation/routes/webhooks.js';
 export {createJiraWebhookRoutes} from '#presentation/routes/webhooks.js';
 export {createJiraMaintenanceWorker} from '#temporal/worker.js';

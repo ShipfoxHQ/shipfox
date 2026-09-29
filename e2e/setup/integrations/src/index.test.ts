@@ -38,6 +38,37 @@ describe('integrations E2E setup helper', () => {
     });
   });
 
+  it('creates Jira connections through the protected setup route', async () => {
+    requestJson.mockResolvedValueOnce({id: 'connection-id'});
+    const {createJiraConnection} = await import('./index.js');
+
+    await createJiraConnection({
+      workspaceId: 'workspace-id',
+      cloudId: 'jira-cloud',
+      siteUrl: 'https://acme.atlassian.net',
+      siteName: 'Acme',
+      authorizingAccountId: 'jira-user',
+      displayName: 'Jira Acme',
+      accessToken: 'jira-access-token',
+      refreshToken: 'jira-refresh-token',
+      scopes: ['read:jira-work', 'write:jira-work'],
+    });
+
+    expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/integrations/jira-connections', {
+      json: {
+        workspace_id: 'workspace-id',
+        cloud_id: 'jira-cloud',
+        site_url: 'https://acme.atlassian.net',
+        site_name: 'Acme',
+        authorizing_account_id: 'jira-user',
+        scopes: ['read:jira-work', 'write:jira-work'],
+        display_name: 'Jira Acme',
+        access_token: 'jira-access-token',
+        refresh_token: 'jira-refresh-token',
+      },
+    });
+  });
+
   it('creates ClickUp connections through the protected setup route', async () => {
     requestJson.mockResolvedValueOnce({id: 'connection-id'});
     const {createClickUpConnection} = await import('./index.js');

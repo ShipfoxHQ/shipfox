@@ -14,6 +14,10 @@ import type {
   CreateE2eGithubConnectionResponseDto,
 } from '@shipfox/api-integration-github-dto';
 import type {
+  CreateE2eJiraConnectionBodyDto,
+  CreateE2eJiraConnectionResponseDto,
+} from '@shipfox/api-integration-jira-dto';
+import type {
   CreateE2eLinearConnectionBodyDto,
   CreateE2eLinearConnectionResponseDto,
 } from '@shipfox/api-integration-linear-dto';
@@ -47,6 +51,10 @@ export type {
   CreateE2eGithubConnectionBodyDto,
   CreateE2eGithubConnectionResponseDto,
 } from '@shipfox/api-integration-github-dto';
+export type {
+  CreateE2eJiraConnectionBodyDto,
+  CreateE2eJiraConnectionResponseDto,
+} from '@shipfox/api-integration-jira-dto';
 export type {
   CreateE2eLinearConnectionBodyDto,
   CreateE2eLinearConnectionResponseDto,
@@ -151,6 +159,42 @@ export async function createLinearConnection(
     'post',
     '/__e2e/integrations/linear-connections',
     {json: linearConnectionBody(params)},
+  );
+}
+
+export interface CreateJiraConnectionParams {
+  workspaceId: string;
+  cloudId: string;
+  siteUrl: string;
+  siteName: string;
+  authorizingAccountId: string;
+  displayName: string;
+  accessToken: string;
+  refreshToken?: string | undefined;
+  scopes?: string[] | undefined;
+}
+
+function jiraConnectionBody(params: CreateJiraConnectionParams): CreateE2eJiraConnectionBodyDto {
+  return {
+    workspace_id: params.workspaceId,
+    cloud_id: params.cloudId,
+    site_url: params.siteUrl,
+    site_name: params.siteName,
+    authorizing_account_id: params.authorizingAccountId,
+    scopes: params.scopes ?? ['read:jira-work', 'write:jira-work'],
+    display_name: params.displayName,
+    access_token: params.accessToken,
+    ...(params.refreshToken === undefined ? {} : {refresh_token: params.refreshToken}),
+  };
+}
+
+export async function createJiraConnection(
+  params: CreateJiraConnectionParams,
+): Promise<CreateE2eJiraConnectionResponseDto> {
+  return await requestJson<CreateE2eJiraConnectionResponseDto>(
+    'post',
+    '/__e2e/integrations/jira-connections',
+    {json: jiraConnectionBody(params)},
   );
 }
 

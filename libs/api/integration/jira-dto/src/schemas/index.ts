@@ -151,6 +151,24 @@ export const createJiraInstallBodySchema = z.object({
 });
 export type CreateJiraInstallBodyDto = z.infer<typeof createJiraInstallBodySchema>;
 
+export const createE2eJiraConnectionBodySchema = z.object({
+  workspace_id: z.string().uuid(),
+  cloud_id: z.string().min(1),
+  site_url: z.string().url(),
+  site_name: z.string().min(1),
+  authorizing_account_id: z.string().min(1),
+  scopes: z.array(z.string().min(1)).min(1).default(['read:jira-work', 'write:jira-work']),
+  display_name: z.string().min(1),
+  access_token: z.string().min(1),
+  refresh_token: z.string().min(1).optional(),
+});
+export type CreateE2eJiraConnectionBodyDto = z.infer<typeof createE2eJiraConnectionBodySchema>;
+
+export const createE2eJiraConnectionResponseSchema = integrationConnectionDtoSchema;
+export type CreateE2eJiraConnectionResponseDto = z.infer<
+  typeof createE2eJiraConnectionResponseSchema
+>;
+
 export const createJiraInstallResponseSchema = z.object({
   install_url: z.string().url(),
 });

@@ -94,12 +94,17 @@ describe('e2eEnv', () => {
     assert.equal(env.E2E_GITEA_URL, 'http://localhost:55356');
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:55356');
     assert.equal(env.INTEGRATIONS_ENABLE_LINEAR_PROVIDER, 'true');
+    assert.equal(env.INTEGRATIONS_ENABLE_JIRA_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_GITHUB_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_SLACK_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_CLICKUP_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_NOTION_PROVIDER, 'true');
     assert.equal(env.NOTION_API_BASE_URL, 'http://127.0.0.1:55366/');
     assert.equal(env.NOTION_WEBHOOK_VERIFICATION_TOKEN, 'e2e-notion-verification-token');
+    assert.equal(env.JIRA_OAUTH_CLIENT_ID, 'e2e-jira-client-id');
+    assert.equal(env.JIRA_OAUTH_CLIENT_SECRET, 'e2e-jira-client-secret');
+    assert.equal(env.JIRA_OAUTH_REDIRECT_URL, 'http://localhost:55350/integrations/jira/callback');
+    assert.equal(env.JIRA_WEBHOOK_BASE_URL, 'http://localhost:55351');
     assert.equal(env.INTEGRATIONS_ENABLE_TEST_VCS_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS, '600');
     assert.equal(env.INTEGRATIONS_TEST_VCS_PORT, '55365');
