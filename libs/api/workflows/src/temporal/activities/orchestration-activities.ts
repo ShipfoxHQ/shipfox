@@ -2,8 +2,10 @@ import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {RunnerJobLossCauseDto} from '@shipfox/api-runners-dto';
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {ApplicationFailure} from '@temporalio/common';
+import {jobQueueTimeoutMs} from '#config.js';
 import {defaultJobConditionTrace} from '#core/condition-trace.js';
 import type {JobStatus, JobStatusReason, ResolutionReason} from '#core/entities/job.js';
 import type {PersistedEvaluationTraceEntry, StepStatus} from '#core/entities/step.js';
@@ -38,7 +40,7 @@ import {
   updateJobStatus,
   updateWorkflowRunStatus,
 } from '#db/index.js';
-import {recordWorkflowListenerExecution} from '#metrics/instance.js';
+import {recordWorkflowJobQueueTimeout, recordWorkflowListenerExecution} from '#metrics/instance.js';
 
 export interface DagJob extends RuntimeDagNode {
   id: string;
@@ -189,6 +191,7 @@ export async function setJobExecutionStatus(
     status: Exclude<JobStatus, 'skipped'>;
     version: number;
     statusReason?: JobStatusReason | null | undefined;
+    statusReasonMessage?: string | null | undefined;
   },
   secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>,
 ): Promise<{newVersion: number; status: Exclude<JobStatus, 'skipped'>}> {
@@ -230,16 +233,35 @@ export async function resolveLeaseExpiredJobExecutionActivity(
 export async function queueJobExecutionActivity(params: {
   jobId: string;
   jobExecutionId: string;
-}): Promise<{newVersion: number; status: Exclude<JobStatus, 'skipped'>}> {
+}): Promise<{
+  newVersion: number;
+  status: Exclude<JobStatus, 'skipped'>;
+  queuedAt: string | null;
+  queueTimeoutMs: number;
+}> {
   try {
     const execution = await queueJobExecution({jobExecutionId: params.jobExecutionId});
-    return {newVersion: execution.version, status: execution.status};
+    return {
+      newVersion: execution.version,
+      status: execution.status,
+      queuedAt: execution.queuedAt?.toISOString() ?? null,
+      queueTimeoutMs: jobQueueTimeoutMs,
+    };
   } catch (err) {
     if (err instanceof JobNotFoundError) {
       throw ApplicationFailure.nonRetryable(err.message, err.name);
     }
     throw err;
   }
+}
+
+export async function expireQueuedJobExecutionActivity(
+  params: {jobExecutionId: string},
+  runners: Pick<RunnersInterModuleClient, 'expirePendingJobExecution'>,
+) {
+  const result = await runners.expirePendingJobExecution(params);
+  recordWorkflowJobQueueTimeout(result.kind);
+  return result;
 }
 
 export async function failJobExecutionAsTimedOutActivity(

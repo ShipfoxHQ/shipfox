@@ -404,24 +404,53 @@ describe('jobExecutionOrchestration', () => {
     expect(callsNamed('queueJobExecutionActivity')).toHaveLength(1);
   });
 
-  test('times out after the execution deadline and fails its steps', async () => {
+  test('times out while queued and fails the execution', async () => {
     setCfg({
       dag: makeDag([dagJob('job-timeout', 'build')]),
       jobResults: new Map(),
       skipSignal: true,
+      queueTimeoutMs: 250,
     });
 
     const result = await executeJob({
       ...defaultJobInput,
       jobId: 'job-timeout',
-      executionTimeoutMs: 250,
     });
 
     expect(result.status).toBe('failed');
-    expect(callsNamed('failJobExecutionAsTimedOutActivity')).toHaveLength(1);
-    expect(finalStatusesFor('job-timeout')).toEqual([]);
+    expect(callsNamed('expireQueuedJobExecutionActivity')).toHaveLength(1);
+    expect(terminalSetJobCall('job-timeout')?.params.statusReason).toBe('queue_timed_out');
+    expect(callsNamed('failJobExecutionAsTimedOutActivity')).toHaveLength(0);
     expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
     expect(callsNamed('resolveLeaseExpiredJobExecutionActivity')).toHaveLength(0);
+  });
+
+  test('a claim committed before the queue deadline wins over the late signal', async () => {
+    setCfg({
+      dag: makeDag([]),
+      jobResults: new Map(),
+      skipSignal: true,
+      queueTimeoutMs: 25,
+      queueExpiry: {
+        kind: 'claimed',
+        claimedAt: new Date().toISOString(),
+        provisionerScope: 'installation',
+      },
+    });
+
+    const handle = await testEnv.client.workflow.start('jobExecutionOrchestration', {
+      taskQueue: TASK_QUEUE,
+      workflowId: 'job:job-late-claim',
+      args: [{...defaultJobInput, jobId: 'job-late-claim', jobExecutionId: 'job-late-claim'}],
+    });
+    await waitForExecutionStatus('job-late-claim', 'running');
+    expect(callsNamed('expireQueuedJobExecutionActivity')).toHaveLength(1);
+
+    await handle.signal('job-finished', {
+      jobExecutionId: 'job-late-claim',
+      status: 'succeeded',
+    });
+    await expect(handle.result()).resolves.toMatchObject({status: 'succeeded'});
   });
 
   test('does not reset the execution deadline after claim', async () => {
@@ -447,7 +476,8 @@ describe('jobExecutionOrchestration', () => {
       dag: makeDag([dagJob('job-timeout-error', 'build')]),
       jobResults: new Map(),
       skipSignal: true,
-      failJobExecutionAsTimedOutError: 'simulated DB outage',
+      queueTimeoutMs: 250,
+      expireQueuedJobExecutionError: 'simulated DB outage',
     });
 
     await expect(

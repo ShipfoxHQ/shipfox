@@ -1,12 +1,14 @@
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {
   activateJobListenerActivity,
   bulkSetStepStatuses,
   createDrainListenerEventsActivity,
   evaluateJobActivationsActivity,
+  expireQueuedJobExecutionActivity,
   failJobExecutionAsTimedOutActivity,
   failRunAsTimedOutActivity,
   loadRunAttemptConcurrencyActivity,
@@ -27,6 +29,7 @@ export function createOrchestrationActivities(params: {
   agent: AgentInterModuleClient;
   integrations: IntegrationsModuleClient;
   projects: ProjectsModuleClient;
+  runners: RunnersInterModuleClient;
   secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>;
 }) {
   return {
@@ -38,6 +41,8 @@ export function createOrchestrationActivities(params: {
       await setJobExecutionStatus(activityParams, params.secrets),
     bulkSetStepStatuses,
     queueJobExecutionActivity,
+    expireQueuedJobExecutionActivity: async (activityParams: {jobExecutionId: string}) =>
+      await expireQueuedJobExecutionActivity(activityParams, params.runners),
     evaluateJobActivationsActivity,
     failJobExecutionAsTimedOutActivity: async (
       activityParams: Parameters<typeof failJobExecutionAsTimedOutActivity>[0],

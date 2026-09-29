@@ -1,5 +1,6 @@
 import {resolve} from 'node:path';
 import type {RunnerJobLossCauseDto} from '@shipfox/api-runners-dto';
+import {ApplicationFailure} from '@temporalio/common';
 import {TestWorkflowEnvironment} from '@temporalio/testing';
 import {Worker} from '@temporalio/worker';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
@@ -38,6 +39,17 @@ export interface TestConfig {
   skipOutcomeSignal?: boolean;
   /** Runner-owned claim timestamp used by the mock claim event */
   claimedAt?: string;
+  /** Queue timestamp returned by the mocked queue activity. */
+  queuedAt?: string;
+  /** Queue timeout returned by the mocked queue activity. */
+  queueTimeoutMs?: number;
+  /** If set, the mocked runners expiry command throws with this message. */
+  expireQueuedJobExecutionError?: string;
+  /** Result returned by the mocked runners expiry command. */
+  queueExpiry?:
+    | {kind: 'claimed'; claimedAt: string; provisionerScope: 'installation' | 'workspace' | null}
+    | {kind: 'expired'}
+    | {kind: 'absent'};
   /** If true, signal job-lease-expired instead of job-finished */
   signalLeaseExpired?: boolean;
   /** If true, signal BOTH job-finished and job-lease-expired (precedence testing) */
@@ -351,14 +363,20 @@ function createMockActivities() {
         throw ApplicationFailure.nonRetryable(cfg.queueError);
       }
 
-      const queued = {newVersion: nextVersion(), status: 'pending' as const};
+      const queued = {
+        newVersion: nextVersion(),
+        status: 'pending' as const,
+        queuedAt: cfg.queuedAt ?? new Date().toISOString(),
+        queueTimeoutMs: cfg.queueTimeoutMs ?? 60 * 60 * 1000,
+      };
       if (cfg.skipSignal) return queued;
 
       const status = cfg.jobResults.get(params.jobId) ?? 'succeeded';
       const handle = testEnv.client.workflow.getHandle(`job:${params.jobId}`);
       await handle.signal(JOB_CLAIMED_SIGNAL, {
         jobExecutionId: params.jobExecutionId,
-        claimedAt: cfg.claimedAt ?? '2026-06-22T10:05:00.000Z',
+        claimedAt: cfg.claimedAt ?? new Date().toISOString(),
+        provisionerScope: 'workspace',
       });
 
       if (cfg.skipOutcomeSignal) return queued;
@@ -389,6 +407,14 @@ function createMockActivities() {
         duplicateSignal: cfg.duplicateSignal ?? false,
       });
       return queued;
+    },
+
+    expireQueuedJobExecutionActivity: (params: {jobExecutionId: string}) => {
+      calls.push({name: 'expireQueuedJobExecutionActivity', params});
+      if (cfg.expireQueuedJobExecutionError) {
+        throw ApplicationFailure.nonRetryable(cfg.expireQueuedJobExecutionError);
+      }
+      return cfg.queueExpiry ?? {kind: 'expired'};
     },
 
     resolveLeaseExpiredJobExecutionActivity: (params: {

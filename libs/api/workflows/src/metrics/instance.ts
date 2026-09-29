@@ -117,6 +117,12 @@ const jobExecutionLeaseExpiryResolvedCount = meter.createCounter<{status: Runtim
   {description: 'Runner lease-expiry resolutions by resulting runtime status'},
 );
 
+const jobQueueTimeoutCount = meter.createCounter<{
+  outcome: 'expired' | 'absent' | 'claimed';
+}>('workflows_job_queue_timeouts_total', {
+  description: 'Workflow job queue deadline outcomes by runners database decision',
+});
+
 const stepRestartEnqueuedCount = meter.createCounter<Record<string, never>>(
   'workflows_step_restart_enqueued',
   {description: 'Durable step restart events enqueued after a restartable gate failure'},
@@ -361,6 +367,10 @@ export function recordWorkflowJobExecutionLeaseExpiryResolved(
   status: RuntimeCompletionStatus,
 ): void {
   jobExecutionLeaseExpiryResolvedCount.add(1, {status});
+}
+
+export function recordWorkflowJobQueueTimeout(outcome: 'expired' | 'absent' | 'claimed'): void {
+  jobQueueTimeoutCount.add(1, {outcome});
 }
 
 export function recordWorkflowStepRestartEnqueued(): void {

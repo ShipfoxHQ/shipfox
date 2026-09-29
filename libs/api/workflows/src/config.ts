@@ -3,6 +3,8 @@ import {bool, createConfig, num, str} from '@shipfox/config';
 import {MAX_RUNNER_LABELS, parseRunnerCatalog, type RunnerCatalog} from '@shipfox/runner-labels';
 import yaml from 'js-yaml';
 
+const JOB_QUEUE_TIMEOUT_PATTERN = /^(\d+(?:\.\d+)?)(s|m|h)$/i;
+
 export const config = createConfig({
   RUNNER_CATALOG_PATH: str({
     desc: 'Path to the YAML file that maps runner catalog names to complete label sets. Leave it empty to use every job runner value as a literal label. The file is loaded at startup; restart the API after changing it.',
@@ -36,9 +38,15 @@ export const config = createConfig({
     desc: 'Maximum number of workflow concurrency drift candidates repaired in one scan.',
     default: 100,
   }),
+  WORKFLOWS_JOB_QUEUE_TIMEOUT: str({
+    desc: 'How long a queued job waits for a runner before it fails. Accepts a duration from 1m through 24h. Defaults to 1h.',
+    default: '1h',
+  }),
 });
 
 export const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
+export const JOB_QUEUE_TIMEOUT_MIN_MS = 60 * 1000;
+export const JOB_QUEUE_TIMEOUT_MAX_MS = 24 * 60 * 60 * 1000;
 
 export interface ToolStepExecutorConfigValues {
   pollIntervalMs: number;
@@ -82,6 +90,30 @@ validateWorkflowConcurrencyRepairConfig({
   pollIntervalMs: config.WORKFLOWS_CONCURRENCY_REPAIR_POLL_INTERVAL_MS,
   batchSize: config.WORKFLOWS_CONCURRENCY_REPAIR_BATCH_SIZE,
 });
+
+export function parseJobQueueTimeout(value: string): number {
+  const match = JOB_QUEUE_TIMEOUT_PATTERN.exec(value.trim());
+  const amount = match?.[1] === undefined ? Number.NaN : Number.parseFloat(match[1]);
+  const unit = match?.[2]?.toLowerCase();
+  let multiplier: number | undefined;
+  if (unit === 's') multiplier = 1_000;
+  else if (unit === 'm') multiplier = 60_000;
+  else if (unit === 'h') multiplier = 3_600_000;
+  const milliseconds = multiplier === undefined ? Number.NaN : amount * multiplier;
+  if (
+    !Number.isFinite(milliseconds) ||
+    !Number.isSafeInteger(milliseconds) ||
+    milliseconds < JOB_QUEUE_TIMEOUT_MIN_MS ||
+    milliseconds > JOB_QUEUE_TIMEOUT_MAX_MS
+  ) {
+    throw new Error(
+      `WORKFLOWS_JOB_QUEUE_TIMEOUT must be a duration from 1m through 24h, got ${value}.`,
+    );
+  }
+  return milliseconds;
+}
+
+export const jobQueueTimeoutMs = parseJobQueueTimeout(config.WORKFLOWS_JOB_QUEUE_TIMEOUT);
 
 /** Raised when the configured runner catalog cannot be read, parsed, or validated. */
 export class RunnerCatalogConfigError extends Error {

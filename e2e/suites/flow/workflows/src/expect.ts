@@ -30,6 +30,7 @@ const jobStatusReasonSchema = z.enum([
   'user_cancelled',
   'run_cancelled',
   'concurrency_superseded',
+  'queue_timed_out',
   'timed_out',
   'lease_expired',
   'provider_lost',

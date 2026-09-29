@@ -134,6 +134,13 @@
       "when": 1790463105576,
       "tag": "0018_large_dark_phoenix",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790633098563,
+      "tag": "0019_silly_amazoness",
+      "breakpoints": true
     }
   ]
 }

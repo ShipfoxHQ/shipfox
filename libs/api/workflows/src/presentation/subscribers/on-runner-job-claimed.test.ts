@@ -69,6 +69,7 @@ describe('onRunnerJobClaimed', () => {
     expect(signalMock).toHaveBeenCalledWith('job-claimed', {
       jobExecutionId: jobExecution.id,
       claimedAt: claimedAt.toISOString(),
+      provisionerScope: 'installation',
     });
   });
 

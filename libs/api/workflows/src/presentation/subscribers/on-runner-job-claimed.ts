@@ -37,6 +37,7 @@ export async function onRunnerJobClaimed(payload: RunnerJobClaimedEvent): Promis
     await handle.signal(JOB_CLAIMED_SIGNAL, {
       jobExecutionId: payload.jobExecutionId,
       claimedAt: payload.claimedAt,
+      provisionerScope: payload.provisionerScope ?? null,
     });
   } catch (err) {
     // A terminal execution can race the claim outbox delivery. Its persisted status is

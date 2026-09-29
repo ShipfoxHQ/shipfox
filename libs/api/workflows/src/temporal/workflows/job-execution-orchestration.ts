@@ -1,6 +1,13 @@
 import type {RunnerJobLossCauseDto} from '@shipfox/api-runners-dto';
 import {ApplicationFailure} from '@temporalio/common';
-import {condition, defineSignal, log, proxyActivities, setHandler} from '@temporalio/workflow';
+import {
+  condition,
+  defineSignal,
+  log,
+  patched,
+  proxyActivities,
+  setHandler,
+} from '@temporalio/workflow';
 import {
   hasNoRequiredRunnerLabels,
   type JobExecutionOutcomeSignals,
@@ -35,6 +42,7 @@ const {
   setJobStatus,
   setJobExecutionStatus,
   queueJobExecutionActivity,
+  expireQueuedJobExecutionActivity,
   failJobExecutionAsTimedOutActivity,
   resolveLeaseExpiredJobExecutionActivity,
 } = proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
@@ -63,6 +71,7 @@ export const jobLeaseExpiredSignal =
 export interface JobClaimedSignalPayload {
   jobExecutionId: string;
   claimedAt: string;
+  provisionerScope?: 'installation' | 'workspace' | null | undefined;
 }
 export const jobClaimedSignal = defineSignal<[JobClaimedSignalPayload]>(JOB_CLAIMED_SIGNAL);
 
@@ -111,12 +120,15 @@ async function queueJobExecution(input: JobExecutionOrchestrationInput) {
     );
   }
 
-  return jobExecutionStartOutcome(
-    await queueJobExecutionActivity({
-      jobId: input.jobId,
-      jobExecutionId: input.jobExecutionId,
-    }),
-  );
+  const queued = await queueJobExecutionActivity({
+    jobId: input.jobId,
+    jobExecutionId: input.jobExecutionId,
+  });
+  return {
+    ...jobExecutionStartOutcome(queued),
+    queuedAt: queued.queuedAt,
+    queueTimeoutMs: queued.queueTimeoutMs,
+  };
 }
 
 async function markJobExecutionRunning(
@@ -163,14 +175,40 @@ async function waitForJobExecutionSignal(
   signals: JobExecutionSignals,
   deadline: number,
   includeClaim: boolean,
-): Promise<void> {
-  await condition(
+): Promise<boolean> {
+  return await condition(
     () =>
       signals.finished !== undefined ||
       signals.leaseExpired ||
       (includeClaim && signals.claimed !== undefined),
     remainingMs(deadline) ?? 0,
   );
+}
+
+function queueTimeoutMessage(timeoutMs: number): string {
+  if (timeoutMs % (60 * 60 * 1000) === 0) {
+    return `Not started within ${timeoutMs / (60 * 60 * 1000)} h`;
+  }
+  if (timeoutMs % (60 * 1000) === 0) return `Not started within ${timeoutMs / (60 * 1000)} m`;
+  return `Not started within ${timeoutMs / 1000} s`;
+}
+
+async function resolveQueueTimedOutJobExecution(
+  input: JobExecutionOrchestrationInput,
+  queueTimeoutMs: number,
+): Promise<JobExecutionOrchestrationResult> {
+  await setJobExecutionStatus({
+    jobExecutionId: input.jobExecutionId,
+    status: 'failed',
+    version: input.executionVersion,
+    statusReason: 'queue_timed_out',
+    statusReasonMessage: queueTimeoutMessage(queueTimeoutMs),
+  });
+  if (input.resolveJobStatus === false) {
+    return {status: 'failed', jobVersion: input.jobVersion};
+  }
+  const {jobVersion} = await resolveJobStatusOrFailClosed(input);
+  return {status: 'failed', jobVersion};
 }
 
 interface JobExecutionResolution {
@@ -283,6 +321,131 @@ async function resolveTimedOutJobExecution({
   return {status: 'failed', jobVersion};
 }
 
+type QueuedJobExecution = Awaited<ReturnType<typeof queueJobExecution>>;
+type PreRunningResolution =
+  | {kind: 'claimed'; deadline: number}
+  | {kind: 'terminal'; result: JobExecutionOrchestrationResult};
+
+function claimDeadline(input: JobExecutionOrchestrationInput, claimedAt: string): number {
+  const timestamp = Date.parse(claimedAt);
+  if (!Number.isFinite(timestamp)) {
+    throw ApplicationFailure.nonRetryable(
+      `Job execution ${input.jobExecutionId} has an invalid claim timestamp`,
+      'InvalidClaimedAtError',
+    );
+  }
+  return timestamp + (input.executionTimeoutMs ?? DEFAULT_EXECUTION_MAX_DURATION_MS);
+}
+
+async function resolveUnpatchedBeforeRunning(
+  input: JobExecutionOrchestrationInput,
+  signals: JobExecutionSignals,
+): Promise<PreRunningResolution> {
+  const deadline = Date.now() + (input.executionTimeoutMs ?? DEFAULT_EXECUTION_MAX_DURATION_MS);
+  await waitForJobExecutionSignal(signals, deadline, true);
+  const resolution = resolveJobExecutionOutcomeSignal(signals);
+  if (resolution === 'finished') {
+    const {finished} = signals;
+    if (finished === undefined) throw new Error('Missing finished signal for finished resolution');
+    return {
+      kind: 'terminal',
+      result: await resolveFinishedJobExecution({
+        input,
+        runningVersion: input.executionVersion,
+        status: finished.status,
+      }),
+    };
+  }
+  if (resolution === 'lease-expired') {
+    return {
+      kind: 'terminal',
+      result: await resolveLeaseExpiredJobExecution({
+        input,
+        runningVersion: input.executionVersion,
+        cause: signals.leaseExpiredCause,
+      }),
+    };
+  }
+  if (!signals.claimed) {
+    return {
+      kind: 'terminal',
+      result: await resolveTimedOutJobExecution({input, runningVersion: input.executionVersion}),
+    };
+  }
+  return {kind: 'claimed', deadline};
+}
+
+async function resolvePatchedBeforeRunning(
+  input: JobExecutionOrchestrationInput,
+  queued: QueuedJobExecution,
+  signals: JobExecutionSignals,
+): Promise<PreRunningResolution> {
+  if (queued.queuedAt === null) {
+    throw ApplicationFailure.nonRetryable(
+      `Job execution ${input.jobExecutionId} has no persisted queue timestamp`,
+      'MissingQueuedAtError',
+    );
+  }
+  const queuedAt = Date.parse(queued.queuedAt);
+  if (!Number.isFinite(queuedAt)) {
+    throw ApplicationFailure.nonRetryable(
+      `Job execution ${input.jobExecutionId} has an invalid queue timestamp`,
+      'InvalidQueuedAtError',
+    );
+  }
+  await waitForJobExecutionSignal(signals, queuedAt + queued.queueTimeoutMs, true);
+  const resolution = resolveJobExecutionOutcomeSignal(signals);
+  if (resolution === 'finished') {
+    const {finished} = signals;
+    if (finished === undefined) throw new Error('Missing finished signal for finished resolution');
+    return {
+      kind: 'terminal',
+      result: await resolveFinishedJobExecution({
+        input,
+        runningVersion: input.executionVersion,
+        status: finished.status,
+      }),
+    };
+  }
+  if (resolution === 'lease-expired') {
+    return {
+      kind: 'terminal',
+      result: await resolveLeaseExpiredJobExecution({
+        input,
+        runningVersion: input.executionVersion,
+        cause: signals.leaseExpiredCause,
+      }),
+    };
+  }
+  if (!signals.claimed) {
+    const expired = await expireQueuedJobExecutionActivity({
+      jobExecutionId: input.jobExecutionId,
+    });
+    if (expired.kind === 'expired' || expired.kind === 'absent') {
+      return {
+        kind: 'terminal',
+        result: await resolveQueueTimedOutJobExecution(input, queued.queueTimeoutMs),
+      };
+    }
+    signals.claimed = {
+      jobExecutionId: input.jobExecutionId,
+      claimedAt: expired.claimedAt,
+      provisionerScope: expired.provisionerScope,
+    };
+  }
+  return {kind: 'claimed', deadline: claimDeadline(input, signals.claimed.claimedAt)};
+}
+
+function resolveBeforeRunning(
+  input: JobExecutionOrchestrationInput,
+  queued: QueuedJobExecution,
+  signals: JobExecutionSignals,
+): Promise<PreRunningResolution> {
+  return patched('job-queue-timeout')
+    ? resolvePatchedBeforeRunning(input, queued, signals)
+    : resolveUnpatchedBeforeRunning(input, signals);
+}
+
 export async function jobExecutionOrchestration(
   input: JobExecutionOrchestrationInput,
 ): Promise<JobExecutionOrchestrationResult> {
@@ -300,34 +463,10 @@ export async function jobExecutionOrchestration(
     return {status: queued.result.status, jobVersion: input.jobVersion};
   }
 
-  const timeoutMs = input.executionTimeoutMs ?? DEFAULT_EXECUTION_MAX_DURATION_MS;
-  const deadline = Date.now() + timeoutMs;
-  await waitForJobExecutionSignal(signals, deadline, true);
+  const preRunning = await resolveBeforeRunning(input, queued, signals);
+  if (preRunning.kind === 'terminal') return preRunning.result;
 
-  // A terminal fact wins over claim even when both signals arrive before the condition
-  // resumes. This prevents a late claim from reopening an execution that already finished.
-  let resolution = resolveJobExecutionOutcomeSignal(signals);
-  if (resolution === 'finished') {
-    const {finished} = signals;
-    if (finished === undefined) throw new Error('Missing finished signal for finished resolution');
-
-    return resolveFinishedJobExecution({
-      input,
-      runningVersion: input.executionVersion,
-      status: finished.status,
-    });
-  }
-  if (resolution === 'lease-expired') {
-    return resolveLeaseExpiredJobExecution({
-      input,
-      runningVersion: input.executionVersion,
-      cause: signals.leaseExpiredCause,
-    });
-  }
-  if (!signals.claimed) {
-    return resolveTimedOutJobExecution({input, runningVersion: input.executionVersion});
-  }
-
+  const {deadline} = preRunning;
   const running = await markJobExecutionRunning(input);
   if (running.kind === 'terminal') {
     if (input.resolveJobStatus === false) {
@@ -338,7 +477,7 @@ export async function jobExecutionOrchestration(
   const {runningVersion} = running;
 
   await waitForJobExecutionSignal(signals, deadline, false);
-  resolution = resolveJobExecutionOutcomeSignal(signals);
+  const resolution = resolveJobExecutionOutcomeSignal(signals);
   if (resolution === 'finished') {
     const {finished} = signals;
     if (finished === undefined) throw new Error('Missing finished signal for finished resolution');
