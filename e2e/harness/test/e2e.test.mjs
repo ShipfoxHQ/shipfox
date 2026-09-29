@@ -263,6 +263,15 @@ describe('e2eTestVcsPort', () => {
 });
 
 describe('turboCommandArgs', () => {
+  test('passes eval CLI arguments through the turbo task separator', () => {
+    const args = turboCommandArgs(
+      {turboArgs: ['--suite', 'templates', '--mode', 'scripted'], turboTask: 'evals'},
+      {},
+    );
+
+    assert.deepEqual(args, ['evals', '--', '--suite', 'templates', '--mode', 'scripted']);
+  });
+
   test('uses E2E turbo concurrency from the environment', () => {
     const args = turboCommandArgs(
       {
@@ -290,6 +299,15 @@ describe('turboCommandArgs', () => {
       '--affected',
       '--concurrency=2',
     ]);
+  });
+
+  test('does not pass eval CLI arguments to the dependency build', () => {
+    const args = turboBuildCommandArgs(
+      {turboArgs: ['--suite', 'templates', '--mode', 'scripted'], turboTask: 'evals'},
+      {},
+    );
+
+    assert.deepEqual(args, ['build', '--filter=@shipfox/e2e-*...']);
   });
 
   test('keeps turbo default concurrency without an environment override', () => {

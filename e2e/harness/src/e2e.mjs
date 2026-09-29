@@ -16,6 +16,7 @@ const defaultAuthSignupNotAllowedMessage = 'This E2E deployment does not accept 
 const defaultReadinessTimeoutMs = 60_000;
 const defaultShutdownTimeoutMs = 15_000;
 const defaultTurboTask = 'test:e2e';
+const evalTurboTask = 'evals';
 const defaultE2eBuildFilter = '@shipfox/e2e-*...';
 const trailingSlashPattern = /\/$/;
 let generatedGithubAppPrivateKey;
@@ -59,8 +60,8 @@ export async function main(argv) {
   await mkdir(logDir, {recursive: true});
 
   try {
-    // Build dependencies before watch processes start so test:e2e cannot restart the API during readiness checks.
-    if (options.turboTask === defaultTurboTask) {
+    // Build dependencies before watch processes start so test tasks cannot restart the API during readiness checks.
+    if (options.turboTask === defaultTurboTask || options.turboTask === evalTurboTask) {
       await buildE2eDependencies(options, env, servers);
     }
     if (
@@ -540,14 +541,19 @@ export function e2eLinearMcpEndpoint(apiUrl) {
 }
 
 export function turboCommandArgs(options, env) {
-  return withTurboConcurrency([options.turboTask, ...options.turboArgs], env);
+  const taskArgs =
+    options.turboTask === evalTurboTask && options.turboArgs.length > 0
+      ? [options.turboTask, '--', ...options.turboArgs]
+      : [options.turboTask, ...options.turboArgs];
+  return withTurboConcurrency(taskArgs, env);
 }
 
 export function turboBuildCommandArgs(options, env) {
   const separatorIndex = options.turboArgs.indexOf('--');
   const turboArgs =
     separatorIndex < 0 ? options.turboArgs : options.turboArgs.slice(0, separatorIndex);
-  const buildOptions = withoutTurboFilters(turboArgs);
+  const buildOptions =
+    options.turboTask === evalTurboTask ? [] : withoutTurboFilters(turboArgs);
   return withTurboConcurrency(['build', `--filter=${defaultE2eBuildFilter}`, ...buildOptions], env);
 }
 

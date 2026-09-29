@@ -1,0 +1,43 @@
+{
+  "name": "@shipfox/e2e-eval-workflows",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "e2e/suites/eval/workflows"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "shipfox-eval-workflows": "./dist/cli.js"
+  },
+  "imports": {
+    "#cli.js": "./src/cli.ts",
+    "#discovery.js": "./src/discovery.ts",
+    "#results.js": "./src/results.ts",
+    "#schema.js": "./src/schema.ts"
+  },
+  "scripts": {
+    "build": "shipfox-swc && chmod +x dist/cli.js",
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "depcruise": "shipfox-depcruise",
+    "evals": "node dist/cli.js",
+    "test": "shipfox-vitest-run",
+    "test:e2e": "node dist/cli.js --suite templates --mode scripted",
+    "test:watch": "shipfox-vitest-watch",
+    "type": "shipfox-tsc-check"
+  },
+  "dependencies": {
+    "yaml": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/depcruise": "workspace:*",
+    "@shipfox/swc": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*"
+  }
+}

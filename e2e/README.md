@@ -37,6 +37,7 @@ Suite levels are independent from layers:
 | `suites/client/*` | Browser tests that drive the UI or assert user-visible page state. |
 | `suites/api/*` | HTTP-only tests that assert API contracts without a browser. |
 | `suites/flow/*` | Full platform loops that need VCS push, webhook delivery, definition sync, Temporal, runner capacity, step execution, and logs. |
+| `suites/eval/*` | Repeatable workflow-template and onboarding evaluations that run through the E2E stack and write scored results. |
 
 Driver-specific docs live with their drivers:
 
@@ -100,7 +101,9 @@ Use this decision tree before adding a spec:
    Put it in `suites/api/<surface>`.
 3. Does it need the full product loop: VCS push, org webhook, definition sync, trigger dispatch, Temporal orchestration, a runner, step execution, and log capture?
    Put it in `suites/flow/<surface>`.
-4. Can the full-loop case be expressed as data?
+4. Does it repeat cases, compare quality across runs, or evaluate onboarding rather than report one pass/fail flow?
+   Put it in `suites/eval/<surface>`.
+5. Can the full-loop case be expressed as data?
    Prefer one scenario directory with `workflow.yml` plus `expect.yaml` or `reject.yaml`. Add a bespoke Playwright spec only when the case must orchestrate from outside the run, such as cancellation or listener behavior.
 
 Do not use a browser test to prove a pure HTTP contract. Do not use a flow test
@@ -322,6 +325,14 @@ Run pure helper or evaluator tests with `turbo test`:
 turbo test --filter=@shipfox/e2e-flow-workflows
 ```
 
+Workflow evaluations use the same harness, but run the Node evaluator instead
+of Playwright:
+
+```sh
+mise run evals -- --suite templates --mode scripted
+mise run evals -- --suite templates --mode live --case 'ticket-to-pr/*' --repeat 3
+```
+
 The harness reads Conductor worktree ports from `.context/local-services/env`,
 starts the API with E2E routes enabled, starts the client with the test VCS
 provider enabled, waits for both to become ready, and then runs
@@ -341,7 +352,8 @@ files, and runner logs, use
 
 For PRs that add or change E2E coverage, check:
 
-- The test is at the lowest level that proves the behavior: `client`, `api`, or `flow`.
+- The test is at the lowest level that proves the behavior: `client`, `api`, `flow`, or `eval`.
+- Eval cases use `e2e/suites/eval/<surface>`, validate their `case.yaml`, and write local results for every repeat.
 - Data setup goes through `/__e2e/<module>` via `@shipfox/e2e-setup-*`; only true external/process boundaries use `drivers/*`.
 - Browser specs use screen or kit UI methods instead of raw product locators.
 - Specs follow the granularity rule: one test per behavior, one file per surface or journey, present-tense names, and setup outside the spec body.
