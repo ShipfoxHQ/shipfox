@@ -1,0 +1,4 @@
+registry: https://api.registry.shipfox.io
+namespace: shipfox
+packages:
+  - {kind: template, path: libs/shared/workflow/catalog/templates/*}

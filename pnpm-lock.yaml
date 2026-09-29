@@ -9866,6 +9866,43 @@ importers:
 
   tools/prose-policy: {}
 
+  tools/registry-release:
+    dependencies:
+      '@shipfox/registry-format':
+        specifier: workspace:*
+        version: link:../../libs/shared/registry/format
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../../libs/shared/workflow/document
+      '@shipfox/workflow-templates':
+        specifier: workspace:*
+        version: link:../../libs/shared/workflow/templates
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../vitest
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.2
+
   tools/repository-documentation-policy:
     devDependencies:
       '@shipfox/biome':
