@@ -94,26 +94,35 @@ export type DiscordInteractionDto = DiscordInteractionEnvelopeDto;
 
 const discordCommandAuthorSchema = discordAuthorSchema;
 
-export const discordSlashCommandPayloadSchema = z
+// Command events only come from APPLICATION_COMMAND interactions (type 2).
+// The base schemas are the documented shape; the payload schemas strip the
+// interaction token before publication, which JSON Schema cannot represent.
+export const discordSlashCommandPayloadBaseSchema = z
   .object({
     ...discordInteractionBaseFields,
+    type: z.literal(2),
     author: discordCommandAuthorSchema,
     prompt: z.string(),
     root_channel_id: z.string().min(1).optional(),
   })
-  .passthrough()
-  .transform(({token: _token, ...payload}) => payload);
+  .passthrough();
+export const discordSlashCommandPayloadSchema = discordSlashCommandPayloadBaseSchema.transform(
+  ({token: _token, ...payload}) => payload,
+);
 export type DiscordSlashCommandPayloadDto = z.infer<typeof discordSlashCommandPayloadSchema>;
 
-export const discordMessageCommandPayloadSchema = z
+export const discordMessageCommandPayloadBaseSchema = z
   .object({
     ...discordInteractionBaseFields,
+    type: z.literal(2),
     author: discordCommandAuthorSchema,
     target_message: discordMessageCreatePayloadSchema,
     root_channel_id: z.string().min(1).optional(),
   })
-  .passthrough()
-  .transform(({token: _token, ...payload}) => payload);
+  .passthrough();
+export const discordMessageCommandPayloadSchema = discordMessageCommandPayloadBaseSchema.transform(
+  ({token: _token, ...payload}) => payload,
+);
 export type DiscordMessageCommandPayloadDto = z.infer<typeof discordMessageCommandPayloadSchema>;
 
 export const discordInteractionPayloadSchema = z.discriminatedUnion('type', [

@@ -68,6 +68,20 @@ describe('Discord DTO schemas', () => {
     expect(result).not.toHaveProperty('token');
   });
 
+  it('rejects non-command interactions as command payloads', () => {
+    const ping = {
+      id: 'interaction-1',
+      application_id: 'application-1',
+      type: 1,
+      author: {id: 'user-1', bot: false},
+      prompt: 'Investigate this failure',
+      target_message: message,
+    };
+
+    expect(discordSlashCommandPayloadSchema.safeParse(ping).success).toBe(false);
+    expect(discordMessageCommandPayloadSchema.safeParse(ping).success).toBe(false);
+  });
+
   it('keeps the interaction envelope token available before publication', () => {
     const result = discordInteractionEnvelopeSchema.parse({
       id: 'interaction-1',
@@ -101,11 +115,14 @@ describe('Discord DTO schemas', () => {
       }).permissions,
     ).toBe('0');
 
-    expect(
-      injectDiscordDispatchBodySchema.parse({
-        connection_id: '5c3583d6-ffb9-4486-a80d-4cf55b567462',
-        dispatch: {type: 'MESSAGE_CREATE', sequence: 1, data: message},
-      }).dispatch.type,
-    ).toBe('MESSAGE_CREATE');
+    const dispatch = injectDiscordDispatchBodySchema.parse({
+      connection_id: '5c3583d6-ffb9-4486-a80d-4cf55b567462',
+      sequence: 1,
+      dispatch: {type: 'MESSAGE_CREATE', data: message},
+    });
+
+    expect(dispatch.session_id).toBe('e2e-session');
+    expect(dispatch.sequence).toBe(1);
+    expect(dispatch.dispatch.type).toBe('MESSAGE_CREATE');
   });
 });

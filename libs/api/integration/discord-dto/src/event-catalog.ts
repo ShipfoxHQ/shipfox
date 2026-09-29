@@ -8,10 +8,10 @@ import {
   DISCORD_MESSAGE_REACTION_ADD_EVENT,
   DISCORD_SLASH_COMMAND_EVENT,
   discordEventNames,
-  discordMessageCommandPayloadSchema,
+  discordMessageCommandPayloadBaseSchema,
   discordMessageCreatePayloadSchema,
   discordMessageReactionAddPayloadSchema,
-  discordSlashCommandPayloadSchema,
+  discordSlashCommandPayloadBaseSchema,
 } from './schemas/index.js';
 
 const discordEventsDocsUrl = 'https://docs.discord.com/developers/events/gateway-events';
@@ -64,7 +64,7 @@ export const discordEventCatalog = {
       title: 'Slash commands',
       summary: 'The Shipfox slash command delivered as a Discord interaction.',
       payloadKind: 'shipfox-normalized',
-      payloadSchema: eventPayloadJsonSchema(discordSlashCommandPayloadSchema),
+      payloadSchema: eventPayloadJsonSchema(discordSlashCommandPayloadBaseSchema),
       payloadDocUrl: discordInteractionsDocsUrl,
       shipfoxFields: ['prompt', 'author', 'root_channel_id'],
     },
@@ -73,7 +73,7 @@ export const discordEventCatalog = {
       title: 'Message commands',
       summary: 'The Send to Shipfox message command delivered as a Discord interaction.',
       payloadKind: 'shipfox-normalized',
-      payloadSchema: eventPayloadJsonSchema(discordMessageCommandPayloadSchema),
+      payloadSchema: eventPayloadJsonSchema(discordMessageCommandPayloadBaseSchema),
       payloadDocUrl: discordInteractionsDocsUrl,
       shipfoxFields: ['target_message', 'author', 'root_channel_id'],
     },

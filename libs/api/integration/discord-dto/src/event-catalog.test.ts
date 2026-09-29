@@ -12,12 +12,19 @@ describe('discordEventCatalog', () => {
     ]);
   });
 
-  it('keeps Gateway events separate from interaction events', () => {
+  it('assigns each event to its contract family', () => {
     expect(discordGatewayEventNames).toEqual(['message_create', 'message_reaction_add']);
-    expect(
-      discordEventCatalog.events
-        .filter((event) => event.family === 'gateway')
-        .map((event) => event.name),
-    ).toEqual([...discordGatewayEventNames]);
+    expect(discordEventCatalog.events.map(({name, family}) => [name, family])).toEqual([
+      ['message_create', 'gateway'],
+      ['message_reaction_add', 'gateway'],
+      ['slash_command', 'slash_command'],
+      ['message_command', 'message_command'],
+    ]);
+  });
+
+  it('documents a payload schema for every family', () => {
+    for (const family of discordEventCatalog.families) {
+      expect(family.payloadSchema).not.toEqual({});
+    }
   });
 });
