@@ -35,8 +35,11 @@
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/registry-format": "workspace:*",
+    "@shipfox/workflow-document": "workspace:*",
+    "@shipfox/workflow-templates": "workspace:*",
     "drizzle-orm": "catalog:",
     "jose": "catalog:",
+    "spdx-expression-parse": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:"
   },
@@ -48,6 +51,7 @@
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
     "@types/pg": "catalog:",
+    "@types/spdx-expression-parse": "catalog:",
     "drizzle-kit": "catalog:",
     "tsx": "catalog:"
   }

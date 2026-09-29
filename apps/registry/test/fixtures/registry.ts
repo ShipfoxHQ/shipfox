@@ -3,7 +3,9 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {db} from '#db/db.js';
 import {audit} from '#db/schema/audit.js';
+import {packages} from '#db/schema/packages.js';
 import {usedTokens} from '#db/schema/used-tokens.js';
+import {versions} from '#db/schema/versions.js';
 import {FileRegistryStorage} from '#storage/file.js';
 
 export const BOOTSTRAP_YAML = `
@@ -42,4 +44,6 @@ export async function createTemporaryRegistry() {
 export async function resetRegistryDatabase(): Promise<void> {
   await db().delete(usedTokens);
   await db().delete(audit);
+  await db().delete(versions);
+  await db().delete(packages);
 }

@@ -21,6 +21,9 @@ declares namespaces and curation.
 - **Publish token exchange** (`POST /v1/publish/token`) swaps a GitHub Actions
   OIDC token for a publish token. The token must verify, match an active
   publish grant, and not have been used before.
+- **Version publishing** (`PUT /v1/packages/{namespace}/{name}/versions/{version}`)
+  validates a package, signs its version document, and stores it. A publish
+  token is the bearer token.
 
 A self-hosted registry is this container, a Postgres database, and an
 S3-compatible store (or a directory in development).
@@ -58,6 +61,61 @@ curl -X POST http://localhost:16120/v1/publish/token \
 | 401 | `oidc-token-replayed` | The token was already exchanged. |
 | 403 | `publish-grant-not-found` | No grant matches the token. The response never says which claim differed. |
 | 403 | `namespace-suspended` | The matching grant belongs to a suspended namespace. |
+
+### Publish a version
+
+Send a multipart request with a publish token as the bearer token. The token
+names one namespace, and `{namespace}` must be that one.
+
+| Part | Content |
+| --- | --- |
+| `draft` | JSON: `kind`, `license` (an SPDX expression), `builder`, `path`, `changelog` when present, and by kind `dependencies` (actions) or `composition` (templates). Unknown fields are refused. |
+| `content` | The gzip content bundle: `action-bundle@1` (`action.yml`, `index.mjs`, and `LICENSE` when present) or `template-bundle@1` (`template.yaml`, `workflow.yml`, `GUIDE.md`, `parts/<role>/<provider>.yml`). |
+| `source` | The gzip source archive that rebuilds the version. It holds no `node_modules` or `.npmrc`. |
+| `readme` | Optional README text, UTF-8, at most 64 KiB. |
+
+The registry derives every digest, the bump, the derived metadata, and the
+provenance. Nothing in `draft` can claim them. Provenance comes from the
+verified publish token, and `path` from the draft.
+
+The request must pass these checks, in this order:
+
+1. The token verifies and its namespace is `{namespace}` and active. The name is
+   a slug that no `reserved` entry of the bootstrap file matches.
+2. The parts are present once each, and `draft` matches its schema. The kind
+   matches the existing package, if any.
+3. Each bundle inflates within its limit (action content 4 MiB, template
+   content 1 MiB, source 20 MiB, request 30 MiB) and is in canonical form. The
+   manifest parses, the description or summary is 1 to 160 characters, the
+   license is SPDX, and a template composes for every role binding.
+4. A version that exists with the same fingerprint is a retry. With another
+   fingerprint it is refused with `changed-without-version-bump`.
+5. The version step from the highest lower version is at least the bump that
+   `computeActionBump` or `computeTemplateBump` computes. The first version has
+   no bump.
+6. Every registry action a template uses exists. The list is what the
+   composed workflow of any binding uses, with every option block kept.
+
+The blobs are written first, under `blobs/sha256/<digest>`, and one transaction
+then commits the package row, the version row with its envelope, and the audit
+row. A crash between the two leaves blobs that no version points to. A
+retry of the same request then publishes normally.
+
+| Status | Meaning |
+| --- | --- |
+| 201 | Published. The body is the signed envelope. |
+| 200 | Already published with the same content. The body is the stored envelope. |
+| 400 | `invalid-request` or `invalid-package-name`. |
+| 401 | `invalid-publish-token`. |
+| 403 | `namespace-mismatch`, `namespace-suspended`, or `reserved-name`. |
+| 409 | `kind-mismatch` or `changed-without-version-bump`. |
+| 413 | `too-large`. |
+| 422 | `invalid-draft`, `invalid-bundle`, `invalid-manifest`, `invalid-metadata`, `unsupported-composition`, `invalid-template`, `bump-too-low`, or `action-not-found`. |
+
+Every attempt of a verified token is a row in `registry_audit`: accepted
+publishes, retries, and refusals with their reason. Requests whose token fails
+verification are not recorded. After a publish or a retry, the service posts
+`{package, kind, version, published_at}` to each `REGISTRY_PUBLISH_HOOKS` URL.
 
 ## Environment
 
@@ -115,9 +173,10 @@ grant the same identity, the first one in the file wins.
 
 - The file store makes create-only writes atomic with `link()`, so several
   registry processes can share a directory.
-- A blob is content-addressed. The store checks the bytes against the digest
-  before it writes, and writing an existing key again with the same bytes
-  succeeds. It refuses to replace a key that holds other bytes.
+- A blob is a gzip bundle, keyed by the digest of its canonical JSON. The store
+  inflates it and checks that digest before it writes. Writing an existing key
+  again with the same content succeeds, even from another gzip encoding, and
+  keeps the stored bytes. It refuses to replace a key that holds other content.
 - The exchange accepts RS256 tokens from `https://token.actions.githubusercontent.com`
   with an `iat` no older than 10 minutes. Every time check (`exp`, `nbf`,
   `iat`) allows 60 seconds of clock tolerance, so an `iat` up to 60 seconds

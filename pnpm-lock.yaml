@@ -330,6 +330,9 @@ catalogs:
     '@types/react-dom':
       specifier: ^19.1.7
       version: 19.2.3
+    '@types/spdx-expression-parse':
+      specifier: ^4.0.0
+      version: 4.0.0
     '@vitejs/plugin-react':
       specifier: ^6.0.0
       version: 6.0.2
@@ -498,6 +501,9 @@ catalogs:
     sonner:
       specifier: ^2.0.7
       version: 2.0.7
+    spdx-expression-parse:
+      specifier: ^5.0.0
+      version: 5.0.0
     storybook:
       specifier: ^10.0.0
       version: 10.4.6
@@ -967,12 +973,21 @@ importers:
       '@shipfox/registry-format':
         specifier: workspace:*
         version: link:../../libs/shared/registry/format
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../../libs/shared/workflow/document
+      '@shipfox/workflow-templates':
+        specifier: workspace:*
+        version: link:../../libs/shared/workflow/templates
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
       jose:
         specifier: 'catalog:'
         version: 6.2.3
+      spdx-expression-parse:
+        specifier: 'catalog:'
+        version: 5.0.0
       yaml:
         specifier: 'catalog:'
         version: 2.9.0
@@ -1001,6 +1016,9 @@ importers:
       '@types/pg':
         specifier: ^8.15.5
         version: 8.20.0
+      '@types/spdx-expression-parse':
+        specifier: 'catalog:'
+        version: 4.0.0
       drizzle-kit:
         specifier: 'catalog:'
         version: 0.31.10
@@ -14782,6 +14800,9 @@ packages:
   '@types/retry@0.12.0':
     resolution: {integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==}
 
+  '@types/spdx-expression-parse@4.0.0':
+    resolution: {integrity: sha512-odQzy87phelGS4inXOzjmusx4hoCVD0IbxUANxHzVkmTzMRTNnUPoq1urIl7S1qf09KcDWKLFIftPmLtgbsAHA==}
+
   '@types/ssh2@1.15.5':
     resolution: {integrity: sha512-N1ASjp/nXH3ovBHddRJpli4ozpk6UdDYIX4RJWFa9L1YKnzdhTlVmiGHm4DZnj/jLbqZpes4aeR30EFGQtvhQQ==}
 
@@ -18940,6 +18961,15 @@ packages:
 
   spawndamnit@3.0.1:
     resolution: {integrity: sha512-MmnduQUuHCoFckZoWnXsTg7JaiLBJrKFj9UI2MbRPGaJeVpsLcVBu6P/IGZovziM/YBsellCmsprgNA+w0CzVg==}
+
+  spdx-exceptions@2.5.0:
+    resolution: {integrity: sha512-PiU42r+xO4UbUS1buo3LPJkjlO7430Xn5SVAhdpzzsPHsjbYVflnnFdATgabnLude+Cqu25p6N+g2lw/PFsa4w==}
+
+  spdx-expression-parse@5.0.0:
+    resolution: {integrity: sha512-vngmw3Rgn+o2arXNbnZaj5UtOEBuWBfvaI+Wc8GFfykIhA5/vdK9/Sp/XkLv63dykz2rxKDvKEHupF5P0FORcQ==}
+
+  spdx-license-ids@3.0.24:
+    resolution: {integrity: sha512-cLS9TtWkIQFyLkJ3/5aFQAOHOSKTlOs/7WDut/XPSdjom1fJhUdkepeJAKXa9Y05+FabHd0sti+Et559vDtkpQ==}
 
   split-ca@1.0.1:
     resolution: {integrity: sha512-Q5thBSxp5t8WPTTJQS59LrGqOZqOsrhDGDVm8azCqIBjSBd7nd9o2PM+mDulQQkh8h//4U6hFZnc/mul8t5pWQ==}
@@ -24853,6 +24883,8 @@ snapshots:
 
   '@types/retry@0.12.0': {}
 
+  '@types/spdx-expression-parse@4.0.0': {}
+
   '@types/ssh2@1.15.5':
     dependencies:
       '@types/node': 18.19.130
@@ -29902,6 +29934,15 @@ snapshots:
     dependencies:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
+
+  spdx-exceptions@2.5.0: {}
+
+  spdx-expression-parse@5.0.0:
+    dependencies:
+      spdx-exceptions: 2.5.0
+      spdx-license-ids: 3.0.24
+
+  spdx-license-ids@3.0.24: {}
 
   split-ca@1.0.1: {}
 
