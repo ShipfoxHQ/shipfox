@@ -65,8 +65,8 @@ function agentConfigFailureCopy(
   const managedOnlyProvider = managedOnlyProviderFromError(error);
   if (managedOnlyProvider) {
     return {
-      title: `Use ${managedOnlyProvider} for this instance`,
-      description: `This instance only supports provider \`${managedOnlyProvider}\`. Update this step to use \`${managedOnlyProvider}\`, or remove its provider field to use the managed default.`,
+      title: `Use ${managedOnlyProvider} models`,
+      description: `This Shipfox server only runs ${managedOnlyProvider} models. Set the provider of this step to ${managedOnlyProvider}, or remove the provider. Then start a new run.`,
       showProviderCta: false,
     };
   }
@@ -77,48 +77,48 @@ function agentConfigFailureCopy(
   switch (error?.agentConfigIssue) {
     case 'provider_not_configured':
       return {
-        title: `Configure credentials for ${provider}`,
-        description: `This step uses ${provider}, but no workspace credentials are configured for that model provider. Configure ${provider} in Agents, then re-run the workflow.`,
+        title: `Connect ${provider}`,
+        description: `This step uses ${provider}. Your workspace has no credentials for ${provider}. Add them in Agents settings, then rerun the job.`,
         showProviderCta: true,
       };
     case 'credentials_invalid':
       return {
         title: `Update credentials for ${provider}`,
-        description: `This step uses ${provider}, but the saved credentials could not be used. Reconfigure ${provider} in Agents, then re-run the workflow.`,
+        description: `${provider} rejected the saved credentials. Update them in Agents settings, then rerun the job.`,
         showProviderCta: true,
       };
     case 'provider_unsupported':
       return {
-        title: 'Choose a supported model provider',
-        description: `This step references ${provider}, which is not available to the agent runner. Update the workflow to use a supported provider, then re-run it.`,
+        title: 'Choose another model provider',
+        description: `The harness of this step cannot use ${provider}. Change the provider or the harness, then start a new run.`,
         showProviderCta: false,
       };
     case 'model_unavailable':
       if (error.notice !== undefined) {
         return {
-          title: 'This model is not available to your workspace',
-          description: error.notice.message,
+          title: `${model} is not available in this workspace`,
+          description: `${error.notice.message} To continue without it, choose another model and start a new run.`,
           showProviderCta: false,
           requiredAction: error.notice.requiredAction,
         };
       }
       return {
-        title: 'Choose an available model',
-        description: `This step uses ${model} with ${provider}, but that model is not available for the provider. Update the model or provider in the workflow, then re-run it.`,
+        title: 'Choose another model',
+        description: `${provider} does not offer ${model}. Change the model in this step, then start a new run.`,
         showProviderCta: false,
       };
     case 'step_config_invalid':
       return {
-        title: "Fix this step's agent settings",
+        title: 'Complete the agent step',
         description:
-          'Make sure the step has a prompt, provider, model, and thinking value, then re-run the workflow.',
+          'An agent step needs a prompt, a provider, a model, and a thinking level. Add the missing values, then start a new run.',
         showProviderCta: false,
       };
     case undefined:
       return {
-        title: "We couldn't load the agent configuration for this step",
+        title: 'Check the agent step',
         description:
-          'Make sure the step has a prompt, provider, model, and thinking value. Then configure credentials for the model provider in Agents and re-run the workflow.',
+          'Shipfox cannot read the settings of this agent step. Check the step in the workflow file, then start a new run.',
         showProviderCta: true,
       };
   }
