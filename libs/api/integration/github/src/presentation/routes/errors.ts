@@ -18,25 +18,11 @@ import {
 } from '#core/errors.js';
 
 export function githubRouteErrorCode(error: unknown): string | undefined {
-  if (
-    isInterModuleKnownError(workspacesInterModuleContract.methods.requireActiveMembership, error)
-  ) {
-    if (error.code === 'workspace-not-found') return 'not-found';
-    if (error.code === 'membership-required') return 'forbidden';
-    return 'workspace-inactive';
+  try {
+    githubRouteErrorHandler(error);
+  } catch (translated) {
+    if (translated instanceof ClientError) return translated.code;
   }
-  if (error instanceof GithubInstallStateError) return 'invalid-github-install-state';
-  if (error instanceof GithubInstallStateActorMismatchError) {
-    return 'github-install-state-actor-mismatch';
-  }
-  if (error instanceof GithubInstallationNotAuthorizedError) {
-    return 'github-installation-not-authorized';
-  }
-  if (error instanceof GithubInstallationAlreadyLinkedError) {
-    return 'github-installation-already-linked';
-  }
-  if (error instanceof ConnectionSlugConflictError) return 'slug-conflict';
-  if (error instanceof GithubIntegrationProviderError) return error.reason;
   return undefined;
 }
 

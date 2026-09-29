@@ -562,6 +562,32 @@ describe('handleGithubEvent', () => {
     });
   });
 
+  it('handles lifecycle deliveries whose requester is null', async () => {
+    const installationId = 7797;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const handlers = deps({connection});
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: randomUUID(),
+      event: 'installation',
+      payload: {
+        action: 'deleted',
+        installation: {id: installationId, account: {login: 'acme', type: 'Organization'}},
+        sender: {login: 'octocat'},
+        requester: null,
+      },
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('published-envelope');
+    expect(result.installationTokenCleanup).toEqual({
+      workspaceId: connection.workspaceId,
+      installationId,
+    });
+  });
+
   it('returns the cleanup handle and publishes the approval event', async () => {
     const installationId = 7794;
     const connection = fakeConnection();

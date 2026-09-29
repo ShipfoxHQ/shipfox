@@ -24,4 +24,14 @@ describe('githubWebhookInstallationSchema', () => {
       requester: {login: 'member'},
     });
   });
+
+  it('accepts explicit null account, sender and requester', () => {
+    expect(
+      githubWebhookInstallationSchema.parse({
+        installation: {id: 123, account: null},
+        sender: null,
+        requester: null,
+      }),
+    ).toMatchObject({installation: {id: 123}});
+  });
 });

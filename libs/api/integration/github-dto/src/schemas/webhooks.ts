@@ -29,11 +29,11 @@ export const githubWebhookInstallationSchema = z.object({
   installation: z
     .object({
       id: z.number().int().positive(),
-      account: githubWebhookAccountSchema.optional(),
+      account: githubWebhookAccountSchema.nullish(),
     })
     .optional(),
-  sender: githubWebhookActorSchema.optional(),
-  requester: githubWebhookActorSchema.optional(),
+  sender: githubWebhookActorSchema.nullish(),
+  requester: githubWebhookActorSchema.nullish(),
 });
 export type GithubWebhookInstallationDto = z.infer<typeof githubWebhookInstallationSchema>;
 
