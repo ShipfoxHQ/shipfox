@@ -15,15 +15,15 @@ The restart rule creates the loop.
 ## Check and restart are separate
 
 The gate checks the result. The restart rule chooses the step that runs again.
-You set them separately, so you can:
+You set them separately. This lets a workflow:
 
 - Stop the job when the check fails. Do this when a retry isn't safe.
 - Restart from the step that can fix the problem, not from the start of the
   job.
 - Give the restarted step the gate feedback and the log of the failed check.
 
-The run shows the result of each gate. You can see why the job continued,
-failed, or ran a step again.
+The run shows the result of each gate. The result explains why the job
+continued, failed, or ran a step again.
 
 ## Use a separate check
 
