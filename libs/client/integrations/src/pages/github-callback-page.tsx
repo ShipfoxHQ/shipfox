@@ -212,11 +212,7 @@ export function GithubCallbackPage({
         if (!active) return;
         const classified = classifyGithubCallbackError(error);
         if (intent.kind === 'link') captureLinkFailure(analytics, callbackKey, classified);
-        const shouldReport = !(error instanceof ApiError) || error.code === 'network-error';
-        if (shouldReport && !reportedFailures.has(callbackKey)) {
-          rememberCallbackKey(reportedFailures, callbackKey);
-          globalThis.reportError?.(new Error('Failed to complete the GitHub callback.'));
-        }
+        reportUnexpectedFailure(error, callbackKey);
         setFailure((previous) => (previous?.kind === classified.kind ? previous : classified));
       },
     );
@@ -367,6 +363,13 @@ async function handleGithubCallbackSuccess({
   }
 }
 
+function reportUnexpectedFailure(error: unknown, key: string) {
+  const shouldReport = !(error instanceof ApiError) || error.code === 'network-error';
+  if (!shouldReport || reportedFailures.has(key)) return;
+  rememberCallbackKey(reportedFailures, key);
+  globalThis.reportError?.(new Error('Failed to complete the GitHub callback.'));
+}
+
 function captureLinkFailure(
   analytics: ReturnType<typeof useClientAnalytics>,
   key: string,
@@ -423,6 +426,7 @@ function GithubInstallationPicker({selection}: {selection: GithubLinkSelection})
         (error: unknown) => {
           const classified = classifyGithubCallbackError(error);
           captureLinkFailure(analytics, selectionKey, classified);
+          reportUnexpectedFailure(error, selectionKey);
           setSelectedInstallationId(undefined);
           setFailure(classified);
         },

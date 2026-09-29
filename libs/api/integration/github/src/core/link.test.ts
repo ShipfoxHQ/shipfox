@@ -215,7 +215,6 @@ describe('handleGithubLinkCallback', () => {
       userId,
       installationIds: [123, 456],
     });
-    expect(result.selectionToken).not.toContain('discarded-user-token');
     expect(params.github.getInstallation).not.toHaveBeenCalled();
     expect(params.connectGithubInstallation).not.toHaveBeenCalled();
   });

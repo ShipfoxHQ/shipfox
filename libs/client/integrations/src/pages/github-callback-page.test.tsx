@@ -842,6 +842,28 @@ describe('GithubCallbackPage', () => {
       expect(capture).toHaveBeenCalledWith('github_link_failed', {reason: 'expired'});
     });
 
+    test('reports a selection network failure without forwarding the selection token', async () => {
+      const user = userEvent.setup();
+      const reportError = vi.fn();
+      vi.stubGlobal('reportError', reportError);
+      completeGithubLinkMock.mockResolvedValue(githubLinkSelection());
+      selectGithubLinkInstallationMock.mockRejectedValue(
+        new ApiError({
+          code: 'network-error',
+          message: 'POST https://api.example.test/integrations/github/link/select failed',
+          status: 0,
+        }),
+      );
+
+      renderCallback({code: 'network-pick-code', state: 'network-pick-state'});
+
+      await user.click(await screen.findByRole('button', {name: 'Connect acme'}));
+
+      await waitFor(() => expect(reportError).toHaveBeenCalledOnce());
+      expect(JSON.stringify(reportError.mock.calls)).not.toContain('selection-secret');
+      expect(screen.getByRole('button', {name: 'Connect acme'})).toBeEnabled();
+    });
+
     test('tells the user to contact support when there are too many installations to list', async () => {
       const capture = vi.fn<ClientAnalytics['capture']>();
       completeGithubLinkMock.mockRejectedValue(

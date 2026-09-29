@@ -273,7 +273,7 @@ export class GithubCallbackScreen {
   }
 
   connectAccountButton(accountLogin: string): Locator {
-    return this.page.getByRole('button', {name: `Connect ${accountLogin}`});
+    return this.page.getByRole('button', {name: `Connect ${accountLogin}`, exact: true});
   }
 }
 
