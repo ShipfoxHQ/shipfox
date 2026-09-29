@@ -93,7 +93,7 @@ export interface GithubBotUserClient {
 type GithubRepositoryLocator = {repositoryId: number} | {owner: string; name: string};
 
 export interface GithubApiClient extends Partial<GithubBotUserClient> {
-  exchangeOAuthCode(code: string): Promise<string>;
+  exchangeOAuthCode(code: string, codeVerifier?: string): Promise<string>;
   listUserInstallations(input: {
     userAccessToken: string;
     cursor?: string | undefined;
@@ -166,7 +166,7 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
     {installationAccessToken: string; promise: Promise<GithubBotUser>}
   >();
 
-  async exchangeOAuthCode(code: string): Promise<string> {
+  async exchangeOAuthCode(code: string, codeVerifier?: string): Promise<string> {
     const body = await mapGithubOAuthError(() =>
       ky
         .post('https://github.com/login/oauth/access_token', {
@@ -175,6 +175,7 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
             client_id: config.GITHUB_APP_CLIENT_ID,
             client_secret: config.GITHUB_APP_CLIENT_SECRET,
             code,
+            ...(codeVerifier ? {code_verifier: codeVerifier} : {}),
           },
         })
         .json<{access_token?: unknown}>(),

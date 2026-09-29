@@ -81,10 +81,26 @@ export {
   githubAgentToolSelectionCatalog,
   githubRepositoryScope,
 } from '#core/agent-tools.js';
-export type {ConnectGithubInstallationInput} from '#core/connection.js';
-export {GithubIntegrationProviderError} from '#core/errors.js';
+export {
+  authorizeGithubInteraction,
+  type ConnectGithubInstallationInput,
+  connectAuthorizedGithubInteraction,
+} from '#core/connection.js';
+export {
+  GithubIntegrationProviderError,
+  GithubLinkStateActorMismatchError,
+  GithubLinkStateError,
+  GithubMultipleLinkableInstallationsError,
+  GithubNoLinkableInstallationError,
+} from '#core/errors.js';
 export {handleGithubCallback} from '#core/install.js';
-export {signGithubInstallState, verifyGithubInstallState} from '#core/state.js';
+export {handleGithubLinkCallback} from '#core/link.js';
+export {
+  createGithubLinkState,
+  signGithubInstallState,
+  verifyGithubInstallState,
+  verifyGithubLinkState,
+} from '#core/state.js';
 export type {HandleGithubEventOutcome} from '#core/webhook.js';
 export {handleGithubEvent} from '#core/webhook.js';
 export type {

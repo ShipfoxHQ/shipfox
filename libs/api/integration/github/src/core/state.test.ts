@@ -1,5 +1,11 @@
-import {GithubInstallStateError} from './errors.js';
-import {signGithubInstallState, verifyGithubInstallState} from './state.js';
+import {createHash} from 'node:crypto';
+import {GithubInstallStateError, GithubLinkStateError} from './errors.js';
+import {
+  createGithubLinkState,
+  signGithubInstallState,
+  verifyGithubInstallState,
+  verifyGithubLinkState,
+} from './state.js';
 
 describe('GitHub install state', () => {
   it('verifies a signed state payload', () => {
@@ -49,6 +55,33 @@ describe('GitHub install state', () => {
     const result = () => verifyGithubInstallState(state, new Date('2026-04-30T00:31:00.000Z'));
 
     expect(result).toThrow(GithubInstallStateError);
+  });
+
+  it('encrypts the link verifier and verifies the PKCE state', () => {
+    const workspaceId = crypto.randomUUID();
+    const userId = crypto.randomUUID();
+    const link = createGithubLinkState({workspaceId, userId, nonce: 'nonce'});
+
+    expect(link.state).not.toContain(link.codeVerifier);
+    expect(link.codeChallenge).toBe(
+      createHash('sha256').update(link.codeVerifier).digest('base64url'),
+    );
+    expect(verifyGithubLinkState(link.state)).toEqual({
+      workspaceId,
+      userId,
+      codeVerifier: link.codeVerifier,
+    });
+  });
+
+  it('uses a fresh encrypted nonce and isolates link state from legacy state', () => {
+    const params = {workspaceId: crypto.randomUUID(), userId: crypto.randomUUID()};
+    const first = createGithubLinkState(params);
+    const second = createGithubLinkState(params);
+
+    expect(first.state).not.toBe(second.state);
+    expect(() => verifyGithubLinkState(signGithubInstallState(params))).toThrow(
+      GithubLinkStateError,
+    );
   });
 
   it('rejects tampered state payloads', () => {

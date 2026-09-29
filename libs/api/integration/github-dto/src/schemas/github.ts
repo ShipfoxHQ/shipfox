@@ -14,6 +14,23 @@ export const createGithubInstallResponseSchema = z.object({
 });
 export type CreateGithubInstallResponseDto = z.infer<typeof createGithubInstallResponseSchema>;
 
+export const createGithubLinkBodySchema = createGithubInstallBodySchema;
+export type CreateGithubLinkBodyDto = z.infer<typeof createGithubLinkBodySchema>;
+
+export const createGithubLinkResponseSchema = z.object({
+  authorize_url: z.string().url(),
+});
+export type CreateGithubLinkResponseDto = z.infer<typeof createGithubLinkResponseSchema>;
+
+export const completeGithubLinkBodySchema = z.object({
+  code: z.string().min(1),
+  state: z.string().min(1),
+});
+export type CompleteGithubLinkBodyDto = z.infer<typeof completeGithubLinkBodySchema>;
+
+export const completeGithubLinkResponseSchema = integrationConnectionDtoSchema;
+export type CompleteGithubLinkResponseDto = z.infer<typeof completeGithubLinkResponseSchema>;
+
 export const githubCallbackQuerySchema = z.object({
   code: z.string().min(1),
   installation_id: z.coerce.number().int().positive(),

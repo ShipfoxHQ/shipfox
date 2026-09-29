@@ -5,6 +5,20 @@ import {config} from '#config.js';
 
 const meter = instanceMetrics.getMeter('github');
 
+export type GithubConnectOutcome =
+  | 'success'
+  | 'no-linkable-installation'
+  | 'multiple-linkable-installations'
+  | 'already-linked'
+  | 'error';
+
+const githubConnectCount = meter.createCounter<{
+  flow: 'install' | 'link';
+  outcome: GithubConnectOutcome;
+}>('integrations_github_connect_total', {
+  description: 'GitHub integration connection outcomes by flow',
+});
+
 export type GithubInstallationTokenLookupOutcome =
   | 'ram-hit'
   | 'db-hit'
@@ -94,6 +108,13 @@ function recordMetric(record: () => void): void {
   } catch {
     // Metrics must not affect GitHub provider outcomes.
   }
+}
+
+export function recordGithubConnectOutcome(params: {
+  flow: 'install' | 'link';
+  outcome: GithubConnectOutcome;
+}): void {
+  recordMetric(() => githubConnectCount.add(1, params));
 }
 
 export function recordInstallationTokenLookup(outcome: GithubInstallationTokenLookupOutcome): void {

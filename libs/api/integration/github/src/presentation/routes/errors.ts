@@ -11,6 +11,10 @@ import {
   GithubInstallStateActorMismatchError,
   GithubInstallStateError,
   GithubIntegrationProviderError,
+  GithubLinkStateActorMismatchError,
+  GithubLinkStateError,
+  GithubMultipleLinkableInstallationsError,
+  GithubNoLinkableInstallationError,
 } from '#core/errors.js';
 
 function providerStatus(reason: IntegrationProviderErrorReason): number {
@@ -24,6 +28,24 @@ export function githubRouteErrorHandler(error: unknown): never {
     isInterModuleKnownError(workspacesInterModuleContract.methods.requireActiveMembership, error)
   ) {
     throwGithubWorkspaceMembershipError(error);
+  }
+  if (error instanceof GithubLinkStateError) {
+    throw new ClientError(error.message, 'invalid-github-link-state', {status: 400});
+  }
+  if (error instanceof GithubLinkStateActorMismatchError) {
+    throw new ClientError(error.message, 'github-link-state-actor-mismatch', {status: 403});
+  }
+  if (error instanceof GithubNoLinkableInstallationError) {
+    throw new ClientError(error.message, 'github-no-linkable-installation', {
+      status: 409,
+      details: {accessible: error.accessible, linked_elsewhere: error.linkedElsewhere},
+    });
+  }
+  if (error instanceof GithubMultipleLinkableInstallationsError) {
+    throw new ClientError(error.message, 'github-multiple-linkable-installations', {
+      status: 409,
+      details: {count: error.count},
+    });
   }
   if (error instanceof GithubInstallStateError) {
     throw new ClientError(error.message, 'invalid-github-install-state', {status: 400});
