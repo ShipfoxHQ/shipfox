@@ -317,7 +317,7 @@ export const placementTemplateChangedCount = meter.createCounter<{
   order: 'default' | 'smallest';
 }>('runners_placement_template_changed', {
   description:
-    'Launch grants whose template would differ between the default and smallest template orders',
+    'Launches whose template would differ between the default and smallest template orders',
 });
 
 export function recordPlacementTemplateChanged(params: {
