@@ -141,7 +141,9 @@ describe('github installations persistence', () => {
   test('counts only stale installations that are still unlinked', async () => {
     const staleInstallationId = `${Date.now()}`;
     const linkedInstallationId = `${Date.now() + 1}`;
+    const freshInstallationId = `${Date.now() + 2}`;
     const firstSeenAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const freshFirstSeenAt = new Date();
 
     await upsertGithubInstallation(installationParams({installationId: linkedInstallationId}));
     await db()
@@ -164,6 +166,15 @@ describe('github installations persistence', () => {
           lastAction: 'created',
           firstSeenAt,
           lastSeenAt: firstSeenAt,
+        },
+        {
+          installationId: freshInstallationId,
+          accountLogin: 'fresh-orphan',
+          accountType: 'Organization',
+          repositorySelection: 'all',
+          lastAction: 'created',
+          firstSeenAt: freshFirstSeenAt,
+          lastSeenAt: freshFirstSeenAt,
         },
       ]);
 

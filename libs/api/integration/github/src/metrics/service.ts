@@ -1,4 +1,4 @@
-import {getServiceMetricsProvider} from '@shipfox/node-opentelemetry';
+import {getServiceMetricsProvider, logger} from '@shipfox/node-opentelemetry';
 import {countStaleGithubUnlinkedInstallations} from '#db/unlinked-installations.js';
 
 export function registerGithubServiceMetrics(): void {
@@ -13,8 +13,12 @@ export function registerGithubServiceMetrics(): void {
 
   meter.addBatchObservableCallback(
     async (observer) => {
-      const count = await countStaleGithubUnlinkedInstallations();
-      observer.observe(unlinkedInstallations, count);
+      try {
+        const count = await countStaleGithubUnlinkedInstallations();
+        observer.observe(unlinkedInstallations, count);
+      } catch (error) {
+        logger().warn({err: error}, 'Failed to collect GitHub unlinked installation metrics');
+      }
     },
     [unlinkedInstallations],
   );

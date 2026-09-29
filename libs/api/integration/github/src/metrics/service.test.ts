@@ -4,11 +4,13 @@ const mocks = vi.hoisted(() => ({
   createObservableGauge: vi.fn(),
   getMeter: vi.fn(),
   getServiceMetricsProvider: vi.fn(),
+  logger: {warn: vi.fn()},
   gauge: {},
 }));
 
 vi.mock('@shipfox/node-opentelemetry', () => ({
   getServiceMetricsProvider: mocks.getServiceMetricsProvider,
+  logger: () => mocks.logger,
 }));
 vi.mock('#db/unlinked-installations.js', () => ({
   countStaleGithubUnlinkedInstallations: mocks.countStaleGithubUnlinkedInstallations,
@@ -23,6 +25,7 @@ describe('registerGithubServiceMetrics', () => {
     mocks.createObservableGauge.mockReset();
     mocks.getMeter.mockReset();
     mocks.getServiceMetricsProvider.mockReset();
+    mocks.logger.warn.mockReset();
     mocks.createObservableGauge.mockReturnValue(mocks.gauge);
     mocks.getMeter.mockReturnValue({
       addBatchObservableCallback: mocks.addBatchObservableCallback,
@@ -50,5 +53,23 @@ describe('registerGithubServiceMetrics', () => {
       },
     );
     expect(observer.observe).toHaveBeenCalledWith(mocks.gauge, 3);
+  });
+
+  it('warns and settles when collecting stale unlinked installations fails', async () => {
+    const failure = new Error('database unavailable');
+    mocks.countStaleGithubUnlinkedInstallations.mockRejectedValue(failure);
+
+    registerGithubServiceMetrics();
+    const callback = mocks.addBatchObservableCallback.mock.calls[0]?.[0];
+    if (typeof callback !== 'function') throw new Error('Expected metrics callback');
+    const observer = {observe: vi.fn()};
+
+    await expect(callback(observer)).resolves.toBeUndefined();
+
+    expect(observer.observe).not.toHaveBeenCalled();
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      {err: failure},
+      'Failed to collect GitHub unlinked installation metrics',
+    );
   });
 });

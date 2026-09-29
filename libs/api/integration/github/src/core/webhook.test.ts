@@ -544,6 +544,41 @@ describe('handleGithubEvent', () => {
     });
   });
 
+  it('deletes a stale unlinked record when a linked installation is deleted', async () => {
+    const installationId = 7790;
+    const connection = fakeConnection();
+    await seedInstallation(installationId, connection.id);
+    const firstSeenAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    await db()
+      .insert(githubUnlinkedInstallations)
+      .values({
+        installationId: String(installationId),
+        accountLogin: 'opsmill',
+        accountType: 'Organization',
+        repositorySelection: 'selected',
+        lastAction: 'created',
+        firstSeenAt,
+        lastSeenAt: firstSeenAt,
+      });
+    const handlers = deps({connection});
+
+    const result = await handleGithubEvent({
+      tx: db(),
+      deliveryId: 'delivery-linked-deleted',
+      event: 'installation',
+      payload: {action: 'deleted', installation: {id: installationId}},
+      ...handlers,
+    });
+
+    expect(result.outcome).toBe('published-envelope');
+    await expect(
+      db()
+        .select()
+        .from(githubUnlinkedInstallations)
+        .where(eq(githubUnlinkedInstallations.installationId, String(installationId))),
+    ).resolves.toHaveLength(0);
+  });
+
   it('keeps the cleanup handle for duplicate lifecycle deliveries', async () => {
     const installationId = 7792;
     const connection = fakeConnection();

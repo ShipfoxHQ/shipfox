@@ -11,7 +11,7 @@ import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module'
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
-import type {ModuleMetricsRegistration, ModuleService, ShipfoxModule} from '@shipfox/node-module';
+import type {ModuleService, ShipfoxModule} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {IntegrationProvider} from '#core/entities/provider.js';
 import {WebhookProcessorNotConfiguredError} from '#core/errors.js';
@@ -367,11 +367,10 @@ export async function createIntegrationsContext(
   }
 
   const services = parts.flatMap((part) => part.services ?? []);
-  const metrics = parts
-    .map((part) => part.metrics)
-    .filter(
-      (registration): registration is ModuleMetricsRegistration => registration !== undefined,
-    );
+  const metrics = parts.flatMap((part) => {
+    const register = part.metrics;
+    return register === undefined ? [] : [{provider: part.provider.provider, register}];
+  });
   if (options.webhookDeliverySource !== undefined) {
     services.push(options.webhookDeliverySource.createService(webhookProcessor));
   }
@@ -433,7 +432,24 @@ export async function createIntegrationsContext(
       ? {}
       : {
           metrics: (context) => {
-            for (const register of metrics) register(context);
+            const failures: unknown[] = [];
+            for (const metric of metrics) {
+              try {
+                metric.register(context);
+              } catch (error) {
+                logger().warn(
+                  {err: error, provider: metric.provider},
+                  'Failed to register integration provider metrics',
+                );
+                failures.push(error);
+              }
+            }
+            if (failures.length > 0) {
+              throw new AggregateError(
+                failures,
+                'Failed to register one or more integration provider metrics',
+              );
+            }
           },
         }),
   };

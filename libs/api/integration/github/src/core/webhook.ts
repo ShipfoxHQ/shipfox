@@ -238,6 +238,13 @@ export async function handleGithubEvent(
     return {outcome: 'no-installation-id'};
   }
 
+  await deleteGithubUnlinkedInstallationForDeletedEvent({
+    tx: params.tx,
+    event: params.event,
+    action,
+    installationId,
+  });
+
   const installation = await getGithubInstallationByInstallationId(String(installationId), {
     tx: params.tx,
   });
@@ -313,6 +320,18 @@ export async function handleGithubEvent(
 
 const UNLINKED_INSTALLATION_ACTIONS = new Set(['created', 'new_permissions_accepted', 'unsuspend']);
 
+async function deleteGithubUnlinkedInstallationForDeletedEvent(params: {
+  tx: IntegrationTx;
+  event: string;
+  action: string | undefined;
+  installationId: number;
+}): Promise<void> {
+  if (params.event !== 'installation' || params.action !== 'deleted') return;
+  await deleteGithubUnlinkedInstallationByInstallationId(String(params.installationId), {
+    tx: params.tx,
+  });
+}
+
 async function recordUnknownGithubInstallation(params: {
   tx: IntegrationTx;
   installationId: number;
@@ -321,13 +340,6 @@ async function recordUnknownGithubInstallation(params: {
   payload: unknown;
 }): Promise<void> {
   if (params.event !== 'installation') return;
-
-  if (params.action === 'deleted') {
-    await deleteGithubUnlinkedInstallationByInstallationId(String(params.installationId), {
-      tx: params.tx,
-    });
-    return;
-  }
 
   if (!params.action || !UNLINKED_INSTALLATION_ACTIONS.has(params.action)) return;
 
