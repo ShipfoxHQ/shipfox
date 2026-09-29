@@ -1,11 +1,11 @@
-import {bool, createConfig, str, url} from '@shipfox/config';
+import {createConfig, str, url} from '@shipfox/config';
 
 export const config = createConfig({
   REGISTRY_PUBLIC_URL: url({
     desc: 'URL that clients use to reach the registry API, such as https://api.registry.shipfox.io. It is listed in .well-known/shipfox-registry.json and is the audience that GitHub Actions OIDC tokens must request, character for character.',
   }),
   REGISTRY_STORAGE_URL: str({
-    desc: 'Where registry files are stored. Use s3://bucket/prefix for S3, R2, or MinIO, with the connection from the OBJECT_STORAGE_S3_* settings. Use file:///absolute/path for development and E2E. The store must support conditional writes.',
+    desc: 'Where package blobs are stored. Use s3://bucket/prefix for S3, R2, or MinIO, with the connection from the OBJECT_STORAGE_S3_* settings. Use file:///absolute/path for development and E2E. The store must support conditional writes. Package metadata lives in Postgres, configured with the POSTGRES_* settings.',
   }),
   REGISTRY_SIGNING_KEY: str({
     desc: 'Ed25519 private key in PEM format that signs version documents. Escaped \\n sequences are read as newlines. Generate one with `openssl genpkey -algorithm ed25519`.',
@@ -15,10 +15,6 @@ export const config = createConfig({
   }),
   REGISTRY_BOOTSTRAP_PATH: str({
     desc: 'Path to the bootstrap YAML file that declares namespaces, their profiles and publishers, reserved names, and featured packages. The registry refuses to start when the file is missing or invalid.',
-  }),
-  REGISTRY_SERVE_READS: bool({
-    desc: 'Whether this service serves the public v1/ and .well-known/ files from storage. Keep true when self-hosting. Set false when a CDN serves the bucket directly.',
-    default: true,
   }),
   REGISTRY_PUBLISH_HOOKS: str({
     desc: 'Optional comma-separated http(s) URLs called after each successful publish, such as a docs rebuild hook. Hook failures are logged and never fail the publish.',

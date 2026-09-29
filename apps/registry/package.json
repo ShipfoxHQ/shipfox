@@ -17,9 +17,8 @@
   },
   "scripts": {
     "build": "shipfox-swc",
-    "dev": "tsx watch --conditions=workspace-source --env-file-if-exists=../../.env --env-file-if-exists=.env --env-file-if-exists=.env.local src/index.ts",
+    "dev": "POSTGRES_DATABASE=registry tsx watch --conditions=workspace-source --env-file-if-exists=../../.env --env-file-if-exists=.env --env-file-if-exists=.env.local src/index.ts",
     "image": "shipfox-docker --setup-context --image registry",
-    "reindex": "tsx --conditions=workspace-source --env-file-if-exists=../../.env --env-file-if-exists=.env --env-file-if-exists=.env.local src/cli.ts reindex",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "test": "shipfox-vitest-run",
@@ -30,10 +29,13 @@
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
     "@shipfox/config": "workspace:*",
+    "@shipfox/node-drizzle": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-object-storage": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/node-postgres": "workspace:*",
     "@shipfox/registry-format": "workspace:*",
+    "drizzle-orm": "catalog:",
     "jose": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:"
@@ -45,6 +47,8 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
+    "@types/pg": "catalog:",
+    "drizzle-kit": "catalog:",
     "tsx": "catalog:"
   }
 }

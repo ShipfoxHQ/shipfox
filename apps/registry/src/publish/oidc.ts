@@ -4,7 +4,7 @@ import {z} from 'zod';
 import {PublishTokenRefusedError} from '#publish/errors.js';
 
 export const GITHUB_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';
-const CLOCK_SKEW_SECONDS = 60;
+export const CLOCK_SKEW_SECONDS = 60;
 const MAX_TOKEN_AGE_SECONDS = 10 * 60;
 // Failing to fetch or read the issuer's key set is an outage to report, not a bad token.
 const ISSUER_FAILURE_CODES = new Set(['ERR_JWKS_TIMEOUT', 'ERR_JWKS_INVALID', 'ERR_JOSE_GENERIC']);
@@ -12,6 +12,7 @@ const ISSUER_FAILURE_CODES = new Set(['ERR_JWKS_TIMEOUT', 'ERR_JWKS_INVALID', 'E
 const githubOidcClaimsSchema = z.object({
   iss: z.string().min(1),
   jti: z.string().refine(isTokenId, 'is not a valid token id'),
+  exp: z.number().int(),
   repository: z.string().min(1),
   repository_id: z.string().min(1),
   repository_owner_id: z.string().min(1),

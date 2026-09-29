@@ -1,9 +1,4 @@
-import {
-  GetObjectCommand,
-  ListObjectsV2Command,
-  PutObjectCommand,
-  S3Client,
-} from '@aws-sdk/client-s3';
+import {GetObjectCommand, PutObjectCommand, S3Client} from '@aws-sdk/client-s3';
 import type {ObjectStorageS3Profile} from '@shipfox/node-object-storage';
 import {
   assertStorageKey,
@@ -13,7 +8,7 @@ import {
   type StoredObject,
 } from '#storage/storage.js';
 
-/** Stores registry files in an S3-compatible bucket (S3, R2, MinIO), under an optional prefix. */
+/** Stores registry blobs in an S3-compatible bucket (S3, R2, MinIO), under an optional prefix. */
 export class S3RegistryStorage implements RegistryStorage {
   readonly #client: S3Client;
   readonly #bucket: string;
@@ -44,7 +39,14 @@ export class S3RegistryStorage implements RegistryStorage {
     }
   }
 
-  async put({key, body, contentType, ifNoneMatch, ifMatch}: PutObjectParams) {
+  async put({
+    key,
+    body,
+    contentType,
+    contentDisposition,
+    cacheControl,
+    ifNoneMatch,
+  }: PutObjectParams) {
     try {
       const response = await this.#client.send(
         new PutObjectCommand({
@@ -52,8 +54,9 @@ export class S3RegistryStorage implements RegistryStorage {
           Key: this.#key(key),
           Body: body,
           ContentType: contentType,
+          ContentDisposition: contentDisposition,
+          CacheControl: cacheControl,
           IfNoneMatch: ifNoneMatch,
-          IfMatch: ifMatch,
         }),
       );
       return {etag: response.ETag ?? ''};
@@ -63,25 +66,6 @@ export class S3RegistryStorage implements RegistryStorage {
       if (status === 412 || status === 409) throw new StoragePreconditionFailedError(key);
       throw error;
     }
-  }
-
-  async list(prefix: string): Promise<string[]> {
-    const keys: string[] = [];
-    let continuationToken: string | undefined;
-    do {
-      const listed = await this.#client.send(
-        new ListObjectsV2Command({
-          Bucket: this.#bucket,
-          Prefix: `${this.#prefix}${prefix}`,
-          ContinuationToken: continuationToken,
-        }),
-      );
-      for (const object of listed.Contents ?? []) {
-        if (object.Key) keys.push(object.Key.slice(this.#prefix.length));
-      }
-      continuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
-    } while (continuationToken);
-    return keys.sort();
   }
 
   close(): void {
