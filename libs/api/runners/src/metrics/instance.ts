@@ -124,6 +124,12 @@ export const jobExecutionClaimedCount = meter.createCounter<{outcome: 'claimed' 
   {description: 'Job execution claim attempts by outcome'},
 );
 
+export const runnerClaimsRefusedCount = meter.createCounter<{
+  reason: 'no-capacity-hold';
+}>('runners_claims_refused_total', {
+  description: 'Runner job claims refused for a bounded capacity reason',
+});
+
 export const jobExecutionLeaseExpiredCount = meter.createCounter<Record<string, never>>(
   'runners_job_execution_lease_expired',
   {description: 'Job execution leases reaped after passing the heartbeat threshold'},

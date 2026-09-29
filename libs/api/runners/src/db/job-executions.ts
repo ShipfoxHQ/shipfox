@@ -32,6 +32,7 @@ import {
   RunnerSessionExhaustedError,
   RunningJobExecutionNotFoundError,
 } from '#core/errors.js';
+import type {InstallationPlacementPolicy} from '#installation-provisioning.js';
 import {
   type JobExecutionQueueTimeObservation,
   jobExecutionEnqueuedCount,
@@ -43,6 +44,7 @@ import {
   recordRunnerReservationReleased,
   recordShadowedJobLeaseExpiry,
   recordStaleJobCandidateRatio,
+  runnerClaimsRefusedCount,
 } from '#metrics/instance.js';
 import {setCapacityHoldJobExecutionTx} from './capacity-holds.js';
 import type {Tx} from './db.js';
@@ -53,6 +55,7 @@ import {
   releaseTerminalRunnerInstanceReservationsByIds,
 } from './reservations.js';
 import {terminalStates} from './runner-states.js';
+import {capacityHolds} from './schema/capacity-holds.js';
 import {expiredJobExecutions} from './schema/expired-job-executions.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
@@ -834,12 +837,15 @@ interface ClaimPendingJobExecutionParams {
   sessionLabels: string[];
   maxClaims: number | null;
   runnerSessionLivenessThrottleSeconds: number;
+  placement?: InstallationPlacementPolicy;
 }
 
 interface ClaimRunnerContext {
   provisionerId: string | null;
   providerRunnerId: string | null;
+  provisionerScope: 'installation' | 'workspace' | null;
   renewableInference: boolean;
+  runnerInstanceId: string | null;
   runnerInstanceCondition: ReturnType<typeof eq> | undefined;
 }
 
@@ -858,8 +864,14 @@ export async function claimPendingJobExecution(
   let queueTimeObservation: JobExecutionQueueTimeObservation | null = null;
   let firstClaimReservationReleaseCount = 0;
   const result = await db().transaction(async (tx) => {
-    const {provisionerId, providerRunnerId, renewableInference, runnerInstanceCondition} =
-      await loadClaimRunnerContextTx(tx, params);
+    const {
+      provisionerId,
+      providerRunnerId,
+      provisionerScope,
+      renewableInference,
+      runnerInstanceId,
+      runnerInstanceCondition,
+    } = await loadClaimRunnerContextTx(tx, params);
 
     // `id` is a uuidv7 (time-ordered), so it is a deterministic FIFO tiebreaker
     // for rows sharing a created_at within a batch. Lock only the FIFO candidate before
@@ -871,10 +883,11 @@ export async function claimPendingJobExecution(
       provisionerId,
       providerRunnerId,
       renewableInference,
+      provisionerScope === 'installation' && params.placement?.holds === 'require',
+      runnerInstanceId,
     );
     if (!pendingClaim) return null;
     const {row, claimed} = pendingClaim;
-    const provisionerScope = await loadProvisionerScopeTx(tx, claimed.provisionerId);
 
     queueTimeObservation = {
       durationMilliseconds: claimed.claimedAt.getTime() - row.createdAt.getTime(),
@@ -960,7 +973,7 @@ async function loadClaimRunnerContextTx(
   tx: Tx,
   params: ClaimPendingJobExecutionParams,
 ): Promise<ClaimRunnerContext> {
-  let runnerInstanceId: string | null = null;
+  let registeredRunnerInstanceId: string | null = null;
   let provisionerId: string | null = null;
   let providerRunnerId: string | null = null;
   const sessionQuery = tx
@@ -980,7 +993,7 @@ async function loadClaimRunnerContextTx(
     params.maxClaims === null ? await sessionQuery : await sessionQuery.for('update');
   if (params.maxClaims !== null) {
     assertClaimSessionAvailable(session, params.runnerSessionId);
-    runnerInstanceId = session.runnerInstanceId;
+    registeredRunnerInstanceId = session.runnerInstanceId;
     provisionerId = session.provisionerId;
     providerRunnerId = session.providerRunnerId;
   }
@@ -990,14 +1003,23 @@ async function loadClaimRunnerContextTx(
   const toolCapabilities = normalizeRunnerToolCapabilities(session.toolCapabilities);
   const renewableInference = toolCapabilities.features.renewable_inference;
   const runnerInstanceCondition = claimRunnerInstanceCondition(
-    runnerInstanceId,
+    registeredRunnerInstanceId,
     provisionerId,
     providerRunnerId,
   );
-  if (runnerInstanceCondition && provisionerId) {
-    await lockClaimRunnerReservationIdsTx(tx, provisionerId, runnerInstanceCondition);
-  }
-  return {provisionerId, providerRunnerId, renewableInference, runnerInstanceCondition};
+  const provisionerScope = await loadProvisionerScopeTx(tx, provisionerId);
+  const runnerInstanceId =
+    runnerInstanceCondition && provisionerId
+      ? await lockClaimRunnerReservationIdsTx(tx, provisionerId, runnerInstanceCondition)
+      : null;
+  return {
+    provisionerId,
+    providerRunnerId,
+    provisionerScope,
+    renewableInference,
+    runnerInstanceId,
+    runnerInstanceCondition,
+  };
 }
 
 async function loadProvisionerScopeTx(
@@ -1052,9 +1074,10 @@ async function lockClaimRunnerReservationIdsTx(
   tx: Tx,
   provisionerId: string,
   runnerInstanceCondition: ReturnType<typeof eq>,
-): Promise<void> {
+): Promise<string | null> {
   const [runner] = await tx
     .select({
+      id: providerRunners.id,
       reservationId: providerRunners.reservationId,
       intendedReservationId: providerRunners.intendedReservationId,
     })
@@ -1068,6 +1091,7 @@ async function lockClaimRunnerReservationIdsTx(
         reservationId !== null && reservationId !== undefined,
     ),
   });
+  return runner?.id ?? null;
 }
 
 async function claimPendingCandidateTx(
@@ -1076,6 +1100,8 @@ async function claimPendingCandidateTx(
   provisionerId: string | null,
   providerRunnerId: string | null,
   renewableInference: boolean,
+  requireCapacityHold: boolean,
+  runnerInstanceId: string | null,
 ): Promise<{
   row: typeof pendingJobExecutions.$inferSelect;
   claimed: {
@@ -1109,6 +1135,25 @@ async function claimPendingCandidateTx(
       )`,
     );
   if (!row) return null;
+  if (requireCapacityHold) {
+    const [hold] = runnerInstanceId
+      ? await tx
+          .select({id: capacityHolds.id})
+          .from(capacityHolds)
+          .where(
+            and(
+              eq(capacityHolds.runnerInstanceId, runnerInstanceId),
+              isNull(capacityHolds.releasedAt),
+            ),
+          )
+          .limit(1)
+          .for('update', {skipLocked: true})
+      : [];
+    if (!hold) {
+      runnerClaimsRefusedCount.add(1, {reason: 'no-capacity-hold'});
+      return null;
+    }
+  }
   await tx.delete(pendingJobExecutions).where(eq(pendingJobExecutions.id, row.id));
   const [claimed] = await tx
     .insert(runningJobExecutions)

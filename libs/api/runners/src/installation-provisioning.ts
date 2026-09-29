@@ -5,7 +5,7 @@
  */
 export interface InstallationPlacementPolicy {
   units(templateLabels: readonly string[]): number;
-  holds: 'record';
+  holds: 'record' | 'require';
   /**
    * `default` prefers the fewest labels, then the template key. `smallest` prefers the fewest
    * units first, then the default order.
