@@ -308,6 +308,21 @@ export async function releaseSession(params: {
 }
 
 /**
+ * Reads the session whose head was committed by the given step attempt without
+ * claiming it. Returns undefined when that attempt has not committed a head.
+ */
+export async function getSessionByStepAttemptId(
+  stepAttemptId: string,
+): Promise<AgentSession | undefined> {
+  const [row] = await db()
+    .select()
+    .from(sessions)
+    .where(eq(sessions.headCommittedByAttempt, stepAttemptId))
+    .limit(1);
+  return row ? toAgentSession(row) : undefined;
+}
+
+/**
  * Reads the session for a run attempt and resolved key without claiming it.
  * Scoped to the caller-supplied workspace and project so a forwarded attempt id
  * can never read another tenant's session. `fork` mode uses this: it never

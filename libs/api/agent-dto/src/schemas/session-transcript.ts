@@ -61,6 +61,13 @@ export const sessionTranscriptQuerySchema = z.object({
 
 export type SessionTranscriptQueryDto = z.infer<typeof sessionTranscriptQuerySchema>;
 
+/** The decrypted JSONL transcript returned by the E2E inspection route. */
+export const e2eSessionTranscriptResponseSchema = z.object({
+  jsonl: z.string(),
+});
+
+export type E2eSessionTranscriptResponseDto = z.infer<typeof e2eSessionTranscriptResponseSchema>;
+
 /**
  * POST query: `base_segment` is the head segment the runner loaded (the CAS
  * token); the commit writes `base_segment + 1` and flips the head. The max is

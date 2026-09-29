@@ -185,6 +185,16 @@ describe('agent e2e helper', () => {
     );
   });
 
+  it('reads a session transcript through the E2E route', async () => {
+    requestJson.mockResolvedValueOnce({jsonl: '{"type":"message"}\\n'});
+    const {getSessionTranscript} = await import('./index.js');
+
+    const result = await getSessionTranscript({stepAttemptId: 'step-attempt-id'});
+
+    expect(result).toEqual({jsonl: '{"type":"message"}\\n'});
+    expect(requestJson).toHaveBeenCalledWith('get', '/__e2e/agent/sessions/step-attempt-id', {});
+  });
+
   it('lists model provider configs through the product route', async () => {
     requestJson.mockResolvedValueOnce({configs: [], default_provider_id: null});
     const {listModelProviderConfigs} = await import('./index.js');

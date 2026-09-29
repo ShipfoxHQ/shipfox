@@ -55,6 +55,7 @@ export {
   commitSessionHead,
   createSession,
   getSessionByRunAttemptAndKey,
+  getSessionByStepAttemptId,
   listStaleClaimedSessions,
   releaseSession,
   releaseSessionClaimsHeldByStepAttempts,

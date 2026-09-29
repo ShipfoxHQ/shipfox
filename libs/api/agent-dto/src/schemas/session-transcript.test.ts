@@ -1,6 +1,7 @@
 import {
   commitSessionTranscriptQuerySchema,
   commitSessionTranscriptResponseSchema,
+  e2eSessionTranscriptResponseSchema,
   sessionTranscriptQuerySchema,
 } from './session-transcript.js';
 
@@ -15,6 +16,14 @@ describe('sessionTranscriptQuerySchema', () => {
     const parse = () => sessionTranscriptQuerySchema.parse({attempt: '0'});
 
     expect(parse).toThrow();
+  });
+});
+
+describe('e2eSessionTranscriptResponseSchema', () => {
+  it('accepts decrypted JSONL content', () => {
+    expect(e2eSessionTranscriptResponseSchema.parse({jsonl: '{"type":"message"}\\n'})).toEqual({
+      jsonl: '{"type":"message"}\\n',
+    });
   });
 });
 

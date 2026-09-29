@@ -186,6 +186,8 @@ export {
   type CommitSessionTranscriptResponseDto,
   commitSessionTranscriptQuerySchema,
   commitSessionTranscriptResponseSchema,
+  type E2eSessionTranscriptResponseDto,
+  e2eSessionTranscriptResponseSchema,
   SESSION_TRANSCRIPT_CONTENT_TYPE,
   SESSION_TRANSCRIPT_HARNESS_HEADER,
   SESSION_TRANSCRIPT_HARNESS_SESSION_ID_HEADER,
