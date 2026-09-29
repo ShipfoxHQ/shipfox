@@ -16,8 +16,24 @@ export const githubWebhookActionSchema = z.object({
 });
 export type GithubWebhookActionDto = z.infer<typeof githubWebhookActionSchema>;
 
+const githubWebhookAccountSchema = z.object({
+  login: z.string().min(1),
+  type: z.string().min(1),
+});
+
+const githubWebhookActorSchema = z.object({
+  login: z.string().min(1),
+});
+
 export const githubWebhookInstallationSchema = z.object({
-  installation: z.object({id: z.number().int().positive()}).optional(),
+  installation: z
+    .object({
+      id: z.number().int().positive(),
+      account: githubWebhookAccountSchema.optional(),
+    })
+    .optional(),
+  sender: githubWebhookActorSchema.optional(),
+  requester: githubWebhookActorSchema.optional(),
 });
 export type GithubWebhookInstallationDto = z.infer<typeof githubWebhookInstallationSchema>;
 

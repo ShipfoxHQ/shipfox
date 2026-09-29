@@ -9,6 +9,7 @@ import {
   type IntegrationConnection,
 } from '@shipfox/api-integration-spi';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
+import {logger} from '@shipfox/node-opentelemetry';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {GithubApiClient} from '#api/client.js';
 import type {ConnectGithubInstallationInput} from '#core/connection.js';
@@ -134,6 +135,7 @@ describe('GitHub integration routes', () => {
 
   afterEach(async () => {
     await closeApp();
+    vi.restoreAllMocks();
   });
 
   it('requires auth for install URL creation', async () => {
@@ -146,6 +148,26 @@ describe('GitHub integration routes', () => {
     });
 
     expect(res.statusCode).toBe(401);
+  });
+
+  it('logs the workspace when starting an install flow', async () => {
+    const infoSpy = vi.spyOn(logger(), 'info');
+    const app = await createTestApp();
+    const workspaceId = crypto.randomUUID();
+    authenticatedMemberships = [{workspaceId, role: 'admin', workspaceStatus: 'active'}];
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/integrations/github/install',
+      headers: {authorization: 'Bearer user'},
+      payload: {workspace_id: workspaceId},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(infoSpy).toHaveBeenCalledWith(
+      {workspaceId, flow: 'install'},
+      'github install flow started',
+    );
   });
 
   it('returns an install URL with signed workspace state', async () => {
@@ -250,17 +272,28 @@ describe('GitHub integration routes', () => {
   });
 
   it('handles a verified GitHub callback', async () => {
+    const infoSpy = vi.spyOn(logger(), 'info');
     const app = await createTestApp();
     const workspaceId = crypto.randomUUID();
     const state = await createInstallState(app, workspaceId);
+    infoSpy.mockClear();
 
     const res = await app.inject({
       method: 'GET',
-      url: `/integrations/github/callback/api?code=code&installation_id=123&state=${state}`,
+      url: `/integrations/github/callback/api?code=code&installation_id=123&state=${state}&setup_action=install`,
       headers: {authorization: 'Bearer user'},
     });
 
     expect(res.statusCode).toBe(200);
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'success',
+        workspaceId,
+        installationId: 123,
+        setupAction: 'install',
+      }),
+      'github install callback completed',
+    );
     expect(res.json().provider).toBe('github');
     expect(res.json().external_account_id).toBe('123');
     expect(requireWorkspaceMembershipMock).toHaveBeenCalledWith({
@@ -268,6 +301,37 @@ describe('GitHub integration routes', () => {
       userId: 'user-1',
       memberships: [{workspaceId, role: 'admin', workspaceStatus: 'active'}],
     });
+  });
+
+  it('logs a typed callback failure at warn with bounded outcome fields', async () => {
+    const warnSpy = vi.spyOn(logger(), 'warn');
+    const app = await createTestApp({
+      github: githubClient({
+        listUserInstallations: vi.fn(() =>
+          Promise.resolve({installationIds: [999], nextCursor: null}),
+        ),
+      }),
+    });
+    const workspaceId = crypto.randomUUID();
+    const state = await createInstallState(app, workspaceId);
+    warnSpy.mockClear();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/integrations/github/callback/api?code=code&installation_id=123&state=${state}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'error',
+        errorCode: 'github-installation-not-authorized',
+        workspaceId,
+        installationId: 123,
+      }),
+      'github install callback failed',
+    );
   });
 
   it('rejects callbacks for inaccessible installations', async () => {

@@ -24,10 +24,15 @@ import {
 } from '#core/errors.js';
 import {handleGithubCallback} from '#core/install.js';
 import {handleGithubLinkCallback} from '#core/link.js';
-import {createGithubLinkState, signGithubInstallState, verifyGithubLinkState} from '#core/state.js';
+import {
+  createGithubLinkState,
+  signGithubInstallState,
+  verifyGithubInstallState,
+  verifyGithubLinkState,
+} from '#core/state.js';
 import {recordGithubConnectOutcome} from '#metrics/index.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
-import {githubRouteErrorHandler} from './errors.js';
+import {githubRouteErrorCode, githubRouteErrorHandler} from './errors.js';
 
 export interface CreateGithubIntegrationRoutesOptions {
   github: GithubApiClient;
@@ -66,6 +71,7 @@ export function createGithubIntegrationRoutes({
       const actor = requireUserContext(request);
 
       requireWorkspaceAccess({request, workspaceId});
+      logger().info({workspaceId, flow: 'install'}, 'github install flow started');
       const state = signGithubInstallState({workspaceId, userId: actor.userId});
       const installUrl = new URL(
         `https://github.com/apps/${config.GITHUB_APP_SLUG}/installations/new`,
@@ -143,7 +149,7 @@ export function createGithubIntegrationRoutes({
         );
         return toIntegrationConnectionDto(connection);
       } catch (error) {
-        const outcome = githubLinkOutcome(error);
+        const outcome = githubConnectOutcome(error);
         recordGithubConnectOutcome({flow: 'link', outcome});
         logger().warn(
           {
@@ -172,20 +178,49 @@ export function createGithubIntegrationRoutes({
     errorHandler: githubRouteErrorHandler,
     handler: async (request) => {
       const actor = requireUserContext(request);
-      const connection = await handleGithubCallback({
-        github,
-        code: request.query.code,
+      const callbackContext = {
+        workspaceId: workspaceIdFromInstallState(request.query.state),
         installationId: request.query.installation_id,
-        state: request.query.state,
-        sessionUserId: actor.userId,
-        sessionMemberships: actor.memberships,
-        requireWorkspaceMembership:
-          requireActiveWorkspaceMembership ?? unavailableWorkspaceMembershipCheck,
-        getExistingGithubConnection,
-        connectGithubInstallation,
-      });
+        ...(request.query.setup_action ? {setupAction: request.query.setup_action} : {}),
+      };
 
-      return toIntegrationConnectionDto(connection);
+      try {
+        const connection = await handleGithubCallback({
+          github,
+          code: request.query.code,
+          installationId: request.query.installation_id,
+          state: request.query.state,
+          sessionUserId: actor.userId,
+          sessionMemberships: actor.memberships,
+          requireWorkspaceMembership:
+            requireActiveWorkspaceMembership ?? unavailableWorkspaceMembershipCheck,
+          getExistingGithubConnection,
+          connectGithubInstallation,
+        });
+
+        const outcomeContext = {
+          ...callbackContext,
+          outcome: 'success' as const,
+          workspaceId: connection.workspaceId,
+        };
+        logger().info(outcomeContext, 'github install callback completed');
+        recordGithubConnectOutcome({flow: 'install', outcome: 'success'});
+        return toIntegrationConnectionDto(connection);
+      } catch (error) {
+        const errorCode = githubRouteErrorCode(error);
+        const outcomeContext = {
+          ...callbackContext,
+          outcome: githubConnectOutcome(error),
+          ...(errorCode ? {errorCode} : {}),
+        };
+        if (errorCode) {
+          logger().warn(outcomeContext, 'github install callback failed');
+        } else {
+          logger().error(outcomeContext, 'github install callback failed unexpectedly');
+        }
+        recordGithubConnectOutcome({flow: 'install', outcome: outcomeContext.outcome});
+        throw error;
+      }
     },
   });
 
@@ -195,7 +230,7 @@ export function createGithubIntegrationRoutes({
   };
 }
 
-function githubLinkOutcome(
+function githubConnectOutcome(
   error: unknown,
 ): 'no-linkable-installation' | 'multiple-linkable-installations' | 'already-linked' | 'error' {
   if (error instanceof GithubNoLinkableInstallationError) return 'no-linkable-installation';
@@ -226,6 +261,14 @@ function githubLinkErrorContext(error: unknown): {
     return {errorCode: 'invalid-github-link-state'};
   }
   return {};
+}
+
+function workspaceIdFromInstallState(state: string): string | undefined {
+  try {
+    return verifyGithubInstallState(state).workspaceId;
+  } catch {
+    return undefined;
+  }
 }
 
 function unavailableWorkspaceMembershipCheck(_input: {

@@ -238,10 +238,13 @@ export async function handleGithubEvent(
     tx: params.tx,
   });
   if (!installation) {
-    logger().warn(
-      {deliveryId: params.deliveryId, installationId},
-      'github webhook: unknown installation, dropping',
-    );
+    logUnknownGithubInstallation({
+      deliveryId: params.deliveryId,
+      installationId,
+      event: params.event,
+      action,
+      payload: params.payload,
+    });
     await params.recordDeliveryOnly({
       tx: params.tx,
       provider: GITHUB_SOURCE,
@@ -295,6 +298,28 @@ export async function handleGithubEvent(
   }
 
   return dispatchGithubEvent(params, connection, installationId, action);
+}
+
+function logUnknownGithubInstallation(params: {
+  deliveryId: string;
+  installationId: number;
+  event: string;
+  action: string | undefined;
+  payload: unknown;
+}): void {
+  const parsed = githubWebhookInstallationSchema.safeParse(params.payload);
+  const details = parsed.success ? parsed.data : undefined;
+  const logContext = {
+    deliveryId: params.deliveryId,
+    installationId: params.installationId,
+    event: params.event,
+    action: params.action,
+    account: details?.installation?.account,
+    sender: details?.sender,
+    requester: details?.requester,
+  };
+  const log = params.event.startsWith('installation') ? logger().warn : logger().info;
+  log(logContext, 'github webhook: unknown installation, dropping');
 }
 
 function normalizeRepositoryUpdates(
