@@ -1626,6 +1626,53 @@ describe('workflow run queries', () => {
       }
     });
 
+    test('failed mode reruns succeeded jobs downstream of a rerun job', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {steps: [{run: 'echo build'}]},
+            test: {needs: 'build', steps: [{run: 'echo test'}]},
+            report: {needs: 'test', steps: [{run: 'echo report'}]},
+            publish: {needs: 'report', steps: [{run: 'echo publish'}]},
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const sourceJobs = await getJobsByWorkflowRunId(source.id);
+      await markJob(sourceJobs, 'build', 'succeeded');
+      await markJob(sourceJobs, 'test', 'failed');
+      await markJob(sourceJobs, 'report', 'succeeded');
+      await markJob(sourceJobs, 'publish', 'succeeded');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'failed',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const rerunJobs = await getJobsByWorkflowRunId(rerun.id);
+      const jobByKey = new Map(rerunJobs.map((job) => [job.key, job]));
+      expect(jobByKey.get('build')).toMatchObject({status: 'succeeded', carriedOver: true});
+      expect(jobByKey.get('test')).toMatchObject({status: 'pending', carriedOver: false});
+      expect(jobByKey.get('report')).toMatchObject({status: 'pending', carriedOver: false});
+      expect(jobByKey.get('publish')).toMatchObject({status: 'pending', carriedOver: false});
+      const reportSteps = await getStepsByJobId(jobByKey.get('report')?.id as string);
+      expect(reportSteps.every((step) => step.status === 'pending')).toBe(true);
+    });
+
     test('failed mode preserves the claimed session on a carried-over agent step', async () => {
       const source = await createTerminalSourceRun();
       const sourceJobs = await getJobsByWorkflowRunId(source.id);
