@@ -59,7 +59,6 @@ test('runs a catalog Pi step from a project-scoped script', async ({suite}, test
           replies: [
             {tool: 'edit', args: {path: 'src/report.ts', oldText: 'before', newText: 'after'}},
             {tool: 'set_output', args: {key: 'status', value: 'implemented'}},
-            {text: 'Done.'},
           ],
         },
       ],
@@ -80,7 +79,7 @@ test('runs a catalog Pi step from a project-scoped script', async ({suite}, test
     expect(terminal.status).toBe('succeeded');
     expect(terminal.jobs.find((job) => job.key === 'fix')?.status).toBe('succeeded');
     const requests = await getScriptedManagedProviderRequests({projectId: seeded.project.id});
-    expect(requests.length).toBeGreaterThanOrEqual(3);
+    expect(requests).toHaveLength(2);
     expect(requests.every((request) => !request.surprise)).toBe(true);
   } finally {
     await attachLocalRunnerLog(
