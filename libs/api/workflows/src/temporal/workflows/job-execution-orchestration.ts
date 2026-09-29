@@ -58,6 +58,7 @@ const {resolveExecutionLimitsActivity} = proxyActivities<
   ReturnType<typeof createOrchestrationActivities>
 >({
   startToCloseTimeout: '5s',
+  retry: {maximumAttempts: 3},
 });
 
 const {resolveJobStatusFromJobExecutionsActivity} = proxyActivities<
@@ -477,6 +478,26 @@ function resolveBeforeRunning(
     : resolveUnpatchedBeforeRunning(input, signals);
 }
 
+async function resolveExecutionLimits(
+  input: JobExecutionOrchestrationInput,
+): Promise<JobExecutionLimits | null> {
+  try {
+    return await resolveExecutionLimitsActivity({
+      workspaceId: input.workspaceId ?? '',
+      projectId: input.projectId ?? '',
+      jobExecutionId: input.jobExecutionId,
+    });
+  } catch (err) {
+    // A policy outage must not hold jobs in the queue; run without workspace limits instead.
+    log.warn('execution limits resolution failed; running without limits', {
+      jobId: input.jobId,
+      jobExecutionId: input.jobExecutionId,
+      error: String(err),
+    });
+    return null;
+  }
+}
+
 export async function jobExecutionOrchestration(
   input: JobExecutionOrchestrationInput,
 ): Promise<JobExecutionOrchestrationResult> {
@@ -496,11 +517,7 @@ export async function jobExecutionOrchestration(
     );
   }
   const durationLimits = patched('job-execution-limits')
-    ? await resolveExecutionLimitsActivity({
-        workspaceId: input.workspaceId ?? '',
-        projectId: input.projectId ?? '',
-        jobExecutionId: input.jobExecutionId,
-      })
+    ? await resolveExecutionLimits(input)
     : null;
   const queued = await queueJobExecution(input);
   if (queued.kind === 'terminal') {

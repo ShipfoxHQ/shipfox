@@ -256,6 +256,20 @@ describe('jobExecutionOrchestration', () => {
     expect(callsNamed('queueJobExecutionActivity')).toHaveLength(0);
   });
 
+  test('a failing limits policy queues and runs the job without limits', async () => {
+    setCfg({
+      dag: makeDag([dagJob('job-limits-error', 'build')]),
+      jobResults: new Map([['job-limits-error', 'succeeded']]),
+      resolveExecutionLimitsError: 'Policy unavailable',
+    });
+
+    const result = await executeJob({...defaultJobInput, jobId: 'job-limits-error'});
+
+    expect(result.status).toBe('succeeded');
+    expect(finalStatusesFor('job-limits-error')).toEqual(['running', 'succeeded']);
+    expect(callsNamed('queueJobExecutionActivity')).toHaveLength(1);
+  });
+
   test('finished signal (failed) flips status without sweeping steps', async () => {
     setCfg({dag: makeDag([dagJob('job-2', 'build')]), jobResults: new Map([['job-2', 'failed']])});
 

@@ -14,7 +14,6 @@ import {
   failRunAsTimedOutActivity,
   loadRunAttemptConcurrencyActivity,
   loadRunAttemptDag,
-  markJobExecutionRunningActivity,
   peekListenerBufferActivity,
   queueJobExecutionActivity,
   recordListenerFiringOutcomeActivity,
@@ -43,9 +42,6 @@ export function createOrchestrationActivities(params: {
     setJobStatus,
     setJobExecutionStatus: async (activityParams: Parameters<typeof setJobExecutionStatus>[0]) =>
       await setJobExecutionStatus(activityParams, params.secrets),
-    markJobExecutionRunningActivity: async (
-      activityParams: Parameters<typeof markJobExecutionRunningActivity>[0],
-    ) => await markJobExecutionRunningActivity(activityParams, params.secrets),
     resolveExecutionLimitsActivity: async (
       activityParams: Parameters<typeof resolveExecutionLimitsActivity>[0],
     ) => await resolveExecutionLimitsActivity(activityParams, params.executionLimits?.policy),

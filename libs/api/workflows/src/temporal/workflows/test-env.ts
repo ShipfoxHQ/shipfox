@@ -61,6 +61,8 @@ export interface TestConfig {
   leaseExpiredCause?: RunnerJobLossCauseDto;
   /** Effective execution limits returned before queueing. */
   executionLimits?: JobExecutionLimits | null;
+  /** If set, resolveExecutionLimitsActivity throws with this message */
+  resolveExecutionLimitsError?: string;
   /** If set, resolveJobStatusFromJobExecutionsActivity throws with this message */
   resolveJobStatusError?: string;
   /** Scripted job activation decisions keyed by job id; defaults to start */
@@ -320,12 +322,16 @@ function createMockActivities() {
       });
     },
 
-    resolveExecutionLimitsActivity: (params: {
+    resolveExecutionLimitsActivity: async (params: {
       workspaceId: string;
       projectId: string;
       jobExecutionId: string;
     }) => {
       calls.push({name: 'resolveExecutionLimitsActivity', params});
+      if (cfg.resolveExecutionLimitsError) {
+        const {ApplicationFailure} = await import('@temporalio/common');
+        throw ApplicationFailure.nonRetryable(cfg.resolveExecutionLimitsError);
+      }
       return cfg.executionLimits ?? null;
     },
 

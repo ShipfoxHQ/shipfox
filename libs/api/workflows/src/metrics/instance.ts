@@ -120,7 +120,7 @@ const jobExecutionLeaseExpiryResolvedCount = meter.createCounter<{status: Runtim
 const jobDurationLimitCount = meter.createCounter<{
   outcome: 'within' | 'capped' | 'would_cap';
   scope: 'installation' | 'workspace' | 'manual' | 'unknown';
-}>('workflows_job_duration_limit_total', {
+}>('workflows_job_duration_limit', {
   description: 'Workflow job duration limit decisions by outcome and runner scope',
 });
 

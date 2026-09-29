@@ -236,14 +236,6 @@ export async function setJobExecutionStatus(
   return {newVersion: updated.version, status: updated.status};
 }
 
-export async function markJobExecutionRunningActivity(
-  params: Parameters<typeof markJobExecutionRunning>[0],
-  secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>,
-): Promise<{newVersion: number; status: Exclude<JobStatus, 'skipped'>}> {
-  const updated = await markJobExecutionRunning({...params, secrets});
-  return {newVersion: updated.version, status: updated.status};
-}
-
 export async function bulkSetStepStatuses(params: {
   jobExecutionId: string;
   status: Extract<StepStatus, 'failed' | 'cancelled'>;
