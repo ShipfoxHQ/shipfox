@@ -12,6 +12,7 @@ export function buildFixture(
     configured: {
       package: `shipfox/${name}`,
       kind: 'template',
+      root: repository.root,
       path: TEMPLATE_PATH,
       directory: join(repository.root, TEMPLATE_PATH),
     },

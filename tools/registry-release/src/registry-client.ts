@@ -126,14 +126,16 @@ export function createRegistryClient({
 
 /** The `draft` part of a publish upload. The registry derives everything else. */
 function draftOf(built: BuiltPackage) {
-  return {
+  const common = {
     kind: built.kind,
     license: built.license,
     changelog: built.changelog,
     builder: built.builder,
-    composition: built.composition,
     path: built.path,
   };
+  return built.kind === 'action'
+    ? {...common, dependencies: built.dependencies ?? []}
+    : {...common, composition: built.composition};
 }
 
 function decodeEnvelopePayload(envelope: RegistryEnvelope): RegistryVersionDocument {

@@ -37,7 +37,7 @@ export function publishedDocument(
     content: {
       digest: built.content.digest,
       bytes: built.content.bytes,
-      format: built.content.format,
+      format: 'template-bundle@1',
     },
     source: {digest: built.source.digest, bytes: built.source.bytes, format: built.source.format},
     manifest: built.manifest,

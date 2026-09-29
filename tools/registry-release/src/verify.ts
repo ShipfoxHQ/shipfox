@@ -48,6 +48,7 @@ export async function verifyVersion({
       configured: {
         package: name,
         kind: document.kind,
+        root: worktree,
         path: document.provenance.path,
         directory: join(worktree, document.provenance.path),
       },

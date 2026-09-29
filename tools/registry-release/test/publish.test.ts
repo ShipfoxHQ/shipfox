@@ -65,6 +65,28 @@ describe('publishPackages', () => {
     expect(upload?.parts.readme).toBe('Overview of the fixture template.\n');
   });
 
+  it('sends the dependencies of an action, without a composition', async () => {
+    await publish([
+      {
+        ...template,
+        package: 'shipfox/an-action',
+        kind: 'action',
+        manifest: {description: 'An action.'},
+        composition: undefined,
+        dependencies: [{name: 'ms', version: '2.1.3'}],
+      },
+    ]);
+
+    const [upload] = registry.publishes;
+    expect(JSON.parse(upload?.parts.draft ?? '')).toEqual({
+      kind: 'action',
+      license: 'MIT',
+      builder: template.builder,
+      dependencies: [{name: 'ms', version: '2.1.3'}],
+      path: template.path,
+    });
+  });
+
   it('publishes actions before templates, then by name', async () => {
     const action = (name: string): BuiltPackage => ({
       ...template,
