@@ -13,6 +13,7 @@ import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/in
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {LogsModuleClient} from '@shipfox/api-logs-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {RegistryInterModuleClient} from '@shipfox/api-registry-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
@@ -45,6 +46,7 @@ import {createAgentAccessIntegrationTools} from '#core/integration-tools.js';
 import {createAgentAccessLogTools} from '#core/log-tools.js';
 import {createAgentAccessTools} from '#core/paged-tools.js';
 import {type AgentAccessRateLimiter, createAgentAccessRateLimiter} from '#core/rate-limiter.js';
+import {createAgentAccessRegistryTools} from '#core/registry-tools.js';
 import {createAgentAccessTemplateTools} from '#core/template-tools.js';
 import {
   type AgentAccessTool,
@@ -80,6 +82,7 @@ export interface CreateAgentAccessRoutesOptions {
   integrations?: IntegrationsModuleClient | undefined;
   secrets?: SecretsInterModuleClient | undefined;
   templates?: TemplateLoader | undefined;
+  registry?: RegistryInterModuleClient | undefined;
 }
 
 export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions = {}): RouteGroup {
@@ -198,6 +201,7 @@ function toolsFromProducerClients(
     integrations,
     secrets,
     templates,
+    registry,
   } = options;
   if (
     projects === undefined &&
@@ -208,7 +212,8 @@ function toolsFromProducerClients(
     logs === undefined &&
     integrations === undefined &&
     secrets === undefined &&
-    templates === undefined
+    templates === undefined &&
+    registry === undefined
   ) {
     return [createAgentAccessFixtureTool()];
   }
@@ -272,10 +277,14 @@ function toolsFromProducerClients(
             templates,
           }),
         ];
+  const withRegistry =
+    registry === undefined
+      ? withTemplates
+      : [...withTemplates, ...createAgentAccessRegistryTools({registry})];
   const withWorkspaceModels =
     options.agent === undefined
-      ? withTemplates
-      : [...withTemplates, ...createAgentAccessWorkspaceModelTools(options.agent)];
+      ? withRegistry
+      : [...withRegistry, ...createAgentAccessWorkspaceModelTools(options.agent)];
   return options.agent === undefined || secrets === undefined
     ? withWorkspaceModels
     : [

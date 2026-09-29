@@ -366,6 +366,9 @@ catalogs:
     dependency-cruiser:
       specifier: ^17.3.10
       version: 17.4.3
+    diff:
+      specifier: ^8.0.4
+      version: 8.0.4
     dockerode:
       specifier: ^4.0.9
       version: 4.0.12
@@ -2454,6 +2457,9 @@ importers:
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
+      '@shipfox/api-registry-dto':
+        specifier: workspace:*
+        version: link:../registry-dto
       '@shipfox/api-secrets-dto':
         specifier: workspace:*
         version: link:../secrets-dto
@@ -2484,9 +2490,18 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/registry-format':
+        specifier: workspace:*
+        version: link:../../shared/registry/format
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../../shared/workflow/document
       '@shipfox/workflow-templates':
         specifier: workspace:*
         version: link:../../shared/workflow/templates
+      diff:
+        specifier: 'catalog:'
+        version: 8.0.4
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -2518,6 +2533,9 @@ importers:
       '@shipfox/api-logs-dto':
         specifier: workspace:*
         version: link:../logs-dto
+      '@shipfox/registry-format':
+        specifier: workspace:*
+        version: link:../../shared/registry/format
       zod:
         specifier: 'catalog:'
         version: 4.4.3

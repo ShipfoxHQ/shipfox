@@ -46,6 +46,11 @@ export {
   createAgentAccessRateLimiter,
 } from '#core/rate-limiter.js';
 export {
+  AGENT_ACCESS_REGISTRY_TOOL_NAMES,
+  type AgentAccessRegistryToolsOptions,
+  createAgentAccessRegistryTools,
+} from '#core/registry-tools.js';
+export {
   type AgentAccessUtf8Truncation,
   fitAgentAccessResponseToCeiling,
   reducePagedAgentAccessResponse,
