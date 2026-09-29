@@ -13,3 +13,11 @@ export {
   type StepLogStream,
   type StepLogStreamOptions,
 } from '#core/step-log-stream.js';
+export {
+  createTextLogSink,
+  TEXT_LOG_MAX_BYTES,
+  TEXT_LOG_SEGMENT_BYTES,
+  type TextLogSink,
+  type TextLogSinkOptions,
+} from '#core/text-sink.js';
+export type {TransformEvent} from '#core/transform.js';
