@@ -15,7 +15,6 @@ import {
 } from '#core/errors.js';
 import {claimJobExecution} from '#core/job-executions.js';
 import {detectAndExpireStuckJobs} from '#core/maintenance.js';
-import {releaseUnboundCapacityHoldsForReservationsTx} from '#db/capacity-holds.js';
 import * as runnerMetrics from '#metrics/instance.js';
 import {
   getLeaseTokenClaims,
@@ -38,6 +37,7 @@ import {
   reconcileTerminalJobExecution,
   recordHeartbeat,
 } from './job-executions.js';
+import {deleteExpiredReservations} from './reservations.js';
 import {capacityHolds} from './schema/capacity-holds.js';
 import {expiredJobExecutions} from './schema/expired-job-executions.js';
 import {runnersOutbox} from './schema/outbox.js';
@@ -797,18 +797,39 @@ describe('claimPendingJobExecution', () => {
       runnerSessionId,
       scope: 'installation',
     });
-    const reservationId = crypto.randomUUID();
+    const [reservation] = await db()
+      .insert(reservations)
+      .values({
+        workspaceId,
+        provisionerId: crypto.randomUUID(),
+        requiredLabels: sessionLabels,
+        count: 1,
+        kind: 'bound',
+        expiresAt: new Date('1970-01-01T00:00:00.000Z'),
+      })
+      .returning({id: reservations.id});
+    if (!reservation) throw new Error('Expected expired reservation');
+
     await db().insert(capacityHolds).values({
       workspaceId,
-      reservationId,
+      reservationId: reservation.id,
       runnerInstanceId: runner.id,
       units: 1,
     });
+
+    expect(await deleteExpiredReservations({limit: 1})).toBe(1);
     expect(
-      await db().transaction((tx) =>
-        releaseUnboundCapacityHoldsForReservationsTx(tx, [reservationId]),
-      ),
-    ).toBe(0);
+      await db()
+        .select({id: reservations.id})
+        .from(reservations)
+        .where(eq(reservations.id, reservation.id)),
+    ).toHaveLength(0);
+    const [holdAfterExpiry] = await db()
+      .select({jobExecutionId: capacityHolds.jobExecutionId, releasedAt: capacityHolds.releasedAt})
+      .from(capacityHolds)
+      .where(eq(capacityHolds.runnerInstanceId, runner.id));
+    expect(holdAfterExpiry).toEqual({jobExecutionId: null, releasedAt: null});
+
     const created = await pendingJobFactory.create({workspaceId});
 
     const claimed = await claimPendingJobExecution({
