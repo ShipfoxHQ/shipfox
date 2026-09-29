@@ -96,6 +96,10 @@ export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
   if (options.suite !== 'templates') {
     throw new Error('The onboarding suite is reserved for the onboarding case schema.');
   }
+  // Results are written without executing cases, so a live run would report passes it never ran.
+  if (options.mode === 'live') {
+    throw new Error('Live mode is not available until cases execute against the stack.');
+  }
 
   const discovered = await discoverCases(
     caseRoot(options.suite, cwd),

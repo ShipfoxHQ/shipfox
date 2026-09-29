@@ -330,13 +330,13 @@ of Playwright:
 
 ```sh
 mise run evals -- --suite templates --mode scripted
-mise run evals -- --suite templates --mode live --case 'ticket-to-pr/*' --repeat 3
+mise run evals -- --suite templates --mode scripted --case fixture --repeat 3
 ```
 
 The harness reads Conductor worktree ports from `.context/local-services/env`,
 starts the API with E2E routes enabled, starts the client with the test VCS
 provider enabled, waits for both to become ready, and then runs
-`turbo test:e2e`.
+`turbo test:e2e`, or `turbo evals` for `mise run evals`.
 
 Diagnostics land in `.context/shipfox-e2e-logs/` locally. In CI, a failed browser
 and API job uploads the same logs as the `e2e-diagnostics` artifact. A failed flow job
