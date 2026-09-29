@@ -4,6 +4,13 @@
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {useJobExecutionUsageQuery} from '@shipfox/client-usage';
+import {
+  Alert,
+  AlertActions,
+  AlertContent,
+  AlertDescription,
+  AlertTitle,
+} from '@shipfox/react-ui/alert';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {
@@ -100,6 +107,32 @@ import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 import {StepInspectorSheet} from './step-troubleshooting.js';
 
 type InspectorState = {key: string; attemptId: string | null};
+
+function DurationLimitNotice({execution}: {execution: JobExecution | undefined}) {
+  if (!execution?.durationCapped || !execution.durationNotice) return null;
+  const {durationNotice} = execution;
+  return (
+    <Alert
+      variant="warning"
+      animated={false}
+      className="rounded-none border-x-0 border-t border-b border-tag-warning-border bg-transparent px-row py-row"
+    >
+      <AlertContent>
+        <AlertTitle>Job duration limited</AlertTitle>
+        <AlertDescription>{durationNotice.message}</AlertDescription>
+        {durationNotice.requiredAction ? (
+          <AlertActions>
+            <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
+              <a href={durationNotice.requiredAction.url}>
+                {durationNotice.requiredAction.message}
+              </a>
+            </Button>
+          </AlertActions>
+        ) : null}
+      </AlertContent>
+    </Alert>
+  );
+}
 type VisibleLogTimestampMode = Exclude<LogTimestampMode, 'off'>;
 type JobDetailQuery = ReturnType<typeof useWorkflowJobDetailQuery>;
 interface JobDetailData {
@@ -344,6 +377,7 @@ export function JobDetailView({
                     : undefined
                 }
               />
+              <DurationLimitNotice execution={selectedJobExecution} />
               <Panel data-job-log-panel className="min-w-0 overflow-clip">
                 <JobLogPanelHeader
                   stepLabel={expandedLogSelection?.stepLabel}

@@ -114,7 +114,10 @@ export type DefaultRunnersModuleOptions = Pick<
 >;
 
 /** Options for the standard Workflows module. */
-export type DefaultWorkflowsModuleOptions = Pick<CreateWorkflowsModuleOptions, 'admission'>;
+export type DefaultWorkflowsModuleOptions = Pick<
+  CreateWorkflowsModuleOptions,
+  'admission' | 'executionLimits'
+>;
 
 /** Full replacement escape hatch for the standard Runners module. */
 export type DefaultRunnersModuleFactory = (options: {auth: AuthInterModuleClient}) => ShipfoxModule;

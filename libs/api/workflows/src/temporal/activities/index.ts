@@ -3,6 +3,7 @@ import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/i
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
+import type {JobExecutionLimitsPolicy} from '#core/execution-limits.js';
 import {
   activateJobListenerActivity,
   bulkSetStepStatuses,
@@ -13,9 +14,11 @@ import {
   failRunAsTimedOutActivity,
   loadRunAttemptConcurrencyActivity,
   loadRunAttemptDag,
+  markJobExecutionRunningActivity,
   peekListenerBufferActivity,
   queueJobExecutionActivity,
   recordListenerFiringOutcomeActivity,
+  resolveExecutionLimitsActivity,
   resolveJobListenerActivity,
   resolveJobStatusFromJobExecutionsActivity,
   resolveLeaseExpiredJobExecutionActivity,
@@ -31,6 +34,7 @@ export function createOrchestrationActivities(params: {
   projects: ProjectsModuleClient;
   runners: RunnersInterModuleClient;
   secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>;
+  executionLimits?: {policy: JobExecutionLimitsPolicy} | undefined;
 }) {
   return {
     loadRunAttemptConcurrencyActivity,
@@ -39,6 +43,12 @@ export function createOrchestrationActivities(params: {
     setJobStatus,
     setJobExecutionStatus: async (activityParams: Parameters<typeof setJobExecutionStatus>[0]) =>
       await setJobExecutionStatus(activityParams, params.secrets),
+    markJobExecutionRunningActivity: async (
+      activityParams: Parameters<typeof markJobExecutionRunningActivity>[0],
+    ) => await markJobExecutionRunningActivity(activityParams, params.secrets),
+    resolveExecutionLimitsActivity: async (
+      activityParams: Parameters<typeof resolveExecutionLimitsActivity>[0],
+    ) => await resolveExecutionLimitsActivity(activityParams, params.executionLimits?.policy),
     bulkSetStepStatuses,
     queueJobExecutionActivity,
     expireQueuedJobExecutionActivity: async (activityParams: {jobExecutionId: string}) =>

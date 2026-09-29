@@ -86,6 +86,8 @@ export function emptyJobExecutionForJob(job: Job): JobExecution {
     startedAt: null,
     finishedAt: null,
     timedOutAt: null,
+    durationCapped: false,
+    durationNotice: null,
     evaluationTrace: job.evaluationTrace,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,

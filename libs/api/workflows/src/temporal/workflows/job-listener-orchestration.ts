@@ -37,6 +37,8 @@ export interface JobListenerOrchestrationInput {
   jobId: string;
   jobVersion: number;
   requiredLabels: string[];
+  workspaceId?: string | undefined;
+  projectId?: string | undefined;
   executionTimeoutMs?: number | null | undefined;
   listeningTimeoutMs?: number | null | undefined;
   maxExecutions?: number | null | undefined;
@@ -463,6 +465,8 @@ async function runListenerExecution(params: {
             : {executionTimeoutMs: params.input.executionTimeoutMs}),
           resolveJobStatus: false,
           requiredLabels: params.requiredLabels,
+          workspaceId: params.input.workspaceId ?? '',
+          projectId: params.input.projectId ?? '',
         },
       ],
       parentClosePolicy: ParentClosePolicy.TERMINATE,

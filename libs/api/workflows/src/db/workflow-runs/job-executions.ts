@@ -7,11 +7,14 @@ import {assertWorkflowProductOutputSize} from '#core/diagnostics.js';
 import type {JobStatusReason} from '#core/entities/job.js';
 import type {JobExecution, JobExecutionStatus} from '#core/entities/job-execution.js';
 import {JobNotFoundError} from '#core/errors.js';
+import type {JobExecutionLimits} from '#core/execution-limits.js';
+import {resolveJobExecutionDuration} from '#core/execution-limits.js';
 import {deriveJobExecutionOutputs} from '#core/job-transition/index.js';
 import {classifyOutputFailure} from '#core/output-failure.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 import {
+  recordWorkflowJobDurationLimit,
   recordWorkflowJobExecutionLeaseExpiryResolved,
   recordWorkflowJobExecutionQueued,
   recordWorkflowJobExecutionStarted,
@@ -167,6 +170,9 @@ export interface UpdateJobExecutionStatusAtVersionParams {
   statusReason?: JobStatusReason | null | undefined;
   statusReasonMessage?: string | null | undefined;
   markTimedOut?: boolean;
+  durationLimits?: JobExecutionLimits | null | undefined;
+  durationCapped?: boolean | undefined;
+  durationNotice?: JobExecution['durationNotice'] | undefined;
   secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }
 
@@ -256,34 +262,41 @@ async function resolveJobExecutionOutputs(
   return outputs;
 }
 
+async function resolveJobExecutionStatusReasonMessage(
+  tx: Tx,
+  params: UpdateJobExecutionStatusAtVersionParams,
+): Promise<string | null> {
+  if (params.statusReasonMessage !== undefined) return params.statusReasonMessage ?? null;
+  if (params.statusReason !== 'timed_out') return null;
+
+  const [execution] = await tx
+    .select({
+      durationCapped: jobExecutions.durationCapped,
+      durationNotice: jobExecutions.durationNotice,
+    })
+    .from(jobExecutions)
+    .where(eq(jobExecutions.id, params.jobExecutionId))
+    .limit(1);
+  return execution?.durationCapped ? (execution.durationNotice?.message ?? null) : null;
+}
+
 async function updateJobExecutionStatusAtVersion(
   tx: Tx,
   params: UpdateJobExecutionStatusAtVersionParams,
 ): Promise<{execution: JobExecution; changed: boolean} | null> {
   let status = params.status;
   let statusReason = params.statusReason ?? null;
-  let statusReasonMessage = params.statusReasonMessage ?? null;
-  let outputs: Record<string, unknown> | null | undefined;
-  if (TERMINAL_EXECUTION_STATUSES.includes(status)) {
-    outputs = null;
-  }
-  if (status === 'succeeded') {
-    try {
-      outputs = await resolveJobExecutionOutputs(tx, {
-        jobExecutionId: params.jobExecutionId,
-        status,
-        statusReason,
-        secrets: params.secrets,
-      });
-    } catch (error) {
-      const outputFailure = classifyOutputFailure(error);
-      if (outputFailure === null) throw error;
-      status = 'failed';
-      statusReason = outputFailure.statusReason;
-      statusReasonMessage = outputFailure.statusReasonMessage;
-      outputs = null;
-    }
-  }
+  let statusReasonMessage = await resolveJobExecutionStatusReasonMessage(tx, params);
+  const resolved = await resolveStatusOutputs(tx, {
+    ...params,
+    status,
+    statusReason,
+    statusReasonMessage,
+  });
+  status = resolved.status;
+  statusReason = resolved.statusReason;
+  statusReasonMessage = resolved.statusReasonMessage;
+  const outputs = resolved.outputs;
 
   const rows = await tx
     .update(jobExecutions)
@@ -295,6 +308,9 @@ async function updateJobExecutionStatusAtVersion(
       version: sql`${jobExecutions.version} + 1`,
       updatedAt: new Date(),
       ...(params.markTimedOut ? {timedOutAt: new Date()} : {}),
+      ...(params.durationLimits === undefined ? {} : {durationLimits: params.durationLimits}),
+      ...(params.durationCapped === undefined ? {} : {durationCapped: params.durationCapped}),
+      ...(params.durationNotice === undefined ? {} : {durationNotice: params.durationNotice}),
       ...(TERMINAL_EXECUTION_STATUSES.includes(status) ? {finishedAt: sql`now()`} : {}),
     })
     .where(
@@ -337,12 +353,61 @@ async function updateJobExecutionStatusAtVersion(
   };
 }
 
+async function resolveStatusOutputs(
+  tx: Tx,
+  params: UpdateJobExecutionStatusAtVersionParams & {
+    status: JobExecutionStatus;
+    statusReason: JobStatusReason | null;
+    statusReasonMessage: string | null;
+  },
+): Promise<{
+  status: JobExecutionStatus;
+  statusReason: JobStatusReason | null;
+  statusReasonMessage: string | null;
+  outputs: Record<string, unknown> | null | undefined;
+}> {
+  if (params.status !== 'succeeded') {
+    return {
+      status: params.status,
+      statusReason: params.statusReason,
+      statusReasonMessage: params.statusReasonMessage,
+      outputs: TERMINAL_EXECUTION_STATUSES.includes(params.status) ? null : undefined,
+    };
+  }
+
+  try {
+    return {
+      status: params.status,
+      statusReason: params.statusReason,
+      statusReasonMessage: params.statusReasonMessage,
+      outputs: await resolveJobExecutionOutputs(tx, {
+        jobExecutionId: params.jobExecutionId,
+        status: params.status,
+        statusReason: params.statusReason,
+        secrets: params.secrets,
+      }),
+    };
+  } catch (error) {
+    const outputFailure = classifyOutputFailure(error);
+    if (outputFailure === null) throw error;
+    return {
+      status: 'failed',
+      statusReason: outputFailure.statusReason,
+      statusReasonMessage: outputFailure.statusReasonMessage,
+      outputs: null,
+    };
+  }
+}
+
 export interface UpdateJobExecutionStatusParams {
   jobExecutionId: string;
   status: JobExecutionStatus;
   expectedVersion: number;
   statusReason?: JobStatusReason | null | undefined;
   statusReasonMessage?: string | null | undefined;
+  durationLimits?: JobExecutionLimits | null | undefined;
+  durationCapped?: boolean | undefined;
+  durationNotice?: JobExecution['durationNotice'] | undefined;
   secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }
 
@@ -359,6 +424,9 @@ export async function updateJobExecutionStatus(
           expectedVersion: params.expectedVersion,
           statusReason,
           statusReasonMessage: params.statusReasonMessage,
+          durationLimits: params.durationLimits,
+          durationCapped: params.durationCapped,
+          durationNotice: params.durationNotice,
           secrets: params.secrets,
         }),
       fetchFn: async () => {
@@ -385,6 +453,51 @@ export async function updateJobExecutionStatus(
   if (result.changed) recordWorkflowJobExecutionStatusChanged(result.execution.status);
 
   return result.execution;
+}
+
+export async function persistJobExecutionDurationLimits(params: {
+  jobExecutionId: string;
+  limits: JobExecutionLimits;
+}): Promise<void> {
+  await db()
+    .update(jobExecutions)
+    .set({durationLimits: params.limits})
+    .where(eq(jobExecutions.id, params.jobExecutionId));
+}
+
+export async function markJobExecutionRunning(params: {
+  jobExecutionId: string;
+  expectedVersion: number;
+  executionTimeoutMs?: number | null | undefined;
+  provisionerScope?: string | null | undefined;
+  durationLimits: JobExecutionLimits | null | undefined;
+  secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
+}): Promise<JobExecution> {
+  const resolution = resolveJobExecutionDuration({
+    requestedMs: params.executionTimeoutMs,
+    provisionerScope: params.provisionerScope,
+    limits: params.durationLimits,
+  });
+  const updated = await updateJobExecutionStatus({
+    jobExecutionId: params.jobExecutionId,
+    status: 'running',
+    expectedVersion: params.expectedVersion,
+    durationLimits: params.durationLimits,
+    durationCapped: resolution.capped,
+    durationNotice: resolution.notice,
+    secrets: params.secrets,
+  });
+  recordWorkflowJobDurationLimit(resolution.outcome, durationLimitScope(params.provisionerScope));
+  return updated;
+}
+
+function durationLimitScope(
+  provisionerScope: string | null | undefined,
+): 'installation' | 'workspace' | 'manual' | 'unknown' {
+  if (provisionerScope === 'installation') return 'installation';
+  if (provisionerScope === 'workspace') return 'workspace';
+  if (provisionerScope === null || provisionerScope === undefined) return 'manual';
+  return 'unknown';
 }
 
 export async function queueJobExecution(params: {jobExecutionId: string}): Promise<JobExecution> {

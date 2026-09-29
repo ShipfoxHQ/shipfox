@@ -1,3 +1,4 @@
+import type {PolicyNotice} from '@shipfox/policy-notice';
 import {
   isTerminalJobStatus,
   type JobDisplayStatus,
@@ -87,6 +88,8 @@ export interface WorkflowRunOverviewExecution {
   startedAt: string | null;
   finishedAt: string | null;
   timedOutAt: string | null;
+  durationCapped?: boolean | undefined;
+  durationNotice?: PolicyNotice | null | undefined;
   updatedAt: string;
   displayDuration: JobExecutionDisplayDuration | null;
 }

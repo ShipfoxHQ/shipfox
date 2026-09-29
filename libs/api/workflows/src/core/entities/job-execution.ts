@@ -1,3 +1,5 @@
+import type {PolicyNotice} from '@shipfox/policy-notice';
+import type {JobExecutionLimits} from '../execution-limits.js';
 import type {JobStatus, JobStatusReason} from './job.js';
 import type {
   JobListenerEventDisposition,
@@ -70,4 +72,7 @@ export interface JobExecution {
   startedAt: Date | null;
   finishedAt: Date | null;
   timedOutAt: Date | null;
+  durationLimits?: JobExecutionLimits | null | undefined;
+  durationCapped?: boolean | undefined;
+  durationNotice?: PolicyNotice | null | undefined;
 }

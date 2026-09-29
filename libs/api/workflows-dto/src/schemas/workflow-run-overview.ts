@@ -1,4 +1,5 @@
 import {MAX_WORKFLOW_FILE_BYTES} from '@shipfox/api-definitions-dto';
+import {policyNoticeSchema} from '@shipfox/policy-notice';
 import {z} from 'zod';
 import {workflowRunStatusReasonSchema} from '../events.js';
 import {jobStatusReasonSchema, jobStatusSchema} from './job.js';
@@ -61,6 +62,8 @@ export const jobExecutionSummaryDtoSchema = z.object({
   started_at: z.string().datetime().nullable(),
   finished_at: z.string().datetime().nullable(),
   timed_out_at: z.string().datetime().nullable(),
+  duration_capped: z.boolean().optional(),
+  duration_notice: policyNoticeSchema.nullable().optional(),
   updated_at: z.string().datetime(),
 });
 
