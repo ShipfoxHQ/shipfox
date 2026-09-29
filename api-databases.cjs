@@ -102,6 +102,14 @@ const databaseMigrationUnits = freezeEntries([
     migrationsPath: 'libs/api/integration/clickup/drizzle',
   },
   {
+    id: 'integrations-discord',
+    ownerId: 'integrations',
+    namespace: 'integrations_discord',
+    packagePath: 'libs/api/integration/discord',
+    drizzleConfigPath: 'libs/api/integration/discord/drizzle.config.ts',
+    migrationsPath: 'libs/api/integration/discord/drizzle',
+  },
+  {
     id: 'integrations-notion',
     ownerId: 'integrations',
     namespace: 'integrations_notion',

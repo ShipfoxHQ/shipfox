@@ -1,5 +1,6 @@
 import {clickupProviderModule} from '#providers/clickup.js';
 import {cronProviderModule} from '#providers/cron.js';
+import {discordProviderModule} from '#providers/discord.js';
 import {giteaProviderModule} from '#providers/gitea.js';
 import {githubProviderModule} from '#providers/github.js';
 import {jiraProviderModule} from '#providers/jira.js';
@@ -25,6 +26,7 @@ const providerModules = [
   slackProviderModule,
   jiraProviderModule,
   clickupProviderModule,
+  discordProviderModule,
   notionProviderModule,
   sentryProviderModule,
   giteaProviderModule,

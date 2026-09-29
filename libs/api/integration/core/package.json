@@ -51,6 +51,7 @@
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-integration-shipfox-dto": "workspace:*",
     "@shipfox/api-integration-clickup": "workspace:*",
+    "@shipfox/api-integration-discord": "workspace:*",
     "@shipfox/api-integration-notion": "workspace:*",
     "@shipfox/api-integration-spi": "workspace:*",
     "@shipfox/api-projects-dto": "workspace:*",

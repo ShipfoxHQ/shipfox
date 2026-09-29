@@ -156,6 +156,39 @@ describe('loadEnabledProviderModules', () => {
     expect(parts.map((part) => part.provider.provider)).not.toContain('clickup');
   });
 
+  it('does not load Discord when the provider is disabled', async () => {
+    vi.resetModules();
+
+    const {loadEnabledProviderModules} = await import('#providers/modules.js');
+    const parts = await loadEnabledProviderModules();
+
+    expect(parts.map((part) => part.provider.provider)).not.toContain('discord');
+  });
+
+  it('loads Discord when the provider is enabled', async () => {
+    vi.stubEnv('INTEGRATIONS_ENABLE_DISCORD_PROVIDER', 'true');
+    vi.stubEnv('DISCORD_APPLICATION_ID', 'discord-application-id');
+    vi.stubEnv('DISCORD_OAUTH_CLIENT_SECRET', 'discord-client-secret');
+    vi.stubEnv('DISCORD_OAUTH_REDIRECT_URL', 'https://example.test/discord/callback');
+    vi.stubEnv('DISCORD_PUBLIC_KEY', 'discord-public-key');
+    vi.stubEnv('DISCORD_BOT_TOKEN', 'discord-bot-token');
+    vi.stubEnv('DISCORD_GATEWAY_ENABLED', 'false');
+    vi.resetModules();
+
+    const {loadEnabledProviderModules} = await import('#providers/modules.js');
+    const parts = await loadEnabledProviderModules();
+    const discord = parts.find((part) => part.provider.provider === 'discord');
+
+    expect(parts.map((part) => part.provider.provider)).toEqual([
+      'discord',
+      'shipfox',
+      'cron',
+      'webhook',
+    ]);
+    expect(discord?.provider).toMatchObject({provider: 'discord', displayName: 'Discord'});
+    expect(discord?.database?.databaseNamespace).toBe('integrations_discord');
+  });
+
   it('does not load Notion when the provider is disabled', async () => {
     vi.resetModules();
 

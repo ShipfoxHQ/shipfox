@@ -10,6 +10,10 @@ import type {
   TestVcsStatsDto,
 } from '@shipfox/api-integration-core-dto';
 import type {
+  CreateE2eDiscordConnectionBodyDto,
+  CreateE2eDiscordConnectionResponseDto,
+} from '@shipfox/api-integration-discord-dto';
+import type {
   CreateE2eGithubConnectionBodyDto,
   CreateE2eGithubConnectionResponseDto,
 } from '@shipfox/api-integration-github-dto';
@@ -43,6 +47,10 @@ export type {
   TestVcsRenewalModeDto,
   TestVcsStatsDto,
 } from '@shipfox/api-integration-core-dto';
+export type {
+  CreateE2eDiscordConnectionBodyDto,
+  CreateE2eDiscordConnectionResponseDto,
+} from '@shipfox/api-integration-discord-dto';
 export type {
   CreateE2eGithubConnectionBodyDto,
   CreateE2eGithubConnectionResponseDto,
@@ -187,6 +195,36 @@ export async function createClickUpConnection(
     'post',
     '/__e2e/integrations/clickup-connections',
     {json: clickupConnectionBody(params)},
+  );
+}
+
+export interface CreateDiscordConnectionParams {
+  workspaceId: string;
+  guildId: string;
+  guildName: string;
+  permissions?: string | undefined;
+  botRoleId?: string | undefined;
+}
+
+function discordConnectionBody(
+  params: CreateDiscordConnectionParams,
+): CreateE2eDiscordConnectionBodyDto {
+  return {
+    workspace_id: params.workspaceId,
+    guild_id: params.guildId,
+    guild_name: params.guildName,
+    permissions: params.permissions ?? '0',
+    ...(params.botRoleId === undefined ? {} : {bot_role_id: params.botRoleId}),
+  };
+}
+
+export async function createDiscordConnection(
+  params: CreateDiscordConnectionParams,
+): Promise<CreateE2eDiscordConnectionResponseDto> {
+  return await requestJson<CreateE2eDiscordConnectionResponseDto>(
+    'post',
+    '/__e2e/integrations/discord-connections',
+    {json: discordConnectionBody(params)},
   );
 }
 

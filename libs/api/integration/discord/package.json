@@ -1,18 +1,22 @@
 {
-  "name": "@shipfox/e2e-setup-integrations",
+  "name": "@shipfox/api-integration-discord",
+  "license": "MIT",
+  "version": "31.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "e2e/setup/integrations"
+    "directory": "libs/api/integration/discord"
   },
-  "license": "MIT",
-  "private": true,
+  "private": false,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
     "#test/*": "./test/*",
-    "#*": "./src/*"
+    "#*": {
+      "workspace-source": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "exports": {
     ".": {
@@ -37,15 +41,13 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/api-integration-clickup-dto": "workspace:*",
     "@shipfox/api-integration-discord-dto": "workspace:*",
-    "@shipfox/api-integration-core-dto": "workspace:*",
-    "@shipfox/api-integration-github-dto": "workspace:*",
-    "@shipfox/api-integration-linear-dto": "workspace:*",
-    "@shipfox/api-integration-notion-dto": "workspace:*",
-    "@shipfox/api-integration-posthog-dto": "workspace:*",
-    "@shipfox/api-integration-slack-dto": "workspace:*",
-    "@shipfox/e2e-core": "workspace:*"
+    "@shipfox/api-integration-spi": "workspace:*",
+    "@shipfox/config": "workspace:*",
+    "@shipfox/node-drizzle": "workspace:*",
+    "@shipfox/node-fastify": "workspace:*",
+    "@shipfox/node-postgres": "workspace:*",
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
@@ -53,6 +55,9 @@
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vitest": "workspace:*"
+    "@shipfox/vitest": "workspace:*",
+    "@types/pg": "catalog:",
+    "drizzle-kit": "catalog:",
+    "fastify": "catalog:"
   }
 }
