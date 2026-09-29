@@ -1,6 +1,7 @@
-import {mkdtemp, readdir, readFile, rm, stat, unlink, writeFile} from 'node:fs/promises';
+import {mkdtemp, readdir, readFile, rm, stat, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {InvalidStepIdError} from '#core/errors.js';
 import {createTextLogSink, TEXT_LOG_MAX_BYTES, TEXT_LOG_SEGMENT_BYTES} from '#core/text-sink.js';
 import type {TransformEvent} from '#core/transform.js';
 
@@ -141,13 +142,19 @@ describe('createTextLogSink', () => {
     expect(sink.finalize()).toBeUndefined();
   });
 
+  it('rejects a traversal step id before constructing text paths', () => {
+    const create = () => createTextLogSink({logsDir, stepId: '../escape', attempt: 8});
+
+    expect(create).toThrow(InvalidStepIdError);
+  });
+
   it('removes a partial final file when finalization fails', async () => {
-    const sink = createTextLogSink({logsDir, stepId: STEP_ID, attempt: 8});
+    const sink = createTextLogSink({logsDir, stepId: STEP_ID, attempt: 9});
     sink.write(output('x'.repeat(17 * TEXT_LOG_SEGMENT_BYTES)));
-    const segmentDir = join(logsDir, 'text', `${STEP_ID}-8`);
-    await unlink(join(segmentDir, '00000002.segment'));
+    const segmentDir = join(logsDir, 'text', `${STEP_ID}-9`);
+    await writeFile(join(segmentDir, 'sentinel'), 'keep this directory non-empty');
 
     expect(sink.finalize()).toBeUndefined();
-    await expect(stat(textPath(logsDir, 8))).rejects.toMatchObject({code: 'ENOENT'});
+    await expect(stat(textPath(logsDir, 9))).rejects.toMatchObject({code: 'ENOENT'});
   });
 });

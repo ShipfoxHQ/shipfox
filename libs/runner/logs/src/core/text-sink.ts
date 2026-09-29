@@ -12,6 +12,8 @@ import {
 } from 'node:fs';
 import {join} from 'node:path';
 import {logger} from '@shipfox/node-opentelemetry';
+import {isUuid} from '@shipfox/regex';
+import {InvalidStepIdError} from '#core/errors.js';
 import type {TransformEvent} from '#core/transform.js';
 
 export const TEXT_LOG_SEGMENT_BYTES = 1024 * 1024;
@@ -42,6 +44,8 @@ export interface TextLogSink {
  * output without leaving a file that looks complete to the caller.
  */
 export function createTextLogSink(options: TextLogSinkOptions): TextLogSink {
+  if (!isUuid(options.stepId)) throw new InvalidStepIdError(options.stepId);
+
   const segmentDir = join(options.logsDir, 'text', `${options.stepId}-${options.attempt}`);
   const finalPath = join(options.logsDir, 'text', `${options.stepId}-${options.attempt}.log`);
   let currentFd: number | undefined;
@@ -313,7 +317,7 @@ export function createTextLogSink(options: TextLogSinkOptions): TextLogSink {
           `[shipfox] Log truncated: dropped the first ${formatSize(tail.start)} of this attempt's log; kept the last 16 MiB.${detail}\n`,
           'utf8',
         );
-        writeSync(finalFd, tombstone, 0, tombstone.length, null);
+        writeBuffer(finalFd, tombstone, tombstone.length);
       }
       copyRange(allSegments, tail.start, totalBytes, finalFd);
     } finally {
@@ -331,6 +335,12 @@ export function createTextLogSink(options: TextLogSinkOptions): TextLogSink {
       finalizedPath = finalPath;
       return finalPath;
     } catch (err) {
+      failed = true;
+      try {
+        closeCurrent();
+      } catch {
+        currentFd = undefined;
+      }
       removePartialFinalFile();
       logger().error(
         {err, stepId: options.stepId, attempt: options.attempt},
