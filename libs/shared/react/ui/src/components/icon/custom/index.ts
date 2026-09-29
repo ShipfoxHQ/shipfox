@@ -4,6 +4,7 @@ export * from './circle-dotted-line.js';
 export * from './clickup-logo.js';
 export * from './component-fill.js';
 export * from './component-line.js';
+export * from './discord-logo.js';
 export * from './ellipse-mini-solid.js';
 export * from './gitea-logo.js';
 export * from './info-tooltip-fill.js';

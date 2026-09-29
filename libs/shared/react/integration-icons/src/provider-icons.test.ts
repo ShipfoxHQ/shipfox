@@ -10,6 +10,7 @@ describe('PROVIDER_ICONS', () => {
       slack: 'slack',
       jira: 'jira',
       clickup: 'clickup',
+      discord: 'discord',
       gitea: 'gitea',
       webhook: 'webhookLine',
     });

@@ -44,6 +44,7 @@ export const CommonIcons: Story = {
         'gitea',
         'jira',
         'clickup',
+        'discord',
         'linear',
         'notion',
       ].map((name) => (
