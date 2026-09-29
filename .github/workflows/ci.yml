@@ -342,6 +342,7 @@ jobs:
             --filter=@shipfox/application-release... \
             --filter=@shipfox/api... \
             --filter=@shipfox/api-integration-notion-dto... \
+            --filter=@shipfox/api-integration-discord-dto... \
             --filter=@shipfox/actions... \
             --filter=@shipfox/client-shell... \
             --filter=@shipfox/client-features... \
