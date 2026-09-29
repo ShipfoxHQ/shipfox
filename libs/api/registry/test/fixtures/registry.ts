@@ -9,7 +9,10 @@ import {
   type RegistrySigner,
   type RegistryTrustedKey,
   type RegistryVersionDocument,
-  registryBlobPath,
+  registryBlobKey,
+  registryContentPath,
+  registryReadmePath,
+  registrySourcePath,
   registryVersionPath,
   signRegistryVersionDocument,
 } from '@shipfox/registry-format';
@@ -37,22 +40,30 @@ export interface TestRegistry {
   /** Paths requested so far, in order. */
   requests: string[];
   put(path: string, body: Uint8Array | string): void;
+  /** Answers `path` with a 307 to `target`, like a presigned download URL. */
+  redirect(path: string, target: string): void;
   fail(path: string, status: number): void;
   close(): Promise<void>;
 }
 
 export async function startTestRegistry(): Promise<TestRegistry> {
   const files = new Map<string, Uint8Array | string>();
+  const redirects = new Map<string, string>();
   const failures = new Map<string, number>();
   const requests: string[] = [];
   // The OS can hand out a port again, and cached rows are keyed by URL, so the prefix keeps URLs unique.
   const prefix = `/${randomUUID()}/`;
   const server = createServer((request, response) => {
-    const path = (request.url ?? '').slice(prefix.length);
+    const path = (request.url ?? '').slice(prefix.length - 1);
     requests.push(path);
     const status = failures.get(path);
     if (status) {
       response.writeHead(status).end();
+      return;
+    }
+    const target = redirects.get(path);
+    if (target !== undefined) {
+      response.writeHead(307, {location: `${prefix}${target}`}).end();
       return;
     }
     const body = files.get(path);
@@ -69,6 +80,7 @@ export async function startTestRegistry(): Promise<TestRegistry> {
     url: `http://127.0.0.1:${port}${prefix.slice(0, -1)}`,
     requests,
     put: (path, body) => files.set(path, body),
+    redirect: (path, target) => redirects.set(path, target),
     fail: (path, status) => failures.set(path, status),
     close: () =>
       new Promise<void>((resolve) => {
@@ -80,6 +92,11 @@ export async function startTestRegistry(): Promise<TestRegistry> {
 
 export function settingsFor(params: {registry: TestRegistry; keys: TestKey[]}): RegistrySettings {
   return {registry: params.registry.url, trustedKeys: params.keys.map((key) => key.trusted)};
+}
+
+/** Where the test registry serves a blob that a download route redirects to. */
+export function blobPath(digest: string): string {
+  return `/${registryBlobKey(digest)}`;
 }
 
 export interface PublishedVersion {
@@ -135,9 +152,19 @@ export async function publishVersion(params: {
     registryVersionPath({package: packageName, version}),
     JSON.stringify(envelope),
   );
-  params.registry.put(registryBlobPath(content.digest), content.gzip);
-  params.registry.put(registryBlobPath(source.digest), source.gzip);
-  if (readme && readmeBytes) params.registry.put(registryBlobPath(readme.digest), readmeBytes);
+  params.registry.redirect(
+    registryContentPath({package: packageName, version}),
+    registryBlobKey(content.digest),
+  );
+  params.registry.put(blobPath(content.digest), content.gzip);
+  params.registry.redirect(
+    registrySourcePath({package: packageName, version}),
+    registryBlobKey(source.digest),
+  );
+  params.registry.put(blobPath(source.digest), source.gzip);
+  if (readmeBytes) {
+    params.registry.put(registryReadmePath({package: packageName, version}), readmeBytes);
+  }
 
   return {
     package: packageName,

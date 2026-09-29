@@ -1,4 +1,3 @@
-import {registryJtiPath} from '@shipfox/registry-format';
 import {createRemoteJWKSet, errors, jwtVerify} from 'jose';
 import {z} from 'zod';
 import {PublishTokenRefusedError} from '#publish/errors.js';
@@ -6,6 +5,7 @@ import {describeIssues} from '#publish/issues.js';
 
 export const GITHUB_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';
 export const CLOCK_SKEW_SECONDS = 60;
+const TOKEN_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const MAX_TOKEN_AGE_SECONDS = 10 * 60;
 // Failing to fetch or read the issuer's key set is an outage to report, not a bad token.
 const ISSUER_FAILURE_CODES = new Set(['ERR_JWKS_TIMEOUT', 'ERR_JWKS_INVALID', 'ERR_JOSE_GENERIC']);
@@ -78,10 +78,5 @@ export function createGithubOidcVerifier({
 }
 
 function isTokenId(value: string): boolean {
-  try {
-    registryJtiPath(value);
-    return true;
-  } catch {
-    return false;
-  }
+  return TOKEN_ID_PATTERN.test(value);
 }
