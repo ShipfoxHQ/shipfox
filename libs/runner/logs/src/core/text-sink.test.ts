@@ -142,6 +142,20 @@ describe('createTextLogSink', () => {
     expect(sink.finalize()).toBeUndefined();
   });
 
+  it('ignores writes after close and still finalizes what was captured', async () => {
+    const sink = createTextLogSink({logsDir, stepId: STEP_ID, attempt: 1});
+
+    sink.write(output('kept\n'));
+    sink.close();
+    sink.write(output('ignored\n'));
+    sink.close();
+
+    const path = sink.finalize();
+
+    expect(sink.isFailed()).toBe(false);
+    await expect(readFile(requirePath(path), 'utf8')).resolves.toBe('kept\n');
+  });
+
   it('rejects a traversal step id before constructing text paths', () => {
     const create = () => createTextLogSink({logsDir, stepId: '../escape', attempt: 8});
 
