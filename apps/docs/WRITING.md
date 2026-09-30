@@ -42,7 +42,7 @@ Use this product headline on public overview surfaces:
 Follow the headline with this description. Also use it in machine-readable
 summaries such as `llms.txt`:
 
-> Turn tickets, alerts, and failed checks into workflows in your repo. Agents and the exact commands your team specifies, delivered as PRs you review. Any model, any stack. Open source.
+> Turn tickets, alerts, and failed checks into workflows in your repo. Each one opens a pull request you review. Any model, any stack. Open source.
 
 Use this shorter description for search engine and link previews:
 

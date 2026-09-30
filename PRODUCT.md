@@ -19,9 +19,8 @@ data density, unambiguous status, and no marketing fluff.
 
 Run coding agents like CI pipelines.
 
-Turn tickets, alerts, and failed checks into workflows in your repo. Agents and
-the exact commands your team specifies, delivered as PRs you review. Any model,
-any stack. Open source.
+Turn tickets, alerts, and failed checks into workflows in your repo. Each one
+opens a pull request you review. Any model, any stack. Open source.
 
 Workflows plug into the tools that power an engineering team, such as ticketing,
 monitoring, chat, and source control, through one secured layer. The same
@@ -106,8 +105,8 @@ Constraints:
 - **Name:** Shipfox. Domain: shipfox.io.
 - **Headline:** "Run coding agents like CI pipelines."
 - **Description:** "Turn tickets, alerts, and failed checks into workflows in
-  your repo. Agents and the exact commands your team specifies, delivered as PRs
-  you review. Any model, any stack. Open source."
+  your repo. Each one opens a pull request you review. Any model, any stack.
+  Open source."
 - **Search description:** "Turn tickets, alerts, and failed checks into
   workflows in your repo. Agents and your team's exact commands, delivered as
   PRs you review. Open source."
