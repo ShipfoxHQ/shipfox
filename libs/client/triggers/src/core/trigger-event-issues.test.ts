@@ -292,11 +292,15 @@ describe('getTriggerEventIssueCallout', () => {
       }),
     );
 
-    expect(callout).toMatchObject({type: 'error', title: 'Secret is unavailable'});
-    expect(callout?.issues[0]?.description).toContainEqual({kind: 'code', value: 'MISSING_TOKEN'});
+    expect(callout).toMatchObject({type: 'error', title: 'Secret MISSING_TOKEN is not set'});
     expect(callout?.issues[0]?.description.map((part) => part.value).join('')).toBe(
-      'MISSING_TOKEN could not be found for on_pr_opened. Check the trigger secret mapping and scope.',
+      'The on_pr_opened trigger passes it to the workflow.',
     );
+    expect(callout?.issues[0]?.action).toEqual({
+      kind: 'add-secret',
+      label: 'Add secret',
+      key: 'MISSING_TOKEN',
+    });
   });
 
   test('identifies the missing secret input for a failed workflow start', () => {
@@ -312,10 +316,75 @@ describe('getTriggerEventIssueCallout', () => {
       }),
     );
 
-    expect(callout).toMatchObject({type: 'error', title: 'Secret input is not passed'});
+    expect(callout).toMatchObject({
+      type: 'error',
+      title: 'Secret input DEPLOY_TOKEN is not passed',
+    });
     expect(callout?.issues[0]?.description.map((part) => part.value).join('')).toBe(
-      'DEPLOY_TOKEN was not passed to on_pr_opened. Add it to the trigger secrets mapping.',
+      "The on_pr_opened trigger doesn't pass secrets.inputs.DEPLOY_TOKEN. Add it to the trigger's secrets: in the workflow file.",
     );
+    expect(callout?.issues[0]?.action).toBeUndefined();
+  });
+
+  describe('missing variable', () => {
+    function variableCallout(diagnostic: Record<string, unknown>) {
+      return getTriggerEventIssueCallout(
+        event({
+          decisions: [
+            decision({
+              decision: 'dispatch-error',
+              diagnostic: {
+                version: 1,
+                code: 'interpolation-unresolvable',
+                field: 'job.if',
+                ...diagnostic,
+              } as TriggerEventDecisionDiagnostic,
+            }),
+          ],
+        }),
+      );
+    }
+
+    test('names the variable, its predicate location and offers Add variable', () => {
+      const callout = variableCallout({variableKey: 'E2E_SCHEDULE_ENABLED', jobKey: 'e2e'});
+
+      expect(callout).toMatchObject({
+        type: 'error',
+        title: 'Variable E2E_SCHEDULE_ENABLED is not set',
+      });
+      expect(callout?.issues[0]?.description.map((part) => part.value).join('')).toBe(
+        "The if on job e2e reads it. Every variable a workflow references must exist, even in a branch that doesn't run.",
+      );
+      expect(callout?.issues[0]?.action).toEqual({
+        kind: 'add-variable',
+        label: 'Add variable',
+        key: 'E2E_SCHEDULE_ENABLED',
+      });
+    });
+
+    test('names the job, step and env key for a step value', () => {
+      const callout = variableCallout({
+        field: 'env',
+        envKey: 'TOKEN',
+        variableKey: 'API_TOKEN',
+        jobKey: 'e2e',
+        step: {key: 'deploy', name: 'Deploy', index: 2},
+      });
+
+      expect(callout?.issues[0]?.description.map((part) => part.value).join('')).toContain(
+        'Job e2e, step Deploy, env.TOKEN reads it.',
+      );
+    });
+
+    test('renders old rows without the variable fields', () => {
+      const callout = variableCallout({field: 'env', envKey: 'TOKEN'});
+
+      expect(callout).toMatchObject({title: 'Workflow value could not be resolved'});
+      expect(callout?.issues[0]?.action).toBeUndefined();
+      expect(callout?.issues[0]?.description.map((part) => part.value).join('')).toBe(
+        'TOKEN could not be resolved in env for on_pr_opened.',
+      );
+    });
   });
 
   test('uses the event fallback when an error has no recorded decision', () => {
