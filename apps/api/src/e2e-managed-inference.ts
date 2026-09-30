@@ -4,9 +4,11 @@ import {
   type ManagedModelProvider,
   type ManagedModelThinkingLevel,
   type ManagedModelThinkingLevelMap,
+  type ManagedProviderJobIdentity,
   type ManagedProviderRuntimeConfig,
   managedModelThinkingLevelSchema,
 } from '@shipfox/api-agent-dto';
+import type {UsageModuleClient} from '@shipfox/api-usage-dto/inter-module';
 import {
   type AuthMethod,
   ClientError,
@@ -17,6 +19,14 @@ import {
   type RouteGroup,
 } from '@shipfox/node-fastify';
 import type {ShipfoxModule} from '@shipfox/node-module';
+import {
+  forwardToOpenRouter,
+  type InferenceReply,
+  type InferenceUsageIdentity,
+  OPENROUTER_MODEL_IDS,
+  type OpenRouterBackend,
+  type RecordInferenceSegment,
+} from './e2e-openrouter.js';
 
 const E2E_MANAGED_PROVIDER_ID = 'shipfox';
 const E2E_PI_MODEL = 'e2e-renewable-pi';
@@ -159,6 +169,8 @@ interface CredentialState {
   renewableInference: boolean;
   projectId: string;
   scriptedAttempt: ScriptedAttempt | undefined;
+  /** Set when the project's requests go to OpenRouter, with the identity its usage is recorded under. */
+  openRouterIdentity: InferenceUsageIdentity | undefined;
   lastTouchedAt: number;
 }
 
@@ -175,19 +187,33 @@ interface InferenceState {
   readonly credentials: Map<string, CredentialState>;
   readonly tombstones: Map<string, CredentialState>;
   readonly scripts: Map<string, ScriptedProject>;
+  readonly openRouter: OpenRouterBackend | undefined;
+  readonly openRouterProjects: Set<string>;
+  recordInferenceSegment: RecordInferenceSegment | undefined;
   readonly stats: InferenceStats;
 }
 
 export function createE2eManagedInferenceProvider(
   baseUrl: string | undefined,
   adminApiKey?: string,
-): {provider: ManagedModelProvider; module: ShipfoxModule} | undefined {
+  options: {openRouter?: OpenRouterBackend | undefined} = {},
+):
+  | {
+      provider: ManagedModelProvider;
+      module: ShipfoxModule;
+      /** Connects the Usage module, which records the tokens of requests sent to OpenRouter. */
+      bindUsage: (usage: Pick<UsageModuleClient, 'recordInferenceSegments'>) => void;
+    }
+  | undefined {
   if (baseUrl === undefined) return undefined;
 
   const state: InferenceState = {
     credentials: new Map(),
     tombstones: new Map(),
     scripts: new Map(),
+    openRouter: options.openRouter,
+    openRouterProjects: new Set(),
+    recordInferenceSegment: undefined,
     stats: {
       resolutions: 0,
       expiredRequests: 0,
@@ -215,6 +241,11 @@ export function createE2eManagedInferenceProvider(
       routes: [createInferenceRoutes(state)],
       e2eRoutes: [createInferenceStatsRoutes(state)],
     },
+    bindUsage: (usage) => {
+      state.recordInferenceSegment = async (segment) => {
+        await usage.recordInferenceSegments({segments: [segment]});
+      };
+    },
   };
 }
 
@@ -237,16 +268,10 @@ function resolveE2eCredentials(
   pruneCredentialStates(state, now);
   const renewableInference = params.renewableInference;
   const projectId = params.jobIdentity.projectId;
-  const credentialState = state.credentials.get(key) ??
-    state.tombstones.get(key) ?? {
-      stepAttemptId: key,
-      nextGeneration: 1,
-      model: model.id,
-      renewableInference,
-      projectId,
-      scriptedAttempt: createScriptedAttempt(state, projectId),
-      lastTouchedAt: now,
-    };
+  const credentialState =
+    state.credentials.get(key) ??
+    state.tombstones.get(key) ??
+    createCredentialState({state, params, jobIdentity: params.jobIdentity, now});
   if (credentialState.model !== model.id) {
     throw new Error('E2E managed provider model changed during credential renewal');
   }
@@ -266,7 +291,7 @@ function resolveE2eCredentials(
 
   const token = `shipfox-e2e-${params.stepAttemptId}-g${generation}`;
   const runtimeConfig: ManagedProviderRuntimeConfig = {
-    api: model.api,
+    api: credentialState.openRouterIdentity === undefined ? model.api : 'openai-completions',
     baseUrl,
     credentials: {api_key: token},
   };
@@ -282,6 +307,44 @@ function resolveE2eCredentials(
         now + (isRefreshAtModel(model.id) && generation === 1 ? -1_000 : E2E_RENEWAL_DELAY_MS),
       ),
     },
+  };
+}
+
+function createCredentialState(params: {
+  state: InferenceState;
+  params: Parameters<ManagedModelProvider['resolveCredentials']>[0];
+  jobIdentity: ManagedProviderJobIdentity;
+  now: number;
+}): CredentialState {
+  const {jobIdentity} = params;
+  const scriptedAttempt = createScriptedAttempt(params.state, jobIdentity.projectId);
+  const openRouter =
+    scriptedAttempt === undefined &&
+    params.state.openRouter !== undefined &&
+    params.state.openRouterProjects.has(jobIdentity.projectId);
+  if (openRouter && !Object.hasOwn(OPENROUTER_MODEL_IDS, params.params.model)) {
+    throw new Error(`E2E managed provider has no OpenRouter model for ${params.params.model}`);
+  }
+  return {
+    stepAttemptId: params.params.stepAttemptId,
+    nextGeneration: 1,
+    model: params.params.model,
+    renewableInference: params.params.renewableInference,
+    projectId: jobIdentity.projectId,
+    scriptedAttempt,
+    openRouterIdentity: openRouter
+      ? {
+          workspaceId: params.params.workspaceId,
+          projectId: jobIdentity.projectId,
+          workflowRunId: params.params.runId,
+          workflowRunAttemptId: jobIdentity.workflowRunAttemptId,
+          jobId: jobIdentity.jobId,
+          jobExecutionId: jobIdentity.jobExecutionId,
+          stepId: jobIdentity.stepId,
+          stepAttemptId: params.params.stepAttemptId,
+        }
+      : undefined,
+    lastTouchedAt: params.now,
   };
 }
 
@@ -337,10 +400,9 @@ function parseScriptReply(value: unknown): ScriptedReply {
   });
 }
 
-function routeProjectId(value: unknown): string {
-  if (isRecord(value) && typeof value.projectId === 'string' && isUuid(value.projectId)) {
-    return value.projectId;
-  }
+function routeProjectId(value: unknown, key: 'project_id' | 'projectId'): string {
+  const projectId = isRecord(value) ? value[key] : undefined;
+  if (typeof projectId === 'string' && isUuid(projectId)) return projectId;
   throw new ClientError('Invalid scripted provider project', 'invalid-script', {status: 400});
 }
 
@@ -399,6 +461,11 @@ function createInferenceStatsRoutes(state: InferenceState): RouteGroup {
         description: 'Registers a project-scoped scripted E2E managed inference backend.',
         handler: (request, reply) => {
           const body = parseScriptRegistration(request.body);
+          if (state.openRouterProjects.has(body.project_id)) {
+            throw new ClientError('The project already uses OpenRouter', 'backend-conflict', {
+              status: 409,
+            });
+          }
           const script = {
             entries: body.entries.map((entry) => ({
               promptContains: entry.match.prompt_contains,
@@ -412,11 +479,32 @@ function createInferenceStatsRoutes(state: InferenceState): RouteGroup {
         },
       }),
       defineRoute({
+        method: 'POST',
+        path: '/openrouter',
+        description: 'Sends a project to the OpenRouter backend of the E2E managed provider.',
+        handler: (request, reply) => {
+          if (state.openRouter === undefined) {
+            throw new ClientError('The OpenRouter backend is not enabled', 'openrouter-disabled', {
+              status: 409,
+            });
+          }
+          const projectId = routeProjectId(request.body, 'project_id');
+          if (state.scripts.has(projectId)) {
+            throw new ClientError('The project already uses a script', 'backend-conflict', {
+              status: 409,
+            });
+          }
+          state.openRouterProjects.add(projectId);
+          reply.code(201);
+          return {project_id: projectId};
+        },
+      }),
+      defineRoute({
         method: 'GET',
         path: '/scripts/:projectId/requests',
         description: 'Returns requests recorded by a scripted managed inference backend.',
         handler: (request) => {
-          const projectId = routeProjectId(request.params);
+          const projectId = routeProjectId(request.params, 'projectId');
           return {
             project_id: projectId,
             requests: state.scripts.get(projectId)?.requests ?? [],
@@ -489,20 +577,27 @@ function respondToInferenceRequest(params: {
   body: unknown;
   headers: Record<string, unknown>;
   state: InferenceState;
-  reply: {
-    code(statusCode: number): {send(payload: unknown): unknown};
-    header(name: string, value: string): unknown;
-    hijack(): unknown;
-    raw: {
-      end(chunk?: string): unknown;
-      write(chunk: string): unknown;
-      writeHead(statusCode: number, headers: Record<string, string>): unknown;
-    };
-    send(payload: unknown): unknown;
-  };
+  reply: InferenceReply;
 }): unknown {
   const requestModel = bodyString(params.body, 'model') ?? 'unknown';
   const credentialState = credentialStateForRequest(params.state, params.headers);
+  if (credentialState?.openRouterIdentity !== undefined && params.state.openRouter !== undefined) {
+    if (params.api !== 'openai-completions') {
+      return params.reply.code(400).send({
+        error: {
+          message: 'The OpenRouter backend serves OpenAI chat completions only.',
+          type: 'openrouter_protocol_unsupported',
+        },
+      });
+    }
+    return forwardToOpenRouter({
+      backend: params.state.openRouter,
+      body: params.body,
+      identity: credentialState.openRouterIdentity,
+      record: params.state.recordInferenceSegment,
+      reply: params.reply,
+    });
+  }
   if (params.api === 'openai-completions' && credentialState?.scriptedAttempt !== undefined) {
     return respondWithScriptedOpenAiCompletion(
       params.reply,
