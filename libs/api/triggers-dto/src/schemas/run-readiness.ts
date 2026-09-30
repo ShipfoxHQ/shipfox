@@ -45,6 +45,13 @@ export const runIssueDtoSchema = z.discriminatedUnion('kind', [
     more_locations: z.number().int().positive().optional(),
     effect: runIssueEffectSchema,
   }),
+  z.object({
+    kind: z.literal('secret-missing'),
+    key: z.string(),
+    locations: z.array(runIssueLocationSchema),
+    more_locations: z.number().int().positive().optional(),
+    effect: runIssueEffectSchema,
+  }),
 ]);
 export type RunIssueDto = z.infer<typeof runIssueDtoSchema>;
 
