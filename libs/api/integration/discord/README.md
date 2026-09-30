@@ -193,7 +193,7 @@ Sentry reports use the `integrations.discord.gateway` boundary: Identify refused
 | `GUILD_DELETE` | Runs the removal check, unless the guild is only `unavailable`. |
 | `GUILD_ROLE_CREATE`, `GUILD_ROLE_UPDATE` | Writes the role id when `tags.bot_id` is the application id. |
 
-The role id lives on the installation row, so a leader that resumes without a `GUILD_CREATE` still knows it. The removal check reads the installation's `generation`, calls `GET /guilds/{id}`, and then updates the installation `WHERE generation = g` in the same transaction as the connection lifecycle. `200` means installed and `active`. `403` and `404` mean removed and `error`. A reinstall in between bumps the generation, so the update matches nothing and the newer state stays. Any other answer changes nothing, and the next `READY` retries.
+The role id lives on the installation row, so a leader that resumes without a `GUILD_CREATE` still knows it. The removal check reads the installation's `generation`, calls `GET /guilds/{id}`, and then updates that installation row `WHERE generation = g` in the same transaction as the connection lifecycle. `200` means installed and `active`. `403` and `404` mean removed and `error`. A reinstall in between bumps the generation, and a delete followed by a reinstall replaces the row, so the update matches nothing and the newer state stays. Any other answer changes nothing, and the next `READY` retries.
 
 ## License
 
