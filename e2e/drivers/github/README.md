@@ -8,16 +8,23 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
 ## Public API
 
 - `startGithubApiMock(options?)`: start the fake and return a `GithubApiMock`. It
-  serves installation tokens, repository and issue reads, pull request reads,
-  issue search, GraphQL `createCommitOnBranch`, issue creation, and check runs.
-  Waits for the port when a spec in another worker holds it.
+  serves installation tokens, repository and issue reads, pull request create,
+  list, read, update, and merge, review comment replies, issue comments, issue
+  search, GraphQL review threads and `createCommitOnBranch`, issue creation, and
+  check runs. Waits for the port when a spec in another worker holds it.
 - `GithubApiMock.calls`: every request the fake handled, as `GithubApiMockCall`
   entries in arrival order.
-- `GithubApiMock.pullRequests` and `branchHeads`: fixtures a test fills once it
-  knows the commits.
+- `GithubApiMock.pullRequests`, `reviewThreads`, and `branchHeads`: state a test
+  seeds once it knows the commits. Pull requests created through the API land in
+  `pullRequests`, and replies and thread resolution update `reviewThreads`.
 - `GithubApiMock.writes()`: the accepted state-changing requests as `RecordedWrite`
-  entries (`kind`, `target`, `payload`). It returns an empty list until the
-  recorded-write units fill it. `RecordedWrite` itself lives in `@shipfox/e2e-core`.
+  entries (`kind`, `target`, `payload`) in arrival order. A request that GitHub
+  would reject is not recorded. `target` is `owner/repo#<number>` for pull
+  request writes. It records these kinds:
+  `github.create_pull_request`, `github.update_pull_request`,
+  `github.merge_pull_request`, `github.reply_to_review_comment`,
+  `github.create_issue_comment`, and `github.resolve_review_thread`.
+  `RecordedWrite` itself lives in `@shipfox/e2e-core`.
 - `GITHUB_*_INSTALLATION_TOKEN` and `GITHUB_*_RESULT_MARKER`: constants the suites
   assert on.
 

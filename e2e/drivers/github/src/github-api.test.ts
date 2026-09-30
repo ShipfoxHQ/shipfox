@@ -435,7 +435,7 @@ describe('GitHub API mock', () => {
       }).then((response) => response.json());
 
     try {
-      mock.pullRequests.set(7, {ref: 'feature', sha: 'a'.repeat(40)});
+      mock.pullRequests.set(7, {repository: 'shipfox/e2e', ref: 'feature', sha: 'a'.repeat(40)});
       mock.branchHeads.set('feature', 'a'.repeat(40));
       const pullRequest = await fetch(new URL('/repos/shipfox/e2e/pulls/7', mock.endpoint), {
         headers,

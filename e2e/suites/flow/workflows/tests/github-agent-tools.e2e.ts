@@ -48,6 +48,8 @@ const REPOSITORY_REQUIRED_MESSAGE = 'Selected repository access requires owner a
 const SEARCH_QUALIFIER_MESSAGE = 'Search query cannot contain repo:, org:, or user: qualifiers';
 const CHECK_RUN_HEAD_SHA = 'a'.repeat(40);
 const CHECK_RUN_ID = 123456;
+const REVIEW_THREAD_ID = 'PRRT_e2e_feedback';
+const REVIEW_COMMENT_ID = 4321;
 const CHECK_RUN_PROVIDER_FAILURE_PATTERN = /404|Not Found|provider-rejected/u;
 const CHECK_RUN_PERMISSION_FAILURE_PATTERN = /403|permission|provider-rejected/u;
 const GITHUB_TOKEN_CASES = [
@@ -368,6 +370,67 @@ test('runs a direct check-run lifecycle and maps the created id to the update', 
         },
       },
     ]);
+  } finally {
+    await fixture.githubApi.stop();
+  }
+});
+
+test('opens a pull request, replies to a review comment, and resolves its thread', async ({
+  suite,
+}, testInfo) => {
+  const uniqueId = shortId();
+  const fixture = await createGithubFixture(suite, uniqueId);
+
+  try {
+    fixture.githubApi.branchHeads.set('shipfox/feedback', 'a'.repeat(40));
+    fixture.githubApi.reviewThreads.set(REVIEW_THREAD_ID, {
+      pullNumber: 1,
+      path: 'src/report.ts',
+      comments: [{id: REVIEW_COMMENT_ID, body: 'Rename the flag.', author: 'reviewer'}],
+    });
+    const result = await runGithubWorkflow({
+      suite: fixture.suite,
+      testInfo,
+      uniqueId,
+      project: fixture.project,
+      scenario: 'github-pull-request-feedback',
+      selection: {
+        jobs: [
+          {
+            jobKey: 'feedback',
+            includeDefaultExecution: true,
+            stepKeys: ['open_pr', 'reply', 'resolve'],
+          },
+        ],
+      },
+      workflowYaml: pullRequestFeedbackWorkflow(fixture.connection.slug),
+    });
+
+    expect(result.terminal.status).toBe('succeeded');
+    expect(result.terminal.jobs.find((job) => job.key === 'feedback')?.status).toBe('succeeded');
+    expect(fixture.githubApi.writes()).toEqual([
+      {
+        kind: 'github.create_pull_request',
+        target: 'shipfox/e2e#1',
+        payload: {
+          title: 'Add a --json flag',
+          head: 'shipfox/feedback',
+          base: 'main',
+          draft: true,
+        },
+      },
+      {
+        kind: 'github.reply_to_review_comment',
+        target: 'shipfox/e2e#1',
+        payload: {comment_id: REVIEW_COMMENT_ID, body: 'Renamed.'},
+      },
+      {
+        kind: 'github.resolve_review_thread',
+        target: 'shipfox/e2e#1',
+        payload: {thread_id: REVIEW_THREAD_ID},
+      },
+    ]);
+    expect(fixture.githubApi.reviewThreads.get(REVIEW_THREAD_ID)?.isResolved).toBe(true);
   } finally {
     await fixture.githubApi.stop();
   }
@@ -1114,6 +1177,49 @@ jobs:
           output:
             title: Review complete
             summary: Shipfox completed the review.
+`;
+}
+
+function pullRequestFeedbackWorkflow(connection: string): string {
+  return `
+name: GitHub pull request feedback
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+    event: fire
+jobs:
+  feedback:
+    checkout: false
+    steps:
+      - key: open_pr
+        tool: create_pull_request
+        connection: ${connection}
+        with:
+          owner: shipfox
+          repo: e2e
+          title: Add a --json flag
+          head: shipfox/feedback
+          base: main
+          draft: true
+        outputs:
+          number: "\${{ result.pull_request.number }}"
+      - key: reply
+        tool: add_reply_to_pull_request_comment
+        connection: ${connection}
+        with:
+          owner: shipfox
+          repo: e2e
+          pull_number: "\${{ steps.open_pr.outputs.number }}"
+          comment_id: ${REVIEW_COMMENT_ID}
+          body: Renamed.
+      - key: resolve
+        tool: pull_request_review_thread_write.resolve
+        connection: ${connection}
+        with:
+          owner: shipfox
+          repo: e2e
+          thread_id: ${REVIEW_THREAD_ID}
 `;
 }
 

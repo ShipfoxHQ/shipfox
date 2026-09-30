@@ -317,7 +317,11 @@ test('the verified commit action publishes a pull request change whole or not at
           {number: 10, ref: 'e2e/oversized', tip: headSha},
         ];
         for (const pullRequest of pullRequests) {
-          githubApi.pullRequests.set(pullRequest.number, {ref: pullRequest.ref, sha: headSha});
+          githubApi.pullRequests.set(pullRequest.number, {
+            repository: GITHUB_REPOSITORY,
+            ref: pullRequest.ref,
+            sha: headSha,
+          });
           githubApi.branchHeads.set(pullRequest.ref, pullRequest.tip);
         }
       },
