@@ -301,6 +301,14 @@ describe('ticket to PR template', () => {
     expect(toolSteps(workflow(jira, {ticket_write_back: 'none'}))).toEqual(['create_pull_request']);
   });
 
+  it('passes the Jira transition ID as a string, although a step output turns "21" into a number', () => {
+    const transition = step(workflow(jira), 'implement', 'mark_in_progress');
+
+    expect(at(transition, 'with', 'transitionId')).toBe(
+      '${{ string(steps.find_in_progress.outputs.transition_id) }}',
+    );
+  });
+
   it.each([
     {
       name: 'a label added to an issue',

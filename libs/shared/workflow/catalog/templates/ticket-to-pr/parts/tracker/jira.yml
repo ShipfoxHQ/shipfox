@@ -95,7 +95,7 @@ mark_in_progress: |
     connection: jira_tracker # bind:tracker
     with:
       idOrKey: ${{ steps.task.outputs.ticket_id }}
-      transitionId: ${{ steps.find_in_progress.outputs.transition_id }}
+      transitionId: ${{ string(steps.find_in_progress.outputs.transition_id) }}
     gate:
       on_failure:
         restart_from: task
