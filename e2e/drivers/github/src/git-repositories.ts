@@ -286,7 +286,7 @@ async function runBackend(params: {
       response.write(head.subarray(end + CGI_HEADER_END.length));
     });
     child.on('close', () => {
-      if (!headersSent) {
+      if (!headersSent && !response.headersSent) {
         response.writeHead(500, {'content-type': 'text/plain'});
         response.write(`git http-backend failed: ${stderr}`);
       }

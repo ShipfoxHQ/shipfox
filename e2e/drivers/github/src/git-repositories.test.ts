@@ -188,7 +188,7 @@ describe('GitHub fake git transport', () => {
         },
       },
     ]);
-    expect(base).not.toBe(change);
+    await expect(git(checkout, 'rev-parse', `${change}~1`)).resolves.toBe(base);
   });
 
   it('records nothing for a push the fake refused', async () => {
