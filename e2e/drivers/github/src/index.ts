@@ -22,8 +22,10 @@ export {
   type GithubAuthorAssociation,
   type GithubWebhookDelivery,
   type GithubWebhookSender,
+  type GithubWorkflowRunConclusion,
   type SendPullRequestClosedParams,
   type SendPullRequestReviewCommentParams,
+  type SendWorkflowRunCompletedParams,
   type SentReviewComment,
   signGithubWebhook,
 } from './webhook-events.js';

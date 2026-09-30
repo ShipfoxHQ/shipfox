@@ -44,6 +44,12 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   fake's `installationId`. Set `webhookSecret` on the fake, or export
   `GITHUB_APP_WEBHOOK_SECRET`, to sign with the API's secret; the harness sets the latter. Set
   `apiUrl` to deliver somewhere other than the E2E API.
+- `GithubApiMock.sendWorkflowRunCompleted(params)`: delivers a signed `workflow_run.completed`
+  webhook for a repository, with the run's `conclusion` (default `failure`) and `headBranch`
+  (default: the first pull request's head, else the repository's default branch). It also sets the workflow path and name, run and
+  attempt numbers, triggering `event`, `actor`, head commit message, head repository (set it to
+  model a fork), and `pullNumbers`, which must exist in `pullRequests`. Each call gets its own
+  run ID unless `runId` is set.
 - `signGithubWebhook(params)`: the `X-Hub-Signature-256`, `X-GitHub-Event`, and
   `X-GitHub-Delivery` headers for a raw body.
 - `GITHUB_*_INSTALLATION_TOKEN` and `GITHUB_*_RESULT_MARKER`: constants the suites
