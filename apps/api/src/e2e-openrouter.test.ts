@@ -161,6 +161,63 @@ describe('OpenRouter backend', () => {
     expect(recorded[0]).toMatchObject({model: 'glm-5.3-flash', inputTokens: 7, outputTokens: 3});
   });
 
+  it('sums the cost OpenRouter reports for a project, streamed or not', async () => {
+    let calls = 0;
+    const upstream = await startUpstream((_request, response) => {
+      calls += 1;
+      if (calls === 1) {
+        response.writeHead(200, {'content-type': 'application/json'});
+        response.end(
+          JSON.stringify({
+            choices: [{index: 0, message: {role: 'assistant', content: 'one'}}],
+            usage: {prompt_tokens: 10, completion_tokens: 5, cost: 0.0125},
+          }),
+        );
+        return;
+      }
+      response.writeHead(200, {'content-type': 'text/event-stream'});
+      response.write('data: {"choices":[{"index":0,"delta":{"content":"two"}}]}\n\n');
+      response.write(
+        'data: {"choices":[],"usage":{"prompt_tokens":4,"completion_tokens":2,"cost":0.0075}}\n\n',
+      );
+      response.end('data: [DONE]\n\n');
+    });
+    const {app, runtime} = await startOpenRouterProject(upstream.baseUrl);
+    const headers = {authorization: `Bearer ${runtime.credentials.api_key}`};
+
+    await app.inject({
+      method: 'POST',
+      url: COMPLETIONS_URL,
+      headers,
+      payload: {model: 'gpt-6-luna', messages: []},
+    });
+    await app.inject({
+      method: 'POST',
+      url: COMPLETIONS_URL,
+      headers,
+      payload: {model: 'gpt-6-luna', stream: true, messages: []},
+    });
+    const cost = await app.inject({
+      method: 'GET',
+      url: `/managed-inference/openrouter/${PROJECT_ID}/cost`,
+    });
+
+    expect(upstream.requests[0]?.body.usage).toEqual({include: true});
+    expect(cost.json()).toEqual({project_id: PROJECT_ID, cost_usd: 0.02, priced_requests: 2});
+  });
+
+  it('reports no cost for a project that has not called OpenRouter', async () => {
+    const upstream = await startUpstream((_request, response) => response.end('{}'));
+    const {app} = await startOpenRouterProject(upstream.baseUrl);
+
+    const cost = await app.inject({
+      method: 'GET',
+      url: `/managed-inference/openrouter/${PROJECT_ID}/cost`,
+    });
+
+    expect(cost.json()).toEqual({project_id: PROJECT_ID, cost_usd: 0, priced_requests: 0});
+  });
+
   it('passes an upstream error through and records no usage', async () => {
     const upstream = await startUpstream((_request, response) => {
       response.writeHead(429, {'content-type': 'application/json'});

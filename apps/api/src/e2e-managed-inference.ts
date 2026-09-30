@@ -189,6 +189,8 @@ interface InferenceState {
   readonly scripts: Map<string, ScriptedProject>;
   readonly openRouter: OpenRouterBackend | undefined;
   readonly openRouterProjects: Set<string>;
+  /** What OpenRouter reported for each project's completions, in USD. */
+  readonly openRouterCosts: Map<string, {costUsd: number; requests: number}>;
   recordInferenceSegment: RecordInferenceSegment | undefined;
   readonly stats: InferenceStats;
 }
@@ -213,6 +215,7 @@ export function createE2eManagedInferenceProvider(
     scripts: new Map(),
     openRouter: options.openRouter,
     openRouterProjects: new Set(),
+    openRouterCosts: new Map(),
     recordInferenceSegment: undefined,
     stats: {
       resolutions: 0,
@@ -501,6 +504,20 @@ function createInferenceStatsRoutes(state: InferenceState): RouteGroup {
       }),
       defineRoute({
         method: 'GET',
+        path: '/openrouter/:projectId/cost',
+        description: 'Returns the cost OpenRouter reported for a project, in USD.',
+        handler: (request) => {
+          const projectId = routeProjectId(request.params, 'projectId');
+          const total = state.openRouterCosts.get(projectId);
+          return {
+            project_id: projectId,
+            cost_usd: total?.costUsd ?? 0,
+            priced_requests: total?.requests ?? 0,
+          };
+        },
+      }),
+      defineRoute({
+        method: 'GET',
         path: '/scripts/:projectId/requests',
         description: 'Returns requests recorded by a scripted managed inference backend.',
         handler: (request) => {
@@ -595,6 +612,13 @@ function respondToInferenceRequest(params: {
       body: params.body,
       identity: credentialState.openRouterIdentity,
       record: params.state.recordInferenceSegment,
+      recordCost: ({projectId, costUsd}) => {
+        const total = params.state.openRouterCosts.get(projectId) ?? {costUsd: 0, requests: 0};
+        params.state.openRouterCosts.set(projectId, {
+          costUsd: total.costUsd + costUsd,
+          requests: total.requests + 1,
+        });
+      },
       reply: params.reply,
     });
   }

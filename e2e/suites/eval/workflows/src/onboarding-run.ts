@@ -20,7 +20,7 @@ import {
   collectWorkflowFiles,
   type WrittenFile,
 } from './onboarding-workspace.js';
-import {createRunId} from './results.js';
+import {createRunId, outOfBudget} from './results.js';
 import {createSimulatedUser} from './simulated-user.js';
 
 const defaultCasesRoot = fileURLToPath(new URL('../cases/onboarding/', import.meta.url));
@@ -241,18 +241,6 @@ async function requireCases(options: OnboardingRunOptions): Promise<DiscoveredOn
     throw new Error(`No onboarding cases${selected} were found.`);
   }
   return discovered;
-}
-
-/** Whether the repeats so far have spent the run's budget, so no new repeat should start. */
-export function outOfBudget({
-  results,
-  maxCostUsd,
-}: {
-  results: Array<{cost_usd: number}>;
-  maxCostUsd: number | undefined;
-}): boolean {
-  if (maxCostUsd === undefined) return false;
-  return results.reduce((total, result) => total + result.cost_usd, 0) >= maxCostUsd;
 }
 
 /**

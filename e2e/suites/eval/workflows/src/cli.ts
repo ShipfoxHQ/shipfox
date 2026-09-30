@@ -28,7 +28,8 @@ Options:
   --catalog <directory>     Compile the templates of a catalog directory instead of the
                             shipped ones (compile mode only)
   --repeat <count>          Number of repeats (default: 1; the case's k for onboarding)
-  --max-cost-usd <amount>   Stop before exceeding this budget
+  --max-cost-usd <amount>   Stop starting cases once the runs so far have cost this much
+                            (live and onboarding runs)
   --help                    Show this help
 `;
 
@@ -128,32 +129,25 @@ export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
   }
   const {mode} = options;
   if (mode === 'compile') throw new Error('Compile mode runs through runCompile.');
-  // Results are written without executing cases, so a live run would report passes it never ran.
-  if (mode === 'live') {
-    throw new Error('Live mode is not available until cases execute against the stack.');
-  }
-
-  const discovered = await discoverCases(
+  const found = await discoverCases(
     caseRoot(options.suite, cwd),
     options.caseFilter === undefined ? {} : {filter: options.caseFilter},
   );
-  if (discovered.length === 0) {
+  if (found.length === 0) {
     const selected = options.caseFilter ? ` matching "${options.caseFilter}"` : '';
     throw new Error(`No ${options.suite} cases${selected} were found.`);
   }
 
-  const unsupported = discovered.filter((entry) => !caseSupportsMode(entry.definition, mode));
-  if (unsupported.length > 0) {
+  // A live-only case has no script, so scripted runs leave it out, and the other way around.
+  const discovered = found.filter((entry) => caseSupportsMode(entry.definition, mode));
+  if (discovered.length === 0) {
     throw new Error(
-      unsupported
+      found
         .map((entry) => `Case "${entry.id}" does not declare mode "${mode}" in its modes field.`)
         .join('\n'),
     );
   }
 
-  // Cost accounting is added by the execution layers. Keeping the option here means
-  // scripted runs and future live runs share the same CLI contract.
-  void options.maxCostUsd;
   const runId = options.runId ?? createRunId();
   let execute = options.execute;
   if (execute === undefined) {
@@ -174,6 +168,7 @@ export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
     repeat: options.repeat ?? 1,
     execute,
     runId,
+    maxCostUsd: options.maxCostUsd,
     ...(options.resultsDirectory === undefined ? {} : {resultsDirectory: options.resultsDirectory}),
   });
 }
@@ -256,6 +251,15 @@ async function runCompileCli({
   return failed.length === 0 ? 0 : 1;
 }
 
+/** Scripted cases block CI. Live scores never fail a run, only cases that could not be run. */
+export function exitCodeFor({mode, results}: {mode: EvalMode; results: CaseResult[]}): number {
+  const blocking =
+    mode === 'live'
+      ? results.filter((result) => result.status === 'error')
+      : results.filter((result) => result.status !== 'passed');
+  return blocking.length > 0 ? 1 : 0;
+}
+
 export async function runCli(
   argv: string[],
   environment: EvalCliEnvironment = {},
@@ -286,11 +290,14 @@ export async function runCli(
     stdout(
       `Ran ${run.results.length} case runs, ${failed.length} not passed. Results: ${run.directory}\n`,
     );
+    if (run.skipped_for_budget) {
+      stdout(`Budget spent: ${run.skipped_for_budget} case runs were not started.\n`);
+    }
     for (const result of failed) {
       stderr(`${result.case} (repeat ${result.repeat}): ${result.error}\n`);
     }
     await exportRun({options, run, stdout, stderr});
-    return failed.length > 0 ? 1 : 0;
+    return exitCodeFor({mode: options.mode, results: run.results});
   } catch (error) {
     stderr(`Eval failed: ${error instanceof Error ? error.message : String(error)}\n`);
     return 1;

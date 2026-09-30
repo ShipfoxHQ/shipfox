@@ -204,6 +204,19 @@ describe('agent e2e helper', () => {
     });
   });
 
+  it('reads the cost OpenRouter reported for a project', async () => {
+    const cost = {project_id: workspaceId, cost_usd: 0.42, priced_requests: 3};
+    requestJson.mockResolvedValueOnce(cost);
+    const {getOpenRouterCost} = await import('./index.js');
+
+    await expect(getOpenRouterCost({projectId: workspaceId})).resolves.toEqual(cost);
+    expect(requestJson).toHaveBeenCalledWith(
+      'get',
+      `/__e2e/managed-inference/openrouter/${workspaceId}/cost`,
+      {},
+    );
+  });
+
   it('reads recorded scripted managed provider requests', async () => {
     requestJson.mockResolvedValueOnce({
       requests: [{index: 0, project_id: workspaceId, surprise: false}],
