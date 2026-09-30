@@ -2413,6 +2413,12 @@ importers:
       '@opentelemetry/sdk-trace-node':
         specifier: 'catalog:'
         version: 2.8.0(@opentelemetry/api@1.9.1)
+      '@shipfox/api-auth-dto':
+        specifier: workspace:*
+        version: link:../../../../libs/api/auth-dto
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../../core
       yaml:
         specifier: 'catalog:'
         version: 2.9.0
@@ -2420,6 +2426,9 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 'catalog:'
+        version: 1.29.0(zod@4.4.3)
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
