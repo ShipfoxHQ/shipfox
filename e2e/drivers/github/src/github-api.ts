@@ -517,7 +517,19 @@ async function handleGraphqlRequest(params: GithubRequestContext): Promise<void>
       isRecord(variables.input) && typeof variables.input.threadId === 'string'
         ? variables.input.threadId
         : 'synthetic-thread-id';
-    params.pullRequestRoutes.resolveReviewThread(threadId, params.authorization);
+    if (!params.pullRequestRoutes.resolveReviewThread(threadId, params.authorization)) {
+      sendJson(params.response, 200, {
+        data: {resolveReviewThread: null},
+        errors: [
+          {
+            type: 'NOT_FOUND',
+            path: ['resolveReviewThread'],
+            message: `Could not resolve to a node with the global id of '${threadId}'`,
+          },
+        ],
+      });
+      return;
+    }
     sendJson(params.response, 200, {
       data: {
         resolveReviewThread: {

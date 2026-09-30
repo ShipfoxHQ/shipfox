@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import type {IncomingMessage, ServerResponse} from 'node:http';
-import {readJsonBodyOrReject, sendJson} from './http.js';
 import type {RecordedWrite} from '@shipfox/e2e-core';
+import {readJsonBodyOrReject, sendJson} from './http.js';
 
 export const PULL_REQUEST_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)$/u;
 const PULL_REQUESTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls$/u;
@@ -56,8 +56,11 @@ export interface PullRequestRoutesOptions {
 export interface PullRequestRoutes {
   /** Answers the request and returns true when it is a pull request or comment route. */
   handle(request: IncomingMessage, response: ServerResponse, requestUrl: URL): Promise<boolean>;
-  /** Marks the thread resolved, as GraphQL's `resolveReviewThread` does, and records the write. */
-  resolveReviewThread(threadId: string, authorization: string | undefined): void;
+  /**
+   * Marks the thread resolved, as GraphQL's `resolveReviewThread` does, and records the write.
+   * Returns false, recording nothing, when the thread or its pull request is unknown.
+   */
+  resolveReviewThread(threadId: string, authorization: string | undefined): boolean;
   /** The thread nodes GraphQL's `reviewThreads` returns for one pull request. */
   reviewThreadNodes(repository: string, pullNumber: number): Record<string, unknown>[];
 }
@@ -115,16 +118,17 @@ export function createPullRequestRoutes(options: PullRequestRoutesOptions): Pull
     resolveReviewThread(threadId, authorization) {
       const thread = options.reviewThreads.get(threadId);
       const pullRequest = thread && options.pullRequests.get(thread.pullNumber);
-      if (thread) thread.isResolved = true;
+      if (!thread || !pullRequest) return false;
+      thread.isResolved = true;
       options.recordWrite(
         {
           kind: 'github.resolve_review_thread',
-          target:
-            thread && pullRequest ? `${pullRequest.repository}#${thread.pullNumber}` : threadId,
+          target: `${pullRequest.repository}#${thread.pullNumber}`,
           payload: {thread_id: threadId},
         },
         authorization,
       );
+      return true;
     },
     reviewThreadNodes(repository, pullNumber) {
       const pullRequest = findPullRequest(options.pullRequests, repository, pullNumber);
@@ -195,7 +199,8 @@ async function createPullRequest(context: RouteContext): Promise<void> {
     );
     return;
   }
-  const head = String(body.head);
+  // GitHub takes `owner:branch` for a head. The fake keeps the branch name alone.
+  const head = String(body.head).split(':').pop() ?? '';
   const base = String(body.base);
   const duplicate = [...context.pullRequests.values()].some(
     (pullRequest) =>

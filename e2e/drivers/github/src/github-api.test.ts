@@ -289,6 +289,8 @@ describe('GitHub API mock', () => {
     const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
     try {
+      mock.pullRequests.set(1, {repository: 'shipfox/e2e', ref: 'feature', sha: 'a'.repeat(40)});
+      mock.reviewThreads.set('thread-42', {pullNumber: 1, path: 'src/a.ts', comments: []});
       const mint = await fetch(new URL('/app/installations/1234/access_tokens', mock.endpoint), {
         method: 'POST',
         headers: {

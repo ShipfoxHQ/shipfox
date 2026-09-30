@@ -75,6 +75,16 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
       checkRunCreateResponse: checkRunCreateResponse(),
       checkRunUpdateResponse: checkRunUpdateResponse(),
     });
+    fixture.githubApi.pullRequests.set(1, {
+      repository: 'shipfox/e2e',
+      ref: 'shipfox/tools',
+      sha: 'a'.repeat(40),
+    });
+    fixture.githubApi.reviewThreads.set('PRRT_kwDO_e2e', {
+      pullNumber: 1,
+      path: 'src/report.ts',
+      comments: [{id: 1, body: 'Rename the flag.', author: 'reviewer'}],
+    });
     let fakeModelProvider: Awaited<ReturnType<typeof startFakeOpenAiModelProvider>> | undefined;
 
     try {

@@ -222,11 +222,11 @@ describe('GitHub API mock pull requests', () => {
     }
   });
 
-  it('records a resolution of a thread it has no fixture for', async () => {
+  it('rejects the resolution of an unknown thread without recording it', async () => {
     const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
     try {
-      await fetch(new URL('/graphql', mock.endpoint), {
+      const response = await fetch(new URL('/graphql', mock.endpoint), {
         method: 'POST',
         headers: HEADERS,
         body: JSON.stringify({
@@ -236,13 +236,34 @@ describe('GitHub API mock pull requests', () => {
         }),
       });
 
-      expect(mock.writes()).toEqual([
+      await expect(response.json()).resolves.toMatchObject({
+        data: {resolveReviewThread: null},
+        errors: [{type: 'NOT_FOUND'}],
+      });
+      expect(mock.writes()).toEqual([]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('stores the branch of an owner-qualified head', async () => {
+    const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
+
+    try {
+      const created = await fetch(new URL('/repos/acme/app/pulls', mock.endpoint), {
+        method: 'POST',
+        headers: HEADERS,
+        body: JSON.stringify({title: 'One', head: 'acme:feature', base: 'main'}),
+      });
+      const byHead = await fetch(
+        new URL('/repos/acme/app/pulls?head=acme:feature', mock.endpoint),
         {
-          kind: 'github.resolve_review_thread',
-          target: 'PRRT_unknown',
-          payload: {thread_id: 'PRRT_unknown'},
+          headers: HEADERS,
         },
-      ]);
+      );
+
+      await expect(created.json()).resolves.toMatchObject({head: {ref: 'feature'}});
+      await expect(byHead.json()).resolves.toMatchObject([{number: 1}]);
     } finally {
       await mock.stop();
     }
