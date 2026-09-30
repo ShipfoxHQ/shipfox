@@ -5,8 +5,20 @@ import {type DiscordInstallation, getDiscordInstallationByConnectionId} from '#d
 import {migrationsPath} from '#db/migrations.js';
 
 export type {DiscordProvider} from '@shipfox/api-integration-discord-dto';
+export type {
+  CreateDiscordApiClientOptions,
+  DiscordApiClient,
+  DiscordApplicationCommand,
+  DiscordApplicationCommandDefinition,
+  DiscordChannel,
+  DiscordGatewayBot,
+  DiscordGuild,
+  DiscordRole,
+} from '#api/client.js';
+export {createDiscordApiClient, DISCORD_API_TIMEOUT_MS} from '#api/client.js';
 export {config} from '#config.js';
 export {discordConnectionExternalUrl} from '#core/connection-url.js';
+export {DiscordIntegrationProviderError} from '#core/errors.js';
 export {
   createDiscordGatewayService,
   type DiscordGatewayServiceOptions,
