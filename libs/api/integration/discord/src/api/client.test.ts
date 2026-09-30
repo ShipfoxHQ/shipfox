@@ -21,6 +21,20 @@ function stubFetch(...responses: Array<Response | Error>) {
   return fetchMock;
 }
 
+/** Discord reads the body when it sends, so the test keeps a copy of it. */
+function stubBodyFetch(response: Response) {
+  const sent: {request: Request; body: unknown}[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: Request | URL) => {
+      const request = input as Request;
+      sent.push({request, body: await request.clone().json()});
+      return response;
+    }),
+  );
+  return sent;
+}
+
 function sentRequest(fetchMock: FetchMock, index = 0): Request {
   const request = fetchMock.mock.calls[index]?.[0];
   if (!(request instanceof Request)) throw new Error('Expected a Request');
@@ -180,6 +194,54 @@ describe('Discord REST client', () => {
       expect(sentRequest(fetchMock).url).toBe(
         'https://discord.test/api/v10/guilds/guild-1/members/user-1',
       );
+    });
+
+    it('creates a message that pings users only and replies without failing on a missing target', async () => {
+      const sent = stubBodyFetch(json({id: 'message-2'}));
+
+      await client.createMessage({
+        channelId: 'channel-1',
+        content: 'hello <@1> @everyone',
+        replyToMessageId: 'message-1',
+      });
+
+      const {request, body} = sent[0] ?? {};
+      expect(request?.method).toBe('POST');
+      expect(request?.url).toBe('https://discord.test/api/v10/channels/channel-1/messages');
+      expect(body).toEqual({
+        content: 'hello <@1> @everyone',
+        allowed_mentions: {parse: ['users']},
+        message_reference: {message_id: 'message-1', fail_if_not_exists: false},
+      });
+    });
+
+    it('creates a message that is not a reply', async () => {
+      const sent = stubBodyFetch(json({id: 'message-2'}));
+
+      await client.createMessage({channelId: 'channel-1', content: 'hello'});
+
+      expect(sent[0]?.body).toEqual({
+        content: 'hello',
+        allowed_mentions: {parse: ['users']},
+      });
+    });
+
+    it('starts a thread from a message', async () => {
+      const sent = stubBodyFetch(json({id: 'message-1', type: 11}));
+
+      await expect(
+        client.startThreadFromMessage({
+          channelId: 'channel-1',
+          messageId: 'message-1',
+          name: 'Question',
+        }),
+      ).resolves.toEqual({id: 'message-1', type: 11});
+
+      expect(sent[0]?.request.method).toBe('POST');
+      expect(sent[0]?.request.url).toBe(
+        'https://discord.test/api/v10/channels/channel-1/messages/message-1/threads',
+      );
+      expect(sent[0]?.body).toEqual({name: 'Question'});
     });
 
     it('leaves a guild and accepts the empty response', async () => {

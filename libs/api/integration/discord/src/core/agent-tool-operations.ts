@@ -2,6 +2,8 @@ import type {DiscordAgentToolId} from '@shipfox/api-integration-discord-dto';
 import type {DiscordApiClient, DiscordChannel, DiscordMessage} from '#api/client.js';
 import type {DiscordChannelGuard} from '#core/channel-guard.js';
 import {DiscordIntegrationProviderError, DiscordToolArgumentError} from '#core/errors.js';
+import {splitDiscordMessage} from '#core/message-split.js';
+import {ensureMessageThread} from '#core/message-thread.js';
 
 export type DiscordToolClient = Pick<
   DiscordApiClient,
@@ -12,6 +14,8 @@ export type DiscordToolClient = Pick<
   | 'listActiveGuildThreads'
   | 'searchGuildMessages'
   | 'getGuildMember'
+  | 'createMessage'
+  | 'startThreadFromMessage'
 >;
 
 const DEFAULT_THREAD_LIMIT = 50;
@@ -140,6 +144,46 @@ export const DISCORD_TOOL_OPERATIONS: Partial<Record<DiscordAgentToolId, Discord
         roles: member.roles,
         joined_at: member.joined_at,
       };
+    },
+  },
+  send_message: {
+    permissionHint: 'Send Messages, Send Messages in Threads, and Create Public Threads',
+    validate: (args) =>
+      stringArgument(args, 'message').trim() === ''
+        ? 'Parameter message must not be empty'
+        : undefined,
+    async run(args, {discord, guildId, guard}) {
+      const parts = splitDiscordMessage(stringArgument(args, 'message'));
+      if (!parts) {
+        throw new DiscordIntegrationProviderError({
+          reason: 'content-too-large',
+          message: 'The message is too long for Discord. Shorten it to under 10,000 characters.',
+        });
+      }
+      const channelId = stringArgument(args, 'channel_id');
+      const threadMessageId = optionalString(args.thread_message_id);
+      const {type} = await guard({channelId, guildId});
+      // In a thread, thread_message_id is ignored so one set of arguments serves both places.
+      const startsThread = threadMessageId !== undefined && !isThread(type);
+      const targetId = startsThread
+        ? await ensureMessageThread({discord, channelId, messageId: threadMessageId})
+        : channelId;
+      // A reply must name a message in the channel it is posted to, and a new thread has none yet.
+      const replyToMessageId = startsThread ? undefined : optionalString(args.reply_to_message_id);
+
+      const posted: DiscordMessage[] = [];
+      for (const [index, content] of parts.entries()) {
+        posted.push(
+          await discord.createMessage({
+            channelId: targetId,
+            content,
+            replyToMessageId: index === 0 ? replyToMessageId : undefined,
+          }),
+        );
+      }
+      const messages = posted.map((message) => withUrl(message, guildId));
+      const [first] = messages;
+      return {id: first?.id, channel_id: targetId, url: first?.url, messages};
     },
   },
 };

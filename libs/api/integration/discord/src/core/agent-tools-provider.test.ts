@@ -80,6 +80,7 @@ function setup(
     message?: DiscordMessage | Error;
     channels?: DiscordChannel[];
     threads?: DiscordChannel[];
+    posted?: Error;
     search?: DiscordMessageSearchResult | Error;
     member?: DiscordGuildMember | Error;
     installation?: DiscordInstallation | undefined;
@@ -89,7 +90,16 @@ function setup(
   const messages = options.messages ?? [message('2'), message('1')];
   const search = options.search ?? {total_results: 0, messages: []};
   const member = options.member ?? guildMember();
+  let postedCount = 0;
   const discord = {
+    createMessage: vi.fn(({channelId, content}: {channelId: string; content: string}) => {
+      if (options.posted) return Promise.reject(options.posted);
+      postedCount += 1;
+      return Promise.resolve({...message(`90${postedCount}`), channel_id: channelId, content});
+    }),
+    startThreadFromMessage: vi.fn(({messageId}: {messageId: string}) =>
+      Promise.resolve({id: messageId, type: 11, guild_id: GUILD_ID}),
+    ),
     getChannel: vi.fn(() =>
       channel instanceof Error ? Promise.reject(channel) : Promise.resolve(channel),
     ),
@@ -146,7 +156,7 @@ describe('DiscordAgentToolsProvider', () => {
   });
 
   describe('catalog', () => {
-    it('publishes the read tools, each selectable on its own', () => {
+    it('publishes the read tools and send_message, each selectable on its own', () => {
       const {provider} = setup();
 
       expect(provider.catalog()).toBe(discordAgentToolCatalog);
@@ -157,6 +167,7 @@ describe('DiscordAgentToolsProvider', () => {
         {token: 'list_channels', kind: 'standalone', sensitivity: 'read', sensitive: false},
         {token: 'search_messages', kind: 'standalone', sensitivity: 'read', sensitive: false},
         {token: 'read_user_profile', kind: 'standalone', sensitivity: 'read', sensitive: false},
+        {token: 'send_message', kind: 'standalone', sensitivity: 'write', sensitive: false},
       ]);
     });
   });
@@ -626,6 +637,238 @@ describe('DiscordAgentToolsProvider', () => {
     });
   });
 
+  describe('send_message', () => {
+    const MESSAGE_ID = '700000000000000007';
+
+    it('posts to the channel with the guild-scoped link and returns the first message', async () => {
+      const {provider, discord} = setup();
+
+      const result = await callTool(provider, 'send_message', {
+        channel_id: CHANNEL_ID,
+        message: 'Hello',
+        reply_to_message_id: MESSAGE_ID,
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(discord.createMessage).toHaveBeenCalledWith({
+        channelId: CHANNEL_ID,
+        content: 'Hello',
+        replyToMessageId: MESSAGE_ID,
+      });
+      const url = `https://discord.com/channels/${GUILD_ID}/${CHANNEL_ID}/901`;
+      expect(result.structuredContent).toMatchObject({
+        id: '901',
+        channel_id: CHANNEL_ID,
+        url,
+        messages: [{id: '901', channel_id: CHANNEL_ID, url, content: 'Hello'}],
+      });
+      expect(JSON.parse(result.content[0]?.text ?? '')).toEqual(result.structuredContent);
+    });
+
+    it('splits a long message and replies only on the first part', async () => {
+      const {provider, discord} = setup();
+      const first = 'a'.repeat(1_500);
+      const second = 'b'.repeat(1_500);
+
+      const result = await callTool(provider, 'send_message', {
+        channel_id: CHANNEL_ID,
+        message: `${first}\n\n${second}`,
+        reply_to_message_id: MESSAGE_ID,
+      });
+
+      expect(discord.createMessage.mock.calls.map(([call]) => call)).toEqual([
+        {channelId: CHANNEL_ID, content: first, replyToMessageId: MESSAGE_ID},
+        {channelId: CHANNEL_ID, content: second, replyToMessageId: undefined},
+      ]);
+      expect(result.structuredContent).toMatchObject({
+        id: '901',
+        messages: [{id: '901'}, {id: '902'}],
+      });
+    });
+
+    it('fails with content-too-large over 10,000 characters without calling Discord', async () => {
+      const {provider, discord} = setup();
+
+      const result = await callTool(provider, 'send_message', {
+        channel_id: CHANNEL_ID,
+        message: 'a'.repeat(10_001),
+      });
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'content-too-large'}});
+      expect(discord.getChannel).not.toHaveBeenCalled();
+      expect(discord.createMessage).not.toHaveBeenCalled();
+    });
+
+    it('fails with content-too-large when the text needs more than 5 messages', async () => {
+      const {provider, discord} = setup();
+      const paragraph = 'a'.repeat(1_999);
+
+      const result = await callTool(provider, 'send_message', {
+        channel_id: CHANNEL_ID,
+        message: Array.from({length: 6}, () => paragraph).join('\n\n'),
+      });
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'content-too-large'}});
+      expect(discord.createMessage).not.toHaveBeenCalled();
+    });
+
+    it('posts in the existing thread of a message', async () => {
+      const {provider, discord} = setup({
+        message: {...message(MESSAGE_ID), thread: {id: THREAD_ID}},
+      });
+
+      const result = await callTool(provider, 'send_message', {
+        channel_id: CHANNEL_ID,
+        message: 'Hello',
+        thread_message_id: MESSAGE_ID,
+      });
+
+      expect(discord.getMessage).toHaveBeenCalledWith({
+        channelId: CHANNEL_ID,
+        messageId: MESSAGE_ID,
+      });
+      expect(discord.startThreadFromMessage).not.toHaveBeenCalled();
+      expect(discord.createMessage).toHaveBeenCalledWith({
+        channelId: THREAD_ID,
+        content: 'Hello',
+        replyToMessageId: undefined,
+      });
+      expect(result.structuredContent).toMatchObject({
+        channel_id: THREAD_ID,
+        url: `https://discord.com/channels/${GUILD_ID}/${THREAD_ID}/901`,
+      });
+    });
+
+    it('creates a public thread named after the first 80 characters of the message', async () => {
+      const content = `  Weekly   sync\n\nnotes ${'word '.repeat(30)}`;
+      const {provider, discord} = setup({message: {...message(MESSAGE_ID), content}});
+
+      const result = await callTool(provider, 'send_message', {
+        channel_id: CHANNEL_ID,
+        message: 'Hello',
+        reply_to_message_id: MESSAGE_ID,
+        thread_message_id: MESSAGE_ID,
+      });
+
+      expect(discord.startThreadFromMessage).toHaveBeenCalledWith({
+        channelId: CHANNEL_ID,
+        messageId: MESSAGE_ID,
+        name: 'Weekly sync notes word word word word word word word word word word word word wo',
+      });
+      expect(discord.createMessage).toHaveBeenCalledWith({
+        channelId: MESSAGE_ID,
+        content: 'Hello',
+        replyToMessageId: undefined,
+      });
+      expect(result.structuredContent).toMatchObject({channel_id: MESSAGE_ID});
+    });
+
+    it('names a thread after a message without text', async () => {
+      const {provider, discord} = setup({message: {...message(MESSAGE_ID), content: ''}});
+
+      await callTool(provider, 'send_message', {
+        channel_id: CHANNEL_ID,
+        message: 'Hello',
+        thread_message_id: MESSAGE_ID,
+      });
+
+      expect(discord.startThreadFromMessage).toHaveBeenCalledWith(
+        expect.objectContaining({name: 'Thread'}),
+      );
+    });
+
+    it.each([
+      10, 11, 12,
+    ])('ignores thread_message_id when the channel is a thread of type %i', async (type) => {
+      const {provider, discord} = setup({channel: {id: CHANNEL_ID, type, guild_id: GUILD_ID}});
+
+      await callTool(provider, 'send_message', {
+        channel_id: CHANNEL_ID,
+        message: 'Hello',
+        reply_to_message_id: MESSAGE_ID,
+        thread_message_id: MESSAGE_ID,
+      });
+
+      expect(discord.getMessage).not.toHaveBeenCalled();
+      expect(discord.startThreadFromMessage).not.toHaveBeenCalled();
+      expect(discord.createMessage).toHaveBeenCalledWith({
+        channelId: CHANNEL_ID,
+        content: 'Hello',
+        replyToMessageId: MESSAGE_ID,
+      });
+    });
+
+    it('denies a channel in another guild without posting', async () => {
+      const {provider, discord} = setup({
+        channel: {id: CHANNEL_ID, type: 0, guild_id: OTHER_GUILD_ID},
+      });
+
+      const result = await callTool(provider, 'send_message', {
+        channel_id: CHANNEL_ID,
+        message: 'Hello',
+        thread_message_id: MESSAGE_ID,
+      });
+
+      expect(result).toMatchObject({
+        isError: true,
+        content: [{text: 'Not found in this server'}],
+        structuredContent: {code: 'not-found'},
+      });
+      expect(discord.getMessage).not.toHaveBeenCalled();
+      expect(discord.startThreadFromMessage).not.toHaveBeenCalled();
+      expect(discord.createMessage).not.toHaveBeenCalled();
+    });
+
+    it('denies a direct message channel without posting', async () => {
+      const {provider, discord} = setup({channel: {id: CHANNEL_ID, type: 1}});
+
+      const result = await callTool(provider, 'send_message', {
+        channel_id: CHANNEL_ID,
+        message: 'Hello',
+      });
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'access-denied'}});
+      expect(discord.createMessage).not.toHaveBeenCalled();
+    });
+
+    it('names the permissions the bot probably lacks on a 403', async () => {
+      const {provider} = setup({posted: failure('access-denied', 403, {discordCode: 50013})});
+
+      const result = await callTool(provider, 'send_message', {
+        channel_id: CHANNEL_ID,
+        message: 'Hello',
+      });
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'access-denied'}});
+      expect(result.content[0]?.text).toContain(`channel ${CHANNEL_ID}`);
+      expect(result.content[0]?.text).toContain('Send Messages');
+    });
+
+    it.each([
+      ['a missing message', {message: ''}, 'Missing required parameter: message'],
+      ['an empty message', {message: ' \n'}, 'Parameter message must not be empty'],
+      [
+        'a thread_message_id with a path',
+        {message: 'Hello', thread_message_id: '1/../2'},
+        'Parameter thread_message_id has an invalid format',
+      ],
+    ])('rejects %s before calling Discord', async (name, args, expected) => {
+      const {provider, discord} = setup();
+
+      const result = await callTool(provider, 'send_message', {
+        channel_id: CHANNEL_ID,
+        ...(name === 'a missing message' ? {} : args),
+      });
+
+      expect(result).toMatchObject({
+        isError: true,
+        content: [{text: expected}],
+        structuredContent: {code: 'invalid-request'},
+      });
+      expect(discord.createMessage).not.toHaveBeenCalled();
+    });
+  });
+
   describe('server boundary', () => {
     it('denies a channel in another guild without reading it', async () => {
       const {provider, discord} = setup({
@@ -820,11 +1063,11 @@ describe('DiscordAgentToolsProvider', () => {
     it('rejects a tool that is not in the catalog', async () => {
       const {provider} = setup();
 
-      const result = await callTool(provider, 'send_message', {});
+      const result = await callTool(provider, 'add_reaction', {});
 
       expect(result).toMatchObject({
         isError: true,
-        content: [{text: 'Unknown Discord tool: send_message'}],
+        content: [{text: 'Unknown Discord tool: add_reaction'}],
       });
     });
   });
