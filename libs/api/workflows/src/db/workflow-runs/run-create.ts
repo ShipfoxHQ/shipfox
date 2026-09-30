@@ -1,9 +1,4 @@
-import {
-  createWorkflowModelSnapshot,
-  WORKFLOW_MODEL_CHECKOUT_TARGET_FIELDS,
-  type WorkflowJsonTemplateTree,
-  type WorkflowModel,
-} from '@shipfox/api-definitions-dto';
+import {createWorkflowModelSnapshot, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
@@ -13,10 +8,7 @@ import {
   WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED,
 } from '@shipfox/api-workflows-dto';
 import {
-  analyzeContextKeyAccess,
-  type ResolvedFieldSegment,
   resolveFieldAtSite,
-  type WorkflowExpression,
   type WorkflowExpressionEvaluationContext,
   WorkflowTemplateResolutionError,
 } from '@shipfox/expression';
@@ -44,6 +36,11 @@ import {
   WorkflowSourceSnapshotTooLargeError,
 } from '#core/errors.js';
 import {resolveWorkflowRunTriggerReference} from '#core/resolve-trigger-reference.js';
+import {
+  collectRunRequirements,
+  type ReferencedVariable,
+  type WorkflowModelJob,
+} from '#core/run-requirements.js';
 import {assembleCreationContext} from '#core/step-config/assemble-run-context.js';
 import type {MaterializedWorkflowJob} from '#core/step-config/materialize-workflow-model.js';
 import type {WorkflowStepTemplateDiagnostic} from '#core/step-config/resolve-step-config.js';
@@ -72,15 +69,6 @@ import {
   recordWorkflowConcurrencyAdmissionMetrics,
 } from '../workflow-concurrency.js';
 import {type MaterializedRunGraphJob, persistMaterializedRunGraph} from './run-graph.js';
-
-export type WorkflowModelJob = WorkflowModel['jobs'][number];
-
-export interface ReferencedVariable {
-  readonly key: string;
-  readonly field: InterpolationUnresolvableError['field'];
-  readonly source: string;
-  readonly envKey?: string | undefined;
-}
 
 export interface CreateWorkflowRunParams {
   workspaceId: string;
@@ -601,7 +589,10 @@ export async function loadReferencedVariables(params: {
   readonly definitionId: string;
   readonly secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }): Promise<Record<string, string> | undefined> {
-  const references = referencedVariables(params.model, params.jobs ?? params.model.jobs);
+  const {variables: references} = collectRunRequirements(
+    params.model,
+    params.jobs ?? params.model.jobs,
+  );
   const keys = [...new Set(references.map((reference) => reference.key))].sort();
   if (keys.length === 0) return undefined;
 
@@ -707,225 +698,6 @@ function materializeRunGraphJobs(params: {
         position: step.position,
       })),
   }));
-}
-
-function referencedVariables(
-  model: WorkflowModel,
-  jobs: readonly WorkflowModelJob[],
-): readonly ReferencedVariable[] {
-  const references: ReferencedVariable[] = [];
-  collectWorkflowPredicateVariableReferences(model, references);
-  collectFieldVariableReferences(model.runName, references, {field: 'workflow.run_name'});
-  collectFieldVariableReferences(model.concurrency?.group, references, {
-    field: 'workflow.concurrency.group',
-  });
-  collectTemplateVariableReferences(model.outputs, references, {field: 'workflow.outputs'});
-  if (jobs.length > 0) collectTemplateVariableReferences(model.templates?.env, references);
-  for (const job of jobs) collectJobVariableReferences(job, references);
-  return references;
-}
-
-function collectWorkflowPredicateVariableReferences(
-  model: WorkflowModel,
-  references: ReferencedVariable[],
-): void {
-  for (const job of model.jobs) {
-    collectPredicateVariableReferences(job.if, references);
-    collectPredicateVariableReferences(job.success, references);
-
-    for (const trigger of [...(job.listening?.on ?? []), ...(job.listening?.until ?? [])]) {
-      collectPredicateVariableReferences(trigger.filter, references);
-    }
-
-    for (const step of job.steps) {
-      collectPredicateVariableReferences(step.if, references);
-      collectPredicateVariableReferences(step.gate?.success, references);
-    }
-  }
-}
-
-function collectJobVariableReferences(
-  job: WorkflowModelJob,
-  references: ReferencedVariable[],
-): void {
-  collectFieldVariableReferences(job.executionName, references, {field: 'job.execution_name'});
-  for (const template of job.runnerTemplates ?? []) {
-    collectFieldVariableReferences(template, references, {field: 'job.runner'});
-  }
-  collectTemplateVariableReferences(job.outputs, references, {field: 'job.outputs'});
-  collectTemplateVariableReferences(job.templates?.env, references);
-  for (const step of job.steps) collectStepVariableReferences(step, references);
-}
-
-function collectStepVariableReferences(
-  step: WorkflowModelJob['steps'][number],
-  references: ReferencedVariable[],
-): void {
-  collectFieldVariableReferences(step.templates?.name, references, {field: 'step.name'});
-  collectFieldVariableReferences(
-    step.kind === 'tool' ? undefined : step.templates?.workingDirectory,
-    references,
-    {field: 'step.working_directory'},
-  );
-  switch (step.kind) {
-    case 'run':
-      collectFieldVariableReferences(step.templates?.command, references, {field: 'run'});
-      collectTemplateVariableReferences(step.templates?.env, references);
-      return;
-    case 'agent':
-      collectFieldVariableReferences(step.templates?.prompt, references, {field: 'agent.prompt'});
-      collectFieldVariableReferences(step.templates?.model, references, {field: 'agent.model'});
-      collectFieldVariableReferences(step.templates?.provider, references, {
-        field: 'agent.provider',
-      });
-      collectFieldVariableReferences(step.session?.key, references, {field: 'agent.session'});
-      return;
-    case 'tool':
-      collectToolStepVariableReferences(step, references);
-      return;
-    case 'action':
-      collectTemplateTreeVariableReferences(step.templates?.with, references, {
-        field: 'action.with',
-      });
-      collectTemplateVariableReferences(step.templates?.env, references);
-      return;
-    case 'checkout':
-      for (const [key, field] of WORKFLOW_MODEL_CHECKOUT_TARGET_FIELDS) {
-        collectFieldVariableReferences(step.checkout.templates?.[key], references, {field});
-      }
-  }
-}
-
-function collectToolStepVariableReferences(
-  step: Extract<WorkflowModelJob['steps'][number], {kind: 'tool'}>,
-  references: ReferencedVariable[],
-): void {
-  collectTemplateTreeVariableReferences(step.templates?.with, references, {field: 'tool.with'});
-  for (const [key, expression] of Object.entries(step.outputMappings ?? {})) {
-    collectExpressionVariableReferences(expression, references, {
-      field: 'tool.outputs',
-      envKey: key,
-    });
-  }
-}
-
-function collectPredicateVariableReferences(
-  expression: WorkflowExpression | string | undefined,
-  references: ReferencedVariable[],
-): void {
-  if (expression === undefined) return;
-
-  const keyAccess = analyzeContextKeyAccess(expression);
-  for (const reference of keyAccess.references) {
-    if (reference.root !== 'vars') continue;
-    references.push({
-      key: reference.key,
-      field: 'env',
-      source: typeof expression === 'string' ? expression : expression.source,
-    });
-  }
-}
-
-function collectTemplateVariableReferences(
-  templates: Readonly<Record<string, readonly ResolvedFieldSegment[]>> | undefined,
-  references: ReferencedVariable[],
-  source?: {
-    readonly field: InterpolationUnresolvableError['field'];
-  },
-): void {
-  for (const [envKey, template] of Object.entries(templates ?? {})) {
-    collectFieldVariableReferences(
-      template,
-      references,
-      source === undefined ? {field: 'env', envKey} : source,
-    );
-  }
-}
-
-function collectFieldVariableReferences(
-  template: readonly ResolvedFieldSegment[] | undefined,
-  references: ReferencedVariable[],
-  source: {
-    readonly field: InterpolationUnresolvableError['field'];
-    readonly envKey?: string | undefined;
-  },
-): void {
-  for (const segment of template ?? []) {
-    if (segment.kind === 'literal') continue;
-    const keyAccess = analyzeContextKeyAccess(segment.expression);
-    for (const reference of keyAccess.references) {
-      if (reference.root !== 'vars') continue;
-      references.push({
-        key: reference.key,
-        field: source.field,
-        source: segment.expression.source,
-        envKey: source.envKey,
-      });
-    }
-  }
-}
-
-/**
- * Collect `vars.*` references from a tool step's `with` template tree: a
- * `WorkflowJsonTemplateTree` mirrors the authored `with` payload with every
- * interpolated string leaf replaced by its parsed template, so walk it like
- * the authored structure and collect from each leaf template.
- */
-function collectTemplateTreeVariableReferences(
-  tree: WorkflowJsonTemplateTree | undefined,
-  references: ReferencedVariable[],
-  source: {
-    readonly field: InterpolationUnresolvableError['field'];
-    readonly envKey?: string | undefined;
-  },
-): void {
-  if (tree === undefined) return;
-
-  if (Array.isArray(tree)) {
-    // A field template is itself an array of segments; a `with` list is an
-    // array of child trees. Segments carry a `kind`, so distinguish the two.
-    if (tree.every((element) => isFieldTemplateSegment(element))) {
-      collectFieldVariableReferences(tree, references, source);
-      return;
-    }
-    for (const child of tree) collectTemplateTreeVariableReferences(child, references, source);
-    return;
-  }
-
-  if (typeof tree === 'object') {
-    for (const child of Object.values(tree)) {
-      collectTemplateTreeVariableReferences(child, references, source);
-    }
-  }
-}
-
-function isFieldTemplateSegment(value: unknown): value is ResolvedFieldSegment {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    ((value as {kind?: unknown}).kind === 'literal' ||
-      (value as {kind?: unknown}).kind === 'deferred')
-  );
-}
-
-function collectExpressionVariableReferences(
-  expression: WorkflowExpression,
-  references: ReferencedVariable[],
-  source: {
-    readonly field: InterpolationUnresolvableError['field'];
-    readonly envKey?: string | undefined;
-  },
-): void {
-  const keyAccess = analyzeContextKeyAccess(expression);
-  for (const reference of keyAccess.references) {
-    if (reference.root !== 'vars') continue;
-    references.push({
-      key: reference.key,
-      field: source.field,
-      source: expression.source,
-      envKey: source.envKey,
-    });
-  }
 }
 
 function logTemplateDiagnostics(params: {
