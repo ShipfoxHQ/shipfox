@@ -216,6 +216,13 @@ existing `ChromeSlots.SessionBanner` and `ChromeSlots.WorkspaceSetupChecklist` s
 
 ### Amendments
 
+**2026-09-30: a required action can carry an `intent`.** `RequiredAction` gains an optional
+`intent` string. It names a behavior the composing application may provide in place of opening
+`url`, such as `contact-support`. `url` stays required and always stays a working fallback, so a
+reader that doesn't handle the intent, or doesn't know its value, opens the link. `intent` is a
+free string rather than an enum, because stored notices outlive code. `url` may also be a
+`mailto:` URL.
+
 **2026-09-16: usage pricing stops exposing estimate presentation details.** Usage components
 render estimated and resolved costs as plain amounts. The coordinated client release removes the
 `ClientUsagePricing.disclosure` option and estimate prefix.

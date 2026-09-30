@@ -423,6 +423,26 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
     await expect(getWorkflowRunById(source.id)).resolves.toMatchObject({currentAttempt: 1});
   });
 
+  test('keeps the intent of an admission denial required action', async () => {
+    const source = await createTerminalRun('failed');
+    const requiredAction = {
+      reason: 'workspace-limit',
+      message: 'Contact us',
+      url: 'mailto:support@example.test',
+      intent: 'contact-support',
+    };
+    admit.mockResolvedValue({allowed: false, reason: requiredAction.reason, requiredAction});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/workflows/runs/${source.id}/rerun`,
+      payload: {mode: 'all'},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().details.required_action).toEqual(requiredAction);
+  });
+
   test('returns workspace-deleted before creating a new attempt', async () => {
     const source = await createTerminalRun('failed');
     getWorkspaceOperatingState.mockResolvedValueOnce({status: 'deleted'});

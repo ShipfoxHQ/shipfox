@@ -38,6 +38,9 @@ export function mapStartRunError(error: unknown, method: StartRunMethod): Client
                   reason: error.details.requiredAction.reason,
                   message: error.details.requiredAction.message,
                   url: error.details.requiredAction.url,
+                  ...(error.details.requiredAction.intent === undefined
+                    ? {}
+                    : {intent: error.details.requiredAction.intent}),
                 },
               }),
         },

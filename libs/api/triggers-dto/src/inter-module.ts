@@ -9,6 +9,7 @@ import {
   workflowExecutionPayloadFieldSchema,
 } from '@shipfox/api-workflows-dto';
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
+import {requiredActionSchema} from '@shipfox/policy-notice';
 import {isSafeRefInput} from '@shipfox/regex';
 import {z} from 'zod';
 import {
@@ -243,13 +244,7 @@ const triggerEventDetailSchema = triggerEventSchema.extend({
 const admissionDeniedDetailsSchema = z.object({
   workspaceId: idSchema,
   reason: z.string(),
-  requiredAction: z
-    .object({
-      reason: z.string(),
-      message: z.string(),
-      url: z.string(),
-    })
-    .optional(),
+  requiredAction: requiredActionSchema.optional(),
 });
 const interpolationFieldSchema = z.enum([
   'run',

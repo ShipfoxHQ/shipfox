@@ -53,6 +53,7 @@
     "@shipfox/api-secrets-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/inter-module": "workspace:*",
+    "@shipfox/policy-notice": "workspace:*",
     "@shipfox/regex": "workspace:*",
     "zod": "catalog:"
   },

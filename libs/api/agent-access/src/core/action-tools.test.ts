@@ -649,6 +649,7 @@ describe('agent-access action tools', () => {
             reason: 'billing',
             message: 'Update billing',
             url: 'https://example.test',
+            intent: 'contact-support',
           },
         },
       ),
@@ -685,6 +686,7 @@ describe('agent-access action tools', () => {
             reason: 'billing',
             message: 'Update billing',
             url: 'https://example.test',
+            intent: 'contact-support',
           },
         },
       },
@@ -909,7 +911,12 @@ describe('agent-access action tools', () => {
           {
             workspaceId,
             reason: oversized,
-            requiredAction: {reason: oversized, message: oversized, url: oversized},
+            requiredAction: {
+              reason: oversized,
+              message: oversized,
+              url: oversized,
+              intent: oversized,
+            },
           },
         ),
       )
@@ -942,6 +949,7 @@ describe('agent-access action tools', () => {
             reason: expectedBounded,
             message: expectedBounded,
             url: expectedBounded,
+            intent: expectedBounded,
           },
         },
       },

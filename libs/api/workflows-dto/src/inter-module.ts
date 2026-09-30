@@ -7,6 +7,7 @@ import {
 import {workflowModelSnapshotSchema} from '@shipfox/api-definitions-dto';
 import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
+import {requiredActionSchema} from '@shipfox/policy-notice';
 import {z} from 'zod';
 import {runnerCatalogNamesResponseSchema} from './schemas/runner-catalog.js';
 import {stepAttemptDetailResponseSchema} from './schemas/step-attempt-detail.js';
@@ -65,13 +66,7 @@ const secretInputReferenceSchema = z.object({
 const admissionDeniedDetailsSchema = z.object({
   workspaceId: idSchema,
   reason: z.string(),
-  requiredAction: z
-    .object({
-      reason: z.string(),
-      message: z.string(),
-      url: z.string(),
-    })
-    .optional(),
+  requiredAction: requiredActionSchema.optional(),
 });
 const workflowRunTriggerReferenceSchema = z.object({
   project: z.object({id: idSchema}).nullable(),

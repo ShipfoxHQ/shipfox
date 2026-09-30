@@ -1,6 +1,7 @@
 import {
   type PolicyNotice,
   policyNoticeSchema,
+  REQUIRED_ACTION_INTENTS,
   type RequiredAction,
   requiredActionSchema,
 } from './index.js';
@@ -14,6 +15,38 @@ describe('requiredActionSchema', () => {
     } satisfies RequiredAction;
 
     expect(requiredActionSchema.parse(requiredAction)).toEqual(requiredAction);
+  });
+
+  it('round trips a required action with an intent', () => {
+    const requiredAction = {
+      reason: 'workspace-limit',
+      message: 'Contact us',
+      url: 'mailto:support@example.test',
+      intent: REQUIRED_ACTION_INTENTS.contactSupport,
+    } satisfies RequiredAction;
+
+    expect(requiredActionSchema.parse(requiredAction)).toEqual(requiredAction);
+  });
+
+  it('parses an unknown intent', () => {
+    const requiredAction = {
+      reason: 'workspace-limit',
+      message: 'Do something new',
+      url: '/settings',
+      intent: 'a-future-intent',
+    };
+
+    expect(requiredActionSchema.parse(requiredAction)).toEqual(requiredAction);
+  });
+
+  it('rejects a required action without a url', () => {
+    expect(
+      requiredActionSchema.safeParse({
+        reason: 'workspace-limit',
+        message: 'Contact us',
+        intent: REQUIRED_ACTION_INTENTS.contactSupport,
+      }).success,
+    ).toBe(false);
   });
 });
 
