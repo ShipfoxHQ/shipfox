@@ -39,12 +39,12 @@ Use this product headline on public overview surfaces:
 
 > Run coding agents like CI pipelines
 
-Follow the headline with this description. Also use it in public metadata and
-machine-readable summaries:
+Follow the headline with this description. Also use it in machine-readable
+summaries such as `llms.txt`:
 
 > Turn tickets, alerts, and failed checks into workflows in your repo. Agents and the exact commands your team specifies, delivered as PRs you review. Any model, any stack. Open source.
 
-Use this shorter description for search and link previews:
+Use this shorter description for search engine and link previews:
 
 > Turn tickets, alerts, and failed checks into workflows in your repo. Agents and your team's exact commands, delivered as PRs you review. Open source.
 
