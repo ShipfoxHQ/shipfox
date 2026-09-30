@@ -324,7 +324,7 @@ function ActionIcon({kind}: {kind: ActionPresentation['iconKind']}) {
     search: 'searchLine',
     list: 'folderLine',
     web: 'globalLine',
-    output: 'exportLine',
+    output: 'shipfox',
     integration: 'componentLine',
   };
   return (

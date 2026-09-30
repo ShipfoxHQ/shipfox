@@ -13,6 +13,7 @@ describe('PROVIDER_ICONS', () => {
       discord: 'discord',
       gitea: 'gitea',
       webhook: 'webhookLine',
+      shipfox: 'shipfox',
     });
   });
 });
