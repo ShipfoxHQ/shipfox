@@ -14,6 +14,7 @@ export const PROVIDER_ICONS = {
   discord: 'discord',
   gitea: 'gitea',
   webhook: 'webhookLine',
+  shipfox: 'shipfox',
 } as const satisfies Record<string, IconName>;
 
 /**
