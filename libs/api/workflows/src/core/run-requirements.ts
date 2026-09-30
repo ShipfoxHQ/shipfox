@@ -88,17 +88,17 @@ export function collectRunRequirements(
 function collectWorkflowPredicateReferences(model: WorkflowModel, out: Collected): void {
   for (const job of model.jobs) {
     const jobScope: Scope = {out, location: {jobKey: job.key}};
-    collectPredicateReferences(job.if, jobScope);
-    collectPredicateReferences(job.success, jobScope);
+    collectPredicateReferences(job.if, jobScope, 'job.if');
+    collectPredicateReferences(job.success, jobScope, 'job.success');
 
     for (const trigger of [...(job.listening?.on ?? []), ...(job.listening?.until ?? [])]) {
-      collectPredicateReferences(trigger.filter, jobScope);
+      collectPredicateReferences(trigger.filter, jobScope, 'job.listening.filter');
     }
 
     job.steps.forEach((step, index) => {
       const stepScope = stepScopeFor(jobScope, step, index);
-      collectPredicateReferences(step.if, stepScope);
-      collectPredicateReferences(step.gate?.success, stepScope);
+      collectPredicateReferences(step.if, stepScope, 'step.if');
+      collectPredicateReferences(step.gate?.success, stepScope, 'step.gate.success');
     });
   }
 }
@@ -172,9 +172,10 @@ function collectToolStepReferences(
 function collectPredicateReferences(
   expression: WorkflowExpression | string | undefined,
   scope: Scope,
+  field: InterpolationUnresolvableField,
 ): void {
   if (expression === undefined) return;
-  collectExpressionReferences(expression, scope, {field: 'env'});
+  collectExpressionReferences(expression, scope, {field});
 }
 
 function collectTemplateReferences(

@@ -1197,6 +1197,9 @@ function toRunCreationKnownError(
       field: error.field,
       source: error.source,
       ...(error.envKey === undefined ? {} : {envKey: error.envKey}),
+      ...(error.variableKey === undefined ? {} : {variableKey: error.variableKey}),
+      ...(error.jobKey === undefined ? {} : {jobKey: error.jobKey}),
+      ...(error.step === undefined ? {} : {step: error.step}),
     });
   }
   if (error instanceof InvalidJobRunnerLabelsError) {

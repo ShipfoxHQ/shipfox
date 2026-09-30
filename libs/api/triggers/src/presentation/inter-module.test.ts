@@ -84,6 +84,26 @@ describe('triggers inter-module presentation', () => {
     ).toEqual(details);
   });
 
+  it.each([
+    'job.if',
+    'job.success',
+    'job.listening.filter',
+    'step.if',
+    'step.gate.success',
+  ])('accepts an interpolation failure in %s from Workflows', (field) => {
+    const details = {
+      definitionId: '00000000-0000-4000-8000-000000000003',
+      field,
+      source: 'vars.E2E_SCHEDULE_ENABLED',
+    };
+
+    expect(
+      triggersInterModuleContract.methods.fireManualTrigger.errors[
+        'interpolation-unresolvable'
+      ].parse(details),
+    ).toEqual(details);
+  });
+
   it('lists events with public filters and preserves the timestamp cursor', async () => {
     const preciseNextCursor = createTimestampIdCursor({
       createdAt: '2026-08-05T11:00:00.000123Z',

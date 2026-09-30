@@ -612,10 +612,10 @@ export async function loadReferencedVariables(params: {
   const missingKey = [...requiredKeys].find((key) => !(key in vars));
   if (missingKey !== undefined) {
     const reference = requiredReferences.find((candidate) => candidate.key === missingKey);
-    throw new InterpolationUnresolvableError(params.definitionId, {
-      field: reference?.field ?? 'env',
-      source: reference?.source ?? `vars.${missingKey}`,
-      ...(reference?.envKey === undefined ? {} : {envKey: reference.envKey}),
+    throw missingVariableError({
+      definitionId: params.definitionId,
+      variableKey: missingKey,
+      reference,
     });
   }
 
@@ -625,6 +625,22 @@ export async function loadReferencedVariables(params: {
     if (value !== undefined) referencedVars[key] = value;
   }
   return referencedVars;
+}
+
+function missingVariableError(params: {
+  readonly definitionId: string;
+  readonly variableKey: string;
+  readonly reference: ReferencedVariable | undefined;
+}): InterpolationUnresolvableError {
+  const {definitionId, variableKey, reference} = params;
+  return new InterpolationUnresolvableError(definitionId, {
+    field: reference?.field ?? 'env',
+    source: reference?.source ?? `vars.${variableKey}`,
+    variableKey,
+    envKey: reference?.envKey,
+    jobKey: reference?.jobKey,
+    step: reference?.step,
+  });
 }
 
 function materializeRunGraphJobs(params: {

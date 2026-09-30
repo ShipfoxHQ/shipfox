@@ -111,6 +111,9 @@ const interpolationFieldSchema = z.enum([
   'agent.provider',
   'agent.thinking',
   'agent.session',
+  'job.if',
+  'job.success',
+  'job.listening.filter',
   'job.runner',
   'job.outputs',
   'job.execution_name',
@@ -118,6 +121,8 @@ const interpolationFieldSchema = z.enum([
   'workflow.run_name',
   'workflow.outputs',
   'step.name',
+  'step.if',
+  'step.gate.success',
   'step.working_directory',
   'step.feedback',
   'tool.with',
@@ -129,6 +134,22 @@ const interpolationFieldSchema = z.enum([
   'checkout.ref',
   'checkout.path',
 ]);
+
+const interpolationUnresolvableDetailsSchema = z.object({
+  definitionId: idSchema,
+  field: interpolationFieldSchema,
+  source: z.string(),
+  envKey: z.string().optional(),
+  variableKey: z.string().optional(),
+  jobKey: z.string().optional(),
+  step: z
+    .object({
+      key: z.string().optional(),
+      name: z.string().optional(),
+      index: z.number().int().positive(),
+    })
+    .optional(),
+});
 
 const attemptSchema = z.number().int().min(1).max(WORKFLOW_RUN_ATTEMPT_MAX);
 const workflowRunAttemptsInterModulePageSchema = z.object({
@@ -276,12 +297,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'run-tree-limit-exceeded': z.object({}),
         'agent-config-unresolvable': z.object({definitionId: idSchema}),
         'agent-integration-materialization-failed': z.object({}),
-        'interpolation-unresolvable': z.object({
-          definitionId: idSchema,
-          field: interpolationFieldSchema,
-          source: z.string(),
-          envKey: z.string().optional(),
-        }),
+        'interpolation-unresolvable': interpolationUnresolvableDetailsSchema,
         'invalid-job-runner-labels': z.object({labels: z.array(z.string())}),
         'source-snapshot-too-large': z.object({
           limitBytes: z.number().int().positive(),
@@ -367,12 +383,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'admission-denied': admissionDeniedDetailsSchema,
         'agent-config-unresolvable': z.object({definitionId: idSchema}),
         'agent-integration-materialization-failed': z.object({}),
-        'interpolation-unresolvable': z.object({
-          definitionId: idSchema,
-          field: interpolationFieldSchema,
-          source: z.string(),
-          envKey: z.string().optional(),
-        }),
+        'interpolation-unresolvable': interpolationUnresolvableDetailsSchema,
         'invalid-job-runner-labels': z.object({labels: z.array(z.string())}),
         'source-snapshot-too-large': z.object({
           limitBytes: z.number().int().positive(),
