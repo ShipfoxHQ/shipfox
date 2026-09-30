@@ -7,7 +7,9 @@ const config = {
   reactStrictMode: true,
   // Served under www.shipfox.io/registry, next to the docs at /docs.
   basePath: '/registry',
-  output: 'standalone',
+  // The Docker image ships the standalone server. On Vercel the platform adapter packages the
+  // build, and running standalone after it fails on a missing next-server.js.nft.json.
+  output: process.env.VERCEL ? undefined : 'standalone',
   // Trace workspace packages from the repository root so the standalone server includes them.
   outputFileTracingRoot: workspaceRoot,
   // Pin the workspace root so Turbopack does not misinfer it from sibling lockfiles
