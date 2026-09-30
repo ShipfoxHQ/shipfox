@@ -12,6 +12,7 @@ const temporaryDirectories: string[] = [];
 const invalidCasePattern = /scenario/iu;
 const invalidScenarioPattern = /case\.yaml: scenario\.\d+: Invalid input/u;
 const liveModePattern = /live mode/iu;
+const duplicatePattern = /issue identifiers must be unique/u;
 
 afterEach(async () => {
   await Promise.all(
@@ -128,5 +129,22 @@ describe('case scenario schema', () => {
 
     expect(() => parseTemplateCase({...base, scenario: scalar})).toThrow(invalidScenarioPattern);
     expect(parseTemplateCase({...base, scenario: object}).scenario).toHaveLength(2);
+  });
+});
+
+describe('case seed schema', () => {
+  const issue = {id: 'issue-1', identifier: 'ENG-7', title: 'Task', team: 'ENG'};
+  const base = {template: 'shipfox/fixture', scenario: [{start: {manual: {}}}], expect: {}};
+
+  it('rejects two seeded issues with the same identifier', () => {
+    const seed = {linear: {issues: [issue, {...issue, id: 'issue-2'}]}};
+
+    expect(() => parseTemplateCase({...base, seed})).toThrow(duplicatePattern);
+  });
+
+  it('accepts seeded issues with distinct identifiers', () => {
+    const seed = {linear: {issues: [issue, {...issue, id: 'issue-2', identifier: 'ENG-8'}]}};
+
+    expect(parseTemplateCase({...base, seed}).seed.linear?.issues).toHaveLength(2);
   });
 });

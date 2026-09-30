@@ -6,7 +6,13 @@ import type {EventSenderContext} from './senders.js';
 const postAgentSession = vi.fn<LinearDelivery['postAgentSession']>();
 const postIssueUpdate = vi.fn<LinearDelivery['postIssueUpdate']>();
 const waitForRun = vi.fn<LinearDelivery['waitForRun']>();
-const delivery: LinearDelivery = {postAgentSession, postIssueUpdate, waitForRun};
+const describeDecisions = vi.fn<LinearDelivery['describeDecisions']>();
+const delivery: LinearDelivery = {
+  postAgentSession,
+  postIssueUpdate,
+  waitForRun,
+  describeDecisions,
+};
 
 const context: EventSenderContext = {
   workspaceId: 'workspace',
@@ -33,6 +39,7 @@ const noRunPattern = /No run started from the signed Linear deliveries/u;
 describe('createLinearEventSender', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    describeDecisions.mockResolvedValue('Trigger decisions: none.');
   });
 
   it('sends an agent session for the seeded issue and returns the delivery that started a run', async () => {
@@ -110,6 +117,7 @@ describe('createLinearEventSender', () => {
     await expect(
       send({event: 'agentSession.created', payload: {issue: 'ENG-7'}, context}),
     ).rejects.toThrow(noRunPattern);
+    expect(describeDecisions).toHaveBeenCalledWith({deliveryId: 'never', context});
   });
 
   it('rejects an issue the case did not seed', async () => {

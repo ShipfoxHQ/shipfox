@@ -13,9 +13,7 @@ const MAX_DELIVERY_ATTEMPTS = 6;
 const RUN_LOOKUP_TIMEOUT_MS = 5_000;
 const STATE_ID = 'eval-state-todo';
 
-const agentSessionSchema = z
-  .object({issue: z.string().min(1), prompt: z.string().min(1).optional()})
-  .strict();
+const agentSessionSchema = z.object({issue: z.string().min(1)}).strict();
 
 const issueUpdateSchema = z
   .object({issue: z.string().min(1), added_label: z.string().min(1)})
@@ -26,12 +24,14 @@ export interface LinearDelivery {
   postAgentSession: typeof postLinearAgentSession;
   postIssueUpdate: typeof postLinearIssueUpdate;
   waitForRun: typeof waitForRunByDeliveryId;
+  describeDecisions: typeof describeDecisions;
 }
 
 const defaultDelivery: LinearDelivery = {
   postAgentSession: postLinearAgentSession,
   postIssueUpdate: postLinearIssueUpdate,
   waitForRun: waitForRunByDeliveryId,
+  describeDecisions,
 };
 
 export interface LinearSenderOptions {
@@ -133,12 +133,12 @@ async function describeDecisions({
  */
 async function deliverUntilRun({
   post,
-  waitForRun,
+  delivery,
   context,
   signal,
 }: {
   post: () => Promise<string>;
-  waitForRun: LinearDelivery['waitForRun'];
+  delivery: Pick<LinearDelivery, 'waitForRun' | 'describeDecisions'>;
   context: Parameters<EventSender>[0]['context'];
   signal?: AbortSignal | undefined;
 }): Promise<{deliveryId: string}> {
@@ -148,7 +148,7 @@ async function deliverUntilRun({
     const deliveryId = await post();
     lastDeliveryId = deliveryId;
     try {
-      await waitForRun({
+      await delivery.waitForRun({
         deliveryId,
         projectId: context.projectId,
         workspaceId: context.workspaceId,
@@ -162,7 +162,7 @@ async function deliverUntilRun({
     }
   }
   throw new Error(
-    `No run started from the signed Linear deliveries. ${await describeDecisions({deliveryId: lastDeliveryId, context})}`,
+    `No run started from the signed Linear deliveries. ${await delivery.describeDecisions({deliveryId: lastDeliveryId, context})}`,
     {cause: lastError},
   );
 }
@@ -182,7 +182,7 @@ export function createLinearEventSender(options: LinearSenderOptions): EventSend
         return await deliverUntilRun({
           context,
           signal,
-          waitForRun: delivery.waitForRun,
+          delivery,
           post: async () =>
             await delivery.postAgentSession({
               action: 'created',
@@ -190,7 +190,6 @@ export function createLinearEventSender(options: LinearSenderOptions): EventSend
               appUserId: options.appUserId,
               sessionId: crypto.randomUUID(),
               issue: fixtureOf({issue, labels: issue.labels}),
-              prompt: session.prompt,
             }),
         });
       }
@@ -201,7 +200,7 @@ export function createLinearEventSender(options: LinearSenderOptions): EventSend
         return await deliverUntilRun({
           context,
           signal,
-          waitForRun: delivery.waitForRun,
+          delivery,
           post: async () =>
             await delivery.postIssueUpdate({
               organizationId: options.organizationId,

@@ -82,7 +82,15 @@ const linearIssueSeedSchema = z
 const seedSchema = z
   .object({
     linear: z
-      .object({issues: z.array(linearIssueSeedSchema).min(1)})
+      .object({
+        issues: z
+          .array(linearIssueSeedSchema)
+          .min(1)
+          .refine(
+            (issues) => new Set(issues.map(({identifier}) => identifier)).size === issues.length,
+            {message: 'issue identifiers must be unique'},
+          ),
+      })
       .strict()
       .optional(),
   })
