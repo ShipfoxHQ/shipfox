@@ -297,7 +297,7 @@ describe('agent inter-module presentation', () => {
       const result = await resolveFailure({
         harness: 'claude',
         provider: 'anthropic',
-        thinking: 'xhigh',
+        thinking: 'off',
       });
 
       expect(result.details).toEqual({reason: 'thinking-unsupported'});
