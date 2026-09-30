@@ -62,6 +62,10 @@ export type TriggerEventDecisionDiagnostic =
       code: 'interpolation-unresolvable';
       field: string;
       envKey?: string | undefined;
+      variableKey?: string | undefined;
+      jobKey?: string | undefined;
+      step?: {key?: string | undefined; name?: string | undefined; index: number} | undefined;
+      source?: string | undefined;
     }
   | {version: 1; code: 'invalid-job-runner-labels'; labels: string[]}
   | {
@@ -96,7 +100,7 @@ export type TriggerEventDecisionDiagnostic =
       version: 1;
       code: 'unexpected-workflow-start-failure' | 'unexpected-listener-delivery-failure';
     }
-  | {version: 1; code: 'secret-not-found'; key: string};
+  | {version: 1; code: 'secret-not-found' | 'secret-input-missing'; key: string};
 
 export interface TriggerEventProcessingDiagnostic {
   version: 1;

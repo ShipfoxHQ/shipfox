@@ -97,6 +97,43 @@ describe('POST /:definitionId/fire-manual', () => {
     });
   });
 
+  test('names the missing variable and where it is read in the 422 details', async () => {
+    const definitionId = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
+    fireManualTriggerMock.mockRejectedValue(
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startRunFromTrigger,
+        'interpolation-unresolvable',
+        {
+          definitionId,
+          field: 'job.if',
+          source: 'vars.E2E_SCHEDULE_ENABLED',
+          variableKey: 'E2E_SCHEDULE_ENABLED',
+          jobKey: 'e2e',
+          step: {key: 'deploy', name: 'Deploy', index: 2},
+        },
+      ),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/${definitionId}/fire-manual`,
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({
+      code: 'workflow-interpolation-unresolvable',
+      details: {
+        field: 'job.if',
+        source: 'vars.E2E_SCHEDULE_ENABLED',
+        variable_key: 'E2E_SCHEDULE_ENABLED',
+        job_key: 'e2e',
+        step: {key: 'deploy', name: 'Deploy', index: 2},
+      },
+    });
+  });
+
   test('maps an oversized workflow source snapshot to 422 with byte details', async () => {
     const definitionId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});

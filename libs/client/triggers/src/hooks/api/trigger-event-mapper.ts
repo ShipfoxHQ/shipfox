@@ -90,6 +90,10 @@ function toDecisionDiagnostic(
         code: diagnostic.code,
         field: diagnostic.field,
         ...(diagnostic.env_key === undefined ? {} : {envKey: diagnostic.env_key}),
+        ...(diagnostic.variable_key === undefined ? {} : {variableKey: diagnostic.variable_key}),
+        ...(diagnostic.job_key === undefined ? {} : {jobKey: diagnostic.job_key}),
+        ...(diagnostic.step === undefined ? {} : {step: diagnostic.step}),
+        ...(diagnostic.source === undefined ? {} : {source: diagnostic.source}),
       };
     case 'source-snapshot-too-large':
       return {

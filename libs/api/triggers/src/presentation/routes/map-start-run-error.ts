@@ -97,11 +97,7 @@ export function mapStartRunError(error: unknown, method: StartRunMethod): Client
         'workflow-interpolation-unresolvable',
         {
           status: 422,
-          details: {
-            field: error.details.field,
-            source: error.details.source,
-            ...(error.details.envKey === undefined ? {} : {env_key: error.details.envKey}),
-          },
+          details: interpolationUnresolvableDetails(error.details),
           cause: error,
         },
       );
@@ -127,4 +123,22 @@ export function mapStartRunError(error: unknown, method: StartRunMethod): Client
     default:
       return undefined;
   }
+}
+
+function interpolationUnresolvableDetails(details: {
+  field: string;
+  source: string;
+  envKey?: string | undefined;
+  variableKey?: string | undefined;
+  jobKey?: string | undefined;
+  step?: {key?: string | undefined; name?: string | undefined; index: number} | undefined;
+}) {
+  return {
+    field: details.field,
+    source: details.source,
+    ...(details.envKey === undefined ? {} : {env_key: details.envKey}),
+    ...(details.variableKey === undefined ? {} : {variable_key: details.variableKey}),
+    ...(details.jobKey === undefined ? {} : {job_key: details.jobKey}),
+    ...(details.step === undefined ? {} : {step: details.step}),
+  };
 }

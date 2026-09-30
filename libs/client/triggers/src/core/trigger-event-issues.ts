@@ -246,6 +246,11 @@ function diagnosticIssue(
         code(diagnostic.key),
         text(` could not be found for ${targetName}. Check the trigger secret mapping and scope.`),
       ]);
+    case 'secret-input-missing':
+      return issue(decision, 'Secret input is not passed', [
+        code(diagnostic.key),
+        text(` was not passed to ${targetName}. Add it to the trigger secrets mapping.`),
+      ]);
     case 'interpolation-unresolvable':
       return issue(decision, 'Workflow value could not be resolved', [
         code(diagnostic.envKey ?? diagnostic.field),

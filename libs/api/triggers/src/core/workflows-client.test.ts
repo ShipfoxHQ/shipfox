@@ -8,7 +8,7 @@ import {
   defineInterModulePresentation,
 } from '@shipfox/inter-module';
 import {createFakeInterModuleClients} from '@shipfox/node-module/inter-module/testing';
-import {SecretInputNotFoundError} from './errors.js';
+import {SecretInputMissingError, SecretInputNotFoundError} from './errors.js';
 import {
   isPermanentDeliverEventToJobListenerError,
   isPermanentStartRunError,
@@ -233,6 +233,31 @@ describe('WorkflowsModuleClient consumer parity', () => {
     expect(listenerDeliveryDiagnostic(error)).toEqual({version: 1, code});
   });
 
+  test('keeps the variable, job, step and source of an interpolation failure', () => {
+    const error = createInterModuleKnownError(
+      workflowsInterModuleContract.methods.startRunFromTrigger,
+      'interpolation-unresolvable',
+      {
+        definitionId: input.definitionId,
+        field: 'step.if',
+        source: 'vars.FLAG',
+        variableKey: 'FLAG',
+        jobKey: 'e2e',
+        step: {key: 'deploy', index: 2},
+      },
+    );
+
+    expect(startRunDiagnostic(error)).toEqual({
+      version: 1,
+      code: 'interpolation-unresolvable',
+      field: 'step.if',
+      variableKey: 'FLAG',
+      jobKey: 'e2e',
+      step: {key: 'deploy', index: 2},
+      source: 'vars.FLAG',
+    });
+  });
+
   test('preserves checked workflow start details and classifies unknown failures', () => {
     const labelsError = createInterModuleKnownError(
       workflowsInterModuleContract.methods.startRunFromTrigger,
@@ -277,6 +302,11 @@ describe('WorkflowsModuleClient consumer parity', () => {
       version: 1,
       code: 'secret-not-found',
       key: 'MISSING_TOKEN',
+    });
+    expect(startRunDiagnostic(new SecretInputMissingError('DEPLOY_TOKEN'))).toEqual({
+      version: 1,
+      code: 'secret-input-missing',
+      key: 'DEPLOY_TOKEN',
     });
     expect(listenerDeliveryDiagnostic(new Error('socket closed'))).toEqual({
       version: 1,

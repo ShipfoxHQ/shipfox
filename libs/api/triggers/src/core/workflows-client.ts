@@ -4,7 +4,7 @@ import {
 } from '@shipfox/api-workflows-dto/inter-module';
 import {type InterModuleKnownErrorFor, isInterModuleKnownError} from '@shipfox/inter-module';
 import type {TriggerDecisionDiagnostic} from './entities/diagnostic.js';
-import {SecretInputNotFoundError} from './errors.js';
+import {SecretInputMissingError, SecretInputNotFoundError} from './errors.js';
 
 export type {WorkflowsModuleClient};
 
@@ -41,6 +41,9 @@ export function isPermanentDeliverEventToJobListenerError(error: unknown): boole
 export function startRunDiagnostic(error: unknown): TriggerDecisionDiagnostic {
   if (error instanceof SecretInputNotFoundError) {
     return {version: 1, code: 'secret-not-found', key: error.key};
+  }
+  if (error instanceof SecretInputMissingError) {
+    return {version: 1, code: 'secret-input-missing', key: error.key};
   }
   return isPermanentStartRunError(error)
     ? knownStartDiagnostic(error)
@@ -80,12 +83,21 @@ function knownStartDiagnostic(
     case 'run-tree-limit-exceeded':
       return {version: 1, code: 'unexpected-workflow-start-failure'};
     case 'interpolation-unresolvable': {
-      const envKey = error.details.envKey?.slice(0, 200);
+      const {details} = error;
+      const envKey = details.envKey?.slice(0, 200);
+      const variableKey = details.variableKey?.slice(0, 200);
+      const jobKey = details.jobKey?.slice(0, 200);
+      const source = details.source.slice(0, 200);
+      const step = diagnosticStep(details.step);
       return {
         version: 1,
         code: error.code,
-        field: error.details.field.slice(0, 200),
+        field: details.field.slice(0, 200),
         ...(envKey ? {envKey} : {}),
+        ...(variableKey ? {variableKey} : {}),
+        ...(jobKey ? {jobKey} : {}),
+        ...(step ? {step} : {}),
+        ...(source ? {source} : {}),
       };
     }
     case 'invalid-job-runner-labels': {
@@ -127,4 +139,17 @@ function knownStartDiagnostic(
         overshootBytes: error.details.overshootBytes,
       };
   }
+}
+
+function diagnosticStep(
+  step: {key?: string | undefined; name?: string | undefined; index: number} | undefined,
+): {key?: string; name?: string; index: number} | undefined {
+  if (!step) return undefined;
+  const key = step.key?.slice(0, 200);
+  const name = step.name?.slice(0, 200);
+  return {
+    ...(key ? {key} : {}),
+    ...(name ? {name} : {}),
+    index: step.index,
+  };
 }
