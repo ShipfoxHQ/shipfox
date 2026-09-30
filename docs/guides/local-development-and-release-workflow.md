@@ -204,6 +204,16 @@ revision. The publisher re-verifies the generated tree before retrying and its
 closure publisher skips versions already present in npm; do not create a new
 release PR merely to retry publication.
 
+The same workflow publishes the first-party actions and templates to the Shipfox
+Registry. Its `verify-release` job verifies the merged release tree once, and
+both the npm `publish` job and the `publish-registry` job need it, so a failed
+verification publishes to neither. `publish-registry` publishes only the
+versions the registry does not have. To rehearse against the staging registry,
+run the workflow manually and choose `staging` for **Registry**. The choice
+redirects only the registry publication. The same run also re-verifies and
+publishes the npm closure, so use a revision whose npm versions are already
+published.
+
 If a release or package-publishing incident needs tool-specific diagnosis, read
 the relevant package documentation under `tools/` and the workflow definition
 in [`.github/workflows/publish-packages.yml`](../../.github/workflows/publish-packages.yml).

@@ -10,6 +10,25 @@ function readWorkflow(name: string) {
   return readFile(resolve(workflowsDirectory, name), 'utf8');
 }
 
+const JOB_HEADER = /^ {2}([a-z][a-z0-9-]*):\s*$/u;
+
+/** Splits a workflow into the text of each top-level job, keyed by job id. */
+function jobBlocks(workflow: string): Record<string, string> {
+  const jobsStart = workflow.indexOf('\njobs:\n');
+  const blocks: Record<string, string> = {};
+  let current: string | undefined;
+  for (const line of workflow.slice(jobsStart + '\njobs:\n'.length).split('\n')) {
+    const header = JOB_HEADER.exec(line);
+    if (header?.[1]) {
+      current = header[1];
+      blocks[current] = '';
+    } else if (current) {
+      blocks[current] += `${line}\n`;
+    }
+  }
+  return blocks;
+}
+
 describe('package release workflows', () => {
   test('cancels superseded release-PR updates without publication authority', async () => {
     const workflow = await readWorkflow('update-release-pr.yml');
@@ -52,5 +71,38 @@ describe('package release workflows', () => {
       )?.length,
       2,
     );
+  });
+
+  test('gates every publisher on one release-tree verification', async () => {
+    const workflow = await readWorkflow('publish-packages.yml');
+    const jobs = jobBlocks(workflow);
+
+    assert.ok(jobs['verify-release']?.includes('verify-generated-release'));
+    assert.equal(workflow.match(/verify-generated-release/gu)?.length, 1);
+    for (const name of ['publish', 'publish-registry']) {
+      const job = jobs[name];
+      assert.ok(job, `${name} job is missing`);
+      assert.ok(
+        job.includes('needs: [authorize-release, verify-release]'),
+        `${name} must wait for verify-release`,
+      );
+      assert.ok(
+        job.includes('ref: $' + '{{ needs.authorize-release.outputs.revision }}'),
+        `${name} must check out the authorized revision`,
+      );
+    }
+  });
+
+  test('publishes to the registry from a GitHub-hosted runner without an environment', async () => {
+    const workflow = await readWorkflow('publish-packages.yml');
+    const job = jobBlocks(workflow)['publish-registry'];
+
+    assert.ok(job);
+    assert.ok(job.includes('runs-on: ubuntu-latest'));
+    assert.ok(!job.includes('environment:'));
+    assert.ok(job.includes('pnpm install --frozen-lockfile'));
+    assert.ok(job.includes('cli.js publish'));
+    assert.ok(job.includes('--registry https://api.registry.staging.shipfox.io'));
+    assert.ok(workflow.includes('id-token: write'));
   });
 });

@@ -10,6 +10,14 @@ on:
         description: Exact merged release revision to recover
         required: true
         type: string
+      registry:
+        description: Registry to publish to; choose staging for a rehearsal
+        required: false
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
 
 permissions:
   contents: read
@@ -85,14 +93,14 @@ jobs:
             --github-output "$GITHUB_OUTPUT" \
             --github-summary "$GITHUB_STEP_SUMMARY"
 
-  publish:
-    name: Publish verified packages
+  # One release-tree verification gates every publisher. A job that needed only
+  # authorize-release could publish when this verification fails.
+  verify-release:
+    name: Verify merged release tree
     needs: authorize-release
     if: needs.authorize-release.outputs.authorized == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      SHIPFOX_PUBLICATION_REGISTRY_BASE: ${{ needs.authorize-release.outputs.base_sha }}
+    timeout-minutes: 20
 
     steps:
       - name: Mint App installation token
@@ -129,6 +137,38 @@ jobs:
             --author-id "${{ needs.authorize-release.outputs.author_id }}" \
             --release-app-id "${{ vars.RELEASE_BOT_APP_ID }}"
 
+  publish:
+    name: Publish verified packages
+    needs: [authorize-release, verify-release]
+    if: needs.authorize-release.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SHIPFOX_PUBLICATION_REGISTRY_BASE: ${{ needs.authorize-release.outputs.base_sha }}
+
+    steps:
+      - name: Mint App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
+
+      - name: Check out exact merged revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.authorize-release.outputs.revision }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: node npm:pnpm npm:turbo
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
       - name: Publish package closure
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -163,3 +203,43 @@ jobs:
             --trigger "${{ github.event_name }}" \
             --revision "${{ needs.authorize-release.outputs.revision }}" \
             --github-summary "$GITHUB_STEP_SUMMARY"
+
+  publish-registry:
+    name: Publish registry packages
+    needs: [authorize-release, verify-release]
+    if: needs.authorize-release.outputs.authorized == 'true'
+    # The registry grants only GitHub-hosted runners, so this job stays off third-party runners.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out exact merged revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ needs.authorize-release.outputs.revision }}
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: node npm:pnpm npm:turbo
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter=@shipfox/registry-release...
+
+      - name: Build registry release tool
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: shipfox
+          # Publish must never populate the shared cache: only read what CI built.
+          TURBO_CACHE: local:rw,remote:r
+        run: turbo build --filter=@shipfox/registry-release...
+
+      - name: Publish registry packages
+        env:
+          REGISTRY_TARGET: ${{ inputs.registry }}
+        run: |
+          args=()
+          if [[ "$REGISTRY_TARGET" == staging ]]; then
+            args+=(--registry https://api.registry.staging.shipfox.io)
+          fi
+          node tools/registry-release/dist/cli.js publish "${args[@]}"
