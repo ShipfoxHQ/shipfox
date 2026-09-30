@@ -107,6 +107,8 @@ describe('repository documentation policy', () => {
       '.github/skills/example/SKILL.md': '[missing](nowhere.md)',
       'libs/example/CHANGELOG.md': '[missing](nowhere.md)',
       '.changeset/example.md': '[missing](nowhere.md)',
+      'e2e/suites/eval/workflows/cases/templates/fixture/catalog/fixture/GUIDE.md':
+        '[missing](nowhere.md)',
     });
     try {
       assert.deepEqual(await collectDocumentationFiles(root), ['README.md']);
