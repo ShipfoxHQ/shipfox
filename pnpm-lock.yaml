@@ -4005,6 +4005,9 @@ importers:
       '@discordjs/ws':
         specifier: 'catalog:'
         version: 2.0.4
+      '@fastify/cookie':
+        specifier: 'catalog:'
+        version: 11.0.2
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../../auth-context

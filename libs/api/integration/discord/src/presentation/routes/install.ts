@@ -1,3 +1,5 @@
+import {randomUUID} from 'node:crypto';
+import cookie from '@fastify/cookie';
 import {
   AUTH_USER,
   requireUserContext,
@@ -20,9 +22,13 @@ import {
   handleDiscordCallback,
   handleDiscordOAuthCallbackError,
 } from '#core/install.js';
+import {DISCORD_INSTALL_STATE_TTL_SECONDS} from '#core/state.js';
 import type {withDiscordGuildLock} from '#db/guild-lock.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
 import {discordRouteErrorHandler} from './errors.js';
+
+const DISCORD_ROUTES_PREFIX = '/integrations/discord';
+const DISCORD_INSTALL_STATE_COOKIE = 'shipfox_discord_install_state';
 
 export interface CreateDiscordInstallRoutesOptions {
   discord: Pick<DiscordApiClient, 'exchangeAuthorizationCode' | 'revokeAccessToken' | 'getGuild'>;
@@ -54,11 +60,19 @@ export function createDiscordInstallRoutes(options: CreateDiscordInstallRoutesOp
       body: createDiscordInstallBodySchema,
       response: {200: createDiscordInstallResponseSchema},
     },
-    handler: (request) => {
+    handler: (request, reply) => {
       const {workspace_id: workspaceId} = request.body;
       const actor = requireUserContext(request);
       requireWorkspaceAccess({request, workspaceId});
-      return {install_url: buildDiscordInstallUrl({workspaceId, userId: actor.userId})};
+      const nonce = randomUUID();
+      reply.setCookie(DISCORD_INSTALL_STATE_COOKIE, nonce, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        path: DISCORD_ROUTES_PREFIX,
+        maxAge: DISCORD_INSTALL_STATE_TTL_SECONDS,
+      });
+      return {install_url: buildDiscordInstallUrl({workspaceId, userId: actor.userId, nonce})};
     },
   });
 
@@ -72,12 +86,21 @@ export function createDiscordInstallRoutes(options: CreateDiscordInstallRoutesOp
       response: {200: discordCallbackResponseSchema},
     },
     errorHandler: discordRouteErrorHandler,
-    handler: async (request) => {
+    handler: async (request, reply) => {
       const actor = requireUserContext(request);
       const query = request.query;
+      const stateNonce = request.cookies[DISCORD_INSTALL_STATE_COOKIE];
+      // The nonce is single-use: a failed or repeated callback needs a fresh install.
+      reply.clearCookie(DISCORD_INSTALL_STATE_COOKIE, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        path: DISCORD_ROUTES_PREFIX,
+      });
       if (isDiscordOAuthErrorCallback(query)) {
         return await handleDiscordOAuthCallbackError({
           state: query.state,
+          stateNonce,
           error: query.error,
           errorDescription: query.error_description,
           sessionUserId: actor.userId,
@@ -89,6 +112,7 @@ export function createDiscordInstallRoutes(options: CreateDiscordInstallRoutesOp
         discord: options.discord,
         code: query.code,
         state: query.state,
+        stateNonce,
         sessionUserId: actor.userId,
         sessionMemberships: actor.memberships,
         requireWorkspaceMembership: requireMembership,
@@ -105,7 +129,11 @@ export function createDiscordInstallRoutes(options: CreateDiscordInstallRoutesOp
     },
   });
 
-  return {prefix: '/integrations/discord', routes: [installRoute, callbackApiRoute]};
+  return {
+    prefix: DISCORD_ROUTES_PREFIX,
+    plugins: [cookie],
+    routes: [installRoute, callbackApiRoute],
+  };
 }
 
 function unavailableWorkspaceMembershipCheck(_input: {

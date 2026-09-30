@@ -1,8 +1,8 @@
-import {createHmac, randomUUID, timingSafeEqual} from 'node:crypto';
+import {createHmac, timingSafeEqual} from 'node:crypto';
 import {config} from '#config.js';
 import {DiscordInstallStateError} from './errors.js';
 
-const STATE_TTL_SECONDS = 30 * 60;
+export const DISCORD_INSTALL_STATE_TTL_SECONDS = 30 * 60;
 
 interface DiscordInstallStatePayload {
   workspaceId: string;
@@ -19,15 +19,15 @@ export interface DiscordInstallStateClaims {
 export function signDiscordInstallState(params: {
   workspaceId: string;
   userId: string;
-  nonce?: string | undefined;
+  nonce: string;
   now?: Date | undefined;
 }): string {
   const now = params.now ?? new Date();
   const payload: DiscordInstallStatePayload = {
     workspaceId: params.workspaceId,
     userId: params.userId,
-    nonce: params.nonce ?? randomUUID(),
-    expiresAt: Math.floor(now.getTime() / 1000) + STATE_TTL_SECONDS,
+    nonce: params.nonce,
+    expiresAt: Math.floor(now.getTime() / 1000) + DISCORD_INSTALL_STATE_TTL_SECONDS,
   };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
   return `${encodedPayload}.${sign(encodedPayload)}`;
@@ -35,14 +35,20 @@ export function signDiscordInstallState(params: {
 
 export function verifyDiscordInstallState(
   state: string,
-  now: Date = new Date(),
+  options: {nonce: string | undefined; now?: Date | undefined},
 ): DiscordInstallStateClaims {
+  const now = options.now ?? new Date();
   const [encodedPayload, signature, extra] = state.split('.');
   if (!encodedPayload || !signature || extra !== undefined) throw new DiscordInstallStateError();
   if (!constantTimeEqual(signature, sign(encodedPayload))) {
     throw new DiscordInstallStateError('Invalid Discord install state signature');
   }
   const payload = parsePayload(encodedPayload);
+  if (!options.nonce || !constantTimeEqual(payload.nonce, options.nonce)) {
+    throw new DiscordInstallStateError(
+      'Discord install state is not bound to this browser session',
+    );
+  }
   if (payload.expiresAt < Math.floor(now.getTime() / 1000)) {
     throw new DiscordInstallStateError('Expired Discord install state');
   }

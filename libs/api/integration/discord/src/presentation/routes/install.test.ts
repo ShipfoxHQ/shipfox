@@ -132,18 +132,33 @@ async function createTestApp(options: TestAppOptions = {}): Promise<FastifyInsta
   return app;
 }
 
-function callback(app: FastifyInstance, query: Record<string, string>) {
+const NONCE = 'browser-nonce-1';
+const STATE_COOKIE = 'shipfox_discord_install_state';
+
+/** By default the browser carries the cookie that the matching install request set. */
+function callback(
+  app: FastifyInstance,
+  query: Record<string, string>,
+  options: {cookieNonce?: string | null} = {},
+) {
+  const cookieNonce = options.cookieNonce === undefined ? NONCE : options.cookieNonce;
   return app.inject({
     method: 'GET',
     url: `/integrations/discord/callback/api?${new URLSearchParams(query)}`,
-    headers: {authorization: 'Bearer user'},
+    headers: {
+      authorization: 'Bearer user',
+      ...(cookieNonce === null ? {} : {cookie: `${STATE_COOKIE}=${cookieNonce}`}),
+    },
   });
 }
 
-function validState(overrides: {workspaceId?: string; userId?: string} = {}): string {
+function validState(
+  overrides: {workspaceId?: string; userId?: string; nonce?: string} = {},
+): string {
   return signDiscordInstallState({
     workspaceId: overrides.workspaceId ?? WORKSPACE_ID,
     userId: overrides.userId ?? 'user-1',
+    nonce: overrides.nonce ?? NONCE,
   });
 }
 
@@ -196,7 +211,18 @@ describe('Discord install routes', () => {
         redirect_uri: 'https://shipfox.example.com/integrations/discord/callback',
         state: expect.any(String),
       });
-      expect(verifyDiscordInstallState(installUrl.searchParams.get('state') ?? '')).toEqual({
+      const setCookie = String(res.headers['set-cookie']);
+      const nonce = setCookie.split(';')[0]?.split('=')[1];
+      expect(nonce).toBeTruthy();
+      expect(setCookie).toContain(`${STATE_COOKIE}=`);
+      expect(setCookie).toContain('Max-Age=1800');
+      expect(setCookie).toContain('Path=/integrations/discord');
+      expect(setCookie).toContain('HttpOnly');
+      expect(setCookie).toContain('Secure');
+      expect(setCookie).toContain('SameSite=Lax');
+      expect(
+        verifyDiscordInstallState(installUrl.searchParams.get('state') ?? '', {nonce}),
+      ).toEqual({
         workspaceId: WORKSPACE_ID,
         userId: 'user-1',
       });
@@ -369,6 +395,7 @@ describe('Discord install routes', () => {
           signDiscordInstallState({
             workspaceId: WORKSPACE_ID,
             userId: 'user-1',
+            nonce: NONCE,
             now: new Date('2020-01-01T00:00:00Z'),
           }),
       ],
@@ -382,6 +409,41 @@ describe('Discord install routes', () => {
       expect(res.statusCode).toBe(400);
       expect(res.json().code).toBe('invalid-discord-install-state');
       expect(discord.exchangeAuthorizationCode).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['no state cookie', null],
+      ['a different state cookie', 'another-browser-nonce'],
+    ])('rejects a callback with %s before any Discord call', async (_name, cookieNonce) => {
+      const discord = discordClient();
+      const app = await createTestApp({discord});
+
+      const res = await callback(app, {code: 'code-1', state: validState()}, {cookieNonce});
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().code).toBe('invalid-discord-install-state');
+      expect(discord.exchangeAuthorizationCode).not.toHaveBeenCalled();
+    });
+
+    it('rejects a cancelled callback that lacks the state cookie', async () => {
+      const app = await createTestApp();
+
+      const res = await callback(
+        app,
+        {error: 'access_denied', state: validState()},
+        {cookieNonce: null},
+      );
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().code).toBe('invalid-discord-install-state');
+    });
+
+    it('clears the state cookie so a callback cannot be replayed', async () => {
+      const app = await createTestApp();
+
+      const res = await callback(app, {code: 'code-1', state: validState()});
+
+      expect(String(res.headers['set-cookie'])).toContain(`${STATE_COOKIE}=;`);
     });
 
     it('rejects a state started by a different user', async () => {

@@ -11,7 +11,10 @@ describe('Discord install state', () => {
       now: new Date('2026-07-07T12:00:00.000Z'),
     });
 
-    const result = verifyDiscordInstallState(state, new Date('2026-07-07T12:05:00.000Z'));
+    const result = verifyDiscordInstallState(state, {
+      nonce: 'nonce-1',
+      now: new Date('2026-07-07T12:05:00.000Z'),
+    });
 
     expect(result).toEqual({workspaceId: 'workspace-1', userId: 'user-1'});
   });
@@ -30,15 +33,30 @@ describe('Discord install state', () => {
         ? new Date('2026-07-07T12:31:00.000Z')
         : new Date('2026-07-07T12:05:00.000Z');
 
-    const result = () => verifyDiscordInstallState(input, now);
+    const result = () => verifyDiscordInstallState(input, {nonce: 'nonce-1', now});
 
     expect(result).toThrow(DiscordInstallStateError);
   });
 
   it.each(['no-dot', 'a.b.c'])('rejects the malformed state %s', (state) => {
-    const result = () => verifyDiscordInstallState(state);
+    const result = () => verifyDiscordInstallState(state, {nonce: 'nonce-1'});
 
     expect(result).toThrow(DiscordInstallStateError);
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['different', 'nonce-2'],
+  ])('rejects a %s browser nonce', (_name, nonce) => {
+    const state = signDiscordInstallState({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      nonce: 'nonce-1',
+    });
+
+    const result = () => verifyDiscordInstallState(state, {nonce});
+
+    expect(result).toThrow('not bound to this browser session');
   });
 
   it('rejects a validly signed malformed payload', () => {
@@ -47,7 +65,7 @@ describe('Discord install state', () => {
       .update(payload)
       .digest('base64url');
 
-    const result = () => verifyDiscordInstallState(`${payload}.${signature}`);
+    const result = () => verifyDiscordInstallState(`${payload}.${signature}`, {nonce: 'nonce-1'});
 
     expect(result).toThrow('Invalid Discord install state payload');
   });

@@ -236,7 +236,12 @@ describe('Discord REST client', () => {
       const [{request, form}] = sent as [(typeof sent)[number]];
       expect(request.method).toBe('POST');
       expect(request.url).toBe('https://discord.test/api/v10/oauth2/token/revoke');
-      expect(form).toMatchObject({token: 'user-token', token_type_hint: 'access_token'});
+      expect(form).toEqual({
+        client_id: 'app-1',
+        client_secret: 'test-discord-client-secret',
+        token: 'user-token',
+        token_type_hint: 'access_token',
+      });
     });
   });
 

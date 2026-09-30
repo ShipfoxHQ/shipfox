@@ -70,11 +70,11 @@ The executable environment contract is defined in [`src/config.ts`](src/config.t
 
 Commands are answered with an ephemeral message. It says the server is not connected when the guild has no active connection, warns that replies may not appear when `app_permissions` lacks `VIEW_CHANNEL` or `SEND_MESSAGES` (`SEND_MESSAGES_IN_THREADS` in a thread), and otherwise says "Working on it."
 
-`POST /integrations/discord/install` takes `{workspace_id}` and returns the Discord authorize URL: `scope=bot applications.commands` (no `identify`), the bot permissions integer `309237730368`, `integration_type=0`, `response_type=code`, and a signed `state`. The state carries the workspace id, user id, nonce, and a 30-minute expiry, signed with `DISCORD_OAUTH_CLIENT_SECRET`.
+`POST /integrations/discord/install` takes `{workspace_id}` and returns the Discord authorize URL: `scope=bot applications.commands` (no `identify`), the bot permissions integer `309237730368`, `integration_type=0`, `response_type=code`, and a signed `state`. The state carries the workspace id, user id, nonce, and a 30-minute expiry, signed with `DISCORD_OAUTH_CLIENT_SECRET`. The same nonce is set in the `shipfox_discord_install_state` cookie (`HttpOnly`, `Secure`, `SameSite=Lax`, scoped to `/integrations/discord`), so only the browser that started the install can finish it.
 
 `GET /integrations/discord/callback/api` completes the install for the signed-in user:
 
-1. The state must verify and belong to the session user, or the request fails before any Discord call.
+1. The state must verify, match the cookie nonce, and belong to the session user, or the request fails before any Discord call. The cookie is cleared on every callback, so a callback cannot be replayed.
 2. The code exchange returns the guild. The `guild_id` on the callback query is never used. The user token is revoked right after, and a failed revoke is only logged.
 3. The route takes the guild lock and holds it through step 6, so a concurrent disconnect either finishes first or waits for the new records.
 4. `GET /guilds/{id}` with the bot token confirms the bot is in the guild and gives the managed role (`tags.bot_id` equal to `DISCORD_APPLICATION_ID`) with its `permissions`.

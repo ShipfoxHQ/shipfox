@@ -269,12 +269,19 @@ describe('Discord OAuth connect', () => {
     const guildId = `guild-${crypto.randomUUID()}`;
     const app = await createTestApp([part.provider]);
     const state = () =>
-      discordPackage.signDiscordInstallState({workspaceId: context.workspaceId, userId: 'user-1'});
+      discordPackage.signDiscordInstallState({
+        workspaceId: context.workspaceId,
+        userId: 'user-1',
+        nonce: 'browser-nonce-1',
+      });
     const callback = () =>
       app.inject({
         method: 'GET',
         url: `/integrations/discord/callback/api?${new URLSearchParams({code: 'code-1', state: state()})}`,
-        headers: {authorization: 'Bearer user'},
+        headers: {
+          authorization: 'Bearer user',
+          cookie: 'shipfox_discord_install_state=browser-nonce-1',
+        },
       });
     const deleteConnection = (connectionId: string) =>
       app.inject({

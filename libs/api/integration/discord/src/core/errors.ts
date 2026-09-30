@@ -41,7 +41,7 @@ export class DiscordOAuthCallbackError extends Error {
 
 /** The bot is not a member of the guild, usually because the person lacked Manage Server. */
 export class DiscordBotNotInGuildError extends Error {
-  constructor(public readonly guildId: string | undefined) {
+  constructor() {
     super('Discord bot is not in the server');
     this.name = 'DiscordBotNotInGuildError';
   }

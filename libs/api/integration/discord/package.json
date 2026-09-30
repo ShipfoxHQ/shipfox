@@ -53,6 +53,7 @@
   "dependencies": {
     "@discordjs/rest": "catalog:",
     "@discordjs/ws": "catalog:",
+    "@fastify/cookie": "catalog:",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-integration-discord-dto": "workspace:*",
     "@shipfox/api-integration-spi": "workspace:*",

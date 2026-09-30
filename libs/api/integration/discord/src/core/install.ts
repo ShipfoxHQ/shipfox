@@ -45,6 +45,7 @@ export interface HandleDiscordCallbackParams {
   discord: Pick<DiscordApiClient, 'exchangeAuthorizationCode' | 'revokeAccessToken' | 'getGuild'>;
   code: string;
   state: string;
+  stateNonce: string | undefined;
   sessionUserId: string;
   sessionMemberships: ReadonlyArray<UserContextMembership>;
   requireWorkspaceMembership: WorkspaceMembershipCheck;
@@ -62,7 +63,11 @@ export interface DiscordCallbackResult {
   connection: IntegrationConnection<'discord'>;
 }
 
-export function buildDiscordInstallUrl(params: {workspaceId: string; userId: string}): string {
+export function buildDiscordInstallUrl(params: {
+  workspaceId: string;
+  userId: string;
+  nonce: string;
+}): string {
   const url = new URL(DISCORD_AUTHORIZE_URL);
   url.searchParams.set('client_id', config.DISCORD_APPLICATION_ID);
   url.searchParams.set('scope', DISCORD_INSTALL_SCOPES);
@@ -82,7 +87,7 @@ export async function handleDiscordCallback(
   // The guild comes from the exchange. The `guild_id` on the callback query is only a hint.
   const authorization = await params.discord.exchangeAuthorizationCode({code: params.code});
   await revokeBestEffort(params.discord, authorization.accessToken);
-  if (!authorization.guild) throw new DiscordBotNotInGuildError(undefined);
+  if (!authorization.guild) throw new DiscordBotNotInGuildError();
   const guildId = authorization.guild.id;
 
   const withGuildLock = params.withGuildLock ?? withDiscordGuildLock;
@@ -111,6 +116,7 @@ export async function handleDiscordCallback(
 
 export async function handleDiscordOAuthCallbackError(params: {
   state: string;
+  stateNonce: string | undefined;
   error: string;
   errorDescription?: string | undefined;
   sessionUserId: string;
@@ -125,11 +131,11 @@ export async function handleDiscordOAuthCallbackError(params: {
 async function verifyClaims(
   params: Pick<
     HandleDiscordCallbackParams,
-    'sessionUserId' | 'sessionMemberships' | 'requireWorkspaceMembership'
+    'stateNonce' | 'sessionUserId' | 'sessionMemberships' | 'requireWorkspaceMembership'
   >,
   state: string,
 ) {
-  const claims = verifyDiscordInstallState(state);
+  const claims = verifyDiscordInstallState(state, {nonce: params.stateNonce});
   if (claims.userId !== params.sessionUserId) throw new DiscordInstallStateActorMismatchError();
   await params.requireWorkspaceMembership({
     workspaceId: claims.workspaceId,
@@ -159,7 +165,7 @@ async function getGuildAsBot(discord: Pick<DiscordApiClient, 'getGuild'>, guildI
       error instanceof DiscordIntegrationProviderError &&
       (error.status === 403 || error.status === 404)
     ) {
-      throw new DiscordBotNotInGuildError(guildId);
+      throw new DiscordBotNotInGuildError();
     }
     throw error;
   }
