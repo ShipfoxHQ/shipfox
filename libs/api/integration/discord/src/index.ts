@@ -36,7 +36,6 @@ export {
   type GatewayLostReason,
 } from '#core/gateway-service.js';
 export type {ConnectDiscordInstallationInput} from '#core/install.js';
-export {discordGuildLockKey, withDiscordGuildLock} from '#db/guild-lock.js';
 export type {
   DiscordCommand,
   DiscordCommandOutcome,
@@ -63,6 +62,7 @@ export type {
   DiscordWebhookProcessor,
 } from '#core/webhook-processor.js';
 export {createDiscordWebhookProcessor} from '#core/webhook-processor.js';
+export {discordGuildLockKey, withDiscordGuildLock} from '#db/guild-lock.js';
 export type {
   DiscordInstallation,
   DiscordInstallationStatus,
