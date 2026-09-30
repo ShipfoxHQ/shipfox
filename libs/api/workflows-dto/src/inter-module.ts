@@ -135,6 +135,13 @@ const interpolationFieldSchema = z.enum([
   'checkout.path',
 ]);
 
+const stepLocationSchema = z.object({
+  key: z.string().optional(),
+  name: z.string().optional(),
+  /** 1-based position among the job's authored steps. */
+  index: z.number().int().positive(),
+});
+
 const interpolationUnresolvableDetailsSchema = z.object({
   definitionId: idSchema,
   field: interpolationFieldSchema,
@@ -142,14 +149,34 @@ const interpolationUnresolvableDetailsSchema = z.object({
   envKey: z.string().optional(),
   variableKey: z.string().optional(),
   jobKey: z.string().optional(),
-  step: z
-    .object({
-      key: z.string().optional(),
-      name: z.string().optional(),
-      index: z.number().int().positive(),
-    })
-    .optional(),
+  step: stepLocationSchema.optional(),
 });
+
+/** Most locations one run issue lists; `moreLocations` counts the rest. */
+export const RUN_ISSUE_LOCATIONS_MAX = 5;
+
+const runIssueLocationSchema = z.object({
+  jobKey: z.string().optional(),
+  step: stepLocationSchema.optional(),
+  field: interpolationFieldSchema,
+  envKey: z.string().optional(),
+});
+
+/**
+ * What an issue does when a run happens. It follows from when the server resolves the
+ * reference, never from the issue kind.
+ */
+const runIssueEffectSchema = z.enum(['blocks-start', 'fails-job']);
+
+export const runIssueSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('variable-missing'),
+    key: z.string(),
+    locations: z.array(runIssueLocationSchema).min(1).max(RUN_ISSUE_LOCATIONS_MAX),
+    moreLocations: z.number().int().positive().optional(),
+    effect: runIssueEffectSchema,
+  }),
+]);
 
 const attemptSchema = z.number().int().min(1).max(WORKFLOW_RUN_ATTEMPT_MAX);
 const workflowRunAttemptsInterModulePageSchema = z.object({
@@ -271,6 +298,17 @@ export const workflowsInterModuleContract = defineInterModuleContract({
       input: z.object({}),
       output: runnerCatalogNamesResponseSchema,
       errors: {},
+    },
+    checkRunReadiness: {
+      input: z.object({
+        workspaceId: idSchema,
+        projectId: idSchema,
+        definitionIds: z.array(idSchema).min(1).max(100),
+      }),
+      // Ids that name no definition in the project are left out of the result.
+      output: z.object({
+        definitions: z.array(z.object({definitionId: idSchema, issues: z.array(runIssueSchema)})),
+      }),
     },
     startRunFromTrigger: {
       input: z.object({
@@ -740,3 +778,4 @@ export const workflowsInterModuleContract = defineInterModuleContract({
 });
 
 export type WorkflowsModuleClient = InterModuleClient<typeof workflowsInterModuleContract>;
+export type RunIssue = z.infer<typeof runIssueSchema>;

@@ -77,6 +77,7 @@ function localWorkflowsClient(): WorkflowsModuleClient {
   return createFakeInterModuleClients({
     workflows: defineInterModulePresentation(workflowsInterModuleContract, {
       listRunnerCatalogNames: vi.fn(),
+      checkRunReadiness: vi.fn(),
       startRunFromTrigger: ({definitionId}) => {
         if (definitionId.endsWith('0003')) return {id: definitionId, name: 'Build'};
         throw createInterModuleKnownError(

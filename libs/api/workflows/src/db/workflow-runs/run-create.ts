@@ -39,6 +39,7 @@ import {resolveWorkflowRunTriggerReference} from '#core/resolve-trigger-referenc
 import {
   collectRunRequirements,
   type ReferencedVariable,
+  variableReferenceIsRequired,
   type WorkflowModelJob,
 } from '#core/run-requirements.js';
 import {assembleCreationContext} from '#core/step-config/assemble-run-context.js';
@@ -596,9 +597,7 @@ export async function loadReferencedVariables(params: {
   const keys = [...new Set(references.map((reference) => reference.key))].sort();
   if (keys.length === 0) return undefined;
 
-  const requiresSecrets = (reference: ReferencedVariable) =>
-    reference.field !== 'job.execution_name' && reference.field !== 'workflow.run_name';
-  const requiredReferences = references.filter(requiresSecrets);
+  const requiredReferences = references.filter(variableReferenceIsRequired);
   const requiredKeys = new Set(requiredReferences.map((reference) => reference.key));
   if (!params.secrets) {
     if (requiredKeys.size === 0) return undefined;

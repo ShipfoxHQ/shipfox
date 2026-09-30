@@ -59,6 +59,14 @@ interface Scope {
 }
 
 /**
+ * Display-only names never fail a run when a variable they read is missing, so run creation
+ * and readiness both skip them.
+ */
+export function variableReferenceIsRequired(reference: ReferencedVariable): boolean {
+  return reference.field !== 'job.execution_name' && reference.field !== 'workflow.run_name';
+}
+
+/**
  * Collect every `vars.*` and `secrets.*` reference a workflow model reads, with where it
  * is read. References inside `has()` and either side of `?:`, `&&` and `||` count: the
  * analyzer walks every branch, so a workflow needs each key it names even when that
