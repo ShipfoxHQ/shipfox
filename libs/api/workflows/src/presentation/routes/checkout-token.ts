@@ -18,7 +18,11 @@ import {
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {captureException} from '@shipfox/node-error-monitoring';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
-import {createStepCheckoutSpec, renewStepCheckoutCredentials} from '#core/checkout.js';
+import {
+  createStepCheckoutSpec,
+  getCheckoutPolicy,
+  renewStepCheckoutCredentials,
+} from '#core/checkout.js';
 import {warnRenewableGitCapabilityMismatchOnDispatch} from '#core/checkout-capability-warning.js';
 import type {CheckoutRenewalSubject} from '#core/entities/checkout-renewal-subject.js';
 import type {StepStatus} from '#core/entities/step.js';
@@ -80,7 +84,7 @@ export function createCheckoutTokenRoute(clients: {
         }
         if (hasRejectedGeneration && loaded.checkoutRenewalSubject === undefined) {
           throw new ClientError(
-            'Checkout credentials cannot be renewed until the checkout step succeeds',
+            'The checkout credential replacement scope is unavailable',
             'checkout-renewal-unavailable',
             {status: 409},
           );
@@ -138,6 +142,7 @@ async function createCheckoutTokenResponse(params: {
     return toCheckoutTokenRenewalDto(
       params.loaded.checkoutRenewalSubject.repositoryUrl,
       credentials,
+      {persist: getCheckoutPolicy(params.loaded.step.config)?.persistCredentials ?? false},
     );
   }
 

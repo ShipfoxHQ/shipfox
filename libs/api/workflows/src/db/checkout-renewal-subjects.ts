@@ -74,7 +74,6 @@ export async function loadPendingCheckoutRenewalSubject(params: {
     row.stepCurrentAttempt !== params.attempt ||
     row.stepJobExecutionId !== params.jobExecutionId ||
     row.jobWorkflowRunAttemptId !== params.workflowRunAttemptId ||
-    policy?.persistCredentials !== true ||
     policy?.permissionsContents !== row.subject.permissionsContents ||
     row.subject.repositoryUrl !== normalizeRepositoryUrlSafely(row.subject.repositoryUrl) ||
     row.subject.repositoryUrl.length === 0 ||
@@ -124,15 +123,14 @@ export async function savePendingCheckoutRenewalSubject(
     .for('update', {of: [steps]});
 
   const policy = context === undefined ? null : getCheckoutPolicy(context.config);
-  const isCurrentPersistedCheckout =
+  const isCurrentCheckout =
     context !== undefined &&
     context.jobExecutionId === params.jobExecutionId &&
     context.workflowRunAttemptId === params.workflowRunAttemptId &&
     context.currentAttempt === params.attempt &&
     context.status === 'running' &&
-    policy?.persistCredentials === true &&
     policy?.permissionsContents === params.permissions.contents;
-  if (!isCurrentPersistedCheckout) return false;
+  if (!isCurrentCheckout) return false;
 
   const inserted = await transaction
     .insert(checkoutRenewalSubjects)

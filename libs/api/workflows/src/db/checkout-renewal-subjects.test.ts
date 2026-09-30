@@ -130,8 +130,11 @@ describe('checkout renewal subjects', () => {
     );
   });
 
-  test('loads a pending subject only for the current running lease scope', async () => {
-    const fixture = await checkoutFixture();
+  test.each([
+    false,
+    true,
+  ])('loads a pending subject only for the current running lease scope with persistence %s', async (persistCredentials) => {
+    const fixture = await checkoutFixture(persistCredentials);
     const pending = subject(fixture);
     expect(await savePendingCheckoutRenewalSubject(pending)).toBe(true);
 
@@ -355,21 +358,44 @@ describe('checkout renewal subjects', () => {
   ])('does not expose a subject for a %s checkout attempt that does not succeed', async (persistCredentials) => {
     const fixture = await checkoutFixture(persistCredentials);
     const pending = subject(fixture);
-    expect(await savePendingCheckoutRenewalSubject(pending)).toBe(persistCredentials);
+    expect(await savePendingCheckoutRenewalSubject(pending)).toBe(true);
     await withTransaction((tx) =>
       insertRunningStepAttempt(
         {jobExecutionId: fixture.execution.id, stepId: fixture.step.id, attempt: 1},
         tx,
       ),
     );
-    if (persistCredentials) {
-      await withTransaction((tx) =>
-        finishStepAttempt(
-          {stepId: fixture.step.id, attempt: 1, status: 'failed', logOutcome: 'drained'},
-          tx,
-        ),
-      );
-    }
+    await withTransaction((tx) =>
+      finishStepAttempt(
+        {stepId: fixture.step.id, attempt: 1, status: 'failed', logOutcome: 'drained'},
+        tx,
+      ),
+    );
+
+    expect(await loadCheckoutRenewalSubject(fixture.step.id)).toBeNull();
+    const stored = await db()
+      .select()
+      .from(checkoutRenewalSubjects)
+      .where(eq(checkoutRenewalSubjects.stepId, fixture.step.id));
+    expect(stored).toHaveLength(0);
+  });
+
+  test('discards the pending subject after a nonpersisted checkout succeeds without granting ongoing renewal', async () => {
+    const fixture = await checkoutFixture(false);
+    expect(await savePendingCheckoutRenewalSubject(subject(fixture))).toBe(true);
+    await withTransaction((tx) =>
+      insertRunningStepAttempt(
+        {jobExecutionId: fixture.execution.id, stepId: fixture.step.id, attempt: 1},
+        tx,
+      ),
+    );
+    await withTransaction((tx) =>
+      finishStepAttempt(
+        {stepId: fixture.step.id, attempt: 1, status: 'succeeded', logOutcome: 'drained'},
+        tx,
+      ),
+    );
+    await db().update(steps).set({status: 'succeeded'}).where(eq(steps.id, fixture.step.id));
 
     expect(await loadCheckoutRenewalSubject(fixture.step.id)).toBeNull();
     const stored = await db()

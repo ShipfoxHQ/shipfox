@@ -154,14 +154,18 @@ describe('toCheckoutTokenDto', () => {
 });
 
 describe('toCheckoutTokenRenewalDto', () => {
-  it('maps credential-only responses into the legacy checkout envelope', () => {
-    const dto = toCheckoutTokenRenewalDto('https://github.com/acme/repo', {
-      username: 'x-access-token',
-      token: 'ghs-renewed-token',
-      expiresAt: '2099-06-10T12:00:00.000Z',
-      generation: 'generation-2',
-      renewal: {mode: 'on-rejection'},
-    });
+  it.each([false, true])('maps credential-only responses with persist=%s', (persist) => {
+    const dto = toCheckoutTokenRenewalDto(
+      'https://github.com/acme/repo',
+      {
+        username: 'x-access-token',
+        token: 'ghs-renewed-token',
+        expiresAt: '2099-06-10T12:00:00.000Z',
+        generation: 'generation-2',
+        renewal: {mode: 'on-rejection'},
+      },
+      {persist},
+    );
 
     expect(dto).toEqual({
       repository_url: 'https://github.com/acme/repo',
@@ -174,7 +178,7 @@ describe('toCheckoutTokenRenewalDto', () => {
         expires_at: '2099-06-10T12:00:00.000Z',
         carry: 'header',
         host: 'github.com',
-        persist: true,
+        persist,
         generation: 'generation-2',
         renewal: {mode: 'on-rejection'},
       },
@@ -182,11 +186,15 @@ describe('toCheckoutTokenRenewalDto', () => {
   });
 
   it('omits optional credential metadata when the provider does not return it', () => {
-    const dto = toCheckoutTokenRenewalDto('https://github.com/acme/repo', {
-      username: 'x-access-token',
-      token: 'ghs-renewed-token',
-      expiresAt: '2099-06-10T12:00:00.000Z',
-    });
+    const dto = toCheckoutTokenRenewalDto(
+      'https://github.com/acme/repo',
+      {
+        username: 'x-access-token',
+        token: 'ghs-renewed-token',
+        expiresAt: '2099-06-10T12:00:00.000Z',
+      },
+      {persist: true},
+    );
 
     expect(dto.auth).toEqual({
       kind: 'basic',
@@ -200,12 +208,16 @@ describe('toCheckoutTokenRenewalDto', () => {
   });
 
   it('maps refresh-at renewal when the provider returns a refresh deadline', () => {
-    const dto = toCheckoutTokenRenewalDto('https://github.com/acme/repo', {
-      username: 'x-access-token',
-      token: 'ghs-renewed-token',
-      expiresAt: '2099-06-10T12:00:00.000Z',
-      renewal: {mode: 'refresh-at', refreshAt: '2099-06-10T11:55:00.000Z'},
-    });
+    const dto = toCheckoutTokenRenewalDto(
+      'https://github.com/acme/repo',
+      {
+        username: 'x-access-token',
+        token: 'ghs-renewed-token',
+        expiresAt: '2099-06-10T12:00:00.000Z',
+        renewal: {mode: 'refresh-at', refreshAt: '2099-06-10T11:55:00.000Z'},
+      },
+      {persist: true},
+    );
 
     expect(dto.auth?.renewal).toEqual({
       mode: 'refresh-at',

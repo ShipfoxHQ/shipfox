@@ -90,6 +90,7 @@ type CheckoutCredentialResponse = Awaited<
 export function toCheckoutTokenRenewalDto(
   repositoryUrl: string,
   credentials: CheckoutCredentialResponse,
+  options: {persist: boolean},
 ): CheckoutTokenResponseDto {
   return toCheckoutTokenDto(
     {
@@ -113,7 +114,7 @@ export function toCheckoutTokenRenewalDto(
             }),
       },
     },
-    {fetchDepth: 1, persist: true},
+    {fetchDepth: 1, persist: options.persist},
   );
 }
 

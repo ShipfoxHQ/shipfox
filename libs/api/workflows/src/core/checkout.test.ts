@@ -678,9 +678,12 @@ describe('createStepCheckoutSpec', () => {
     });
   });
 
-  it('uses the provider-resolved target for name-target credential renewal', async () => {
+  it.each([
+    false,
+    true,
+  ])('uses the provider-resolved target with credential persistence %s', async (persistCredentials) => {
     const project = projectFactory.build();
-    const step = checkoutStep({repository: 'acme/other', persist_credentials: true});
+    const step = checkoutStep({repository: 'acme/other', persist_credentials: persistCredentials});
     getProjectById.mockResolvedValue({project});
     createCheckoutSpec.mockResolvedValue({
       repositoryUrl: 'https://github.com/acme/other.git',
@@ -704,6 +707,7 @@ describe('createStepCheckoutSpec', () => {
       projects: projects as ProjectsModuleClient,
     });
 
+    expect(result.persistCredentials).toBe(persistCredentials);
     expect(result.renewalSubject).toEqual({
       repositoryUrl: 'https://github.com/acme/other',
       connectionId: project.sourceConnectionId,
