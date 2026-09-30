@@ -45,7 +45,10 @@
     "@shipfox/api-integration-spi": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
+    "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
+    "@shipfox/node-module": "workspace:*",
+    "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "drizzle-orm": "catalog:"
   },

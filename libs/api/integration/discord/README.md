@@ -7,6 +7,7 @@
 - **`createDiscordIntegrationProvider`** exposes the Discord provider metadata, guild external URL, and connection-record cleanup hook.
 - **Installation repository exports** create, find, and delete Discord guild installations owned by the provider database.
 - **`createDiscordE2eRoutes`** exposes the synthetic connection route used by integration and E2E tests.
+- **`createDiscordGatewayService`** returns the `ModuleService` that elects one Gateway leader per shard with a Postgres advisory lock. Each replica holds a dedicated connection, retries every 10 s, and checks it with `SELECT 1` every 15 s. The `onLeading` and `onLost` callbacks carry the leader's work; `onLost` runs before the lock is released on shutdown.
 - **`config`** defines the Discord application, OAuth, bot, Gateway, and API settings.
 
 ## Installation and setup
@@ -47,7 +48,7 @@ The executable environment contract is defined in [`src/config.ts`](src/config.t
 | `DISCORD_OAUTH_REDIRECT_URL` | Discord OAuth callback URL. |
 | `DISCORD_PUBLIC_KEY` | Interaction signature verification key. |
 | `DISCORD_BOT_TOKEN` | Bot token for Discord API access. |
-| `DISCORD_GATEWAY_ENABLED` | Enables the Gateway service when it is implemented. |
+| `DISCORD_GATEWAY_ENABLED` | Starts the Gateway service, which elects one leader per shard. |
 | `DISCORD_API_BASE_URL` | Discord API base URL, including E2E overrides. |
 
 ## Routes
