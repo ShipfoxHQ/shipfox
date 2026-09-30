@@ -52,6 +52,7 @@ describe('integrations E2E setup helper', () => {
       accessToken: 'jira-access-token',
       refreshToken: 'jira-refresh-token',
       scopes: ['read:jira-work', 'write:jira-work'],
+      webhookIds: [4242],
     });
 
     expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/integrations/jira-connections', {
@@ -65,6 +66,7 @@ describe('integrations E2E setup helper', () => {
         display_name: 'Jira Acme',
         access_token: 'jira-access-token',
         refresh_token: 'jira-refresh-token',
+        webhook_ids: [4242],
       },
     });
   });
