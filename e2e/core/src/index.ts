@@ -9,5 +9,7 @@ export {
   requestJson,
 } from './api/index.js';
 export {config} from './config.js';
+export {closeServer, listenOnEndpoint} from './mock-server.js';
 export {type PollOptions, PollTimeoutError, pollUntil} from './poll.js';
 export {type PreflightOptions, preflightCheck} from './preflight.js';
+export type {RecordedWrite} from './recorded-write.js';

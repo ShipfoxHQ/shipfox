@@ -1,5 +1,5 @@
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
-import {closeServer, listenOnEndpoint} from './mock-server.js';
+import {closeServer, listenOnEndpoint, type RecordedWrite} from '@shipfox/e2e-core';
 
 export const SLACK_REPLIES_MARKER = 'slack-replies-marker';
 export const SLACK_POSTED_TS = '1721300000.000002';
@@ -43,6 +43,8 @@ export interface SlackApiMockOptions {
 export interface SlackApiMock {
   calls: SlackApiMockCall[];
   endpoint: URL;
+  /** Writes the fake accepted, in arrival order. */
+  writes(): RecordedWrite[];
   /** Makes later chat.postMessage calls fail with this Slack error, or succeed again with null. */
   setPostMessageError(error: string | null): void;
   stop(): Promise<void>;
@@ -51,11 +53,13 @@ export interface SlackApiMock {
 export async function startSlackApiMock(options: SlackApiMockOptions = {}): Promise<SlackApiMock> {
   const endpoint = options.endpoint ?? new URL(requiredSlackApiBaseUrl());
   const calls: SlackApiMockCall[] = [];
+  const writes: RecordedWrite[] = [];
   const failures: {postMessage: string | null} = {postMessage: null};
   let boundEndpoint = endpoint;
   const server = createServer((request, response) => {
     void handleSlackRequest({
       calls,
+      writes,
       failures,
       options,
       endpoint: boundEndpoint,
@@ -73,6 +77,7 @@ export async function startSlackApiMock(options: SlackApiMockOptions = {}): Prom
   return {
     calls,
     endpoint: boundEndpoint,
+    writes: () => [...writes],
     setPostMessageError: (error) => {
       failures.postMessage = error;
     },
@@ -88,6 +93,7 @@ export async function startSlackApiMock(options: SlackApiMockOptions = {}): Prom
 
 interface SlackRequestContext {
   calls: SlackApiMockCall[];
+  writes: RecordedWrite[];
   failures: {postMessage: string | null};
   options: SlackApiMockOptions;
   response: ServerResponse;
@@ -106,6 +112,7 @@ const SLACK_METHOD_HANDLERS: Readonly<Record<string, (context: SlackRequestConte
 
 async function handleSlackRequest(params: {
   calls: SlackApiMockCall[];
+  writes: RecordedWrite[];
   failures: {postMessage: string | null};
   options: SlackApiMockOptions;
   endpoint: URL;
@@ -180,6 +187,11 @@ function handlePostMessage(context: SlackRequestContext): void {
     sendJson(context.response, 200, {ok: false, error: context.failures.postMessage});
     return;
   }
+  context.writes.push({
+    kind: 'chat.postMessage',
+    target: channel ?? '',
+    payload: Object.fromEntries(context.body.entries()),
+  });
   sendJson(context.response, 200, {ok: true, channel, ts: SLACK_POSTED_TS, message: {text}});
 }
 

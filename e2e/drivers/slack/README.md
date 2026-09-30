@@ -1,0 +1,25 @@
+# @shipfox/e2e-driver-slack
+
+A fake Slack Web API and Events sender for E2E suites. The fake stands in for `slack.com/api` at the address the API reads from `SLACK_API_BASE_URL`. The event helpers post signed `app_mention` deliveries to the API's Slack webhook. Faking Slack is on purpose: it is the external system under integration.
+
+## Public API
+
+- `startSlackApiMock(options?)`: start the fake and return a `SlackApiMock`. It serves
+  `conversations.replies`, `users.info`, `chat.getPermalink`, and `chat.postMessage`. Waits for
+  the port when a spec in another worker holds it.
+- `SlackApiMock.calls`: every request the fake handled, as `SlackApiMockCall` entries.
+- `SlackApiMock.writes()`: the `chat.postMessage` requests the fake accepted, as
+  `RecordedWrite` entries targeted at their channel. A post made to fail with
+  `setPostMessageError` is in `calls` but not in `writes()`.
+- `signSlackHeaders`, `buildAppMentionEnvelope`, and `postSlackAppMention`: sign
+  and send an `app_mention` event. The suite waits for the run it starts.
+
+## Local Checks
+
+```sh
+mise exec -- turbo check type test --filter=@shipfox/e2e-driver-slack...
+```
+
+## License
+
+MIT

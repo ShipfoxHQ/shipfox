@@ -12,17 +12,12 @@
     "#test/*": "./tests/*",
     "#agent-access-mcp.js": "./src/agent-access-mcp.ts",
     "#attachments.js": "./src/attachments.ts",
-    "#clickup-api.js": "./src/clickup-api.ts",
     "#clickup-events.js": "./src/clickup-events.ts",
     "#create-project.js": "./src/create-project.ts",
     "#expect.js": "./src/expect.ts",
     "#listener-helpers.js": "./src/listener-helpers.ts",
     "#listener-jobs.js": "./src/listener-jobs.ts",
-    "#linear-mcp.js": "./src/linear-mcp.ts",
-    "#notion-api.js": "./src/notion-api.ts",
-    "#notion-events.js": "./src/notion-events.ts",
     "#polling.js": "./src/polling.ts",
-    "#posthog-api.js": "./src/posthog-api.ts",
     "#production-payloads.js": "./src/production-payloads.ts",
     "#reference-actions.js": "./src/reference-actions.ts",
     "#renewable-credentials-workflows.js": "./src/renewable-credentials-workflows.ts",
@@ -30,7 +25,6 @@
     "#run-scenario.js": "./src/run-scenario.ts",
     "#runner.js": "./src/runner.ts",
     "#scenarios.js": "./src/scenarios.ts",
-    "#slack-api.js": "./src/slack-api.ts",
     "#slack-agent-tools.js": "./src/slack-agent-tools.ts",
     "#slack-events.js": "./src/slack-events.ts",
     "#suite-context.js": "./src/suite-context.ts",
@@ -88,6 +82,11 @@
     "@types/js-yaml": "catalog:",
     "@modelcontextprotocol/sdk": "catalog:",
     "js-yaml": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@shipfox/e2e-driver-linear": "workspace:*",
+    "@shipfox/e2e-driver-slack": "workspace:*",
+    "@shipfox/e2e-driver-clickup": "workspace:*",
+    "@shipfox/e2e-driver-notion": "workspace:*",
+    "@shipfox/e2e-driver-posthog": "workspace:*"
   }
 }

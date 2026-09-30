@@ -17,6 +17,26 @@ describe('ClickUp API mock', () => {
     }
   });
 
+  it('records comments as writes and reads as calls only', async () => {
+    const mock = await startClickUpApiMock(new URL('http://127.0.0.1:0'));
+
+    try {
+      await fetch(new URL('/api/v2/task/86abc', mock.endpoint));
+      await fetch(new URL('/api/v2/task/86abc/comment', mock.endpoint), {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({comment_text: 'Done', notify_all: false}),
+      });
+
+      expect(mock.calls.map((call) => call.kind)).toEqual(['get_task', 'add_comment']);
+      expect(mock.writes()).toEqual([
+        {kind: 'add_comment', target: '86abc', payload: {comment_text: 'Done', notify_all: false}},
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
   it('fails fast when the endpoint includes a path prefix', async () => {
     await expect(startClickUpApiMock(new URL('http://127.0.0.1:9000/clickup'))).rejects.toThrow(
       'CLICKUP_API_BASE_URL must not include a path for the ClickUp API mock',

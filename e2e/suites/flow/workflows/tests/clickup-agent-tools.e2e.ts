@@ -1,3 +1,8 @@
+import {
+  CLICKUP_COMMENT_RESULT_MARKER,
+  CLICKUP_TASK_RESULT_MARKER,
+  startClickUpApiMock,
+} from '@shipfox/e2e-driver-clickup';
 import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import {createAnthropicFakeModelProviderConfig} from '@shipfox/e2e-setup-agent';
@@ -7,11 +12,6 @@ import {
   collectStepLogAttachmentRequests,
   fetchLogAttachment,
 } from '#attachments.js';
-import {
-  CLICKUP_COMMENT_RESULT_MARKER,
-  CLICKUP_TASK_RESULT_MARKER,
-  startClickUpApiMock,
-} from '#clickup-api.js';
 import {triggerClickUpCommentAndAwaitRun} from '#clickup-events.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import type {SuiteContext} from '#suite-context.js';

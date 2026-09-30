@@ -19,6 +19,7 @@ describe('Notion API mock', () => {
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({id: pageId, marker: NOTION_PAGE_RESULT_MARKER});
       expect(mock.calls).toEqual([{kind: 'get_page', authorization: 'Bearer e2e-token', pageId}]);
+      expect(mock.writes()).toEqual([]);
     } finally {
       await mock.stop();
     }

@@ -1,8 +1,8 @@
 import {readdir, readFile} from 'node:fs/promises';
 import {join, relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import type {LinearWorkspaceFixture} from './linear-mcp.js';
-import type {SlackThreadPage} from './slack-api.js';
+import type {LinearWorkspaceFixture} from '@shipfox/e2e-driver-linear';
+import type {SlackThreadPage} from '@shipfox/e2e-driver-slack';
 import type {WorkflowProjectFile} from './workflow-project.js';
 
 export type ReferenceActionName = 'slack-thread' | 'verified-commit' | 'linear-context';

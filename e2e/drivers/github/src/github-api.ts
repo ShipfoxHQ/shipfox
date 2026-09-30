@@ -1,7 +1,6 @@
 import {createHash} from 'node:crypto';
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
-import {closeServer, listenOnEndpoint} from './mock-server.js';
-import type {RecordedWrite} from './recorded-write.js';
+import {closeServer, listenOnEndpoint, type RecordedWrite} from '@shipfox/e2e-core';
 
 const JWT_SEGMENT_LENGTH = 169;
 

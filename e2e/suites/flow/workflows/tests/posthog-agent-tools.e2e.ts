@@ -1,9 +1,5 @@
 import {createApiClient, pollUntil} from '@shipfox/e2e-core';
 import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
-import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
-import {createAnthropicFakeModelProviderConfig} from '@shipfox/e2e-setup-agent';
-import {createPosthogConnection} from '@shipfox/e2e-setup-integrations';
-import {attachLocalRunnerLog} from '#attachments.js';
 import {
   type PosthogMockCall,
   posthogMockCalls,
@@ -11,7 +7,11 @@ import {
   releasePosthogCall,
   setPosthogProbeStatus,
   waitForPosthogMockCall,
-} from '#posthog-api.js';
+} from '@shipfox/e2e-driver-posthog';
+import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
+import {createAnthropicFakeModelProviderConfig} from '@shipfox/e2e-setup-agent';
+import {createPosthogConnection} from '@shipfox/e2e-setup-integrations';
+import {attachLocalRunnerLog} from '#attachments.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
 import {seedProjectWithApiDefinition} from '#workflow-project.js';
