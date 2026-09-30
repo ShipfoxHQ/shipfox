@@ -121,6 +121,31 @@ describe('experiment items', () => {
   });
 });
 
+describe('agent transcripts', () => {
+  const jsonl = `${JSON.stringify({
+    type: 'message',
+    timestamp: '2026-09-30T10:00:03.000Z',
+    message: {role: 'assistant', content: [{type: 'text', text: 'Done.'}], model: 'gpt-6-luna'},
+  })}\n`;
+
+  it('keeps transcripts out of the item output', async () => {
+    const recorded = result({agent_transcripts: [{step: 'implement', harness: 'pi', jsonl}]});
+    const task = safeTask({
+      results: new Map([['ticket-to-pr/feedback-loop#1', recorded]]),
+      summary: '# Summary',
+    });
+
+    const output = (await task({input: {case: recorded.case, repeat: 1}})) as Record<
+      string,
+      unknown
+    >;
+
+    expect(output.agent_transcripts).toBeUndefined();
+    expect(output.status).toBe('passed');
+    expect(output.transcript_errors).toBeUndefined();
+  });
+});
+
 describe('describeRun', () => {
   it('names the run from the short commit, branch, and UTC date', async () => {
     const identity = await describeRun({

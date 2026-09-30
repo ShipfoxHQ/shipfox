@@ -2,6 +2,13 @@ import {mkdir, writeFile} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
 import type {DiscoveredCase} from './discovery.js';
 
+/** The session of one agent step, as the harness wrote it. */
+export interface AgentTranscript {
+  step: string;
+  harness: 'pi';
+  jsonl: string;
+}
+
 export interface CaseResult {
   case: string;
   mode: 'scripted' | 'live';
@@ -11,6 +18,7 @@ export interface CaseResult {
   cost_usd: number;
   error?: string;
   composed_yaml?: string;
+  agent_transcripts?: AgentTranscript[];
 }
 
 export interface ResultsRun {

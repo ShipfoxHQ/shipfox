@@ -6,7 +6,8 @@ import {type Evaluation, type ExperimentItem, LangfuseClient} from '@langfuse/cl
 import {LangfuseSpanProcessor} from '@langfuse/otel';
 import {startActiveObservation} from '@langfuse/tracing';
 import {NodeTracerProvider} from '@opentelemetry/sdk-trace-node';
-import type {CaseResult, ResultsRun} from './results.js';
+import {recordPiTranscript} from './pi-transcript.js';
+import type {AgentTranscript, CaseResult, ResultsRun} from './results.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -30,6 +31,21 @@ function itemKey({case: caseId, repeat}: ItemInput): string {
 
 function base64DataUri({contentType, text}: {contentType: string; text: string}): string {
   return `data:${contentType};base64,${Buffer.from(text, 'utf8').toString('base64')}`;
+}
+
+/** A transcript that fails to convert is reported on the item, so it never turns a result into an error. */
+function recordAgentTranscripts(transcripts: AgentTranscript[]): string[] {
+  const failures: string[] = [];
+  for (const transcript of transcripts) {
+    try {
+      recordPiTranscript({step: transcript.step, jsonl: transcript.jsonl});
+    } catch (error) {
+      failures.push(
+        `${transcript.step}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+  return failures;
 }
 
 /**
@@ -65,8 +81,13 @@ export function safeTask({
           text: result.composed_yaml,
         });
       }
-      const {composed_yaml: _yaml, ...rest} = result;
-      return Promise.resolve({...rest, media});
+      const {composed_yaml: _yaml, agent_transcripts: transcripts = [], ...rest} = result;
+      const transcriptErrors = recordAgentTranscripts(transcripts);
+      return Promise.resolve({
+        ...rest,
+        media,
+        ...(transcriptErrors.length === 0 ? {} : {transcript_errors: transcriptErrors}),
+      });
     } catch (error) {
       return Promise.resolve({
         case: input.case,
