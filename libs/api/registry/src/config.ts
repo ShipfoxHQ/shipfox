@@ -4,14 +4,19 @@ import type {RegistrySettings} from '#core/settings.js';
 
 const TRAILING_SLASHES = /\/+$/;
 
+const DEFAULT_REGISTRY_URL = 'https://api.registry.shipfox.io';
+const DEFAULT_REGISTRY_TRUSTED_KEYS = JSON.stringify([
+  {keyid: 'reg-2026-1', public_key: 'MCowBQYDK2VwAyEAq2fEsoh5zgdS98lzT8GChmTVE2ZunMIZ8DWCDxkYlVU='},
+]);
+
 export const config = createConfig({
   REGISTRY_URL: str({
-    desc: 'URL of the Shipfox Registry API that provides workflow actions and templates, such as https://api.registry.shipfox.io. Leave empty to disable registry references and templates.',
-    default: '',
+    desc: 'URL of the Shipfox Registry API that provides workflow actions and templates, such as https://api.registry.shipfox.io. Defaults to the central Shipfox Registry. Set it to an empty value to disable registry references and templates.',
+    default: DEFAULT_REGISTRY_URL,
   }),
   REGISTRY_TRUSTED_KEYS: str({
-    desc: 'JSON list of the registry signing keys this instance trusts, as objects with keyid and public_key (a base64 DER Ed25519 public key). Registry content is used only when a trusted key signed it. Required when REGISTRY_URL is set.',
-    default: '[]',
+    desc: 'JSON list of the registry signing keys this instance trusts, as objects with keyid and public_key (a base64 DER Ed25519 public key). Registry content is used only when a trusted key signed it. Defaults to the production key of the central Shipfox Registry. Required when REGISTRY_URL is set.',
+    default: DEFAULT_REGISTRY_TRUSTED_KEYS,
   }),
   REGISTRY_CATALOG_REFRESH_SECONDS: num({
     desc: 'Seconds a cached registry catalog or package index is served before the next read refreshes it in the background. A refresh failure keeps the last good copy.',

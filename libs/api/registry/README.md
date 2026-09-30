@@ -11,7 +11,7 @@
 
 ## Installation and setup
 
-The API composition root registers the module in `libs/api/server/src/modules.ts`. Set `REGISTRY_URL` and `REGISTRY_TRUSTED_KEYS` to enable it.
+The API composition root registers the module in `libs/api/server/src/modules.ts`. It reads the central Shipfox Registry by default. Set `REGISTRY_URL` and `REGISTRY_TRUSTED_KEYS` to use another registry, or set `REGISTRY_URL` to an empty value to disable it.
 
 ```sh
 pnpm add @shipfox/api-registry
@@ -32,8 +32,8 @@ await initializeModules({modules: [createRegistryModule()]});
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `REGISTRY_URL` | empty | URL of the registry API. Empty disables the module: every call fails with `registry-disabled`. |
-| `REGISTRY_TRUSTED_KEYS` | `[]` | JSON list of `{keyid, public_key}`. A public key is a base64 DER Ed25519 key. Required when `REGISTRY_URL` is set. |
+| `REGISTRY_URL` | `https://api.registry.shipfox.io` | URL of the registry API. The default is the central Shipfox Registry. An empty value disables the module: every call fails with `registry-disabled`. |
+| `REGISTRY_TRUSTED_KEYS` | the production key `reg-2026-1` | JSON list of `{keyid, public_key}`. A public key is a base64 DER Ed25519 key. The default trusts the central Shipfox Registry. Required when `REGISTRY_URL` is set, so set it to a key of your own registry when you change the URL. |
 | `REGISTRY_CATALOG_REFRESH_SECONDS` | `900` | Seconds a stored catalog or package index is served before the next read refreshes it in the background. |
 
 Startup fails when `REGISTRY_CATALOG_REFRESH_SECONDS` is negative, when `REGISTRY_URL` is not an HTTP or HTTPS URL, when `REGISTRY_TRUSTED_KEYS` is invalid, or when a URL is set without a key. The URL is normalized: the query, fragment, credentials, and trailing slashes are dropped.
