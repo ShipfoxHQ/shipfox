@@ -484,9 +484,9 @@ jobs:
           - suite: flow
             turbo-filters: ["@shipfox/e2e-flow-workflows"]
             diagnostics: e2e-diagnostics-flow
-          - suite: template wiring
+          - suite: eval
             turbo-filters: ["@shipfox/e2e-eval-workflows"]
-            diagnostics: e2e-diagnostics-wiring
+            diagnostics: e2e-diagnostics-eval
             results: e2e/suites/eval/workflows/results/
 
     steps:
