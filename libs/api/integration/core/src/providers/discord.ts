@@ -6,6 +6,7 @@ import {getIntegrationProviderCapabilities} from '#core/providers/registry.js';
 import {
   getIntegrationConnectionById,
   resolveUniqueConnectionSlug,
+  updateIntegrationConnectionLifecycleStatus,
   upsertIntegrationConnection,
 } from '#db/connections.js';
 import {db} from '#db/db.js';
@@ -129,6 +130,7 @@ async function loadDiscordModuleParts(
               coreDb: db,
               publishIntegrationEventReceived,
               getIntegrationConnectionById,
+              updateConnectionLifecycleStatus: updateIntegrationConnectionLifecycleStatus,
             }),
           }),
         ]

@@ -14,7 +14,7 @@
 - **`createDiscordGateway`** returns the Gateway `ModuleService`: the leader election with the shard connection as the leader's work. It connects with `@discordjs/ws`, resumes from the stored committed cursor, and identifies through an Identify guard.
 - **`DiscordAgentToolsProvider`** serves the agent tools as the bot. The provider registers it as the `agent_tools` adapter, and `@shipfox/api-integration-discord/agent-tools` exports the catalog for the docs and action-type generators. It offers `read_channel`.
 - **`registerDiscordCommands`** compares the application's registered commands with the `/shipfox` and "Send to Shipfox" definitions from `discord-dto` and overwrites them only on a difference. The integrations module runs it as a startup task on every replica.
-- **`createDiscordGatewayHandlers`** returns the dispatch handlers: the channel cache and the `MESSAGE_CREATE` publisher. Pass them to `createDiscordGateway({handlers})`.
+- **`createDiscordGatewayHandlers`** returns the dispatch handlers: the channel cache, the `MESSAGE_CREATE` publisher, and the guild lifecycle handlers. Pass them to `createDiscordGateway({handlers})`.
 - **`config`** defines the Discord application, OAuth, bot, Gateway, and API settings.
 
 ## Installation and setup
@@ -181,6 +181,19 @@ Instance metrics live in `src/metrics/` and are scraped per pod. Only the leader
 The library has no Invalid Session event, so `invalid_session` counts a `null` session the library writes while a session is stored and the destroy is not ours. `sent` counts in the Identify guard. The dispatch queue records `failed` when a handler throws; the message handler records `processed`, `duplicate`, and `connection_unavailable`, and nothing for a DM or a malformed message.
 
 Sentry reports use the `integrations.discord.gateway` boundary: Identify refused, `shards > 1`, a `401` on the bot token (once per failure streak), and no ready socket for 5 minutes while leading (once per stretch).
+
+## Guild lifecycle
+
+`createDiscordGatewayHandlers` handles these guild dispatches, on top of the channel cache and messages.
+
+| Dispatch | Handling |
+| --- | --- |
+| `READY` | An installed guild absent from `READY.guilds` goes through the removal check. |
+| `GUILD_CREATE` | Writes the bot's managed role id when it differs. A `removed` installation goes through the removal check again. |
+| `GUILD_DELETE` | Runs the removal check, unless the guild is only `unavailable`. |
+| `GUILD_ROLE_CREATE`, `GUILD_ROLE_UPDATE` | Writes the role id when `tags.bot_id` is the application id. |
+
+The role id lives on the installation row, so a leader that resumes without a `GUILD_CREATE` still knows it. The removal check reads the installation's `generation`, calls `GET /guilds/{id}`, and then updates the installation `WHERE generation = g` in the same transaction as the connection lifecycle. `200` means installed and `active`. `403` and `404` mean removed and `error`. A reinstall in between bumps the generation, so the update matches nothing and the newer state stays. Any other answer changes nothing, and the next `READY` retries.
 
 ## License
 

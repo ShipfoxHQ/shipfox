@@ -3,7 +3,11 @@ import {runMigrations} from '@shipfox/node-drizzle';
 import {createApp} from '@shipfox/node-fastify';
 import {openPostgresSession} from '@shipfox/node-postgres';
 import {sql} from 'drizzle-orm';
-import {getIntegrationConnectionById, listIntegrationConnections} from '#db/connections.js';
+import {
+  getIntegrationConnectionById,
+  listIntegrationConnections,
+  updateIntegrationConnectionLifecycleStatus,
+} from '#db/connections.js';
 import {db} from '#db/db.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
 import {publishIntegrationEventReceived} from '#db/webhook-deliveries.js';
@@ -242,7 +246,11 @@ describe('Discord provider scaffold', () => {
         coreDb: db,
         publishIntegrationEventReceived,
         getIntegrationConnectionById,
-        discord: {getChannel: async () => ({id: 'channel-1', type: 0})},
+        updateConnectionLifecycleStatus: updateIntegrationConnectionLifecycleStatus,
+        discord: {
+          getChannel: async () => ({id: 'channel-1', type: 0}),
+          getGuild: async () => ({id: guildId, name: 'Acme', roles: []}),
+        },
       }),
     );
 
