@@ -213,7 +213,8 @@ describe('GET /workflow-definitions/readiness', () => {
 
     const res = await app.inject({method: 'GET', url: query([crypto.randomUUID()])});
 
-    expect(res.statusCode).toBeGreaterThanOrEqual(400);
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('workspace-suspended');
     expect(checkRunReadiness).not.toHaveBeenCalled();
   });
 });
