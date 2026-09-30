@@ -1,11 +1,5 @@
 import type {ModuleRuntimeContext, ModuleServiceHandle} from '@shipfox/node-module';
-import {
-  closePostgresClient,
-  createPostgresClient,
-  openPostgresSession,
-  type Client as PostgresClient,
-  pgClient,
-} from '@shipfox/node-postgres';
+import {openPostgresSession, type Client as PostgresClient, pgClient} from '@shipfox/node-postgres';
 import {
   createDiscordGatewayService,
   type DiscordGatewayServiceOptions,
@@ -23,17 +17,9 @@ describe('Discord Gateway leader election', () => {
   const handles: ModuleServiceHandle[] = [];
   const sessions: PostgresClient[] = [];
 
-  beforeAll(() => {
-    createPostgresClient();
-  });
-
   afterEach(async () => {
     await Promise.all(handles.splice(0).map((handle) => handle.stop()));
     await Promise.all(sessions.splice(0).map((session) => session.end().catch(() => undefined)));
-  });
-
-  afterAll(async () => {
-    await closePostgresClient();
   });
 
   function startReplica(options: DiscordGatewayServiceOptions = {}) {
