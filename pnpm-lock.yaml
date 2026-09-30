@@ -2536,15 +2536,45 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.29.0(zod@4.4.3)
+      '@shipfox/api':
+        specifier: workspace:*
+        version: link:../../../../apps/api
+      '@shipfox/api-server':
+        specifier: workspace:*
+        version: link:../../../../libs/api/server
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
       '@shipfox/depcruise':
         specifier: workspace:*
         version: link:../../../../tools/depcruise
+      '@shipfox/runner':
+        specifier: workspace:*
+        version: link:../../../../apps/runner
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc
+      '@shipfox/template-ask-codebase':
+        specifier: workspace:*
+        version: link:../../../../libs/shared/workflow/catalog/templates/ask-codebase
+      '@shipfox/template-fix-default-branch-ci':
+        specifier: workspace:*
+        version: link:../../../../libs/shared/workflow/catalog/templates/fix-default-branch-ci
+      '@shipfox/template-fix-dependency-ci':
+        specifier: workspace:*
+        version: link:../../../../libs/shared/workflow/catalog/templates/fix-dependency-ci
+      '@shipfox/template-report-failed-runs':
+        specifier: workspace:*
+        version: link:../../../../libs/shared/workflow/catalog/templates/report-failed-runs
+      '@shipfox/template-slack-dispatcher':
+        specifier: workspace:*
+        version: link:../../../../libs/shared/workflow/catalog/templates/slack-dispatcher
+      '@shipfox/template-slack-to-ticket':
+        specifier: workspace:*
+        version: link:../../../../libs/shared/workflow/catalog/templates/slack-to-ticket
+      '@shipfox/template-ticket-to-pr':
+        specifier: workspace:*
+        version: link:../../../../libs/shared/workflow/catalog/templates/ticket-to-pr
       '@shipfox/ts-config':
         specifier: workspace:*
         version: link:../../../../tools/ts-config
