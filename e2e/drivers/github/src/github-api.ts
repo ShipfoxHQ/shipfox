@@ -1,6 +1,16 @@
 import {createHash} from 'node:crypto';
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
 import {closeServer, listenOnEndpoint, type RecordedWrite} from '@shipfox/e2e-core';
+import {isRecord, readJsonBody, readJsonBodyOrReject, sendJson} from './http.js';
+import {
+  createPullRequestRoutes,
+  findPullRequest,
+  type GithubPullRequestFixture,
+  type GithubReviewThreadFixture,
+  PULL_REQUEST_PATH,
+  type PullRequestRoutes,
+  pullRequestPayload,
+} from './pull-requests.js';
 
 const JWT_SEGMENT_LENGTH = 169;
 
@@ -19,7 +29,6 @@ const REPOSITORY_PATH = /^\/repositories\/(\d+)$/u;
 const REPOSITORY_BY_NAME_PATH = /^\/repos\/([^/]+)\/([^/]+)$/u;
 const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/u;
 const ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues$/u;
-const PULL_REQUEST_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)$/u;
 const CHECK_RUN_CREATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs$/u;
 const CHECK_RUN_UPDATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs\/(\d+)$/u;
 const SEARCH_ISSUES_PATH = /^\/search\/issues$/u;
@@ -99,18 +108,13 @@ export type GithubApiMockCall =
       body: Record<string, unknown>;
     };
 
-export interface GithubPullRequestFixture {
-  /** Head branch name. */
-  ref: string;
-  /** Head commit the pull request reports. */
-  sha: string;
-}
-
 export interface GithubApiMock {
   calls: GithubApiMockCall[];
   endpoint: URL;
-  /** Open pull requests by number. Tests fill it once they know the commits. */
+  /** Pull requests by number. Tests fill it once they know the commits; created ones land here. */
   pullRequests: Map<number, GithubPullRequestFixture>;
+  /** Review threads by GraphQL node id. Replies join them and resolution marks them. */
+  reviewThreads: Map<string, GithubReviewThreadFixture>;
   /** Branch tips for createCommitOnBranch's compare-and-swap, by branch name. */
   branchHeads: Map<string, string>;
   /** Writes the fake accepted, in arrival order. */
@@ -146,6 +150,18 @@ export async function startGithubApiMock(
   const knownCheckRunIds = new Set<number>();
   const pullRequests = new Map<number, GithubPullRequestFixture>();
   const branchHeads = new Map<string, string>();
+  const reviewThreads = new Map<string, GithubReviewThreadFixture>();
+  const writes: RecordedWrite[] = [];
+  const pullRequestRoutes = createPullRequestRoutes({
+    pullRequests,
+    reviewThreads,
+    branchHeads,
+    recordWrite: (write, authorization) => {
+      if (isCurrentInstallationAuthorization({installationId, installationToken, authorization})) {
+        writes.push(write);
+      }
+    },
+  });
   addConfiguredCheckRunId(knownCheckRunIds, checkRunCreateResponse);
   addConfiguredCheckRunId(knownCheckRunIds, checkRunUpdateResponse);
   const endpoint = options.endpoint ?? new URL(requiredGithubApiBaseUrl());
@@ -162,6 +178,7 @@ export async function startGithubApiMock(
       checkRunUpdateFailure,
       knownCheckRunIds,
       pullRequests,
+      pullRequestRoutes,
       branchHeads,
       request,
       response,
@@ -178,8 +195,9 @@ export async function startGithubApiMock(
     calls,
     endpoint: boundEndpoint,
     pullRequests,
+    reviewThreads,
     branchHeads,
-    writes: () => [],
+    writes: () => [...writes],
     stop: async () => {
       try {
         await closeServer(server);
@@ -201,6 +219,7 @@ interface GithubRequestContext {
   checkRunUpdateFailure: GithubApiMockFailure | undefined;
   knownCheckRunIds: Set<number>;
   pullRequests: Map<number, GithubPullRequestFixture>;
+  pullRequestRoutes: PullRequestRoutes;
   branchHeads: Map<string, string>;
   request: IncomingMessage;
   response: ServerResponse;
@@ -219,6 +238,7 @@ async function handleGithubRequest(params: {
   checkRunUpdateFailure: GithubApiMockFailure | undefined;
   knownCheckRunIds: Set<number>;
   pullRequests: Map<number, GithubPullRequestFixture>;
+  pullRequestRoutes: PullRequestRoutes;
   branchHeads: Map<string, string>;
   request: IncomingMessage;
   response: ServerResponse;
@@ -279,6 +299,7 @@ async function handleGithubRequest(params: {
     await handleGraphqlRequest(context);
     return;
   }
+  if (await params.pullRequestRoutes.handle(params.request, params.response, requestUrl)) return;
 
   sendJson(params.response, 404, {message: 'Not Found'});
 }
@@ -378,17 +399,12 @@ function handlePullRequestRequest(params: GithubRequestContext, match: RegExpMat
       pullNumber,
     });
   }
-  const pullRequest = params.pullRequests.get(pullNumber);
+  const pullRequest = findPullRequest(params.pullRequests, `${owner}/${repo}`, pullNumber);
   if (pullRequest === undefined) {
     sendJson(params.response, 404, {message: 'Not Found'});
     return;
   }
-  sendJson(params.response, 200, {
-    number: pullNumber,
-    state: 'open',
-    head: {ref: pullRequest.ref, sha: pullRequest.sha, repo: {full_name: `${owner}/${repo}`}},
-    base: {ref: 'main', repo: {full_name: `${owner}/${repo}`}},
-  });
+  sendJson(params.response, 200, pullRequestPayload(pullNumber, pullRequest));
 }
 
 async function handleCreateIssueRequest(
@@ -415,7 +431,7 @@ async function handleCreateCheckRunRequest(
   params: GithubRequestContext,
   match: RegExpMatchArray,
 ): Promise<void> {
-  const body = await readCheckRunBody(params);
+  const body = await readJsonBodyOrReject(params.request, params.response);
   if (body === undefined) return;
   if (isCurrentInstallationAuthorization(params)) {
     params.calls.push({
@@ -442,7 +458,7 @@ async function handleUpdateCheckRunRequest(
   params: GithubRequestContext,
   match: RegExpMatchArray,
 ): Promise<void> {
-  const body = await readCheckRunBody(params);
+  const body = await readJsonBodyOrReject(params.request, params.response);
   if (body === undefined) return;
   const checkRunId = Number(match[3]);
   if (isCurrentInstallationAuthorization(params)) {
@@ -497,11 +513,28 @@ async function handleGraphqlRequest(params: GithubRequestContext): Promise<void>
     params.calls.push({kind: 'graphql', authorization: params.authorization, query, variables});
   }
   if (query.includes('resolveReviewThread')) {
+    const threadId =
+      isRecord(variables.input) && typeof variables.input.threadId === 'string'
+        ? variables.input.threadId
+        : 'synthetic-thread-id';
+    if (!params.pullRequestRoutes.resolveReviewThread(threadId, params.authorization)) {
+      sendJson(params.response, 200, {
+        data: {resolveReviewThread: null},
+        errors: [
+          {
+            type: 'NOT_FOUND',
+            path: ['resolveReviewThread'],
+            message: `Could not resolve to a node with the global id of '${threadId}'`,
+          },
+        ],
+      });
+      return;
+    }
     sendJson(params.response, 200, {
       data: {
         resolveReviewThread: {
           thread: {
-            id: isRecord(variables.input) ? variables.input.threadId : 'synthetic-thread-id',
+            id: threadId,
             isResolved: true,
             marker: GITHUB_GRAPHQL_RESULT_MARKER,
           },
@@ -516,7 +549,10 @@ async function handleGraphqlRequest(params: GithubRequestContext): Promise<void>
         repository: {
           pullRequest: {
             reviewThreads: {
-              nodes: [],
+              nodes: params.pullRequestRoutes.reviewThreadNodes(
+                `${String(variables.owner)}/${String(variables.repo)}`,
+                Number(variables.pullNumber),
+              ),
               pageInfo: {hasNextPage: false, endCursor: null},
             },
           },
@@ -569,7 +605,9 @@ function handleCreateCommitRequest(
   });
 }
 
-function isCurrentInstallationAuthorization(params: GithubRequestContext): boolean {
+function isCurrentInstallationAuthorization(
+  params: Pick<GithubRequestContext, 'installationId' | 'installationToken' | 'authorization'>,
+): boolean {
   if (params.installationId === undefined) return true;
   return (
     params.authorization === `bearer ${params.installationToken}` ||
@@ -638,10 +676,6 @@ function repositoryPayload(
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function singleHeader(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value.join(', ') : value;
 }
@@ -650,28 +684,4 @@ function requiredGithubApiBaseUrl(): string {
   const endpoint = process.env.GITHUB_API_BASE_URL;
   if (!endpoint) throw new Error('GITHUB_API_BASE_URL must be configured for the GitHub API mock.');
   return endpoint;
-}
-
-async function readCheckRunBody(
-  params: GithubRequestContext,
-): Promise<Record<string, unknown> | undefined> {
-  try {
-    return await readJsonBody(params.request);
-  } catch {
-    sendJson(params.response, 400, {message: 'Invalid JSON body'});
-    return undefined;
-  }
-}
-
-async function readJsonBody(request: NodeJS.ReadableStream): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  const body = Buffer.concat(chunks).toString('utf8');
-  return body === '' ? {} : (JSON.parse(body) as Record<string, unknown>);
-}
-
-function sendJson(response: ServerResponse, statusCode: number, body: unknown): void {
-  response.writeHead(statusCode, {'content-type': 'application/json'}).end(JSON.stringify(body));
 }

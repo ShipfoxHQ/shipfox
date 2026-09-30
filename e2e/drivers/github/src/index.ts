@@ -10,6 +10,10 @@ export {
   type GithubApiMockCall,
   type GithubApiMockFailure,
   type GithubApiMockOptions,
-  type GithubPullRequestFixture,
   startGithubApiMock,
 } from './github-api.js';
+export type {
+  GithubPullRequestFixture,
+  GithubReviewCommentFixture,
+  GithubReviewThreadFixture,
+} from './pull-requests.js';
