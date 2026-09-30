@@ -298,8 +298,6 @@ describe('GitHub API mock webhook events', () => {
       await mock.sendWorkflowRunCompleted({
         repository: 'acme/app',
         conclusion: 'success',
-        headBranch: 'dependabot/npm_and_yarn/left-pad-2.0.0',
-        headSha: 'd'.repeat(40),
         actor: 'dependabot[bot]',
         headCommitMessage: 'Bump left-pad from 1.0.0 to 2.0.0',
         pullNumbers: [5],

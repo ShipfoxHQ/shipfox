@@ -46,7 +46,7 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   `apiUrl` to deliver somewhere other than the E2E API.
 - `GithubApiMock.sendWorkflowRunCompleted(params)`: delivers a signed `workflow_run.completed`
   webhook for a repository, with the run's `conclusion` (default `failure`) and `headBranch`
-  (default: the repository's default branch). It also sets the workflow path and name, run and
+  (default: the first pull request's head, else the repository's default branch). It also sets the workflow path and name, run and
   attempt numbers, triggering `event`, `actor`, head commit message, head repository (set it to
   model a fork), and `pullNumbers`, which must exist in `pullRequests`. Each call gets its own
   run ID unless `runId` is set.

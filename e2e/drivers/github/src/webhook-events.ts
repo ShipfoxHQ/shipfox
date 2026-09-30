@@ -55,9 +55,9 @@ export interface SendWorkflowRunCompletedParams {
   repository: string;
   /** Defaults to `failure`. */
   conclusion?: GithubWorkflowRunConclusion | undefined;
-  /** Defaults to the repository's default branch. */
+  /** Defaults to the first pull request's head branch, or else the repository's default branch. */
   headBranch?: string | undefined;
-  /** Defaults to a fixed 40-character SHA. */
+  /** Defaults to the first pull request's head SHA, or else a fixed 40-character SHA. */
   headSha?: string | undefined;
   /** Repository the head commit lives in. Defaults to `repository`; set it to model a fork. */
   headRepository?: string | undefined;
@@ -200,16 +200,26 @@ export function createGithubWebhookSender(
         params.headRepository === undefined
           ? repository
           : repositoryPayload(options, params.headRepository);
-      const pullRequests = (params.pullNumbers ?? []).map((pullNumber) => {
-        const {pullRequest} = requirePullRequest(options, pullNumber);
-        return workflowRunPullRequestPayload(pullNumber, pullRequest, repository);
-      });
+      const fixtures = (params.pullNumbers ?? []).map((pullNumber) => ({
+        pullNumber,
+        ...requirePullRequest(options, pullNumber),
+      }));
+      const pullRequests = fixtures.map(({pullNumber, pullRequest}) =>
+        workflowRunPullRequestPayload(pullNumber, pullRequest, repository),
+      );
+      // A run on a pull request's head reports that head, which templates compare with the pull
+      // request they read back.
+      const head = fixtures[0]?.pullRequest;
       const actor = userPayload(params.actor ?? DEFAULT_AUTHOR, 'User');
 
       const payload = {
         action: 'completed',
         workflow_run: workflowRunPayload({
-          params,
+          params: {
+            ...params,
+            headBranch: params.headBranch ?? head?.ref,
+            headSha: params.headSha ?? head?.sha,
+          },
           repository,
           headRepository,
           pullRequests,
