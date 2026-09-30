@@ -4,6 +4,7 @@ import type {ScenarioStep} from './schema.js';
 
 const noRunPattern = /No run has started/u;
 const failedPattern = /Step 2 \(await run succeeded\) failed: the run ended failed/u;
+const runnerExitedPattern = /local runner exited/u;
 const noDeliveryPattern = /returned no delivery/u;
 
 const pr = {number: 3, head: 'shipfox/task', base: 'main', sha: 'abc', repository: 'acme/app'};
@@ -117,6 +118,37 @@ describe('runScenario', () => {
     controller.abort();
 
     expect(signal.aborted).toBe(true);
+  });
+
+  it('fails a scenario whose signal aborted, even when its only step starts a run', async () => {
+    const driver = createDriver();
+    const controller = new AbortController();
+    controller.abort(new Error('The local runner exited.'));
+    const steps: ScenarioStep[] = [{start: {manual: {inputs: {}}}}];
+
+    await expect(
+      runScenario({steps, driver, deadline: farDeadline(), signal: controller.signal}),
+    ).rejects.toThrow(runnerExitedPattern);
+    expect(driver.startManual).not.toHaveBeenCalled();
+  });
+
+  it('gives the wait for the run only what the send left of the step timeout', async () => {
+    const driver = createDriver({
+      sendEvent: vi.fn(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        return {deliveryId: 'delivery-1'};
+      }),
+    });
+    const steps: ScenarioStep[] = [
+      {start: {event: {github: {'issues.labeled': {}}}}, timeout_seconds: 1},
+    ];
+
+    await runScenario({steps, driver, deadline: farDeadline()});
+
+    const {timeoutMs} = (driver.runForDelivery as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+      timeoutMs: number;
+    };
+    expect(timeoutMs).toBeLessThan(800);
   });
 
   it('caps a step timeout at what is left of the case budget', async () => {

@@ -153,6 +153,7 @@ async function runStep({
     deadline,
   });
   const event = eventOf(step.start.event, driver);
+  const startedAt = Date.now();
   const {deliveryId} = await driver.sendEvent({
     ...event,
     signal: boundedSignal({signal, timeoutMs}),
@@ -160,7 +161,9 @@ async function runStep({
   if (deliveryId === undefined) {
     throw new Error(`The ${event.provider} sender returned no delivery to follow.`);
   }
-  return await driver.runForDelivery({deliveryId, timeoutMs, signal});
+  // The send and the wait for the run share the step's one timeout.
+  const remainingMs = Math.max(timeoutMs - (Date.now() - startedAt), 1);
+  return await driver.runForDelivery({deliveryId, timeoutMs: remainingMs, signal});
 }
 
 /**
@@ -186,6 +189,8 @@ export async function runScenario({
     const startedAt = Date.now();
     const record = {index: index + 1, step: description};
     try {
+      // A manual start can't be cancelled, so a dead runner is caught between steps.
+      signal?.throwIfAborted();
       runId = await runStep({step, runId, context: {driver, deadline, signal}});
       records.push({...record, status: 'passed', duration_ms: Date.now() - startedAt});
     } catch (error) {
@@ -200,6 +205,7 @@ export async function runScenario({
     }
   }
 
+  signal?.throwIfAborted();
   if (runId === undefined) throw new Error(NO_RUN);
   return {runId, records};
 }

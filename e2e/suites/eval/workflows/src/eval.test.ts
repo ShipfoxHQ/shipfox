@@ -10,7 +10,7 @@ import {parseTemplateCase} from './schema.js';
 
 const temporaryDirectories: string[] = [];
 const invalidCasePattern = /scenario/iu;
-const strictKeyPattern = /scenario/iu;
+const invalidScenarioPattern = /case\.yaml: scenario\.\d+: Invalid input/u;
 const liveModePattern = /live mode/iu;
 
 afterEach(async () => {
@@ -113,15 +113,20 @@ describe('eval results', () => {
 describe('case scenario schema', () => {
   const base = {template: 'shipfox/fixture', expect: {}};
 
-  it('rejects an unknown key under a manual start', () => {
-    const scenario = [{start: {manual: {input: {title: 'x'}}}}];
+  it('rejects an unknown key under a manual start and accepts the corrected step', () => {
+    const typo = [{start: {manual: {input: {title: 'x'}}}}];
+    const fixed = [{start: {manual: {inputs: {title: 'x'}}}}];
 
-    expect(() => parseTemplateCase({...base, scenario})).toThrow(strictKeyPattern);
+    expect(() => parseTemplateCase({...base, scenario: typo})).toThrow(invalidScenarioPattern);
+    expect(parseTemplateCase({...base, scenario: fixed}).scenario).toHaveLength(1);
   });
 
-  it('rejects an event whose payload is not an object', () => {
-    const scenario = [{start: {manual: {}}}, {send: {github: {'pull_request.closed': 5}}}];
+  it('rejects an event whose payload is not an object and accepts an object', () => {
+    const start = {start: {manual: {}}};
+    const scalar = [start, {send: {github: {'pull_request.closed': 5}}}];
+    const object = [start, {send: {github: {'pull_request.closed': {merged: true}}}}];
 
-    expect(() => parseTemplateCase({...base, scenario})).toThrow(strictKeyPattern);
+    expect(() => parseTemplateCase({...base, scenario: scalar})).toThrow(invalidScenarioPattern);
+    expect(parseTemplateCase({...base, scenario: object}).scenario).toHaveLength(2);
   });
 });
