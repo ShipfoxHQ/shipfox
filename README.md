@@ -10,12 +10,11 @@
   <a href="CONTRIBUTING.md"><b>Contributing</b></a>
 </p>
 
-## Your AI Software Factory
+## Run coding agents like CI pipelines
 
-**Agentic coding makes engineers faster. Shipfox gives them a factory.**
-
-Shipfox is a platform for automating engineering work with AI agents. Turn
-tickets, alerts, and failed checks into work ready for review.
+Turn tickets, alerts, and failed checks into workflows in your repo. Agents and
+the exact commands your team specifies, delivered as PRs you review. Any model,
+any stack. Open source.
 
 Workflows live as YAML in your repository and react to events across your stack.
 Shipfox handles orchestration, secure tool access, isolated execution, and

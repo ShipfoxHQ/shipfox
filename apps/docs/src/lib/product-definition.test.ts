@@ -4,16 +4,11 @@ import test from 'node:test';
 import {fileURLToPath} from 'node:url';
 import {getLLMText} from './get-llm-text';
 import {buildPageMetadata} from './page-metadata';
-import {
-  PRODUCT_CATEGORY,
-  PRODUCT_DESCRIPTION,
-  PRODUCT_HEADLINE,
-  PRODUCT_SUBTITLE,
-} from './product-definition';
+import {PRODUCT_CATEGORY, PRODUCT_DESCRIPTION, PRODUCT_HEADLINE} from './product-definition';
 
 const repositoryRoot = fileURLToPath(new URL('../../../../', import.meta.url));
 const HOME_DESCRIPTION_PATTERN = /^description: "(.+)"$/m;
-const LLMS_PRODUCT_PITCH_PATTERN = /\$\{PRODUCT_SUBTITLE\} \$\{PRODUCT_DESCRIPTION\}/;
+const LLMS_PRODUCT_PITCH_PATTERN = /\$\{PRODUCT_HEADLINE\}\. \$\{PRODUCT_DESCRIPTION\}/;
 type TestPage = Parameters<typeof getLLMText>[0];
 
 function normalizeWhitespace(value: string): string {
@@ -30,7 +25,6 @@ test('keeps crawler-facing docs surfaces on the canonical product positioning', 
   assert.ok(description);
   assert.equal(description, PRODUCT_DESCRIPTION);
   assert.ok(homeSource.includes(`title: "${PRODUCT_HEADLINE}"`));
-  assert.ok(homeSource.includes(`**${PRODUCT_SUBTITLE}**`));
   assert.ok(normalizeWhitespace(homeSource).includes(PRODUCT_DESCRIPTION));
 
   const metadata = buildPageMetadata({
@@ -40,7 +34,7 @@ test('keeps crawler-facing docs surfaces on the canonical product positioning', 
   assert.equal(metadata.description, PRODUCT_DESCRIPTION);
   assert.equal(metadata.openGraph?.description, PRODUCT_DESCRIPTION);
 
-  assert.ok(llmsRoute.includes('PRODUCT_SUBTITLE'));
+  assert.ok(llmsRoute.includes('PRODUCT_HEADLINE'));
   assert.ok(llmsRoute.includes('PRODUCT_DESCRIPTION'));
   assert.match(llmsRoute, LLMS_PRODUCT_PITCH_PATTERN);
 
@@ -61,6 +55,5 @@ test('records the canonical product pitch in the docs writing guide', async () =
 
   assert.ok(writingGuide.includes(`canonical product category is **${PRODUCT_CATEGORY}**`));
   assert.ok(writingGuide.includes(`> ${PRODUCT_HEADLINE}`));
-  assert.ok(writingGuide.includes(`> ${PRODUCT_SUBTITLE}`));
   assert.ok(normalizedWritingGuide.includes(PRODUCT_DESCRIPTION));
 });
