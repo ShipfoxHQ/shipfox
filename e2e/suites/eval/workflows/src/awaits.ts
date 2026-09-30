@@ -158,6 +158,29 @@ async function awaitJob({step, runId, token, timeoutMs, signal}: AwaitParams<Job
   });
 }
 
+async function readinessProbe({
+  jobId,
+  signal,
+}: {
+  jobId: string;
+  signal?: AbortSignal | undefined;
+}): Promise<Probe<undefined>> {
+  const attempt = AbortSignal.timeout(OBSERVATION_ATTEMPT_TIMEOUT_MS);
+  try {
+    const readiness = await requestJson<{ready: boolean}>(
+      'get',
+      `/__e2e/triggers/listeners/${encodeURIComponent(jobId)}/readiness`,
+      {signal: signal === undefined ? attempt : AbortSignal.any([signal, attempt])},
+    );
+    return readiness.ready ? DONE : {kind: 'waiting', diagnostic: 'trigger subscriptions pending'};
+  } catch (error) {
+    signal?.throwIfAborted();
+    // Subscriptions can still be registering, so a failed or slow read is not final.
+    const reason = error instanceof Error ? error.message : String(error);
+    return {kind: 'waiting', diagnostic: `readiness not readable yet: ${reason}`};
+  }
+}
+
 async function awaitListenerReady({step, runId, token, timeoutMs, signal}: AwaitParams<ReadyStep>) {
   await waitFor({
     description: describeAwait(step),
@@ -174,20 +197,17 @@ async function awaitListenerReady({step, runId, token, timeoutMs, signal}: Await
       if (job === undefined) {
         return {kind: 'waiting', diagnostic: `listener job ${step.listener} missing`};
       }
-      if (job.listener_status === 'resolved') {
-        return {kind: 'failed', message: 'the listener resolved before it was ready'};
+      // A skipped or resolved listener never becomes ready.
+      if (TERMINAL_JOB_STATUSES.has(job.status)) {
+        return {
+          kind: 'failed',
+          message: `the listener job ended ${job.status} before it was ready`,
+        };
       }
       if (job.listener_status !== 'listening') {
         return {kind: 'waiting', diagnostic: `listener status is ${job.listener_status}`};
       }
-      const readiness = await requestJson<{ready: boolean}>(
-        'get',
-        `/__e2e/triggers/listeners/${encodeURIComponent(job.id)}/readiness`,
-        signal === undefined ? {} : {signal},
-      );
-      return readiness.ready
-        ? DONE
-        : {kind: 'waiting', diagnostic: 'trigger subscriptions pending'};
+      return await readinessProbe({jobId: job.id, signal});
     },
   });
 }

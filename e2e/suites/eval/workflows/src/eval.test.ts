@@ -6,9 +6,11 @@ import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {runEval} from './cli.js';
 import {discoverCases} from './discovery.js';
 import type {CaseResult} from './results.js';
+import {parseTemplateCase} from './schema.js';
 
 const temporaryDirectories: string[] = [];
 const invalidCasePattern = /scenario/iu;
+const strictKeyPattern = /scenario/iu;
 const liveModePattern = /live mode/iu;
 
 afterEach(async () => {
@@ -105,5 +107,21 @@ describe('eval results', () => {
         cwd: fileURLToPath(new URL('../', import.meta.url)),
       }),
     ).rejects.toThrow(liveModePattern);
+  });
+});
+
+describe('case scenario schema', () => {
+  const base = {template: 'shipfox/fixture', expect: {}};
+
+  it('rejects an unknown key under a manual start', () => {
+    const scenario = [{start: {manual: {input: {title: 'x'}}}}];
+
+    expect(() => parseTemplateCase({...base, scenario})).toThrow(strictKeyPattern);
+  });
+
+  it('rejects an event whose payload is not an object', () => {
+    const scenario = [{start: {manual: {}}}, {send: {github: {'pull_request.closed': 5}}}];
+
+    expect(() => parseTemplateCase({...base, scenario})).toThrow(strictKeyPattern);
   });
 });

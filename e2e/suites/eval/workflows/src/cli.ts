@@ -242,7 +242,7 @@ export async function runCli(
       stderr(`${result.case} (repeat ${result.repeat}): ${result.error}\n`);
     }
     await exportRun({options, run, stdout, stderr});
-    return failed.length > 0 && options.mode === 'scripted' ? 1 : 0;
+    return failed.length > 0 ? 1 : 0;
   } catch (error) {
     stderr(`Eval failed: ${error instanceof Error ? error.message : String(error)}\n`);
     return 1;

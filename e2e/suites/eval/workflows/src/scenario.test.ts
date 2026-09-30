@@ -45,6 +45,7 @@ describe('runScenario', () => {
       provider: 'github',
       event: 'pull_request.closed',
       payload: {pull_request: pr, merged: true},
+      signal: expect.any(AbortSignal),
     });
     expect(driver.awaitStep).toHaveBeenLastCalledWith(
       expect.objectContaining({runId: 'run-1', timeoutMs: 5_000}),
@@ -99,6 +100,23 @@ describe('runScenario', () => {
       'passed',
       'failed',
     ]);
+  });
+
+  it('ends a send at the case abort signal', async () => {
+    const driver = createDriver();
+    const controller = new AbortController();
+    const steps: ScenarioStep[] = [
+      {start: {manual: {inputs: {}}}},
+      {send: {github: {'pull_request.closed': {}}}, timeout_seconds: 30},
+    ];
+
+    await runScenario({steps, driver, deadline: farDeadline(), signal: controller.signal});
+    const {signal} = (driver.sendEvent as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+      signal: AbortSignal;
+    };
+    controller.abort();
+
+    expect(signal.aborted).toBe(true);
   });
 
   it('caps a step timeout at what is left of the case budget', async () => {

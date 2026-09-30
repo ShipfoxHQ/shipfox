@@ -17,6 +17,8 @@ export type EventSender = (params: {
   event: string;
   payload: Record<string, unknown>;
   context: EventSenderContext;
+  /** Ends when the step's timeout or the case's budget runs out. */
+  signal?: AbortSignal | undefined;
 }) => Promise<{deliveryId?: string | undefined} | undefined>;
 
 /** Senders by provider name, as written in a scenario's `send` and `start` steps. */

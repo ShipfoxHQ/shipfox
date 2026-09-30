@@ -5,7 +5,7 @@ import type {TemplateCase} from './schema.js';
 
 const STANDALONE_SLOT = /^(\s*)# slot:([A-Za-z0-9_-]+)\s*$/u;
 const INLINE_SLOT = /^(.*\S)\s+# slot:([A-Za-z0-9_-]+)\s*$/u;
-const SLOT_PLACEHOLDER = /replace-with-[A-Za-z0-9-]+/u;
+const SLOT_PLACEHOLDER = /replace-with-[A-Za-z0-9/-]+/u;
 const SHIPFOX_RUNNER = /^(\s*runner:\s*)shipfox\s*$/gmu;
 
 /** The shipped templates, or the catalog directory a fixture case names. */

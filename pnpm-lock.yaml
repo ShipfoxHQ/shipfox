@@ -2480,9 +2480,6 @@ importers:
       '@shipfox/e2e-setup-workspaces':
         specifier: workspace:*
         version: link:../../../setup/workspaces
-      '@shipfox/runner':
-        specifier: workspace:*
-        version: link:../../../../apps/runner
       '@shipfox/workflow-templates':
         specifier: workspace:*
         version: link:../../../../libs/shared/workflow/templates

@@ -22,6 +22,7 @@ export interface ScenarioDriver {
     provider: string;
     event: string;
     payload: Record<string, unknown>;
+    signal?: AbortSignal | undefined;
   }): Promise<{deliveryId?: string | undefined}>;
   runForDelivery(params: {
     deliveryId: string;
@@ -84,6 +85,17 @@ function budget({
   return Math.min((seconds ?? fallback) * 1_000, remaining);
 }
 
+function boundedSignal({
+  signal,
+  timeoutMs,
+}: {
+  signal?: AbortSignal | undefined;
+  timeoutMs: number;
+}): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
+}
+
 function eventOf(event: Record<string, Record<string, unknown>>, driver: ScenarioDriver) {
   const {payload, ...rest} = singleEvent(event);
   return {
@@ -119,7 +131,15 @@ async function runStep({
   }
   if ('send' in step) {
     if (runId === undefined) throw new Error(NO_RUN);
-    await driver.sendEvent(eventOf(step.send, driver));
+    const timeoutMs = budget({
+      seconds: step.timeout_seconds,
+      fallback: DEFAULT_START_TIMEOUT_SECONDS,
+      deadline,
+    });
+    await driver.sendEvent({
+      ...eventOf(step.send, driver),
+      signal: boundedSignal({signal, timeoutMs}),
+    });
     return runId;
   }
   if (runId !== undefined) throw new Error('A run has already started.');
@@ -133,7 +153,10 @@ async function runStep({
     deadline,
   });
   const event = eventOf(step.start.event, driver);
-  const {deliveryId} = await driver.sendEvent(event);
+  const {deliveryId} = await driver.sendEvent({
+    ...event,
+    signal: boundedSignal({signal, timeoutMs}),
+  });
   if (deliveryId === undefined) {
     throw new Error(`The ${event.provider} sender returned no delivery to follow.`);
   }

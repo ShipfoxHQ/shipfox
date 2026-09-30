@@ -83,6 +83,8 @@ async function seedRepository({
   else await writeFile(join(directory, 'README.md'), '# Case repository\n');
 }
 
+// A repository with no workflow files ends its sync as `failed`. The case creates its definition
+// through the API, so only a settled sync matters.
 async function waitForProjectSync({
   projectId,
   token,
@@ -176,6 +178,8 @@ export async function executeTemplateCase(options: ExecuteCaseOptions): Promise<
       templateCase.timeout_seconds * 1_000,
     );
     arrangement.runnerAborted.addEventListener('abort', () => controller.abort(), {once: true});
+    // A runner that exited during setup aborted before this listener existed.
+    if (arrangement.runnerAborted.aborted) controller.abort();
     try {
       const scenario = await runScenario({
         steps: templateCase.scenario,
@@ -303,7 +307,12 @@ async function arrange({
       exit = value;
       exited.abort();
     },
-    () => undefined,
+    () => {
+      // The child process failed to spawn or crashed before it could report an exit.
+      if (stopping) return;
+      exit = {code: null, signal: null};
+      exited.abort();
+    },
   );
 
   const yaml = await composeCaseWorkflow({
@@ -353,7 +362,7 @@ async function arrange({
       );
       return response.workflow_run_id;
     },
-    sendEvent: async ({provider, event, payload}) => {
+    sendEvent: async ({provider, event, payload, signal}) => {
       const send = senders[provider];
       if (send === undefined) {
         throw new Error(`No event sender is registered for provider "${provider}".`);
@@ -362,6 +371,7 @@ async function arrange({
         (await send({
           event,
           payload,
+          signal,
           context: {
             workspaceId: workspace.id,
             projectId: project.id,

@@ -4,6 +4,7 @@ import {composeCaseWorkflow, fillSlots, setRunnerLabel, templateLoaderFor} from 
 import {discoverCases} from './discovery.js';
 
 const noMarkerPattern = /no marker for slot missing/u;
+const ownerPattern = /replace-with-owner\/repository/u;
 const unfilledPattern = /replace-with-test-command/u;
 const noRunnerPattern = /no `runner: shipfox`/u;
 const unknownTemplatePattern = /does not serve shipfox\/unknown/u;
@@ -29,6 +30,12 @@ describe('fillSlots', () => {
 
   it('fails when a slot has no marker in the workflow', () => {
     expect(() => fillSlots({yaml: 'name: none', slots: {missing: 'x'}})).toThrow(noMarkerPattern);
+  });
+
+  it('rejects a placeholder that contains a slash', () => {
+    const yaml = 'repo: replace-with-owner/repository';
+
+    expect(() => fillSlots({yaml, slots: {}})).toThrow(ownerPattern);
   });
 
   it('fails when a placeholder is left unfilled', () => {
@@ -71,7 +78,7 @@ describe('composeCaseWorkflow', () => {
 
     expect(yaml).toContain('runner: eval-abc');
     expect(yaml).toContain('# shipfox-template: fixture@1 source=github');
-    expect(yaml).toContain('contents: write');
+    expect(yaml).toContain('contents: read');
     expect(yaml).toContain('run: test -f package.json');
     expect(yaml).toContain('{ test -f src/greeting.txt; }');
   });

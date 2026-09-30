@@ -7,13 +7,15 @@ const optionsSchema = z.record(z.string().min(1), z.unknown());
 const slotsSchema = z.record(z.string().min(1), z.string());
 const stepTimeoutSchema = z.number().int().positive().optional();
 // One provider and one event, as in `github: {pull_request.closed: {...}}`.
-const eventSchema = z.record(z.string().min(1), z.record(z.string().min(1), z.unknown())).refine(
-  (event) => {
-    const providers = Object.values(event);
-    return providers.length === 1 && Object.keys(providers[0] ?? {}).length === 1;
-  },
-  {message: 'must name exactly one provider and one event'},
-);
+const eventSchema = z
+  .record(z.string().min(1), z.record(z.string().min(1), z.record(z.string(), z.unknown())))
+  .refine(
+    (event) => {
+      const providers = Object.values(event);
+      return providers.length === 1 && Object.keys(providers[0] ?? {}).length === 1;
+    },
+    {message: 'must name exactly one provider and one event'},
+  );
 const jobStatusSchema = z.enum([
   'pending',
   'running',
@@ -28,11 +30,17 @@ const runStatusSchema = z.enum(['succeeded', 'failed', 'cancelled']);
 const startStepSchema = z.union([
   z
     .object({
-      start: z.object({manual: z.object({inputs: z.record(z.string(), z.unknown()).default({})})}),
+      start: z
+        .object({
+          manual: z.object({inputs: z.record(z.string(), z.unknown()).default({})}).strict(),
+        })
+        .strict(),
       timeout_seconds: stepTimeoutSchema,
     })
     .strict(),
-  z.object({start: z.object({event: eventSchema}), timeout_seconds: stepTimeoutSchema}).strict(),
+  z
+    .object({start: z.object({event: eventSchema}).strict(), timeout_seconds: stepTimeoutSchema})
+    .strict(),
 ]);
 
 const sendStepSchema = z.object({send: eventSchema, timeout_seconds: stepTimeoutSchema}).strict();

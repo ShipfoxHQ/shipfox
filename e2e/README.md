@@ -340,9 +340,10 @@ mise run evals -- --suite templates --mode scripted --case fixture --repeat 3
 Each case arranges its own workspace, GitHub connection, and project on a
 fake repository, composes its template variant through the template loader,
 creates the definition, and starts a local runner with a label of its own. It
-then runs the case's `scenario` in order and writes the run observation to
-`results/<run-id>/<case>/<repeat>.json`. The exit code is non-zero when a
-scripted case errors.
+then runs the case's `scenario` in order and writes the result to
+`results/<run-id>/<case>/<repeat>.json`. A case that finishes its scenario
+includes the run observation. A case that errors carries the failed step and its
+reason instead. The exit code is non-zero when any case errors.
 
 A scenario step is one of:
 
