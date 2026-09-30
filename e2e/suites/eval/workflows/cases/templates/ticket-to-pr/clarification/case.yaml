@@ -1,0 +1,31 @@
+template: shipfox/ticket-to-pr
+bindings: {source: github}
+options: {feedback_loop: 'off'}
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+scenario:
+  - start:
+      manual:
+        inputs:
+          repository: acme/report-cli
+          title: Make the report better
+          description: The report should be nicer.
+          acceptance_criteria: It looks good.
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  outputs:
+    status: needs_clarification
+    questions: What should the report show differently, and how do we check that it looks better?
+    pr_number: 0
+    pr_url: ''
+  # The agent asked, so nothing is pushed and no pull request opens.
+  writes:
+    - github.push: {count: 0}
+    - github.create_pull_request: {count: 0}

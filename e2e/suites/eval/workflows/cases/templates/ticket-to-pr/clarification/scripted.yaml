@@ -1,0 +1,14 @@
+# `fix`: the task is too unclear to implement, so the agent changes nothing and asks. The step
+# ends once every declared output is set, so the unused ones are set empty.
+- match: {prompt_contains: 'Implement task-1: Make the report better'}
+  replies:
+    - tool: set_output
+      args: {key: status, value: '"needs_clarification"'}
+    - tool: set_output
+      args:
+        key: questions
+        value: What should the report show differently, and how do we check that it looks better?
+    - tool: set_output
+      args: {key: pr_title, value: ''}
+    - tool: set_output
+      args: {key: pr_summary, value: ''}

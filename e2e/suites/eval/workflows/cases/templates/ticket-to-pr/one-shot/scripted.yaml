@@ -1,0 +1,24 @@
+# `fix`: implements the task. The step ends once every declared output is set.
+- match: {prompt_contains: 'Implement task-1: Add a --json flag to the report command'}
+  replies:
+    - tool: edit
+      args:
+        path: src/report.js
+        edits:
+          - oldText: |-
+              export function report(_args, rows) {
+                return formatReport(rows);
+            newText: |-
+              export function report(args, rows) {
+                if (args.includes('--json')) return JSON.stringify(rows);
+                return formatReport(rows);
+    - tool: set_output
+      args: {key: status, value: '"implemented"'}
+    - tool: set_output
+      args: {key: pr_title, value: Add a --json flag to the report command}
+    - tool: set_output
+      args:
+        key: pr_summary
+        value: The report command prints its rows as JSON when it gets --json.
+    - tool: set_output
+      args: {key: questions, value: ''}
