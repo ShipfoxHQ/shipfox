@@ -1,0 +1,48 @@
+template: shipfox/ticket-to-pr
+bindings: {source: github}
+# With `never`, the reply step has no thread-resolution prompt block and no resolve tool.
+options: {resolve_threads: never}
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 900
+
+covers:
+  - With the feedback loop, pushes fixes, replies to inline review comments, and can resolve addressed threads.
+
+scenario:
+  - start:
+      manual:
+        inputs:
+          repository: acme/report-cli
+          title: Add a --json flag to the report command
+          description: The report command only prints text. Scripts that read it need JSON.
+          acceptance_criteria: With --json, the report command prints its rows as a JSON array.
+  - await: {job: implement, status: succeeded}
+    timeout_seconds: 300
+  - await: {listener: respond_to_feedback, ready: true}
+  - send:
+      github:
+        pull_request_review_comment.created:
+          pull_request: $pr
+          body: Rename the flag to --format json.
+          author_association: MEMBER
+          path: src/report.js
+  # The listener waits 60 seconds after the comment before it starts the execution.
+  - await: {listener: respond_to_feedback, execution: 1, status: succeeded}
+    timeout_seconds: 300
+  - send:
+      github:
+        pull_request.closed: {pull_request: $pr, merged: true}
+  - await: {run: succeeded}
+
+expect:
+  outputs: {status: implemented}
+  writes:
+    # The change, then the fix.
+    - github.push: {branch: $pr.head, count: 2}
+    - github.create_pull_request: {pull_request: $pr, base: main, draft: true, count: 1}
+    - github.reply_to_review_comment: {pull_request: $pr, count: 1}
+    - github.resolve_review_thread: {pull_request: $pr, count: 0}
