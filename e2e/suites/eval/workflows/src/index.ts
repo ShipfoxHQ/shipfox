@@ -8,6 +8,15 @@ export {
   parseClaudeTranscript,
 } from './claude-transcript.js';
 export {type EvalCliOptions, type EvalRunOptions, parseEvalArgs, runCli, runEval} from './cli.js';
+export {
+  bindConnectionSlugs,
+  type CompileRunOptions,
+  type CompileVariant,
+  checkCompiledDefinition,
+  fillTemplatePlaceholders,
+  listCompileVariants,
+  runCompile,
+} from './compile.js';
 export {composeCaseWorkflow, fillSlots, setRunnerLabel, templateLoaderFor} from './compose.js';
 export {caseSupportsMode, type DiscoveredCase, discoverCases} from './discovery.js';
 export {type ExecuteCaseOptions, executeTemplateCase} from './execute.js';

@@ -1,10 +1,8 @@
-import {cp, mkdir, mkdtemp, rm, stat, writeFile} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
+import {mkdir} from 'node:fs/promises';
 import {join} from 'node:path';
-import type {DefinitionListResponseDto, DefinitionResponseDto} from '@shipfox/api-definitions-dto';
+import type {DefinitionResponseDto} from '@shipfox/api-definitions-dto';
 import type {FireManualTriggerResponseDto} from '@shipfox/api-triggers-dto';
-import {createApiClient, pollUntil, type RecordedWrite} from '@shipfox/e2e-core';
-import {startGithubApiMock} from '@shipfox/e2e-driver-github';
+import {pollUntil, type RecordedWrite} from '@shipfox/e2e-core';
 import {
   type LocalRunnerExit,
   localRunnerLogTail,
@@ -18,14 +16,11 @@ import {
   type WorkflowRunObservation,
   waitForRunByDeliveryId,
 } from '@shipfox/e2e-observe-workflows';
-import {createSession, createUser} from '@shipfox/e2e-setup-auth';
-import {createGithubConnection} from '@shipfox/e2e-setup-integrations';
-import {createProject} from '@shipfox/e2e-setup-projects';
-import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
 import {parse as parseYaml} from 'yaml';
 import {runAwait} from './awaits.js';
 import {composeCaseWorkflow, templateLoaderFor} from './compose.js';
 import type {DiscoveredCase} from './discovery.js';
+import {arrangeGithubProject} from './github-project.js';
 import {type PullRequestReference, resolveReferences} from './references.js';
 import type {CaseResult} from './results.js';
 import {runScenario, type ScenarioDriver, ScenarioError} from './scenario.js';
@@ -33,7 +28,6 @@ import type {TemplateCase} from './schema.js';
 import type {EventSenders} from './senders.js';
 import {checkOutputs, checkWrites} from './writes.js';
 
-const SYNC_TIMEOUT_MS = 60_000;
 const START_TIMEOUT_MS = 60_000;
 const RUNNER_TOKEN_TTL_SECONDS = 3_600;
 
@@ -57,64 +51,6 @@ interface Arrangement {
   /** Every write the GitHub fake accepted. Read before the fake stops. */
   writes: () => RecordedWrite[];
   references: ScenarioDriver['references'];
-}
-
-/** Splits `owner/name`, giving a case with no repository one of its own. */
-function repositoryName({
-  repository,
-  uniqueId,
-}: {
-  repository?: string | undefined;
-  uniqueId: string;
-}) {
-  const [owner, name] = (repository ?? `acme/case-${uniqueId}`).split('/');
-  if (!owner || !name) throw new Error(`Repository must be owner/name, received "${repository}".`);
-  return {owner, name};
-}
-
-async function seedRepository({
-  caseDirectory,
-  directory,
-}: {
-  caseDirectory: string;
-  directory: string;
-}): Promise<void> {
-  const source = join(caseDirectory, 'repo');
-  const hasRepo = await stat(source).then(
-    (entry) => entry.isDirectory(),
-    () => false,
-  );
-  if (hasRepo) await cp(source, directory, {recursive: true});
-  else await writeFile(join(directory, 'README.md'), '# Case repository\n');
-}
-
-// A repository with no workflow files ends its sync as `failed`. The case creates its definition
-// through the API, so only a settled sync matters.
-async function waitForProjectSync({
-  projectId,
-  token,
-}: {
-  projectId: string;
-  token: string;
-}): Promise<void> {
-  const client = createApiClient({token});
-  let status = 'unknown';
-  await pollUntil(
-    {
-      timeoutMs: SYNC_TIMEOUT_MS,
-      intervalMs: 250,
-      maxIntervalMs: 1_000,
-      describe: () => `definition sync of project ${projectId}: status=${status}`,
-    },
-    async () => {
-      const response = await client.requestJson<DefinitionListResponseDto>(
-        'get',
-        `/definitions?${new URLSearchParams({project_id: projectId, limit: '100'})}`,
-      );
-      status = response.sync?.status ?? 'null';
-      return status === 'failed' || status === 'succeeded' ? response : null;
-    },
-  );
 }
 
 function stepKeysOf(yaml: string): string[] {
@@ -280,51 +216,14 @@ async function arrange({
 }): Promise<Arrangement> {
   const {discovered, workDirectory} = options;
   const templateCase = discovered.definition;
-  const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
+  const {uniqueId, github, repository, workspace, session, client, connection, project} =
+    await arrangeGithubProject({
+      caseDirectory: discovered.directory,
+      repository: templateCase.repository,
+      label: discovered.id,
+      cleanups,
+    });
   const runnerLabel = `eval-${uniqueId}`;
-  const installationId = Number.parseInt(uniqueId.slice(0, 7), 16) + 1;
-  const installationToken = `ghs_${uniqueId}.${'e'.repeat(36)}.${'f'.repeat(36)}`;
-
-  const github = await startGithubApiMock({installationId, installationToken});
-  cleanups.push(() => github.stop());
-
-  const seedDirectory = await mkdtemp(join(tmpdir(), 'eval-repository-'));
-  cleanups.push(() => rm(seedDirectory, {recursive: true, force: true}));
-  await seedRepository({caseDirectory: discovered.directory, directory: seedDirectory});
-  const {owner, name} = repositoryName({repository: templateCase.repository, uniqueId});
-  const repository = await github.addRepository({owner, name, seedDirectory});
-
-  // A GitHub connection resyncs every project of its workspace when it becomes active, so each
-  // case gets a workspace of its own.
-  const user = await createUser({name: `Eval ${uniqueId}`});
-  const workspace = await createWorkspace({
-    userId: user.user.id,
-    userEmail: user.email,
-    name: `Eval ${discovered.id} ${uniqueId}`,
-  });
-  const session = await createSession({user_id: user.user.id});
-  const client = createApiClient({token: session.token});
-  const connection = await createGithubConnection({
-    workspaceId: workspace.id,
-    installationId,
-    accountLogin: repository.owner,
-    displayName: `Eval ${uniqueId}`,
-    installerUserId: crypto.randomUUID(),
-    lifecycleStatus: 'disabled',
-  });
-  await client.request('patch', `/integration-connections/${connection.id}`, {
-    json: {lifecycle_status: 'active'},
-  });
-  const project = await createProject({
-    workspaceId: workspace.id,
-    name: `Eval ${uniqueId}`,
-    sourceConnectionId: connection.id,
-    sourceExternalRepositoryId: `github:${repository.id}`,
-    sourceRepositoryOwner: repository.owner,
-    sourceRepositoryName: repository.name,
-    sourceDefaultBranch: repository.defaultBranch,
-  });
-  await waitForProjectSync({projectId: project.id, token: session.token});
 
   const runnerDirectory = join(workDirectory, 'runners');
   await mkdir(runnerDirectory, {recursive: true});

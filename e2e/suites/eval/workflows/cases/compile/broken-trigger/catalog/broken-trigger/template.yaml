@@ -1,0 +1,23 @@
+title: Broken trigger task
+summary: Run a command from a manual start, and from a cron schedule that can never fire.
+starts: Someone starts it manually
+keywords: [fixture]
+flow:
+  - kind: trigger
+    title: Someone starts the workflow
+    detail: A manual start.
+  - kind: check
+    title: The workflow runs a command
+    detail: The workflow prints a line.
+writes: []
+prerequisites: []
+related: []
+roles:
+  source:
+    from: project
+    providers: [github]
+options: []
+models: {}
+slots: []
+secrets: []
+variables: []

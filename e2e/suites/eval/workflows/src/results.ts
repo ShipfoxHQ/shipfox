@@ -2,8 +2,10 @@ import {mkdir, writeFile} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
 import type {RecordedWrite} from '@shipfox/e2e-core';
 import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
-import type {DiscoveredCase} from './discovery.js';
 import type {ScenarioStepRecord} from './scenario.js';
+
+/** `compile` only creates each variant's definition, and runs nothing. */
+export type EvalMode = 'scripted' | 'live' | 'compile';
 
 /** The session of one agent step, as the harness wrote it. */
 export interface AgentTranscript {
@@ -14,7 +16,7 @@ export interface AgentTranscript {
 
 export interface CaseResult {
   case: string;
-  mode: 'scripted' | 'live';
+  mode: EvalMode;
   repeat: number;
   /** `failed` ran to the end but missed its expectations. `error` could not finish. */
   status: 'passed' | 'failed' | 'error';
@@ -40,12 +42,12 @@ export interface ResultsRun {
   results: CaseResult[];
 }
 
-export interface WriteResultsOptions {
-  cases: DiscoveredCase[];
-  mode: 'scripted' | 'live';
+export interface WriteResultsOptions<Case extends {id: string}> {
+  cases: readonly Case[];
+  mode: EvalMode;
   repeat: number;
   /** Runs one case repeat. It must not throw; a case that can't finish is an `error` result. */
-  execute: (params: {discovered: DiscoveredCase; repeat: number}) => Promise<CaseResult>;
+  execute: (params: {discovered: Case; repeat: number}) => Promise<CaseResult>;
   resultsDirectory?: string;
   runId?: string;
 }
@@ -58,7 +60,7 @@ function resultPath(runDirectory: string, result: CaseResult): string {
   return join(runDirectory, result.case, `${result.repeat}.json`);
 }
 
-function summaryMarkdown(run: ResultsRun, mode: 'scripted' | 'live'): string {
+function summaryMarkdown(run: ResultsRun, mode: EvalMode): string {
   const passed = run.results.filter((result) => result.status === 'passed').length;
   const failed = run.results.filter((result) => result.status === 'failed').length;
   const errors = run.results.length - passed - failed;
@@ -96,7 +98,9 @@ function summaryMarkdown(run: ResultsRun, mode: 'scripted' | 'live'): string {
 }
 
 /** Runs every case repeat, writes one JSON result each, and writes a summary for the run. */
-export async function writeResults(options: WriteResultsOptions): Promise<ResultsRun> {
+export async function writeResults<Case extends {id: string}>(
+  options: WriteResultsOptions<Case>,
+): Promise<ResultsRun> {
   const runId = options.runId ?? createRunId();
   const directory = join(options.resultsDirectory ?? 'results', runId);
   const results: CaseResult[] = [];

@@ -2,11 +2,18 @@
 import {join} from 'node:path';
 import {parseArgs} from 'node:util';
 import {preflightCheck} from '@shipfox/e2e-core';
-import {caseSupportsMode, discoverCases} from './discovery.js';
+import {runCompile} from './compile.js';
+import {caseSupportsMode, type DiscoveredCase, discoverCases} from './discovery.js';
 import {executeTemplateCase} from './execute.js';
 import {exportToLangfuse, isLangfuseConfigured} from './langfuse.js';
 import {runOnboardingSuite} from './onboarding-run.js';
-import {type CaseResult, createRunId, type ResultsRun, writeResults} from './results.js';
+import {
+  type CaseResult,
+  createRunId,
+  type EvalMode,
+  type ResultsRun,
+  writeResults,
+} from './results.js';
 import type {EventSenders} from './senders.js';
 
 const usage = `Usage: shipfox-eval-workflows [options]
@@ -14,8 +21,12 @@ const usage = `Usage: shipfox-eval-workflows [options]
 Options:
   --suite <templates|onboarding>
                             Suite to run (default: templates)
-  --mode <scripted|live>    Evaluation mode (default: scripted)
-  --case <pattern>          Case path or glob to run
+  --mode <scripted|live|compile>
+                            Evaluation mode (default: scripted). compile creates a
+                            definition for every template variant and runs nothing.
+  --case <pattern>          Case path or glob to run, or a template id in compile mode
+  --catalog <directory>     Compile the templates of a catalog directory instead of the
+                            shipped ones (compile mode only)
   --repeat <count>          Number of repeats (default: 1; the case's k for onboarding)
   --max-cost-usd <amount>   Stop before exceeding this budget
   --help                    Show this help
@@ -23,8 +34,9 @@ Options:
 
 export interface EvalCliOptions {
   suite: 'templates' | 'onboarding';
-  mode: 'scripted' | 'live';
+  mode: EvalMode;
   caseFilter?: string;
+  catalog?: string;
   /** Unset, templates run once and onboarding cases run their own `k`. */
   repeat?: number;
   maxCostUsd?: number;
@@ -59,6 +71,7 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
       suite: {type: 'string', default: 'templates'},
       mode: {type: 'string', default: 'scripted'},
       case: {type: 'string'},
+      catalog: {type: 'string'},
       repeat: {type: 'string'},
       'max-cost-usd': {type: 'string'},
       help: {type: 'boolean', short: 'h', default: false},
@@ -71,8 +84,11 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
     throw new Error(`--suite must be templates or onboarding, received "${suite}"`);
   }
   const mode = values.mode;
-  if (mode !== 'scripted' && mode !== 'live') {
-    throw new Error(`--mode must be scripted or live, received "${mode}"`);
+  if (mode !== 'scripted' && mode !== 'live' && mode !== 'compile') {
+    throw new Error(`--mode must be scripted, live, or compile, received "${mode}"`);
+  }
+  if (values.catalog !== undefined && mode !== 'compile') {
+    throw new Error('--catalog applies to --mode compile only');
   }
 
   const options: EvalCliOptions & {help: boolean} = {
@@ -82,6 +98,7 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
   };
   if (values.repeat !== undefined) options.repeat = positiveInteger(values.repeat, '--repeat');
   if (values.case !== undefined) options.caseFilter = values.case;
+  if (values.catalog !== undefined) options.catalog = values.catalog;
   if (values['max-cost-usd'] !== undefined) {
     options.maxCostUsd = nonNegativeNumber(values['max-cost-usd'], '--max-cost-usd');
   }
@@ -97,7 +114,7 @@ export interface EvalRunOptions extends EvalCliOptions {
   resultsDirectory?: string;
   runId?: string;
   /** Replaces case execution against the running stack, which tests don't have. */
-  execute?: Parameters<typeof writeResults>[0]['execute'];
+  execute?: (params: {discovered: DiscoveredCase; repeat: number}) => Promise<CaseResult>;
   senders?: EventSenders;
 }
 
@@ -106,8 +123,10 @@ export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
   if (options.suite !== 'templates') {
     throw new Error('The onboarding suite runs through runOnboardingSuite.');
   }
+  const {mode} = options;
+  if (mode === 'compile') throw new Error('Compile mode runs through runCompile.');
   // Results are written without executing cases, so a live run would report passes it never ran.
-  if (options.mode === 'live') {
+  if (mode === 'live') {
     throw new Error('Live mode is not available until cases execute against the stack.');
   }
 
@@ -120,16 +139,11 @@ export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
     throw new Error(`No ${options.suite} cases${selected} were found.`);
   }
 
-  const unsupported = discovered.filter(
-    (entry) => !caseSupportsMode(entry.definition, options.mode),
-  );
+  const unsupported = discovered.filter((entry) => !caseSupportsMode(entry.definition, mode));
   if (unsupported.length > 0) {
     throw new Error(
       unsupported
-        .map(
-          (entry) =>
-            `Case "${entry.id}" does not declare mode "${options.mode}" in its modes field.`,
-        )
+        .map((entry) => `Case "${entry.id}" does not declare mode "${mode}" in its modes field.`)
         .join('\n'),
     );
   }
@@ -145,7 +159,7 @@ export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
     execute = ({discovered: entry, repeat}) =>
       executeTemplateCase({
         discovered: entry,
-        mode: options.mode,
+        mode,
         repeat,
         workDirectory,
         senders: options.senders,
@@ -153,7 +167,7 @@ export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
   }
   return writeResults({
     cases: discovered,
-    mode: options.mode,
+    mode,
     repeat: options.repeat ?? 1,
     execute,
     runId,
@@ -173,11 +187,12 @@ async function exportRun({
   stdout: (message: string) => void;
   stderr: (message: string) => void;
 }): Promise<void> {
-  if (!isLangfuseConfigured()) return;
+  const {mode} = options;
+  if (mode === 'compile' || !isLangfuseConfigured()) return;
   try {
     const exported = await exportToLangfuse({
       suite: options.suite,
-      mode: options.mode,
+      mode,
       run,
       metadata: {case_filter: options.caseFilter ?? null, repeat: options.repeat ?? 1},
     });
@@ -211,6 +226,33 @@ async function runOnboardingCli({
   return failed.length === 0 ? 0 : 1;
 }
 
+// Every variant that does not compile is reported, so one run shows all the broken wiring.
+async function runCompileCli({
+  options,
+  stdout,
+  stderr,
+  cwd,
+}: {
+  options: EvalCliOptions;
+  stdout: (message: string) => void;
+  stderr: (message: string) => void;
+  cwd?: string | undefined;
+}): Promise<number> {
+  const run = await runCompile({
+    ...(options.caseFilter === undefined ? {} : {caseFilter: options.caseFilter}),
+    ...(options.catalog === undefined ? {} : {catalog: options.catalog}),
+    ...(cwd === undefined ? {} : {cwd, resultsDirectory: `${cwd}/results`}),
+  });
+  const failed = run.results.filter((result) => result.status === 'error');
+  stdout(
+    `Compiled ${run.results.length} template variants, ${failed.length} failed. Results: ${run.directory}\n`,
+  );
+  for (const result of failed) {
+    stderr(`${result.case}:\n${result.error}\n`);
+  }
+  return failed.length === 0 ? 0 : 1;
+}
+
 export async function runCli(
   argv: string[],
   environment: EvalCliEnvironment = {},
@@ -225,6 +267,9 @@ export async function runCli(
       return 0;
     }
     if (options.suite === 'onboarding') return await runOnboardingCli({options, stdout, stderr});
+    if (options.mode === 'compile') {
+      return await runCompileCli({options, stdout, stderr, cwd: environment.cwd});
+    }
     const run = await runEval({
       suite: options.suite,
       mode: options.mode,
