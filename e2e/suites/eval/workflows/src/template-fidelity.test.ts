@@ -83,6 +83,18 @@ describe('diffAgainstTemplate', () => {
     expect(diffAgainstTemplate({expectedYaml: expected, writtenYaml: written})).toEqual([]);
   });
 
+  it('reports a line added beside an option value the agent changed', async () => {
+    const expected = await expectedYaml();
+    const written = carefulWorkflow(expected).replace(
+      'draft: true # option:pr_mode',
+      'draft: false\n      unrelated: true',
+    );
+
+    expect(diffAgainstTemplate({expectedYaml: expected, writtenYaml: written})).toEqual([
+      {kind: 'added', line: '      unrelated: true'},
+    ]);
+  });
+
   it('reports a trigger the agent replaced', async () => {
     const expected = await expectedYaml();
     const written = carefulWorkflow(expected).replace('source: manual', 'source: cron');

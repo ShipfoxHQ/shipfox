@@ -1,6 +1,8 @@
 const HEADER_LINE = /^\s*#\s*(shipfox-template|yaml-language-server):/u;
-// A slot, or an option line the guide has the agent settle, such as `draft: true # option:pr_mode`.
+// A slot, or an option comment the guide has the agent settle or delete.
 const FILLED_MARKER = /#\s*(?:slot|option):[A-Za-z0-9_-]+\s*$/u;
+// An option that sets one value, such as `draft: true # option:pr_mode`. The agent changes the value.
+const OPTION_VALUE_LINE = /^(\s*(?:-\s+)?[A-Za-z0-9_-]+:\s*)\S.*#\s*option:[A-Za-z0-9_-]+\s*$/u;
 const BIND_LINE =
   /^(.*\b(?:source|connection):\s*)[A-Za-z0-9_-]+(\s+#\s*bind:[A-Za-z0-9_-]+)?\s*$/u;
 const BIND_MARKER = /#\s*bind:[A-Za-z0-9_-]+\s*$/u;
@@ -11,12 +13,13 @@ const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/gu;
 
 /**
  * One line of the expected workflow. `slot` lines are filled by the agent with any number of
- * lines, `bind` lines take the slug of the workspace's connection, and `model` lines take the
- * model it chose. Every other line must appear as it is.
+ * lines, `pattern` lines take one value of the agent's choosing, such as the slug of the
+ * workspace's connection after a `# bind:` marker, and `model` lines take the model it chose.
+ * Every other line must appear as it is.
  */
 type ExpectedLine =
   | {kind: 'exact'; text: string}
-  | {kind: 'bind'; pattern: RegExp; text: string}
+  | {kind: 'pattern'; pattern: RegExp; text: string}
   | {kind: 'model'; text: string}
   | {kind: 'slot'; text: string};
 
@@ -38,11 +41,19 @@ function significantLines(yaml: string): string[] {
 }
 
 function classify(line: string): ExpectedLine {
+  const option = OPTION_VALUE_LINE.exec(line);
+  if (option?.[1] !== undefined) {
+    return {
+      kind: 'pattern',
+      pattern: new RegExp(`^${escapeRegExp(option[1])}\\S.*$`, 'u'),
+      text: line,
+    };
+  }
   if (FILLED_MARKER.test(line)) return {kind: 'slot', text: line};
   const bind = BIND_MARKER.test(line) ? BIND_LINE.exec(line) : null;
   if (bind?.[1] !== undefined) {
     return {
-      kind: 'bind',
+      kind: 'pattern',
       pattern: new RegExp(
         `^${escapeRegExp(bind[1])}[A-Za-z0-9_-]+(\\s+#\\s*bind:[A-Za-z0-9_-]+)?\\s*$`,
         'u',
@@ -58,7 +69,7 @@ function matches(expected: ExpectedLine, written: string): boolean {
   switch (expected.kind) {
     case 'exact':
       return expected.text === written;
-    case 'bind':
+    case 'pattern':
       return expected.pattern.test(written);
     case 'model':
       return MODEL_LINE.test(written);

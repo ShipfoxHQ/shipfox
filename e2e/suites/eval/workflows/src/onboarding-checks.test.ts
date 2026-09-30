@@ -349,6 +349,22 @@ describe('needs_clarification outcome', () => {
     ]);
   });
 
+  it('fails a run that wrote a workflow file and deleted it before the files were collected', () => {
+    const grade = gradeOnboardingRun(
+      stoppedRun({
+        transcript_jsonl: transcript([
+          writing(`/tmp/checkout/${WORKFLOW_PATH}`, 3),
+          asking('What do you want to speed up?', 5),
+        ]),
+      }),
+    );
+
+    expect(failed(grade.checks)).toEqual(['no_workflow_file']);
+    expect(grade.checks.find((entry) => entry.id === 'no_workflow_file')?.detail).toContain(
+      'removed',
+    );
+  });
+
   it('fails a run that guessed a workflow and fired a trigger', () => {
     const grade = gradeOnboardingRun(
       stoppedRun({

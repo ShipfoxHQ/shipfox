@@ -325,14 +325,21 @@ function validatedChecks(
   ];
 }
 
-function stoppedChecks(options: GradeOnboardingRunOptions): OnboardingCheck[] {
+function stoppedChecks(
+  options: GradeOnboardingRunOptions,
+  entries: TranscriptEntry[],
+): OnboardingCheck[] {
   const {expect: expected, written_files: files, mcp_calls: calls, session} = options;
   const writeTools = calls.filter(isWriteCall).map((call) => call.tool);
+  // A file the agent wrote and then deleted is a write too, so the transcript counts as well.
+  const attempted = firstWorkflowWriteAt(entries) !== undefined;
   const checks = [
     check(
       'no_workflow_file',
-      files.length === 0,
-      `Written: ${files.map((file) => file.path).join(', ')}.`,
+      files.length === 0 && !attempted,
+      files.length === 0
+        ? 'The agent wrote a workflow file and removed it.'
+        : `Written: ${files.map((file) => file.path).join(', ')}.`,
     ),
     check('no_write_tool', writeTools.length === 0, `Called: ${writeTools.join(', ')}.`),
   ];
@@ -370,7 +377,7 @@ export function gradeOnboardingRun(options: GradeOnboardingRunOptions): Onboardi
     ),
     ...(expected.outcome === 'validated'
       ? validatedChecks(options, entries)
-      : stoppedChecks(options)),
+      : stoppedChecks(options, entries)),
     ...(expected.max_questions === undefined
       ? []
       : [
