@@ -497,13 +497,7 @@ export function classifyCheckoutTokenFailure(error: unknown): CheckoutTokenFailu
 
   const {status} = error.response;
   const code = codeFromBody(error.data);
-  if (
-    status === 401 ||
-    status === 403 ||
-    code === 'access-denied' ||
-    code === 'forbidden' ||
-    code === 'checkout-renewal-unavailable'
-  ) {
+  if (status === 401 || status === 403 || code === 'access-denied' || code === 'forbidden') {
     return 'auth';
   }
   if (

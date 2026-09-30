@@ -826,12 +826,11 @@ export async function finishStepAttempt(params: FinishStepAttemptParams, tx: Tx)
 
       if (params.status === 'succeeded') {
         await promoteCheckoutRenewalSubject({stepId: row.stepId, attempt: row.attempt}, renewalTx);
-      } else {
-        await discardPendingCheckoutRenewalSubject(
-          {stepId: row.stepId, attempt: row.attempt},
-          renewalTx,
-        );
       }
+      await discardPendingCheckoutRenewalSubject(
+        {stepId: row.stepId, attempt: row.attempt},
+        renewalTx,
+      );
     },
   );
 

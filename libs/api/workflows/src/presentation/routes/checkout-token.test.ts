@@ -357,15 +357,29 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     expect(createCheckoutCredentials).not.toHaveBeenCalled();
   });
 
-  test('replaces an initial credential from the matching pending subject', async () => {
-    const {project, job, step} = await createRunningCheckoutStep();
+  test.each([
+    {kind: 'setup' as const, persistCredentials: true},
+    {kind: 'checkout' as const, persistCredentials: true},
+    {kind: 'checkout' as const, persistCredentials: false},
+  ])('replaces an initial $kind credential with persistCredentials=$persistCredentials', async ({
+    kind,
+    persistCredentials,
+  }) => {
+    const {project, job, step} = await createRunningCheckoutStep({
+      kind,
+      checkout: {persistCredentials},
+    });
     getProjectById.mockResolvedValue({project});
     resolveCheckoutTarget.mockResolvedValue({
       projectId: project.id,
       connectionId: project.sourceConnectionId,
       target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
     });
-    createCheckoutSpec.mockResolvedValue(githubSpec('ghs-initial-token'));
+    const initialSpec = githubSpec('ghs-initial-token');
+    createCheckoutSpec.mockResolvedValue({
+      ...initialSpec,
+      credentials: {...initialSpec.credentials, generation: 'generation-1'},
+    });
     const token = await mintActiveLeaseToken({
       renewableInference: false,
       jobId: job.id,
@@ -378,6 +392,10 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       headers: {authorization: `Bearer ${token}`},
     });
     expect(initial.statusCode).toBe(200);
+    expect(initial.json().auth).toMatchObject({
+      persist: persistCredentials,
+      generation: 'generation-1',
+    });
 
     createCheckoutCredentials.mockResolvedValue({
       username: 'x-access-token',
@@ -408,7 +426,7 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
         expires_at: '2099-06-10T12:00:00.000Z',
         carry: 'header',
         host: 'github.com',
-        persist: true,
+        persist: persistCredentials,
         generation: 'generation-2',
         renewal: {mode: 'on-rejection'},
       },
@@ -421,6 +439,20 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       permissions: {contents: 'read'},
       rejectedGeneration: 'generation-1',
     });
+
+    if (!persistCredentials) {
+      await promoteCheckoutAttempt(step);
+      const afterSuccess = await app.inject({
+        method: 'POST',
+        url: checkoutUrl(step.id, step.currentAttempt),
+        headers: {authorization: `Bearer ${token}`, 'content-type': 'application/json'},
+        payload: {rejected_generation: 'generation-2'},
+      });
+
+      expect(afterSuccess.statusCode).toBe(409);
+      expect(afterSuccess.json().code).toBe('step-not-running');
+      expect(createCheckoutCredentials).toHaveBeenCalledTimes(1);
+    }
   });
 
   test('does not mint credentials when the lease expires before issuance', async () => {

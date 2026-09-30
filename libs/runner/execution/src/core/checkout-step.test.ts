@@ -346,7 +346,7 @@ describe('executeCheckoutStep', () => {
     );
   });
 
-  it('preserves auth guidance when a non-renewable checkout cannot be replaced', async () => {
+  it('reports a missing checkout replacement scope without permission guidance', async () => {
     requestCheckoutTokenMock
       .mockResolvedValueOnce(
         checkoutResponse('initial-repository', 'initial-ref', {
@@ -372,10 +372,14 @@ describe('executeCheckoutStep', () => {
     const result = await run({}, new Map(), log);
 
     expect(result.result.error).toEqual({
-      message: 'Shipfox rejected the fresh checkout credential request',
-      reason: 'checkout_auth_failed',
+      message: 'Shipfox failed to provide a fresh checkout credential',
+      reason: 'checkout_failed',
     });
     expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Next step: Retry the job. If this repeats, inspect the Shipfox credential request in the runner log.',
+      'stderr',
+    );
+    expect(log.writeOutputLine).not.toHaveBeenCalledWith(
       'Next step: Check the repository connection in Shipfox and confirm it has permission to read this repository.',
       'stderr',
     );

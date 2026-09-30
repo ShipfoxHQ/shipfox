@@ -210,7 +210,7 @@ function checkoutResult(
   const persistCredentials = checkout.persist_credentials ?? true;
   const renewalTarget = response.target ?? target.target;
   const renewalSubject =
-    credentials === undefined || !persistCredentials || renewalTarget.kind !== 'external-id'
+    credentials === undefined || renewalTarget.kind !== 'external-id'
       ? undefined
       : {
           repositoryUrl: normalizeRepositoryUrl(response.repositoryUrl),
