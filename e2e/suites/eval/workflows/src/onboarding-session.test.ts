@@ -217,6 +217,7 @@ describe('runOnboardingSession', () => {
 
     expect(session).toMatchObject({stop_reason: 'timeout', final_message: 'Working on it.'});
     expect(session.error).toContain('timeout');
+    expect(session.usage.agent.cost_usd).toBe(0);
   });
 
   it('interrupts the agent at the turn limit and reports the usage of its result', async () => {
@@ -282,32 +283,6 @@ describe('runOnboardingSession', () => {
 
     expect(session).toMatchObject({stop_reason: 'timeout', final_message: 'Working on it.'});
     expect(session.usage.agent.cost_usd).toBe(2.5);
-  });
-
-  it('aborts a query that never reports its result once the drain time is over', async () => {
-    const query: ClaudeQuery = ({options}) =>
-      Object.assign(
-        (async function* () {
-          yield assistant('Working on it.');
-          await new Promise((_, reject) =>
-            options.abortController?.signal.addEventListener('abort', () =>
-              reject(new Error('aborted')),
-            ),
-          );
-        })(),
-        {interrupt: () => Promise.resolve()},
-      );
-
-    const session = await runOnboardingSession({
-      ...baseOptions,
-      timeoutSeconds: 0.05,
-      drainSeconds: 0.05,
-      query,
-      simulatedUser: answering([]),
-    });
-
-    expect(session).toMatchObject({stop_reason: 'timeout'});
-    expect(session.usage.agent.cost_usd).toBe(0);
   });
 
   it('reports an SDK failure instead of throwing', async () => {
