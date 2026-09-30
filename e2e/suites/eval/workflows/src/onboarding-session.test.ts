@@ -210,12 +210,79 @@ describe('runOnboardingSession', () => {
     const session = await runOnboardingSession({
       ...baseOptions,
       timeoutSeconds: 0.05,
+      drainSeconds: 0.05,
       query,
       simulatedUser: answering([]),
     });
 
     expect(session).toMatchObject({stop_reason: 'timeout', final_message: 'Working on it.'});
     expect(session.error).toContain('timeout');
+    expect(session.usage.agent.cost_usd).toBe(0);
+  });
+
+  it('interrupts the agent at the turn limit and reports the usage of its result', async () => {
+    let interrupted = false;
+    const query: ClaudeQuery = () => {
+      let release: () => void = () => undefined;
+      const interruption = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return Object.assign(
+        (async function* () {
+          yield assistant('one');
+          yield assistant('two');
+          yield assistant('three');
+          await interruption;
+          yield result('', 1.5, 'error_during_execution');
+        })(),
+        {
+          interrupt: () => {
+            interrupted = true;
+            release();
+            return Promise.resolve();
+          },
+        },
+      );
+    };
+
+    const session = await runOnboardingSession({
+      ...baseOptions,
+      maxTurns: 2,
+      query,
+      simulatedUser: answering([]),
+    });
+
+    expect(interrupted).toBe(true);
+    expect(session).toMatchObject({stop_reason: 'max_turns', turns: 3});
+    expect(session.usage.agent).toMatchObject({cost_usd: 1.5, input_tokens: 100});
+    expect(session.transcript_jsonl).toContain('error_during_execution');
+  });
+
+  it('interrupts the agent at the timeout and reports the usage of its result', async () => {
+    const query: ClaudeQuery = () => {
+      let release: () => void = () => undefined;
+      const interruption = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return Object.assign(
+        (async function* () {
+          yield assistant('Working on it.');
+          await interruption;
+          yield result('', 2.5, 'error_during_execution');
+        })(),
+        {interrupt: () => Promise.resolve(release())},
+      );
+    };
+
+    const session = await runOnboardingSession({
+      ...baseOptions,
+      timeoutSeconds: 0.05,
+      query,
+      simulatedUser: answering([]),
+    });
+
+    expect(session).toMatchObject({stop_reason: 'timeout', final_message: 'Working on it.'});
+    expect(session.usage.agent.cost_usd).toBe(2.5);
   });
 
   it('reports an SDK failure instead of throwing', async () => {
