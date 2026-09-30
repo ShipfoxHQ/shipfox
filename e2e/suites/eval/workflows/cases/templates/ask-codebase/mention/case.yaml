@@ -1,0 +1,36 @@
+template: shipfox/ask-codebase
+bindings: {chat: slack, source: github}
+options: {entry_point: mention}
+placeholders:
+  replace-with-channel-id: C0ASKCODE01
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+covers:
+  - Replies once in the thread.
+
+seed:
+  slack:
+    channel: C0ASKCODE01
+    thread:
+      - ts: '1721300000.000100'
+        user: U0ASKER
+        text: <@UBOT> Where does the report command read the --json flag?
+
+scenario:
+  - start:
+      event:
+        slack:
+          app_mention:
+            channel: C0ASKCODE01
+            ts: '1721300000.000100'
+            user: U0ASKER
+            text: <@UBOT> Where does the report command read the --json flag?
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  # The checkout is read-only, so the only write is the reply under the question.
+  writes:
+    - slack.chat.postMessage: {target: C0ASKCODE01, thread_ts: '1721300000.000100', count: 1}

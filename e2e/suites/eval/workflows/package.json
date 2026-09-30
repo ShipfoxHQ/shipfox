@@ -46,6 +46,8 @@
     "#schema.js": "./src/schema.ts",
     "#senders.js": "./src/senders.ts",
     "#simulated-user.js": "./src/simulated-user.ts",
+    "#slack-events.js": "./src/slack-events.ts",
+    "#slack-workspace.js": "./src/slack-workspace.ts",
     "#template-fidelity.js": "./src/template-fidelity.ts"
   },
   "scripts": {
@@ -76,6 +78,7 @@
     "@shipfox/e2e-driver-jira": "workspace:*",
     "@shipfox/e2e-driver-linear": "workspace:*",
     "@shipfox/e2e-driver-runner-process": "workspace:*",
+    "@shipfox/e2e-driver-slack": "workspace:*",
     "@shipfox/e2e-observe-workflows": "workspace:*",
     "@shipfox/e2e-setup-agent": "workspace:*",
     "@shipfox/e2e-setup-auth": "workspace:*",

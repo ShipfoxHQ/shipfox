@@ -1,0 +1,43 @@
+template: shipfox/ask-codebase
+bindings: {chat: slack, source: github}
+options: {entry_point: mention}
+placeholders:
+  replace-with-channel-id: C0ASKCODE02
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+covers:
+  - Replies once in the thread.
+
+# The question was asked earlier in the thread. The mention is a later reply, so the run reads the
+# whole thread and answers under its parent message.
+seed:
+  slack:
+    channel: C0ASKCODE02
+    thread:
+      - ts: '1721300000.000100'
+        user: U0ASKER
+        text: Does the report command have a machine-readable output?
+      - ts: '1721300060.000200'
+        user: U0ASKER
+        thread_ts: '1721300000.000100'
+        text: <@UBOT> can you check?
+
+scenario:
+  - start:
+      event:
+        slack:
+          app_mention:
+            channel: C0ASKCODE02
+            ts: '1721300060.000200'
+            thread_ts: '1721300000.000100'
+            user: U0ASKER
+            text: <@UBOT> can you check?
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  # The reply goes under the thread's parent, not under the mention.
+  writes:
+    - slack.chat.postMessage: {target: C0ASKCODE02, thread_ts: '1721300000.000100', count: 1}

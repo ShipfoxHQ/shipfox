@@ -1,0 +1,9 @@
+{
+  "name": "ask-codebase-mention-in-thread-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "report": "src/cli.js"
+  }
+}

@@ -13,6 +13,8 @@ const invalidCasePattern = /scenario/iu;
 const invalidScenarioPattern = /case\.yaml: scenario\.\d+: Invalid input/u;
 const duplicatePattern = /issue identifiers must be unique/u;
 const undeclaredModePattern = /does not declare mode "live"/u;
+const seedPattern = /seed\.slack\.thread/u;
+const placeholderPattern = /placeholders/u;
 
 afterEach(async () => {
   await Promise.all(
@@ -243,5 +245,28 @@ describe('case seed schema', () => {
     const seed = {linear: {issues: [issue, {...issue, id: 'issue-2', identifier: 'ENG-8'}]}};
 
     expect(parseTemplateCase({...base, seed}).seed.linear?.issues).toHaveLength(2);
+  });
+
+  const message = {ts: '1.000100', user: 'U1', text: 'Where is it?'};
+
+  it('accepts a seeded Slack thread', () => {
+    const seed = {slack: {channel: 'C1', thread: [message]}};
+
+    expect(parseTemplateCase({...base, seed}).seed.slack?.thread).toHaveLength(1);
+  });
+
+  it('rejects a seeded Slack thread with no messages', () => {
+    const seed = {slack: {channel: 'C1', thread: []}};
+
+    expect(() => parseTemplateCase({...base, seed})).toThrow(seedPattern);
+  });
+
+  it('accepts a replace-with placeholder and rejects any other name', () => {
+    const accepted = {'replace-with-channel-id': 'C1'};
+
+    expect(parseTemplateCase({...base, placeholders: accepted}).placeholders).toEqual(accepted);
+    expect(() => parseTemplateCase({...base, placeholders: {channel: 'C1'}})).toThrow(
+      placeholderPattern,
+    );
   });
 });

@@ -40,6 +40,7 @@ import {runScenario, type ScenarioDriver, ScenarioError} from './scenario.js';
 import type {TemplateCase} from './schema.js';
 import {agentStepKeys} from './scripted.js';
 import type {EventSenders} from './senders.js';
+import {arrangeSlackWorkspace} from './slack-workspace.js';
 import {checkOutputs, checkWrites} from './writes.js';
 
 const START_TIMEOUT_MS = 60_000;
@@ -350,6 +351,42 @@ function failureMessage({
   return `The local runner exited (code ${exit.code}, signal ${exit.signal}) before the scenario finished. ${message}${arrangement.runnerTail()}`;
 }
 
+/** The Linear, Jira, and Slack connections and fakes a case binds. A provider it doesn't bind is skipped. */
+async function arrangeProviderFakes({
+  templateCase,
+  workspaceId,
+  uniqueId,
+  cleanups,
+}: {
+  templateCase: TemplateCase;
+  workspaceId: string;
+  uniqueId: string;
+  cleanups: Array<() => Promise<void>>;
+}) {
+  const binds = (provider: string) => Object.values(templateCase.bindings).includes(provider);
+  const linearIssues = templateCase.seed.linear?.issues ?? [];
+  if (binds('linear') && linearIssues.length === 0) {
+    throw new Error('The case binds Linear but seeds no Linear issue under seed.linear.issues.');
+  }
+  const linear = binds('linear')
+    ? await arrangeLinearWorkspace({workspaceId, uniqueId, issues: linearIssues, cleanups})
+    : undefined;
+
+  const jira = binds('jira')
+    ? await arrangeJiraTracker({workspaceId, uniqueId, cleanups})
+    : undefined;
+
+  const slackSeed = templateCase.seed.slack;
+  if (binds('slack') && slackSeed === undefined) {
+    throw new Error('The case binds Slack but seeds no thread under seed.slack.');
+  }
+  const slack =
+    binds('slack') && slackSeed !== undefined
+      ? await arrangeSlackWorkspace({workspaceId, uniqueId, seed: slackSeed, cleanups})
+      : undefined;
+  return {linear, jira, slack};
+}
+
 async function arrange({
   options,
   cleanups,
@@ -409,29 +446,20 @@ async function arrange({
     },
   );
 
-  const linearIssues = templateCase.seed.linear?.issues ?? [];
-  const bindsLinear = Object.values(templateCase.bindings).includes('linear');
-  if (bindsLinear && linearIssues.length === 0) {
-    throw new Error('The case binds Linear but seeds no Linear issue under seed.linear.issues.');
-  }
-  const linear = bindsLinear
-    ? await arrangeLinearWorkspace({
-        workspaceId: workspace.id,
-        uniqueId,
-        issues: linearIssues,
-        cleanups,
-      })
-    : undefined;
-  const jira = Object.values(templateCase.bindings).includes('jira')
-    ? await arrangeJiraTracker({workspaceId: workspace.id, uniqueId, cleanups})
-    : undefined;
+  const {linear, jira, slack} = await arrangeProviderFakes({
+    templateCase,
+    workspaceId: workspace.id,
+    uniqueId,
+    cleanups,
+  });
 
-  // The case workspace holds a connection to the GitHub fake, and to the Linear or Jira fake when
-  // the case binds that provider, so only those roles bind.
+  // The case workspace holds a connection to the GitHub fake, and to the Linear, Jira, and Slack
+  // fakes when the case binds them, so only those roles bind.
   const connectionSlugs: Record<string, string> = {
     github: connection.slug,
     ...(linear === undefined ? {} : {linear: linear.connectionSlug}),
     ...(jira === undefined ? {} : {jira: jira.connectionSlug}),
+    ...(slack === undefined ? {} : {slack: slack.connectionSlug}),
   };
   const slugs = Object.fromEntries(
     Object.entries(templateCase.bindings).flatMap(([role, provider]) => {
@@ -468,6 +496,7 @@ async function arrange({
     github: createGithubEventSender(github),
     ...(linear === undefined ? {} : {linear: linear.sender}),
     ...(jira === undefined ? {} : {jira: jira.sender}),
+    ...(slack === undefined ? {} : {slack: slack.sender}),
     ...options.senders,
   };
   const pullRequest = (): PullRequestReference => {
@@ -550,7 +579,12 @@ async function arrange({
     runnerExit: () => exit,
     runnerAborted: exited.signal,
     runnerTail: () => localRunnerLogTail(logFile),
-    writes: () => [...github.writes(), ...(linear?.writes() ?? []), ...(jira?.writes() ?? [])],
+    writes: () => [
+      ...github.writes(),
+      ...(linear?.writes() ?? []),
+      ...(jira?.writes() ?? []),
+      ...(slack?.writes() ?? []),
+    ],
     references: driver.references,
     modelRequests: async () =>
       script === undefined

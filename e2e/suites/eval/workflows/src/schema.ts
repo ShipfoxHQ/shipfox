@@ -78,6 +78,15 @@ const linearIssueSeedSchema = z
   })
   .strict();
 
+const slackMessageSeedSchema = z
+  .object({
+    ts: z.string().min(1),
+    user: z.string().min(1),
+    text: z.string(),
+    thread_ts: z.string().min(1).optional(),
+  })
+  .strict();
+
 // What the provider fakes serve before the scenario starts.
 const seedSchema = z
   .object({
@@ -93,10 +102,20 @@ const seedSchema = z
       })
       .strict()
       .optional(),
+    slack: z
+      .object({
+        // The channel the thread is in, which the workflow's trigger filter must list.
+        channel: z.string().min(1),
+        // The thread the Slack fake serves, oldest first. The parent message comes first.
+        thread: z.array(slackMessageSeedSchema).min(1),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
 export type LinearIssueSeed = z.infer<typeof linearIssueSeedSchema>;
+export type SlackSeed = NonNullable<z.infer<typeof seedSchema>['slack']>;
 
 const scenarioStepSchema = z.union([startStepSchema, sendStepSchema, awaitStepSchema]);
 

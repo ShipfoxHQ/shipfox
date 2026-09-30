@@ -12,7 +12,8 @@ A fake Slack Web API and Events sender for E2E suites. The fake stands in for `s
   `RecordedWrite` entries targeted at their channel. A post made to fail with
   `setPostMessageError` is in `calls` but not in `writes()`.
 - `signSlackHeaders`, `buildAppMentionEnvelope`, and `postSlackAppMention`: sign
-  and send an `app_mention` event. The suite waits for the run it starts.
+  and send an `app_mention` event. `threadTs` makes it a mention inside a thread. The suite
+  waits for the run it starts.
 
 ## Local Checks
 

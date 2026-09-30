@@ -21,6 +21,8 @@ export function buildAppMentionEnvelope(params: {
   ts: string;
   user: string;
   text: string;
+  /** The parent message's `ts`, for a mention made inside a thread. */
+  threadTs?: string | undefined;
   eventId: string;
 }) {
   return {
@@ -33,6 +35,7 @@ export function buildAppMentionEnvelope(params: {
       ts: params.ts,
       user: params.user,
       text: params.text,
+      ...(params.threadTs === undefined ? {} : {thread_ts: params.threadTs}),
     },
     event_id: params.eventId,
     event_time: Math.floor(Date.now() / 1000),
@@ -46,6 +49,7 @@ export async function postSlackAppMention(params: {
   ts: string;
   user: string;
   text: string;
+  threadTs?: string | undefined;
 }): Promise<string> {
   const eventId = `Ev${randomUUID().replaceAll('-', '')}`;
   const rawBody = JSON.stringify(buildAppMentionEnvelope({...params, eventId}));
