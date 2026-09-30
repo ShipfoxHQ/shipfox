@@ -13,6 +13,7 @@
 - **`createDiscordGateway`** returns the Gateway `ModuleService`: the leader election with the shard connection as the leader's work. It connects with `@discordjs/ws`, resumes from the stored committed cursor, and identifies through an Identify guard.
 - **`DiscordAgentToolsProvider`** serves the agent tools as the bot. The provider registers it as the `agent_tools` adapter, and `@shipfox/api-integration-discord/agent-tools` exports the catalog for the docs and action-type generators. It offers `read_channel`.
 - **`registerDiscordCommands`** compares the application's registered commands with the `/shipfox` and "Send to Shipfox" definitions from `discord-dto` and overwrites them only on a difference. The integrations module runs it as a startup task on every replica.
+- **`createDiscordGatewayHandlers`** returns the dispatch handlers: the channel cache and the `MESSAGE_CREATE` publisher. Pass them to `createDiscordGateway({handlers})`.
 - **`config`** defines the Discord application, OAuth, bot, Gateway, and API settings.
 
 ## Installation and setup
@@ -131,6 +132,17 @@ The leader runs one shard (`shardCount: 1`) with the `GUILDS`, `GUILD_MESSAGES`,
 - **Identify guard.** Every Identify waits on the manager's throttler: 5 s apart, refused below 100 remaining starts until `reset_after`, and `shards > 1` reported once. It waits and never throws, because a throw makes the library retry after 500 ms. Reports use the `integrations.discord.gateway` boundary.
 - **Backoff.** Failed connects retry after 5 s, doubling up to 5 minutes, with jitter that only shortens the delay.
 
+## Message ingestion
+
+`createDiscordGatewayHandlers` publishes `MESSAGE_CREATE` as `message_create`:
+
+1. A message without `guild_id` is dropped. So is a message whose guild has no `installed` installation, or whose connection is not `active` (`connection_unavailable`).
+2. The Shipfox fields are added to Discord's message object. `mentions_bot` is true when the bot user is in `mentions` or the installation's `bot_role_id` is in `mention_roles`. A reply with the ping off lists nobody, so it is not a mention. `author.bot` is always a boolean.
+3. `thread_id` and `root_channel_id` come from the channel cache: the channel itself for a top-level message, the parent for a thread message or forum post. The cache is fed by `GUILD_CREATE`, `THREAD_LIST_SYNC`, and the channel and thread create and update dispatches, and dropped on `CHANNEL_DELETE` and `THREAD_DELETE`. Entries never expire. A miss makes one `GET /channels/{id}`, and if it fails the event publishes without `thread_id` and `root_channel_id`. A resume sends no `GUILD_CREATE`, so the cache starts empty after a takeover.
+4. The event publishes in one transaction with the message id as the delivery id. A duplicate from a resume replay or a second session publishes nothing. A publish failure throws, so the committed mark stays below the message.
+
+Every other dispatch is skipped and committed, and reactions are not published yet. Do not enable `DISCORD_GATEWAY_ENABLED` in staging or production until the reaction handler is deployed.
+
 ## Metrics and reports
 
 Instance metrics live in `src/metrics/` and are scraped per pod. Only the leader reports the Gateway values.
@@ -148,8 +160,6 @@ Instance metrics live in `src/metrics/` and are scraped per pod. Only the leader
 The library has no Invalid Session event, so `invalid_session` counts a `null` session the library writes while a session is stored and the destroy is not ours. `sent` counts in the Identify guard. The dispatch queue records `failed` when a handler throws; handlers record the other outcomes.
 
 Sentry reports use the `integrations.discord.gateway` boundary: Identify refused, `shards > 1`, a `401` on the bot token (once per failure streak), and no ready socket for 5 minutes while leading (once per stretch).
-
-This build skips every dispatch, so it commits messages it cannot publish. Do not enable `DISCORD_GATEWAY_ENABLED` in staging or production until the message and reaction handlers are deployed.
 
 ## License
 

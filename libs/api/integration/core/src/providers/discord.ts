@@ -20,6 +20,7 @@ async function loadDiscordModuleParts(
     config: discordConfig,
     createDiscordE2eRoutes,
     createDiscordGateway,
+    createDiscordGatewayHandlers,
     createDiscordIntegrationProvider,
     deleteDiscordInstallationByConnectionId,
     db: discordDb,
@@ -113,7 +114,17 @@ async function loadDiscordModuleParts(
       }),
     ],
     startupTasks: [async () => void (await registerDiscordCommands())],
-    services: discordConfig.DISCORD_GATEWAY_ENABLED ? [createDiscordGateway()] : undefined,
+    services: discordConfig.DISCORD_GATEWAY_ENABLED
+      ? [
+          createDiscordGateway({
+            handlers: createDiscordGatewayHandlers({
+              coreDb: db,
+              publishIntegrationEventReceived,
+              getIntegrationConnectionById,
+            }),
+          }),
+        ]
+      : undefined,
     database: {
       db: discordDb,
       migrationsPath: discordMigrationsPath,
