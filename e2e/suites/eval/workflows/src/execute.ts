@@ -224,9 +224,10 @@ async function gradeLiveRun({
   const hiddenTests = await arrangement.hiddenTests();
   if (hiddenTests === undefined) return [];
   result.hidden_tests = hiddenTests;
-  return hiddenTests.passed
-    ? []
-    : [`The hidden tests failed (exit code ${hiddenTests.exit_code}).`];
+  if (hiddenTests.passed) return [];
+  // Without an exit code the test command never finished, and its output holds the reason.
+  const reason = hiddenTests.exit_code === null ? ` ${hiddenTests.output_tail}` : '';
+  return [`The hidden tests failed (exit code ${hiddenTests.exit_code}).${reason}`];
 }
 
 /** Spent even when the case failed, so the budget counts it. */

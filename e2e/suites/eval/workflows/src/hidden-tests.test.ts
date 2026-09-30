@@ -8,6 +8,7 @@ import {runHiddenTests} from './hidden-tests.js';
 
 const execFileAsync = promisify(execFile);
 const missingFilePattern = /No such file|not found|cannot find/iu;
+const missingBranchPattern = /Remote branch missing not found/u;
 const outsidePattern = /outside the hidden_tests directory/u;
 
 let root: string;
@@ -114,7 +115,22 @@ describe('hidden tests', () => {
         testCommand: 'true',
         timeoutMs: 30_000,
       }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(missingBranchPattern);
+  });
+
+  it('copies a path that re-enters hidden_tests to its place in the clone', async () => {
+    await pushBranch({branch: 'task', value: 'expected'});
+
+    const result = await runHiddenTests({
+      repositoryPath,
+      branch: 'task',
+      caseDirectory,
+      hiddenTests: '../hidden_tests/checks/value.sh',
+      testCommand: 'sh checks/value.sh',
+      timeoutMs: 30_000,
+    });
+
+    expect(result.passed).toBe(true);
   });
 
   it('keeps a missing hidden test file from passing silently', async () => {

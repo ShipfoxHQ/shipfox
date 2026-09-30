@@ -473,7 +473,7 @@ E2E_OPENROUTER_API_KEY=<key> mise run e2e -- --filter=@shipfox/e2e-flow-workflow
 
 Live mode runs the cases that declare `modes: [live]` through that OpenRouter
 backend, so it needs the same key for the harness. It spends real money, so run
-it by hand or from a dispatch. `--repeat` runs each case that many times, and
+it by hand. `--repeat` runs each case that many times, and
 `--max-cost-usd` stops starting new case runs once the runs so far have cost
 that much. The cost is what OpenRouter reported for the case's model requests.
 Each result carries its `measures`: the tokens from the usage route, and the
@@ -482,7 +482,7 @@ gate retries, which are the step attempts after each step's first. A case with
 pull request's branch from the fake repository, copies the file or directory
 from the case's `hidden_tests/` directory into the clone at the same path, and
 runs the `test_command` slot. A failing hidden test fails the case. Only a case
-that could not run at all, an `error`, makes the exit code non-zero:
+with status `error` makes the exit code non-zero:
 
 ```sh
 E2E_OPENROUTER_API_KEY=<key> mise run evals -- --suite templates --mode live --case 'ticket-to-pr/live-json-flag' --repeat 3 --max-cost-usd 5

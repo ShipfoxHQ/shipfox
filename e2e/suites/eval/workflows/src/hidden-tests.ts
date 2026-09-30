@@ -1,7 +1,7 @@
 import {execFile} from 'node:child_process';
 import {cp, mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join, resolve, sep} from 'node:path';
+import {join, relative, resolve, sep} from 'node:path';
 import {promisify} from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -51,7 +51,7 @@ export async function runHiddenTests({
       ['clone', '--quiet', '--branch', branch, '--single-branch', repositoryPath, directory],
       {timeout: CLONE_TIMEOUT_MS, env: gitEnvironment()},
     );
-    await cp(source, join(directory, hiddenTests), {recursive: true});
+    await cp(source, join(directory, relative(sourceRoot, source)), {recursive: true});
     return await runTestCommand({directory, testCommand, timeoutMs});
   } finally {
     await rm(directory, {recursive: true, force: true});
