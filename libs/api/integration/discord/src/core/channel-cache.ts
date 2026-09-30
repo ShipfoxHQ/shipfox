@@ -1,8 +1,7 @@
 import {logger} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
 import type {DiscordApiClient} from '#api/client.js';
-
-const THREAD_CHANNEL_TYPES = new Set([10, 11, 12]);
+import {isDiscordThreadType} from '#core/channel-types.js';
 
 const channelSchema = z
   .object({
@@ -40,7 +39,7 @@ export function createDiscordChannelCache(params: {
     const parsed = channelSchema.safeParse(channel);
     if (!parsed.success) return;
     channels.set(parsed.data.id, {
-      isThread: THREAD_CHANNEL_TYPES.has(parsed.data.type),
+      isThread: isDiscordThreadType(parsed.data.type),
       parentId: parsed.data.parent_id ?? null,
     });
   }

@@ -86,6 +86,8 @@ function discordClient(
     listActiveGuildThreads: unused,
     searchGuildMessages: unused,
     getGuildMember: unused,
+    createMessage: unused,
+    startThreadFromMessage: unused,
     leaveGuild: unused,
     getGatewayBot: unused,
     listApplicationCommands: unused,

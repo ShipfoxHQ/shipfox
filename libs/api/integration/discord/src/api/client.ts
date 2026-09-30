@@ -99,6 +99,17 @@ export interface DiscordApiClient {
     before?: string | undefined;
     after?: string | undefined;
   }): Promise<DiscordMessage[]>;
+  /** Pings users named in `content` only, never roles or `@everyone`. */
+  createMessage(input: {
+    channelId: string;
+    content: string;
+    replyToMessageId?: string | undefined;
+  }): Promise<DiscordMessage>;
+  startThreadFromMessage(input: {
+    channelId: string;
+    messageId: string;
+    name: string;
+  }): Promise<DiscordChannel>;
   /** Threads are not included. */
   listGuildChannels(input: {guildId: string}): Promise<DiscordChannel[]>;
   listActiveGuildThreads(input: {guildId: string}): Promise<DiscordChannel[]>;
@@ -248,6 +259,26 @@ export function createDiscordApiClient(
         method: 'GET',
         path: `/channels/${encodeURIComponent(channelId)}/messages`,
         query: {limit, before, after},
+      }),
+    createMessage: ({channelId, content, replyToMessageId}) =>
+      request({
+        operation: 'create-message',
+        method: 'POST',
+        path: `/channels/${encodeURIComponent(channelId)}/messages`,
+        json: {
+          content,
+          allowed_mentions: {parse: ['users']},
+          ...(replyToMessageId === undefined
+            ? {}
+            : {message_reference: {message_id: replyToMessageId, fail_if_not_exists: false}}),
+        },
+      }),
+    startThreadFromMessage: ({channelId, messageId, name}) =>
+      request({
+        operation: 'start-thread-from-message',
+        method: 'POST',
+        path: `/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/threads`,
+        json: {name},
       }),
     listGuildChannels: ({guildId}) =>
       request({

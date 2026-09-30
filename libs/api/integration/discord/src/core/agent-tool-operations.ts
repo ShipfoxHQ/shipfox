@@ -1,7 +1,10 @@
 import type {DiscordAgentToolId} from '@shipfox/api-integration-discord-dto';
 import type {DiscordApiClient, DiscordChannel, DiscordMessage} from '#api/client.js';
 import type {DiscordChannelGuard} from '#core/channel-guard.js';
+import {isDiscordThreadType} from '#core/channel-types.js';
 import {DiscordIntegrationProviderError, DiscordToolArgumentError} from '#core/errors.js';
+import {splitDiscordMessage} from '#core/message-split.js';
+import {ensureMessageThread} from '#core/message-thread.js';
 
 export type DiscordToolClient = Pick<
   DiscordApiClient,
@@ -12,12 +15,11 @@ export type DiscordToolClient = Pick<
   | 'listActiveGuildThreads'
   | 'searchGuildMessages'
   | 'getGuildMember'
+  | 'createMessage'
+  | 'startThreadFromMessage'
 >;
 
 const DEFAULT_THREAD_LIMIT = 50;
-const ANNOUNCEMENT_THREAD = 10;
-const PUBLIC_THREAD = 11;
-const PRIVATE_THREAD = 12;
 
 export interface DiscordToolContext {
   discord: DiscordToolClient;
@@ -59,7 +61,7 @@ export const DISCORD_TOOL_OPERATIONS: Partial<Record<DiscordAgentToolId, Discord
       const limit = optionalNumber(args.limit) ?? DEFAULT_THREAD_LIMIT;
       const channel = await guard({channelId, guildId});
 
-      if (isThread(channel.type)) {
+      if (isDiscordThreadType(channel.type)) {
         // A thread started from a message has that message's id and the message lives in the parent.
         const starter =
           channel.parentId === null
@@ -142,11 +144,48 @@ export const DISCORD_TOOL_OPERATIONS: Partial<Record<DiscordAgentToolId, Discord
       };
     },
   },
-};
+  send_message: {
+    permissionHint:
+      'View Channel, Read Message History, Send Messages, Send Messages in Threads, and Create Public Threads',
+    validate: (args) =>
+      stringArgument(args, 'message').trim() === ''
+        ? 'Parameter message must not be empty'
+        : undefined,
+    async run(args, {discord, guildId, guard}) {
+      const parts = splitDiscordMessage(stringArgument(args, 'message'));
+      if (!parts) {
+        throw new DiscordIntegrationProviderError({
+          reason: 'content-too-large',
+          message: 'The message is too long for Discord. Shorten it to under 10,000 characters.',
+        });
+      }
+      const channelId = stringArgument(args, 'channel_id');
+      const threadMessageId = optionalString(args.thread_message_id);
+      const {type} = await guard({channelId, guildId});
+      // In a thread, thread_message_id is ignored so one set of arguments serves both places.
+      const startsThread = threadMessageId !== undefined && !isDiscordThreadType(type);
+      const targetId = startsThread
+        ? await ensureMessageThread({discord, channelId, messageId: threadMessageId})
+        : channelId;
+      // A reply must name a message in the channel it is posted to, and a new thread has none yet.
+      const replyToMessageId = startsThread ? undefined : optionalString(args.reply_to_message_id);
 
-function isThread(type: number): boolean {
-  return type === ANNOUNCEMENT_THREAD || type === PUBLIC_THREAD || type === PRIVATE_THREAD;
-}
+      const posted: DiscordMessage[] = [];
+      for (const [index, content] of parts.entries()) {
+        posted.push(
+          await discord.createMessage({
+            channelId: targetId,
+            content,
+            replyToMessageId: index === 0 ? replyToMessageId : undefined,
+          }),
+        );
+      }
+      const messages = posted.map((message) => withUrl(message, guildId));
+      const [first] = messages;
+      return {id: first?.id, channel_id: targetId, url: first?.url, messages};
+    },
+  },
+};
 
 /** Discord answers newest first; a thread reads better oldest first. */
 async function listThreadMessages(

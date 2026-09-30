@@ -141,6 +141,48 @@ export const discordAgentToolCatalog = [
       },
     },
   }),
+  tool({
+    id: 'send_message',
+    sensitivity: 'write',
+    description:
+      'Send a message to a Discord channel or thread as the bot. Markdown is supported. Messages over 2,000 characters are split on paragraph, line, or word boundaries into up to 5 messages, and messages over 10,000 characters are refused. Only users are pinged, never roles or @everyone. To answer in the thread of a message, pass its ID as thread_message_id: the thread is created if the message has none, and thread_message_id is ignored when channel_id is already a thread.',
+    inputSchema: objectSchema(
+      {
+        channel_id: snowflakeSchema('ID of a channel or thread in the connected Discord server'),
+        message: stringSchema('Message text in Markdown'),
+        reply_to_message_id: snowflakeSchema(
+          'ID of a message in channel_id to reply to. Ignored when thread_message_id starts or finds a thread, because that message is in another channel',
+        ),
+        thread_message_id: snowflakeSchema(
+          'ID of a message in channel_id whose thread receives the message, created when the message has none',
+        ),
+      },
+      ['channel_id', 'message'],
+    ),
+    outputSchema: {
+      type: 'object',
+      additionalProperties: true,
+      properties: {
+        id: stringSchema('ID of the first message posted'),
+        channel_id: stringSchema('ID of the channel or thread the messages were posted in'),
+        url: stringSchema('Link to the first message posted'),
+        messages: {
+          type: 'array',
+          description: 'Messages posted, in order',
+          items: {
+            type: 'object',
+            additionalProperties: true,
+            properties: {
+              id: stringSchema('Message ID'),
+              channel_id: stringSchema('ID of the channel or thread the message is in'),
+              url: stringSchema('Link to the message'),
+              content: stringSchema('Message text'),
+            },
+          },
+        },
+      },
+    },
+  }),
 ] as const satisfies readonly DiscordAgentToolCatalogEntry[];
 
 export const discordAgentToolSelectionCatalog: AgentToolSelectionCatalog = {

@@ -50,6 +50,10 @@ export interface ProviderToolCatalog {
      * Search the messages of the connected Discord server by text. Returns the matching messages, each with a link. A new server can answer with a rate-limited error while Discord indexes it: retry after retryAfterSeconds.
      */
     search_messages: {arguments: DiscordSearchMessagesArguments; result: 'json'};
+    /**
+     * Send a message to a Discord channel or thread as the bot. Markdown is supported. Messages over 2,000 characters are split on paragraph, line, or word boundaries into up to 5 messages, and messages over 10,000 characters are refused. Only users are pinged, never roles or @everyone. To answer in the thread of a message, pass its ID as thread_message_id: the thread is created if the message has none, and thread_message_id is ignored when channel_id is already a thread.
+     */
+    send_message: {arguments: DiscordSendMessageArguments; result: 'json'};
   };
   gitea: {
     /**
@@ -1143,6 +1147,25 @@ export interface DiscordSearchMessagesArguments {
    * Matches to skip, to page through results
    */
   offset?: number;
+}
+
+export interface DiscordSendMessageArguments {
+  /**
+   * ID of a channel or thread in the connected Discord server
+   */
+  channel_id: string;
+  /**
+   * Message text in Markdown
+   */
+  message: string;
+  /**
+   * ID of a message in channel_id to reply to. Ignored when thread_message_id starts or finds a thread, because that message is in another channel
+   */
+  reply_to_message_id?: string;
+  /**
+   * ID of a message in channel_id whose thread receives the message, created when the message has none
+   */
+  thread_message_id?: string;
 }
 
 export interface GiteaCommentOnIssueArguments {
