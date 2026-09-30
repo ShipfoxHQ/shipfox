@@ -1,4 +1,9 @@
-import {createRegistrySettings, normalizeRegistryUrl, parseTrustedKeys} from './config.js';
+import {
+  createRegistrySettings,
+  normalizeRegistryUrl,
+  parseTrustedKeys,
+  registrySettings,
+} from './config.js';
 
 // The SPKI prefix of an Ed25519 key followed by 32 zero bytes.
 const PUBLIC_KEY = 'MCowBQYDK2VwAyEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
@@ -101,5 +106,17 @@ describe('createRegistrySettings', () => {
     });
 
     expect(settings.catalogRefreshSeconds).toBe(0);
+  });
+});
+
+describe('registrySettings', () => {
+  it('trusts the central registry by default', () => {
+    expect(registrySettings.registry).toBe('https://api.registry.shipfox.io');
+    expect(registrySettings.trustedKeys).toEqual([
+      {
+        keyid: 'reg-2026-1',
+        public_key: 'MCowBQYDK2VwAyEAq2fEsoh5zgdS98lzT8GChmTVE2ZunMIZ8DWCDxkYlVU=',
+      },
+    ]);
   });
 });
