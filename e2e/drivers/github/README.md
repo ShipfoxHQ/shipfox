@@ -18,6 +18,11 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
 - `GithubApiMock.pullRequests`, `reviewThreads`, and `branchHeads`: state a test
   seeds once it knows the commits. Pull requests created through the API land in
   `pullRequests`, and replies and thread resolution update `reviewThreads`.
+- `GithubApiMock.issues`: issues by number, with title, body, state, labels, assignees,
+  and comments. `GET /repos/:owner/:repo/issues/:number` and its `/comments` and
+  `/labels` routes read them. An issue read for a number not listed answers a synthetic
+  issue with `GITHUB_READ_RESULT_MARKER`. Issues and pull requests share the numbering,
+  so a created pull request skips the numbers issues use.
 - `GithubApiMock.addRepository(params)`: creates a bare repository, seeded from a
   directory, and serves it over git smart HTTP at
   `<endpoint>/github.com/<owner>/<repo>.git`. The repository API returns that URL as
@@ -30,7 +35,12 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   request writes. It records these kinds:
   `github.create_pull_request`, `github.update_pull_request`,
   `github.merge_pull_request`, `github.reply_to_review_comment`,
-  `github.create_issue_comment`, and `github.resolve_review_thread`. Each branch update from a git push is a `push`
+  `github.create_issue_comment`, and `github.resolve_review_thread`. Issue writes are
+  `github.update_issue` (`PATCH /issues/:number`, where `labels` replaces the whole set),
+  `github.add_labels` (`POST /issues/:number/labels`), and `github.remove_label`
+  (`DELETE /issues/:number/labels/:name`, `payload.name` is the label); each targets
+  `owner/repo#<number>`. Comments on a number no issue is seeded for, such as a pull
+  request, are recorded without being stored. Each branch update from a git push is a `push`
   write with `repository`, `branch`, `before`, and `after`; a missing side is `null`.
   `RecordedWrite` itself lives in `@shipfox/e2e-core`.
 - `GithubApiMock.sendPullRequestReviewComment(params)`: records a review comment as a new
@@ -50,6 +60,11 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   attempt numbers, triggering `event`, `actor`, head commit message, head repository (set it to
   model a fork), and `pullNumbers`, which must exist in `pullRequests`. Each call gets its own
   run ID unless `runId` is set.
+- `GithubApiMock.sendIssueLabeled(params)` and `sendIssueAssigned(params)`: add the label or
+  assignee to the issue in `issues`, unless it holds it, and deliver a signed `issues.labeled`
+  or `issues.assigned` webhook with the issue's new state, the `label` or `assignee`, and the
+  same repository, sender, and `installation.id` envelope. The sender defaults to
+  `e2e-maintainer`.
 - `signGithubWebhook(params)`: the `X-Hub-Signature-256`, `X-GitHub-Event`, and
   `X-GitHub-Delivery` headers for a raw body.
 - `GITHUB_*_INSTALLATION_TOKEN` and `GITHUB_*_RESULT_MARKER`: constants the suites
