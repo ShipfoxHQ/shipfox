@@ -69,6 +69,7 @@ describe('Jira event builders', () => {
 
     expect(envelope).toMatchObject({
       webhookEvent: 'jira:issue_updated',
+      issue_event_type_name: 'issue_generic',
       changelog: {items: [{field: 'status', fromString: 'To Do', toString: 'In Progress'}]},
     });
   });

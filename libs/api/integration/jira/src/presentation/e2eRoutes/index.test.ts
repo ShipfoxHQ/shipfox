@@ -105,7 +105,7 @@ describe('Jira E2E routes', () => {
     expect(updateInstallationWebhook).toHaveBeenCalledWith({
       connectionId: connection().id,
       webhookIds: [4242],
-      webhookExpiresAt: expect.any(Date),
+      webhookExpiresAt: null,
     });
   });
 
