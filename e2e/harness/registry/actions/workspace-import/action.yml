@@ -1,0 +1,6 @@
+name: Workspace import
+description: Imports a package from the step working directory, for E2E tests of the registry action loader.
+main: src/main.ts
+inputs:
+  module:
+    required: true

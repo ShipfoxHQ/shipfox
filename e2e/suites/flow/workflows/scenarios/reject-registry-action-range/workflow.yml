@@ -1,0 +1,12 @@
+name: Reject registry action range
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  greet:
+    steps:
+      - key: greet
+        uses: fixture/example@1
+        with:
+          name: Shipfox

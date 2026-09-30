@@ -1508,6 +1508,12 @@ importers:
         specifier: workspace:*
         version: link:../../../../../libs/shared/workflow/actions
 
+  e2e/harness/registry/actions/workspace-import:
+    devDependencies:
+      '@shipfox/actions':
+        specifier: workspace:*
+        version: link:../../../../../libs/shared/workflow/actions
+
   e2e/harness/registry/templates/example-template: {}
 
   e2e/kit:
@@ -2540,6 +2546,9 @@ importers:
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../../tools/playwright
+      '@shipfox/registry-format':
+        specifier: workspace:*
+        version: link:../../../../libs/shared/registry/format
       '@shipfox/runner':
         specifier: workspace:*
         version: link:../../../../apps/runner

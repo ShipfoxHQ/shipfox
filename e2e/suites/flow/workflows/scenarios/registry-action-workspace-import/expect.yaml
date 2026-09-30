@@ -1,0 +1,19 @@
+trigger: manual
+run:
+  status: failed
+jobs:
+  imports:
+    status: failed
+    steps:
+      install:
+        type: run
+        status: succeeded
+      import:
+        type: action
+        status: failed
+        exit_code: 1
+        logs:
+          include:
+            - "'greeting' imported from"
+            - Registry actions bundle their dependencies.
+          exclude: ["imported greeting"]

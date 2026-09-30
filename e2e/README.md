@@ -352,8 +352,10 @@ recreates the `registry_e2e` database and a file store, builds the fixture
 packages under `harness/registry/` with the release tool, imports them, and
 starts `apps/registry`. It signs with a key generated for the run, and the API
 trusts only that key through `REGISTRY_URL` and `REGISTRY_TRUSTED_KEYS`. The
-fixtures live in the `fixture` namespace: `fixture/example` is an action and
-`fixture/example-template` is a template that uses it, with this
+fixtures live in the `fixture` namespace: `fixture/example` is an action,
+`fixture/workspace-import` is an action that imports a package it did not
+bundle, and `fixture/example-template` is a template that uses
+`fixture/example`, with this
 [guide](harness/registry/templates/example-template/GUIDE.md). Add a fixture as a
 directory under `harness/registry/actions/` or `harness/registry/templates/`.
 The directory name is the package name. The seed and server logs are

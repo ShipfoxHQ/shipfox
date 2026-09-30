@@ -48,7 +48,10 @@ interface BaseScenario {
   childConfigPath?: string;
   childWorkflowYaml?: string;
   extraFiles: ScenarioFile[];
-  /** True when `files/` holds an action directory, which the definition sync must snapshot. */
+  /**
+   * True when a step `uses` an action, from `files/` or the registry. Only the definition sync
+   * snapshots actions.
+   */
   usesActions: boolean;
   seededSecrets: SeededSecret[];
   seededVariables: SeededVariable[];
@@ -67,7 +70,7 @@ export interface RejectScenario extends BaseScenario {
 
 export type Scenario = ExpectScenario | RejectScenario;
 
-const ACTION_MANIFEST_PATH_RE = /(^|\/)action\.ya?ml$/u;
+const ACTION_STEP_RE = /^\s*(?:-\s+)?uses:/mu;
 
 const scenariosRoot = fileURLToPath(new URL('../scenarios/', import.meta.url));
 
@@ -128,20 +131,20 @@ function loadScenario(root: string, name: string): Scenario {
   }
 
   const childWorkflowPath = join(dir, 'child-workflow.yml');
-  const extraFiles = readScenarioFiles(join(dir, 'files'));
+  const workflowYaml = readFileSync(workflowPath, 'utf8');
   const base = {
     name,
     dir,
     configPath: `.shipfox/workflows/${name}.yml`,
-    workflowYaml: readFileSync(workflowPath, 'utf8'),
+    workflowYaml,
     ...(existsSync(childWorkflowPath)
       ? {
           childConfigPath: `.shipfox/workflows/${name}-child.yml`,
           childWorkflowYaml: readFileSync(childWorkflowPath, 'utf8'),
         }
       : {}),
-    extraFiles,
-    usesActions: extraFiles.some((file) => ACTION_MANIFEST_PATH_RE.test(file.path)),
+    extraFiles: readScenarioFiles(join(dir, 'files')),
+    usesActions: ACTION_STEP_RE.test(workflowYaml),
     seededSecrets: loadSeededSecrets(dir),
     seededVariables: loadSeededVariables(dir),
     fakeModelProviderScriptKey: loadModelProviderScriptKey(dir),
