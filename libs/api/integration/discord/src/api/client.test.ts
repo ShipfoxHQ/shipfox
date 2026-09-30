@@ -132,6 +132,56 @@ describe('Discord REST client', () => {
       );
     });
 
+    it('searches guild messages with only the filters that are set', async () => {
+      const result = {total_results: 1, messages: [[{id: 'message-1', hit: true}]]};
+      const fetchMock = stubFetch(json(result));
+
+      await expect(
+        client.searchGuildMessages({guildId: 'guild-1', content: 'deploy it', limit: 5}),
+      ).resolves.toEqual(result);
+
+      const request = sentRequest(fetchMock);
+      expect(request.method).toBe('GET');
+      expect(request.url).toBe(
+        'https://discord.test/api/v10/guilds/guild-1/messages/search?content=deploy+it&limit=5',
+      );
+    });
+
+    it('maps a search that is still indexing to rate-limited with the retry delay', async () => {
+      stubFetch(
+        json(
+          {
+            message: 'Index not yet available. Try again later',
+            code: 110000,
+            documents_indexed: 0,
+            retry_after: 1,
+          },
+          202,
+        ),
+      );
+
+      const error = await rejection(client.searchGuildMessages({guildId: 'guild-1', content: 'x'}));
+
+      expect(error).toMatchObject({
+        reason: 'rate-limited',
+        message: 'Discord is indexing this server',
+        retryAfterSeconds: 1,
+      });
+    });
+
+    it('reads a guild member', async () => {
+      const member = {user: {id: 'user-1', username: 'ada'}, roles: [], joined_at: '2026-01-02'};
+      const fetchMock = stubFetch(json(member));
+
+      await expect(client.getGuildMember({guildId: 'guild-1', userId: 'user-1'})).resolves.toEqual(
+        member,
+      );
+
+      expect(sentRequest(fetchMock).url).toBe(
+        'https://discord.test/api/v10/guilds/guild-1/members/user-1',
+      );
+    });
+
     it('leaves a guild and accepts the empty response', async () => {
       const fetchMock = stubFetch(new Response(null, {status: 204}));
 

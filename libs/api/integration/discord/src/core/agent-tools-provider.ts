@@ -150,7 +150,11 @@ function mapDiscordToolFailure(params: {
       return discordToolError(
         error.status === undefined
           ? error.message
-          : `Discord denied access to ${channelLabel(call.arguments)}. The bot probably lacks the ${operation.permissionHint} permission there.`,
+          : `Discord denied access to ${channelLabel(call.arguments)}.${
+              operation.permissionHint === undefined
+                ? ''
+                : ` The bot probably lacks the ${operation.permissionHint} permission there.`
+            }`,
         'access-denied',
       );
     case 'not-found':

@@ -97,6 +97,50 @@ export const discordAgentToolCatalog = [
       },
     },
   }),
+  tool({
+    id: 'search_messages',
+    description:
+      'Search the messages of the connected Discord server by text. Returns the matching messages, each with a link. A new server can answer with a rate-limited error while Discord indexes it: retry after retryAfterSeconds.',
+    inputSchema: objectSchema(
+      {
+        query: stringSchema('Text to search for in message content'),
+        channel_id: snowflakeSchema('Only search this channel or thread'),
+        author_id: snowflakeSchema('Only return messages from this user ID'),
+        limit: integerSchema('Messages to return, 1 to 25 (default 25)', 1, 25),
+        offset: integerSchema('Matches to skip, to page through results', 0, 9975),
+      },
+      ['query'],
+    ),
+    outputSchema: messagesOutputSchema('Matching messages', {
+      total_results: {type: 'integer', description: 'Number of messages that match'},
+    }),
+  }),
+  tool({
+    id: 'read_user_profile',
+    description:
+      'Retrieve a member of the connected Discord server: nickname, username, global name, role IDs, and join date. Discord never exposes email addresses.',
+    inputSchema: objectSchema(
+      {user_id: snowflakeSchema('ID of a user in the connected Discord server')},
+      ['user_id'],
+    ),
+    outputSchema: {
+      type: 'object',
+      additionalProperties: true,
+      properties: {
+        id: stringSchema('User ID'),
+        username: stringSchema('Username'),
+        global_name: {type: ['string', 'null'], description: 'Display name across Discord'},
+        nickname: {type: ['string', 'null'], description: 'Nickname in this server'},
+        bot: {type: 'boolean', description: 'Whether the user is a bot'},
+        roles: {
+          type: 'array',
+          description: 'IDs of the roles the member has',
+          items: {type: 'string'},
+        },
+        joined_at: stringSchema('ISO 8601 timestamp of when the member joined the server'),
+      },
+    },
+  }),
 ] as const satisfies readonly DiscordAgentToolCatalogEntry[];
 
 export const discordAgentToolSelectionCatalog: AgentToolSelectionCatalog = {
@@ -135,11 +179,15 @@ function objectSchema(
   };
 }
 
-function messagesOutputSchema(description: string): AgentToolJsonSchema {
+function messagesOutputSchema(
+  description: string,
+  extraProperties: Record<string, AgentToolJsonSchema> = {},
+): AgentToolJsonSchema {
   return {
     type: 'object',
     additionalProperties: true,
     properties: {
+      ...extraProperties,
       messages: {
         type: 'array',
         description,

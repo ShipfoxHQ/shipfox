@@ -12,7 +12,7 @@
 - **`createDiscordGatewayService`** returns the `ModuleService` that elects one Gateway leader per shard with a Postgres advisory lock. Each replica holds a dedicated connection, retries every 10 s, and checks it with `SELECT 1` every 15 s. The `onLeading` and `onLost` callbacks carry the leader's work; `onLost` runs before the lock is released on shutdown.
 - **`createDiscordApiClient`** calls the Discord REST API as the bot and maps failures to `DiscordIntegrationProviderError`.
 - **`createDiscordGateway`** returns the Gateway `ModuleService`: the leader election with the shard connection as the leader's work. It connects with `@discordjs/ws`, resumes from the stored committed cursor, and identifies through an Identify guard.
-- **`DiscordAgentToolsProvider`** serves the agent tools as the bot. The provider registers it as the `agent_tools` adapter, and `@shipfox/api-integration-discord/agent-tools` exports the catalog for the docs and action-type generators. It offers `read_channel`, `read_thread`, and `list_channels`.
+- **`DiscordAgentToolsProvider`** serves the agent tools as the bot. The provider registers it as the `agent_tools` adapter, and `@shipfox/api-integration-discord/agent-tools` exports the catalog for the docs and action-type generators. It offers `read_channel`, `read_thread`, `search_messages`, `list_channels`, and `read_user_profile`.
 - **`registerDiscordCommands`** compares the application's registered commands with the `/shipfox` and "Send to Shipfox" definitions from `discord-dto` and overwrites them only on a difference. The integrations module runs it as a startup task on every replica.
 - **`createDiscordGatewayHandlers`** returns the dispatch handlers: the channel cache, the `MESSAGE_CREATE` publisher, and the guild lifecycle handlers. Pass them to `createDiscordGateway({handlers})`.
 - **`config`** defines the Discord application, OAuth, bot, Gateway, and API settings.
@@ -96,7 +96,7 @@ Commands are answered with an ephemeral message. It says the server is not conne
 
 ## REST client
 
-`createDiscordApiClient()` reads `DISCORD_BOT_TOKEN`, `DISCORD_API_BASE_URL`, `DISCORD_APPLICATION_ID`, `DISCORD_OAUTH_CLIENT_SECRET`, and `DISCORD_OAUTH_REDIRECT_URL` from `config`. Pass options to override them. It exposes `exchangeAuthorizationCode` and `revokeAccessToken` for the install flow, which authenticate with the OAuth client credentials instead of the bot token, and `getGuild`, `getChannel`, `getMessage`, `listChannelMessages`, `listGuildChannels`, `listActiveGuildThreads`, `leaveGuild`, `getGatewayBot`, `listApplicationCommands`, and `overwriteApplicationCommands`.
+`createDiscordApiClient()` reads `DISCORD_BOT_TOKEN`, `DISCORD_API_BASE_URL`, `DISCORD_APPLICATION_ID`, `DISCORD_OAUTH_CLIENT_SECRET`, and `DISCORD_OAUTH_REDIRECT_URL` from `config`. Pass options to override them. It exposes `exchangeAuthorizationCode` and `revokeAccessToken` for the install flow, which authenticate with the OAuth client credentials instead of the bot token, and `getGuild`, `getChannel`, `getMessage`, `listChannelMessages`, `listGuildChannels`, `listActiveGuildThreads`, `searchGuildMessages`, `getGuildMember`, `leaveGuild`, `getGatewayBot`, `listApplicationCommands`, and `overwriteApplicationCommands`.
 
 Requests time out after 10 seconds and are never retried, because Discord counts `401`, `403`, and `429` answers toward an IP-wide block. Failures throw `DiscordIntegrationProviderError`:
 
@@ -106,6 +106,7 @@ Requests time out after 10 seconds and are never retried, because Discord counts
 | `403` | `access-denied`, with `discordCode` such as `50001` or `50013` |
 | `404` | `not-found` |
 | `429` | `rate-limited`, with `retryAfterSeconds` from `retry_after` |
+| `202` on message search | `rate-limited`, with `retryAfterSeconds` from `retry_after`, while Discord indexes a new server |
 | `5xx`, network failure | `provider-unavailable` |
 | Timeout | `timeout` |
 | Other `4xx` | `provider-rejected` |
@@ -119,7 +120,7 @@ Requests time out after 10 seconds and are never retried, because Discord counts
 | Discord `401` | `credentials-unavailable`, reported to Sentry because the deployment token is broken |
 | Discord `403` | `access-denied`, naming the channel and the permission the bot probably lacks |
 | Discord `404` | `not-found`, "Not found in this server" |
-| Discord `429` | `rate-limited`, with `retryAfterSeconds` |
+| Discord `429`, or `202` while Discord indexes the server for `search_messages` | `rate-limited`, with `retryAfterSeconds` |
 | Timeout, `5xx` | `provider-unavailable` |
 
 The bot token reaches every server the bot is in, so a connection must only reach its own server. Guild-scoped endpoints take the guild from the installation, never from arguments. Before any call on `/channels/{id}/...`, the adapter resolves the channel's `guild_id` with `GET /channels/{id}` and rejects the call unless it matches. Direct message channels have no guild and are rejected. The answer is cached per process with no expiry, and a failed lookup is not cached. `list_channels` is guild-scoped and takes the guild from the installation.

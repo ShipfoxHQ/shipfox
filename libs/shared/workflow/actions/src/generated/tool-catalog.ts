@@ -42,6 +42,14 @@ export interface ProviderToolCatalog {
      * Read a Discord thread, oldest message first. With a thread ID as channel_id, returns the message the thread started from, then the thread. With a channel ID and the ID of a message that started a thread, returns that message then its thread. With a channel ID and a message ID that started no thread, returns that single message. The same arguments work for a mention at the top level of a channel and inside a thread.
      */
     read_thread: {arguments: DiscordReadThreadArguments; result: 'json'};
+    /**
+     * Retrieve a member of the connected Discord server: nickname, username, global name, role IDs, and join date. Discord never exposes email addresses.
+     */
+    read_user_profile: {arguments: DiscordReadUserProfileArguments; result: 'json'};
+    /**
+     * Search the messages of the connected Discord server by text. Returns the matching messages, each with a link. A new server can answer with a rate-limited error while Discord indexes it: retry after retryAfterSeconds.
+     */
+    search_messages: {arguments: DiscordSearchMessagesArguments; result: 'json'};
   };
   gitea: {
     /**
@@ -1105,6 +1113,36 @@ export interface DiscordReadThreadArguments {
    * Most recent thread messages to return, 1 to 100 (default 50)
    */
   limit?: number;
+}
+
+export interface DiscordReadUserProfileArguments {
+  /**
+   * ID of a user in the connected Discord server
+   */
+  user_id: string;
+}
+
+export interface DiscordSearchMessagesArguments {
+  /**
+   * Text to search for in message content
+   */
+  query: string;
+  /**
+   * Only search this channel or thread
+   */
+  channel_id?: string;
+  /**
+   * Only return messages from this user ID
+   */
+  author_id?: string;
+  /**
+   * Messages to return, 1 to 25 (default 25)
+   */
+  limit?: number;
+  /**
+   * Matches to skip, to page through results
+   */
+  offset?: number;
 }
 
 export interface GiteaCommentOnIssueArguments {

@@ -10,6 +10,8 @@ export type DiscordToolClient = Pick<
   | 'listChannelMessages'
   | 'listGuildChannels'
   | 'listActiveGuildThreads'
+  | 'searchGuildMessages'
+  | 'getGuildMember'
 >;
 
 const DEFAULT_THREAD_LIMIT = 50;
@@ -25,7 +27,7 @@ export interface DiscordToolContext {
 
 export interface DiscordToolOperation {
   /** Named in the answer to a `403`, so an admin knows what to grant the bot in the channel. */
-  permissionHint: string;
+  permissionHint?: string;
   /** Rules a JSON Schema cannot express. Returns the message for the agent. */
   validate?(args: Record<string, unknown>): string | undefined;
   run(args: Record<string, unknown>, context: DiscordToolContext): Promise<Record<string, unknown>>;
@@ -98,6 +100,45 @@ export const DISCORD_TOOL_OPERATIONS: Partial<Record<DiscordAgentToolId, Discord
         channels: [...channels, ...threads]
           .filter((channel) => needle === undefined || channel.name?.toLowerCase().includes(needle))
           .map(toChannelEntry),
+      };
+    },
+  },
+  search_messages: {
+    permissionHint: 'View Channel and Read Message History',
+    async run(args, {discord, guildId, guard}) {
+      const channelId = optionalString(args.channel_id);
+      if (channelId !== undefined) await guard({channelId, guildId});
+      const result = await discord.searchGuildMessages({
+        guildId,
+        content: stringArgument(args, 'query'),
+        channelId,
+        authorId: optionalString(args.author_id),
+        limit: optionalNumber(args.limit),
+        offset: optionalNumber(args.offset),
+      });
+      return {
+        total_results: result.total_results,
+        messages: result.messages.flatMap((group) => {
+          const hit = group.find((message) => message.hit === true);
+          return hit ? [withUrl(hit, guildId)] : [];
+        }),
+      };
+    },
+  },
+  read_user_profile: {
+    async run(args, {discord, guildId}) {
+      const member = await discord.getGuildMember({
+        guildId,
+        userId: stringArgument(args, 'user_id'),
+      });
+      return {
+        id: member.user.id,
+        username: member.user.username,
+        global_name: member.user.global_name ?? null,
+        nickname: member.nick ?? null,
+        bot: member.user.bot === true,
+        roles: member.roles,
+        joined_at: member.joined_at,
       };
     },
   },
