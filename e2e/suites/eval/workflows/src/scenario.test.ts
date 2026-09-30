@@ -132,6 +132,28 @@ describe('runScenario', () => {
     expect(driver.startManual).not.toHaveBeenCalled();
   });
 
+  it('keeps the step records when the signal aborts after the last step', async () => {
+    const controller = new AbortController();
+    const driver = createDriver({
+      startManual: vi.fn(() => {
+        controller.abort(new Error('The local runner exited.'));
+        return Promise.resolve('run-1');
+      }),
+    });
+    const steps: ScenarioStep[] = [{start: {manual: {inputs: {}}}}];
+
+    const error = await runScenario({
+      steps,
+      driver,
+      deadline: farDeadline(),
+      signal: controller.signal,
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ScenarioError);
+    expect((error as ScenarioError).message).toMatch(runnerExitedPattern);
+    expect((error as ScenarioError).records.map((record) => record.status)).toEqual(['passed']);
+  });
+
   it('gives the wait for the run only what the send left of the step timeout', async () => {
     const driver = createDriver({
       sendEvent: vi.fn(async () => {

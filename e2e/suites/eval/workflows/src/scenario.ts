@@ -205,7 +205,11 @@ export async function runScenario({
     }
   }
 
-  signal?.throwIfAborted();
+  // The last step can finish just as the case is aborted. Keep the records with the failure.
+  if (signal?.aborted) {
+    const reason = signal.reason instanceof Error ? signal.reason.message : 'the case was aborted';
+    throw new ScenarioError(`The scenario was aborted after its last step: ${reason}`, records);
+  }
   if (runId === undefined) throw new Error(NO_RUN);
   return {runId, records};
 }
