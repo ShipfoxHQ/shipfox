@@ -1,8 +1,12 @@
 import {DISCORD_PROVIDER, discordEventCatalog} from '@shipfox/api-integration-discord-dto';
 import type {RouteGroup} from '@shipfox/node-fastify';
+import {logger} from '@shipfox/node-opentelemetry';
+import {createDiscordApiClient, type DiscordApiClient} from '#api/client.js';
 import {discordConnectionExternalUrl} from '#core/connection-url.js';
+import {DiscordIntegrationProviderError} from '#core/errors.js';
 import {createDiscordWebhookProcessor} from '#core/webhook-processor.js';
 import {closeDb, db} from '#db/db.js';
+import {withDiscordGuildLock} from '#db/guild-lock.js';
 import {type DiscordInstallation, getDiscordInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
 import {
@@ -58,6 +62,7 @@ export type {
   DiscordWebhookProcessor,
 } from '#core/webhook-processor.js';
 export {createDiscordWebhookProcessor} from '#core/webhook-processor.js';
+export {discordGuildLockKey, withDiscordGuildLock} from '#db/guild-lock.js';
 export type {
   DiscordInstallation,
   DiscordInstallationStatus,
@@ -89,6 +94,7 @@ export interface CreateDiscordIntegrationProviderOptions {
   getDiscordInstallationByConnectionId?: (
     connectionId: string,
   ) => Promise<DiscordInstallation | undefined>;
+  discord?: DiscordApiClient | undefined;
   cleanup?: {
     deleteConnectionRecords?: (connection: {id: string}, options: {tx: unknown}) => Promise<void>;
   };
@@ -108,6 +114,7 @@ export function createDiscordIntegrationProvider(
     webhookRoutes && webhookProcessor
       ? [createDiscordWebhookRoutes({...webhookRoutes, processor: webhookProcessor})]
       : [];
+  let discordClient = options.discord;
 
   return {
     provider: DISCORD_PROVIDER,
@@ -118,6 +125,43 @@ export function createDiscordIntegrationProvider(
       return installation ? discordConnectionExternalUrl(installation.guildId) : undefined;
     },
     adapters: {},
+    /**
+     * Leaving the guild runs after the records commit, so the guild lock has to cover both. Without
+     * it a reinstall could commit in between and the delayed leave would remove the new bot.
+     */
+    async withConnectionDeletionLock(connection: {id: string}, fn: () => Promise<void>) {
+      const installation = await getInstallationByConnectionId(connection.id);
+      if (!installation) {
+        await fn();
+        return;
+      }
+      await withDiscordGuildLock(installation.guildId, fn);
+    },
+    async deleteConnectionRemoteResources(connection: {
+      id: string;
+    }): Promise<(() => Promise<void>) | undefined> {
+      const installation = await getInstallationByConnectionId(connection.id);
+      if (!installation) return undefined;
+      const {guildId} = installation;
+      return async () => {
+        discordClient ??= createDiscordApiClient();
+        try {
+          await discordClient.leaveGuild({guildId});
+        } catch (error) {
+          // 403 and 404 both mean the bot is already out of the guild.
+          if (
+            error instanceof DiscordIntegrationProviderError &&
+            (error.status === 403 || error.status === 404)
+          ) {
+            return;
+          }
+          logger().warn(
+            {err: error, connectionId: connection.id, guildId},
+            'Discord guild leave failed during connection deletion',
+          );
+        }
+      };
+    },
     ...options.cleanup,
     routes,
     webhookProcessors: webhookProcessor

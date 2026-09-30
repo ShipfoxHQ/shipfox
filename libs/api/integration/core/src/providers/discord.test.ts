@@ -1,5 +1,6 @@
 import {runMigrations} from '@shipfox/node-drizzle';
 import {createApp} from '@shipfox/node-fastify';
+import {openPostgresSession} from '@shipfox/node-postgres';
 import {getIntegrationConnectionById, listIntegrationConnections} from '#db/connections.js';
 import {createTestApp, useIntegrationRouteTest} from '#test/route-utils.js';
 import {discordProviderModule} from './discord.js';
@@ -24,6 +25,7 @@ async function loadDiscordProvider() {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe('Discord provider scaffold', () => {
@@ -94,5 +96,100 @@ describe('Discord provider scaffold', () => {
     await expect(
       listIntegrationConnections({workspaceId: context.workspaceId}),
     ).resolves.toHaveLength(1);
+  });
+
+  it('leaves the guild after the records commit, under the guild lock', async () => {
+    const {part, discordPackage} = await loadDiscordProvider();
+    if (!part.e2eRoutes) throw new Error('Discord E2E routes are not configured');
+    const seedApp = await createApp({routes: part.e2eRoutes, swagger: false});
+    const guildId = `guild-${crypto.randomUUID()}`;
+    const created = await seedApp.inject({
+      method: 'POST',
+      url: '/integrations/discord-connections',
+      payload: {
+        workspace_id: context.workspaceId,
+        guild_id: guildId,
+        guild_name: 'Acme Discord',
+        permissions: '309237730368',
+        bot_role_id: 'role-1',
+      },
+    });
+    const connectionId = created.json().id as string;
+
+    const observed: {url: string; method: string; recordsGone: boolean; lockHeld: boolean}[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: Request | URL) => {
+        const request = input as Request;
+        const session = await openPostgresSession();
+        try {
+          const lock = await session.query<{acquired: boolean}>(
+            'SELECT pg_try_advisory_lock(hashtext($1)) AS acquired',
+            [discordPackage.discordGuildLockKey(guildId)],
+          );
+          observed.push({
+            url: request.url,
+            method: request.method,
+            recordsGone:
+              (await getIntegrationConnectionById(connectionId)) === undefined &&
+              (await discordPackage.getDiscordInstallationByGuildId(guildId)) === undefined,
+            lockHeld: lock.rows[0]?.acquired !== true,
+          });
+        } finally {
+          await session.end();
+        }
+        return new Response(null, {status: 204});
+      }),
+    );
+
+    const deleteApp = await createTestApp([part.provider]);
+    const deleted = await deleteApp.inject({
+      method: 'DELETE',
+      url: `/integration-connections/${connectionId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(deleted.statusCode).toBe(204);
+    expect(observed).toEqual([
+      {
+        url: expect.stringContaining(`/users/@me/guilds/${guildId}`),
+        method: 'DELETE',
+        recordsGone: true,
+        lockHeld: true,
+      },
+    ]);
+  });
+
+  it.each([403, 404])('counts a %s from Discord as a completed leave', async (status) => {
+    const {part} = await loadDiscordProvider();
+    if (!part.e2eRoutes) throw new Error('Discord E2E routes are not configured');
+    const seedApp = await createApp({routes: part.e2eRoutes, swagger: false});
+    const guildId = `guild-${crypto.randomUUID()}`;
+    const created = await seedApp.inject({
+      method: 'POST',
+      url: '/integrations/discord-connections',
+      payload: {
+        workspace_id: context.workspaceId,
+        guild_id: guildId,
+        guild_name: 'Acme Discord',
+        permissions: '309237730368',
+        bot_role_id: 'role-1',
+      },
+    });
+    const fetchMock = vi.fn(async (_input: Request | URL) => new Response('{}', {status}));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const deleteApp = await createTestApp([part.provider]);
+    const deleted = await deleteApp.inject({
+      method: 'DELETE',
+      url: `/integration-connections/${created.json().id}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(deleted.statusCode).toBe(204);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const request = fetchMock.mock.calls[0]?.[0] as Request;
+    expect(request.method).toBe('DELETE');
+    expect(request.url).toContain(`/users/@me/guilds/${guildId}`);
   });
 });
