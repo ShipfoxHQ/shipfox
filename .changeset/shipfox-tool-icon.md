@@ -1,5 +1,5 @@
 ---
-'@shipfox/integration-icons': patch
+'@shipfox/integration-icons': minor
 '@shipfox/client-logs': patch
 ---
 
