@@ -15,7 +15,7 @@ export const comparisonColumns = [
   {key: 'local', label: 'Local coding agent'},
   {key: 'provider', label: 'Agent automations'},
   {key: 'ci', label: 'CI platform'},
-  {key: 'shipfox', label: 'Software factory (Shipfox)'},
+  {key: 'shipfox', label: 'Shipfox'},
 ] as const;
 
 export function getComparisonSections(
@@ -236,7 +236,7 @@ function serializeComparisonCell(cell: ComparisonCell): string {
 
 export function serializeSolutionsComparison(providers: readonly CatalogProvider[]): string {
   return [
-    '| Comparison point | Local coding agent | Agent automations | CI platform | Software factory (Shipfox) |',
+    '| Comparison point | Local coding agent | Agent automations | CI platform | Shipfox |',
     '| --- | --- | --- | --- | --- |',
     ...Object.values(getComparisonSections(providers)).flatMap(({title, rows}) => [
       `| **${tableValue(title)}** | | | | |`,

@@ -7,4 +7,31 @@ full: true
 
 import {ComparisonTable} from '@/app/components/comparison-table';
 
+## What sets Shipfox apart
+
+<Cards className="[&_h3]:text-base [&_h3]:font-semibold">
+  <Card title="Control at every step">
+    **You decide what each agent can use, which checks must pass, and who approves.**
+
+    You write each workflow as code in your repository, so your whole team uses the same process. For each step, you choose which tools the agent can use and which checks must pass. You choose where a person must approve. Each agent gets only the access it needs, never a personal account. Nothing merges without your approval.
+  </Card>
+  <Card title="Any model, no lock-in">
+    **Choose the best model, and its cost, for each step. You are not tied to one provider.**
+
+    You choose a model for each step. Use a low-cost model for simple work, and a stronger model only when you need it. You see the cost of each run, and you can set a limit. Shipfox is open source, so you can host it yourself and move your workflows to another system at any time.
+  </Card>
+  <Card title="More than a prompt">
+    **Loops, waits, and agents mixed with the commands you choose.**
+
+    A simple tool runs one prompt and then stops. Most work needs more. A Shipfox workflow has many steps. It can repeat a step until your checks pass. It can also wait for an event, such as a review comment or a failed check. Then it starts the agent again with all the earlier context. You can also mix agent steps with normal commands, which are fast and give the same result every time.
+  </Card>
+  <Card title="100+ integrations">
+    **Start a workflow from your tools, and let agents use them.**
+
+    A workflow can start from many sources: a ticket, an alert, a chat message, a failed check, or a schedule. During the workflow, agents can read and write in your other tools, and you give this access one step at a time. Shipfox is not limited to where you store your code. You can connect a new tool in a few minutes.
+  </Card>
+</Cards>
+
+## Detailed comparison
+
 <ComparisonTable />
