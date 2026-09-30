@@ -41,6 +41,22 @@ describe('checkWrites', () => {
     expect(failures).toEqual([]);
   });
 
+  it('matches a string field that contains the expected text', () => {
+    const message: RecordedWrite = {
+      kind: 'slack.chat.postMessage',
+      target: 'C1',
+      payload: {text: 'Ticket ENG-101 tracks this thread at `abc123`'},
+    };
+    const contains = (text: string) => [
+      {'slack.chat.postMessage': {text: {contains: text}, count: 1}},
+    ];
+
+    expect(checkWrites({expected: contains('Ticket ENG-101'), recorded: [message]})).toEqual([]);
+    expect(checkWrites({expected: contains('Ticket ENG-102'), recorded: [message]})).toHaveLength(
+      2,
+    );
+  });
+
   it('fails a count mismatch and lists the writes that matched', () => {
     const failures = checkWrites({
       expected: [{'github.push': {branch: pr.head, count: 2}}],

@@ -1,0 +1,41 @@
+template: shipfox/slack-to-ticket
+bindings: {chat: slack, tracker: linear, source: github}
+# A dispatcher starts the workflow, so it has no mention trigger and no channel list.
+options:
+  entry_point: dispatch_only
+  ticket_project: project
+placeholders:
+  replace-with-team-key: ENG
+  replace-with-project: Webhooks
+modes: [scripted]
+timeout_seconds: 600
+
+covers:
+  - Creates one ticket per thread in the chosen team, and in the chosen project when set.
+  - Replies once in the thread.
+
+scenario:
+  - start:
+      manual:
+        inputs:
+          channel_id: C0EVAL0001
+          thread_ts: '1721300000.000200'
+          request: Track retrying webhook delivery after a timeout
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  writes:
+    - linear.save_issue:
+        target: ENG
+        project: Webhooks
+        title: Retry webhook delivery after a timeout
+        links:
+          - title: Slack thread
+            url: https://e2e.slack.com/archives/C0EVAL0001/p1721300000000200
+        count: 1
+    - slack.chat.postMessage:
+        target: C0EVAL0001
+        thread_ts: '1721300000.000200'
+        text: {contains: 'Ticket ENG-101 tracks this thread'}
+        count: 1

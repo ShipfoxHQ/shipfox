@@ -1,0 +1,14 @@
+- match: {prompt_contains: make a ticket for the thing we talked about}
+  replies:
+    - tool: set_output
+      args: {key: status, value: '"needs_information"'}
+    - tool: set_output
+      args: {key: title, value: '""'}
+    - tool: set_output
+      args: {key: description, value: '""'}
+    - tool: set_output
+      args:
+        key: reply
+        value: '"What should change? The thread does not say which behavior the ticket should track."'
+    - tool: set_output
+      args: {key: existing_ticket, value: '""'}

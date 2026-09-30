@@ -1,0 +1,13 @@
+# The fake thread holds no link message, so the script stands in for the agent finding one.
+- match: {prompt_contains: create a ticket for this again}
+  replies:
+    - tool: set_output
+      args: {key: status, value: '"already_tracked"'}
+    - tool: set_output
+      args: {key: title, value: '""'}
+    - tool: set_output
+      args: {key: description, value: '""'}
+    - tool: set_output
+      args: {key: reply, value: '"This thread already has a ticket."'}
+    - tool: set_output
+      args: {key: existing_ticket, value: '"ENG-42"'}

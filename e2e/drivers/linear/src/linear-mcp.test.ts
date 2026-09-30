@@ -73,6 +73,57 @@ describe('Linear MCP mock', () => {
     }
   });
 
+  it('creates issues from a save_issue without an id and records them against their team', async () => {
+    const mock = await startLinearMcpMock({endpoint: new URL('http://127.0.0.1:0/mcp')});
+    const client = new Client({name: 'linear-mcp-test', version: '0.0.0'});
+    const transport = new StreamableHTTPClientTransport(mock.endpoint);
+    const input = {
+      team: 'ENG',
+      title: 'Retry webhook delivery',
+      links: [{title: 'Slack thread', url: 'https://e2e.slack.com/archives/C1/p1'}],
+    };
+
+    try {
+      await client.connect(transport as unknown as Transport);
+      const first = await client.callTool(
+        {name: 'save_issue', arguments: input},
+        CallToolResultSchema,
+      );
+      const second = await client.callTool(
+        {name: 'save_issue', arguments: input},
+        CallToolResultSchema,
+      );
+
+      expect(first.content).toEqual([
+        {
+          type: 'text',
+          text: JSON.stringify({
+            id: 'ENG-101',
+            title: 'Retry webhook delivery',
+            url: 'https://linear.app/e2e/issue/ENG-101',
+          }),
+        },
+      ]);
+      expect(second.content).toEqual([
+        {
+          type: 'text',
+          text: JSON.stringify({
+            id: 'ENG-102',
+            title: 'Retry webhook delivery',
+            url: 'https://linear.app/e2e/issue/ENG-102',
+          }),
+        },
+      ]);
+      expect(mock.writes()).toEqual([
+        {kind: 'save_issue', target: 'ENG', payload: input},
+        {kind: 'save_issue', target: 'ENG', payload: input},
+      ]);
+    } finally {
+      await client.close();
+      await mock.stop();
+    }
+  });
+
   it('serves uploads to bearer-authenticated requests', async () => {
     const mock = await startLinearMcpMock({endpoint: new URL('http://127.0.0.1:0/mcp')});
     const url = new URL('e2e-org/report/report.pdf?signature=signed', mock.uploadsUrl);

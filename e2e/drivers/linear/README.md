@@ -12,7 +12,8 @@ A fake Linear hosted MCP server and signed webhook sender for E2E suites. The se
 - `LinearMcpMock.calls` and `uploads`: every tool call and upload request, in arrival order.
 - `LinearMcpMock.writes()`: the accepted state-changing tool calls as `RecordedWrite` entries
   (`kind`, `target`, `payload`). Today that is `save_comment` and `save_issue`, targeted at their
-  issue.
+  issue. A `save_issue` without an `id` creates an issue, numbered from `ENG-101` for team `ENG`,
+  and its write targets the team.
 - `postLinearIssueUpdate(params)` and `postLinearAgentSession(params)`: post a signed `Issue`
   update or `AgentSessionEvent` (`created` or `prompted`) delivery to the API's Linear webhook
   route and return its `Linear-Delivery` ID, for correlating a run when a matching trigger starts

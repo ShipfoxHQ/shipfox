@@ -1,0 +1,36 @@
+template: shipfox/slack-to-ticket
+bindings: {chat: slack, tracker: linear, source: github}
+# Every option is named, because an option left out keeps all of its blocks.
+options:
+  entry_point: mention
+  ticket_project: team_only
+placeholders:
+  replace-with-channel-id: C0EVAL0001
+  replace-with-team-key: ENG
+modes: [scripted]
+timeout_seconds: 600
+
+covers:
+  - Replies once in the thread.
+
+scenario:
+  - start:
+      event:
+        slack:
+          app_mention:
+            channel: C0EVAL0001
+            ts: '1721300000.000300'
+            user: U0EVALUSER
+            text: '<@U0EVALBOT> make a ticket for the thing we talked about'
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  writes:
+    # The agent asks instead, so the thread gets questions and Linear gets nothing.
+    - linear.save_issue: {count: 0}
+    - slack.chat.postMessage:
+        target: C0EVAL0001
+        thread_ts: '1721300000.000300'
+        text: {contains: 'Shipfox needs more information before it can create a ticket'}
+        count: 1
