@@ -77,7 +77,11 @@ import {
 } from '#core/index.js';
 import {resolveWorkflowRunTriggerReference} from '#core/resolve-trigger-reference.js';
 import {cancelWorkflowRun, rerunWorkflowRun} from '#core/run-actions.js';
-import {checkVariableReadiness} from '#core/run-readiness.js';
+import {
+  checkSecretReadiness,
+  checkVariableReadiness,
+  collectSecretInputReferences,
+} from '#core/run-readiness.js';
 import {
   assertWorkspaceAdmitsNewJobs,
   type WorkflowAdmissionPolicy,
@@ -272,7 +276,10 @@ export function createWorkflowsInterModulePresentation(params: {
   annotations?: AnnotationsInterModuleClient;
   definitions: DefinitionsInterModuleClient;
   workspaces: WorkspacesInterModuleClient;
-  secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace' | 'listVariableNames'>;
+  secrets: Pick<
+    SecretsInterModuleClient,
+    'getVariablesByNamespace' | 'listSecretNames' | 'listVariableNames'
+  >;
   runners: RunnersInterModuleClient;
   integrations: IntegrationsModuleClient;
   projects: ProjectsModuleClient;
@@ -349,19 +356,25 @@ export function createWorkflowsInterModulePresentation(params: {
       if (definitions.length === 0) return {definitions: []};
 
       // The name lists are exact-scope, so a run sees the union of both.
-      const [workspaceNames, projectNames] = await Promise.all([
-        params.secrets.listVariableNames({workspaceId: input.workspaceId}),
-        params.secrets.listVariableNames({
-          workspaceId: input.workspaceId,
-          projectId: input.projectId,
-        }),
+      const scopes = [
+        {workspaceId: input.workspaceId},
+        {workspaceId: input.workspaceId, projectId: input.projectId},
+      ];
+      const [variableNames, secretNames] = await Promise.all([
+        Promise.all(scopes.map((scope) => params.secrets.listVariableNames(scope))),
+        Promise.all(scopes.map((scope) => params.secrets.listSecretNames(scope))),
       ]);
-      const definedNames = new Set([...workspaceNames.names, ...projectNames.names]);
+      const definedVariables = new Set(variableNames.flatMap(({names}) => names));
+      const definedSecrets = new Set(secretNames.flatMap(({names}) => names));
 
       return {
         definitions: definitions.map(({definitionId, model}) => ({
           definitionId,
-          issues: checkVariableReadiness({model, definedNames}),
+          issues: [
+            ...checkVariableReadiness({model, definedNames: definedVariables}),
+            ...checkSecretReadiness({model, definedNames: definedSecrets}),
+          ],
+          secretInputs: collectSecretInputReferences(model),
         })),
       };
     },
