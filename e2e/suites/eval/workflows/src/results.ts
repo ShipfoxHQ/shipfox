@@ -5,7 +5,7 @@ import type {DiscoveredCase} from './discovery.js';
 /** The session of one agent step, as the harness wrote it. */
 export interface AgentTranscript {
   step: string;
-  harness: 'pi';
+  harness: 'pi' | 'claude';
   jsonl: string;
 }
 

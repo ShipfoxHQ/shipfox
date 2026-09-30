@@ -198,12 +198,12 @@ describe('recordPiTranscript', () => {
       (span) => span.parentSpanContext?.spanId === step.spanContext().spanId,
     );
     expect(children.map((span) => span.name).sort()).toEqual([
-      'bash',
+      'Tool: bash',
+      'Tool: read',
       'model call 1',
       'model call 2',
-      'read',
     ]);
-    expect(step.attributes['langfuse.observation.type']).toBe('span');
+    expect(step.attributes['langfuse.observation.type']).toBe('agent');
   });
 
   it('records generations with model, usage, cost, and their own timestamps', () => {
@@ -234,8 +234,8 @@ describe('recordPiTranscript', () => {
     recordPiTranscript({step: 'implement', jsonl: transcript});
 
     const spans = exporter.getFinishedSpans();
-    const read = byName(spans, 'read');
-    const bash = byName(spans, 'bash');
+    const read = byName(spans, 'Tool: read');
+    const bash = byName(spans, 'Tool: bash');
     expect(read.attributes['langfuse.observation.type']).toBe('tool');
     expect(JSON.parse(read.attributes['langfuse.observation.input'] as string)).toEqual({
       path: 'src/a.ts',
@@ -279,7 +279,7 @@ describe('recordPiTranscript', () => {
 
     const spans = exporter.getFinishedSpans();
     const generation = byName(spans, 'model call 1');
-    const tool = byName(spans, 'read');
+    const tool = byName(spans, 'Tool: read');
     expect(generation.attributes['langfuse.observation.level']).toBe('ERROR');
     expect(generation.attributes['langfuse.observation.status_message']).toBe('provider down');
     expect(tool.attributes['langfuse.observation.level']).toBe('WARNING');
@@ -291,12 +291,5 @@ describe('recordPiTranscript', () => {
     const step = byName(exporter.getFinishedSpans(), 'implement');
     const metadata = step.attributes['langfuse.observation.metadata.skipped_lines'];
     expect(metadata).toBe('1');
-  });
-
-  it('rejects a session with no readable model call', () => {
-    const record = () => recordPiTranscript({step: 'implement', jsonl: '{"unexpected":true}\n'});
-
-    expect(record).toThrow('No model calls found in the pi session for implement');
-    expect(exporter.getFinishedSpans()).toEqual([]);
   });
 });

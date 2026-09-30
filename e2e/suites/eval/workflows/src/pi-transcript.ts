@@ -1,5 +1,6 @@
-import {type LangfuseSpan, startObservation} from '@langfuse/tracing';
+import {type StartObservationOptions, startObservation} from '@langfuse/tracing';
 import {z} from 'zod';
+import {base64DataUri} from './media.js';
 
 const usageSchema = z.looseObject({
   input: z.number().optional(),
@@ -47,6 +48,8 @@ export interface PiToolCall {
   name: string;
   arguments: unknown;
 }
+
+type SpanContext = NonNullable<StartObservationOptions['parentSpanContext']>;
 
 export interface PiChatMessage {
   role: string;
@@ -338,11 +341,11 @@ function modelCallStatus(call: PiModelCall): Record<string, string> {
 function recordModelCall({
   call,
   index,
-  parent,
+  parentSpanContext,
 }: {
   call: PiModelCall;
   index: number;
-  parent: LangfuseSpan;
+  parentSpanContext: SpanContext;
 }): void {
   const usage = usageDetails(call.usage);
   const cost = costDetails(call.usage);
@@ -360,7 +363,7 @@ function recordModelCall({
     {
       asType: 'generation',
       startTime: call.startTime,
-      parentSpanContext: parent.otelSpan.spanContext(),
+      parentSpanContext,
     },
   );
   generation.end(call.endTime);
@@ -376,13 +379,13 @@ function toolStatus(execution: PiToolExecution): Record<string, string> {
 
 function recordToolExecution({
   execution,
-  parent,
+  parentSpanContext,
 }: {
   execution: PiToolExecution;
-  parent: LangfuseSpan;
+  parentSpanContext: SpanContext;
 }): void {
   const tool = startObservation(
-    execution.name,
+    `Tool: ${execution.name}`,
     {
       input: execution.arguments,
       ...(execution.result === undefined ? {} : {output: execution.result}),
@@ -392,14 +395,10 @@ function recordToolExecution({
     {
       asType: 'tool',
       startTime: execution.startTime,
-      parentSpanContext: parent.otelSpan.spanContext(),
+      parentSpanContext,
     },
   );
   tool.end(execution.endTime);
-}
-
-function base64DataUri({contentType, text}: {contentType: string; text: string}): string {
-  return `data:${contentType};base64,${Buffer.from(text, 'utf8').toString('base64')}`;
 }
 
 export interface RecordPiTranscriptOptions {
@@ -408,45 +407,48 @@ export interface RecordPiTranscriptOptions {
   jsonl: string;
 }
 
+export interface PiTranscriptExport {
+  generations: number;
+  tools: number;
+}
+
 /**
- * Records a pi session as a span for the step, holding one generation per model call and one tool
- * observation per tool call. It nests under the active observation, and the raw JSONL rides on the
- * step span as media.
+ * Records a pi session as an agent observation for the step, holding one generation per model call
+ * and one tool observation per tool call. It nests under the active observation, and the raw JSONL
+ * rides on the step observation as media. Callers should treat a non-empty session with no
+ * generations as a format mismatch.
  */
-export function recordPiTranscript(options: RecordPiTranscriptOptions): LangfuseSpan {
+export function recordPiTranscript(options: RecordPiTranscriptOptions): PiTranscriptExport {
   const transcript = parsePiTranscript(options.jsonl);
-  // Every agent step makes a model call, so none in a non-empty session means the format changed.
-  if (options.jsonl.trim() && transcript.modelCalls.length === 0) {
-    throw new Error(
-      `No model calls found in the pi session for ${options.step} (${transcript.skippedLines} unreadable lines).`,
-    );
-  }
+  const firstPrompt = transcript.modelCalls[0]?.input.find((message) => message.role === 'user');
   const stepSpan = startObservation(
     options.step,
     {
-      input: {step: options.step, harness: 'pi'},
+      input: firstPrompt?.content,
       metadata: {
+        harness: 'pi',
         model_calls: transcript.modelCalls.length,
         tool_calls: transcript.toolExecutions.length,
         skipped_lines: transcript.skippedLines,
       },
     },
     {
-      asType: 'span',
+      asType: 'agent',
       ...(transcript.startTime === undefined ? {} : {startTime: transcript.startTime}),
     },
   );
+  const parentSpanContext = stepSpan.otelSpan.spanContext();
 
   transcript.modelCalls.forEach((call, index) => {
-    recordModelCall({call, index, parent: stepSpan});
+    recordModelCall({call, index, parentSpanContext});
   });
   for (const execution of transcript.toolExecutions) {
-    recordToolExecution({execution, parent: stepSpan});
+    recordToolExecution({execution, parentSpanContext});
   }
 
   stepSpan.update({
     output: {transcript: base64DataUri({contentType: 'application/x-ndjson', text: options.jsonl})},
   });
   stepSpan.end(transcript.endTime);
-  return stepSpan;
+  return {generations: transcript.modelCalls.length, tools: transcript.toolExecutions.length};
 }

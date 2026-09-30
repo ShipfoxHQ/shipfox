@@ -177,9 +177,34 @@ describe('agent transcripts', () => {
 
     expect(output.status).toBe('passed');
     expect(output.transcript_errors).toEqual([
-      expect.stringContaining('implement: No model calls found'),
+      'implement: No model calls found in the pi session.',
     ]);
-    expect(spanExporter.getFinishedSpans()).toEqual([]);
+  });
+
+  it('records a Claude transcript through the same path', async () => {
+    const claudeJsonl = `${JSON.stringify({
+      type: 'assistant',
+      timestamp: '2026-09-30T10:00:03.000Z',
+      message: {id: 'msg_1', role: 'assistant', content: [{type: 'text', text: 'Done.'}]},
+    })}\n`;
+
+    const output = await runTask(
+      result({agent_transcripts: [{step: 'review', harness: 'claude', jsonl: claudeJsonl}]}),
+    );
+
+    expect(output.transcript_errors).toBeUndefined();
+    const step = spanExporter.getFinishedSpans().find((span) => span.name === 'review');
+    expect(step?.attributes['langfuse.observation.type']).toBe('agent');
+  });
+
+  it('reports a Claude transcript with no model call', async () => {
+    const output = await runTask(
+      result({agent_transcripts: [{step: 'review', harness: 'claude', jsonl: '{"unexpected":1}'}]}),
+    );
+
+    expect(output.transcript_errors).toEqual([
+      'review: No model calls found in the claude session.',
+    ]);
   });
 });
 

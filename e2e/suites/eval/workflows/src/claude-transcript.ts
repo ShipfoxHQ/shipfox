@@ -1,4 +1,5 @@
 import {type StartObservationOptions, startObservation} from '@langfuse/tracing';
+import {base64DataUri} from './media.js';
 
 /**
  * Converts a Claude session transcript into Langfuse observations, following the logic of
@@ -409,7 +410,7 @@ export function exportClaudeTranscript({
       final_message: generations.filter((generation) => generation.text).at(-1)?.text,
       // The span processor uploads base64 data URIs found in a span's output as media.
       media: {
-        claude_transcript: `data:application/x-ndjson;base64,${Buffer.from(jsonl, 'utf8').toString('base64')}`,
+        claude_transcript: base64DataUri({contentType: 'application/x-ndjson', text: jsonl}),
       },
     },
   });

@@ -21,6 +21,7 @@ export {
 } from './langfuse.js';
 export {
   type PiTranscript,
+  type PiTranscriptExport,
   parsePiTranscript,
   type RecordPiTranscriptOptions,
   recordPiTranscript,

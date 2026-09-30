@@ -6,6 +6,8 @@ import {type Evaluation, type ExperimentItem, LangfuseClient} from '@langfuse/cl
 import {LangfuseSpanProcessor} from '@langfuse/otel';
 import {startActiveObservation} from '@langfuse/tracing';
 import {NodeTracerProvider} from '@opentelemetry/sdk-trace-node';
+import {exportClaudeTranscript} from './claude-transcript.js';
+import {base64DataUri} from './media.js';
 import {recordPiTranscript} from './pi-transcript.js';
 import type {AgentTranscript, CaseResult, ResultsRun} from './results.js';
 
@@ -29,16 +31,26 @@ function itemKey({case: caseId, repeat}: ItemInput): string {
   return `${caseId}#${repeat}`;
 }
 
-function base64DataUri({contentType, text}: {contentType: string; text: string}): string {
-  return `data:${contentType};base64,${Buffer.from(text, 'utf8').toString('base64')}`;
+function recordTranscript(transcript: AgentTranscript): {generations: number} {
+  if (transcript.harness === 'claude') {
+    return exportClaudeTranscript({jsonl: transcript.jsonl, name: transcript.step});
+  }
+  return recordPiTranscript({step: transcript.step, jsonl: transcript.jsonl});
 }
 
-/** A transcript that fails to convert is reported on the item, so it never turns a result into an error. */
+/**
+ * A transcript that fails to convert is reported on the item, so it never turns a result into an
+ * error. Every agent step makes a model call, so a non-empty session with none means the harness
+ * changed its format.
+ */
 function recordAgentTranscripts(transcripts: AgentTranscript[]): string[] {
   const failures: string[] = [];
   for (const transcript of transcripts) {
     try {
-      recordPiTranscript({step: transcript.step, jsonl: transcript.jsonl});
+      const {generations} = recordTranscript(transcript);
+      if (transcript.jsonl.trim() && generations === 0) {
+        throw new Error(`No model calls found in the ${transcript.harness} session.`);
+      }
     } catch (error) {
       failures.push(
         `${transcript.step}: ${error instanceof Error ? error.message : String(error)}`,
