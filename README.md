@@ -1,5 +1,5 @@
 <div align="center">
-  <img width="1200" height="630" alt="Shipfox: Your AI Software Factory" src="apps/docs/public/shipfox-og.jpg" />
+  <img width="1200" height="630" alt="Shipfox: Run coding agents like CI pipelines" src="apps/docs/public/shipfox-og.jpg" />
 </div>
 
 <p align="center">
