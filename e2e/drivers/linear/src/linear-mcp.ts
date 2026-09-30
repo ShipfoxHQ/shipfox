@@ -2,8 +2,8 @@ import {createServer, type IncomingMessage, type ServerResponse} from 'node:http
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
+import {closeServer, listenOnEndpoint, type RecordedWrite} from '@shipfox/e2e-core';
 import {z} from 'zod';
-import {closeServer, listenOnEndpoint} from './mock-server.js';
 
 export const LINEAR_READ_RESULT_MARKER = 'linear-read-result-marker';
 export const LINEAR_WRITE_RESULT_MARKER = 'linear-write-result-marker';
@@ -80,6 +80,8 @@ export interface LinearMcpMock {
   uploads: LinearUploadRequest[];
   endpoint: URL;
   uploadsUrl: URL;
+  /** Writes the fake accepted, in arrival order. */
+  writes(): RecordedWrite[];
   stop(): Promise<void>;
 }
 
@@ -116,6 +118,7 @@ export async function startLinearMcpMock(
     uploads,
     endpoint: boundEndpoint,
     uploadsUrl: new URL(LINEAR_UPLOADS_PATH, boundEndpoint),
+    writes: () => linearWrites(calls),
     stop: async () => {
       try {
         await closeServer(server);
@@ -124,6 +127,16 @@ export async function startLinearMcpMock(
       }
     },
   };
+}
+
+function linearWrites(calls: readonly LinearMcpCall[]): RecordedWrite[] {
+  return calls
+    .filter((call) => call.toolName === 'save_comment')
+    .map((call) => ({
+      kind: call.toolName,
+      target: String(call.arguments.issueId),
+      payload: call.arguments,
+    }));
 }
 
 async function handleMcpRequest(params: {

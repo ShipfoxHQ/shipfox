@@ -1,4 +1,9 @@
 import {createApiClient} from '@shipfox/e2e-core';
+import {
+  LINEAR_READ_RESULT_MARKER,
+  LINEAR_WRITE_RESULT_MARKER,
+  startLinearMcpMock,
+} from '@shipfox/e2e-driver-linear';
 import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
@@ -8,11 +13,6 @@ import {
 } from '@shipfox/e2e-setup-agent';
 import {createLinearConnection} from '@shipfox/e2e-setup-integrations';
 import {attachLocalRunnerLog} from '#attachments.js';
-import {
-  LINEAR_READ_RESULT_MARKER,
-  LINEAR_WRITE_RESULT_MARKER,
-  startLinearMcpMock,
-} from '#linear-mcp.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import type {SuiteContext} from '#suite-context.js';
 import {fireManualAndAwaitRun} from '#triggers.js';

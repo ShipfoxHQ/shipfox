@@ -5,6 +5,7 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from 'node:http';
+import type {RecordedWrite} from '@shipfox/e2e-core';
 
 export const CLICKUP_TASK_RESULT_MARKER = 'clickup-task-result-marker';
 export const CLICKUP_COMMENT_RESULT_MARKER = 'clickup-comment-result-marker';
@@ -30,6 +31,8 @@ export type ClickUpApiMockCall =
 export interface ClickUpApiMock {
   calls: ClickUpApiMockCall[];
   endpoint: URL;
+  /** Writes the fake accepted, in arrival order. */
+  writes(): RecordedWrite[];
   stop(): Promise<void>;
 }
 
@@ -63,6 +66,7 @@ export async function startClickUpApiMock(
   return {
     calls,
     endpoint: boundEndpoint,
+    writes: () => clickUpWrites(calls),
     stop: async () => {
       try {
         await close(server);
@@ -71,6 +75,14 @@ export async function startClickUpApiMock(
       }
     },
   };
+}
+
+function clickUpWrites(calls: readonly ClickUpApiMockCall[]): RecordedWrite[] {
+  return calls.flatMap((call) =>
+    call.kind === 'add_comment'
+      ? [{kind: call.kind, target: call.taskId, payload: {...call.body}}]
+      : [],
+  );
 }
 
 async function handleClickUpRequest(params: {

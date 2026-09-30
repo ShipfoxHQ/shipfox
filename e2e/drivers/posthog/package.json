@@ -1,9 +1,9 @@
 {
-  "name": "@shipfox/e2e-driver-github",
+  "name": "@shipfox/e2e-driver-posthog",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "e2e/drivers/github"
+    "directory": "e2e/drivers/posthog"
   },
   "license": "MIT",
   "private": true,
@@ -31,8 +31,6 @@
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "depcruise": "shipfox-depcruise",
-    "test": "shipfox-vitest-run",
-    "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
@@ -44,7 +42,6 @@
     "@shipfox/depcruise": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
-    "@shipfox/typescript": "workspace:*",
-    "@shipfox/vitest": "workspace:*"
+    "@shipfox/typescript": "workspace:*"
   }
 }

@@ -48,6 +48,13 @@ describe('Linear MCP mock', () => {
           toolName: 'save_comment',
         },
       ]);
+      expect(mock.writes()).toEqual([
+        {
+          kind: 'save_comment',
+          target: 'ENG-878',
+          payload: {issueId: 'ENG-878', body: 'Synthetic Linear comment'},
+        },
+      ]);
     } finally {
       await client.close();
       await mock.stop();

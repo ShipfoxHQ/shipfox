@@ -5,6 +5,7 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from 'node:http';
+import type {RecordedWrite} from '@shipfox/e2e-core';
 
 export const NOTION_PAGE_RESULT_MARKER = 'notion-page-result-marker';
 
@@ -20,6 +21,8 @@ export type NotionApiMockCall = {
 export interface NotionApiMock {
   calls: NotionApiMockCall[];
   endpoint: URL;
+  /** Writes the fake accepted. The fake serves reads only, so this stays empty. */
+  writes(): RecordedWrite[];
   stop(): Promise<void>;
 }
 
@@ -53,6 +56,7 @@ export async function startNotionApiMock(
   return {
     calls,
     endpoint: boundEndpoint,
+    writes: () => [],
     stop: async () => {
       try {
         await close(server);

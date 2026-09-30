@@ -52,4 +52,31 @@ describe('Slack API mock', () => {
       await mock.stop();
     }
   });
+
+  it('records accepted posts as writes and leaves out rejected ones', async () => {
+    const mock = await startSlackApiMock({endpoint: new URL('http://127.0.0.1:0')});
+    const post = (form: Record<string, string>) =>
+      fetch(new URL('/api/chat.postMessage', mock.endpoint), {
+        method: 'POST',
+        headers: {authorization: 'Bearer xoxb-test'},
+        body: new URLSearchParams(form),
+      }).then((response) => response.json());
+
+    try {
+      await post({channel: 'C1', thread_ts: '1.000100', text: 'accepted'});
+      mock.setPostMessageError('channel_not_found');
+      await post({channel: 'C1', text: 'rejected'});
+
+      expect(mock.writes()).toEqual([
+        {
+          kind: 'chat.postMessage',
+          target: 'C1',
+          payload: {channel: 'C1', thread_ts: '1.000100', text: 'accepted'},
+        },
+      ]);
+      expect(mock.calls).toHaveLength(2);
+    } finally {
+      await mock.stop();
+    }
+  });
 });

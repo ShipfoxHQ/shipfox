@@ -1242,6 +1242,31 @@ importers:
         specifier: workspace:*
         version: link:../../tools/vitest
 
+  e2e/drivers/clickup:
+    dependencies:
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
   e2e/drivers/gitea:
     dependencies:
       '@shipfox/api-integration-gitea-dto':
@@ -1277,6 +1302,41 @@ importers:
         version: link:../../../tools/vitest
 
   e2e/drivers/github:
+    dependencies:
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
+  e2e/drivers/linear:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 'catalog:'
+        version: 1.29.0(zod@4.4.3)
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -1321,6 +1381,53 @@ importers:
         specifier: 'catalog:'
         version: 4.22.4
 
+  e2e/drivers/notion:
+    dependencies:
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
+  e2e/drivers/posthog:
+    dependencies:
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
   e2e/drivers/runner-process:
     dependencies:
       '@shipfox/api-runners-dto':
@@ -1351,6 +1458,31 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../../../tools/typescript
+
+  e2e/drivers/slack:
+    dependencies:
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
 
   e2e/harness:
     dependencies:
@@ -2321,18 +2453,33 @@ importers:
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../../core
+      '@shipfox/e2e-driver-clickup':
+        specifier: workspace:*
+        version: link:../../../drivers/clickup
       '@shipfox/e2e-driver-gitea':
         specifier: workspace:*
         version: link:../../../drivers/gitea
       '@shipfox/e2e-driver-github':
         specifier: workspace:*
         version: link:../../../drivers/github
+      '@shipfox/e2e-driver-linear':
+        specifier: workspace:*
+        version: link:../../../drivers/linear
       '@shipfox/e2e-driver-model-provider':
         specifier: workspace:*
         version: link:../../../drivers/model-provider
+      '@shipfox/e2e-driver-notion':
+        specifier: workspace:*
+        version: link:../../../drivers/notion
+      '@shipfox/e2e-driver-posthog':
+        specifier: workspace:*
+        version: link:../../../drivers/posthog
       '@shipfox/e2e-driver-runner-process':
         specifier: workspace:*
         version: link:../../../drivers/runner-process
+      '@shipfox/e2e-driver-slack':
+        specifier: workspace:*
+        version: link:../../../drivers/slack
       '@shipfox/e2e-harness':
         specifier: workspace:*
         version: link:../../../harness
@@ -6579,12 +6726,12 @@ importers:
       '@shipfox/api-integration-clickup-dto':
         specifier: workspace:*
         version: link:../../api/integration/clickup-dto
-      '@shipfox/api-integration-discord-dto':
-        specifier: workspace:*
-        version: link:../../api/integration/discord-dto
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../../api/integration/core-dto
+      '@shipfox/api-integration-discord-dto':
+        specifier: workspace:*
+        version: link:../../api/integration/discord-dto
       '@shipfox/api-integration-gitea-dto':
         specifier: workspace:*
         version: link:../../api/integration/gitea-dto

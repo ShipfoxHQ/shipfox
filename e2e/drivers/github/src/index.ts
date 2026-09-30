@@ -1,3 +1,4 @@
+export type {RecordedWrite} from '@shipfox/e2e-core';
 export {
   GITHUB_GRAPHQL_RESULT_MARKER,
   GITHUB_READ_RESULT_MARKER,
@@ -12,4 +13,3 @@ export {
   type GithubPullRequestFixture,
   startGithubApiMock,
 } from './github-api.js';
-export type {RecordedWrite} from './recorded-write.js';

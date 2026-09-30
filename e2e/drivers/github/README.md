@@ -17,7 +17,7 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   knows the commits.
 - `GithubApiMock.writes()`: the accepted state-changing requests as `RecordedWrite`
   entries (`kind`, `target`, `payload`). It returns an empty list until the
-  recorded-write units fill it.
+  recorded-write units fill it. `RecordedWrite` itself lives in `@shipfox/e2e-core`.
 - `GITHUB_*_INSTALLATION_TOKEN` and `GITHUB_*_RESULT_MARKER`: constants the suites
   assert on.
 

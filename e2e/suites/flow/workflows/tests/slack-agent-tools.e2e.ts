@@ -1,6 +1,11 @@
 import {createApiClient} from '@shipfox/e2e-core';
 import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
+import {
+  SLACK_REPLIES_MARKER,
+  type SlackApiMockCall,
+  startSlackApiMock,
+} from '@shipfox/e2e-driver-slack';
 import {createAnthropicFakeModelProviderConfig} from '@shipfox/e2e-setup-agent';
 import {createSlackConnection} from '@shipfox/e2e-setup-integrations';
 import {
@@ -11,7 +16,6 @@ import {
 } from '#report-failed-runs.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import {runSlackToolsWorkflow} from '#slack-agent-tools.js';
-import {SLACK_REPLIES_MARKER, type SlackApiMockCall, startSlackApiMock} from '#slack-api.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
 import {seedProjectWithApiDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';

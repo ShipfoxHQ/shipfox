@@ -1,9 +1,9 @@
 {
-  "name": "@shipfox/e2e-driver-github",
+  "name": "@shipfox/e2e-driver-linear",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "e2e/drivers/github"
+    "directory": "e2e/drivers/linear"
   },
   "license": "MIT",
   "private": true,
@@ -37,7 +37,9 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/e2e-core": "workspace:*"
+    "@modelcontextprotocol/sdk": "catalog:",
+    "@shipfox/e2e-core": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

@@ -2,7 +2,9 @@ import {createHash} from 'node:crypto';
 import {createApiClient} from '@shipfox/e2e-core';
 import {type ConnectedOrg, createConnectedOrg, deleteOrg} from '@shipfox/e2e-driver-gitea';
 import {type GithubApiMockCall, startGithubApiMock} from '@shipfox/e2e-driver-github';
+import {LINEAR_UPLOADS_PATH, startLinearMcpMock} from '@shipfox/e2e-driver-linear';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
+import {startSlackApiMock} from '@shipfox/e2e-driver-slack';
 import {fetchStepLogs} from '@shipfox/e2e-observe-logs';
 import type {WorkflowRunObservation, WorkflowStepObservation} from '@shipfox/e2e-observe-workflows';
 import {createSession, createUser} from '@shipfox/e2e-setup-auth';
@@ -18,7 +20,6 @@ import {
   fetchLogAttachment,
 } from '#attachments.js';
 import {logText} from '#expect.js';
-import {LINEAR_UPLOADS_PATH, startLinearMcpMock} from '#linear-mcp.js';
 import {
   LINEAR_ROOT_PROJECT,
   linearContextWorkspace,
@@ -31,7 +32,6 @@ import {
   SLACK_USERS,
 } from '#reference-actions.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
-import {startSlackApiMock} from '#slack-api.js';
 import type {SuiteContext} from '#suite-context.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
 import {seedAndWaitForDefinition} from '#workflow-project.js';
