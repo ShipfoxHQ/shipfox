@@ -1,5 +1,5 @@
 {
-  "name": "report-cli",
+  "name": "ticket-to-pr-feedback-loop-fixture",
   "version": "1.0.0",
   "private": true,
   "type": "module",
