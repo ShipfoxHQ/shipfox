@@ -131,7 +131,8 @@ package when the helper needs typed request or response contracts.
 `drivers/*` is the only sanctioned bypass from product HTTP:
 
 - `drivers/gitea` talks directly to the local Gitea instance because Gitea is the external system under integration.
-- `drivers/github`, `drivers/linear`, `drivers/slack`, `drivers/clickup`, `drivers/notion`, and `drivers/posthog` fake their provider's API because each provider is the external system under integration. Each in-process fake exposes `writes()`, the state-changing requests it accepted. PostHog is read-only and served by the harness, so its driver has none.
+- `drivers/github`, `drivers/linear`, `drivers/slack`, `drivers/clickup`, and `drivers/notion` fake their provider's API because each provider is the external system under integration. Each fake exposes `writes()`, the state-changing requests it accepted.
+- `drivers/posthog` reads and controls the read-only PostHog fake that the harness starts, through harness routes. It fakes nothing itself and has no `writes()`.
 - `drivers/runner-process` starts local runner/provisioner processes because runner capacity is process infrastructure, not product data.
 
 A new driver is justified only for an external system, host process, or local

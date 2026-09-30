@@ -6,7 +6,7 @@ A fake Notion API and event sender for E2E suites. The fake stands in for `api.n
 
 - `startNotionApiMock(endpoint?)`: start the fake and return a `NotionApiMock`. It serves page
   reads.
-- `NotionApiMock.calls`: every request the fake handled, as `NotionApiMockCall` entries.
+- `NotionApiMock.calls`: every page read the fake served, as `NotionApiMockCall` entries.
 - `NotionApiMock.writes()`: always empty, because the fake accepts no writes.
 - `signNotionHeaders`, `buildPagePropertiesUpdatedEnvelope`, and `postNotionDelivery`: sign and
   send a page webhook delivery.
