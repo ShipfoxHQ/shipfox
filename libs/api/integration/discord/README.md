@@ -141,7 +141,7 @@ The leader runs one shard (`shardCount: 1`) with the `GUILDS`, `GUILD_MESSAGES`,
 3. `thread_id` and `root_channel_id` come from the channel cache: the channel itself for a top-level message, the parent for a thread message or forum post. The cache is fed by `GUILD_CREATE`, `THREAD_LIST_SYNC`, and the channel and thread create and update dispatches, and dropped on `CHANNEL_DELETE` and `THREAD_DELETE`. Entries never expire. A miss makes one `GET /channels/{id}`, and if it fails the event publishes without `thread_id` and `root_channel_id`. A resume sends no `GUILD_CREATE`, so the cache starts empty after a takeover.
 4. The event publishes in one transaction with the message id as the delivery id. A duplicate from a resume replay or a second session publishes nothing. A publish failure throws, so the committed mark stays below the message.
 
-Every other dispatch is skipped and committed, and reactions are not published yet. Do not enable `DISCORD_GATEWAY_ENABLED` in staging or production until the reaction handler is deployed.
+Dispatches without a handler are skipped and committed, and reactions are not published yet. Do not enable `DISCORD_GATEWAY_ENABLED` in staging or production until the reaction handler is deployed.
 
 ## Metrics and reports
 

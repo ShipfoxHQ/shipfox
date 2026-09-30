@@ -243,7 +243,7 @@ describe('Discord provider scaffold', () => {
       }),
     );
 
-    for (const handlers of sessions) await handlers.MESSAGE_CREATE?.(dispatch);
+    await Promise.all(sessions.map((handlers) => handlers.MESSAGE_CREATE?.(dispatch)));
 
     const events = await db()
       .select({payload: integrationsOutbox.payload})
