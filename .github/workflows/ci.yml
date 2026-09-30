@@ -479,11 +479,15 @@ jobs:
       matrix:
         include:
           - suite: browser and API
-            turbo-filter: "!@shipfox/e2e-flow-workflows"
+            turbo-filters: ["!@shipfox/e2e-flow-workflows", "!@shipfox/e2e-eval-workflows"]
             diagnostics: e2e-diagnostics
           - suite: flow
-            turbo-filter: "@shipfox/e2e-flow-workflows"
+            turbo-filters: ["@shipfox/e2e-flow-workflows"]
             diagnostics: e2e-diagnostics-flow
+          - suite: eval
+            turbo-filters: ["@shipfox/e2e-eval-workflows"]
+            diagnostics: e2e-diagnostics-eval
+            results: e2e/suites/eval/workflows/results/
 
     steps:
       - name: Check out repository
@@ -529,9 +533,12 @@ jobs:
           VITE_API_URL: http://localhost:16101
           VITE_ENABLE_TEST_VCS_PROVIDER: "true"
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
-          SUITE_FILTER: ${{ matrix.turbo-filter }}
+          SUITE_FILTERS: ${{ toJSON(matrix.turbo-filters) }}
         run: |
-          args=("--filter=$SUITE_FILTER")
+          args=()
+          while IFS= read -r filter; do
+            args+=("--filter=$filter")
+          done < <(jq -r '.[]' <<<"$SUITE_FILTERS")
           if [[ -n "$SHIPFOX_TURBO_AFFECTED" ]]; then
             args+=("$SHIPFOX_TURBO_AFFECTED")
           fi
@@ -545,6 +552,15 @@ jobs:
           name: ${{ matrix.diagnostics }}
           path: ${{ runner.temp }}/shipfox-e2e-logs/
           if-no-files-found: error
+
+      - name: Upload eval results
+        if: failure() && steps.e2e.outcome == 'failure' && matrix.results
+        timeout-minutes: 3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ matrix.diagnostics }}-results
+          path: ${{ matrix.results }}
+          if-no-files-found: ignore
 
   # Keeps the single required "E2E tests" check across the suite matrix. The
   # condition mirrors the matrix, so dependents still see `skipped` when a
