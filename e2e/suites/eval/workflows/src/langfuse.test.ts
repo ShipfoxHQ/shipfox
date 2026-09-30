@@ -1,7 +1,7 @@
 import {mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import type {ExperimentParams, LangfuseClient} from '@langfuse/client';
+import type {Evaluation, ExperimentParams, LangfuseClient} from '@langfuse/client';
 import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {
   buildExperimentItems,
@@ -158,13 +158,15 @@ describe('exportToLangfuse', () => {
   it('runs one experiment per suite and mode with an item per case and repeat', async () => {
     const experiments: ExperimentParams[] = [];
     const scores: Array<{name: string; traceId?: string}> = [];
+    const itemScores: Evaluation[][] = [];
     const client = {
       experiment: {
         run: async (config: ExperimentParams) => {
           experiments.push(config);
           for (const item of config.data) {
             const output = await config.task(item);
-            await config.evaluators?.[0]?.({input: item.input, output});
+            const evaluation = await config.evaluators?.[0]?.({input: item.input, output});
+            itemScores.push([evaluation ?? []].flat());
           }
         },
       },
@@ -175,15 +177,21 @@ describe('exportToLangfuse', () => {
       suite: 'templates',
       mode: 'scripted',
       run: await fixtureRun(),
-      metadata: {models: ['gpt-6-luna']},
+      metadata: {models: ['gpt-6-luna'], case_filter: 'ticket-to-pr/*'},
       client,
     });
 
     expect(exported).toMatchObject({experiment: 'templates/scripted', items: 2});
+    expect(exported?.summaryTraceId).toBeTruthy();
+    expect(itemScores.map(([passed]) => passed?.value)).toEqual([1, 0]);
     expect(experiments).toHaveLength(1);
     expect(experiments[0]?.name).toBe('templates/scripted');
     expect(experiments[0]?.data).toHaveLength(2);
-    expect(experiments[0]?.metadata).toMatchObject({eval_run_id: 'proof', models: ['gpt-6-luna']});
+    expect(experiments[0]?.metadata).toMatchObject({
+      eval_run_id: 'proof',
+      models: ['gpt-6-luna'],
+      case_filter: 'ticket-to-pr/*',
+    });
     expect(scores.map((score) => score.name)).toEqual([
       'pass_rate',
       'pass_rate_over_k',

@@ -151,7 +151,12 @@ async function exportRun({
 }): Promise<void> {
   if (!isLangfuseConfigured()) return;
   try {
-    const exported = await exportToLangfuse({suite: options.suite, mode: options.mode, run});
+    const exported = await exportToLangfuse({
+      suite: options.suite,
+      mode: options.mode,
+      run,
+      metadata: {case_filter: options.caseFilter ?? null, repeat: options.repeat},
+    });
     if (exported)
       stdout(`Exported ${exported.items} items to Langfuse as ${exported.experiment}.\n`);
   } catch (error) {
