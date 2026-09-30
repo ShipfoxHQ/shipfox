@@ -21,6 +21,7 @@ const brokenCatalog = fileURLToPath(
 );
 const unboundRolePattern = /binds role "tracker", which the variant does not/u;
 const noVariantsPattern = /No template variants matching "missing"/u;
+const onboardingCompilePattern = /--mode compile applies to --suite templates only/u;
 const catalogModePattern = /--catalog applies to --mode compile only/u;
 const slugPlaceholderPattern = /_(?:tracker|source|chat|report|notify)\s+# bind:/u;
 const temporaryDirectories: string[] = [];
@@ -260,24 +261,33 @@ describe('compile run', () => {
   it('writes one result per variant and keeps going after a failure', async () => {
     const root = await mkdtemp(join(tmpdir(), 'shipfox-eval-compile-'));
     temporaryDirectories.push(root);
+    const compiled: string[] = [];
 
     const run = await runCompile({
-      catalog: brokenCatalog,
+      caseFilter: 'ask-codebase',
       resultsDirectory: join(root, 'results'),
       runId: 'compile',
-      compile: async ({id}): Promise<CaseResult> => ({
-        case: id,
-        mode: 'compile',
-        repeat: 1,
-        status: 'error',
-        duration_ms: 1,
-        cost_usd: 0,
-        error: 'Trigger "nightly" (cron) is not active.',
-      }),
+      compile: ({id}) => {
+        compiled.push(id);
+        const failing = compiled.length === 1;
+        const result: CaseResult = {
+          case: id,
+          mode: 'compile',
+          repeat: 1,
+          status: failing ? 'error' : 'passed',
+          duration_ms: 1,
+          cost_usd: 0,
+          ...(failing ? {error: 'Trigger "nightly" (cron) is not active.'} : {}),
+        };
+        return Promise.resolve(result);
+      },
     });
 
-    expect(run.results.map(({case: id, status}) => [id, status])).toEqual([
-      ['broken-trigger/source=github', 'error'],
+    expect(compiled.length).toBeGreaterThan(1);
+    expect(run.results.map(({case: id}) => id)).toEqual(compiled);
+    expect(run.results.map(({status}) => status)).toEqual([
+      'error',
+      ...compiled.slice(1).map(() => 'passed'),
     ]);
   });
 
@@ -301,6 +311,12 @@ describe('compile options', () => {
       catalog: 'fixtures',
       caseFilter: 'ticket-to-pr',
     });
+  });
+
+  it('rejects the compile mode for the onboarding suite', () => {
+    expect(() => parseEvalArgs(['--suite', 'onboarding', '--mode', 'compile'])).toThrow(
+      onboardingCompilePattern,
+    );
   });
 
   it('rejects a catalog outside the compile mode', () => {

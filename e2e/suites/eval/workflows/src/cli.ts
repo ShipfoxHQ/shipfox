@@ -87,6 +87,9 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
   if (mode !== 'scripted' && mode !== 'live' && mode !== 'compile') {
     throw new Error(`--mode must be scripted, live, or compile, received "${mode}"`);
   }
+  if (suite === 'onboarding' && mode === 'compile') {
+    throw new Error('--mode compile applies to --suite templates only');
+  }
   if (values.catalog !== undefined && mode !== 'compile') {
     throw new Error('--catalog applies to --mode compile only');
   }
