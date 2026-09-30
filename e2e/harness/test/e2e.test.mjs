@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {createPrivateKey, createPublicKey, sign, verify} from 'node:crypto';
 import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -257,6 +258,32 @@ describe('e2eEnv', () => {
         }),
       /Cannot derive a test VCS port/u,
     );
+  });
+});
+
+describe('Discord signing keys', () => {
+  test('pair a raw hex public key with a private key that signs for it', () => {
+    const env = e2eEnv({});
+
+    const privateKey = createPrivateKey({
+      key: Buffer.from(env.E2E_DISCORD_PRIVATE_KEY, 'base64'),
+      format: 'der',
+      type: 'pkcs8',
+    });
+    const publicKey = createPublicKey({
+      key: Buffer.concat([
+        Buffer.from('302a300506032b6570032100', 'hex'),
+        Buffer.from(env.DISCORD_PUBLIC_KEY, 'hex'),
+      ]),
+      format: 'der',
+      type: 'spki',
+    });
+    const message = Buffer.from('1700000000{}');
+    assert.equal(verify(null, message, publicKey, sign(null, message, privateKey)), true);
+  });
+
+  test('keep the same pair across calls', () => {
+    assert.equal(e2eEnv({}).DISCORD_PUBLIC_KEY, e2eEnv({}).DISCORD_PUBLIC_KEY);
   });
 });
 
