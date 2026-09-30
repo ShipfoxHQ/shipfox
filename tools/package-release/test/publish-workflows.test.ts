@@ -102,6 +102,7 @@ describe('package release workflows', () => {
     assert.ok(!job.includes('environment:'));
     assert.ok(job.includes('pnpm install --frozen-lockfile'));
     assert.ok(job.includes('cli.js publish'));
+    assert.ok(job.includes('--registry https://api.registry.staging.shipfox.io'));
     assert.ok(workflow.includes('id-token: write'));
   });
 });

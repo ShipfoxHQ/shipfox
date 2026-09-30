@@ -209,7 +209,10 @@ Registry. Its `verify-release` job verifies the merged release tree once, and
 both the npm `publish` job and the `publish-registry` job need it, so a failed
 verification publishes to neither. `publish-registry` publishes only the
 versions the registry does not have. To rehearse against the staging registry,
-run the workflow manually and choose `staging` for **Registry**.
+run the workflow manually and choose `staging` for **Registry**. The choice
+redirects only the registry publication. The same run also re-verifies and
+publishes the npm closure, so use a revision whose npm versions are already
+published.
 
 If a release or package-publishing incident needs tool-specific diagnosis, read
 the relevant package documentation under `tools/` and the workflow definition
