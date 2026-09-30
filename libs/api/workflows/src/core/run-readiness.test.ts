@@ -165,9 +165,15 @@ describe('collectSecretInputReferences', () => {
 
     const references = collectSecretInputReferences(model);
 
-    expect(references.map(({key}) => key)).toEqual(['ALPHA', 'BETA']);
-    expect(references[0]?.locations).toEqual([
-      {jobKey: 'build', step: {index: 1}, field: 'env', envKey: 'A'},
+    expect(references).toEqual([
+      {
+        key: 'ALPHA',
+        locations: [{jobKey: 'build', step: {index: 1}, field: 'env', envKey: 'A'}],
+      },
+      {
+        key: 'BETA',
+        locations: [{jobKey: 'build', step: {index: 1}, field: 'env', envKey: 'B'}],
+      },
     ]);
   });
 });

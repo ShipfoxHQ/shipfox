@@ -272,7 +272,7 @@ interface SecretParityFixture {
   readonly secretInputs: readonly string[];
   /** What the runner's step-secrets pull returns for the run step once the run has started. */
   readonly pull:
-    | {readonly status: 200}
+    | {readonly status: 200; readonly secrets: readonly string[]}
     | {readonly status: 422; readonly code: string; readonly key: string};
 }
 
@@ -306,7 +306,7 @@ const SECRET_FIXTURES: readonly SecretParityFixture[] = [
     workspaceSecrets: ['API_TOKEN'],
     issues: [],
     secretInputs: [],
-    pull: {status: 200},
+    pull: {status: 200, secrets: ['API_TOKEN']},
   },
   {
     name: 'a secret defined at project scope',
@@ -317,7 +317,7 @@ const SECRET_FIXTURES: readonly SecretParityFixture[] = [
     projectSecrets: ['API_TOKEN'],
     issues: [],
     secretInputs: [],
-    pull: {status: 200},
+    pull: {status: 200, secrets: ['API_TOKEN']},
   },
   {
     name: 'a secret that only a sibling project defines',
@@ -415,6 +415,12 @@ describe('step secret readiness parity with run creation and the step-secrets pu
     );
     expect(definitions[0]?.secretInputs.map((input) => input.key)).toEqual(fixture.secretInputs);
     expect(pull.statusCode).toBe(fixture.pull.status);
+    if (fixture.pull.status === 200) {
+      // An empty response would also be a 200, so check the bindings resolved.
+      expect(pull.json().secrets.map((secret: {key: string}) => secret.key)).toEqual(
+        fixture.pull.secrets,
+      );
+    }
     if (fixture.pull.status === 422) {
       expect(pull.json()).toMatchObject({
         code: fixture.pull.code,
