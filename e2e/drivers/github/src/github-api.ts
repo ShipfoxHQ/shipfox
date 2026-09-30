@@ -1,6 +1,12 @@
 import {createHash} from 'node:crypto';
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
 import {closeServer, listenOnEndpoint, type RecordedWrite} from '@shipfox/e2e-core';
+import {
+  type AddGithubRepositoryParams,
+  createGitRepositories,
+  type GithubRepositoryFixture,
+  type GitRepositories,
+} from './git-repositories.js';
 import {isRecord, readJsonBody, readJsonBodyOrReject, sendJson} from './http.js';
 import {
   createPullRequestRoutes,
@@ -13,6 +19,7 @@ import {
 } from './pull-requests.js';
 
 const JWT_SEGMENT_LENGTH = 169;
+const BOT_USER_ID = 1_234_567;
 
 export const GITHUB_STATELESS_INSTALLATION_TOKEN =
   `ghs_123456_${'a'.repeat(JWT_SEGMENT_LENGTH)}` +
@@ -31,6 +38,7 @@ const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/u;
 const ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues$/u;
 const CHECK_RUN_CREATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs$/u;
 const CHECK_RUN_UPDATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs\/(\d+)$/u;
+const USER_PATH = /^\/users\/([^/]+)$/u;
 const SEARCH_ISSUES_PATH = /^\/search\/issues$/u;
 const GRAPHQL_PATH = /^\/graphql$/u;
 
@@ -117,6 +125,8 @@ export interface GithubApiMock {
   reviewThreads: Map<string, GithubReviewThreadFixture>;
   /** Branch tips for createCommitOnBranch's compare-and-swap, by branch name. */
   branchHeads: Map<string, string>;
+  /** Creates a bare repository the fake serves over git and describes in its repository API. */
+  addRepository(params: AddGithubRepositoryParams): Promise<GithubRepositoryFixture>;
   /** Writes the fake accepted, in arrival order. */
   writes(): RecordedWrite[];
   stop(): Promise<void>;
@@ -162,6 +172,7 @@ export async function startGithubApiMock(
       }
     },
   });
+  const repositories = createGitRepositories();
   addConfiguredCheckRunId(knownCheckRunIds, checkRunCreateResponse);
   addConfiguredCheckRunId(knownCheckRunIds, checkRunUpdateResponse);
   const endpoint = options.endpoint ?? new URL(requiredGithubApiBaseUrl());
@@ -180,6 +191,8 @@ export async function startGithubApiMock(
       pullRequests,
       pullRequestRoutes,
       branchHeads,
+      repositories,
+      recordWrite: (write) => writes.push(write),
       request,
       response,
     });
@@ -197,10 +210,12 @@ export async function startGithubApiMock(
     pullRequests,
     reviewThreads,
     branchHeads,
+    addRepository: (params) => repositories.add(params),
     writes: () => [...writes],
     stop: async () => {
       try {
         await closeServer(server);
+        await repositories.close();
       } catch (error) {
         throw new Error(`GitHub API mock failed to stop at ${boundEndpoint}`, {cause: error});
       }
@@ -221,6 +236,8 @@ interface GithubRequestContext {
   pullRequests: Map<number, GithubPullRequestFixture>;
   pullRequestRoutes: PullRequestRoutes;
   branchHeads: Map<string, string>;
+  repositories: GitRepositories;
+  recordWrite: (write: RecordedWrite) => void;
   request: IncomingMessage;
   response: ServerResponse;
   requestUrl: URL;
@@ -240,6 +257,8 @@ async function handleGithubRequest(params: {
   pullRequests: Map<number, GithubPullRequestFixture>;
   pullRequestRoutes: PullRequestRoutes;
   branchHeads: Map<string, string>;
+  repositories: GitRepositories;
+  recordWrite: (write: RecordedWrite) => void;
   request: IncomingMessage;
   response: ServerResponse;
 }): Promise<void> {
@@ -249,6 +268,16 @@ async function handleGithubRequest(params: {
     requestUrl,
     authorization: params.request.headers.authorization,
   };
+  if (requestUrl.pathname.startsWith('/github.com/')) {
+    await params.repositories.handle({
+      request: params.request,
+      response: params.response,
+      requestUrl,
+      installationToken: params.installationToken,
+      onWrite: params.recordWrite,
+    });
+    return;
+  }
   const mintMatch = requestUrl.pathname.match(INSTALLATION_TOKEN_PATH);
   if (requestMatches(params.request, 'POST', mintMatch)) {
     await handleMintRequest(context, mintMatch);
@@ -287,6 +316,11 @@ async function handleGithubRequest(params: {
   const checkRunUpdateMatch = requestUrl.pathname.match(CHECK_RUN_UPDATE_PATH);
   if (requestMatches(params.request, 'PATCH', checkRunUpdateMatch)) {
     await handleUpdateCheckRunRequest(context, checkRunUpdateMatch);
+    return;
+  }
+  const userMatch = requestUrl.pathname.match(USER_PATH);
+  if (requestMatches(params.request, 'GET', userMatch)) {
+    handleUserRequest(params.response, userMatch);
     return;
   }
   const searchIssuesMatch = requestUrl.pathname.match(SEARCH_ISSUES_PATH);
@@ -329,7 +363,7 @@ async function handleMintRequest(
     installationId,
     body,
   });
-  const repositories = scopedRepositories(body, params.endpoint);
+  const repositories = scopedRepositories(body, params.endpoint, params.repositories);
   sendJson(params.response, 201, {
     token: params.installationToken,
     expires_at: '2099-01-01T00:00:00.000Z',
@@ -348,7 +382,14 @@ function handleRepositoryRequest(params: GithubRequestContext, match: RegExpMatc
       repositoryId,
     });
   }
-  sendJson(params.response, 200, repositoryPayload(repositoryId, params.endpoint));
+  const registered = params.repositories.findById(repositoryId);
+  sendJson(
+    params.response,
+    200,
+    registered === undefined
+      ? repositoryPayload(repositoryId, params.endpoint)
+      : registeredRepositoryPayload(registered, params.endpoint),
+  );
 }
 
 function handleRepositoryByNameRequest(
@@ -357,6 +398,7 @@ function handleRepositoryByNameRequest(
 ): void {
   const owner = decodeURIComponent(match[1] ?? '');
   const name = decodeURIComponent(match[2] ?? '');
+  const registered = params.repositories.findByName({owner, name});
   const repositoryId = owner === 'shipfox' && name === 'e2e' ? 42 : 43;
   if (isCurrentInstallationAuthorization(params)) {
     params.calls.push({
@@ -366,7 +408,13 @@ function handleRepositoryByNameRequest(
       repo: name,
     });
   }
-  sendJson(params.response, 200, repositoryPayload(repositoryId, params.endpoint, owner, name));
+  sendJson(
+    params.response,
+    200,
+    registered === undefined
+      ? repositoryPayload(repositoryId, params.endpoint, owner, name)
+      : registeredRepositoryPayload(registered, params.endpoint),
+  );
 }
 
 function handleIssueRequest(params: GithubRequestContext, match: RegExpMatchArray): void {
@@ -484,6 +532,16 @@ async function handleUpdateCheckRunRequest(
     return;
   }
   sendJson(params.response, 200, params.checkRunUpdateResponse);
+}
+
+// A write checkout resolves the app's bot user to author commits as it.
+function handleUserRequest(response: ServerResponse, match: RegExpMatchArray): void {
+  const login = decodeURIComponent(match[1] ?? '');
+  sendJson(response, 200, {
+    login,
+    id: BOT_USER_ID,
+    type: login.endsWith('[bot]') ? 'Bot' : 'User',
+  });
 }
 
 function handleSearchIssuesRequest(params: GithubRequestContext): void {
@@ -633,11 +691,17 @@ function addConfiguredCheckRunId(
 function scopedRepositories(
   body: Record<string, unknown>,
   endpoint: URL,
+  repositories: GitRepositories,
 ): Record<string, unknown>[] | undefined {
   if (Array.isArray(body.repository_ids)) {
     return body.repository_ids
       .filter((value): value is number => typeof value === 'number')
-      .map((repositoryId) => repositoryPayload(repositoryId, endpoint));
+      .map((repositoryId) => {
+        const registered = repositories.findById(repositoryId);
+        return registered === undefined
+          ? repositoryPayload(repositoryId, endpoint)
+          : registeredRepositoryPayload(registered, endpoint);
+      });
   }
   if (Array.isArray(body.repositories)) {
     return body.repositories
@@ -646,6 +710,8 @@ function scopedRepositories(
         const [ownerPart, namePart] = repositoryName.split('/', 2);
         const owner = namePart === undefined ? 'shipfox' : ownerPart;
         const name = namePart ?? ownerPart;
+        const registered = repositories.findByName({owner: owner ?? '', name: name ?? ''});
+        if (registered !== undefined) return registeredRepositoryPayload(registered, endpoint);
         return repositoryPayload(
           owner === 'shipfox' && name === 'e2e' ? 42 : 43,
           endpoint,
@@ -673,6 +739,25 @@ function repositoryPayload(
     visibility: 'private',
     clone_url: new URL(`/repos/${owner}/${name}.git`, endpoint).toString(),
     html_url: `https://github.com/${owner}/${name}`,
+  };
+}
+
+// The clone URL keeps the GitHub identity in its path, so `git remote get-url origin` still
+// names `github.com/<owner>/<repo>` while the transport stays local.
+function registeredRepositoryPayload(
+  repository: GithubRepositoryFixture,
+  endpoint: URL,
+): Record<string, unknown> {
+  return {
+    id: repository.id,
+    owner: {login: repository.owner},
+    name: repository.name,
+    full_name: repository.fullName,
+    default_branch: repository.defaultBranch,
+    private: true,
+    visibility: 'private',
+    clone_url: new URL(`/github.com/${repository.fullName}.git`, endpoint).toString(),
+    html_url: `https://github.com/${repository.fullName}`,
   };
 }
 

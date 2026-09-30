@@ -1,4 +1,5 @@
 export type {RecordedWrite} from '@shipfox/e2e-core';
+export type {AddGithubRepositoryParams, GithubRepositoryFixture} from './git-repositories.js';
 export {
   GITHUB_GRAPHQL_RESULT_MARKER,
   GITHUB_READ_RESULT_MARKER,
