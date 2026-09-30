@@ -44,6 +44,10 @@ machine-readable summaries:
 
 > Turn tickets, alerts, and failed checks into workflows in your repo. Agents and the exact commands your team specifies, delivered as PRs you review. Any model, any stack. Open source.
 
+Use this shorter description for search and link previews:
+
+> Turn tickets, alerts, and failed checks into workflows in your repo. Agents and your team's exact commands, delivered as PRs you review. Open source.
+
 On overview pages, follow the headline with a literal product definition and
 one concrete example before introducing technical concepts. Describe who the
 product serves, what work is delegated, and where people review the result.

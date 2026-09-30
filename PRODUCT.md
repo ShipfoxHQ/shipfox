@@ -108,6 +108,9 @@ Constraints:
 - **Description:** "Turn tickets, alerts, and failed checks into workflows in
   your repo. Agents and the exact commands your team specifies, delivered as PRs
   you review. Any model, any stack. Open source."
+- **Search description:** "Turn tickets, alerts, and failed checks into
+  workflows in your repo. Agents and your team's exact commands, delivered as
+  PRs you review. Open source."
 - **Voice:** direct, technical, no marketing fluff. Written for engineers who read
   logs at 2am. See `WRITING.md` and `apps/docs/WRITING.md` for repository prose
   conventions; product docs terminology there is binding.
