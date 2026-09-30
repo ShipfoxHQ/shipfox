@@ -9,8 +9,17 @@ const DISPATCH_EVENT_LABELS: Partial<Record<string, DiscordGatewayDispatchEvent>
   MESSAGE_REACTION_ADD: 'message_reaction_add',
 };
 
+export interface DispatchContext {
+  /** The session the dispatch arrived on, which a resume replay shares with the original. */
+  sessionId: string | null;
+}
+
 /** A handler publishes the dispatch or decides it needs nothing. Throwing ends the manager. */
-export type DispatchHandler = (payload: GatewayDispatchPayload) => Promise<void> | void;
+export type DispatchHandler = (
+  payload: GatewayDispatchPayload,
+  /** Always set by the queue. Handlers that do not need it are called without it in tests. */
+  context?: DispatchContext,
+) => Promise<void> | void;
 
 /** Handlers by dispatch name, such as `MESSAGE_CREATE`. A dispatch without one is skipped. */
 export type DispatchHandlers = Partial<Record<string, DispatchHandler>>;
@@ -21,7 +30,8 @@ export type DispatchHandlers = Partial<Record<string, DispatchHandler>>;
  * failed dispatch, so a new manager resumes and Discord replays it.
  */
 export class DispatchQueue {
-  readonly #pending: {payload: GatewayDispatchPayload; epoch: number}[] = [];
+  readonly #pending: {payload: GatewayDispatchPayload; epoch: number; sessionId: string | null}[] =
+    [];
   readonly #state: GatewaySessionState;
   readonly #handlers: DispatchHandlers;
   readonly #onFailure: (error: Error) => void;
@@ -40,7 +50,11 @@ export class DispatchQueue {
 
   push(payload: GatewayDispatchPayload): void {
     if (this.#dropped) return;
-    this.#pending.push({payload, epoch: this.#state.epoch});
+    this.#pending.push({
+      payload,
+      epoch: this.#state.epoch,
+      sessionId: this.#state.sessionId,
+    });
     void this.#drain();
   }
 
@@ -59,7 +73,7 @@ export class DispatchQueue {
         if (!item) return;
         if (item.epoch !== this.#state.epoch) continue;
         currentType = item.payload.t;
-        await this.#handlers[item.payload.t]?.(item.payload);
+        await this.#handlers[item.payload.t]?.(item.payload, {sessionId: item.sessionId});
         if (this.#dropped) return;
         this.#state.commit({sequence: item.payload.s, epoch: item.epoch});
       }

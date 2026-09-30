@@ -204,6 +204,40 @@ describe('Discord Gateway message handlers', () => {
   );
 
   it(
+    'publishes a reaction under the session id and sequence, and counts it',
+    async () => {
+      const {handlers, published} = arrangeHandlers();
+      connect(handlers);
+      await vi.waitFor(() => expect(gateway.sessionId).toBeDefined(), {timeout: 10_000});
+      const sessionId = gateway.sessionId;
+
+      const sequence = gateway.dispatch('MESSAGE_REACTION_ADD', {
+        user_id: 'user-1',
+        channel_id: THREAD_ID,
+        message_id: 'm1',
+        guild_id: GUILD_ID,
+        member: {user: {id: 'user-1'}},
+        emoji: {id: null, name: '✅'},
+        message_author_id: 'user-2',
+      });
+
+      await waitForCommitted(sequence);
+      expect(published).toHaveLength(1);
+      expect(published[0]?.deliveryId).toBe(`${sessionId}:${sequence}`);
+      expect(published[0]?.payload).toMatchObject({
+        root_channel_id: CHANNEL_ID,
+        member: {user: {id: 'user-1', bot: false}},
+        url: `https://discord.com/channels/${GUILD_ID}/${THREAD_ID}/m1`,
+      });
+      expect(recordDiscordGatewayDispatch).toHaveBeenCalledWith({
+        event: 'message_reaction_add',
+        outcome: 'processed',
+      });
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
     'forgets a deleted thread and asks Discord again on its next message',
     async () => {
       const {handlers, getChannel} = arrangeHandlers();
