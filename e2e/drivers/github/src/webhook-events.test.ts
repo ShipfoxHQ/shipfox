@@ -282,6 +282,7 @@ describe('GitHub API mock webhook events', () => {
       });
 
       const [delivery] = api.deliveries;
+      expect(api.deliveries).toHaveLength(1);
       expect(delivery?.event).toBe('issues');
       expect(delivery?.deliveryId).toBe(sent.deliveryId);
       expect(delivery?.signature).toBe(expectedSignature(delivery?.rawBody ?? ''));
