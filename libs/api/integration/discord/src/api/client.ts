@@ -30,6 +30,7 @@ export interface DiscordChannel {
   guild_id?: string | undefined;
   parent_id?: string | null | undefined;
   name?: string | undefined;
+  topic?: string | null | undefined;
 }
 
 export interface DiscordMessage {
@@ -38,6 +39,8 @@ export interface DiscordMessage {
   content: string;
   author: {id: string; username: string; bot?: boolean | undefined};
   timestamp: string;
+  /** Present on a message that started a thread. */
+  thread?: {id: string} | undefined;
   [field: string]: unknown;
 }
 
@@ -75,6 +78,7 @@ export interface DiscordApiClient {
   revokeAccessToken(input: {accessToken: string}): Promise<void>;
   getGuild(input: {guildId: string}): Promise<DiscordGuild>;
   getChannel(input: {channelId: string}): Promise<DiscordChannel>;
+  getMessage(input: {channelId: string; messageId: string}): Promise<DiscordMessage>;
   /** Newest first, as Discord returns them. */
   listChannelMessages(input: {
     channelId: string;
@@ -82,6 +86,9 @@ export interface DiscordApiClient {
     before?: string | undefined;
     after?: string | undefined;
   }): Promise<DiscordMessage[]>;
+  /** Threads are not included. */
+  listGuildChannels(input: {guildId: string}): Promise<DiscordChannel[]>;
+  listActiveGuildThreads(input: {guildId: string}): Promise<DiscordChannel[]>;
   leaveGuild(input: {guildId: string}): Promise<void>;
   getGatewayBot(): Promise<DiscordGatewayBot>;
   listApplicationCommands(): Promise<DiscordApplicationCommand[]>;
@@ -195,6 +202,12 @@ export function createDiscordApiClient(
         method: 'GET',
         path: `/channels/${encodeURIComponent(channelId)}`,
       }),
+    getMessage: ({channelId, messageId}) =>
+      request({
+        operation: 'get-message',
+        method: 'GET',
+        path: `/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}`,
+      }),
     listChannelMessages: ({channelId, limit, before, after}) =>
       request({
         operation: 'list-channel-messages',
@@ -202,6 +215,20 @@ export function createDiscordApiClient(
         path: `/channels/${encodeURIComponent(channelId)}/messages`,
         query: {limit, before, after},
       }),
+    listGuildChannels: ({guildId}) =>
+      request({
+        operation: 'list-guild-channels',
+        method: 'GET',
+        path: `/guilds/${encodeURIComponent(guildId)}/channels`,
+      }),
+    async listActiveGuildThreads({guildId}) {
+      const body = await request<{threads: DiscordChannel[]}>({
+        operation: 'list-active-guild-threads',
+        method: 'GET',
+        path: `/guilds/${encodeURIComponent(guildId)}/threads/active`,
+      });
+      return body.threads;
+    },
     async leaveGuild({guildId}) {
       await request<void>({
         operation: 'leave-guild',

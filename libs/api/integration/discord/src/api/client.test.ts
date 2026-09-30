@@ -97,6 +97,41 @@ describe('Discord REST client', () => {
       );
     });
 
+    it('reads one message', async () => {
+      const message = {id: 'message-1', channel_id: 'channel-1', content: 'hi'};
+      const fetchMock = stubFetch(json(message));
+
+      await expect(
+        client.getMessage({channelId: 'channel-1', messageId: 'message-1'}),
+      ).resolves.toEqual(message);
+
+      expect(sentRequest(fetchMock).url).toBe(
+        'https://discord.test/api/v10/channels/channel-1/messages/message-1',
+      );
+    });
+
+    it('lists the channels of a guild', async () => {
+      const channels = [{id: 'channel-1', type: 0, name: 'general'}];
+      const fetchMock = stubFetch(json(channels));
+
+      await expect(client.listGuildChannels({guildId: 'guild-1'})).resolves.toEqual(channels);
+
+      expect(sentRequest(fetchMock).url).toBe(
+        'https://discord.test/api/v10/guilds/guild-1/channels',
+      );
+    });
+
+    it('lists the active threads of a guild without the member envelope', async () => {
+      const threads = [{id: 'thread-1', type: 11, name: 'bug'}];
+      const fetchMock = stubFetch(json({threads, members: []}));
+
+      await expect(client.listActiveGuildThreads({guildId: 'guild-1'})).resolves.toEqual(threads);
+
+      expect(sentRequest(fetchMock).url).toBe(
+        'https://discord.test/api/v10/guilds/guild-1/threads/active',
+      );
+    });
+
     it('leaves a guild and accepts the empty response', async () => {
       const fetchMock = stubFetch(new Response(null, {status: 204}));
 

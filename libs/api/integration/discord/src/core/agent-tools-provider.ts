@@ -7,9 +7,9 @@ import type {
 } from '@shipfox/api-integration-spi';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
-import type {DiscordApiClient} from '#api/client.js';
 import {
   DISCORD_TOOL_OPERATIONS,
+  type DiscordToolClient,
   type DiscordToolContext,
   type DiscordToolOperation,
 } from '#core/agent-tool-operations.js';
@@ -19,7 +19,7 @@ import {
   discordAgentToolSelectionCatalog,
 } from '#core/agent-tools.js';
 import {createDiscordChannelGuard} from '#core/channel-guard.js';
-import {DiscordIntegrationProviderError} from '#core/errors.js';
+import {DiscordIntegrationProviderError, DiscordToolArgumentError} from '#core/errors.js';
 import type {DiscordInstallation} from '#db/installations.js';
 
 type DiscordIntegrationConnection = IntegrationConnection<'discord'>;
@@ -32,7 +32,7 @@ export type DiscordToolCallResult = {
 };
 
 export interface DiscordAgentToolsProviderOptions {
-  discord: Pick<DiscordApiClient, 'getChannel' | 'listChannelMessages'>;
+  discord: DiscordToolClient;
   getInstallationByConnectionId: (connectionId: string) => Promise<DiscordInstallation | undefined>;
 }
 
@@ -116,6 +116,9 @@ async function executeDiscordToolCall(params: {
     if (error instanceof DiscordIntegrationProviderError) {
       return mapDiscordToolFailure({error, call, operation, connectionId: params.connectionId});
     }
+    if (error instanceof DiscordToolArgumentError) {
+      return discordToolError(error.message, 'invalid-request');
+    }
     throw error;
   }
 }
@@ -164,7 +167,7 @@ function mapDiscordToolFailure(params: {
 }
 
 function channelLabel(args: Record<string, unknown>): string {
-  return typeof args.channel_id === 'string' ? `channel ${args.channel_id}` : 'the channel';
+  return typeof args.channel_id === 'string' ? `channel ${args.channel_id}` : 'this server';
 }
 
 function validateDiscordToolArguments(
