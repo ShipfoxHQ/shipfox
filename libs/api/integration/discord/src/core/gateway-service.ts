@@ -9,6 +9,7 @@ export const GATEWAY_LOCK_KEY = 'integrations:discord:gateway:0';
 const ACQUIRE_RETRY_MS = 10_000;
 const LIVENESS_INTERVAL_MS = 15_000;
 const SHUTDOWN_TIMEOUT_MS = 10_000;
+const CLOSE_TIMEOUT_MS = 5_000;
 
 export type GatewayLostReason = 'lost' | 'shutdown';
 
@@ -107,7 +108,7 @@ async function holdLease(params: {
     if (outcome === 'lost') return 'lost';
     if (signal.aborted) break;
     try {
-      await client.query('SELECT 1');
+      await withDeadline(client.query('SELECT 1'), intervalMs);
     } catch {
       return 'lost';
     }
@@ -153,9 +154,22 @@ async function unlockQuietly(client: PostgresClient): Promise<void> {
 
 async function closeQuietly(client: PostgresClient): Promise<void> {
   try {
-    await client.end();
+    await withDeadline(client.end(), CLOSE_TIMEOUT_MS);
   } catch {
-    // The connection is already gone.
+    // The connection is already gone, or a half-open socket never answered.
+  }
+}
+
+/** A half-open connection never answers, so a probe or close without a deadline can hang forever. */
+async function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Timed out after ${ms} ms`)), ms);
+  });
+  try {
+    return await Promise.race([promise, deadline]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

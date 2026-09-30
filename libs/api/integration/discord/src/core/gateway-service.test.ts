@@ -42,6 +42,9 @@ describe('Discord Gateway leader election', () => {
     const replicaSessions: PostgresClient[] = [];
     const service = createDiscordGatewayService({
       ...FAST,
+      ...(options.livenessIntervalMs === undefined
+        ? {}
+        : {livenessIntervalMs: options.livenessIntervalMs}),
       openSession: async () => {
         const session = await openPostgresSession();
         replicaSessions.push(session);
@@ -117,7 +120,19 @@ describe('Discord Gateway leader election', () => {
     await pgClient().query('SELECT pg_terminate_backend($1)', [lockPid]);
 
     await waitFor(() => first.lostReasons.includes('lost'));
+    // The old leader reconnects at once and may win the lock again, so release it for a deterministic takeover.
+    await (await first.started).stop();
     await waitFor(() => second.events.includes('leading'));
+  });
+
+  it('gives up the lease when the liveness probe never answers', async () => {
+    const replica = startReplica({livenessIntervalMs: 50});
+    await waitFor(() => replica.events.includes('leading'));
+    const session = replica.replicaSessions[0];
+    if (!session) throw new Error('No lock session');
+    vi.spyOn(session, 'query').mockImplementation(() => new Promise(() => undefined) as never);
+
+    await waitFor(() => replica.lostReasons.includes('lost'));
   });
 
   it('keeps retrying when the database connection cannot be opened', async () => {
