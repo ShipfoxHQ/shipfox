@@ -17,7 +17,13 @@ export {
   listCompileVariants,
   runCompile,
 } from './compile.js';
-export {composeCaseWorkflow, fillSlots, setRunnerLabel, templateLoaderFor} from './compose.js';
+export {
+  composeCaseWorkflow,
+  fillPlaceholders,
+  fillSlots,
+  setRunnerLabel,
+  templateLoaderFor,
+} from './compose.js';
 export {caseSupportsMode, type DiscoveredCase, discoverCases} from './discovery.js';
 export {type ExecuteCaseOptions, executeTemplateCase} from './execute.js';
 export {

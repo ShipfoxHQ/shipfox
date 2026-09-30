@@ -34,6 +34,12 @@ describe('Linear MCP mock', () => {
         CallToolResultSchema,
       );
 
+      const transition = await client.callTool(
+        {name: 'save_issue', arguments: {id: 'ENG-878', state: 'started'}},
+        CallToolResultSchema,
+      );
+
+      expect(transition.content).toContainEqual({type: 'text', text: LINEAR_WRITE_RESULT_MARKER});
       expect(read.content).toContainEqual({type: 'text', text: LINEAR_READ_RESULT_MARKER});
       expect(write.content).toContainEqual({type: 'text', text: LINEAR_WRITE_RESULT_MARKER});
       expect(mock.calls).toEqual([
@@ -47,6 +53,11 @@ describe('Linear MCP mock', () => {
           arguments: {issueId: 'ENG-878', body: 'Synthetic Linear comment'},
           toolName: 'save_comment',
         },
+        {
+          authorization: 'Bearer synthetic-linear-token',
+          arguments: {id: 'ENG-878', state: 'started'},
+          toolName: 'save_issue',
+        },
       ]);
       expect(mock.writes()).toEqual([
         {
@@ -54,6 +65,7 @@ describe('Linear MCP mock', () => {
           target: 'ENG-878',
           payload: {issueId: 'ENG-878', body: 'Synthetic Linear comment'},
         },
+        {kind: 'save_issue', target: 'ENG-878', payload: {id: 'ENG-878', state: 'started'}},
       ]);
     } finally {
       await client.close();

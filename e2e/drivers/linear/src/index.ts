@@ -3,6 +3,7 @@ export {
   buildIssueUpdateEnvelope,
   type LinearEventTarget,
   type LinearIssueFixtureData,
+  type LinearLabelFixtureData,
   postLinearAgentSession,
   postLinearIssueUpdate,
   signLinearHeaders,

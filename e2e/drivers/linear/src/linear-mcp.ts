@@ -129,14 +129,20 @@ export async function startLinearMcpMock(
   };
 }
 
+// `save_comment` names its issue `issueId`, and `save_issue` names it `id`.
+const WRITE_TOOLS: Readonly<Record<string, 'issueId' | 'id'>> = {
+  save_comment: 'issueId',
+  save_issue: 'id',
+};
+
 function linearWrites(calls: readonly LinearMcpCall[]): RecordedWrite[] {
-  return calls
-    .filter((call) => call.toolName === 'save_comment')
-    .map((call) => ({
-      kind: call.toolName,
-      target: String(call.arguments.issueId),
-      payload: call.arguments,
-    }));
+  return calls.flatMap((call) => {
+    const targetField = WRITE_TOOLS[call.toolName];
+    if (targetField === undefined) return [];
+    return [
+      {kind: call.toolName, target: String(call.arguments[targetField]), payload: call.arguments},
+    ];
+  });
 }
 
 async function handleMcpRequest(params: {
@@ -189,6 +195,23 @@ async function handleMcpRequest(params: {
       },
       (arguments_) => {
         record('save_comment', arguments_);
+        return {content: [{type: 'text', text: LINEAR_WRITE_RESULT_MARKER}]};
+      },
+    );
+    mcp.registerTool(
+      'save_issue',
+      {
+        description: 'Update a deterministic Linear issue.',
+        inputSchema: {
+          id: z.string(),
+          state: z.string().optional(),
+          title: z.string().optional(),
+          description: z.string().optional(),
+          assignee: z.string().optional(),
+        },
+      },
+      (arguments_) => {
+        record('save_issue', arguments_);
         return {content: [{type: 'text', text: LINEAR_WRITE_RESULT_MARKER}]};
       },
     );

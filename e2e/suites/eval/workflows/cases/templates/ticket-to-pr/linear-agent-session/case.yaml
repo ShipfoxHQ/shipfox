@@ -1,0 +1,47 @@
+template: shipfox/ticket-to-pr
+bindings: {tracker: linear, source: github}
+# Every option is named, because an option left out keeps all of its blocks. The feedback loop
+# has its own case, so the run ends once the pull request is open.
+options:
+  trigger_style: agent_session
+  feedback_loop: "off"
+  resolve_threads: addressed
+  pr_mode: draft
+  ticket_write_back: comment_and_transition
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+placeholders:
+  replace-with-team-key: ENG
+seed:
+  linear:
+    issues:
+      - id: eval-issue-eng-7
+        identifier: ENG-7
+        title: Add a --json flag to the report command
+        description: The report command only prints text. Scripts that read it need JSON.
+        team: ENG
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+covers:
+  - Pushes a branch and opens a task pull request, as a draft by default.
+  - With a tracker, comments on the ticket and can set its in-progress status, or an in-progress label on GitHub, unless ticket updates are off.
+
+scenario:
+  - start:
+      event:
+        linear:
+          agentSession.created: {issue: ENG-7}
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  outputs: {status: implemented, identifier: ENG-7}
+  writes:
+    - github.push: {branch: $pr.head, count: 1}
+    - github.create_pull_request: {pull_request: $pr, base: main, draft: true, count: 1}
+    # The PR link, and the move to the in-progress state.
+    - linear.save_comment: {target: eval-issue-eng-7, count: 1}
+    - linear.save_issue: {target: eval-issue-eng-7, state: started, count: 1}

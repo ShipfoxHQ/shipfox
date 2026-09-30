@@ -1,0 +1,46 @@
+template: shipfox/ticket-to-pr
+bindings: {tracker: linear, source: github}
+# Every option is named, because an option left out keeps all of its blocks. The feedback loop
+# has its own case, so the run ends once the pull request is open.
+options:
+  trigger_style: label
+  feedback_loop: "off"
+  resolve_threads: addressed
+  pr_mode: draft
+  ticket_write_back: none
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+placeholders:
+  replace-with-team-key: ENG
+  replace-with-label-name: shipfox
+seed:
+  linear:
+    issues:
+      - id: eval-issue-eng-7
+        identifier: ENG-7
+        title: Add a --json flag to the report command
+        description: The report command only prints text. Scripts that read it need JSON.
+        team: ENG
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+covers:
+  - Pushes a branch and opens a task pull request, as a draft by default.
+
+scenario:
+  - start:
+      event:
+        linear:
+          Issue.update: {issue: ENG-7, added_label: shipfox}
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  outputs: {status: implemented, identifier: ENG-7}
+  writes:
+    - github.push: {branch: $pr.head, count: 1}
+    - github.create_pull_request: {pull_request: $pr, base: main, draft: true, count: 1}
+    - linear.save_comment: {count: 0}
+    - linear.save_issue: {count: 0}

@@ -1,11 +1,18 @@
 import {fileURLToPath} from 'node:url';
 import {describe, expect, it} from '@shipfox/vitest/vi';
-import {composeCaseWorkflow, fillSlots, setRunnerLabel, templateLoaderFor} from './compose.js';
+import {
+  composeCaseWorkflow,
+  fillPlaceholders,
+  fillSlots,
+  setRunnerLabel,
+  templateLoaderFor,
+} from './compose.js';
 import {discoverCases} from './discovery.js';
 
 const noMarkerPattern = /no marker for slot missing/u;
 const ownerPattern = /replace-with-owner\/repository/u;
 const unfilledPattern = /replace-with-test-command/u;
+const noPlaceholderPattern = /no placeholder replace-with-team-key/u;
 const noRunnerPattern = /no `runner: shipfox`/u;
 const unknownTemplatePattern = /does not serve shipfox\/unknown/u;
 
@@ -42,6 +49,22 @@ describe('fillSlots', () => {
     const yaml = '{ replace-with-test-command; } # slot:test_command';
 
     expect(() => fillSlots({yaml, slots: {}})).toThrow(unfilledPattern);
+  });
+});
+
+describe('fillPlaceholders', () => {
+  it('replaces every occurrence of a placeholder and leaves the others', () => {
+    const yaml = 'a: replace-with-team-key\nb: replace-with-team-key\nc: replace-with-test-command';
+
+    const filled = fillPlaceholders({yaml, placeholders: {'replace-with-team-key': 'ENG'}});
+
+    expect(filled).toBe('a: ENG\nb: ENG\nc: replace-with-test-command');
+  });
+
+  it('fails when the workflow has no such placeholder', () => {
+    expect(() =>
+      fillPlaceholders({yaml: 'name: none', placeholders: {'replace-with-team-key': 'ENG'}}),
+    ).toThrow(noPlaceholderPattern);
   });
 });
 

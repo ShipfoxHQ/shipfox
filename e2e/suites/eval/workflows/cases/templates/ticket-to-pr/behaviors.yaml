@@ -1,0 +1,12 @@
+# The scripted cases ticket-to-pr must keep. Each `case` is a directory next to this file.
+cases:
+  - case: feedback-loop
+    proves: PR opened as draft, review comment answered, fix pushed, thread resolved, run ends when the PR closes.
+  - case: linear-agent-session
+    proves: Assigning or mentioning the Shipfox agent on a Linear issue opens the PR, then comments on the issue and moves it to in progress.
+  - case: linear-agent-session-no-write-back
+    proves: The same start opens the PR with ticket_write_back none, and makes no Linear comment or state change.
+  - case: linear-label
+    proves: Adding the Linear label opens the PR, then comments on the issue and moves it to in progress.
+  - case: linear-label-no-write-back
+    proves: The same start opens the PR with ticket_write_back none, and makes no Linear comment or state change.

@@ -28,6 +28,7 @@ import {composeCaseWorkflow, templateLoaderFor} from './compose.js';
 import type {DiscoveredCase} from './discovery.js';
 import {createGithubEventSender} from './github-events.js';
 import {arrangeGithubProject} from './github-project.js';
+import {arrangeLinearWorkspace} from './linear-workspace.js';
 import {type PullRequestReference, resolveReferences} from './references.js';
 import type {CaseResult} from './results.js';
 import {runScenario, type ScenarioDriver, ScenarioError} from './scenario.js';
@@ -58,7 +59,7 @@ interface Arrangement {
   runnerExit: () => LocalRunnerExit | undefined;
   runnerAborted: AbortSignal;
   runnerTail: () => string;
-  /** Every write the GitHub fake accepted. Read before the fake stops. */
+  /** Every write the provider fakes accepted. Read before the fakes stop. */
   writes: () => RecordedWrite[];
   references: ScenarioDriver['references'];
   /** Every request the scripted model provider served, when the case registered a script. */
@@ -318,11 +319,31 @@ async function arrange({
     },
   );
 
-  // The case workspace holds one connection, to the GitHub fake, so only GitHub roles bind.
+  const linearIssues = templateCase.seed.linear?.issues ?? [];
+  const bindsLinear = Object.values(templateCase.bindings).includes('linear');
+  if (bindsLinear && linearIssues.length === 0) {
+    throw new Error('The case binds Linear but seeds no Linear issue under seed.linear.issues.');
+  }
+  const linear = bindsLinear
+    ? await arrangeLinearWorkspace({
+        workspaceId: workspace.id,
+        uniqueId,
+        issues: linearIssues,
+        cleanups,
+      })
+    : undefined;
+
+  // The case workspace holds a connection to the GitHub fake, and to the Linear fake when the
+  // case binds Linear, so only those roles bind.
+  const connectionSlugs: Record<string, string> = {
+    github: connection.slug,
+    ...(linear === undefined ? {} : {linear: linear.connectionSlug}),
+  };
   const slugs = Object.fromEntries(
-    Object.entries(templateCase.bindings)
-      .filter(([, provider]) => provider === 'github')
-      .map(([role]) => [role, connection.slug]),
+    Object.entries(templateCase.bindings).flatMap(([role, provider]) => {
+      const slug = connectionSlugs[provider];
+      return slug === undefined ? [] : [[role, slug]];
+    }),
   );
   const yaml = bindConnectionSlugs({
     yaml: await composeCaseWorkflow({
@@ -348,7 +369,11 @@ async function arrange({
     await registerScriptedManagedProvider({projectId: project.id, entries: script});
   }
 
-  const senders: EventSenders = {github: createGithubEventSender(github), ...options.senders};
+  const senders: EventSenders = {
+    github: createGithubEventSender(github),
+    ...(linear === undefined ? {} : {linear: linear.sender}),
+    ...options.senders,
+  };
   const pullRequest = (): PullRequestReference => {
     const [number, pr] =
       [...github.pullRequests.entries()]
@@ -429,7 +454,7 @@ async function arrange({
     runnerExit: () => exit,
     runnerAborted: exited.signal,
     runnerTail: () => localRunnerLogTail(logFile),
-    writes: () => github.writes(),
+    writes: () => [...github.writes(), ...(linear?.writes() ?? [])],
     references: driver.references,
     modelRequests: async () =>
       script === undefined
