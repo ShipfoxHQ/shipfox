@@ -51,7 +51,12 @@ export function pgClient(): pg.Pool {
   return _pool;
 }
 
-export async function withPostgresSession<T>(fn: (client: pg.Client) => Promise<T>): Promise<T> {
+/**
+ * Opens a connected client outside the pool, on the direct host when configured, for
+ * session-scoped state such as advisory locks. The caller owns the client: attach an
+ * `error` listener and call `end()`.
+ */
+export async function openPostgresSession(): Promise<pg.Client> {
   const client = new pg.Client({
     host: config.POSTGRES_DIRECT_HOST ?? config.POSTGRES_HOST,
     port: config.POSTGRES_PORT,
@@ -63,6 +68,11 @@ export async function withPostgresSession<T>(fn: (client: pg.Client) => Promise<
     ssl: config.POSTGRES_TLS_MODE === 'verify-full' ? {rejectUnauthorized: true} : false,
   });
   await client.connect();
+  return client;
+}
+
+export async function withPostgresSession<T>(fn: (client: pg.Client) => Promise<T>): Promise<T> {
+  const client = await openPostgresSession();
   try {
     return await fn(client);
   } finally {

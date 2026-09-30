@@ -7,6 +7,12 @@ import {migrationsPath} from '#db/migrations.js';
 export type {DiscordProvider} from '@shipfox/api-integration-discord-dto';
 export {config} from '#config.js';
 export {discordConnectionExternalUrl} from '#core/connection-url.js';
+export {
+  createDiscordGatewayService,
+  type DiscordGatewayServiceOptions,
+  GATEWAY_LOCK_KEY,
+  type GatewayLostReason,
+} from '#core/gateway-service.js';
 export type {ConnectDiscordInstallationInput} from '#core/install.js';
 export type {
   DiscordInstallation,

@@ -3929,9 +3929,18 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle
+      '@shipfox/node-error-monitoring':
+        specifier: workspace:*
+        version: link:../../../shared/node/error-monitoring
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../../shared/node/fastify
+      '@shipfox/node-module':
+        specifier: workspace:*
+        version: link:../../../shared/node/module
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../../shared/node/opentelemetry
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../../shared/node/postgres

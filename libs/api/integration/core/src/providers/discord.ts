@@ -14,7 +14,9 @@ async function loadDiscordModuleParts(
   _options: Parameters<IntegrationProviderModule['load']>[0] = {},
 ): Promise<IntegrationModuleParts> {
   const {
+    config: discordConfig,
     createDiscordE2eRoutes,
+    createDiscordGatewayService,
     createDiscordIntegrationProvider,
     deleteDiscordInstallationByConnectionId,
     db: discordDb,
@@ -95,6 +97,7 @@ async function loadDiscordModuleParts(
         connectionCapabilities: [],
       }),
     ],
+    services: discordConfig.DISCORD_GATEWAY_ENABLED ? [createDiscordGatewayService()] : undefined,
     database: {
       db: discordDb,
       migrationsPath: discordMigrationsPath,
