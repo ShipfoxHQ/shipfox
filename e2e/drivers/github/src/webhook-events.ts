@@ -1,6 +1,7 @@
 import {createHmac, randomUUID} from 'node:crypto';
 import {config} from '@shipfox/e2e-core';
 import type {GitRepositories} from './git-repositories.js';
+import {actorPayload, type GithubIssueFixture, issuePayload, labelPayload} from './issues.js';
 import type {GithubPullRequestFixture, GithubReviewThreadFixture} from './pull-requests.js';
 
 const FIXTURE_REPOSITORY_ID = 1;
@@ -12,6 +13,7 @@ const DEFAULT_WORKFLOW_PATH = '.github/workflows/ci.yml';
 const DEFAULT_WORKFLOW_NAME = 'CI';
 const DEFAULT_HEAD_SHA = 'a'.repeat(40);
 const FIXTURE_WORKFLOW_ID = 7_000_001;
+const DEFAULT_MAINTAINER = 'e2e-maintainer';
 const DEFAULT_DIFF_HUNK = '@@ -1 +1 @@\n-export const value = 1;\n+export const value = 2;';
 
 export type GithubAuthorAssociation =
@@ -78,6 +80,20 @@ export interface SendWorkflowRunCompletedParams {
   pullNumbers?: number[] | undefined;
 }
 
+export interface SendIssueLabeledParams {
+  issueNumber: number;
+  label: string;
+  /** Login of the user who added the label. Defaults to `e2e-maintainer`. */
+  sender?: string | undefined;
+}
+
+export interface SendIssueAssignedParams {
+  issueNumber: number;
+  assignee: string;
+  /** Login of the user who assigned the issue. Defaults to `e2e-maintainer`. */
+  sender?: string | undefined;
+}
+
 export interface GithubWebhookDelivery {
   /** The `X-GitHub-Delivery` header, which the trigger event reports as its delivery ID. */
   deliveryId: string;
@@ -108,6 +124,16 @@ export interface GithubWebhookSender {
    * them.
    */
   sendWorkflowRunCompleted(params: SendWorkflowRunCompletedParams): Promise<GithubWebhookDelivery>;
+  /**
+   * Adds the label to the issue in the fake, unless it has it, and delivers `issues.labeled`
+   * for the issue's new state.
+   */
+  sendIssueLabeled(params: SendIssueLabeledParams): Promise<GithubWebhookDelivery>;
+  /**
+   * Assigns the issue to the user in the fake, unless they hold it, and delivers
+   * `issues.assigned` for the issue's new state.
+   */
+  sendIssueAssigned(params: SendIssueAssignedParams): Promise<GithubWebhookDelivery>;
 }
 
 export interface CreateGithubWebhookSenderOptions {
@@ -118,6 +144,7 @@ export interface CreateGithubWebhookSenderOptions {
   apiUrl?: string | undefined;
   pullRequests: Map<number, GithubPullRequestFixture>;
   reviewThreads: Map<string, GithubReviewThreadFixture>;
+  issues: Map<number, GithubIssueFixture>;
   repositories: GitRepositories;
 }
 
@@ -237,6 +264,54 @@ export function createGithubWebhookSender(
       };
       return await deliver(options, 'workflow_run', payload);
     },
+
+    async sendIssueLabeled(params) {
+      const issue = requireIssue(options, params.issueNumber);
+      if (!(issue.labels ?? []).includes(params.label)) {
+        issue.labels = [...(issue.labels ?? []), params.label];
+      }
+      return await deliver(options, 'issues', {
+        action: 'labeled',
+        issue: issueEventPayload(params.issueNumber, issue),
+        label: labelPayload(params.label),
+        ...eventContext(options, issue.repository, params.sender ?? DEFAULT_MAINTAINER),
+      });
+    },
+
+    async sendIssueAssigned(params) {
+      const issue = requireIssue(options, params.issueNumber);
+      if (!(issue.assignees ?? []).includes(params.assignee)) {
+        issue.assignees = [...(issue.assignees ?? []), params.assignee];
+      }
+      return await deliver(options, 'issues', {
+        action: 'assigned',
+        issue: issueEventPayload(params.issueNumber, issue),
+        assignee: actorPayload(params.assignee),
+        ...eventContext(options, issue.repository, params.sender ?? DEFAULT_MAINTAINER),
+      });
+    },
+  };
+}
+
+function requireIssue(
+  options: CreateGithubWebhookSenderOptions,
+  issueNumber: number,
+): GithubIssueFixture {
+  const issue = options.issues.get(issueNumber);
+  if (issue === undefined) {
+    throw new Error(`The GitHub fake has no issue #${issueNumber} to send an event for.`);
+  }
+  return issue;
+}
+
+// The REST issue plus the fields webhook payloads add.
+function issueEventPayload(
+  issueNumber: number,
+  issue: GithubIssueFixture,
+): Record<string, unknown> {
+  return {
+    ...issuePayload(issueNumber, issue),
+    repository_url: `https://api.github.com/repos/${issue.repository}`,
   };
 }
 
@@ -267,19 +342,35 @@ function nextReviewCommentId(options: CreateGithubWebhookSenderOptions): number 
 }
 
 // GitHub sends the repository, sender, and installation with every event. The API routes an
-// event by `installation.id` and drops a pull request whose head and base repositories differ.
+// event by `installation.id`.
+function eventContext(
+  options: CreateGithubWebhookSenderOptions,
+  repositoryFullName: string,
+  senderLogin: string,
+  senderType: 'User' | 'Bot' = 'User',
+): {
+  repository: Record<string, unknown>;
+  sender: Record<string, unknown>;
+  installation: Record<string, unknown>;
+} {
+  return {
+    repository: repositoryPayload(options, repositoryFullName),
+    sender: userPayload(senderLogin, senderType),
+    installation: installationPayload(options),
+  };
+}
+
+// The API also drops a pull request whose head and base repositories differ.
 function envelope(
   options: CreateGithubWebhookSenderOptions,
   pullNumber: number,
   pullRequest: GithubPullRequestFixture,
   sender: {login: string; type: 'User' | 'Bot'},
 ): Record<string, unknown> {
-  const repository = repositoryPayload(options, pullRequest.repository);
+  const context = eventContext(options, pullRequest.repository, sender.login, sender.type);
   return {
-    pull_request: pullRequestEventPayload(pullNumber, pullRequest, repository),
-    repository,
-    sender: userPayload(sender.login, sender.type),
-    installation: installationPayload(options),
+    pull_request: pullRequestEventPayload(pullNumber, pullRequest, context.repository),
+    ...context,
   };
 }
 

@@ -13,6 +13,7 @@ export {
   type GithubApiMockOptions,
   startGithubApiMock,
 } from './github-api.js';
+export type {GithubIssueCommentFixture, GithubIssueFixture} from './issues.js';
 export type {
   GithubPullRequestFixture,
   GithubReviewCommentFixture,
@@ -23,6 +24,8 @@ export {
   type GithubWebhookDelivery,
   type GithubWebhookSender,
   type GithubWorkflowRunConclusion,
+  type SendIssueAssignedParams,
+  type SendIssueLabeledParams,
   type SendPullRequestClosedParams,
   type SendPullRequestReviewCommentParams,
   type SendWorkflowRunCompletedParams,

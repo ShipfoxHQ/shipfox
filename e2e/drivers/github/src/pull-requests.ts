@@ -8,7 +8,6 @@ const PULL_REQUESTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls$/u;
 const PULL_REQUEST_MERGE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)\/merge$/u;
 const REVIEW_COMMENT_REPLY_PATH =
   /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)\/comments\/(\d+)\/replies$/u;
-const ISSUE_COMMENTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/comments$/u;
 
 const BOT_LOGIN = 'shipfox-e2e[bot]';
 const FIXTURE_TIMESTAMP = '2026-01-01T00:00:00Z';
@@ -49,6 +48,8 @@ export interface PullRequestRoutesOptions {
   /** Review threads by GraphQL node id. */
   reviewThreads: Map<string, GithubReviewThreadFixture>;
   branchHeads: Map<string, string>;
+  /** Issues share the numbering with pull requests, so a new pull request skips their numbers. */
+  issues: ReadonlyMap<number, unknown>;
   /** Called for every accepted write, with the request's authorization header. */
   recordWrite: (write: RecordedWrite, authorization: string | undefined) => void;
 }
@@ -72,7 +73,6 @@ interface RouteContext extends Omit<PullRequestRoutesOptions, 'recordWrite'> {
   requestUrl: URL;
   match: RegExpMatchArray;
   repository: string;
-  nextIssueCommentId: () => number;
 }
 
 interface Route {
@@ -87,13 +87,9 @@ const ROUTES: Route[] = [
   {method: 'PATCH', path: PULL_REQUEST_PATH, handle: updatePullRequest},
   {method: 'PUT', path: PULL_REQUEST_MERGE_PATH, handle: mergePullRequest},
   {method: 'POST', path: REVIEW_COMMENT_REPLY_PATH, handle: replyToReviewComment},
-  {method: 'POST', path: ISSUE_COMMENTS_PATH, handle: createIssueComment},
 ];
 
 export function createPullRequestRoutes(options: PullRequestRoutesOptions): PullRequestRoutes {
-  let issueCommentId = 0;
-  const nextIssueCommentId = () => ++issueCommentId;
-
   return {
     async handle(request, response, requestUrl) {
       for (const route of ROUTES) {
@@ -109,7 +105,6 @@ export function createPullRequestRoutes(options: PullRequestRoutesOptions): Pull
           requestUrl,
           match,
           repository,
-          nextIssueCommentId,
         });
         return true;
       }
@@ -220,7 +215,7 @@ async function createPullRequest(context: RouteContext): Promise<void> {
     return;
   }
 
-  const number = Math.max(0, ...context.pullRequests.keys()) + 1;
+  const number = Math.max(0, ...context.pullRequests.keys(), ...context.issues.keys()) + 1;
   const pullRequest: GithubPullRequestFixture = {
     repository: context.repository,
     ref: head,
@@ -350,31 +345,6 @@ async function replyToReviewComment(context: RouteContext): Promise<void> {
   });
 }
 
-async function createIssueComment(context: RouteContext): Promise<void> {
-  const body = await readJsonBodyOrReject(context.request, context.response);
-  if (body === undefined) return;
-  if (typeof body.body !== 'string' || body.body === '') {
-    sendValidationFailed(context.response, [
-      {resource: 'IssueComment', field: 'body', code: 'missing_field'},
-    ]);
-    return;
-  }
-
-  const number = Number(context.match[3]);
-  const id = context.nextIssueCommentId();
-  context.recordWrite({
-    kind: 'github.create_issue_comment',
-    target: `${context.repository}#${number}`,
-    payload: body,
-  });
-  sendJson(context.response, 201, {
-    id,
-    body: body.body,
-    user: {login: BOT_LOGIN},
-    html_url: `https://github.com/${context.repository}/issues/${number}#issuecomment-${id}`,
-  });
-}
-
 function reviewThreadPayload(
   id: string,
   thread: GithubReviewThreadFixture,
@@ -423,7 +393,7 @@ function matchesHead(ref: string, head: string, owner: string): boolean {
   );
 }
 
-function sameRepository(left: string, right: string): boolean {
+export function sameRepository(left: string, right: string): boolean {
   return left.toLowerCase() === right.toLowerCase();
 }
 

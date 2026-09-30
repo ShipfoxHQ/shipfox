@@ -215,6 +215,109 @@ describe('GitHub API mock webhook events', () => {
     }
   });
 
+  it('labels the fake issue and delivers a signed issues.labeled', async () => {
+    const api = await startApi();
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      installationId: INSTALLATION_ID,
+      webhookSecret: SECRET,
+      apiUrl: api.url,
+    });
+
+    try {
+      mock.issues.set(5, {
+        repository: 'acme/app',
+        title: 'Add a --json flag',
+        body: 'Print JSON.',
+        labels: ['bug'],
+      });
+      const sent = await mock.sendIssueLabeled({issueNumber: 5, label: 'shipfox'});
+
+      const [delivery] = api.deliveries;
+      expect(api.deliveries).toHaveLength(1);
+      expect(delivery?.event).toBe('issues');
+      expect(delivery?.deliveryId).toBe(sent.deliveryId);
+      expect(delivery?.signature).toBe(expectedSignature(delivery?.rawBody ?? ''));
+      expect(delivery?.payload).toMatchObject({
+        action: 'labeled',
+        installation: {id: INSTALLATION_ID},
+        repository: {full_name: 'acme/app'},
+        sender: {login: 'e2e-maintainer', type: 'User'},
+        label: {name: 'shipfox'},
+        issue: {
+          number: 5,
+          state: 'open',
+          title: 'Add a --json flag',
+          body: 'Print JSON.',
+          html_url: 'https://github.com/acme/app/issues/5',
+          labels: [{name: 'bug'}, {name: 'shipfox'}],
+        },
+      });
+      expect(delivery?.payload.pull_request).toBeUndefined();
+      expect(mock.issues.get(5)?.labels).toEqual(['bug', 'shipfox']);
+
+      await mock.sendIssueLabeled({issueNumber: 5, label: 'shipfox'});
+      expect(mock.issues.get(5)?.labels).toEqual(['bug', 'shipfox']);
+    } finally {
+      await mock.stop();
+      await api.stop();
+    }
+  });
+
+  it('assigns the fake issue and delivers a signed issues.assigned', async () => {
+    const api = await startApi();
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      installationId: INSTALLATION_ID,
+      webhookSecret: SECRET,
+      apiUrl: api.url,
+    });
+
+    try {
+      mock.issues.set(6, {repository: 'acme/app', title: 'Fix the parser'});
+      const sent = await mock.sendIssueAssigned({
+        issueNumber: 6,
+        assignee: 'shipfox-bot',
+        sender: 'lead',
+      });
+
+      const [delivery] = api.deliveries;
+      expect(api.deliveries).toHaveLength(1);
+      expect(delivery?.event).toBe('issues');
+      expect(delivery?.deliveryId).toBe(sent.deliveryId);
+      expect(delivery?.signature).toBe(expectedSignature(delivery?.rawBody ?? ''));
+      expect(delivery?.payload).toMatchObject({
+        action: 'assigned',
+        sender: {login: 'lead'},
+        assignee: {login: 'shipfox-bot'},
+        issue: {number: 6, assignees: [{login: 'shipfox-bot'}], assignee: {login: 'shipfox-bot'}},
+      });
+      expect(mock.issues.get(6)?.assignees).toEqual(['shipfox-bot']);
+    } finally {
+      await mock.stop();
+      await api.stop();
+    }
+  });
+
+  it('refuses to send an event for an issue the fake does not hold', async () => {
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      installationId: INSTALLATION_ID,
+      webhookSecret: SECRET,
+    });
+
+    try {
+      await expect(mock.sendIssueLabeled({issueNumber: 99, label: 'x'})).rejects.toThrow(
+        'no issue #99',
+      );
+      await expect(mock.sendIssueAssigned({issueNumber: 99, assignee: 'x'})).rejects.toThrow(
+        'no issue #99',
+      );
+    } finally {
+      await mock.stop();
+    }
+  });
+
   it('refuses to send an event for a pull request the fake does not hold', async () => {
     const mock = await startGithubApiMock({
       endpoint: new URL('http://127.0.0.1:0'),

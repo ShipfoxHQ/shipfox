@@ -9,6 +9,14 @@ import {
 } from './git-repositories.js';
 import {isRecord, readJsonBody, readJsonBodyOrReject, sendJson} from './http.js';
 import {
+  createIssueRoutes,
+  findIssue,
+  type GithubIssueFixture,
+  ISSUE_PATH,
+  type IssueRoutes,
+  issuePayload,
+} from './issues.js';
+import {
   createPullRequestRoutes,
   findPullRequest,
   type GithubPullRequestFixture,
@@ -35,7 +43,6 @@ export const GITHUB_GRAPHQL_RESULT_MARKER = 'github-graphql-result-marker';
 const INSTALLATION_TOKEN_PATH = /^\/app\/installations\/(\d+)\/access_tokens$/u;
 const REPOSITORY_PATH = /^\/repositories\/(\d+)$/u;
 const REPOSITORY_BY_NAME_PATH = /^\/repos\/([^/]+)\/([^/]+)$/u;
-const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/u;
 const ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues$/u;
 const CHECK_RUN_CREATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs$/u;
 const CHECK_RUN_UPDATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs\/(\d+)$/u;
@@ -124,6 +131,12 @@ export interface GithubApiMock extends GithubWebhookSender {
   pullRequests: Map<number, GithubPullRequestFixture>;
   /** Review threads by GraphQL node id. Replies join them and resolution marks them. */
   reviewThreads: Map<string, GithubReviewThreadFixture>;
+  /**
+   * Issues by number. Tests seed them; comments, label changes, and updates land in them. An
+   * issue read for a number not listed here answers a synthetic issue with a result marker.
+   * Pull requests share the numbering, so seed numbers a pull request won't take.
+   */
+  issues: Map<number, GithubIssueFixture>;
   /** Branch tips for createCommitOnBranch's compare-and-swap, by branch name. */
   branchHeads: Map<string, string>;
   /** Creates a bare repository the fake serves over git and describes in its repository API. */
@@ -166,17 +179,21 @@ export async function startGithubApiMock(
   const pullRequests = new Map<number, GithubPullRequestFixture>();
   const branchHeads = new Map<string, string>();
   const reviewThreads = new Map<string, GithubReviewThreadFixture>();
+  const issues = new Map<number, GithubIssueFixture>();
   const writes: RecordedWrite[] = [];
+  const recordWrite = (write: RecordedWrite, authorization: string | undefined) => {
+    if (isCurrentInstallationAuthorization({installationId, installationToken, authorization})) {
+      writes.push(write);
+    }
+  };
   const pullRequestRoutes = createPullRequestRoutes({
     pullRequests,
     reviewThreads,
     branchHeads,
-    recordWrite: (write, authorization) => {
-      if (isCurrentInstallationAuthorization({installationId, installationToken, authorization})) {
-        writes.push(write);
-      }
-    },
+    issues,
+    recordWrite,
   });
+  const issueRoutes = createIssueRoutes({issues, recordWrite});
   const repositories = createGitRepositories();
   const webhookSender = createGithubWebhookSender({
     installationId,
@@ -184,6 +201,7 @@ export async function startGithubApiMock(
     apiUrl: options.apiUrl,
     pullRequests,
     reviewThreads,
+    issues,
     repositories,
   });
   addConfiguredCheckRunId(knownCheckRunIds, checkRunCreateResponse);
@@ -203,6 +221,8 @@ export async function startGithubApiMock(
       knownCheckRunIds,
       pullRequests,
       pullRequestRoutes,
+      issues,
+      issueRoutes,
       branchHeads,
       repositories,
       recordWrite: (write) => writes.push(write),
@@ -222,6 +242,7 @@ export async function startGithubApiMock(
     endpoint: boundEndpoint,
     pullRequests,
     reviewThreads,
+    issues,
     branchHeads,
     addRepository: (params) => repositories.add(params),
     ...webhookSender,
@@ -249,6 +270,8 @@ interface GithubRequestContext {
   knownCheckRunIds: Set<number>;
   pullRequests: Map<number, GithubPullRequestFixture>;
   pullRequestRoutes: PullRequestRoutes;
+  issues: Map<number, GithubIssueFixture>;
+  issueRoutes: IssueRoutes;
   branchHeads: Map<string, string>;
   repositories: GitRepositories;
   recordWrite: (write: RecordedWrite) => void;
@@ -270,6 +293,8 @@ async function handleGithubRequest(params: {
   knownCheckRunIds: Set<number>;
   pullRequests: Map<number, GithubPullRequestFixture>;
   pullRequestRoutes: PullRequestRoutes;
+  issues: Map<number, GithubIssueFixture>;
+  issueRoutes: IssueRoutes;
   branchHeads: Map<string, string>;
   repositories: GitRepositories;
   recordWrite: (write: RecordedWrite) => void;
@@ -347,6 +372,7 @@ async function handleGithubRequest(params: {
     await handleGraphqlRequest(context);
     return;
   }
+  if (await params.issueRoutes.handle(params.request, params.response, requestUrl)) return;
   if (await params.pullRequestRoutes.handle(params.request, params.response, requestUrl)) return;
 
   sendJson(params.response, 404, {message: 'Not Found'});
@@ -432,17 +458,25 @@ function handleRepositoryByNameRequest(
 }
 
 function handleIssueRequest(params: GithubRequestContext, match: RegExpMatchArray): void {
+  const owner = decodeURIComponent(match[1] ?? '');
+  const repo = decodeURIComponent(match[2] ?? '');
+  const issueNumber = Number(match[3]);
   if (isCurrentInstallationAuthorization(params)) {
     params.calls.push({
       kind: 'read-issue',
       authorization: params.authorization,
-      owner: decodeURIComponent(match[1] ?? ''),
-      repo: decodeURIComponent(match[2] ?? ''),
-      issueNumber: Number(match[3]),
+      owner,
+      repo,
+      issueNumber,
     });
   }
+  const issue = findIssue(params.issues, `${owner}/${repo}`, issueNumber);
+  if (issue !== undefined) {
+    sendJson(params.response, 200, issuePayload(issueNumber, issue));
+    return;
+  }
   sendJson(params.response, 200, {
-    number: Number(match[3]),
+    number: issueNumber,
     title: 'Synthetic GitHub issue',
     marker: GITHUB_READ_RESULT_MARKER,
   });
