@@ -115,7 +115,10 @@ export function createGithubWebhookSender(
           authorType: params.authorType ?? 'User',
           path,
         }),
-        ...envelope(options, params.pullNumber, pullRequest, author),
+        ...envelope(options, params.pullNumber, pullRequest, {
+          login: author,
+          type: params.authorType ?? 'User',
+        }),
       };
       const {deliveryId} = await deliver(options, 'pull_request_review_comment', payload);
       return {deliveryId, commentId, threadId};
@@ -134,7 +137,10 @@ export function createGithubWebhookSender(
       const payload = {
         action: 'closed',
         number: params.pullNumber,
-        ...envelope(options, params.pullNumber, pullRequest, DEFAULT_REVIEWER),
+        ...envelope(options, params.pullNumber, pullRequest, {
+          login: DEFAULT_REVIEWER,
+          type: 'User',
+        }),
       };
       return await deliver(options, 'pull_request', payload);
     },
@@ -173,7 +179,7 @@ function envelope(
   options: CreateGithubWebhookSenderOptions,
   pullNumber: number,
   pullRequest: GithubPullRequestFixture,
-  senderLogin: string,
+  sender: {login: string; type: 'User' | 'Bot'},
 ): Record<string, unknown> {
   if (options.installationId === undefined) {
     throw new Error('Start the GitHub fake with an installationId to send webhook events.');
@@ -182,7 +188,7 @@ function envelope(
   return {
     pull_request: pullRequestEventPayload(pullNumber, pullRequest, repository),
     repository,
-    sender: userPayload(senderLogin, 'User'),
+    sender: userPayload(sender.login, sender.type),
     installation: {
       id: options.installationId,
       node_id: `MDIzOkluc3RhbGxhdGlvbiR7${options.installationId}`,

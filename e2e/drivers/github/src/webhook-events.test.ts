@@ -159,6 +159,59 @@ describe('GitHub API mock webhook events', () => {
     }
   });
 
+  it('reports a bot commenter as the sender of the review comment event', async () => {
+    const api = await startApi();
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      installationId: INSTALLATION_ID,
+      webhookSecret: SECRET,
+      apiUrl: api.url,
+    });
+
+    try {
+      mock.pullRequests.set(1, {repository: 'acme/app', ref: 'feature', sha: 'a'.repeat(40)});
+      await mock.sendPullRequestReviewComment({
+        pullNumber: 1,
+        body: 'Consider a null check.',
+        author: 'review-bot[bot]',
+        authorType: 'Bot',
+      });
+
+      expect(api.deliveries[0]?.payload).toMatchObject({
+        comment: {user: {login: 'review-bot[bot]', type: 'Bot'}},
+        sender: {login: 'review-bot[bot]', type: 'Bot'},
+      });
+    } finally {
+      await mock.stop();
+      await api.stop();
+    }
+  });
+
+  it('closes a pull request without merging it when merged is not set', async () => {
+    const api = await startApi();
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      installationId: INSTALLATION_ID,
+      webhookSecret: SECRET,
+      apiUrl: api.url,
+    });
+
+    try {
+      mock.pullRequests.set(4, {repository: 'acme/app', ref: 'feature', sha: 'c'.repeat(40)});
+      await mock.sendPullRequestClosed({pullNumber: 4});
+
+      expect(api.deliveries[0]?.payload).toMatchObject({
+        action: 'closed',
+        pull_request: {number: 4, state: 'closed', merged: false, merged_at: null},
+      });
+      expect(mock.pullRequests.get(4)).toMatchObject({state: 'closed', merged: false});
+      await expect(mock.sendPullRequestClosed({pullNumber: 4})).rejects.toThrow('already closed');
+    } finally {
+      await mock.stop();
+      await api.stop();
+    }
+  });
+
   it('refuses to send an event for a pull request the fake does not hold', async () => {
     const mock = await startGithubApiMock({
       endpoint: new URL('http://127.0.0.1:0'),
