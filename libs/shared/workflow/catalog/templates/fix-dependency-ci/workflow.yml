@@ -13,7 +13,15 @@ jobs:
   inspect:
     checkout: false
     outputs:
-      eligible: ${{ steps.read_pr.outputs.open && steps.read_pr.outputs.selected && steps.read_pr.outputs.repository == event.repository.full_name && steps.read_pr.outputs.branch == event.workflow_run.head_branch && steps.read_pr.outputs.head_sha == event.workflow_run.head_sha }}
+      eligible: >-
+        ${{ steps.read_pr.outputs.open &&
+        steps.read_pr.outputs.selected &&
+        # option:pr_selection=dependency_bot begin
+        steps.read_pr.outputs.author == event.workflow_run.actor.login &&
+        # option:pr_selection=dependency_bot end
+        steps.read_pr.outputs.repository == event.repository.full_name &&
+        steps.read_pr.outputs.branch == event.workflow_run.head_branch &&
+        steps.read_pr.outputs.head_sha == event.workflow_run.head_sha }}
       head_sha: ${{ steps.read_pr.outputs.head_sha }}
     steps:
       # part:source.read_pr
