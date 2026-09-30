@@ -338,13 +338,32 @@ mise run evals -- --suite templates --mode scripted --case fixture --repeat 3
 ```
 
 Each case arranges its own workspace, GitHub connection, and project on a
-fake repository, composes its template variant through the template loader,
-creates the definition, and starts a local runner with a label of its own. It
-then runs the case's `scenario` in order and writes the result to
-`results/<run-id>/<case>/<repeat>.json`. A case that finishes its scenario
-includes the run observation. A case that errors carries the failed step and its
-reason instead. The exit code is non-zero when any case errors or fails its
-expectations.
+fake repository. It composes its template variant through the template loader,
+binds its GitHub roles to the integration connection's slug, and creates the
+definition. Then it starts a local runner with a label of its own. The runner
+gets an empty global Git configuration, so a developer's own settings, such as
+commit signing, never reach the case. It then runs the case's `scenario` in
+order and writes the result to `results/<run-id>/<case>/<repeat>.json`. A case
+that finishes its scenario includes the run observation. A case that errors
+carries the failed step and its reason instead. A case that doesn't pass also
+carries the last 200 lines of its runner log. With a script, it also carries
+the model requests the script served. The exit code is non-zero when any case
+errors or fails its expectations.
+
+A case with agent steps puts their model replies in `scripted.yaml`, next to
+`case.yaml`. In scripted mode the runner registers it with the scripted
+managed provider for the case's project, and refuses a case with agent steps
+but no script. Each entry has a `match` with
+`prompt_contains` and a list of `replies`, each a `text` or a `tool` call with
+`args`. A step attempt's first request picks the first entry whose text it
+contains. So an entry that continues a shared session goes before the entry
+that started it. Each later request of that attempt reads the entry's next
+reply. A pi step with declared outputs ends once it sets every output, and one
+without outputs ends at a `text` reply. An integration tool's name is
+`<connection slug>__<tool id>`, and the GitHub slug is `github_<owner>`. A
+request that matches no entry, or finds its entry used up, fails the step, and
+the case fails with the request listed.
+`cases/templates/ticket-to-pr/feedback-loop` is the worked example.
 
 A case that finishes its scenario is then checked against `expect`:
 
@@ -368,8 +387,9 @@ A scenario step is one of:
 - `start`: `manual` with `inputs`, or `event` with a provider event.
 - `send`: a provider event, such as `github: {pull_request.closed: {...}}`.
   `$pr` and `$pr.head` in an event payload resolve to the pull request the run
-  opened in the GitHub fake. A provider needs an `EventSender` passed to
-  `runEval` before a case can send or start with its events.
+  opened in the GitHub fake. The case's GitHub fake sends
+  `pull_request_review_comment.created` and `pull_request.closed`. Other
+  providers need an `EventSender` passed to `runEval`.
 - `await`: a `job` status, a `listener` that is `ready`, a listener `execution`
   status, or the `run` status. A job, execution, or run that ends in another
   terminal status fails the step at once.

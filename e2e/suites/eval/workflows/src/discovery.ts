@@ -1,13 +1,17 @@
 import {readdir} from 'node:fs/promises';
 import {join, relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import type {ScriptedManagedProviderEntry} from '@shipfox/e2e-setup-agent';
 import {loadTemplateCase, type TemplateCase} from './schema.js';
+import {loadScriptedEntries} from './scripted.js';
 
 export interface DiscoveredCase {
   id: string;
   directory: string;
   definitionPath: string;
   definition: TemplateCase;
+  /** The model replies from `scripted.yaml`, for cases with agent steps. */
+  script?: ScriptedManagedProviderEntry[] | undefined;
 }
 
 const defaultCasesRoot = fileURLToPath(new URL('../cases/templates/', import.meta.url));
@@ -73,6 +77,7 @@ export async function discoverCases(
       directory,
       definitionPath,
       definition: await loadTemplateCase(definitionPath),
+      script: await loadScriptedEntries(join(directory, 'scripted.yaml')),
     });
   }
   return cases;

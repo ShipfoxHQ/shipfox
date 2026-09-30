@@ -1,3 +1,4 @@
 import {defineConfig, type UserConfigExport} from '@shipfox/vitest';
 
-export default defineConfig({}, import.meta.url) as UserConfigExport;
+// Case fixture repositories carry their own tests, which the runner runs inside a case.
+export default defineConfig({test: {exclude: ['cases/**']}}, import.meta.url) as UserConfigExport;

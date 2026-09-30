@@ -1,4 +1,4 @@
-import {mkdir} from 'node:fs/promises';
+import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import type {DefinitionResponseDto} from '@shipfox/api-definitions-dto';
 import type {FireManualTriggerResponseDto} from '@shipfox/api-triggers-dto';
@@ -16,20 +16,30 @@ import {
   type WorkflowRunObservation,
   waitForRunByDeliveryId,
 } from '@shipfox/e2e-observe-workflows';
+import {
+  getScriptedManagedProviderRequests,
+  registerScriptedManagedProvider,
+  type ScriptedManagedProviderRequest,
+} from '@shipfox/e2e-setup-agent';
 import {parse as parseYaml} from 'yaml';
 import {runAwait} from './awaits.js';
+import {bindConnectionSlugs} from './compile.js';
 import {composeCaseWorkflow, templateLoaderFor} from './compose.js';
 import type {DiscoveredCase} from './discovery.js';
+import {createGithubEventSender} from './github-events.js';
 import {arrangeGithubProject} from './github-project.js';
 import {type PullRequestReference, resolveReferences} from './references.js';
 import type {CaseResult} from './results.js';
 import {runScenario, type ScenarioDriver, ScenarioError} from './scenario.js';
 import type {TemplateCase} from './schema.js';
+import {agentStepKeys} from './scripted.js';
 import type {EventSenders} from './senders.js';
 import {checkOutputs, checkWrites} from './writes.js';
 
 const START_TIMEOUT_MS = 60_000;
 const RUNNER_TOKEN_TTL_SECONDS = 3_600;
+const RUNNER_LOG_TAIL_LINES = 200;
+const MAX_PROMPT_CHARACTERS = 2_000;
 
 export interface ExecuteCaseOptions {
   discovered: DiscoveredCase;
@@ -51,6 +61,8 @@ interface Arrangement {
   /** Every write the GitHub fake accepted. Read before the fake stops. */
   writes: () => RecordedWrite[];
   references: ScenarioDriver['references'];
+  /** Every request the scripted model provider served, when the case registered a script. */
+  modelRequests: () => Promise<ScriptedManagedProviderRequest[] | undefined>;
 }
 
 function stepKeysOf(yaml: string): string[] {
@@ -141,12 +153,15 @@ export async function executeTemplateCase(options: ExecuteCaseOptions): Promise<
       yaml: arrangement.yaml,
     });
     result.writes = arrangement.writes();
-    const failures = checkExpectations({
-      expect: templateCase.expect,
-      outputs: result.observation.attempt.outputs ?? null,
-      writes: result.writes,
-      references: arrangement.references,
-    });
+    const failures = [
+      ...checkExpectations({
+        expect: templateCase.expect,
+        outputs: result.observation.attempt.outputs ?? null,
+        writes: result.writes,
+        references: arrangement.references,
+      }),
+      ...surpriseFailures(await arrangement.modelRequests()),
+    ];
     if (failures.length > 0) {
       result.status = 'failed';
       result.error = failures.join('\n');
@@ -158,9 +173,46 @@ export async function executeTemplateCase(options: ExecuteCaseOptions): Promise<
     result.error = failureMessage({error, arrangement});
   } finally {
     for (const cleanup of cleanups.reverse()) await cleanup().catch(() => undefined);
+    if (result.status !== 'passed' && arrangement !== undefined) {
+      await attachFailureContext({result, arrangement});
+    }
     result.duration_ms = Date.now() - startedAt;
   }
   return result;
+}
+
+/** A request the script had no reply for, one message each. */
+function surpriseFailures(requests: ScriptedManagedProviderRequest[] | undefined): string[] {
+  return (requests ?? [])
+    .filter((request) => request.surprise)
+    .map(
+      (request) =>
+        `Unexpected model request ${request.index} from step attempt ${request.step_attempt_id}: ${request.error ?? 'no reply'}`,
+    );
+}
+
+/** The script's recorded requests and the end of the runner log, so a failure can be read. */
+async function attachFailureContext({
+  result,
+  arrangement,
+}: {
+  result: CaseResult;
+  arrangement: Arrangement;
+}): Promise<void> {
+  const requests = await arrangement.modelRequests().catch(() => undefined);
+  if (requests !== undefined) {
+    result.model_requests = requests.map((request) => ({
+      ...request,
+      prompt:
+        request.prompt.length > MAX_PROMPT_CHARACTERS
+          ? `...${request.prompt.slice(-MAX_PROMPT_CHARACTERS)}`
+          : request.prompt,
+    }));
+  }
+  const log = await readFile(arrangement.runnerLogFile, 'utf8').catch(() => undefined);
+  if (log !== undefined) {
+    result.runner_log_tail = log.trimEnd().split('\n').slice(-RUNNER_LOG_TAIL_LINES).join('\n');
+  }
 }
 
 /** What the case expected and the run didn't do, one message each. Empty when the case passed. */
@@ -228,6 +280,9 @@ async function arrange({
   const runnerDirectory = join(workDirectory, 'runners');
   await mkdir(runnerDirectory, {recursive: true});
   const logFile = join(runnerDirectory, `${runnerLabel}.log`);
+  // Job git config includes the global one, so a developer's commit signing would break pushes.
+  const gitConfig = join(runnerDirectory, `${runnerLabel}.gitconfig`);
+  await writeFile(gitConfig, '');
   const registrationToken = await mintManualRegistrationToken({
     workspaceId: workspace.id,
     userToken: session.token,
@@ -240,6 +295,7 @@ async function arrange({
     labels: [runnerLabel],
     logFile,
     workspaceRoot: join(workDirectory, 'runner-workspaces', runnerLabel),
+    extraEnv: {GIT_CONFIG_GLOBAL: gitConfig},
   });
   let stopping = false;
   cleanups.push(async () => {
@@ -262,16 +318,37 @@ async function arrange({
     },
   );
 
-  const yaml = await composeCaseWorkflow({
-    templateCase,
-    loader: templateLoaderFor({templateCase, caseDirectory: discovered.directory}),
-    runnerLabel,
+  // The case workspace holds one connection, to the GitHub fake, so only GitHub roles bind.
+  const slugs = Object.fromEntries(
+    Object.entries(templateCase.bindings)
+      .filter(([, provider]) => provider === 'github')
+      .map(([role]) => [role, connection.slug]),
+  );
+  const yaml = bindConnectionSlugs({
+    yaml: await composeCaseWorkflow({
+      templateCase,
+      loader: templateLoaderFor({templateCase, caseDirectory: discovered.directory}),
+      runnerLabel,
+    }),
+    slugs,
   });
   const definition = await client.requestJson<DefinitionResponseDto>('post', '/definitions', {
     json: {project_id: project.id, source: 'manual', yaml},
   });
+  const script = options.mode === 'scripted' ? discovered.script : undefined;
+  // Without a script, the managed provider answers every request with fixed text, and a step
+  // without outputs would pass on it.
+  const agentSteps = agentStepKeys(yaml);
+  if (options.mode === 'scripted' && script === undefined && agentSteps.length > 0) {
+    throw new Error(
+      `The case has agent steps (${agentSteps.join(', ')}) but no scripted.yaml for scripted mode.`,
+    );
+  }
+  if (script !== undefined) {
+    await registerScriptedManagedProvider({projectId: project.id, entries: script});
+  }
 
-  const senders = options.senders ?? {};
+  const senders: EventSenders = {github: createGithubEventSender(github), ...options.senders};
   const pullRequest = (): PullRequestReference => {
     const [number, pr] =
       [...github.pullRequests.entries()]
@@ -354,5 +431,9 @@ async function arrange({
     runnerTail: () => localRunnerLogTail(logFile),
     writes: () => github.writes(),
     references: driver.references,
+    modelRequests: async () =>
+      script === undefined
+        ? undefined
+        : await getScriptedManagedProviderRequests({projectId: project.id}),
   };
 }

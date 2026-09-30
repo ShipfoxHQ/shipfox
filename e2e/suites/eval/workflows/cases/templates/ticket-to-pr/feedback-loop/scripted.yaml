@@ -1,0 +1,64 @@
+# A step attempt reads the first entry its first request contains. The `respond` step continues
+# the `fix` session, so its requests also carry the task prompt, and its entry comes first.
+
+# `respond`: applies the review comment and returns one decision for it. The GitHub fake numbers
+# the first review comment 1 and names its thread PRRT_e2e_1.
+- match: {prompt_contains: Rename the flag to --format json}
+  replies:
+    - tool: edit
+      args:
+        path: src/report.js
+        edits:
+          - oldText: args.includes('--json')
+            newText: args.join(' ').includes('--format json')
+    - tool: set_output
+      args:
+        key: decisions
+        value: '[{"comment_id":1,"thread_id":"PRRT_e2e_1","decision":"apply","reply":"Switched to --format json as asked."}]'
+
+# `reply`: posts the reply and resolves the thread. Tools are named after the connection slug,
+# which is `github_acme` for the acme/report-cli repository.
+- match: {prompt_contains: Post the replies below}
+  replies:
+    - tool: github_acme__add_reply_to_pull_request_comment
+      args:
+        owner: acme
+        repo: report-cli
+        pull_number: 1
+        comment_id: 1
+        body: |-
+          Switched to --format json as asked.
+
+          <!-- shipfox-ticket-to-pr:reply -->
+    - tool: github_acme__pull_request_review_thread_write
+      args:
+        method: resolve
+        owner: acme
+        repo: report-cli
+        thread_id: PRRT_e2e_1
+    - text: Posted the reply and resolved the thread.
+
+# `fix`: implements the task. The step ends once every declared output is set.
+- match: {prompt_contains: 'Implement task-1: Add a --json flag to the report command'}
+  replies:
+    - tool: edit
+      args:
+        path: src/report.js
+        edits:
+          - oldText: |-
+              export function report(_args, rows) {
+                return formatReport(rows);
+            newText: |-
+              export function report(args, rows) {
+                if (args.includes('--json')) return JSON.stringify(rows);
+                return formatReport(rows);
+    - tool: set_output
+      args: {key: status, value: '"implemented"'}
+    - tool: set_output
+      args: {key: pr_title, value: Add a --json flag to the report command}
+    - tool: set_output
+      args:
+        key: pr_summary
+        value: The report command prints its rows as JSON when it gets --json.
+    - tool: set_output
+      args: {key: questions, value: ''}
