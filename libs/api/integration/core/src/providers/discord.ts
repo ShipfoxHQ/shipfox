@@ -7,6 +7,7 @@ import {
   upsertIntegrationConnection,
 } from '#db/connections.js';
 import {db} from '#db/db.js';
+import {publishIntegrationEventReceived, recordDeliveryOnly} from '#db/webhook-deliveries.js';
 import {retryConnectionSlugCollision, slugifyConnectionSlug} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
@@ -86,10 +87,17 @@ async function loadDiscordModuleParts(
         await deleteDiscordInstallationByConnectionId(connection.id, {tx});
       },
     },
+    routes: {
+      coreDb: db,
+      publishIntegrationEventReceived,
+      recordDeliveryOnly,
+      getIntegrationConnectionById,
+    },
   });
 
   return {
     provider: integrationProvider,
+    webhookProcessors: integrationProvider.webhookProcessors,
     e2eRoutes: [
       createDiscordE2eRoutes({
         getExistingDiscordConnection,

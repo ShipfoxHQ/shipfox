@@ -29,6 +29,15 @@ afterEach(() => {
 describe('Discord provider scaffold', () => {
   const context = useIntegrationRouteTest();
 
+  it('registers the interactions processor for the discord.interaction route', async () => {
+    const {part} = await loadDiscordProvider();
+
+    expect(part.webhookProcessors).toEqual([
+      expect.objectContaining({routeIds: ['discord.interaction']}),
+    ]);
+    expect(part.provider.routes).toHaveLength(1);
+  });
+
   it('deletes a guild installation so the same guild can be reinstalled', async () => {
     const {part, discordPackage} = await loadDiscordProvider();
     if (!part.e2eRoutes) throw new Error('Discord E2E routes are not configured');

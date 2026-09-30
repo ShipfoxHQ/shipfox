@@ -6,6 +6,7 @@
 
 - **`createDiscordIntegrationProvider`** exposes the Discord provider metadata, guild external URL, and connection-record cleanup hook.
 - **Installation repository exports** create, find, and delete Discord guild installations owned by the provider database.
+- **`createDiscordWebhookRoutes` and `createDiscordWebhookProcessor`** receive Discord interactions, verify them, and publish command events.
 - **`createDiscordE2eRoutes`** exposes the synthetic connection route used by integration and E2E tests.
 - **`createDiscordGatewayService`** returns the `ModuleService` that elects one Gateway leader per shard with a Postgres advisory lock. Each replica holds a dedicated connection, retries every 10 s, and checks it with `SELECT 1` every 15 s. The `onLeading` and `onLost` callbacks carry the leader's work; `onLost` runs before the lock is released on shutdown.
 - **`createDiscordApiClient`** calls the Discord REST API as the bot and maps failures to `DiscordIntegrationProviderError`.
@@ -53,6 +54,18 @@ The executable environment contract is defined in [`src/config.ts`](src/config.t
 | `DISCORD_API_BASE_URL` | Discord API base URL, including E2E overrides. |
 
 ## Routes
+
+`POST /webhooks/integrations/discord/interactions` receives Discord interactions (route id `discord.interaction`). The processor runs these steps in order:
+
+1. A request without `x-signature-ed25519` and `x-signature-timestamp` gets `401`.
+2. The Ed25519 signature over `timestamp + rawBody` must match `DISCORD_PUBLIC_KEY`, or the request gets `401`.
+3. The timestamp must be within 300 seconds of the stored request's `received_at`, in either direction, or the request gets `401`. Discord signs a request once and the signature never expires, so this window is what stops a replay after the 30-day delivery records are pruned.
+4. A body that is not a valid interaction gets `400`.
+5. PING (`type` 1) is answered with `{"type": 1}`.
+6. The `shipfox` slash command and the `Send to Shipfox` message command publish `slash_command` or `message_command` with the interaction id as the delivery id. The interaction `token` is removed from the payload.
+7. Any other interaction gets an ephemeral "This action is not supported."
+
+Commands are answered with an ephemeral message. It says the server is not connected when the guild has no active connection, warns that replies may not appear when `app_permissions` lacks `VIEW_CHANNEL` or `SEND_MESSAGES`, and otherwise says "Working on it."
 
 `createDiscordE2eRoutes` registers `POST /integrations/discord-connections` under the E2E route prefix. It accepts the Discord DTO seed body and returns the integration connection DTO. This route is for test setup, not production clients.
 
