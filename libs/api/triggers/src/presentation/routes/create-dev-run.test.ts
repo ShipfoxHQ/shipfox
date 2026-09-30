@@ -705,6 +705,28 @@ describe('POST /dev-runs', () => {
     });
   });
 
+  test('maps an oversized execution payload to 422 with field and byte details', async () => {
+    createDevRunMock.mockRejectedValue(
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startDevRun,
+        'workflow-execution-payload-too-large',
+        {field: 'resolved_config', limitBytes: 1_000, measuredBytes: 1_500, overshootBytes: 500},
+      ),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/dev-runs',
+      payload: VALID_BODY,
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({
+      code: 'workflow-execution-payload-too-large',
+      details: {field: 'resolved_config', limit_bytes: 1_000, measured_bytes: 1_500},
+    });
+  });
+
   test.each([
     [
       'agent-config-unresolvable',

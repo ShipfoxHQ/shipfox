@@ -20,6 +20,11 @@ import {getManualSubscriptionByDefinitionId} from '#db/subscriptions.js';
 import {mapStartRunError} from './map-start-run-error.js';
 
 const startRunErrorDetailsSchema = z.union([
+  z.object({
+    field: z.string(),
+    limit_bytes: z.number().int().positive(),
+    measured_bytes: z.number().int().positive(),
+  }),
   z.object({definition_id: z.string()}),
   z.object({field: z.string(), source: z.string(), env_key: z.string().optional()}),
   z.object({labels: z.array(z.string())}),
@@ -44,7 +49,6 @@ export function createFireManualTriggerRoute(
         201: fireManualTriggerResponseSchema,
         409: z.object({
           code: z.string(),
-          message: z.string().optional(),
           details: z.unknown().optional(),
         }),
         422: z.object({
