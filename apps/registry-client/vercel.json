@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "pnpm install",
+  "buildCommand": "turbo run build --filter=@shipfox/registry-client",
+  "devCommand": "turbo run dev --filter=@shipfox/registry-client",
+  "git": {
+    "deploymentEnabled": {
+      "changeset-release/main": false
+    }
+  },
+  "regions": ["fra1", "iad1"],
+  "trailingSlash": false
+}
