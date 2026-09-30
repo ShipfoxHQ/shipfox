@@ -130,6 +130,9 @@ export type InterpolationUnresolvableField =
   | 'agent.provider'
   | 'agent.thinking'
   | 'agent.session'
+  | 'job.if'
+  | 'job.success'
+  | 'job.listening.filter'
   | 'job.runner'
   | 'job.outputs'
   | 'job.execution_name'
@@ -137,6 +140,8 @@ export type InterpolationUnresolvableField =
   | 'workflow.concurrency.group'
   | 'workflow.run_name'
   | 'step.name'
+  | 'step.if'
+  | 'step.gate.success'
   | 'step.working_directory'
   | 'step.feedback'
   | 'tool.with'
@@ -148,17 +153,34 @@ export type InterpolationUnresolvableField =
   | 'checkout.ref'
   | 'checkout.path';
 
+export interface InterpolationUnresolvableStep {
+  readonly key?: string | undefined;
+  readonly name?: string | undefined;
+  /** 1-based position among the job's authored steps. */
+  readonly index: number;
+}
+
+interface InterpolationUnresolvableParams {
+  readonly field: InterpolationUnresolvableField;
+  readonly source: string;
+  readonly envKey?: string | undefined;
+  /** Set when the failure is a `vars.*` key that does not exist. */
+  readonly variableKey?: string | undefined;
+  readonly jobKey?: string | undefined;
+  readonly step?: InterpolationUnresolvableStep | undefined;
+}
+
 export class InterpolationUnresolvableError extends Error {
   readonly field: InterpolationUnresolvableField;
   readonly source: string;
   readonly envKey?: string;
+  readonly variableKey?: string;
+  readonly jobKey?: string;
+  readonly step?: InterpolationUnresolvableStep;
 
   constructor(
     readonly definitionId: string,
-    params: {
-      readonly field: InterpolationUnresolvableField;
-      readonly source: string;
-      readonly envKey?: string;
+    params: InterpolationUnresolvableParams & {
       /** The expression reads a context this fill site does not carry, not a missing value. */
       readonly contextUnavailable?: boolean;
       readonly cause?: unknown;
@@ -169,24 +191,25 @@ export class InterpolationUnresolvableError extends Error {
     this.field = params.field;
     this.source = params.source;
     if (params.envKey !== undefined) this.envKey = params.envKey;
+    if (params.variableKey !== undefined) this.variableKey = params.variableKey;
+    if (params.jobKey !== undefined) this.jobKey = params.jobKey;
+    if (params.step !== undefined) this.step = params.step;
   }
 }
 
 function interpolationUnresolvableMessage(
   definitionId: string,
-  params: {
-    readonly field: InterpolationUnresolvableField;
-    readonly source: string;
-    readonly envKey?: string;
-    readonly contextUnavailable?: boolean;
-  },
+  params: InterpolationUnresolvableParams & {readonly contextUnavailable?: boolean},
 ): string {
   const envSuffix = params.envKey === undefined ? '' : ` (${params.envKey})`;
+  const prefix = `Workflow interpolation cannot be resolved for definition ${definitionId}: ${params.field}${envSuffix} uses \`${params.source}\`.`;
+  if (params.variableKey !== undefined)
+    return `${prefix} Variable ${params.variableKey} is not set.`;
   const hint =
     params.contextUnavailable === true
       ? 'It reads a context that is not available where this field is filled.'
       : "Use has(x) ? x : '' for optional references.";
-  return `Workflow interpolation cannot be resolved for definition ${definitionId}: ${params.field}${envSuffix} uses \`${params.source}\`. ${hint}`;
+  return `${prefix} ${hint}`;
 }
 
 /**

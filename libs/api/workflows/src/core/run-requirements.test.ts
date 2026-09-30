@@ -25,10 +25,10 @@ describe('collectRunRequirements', () => {
     const {variables} = collectRunRequirements(model, model.jobs);
 
     expect(variables).toEqual([
-      {key: 'JOB_IF', field: 'env', source: 'vars.JOB_IF == "true"', jobKey: 'build'},
+      {key: 'JOB_IF', field: 'job.if', source: 'vars.JOB_IF == "true"', jobKey: 'build'},
       {
         key: 'STEP_IF',
-        field: 'env',
+        field: 'step.if',
         source: 'vars.STEP_IF == "true"',
         jobKey: 'build',
         step: {key: 'deploy', name: 'Deploy', index: 2},
@@ -48,6 +48,45 @@ describe('collectRunRequirements', () => {
         jobKey: 'build',
         step: {key: 'deploy', name: 'Deploy', index: 2},
       },
+    ]);
+  });
+
+  test('labels each predicate with its own field', () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          if: 'vars.JOB_IF == "true"',
+          success: 'vars.JOB_SUCCESS == "true"',
+          steps: [
+            {
+              if: expression('vars.STEP_IF == "true"'),
+              gate: {success: expression('vars.GATE_SUCCESS == "true"')},
+              run: 'echo ok',
+            },
+          ],
+        },
+        listen: {
+          listening: {
+            on: [{source: 'github', event: 'push', filter: 'vars.LISTEN_ON == "true"'}],
+            until: [
+              {source: 'github', event: 'pull_request', filter: 'vars.LISTEN_UNTIL == "true"'},
+            ],
+            onResolve: 'finish',
+          },
+          steps: [{run: 'echo listen'}],
+        },
+      },
+    });
+
+    const {variables} = collectRunRequirements(model, []);
+
+    expect(variables.map(({key, field}) => [key, field])).toEqual([
+      ['JOB_IF', 'job.if'],
+      ['JOB_SUCCESS', 'job.success'],
+      ['STEP_IF', 'step.if'],
+      ['GATE_SUCCESS', 'step.gate.success'],
+      ['LISTEN_ON', 'job.listening.filter'],
+      ['LISTEN_UNTIL', 'job.listening.filter'],
     ]);
   });
 

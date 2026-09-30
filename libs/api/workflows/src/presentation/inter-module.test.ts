@@ -1785,6 +1785,29 @@ describe('Workflows inter-module presentation', () => {
     ).toBe(code);
   });
 
+  test('carries the missing variable and its location in interpolation-unresolvable details', () => {
+    const result = toStartRunKnownError(
+      new InterpolationUnresolvableError(input.definitionId, {
+        field: 'step.if',
+        source: 'vars.ENABLED',
+        variableKey: 'ENABLED',
+        jobKey: 'build',
+        step: {key: 'deploy', name: 'Deploy', index: 2},
+      }),
+      input.definitionId,
+    );
+
+    expect(result).toMatchObject({
+      code: 'interpolation-unresolvable',
+      details: {
+        field: 'step.if',
+        variableKey: 'ENABLED',
+        jobKey: 'build',
+        step: {key: 'deploy', name: 'Deploy', index: 2},
+      },
+    });
+  });
+
   test('leaves the legacy diagnostic error unmapped', () => {
     const error = new WorkflowDiagnosticTooLargeError('config', 64 * 1024, 64 * 1024 + 1);
 

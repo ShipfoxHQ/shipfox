@@ -1671,6 +1671,43 @@ describe('workflow run queries', () => {
           }),
         expected: {field: 'checkout.repository', source: 'vars.REQUIRED'},
       },
+      {
+        field: 'job.if',
+        model: () =>
+          workflowModel({
+            name: 'Missing job if var',
+            runner: 'ubuntu-latest',
+            jobs: {build: {if: 'vars.REQUIRED == "true"', steps: [{run: 'echo ok'}]}},
+          }),
+        expected: {
+          field: 'job.if',
+          source: 'vars.REQUIRED == "true"',
+          variableKey: 'REQUIRED',
+          jobKey: 'build',
+        },
+      },
+      {
+        field: 'step.if',
+        model: () =>
+          workflowModel({
+            name: 'Missing step if var',
+            runner: 'ubuntu-latest',
+            jobs: {
+              build: {
+                steps: [
+                  {run: 'echo first'},
+                  {key: 'deploy', name: 'Deploy', if: expression('vars.REQUIRED'), run: 'echo ok'},
+                ],
+              },
+            },
+          }),
+        expected: {
+          field: 'step.if',
+          variableKey: 'REQUIRED',
+          jobKey: 'build',
+          step: {key: 'deploy', name: 'Deploy', index: 2},
+        },
+      },
     ] as const)('reports missing variables against $field', async ({model, expected}) => {
       let error: unknown;
       try {
@@ -1692,7 +1729,8 @@ describe('workflow run queries', () => {
       }
 
       expect(error).toBeInstanceOf(InterpolationUnresolvableError);
-      expect(error).toMatchObject(expected);
+      expect(error).toMatchObject({...expected, variableKey: 'REQUIRED'});
+      expect((error as Error).message).not.toContain('has(');
     });
 
     test('resolves a working directory that references a workspace variable', async () => {
