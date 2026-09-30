@@ -2481,6 +2481,9 @@ importers:
       '@langfuse/tracing':
         specifier: 'catalog:'
         version: 5.11.1(@opentelemetry/api@1.9.1)
+      '@modelcontextprotocol/sdk':
+        specifier: 'catalog:'
+        version: 1.29.0(zod@4.4.3)
       '@opentelemetry/sdk-trace-node':
         specifier: 'catalog:'
         version: 2.8.0(@opentelemetry/api@1.9.1)
@@ -2533,9 +2536,6 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: 'catalog:'
-        version: 1.29.0(zod@4.4.3)
       '@shipfox/api':
         specifier: workspace:*
         version: link:../../../../apps/api

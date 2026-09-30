@@ -6,6 +6,8 @@ import {config} from '@shipfox/e2e-core';
 import {findCaseDirectories, matchesCase} from './discovery.js';
 import type {McpCallRecord} from './mcp-calls.js';
 import {startMcpProxy} from './mcp-proxy.js';
+import {gradeOnboardingRun, type OnboardingCheck} from './onboarding-checks.js';
+import {collectOnboardingEvidence} from './onboarding-evidence.js';
 import {resolvePrompt} from './onboarding-prompt.js';
 import {loadOnboardingCase, type OnboardingCase} from './onboarding-schema.js';
 import {
@@ -61,6 +63,10 @@ export interface OnboardingCaseResult {
   workspace_id?: string;
   session?: Omit<OnboardingSessionResult, 'transcript_jsonl'>;
   transcript_jsonl?: string;
+  /** The checks that apply to the case's outcome. Absent when the session errored. */
+  checks?: OnboardingCheck[];
+  /** Whether every applicable check passed. Absent when the session errored. */
+  passed?: boolean;
   mcp_calls: McpCallRecord[];
   written_files: WrittenFile[];
 }
@@ -148,8 +154,28 @@ async function executeRepeat({
     result.cost_usd = session.usage.agent.cost_usd;
     result.mcp_calls = workspace.proxySession.calls();
     result.written_files = await collectWorkflowFiles(workspace.cwd);
-    if (session.stop_reason === 'error') result.error = session.error ?? 'The session failed.';
-    result.status = session.stop_reason === 'error' ? 'error' : 'completed';
+    if (session.stop_reason === 'error') {
+      result.error = session.error ?? 'The session failed.';
+      return result;
+    }
+    // The call log is read above, so the checker's own calls through the proxy stay out of it.
+    const evidence = await collectOnboardingEvidence({
+      expected: templateCase.expect,
+      files: result.written_files,
+      projectId: workspace.projectId,
+      mcpUrl: workspace.proxySession.url,
+    });
+    const grade = gradeOnboardingRun({
+      expect: templateCase.expect,
+      session,
+      transcript_jsonl,
+      mcp_calls: result.mcp_calls,
+      written_files: result.written_files,
+      evidence,
+    });
+    result.checks = grade.checks;
+    result.passed = grade.passed;
+    result.status = 'completed';
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
   } finally {
@@ -159,21 +185,38 @@ async function executeRepeat({
   return result;
 }
 
+function passedCell(result: OnboardingCaseResult): string {
+  if (result.passed === undefined) return '-';
+  return result.passed ? 'pass' : 'fail';
+}
+
 function summaryMarkdown(run: OnboardingRun): string {
+  const graded = run.results.filter((result) => result.passed !== undefined);
   const lines = [
     '# Onboarding eval results',
     '',
     `- Run: \`${run.runId}\``,
     `- Repeats: ${run.results.length}`,
     `- Errors: ${run.results.filter((result) => result.status === 'error').length}`,
+    `- Passed: ${graded.filter((result) => result.passed).length} of ${graded.length} graded`,
     '',
-    '| Case | Repeat | Status | Stop | Turns | Questions | MCP calls | Cost (USD) |',
-    '| --- | ---: | --- | --- | ---: | ---: | ---: | ---: |',
+    '| Case | Repeat | Status | Result | Stop | Turns | Questions | MCP calls | Cost (USD) |',
+    '| --- | ---: | --- | --- | --- | ---: | ---: | ---: | ---: |',
   ];
   for (const result of run.results) {
     lines.push(
-      `| \`${result.case}\` | ${result.repeat} | ${result.status} | ${result.session?.stop_reason ?? '-'} | ${result.session?.turns ?? '-'} | ${result.session?.questions.length ?? '-'} | ${result.mcp_calls.length} | ${result.cost_usd.toFixed(4)} |`,
+      `| \`${result.case}\` | ${result.repeat} | ${result.status} | ${passedCell(result)} | ${result.session?.stop_reason ?? '-'} | ${result.session?.turns ?? '-'} | ${result.session?.questions.length ?? '-'} | ${result.mcp_calls.length} | ${result.cost_usd.toFixed(4)} |`,
     );
+  }
+  const failures = run.results.flatMap((result) =>
+    (result.checks ?? []).filter((entry) => !entry.passed).map((entry) => ({result, check: entry})),
+  );
+  if (failures.length > 0) {
+    lines.push('', '## Failed checks', '');
+    for (const {result, check} of failures) {
+      const detail = check.detail === undefined ? '' : `: ${check.detail.split('\n')[0]}`;
+      lines.push(`- \`${result.case}\` repeat ${result.repeat}: \`${check.id}\`${detail}`);
+    }
   }
   return `${lines.join('\n')}\n`;
 }

@@ -9,7 +9,10 @@ const validCase = {
   prompt: 'generic',
   workspace: {connections: ['github'], project: {repository: 'acme/report-cli'}},
   persona: 'You lead a small team.',
+  expect: {outcome: 'validated'},
 };
+const templatePattern = /template/iu;
+const missingProviderPattern = /missing_provider/iu;
 
 describe('onboarding case schema', () => {
   it('loads the fixture case', async () => {
@@ -57,5 +60,67 @@ describe('onboarding case schema', () => {
 
   it('rejects unknown fields so a typo is not silently ignored', () => {
     expect(() => parseOnboardingCase({...validCase, personna: 'typo'})).toThrow();
+  });
+
+  it('requires the outcome a correct agent ends with', () => {
+    expect(() => parseOnboardingCase({...validCase, expect: {}})).toThrow();
+    expect(() => parseOnboardingCase({...validCase, expect: {outcome: 'done'}})).toThrow();
+  });
+
+  it('accepts the checks of a template case', () => {
+    const parsed = parseOnboardingCase({
+      ...validCase,
+      expect: {
+        outcome: 'validated',
+        template: 'shipfox/ticket-to-pr',
+        bindings: {tracker: 'linear', source: 'github'},
+        options: {pr_mode: 'draft'},
+        max_questions: 6,
+      },
+    });
+
+    expect(parsed.expect).toMatchObject({template: 'shipfox/ticket-to-pr', max_questions: 6});
+  });
+
+  it('keeps bindings and options to a case with a template', () => {
+    expect(() =>
+      parseOnboardingCase({
+        ...validCase,
+        expect: {outcome: 'validated', bindings: {source: 'github'}},
+      }),
+    ).toThrow(templatePattern);
+    expect(() =>
+      parseOnboardingCase({
+        ...validCase,
+        expect: {outcome: 'validated', options: {pr_mode: 'draft'}},
+      }),
+    ).toThrow(templatePattern);
+  });
+
+  it('keeps a template to the outcome that writes a workflow', () => {
+    expect(() =>
+      parseOnboardingCase({
+        ...validCase,
+        expect: {outcome: 'needs_clarification', template: 'shipfox/ticket-to-pr'},
+      }),
+    ).toThrow(templatePattern);
+  });
+
+  it('names the provider a blocked case waits for, and only then', () => {
+    expect(() =>
+      parseOnboardingCase({...validCase, expect: {outcome: 'blocked_on_connection'}}),
+    ).toThrow(missingProviderPattern);
+    expect(() =>
+      parseOnboardingCase({
+        ...validCase,
+        expect: {outcome: 'validated', missing_provider: 'linear'},
+      }),
+    ).toThrow(missingProviderPattern);
+    expect(() =>
+      parseOnboardingCase({
+        ...validCase,
+        expect: {outcome: 'blocked_on_connection', missing_provider: 'linear'},
+      }),
+    ).not.toThrow();
   });
 });

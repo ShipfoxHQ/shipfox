@@ -15,9 +15,14 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 const NO_PROVIDER = 'none';
 
+/** How people read a provider's name, such as `GitHub` for `github`. */
+export function providerLabel(provider: string): string {
+  return PROVIDER_LABELS[provider] ?? provider;
+}
+
 function choiceClause({role, provider}: {role: string; provider: string}): string {
   if (provider === NO_PROVIDER) return `without the ${role} part`;
-  return `with ${PROVIDER_LABELS[provider] ?? provider} as the ${role}`;
+  return `with ${providerLabel(provider)} as the ${role}`;
 }
 
 /**

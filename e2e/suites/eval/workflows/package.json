@@ -26,6 +26,8 @@
     "#mcp-calls.js": "./src/mcp-calls.ts",
     "#mcp-proxy.js": "./src/mcp-proxy.ts",
     "#media.js": "./src/media.ts",
+    "#onboarding-checks.js": "./src/onboarding-checks.ts",
+    "#onboarding-evidence.js": "./src/onboarding-evidence.ts",
     "#onboarding-prompt.js": "./src/onboarding-prompt.ts",
     "#onboarding-run.js": "./src/onboarding-run.ts",
     "#onboarding-schema.js": "./src/onboarding-schema.ts",
@@ -38,7 +40,8 @@
     "#scripted.js": "./src/scripted.ts",
     "#schema.js": "./src/schema.ts",
     "#senders.js": "./src/senders.ts",
-    "#simulated-user.js": "./src/simulated-user.ts"
+    "#simulated-user.js": "./src/simulated-user.ts",
+    "#template-fidelity.js": "./src/template-fidelity.ts"
   },
   "scripts": {
     "build": "shipfox-swc && chmod +x dist/cli.js",
@@ -57,6 +60,7 @@
     "@langfuse/client": "catalog:",
     "@langfuse/otel": "catalog:",
     "@langfuse/tracing": "catalog:",
+    "@modelcontextprotocol/sdk": "catalog:",
     "@opentelemetry/sdk-trace-node": "catalog:",
     "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/api-definitions-dto": "workspace:*",
@@ -76,7 +80,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "catalog:",
     "@shipfox/api": "workspace:*",
     "@shipfox/api-server": "workspace:*",
     "@shipfox/biome": "workspace:*",
