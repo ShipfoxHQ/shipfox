@@ -584,7 +584,9 @@ describe('nextStepForJob', () => {
           agentInterModuleContract.methods.resolveAgentConfig,
           'agent-config-invalid',
           {
+            reason: 'workspace-providers-disabled',
             message: 'This instance only supports provider `shipfox`.',
+            provider: 'shipfox',
             managed_provider_id: 'shipfox',
           },
         ),

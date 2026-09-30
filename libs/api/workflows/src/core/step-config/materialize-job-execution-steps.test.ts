@@ -996,10 +996,10 @@ describe('materializeJobExecutionSteps', () => {
     });
   });
 
-  it('wraps known resolver errors as permanent agent config errors', async () => {
+  it('wraps known resolver errors as permanent agent config errors with their cause and location', async () => {
     const model = workflowModel({
       jobs: {
-        review: {steps: [{prompt: 'Summarize the review.'}]},
+        review: {steps: [{run: 'echo ready'}, {prompt: 'Summarize the review.'}]},
       },
     });
     const job = model.jobs[0];
@@ -1008,7 +1008,7 @@ describe('materializeJobExecutionSteps', () => {
       throw createInterModuleKnownError(
         agentInterModuleContract.methods.resolveAgentConfig,
         'agent-config-invalid',
-        {},
+        {reason: 'model-unknown', model: 'gpt-9', provider: 'openai'},
       );
     });
 
@@ -1025,6 +1025,14 @@ describe('materializeJobExecutionSteps', () => {
     await expect(materialize()).rejects.toThrow(
       'Agent configuration cannot be resolved for definition def-1',
     );
+    await expect(materialize()).rejects.toMatchObject({
+      definitionId: 'def-1',
+      reason: 'model-unknown',
+      model: 'gpt-9',
+      provider: 'openai',
+      jobKey: 'review',
+      step: {index: 2},
+    });
   });
 
   it('throws a permanent interpolation error for unsafe run interpolation', async () => {

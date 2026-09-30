@@ -237,6 +237,87 @@ describe('agent inter-module presentation', () => {
     });
   });
 
+  describe('resolveAgentConfig failures', () => {
+    const managedProvider: ManagedModelProvider = {
+      id: 'shipfox',
+      label: 'Shipfox',
+      models: [{id: 'managed-model', label: 'Managed model', api: 'openai-responses'}],
+      defaultModel: 'managed-model',
+      resolveCredentials: vi.fn(),
+    };
+
+    async function resolveFailure(
+      config: Record<string, string>,
+      params: {workspaceProviders?: 'enabled' | 'disabled'} = {},
+    ) {
+      const presentation = createAgentInterModulePresentation({
+        secrets: agentTestSecretsClient,
+        managedProvider,
+        workspaceProviders: params.workspaceProviders ?? 'enabled',
+      });
+      const result = await Promise.resolve(
+        presentation.handlers.resolveAgentConfig(
+          {workspaceId: null, config},
+          {signal: new AbortController().signal},
+        ),
+      ).catch((error: unknown) => error);
+      if (!isInterModuleKnownError(agentInterModuleContract.methods.resolveAgentConfig, result)) {
+        throw new Error('Expected an agent config known error');
+      }
+      return result;
+    }
+
+    test('names an unknown model with its provider', async () => {
+      const result = await resolveFailure({provider: 'anthropic', model: 'no-such-model'});
+
+      expect(result.code).toBe('agent-config-invalid');
+      expect(result.details).toEqual({
+        reason: 'model-unknown',
+        model: 'no-such-model',
+        provider: 'anthropic',
+      });
+    });
+
+    test('names an unsupported provider', async () => {
+      const result = await resolveFailure({provider: 'no-such-provider'});
+
+      expect(result.details).toEqual({
+        reason: 'provider-unsupported',
+        provider: 'no-such-provider',
+      });
+    });
+
+    test('names a provider the harness does not support', async () => {
+      const result = await resolveFailure({harness: 'claude', provider: 'openai'});
+
+      expect(result.details).toEqual({reason: 'harness-unsupported', provider: 'openai'});
+    });
+
+    test('names a thinking level the harness does not support', async () => {
+      const result = await resolveFailure({
+        harness: 'claude',
+        provider: 'anthropic',
+        thinking: 'off',
+      });
+
+      expect(result.details).toEqual({reason: 'thinking-unsupported'});
+    });
+
+    test('names the managed provider when workspace providers are disabled', async () => {
+      const result = await resolveFailure(
+        {provider: 'anthropic'},
+        {workspaceProviders: 'disabled'},
+      );
+
+      expect(result.details).toEqual({
+        reason: 'workspace-providers-disabled',
+        message: 'This instance only supports provider `shipfox`.',
+        provider: 'shipfox',
+        managed_provider_id: 'shipfox',
+      });
+    });
+  });
+
   test('maps a managed provider capability failure to the runtime contract', async () => {
     const managedProvider: ManagedModelProvider = {
       id: 'shipfox',

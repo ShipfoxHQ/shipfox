@@ -117,6 +117,8 @@ function toTriggerDecisionDiagnosticDto(
         ...(diagnostic.step === undefined ? {} : {step: diagnostic.step}),
         ...(diagnostic.source === undefined ? {} : {source: diagnostic.source}),
       };
+    case 'agent-config-unresolvable':
+      return agentConfigDiagnosticDto(diagnostic);
     case 'source-snapshot-too-large':
       return {
         version: diagnostic.version,
@@ -152,4 +154,18 @@ function toTriggerDecisionDiagnosticDto(
     default:
       return diagnostic;
   }
+}
+
+function agentConfigDiagnosticDto(
+  diagnostic: Extract<TriggerDecisionDiagnostic, {code: 'agent-config-unresolvable'}>,
+): TriggerDecisionDiagnosticDto {
+  return {
+    version: diagnostic.version,
+    code: diagnostic.code,
+    ...(diagnostic.reason === undefined ? {} : {reason: diagnostic.reason}),
+    ...(diagnostic.model === undefined ? {} : {model: diagnostic.model}),
+    ...(diagnostic.provider === undefined ? {} : {provider: diagnostic.provider}),
+    ...(diagnostic.jobKey === undefined ? {} : {job_key: diagnostic.jobKey}),
+    ...(diagnostic.step === undefined ? {} : {step: diagnostic.step}),
+  };
 }

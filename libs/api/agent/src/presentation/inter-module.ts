@@ -21,6 +21,7 @@ import {
   AgentSessionHeldError,
   AgentSessionKeyInvalidError,
   AgentSessionLockUnavailableError,
+  agentConfigInvalidDetails,
   isAgentConfigResolutionError,
   ManagedModelAvailabilityError,
   ModelProviderConfigNotFoundError,
@@ -118,18 +119,12 @@ export function createAgentInterModulePresentation(params: {
 }
 
 function toResolveAgentConfigKnownError(error: unknown): unknown {
-  if (isAgentConfigResolutionError(error)) {
-    return createInterModuleKnownError(
-      agentInterModuleContract.methods.resolveAgentConfig,
-      'agent-config-invalid',
-      {
-        ...(error instanceof WorkspaceProvidersDisabledError
-          ? {message: error.message, managed_provider_id: error.managedProviderId}
-          : {}),
-      },
-    );
-  }
-  return error;
+  if (!isAgentConfigResolutionError(error)) return error;
+  return createInterModuleKnownError(
+    agentInterModuleContract.methods.resolveAgentConfig,
+    'agent-config-invalid',
+    agentConfigInvalidDetails(error),
+  );
 }
 
 function toResolveRuntimeCredentialsKnownError(error: unknown): unknown {

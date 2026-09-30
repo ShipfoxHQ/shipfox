@@ -1238,9 +1238,11 @@ function toRunCreationKnownError(
   const workspaceError = toWorkspaceAdmissionKnownError(method, error);
   if (workspaceError !== undefined) return workspaceError;
   if (error instanceof AgentConfigUnresolvableError) {
-    return createInterModuleKnownError(method, 'agent-config-unresolvable', {
-      definitionId: error.definitionId,
-    });
+    return createInterModuleKnownError(
+      method,
+      'agent-config-unresolvable',
+      agentConfigUnresolvableDetails(error),
+    );
   }
   if (error instanceof AgentIntegrationMaterializationError) {
     return createInterModuleKnownError(method, 'agent-integration-materialization-failed', {});
@@ -1320,4 +1322,15 @@ function toWorkspaceAdmissionKnownError(
     });
   }
   return undefined;
+}
+
+function agentConfigUnresolvableDetails(error: AgentConfigUnresolvableError) {
+  return {
+    definitionId: error.definitionId,
+    ...(error.reason === undefined ? {} : {reason: error.reason}),
+    ...(error.model === undefined ? {} : {model: error.model}),
+    ...(error.provider === undefined ? {} : {provider: error.provider}),
+    ...(error.jobKey === undefined ? {} : {jobKey: error.jobKey}),
+    ...(error.step === undefined ? {} : {step: error.step}),
+  };
 }

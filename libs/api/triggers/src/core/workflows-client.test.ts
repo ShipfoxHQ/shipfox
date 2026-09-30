@@ -259,6 +259,41 @@ describe('WorkflowsModuleClient consumer parity', () => {
     });
   });
 
+  test('keeps the reason, model, provider and location of an agent configuration failure', () => {
+    const error = createInterModuleKnownError(
+      workflowsInterModuleContract.methods.startRunFromTrigger,
+      'agent-config-unresolvable',
+      {
+        definitionId: input.definitionId,
+        reason: 'model-unknown',
+        model: 'gpt-9',
+        provider: 'openai',
+        jobKey: 'review',
+        step: {key: 'summarize', index: 3},
+      },
+    );
+
+    expect(startRunDiagnostic(error)).toEqual({
+      version: 1,
+      code: 'agent-config-unresolvable',
+      reason: 'model-unknown',
+      model: 'gpt-9',
+      provider: 'openai',
+      jobKey: 'review',
+      step: {key: 'summarize', index: 3},
+    });
+  });
+
+  test('records an agent configuration failure without a cause as the bare code', () => {
+    const error = createInterModuleKnownError(
+      workflowsInterModuleContract.methods.startRunFromTrigger,
+      'agent-config-unresolvable',
+      {definitionId: input.definitionId},
+    );
+
+    expect(startRunDiagnostic(error)).toEqual({version: 1, code: 'agent-config-unresolvable'});
+  });
+
   test('preserves checked workflow start details and classifies unknown failures', () => {
     const labelsError = createInterModuleKnownError(
       workflowsInterModuleContract.methods.startRunFromTrigger,

@@ -4,6 +4,7 @@ import {
   fireManualTriggerBodySchema,
   fireManualTriggerResponseSchema,
 } from '@shipfox/api-triggers-dto';
+import {agentConfigInvalidReasonSchema} from '@shipfox/api-workflows-dto';
 import {
   type WorkflowsModuleClient,
   workflowsInterModuleContract,
@@ -19,22 +20,33 @@ import {fireManualTrigger} from '#core/fire-manual.js';
 import {getManualSubscriptionByDefinitionId} from '#db/subscriptions.js';
 import {mapStartRunError} from './map-start-run-error.js';
 
+const startRunStepSchema = z.object({
+  key: z.string().optional(),
+  name: z.string().optional(),
+  index: z.number().int(),
+});
+
 const startRunErrorDetailsSchema = z.union([
   z.object({
     field: z.string(),
     limit_bytes: z.number().int().positive(),
     measured_bytes: z.number().int().positive(),
   }),
-  z.object({definition_id: z.string()}),
+  z.object({
+    definition_id: z.string(),
+    reason: agentConfigInvalidReasonSchema.optional(),
+    model: z.string().optional(),
+    provider: z.string().optional(),
+    job_key: z.string().optional(),
+    step: startRunStepSchema.optional(),
+  }),
   z.object({
     field: z.string(),
     source: z.string(),
     env_key: z.string().optional(),
     variable_key: z.string().optional(),
     job_key: z.string().optional(),
-    step: z
-      .object({key: z.string().optional(), name: z.string().optional(), index: z.number().int()})
-      .optional(),
+    step: startRunStepSchema.optional(),
   }),
   z.object({labels: z.array(z.string())}),
   z.object({key: z.string()}),

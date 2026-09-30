@@ -1,6 +1,7 @@
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
 import {z} from 'zod';
 import {
+  agentConfigInvalidReasonSchema,
   agentRuntimeCredentialsResponseSchema,
   agentSessionDescriptorSchema,
   agentThinkingSchema,
@@ -193,7 +194,10 @@ export const agentInterModuleContract = defineInterModuleContract({
       output: resolvedAgentConfigSchema,
       errors: {
         'agent-config-invalid': z.object({
+          reason: agentConfigInvalidReasonSchema,
           message: z.string().min(1).optional(),
+          model: z.string().optional(),
+          provider: z.string().optional(),
           managed_provider_id: modelProviderRefSchema.optional(),
         }),
       },

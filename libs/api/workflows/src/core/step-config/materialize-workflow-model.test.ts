@@ -528,7 +528,7 @@ describe('materializeWorkflowModel', () => {
       throw createInterModuleKnownError(
         agentInterModuleContract.methods.resolveAgentConfig,
         'agent-config-invalid',
-        {},
+        {reason: 'model-unknown', model: 'gpt-9', provider: 'openai'},
       );
     });
 
