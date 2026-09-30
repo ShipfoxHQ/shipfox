@@ -1,4 +1,13 @@
 export {
+  buildAgentSessionEnvelope,
+  buildIssueUpdateEnvelope,
+  type LinearEventTarget,
+  type LinearIssueFixtureData,
+  postLinearAgentSession,
+  postLinearIssueUpdate,
+  signLinearHeaders,
+} from './linear-events.js';
+export {
   LINEAR_READ_RESULT_MARKER,
   LINEAR_UPLOAD_FIXTURES,
   LINEAR_UPLOADS_PATH,
