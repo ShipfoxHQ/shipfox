@@ -32,6 +32,7 @@ import {type PullRequestReference, resolveReferences} from './references.js';
 import type {CaseResult} from './results.js';
 import {runScenario, type ScenarioDriver, ScenarioError} from './scenario.js';
 import type {TemplateCase} from './schema.js';
+import {agentStepKeys} from './scripted.js';
 import type {EventSenders} from './senders.js';
 import {checkOutputs, checkWrites} from './writes.js';
 
@@ -335,6 +336,14 @@ async function arrange({
     json: {project_id: project.id, source: 'manual', yaml},
   });
   const script = options.mode === 'scripted' ? discovered.script : undefined;
+  // Without a script, the managed provider answers every request with fixed text, and a step
+  // without outputs would pass on it.
+  const agentSteps = agentStepKeys(yaml);
+  if (options.mode === 'scripted' && script === undefined && agentSteps.length > 0) {
+    throw new Error(
+      `The case has agent steps (${agentSteps.join(', ')}) but no scripted.yaml for scripted mode.`,
+    );
+  }
   if (script !== undefined) {
     await registerScriptedManagedProvider({projectId: project.id, entries: script});
   }

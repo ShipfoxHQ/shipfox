@@ -352,7 +352,8 @@ errors or fails its expectations.
 
 A case with agent steps puts their model replies in `scripted.yaml`, next to
 `case.yaml`. In scripted mode the runner registers it with the scripted
-managed provider for the case's project. Each entry has a `match` with
+managed provider for the case's project, and refuses a case with agent steps
+but no script. Each entry has a `match` with
 `prompt_contains` and a list of `replies`, each a `text` or a `tool` call with
 `args`. A step attempt's first request picks the first entry whose text it
 contains. So an entry that continues a shared session goes before the entry

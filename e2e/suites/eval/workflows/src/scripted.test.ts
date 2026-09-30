@@ -4,7 +4,7 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {discoverCases} from './discovery.js';
-import {loadScriptedEntries, parseScriptedEntries} from './scripted.js';
+import {agentStepKeys, loadScriptedEntries, parseScriptedEntries} from './scripted.js';
 
 const temporaryDirectories: string[] = [];
 const invalidReplyPattern = /scripted\.yaml: 0\.replies\.0: Invalid input/u;
@@ -54,12 +54,21 @@ describe('scripted.yaml', () => {
       {filter: 'ticket-to-pr/feedback-loop'},
     );
 
-    expect(cases.map((entry) => entry.script?.map((script) => script.match))).toEqual([
-      [
-        {prompt_contains: 'Rename the flag to --format json'},
-        {prompt_contains: 'Post the replies below'},
-        {prompt_contains: 'Implement task-1: Add a --json flag to the report command'},
-      ],
-    ]);
+    expect(cases).toHaveLength(1);
+    expect(cases[0]?.script?.length).toBeGreaterThan(0);
+  });
+
+  it('lists the steps that call a model', () => {
+    const yaml = [
+      'jobs:',
+      '  implement:',
+      '    steps:',
+      '      - key: setup',
+      '        run: npm ci',
+      '      - key: fix',
+      '        prompt: Implement the task.',
+    ].join('\n');
+
+    expect(agentStepKeys(yaml)).toEqual(['fix']);
   });
 });

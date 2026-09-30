@@ -56,3 +56,15 @@ export async function loadScriptedEntries(
   }
   return parseScriptedEntries(document, scriptPath);
 }
+
+/** The keys of the steps that call a model, which a scripted case must have replies for. */
+export function agentStepKeys(yaml: string): string[] {
+  const document = parseYaml(yaml) as {
+    jobs?: Record<string, {steps?: Array<{key?: string; prompt?: unknown}>}>;
+  };
+  return Object.values(document.jobs ?? {}).flatMap((job) =>
+    (job.steps ?? []).flatMap((step) =>
+      step.prompt === undefined ? [] : [step.key ?? '<unnamed step>'],
+    ),
+  );
+}
