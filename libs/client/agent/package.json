@@ -76,6 +76,7 @@
     "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
     "@shipfox/client-shell": "workspace:*",
+    "@shipfox/policy-notice": "workspace:*",
     "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:",

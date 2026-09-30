@@ -98,7 +98,7 @@ describe('model provider transport', () => {
         locked: {
           label: 'Add credits to use',
           message: 'Add credits to run this model.',
-          action: {message: 'Add credits', url: '/billing'},
+          action: {reason: 'add-credits', message: 'Add credits', url: '/billing'},
         },
       },
       {id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5'},

@@ -1,6 +1,16 @@
-import type {ComponentType, PropsWithChildren} from 'react';
+import type {RequiredAction} from '@shipfox/policy-notice';
+import type {ComponentType, PropsWithChildren, ReactNode} from 'react';
 import {createContext, useContext} from 'react';
 import type {ProjectSlugResolver} from './router-context.js';
+
+export type RequiredActionAppearance = 'button' | 'link';
+
+export interface RequiredActionIntentProps {
+  action: RequiredAction & {intent: string};
+  appearance: RequiredActionAppearance;
+  /** The default rendering of `action.url`. Render it for intents the slot does not handle. */
+  fallback: ReactNode;
+}
 
 export interface ChromeSlots {
   ProjectBreadcrumb: ComponentType;
@@ -55,6 +65,12 @@ export interface ChromeSlots {
    * fully visible and the content area stays consistent.
    */
   SessionBanner?: ComponentType;
+  /**
+   * Optional handler for required actions that carry an `intent`, inside an
+   * error boundary that renders `fallback` on failure. Every action without an
+   * intent, and every action when the slot is absent, renders its `url`.
+   */
+  RequiredActionIntent?: ComponentType<RequiredActionIntentProps>;
 }
 
 const ChromeContext = createContext<ChromeSlots | undefined>(undefined);
@@ -70,4 +86,9 @@ export function useChrome(): ChromeSlots {
   const chrome = useContext(ChromeContext);
   if (!chrome) throw new Error('Client composition must provide browser chrome slots.');
   return chrome;
+}
+
+/** Reads the chrome slots without requiring a provider, for components that work without any slot. */
+export function useOptionalChrome(): ChromeSlots | undefined {
+  return useContext(ChromeContext);
 }

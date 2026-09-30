@@ -1,3 +1,5 @@
+import type {RequiredAction} from '@shipfox/policy-notice';
+
 export type HarnessId = 'pi' | 'claude';
 export type WorkspaceProvidersPolicy = 'enabled' | 'disabled';
 export type ProviderApi =
@@ -17,7 +19,7 @@ export interface HarnessDescriptor {
 export interface ModelLock {
   readonly label: string;
   readonly message: string;
-  readonly action?: {readonly message: string; readonly url: string} | undefined;
+  readonly action?: RequiredAction | undefined;
 }
 
 export interface AgentModel {

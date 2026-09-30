@@ -61,3 +61,39 @@ test('maps configuration response defaults and provider config fields', () => {
     expect.objectContaining({providerId: 'anthropic', defaultModel: null}),
   );
 });
+
+test('keeps the intent of the required action on a locked model', () => {
+  const catalog = toProviderCatalog(
+    modelProviderCatalogResponse([
+      modelProviderEntry({
+        models: [
+          {
+            id: 'claude-opus-4-8',
+            label: 'Claude Opus 4.8',
+            locked: {
+              label: 'Contact us to use',
+              notice: {
+                reason: 'model-locked',
+                message: 'Ask support to enable this model.',
+                requiredAction: {
+                  reason: 'model-locked',
+                  message: 'Contact us',
+                  url: 'mailto:support@shipfox.io',
+                  intent: 'contact-support',
+                },
+              },
+            },
+          },
+        ],
+      }),
+    ]),
+  );
+
+  const provider = catalog.providers[0];
+  expect(provider?.kind === 'supported' ? provider.models[0]?.locked?.action : undefined).toEqual({
+    reason: 'model-locked',
+    message: 'Contact us',
+    url: 'mailto:support@shipfox.io',
+    intent: 'contact-support',
+  });
+});

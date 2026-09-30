@@ -6419,6 +6419,9 @@ importers:
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui
+      '@shipfox/policy-notice':
+        specifier: workspace:*
+        version: link:../../shared/common/policy-notice
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
@@ -7655,6 +7658,9 @@ importers:
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui
+      '@shipfox/policy-notice':
+        specifier: workspace:*
+        version: link:../../shared/common/policy-notice
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui

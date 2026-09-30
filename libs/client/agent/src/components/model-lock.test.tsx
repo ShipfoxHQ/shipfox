@@ -5,7 +5,7 @@ import {ModelLockNotices} from './model-lock.js';
 const CREDITS_LOCK: ModelLock = {
   label: 'Add credits to use',
   message: 'A step that uses this model fails until you add credits.',
-  action: {message: 'Add credits', url: '/billing'},
+  action: {reason: 'add-credits', message: 'Add credits', url: '/billing'},
 };
 
 function model(label: string, locked?: ModelLock): AgentModel {

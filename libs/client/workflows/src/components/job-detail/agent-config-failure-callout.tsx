@@ -1,3 +1,4 @@
+import {RequiredActionLink} from '@shipfox/client-shell/runtime';
 import type {RequiredAction} from '@shipfox/policy-notice';
 import {
   Alert,
@@ -43,9 +44,7 @@ export function AgentConfigFailureCallout({
         ) : null}
         {copy.requiredAction ? (
           <AlertActions>
-            <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
-              <a href={copy.requiredAction.url}>{copy.requiredAction.message}</a>
-            </Button>
+            <RequiredActionLink action={copy.requiredAction} appearance="button" />
           </AlertActions>
         ) : null}
       </AlertContent>

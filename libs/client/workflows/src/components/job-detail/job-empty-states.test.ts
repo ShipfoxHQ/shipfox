@@ -212,12 +212,22 @@ describe('runner_not_allowed failure', () => {
     execution.statusReasonNotice = {
       reason: 'machine-not-allowed',
       message: 'This workspace cannot use 16 vCPU runners.',
-      requiredAction: {reason: 'add-credits', message: 'Add credits', url: '/settings/billing'},
+      requiredAction: {
+        reason: 'add-credits',
+        message: 'Add credits',
+        url: '/settings/billing',
+        intent: 'contact-support',
+      },
     };
 
     expect(emptyStateForJob(job, execution)).toMatchObject({
       description: 'This workspace cannot use 16 vCPU runners.',
-      action: {label: 'Add credits', href: '/settings/billing'},
+      action: {
+        reason: 'add-credits',
+        message: 'Add credits',
+        url: '/settings/billing',
+        intent: 'contact-support',
+      },
     });
   });
 
