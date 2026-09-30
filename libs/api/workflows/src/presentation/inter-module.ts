@@ -4,6 +4,7 @@ import {
   materializedAgentStepConfigSchema,
 } from '@shipfox/api-agent-dto';
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
+import {type WorkflowModel, workflowModelFromSnapshot} from '@shipfox/api-definitions-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {
@@ -76,6 +77,7 @@ import {
 } from '#core/index.js';
 import {resolveWorkflowRunTriggerReference} from '#core/resolve-trigger-reference.js';
 import {cancelWorkflowRun, rerunWorkflowRun} from '#core/run-actions.js';
+import {checkVariableReadiness} from '#core/run-readiness.js';
 import {
   assertWorkspaceAdmitsNewJobs,
   type WorkflowAdmissionPolicy,
@@ -204,6 +206,24 @@ async function getLifecycleEventProject(
   }
 }
 
+/**
+ * Load the models readiness checks, in the order requested. An id that names no definition,
+ * or one in another project, is left out, as run creation would refuse it.
+ */
+async function loadReadinessDefinitions(
+  definitions: DefinitionsInterModuleClient,
+  input: {projectId: string; definitionIds: readonly string[]},
+): Promise<{definitionId: string; model: WorkflowModel}[]> {
+  const loaded = await Promise.all(
+    [...new Set(input.definitionIds)].map(async (definitionId) => {
+      const {definition} = await definitions.getDefinitionForWorkflowRun({definitionId});
+      if (!definition || definition.projectId !== input.projectId) return null;
+      return {definitionId, model: workflowModelFromSnapshot(definition.model)};
+    }),
+  );
+  return loaded.filter((entry) => entry !== null);
+}
+
 function toLifecycleEventContext(
   context: LifecycleEventContextRead,
   project: LifecycleEventProject,
@@ -252,7 +272,7 @@ export function createWorkflowsInterModulePresentation(params: {
   annotations?: AnnotationsInterModuleClient;
   definitions: DefinitionsInterModuleClient;
   workspaces: WorkspacesInterModuleClient;
-  secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>;
+  secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace' | 'listVariableNames'>;
   runners: RunnersInterModuleClient;
   integrations: IntegrationsModuleClient;
   projects: ProjectsModuleClient;
@@ -324,6 +344,27 @@ export function createWorkflowsInterModulePresentation(params: {
 
   return defineInterModulePresentation(workflowsInterModuleContract, {
     listRunnerCatalogNames: async () => listRunnerCatalogNames(params.runnerCatalog),
+    checkRunReadiness: async (input) => {
+      const definitions = await loadReadinessDefinitions(params.definitions, input);
+      if (definitions.length === 0) return {definitions: []};
+
+      // The name lists are exact-scope, so a run sees the union of both.
+      const [workspaceNames, projectNames] = await Promise.all([
+        params.secrets.listVariableNames({workspaceId: input.workspaceId}),
+        params.secrets.listVariableNames({
+          workspaceId: input.workspaceId,
+          projectId: input.projectId,
+        }),
+      ]);
+      const definedNames = new Set([...workspaceNames.names, ...projectNames.names]);
+
+      return {
+        definitions: definitions.map(({definitionId, model}) => ({
+          definitionId,
+          issues: checkVariableReadiness({model, definedNames}),
+        })),
+      };
+    },
     startRunFromTrigger: async (input) => {
       const isChildRunStart = hasChildRunParent(input);
       try {
