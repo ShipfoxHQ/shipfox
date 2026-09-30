@@ -1,6 +1,6 @@
 # @shipfox/e2e-driver-jira
 
-A fake Jira REST API for E2E suites. The fake stands in for `api.atlassian.com` at the address the API reads from `JIRA_API_BASE_URL`, and serves the `/ex/jira/<cloudId>/rest/api/3` routes the Jira agent tools call. Faking Jira is on purpose: it is the external system under integration.
+A fake Jira REST API and signed webhook sender for E2E suites. The fake stands in for `api.atlassian.com` at the address the API reads from `JIRA_API_BASE_URL`, and serves the `/ex/jira/<cloudId>/rest/api/3` routes the Jira agent tools call. Faking Jira is on purpose: it is the external system under integration.
 
 ## Public API
 
@@ -12,6 +12,13 @@ A fake Jira REST API for E2E suites. The fake stands in for `api.atlassian.com` 
   methods get a 404 or 405 and are not recorded.
 - `JiraApiMock.writes()`: the writes the fake accepted, as `RecordedWrite` entries targeted at
   the issue key, or at the project for a created issue.
+- `postJiraIssueEvent(params)`: post a signed `jira:issue_created` or `jira:issue_updated` delivery
+  to the API's Jira webhook route and return the delivery ID the API records for it, for correlating
+  a run when a matching trigger starts one. Signing reads `JIRA_OAUTH_CLIENT_SECRET`, which the E2E
+  harness sets. `connectionId` and `webhookId` must belong to a connection made with
+  `createJiraConnection` and its `webhookIds`.
+- `buildJiraIssueEnvelope`: the payload, in the shape of Jira's webhooks, for suites that post it
+  another way.
 
 ## Local Checks
 

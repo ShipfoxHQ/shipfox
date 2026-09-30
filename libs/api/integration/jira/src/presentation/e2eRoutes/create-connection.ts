@@ -7,6 +7,8 @@ import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {ConnectJiraInstallationInput} from '#core/install.js';
 import type {JiraTokenStore} from '#core/tokens.js';
+import {JIRA_WEBHOOK_TTL_MS} from '#core/webhook-registration.js';
+import {updateJiraInstallationWebhook} from '#db/installations.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
 
 export interface CreateE2eJiraConnectionRouteOptions {
@@ -19,6 +21,7 @@ export interface CreateE2eJiraConnectionRouteOptions {
   ) => Promise<IntegrationConnection<'jira'>>;
   disconnectJiraInstallation: (input: {connectionId: string}) => Promise<void>;
   connectionCapabilities: IntegrationCapability[];
+  updateInstallationWebhook?: typeof updateJiraInstallationWebhook | undefined;
 }
 
 export function createE2eJiraConnectionRoute(options: CreateE2eJiraConnectionRouteOptions) {
@@ -63,6 +66,16 @@ export function createE2eJiraConnectionRoute(options: CreateE2eJiraConnectionRou
       } catch (error) {
         if (!existing) await bestEffortDisconnectJiraInstallation(options, connection.id);
         throw error;
+      }
+
+      // A real install records the IDs of the webhooks Jira registers, and the receiver discards
+      // deliveries that match none of them.
+      if (body.webhook_ids.length > 0) {
+        await (options.updateInstallationWebhook ?? updateJiraInstallationWebhook)({
+          connectionId: connection.id,
+          webhookIds: body.webhook_ids,
+          webhookExpiresAt: new Date(Date.now() + JIRA_WEBHOOK_TTL_MS),
+        });
       }
 
       reply.code(201);

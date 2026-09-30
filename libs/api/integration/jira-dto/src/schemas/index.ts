@@ -161,6 +161,10 @@ export const createE2eJiraConnectionBodySchema = z.object({
   display_name: z.string().min(1),
   access_token: z.string().min(1),
   refresh_token: z.string().min(1).optional(),
+  webhook_ids: z
+    .array(z.number().int().positive())
+    .default([])
+    .describe('Jira webhook IDs the connection accepts deliveries for.'),
 });
 export type CreateE2eJiraConnectionBodyDto = z.infer<typeof createE2eJiraConnectionBodySchema>;
 

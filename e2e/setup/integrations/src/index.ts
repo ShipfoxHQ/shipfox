@@ -180,6 +180,8 @@ export interface CreateJiraConnectionParams {
   accessToken: string;
   refreshToken?: string | undefined;
   scopes?: string[] | undefined;
+  /** Jira webhook IDs the connection accepts deliveries for, needed to receive webhook events. */
+  webhookIds?: number[] | undefined;
 }
 
 function jiraConnectionBody(params: CreateJiraConnectionParams): CreateE2eJiraConnectionBodyDto {
@@ -193,6 +195,7 @@ function jiraConnectionBody(params: CreateJiraConnectionParams): CreateE2eJiraCo
     display_name: params.displayName,
     access_token: params.accessToken,
     ...(params.refreshToken === undefined ? {} : {refresh_token: params.refreshToken}),
+    webhook_ids: params.webhookIds ?? [],
   };
 }
 

@@ -5,3 +5,11 @@ export {
   type JiraApiMockCall,
   startJiraApiMock,
 } from './jira-api.js';
+export {
+  buildJiraIssueEnvelope,
+  type JiraIssueEventName,
+  type JiraIssueEventParams,
+  type JiraIssueFixtureData,
+  postJiraIssueEvent,
+  signJiraAuthorization,
+} from './jira-events.js';
