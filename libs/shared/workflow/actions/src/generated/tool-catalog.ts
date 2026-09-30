@@ -29,6 +29,12 @@ export interface ProviderToolCatalog {
      */
     update_task: {arguments: ClickupUpdateTaskArguments; result: 'json'};
   };
+  discord: {
+    /**
+     * Read messages from a Discord channel or thread in reverse chronological order (newest first). Page with a message ID in either before or after, not both.
+     */
+    read_channel: {arguments: DiscordReadChannelArguments; result: 'json'};
+  };
   gitea: {
     /**
      * Add a comment to a Gitea issue in a repository of the connected organization. Returns the created comment.
@@ -1046,6 +1052,25 @@ export interface ClickupUpdateTaskArguments {
   assignees?: {
     [k: string]: unknown;
   };
+}
+
+export interface DiscordReadChannelArguments {
+  /**
+   * ID of a channel or thread in the connected Discord server
+   */
+  channel_id: string;
+  /**
+   * Messages to return, 1 to 100 (default 50)
+   */
+  limit?: number;
+  /**
+   * Only return messages older than this message ID
+   */
+  before?: string;
+  /**
+   * Only return messages newer than this message ID
+   */
+  after?: string;
 }
 
 export interface GiteaCommentOnIssueArguments {

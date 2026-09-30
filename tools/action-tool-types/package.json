@@ -17,6 +17,7 @@
   "dependencies": {
     "@biomejs/biome": "catalog:",
     "@shipfox/api-integration-clickup": "workspace:*",
+    "@shipfox/api-integration-discord": "workspace:*",
     "@shipfox/api-integration-gitea": "workspace:*",
     "@shipfox/api-integration-github": "workspace:*",
     "@shipfox/api-integration-jira": "workspace:*",
