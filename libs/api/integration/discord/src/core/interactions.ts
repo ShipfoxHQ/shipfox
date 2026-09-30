@@ -26,6 +26,7 @@ export const DISCORD_ACK_UNSUPPORTED = 'This action is not supported.';
 
 const VIEW_CHANNEL = 1n << 10n;
 const SEND_MESSAGES = 1n << 11n;
+const SEND_MESSAGES_IN_THREADS = 1n << 38n;
 const EPHEMERAL_FLAG = 64;
 const decimalPattern = /^\d+$/;
 const THREAD_CHANNEL_TYPES = new Set([10, 11, 12]);
@@ -146,7 +147,7 @@ export async function handleDiscordCommand(
   return {
     outcome: result.published ? 'published' : 'duplicate',
     response: discordEphemeralMessage(
-      canPostInChannel(interaction.app_permissions) ? DISCORD_ACK_WORKING : DISCORD_ACK_CANNOT_POST,
+      canPostInChannel(interaction) ? DISCORD_ACK_WORKING : DISCORD_ACK_CANNOT_POST,
     ),
   };
 }
@@ -158,10 +159,15 @@ function unsupported(): DiscordCommandResult {
   };
 }
 
-function canPostInChannel(appPermissions: string | undefined): boolean {
+function canPostInChannel(interaction: DiscordInteractionEnvelopeDto): boolean {
+  const appPermissions = interaction.app_permissions;
   if (!appPermissions || !decimalPattern.test(appPermissions)) return false;
   const permissions = BigInt(appPermissions);
-  return (permissions & VIEW_CHANNEL) !== 0n && (permissions & SEND_MESSAGES) !== 0n;
+  // Threads have their own send permission, so SEND_MESSAGES alone does not let the bot reply there.
+  const sendPermission = channelPlacement(interaction).threadId
+    ? SEND_MESSAGES_IN_THREADS
+    : SEND_MESSAGES;
+  return (permissions & VIEW_CHANNEL) !== 0n && (permissions & sendPermission) !== 0n;
 }
 
 function buildCommandEvent(

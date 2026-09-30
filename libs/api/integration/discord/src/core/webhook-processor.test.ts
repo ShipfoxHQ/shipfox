@@ -267,6 +267,7 @@ describe('Discord webhook processor', () => {
       const interaction = slashInteraction({
         channel_id: 'thread-1',
         channel: {id: 'thread-1', type: 11, parent_id: 'forum-1'},
+        app_permissions: String((1n << 10n) | (1n << 38n)),
       });
       const {connection, processor, publishIntegrationEventReceived} = await arrange();
 
@@ -444,6 +445,26 @@ describe('Discord webhook processor', () => {
       );
 
       expect(response).toEqual(ephemeral(DISCORD_ACK_WORKING));
+    });
+
+    it.each([
+      ['SEND_MESSAGES only', String((1n << 10n) | (1n << 11n)), DISCORD_ACK_CANNOT_POST],
+      ['SEND_MESSAGES_IN_THREADS', String((1n << 10n) | (1n << 38n)), DISCORD_ACK_WORKING],
+    ])('checks thread posting with %s in a thread', async (_name, permissions, ack) => {
+      const {processor} = await arrange();
+
+      const {response} = await processor.processInteraction(
+        signedInteractionRequest({
+          signer,
+          interaction: slashInteraction({
+            channel_id: 'thread-1',
+            channel: {id: 'thread-1', type: 11, parent_id: 'channel-1'},
+            app_permissions: permissions,
+          }),
+        }),
+      );
+
+      expect(response).toEqual(ephemeral(ack));
     });
 
     it.each([

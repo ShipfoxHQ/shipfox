@@ -65,7 +65,7 @@ The executable environment contract is defined in [`src/config.ts`](src/config.t
 6. The `shipfox` slash command and the `Send to Shipfox` message command publish `slash_command` or `message_command` with the interaction id as the delivery id. The interaction `token` is removed from the payload.
 7. Any other interaction gets an ephemeral "This action is not supported."
 
-Commands are answered with an ephemeral message. It says the server is not connected when the guild has no active connection, warns that replies may not appear when `app_permissions` lacks `VIEW_CHANNEL` or `SEND_MESSAGES`, and otherwise says "Working on it."
+Commands are answered with an ephemeral message. It says the server is not connected when the guild has no active connection, warns that replies may not appear when `app_permissions` lacks `VIEW_CHANNEL` or `SEND_MESSAGES` (`SEND_MESSAGES_IN_THREADS` in a thread), and otherwise says "Working on it."
 
 `createDiscordE2eRoutes` registers `POST /integrations/discord-connections` under the E2E route prefix. It accepts the Discord DTO seed body and returns the integration connection DTO. This route is for test setup, not production clients.
 
