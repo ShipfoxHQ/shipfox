@@ -90,6 +90,7 @@
     "@shipfox/e2e-driver-linear": "workspace:*",
     "@shipfox/e2e-driver-slack": "workspace:*",
     "@shipfox/e2e-driver-clickup": "workspace:*",
+    "@shipfox/e2e-driver-jira": "workspace:*",
     "@shipfox/e2e-driver-notion": "workspace:*",
     "@shipfox/e2e-driver-posthog": "workspace:*"
   }

@@ -10,6 +10,7 @@ import {
   e2eClickUpApiBaseUrl,
   e2eDiscordApiBaseUrl,
   e2eEnv,
+  e2eJiraApiBaseUrl,
   e2eNotionApiBaseUrl,
   e2ePosthogApiBaseUrl,
   e2ePosthogMcpEndpoint,
@@ -104,6 +105,7 @@ describe('e2eEnv', () => {
     assert.equal(env.DISCORD_GATEWAY_ENABLED, 'false');
     assert.equal(env.INTEGRATIONS_ENABLE_NOTION_PROVIDER, 'true');
     assert.equal(env.NOTION_API_BASE_URL, 'http://127.0.0.1:55366/');
+    assert.equal(env.JIRA_API_BASE_URL, 'http://127.0.0.1:55369/');
     assert.equal(env.NOTION_WEBHOOK_VERIFICATION_TOKEN, 'e2e-notion-verification-token');
     assert.equal(env.JIRA_OAUTH_CLIENT_ID, 'e2e-jira-client-id');
     assert.equal(env.JIRA_OAUTH_CLIENT_SECRET, 'e2e-jira-client-secret');
@@ -150,6 +152,7 @@ describe('e2eEnv', () => {
       CLICKUP_API_BASE_URL: 'http://127.0.0.1:16123',
       DISCORD_API_BASE_URL: 'http://127.0.0.1:16127',
       NOTION_API_BASE_URL: 'http://127.0.0.1:16124',
+      JIRA_API_BASE_URL: 'http://127.0.0.1:16128',
       POSTHOG_API_BASE_URL: 'https://posthog-api.example.test',
       POSTHOG_MCP_ENDPOINT: 'https://posthog-mcp.example.test/mcp',
       SHIPFOX_API_URL: 'http://localhost:55351',
@@ -174,6 +177,7 @@ describe('e2eEnv', () => {
     assert.equal(env.CLICKUP_API_BASE_URL, 'http://127.0.0.1:16123');
     assert.equal(env.DISCORD_API_BASE_URL, 'http://127.0.0.1:16127');
     assert.equal(env.NOTION_API_BASE_URL, 'http://127.0.0.1:16124');
+    assert.equal(env.JIRA_API_BASE_URL, 'http://127.0.0.1:16128');
     assert.equal(env.POSTHOG_API_BASE_URL, 'https://posthog-api.example.test');
     assert.equal(env.POSTHOG_MCP_ENDPOINT, 'https://posthog-mcp.example.test/mcp');
     assert.equal(env.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS, '600');
@@ -248,6 +252,7 @@ describe('e2eEnv', () => {
         e2eEnv({
           API_URL: 'http://localhost:65522',
           DISCORD_API_BASE_URL: 'http://127.0.0.1:1',
+          JIRA_API_BASE_URL: 'http://127.0.0.1:1',
           NOTION_API_BASE_URL: 'http://127.0.0.1:1',
         }),
       /Cannot derive a test VCS port/u,
@@ -258,6 +263,12 @@ describe('e2eEnv', () => {
 describe('e2eDiscordApiBaseUrl', () => {
   test('reserves the Discord API port after the API port', () => {
     assert.equal(e2eDiscordApiBaseUrl('http://localhost:16101'), 'http://127.0.0.1:16118/');
+  });
+});
+
+describe('e2eJiraApiBaseUrl', () => {
+  test('reserves the last port of the API block for the Jira API', () => {
+    assert.equal(e2eJiraApiBaseUrl('http://localhost:16101'), 'http://127.0.0.1:16119/');
   });
 });
 

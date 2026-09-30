@@ -1347,6 +1347,31 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/vitest
 
+  e2e/drivers/jira:
+    dependencies:
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
   e2e/drivers/linear:
     dependencies:
       '@modelcontextprotocol/sdk':
@@ -2501,6 +2526,9 @@ importers:
       '@shipfox/e2e-driver-github':
         specifier: workspace:*
         version: link:../../../drivers/github
+      '@shipfox/e2e-driver-jira':
+        specifier: workspace:*
+        version: link:../../../drivers/jira
       '@shipfox/e2e-driver-linear':
         specifier: workspace:*
         version: link:../../../drivers/linear
