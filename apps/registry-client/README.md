@@ -41,6 +41,17 @@ mise exec -- pnpm --filter @shipfox/registry-client image
 The image runs the standalone server on port 3000. Set `REGISTRY_URL` and
 `REGISTRY_CLIENT_PUBLIC_URL` when you start the container.
 
+## Deployment
+
+`www.shipfox.io/registry` is served by a Vercel project built from
+`vercel.json`, the way the docs are. The cloud landing app proxies `/registry`
+to it through its `REGISTRY_BASE_URL`. Set these on the Vercel project:
+
+- `REGISTRY_URL`: `https://api.registry.shipfox.io` in production and
+  `https://api.registry.staging.shipfox.io` in staging.
+- `REGISTRY_CLIENT_PUBLIC_URL`: `https://www.shipfox.io/registry`, so canonical
+  links and the sitemap use the public host and base path.
+
 ## Usage
 
 Open a package page by its registry name:
