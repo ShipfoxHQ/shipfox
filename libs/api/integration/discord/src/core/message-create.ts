@@ -135,7 +135,7 @@ export function normalizeMessageCreate(params: {
 }
 
 /** A thread message lives in its parent, so a thread whose parent is unknown has no root. */
-function rootChannel(params: {channelId: string; placement: ChannelPlacement | undefined}) {
+export function rootChannel(params: {channelId: string; placement: ChannelPlacement | undefined}) {
   const {channelId, placement} = params;
   if (!placement) return {};
   if (!placement.isThread) return {root_channel_id: channelId};

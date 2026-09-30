@@ -7,6 +7,7 @@ import {
   type DiscordGuildLifecycleOptions,
 } from './gateway-guild-lifecycle.js';
 import {type DiscordMessageHandlerOptions, handleDiscordMessageCreate} from './message-create.js';
+import {handleDiscordReactionAdd} from './message-reaction-add.js';
 
 export interface CreateDiscordGatewayHandlersOptions
   extends Omit<DiscordMessageHandlerOptions, 'channels'>,
@@ -59,6 +60,15 @@ export function createDiscordGatewayHandlers(
       const outcome = await handleDiscordMessageCreate({...messageOptions, channels}, d);
       // A failure is recorded by the dispatch queue, and an ignored message has no metric label.
       if (outcome !== 'ignored') recordDiscordGatewayDispatch({event: 'message_create', outcome});
+    },
+    MESSAGE_REACTION_ADD: async (payload, context) => {
+      const outcome = await handleDiscordReactionAdd(
+        {...messageOptions, channels},
+        {data: payload.d, sessionId: context?.sessionId ?? null, sequence: payload.s},
+      );
+      if (outcome !== 'ignored') {
+        recordDiscordGatewayDispatch({event: 'message_reaction_add', outcome});
+      }
     },
   };
 }

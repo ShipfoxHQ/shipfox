@@ -155,7 +155,7 @@ The leader runs one shard (`shardCount: 1`) with the `GUILDS`, `GUILD_MESSAGES`,
 - **Identify guard.** Every Identify waits on the manager's throttler: 5 s apart, refused below 100 remaining starts until `reset_after`, and `shards > 1` reported once. It waits and never throws, because a throw makes the library retry after 500 ms. Reports use the `integrations.discord.gateway` boundary.
 - **Backoff.** Failed connects retry after 5 s, doubling up to 5 minutes, with jitter that only shortens the delay.
 
-## Message ingestion
+## Message and reaction ingestion
 
 `createDiscordGatewayHandlers` publishes `MESSAGE_CREATE` as `message_create`:
 
@@ -164,7 +164,9 @@ The leader runs one shard (`shardCount: 1`) with the `GUILDS`, `GUILD_MESSAGES`,
 3. `thread_id` and `root_channel_id` come from the channel cache: the channel itself for a top-level message, the parent for a thread message or forum post. The cache is fed by `GUILD_CREATE`, `THREAD_LIST_SYNC`, and the channel and thread create and update dispatches, and dropped on `CHANNEL_DELETE` and `THREAD_DELETE`. Entries never expire. A miss makes one `GET /channels/{id}`, and if it fails the event publishes without `thread_id` and `root_channel_id`. A resume sends no `GUILD_CREATE`, so the cache starts empty after a takeover.
 4. The event publishes in one transaction with the message id as the delivery id. A duplicate from a resume replay or a second session publishes nothing. A publish failure throws, so the committed mark stays below the message.
 
-Dispatches without a handler are skipped and committed, and reactions are not published yet. Do not enable `DISCORD_GATEWAY_ENABLED` in staging or production until the reaction handler is deployed.
+`MESSAGE_REACTION_ADD` publishes as `message_reaction_add` through the same guild, connection, and channel-cache checks. `member.user.bot` is always a boolean, and `root_channel_id` and `url` describe the reacted message. A reaction has no id of its own, so the delivery id is `<session_id>:<sequence>`. It is the same across resume replays of one session. Two overlapping leaders run different sessions, so a rare duplicate gets through. A `(message, user, emoji)` key would drop a reaction removed and added again within the retention window.
+
+Dispatches without a handler are skipped and committed.
 
 ## Metrics and reports
 
