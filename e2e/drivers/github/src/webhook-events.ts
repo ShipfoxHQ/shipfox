@@ -7,6 +7,11 @@ const FIXTURE_REPOSITORY_ID = 1;
 const FIXTURE_USER_ID = 5_000_001;
 const FIXTURE_TIMESTAMP = '2026-01-01T00:00:00Z';
 const DEFAULT_REVIEWER = 'e2e-reviewer';
+const DEFAULT_AUTHOR = 'e2e-author';
+const DEFAULT_WORKFLOW_PATH = '.github/workflows/ci.yml';
+const DEFAULT_WORKFLOW_NAME = 'CI';
+const DEFAULT_HEAD_SHA = 'a'.repeat(40);
+const FIXTURE_WORKFLOW_ID = 7_000_001;
 const DEFAULT_DIFF_HUNK = '@@ -1 +1 @@\n-export const value = 1;\n+export const value = 2;';
 
 export type GithubAuthorAssociation =
@@ -35,6 +40,44 @@ export interface SendPullRequestClosedParams {
   merged?: boolean | undefined;
 }
 
+export type GithubWorkflowRunConclusion =
+  | 'success'
+  | 'failure'
+  | 'cancelled'
+  | 'timed_out'
+  | 'skipped'
+  | 'neutral'
+  | 'action_required'
+  | 'stale';
+
+export interface SendWorkflowRunCompletedParams {
+  /** `<owner>/<repo>` the run belongs to. Its fixture repository supplies the default branch. */
+  repository: string;
+  /** Defaults to `failure`. */
+  conclusion?: GithubWorkflowRunConclusion | undefined;
+  /** Defaults to the repository's default branch. */
+  headBranch?: string | undefined;
+  /** Defaults to a fixed 40-character SHA. */
+  headSha?: string | undefined;
+  /** Repository the head commit lives in. Defaults to `repository`; set it to model a fork. */
+  headRepository?: string | undefined;
+  /** Defaults to `.github/workflows/ci.yml`. */
+  workflowPath?: string | undefined;
+  /** Defaults to `CI`. */
+  workflowName?: string | undefined;
+  workflowId?: number | undefined;
+  runId?: number | undefined;
+  runNumber?: number | undefined;
+  runAttempt?: number | undefined;
+  /** What started the run. Defaults to `push`, or `pull_request` when `pullNumbers` is set. */
+  event?: string | undefined;
+  /** Login that triggered the run. Defaults to `e2e-author`. */
+  actor?: string | undefined;
+  headCommitMessage?: string | undefined;
+  /** Pull requests the head commit belongs to. Each is read from the fake, so it must exist. */
+  pullNumbers?: number[] | undefined;
+}
+
 export interface GithubWebhookDelivery {
   /** The `X-GitHub-Delivery` header, which the trigger event reports as its delivery ID. */
   deliveryId: string;
@@ -59,6 +102,12 @@ export interface GithubWebhookSender {
    * its new state.
    */
   sendPullRequestClosed(params: SendPullRequestClosedParams): Promise<GithubWebhookDelivery>;
+  /**
+   * Delivers `workflow_run.completed` for a GitHub Actions run on a repository, with its
+   * conclusion and head branch. Run and workflow IDs are unique per call unless the caller sets
+   * them.
+   */
+  sendWorkflowRunCompleted(params: SendWorkflowRunCompletedParams): Promise<GithubWebhookDelivery>;
 }
 
 export interface CreateGithubWebhookSenderOptions {
@@ -144,6 +193,40 @@ export function createGithubWebhookSender(
       };
       return await deliver(options, 'pull_request', payload);
     },
+
+    async sendWorkflowRunCompleted(params) {
+      const repository = repositoryPayload(options, params.repository);
+      const headRepository =
+        params.headRepository === undefined
+          ? repository
+          : repositoryPayload(options, params.headRepository);
+      const pullRequests = (params.pullNumbers ?? []).map((pullNumber) => {
+        const {pullRequest} = requirePullRequest(options, pullNumber);
+        return workflowRunPullRequestPayload(pullNumber, pullRequest, repository);
+      });
+      const actor = userPayload(params.actor ?? DEFAULT_AUTHOR, 'User');
+
+      const payload = {
+        action: 'completed',
+        workflow_run: workflowRunPayload({
+          params,
+          repository,
+          headRepository,
+          pullRequests,
+          actor,
+        }),
+        workflow: {
+          id: params.workflowId ?? FIXTURE_WORKFLOW_ID,
+          name: params.workflowName ?? DEFAULT_WORKFLOW_NAME,
+          path: params.workflowPath ?? DEFAULT_WORKFLOW_PATH,
+          state: 'active',
+        },
+        repository,
+        sender: actor,
+        installation: installationPayload(options),
+      };
+      return await deliver(options, 'workflow_run', payload);
+    },
   };
 }
 
@@ -181,18 +264,22 @@ function envelope(
   pullRequest: GithubPullRequestFixture,
   sender: {login: string; type: 'User' | 'Bot'},
 ): Record<string, unknown> {
-  if (options.installationId === undefined) {
-    throw new Error('Start the GitHub fake with an installationId to send webhook events.');
-  }
   const repository = repositoryPayload(options, pullRequest.repository);
   return {
     pull_request: pullRequestEventPayload(pullNumber, pullRequest, repository),
     repository,
     sender: userPayload(sender.login, sender.type),
-    installation: {
-      id: options.installationId,
-      node_id: `MDIzOkluc3RhbGxhdGlvbiR7${options.installationId}`,
-    },
+    installation: installationPayload(options),
+  };
+}
+
+function installationPayload(options: CreateGithubWebhookSenderOptions): Record<string, unknown> {
+  if (options.installationId === undefined) {
+    throw new Error('Start the GitHub fake with an installationId to send webhook events.');
+  }
+  return {
+    id: options.installationId,
+    node_id: `MDIzOkluc3RhbGxhdGlvbiR7${options.installationId}`,
   };
 }
 
@@ -247,6 +334,85 @@ function pullRequestEventPayload(
       repo: repository,
     },
   };
+}
+
+function workflowRunPullRequestPayload(
+  pullNumber: number,
+  pullRequest: GithubPullRequestFixture,
+  repository: Record<string, unknown>,
+): Record<string, unknown> {
+  const base = pullRequest.base ?? 'main';
+  return {
+    id: FIXTURE_USER_ID + pullNumber,
+    number: pullNumber,
+    url: `https://api.github.com/repos/${pullRequest.repository}/pulls/${pullNumber}`,
+    head: {
+      ref: pullRequest.ref,
+      sha: pullRequest.sha,
+      repo: {id: repository.id, name: repository.name, url: repository.html_url},
+    },
+    base: {
+      ref: base,
+      sha: pullRequest.sha,
+      repo: {id: repository.id, name: repository.name, url: repository.html_url},
+    },
+  };
+}
+
+function workflowRunPayload(params: {
+  params: SendWorkflowRunCompletedParams;
+  repository: Record<string, unknown>;
+  headRepository: Record<string, unknown>;
+  pullRequests: Record<string, unknown>[];
+  actor: Record<string, unknown>;
+}): Record<string, unknown> {
+  const {params: input, repository, headRepository, pullRequests, actor} = params;
+  const fullName = String(repository.full_name);
+  const workflowPath = input.workflowPath ?? DEFAULT_WORKFLOW_PATH;
+  const headSha = input.headSha ?? DEFAULT_HEAD_SHA;
+  const runId = input.runId ?? nextWorkflowRunId();
+  const runNumber = input.runNumber ?? 1;
+  return {
+    id: runId,
+    name: input.workflowName ?? DEFAULT_WORKFLOW_NAME,
+    node_id: `WFR_e2e_${runId}`,
+    head_branch: input.headBranch ?? repository.default_branch,
+    head_sha: headSha,
+    path: workflowPath,
+    display_title: input.headCommitMessage ?? 'Update the report command',
+    run_number: runNumber,
+    run_attempt: input.runAttempt ?? 1,
+    event: input.event ?? (pullRequests.length > 0 ? 'pull_request' : 'push'),
+    status: 'completed',
+    conclusion: input.conclusion ?? 'failure',
+    workflow_id: input.workflowId ?? FIXTURE_WORKFLOW_ID,
+    url: `https://api.github.com/repos/${fullName}/actions/runs/${runId}`,
+    html_url: `https://github.com/${fullName}/actions/runs/${runId}`,
+    pull_requests: pullRequests,
+    created_at: FIXTURE_TIMESTAMP,
+    updated_at: FIXTURE_TIMESTAMP,
+    run_started_at: FIXTURE_TIMESTAMP,
+    actor,
+    triggering_actor: actor,
+    head_commit: {
+      id: headSha,
+      tree_id: headSha,
+      message: input.headCommitMessage ?? 'Update the report command',
+      timestamp: FIXTURE_TIMESTAMP,
+      author: {name: actor.login, email: `${String(actor.login)}@users.noreply.github.com`},
+      committer: {name: actor.login, email: `${String(actor.login)}@users.noreply.github.com`},
+    },
+    repository,
+    head_repository: headRepository,
+  };
+}
+
+let workflowRunSequence = 0;
+
+// Run IDs stay unique across calls, so two failures of one workflow are two distinct runs.
+function nextWorkflowRunId(): number {
+  workflowRunSequence += 1;
+  return 9_000_000 + workflowRunSequence;
 }
 
 function reviewCommentPayload(params: {

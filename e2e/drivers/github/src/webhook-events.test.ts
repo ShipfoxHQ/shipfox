@@ -1,6 +1,9 @@
 import {createHmac} from 'node:crypto';
+import {mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {createServer, type IncomingMessage} from 'node:http';
 import type {AddressInfo} from 'node:net';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {startGithubApiMock} from './github-api.js';
 
 const SECRET = 'test-webhook-secret';
@@ -223,6 +226,143 @@ describe('GitHub API mock webhook events', () => {
       await expect(mock.sendPullRequestClosed({pullNumber: 99})).rejects.toThrow(
         'no pull request #99',
       );
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('delivers a signed failed workflow_run.completed on the default branch', async () => {
+    const api = await startApi();
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      installationId: INSTALLATION_ID,
+      webhookSecret: SECRET,
+      apiUrl: api.url,
+    });
+
+    try {
+      const seedDirectory = await mkdtemp(join(tmpdir(), 'workflow-run-events-'));
+      try {
+        await writeFile(join(seedDirectory, 'README.md'), '# app\n');
+        await mock.addRepository({
+          owner: 'acme',
+          name: 'app',
+          seedDirectory,
+          defaultBranch: 'trunk',
+        });
+      } finally {
+        await rm(seedDirectory, {recursive: true, force: true});
+      }
+      const sent = await mock.sendWorkflowRunCompleted({repository: 'acme/app'});
+
+      const [delivery] = api.deliveries;
+      expect(delivery?.event).toBe('workflow_run');
+      expect(delivery?.deliveryId).toBe(sent.deliveryId);
+      expect(delivery?.signature).toBe(expectedSignature(delivery?.rawBody ?? ''));
+      expect(delivery?.payload).toMatchObject({
+        action: 'completed',
+        installation: {id: INSTALLATION_ID},
+        repository: {full_name: 'acme/app', default_branch: 'trunk'},
+        workflow_run: {
+          conclusion: 'failure',
+          status: 'completed',
+          head_branch: 'trunk',
+          path: '.github/workflows/ci.yml',
+          event: 'push',
+          run_attempt: 1,
+          pull_requests: [],
+          head_repository: {full_name: 'acme/app'},
+        },
+      });
+    } finally {
+      await mock.stop();
+      await api.stop();
+    }
+  });
+
+  it('describes a pull request run with its actor, head commit, and pull requests', async () => {
+    const api = await startApi();
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      installationId: INSTALLATION_ID,
+      webhookSecret: SECRET,
+      apiUrl: api.url,
+    });
+
+    try {
+      mock.pullRequests.set(5, {
+        repository: 'acme/app',
+        ref: 'dependabot/npm_and_yarn/left-pad-2.0.0',
+        sha: 'd'.repeat(40),
+      });
+      await mock.sendWorkflowRunCompleted({
+        repository: 'acme/app',
+        conclusion: 'success',
+        headBranch: 'dependabot/npm_and_yarn/left-pad-2.0.0',
+        headSha: 'd'.repeat(40),
+        actor: 'dependabot[bot]',
+        headCommitMessage: 'Bump left-pad from 1.0.0 to 2.0.0',
+        pullNumbers: [5],
+        runAttempt: 2,
+      });
+
+      expect(api.deliveries[0]?.payload).toMatchObject({
+        sender: {login: 'dependabot[bot]'},
+        workflow_run: {
+          conclusion: 'success',
+          head_branch: 'dependabot/npm_and_yarn/left-pad-2.0.0',
+          head_sha: 'd'.repeat(40),
+          run_attempt: 2,
+          event: 'pull_request',
+          actor: {login: 'dependabot[bot]'},
+          head_commit: {message: 'Bump left-pad from 1.0.0 to 2.0.0'},
+          pull_requests: [{number: 5, head: {ref: 'dependabot/npm_and_yarn/left-pad-2.0.0'}}],
+        },
+      });
+    } finally {
+      await mock.stop();
+      await api.stop();
+    }
+  });
+
+  it('gives each workflow run its own ID and reports a fork as the head repository', async () => {
+    const api = await startApi();
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      installationId: INSTALLATION_ID,
+      webhookSecret: SECRET,
+      apiUrl: api.url,
+    });
+
+    try {
+      await mock.sendWorkflowRunCompleted({repository: 'acme/app'});
+      await mock.sendWorkflowRunCompleted({
+        repository: 'acme/app',
+        headRepository: 'contributor/app',
+      });
+
+      const [first, second] = api.deliveries.map(
+        (delivery) => delivery.payload.workflow_run as {id: number; head_repository: unknown},
+      );
+      expect(first?.id).not.toBe(second?.id);
+      expect(second?.head_repository).toMatchObject({full_name: 'contributor/app'});
+    } finally {
+      await mock.stop();
+      await api.stop();
+    }
+  });
+
+  it('refuses to send a workflow run for a pull request the fake does not hold', async () => {
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      installationId: INSTALLATION_ID,
+      webhookSecret: SECRET,
+    });
+
+    try {
+      await expect(
+        mock.sendWorkflowRunCompleted({repository: 'acme/app', pullNumbers: [99]}),
+      ).rejects.toThrow('no pull request #99');
     } finally {
       await mock.stop();
     }
