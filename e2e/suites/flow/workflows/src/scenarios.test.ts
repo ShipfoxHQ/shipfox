@@ -150,7 +150,7 @@ describe('discoverScenarios', () => {
     }
   });
 
-  test('marks a workflow with a registry action step for the definition sync', () => {
+  test('marks a workflow with a local or registry action step for the definition sync', () => {
     const root = createTempScenariosRoot();
     try {
       writeScenarioFile(root, 'registry', 'expect.yaml', 'run:\n  status: succeeded\n');
@@ -159,6 +159,13 @@ describe('discoverScenarios', () => {
         'registry',
         'workflow.yml',
         'jobs:\n  build:\n    steps:\n      - uses: fixture/example@1.0.0\n',
+      );
+      writeScenarioFile(root, 'local', 'expect.yaml', 'run:\n  status: succeeded\n');
+      writeScenarioFile(
+        root,
+        'local',
+        'workflow.yml',
+        'jobs:\n  build:\n    steps:\n      - uses: ./.shipfox/actions/greet\n',
       );
       writeScenarioFile(root, 'shell', 'expect.yaml', 'run:\n  status: succeeded\n');
       writeScenarioFile(
@@ -171,6 +178,7 @@ describe('discoverScenarios', () => {
       const scenarios = discoverScenarios(root);
 
       expect(scenarios.map(({name, usesActions}) => ({name, usesActions}))).toEqual([
+        {name: 'local', usesActions: true},
         {name: 'registry', usesActions: true},
         {name: 'shell', usesActions: false},
       ]);

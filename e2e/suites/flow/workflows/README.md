@@ -26,9 +26,9 @@ scenarios/hello-world/
   files/          optional extra repo files, committed alongside the workflow
 ```
 
-A scenario whose workflow has a `uses:` step, from `files/` or the local registry, gets its
-definition from the definition sync, because only a sync snapshots actions. Other `expect.yaml`
-scenarios create their definition with `POST /definitions`. Registry scenarios reference the
+An `expect.yaml` scenario whose workflow has a `uses:` step, from `files/` or the local
+registry, gets its definition from the definition sync, because only a sync snapshots actions.
+Other `expect.yaml` scenarios create their definition with `POST /definitions`. Registry scenarios reference the
 fixture packages the harness seeds, such as `fixture/example@1.0.0`.
 
 `tests/scenarios.e2e.ts` discovers every directory that contains an `expect.yaml` or
