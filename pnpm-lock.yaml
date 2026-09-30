@@ -2505,6 +2505,9 @@ importers:
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../../core
+      '@shipfox/e2e-driver-clickup':
+        specifier: workspace:*
+        version: link:../../../drivers/clickup
       '@shipfox/e2e-driver-github':
         specifier: workspace:*
         version: link:../../../drivers/github

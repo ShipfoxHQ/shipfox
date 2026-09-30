@@ -37,6 +37,41 @@ describe('ClickUp API mock', () => {
     }
   });
 
+  it('serves a fixture task and records a status update as a write', async () => {
+    const mock = await startClickUpApiMock(new URL('http://127.0.0.1:0'), {
+      tasks: [
+        {
+          id: '86abc',
+          name: 'Add a --json flag',
+          url: 'https://app.clickup.com/t/86abc',
+          markdownDescription: 'Scripts need JSON.',
+        },
+      ],
+    });
+
+    try {
+      const task = await (await fetch(new URL('/api/v2/task/86abc', mock.endpoint))).json();
+      const update = await fetch(new URL('/api/v2/task/86abc', mock.endpoint), {
+        method: 'PUT',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({status: 'in progress'}),
+      });
+
+      expect(task).toEqual({
+        id: '86abc',
+        name: 'Add a --json flag',
+        url: 'https://app.clickup.com/t/86abc',
+        markdown_description: 'Scripts need JSON.',
+      });
+      expect(update.status).toBe(200);
+      expect(mock.writes()).toEqual([
+        {kind: 'update_task', target: '86abc', payload: {status: 'in progress'}},
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
   it('fails fast when the endpoint includes a path prefix', async () => {
     await expect(startClickUpApiMock(new URL('http://127.0.0.1:9000/clickup'))).rejects.toThrow(
       'CLICKUP_API_BASE_URL must not include a path for the ClickUp API mock',

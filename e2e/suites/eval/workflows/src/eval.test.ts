@@ -15,6 +15,7 @@ const duplicatePattern = /issue identifiers must be unique/u;
 const undeclaredModePattern = /does not declare mode "live"/u;
 const seedPattern = /seed\.slack\.thread/u;
 const placeholderPattern = /placeholders/u;
+const duplicateTaskPattern = /task IDs must be unique/u;
 
 afterEach(async () => {
   await Promise.all(
@@ -268,5 +269,22 @@ describe('case seed schema', () => {
     expect(() => parseTemplateCase({...base, placeholders: {channel: 'C1'}})).toThrow(
       placeholderPattern,
     );
+  });
+});
+
+describe('case ClickUp seed schema', () => {
+  const task = {id: '86abc', name: 'Task', list: 'list-1'};
+  const base = {template: 'shipfox/fixture', scenario: [{start: {manual: {}}}], expect: {}};
+
+  it('rejects two seeded tasks with the same ID', () => {
+    const seed = {clickup: {tasks: [task, {...task, name: 'Other'}]}};
+
+    expect(() => parseTemplateCase({...base, seed})).toThrow(duplicateTaskPattern);
+  });
+
+  it('accepts seeded tasks with distinct IDs', () => {
+    const seed = {clickup: {tasks: [task, {...task, id: '86abd'}]}};
+
+    expect(parseTemplateCase({...base, seed}).seed.clickup?.tasks).toHaveLength(2);
   });
 });
