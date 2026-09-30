@@ -1,7 +1,11 @@
 import {runMigrations} from '@shipfox/node-drizzle';
 import {createApp} from '@shipfox/node-fastify';
 import {openPostgresSession} from '@shipfox/node-postgres';
+import {sql} from 'drizzle-orm';
 import {getIntegrationConnectionById, listIntegrationConnections} from '#db/connections.js';
+import {db} from '#db/db.js';
+import {integrationsOutbox} from '#db/schema/outbox.js';
+import {publishIntegrationEventReceived} from '#db/webhook-deliveries.js';
 import {createTestApp, useIntegrationRouteTest} from '#test/route-utils.js';
 import {discordProviderModule} from './discord.js';
 
@@ -197,5 +201,61 @@ describe('Discord provider scaffold', () => {
     const request = fetchMock.mock.calls[0]?.[0] as Request;
     expect(request.method).toBe('DELETE');
     expect(request.url).toContain(`/users/@me/guilds/${guildId}`);
+  });
+
+  it('publishes a message seen by two Gateway sessions once', async () => {
+    const {part, discordPackage} = await loadDiscordProvider();
+    if (!part.e2eRoutes) throw new Error('Discord E2E routes are not configured');
+    const seedApp = await createApp({routes: part.e2eRoutes, swagger: false});
+    const guildId = `guild-${crypto.randomUUID()}`;
+    const created = await seedApp.inject({
+      method: 'POST',
+      url: '/integrations/discord-connections',
+      payload: {
+        workspace_id: context.workspaceId,
+        guild_id: guildId,
+        guild_name: 'Acme Discord',
+        permissions: '309237730368',
+        bot_role_id: 'role-1',
+      },
+    });
+    const connectionId = created.json().id as string;
+    const messageId = `message-${crypto.randomUUID()}`;
+    const dispatch = {
+      op: 0,
+      s: 1,
+      t: 'MESSAGE_CREATE',
+      d: {
+        id: messageId,
+        channel_id: 'channel-1',
+        guild_id: guildId,
+        author: {id: 'user-1'},
+        mentions: [],
+        mention_roles: ['role-1'],
+      },
+    } as never;
+    const sessions = [1, 2].map(() =>
+      discordPackage.createDiscordGatewayHandlers({
+        coreDb: db,
+        publishIntegrationEventReceived,
+        getIntegrationConnectionById,
+        discord: {getChannel: async () => ({id: 'channel-1', type: 0})},
+      }),
+    );
+
+    await Promise.all(sessions.map((handlers) => handlers.MESSAGE_CREATE?.(dispatch)));
+
+    const events = await db()
+      .select({payload: integrationsOutbox.payload})
+      .from(integrationsOutbox)
+      .where(sql`${integrationsOutbox.payload}->>'deliveryId' = ${messageId}`);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.payload).toMatchObject({
+      provider: 'discord',
+      event: 'message_create',
+      connectionId,
+      deliveryId: messageId,
+      payload: {mentions_bot: true, root_channel_id: 'channel-1'},
+    });
   });
 });

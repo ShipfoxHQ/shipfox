@@ -49,6 +49,10 @@ export {
   type GatewayDispatchPayload,
 } from '#core/gateway.js';
 export {
+  type CreateDiscordGatewayHandlersOptions,
+  createDiscordGatewayHandlers,
+} from '#core/gateway-handlers.js';
+export {
   createDiscordGatewayService,
   type DiscordGatewayServiceOptions,
   GATEWAY_LOCK_KEY,
@@ -69,6 +73,7 @@ export {
   DISCORD_ACK_WORKING,
   handleDiscordCommand,
 } from '#core/interactions.js';
+export type {DiscordMessageOutcome} from '#core/message-create.js';
 export type {VerifyDiscordSignatureParams} from '#core/signature.js';
 export {
   DISCORD_FRESHNESS_WINDOW_MS,
