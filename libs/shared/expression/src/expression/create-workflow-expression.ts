@@ -245,11 +245,19 @@ function fromCelType(type: string | undefined): ExpressionType | undefined {
       return {kind: 'map'};
     case 'dyn':
       return {kind: 'dyn'};
+    // cel-js names a list of dynamic elements, such as a `map` macro over open objects, `list`.
+    case 'list':
+      return {kind: 'list', element: {kind: 'dyn'}};
     default:
-      // cel-js currently exposes custom/list element result types as opaque strings.
-      // Keep the outer list shape when present, but erase element detail rather than
-      // pretending we can round-trip the original schema.
-      if (type.startsWith('list<')) return {kind: 'list', element: {kind: 'map'}};
+      // cel-js currently exposes custom result types as opaque strings. Keep the list shape and
+      // its element type when present, but erase any other detail rather than pretending we can
+      // round-trip the original schema.
+      if (type.startsWith('list<') && type.endsWith('>')) {
+        return {
+          kind: 'list',
+          element: fromCelType(type.slice('list<'.length, -1)) ?? {kind: 'dyn'},
+        };
+      }
       return {kind: 'map'};
   }
 }

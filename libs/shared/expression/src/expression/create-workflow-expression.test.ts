@@ -584,6 +584,33 @@ describe('createWorkflowExpression', () => {
     });
   });
 
+  it.each([
+    {
+      source: 'event.items.map(item, item.name)',
+      expected: {kind: 'list', element: {kind: 'dyn'}},
+    },
+    {
+      source: 'event.items.map(item, string(item.name))',
+      expected: {kind: 'list', element: 'string'},
+    },
+    {
+      source: 'event.items.map(item, [string(item.name)])',
+      expected: {kind: 'list', element: {kind: 'list', element: 'string'}},
+    },
+  ])('types $source by its list elements', ({source, expected}) => {
+    const expression = createWorkflowExpression({
+      source,
+      check: {
+        mode: 'typed',
+        typeEnvironment: {
+          event: {kind: 'object', fields: {items: {kind: 'list', element: {kind: 'map'}}}},
+        },
+      },
+    });
+
+    expect(expression.resultType).toEqual(expected);
+  });
+
   it('preserves known direct path result types for structured fields', () => {
     const expression = createWorkflowExpression({
       source: 'event.findings',
