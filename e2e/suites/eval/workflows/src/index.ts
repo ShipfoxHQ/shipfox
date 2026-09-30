@@ -19,7 +19,20 @@ export {
   runScores,
   safeTask,
 } from './langfuse.js';
-export {type CaseResult, createRunId, type ResultsRun, writeResults} from './results.js';
+export {
+  type PiTranscript,
+  type PiTranscriptExport,
+  parsePiTranscript,
+  type RecordPiTranscriptOptions,
+  recordPiTranscript,
+} from './pi-transcript.js';
+export {
+  type AgentTranscript,
+  type CaseResult,
+  createRunId,
+  type ResultsRun,
+  writeResults,
+} from './results.js';
 export {
   CaseValidationError,
   formatValidationIssues,

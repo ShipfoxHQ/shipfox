@@ -16,6 +16,8 @@
     "#cli.js": "./src/cli.ts",
     "#discovery.js": "./src/discovery.ts",
     "#langfuse.js": "./src/langfuse.ts",
+    "#media.js": "./src/media.ts",
+    "#pi-transcript.js": "./src/pi-transcript.ts",
     "#results.js": "./src/results.ts",
     "#schema.js": "./src/schema.ts"
   },

@@ -2,7 +2,13 @@ import {mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {Evaluation, ExperimentParams, LangfuseClient} from '@langfuse/client';
-import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
+import {setLangfuseTracerProvider} from '@langfuse/tracing';
+import {
+  InMemorySpanExporter,
+  NodeTracerProvider,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-node';
+import {afterAll, afterEach, beforeEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {
   buildExperimentItems,
   describeRun,
@@ -16,6 +22,20 @@ import type {CaseResult, ResultsRun} from './results.js';
 
 const markdownDataUri = /^data:text\/markdown;base64,/u;
 const temporaryDirectories: string[] = [];
+const spanExporter = new InMemorySpanExporter();
+const tracerProvider = new NodeTracerProvider({
+  spanProcessors: [new SimpleSpanProcessor(spanExporter)],
+});
+setLangfuseTracerProvider(tracerProvider);
+
+beforeEach(() => {
+  spanExporter.reset();
+});
+
+afterAll(async () => {
+  setLangfuseTracerProvider(null);
+  await tracerProvider.shutdown();
+});
 
 afterEach(async () => {
   await Promise.all(
@@ -118,6 +138,73 @@ describe('experiment items', () => {
       `data:application/x-yaml;base64,${Buffer.from('name: demo\n').toString('base64')}`,
     );
     expect(output.media.summary).toMatch(markdownDataUri);
+  });
+});
+
+describe('agent transcripts', () => {
+  const jsonl = `${JSON.stringify({
+    type: 'message',
+    timestamp: '2026-09-30T10:00:03.000Z',
+    message: {role: 'assistant', content: [{type: 'text', text: 'Done.'}], model: 'gpt-6-luna'},
+  })}\n`;
+
+  async function runTask(recorded: CaseResult): Promise<Record<string, unknown>> {
+    const task = safeTask({
+      results: new Map([[`${recorded.case}#1`, recorded]]),
+      summary: '# Summary',
+    });
+    return (await task({input: {case: recorded.case, repeat: 1}})) as Record<string, unknown>;
+  }
+
+  it('records each transcript as a step span and keeps it out of the item output', async () => {
+    const output = await runTask(
+      result({agent_transcripts: [{step: 'implement', harness: 'pi', jsonl}]}),
+    );
+
+    expect(output.agent_transcripts).toBeUndefined();
+    expect(output.status).toBe('passed');
+    expect(output.transcript_errors).toBeUndefined();
+    expect(spanExporter.getFinishedSpans().map((span) => span.name)).toEqual([
+      'model call 1',
+      'implement',
+    ]);
+  });
+
+  it('reports a transcript that cannot be read without changing the result status', async () => {
+    const output = await runTask(
+      result({agent_transcripts: [{step: 'implement', harness: 'pi', jsonl: '{"unexpected":1}'}]}),
+    );
+
+    expect(output.status).toBe('passed');
+    expect(output.transcript_errors).toEqual([
+      'implement: No model calls found in the pi session.',
+    ]);
+  });
+
+  it('records a Claude transcript through the same path', async () => {
+    const claudeJsonl = `${JSON.stringify({
+      type: 'assistant',
+      timestamp: '2026-09-30T10:00:03.000Z',
+      message: {id: 'msg_1', role: 'assistant', content: [{type: 'text', text: 'Done.'}]},
+    })}\n`;
+
+    const output = await runTask(
+      result({agent_transcripts: [{step: 'review', harness: 'claude', jsonl: claudeJsonl}]}),
+    );
+
+    expect(output.transcript_errors).toBeUndefined();
+    const step = spanExporter.getFinishedSpans().find((span) => span.name === 'review');
+    expect(step?.attributes['langfuse.observation.type']).toBe('agent');
+  });
+
+  it('reports a Claude transcript with no model call', async () => {
+    const output = await runTask(
+      result({agent_transcripts: [{step: 'review', harness: 'claude', jsonl: '{"unexpected":1}'}]}),
+    );
+
+    expect(output.transcript_errors).toEqual([
+      'review: No model calls found in the claude session.',
+    ]);
   });
 });
 
