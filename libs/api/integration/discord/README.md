@@ -56,7 +56,9 @@ The executable environment contract is defined in [`src/config.ts`](src/config.t
 
 ## Data model
 
-The package owns the `integrations_discord` database namespace and its `integrations_discord_installations` table. A guild and connection each have a unique installation row. Reinstalling the same guild for the same connection updates the installation and increments `generation`, which later lifecycle checks use for compare-and-set ordering. Deleting a connection removes the provider row so the guild can be seeded or installed again.
+The package owns the `integrations_discord` database namespace and its `integrations_discord_installations` and `integrations_discord_gateway_sessions` tables. A guild and connection each have a unique installation row. Reinstalling the same guild for the same connection updates the installation and increments `generation`, which later lifecycle checks use for compare-and-set ordering. Deleting a connection removes the provider row so the guild can be seeded or installed again.
+
+The sessions table holds one row per Gateway shard: `session_id`, `resume_gateway_url`, `received_sequence`, and `committed_sequence`. `committed_sequence` is the only resume point. `received_sequence` is diagnostics only, because the Gateway library advances it before a handler publishes. The repository reads the row when a leader starts, writes a new session at once, and flushes the session fields and both cursors in one write. A flush only applies while the stored session id matches, so a late flush from a replaced session does nothing. Within one session the committed cursor never goes down. Keep the library hooks in memory and flush on a timer, not on every dispatch.
 
 ## Development
 

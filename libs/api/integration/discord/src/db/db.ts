@@ -1,8 +1,9 @@
 import {drizzle, type NodePgDatabase} from '@shipfox/node-drizzle';
 import {pgClient} from '@shipfox/node-postgres';
+import {discordGatewaySessions} from './schema/gateway-sessions.js';
 import {discordInstallations} from './schema/installations.js';
 
-export const schema = {discordInstallations};
+export const schema = {discordGatewaySessions, discordInstallations};
 
 let database: NodePgDatabase<typeof schema> | undefined;
 
