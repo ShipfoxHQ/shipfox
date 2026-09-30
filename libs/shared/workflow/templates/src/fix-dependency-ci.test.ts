@@ -207,11 +207,26 @@ describe('pull request CI repair', () => {
     labels,
     expected,
   }) => {
-    const result = {user: {login: author}, labels: labels.map((name) => ({name}))};
-
-    expect(evaluate(readPrOutput(selection, 'selected'), {event: failedRun(), result})).toBe(
-      expected,
+    const event = failedRun({actor: {login: 'dependabot[bot]'}});
+    const result = {
+      state: 'open',
+      user: {login: author},
+      labels: labels.map((name) => ({name})),
+      head: {
+        repo: {full_name: 'replace-with-owner/repository'},
+        ref: 'bot/update',
+        sha: 'a'.repeat(40),
+      },
+    };
+    const outputs = Object.fromEntries(
+      ['open', 'author', 'selected', 'repository', 'branch', 'head_sha'].map((name) => [
+        name,
+        evaluate(readPrOutput(selection, name), {event, result}),
+      ]),
     );
+    const eligible = at(render('push_fix', selection), 'jobs', 'inspect', 'outputs', 'eligible');
+
+    expect(evaluate(eligible, {event, steps: {read_pr: {outputs}}})).toBe(expected);
   });
 
   it.each([
@@ -221,6 +236,7 @@ describe('pull request CI repair', () => {
     const eligible = at(render('push_fix'), 'jobs', 'inspect', 'outputs', 'eligible');
     const outputs = {
       open: true,
+      author: 'dependabot[bot]',
       selected: true,
       repository: 'replace-with-owner/repository',
       branch: 'bot/update',

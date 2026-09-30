@@ -1,0 +1,4 @@
+checkout: |
+  checkout:
+    permissions:
+      contents: read

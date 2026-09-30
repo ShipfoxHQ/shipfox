@@ -378,6 +378,22 @@ Every step takes its own `timeout_seconds`, capped by the case's
 `timeout_seconds`. A case runs a fixture template instead of a shipped one when
 its `catalog` names a template directory next to its `case.yaml`.
 
+`--mode compile` checks the wiring of every template variant without running
+any of them. It arranges one workspace and project, creates a connection for
+each provider a variant binds (GitHub, Linear, Slack, ClickUp, and Jira),
+composes each variant the way `templateVariants` lists it, binds its
+connection slugs, and creates a definition. Creating a definition succeeds
+even when a trigger is broken, because the endpoint stores that trigger as
+inert. So a variant passes only with zero error diagnostics and with every
+trigger, listening `on` matcher, and `until` matcher active in the compiled
+model. `test:e2e` runs it before the scripted cases. `--case` filters by
+template id, and `--catalog <directory>` compiles a catalog directory instead
+of the shipped templates:
+
+```sh
+mise run evals -- --suite templates --mode compile --case 'ticket-to-pr'
+```
+
 The onboarding suite drives a real Claude Agent SDK session against the stack.
 Each case in `cases/onboarding/` sets up a workspace, a fixture repository, and
 a recording MCP proxy, then answers the agent's questions with a simulated user

@@ -25,7 +25,7 @@ open_repairs: |
       direction: desc
       per_page: 100
     outputs:
-      count: ${{ size(result.pull_requests.filter(p, p.head.ref.startsWith("shipfox/default-branch-ci/" + string(event.workflow_run.workflow_id) + "-"))) }}
+      head_refs: ${{ result.pull_requests.map(p, p.head.ref) }}
 history: |
   - key: history
     tool: actions_list.list_workflow_runs
@@ -36,8 +36,8 @@ history: |
       resource_id: ${{ string(event.workflow_run.workflow_id) }}
       per_page: 100
     outputs:
-      previous_conclusion: >-
-        ${{ (result.workflow_runs.filter(r, r.head_branch == event.repository.default_branch && r.event in ["push", "schedule"] && r.status == "completed" && r.conclusion in ["success", "failure"] && r.run_number < event.workflow_run.run_number).map(r, r.conclusion) + ["unknown"])[0] }}
+      runs: >-
+        ${{ result.workflow_runs.map(r, {"head_branch": r.head_branch, "event": r.event, "status": r.status, "conclusion": r.conclusion, "run_number": r.run_number}) }}
 checkout: |
   - key: checkout_default_branch
     checkout:

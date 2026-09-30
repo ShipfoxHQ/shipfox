@@ -42,7 +42,7 @@ Shipfox drops a repeated GitHub webhook delivery that has the same delivery ID.
 | `label` | Same-repository PRs that carry the label when the inspection step reads the PR. | Commits on branches of people who opted in. |
 | `all_pull_requests` | Every same-repository PR. | Commits on any PR branch, including branches people are working on. |
 
-Keep the marked blocks for the chosen selection in the trigger filter and in the `read_pr` `selected` output. Remove the others.
+Keep the marked blocks for the chosen selection in the trigger filter, in the `read_pr` `selected` output, and in the `inspect` job's `eligible` output. Remove the others.
 Delete the `# option:pr_selection` marker lines too: they sit inside expressions, so a leftover marker breaks the expression.
 For `label`, replace `replace-with-label-name` with the exact GitHub label name.
 Anyone who can label PRs in the repository can opt a PR in. Removing the label stops later runs, not a run that already passed inspection.

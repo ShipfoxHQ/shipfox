@@ -244,17 +244,18 @@ describe('default-branch CI repair template', () => {
   it('skips a failure while a repair pull request for the same workflow is open', () => {
     const event = failedRun();
     const branch = interpolate(at(step('deliver', 'push_repair'), 'env', 'BRANCH_NAME'), {event});
-    const count = at(step('inspect', 'open_repairs'), 'outputs', 'count');
-    const pullRequests = (refs: string[]) => ({
-      pull_requests: refs.map((ref) => ({head: {ref}})),
-    });
+    const headRefs = at(step('inspect', 'open_repairs'), 'outputs', 'head_refs');
+    const count = at(workflow(), 'jobs', 'inspect', 'outputs', 'open_repairs');
+    const openRepairs = (refs: string[]) => {
+      const result = {pull_requests: refs.map((ref) => ({head: {ref}}))};
+      const steps = {open_repairs: {outputs: {head_refs: evaluate(headRefs, {result})}}};
+      return Number(evaluate(count, {event, steps}));
+    };
 
     expect(branch).toBe('shipfox/default-branch-ci/161335-30433642');
-    expect(Number(evaluate(count, {event, result: pullRequests([branch])}))).toBe(1);
-    expect(
-      Number(evaluate(count, {event, result: pullRequests(['shipfox/default-branch-ci/99-1'])})),
-    ).toBe(0);
-    expect(Number(evaluate(count, {event, result: pullRequests(['feature'])}))).toBe(0);
+    expect(openRepairs([branch])).toBe(1);
+    expect(openRepairs(['shipfox/default-branch-ci/99-1'])).toBe(0);
+    expect(openRepairs(['feature'])).toBe(0);
   });
 
   it.each([
@@ -275,9 +276,13 @@ describe('default-branch CI repair template', () => {
       expected: 'success',
     },
   ])('reads the previous default-branch conclusion when $name', ({runs, expected}) => {
-    const previous = at(step('inspect', 'history'), 'outputs', 'previous_conclusion');
+    const projected = at(step('inspect', 'history'), 'outputs', 'runs');
+    const previous = at(workflow(), 'jobs', 'inspect', 'outputs', 'previous_conclusion');
+    const steps = {
+      history: {outputs: {runs: evaluate(projected, {result: {workflow_runs: runs}})}},
+    };
 
-    expect(evaluate(previous, {event: failedRun(), result: {workflow_runs: runs}})).toBe(expected);
+    expect(evaluate(previous, {event: failedRun(), steps})).toBe(expected);
   });
 
   it.each([
@@ -290,13 +295,10 @@ describe('default-branch CI repair template', () => {
     previous,
     expected,
   }) => {
-    const eligible = at(workflow(), 'jobs', 'inspect', 'outputs', 'eligible');
-    const steps = {
-      open_repairs: {outputs: {count}},
-      history: {outputs: {previous_conclusion: previous}},
-    };
+    const condition = at(workflow(), 'jobs', 'investigate', 'if');
+    const jobs = {inspect: {outputs: {open_repairs: count, previous_conclusion: previous}}};
 
-    expect(evaluate(eligible, {steps})).toBe(expected);
+    expect(evaluate(condition, {jobs, needs: [{status: 'succeeded'}]})).toBe(expected);
   });
 
   it('delivers a tested patch with new and binary files on a fresh checkout', () => {

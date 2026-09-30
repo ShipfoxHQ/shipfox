@@ -27,10 +27,11 @@ read_pr: |
       # option:pr_selection=label begin
       # Replace replace-with-label-name with the label that opts a pull request in.
       # option:pr_selection=label end
+      author: ${{ result.user.login }}
       selected: >-
         ${{
         # option:pr_selection=dependency_bot begin
-        result.user.login == event.workflow_run.actor.login
+        true
         # option:pr_selection=dependency_bot end
         # option:pr_selection=label begin
         result.labels.exists(label, label.name == "replace-with-label-name")

@@ -32,7 +32,7 @@ ticket_env: |
   TICKET_IDENTIFIER: '${{ trigger.source == "manual" ? "" : event.issue.key }}'
   TICKET_TITLE: '${{ trigger.source == "manual" ? "" : (has(event.issue.fields.summary) ? event.issue.fields.summary : "") }}'
   TICKET_URL: '${{ trigger.source == "manual" ? "" : event.issue.self.split("/rest/")[0] + "/browse/" + event.issue.key }}'
-  TICKET_DESCRIPTION: '${{ trigger.source == "manual" ? "" : (has(event.issue.fields.description) && type(event.issue.fields.description) == string ? event.issue.fields.description : "") }}'
+  TICKET_DESCRIPTION: '${{ trigger.source == "manual" ? "" : (has(event.issue.fields.description) && type(event.issue.fields.description) == type("") ? event.issue.fields.description : "") }}'
   TICKET_REQUEST: ''
 read_tools: |
   integrations:

@@ -1,0 +1,17 @@
+name: Broken trigger task
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+  nightly:
+    source: cron
+    config:
+      schedule: not a cron
+
+jobs:
+  hello:
+    # part:source.checkout
+    steps:
+      - key: hello
+        run: echo hello
