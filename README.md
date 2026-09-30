@@ -10,14 +10,41 @@
   <a href="CONTRIBUTING.md"><b>Contributing</b></a>
 </p>
 
+## Turn recurring engineering work into agent workflows
+
+Shipfox runs your recurring engineering work with coding agents and returns it
+ready for your team.
+
+A big part of your team's week goes to recurring work: small tickets,
+dependency updates, failing checks, alerts, release chores. Coding agents made
+each engineer faster, but the work is still manual, one task at a time. And the
+more your agents produce, the more piles up for a human to review.
+
+Shipfox turns this work into workflows that start on their own and come back
+ready for a human. One opens a pull request, small and with your checks already
+passing. One triages dependency updates and merges the safe ones under your
+rules. One investigates an alert and suggests a fix. You set the rules: which
+model runs each step, what each agent can touch, and where a person signs off.
+Only the work that needs judgment reaches your team.
+
+And the factory improves itself. Run workflows that watch your other runs, find
+what is slow or failing, and suggest changes.
+
 ## Run coding agents like CI pipelines
 
-Turn tickets, alerts, and failed checks into workflows in your repo. Each one
-opens a pull request you review. Any model, any stack. Open source.
+1. An event starts a workflow. A ticket, a new pull request, an alert, a failed
+   check, or a schedule.
+2. The workflow does the work. It mixes AI agents with the exact commands you
+   choose, in an isolated environment with a full log and the cost of every run
+   visible.
+3. The result reaches your team. A pull request, a diagnosis, or a suggested
+   improvement, ready to approve. Leave a comment and the workflow continues.
 
-Workflows live as YAML in your repository and react to events across your stack.
-Shipfox handles orchestration, secure tool access, isolated execution, and
-monitoring.
+Workflows live as YAML in your repo, and you review them like any other code.
+Any model per step, any stack. Open source.
+
+Coding agents make each engineer faster. Shipfox gives your whole team a
+software factory that builds, checks, and improves itself.
 
 [Get your first workflow running now](https://www.shipfox.io/docs/getting-started).
 
