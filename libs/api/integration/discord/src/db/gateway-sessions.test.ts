@@ -83,10 +83,29 @@ describe('Discord gateway sessions', () => {
     });
   });
 
-  it('creates the row on the first flush', async () => {
+  it('keeps the stored cursors when the same session is started again', async () => {
+    const shardId = newShardId();
+    const params = {
+      shardId,
+      sessionId: 'session-a',
+      resumeGatewayUrl: 'wss://resume-a.discord.test',
+    };
+    await startDiscordGatewaySession(params);
+    await flushDiscordGatewaySession({...params, receivedSequence: 90, committedSequence: 85});
+
+    await startDiscordGatewaySession({...params, resumeGatewayUrl: 'wss://resume-a2.discord.test'});
+
+    await expect(getDiscordGatewaySession({shardId})).resolves.toMatchObject({
+      resumeGatewayUrl: 'wss://resume-a2.discord.test',
+      receivedSequence: 90,
+      committedSequence: 85,
+    });
+  });
+
+  it('does not create a row on flush', async () => {
     const shardId = newShardId();
 
-    await flushDiscordGatewaySession({
+    const flushed = await flushDiscordGatewaySession({
       shardId,
       sessionId: 'session-a',
       resumeGatewayUrl: 'wss://resume-a.discord.test',
@@ -94,9 +113,8 @@ describe('Discord gateway sessions', () => {
       committedSequence: 4,
     });
 
-    await expect(getDiscordGatewaySession({shardId})).resolves.toMatchObject({
-      committedSequence: 4,
-    });
+    expect(flushed).toBeUndefined();
+    await expect(getDiscordGatewaySession({shardId})).resolves.toBeUndefined();
   });
 
   it('never lowers the committed cursor within a session', async () => {
@@ -117,14 +135,20 @@ describe('Discord gateway sessions', () => {
     });
   });
 
-  it('takes the flushed cursor when the stored row belongs to another session', async () => {
+  it('ignores a late flush from a replaced session', async () => {
     const shardId = newShardId();
     await startDiscordGatewaySession({
       shardId,
       sessionId: 'session-a',
       resumeGatewayUrl: 'wss://resume-a.discord.test',
     });
-    await flushDiscordGatewaySession({
+    await startDiscordGatewaySession({
+      shardId,
+      sessionId: 'session-b',
+      resumeGatewayUrl: 'wss://resume-b.discord.test',
+    });
+
+    const flushed = await flushDiscordGatewaySession({
       shardId,
       sessionId: 'session-a',
       resumeGatewayUrl: 'wss://resume-a.discord.test',
@@ -132,17 +156,12 @@ describe('Discord gateway sessions', () => {
       committedSequence: 50,
     });
 
-    await flushDiscordGatewaySession({
-      shardId,
-      sessionId: 'session-b',
-      resumeGatewayUrl: 'wss://resume-b.discord.test',
-      receivedSequence: 3,
-      committedSequence: 2,
-    });
-
+    expect(flushed).toBeUndefined();
     await expect(getDiscordGatewaySession({shardId})).resolves.toMatchObject({
       sessionId: 'session-b',
-      committedSequence: 2,
+      resumeGatewayUrl: 'wss://resume-b.discord.test',
+      receivedSequence: 0,
+      committedSequence: 0,
     });
   });
 

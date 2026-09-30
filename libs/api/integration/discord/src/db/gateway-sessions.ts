@@ -1,4 +1,4 @@
-import {eq, sql} from 'drizzle-orm';
+import {and, eq, sql} from 'drizzle-orm';
 import {db} from './db.js';
 import {discordGatewaySessions, toDiscordGatewaySession} from './schema/gateway-sessions.js';
 
@@ -38,7 +38,10 @@ export async function getDiscordGatewaySession(params: {
   return rows[0] ? toDiscordGatewaySession(rows[0]) : undefined;
 }
 
-/** Records a new session and resets both cursors, since sequences restart with the session. */
+/**
+ * Records a session. A session id that differs from the stored one resets both cursors, since
+ * sequences restart with the session. The same session id keeps the stored cursors.
+ */
 export async function startDiscordGatewaySession(
   params: StartDiscordGatewaySessionParams,
 ): Promise<DiscordGatewaySession> {
@@ -53,42 +56,52 @@ export async function startDiscordGatewaySession(
   const [row] = await db()
     .insert(discordGatewaySessions)
     .values(values)
-    .onConflictDoUpdate({target: discordGatewaySessions.shardId, set: values})
+    .onConflictDoUpdate({
+      target: discordGatewaySessions.shardId,
+      set: {
+        sessionId: values.sessionId,
+        resumeGatewayUrl: values.resumeGatewayUrl,
+        receivedSequence: sql`CASE WHEN ${discordGatewaySessions.sessionId} = excluded.session_id THEN ${discordGatewaySessions.receivedSequence} ELSE excluded.received_sequence END`,
+        committedSequence: sql`CASE WHEN ${discordGatewaySessions.sessionId} = excluded.session_id THEN ${discordGatewaySessions.committedSequence} ELSE excluded.committed_sequence END`,
+        updatedAt: values.updatedAt,
+      },
+    })
     .returning();
   if (!row) throw new Error(`Discord gateway session was not written for shard ${params.shardId}`);
   return toDiscordGatewaySession(row);
 }
 
 /**
- * Writes the session fields and both cursors in one statement. Within one session the committed
- * cursor never goes down. A different session id replaces the stored cursor, and a null session id
- * clears the row.
+ * Writes the session fields and both cursors in one statement, only while the stored session id
+ * matches. A late flush from a replaced session is therefore a no-op and returns undefined.
+ * Within a session the committed cursor never goes down. A null session id clears the row.
  */
 export async function flushDiscordGatewaySession(
   params: FlushDiscordGatewaySessionParams,
-): Promise<DiscordGatewaySession> {
-  const cleared = params.sessionId === null;
-  const values = {
-    shardId: params.shardId,
-    sessionId: params.sessionId,
-    resumeGatewayUrl: cleared ? null : params.resumeGatewayUrl,
-    receivedSequence: cleared ? null : params.receivedSequence,
-    committedSequence: cleared ? null : params.committedSequence,
-    updatedAt: new Date(),
-  };
-  const [row] = await db()
-    .insert(discordGatewaySessions)
-    .values(values)
-    .onConflictDoUpdate({
-      target: discordGatewaySessions.shardId,
-      set: {
-        ...values,
-        committedSequence: cleared
-          ? null
-          : sql`CASE WHEN ${discordGatewaySessions.sessionId} = excluded.session_id THEN GREATEST(${discordGatewaySessions.committedSequence}, excluded.committed_sequence) ELSE excluded.committed_sequence END`,
-      },
-    })
-    .returning();
-  if (!row) throw new Error(`Discord gateway session was not written for shard ${params.shardId}`);
-  return toDiscordGatewaySession(row);
+): Promise<DiscordGatewaySession | undefined> {
+  const shard = eq(discordGatewaySessions.shardId, params.shardId);
+  const [row] =
+    params.sessionId === null
+      ? await db()
+          .update(discordGatewaySessions)
+          .set({
+            sessionId: null,
+            resumeGatewayUrl: null,
+            receivedSequence: null,
+            committedSequence: null,
+            updatedAt: new Date(),
+          })
+          .where(shard)
+          .returning()
+      : await db()
+          .update(discordGatewaySessions)
+          .set({
+            resumeGatewayUrl: params.resumeGatewayUrl,
+            receivedSequence: params.receivedSequence,
+            committedSequence: sql`GREATEST(${discordGatewaySessions.committedSequence}, ${params.committedSequence})`,
+            updatedAt: new Date(),
+          })
+          .where(and(shard, eq(discordGatewaySessions.sessionId, params.sessionId)))
+          .returning();
+  return row ? toDiscordGatewaySession(row) : undefined;
 }
