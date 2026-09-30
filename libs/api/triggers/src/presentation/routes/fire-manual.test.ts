@@ -131,7 +131,7 @@ describe('POST /:definitionId/fire-manual', () => {
       createInterModuleKnownError(
         workflowsInterModuleContract.methods.startRunFromTrigger,
         code,
-        details as {definitionId: string} & Record<string, never>,
+        details as {definitionId: string} | Record<string, never>,
       ),
     );
 
@@ -282,7 +282,7 @@ describe('POST /:definitionId/fire-manual', () => {
     });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json()).toMatchObject({code: 'workspace-not-found', message: 'Workspace not found'});
+    expect(res.json()).toMatchObject({code: 'workspace-not-found'});
   });
 
   test('maps deleted workspace to 404', async () => {
@@ -303,7 +303,7 @@ describe('POST /:definitionId/fire-manual', () => {
     });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json()).toMatchObject({code: 'workspace-deleted', message: 'Workspace is deleted'});
+    expect(res.json()).toMatchObject({code: 'workspace-deleted'});
   });
 
   test('returns 404 when the manual trigger is unavailable', async () => {

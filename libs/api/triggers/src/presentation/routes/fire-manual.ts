@@ -47,6 +47,10 @@ export function createFireManualTriggerRoute(
       body: fireManualTriggerBodySchema,
       response: {
         201: fireManualTriggerResponseSchema,
+        404: z.object({
+          code: z.string(),
+          details: z.unknown().optional(),
+        }),
         409: z.object({
           code: z.string(),
           details: z.unknown().optional(),
