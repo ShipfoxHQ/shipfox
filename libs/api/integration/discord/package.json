@@ -41,6 +41,8 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@discordjs/rest": "catalog:",
+    "@discordjs/ws": "catalog:",
     "@shipfox/api-integration-discord-dto": "workspace:*",
     "@shipfox/api-integration-spi": "workspace:*",
     "@shipfox/config": "workspace:*",
@@ -50,6 +52,7 @@
     "@shipfox/node-module": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
+    "discord-api-types": "catalog:",
     "drizzle-orm": "catalog:",
     "ky": "catalog:"
   },
@@ -61,7 +64,9 @@
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
     "@types/pg": "catalog:",
+    "@types/ws": "catalog:",
     "drizzle-kit": "catalog:",
-    "fastify": "catalog:"
+    "fastify": "catalog:",
+    "ws": "catalog:"
   }
 }
