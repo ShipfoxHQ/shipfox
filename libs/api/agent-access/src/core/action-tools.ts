@@ -387,6 +387,7 @@ function mapRequiredAction(value: unknown): Record<string, string> | undefined {
     reason: boundErrorDetail(value.reason),
     message: boundErrorDetail(value.message),
     url: boundErrorDetail(value.url),
+    ...(typeof value.intent === 'string' ? {intent: boundErrorDetail(value.intent)} : {}),
   };
 }
 

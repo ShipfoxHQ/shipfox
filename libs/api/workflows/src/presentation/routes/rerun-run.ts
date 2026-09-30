@@ -129,6 +129,9 @@ function admissionDeniedDetails(error: WorkflowAdmissionDeniedError) {
             reason: error.requiredAction.reason,
             message: error.requiredAction.message,
             url: error.requiredAction.url,
+            ...(error.requiredAction.intent === undefined
+              ? {}
+              : {intent: error.requiredAction.intent}),
           },
         }),
   };

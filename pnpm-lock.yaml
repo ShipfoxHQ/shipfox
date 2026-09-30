@@ -5868,6 +5868,9 @@ importers:
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module
+      '@shipfox/policy-notice':
+        specifier: workspace:*
+        version: link:../../shared/common/policy-notice
       '@shipfox/regex':
         specifier: workspace:*
         version: link:../../shared/common/regex

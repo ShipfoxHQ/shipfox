@@ -540,6 +540,19 @@ describe('workflowsInterModuleContract', () => {
         },
       },
     ],
+    [
+      'admission-denied',
+      {
+        workspaceId: '00000000-0000-4000-8000-000000000010',
+        reason: 'workspace-limit',
+        requiredAction: {
+          reason: 'workspace-limit',
+          message: 'Contact us',
+          url: 'mailto:support@example.test',
+          intent: 'contact-support',
+        },
+      },
+    ],
     ['definition-not-found', {definitionId: '00000000-0000-4000-8000-000000000001'}],
     ['project-mismatch', {}],
     ['parent-run-not-found', {}],

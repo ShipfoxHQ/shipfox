@@ -191,6 +191,34 @@ describe('POST /:definitionId/fire-manual', () => {
     });
   });
 
+  test('keeps the intent of an admission denial required action', async () => {
+    const definitionId = crypto.randomUUID();
+    const reason = 'workspace-limit';
+    const requiredAction = {
+      reason,
+      message: 'Contact us',
+      url: 'mailto:support@example.test',
+      intent: 'contact-support',
+    };
+    await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
+    fireManualTriggerMock.mockRejectedValue(
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startRunFromTrigger,
+        'admission-denied',
+        {workspaceId, reason, requiredAction},
+      ),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/${definitionId}/fire-manual`,
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().details.required_action).toEqual(requiredAction);
+  });
+
   test('maps missing workspace to 404', async () => {
     const definitionId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
