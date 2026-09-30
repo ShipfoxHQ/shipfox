@@ -156,6 +156,25 @@
         "SLACK_SIGNING_SECRET"
       ]
     },
+    "@shipfox/e2e-eval-workflows#evals": {
+      "cache": false,
+      "dependsOn": ["^build", "build"],
+      "passThroughEnv": [
+        "ADMIN_BOOTSTRAP_TOKEN",
+        "CLIENT_BASE_URL",
+        "CLICKUP_API_BASE_URL",
+        "DISCORD_API_BASE_URL",
+        "LANGFUSE_*",
+        "NOTION_API_BASE_URL",
+        "NOTION_WEBHOOK_VERIFICATION_TOKEN",
+        "POSTHOG_API_BASE_URL",
+        "POSTHOG_MCP_ENDPOINT",
+        "REGISTRY_TRUSTED_KEYS",
+        "REGISTRY_URL",
+        "SLACK_API_BASE_URL",
+        "SLACK_SIGNING_SECRET"
+      ]
+    },
     "storybook:build": {
       "cache": true,
       "outputs": ["storybook-static/**/*"],

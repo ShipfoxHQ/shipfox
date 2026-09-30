@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 import {join} from 'node:path';
 import {parseArgs} from 'node:util';
+import {preflightCheck} from '@shipfox/e2e-core';
 import {caseSupportsMode, discoverCases} from './discovery.js';
+import {executeTemplateCase} from './execute.js';
 import {exportToLangfuse, isLangfuseConfigured} from './langfuse.js';
 import {runOnboardingSuite} from './onboarding-run.js';
-import {type ResultsRun, writeResults} from './results.js';
+import {type CaseResult, createRunId, type ResultsRun, writeResults} from './results.js';
+import type {EventSenders} from './senders.js';
 
 const usage = `Usage: shipfox-eval-workflows [options]
 
@@ -93,6 +96,9 @@ export interface EvalRunOptions extends EvalCliOptions {
   cwd?: string;
   resultsDirectory?: string;
   runId?: string;
+  /** Replaces case execution against the running stack, which tests don't have. */
+  execute?: Parameters<typeof writeResults>[0]['execute'];
+  senders?: EventSenders;
 }
 
 export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
@@ -131,12 +137,27 @@ export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
   // Cost accounting is added by the execution layers. Keeping the option here means
   // scripted runs and future live runs share the same CLI contract.
   void options.maxCostUsd;
+  const runId = options.runId ?? createRunId();
+  let execute = options.execute;
+  if (execute === undefined) {
+    await preflightCheck({requireClient: false});
+    const workDirectory = join(cwd, '.eval-run', runId);
+    execute = ({discovered: entry, repeat}) =>
+      executeTemplateCase({
+        discovered: entry,
+        mode: options.mode,
+        repeat,
+        workDirectory,
+        senders: options.senders,
+      });
+  }
   return writeResults({
     cases: discovered,
     mode: options.mode,
     repeat: options.repeat ?? 1,
+    execute,
+    runId,
     ...(options.resultsDirectory === undefined ? {} : {resultsDirectory: options.resultsDirectory}),
-    ...(options.runId === undefined ? {} : {runId: options.runId}),
   });
 }
 
@@ -213,9 +234,15 @@ export async function runCli(
       ...(environment.cwd === undefined ? {} : {cwd: environment.cwd}),
       ...(environment.cwd === undefined ? {} : {resultsDirectory: `${environment.cwd}/results`}),
     });
-    stdout(`Validated ${run.results.length} case runs. Results: ${run.directory}\n`);
+    const failed = run.results.filter((result: CaseResult) => result.status === 'error');
+    stdout(
+      `Ran ${run.results.length} case runs, ${failed.length} with errors. Results: ${run.directory}\n`,
+    );
+    for (const result of failed) {
+      stderr(`${result.case} (repeat ${result.repeat}): ${result.error}\n`);
+    }
     await exportRun({options, run, stdout, stderr});
-    return 0;
+    return failed.length > 0 ? 1 : 0;
   } catch (error) {
     stderr(`Eval failed: ${error instanceof Error ? error.message : String(error)}\n`);
     return 1;

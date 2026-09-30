@@ -1,0 +1,26 @@
+name: Fixture task
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+
+outputs:
+  status: ${{ jobs.implement.outputs.status }}
+
+jobs:
+  implement:
+    # part:source.checkout
+    outputs:
+      status: ${{ steps.report.outputs.status }}
+    steps:
+      # slot:setup_commands
+
+      - key: test
+        run: |
+          { replace-with-test-command; } # slot:test_command
+      - key: report
+        run: |
+          printf 'status=implemented\n' >> "$SHIPFOX_OUTPUT"
+        outputs:
+          status: string

@@ -1,6 +1,8 @@
 import {mkdir, writeFile} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
+import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
 import type {DiscoveredCase} from './discovery.js';
+import type {ScenarioStepRecord} from './scenario.js';
 
 /** The session of one agent step, as the harness wrote it. */
 export interface AgentTranscript {
@@ -19,6 +21,13 @@ export interface CaseResult {
   error?: string;
   composed_yaml?: string;
   agent_transcripts?: AgentTranscript[];
+  run_id?: string;
+  /** Each scenario step that ran, in order, with its outcome. */
+  steps?: ScenarioStepRecord[];
+  /** The run with its jobs, executions, and steps, once the scenario finished. */
+  observation?: WorkflowRunObservation;
+  /** The case runner's log file. */
+  runner_log?: string;
 }
 
 export interface ResultsRun {
@@ -31,6 +40,8 @@ export interface WriteResultsOptions {
   cases: DiscoveredCase[];
   mode: 'scripted' | 'live';
   repeat: number;
+  /** Runs one case repeat. It must not throw; a case that can't finish is an `error` result. */
+  execute: (params: {discovered: DiscoveredCase; repeat: number}) => Promise<CaseResult>;
   resultsDirectory?: string;
   runId?: string;
 }
@@ -58,6 +69,7 @@ function summaryMarkdown(run: ResultsRun, mode: 'scripted' | 'live'): string {
     '| Case | Repeat | Status | Cost (USD) |',
     '| --- | ---: | --- | ---: |',
   ];
+  const failures = run.results.filter((result) => result.error !== undefined);
 
   for (const result of run.results) {
     lines.push(
@@ -65,10 +77,19 @@ function summaryMarkdown(run: ResultsRun, mode: 'scripted' | 'live'): string {
     );
   }
 
+  if (failures.length > 0) {
+    lines.push('', '## Errors', '');
+    for (const result of failures) {
+      lines.push(
+        `- \`${result.case}\` repeat ${result.repeat}: ${result.error?.replaceAll('\n', ' / ')}`,
+      );
+    }
+  }
+
   return `${lines.join('\n')}\n`;
 }
 
-/** Writes one JSON result per case/repeat and a summary for the complete run. */
+/** Runs every case repeat, writes one JSON result each, and writes a summary for the run. */
 export async function writeResults(options: WriteResultsOptions): Promise<ResultsRun> {
   const runId = options.runId ?? createRunId();
   const directory = join(options.resultsDirectory ?? 'results', runId);
@@ -76,14 +97,7 @@ export async function writeResults(options: WriteResultsOptions): Promise<Result
 
   for (const discoveredCase of options.cases) {
     for (let repeat = 1; repeat <= options.repeat; repeat += 1) {
-      const result: CaseResult = {
-        case: discoveredCase.id,
-        mode: options.mode,
-        repeat,
-        status: 'passed',
-        duration_ms: 0,
-        cost_usd: 0,
-      };
+      const result = await options.execute({discovered: discoveredCase, repeat});
       results.push(result);
       const path = resultPath(directory, result);
       await mkdir(dirname(path), {recursive: true});
