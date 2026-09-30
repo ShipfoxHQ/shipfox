@@ -15,6 +15,7 @@
     "#clickup-events.js": "./src/clickup-events.ts",
     "#create-project.js": "./src/create-project.ts",
     "#expect.js": "./src/expect.ts",
+    "#github-source.js": "./src/github-source.ts",
     "#listener-helpers.js": "./src/listener-helpers.ts",
     "#listener-jobs.js": "./src/listener-jobs.ts",
     "#polling.js": "./src/polling.ts",
