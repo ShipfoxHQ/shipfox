@@ -299,6 +299,25 @@ describe('getTriggerEventIssueCallout', () => {
     );
   });
 
+  test('identifies the missing secret input for a failed workflow start', () => {
+    const callout = getTriggerEventIssueCallout(
+      event({
+        decisions: [
+          decision({
+            decision: 'dispatch-error',
+            reason: 'Secret input DEPLOY_TOKEN was not supplied',
+            diagnostic: {version: 1, code: 'secret-input-missing', key: 'DEPLOY_TOKEN'},
+          }),
+        ],
+      }),
+    );
+
+    expect(callout).toMatchObject({type: 'error', title: 'Secret input is not passed'});
+    expect(callout?.issues[0]?.description.map((part) => part.value).join('')).toBe(
+      'DEPLOY_TOKEN was not passed to on_pr_opened. Add it to the trigger secrets mapping.',
+    );
+  });
+
   test('uses the event fallback when an error has no recorded decision', () => {
     const callout = getTriggerEventIssueCallout(
       event({outcome: 'errored', decisions: [], processingDiagnostic: null}),

@@ -42,6 +42,11 @@ const diagnosticFieldSchema = z.string().min(1).max(200);
 const diagnosticClassificationSchema = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/);
 const diagnosticByteCountSchema = z.number().int().nonnegative();
 const diagnosticIndexSchema = z.number().int().min(-999_999_999).max(999_999_999);
+const diagnosticStepSchema = z.strictObject({
+  key: diagnosticFieldSchema.optional(),
+  name: diagnosticFieldSchema.optional(),
+  index: z.number().int().positive(),
+});
 
 export const triggerDecisionDiagnosticDtoSchema = z.discriminatedUnion('code', [
   z.strictObject({
@@ -93,6 +98,10 @@ export const triggerDecisionDiagnosticDtoSchema = z.discriminatedUnion('code', [
     code: z.literal('interpolation-unresolvable'),
     field: diagnosticFieldSchema,
     env_key: diagnosticFieldSchema.optional(),
+    variable_key: diagnosticFieldSchema.optional(),
+    job_key: diagnosticFieldSchema.optional(),
+    step: diagnosticStepSchema.optional(),
+    source: diagnosticFieldSchema.optional(),
   }),
   z.strictObject({
     version: diagnosticVersionSchema,
@@ -138,6 +147,11 @@ export const triggerDecisionDiagnosticDtoSchema = z.discriminatedUnion('code', [
   z.strictObject({
     version: diagnosticVersionSchema,
     code: z.literal('secret-not-found'),
+    key: secretKeySchema,
+  }),
+  z.strictObject({
+    version: diagnosticVersionSchema,
+    code: z.literal('secret-input-missing'),
     key: secretKeySchema,
   }),
 ]);

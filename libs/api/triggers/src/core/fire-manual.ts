@@ -14,6 +14,7 @@ import type {TriggerSubscription} from './entities/subscription.js';
 import {
   ManualTriggerNotFoundError,
   SecretInputMissingError,
+  SecretInputNotFoundError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
   TriggerWorkspaceMismatchError,
@@ -142,7 +143,7 @@ export async function fireManualSubscription(
   } catch (error) {
     const failure = await beginTriggerHistory({...historyBase, eventRef: randomUUID()});
     await failure.dispatchErrored(subscription, toReason(error), startRunDiagnostic(error));
-    if (isPermanentStartRunError(error)) {
+    if (isPermanentManualFireError(error)) {
       eventOutcomeCount.add(1, {origin, provider: 'manual', outcome: 'errored'});
       await failure.allErrored(1);
     } else {
@@ -158,6 +159,14 @@ export async function fireManualSubscription(
   eventOutcomeCount.add(1, {origin, provider: 'manual', outcome: 'routed'});
   await history.routed(1);
   return run;
+}
+
+function isPermanentManualFireError(error: unknown): boolean {
+  return (
+    error instanceof SecretInputNotFoundError ||
+    error instanceof SecretInputMissingError ||
+    isPermanentStartRunError(error)
+  );
 }
 
 async function resolveSecretInputs(

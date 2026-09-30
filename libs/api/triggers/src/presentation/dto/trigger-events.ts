@@ -112,6 +112,10 @@ function toTriggerDecisionDiagnosticDto(
         code: diagnostic.code,
         field: diagnostic.field,
         ...(diagnostic.envKey === undefined ? {} : {env_key: diagnostic.envKey}),
+        ...(diagnostic.variableKey === undefined ? {} : {variable_key: diagnostic.variableKey}),
+        ...(diagnostic.jobKey === undefined ? {} : {job_key: diagnostic.jobKey}),
+        ...(diagnostic.step === undefined ? {} : {step: diagnostic.step}),
+        ...(diagnostic.source === undefined ? {} : {source: diagnostic.source}),
       };
     case 'source-snapshot-too-large':
       return {

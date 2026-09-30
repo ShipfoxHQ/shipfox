@@ -156,6 +156,81 @@ describe('trigger-events mappers', () => {
     });
   });
 
+  describe('toTriggerDecisionDto interpolation diagnostics', () => {
+    const decision: TriggerDecision = {
+      id: '33333333-3333-3333-3333-333333333333',
+      receivedEventId: '11111111-1111-1111-1111-111111111111',
+      subscriptionKind: 'trigger',
+      subscriptionId: '44444444-4444-4444-4444-444444444444',
+      subscriptionName: 'Deploy production',
+      workflowDefinitionId: '55555555-5555-5555-5555-555555555555',
+      projectId: '66666666-6666-6666-6666-666666666666',
+      workflowRunId: null,
+      jobId: null,
+      matcherKind: null,
+      matcherOrdinal: null,
+      decision: 'dispatch-error',
+      runId: null,
+      runName: null,
+      reason: 'interpolation-unresolvable',
+      createdAt: new Date('2026-05-07T00:00:02.000Z'),
+    };
+
+    test('maps the variable, job, step and source', () => {
+      const dto = toTriggerDecisionDto({
+        ...decision,
+        diagnostic: {
+          version: 1,
+          code: 'interpolation-unresolvable',
+          field: 'job.if',
+          variableKey: 'E2E_SCHEDULE_ENABLED',
+          jobKey: 'e2e',
+          step: {key: 'deploy', name: 'Deploy', index: 2},
+          source: 'vars.E2E_SCHEDULE_ENABLED',
+        },
+      });
+
+      expect(dto.diagnostic).toEqual({
+        version: 1,
+        code: 'interpolation-unresolvable',
+        field: 'job.if',
+        variable_key: 'E2E_SCHEDULE_ENABLED',
+        job_key: 'e2e',
+        step: {key: 'deploy', name: 'Deploy', index: 2},
+        source: 'vars.E2E_SCHEDULE_ENABLED',
+      });
+      expect(triggerDecisionDiagnosticDtoSchema.safeParse(dto.diagnostic).success).toBe(true);
+    });
+
+    test('maps a stored row without the new fields', () => {
+      const dto = toTriggerDecisionDto({
+        ...decision,
+        diagnostic: {version: 1, code: 'interpolation-unresolvable', field: 'env', envKey: 'REF'},
+      });
+
+      expect(dto.diagnostic).toEqual({
+        version: 1,
+        code: 'interpolation-unresolvable',
+        field: 'env',
+        env_key: 'REF',
+      });
+      expect(triggerDecisionDiagnosticDtoSchema.safeParse(dto.diagnostic).success).toBe(true);
+    });
+
+    test('maps a missing secret input', () => {
+      const dto = toTriggerDecisionDto({
+        ...decision,
+        diagnostic: {version: 1, code: 'secret-input-missing', key: 'DEPLOY_TOKEN'},
+      });
+
+      expect(dto.diagnostic).toEqual({
+        version: 1,
+        code: 'secret-input-missing',
+        key: 'DEPLOY_TOKEN',
+      });
+    });
+  });
+
   test('toTriggerDecisionDto preserves a recognized legacy reason', () => {
     const decision: TriggerDecision = {
       id: '33333333-3333-3333-3333-333333333333',

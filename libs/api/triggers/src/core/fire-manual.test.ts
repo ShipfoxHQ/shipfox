@@ -441,6 +441,43 @@ describe('fireManualSubscription (trigger history)', () => {
     expect(decisions[0]?.reason).toContain('definition-not-found');
   });
 
+  test.each([
+    [
+      'unknown secret source',
+      {config: {secrets: {DEPLOY_TOKEN: 'MISSING_TOKEN'}}},
+      'secret-not-found',
+    ],
+    [
+      'missing secret input override',
+      {config: {secrets: {DEPLOY_TOKEN: 'PROJECT_TOKEN'}}, override: {}},
+      'secret-input-missing',
+    ],
+  ] as const)('records a terminal manual event with a diagnostic for a %s', async (_label, setup, code) => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: setup.config,
+    });
+    getSecret.mockResolvedValue({value: null, projectId: null});
+
+    await expect(
+      fireManualSubscription({
+        workflows,
+        secrets,
+        subscriptionId: subscription.id,
+        callerWorkspaceId: subscription.workspaceId,
+        userId: crypto.randomUUID(),
+        ...('override' in setup ? {secretInputs: setup.override} : {}),
+      }),
+    ).rejects.toBeInstanceOf(Error);
+
+    const [event] = await eventsForWorkspace(subscription.workspaceId);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('errored');
+    const [decision] = await decisionsForEvent(event.id);
+    expect(decision?.diagnostic).toMatchObject({version: 1, code});
+  });
+
   test('records an admission denial reason as a terminal manual event', async () => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'manual',

@@ -36,6 +36,11 @@ const diagnosticVersionSchema = z.literal(1);
 const diagnosticByteCountSchema = z.number().int().nonnegative();
 const diagnosticFieldSchema = z.string().min(1).max(200);
 const diagnosticIndexSchema = z.number().int().min(-999_999_999).max(999_999_999);
+const diagnosticStepSchema = z.strictObject({
+  key: diagnosticFieldSchema.optional(),
+  name: diagnosticFieldSchema.optional(),
+  index: z.number().int().positive(),
+});
 
 export const triggerDecisionDiagnosticSchema = z.discriminatedUnion('code', [
   z.strictObject({
@@ -90,9 +95,18 @@ export const triggerDecisionDiagnosticSchema = z.discriminatedUnion('code', [
   }),
   z.strictObject({
     version: diagnosticVersionSchema,
+    code: z.literal('secret-input-missing'),
+    key: secretKeySchema,
+  }),
+  z.strictObject({
+    version: diagnosticVersionSchema,
     code: z.literal('interpolation-unresolvable'),
     field: diagnosticFieldSchema,
     envKey: diagnosticFieldSchema.optional(),
+    variableKey: diagnosticFieldSchema.optional(),
+    jobKey: diagnosticFieldSchema.optional(),
+    step: diagnosticStepSchema.optional(),
+    source: diagnosticFieldSchema.optional(),
   }),
   z.strictObject({
     version: diagnosticVersionSchema,
@@ -298,6 +312,15 @@ const startRunErrors = {
     field: interpolationFieldSchema,
     source: z.string(),
     envKey: z.string().optional(),
+    variableKey: z.string().optional(),
+    jobKey: z.string().optional(),
+    step: z
+      .object({
+        key: z.string().optional(),
+        name: z.string().optional(),
+        index: z.number().int().positive(),
+      })
+      .optional(),
   }),
   'invalid-job-runner-labels': z.object({labels: z.array(z.string())}),
   'source-snapshot-too-large': z.object({

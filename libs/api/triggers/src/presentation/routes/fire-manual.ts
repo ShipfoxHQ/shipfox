@@ -26,7 +26,16 @@ const startRunErrorDetailsSchema = z.union([
     measured_bytes: z.number().int().positive(),
   }),
   z.object({definition_id: z.string()}),
-  z.object({field: z.string(), source: z.string(), env_key: z.string().optional()}),
+  z.object({
+    field: z.string(),
+    source: z.string(),
+    env_key: z.string().optional(),
+    variable_key: z.string().optional(),
+    job_key: z.string().optional(),
+    step: z
+      .object({key: z.string().optional(), name: z.string().optional(), index: z.number().int()})
+      .optional(),
+  }),
   z.object({labels: z.array(z.string())}),
   z.object({key: z.string()}),
   z.object({limit_bytes: z.number().int().positive(), measured_bytes: z.number().int().positive()}),
