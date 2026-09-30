@@ -3,11 +3,12 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {DefinitionListResponseDto} from '@shipfox/api-definitions-dto';
 import {createApiClient, pollUntil} from '@shipfox/e2e-core';
-import {startGithubApiMock} from '@shipfox/e2e-driver-github';
+import {type GithubRepositoryFixture, startGithubApiMock} from '@shipfox/e2e-driver-github';
 import {createSession, createUser} from '@shipfox/e2e-setup-auth';
 import {createGithubConnection} from '@shipfox/e2e-setup-integrations';
 import {createProject} from '@shipfox/e2e-setup-projects';
 import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
+import type {SeedPullRequest} from './schema.js';
 
 const SYNC_TIMEOUT_MS = 60_000;
 
@@ -71,12 +72,61 @@ async function waitForProjectSync({
   );
 }
 
+/**
+ * Adds each seeded pull request to the fake: a branch whose tree is the repository files with the
+ * seed's `files` laid over them, and a pull request on that branch.
+ */
+async function seedPullRequests({
+  github,
+  repository,
+  seeds,
+  seedDirectory,
+  caseDirectory,
+  cleanups,
+}: {
+  github: Awaited<ReturnType<typeof startGithubApiMock>>;
+  repository: GithubRepositoryFixture;
+  seeds: readonly SeedPullRequest[];
+  seedDirectory: string;
+  caseDirectory?: string | undefined;
+  cleanups: Array<() => Promise<void>>;
+}): Promise<void> {
+  for (const seed of seeds) {
+    const directory = await mkdtemp(join(tmpdir(), 'eval-branch-'));
+    cleanups.push(() => rm(directory, {recursive: true, force: true}));
+    await cp(seedDirectory, directory, {recursive: true});
+    if (seed.files !== undefined) {
+      if (caseDirectory === undefined)
+        throw new Error('A seeded pull request needs a case directory.');
+      await cp(join(caseDirectory, seed.files), directory, {recursive: true});
+    }
+    const sha = await github.addBranch({
+      owner: repository.owner,
+      name: repository.name,
+      branch: seed.branch,
+      directory,
+    });
+    // Issues share the numbering with pull requests.
+    const number = Math.max(0, ...github.pullRequests.keys(), ...github.issues.keys()) + 1;
+    github.pullRequests.set(number, {
+      repository: repository.fullName,
+      ref: seed.branch,
+      sha,
+      base: repository.defaultBranch,
+      title: seed.title,
+      author: seed.author,
+    });
+  }
+}
+
 export interface GithubProjectOptions {
   /** Its `repo/` directory, when present, seeds the fake repository. */
   caseDirectory?: string | undefined;
   repository?: string | undefined;
   /** Names the workspace, and keeps the fake installation apart from other runs. */
   label: string;
+  /** Pull requests the fake holds before the scenario starts. */
+  pullRequests?: readonly SeedPullRequest[] | undefined;
   /** Cleanups run in reverse, by the caller, however the run ends. */
   cleanups: Array<() => Promise<void>>;
 }
@@ -99,6 +149,14 @@ export async function arrangeGithubProject(options: GithubProjectOptions) {
   await seedRepository({caseDirectory: options.caseDirectory, directory: seedDirectory});
   const {owner, name} = repositoryName({repository: options.repository, uniqueId});
   const repository = await github.addRepository({owner, name, seedDirectory});
+  await seedPullRequests({
+    github,
+    repository,
+    seeds: options.pullRequests ?? [],
+    seedDirectory,
+    caseDirectory: options.caseDirectory,
+    cleanups,
+  });
 
   // A GitHub connection resyncs every project of its workspace when it becomes active, so each
   // run gets a workspace of its own.

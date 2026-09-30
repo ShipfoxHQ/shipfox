@@ -42,6 +42,7 @@ describe('GitHub fake git transport', () => {
     seedDirectory = join(directory, 'seed');
     await mkdir(join(seedDirectory, 'src'), {recursive: true});
     await writeFile(join(seedDirectory, 'src', 'index.ts'), 'export const value = 1;\n');
+    await writeFile(join(seedDirectory, 'seed-only.txt'), 'only on the default branch\n');
     mock = await startGithubApiMock({
       endpoint: new URL('http://127.0.0.1:0'),
       installationToken: GITHUB_STATEFUL_INSTALLATION_TOKEN,
@@ -95,6 +96,55 @@ describe('GitHub fake git transport', () => {
       'HEAD',
     );
     expect(defaultBranch).toMatch(DEFAULT_BRANCH_LINE);
+  });
+
+  it('adds a branch whose tree is the directory, on top of the default branch', async () => {
+    await mock.addRepository({owner: 'acme', name: 'report-cli', seedDirectory});
+    const branchDirectory = join(directory, 'branch');
+    await mkdir(join(branchDirectory, 'src'), {recursive: true});
+    await writeFile(join(branchDirectory, 'src', 'index.ts'), 'export const value = 2;\n');
+    await writeFile(join(branchDirectory, 'update.txt'), 'bumped\n');
+
+    const tip = await mock.addBranch({
+      owner: 'acme',
+      name: 'report-cli',
+      branch: 'dependabot/npm_and_yarn/left-pad-1.1.0',
+      directory: branchDirectory,
+    });
+
+    const cloneUrl = new URL('/github.com/acme/report-cli.git', mock.endpoint).toString();
+    const checkout = join(directory, 'checkout');
+    await authorizedGit(directory, GITHUB_STATEFUL_INSTALLATION_TOKEN, 'clone', cloneUrl, checkout);
+    const main = await git(checkout, 'rev-parse', 'HEAD');
+    await git(checkout, 'switch', 'dependabot/npm_and_yarn/left-pad-1.1.0');
+    expect(await git(checkout, 'rev-parse', 'HEAD')).toBe(tip);
+    expect(await git(checkout, 'rev-parse', 'HEAD~1')).toBe(main);
+    await expect(readFile(join(checkout, 'src', 'index.ts'), 'utf8')).resolves.toBe(
+      'export const value = 2;\n',
+    );
+    await expect(readFile(join(checkout, 'update.txt'), 'utf8')).resolves.toBe('bumped\n');
+    expect(mock.branchHeads.get('dependabot/npm_and_yarn/left-pad-1.1.0')).toBe(tip);
+    expect(mock.writes()).toEqual([]);
+    // The branch holds the directory's files alone, not the default branch's files plus a change.
+    expect((await git(checkout, 'ls-tree', '-r', '--name-only', tip)).split('\n')).toEqual([
+      'src/index.ts',
+      'update.txt',
+    ]);
+  });
+
+  it('refuses a branch that already exists, the default branch included', async () => {
+    await mock.addRepository({owner: 'acme', name: 'report-cli', seedDirectory});
+    const params = {owner: 'acme', name: 'report-cli', directory: seedDirectory};
+    await mock.addBranch({...params, branch: 'update'});
+
+    await expect(mock.addBranch({...params, branch: 'update'})).rejects.toThrow();
+    await expect(mock.addBranch({...params, branch: 'main'})).rejects.toThrow();
+  });
+
+  it('refuses a branch on a repository the fake does not have', async () => {
+    await expect(
+      mock.addBranch({owner: 'acme', name: 'missing', branch: 'update', directory: seedDirectory}),
+    ).rejects.toThrow('acme/missing is not registered');
   });
 
   it('refuses a request that does not carry the minted token', async () => {

@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
 import {closeServer, listenOnEndpoint, type RecordedWrite} from '@shipfox/e2e-core';
 import {
+  type AddGithubBranchParams,
   type AddGithubRepositoryParams,
   createGitRepositories,
   type GithubRepositoryFixture,
@@ -141,6 +142,11 @@ export interface GithubApiMock extends GithubWebhookSender {
   branchHeads: Map<string, string>;
   /** Creates a bare repository the fake serves over git and describes in its repository API. */
   addRepository(params: AddGithubRepositoryParams): Promise<GithubRepositoryFixture>;
+  /**
+   * Adds a branch to a repository from a directory, on top of the default branch, and records its
+   * tip for pull requests and commits. Returns the tip.
+   */
+  addBranch(params: AddGithubBranchParams): Promise<string>;
   /** Writes the fake accepted, in arrival order. */
   writes(): RecordedWrite[];
   stop(): Promise<void>;
@@ -245,6 +251,11 @@ export async function startGithubApiMock(
     issues,
     branchHeads,
     addRepository: (params) => repositories.add(params),
+    addBranch: async (params) => {
+      const tip = await repositories.addBranch(params);
+      branchHeads.set(params.branch, tip);
+      return tip;
+    },
     ...webhookSender,
     writes: () => [...writes],
     stop: async () => {

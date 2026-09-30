@@ -10,6 +10,7 @@ const REVIEW_COMMENT_REPLY_PATH =
   /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)\/comments\/(\d+)\/replies$/u;
 
 const BOT_LOGIN = 'shipfox-e2e[bot]';
+const DEFAULT_AUTHOR = 'e2e-author';
 const FIXTURE_TIMESTAMP = '2026-01-01T00:00:00Z';
 
 export interface GithubPullRequestFixture {
@@ -23,6 +24,8 @@ export interface GithubPullRequestFixture {
   base?: string | undefined;
   title?: string | undefined;
   body?: string | undefined;
+  /** Login of the author. Defaults to `e2e-author`. */
+  author?: string | undefined;
   draft?: boolean | undefined;
   /** Defaults to `open`. A merged pull request always reports `closed`. */
   state?: 'open' | 'closed' | undefined;
@@ -146,6 +149,7 @@ export function pullRequestPayload(
     title: pullRequest.title ?? '',
     body: pullRequest.body ?? null,
     draft: pullRequest.draft ?? false,
+    user: {login: pullRequest.author ?? DEFAULT_AUTHOR},
     merged,
     html_url: `https://github.com/${pullRequest.repository}/pull/${number}`,
     head: {ref: pullRequest.ref, sha: pullRequest.sha, repo: {full_name: pullRequest.repository}},

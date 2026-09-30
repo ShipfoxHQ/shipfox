@@ -12,6 +12,7 @@ const FIRST_REPOSITORY_ID = 1000;
 const NAME_SEGMENT = /^[A-Za-z0-9_.-]+$/u;
 const GIT_PATH = /^\/github\.com\/([^/]+)\/([^/]+)\.git(\/.*)?$/u;
 const CGI_HEADER_END = Buffer.from('\r\n\r\n');
+const ZERO_OBJECT_ID = '0'.repeat(40);
 const SEED_IDENTITY = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.com'];
 
 export interface GithubRepositoryFixture {
@@ -32,8 +33,21 @@ export interface AddGithubRepositoryParams {
   defaultBranch?: string | undefined;
 }
 
+export interface AddGithubBranchParams {
+  owner: string;
+  name: string;
+  branch: string;
+  /** The branch's whole tree, not a change on top of the default branch. */
+  directory: string;
+}
+
 export interface GitRepositories {
   add(params: AddGithubRepositoryParams): Promise<GithubRepositoryFixture>;
+  /**
+   * Commits the directory as the whole tree of a new branch, on top of the default branch tip.
+   * Returns the new branch tip.
+   */
+  addBranch(params: AddGithubBranchParams): Promise<string>;
   findByName(params: {owner: string; name: string}): GithubRepositoryFixture | undefined;
   findById(id: number): GithubRepositoryFixture | undefined;
   /** Serves a request under `/github.com/<owner>/<repo>.git`. */
@@ -85,6 +99,13 @@ export function createGitRepositories(): GitRepositories {
       };
       repositories.set(key, repository);
       return repository;
+    },
+    addBranch: async (params) => {
+      const repository = repositories.get(repositoryKey(params));
+      if (repository === undefined) {
+        throw new Error(`Repository ${params.owner}/${params.name} is not registered`);
+      }
+      return await commitBranch({repository, branch: params.branch, directory: params.directory});
     },
     findByName: (params) => repositories.get(repositoryKey(params)),
     findById: (id) => [...repositories.values()].find((repository) => repository.id === id),
@@ -177,6 +198,52 @@ async function seed(bareRepositoryPath: string, seedDirectory: string): Promise<
   await git([...tree, ...SEED_IDENTITY, 'commit', '--quiet', '--allow-empty', '-m', 'Seed'], {
     cwd: seedDirectory,
   });
+}
+
+// A separate index keeps the seed commit's index out of the way, so the branch holds exactly
+// the directory's files.
+async function commitBranch(params: {
+  repository: GithubRepositoryFixture;
+  branch: string;
+  directory: string;
+}): Promise<string> {
+  const {repository, directory} = params;
+  const indexDirectory = await mkdtemp(join(tmpdir(), 'github-fake-index-'));
+  try {
+    const env = {GIT_INDEX_FILE: join(indexDirectory, 'index')};
+    const tree = ['--git-dir', repository.path, '--work-tree', directory];
+    await git([...tree, 'add', '--all', '--force', '.'], {cwd: directory, env});
+    const {stdout: treeId} = await git([...tree, 'write-tree'], {cwd: directory, env});
+    const {stdout: parent} = await git([
+      '--git-dir',
+      repository.path,
+      'rev-parse',
+      `refs/heads/${repository.defaultBranch}`,
+    ]);
+    const {stdout: commit} = await git([
+      '--git-dir',
+      repository.path,
+      ...SEED_IDENTITY,
+      'commit-tree',
+      treeId.trim(),
+      '-p',
+      parent.trim(),
+      '-m',
+      `Branch ${params.branch}`,
+    ]);
+    // An all-zeros old value makes git refuse a branch that exists, the default branch included.
+    await git([
+      '--git-dir',
+      repository.path,
+      'update-ref',
+      `refs/heads/${params.branch}`,
+      commit.trim(),
+      ZERO_OBJECT_ID,
+    ]);
+    return commit.trim();
+  } finally {
+    await rm(indexDirectory, {recursive: true, force: true});
+  }
 }
 
 function hasInstallationToken(request: IncomingMessage, token: string): boolean {

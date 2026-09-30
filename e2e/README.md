@@ -378,6 +378,13 @@ request that matches no entry, or finds its entry used up, fails the step, and
 the case fails with the request listed.
 `cases/templates/ticket-to-pr/feedback-loop` is the worked example.
 
+A case can seed pull requests before its scenario starts, such as a
+dependency bot's update. Each `seed.pull_requests` entry has a `branch`, an
+optional `author` and `title`, and an optional `files` directory next to
+`case.yaml`. The branch holds `repo/` with `files` laid over it, on top of the
+default branch, and the fake holds an open pull request on it.
+`cases/templates/fix-dependency-ci/push-fix` is the worked example.
+
 A case that finishes its scenario is then checked against `expect`:
 
 - `outputs`: each key must equal the run's workflow output. Other outputs are
@@ -403,10 +410,11 @@ A scenario step is one of:
   starts nothing.
 - `send`: a provider event, such as `github: {pull_request.closed: {...}}`.
   `$pr` and `$pr.head` in an event payload resolve to the pull request the run
-  opened in the GitHub fake, and `$pr.url` to its address. Inside longer text,
+  opened in the GitHub fake, or else the one the case seeded, and `$pr.url` to
+  its address. Inside longer text,
   as in `Opened pull request: $pr.url`, a reference becomes its text. The
-  case's GitHub fake sends `pull_request_review_comment.created` and
-  `pull_request.closed`. The case's Slack connection sends a signed `app_mention`,
+  case's GitHub fake sends `pull_request_review_comment.created`,
+  `pull_request.closed`, and `workflow_run.completed`. The case's Slack connection sends a signed `app_mention`,
   with `thread_ts` for a mention inside a thread. The Jira sender sends signed `jira:issue_created` and
   `jira:issue_updated` events, with an `issue` (`key`, `summary`, and
   optionally `id`, `status`, `project`, `labels`, and `description`) and

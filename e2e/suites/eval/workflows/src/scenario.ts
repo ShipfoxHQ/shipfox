@@ -1,3 +1,4 @@
+import {PollTimeoutError} from '@shipfox/e2e-core';
 import {describeAwait} from './awaits.js';
 import {type PullRequestReference, resolveReferences} from './references.js';
 import type {ScenarioStep} from './schema.js';
@@ -194,6 +195,8 @@ async function startFromEvent({
         signal,
       });
     } catch (error) {
+      // Only a lookup that timed out says no run followed the delivery. Anything else is a failure.
+      if (!(error instanceof PollTimeoutError)) throw error;
       if (signal?.aborted || stepDeadline - Date.now() <= 0) throw error;
     }
   }

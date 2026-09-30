@@ -20,9 +20,11 @@ function fakeGithub() {
       Promise.resolve({deliveryId: 'comment-delivery', commentId: 1, threadId: 'PRRT_e2e_1'}),
     ),
     sendPullRequestClosed: vi.fn(() => Promise.resolve({deliveryId: 'closed-delivery'})),
+    sendWorkflowRunCompleted: vi.fn(() => Promise.resolve({deliveryId: 'run-delivery'})),
   } as unknown as GithubWebhookSender & {
     sendPullRequestReviewComment: ReturnType<typeof vi.fn>;
     sendPullRequestClosed: ReturnType<typeof vi.fn>;
+    sendWorkflowRunCompleted: ReturnType<typeof vi.fn>;
   };
 }
 
@@ -55,6 +57,44 @@ describe('createGithubEventSender', () => {
     await send({event: 'pull_request.closed', payload: {pull_request: pr, merged: true}, context});
 
     expect(github.sendPullRequestClosed).toHaveBeenCalledWith({pullNumber: 1, merged: true});
+  });
+
+  it('fails a workflow run on the case repository and the pull request the scenario names', async () => {
+    const github = fakeGithub();
+    const send = createGithubEventSender(github);
+
+    const delivery = await send({
+      event: 'workflow_run.completed',
+      payload: {
+        pull_request: pr,
+        actor: 'dependabot[bot]',
+        conclusion: 'failure',
+        head_commit_message: 'Bump pad from 1.0.0 to 2.0.0',
+        run_attempt: 2,
+      },
+      context,
+    });
+
+    expect(delivery).toMatchObject({deliveryId: 'run-delivery'});
+    expect(github.sendWorkflowRunCompleted).toHaveBeenCalledWith({
+      repository: 'acme/report-cli',
+      pullNumbers: [1],
+      conclusion: 'failure',
+      actor: 'dependabot[bot]',
+      headCommitMessage: 'Bump pad from 1.0.0 to 2.0.0',
+      runAttempt: 2,
+    });
+  });
+
+  it('sends a workflow run with no pull request', async () => {
+    const github = fakeGithub();
+    const send = createGithubEventSender(github);
+
+    await send({event: 'workflow_run.completed', payload: {}, context});
+
+    expect(github.sendWorkflowRunCompleted).toHaveBeenCalledWith(
+      expect.objectContaining({repository: 'acme/report-cli', pullNumbers: undefined}),
+    );
   });
 
   it('rejects a payload with an unknown field', async () => {

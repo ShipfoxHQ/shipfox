@@ -1,0 +1,11 @@
+# The cases the scripted suite keeps for this template.
+behaviors:
+  - case: push-fix
+    options: {delivery_mode: push_fix}
+    proves: A failed run on a dependency bot's branch starts the repair, pushes one commit to the branch, and comments.
+  - case: comment-only
+    options: {delivery_mode: comment_only}
+    proves: The branch stays unchanged, and the comment carries the tested patch.
+  - case: needs-human
+    options: {delivery_mode: push_fix}
+    proves: A failure that needs a person gets a comment and no push.
