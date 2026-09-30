@@ -1,0 +1,10 @@
+{
+  "name": "@shipfox/e2e-registry-action-workspace-import",
+  "license": "MIT",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "devDependencies": {
+    "@shipfox/actions": "workspace:*"
+  }
+}

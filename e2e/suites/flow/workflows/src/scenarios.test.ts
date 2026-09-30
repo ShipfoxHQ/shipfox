@@ -150,6 +150,35 @@ describe('discoverScenarios', () => {
     }
   });
 
+  test('marks a workflow with a registry action step for the definition sync', () => {
+    const root = createTempScenariosRoot();
+    try {
+      writeScenarioFile(root, 'registry', 'expect.yaml', 'run:\n  status: succeeded\n');
+      writeScenarioFile(
+        root,
+        'registry',
+        'workflow.yml',
+        'jobs:\n  build:\n    steps:\n      - uses: fixture/example@1.0.0\n',
+      );
+      writeScenarioFile(root, 'shell', 'expect.yaml', 'run:\n  status: succeeded\n');
+      writeScenarioFile(
+        root,
+        'shell',
+        'workflow.yml',
+        'jobs:\n  build:\n    steps:\n      - run: echo hi\n',
+      );
+
+      const scenarios = discoverScenarios(root);
+
+      expect(scenarios.map(({name, usesActions}) => ({name, usesActions}))).toEqual([
+        {name: 'registry', usesActions: true},
+        {name: 'shell', usesActions: false},
+      ]);
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  });
+
   test('rejects directories that contain both declarative manifests', () => {
     const root = createTempScenariosRoot();
     try {

@@ -1,0 +1,21 @@
+name: Registry action workspace import
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  imports:
+    steps:
+      # The package is installed, so only the registry action rule can fail the import.
+      - key: install
+        name: Install greeting in the working directory
+        run: |
+          mkdir -p app/node_modules/greeting
+          printf '{"name":"greeting","version":"1.0.0","type":"module","exports":"./index.js"}\n' > app/node_modules/greeting/package.json
+          printf 'export const greet = (name) => `hello ${name}`;\n' > app/node_modules/greeting/index.js
+      - key: import
+        name: Import greeting from a registry action
+        uses: fixture/workspace-import@1.0.0
+        working_directory: app
+        with:
+          module: greeting
