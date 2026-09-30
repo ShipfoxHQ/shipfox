@@ -14,6 +14,7 @@
     "#attachments.js": "./src/attachments.ts",
     "#clickup-events.js": "./src/clickup-events.ts",
     "#create-project.js": "./src/create-project.ts",
+    "#discord-events.js": "./src/discord-events.ts",
     "#expect.js": "./src/expect.ts",
     "#github-source.js": "./src/github-source.ts",
     "#jira-events.js": "./src/jira-events.ts",
@@ -92,6 +93,7 @@
     "@shipfox/e2e-driver-slack": "workspace:*",
     "@shipfox/e2e-driver-clickup": "workspace:*",
     "@shipfox/e2e-driver-jira": "workspace:*",
+    "@shipfox/e2e-driver-discord": "workspace:*",
     "@shipfox/e2e-driver-notion": "workspace:*",
     "@shipfox/e2e-driver-posthog": "workspace:*"
   }

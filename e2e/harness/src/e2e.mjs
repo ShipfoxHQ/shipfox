@@ -27,6 +27,7 @@ const evalTurboTask = 'evals';
 const defaultE2eBuildFilter = '@shipfox/e2e-*...';
 const trailingSlashPattern = /\/$/;
 let generatedGithubAppPrivateKey;
+let generatedDiscordSigningKeys;
 let generatedE2eBootstrapToken;
 
 if (isCliEntryPoint()) {
@@ -363,7 +364,12 @@ export function e2eEnv(sourceEnv) {
       sourceEnv.DISCORD_OAUTH_REDIRECT_URL,
       `${clientUrl}/integrations/discord/callback`,
     ),
-    DISCORD_PUBLIC_KEY: valueOr(sourceEnv.DISCORD_PUBLIC_KEY, 'e2e-discord-public-key'),
+    DISCORD_PUBLIC_KEY: valueOr(sourceEnv.DISCORD_PUBLIC_KEY, () => e2eDiscordSigningKeys().publicKey),
+    // The interaction sender in `@shipfox/e2e-driver-discord` signs with this key.
+    E2E_DISCORD_PRIVATE_KEY: valueOr(
+      sourceEnv.E2E_DISCORD_PRIVATE_KEY,
+      () => e2eDiscordSigningKeys().privateKey,
+    ),
     POSTHOG_API_BASE_URL: posthogApiBaseUrl,
     POSTHOG_MCP_ENDPOINT: posthogMcpEndpoint,
     CLICKUP_AUTH_BASE_URL: valueOr(sourceEnv.CLICKUP_AUTH_BASE_URL, 'https://app.clickup.com'),
@@ -607,6 +613,19 @@ function e2eGithubAppPrivateKey() {
     publicKeyEncoding: {format: 'pem', type: 'spki'},
   }).privateKey;
   return generatedGithubAppPrivateKey;
+}
+
+// Discord verifies interactions against a raw hex Ed25519 public key. The private key is a
+// base64 PKCS#8 DER document.
+function e2eDiscordSigningKeys() {
+  if (!generatedDiscordSigningKeys) {
+    const {publicKey, privateKey} = generateKeyPairSync('ed25519');
+    generatedDiscordSigningKeys = {
+      publicKey: publicKey.export({format: 'der', type: 'spki'}).subarray(-32).toString('hex'),
+      privateKey: privateKey.export({format: 'der', type: 'pkcs8'}).toString('base64'),
+    };
+  }
+  return generatedDiscordSigningKeys;
 }
 
 function e2eBootstrapToken() {

@@ -43,7 +43,7 @@ Driver-specific docs live with their drivers:
 
 - [`drivers/gitea/README.md`](drivers/gitea/README.md) explains direct Gitea admin/API usage.
 - [`drivers/github/README.md`](drivers/github/README.md) explains the fake GitHub API.
-- [`drivers/linear/README.md`](drivers/linear/README.md), [`drivers/slack/README.md`](drivers/slack/README.md), [`drivers/clickup/README.md`](drivers/clickup/README.md), [`drivers/jira/README.md`](drivers/jira/README.md), [`drivers/notion/README.md`](drivers/notion/README.md), and [`drivers/posthog/README.md`](drivers/posthog/README.md) explain the other provider fakes and their event senders.
+- [`drivers/linear/README.md`](drivers/linear/README.md), [`drivers/slack/README.md`](drivers/slack/README.md), [`drivers/discord/README.md`](drivers/discord/README.md), [`drivers/clickup/README.md`](drivers/clickup/README.md), [`drivers/jira/README.md`](drivers/jira/README.md), [`drivers/notion/README.md`](drivers/notion/README.md), and [`drivers/posthog/README.md`](drivers/posthog/README.md) explain the other provider fakes and their event senders.
 - [`drivers/runner-process/README.md`](drivers/runner-process/README.md) explains local runner and provisioner processes.
 - [`suites/flow/workflows/README.md`](suites/flow/workflows/README.md) is the deep runbook for the workflow flow suite.
 
