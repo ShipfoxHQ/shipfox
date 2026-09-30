@@ -56,6 +56,10 @@ export const excludedDocumentationPaths = [
   {path: 'apps/docs/content/', reason: 'The docs app owns product documentation links.'},
   {path: '**/CHANGELOG.md', reason: 'Changelogs are generated release output.'},
   {
+    path: 'e2e/suites/eval/workflows/cases/',
+    reason: 'Eval case fixtures, including template guides, are test data.',
+  },
+  {
     path: 'libs/client/shell/test/external/FINDINGS.md',
     reason: 'External-consumer fixture findings are test artifacts.',
   },
