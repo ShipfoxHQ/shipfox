@@ -249,7 +249,10 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
     });
 
     expect(res.statusCode).toBe(422);
-    expect(res.json()).toMatchObject({code: 'secret-not-found'});
+    expect(res.json()).toMatchObject({
+      code: 'secret-not-found',
+      details: {key: 'PINNED_TOKEN', store: 'local'},
+    });
     expect(logLines.join('\n')).toContain('DEPLOY_TOKEN');
     expect(logLines.join('\n')).not.toContain('PINNED_TOKEN');
   });
@@ -271,7 +274,10 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
     });
 
     expect(res.statusCode).toBe(422);
-    expect(res.json()).toMatchObject({code: 'secret-input-missing'});
+    expect(res.json()).toMatchObject({
+      code: 'secret-input-missing',
+      details: {key: 'MISSING_INPUT', store: 'inputs'},
+    });
     expect(logLines.join('\n')).toContain('MISSING_INPUT');
   });
 
@@ -412,7 +418,10 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
     });
 
     expect(res.statusCode).toBe(422);
-    expect(res.json().code).toBe('secret-not-found');
+    expect(res.json()).toMatchObject({
+      code: 'secret-not-found',
+      details: {key: 'MISSING_TOKEN', store: 'local'},
+    });
   });
 
   test('returns 409 instead of 500 when stored secret bindings are corrupt', async () => {

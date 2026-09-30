@@ -39,6 +39,7 @@ const {AgentRuntimeConfigRequestError, StepSecretsRequestError, resolveWorkingDi
       constructor(
         public readonly status: number,
         public readonly code: string | undefined,
+        public readonly details: {key: string; store: string} | undefined = undefined,
       ) {
         super(
           code === undefined
@@ -1531,6 +1532,57 @@ describe('runJobSteps', () => {
           message: 'Step secrets request failed with status 422: secret-not-found.',
           reason: 'config_unresolvable',
         },
+      }),
+    );
+  });
+
+  it.each([
+    {
+      name: 'names the missing secret',
+      error: () =>
+        new StepSecretsRequestError(422, 'secret-not-found', {key: 'API_TOKEN', store: 'local'}),
+      message: 'Secret `API_TOKEN` is not set in this project or workspace.',
+    },
+    {
+      name: 'names the missing secret input',
+      error: () =>
+        new StepSecretsRequestError(422, 'secret-input-missing', {
+          key: 'DEPLOY_TOKEN',
+          store: 'inputs',
+        }),
+      message: 'Secret input `DEPLOY_TOKEN` was not passed to this run.',
+    },
+    {
+      name: 'keeps the generic message when the API sends no details',
+      error: () => new StepSecretsRequestError(422, 'secret-input-missing'),
+      message: 'Step secrets request failed with status 422: secret-input-missing.',
+    },
+  ])('fails the run step and $name', async ({error, message}) => {
+    const setup = buildSetupStep();
+    const run = buildRunStep({
+      config: {
+        run: 'echo "$TOKEN"',
+        secret_bindings: [
+          {target: 'TOKEN', segments: [{kind: 'secret', store: 'local', key: 'API_TOKEN'}]},
+        ],
+      },
+    });
+    requestStepSecretsMock.mockRejectedValueOnce(error());
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1));
+    reportStepMock
+      .mockResolvedValueOnce({ok: true, cancel: false})
+      .mockResolvedValueOnce({ok: true, cancel: true});
+
+    await runLoop({signal: new AbortController().signal});
+
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({
+        stepId: run.id,
+        status: 'failed',
+        error: {message, reason: 'config_unresolvable'},
       }),
     );
   });

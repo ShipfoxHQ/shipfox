@@ -531,6 +531,21 @@ describe('api-client auth contexts', () => {
     );
   });
 
+  it('requestStepSecrets carries the key and store of a missing secret', async () => {
+    stubFetch(() =>
+      jsonResponse({code: 'secret-not-found', details: {key: 'API_TOKEN', store: 'local'}}, 422),
+    );
+    const leaseClient = createLeaseClient('lease-secrets');
+
+    const request = requestStepSecrets(leaseClient, {stepId: STEP_ID, attempt: 2});
+
+    await expect(request).rejects.toMatchObject({
+      status: 422,
+      code: 'secret-not-found',
+      details: {key: 'API_TOKEN', store: 'local'},
+    });
+  });
+
   it('requestStepSecrets classifies malformed success bodies without leaking plaintext', async () => {
     const secret = 'super-secret-response-body';
     stubFetch(() => jsonResponse({secrets: [{store: 'local', value: secret}]}));
