@@ -49,8 +49,8 @@ to it through its `REGISTRY_BASE_URL`. Set these on the Vercel project:
 
 - `REGISTRY_URL`: `https://api.registry.shipfox.io` in production and
   `https://api.registry.staging.shipfox.io` in staging.
-- `REGISTRY_CLIENT_PUBLIC_URL`: `https://www.shipfox.io`, so canonical links and
-  the sitemap use the public host.
+- `REGISTRY_CLIENT_PUBLIC_URL`: `https://www.shipfox.io/registry`, so canonical
+  links and the sitemap use the public host and base path.
 
 ## Usage
 
