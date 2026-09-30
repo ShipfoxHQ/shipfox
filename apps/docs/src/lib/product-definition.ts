@@ -6,4 +6,4 @@ export const PRODUCT_META_DESCRIPTION =
   "Turn tickets, alerts, and failed checks into workflows in your repo. Agents and your team's exact commands, delivered as PRs you review. Open source.";
 
 export const PRODUCT_DESCRIPTION =
-  'Turn tickets, alerts, and failed checks into workflows in your repo. Agents and the exact commands your team specifies, delivered as PRs you review. Any model, any stack. Open source.';
+  'Turn tickets, alerts, and failed checks into workflows in your repo. Each one opens a pull request you review. Any model, any stack. Open source.';

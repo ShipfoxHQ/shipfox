@@ -2,16 +2,26 @@
 title: "Run coding agents like CI pipelines"
 sidebarTitle: "Introduction"
 metaDescription: "Turn tickets, alerts, and failed checks into workflows in your repo. Agents and your team's exact commands, delivered as PRs you review. Open source."
-description: "Turn tickets, alerts, and failed checks into workflows in your repo. Agents and the exact commands your team specifies, delivered as PRs you review. Any model, any stack. Open source."
+description: "Turn tickets, alerts, and failed checks into workflows in your repo. Each one opens a pull request you review. Any model, any stack. Open source."
 ---
 
-Shipfox is built for engineering teams that already code with AI and want to
-delegate work. This ranges from pull request reviews to complex feature
-delivery workflows.
+Shipfox runs engineering work with coding agents, the same way CI runs your
+builds and tests.
 
-You define **workflows** as YAML in your repository. Shipfox orchestrates and
-runs them, connects them securely to your tools, and provides full visibility
-into every run.
+Something happens in your tools: a new ticket, an alert, or a failed check.
+That starts a workflow. The workflow writes the code, runs your checks, and
+opens a pull request. When you comment on the review, the workflow continues.
+
+A workflow is a list of steps. Some steps use an AI agent. Others run the exact
+commands you choose. You write workflows as YAML files in your repo and review
+them like any other code.
+
+Each workflow runs in its own isolated environment, and you get a full log of
+every run. You pick the model for each step. You can see and limit the cost.
+You choose where a person reviews or approves.
+
+Shipfox is open source. You can run it on your own servers, and you are free to
+move your workflows elsewhere.
 
 [Get started with Shipfox](https://app.shipfox.io). Onboarding in Shipfox
 guides the setup. For a closer look at the product, read

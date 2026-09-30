@@ -12,9 +12,8 @@
 
 ## Run coding agents like CI pipelines
 
-Turn tickets, alerts, and failed checks into workflows in your repo. Agents and
-the exact commands your team specifies, delivered as PRs you review. Any model,
-any stack. Open source.
+Turn tickets, alerts, and failed checks into workflows in your repo. Each one
+opens a pull request you review. Any model, any stack. Open source.
 
 Workflows live as YAML in your repository and react to events across your stack.
 Shipfox handles orchestration, secure tool access, isolated execution, and
