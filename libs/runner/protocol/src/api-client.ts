@@ -173,10 +173,13 @@ export type AgentRuntimeConfigResponse = {
 
 export {AGENT_RUNTIME_CONFIG_RENEWAL_HEADER};
 
+export type StepSecretsErrorDetails = {key: string; store: string};
+
 export class StepSecretsRequestError extends Error {
   constructor(
     public readonly status: number,
     public readonly code: string | undefined,
+    public readonly details: StepSecretsErrorDetails | undefined = undefined,
   ) {
     super(
       code === undefined
@@ -760,7 +763,11 @@ export async function requestStepSecrets(
     });
   } catch (error) {
     if (error instanceof HTTPError) {
-      throw new StepSecretsRequestError(error.response.status, codeFromBody(error.data));
+      throw new StepSecretsRequestError(
+        error.response.status,
+        codeFromBody(error.data),
+        stepSecretsDetailsFromBody(error.data),
+      );
     }
     throw error;
   }
@@ -780,7 +787,12 @@ export async function requestStepSecrets(
     return parsed.data;
   }
 
-  throw new StepSecretsRequestError(response.status, await errorCode(response));
+  const body = await errorBody(response);
+  throw new StepSecretsRequestError(
+    response.status,
+    codeFromBody(body),
+    stepSecretsDetailsFromBody(body),
+  );
 }
 
 // throwHttpErrors:false (below) turns off ky's status-code retry for this call, so no
@@ -900,13 +912,25 @@ export async function heartbeat(
 
 export {HTTPError};
 
-async function errorCode(response: Response): Promise<string | undefined> {
+async function errorBody(response: Response): Promise<unknown> {
   try {
-    const body = (await response.json()) as unknown;
-    return codeFromBody(body);
+    return (await response.json()) as unknown;
   } catch {
     return undefined;
   }
+}
+
+async function errorCode(response: Response): Promise<string | undefined> {
+  return codeFromBody(await errorBody(response));
+}
+
+function stepSecretsDetailsFromBody(body: unknown): StepSecretsErrorDetails | undefined {
+  if (typeof body !== 'object' || body === null || !('details' in body)) return undefined;
+  const {details} = body;
+  if (typeof details !== 'object' || details === null) return undefined;
+  if (!('key' in details) || typeof details.key !== 'string') return undefined;
+  if (!('store' in details) || typeof details.store !== 'string') return undefined;
+  return {key: details.key, store: details.store};
 }
 
 async function runtimeConfigErrorInfo(response: Response): Promise<RuntimeConfigErrorInfo> {

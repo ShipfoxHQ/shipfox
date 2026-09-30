@@ -37,6 +37,7 @@ export {
   requestStepSecrets,
   requireRunnerLabels,
   runnerRegistrationToken,
+  type StepSecretsErrorDetails,
   StepSecretsRequestError,
   writeStepAnnotations,
 } from '#api-client.js';

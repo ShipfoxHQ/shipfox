@@ -69,7 +69,7 @@ export function createGetStepSecretsRoute(
               throw new ClientError(
                 `Secret input ${reference.key} was not supplied`,
                 'secret-input-missing',
-                {status: 422},
+                {status: 422, details: {key: reference.key, store: reference.store}},
               );
             }
 
@@ -85,7 +85,7 @@ export function createGetStepSecretsRoute(
               throw new ClientError(
                 `Secret input ${reference.key} has no source`,
                 'secret-not-found',
-                {status: 422},
+                {status: 422, details: {key: source.key, store: source.store}},
               );
             }
             return {...reference, value};
@@ -99,7 +99,10 @@ export function createGetStepSecretsRoute(
             store: reference.store,
           });
           if (value === null) {
-            throw new ClientError('Secret not found', 'secret-not-found', {status: 422});
+            throw new ClientError('Secret not found', 'secret-not-found', {
+              status: 422,
+              details: {key: reference.key, store: reference.store},
+            });
           }
           return {...reference, value};
         }),

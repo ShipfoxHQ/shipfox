@@ -1778,7 +1778,7 @@ function stepSecretsFailure(error: unknown): StepResult {
   if (error instanceof StepSecretsRequestError) {
     return {
       success: false,
-      error: {message: error.message, reason: 'config_unresolvable'},
+      error: {message: stepSecretsRequestMessage(error), reason: 'config_unresolvable'},
       exit_code: null,
     };
   }
@@ -1791,6 +1791,18 @@ function stepSecretsFailure(error: unknown): StepResult {
     },
     exit_code: null,
   };
+}
+
+// The API may predate the details, so fall back to the generic request message.
+function stepSecretsRequestMessage(error: StepSecretsRequestError): string {
+  if (error.details === undefined) return error.message;
+  if (error.code === 'secret-not-found') {
+    return `Secret \`${error.details.key}\` is not set in this project or workspace.`;
+  }
+  if (error.code === 'secret-input-missing') {
+    return `Secret input \`${error.details.key}\` was not passed to this run.`;
+  }
+  return error.message;
 }
 
 function setupPreparationFailure(error: unknown, reason: StepErrorReasonDto): StepResult {
