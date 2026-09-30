@@ -342,6 +342,11 @@ Evaluations also export to Langfuse when `LANGFUSE_PUBLIC_KEY` and
 defaults to the EU cloud. Each `<suite>/<mode>` is one experiment, and each
 case and repeat is one item. Without the keys, only local results are written.
 
+`exportClaudeTranscript` in `@shipfox/e2e-eval-workflows` turns a Claude session
+transcript into one generation per model call and one tool span per tool call,
+nested under the active Langfuse span. Timestamps come from the transcript, and
+the raw JSONL is attached as media.
+
 The managed provider fixture can send a project's model calls to OpenRouter
 instead of answering with fixed text or a script. Set `E2E_OPENROUTER_API_KEY`
 for the harness, then register the project with `registerOpenRouterManagedProvider`
