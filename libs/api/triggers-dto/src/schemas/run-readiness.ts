@@ -1,3 +1,4 @@
+import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {z} from 'zod';
 
 /** Matches the definitions list page limit. */
@@ -47,7 +48,7 @@ export const runIssueDtoSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     kind: z.literal('secret-missing'),
-    key: z.string(),
+    key: secretKeySchema,
     locations: z.array(runIssueLocationSchema),
     more_locations: z.number().int().positive().optional(),
     effect: runIssueEffectSchema,
