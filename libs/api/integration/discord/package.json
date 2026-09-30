@@ -50,7 +50,8 @@
     "@shipfox/node-module": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
-    "drizzle-orm": "catalog:"
+    "drizzle-orm": "catalog:",
+    "ky": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",

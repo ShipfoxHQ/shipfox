@@ -8,6 +8,7 @@
 - **Installation repository exports** create, find, and delete Discord guild installations owned by the provider database.
 - **`createDiscordE2eRoutes`** exposes the synthetic connection route used by integration and E2E tests.
 - **`createDiscordGatewayService`** returns the `ModuleService` that elects one Gateway leader per shard with a Postgres advisory lock. Each replica holds a dedicated connection, retries every 10 s, and checks it with `SELECT 1` every 15 s. The `onLeading` and `onLost` callbacks carry the leader's work; `onLost` runs before the lock is released on shutdown.
+- **`createDiscordApiClient`** calls the Discord REST API as the bot and maps failures to `DiscordIntegrationProviderError`.
 - **`config`** defines the Discord application, OAuth, bot, Gateway, and API settings.
 
 ## Installation and setup
@@ -54,6 +55,22 @@ The executable environment contract is defined in [`src/config.ts`](src/config.t
 ## Routes
 
 `createDiscordE2eRoutes` registers `POST /integrations/discord-connections` under the E2E route prefix. It accepts the Discord DTO seed body and returns the integration connection DTO. This route is for test setup, not production clients.
+
+## REST client
+
+`createDiscordApiClient()` reads `DISCORD_BOT_TOKEN`, `DISCORD_API_BASE_URL`, and `DISCORD_APPLICATION_ID` from `config`. Pass options to override them. It exposes `getGuild`, `getChannel`, `leaveGuild`, `getGatewayBot`, `listApplicationCommands`, and `overwriteApplicationCommands`.
+
+Requests time out after 10 seconds and are never retried, because Discord counts `401`, `403`, and `429` answers toward an IP-wide block. Failures throw `DiscordIntegrationProviderError`:
+
+| Discord answer | `reason` |
+| --- | --- |
+| `401` | `credentials-unavailable` |
+| `403` | `access-denied`, with `discordCode` such as `50001` or `50013` |
+| `404` | `not-found` |
+| `429` | `rate-limited`, with `retryAfterSeconds` from `retry_after` |
+| `5xx`, network failure | `provider-unavailable` |
+| Timeout | `timeout` |
+| Other `4xx` | `provider-rejected` |
 
 ## Data model
 
