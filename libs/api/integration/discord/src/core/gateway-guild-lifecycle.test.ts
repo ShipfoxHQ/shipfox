@@ -1,7 +1,11 @@
 import type {GatewayDispatchPayload} from 'discord-api-types/v10';
 import type {DiscordGuild} from '#api/client.js';
 import {db} from '#db/db.js';
-import {getDiscordInstallationByGuildId, upsertDiscordInstallation} from '#db/installations.js';
+import {
+  deleteDiscordInstallationByConnectionId,
+  getDiscordInstallationByGuildId,
+  upsertDiscordInstallation,
+} from '#db/installations.js';
 import {discordInstallations} from '#db/schema/installations.js';
 import {APPLICATION_ID, BOT_ROLE_ID, GUILD_ID} from '#test/index.js';
 import {DiscordIntegrationProviderError} from './errors.js';
@@ -255,6 +259,30 @@ describe('Discord guild lifecycle', () => {
       const installation = await getDiscordInstallationByGuildId(GUILD_ID);
       expect(installation).toMatchObject({status: 'installed', generation: reinstalled.generation});
       expect(reinstalled.generation).toBe(2);
+      expect(updateConnectionLifecycleStatus).not.toHaveBeenCalled();
+    });
+
+    it('does not overwrite a fresh installation that replaced the row after a delete', async () => {
+      await install();
+      const guildRequested = deferred();
+      const replaced = deferred();
+      const {lifecycle, updateConnectionLifecycleStatus} = arrange({
+        getGuild: async () => {
+          guildRequested.resolve();
+          await replaced.promise;
+          throw providerError(404);
+        },
+      });
+
+      const check = lifecycle.checkGuildRemoval({guildId: GUILD_ID});
+      await guildRequested.promise;
+      await deleteDiscordInstallationByConnectionId(CONNECTION_ID);
+      const reinstalled = await install();
+      replaced.resolve();
+      await check;
+
+      expect(reinstalled.generation).toBe(1);
+      expect(await installationStatus()).toBe('installed');
       expect(updateConnectionLifecycleStatus).not.toHaveBeenCalled();
     });
   });

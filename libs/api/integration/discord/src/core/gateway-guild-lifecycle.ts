@@ -54,7 +54,8 @@ export function createDiscordGuildLifecycle(
   /**
    * A Gateway event can arrive after a reinstall, and a REST answer alone cannot order the two: the
    * check may read `404`, a reconnect may commit, and the check would then overwrite the fresh
-   * installation. Writing only while the generation is unchanged closes that race.
+   * installation. Writing only to the row and generation it read closes that race, including a
+   * delete and reinstall, which restarts the generation on a new row.
    */
   async function checkGuildRemoval({guildId}: {guildId: string}): Promise<void> {
     const installation = await getDiscordInstallationByGuildId(guildId);
@@ -65,7 +66,7 @@ export function createDiscordGuildLifecycle(
 
     await options.coreDb().transaction(async (tx) => {
       const matched = await updateDiscordInstallationStatusAtGeneration(
-        {guildId, generation: installation.generation, status: outcome.installation},
+        {id: installation.id, generation: installation.generation, status: outcome.installation},
         {tx},
       );
       if (!matched) return;

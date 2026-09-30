@@ -143,11 +143,12 @@ export async function listInstalledDiscordGuildIds(): Promise<string[]> {
 }
 
 /**
- * Sets the status only while the row still holds the generation the caller read. No match means a
- * reinstall bumped the generation in between, so the caller's view is stale.
+ * Sets the status only while the row is the one the caller read, at the generation it read. No
+ * match means a reinstall bumped the generation, or a delete and reinstall replaced the row, so the
+ * caller's view is stale.
  */
 export async function updateDiscordInstallationStatusAtGeneration(
-  params: {guildId: string; generation: number; status: DiscordInstallationStatus},
+  params: {id: string; generation: number; status: DiscordInstallationStatus},
   options: {tx?: unknown} = {},
 ): Promise<boolean> {
   const executor = (options.tx ?? db()) as DiscordExecutor;
@@ -156,7 +157,7 @@ export async function updateDiscordInstallationStatusAtGeneration(
     .set({status: params.status, updatedAt: new Date()})
     .where(
       and(
-        eq(discordInstallations.guildId, params.guildId),
+        eq(discordInstallations.id, params.id),
         eq(discordInstallations.generation, params.generation),
       ),
     )

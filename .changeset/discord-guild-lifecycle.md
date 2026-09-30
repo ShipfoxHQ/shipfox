@@ -3,4 +3,4 @@
 "@shipfox/api-integration-core": patch
 ---
 
-Tracks Discord guild removal and the bot's managed role from the Gateway. `READY`, `GUILD_DELETE`, and `GUILD_CREATE` on a removed installation run a removal check that confirms over REST and updates the installation and the connection in one transaction, only if no reinstall bumped the installation generation in between. `GUILD_CREATE` and bot role dispatches write `bot_role_id`.
+Tracks the bot's Discord guild membership from the Gateway: when the bot is removed from a guild, the Discord connection is marked `error`, and re-adding the bot restores it to `active`. The installation keeps the bot's managed role id across leader changes.
