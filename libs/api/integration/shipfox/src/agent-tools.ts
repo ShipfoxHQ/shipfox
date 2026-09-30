@@ -1446,14 +1446,9 @@ function mapStartWorkflowRunError(error: unknown): ShipfoxToolCallResult | undef
   }
   if (isInterModuleKnownError(triggersInterModuleContract.methods.fireManualTrigger, error)) {
     const code = error.code as string;
-    if (code === 'secret-not-found' || code === 'secret-input-missing') {
-      const details: unknown = error.details;
-      const key = isRecord(details) && typeof details.key === 'string' ? details.key : 'unknown';
-      const message =
-        code === 'secret-not-found'
-          ? `Secret input source ${key} was not found`
-          : `Secret input ${key} was not supplied`;
-      return mappedToolError(code, message, error.details);
+    const startFailureMessage = describeStartRunFailure(code, error.details);
+    if (startFailureMessage !== undefined) {
+      return mappedToolError(code, startFailureMessage, error.details);
     }
     if (
       code === 'manual-trigger-not-found' ||
@@ -1466,6 +1461,66 @@ function mapStartWorkflowRunError(error: unknown): ShipfoxToolCallResult | undef
       return mappedToolError(code, error.message, error.details);
   }
   return undefined;
+}
+
+function describeStartRunFailure(code: string, details: unknown): string | undefined {
+  if (!isRecord(details)) return undefined;
+  switch (code) {
+    case 'secret-not-found':
+      return `Secret input source ${secretKeyOf(details)} was not found`;
+    case 'secret-input-missing':
+      return `Secret input ${secretKeyOf(details)} was not supplied`;
+    case 'interpolation-unresolvable':
+      return describeInterpolationUnresolvable(details);
+    case 'invalid-job-runner-labels':
+      return Array.isArray(details.labels)
+        ? `Runner labels are not valid: ${details.labels.map((label) => `\`${String(label)}\``).join(', ')}. Use lowercase letters, digits, ".", "_" and "-".`
+        : undefined;
+    case 'source-snapshot-too-large':
+      return describeSizeFailure('Workflow file is too large', details);
+    case 'diagnostic-too-large':
+    case 'workflow-execution-payload-too-large':
+      return typeof details.field === 'string'
+        ? describeSizeFailure(`\`${details.field}\` is too large`, details)
+        : undefined;
+    default:
+      return undefined;
+  }
+}
+
+function secretKeyOf(details: Record<string, unknown>): string {
+  return typeof details.key === 'string' ? details.key : 'unknown';
+}
+
+function describeInterpolationUnresolvable(details: Record<string, unknown>): string | undefined {
+  if (typeof details.field !== 'string' || typeof details.source !== 'string') return undefined;
+  const field =
+    typeof details.envKey === 'string' ? `${details.field}.${details.envKey}` : details.field;
+  const step = isRecord(details.step) ? details.step : undefined;
+  const stepName = step?.key ?? step?.name;
+  const stepLabel =
+    step === undefined ? undefined : `${step.index}${stepName ? ` (\`${stepName}\`)` : ''}`;
+  const location = [
+    typeof details.jobKey === 'string' ? `job \`${details.jobKey}\`` : undefined,
+    stepLabel === undefined ? undefined : `step ${stepLabel}`,
+    `field \`${field}\``,
+  ]
+    .filter((part) => part !== undefined)
+    .join(', ');
+  if (typeof details.variableKey !== 'string') {
+    return `\`${details.source}\` in ${location} could not be resolved when the run started.`;
+  }
+  return `Variable \`${details.variableKey}\` is not set. It is read in ${location}. Every variable a workflow references must exist, even in a branch that does not run. Define it in the workspace variables, then start the run again.`;
+}
+
+function describeSizeFailure(
+  subject: string,
+  details: Record<string, unknown>,
+): string | undefined {
+  if (typeof details.limitBytes !== 'number' || typeof details.measuredBytes !== 'number') {
+    return undefined;
+  }
+  return `${subject}: ${details.measuredBytes} bytes, limit ${details.limitBytes} bytes.`;
 }
 
 function idempotencyKeyForCall(
