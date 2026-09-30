@@ -2,6 +2,7 @@ import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/i
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {projectJobListenerSubscriptions} from '#db/job-listener-subscriptions.js';
+import {projectDefinitionTriggers} from '#db/subscriptions.js';
 
 const mocks = vi.hoisted(() => ({
   dispatchIntegrationEvent: vi.fn(),
@@ -63,6 +64,37 @@ describe('triggers E2E routes', () => {
     const response = await app.inject({
       method: 'GET',
       url: `/triggers/listeners/${jobId}/readiness`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ready: true});
+  });
+
+  test('reports a definition without projected triggers as not ready', async () => {
+    const app = await createApp({routes: [createTriggersE2eRoutes(routeParams)], swagger: false});
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/triggers/definitions/${crypto.randomUUID()}/readiness`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ready: false});
+  });
+
+  test('reports a definition with projected triggers as ready', async () => {
+    const workflowDefinitionId = crypto.randomUUID();
+    await projectDefinitionTriggers({
+      workspaceId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      workflowDefinitionId,
+      triggers: {run_completed: {source: 'shipfox', event: 'run.completed'}},
+    });
+    const app = await createApp({routes: [createTriggersE2eRoutes(routeParams)], swagger: false});
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/triggers/definitions/${workflowDefinitionId}/readiness`,
     });
 
     expect(response.statusCode).toBe(200);

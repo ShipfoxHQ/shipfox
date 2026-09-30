@@ -130,6 +130,23 @@ describe('checkWrites', () => {
     expect(wrongBase).toHaveLength(2);
   });
 
+  it('matches a string field that contains every text in a list', () => {
+    const report: RecordedWrite = {
+      kind: 'slack.chat.postMessage',
+      target: 'C0FAILURES',
+      payload: {channel: 'C0FAILURES', text: 'Build #1 failed\nFailed: build'},
+    };
+    const contains = (texts: string[]) => [
+      {'slack.chat.postMessage': {text: {contains: texts}, count: 1}},
+    ];
+
+    expect(checkWrites({expected: contains(['Build #1', 'Failed: build']), recorded: [report]})).toEqual(
+      [],
+    );
+    expect(checkWrites({expected: contains(['Build #1', 'Failed: test']), recorded: [report]})).toHaveLength(2);
+    expect(checkWrites({expected: contains([]), recorded: [report]})).toHaveLength(2);
+  });
+
   it('rejects a pull request reference that is not $pr', () => {
     const failures = checkWrites({
       expected: [{'github.push': {pull_request: 'acme/app#3', count: 1}}],

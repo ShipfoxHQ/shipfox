@@ -2,7 +2,7 @@ import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import type {DefinitionResponseDto} from '@shipfox/api-definitions-dto';
 import type {FireManualTriggerResponseDto} from '@shipfox/api-triggers-dto';
-import {pollUntil, type RecordedWrite} from '@shipfox/e2e-core';
+import {type createApiClient, pollUntil, type RecordedWrite, requestJson} from '@shipfox/e2e-core';
 import {
   type LocalRunnerExit,
   localRunnerLogTail,
@@ -26,7 +26,7 @@ import {
 import {parse as parseYaml} from 'yaml';
 import {runAwait} from './awaits.js';
 import {bindConnectionSlugs} from './compile.js';
-import {composeCaseWorkflow, templateLoaderFor} from './compose.js';
+import {composeCaseWorkflow, setRunnerLabel, templateLoaderFor} from './compose.js';
 import type {DiscoveredCase} from './discovery.js';
 import {createGithubEventSender} from './github-events.js';
 import {arrangeGithubProject} from './github-project.js';
@@ -373,15 +373,130 @@ async function arrangeProviderFakes({
     ? await arrangeJiraTracker({workspaceId, uniqueId, cleanups})
     : undefined;
 
-  const slackSeed = templateCase.seed.slack;
-  if (binds('slack') && slackSeed === undefined) {
-    throw new Error('The case binds Slack but seeds no thread under seed.slack.');
-  }
-  const slack =
-    binds('slack') && slackSeed !== undefined
-      ? await arrangeSlackWorkspace({workspaceId, uniqueId, seed: slackSeed, cleanups})
-      : undefined;
+  const slack = binds('slack')
+    ? await arrangeSlackWorkspace({
+        workspaceId,
+        uniqueId,
+        seed: templateCase.seed.slack,
+        cleanups,
+      })
+    : undefined;
   return {linear, jira, slack};
+}
+
+/** A definition with a file path is a repository definition, which is how Shipfox names a workflow. */
+async function createDefinition({
+  client,
+  projectId,
+  yaml,
+  file,
+}: {
+  client: ReturnType<typeof createApiClient>;
+  projectId: string;
+  yaml: string;
+  file?: {path: string; ref: string} | undefined;
+}): Promise<DefinitionResponseDto> {
+  return await client.requestJson<DefinitionResponseDto>('post', '/definitions', {
+    json: {
+      project_id: projectId,
+      yaml,
+      ...(file === undefined
+        ? {source: 'manual'}
+        : {source: 'vcs', config_path: file.path, ref: file.ref}),
+    },
+  });
+}
+
+async function fireManual({
+  client,
+  definitionId,
+  inputs,
+}: {
+  client: ReturnType<typeof createApiClient>;
+  definitionId: string;
+  inputs: Record<string, unknown>;
+}): Promise<string> {
+  const response = await pollUntil<FireManualTriggerResponseDto>(
+    {
+      timeoutMs: START_TIMEOUT_MS,
+      intervalMs: 250,
+      maxIntervalMs: 4_000,
+      backoffFactor: 1.5,
+      describe: () => `manual trigger of definition ${definitionId}`,
+    },
+    async () =>
+      await client.requestJson<FireManualTriggerResponseDto>(
+        'post',
+        `/workflow-definitions/${definitionId}/fire-manual`,
+        {json: {inputs}},
+      ),
+  );
+  return response.workflow_run_id;
+}
+
+function hasEventTrigger(yaml: string): boolean {
+  const document = parseYaml(yaml) as {triggers?: Record<string, {source?: string}>};
+  return Object.values(document.triggers ?? {}).some((trigger) => trigger.source !== 'manual');
+}
+
+async function waitForTriggers({definitionId}: {definitionId: string}): Promise<void> {
+  await pollUntil(
+    {
+      timeoutMs: START_TIMEOUT_MS,
+      intervalMs: 250,
+      maxIntervalMs: 1_000,
+      describe: () => `trigger subscriptions of definition ${definitionId}`,
+    },
+    async () => {
+      const {ready} = await requestJson<{ready: boolean}>(
+        'get',
+        `/__e2e/triggers/definitions/${definitionId}/readiness`,
+        {},
+      );
+      return ready ? true : null;
+    },
+  );
+}
+
+/**
+ * The first run that a Shipfox event started in the case's project, where only the case's own
+ * workflow listens for one. Any later run is an extra report, which the case's strict writes catch.
+ */
+async function waitForTriggeredRun({
+  client,
+  projectId,
+  timeoutMs,
+  signal,
+}: {
+  client: ReturnType<typeof createApiClient>;
+  projectId: string;
+  timeoutMs: number;
+  signal?: AbortSignal | undefined;
+}): Promise<string> {
+  const query = new URLSearchParams({
+    project_id: projectId,
+    trigger_source: 'shipfox',
+    limit: '100',
+  });
+  const run = await pollUntil<{id: string}>(
+    {
+      timeoutMs,
+      intervalMs: 250,
+      maxIntervalMs: 2_000,
+      backoffFactor: 1.5,
+      describe: () => `a run of project ${projectId} started by a Shipfox event`,
+      ...(signal === undefined ? {} : {signal}),
+    },
+    async () => {
+      const page = await client.requestJson<{runs: Array<{id: string}>}>(
+        'get',
+        `/workflows/runs?${query}`,
+      );
+      // The list is newest first.
+      return page.runs.at(-1) ?? null;
+    },
+  );
+  return run.id;
 }
 
 async function arrange({
@@ -464,17 +579,49 @@ async function arrange({
       return slug === undefined ? [] : [[role, slug]];
     }),
   );
+  // `$project.id` is the project the case created, known only after the workspace is arranged.
+  const placeholders = Object.fromEntries(
+    Object.entries(templateCase.placeholders).map(([placeholder, value]) => [
+      placeholder,
+      value === '$project.id' ? project.id : value,
+    ]),
+  );
   const yaml = bindConnectionSlugs({
     yaml: await composeCaseWorkflow({
-      templateCase,
+      templateCase: {...templateCase, placeholders},
       loader: templateLoaderFor({templateCase, caseDirectory: discovered.directory}),
       runnerLabel,
     }),
     slugs,
   });
-  const definition = await client.requestJson<DefinitionResponseDto>('post', '/definitions', {
-    json: {project_id: project.id, source: 'manual', yaml},
+  // A Shipfox event names the workflow that raised it by its file path, so a case that fires other
+  // workflows registers every definition as a file of the repository.
+  const workflowFile = (name: string) =>
+    Object.keys(templateCase.workflows).length === 0
+      ? undefined
+      : {path: `.shipfox/workflows/${name}.yml`, ref: repository.defaultBranch};
+  const definition = await createDefinition({
+    client,
+    projectId: project.id,
+    yaml,
+    file: workflowFile(templateCase.template.split('/').at(-1) ?? 'template'),
   });
+  const otherDefinitions = new Map<string, DefinitionResponseDto>();
+  for (const [name, file] of Object.entries(templateCase.workflows)) {
+    const source = await readFile(join(discovered.directory, file), 'utf8');
+    otherDefinitions.set(
+      name,
+      await createDefinition({
+        client,
+        projectId: project.id,
+        yaml: setRunnerLabel({yaml: source, label: runnerLabel}),
+        file: workflowFile(name),
+      }),
+    );
+  }
+  // A definition's triggers are projected after it is created, and an event that arrives before
+  // then starts nothing.
+  if (hasEventTrigger(yaml)) await waitForTriggers({definitionId: definition.id});
   const script = options.mode === 'scripted' ? discovered.script : undefined;
   // Without a script, the managed provider answers every request with fixed text, and a step
   // without outputs would pass on it.
@@ -515,24 +662,21 @@ async function arrange({
 
   const driver: ScenarioDriver = {
     references: {pr: pullRequest},
-    startManual: async ({inputs}) => {
-      const response = await pollUntil<FireManualTriggerResponseDto>(
-        {
-          timeoutMs: START_TIMEOUT_MS,
-          intervalMs: 250,
-          maxIntervalMs: 4_000,
-          backoffFactor: 1.5,
-          describe: () => `manual trigger of definition ${definition.id}`,
-        },
-        async () =>
-          await client.requestJson<FireManualTriggerResponseDto>(
-            'post',
-            `/workflow-definitions/${definition.id}/fire-manual`,
-            {json: {inputs}},
-          ),
-      );
-      return response.workflow_run_id;
+    startManual: async ({inputs}) =>
+      await fireManual({client, definitionId: definition.id, inputs}),
+    fireWorkflow: async ({workflow, inputs, status, timeoutMs, signal}) => {
+      const fired = otherDefinitions.get(workflow);
+      if (fired === undefined) throw new Error(`The case has no workflow named "${workflow}".`);
+      const runId = await fireManual({client, definitionId: fired.id, inputs});
+      await runAwait({step: {run: status}, runId, token: session.token, timeoutMs, signal});
     },
+    runTriggered: async ({timeoutMs, signal}) =>
+      await waitForTriggeredRun({
+        client,
+        projectId: project.id,
+        timeoutMs,
+        signal,
+      }),
     sendEvent: async ({provider, event, payload, signal}) => {
       const send = senders[provider];
       if (send === undefined) {

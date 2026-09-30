@@ -36,16 +36,30 @@ function describeWrite(write: RecordedWrite): string {
   return `${write.kind} ${write.target} ${show(write.payload)}`;
 }
 
-function isContainsMatcher(value: unknown): value is {contains: string} {
-  return isRecord(value) && Object.keys(value).length === 1 && typeof value.contains === 'string';
+// One text, or a non-empty list of texts that must all be included. An empty list would match
+// every string, so it falls through to an exact match.
+function containedTexts(value: unknown): string[] | undefined {
+  if (!isRecord(value) || Object.keys(value).length !== 1) return undefined;
+  const {contains} = value;
+  if (typeof contains === 'string') return [contains];
+  if (
+    Array.isArray(contains) &&
+    contains.length > 0 &&
+    contains.every((text) => typeof text === 'string')
+  ) {
+    return contains;
+  }
+  return undefined;
 }
 
 // Objects match when every expected field matches, so an expectation names only what it cares
-// about. `{contains: text}` matches a string that includes the text, for messages that carry
-// values a case can't predict, such as a commit. Anything else, arrays included, must be equal.
+// about. `{contains: text}` matches a string that includes the text, and `{contains: [a, b]}` one
+// that includes every text, for messages that carry values a case can't predict, such as a commit.
+// Anything else, arrays included, must be equal.
 function containsValue(actual: unknown, expected: unknown): boolean {
-  if (isContainsMatcher(expected)) {
-    return typeof actual === 'string' && actual.includes(expected.contains);
+  const texts = containedTexts(expected);
+  if (texts !== undefined) {
+    return typeof actual === 'string' && texts.every((text) => actual.includes(text));
   }
   if (isRecord(expected) && isRecord(actual)) {
     return Object.entries(expected).every(([key, value]) => containsValue(actual[key], value));

@@ -1,0 +1,29 @@
+template: shipfox/report-failed-runs
+bindings: {notify: slack}
+# An option left out keeps the blocks of every choice, so the case names the defaults.
+options: {scope: project, workflow_filter: all}
+placeholders:
+  replace-with-project-id: $project.id
+  replace-with-slack-channel-id: C0FAILURES
+workflows:
+  passing: passing-build.yml
+  failing: failing-build.yml
+modes: [scripted]
+timeout_seconds: 600
+
+covers:
+  - Posts a report and a diagnosis reply for each failed run.
+
+scenario:
+  # A run that succeeds is never reported, so the failed run that follows has the only report.
+  - fire: {workflow: passing, status: succeeded}
+  - fire: {workflow: failing, status: failed}
+  - start: {triggered: true}
+  - await: {run: succeeded}
+
+expect:
+  writes:
+    - slack.chat.postMessage:
+        target: C0FAILURES
+        text: {contains: ['Failing build #1', 'Failed: build › Compile']}
+        count: 1

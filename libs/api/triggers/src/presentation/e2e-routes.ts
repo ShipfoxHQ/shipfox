@@ -10,9 +10,11 @@ import {ClientError, defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {dispatchIntegrationEvent} from '#core/dispatch-integration-event.js';
 import {hasJobListenerSubscriptions} from '#db/job-listener-subscriptions.js';
+import {listSubscriptionsByWorkflowDefinitionIds} from '#db/subscriptions.js';
 
 const listenerReadinessParamsSchema = z.object({jobId: z.string().uuid()});
-const listenerReadinessResponseSchema = z.object({ready: z.boolean()});
+const definitionReadinessParamsSchema = z.object({definitionId: z.string().uuid()});
+const readinessResponseSchema = z.object({ready: z.boolean()});
 
 const listenerReadinessRoute = defineRoute({
   method: 'GET',
@@ -20,10 +22,24 @@ const listenerReadinessRoute = defineRoute({
   description: 'Report whether trigger subscriptions for a listener job are ready in E2E tests.',
   schema: {
     params: listenerReadinessParamsSchema,
-    response: {200: listenerReadinessResponseSchema},
+    response: {200: readinessResponseSchema},
   },
   handler: async (request) => ({
     ready: await hasJobListenerSubscriptions(request.params.jobId),
+  }),
+});
+
+const definitionReadinessRoute = defineRoute({
+  method: 'GET',
+  path: '/definitions/:definitionId/readiness',
+  description: 'Report whether trigger subscriptions for a definition are ready in E2E tests.',
+  schema: {
+    params: definitionReadinessParamsSchema,
+    response: {200: readinessResponseSchema},
+  },
+  handler: async (request) => ({
+    ready:
+      (await listSubscriptionsByWorkflowDefinitionIds([request.params.definitionId])).length > 0,
   }),
 });
 
@@ -114,6 +130,7 @@ export function createTriggersE2eRoutes(params: {
     prefix: '/triggers',
     routes: [
       listenerReadinessRoute,
+      definitionReadinessRoute,
       ...(params.integrations === undefined
         ? []
         : [

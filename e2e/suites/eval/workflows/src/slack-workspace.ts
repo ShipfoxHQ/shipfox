@@ -25,12 +25,15 @@ export async function arrangeSlackWorkspace({
 }: {
   workspaceId: string;
   uniqueId: string;
-  seed: SlackSeed;
+  /** The thread to serve. A case whose workflow only posts has none. */
+  seed?: SlackSeed | undefined;
   /** Cleanups run in reverse, by the caller, however the run ends. */
   cleanups: Array<() => Promise<void>>;
 }): Promise<SlackWorkspace> {
   // The API calls one Slack address, so cases that use Slack run one at a time.
-  const mock = await startSlackApiMock({threadPages: {'': {messages: seed.thread}}});
+  const mock = await startSlackApiMock(
+    seed === undefined ? {} : {threadPages: {'': {messages: seed.thread}}},
+  );
   cleanups.push(() => mock.stop());
 
   const teamId = `T${uniqueId}`;

@@ -1,0 +1,8 @@
+# `diagnose`: writes the diagnosis without calling the read tools.
+- match: {prompt_contains: Diagnose a failed Shipfox workflow run}
+  replies:
+    - tool: set_output
+      args:
+        key: diagnosis
+        value: 'eval diagnosis: the compile step stops on an unexpected token. Fix the syntax error, then rerun.'
+    - text: Done.

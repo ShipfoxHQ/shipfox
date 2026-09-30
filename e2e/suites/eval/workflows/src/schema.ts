@@ -43,6 +43,13 @@ const startStepSchema = z.union([
   z
     .object({start: z.object({event: eventSchema}).strict(), timeout_seconds: stepTimeoutSchema})
     .strict(),
+  // The case's own workflow starts on an event that a fired workflow raised, such as `run.completed`.
+  z
+    .object({
+      start: z.object({triggered: z.literal(true)}).strict(),
+      timeout_seconds: stepTimeoutSchema,
+    })
+    .strict(),
 ]);
 
 const sendStepSchema = z.object({send: eventSchema, timeout_seconds: stepTimeoutSchema}).strict();
@@ -117,7 +124,27 @@ const seedSchema = z
 export type LinearIssueSeed = z.infer<typeof linearIssueSeedSchema>;
 export type SlackSeed = NonNullable<z.infer<typeof seedSchema>['slack']>;
 
-const scenarioStepSchema = z.union([startStepSchema, sendStepSchema, awaitStepSchema]);
+// Fires the manual trigger of one of the case's `workflows` and waits for that run to end with
+// the status given. The run it starts is not the one the case observes.
+const fireStepSchema = z
+  .object({
+    fire: z
+      .object({
+        workflow: z.string().min(1),
+        inputs: z.record(z.string(), z.unknown()).default({}),
+        status: runStatusSchema,
+      })
+      .strict(),
+    timeout_seconds: stepTimeoutSchema,
+  })
+  .strict();
+
+const scenarioStepSchema = z.union([
+  startStepSchema,
+  sendStepSchema,
+  awaitStepSchema,
+  fireStepSchema,
+]);
 
 export type ScenarioStep = z.infer<typeof scenarioStepSchema>;
 
@@ -152,6 +179,8 @@ export const templateCaseSchema = z
       .min(1)
       .default(['scripted']),
     repository: z.string().min(1).optional(),
+    // Other workflows of the project by name, as files next to the case, for `fire` steps.
+    workflows: z.record(z.string().min(1), z.string().min(1)).default({}),
     // A catalog directory, relative to the case directory, for cases that run a fixture template.
     catalog: z.string().min(1).optional(),
     timeout_seconds: z.number().int().positive().default(900),
