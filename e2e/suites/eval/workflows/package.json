@@ -12,6 +12,7 @@
     "shipfox-eval-workflows": "./dist/cli.js"
   },
   "imports": {
+    "#claude-transcript.js": "./src/claude-transcript.ts",
     "#cli.js": "./src/cli.ts",
     "#discovery.js": "./src/discovery.ts",
     "#langfuse.js": "./src/langfuse.ts",

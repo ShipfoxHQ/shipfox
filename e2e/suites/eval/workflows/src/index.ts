@@ -1,3 +1,12 @@
+export {
+  type ClaudeGeneration,
+  type ClaudeToolCall,
+  type ClaudeTranscript,
+  type ClaudeTranscriptExport,
+  type ClaudeTurn,
+  exportClaudeTranscript,
+  parseClaudeTranscript,
+} from './claude-transcript.js';
 export {type EvalCliOptions, type EvalRunOptions, parseEvalArgs, runCli, runEval} from './cli.js';
 export {caseSupportsMode, type DiscoveredCase, discoverCases} from './discovery.js';
 export {
