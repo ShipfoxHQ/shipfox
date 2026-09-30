@@ -121,6 +121,54 @@ describe('POST /:definitionId/fire-manual', () => {
     });
   });
 
+  test.each([
+    ['definition-not-found', {definitionId: crypto.randomUUID()}, 404],
+    ['project-mismatch', {}, 409],
+  ] as const)('maps %s from startRunFromTrigger to %i', async (code, details, status) => {
+    const definitionId = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
+    fireManualTriggerMock.mockRejectedValue(
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startRunFromTrigger,
+        code,
+        details as {definitionId: string} | Record<string, never>,
+      ),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/${definitionId}/fire-manual`,
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(status);
+    expect(res.json().code).toBe(code);
+  });
+
+  test('maps an oversized execution payload to 422 with field and byte details', async () => {
+    const definitionId = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
+    fireManualTriggerMock.mockRejectedValue(
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startRunFromTrigger,
+        'workflow-execution-payload-too-large',
+        {field: 'resolved_config', limitBytes: 1_000, measuredBytes: 1_500, overshootBytes: 500},
+      ),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/${definitionId}/fire-manual`,
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({
+      code: 'workflow-execution-payload-too-large',
+      details: {field: 'resolved_config', limit_bytes: 1_000, measured_bytes: 1_500},
+    });
+  });
+
   test('returns workspace-suspended for a suspended membership claim', async () => {
     const definitionId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
@@ -155,10 +203,7 @@ describe('POST /:definitionId/fire-manual', () => {
     });
 
     expect(res.statusCode).toBe(409);
-    expect(res.json()).toMatchObject({
-      code: 'workspace-suspended',
-      message: 'Workspace is suspended',
-    });
+    expect(res.json()).toMatchObject({code: 'workspace-suspended'});
   });
 
   test('maps admission denial to 409 with required action details', async () => {
@@ -237,7 +282,7 @@ describe('POST /:definitionId/fire-manual', () => {
     });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json()).toMatchObject({code: 'workspace-not-found', message: 'Workspace not found'});
+    expect(res.json()).toMatchObject({code: 'workspace-not-found'});
   });
 
   test('maps deleted workspace to 404', async () => {
@@ -258,7 +303,7 @@ describe('POST /:definitionId/fire-manual', () => {
     });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json()).toMatchObject({code: 'workspace-deleted', message: 'Workspace is deleted'});
+    expect(res.json()).toMatchObject({code: 'workspace-deleted'});
   });
 
   test('returns 404 when the manual trigger is unavailable', async () => {

@@ -1,4 +1,4 @@
-import type {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
+import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {ClientError} from '@shipfox/node-fastify';
 
@@ -7,6 +7,21 @@ type StartRunMethod =
   | typeof workflowsInterModuleContract.methods.startDevRun;
 
 export function mapStartRunError(error: unknown, method: StartRunMethod): ClientError | undefined {
+  // Only trigger-started runs resolve a stored definition, so dev runs never raise these codes.
+  if (isInterModuleKnownError(workflowsInterModuleContract.methods.startRunFromTrigger, error)) {
+    if (error.code === 'definition-not-found') {
+      return new ClientError('Workflow definition not found', 'definition-not-found', {
+        status: 404,
+        cause: error,
+      });
+    }
+    if (error.code === 'project-mismatch') {
+      return new ClientError('Workflow definition belongs to another project', 'project-mismatch', {
+        status: 409,
+        cause: error,
+      });
+    }
+  }
   if (!isInterModuleKnownError(method, error)) return undefined;
 
   switch (error.code) {
@@ -46,6 +61,20 @@ export function mapStartRunError(error: unknown, method: StartRunMethod): Client
         },
         cause: error,
       });
+    case 'workflow-execution-payload-too-large':
+      return new ClientError(
+        'Workflow execution payload is too large',
+        'workflow-execution-payload-too-large',
+        {
+          status: 422,
+          details: {
+            field: error.details.field,
+            limit_bytes: error.details.limitBytes,
+            measured_bytes: error.details.measuredBytes,
+          },
+          cause: error,
+        },
+      );
     case 'agent-config-unresolvable':
       return new ClientError(
         'Agent configuration cannot be resolved',
