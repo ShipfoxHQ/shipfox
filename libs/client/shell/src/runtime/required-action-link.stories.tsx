@@ -1,6 +1,6 @@
 import type {RequiredAction} from '@shipfox/policy-notice';
 import type {Meta, StoryObj} from '@storybook/react';
-import {expect, userEvent, within} from 'storybook/test';
+import {expect, within} from 'storybook/test';
 import {
   ChromeProvider,
   type ChromeSlots,
@@ -99,7 +99,7 @@ export const IntentWithSlotButton: Story = {
   ],
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
-    await userEvent.hover(await canvas.findByRole('button', {name: 'Contact us in chat'}));
+    expect(await canvas.findByRole('button', {name: 'Contact us in chat'})).toBeVisible();
     expect(canvas.getByRole('link', {name: 'Contact us'})).toBeVisible();
   },
 };
