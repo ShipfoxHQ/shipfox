@@ -1,4 +1,4 @@
-import {startJiraApiMock} from './jira-api.js';
+import {JIRA_IN_PROGRESS_TRANSITION_ID, startJiraApiMock} from './jira-api.js';
 
 const REST = '/ex/jira/cloud-1/rest/api/3';
 
@@ -145,6 +145,28 @@ describe('Jira API mock', () => {
       );
     } finally {
       stderrWrite.mockRestore();
+      await mock.stop();
+    }
+  });
+
+  it('serves the issue status and an in-progress transition for status-aware workflows', async () => {
+    const mock = await startJiraApiMock(new URL('http://127.0.0.1:0'));
+
+    try {
+      const issue = (await (
+        await fetch(new URL(`${REST}/issue/ENG-1?fields=status`, mock.endpoint))
+      ).json()) as {fields: {status: {statusCategory: {key: string}}}};
+      const {transitions} = (await (
+        await fetch(new URL(`${REST}/issue/ENG-1/transitions`, mock.endpoint))
+      ).json()) as {
+        transitions: Array<{id: string; to: {statusCategory: {key: string}}}>;
+      };
+
+      expect(issue.fields.status.statusCategory.key).toBe('new');
+      expect(
+        transitions.find((transition) => transition.to.statusCategory.key === 'indeterminate')?.id,
+      ).toBe(JIRA_IN_PROGRESS_TRANSITION_ID);
+    } finally {
       await mock.stop();
     }
   });

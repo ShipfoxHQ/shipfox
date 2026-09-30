@@ -1,5 +1,6 @@
 export {
   JIRA_COMMENT_RESULT_MARKER,
+  JIRA_IN_PROGRESS_TRANSITION_ID,
   JIRA_ISSUE_RESULT_MARKER,
   type JiraApiMock,
   type JiraApiMockCall,

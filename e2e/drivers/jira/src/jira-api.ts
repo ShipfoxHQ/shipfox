@@ -3,6 +3,8 @@ import {closeServer, listenOnEndpoint, type RecordedWrite} from '@shipfox/e2e-co
 
 export const JIRA_ISSUE_RESULT_MARKER = 'jira-issue-result-marker';
 export const JIRA_COMMENT_RESULT_MARKER = 'jira-comment-result-marker';
+/** The transition the fake offers into a status of the in-progress category. */
+export const JIRA_IN_PROGRESS_TRANSITION_ID = '21';
 
 const JIRA_REST_PATH_RE = /^\/ex\/jira\/([^/]+)\/rest\/api\/3\/(.+)$/;
 const MAX_ERROR_MESSAGE_LENGTH = 1_000;
@@ -156,7 +158,18 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
         idOrKey: context.idOrKey,
       });
       sendJson(context.response, 200, {
-        transitions: [{id: '31', name: 'Done', to: {name: 'Done'}}],
+        transitions: [
+          {
+            id: JIRA_IN_PROGRESS_TRANSITION_ID,
+            name: 'Start progress',
+            to: {name: 'In Progress', statusCategory: {key: 'indeterminate'}},
+          },
+          {
+            id: '31',
+            name: 'Done',
+            to: {name: 'Done', statusCategory: {key: 'done'}},
+          },
+        ],
       });
     },
   },
@@ -304,7 +317,11 @@ function issueBody(idOrKey: string): JiraBody {
   return {
     id: '10000',
     key: idOrKey,
-    fields: {summary: 'E2E Jira issue', description: JIRA_ISSUE_RESULT_MARKER},
+    fields: {
+      summary: 'E2E Jira issue',
+      description: JIRA_ISSUE_RESULT_MARKER,
+      status: {name: 'To Do', statusCategory: {key: 'new'}},
+    },
   };
 }
 
