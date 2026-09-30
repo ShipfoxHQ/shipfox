@@ -164,18 +164,19 @@ describe('Discord provider scaffold', () => {
     const {part} = await loadDiscordProvider();
     if (!part.e2eRoutes) throw new Error('Discord E2E routes are not configured');
     const seedApp = await createApp({routes: part.e2eRoutes, swagger: false});
+    const guildId = `guild-${crypto.randomUUID()}`;
     const created = await seedApp.inject({
       method: 'POST',
       url: '/integrations/discord-connections',
       payload: {
         workspace_id: context.workspaceId,
-        guild_id: `guild-${crypto.randomUUID()}`,
+        guild_id: guildId,
         guild_name: 'Acme Discord',
         permissions: '309237730368',
         bot_role_id: 'role-1',
       },
     });
-    const fetchMock = vi.fn(async () => new Response('{}', {status}));
+    const fetchMock = vi.fn(async (_input: Request | URL) => new Response('{}', {status}));
     vi.stubGlobal('fetch', fetchMock);
 
     const deleteApp = await createTestApp([part.provider]);
@@ -187,5 +188,8 @@ describe('Discord provider scaffold', () => {
 
     expect(deleted.statusCode).toBe(204);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    const request = fetchMock.mock.calls[0]?.[0] as Request;
+    expect(request.method).toBe('DELETE');
+    expect(request.url).toContain(`/users/@me/guilds/${guildId}`);
   });
 });
