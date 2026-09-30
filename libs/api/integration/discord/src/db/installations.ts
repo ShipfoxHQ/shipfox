@@ -1,5 +1,5 @@
 import {isUniqueViolation} from '@shipfox/node-drizzle';
-import {eq, sql} from 'drizzle-orm';
+import {and, eq, isNull, ne, or, sql} from 'drizzle-orm';
 import {db} from './db.js';
 import {discordInstallations, toDiscordInstallation} from './schema/installations.js';
 
@@ -132,4 +132,56 @@ export async function deleteDiscordInstallationByConnectionId(
     .delete(discordInstallations)
     .where(eq(discordInstallations.connectionId, connectionId));
   return (result.rowCount ?? 0) > 0;
+}
+
+export async function listInstalledDiscordGuildIds(): Promise<string[]> {
+  const rows = await db()
+    .select({guildId: discordInstallations.guildId})
+    .from(discordInstallations)
+    .where(eq(discordInstallations.status, 'installed'));
+  return rows.map((row) => row.guildId);
+}
+
+/**
+ * Sets the status only while the row is the one the caller read, at the generation it read. No
+ * match means a reinstall bumped the generation, or a delete and reinstall replaced the row, so the
+ * caller's view is stale.
+ */
+export async function updateDiscordInstallationStatusAtGeneration(
+  params: {id: string; generation: number; status: DiscordInstallationStatus},
+  options: {tx?: unknown} = {},
+): Promise<boolean> {
+  const executor = (options.tx ?? db()) as DiscordExecutor;
+  const rows = await executor
+    .update(discordInstallations)
+    .set({status: params.status, updatedAt: new Date()})
+    .where(
+      and(
+        eq(discordInstallations.id, params.id),
+        eq(discordInstallations.generation, params.generation),
+      ),
+    )
+    .returning({id: discordInstallations.id});
+  return rows.length > 0;
+}
+
+/** Writes the role only when it differs, so a replayed dispatch changes nothing. */
+export async function setDiscordInstallationBotRoleId(params: {
+  guildId: string;
+  botRoleId: string;
+}): Promise<boolean> {
+  const rows = await db()
+    .update(discordInstallations)
+    .set({botRoleId: params.botRoleId, updatedAt: new Date()})
+    .where(
+      and(
+        eq(discordInstallations.guildId, params.guildId),
+        or(
+          isNull(discordInstallations.botRoleId),
+          ne(discordInstallations.botRoleId, params.botRoleId),
+        ),
+      ),
+    )
+    .returning({id: discordInstallations.id});
+  return rows.length > 0;
 }

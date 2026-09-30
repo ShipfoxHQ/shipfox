@@ -67,7 +67,8 @@ describe('Discord Gateway message handlers', () => {
         return Promise.resolve({published: true});
       },
       getIntegrationConnectionById: () => Promise.resolve(connection),
-      discord: {getChannel},
+      updateConnectionLifecycleStatus: () => Promise.resolve(undefined),
+      discord: {getChannel, getGuild: () => Promise.reject(new Error('unexpected guild request'))},
       botUserId: 'bot-user',
     });
     return {handlers, getChannel, published};

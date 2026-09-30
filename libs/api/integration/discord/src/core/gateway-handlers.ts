@@ -2,19 +2,29 @@ import {createDiscordApiClient, type DiscordApiClient} from '#api/client.js';
 import {recordDiscordGatewayDispatch} from '#metrics/index.js';
 import {createDiscordChannelCache} from './channel-cache.js';
 import type {DispatchHandlers} from './gateway-dispatch-queue.js';
+import {
+  createDiscordGuildLifecycle,
+  type DiscordGuildLifecycleOptions,
+} from './gateway-guild-lifecycle.js';
 import {type DiscordMessageHandlerOptions, handleDiscordMessageCreate} from './message-create.js';
 
 export interface CreateDiscordGatewayHandlersOptions
-  extends Omit<DiscordMessageHandlerOptions, 'channels'> {
-  /** Only `getChannel` is used, for a channel the cache has not seen. Defaults to the configured client. */
-  discord?: Pick<DiscordApiClient, 'getChannel'> | undefined;
+  extends Omit<DiscordMessageHandlerOptions, 'channels'>,
+    Pick<DiscordGuildLifecycleOptions, 'updateConnectionLifecycleStatus'> {
+  /** Used for a channel the cache has not seen and for the guild removal check. Defaults to the configured client. */
+  discord?: Pick<DiscordApiClient, 'getChannel' | 'getGuild'> | undefined;
 }
 
 /** The dispatches the leader acts on, sharing one channel cache. */
 export function createDiscordGatewayHandlers(
   options: CreateDiscordGatewayHandlersOptions,
 ): DispatchHandlers {
-  const {discord, ...messageOptions} = options;
+  const {discord, updateConnectionLifecycleStatus, ...messageOptions} = options;
+  const lifecycle = createDiscordGuildLifecycle({
+    coreDb: options.coreDb,
+    updateConnectionLifecycleStatus,
+    discord,
+  });
   let client = discord;
   const channels = createDiscordChannelCache({
     getChannel: (input) => {
@@ -32,9 +42,11 @@ export function createDiscordGatewayHandlers(
   };
 
   return {
-    GUILD_CREATE: ({d}) => {
-      rememberAll(asRecord(d)?.channels);
-      rememberAll(asRecord(d)?.threads);
+    ...lifecycle.handlers,
+    GUILD_CREATE: async (payload) => {
+      rememberAll(asRecord(payload.d)?.channels);
+      rememberAll(asRecord(payload.d)?.threads);
+      await lifecycle.handlers.GUILD_CREATE?.(payload);
     },
     THREAD_LIST_SYNC: ({d}) => rememberAll(asRecord(d)?.threads),
     CHANNEL_CREATE: remember,
