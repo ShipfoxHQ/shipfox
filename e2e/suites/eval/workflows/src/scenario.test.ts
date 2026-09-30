@@ -69,6 +69,47 @@ describe('runScenario', () => {
     );
   });
 
+  it('sends a start event again when the first delivery starts no run', async () => {
+    const driver = createDriver({
+      sendEvent: vi
+        .fn()
+        .mockResolvedValueOnce({deliveryId: 'delivery-1'})
+        .mockResolvedValueOnce({deliveryId: 'delivery-2'}),
+      runForDelivery: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('no run for delivery-1'))
+        .mockResolvedValueOnce('run-2'),
+    });
+    const steps: ScenarioStep[] = [
+      {start: {event: {jira: {'jira:issue_updated': {}}}}, timeout_seconds: 30},
+    ];
+
+    const result = await runScenario({steps, driver, deadline: farDeadline()});
+
+    expect(result.runId).toBe('run-2');
+    expect(driver.sendEvent).toHaveBeenCalledTimes(2);
+    expect(driver.runForDelivery).toHaveBeenLastCalledWith(
+      expect.objectContaining({deliveryId: 'delivery-2'}),
+    );
+  });
+
+  it('fails an event start that never starts a run within the step timeout', async () => {
+    const driver = createDriver({
+      sendEvent: vi.fn(async () => ({deliveryId: 'delivery-1'})),
+      runForDelivery: vi.fn(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        throw new Error('no run for the delivery');
+      }),
+    });
+    const steps: ScenarioStep[] = [
+      {start: {event: {jira: {'jira:issue_updated': {}}}}, timeout_seconds: 0.1},
+    ];
+
+    await expect(runScenario({steps, driver, deadline: farDeadline()})).rejects.toThrow(
+      'no run for the delivery',
+    );
+  });
+
   it('fails an event start whose sender returns no delivery', async () => {
     const steps: ScenarioStep[] = [{start: {event: {github: {'issues.labeled': {}}}}}];
 

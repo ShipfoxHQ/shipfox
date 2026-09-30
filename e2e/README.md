@@ -338,14 +338,19 @@ mise run evals -- --suite templates --mode scripted --case fixture --repeat 3
 ```
 
 Each case arranges its own workspace, GitHub connection, and project on a
-fake repository. It composes its template variant through the template loader,
-binds its GitHub roles to the integration connection's slug, and creates the
-definition. Then it starts a local runner with a label of its own. The runner
+fake repository. A case that binds a role to Jira also gets the Jira fake and
+a Jira connection. The case composes its template variant through the template
+loader, binds each role to its connection's slug, and creates the definition.
+A case sets every option its variant uses, because an option left out keeps
+all of its blocks. Its `fills` map gives the `replace-with-*` placeholders
+that have no slot, such as a Jira project key, the values a person would give
+the coding agent. Then it starts a local runner with a label of its own. The runner
 gets an empty global Git configuration, so a developer's own settings, such as
 commit signing, never reach the case. It then runs the case's `scenario` in
 order and writes the result to `results/<run-id>/<case>/<repeat>.json`. A case
 that finishes its scenario includes the run observation. A case that errors
-carries the failed step and its reason instead. A case that doesn't pass also
+carries the failed step and its reason instead, with the run observation when
+its scenario had started a run. A case that doesn't pass also
 carries the last 200 lines of its runner log. With a script, it also carries
 the model requests the script served. The exit code is non-zero when any case
 errors or fails its expectations.
@@ -384,12 +389,22 @@ payload. The recorded writes are in the result file.
 
 A scenario step is one of:
 
-- `start`: `manual` with `inputs`, or `event` with a provider event.
+- `start`: `manual` with `inputs`, or `event` with a provider event. An event
+  that starts no run within 15 seconds is sent again until the step's timeout,
+  because a delivery that lands before the definition's trigger is active
+  starts nothing.
 - `send`: a provider event, such as `github: {pull_request.closed: {...}}`.
   `$pr` and `$pr.head` in an event payload resolve to the pull request the run
-  opened in the GitHub fake. The case's GitHub fake sends
-  `pull_request_review_comment.created` and `pull_request.closed`. Other
-  providers need an `EventSender` passed to `runEval`.
+  opened in the GitHub fake, and `$pr.url` to its address. Inside longer text,
+  as in `Opened pull request: $pr.url`, a reference becomes its text. The
+  case's GitHub fake sends `pull_request_review_comment.created` and
+  `pull_request.closed`. The Jira sender sends signed `jira:issue_created` and
+  `jira:issue_updated` events, with an `issue` (`key`, `summary`, and
+  optionally `id`, `status`, `project`, `labels`, and `description`) and
+  optionally `previous_status` or `previous_labels`, which become the
+  changelog. Jira writes are recorded as `jira.add_comment`,
+  `jira.transition_issue`, and so on, with the issue ID or key as the target.
+  Other providers need an `EventSender` passed to `runEval`.
 - `await`: a `job` status, a `listener` that is `ready`, a listener `execution`
   status, or the `run` status. A job, execution, or run that ends in another
   terminal status fails the step at once.

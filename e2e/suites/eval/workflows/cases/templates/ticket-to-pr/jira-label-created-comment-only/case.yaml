@@ -1,0 +1,46 @@
+template: shipfox/ticket-to-pr
+bindings: {tracker: jira, source: github}
+# An option left out keeps every block of it, so each option the workflow uses is set. The
+# feedback loop is off, so the run ends after the pull request opens.
+options: {jira_trigger: label, feedback_loop: off, resolve_threads: addressed, pr_mode: draft, ticket_write_back: comment}
+placeholders:
+  replace-with-project-key: ENG
+  replace-with-label-name: shipfox
+slots:
+  setup_commands: "- key: setup\n  run: node --version"
+  test_command: npm test
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 900
+
+covers:
+  - Pushes a branch and opens a task pull request, as a draft by default.
+  - With a tracker, comments on the ticket and can set its in-progress status, or an in-progress label on GitHub, unless ticket updates are off.
+
+# Issue created with the label, comment-only write-back: the ticket gets the link and no status change.
+scenario:
+  - start:
+      event:
+        jira:
+          'jira:issue_created':
+            issue: {key: ENG-9, id: '10009', summary: Add a --json flag to the report command, description: The report command only prints text. Scripts that read it need JSON., project: ENG, labels: [shipfox]}
+    timeout_seconds: 120
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  outputs: {status: implemented, identifier: ENG-9}
+  writes:
+    - github.push: {branch: $pr.head, count: 1}
+    - github.create_pull_request: {pull_request: $pr, base: main, draft: true, count: 1}
+    - jira.add_comment:
+        target: '10009'
+        body:
+          type: doc
+          version: 1
+          content:
+            - type: paragraph
+              content:
+                - {type: text, text: 'Opened pull request: $pr.url'}
+        count: 1
+    - jira.transition_issue: {count: 0}

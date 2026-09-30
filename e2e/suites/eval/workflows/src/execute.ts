@@ -31,6 +31,7 @@ import type {DiscoveredCase} from './discovery.js';
 import {createGithubEventSender} from './github-events.js';
 import {arrangeGithubProject} from './github-project.js';
 import {type HiddenTestsResult, runHiddenTests} from './hidden-tests.js';
+import {arrangeJiraTracker} from './jira.js';
 import {arrangeLinearWorkspace} from './linear-workspace.js';
 import {collectMeasures, type RunMeasures} from './measures.js';
 import {type PullRequestReference, resolveReferences} from './references.js';
@@ -164,8 +165,10 @@ export async function executeTemplateCase(options: ExecuteCaseOptions): Promise<
     }
   } catch (error) {
     result.status = 'error';
-    if (error instanceof ScenarioError) result.steps = error.records;
-    if (arrangement !== undefined) result.writes = arrangement.writes();
+    if (arrangement !== undefined) {
+      result.writes = arrangement.writes();
+      await attachScenarioFailure({result, error, arrangement});
+    }
     result.error = failureMessage({error, arrangement});
   } finally {
     if (mode === 'live' && arrangement !== undefined) {
@@ -245,6 +248,28 @@ async function recordCost({
     result.status = 'error';
     result.error = `${result.error ?? ''}\nThe cost could not be read: ${reason}`.trim();
   }
+}
+
+/** What a failed scenario did before it failed: its steps and, once a run started, the run. */
+async function attachScenarioFailure({
+  result,
+  error,
+  arrangement,
+}: {
+  result: CaseResult;
+  error: unknown;
+  arrangement: Arrangement;
+}): Promise<void> {
+  if (!(error instanceof ScenarioError)) return;
+  result.steps = error.records;
+  if (error.runId === undefined) return;
+  result.run_id = error.runId;
+  const observation = await observeWholeRun({
+    runId: error.runId,
+    token: arrangement.token,
+    yaml: arrangement.yaml,
+  }).catch(() => undefined);
+  if (observation !== undefined) result.observation = observation;
 }
 
 /** A request the script had no reply for, one message each. */
@@ -397,12 +422,16 @@ async function arrange({
         cleanups,
       })
     : undefined;
+  const jira = Object.values(templateCase.bindings).includes('jira')
+    ? await arrangeJiraTracker({workspaceId: workspace.id, uniqueId, cleanups})
+    : undefined;
 
-  // The case workspace holds a connection to the GitHub fake, and to the Linear fake when the
-  // case binds Linear, so only those roles bind.
+  // The case workspace holds a connection to the GitHub fake, and to the Linear or Jira fake when
+  // the case binds that provider, so only those roles bind.
   const connectionSlugs: Record<string, string> = {
     github: connection.slug,
     ...(linear === undefined ? {} : {linear: linear.connectionSlug}),
+    ...(jira === undefined ? {} : {jira: jira.connectionSlug}),
   };
   const slugs = Object.fromEntries(
     Object.entries(templateCase.bindings).flatMap(([role, provider]) => {
@@ -438,6 +467,7 @@ async function arrange({
   const senders: EventSenders = {
     github: createGithubEventSender(github),
     ...(linear === undefined ? {} : {linear: linear.sender}),
+    ...(jira === undefined ? {} : {jira: jira.sender}),
     ...options.senders,
   };
   const pullRequest = (): PullRequestReference => {
@@ -520,7 +550,7 @@ async function arrange({
     runnerExit: () => exit,
     runnerAborted: exited.signal,
     runnerTail: () => localRunnerLogTail(logFile),
-    writes: () => [...github.writes(), ...(linear?.writes() ?? [])],
+    writes: () => [...github.writes(), ...(linear?.writes() ?? []), ...(jira?.writes() ?? [])],
     references: driver.references,
     modelRequests: async () =>
       script === undefined

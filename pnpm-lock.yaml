@@ -2505,6 +2505,9 @@ importers:
       '@shipfox/e2e-driver-github':
         specifier: workspace:*
         version: link:../../../drivers/github
+      '@shipfox/e2e-driver-jira':
+        specifier: workspace:*
+        version: link:../../../drivers/jira
       '@shipfox/e2e-driver-linear':
         specifier: workspace:*
         version: link:../../../drivers/linear
