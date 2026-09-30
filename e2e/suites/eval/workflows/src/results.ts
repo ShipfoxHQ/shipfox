@@ -1,5 +1,6 @@
 import {mkdir, writeFile} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
+import type {RecordedWrite} from '@shipfox/e2e-core';
 import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
 import type {DiscoveredCase} from './discovery.js';
 import type {ScenarioStepRecord} from './scenario.js';
@@ -15,7 +16,8 @@ export interface CaseResult {
   case: string;
   mode: 'scripted' | 'live';
   repeat: number;
-  status: 'passed' | 'error';
+  /** `failed` ran to the end but missed its expectations. `error` could not finish. */
+  status: 'passed' | 'failed' | 'error';
   duration_ms: number;
   cost_usd: number;
   error?: string;
@@ -26,6 +28,8 @@ export interface CaseResult {
   steps?: ScenarioStepRecord[];
   /** The run with its jobs, executions, and steps, once the scenario finished. */
   observation?: WorkflowRunObservation;
+  /** Every write the fakes recorded, in arrival order. */
+  writes?: RecordedWrite[];
   /** The case runner's log file. */
   runner_log?: string;
 }
@@ -56,7 +60,8 @@ function resultPath(runDirectory: string, result: CaseResult): string {
 
 function summaryMarkdown(run: ResultsRun, mode: 'scripted' | 'live'): string {
   const passed = run.results.filter((result) => result.status === 'passed').length;
-  const errors = run.results.length - passed;
+  const failed = run.results.filter((result) => result.status === 'failed').length;
+  const errors = run.results.length - passed - failed;
   const lines = [
     '# Eval results',
     '',
@@ -64,6 +69,7 @@ function summaryMarkdown(run: ResultsRun, mode: 'scripted' | 'live'): string {
     `- Mode: \`${mode}\``,
     `- Cases: ${run.results.length}`,
     `- Passed: ${passed}`,
+    `- Failed: ${failed}`,
     `- Errors: ${errors}`,
     '',
     '| Case | Repeat | Status | Cost (USD) |',
@@ -78,7 +84,7 @@ function summaryMarkdown(run: ResultsRun, mode: 'scripted' | 'live'): string {
   }
 
   if (failures.length > 0) {
-    lines.push('', '## Errors', '');
+    lines.push('', '## Failures', '');
     for (const result of failures) {
       lines.push(
         `- \`${result.case}\` repeat ${result.repeat}: ${result.error?.replaceAll('\n', ' / ')}`,

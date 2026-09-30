@@ -234,9 +234,9 @@ export async function runCli(
       ...(environment.cwd === undefined ? {} : {cwd: environment.cwd}),
       ...(environment.cwd === undefined ? {} : {resultsDirectory: `${environment.cwd}/results`}),
     });
-    const failed = run.results.filter((result: CaseResult) => result.status === 'error');
+    const failed = run.results.filter((result: CaseResult) => result.status !== 'passed');
     stdout(
-      `Ran ${run.results.length} case runs, ${failed.length} with errors. Results: ${run.directory}\n`,
+      `Ran ${run.results.length} case runs, ${failed.length} not passed. Results: ${run.directory}\n`,
     );
     for (const result of failed) {
       stderr(`${result.case} (repeat ${result.repeat}): ${result.error}\n`);

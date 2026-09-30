@@ -343,7 +343,23 @@ creates the definition, and starts a local runner with a label of its own. It
 then runs the case's `scenario` in order and writes the result to
 `results/<run-id>/<case>/<repeat>.json`. A case that finishes its scenario
 includes the run observation. A case that errors carries the failed step and its
-reason instead. The exit code is non-zero when any case errors.
+reason instead. The exit code is non-zero when any case errors or fails its
+expectations.
+
+A case that finishes its scenario is then checked against `expect`:
+
+- `outputs`: each key must equal the run's workflow output. Other outputs are
+  allowed.
+- `writes`: strict. Each entry names one kind of write, such as
+  `github.push: {branch: $pr.head, count: 2}`. `count` is exact and defaults
+  to 1, and `count: 0` states a write that must not happen. `target` and
+  `pull_request: $pr` match what the write acted on, and every other field
+  matches the write's payload. A write that matches no entry fails the case as
+  unexpected, and one that matches a `count: 0` entry fails it as forbidden. A
+  case with no `writes` expects none. Reads are never checked.
+
+The result is `failed` and lists each unmatched or missing write with its
+payload. The recorded writes are in the result file.
 
 A scenario step is one of:
 

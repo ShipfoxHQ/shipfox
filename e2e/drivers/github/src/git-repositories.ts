@@ -220,7 +220,7 @@ function diffBranches(params: {
     const after = params.after.get(branch) ?? null;
     if (before === after) continue;
     writes.push({
-      kind: 'push',
+      kind: 'github.push',
       target: `${params.repository.fullName}:${branch}`,
       payload: {repository: params.repository.fullName, branch, before, after},
     });

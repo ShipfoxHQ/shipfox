@@ -162,7 +162,7 @@ test('the shipped GitHub source parts check out the fake repository and push a b
     ]);
     expect(githubApi.writes()).toEqual([
       {
-        kind: 'push',
+        kind: 'github.push',
         target: `${repository.fullName}:${branch}`,
         payload: {repository: repository.fullName, branch, before: null, after: stdout.trim()},
       },

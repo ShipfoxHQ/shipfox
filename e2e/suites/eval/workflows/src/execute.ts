@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {DefinitionListResponseDto, DefinitionResponseDto} from '@shipfox/api-definitions-dto';
 import type {FireManualTriggerResponseDto} from '@shipfox/api-triggers-dto';
-import {createApiClient, pollUntil} from '@shipfox/e2e-core';
+import {createApiClient, pollUntil, type RecordedWrite} from '@shipfox/e2e-core';
 import {startGithubApiMock} from '@shipfox/e2e-driver-github';
 import {
   type LocalRunnerExit,
@@ -26,10 +26,12 @@ import {parse as parseYaml} from 'yaml';
 import {runAwait} from './awaits.js';
 import {composeCaseWorkflow, templateLoaderFor} from './compose.js';
 import type {DiscoveredCase} from './discovery.js';
-import type {PullRequestReference} from './references.js';
+import {type PullRequestReference, resolveReferences} from './references.js';
 import type {CaseResult} from './results.js';
 import {runScenario, type ScenarioDriver, ScenarioError} from './scenario.js';
+import type {TemplateCase} from './schema.js';
 import type {EventSenders} from './senders.js';
+import {checkOutputs, checkWrites} from './writes.js';
 
 const SYNC_TIMEOUT_MS = 60_000;
 const START_TIMEOUT_MS = 60_000;
@@ -52,6 +54,9 @@ interface Arrangement {
   runnerExit: () => LocalRunnerExit | undefined;
   runnerAborted: AbortSignal;
   runnerTail: () => string;
+  /** Every write the GitHub fake accepted. Read before the fake stops. */
+  writes: () => RecordedWrite[];
+  references: ScenarioDriver['references'];
 }
 
 /** Splits `owner/name`, giving a case with no repository one of its own. */
@@ -199,15 +204,58 @@ export async function executeTemplateCase(options: ExecuteCaseOptions): Promise<
       token: arrangement.token,
       yaml: arrangement.yaml,
     });
+    result.writes = arrangement.writes();
+    const failures = checkExpectations({
+      expect: templateCase.expect,
+      outputs: result.observation.attempt.outputs ?? null,
+      writes: result.writes,
+      references: arrangement.references,
+    });
+    if (failures.length > 0) {
+      result.status = 'failed';
+      result.error = failures.join('\n');
+    }
   } catch (error) {
     result.status = 'error';
     if (error instanceof ScenarioError) result.steps = error.records;
+    if (arrangement !== undefined) result.writes = arrangement.writes();
     result.error = failureMessage({error, arrangement});
   } finally {
     for (const cleanup of cleanups.reverse()) await cleanup().catch(() => undefined);
     result.duration_ms = Date.now() - startedAt;
   }
   return result;
+}
+
+/** What the case expected and the run didn't do, one message each. Empty when the case passed. */
+function checkExpectations({
+  expect,
+  outputs,
+  writes,
+  references,
+}: {
+  expect: TemplateCase['expect'];
+  outputs: Record<string, unknown> | null;
+  writes: RecordedWrite[];
+  references: ScenarioDriver['references'];
+}): string[] {
+  let resolved: Pick<TemplateCase['expect'], 'outputs' | 'writes'>;
+  try {
+    resolved = resolveReferences(
+      {outputs: expect.outputs, writes: expect.writes},
+      references,
+    ) as typeof resolved;
+  } catch (error) {
+    return [
+      `The expectations could not be resolved: ${error instanceof Error ? error.message : String(error)}`,
+    ];
+  }
+  return [
+    ...(resolved.outputs === undefined
+      ? []
+      : checkOutputs({expected: resolved.outputs, actual: outputs})),
+    ...checkWrites({expected: resolved.writes, recorded: writes}),
+  ];
 }
 
 function failureMessage({
@@ -405,5 +453,7 @@ async function arrange({
     runnerExit: () => exit,
     runnerAborted: exited.signal,
     runnerTail: () => localRunnerLogTail(logFile),
+    writes: () => github.writes(),
+    references: driver.references,
   };
 }
