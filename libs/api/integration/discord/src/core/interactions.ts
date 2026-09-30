@@ -16,6 +16,7 @@ import type {
 } from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
+import {isDiscordThreadType} from '#core/channel-types.js';
 import {type DiscordInstallation, getDiscordInstallationByGuildId} from '#db/installations.js';
 
 export const DISCORD_ACK_NOT_CONNECTED = 'This server is not connected to Shipfox.';
@@ -29,7 +30,6 @@ const SEND_MESSAGES = 1n << 11n;
 const SEND_MESSAGES_IN_THREADS = 1n << 38n;
 const EPHEMERAL_FLAG = 64;
 const decimalPattern = /^\d+$/;
-const THREAD_CHANNEL_TYPES = new Set([10, 11, 12]);
 
 export type DiscordInteractionResponse =
   | {type: 1}
@@ -211,7 +211,7 @@ function channelPlacement(interaction: DiscordInteractionEnvelopeDto): {
   const channel = asRecord(interaction.channel);
   const channelId = interaction.channel_id;
   const parentId = typeof channel?.parent_id === 'string' ? channel.parent_id : undefined;
-  const isThread = typeof channel?.type === 'number' && THREAD_CHANNEL_TYPES.has(channel.type);
+  const isThread = typeof channel?.type === 'number' && isDiscordThreadType(channel.type);
   if (isThread && channelId) {
     return {threadId: channelId, ...(parentId ? {rootChannelId: parentId} : {})};
   }

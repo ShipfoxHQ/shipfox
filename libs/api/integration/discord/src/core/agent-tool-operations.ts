@@ -1,6 +1,7 @@
 import type {DiscordAgentToolId} from '@shipfox/api-integration-discord-dto';
 import type {DiscordApiClient, DiscordChannel, DiscordMessage} from '#api/client.js';
 import type {DiscordChannelGuard} from '#core/channel-guard.js';
+import {isDiscordThreadType} from '#core/channel-types.js';
 import {DiscordIntegrationProviderError, DiscordToolArgumentError} from '#core/errors.js';
 import {splitDiscordMessage} from '#core/message-split.js';
 import {ensureMessageThread} from '#core/message-thread.js';
@@ -19,9 +20,6 @@ export type DiscordToolClient = Pick<
 >;
 
 const DEFAULT_THREAD_LIMIT = 50;
-const ANNOUNCEMENT_THREAD = 10;
-const PUBLIC_THREAD = 11;
-const PRIVATE_THREAD = 12;
 
 export interface DiscordToolContext {
   discord: DiscordToolClient;
@@ -63,7 +61,7 @@ export const DISCORD_TOOL_OPERATIONS: Partial<Record<DiscordAgentToolId, Discord
       const limit = optionalNumber(args.limit) ?? DEFAULT_THREAD_LIMIT;
       const channel = await guard({channelId, guildId});
 
-      if (isThread(channel.type)) {
+      if (isDiscordThreadType(channel.type)) {
         // A thread started from a message has that message's id and the message lives in the parent.
         const starter =
           channel.parentId === null
@@ -147,7 +145,8 @@ export const DISCORD_TOOL_OPERATIONS: Partial<Record<DiscordAgentToolId, Discord
     },
   },
   send_message: {
-    permissionHint: 'Send Messages, Send Messages in Threads, and Create Public Threads',
+    permissionHint:
+      'View Channel, Read Message History, Send Messages, Send Messages in Threads, and Create Public Threads',
     validate: (args) =>
       stringArgument(args, 'message').trim() === ''
         ? 'Parameter message must not be empty'
@@ -164,7 +163,7 @@ export const DISCORD_TOOL_OPERATIONS: Partial<Record<DiscordAgentToolId, Discord
       const threadMessageId = optionalString(args.thread_message_id);
       const {type} = await guard({channelId, guildId});
       // In a thread, thread_message_id is ignored so one set of arguments serves both places.
-      const startsThread = threadMessageId !== undefined && !isThread(type);
+      const startsThread = threadMessageId !== undefined && !isDiscordThreadType(type);
       const targetId = startsThread
         ? await ensureMessageThread({discord, channelId, messageId: threadMessageId})
         : channelId;
@@ -187,10 +186,6 @@ export const DISCORD_TOOL_OPERATIONS: Partial<Record<DiscordAgentToolId, Discord
     },
   },
 };
-
-function isThread(type: number): boolean {
-  return type === ANNOUNCEMENT_THREAD || type === PUBLIC_THREAD || type === PRIVATE_THREAD;
-}
 
 /** Discord answers newest first; a thread reads better oldest first. */
 async function listThreadMessages(
