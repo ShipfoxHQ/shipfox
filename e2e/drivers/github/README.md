@@ -33,6 +33,19 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   `github.create_issue_comment`, and `github.resolve_review_thread`. Each branch update from a git push is a `push`
   write with `repository`, `branch`, `before`, and `after`; a missing side is `null`.
   `RecordedWrite` itself lives in `@shipfox/e2e-core`.
+- `GithubApiMock.sendPullRequestReviewComment(params)`: records a review comment as a new
+  thread on a pull request in `pullRequests`, and delivers a signed
+  `pull_request_review_comment.created` webhook for it to the API. It returns the
+  `deliveryId`, `commentId`, and `threadId`, so the fake's reply and thread routes accept them.
+- `GithubApiMock.sendPullRequestClosed(params)`: closes a pull request in `pullRequests`, as
+  merged when `merged` is true, and delivers a signed `pull_request.closed` webhook. Both
+  payloads come from the fake's pull request state and carry the repository, sender, and
+  `installation.id` that GitHub sends, so the API routes them to the connection that shares the
+  fake's `installationId`. Set `webhookSecret` on the fake, or export
+  `GITHUB_APP_WEBHOOK_SECRET`, to sign with the API's secret; the harness sets the latter. Set
+  `apiUrl` to deliver somewhere other than the E2E API.
+- `signGithubWebhook(params)`: the `X-Hub-Signature-256`, `X-GitHub-Event`, and
+  `X-GitHub-Delivery` headers for a raw body.
 - `GITHUB_*_INSTALLATION_TOKEN` and `GITHUB_*_RESULT_MARKER`: constants the suites
   assert on.
 

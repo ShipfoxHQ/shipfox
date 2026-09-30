@@ -17,6 +17,7 @@ import {
   type PullRequestRoutes,
   pullRequestPayload,
 } from './pull-requests.js';
+import {createGithubWebhookSender, type GithubWebhookSender} from './webhook-events.js';
 
 const JWT_SEGMENT_LENGTH = 169;
 const BOT_USER_ID = 1_234_567;
@@ -116,7 +117,7 @@ export type GithubApiMockCall =
       body: Record<string, unknown>;
     };
 
-export interface GithubApiMock {
+export interface GithubApiMock extends GithubWebhookSender {
   calls: GithubApiMockCall[];
   endpoint: URL;
   /** Pull requests by number. Tests fill it once they know the commits; created ones land here. */
@@ -141,6 +142,10 @@ export interface GithubApiMockOptions {
   endpoint?: URL | undefined;
   installationId?: number | undefined;
   installationToken?: string | undefined;
+  /** Signs the webhook events the fake sends. Defaults to `GITHUB_APP_WEBHOOK_SECRET`. */
+  webhookSecret?: string | undefined;
+  /** Where the fake delivers webhook events. Defaults to the E2E API. */
+  apiUrl?: string | undefined;
   checkRunCreateResponse?: Record<string, unknown> | undefined;
   checkRunUpdateResponse?: Record<string, unknown> | undefined;
   checkRunCreateFailure?: GithubApiMockFailure | undefined;
@@ -173,6 +178,14 @@ export async function startGithubApiMock(
     },
   });
   const repositories = createGitRepositories();
+  const webhookSender = createGithubWebhookSender({
+    installationId,
+    webhookSecret: options.webhookSecret,
+    apiUrl: options.apiUrl,
+    pullRequests,
+    reviewThreads,
+    repositories,
+  });
   addConfiguredCheckRunId(knownCheckRunIds, checkRunCreateResponse);
   addConfiguredCheckRunId(knownCheckRunIds, checkRunUpdateResponse);
   const endpoint = options.endpoint ?? new URL(requiredGithubApiBaseUrl());
@@ -211,6 +224,7 @@ export async function startGithubApiMock(
     reviewThreads,
     branchHeads,
     addRepository: (params) => repositories.add(params),
+    ...webhookSender,
     writes: () => [...writes],
     stop: async () => {
       try {
