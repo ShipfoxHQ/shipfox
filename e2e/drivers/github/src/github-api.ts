@@ -47,6 +47,7 @@ const REPOSITORY_BY_NAME_PATH = /^\/repos\/([^/]+)\/([^/]+)$/u;
 const ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues$/u;
 const CHECK_RUN_CREATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs$/u;
 const CHECK_RUN_UPDATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs\/(\d+)$/u;
+const WORKFLOW_RUNS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/actions\/workflows\/([^/]+)\/runs$/u;
 const USER_PATH = /^\/users\/([^/]+)$/u;
 const SEARCH_ISSUES_PATH = /^\/search\/issues$/u;
 const GRAPHQL_PATH = /^\/graphql$/u;
@@ -383,9 +384,25 @@ async function handleGithubRequest(params: {
     await handleGraphqlRequest(context);
     return;
   }
+  await handleRoutedRequest(params, requestUrl);
+}
+
+async function handleRoutedRequest(
+  params: {
+    request: IncomingMessage;
+    response: ServerResponse;
+    issueRoutes: IssueRoutes;
+    pullRequestRoutes: PullRequestRoutes;
+  },
+  requestUrl: URL,
+): Promise<void> {
   if (await params.issueRoutes.handle(params.request, params.response, requestUrl)) return;
   if (await params.pullRequestRoutes.handle(params.request, params.response, requestUrl)) return;
-
+  if (requestMatches(params.request, 'GET', requestUrl.pathname.match(WORKFLOW_RUNS_PATH))) {
+    // The fake keeps no run history, so a workflow has never run before the event that starts a case.
+    sendJson(params.response, 200, {total_count: 0, workflow_runs: []});
+    return;
+  }
   sendJson(params.response, 404, {message: 'Not Found'});
 }
 
