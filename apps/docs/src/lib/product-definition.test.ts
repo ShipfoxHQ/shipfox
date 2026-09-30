@@ -4,16 +4,10 @@ import test from 'node:test';
 import {fileURLToPath} from 'node:url';
 import {getLLMText} from './get-llm-text';
 import {buildPageMetadata} from './page-metadata';
-import {
-  PRODUCT_CATEGORY,
-  PRODUCT_DESCRIPTION,
-  PRODUCT_HEADLINE,
-  PRODUCT_META_DESCRIPTION,
-} from './product-definition';
+import {PRODUCT_CATEGORY, PRODUCT_DESCRIPTION, PRODUCT_HEADLINE} from './product-definition';
 
 const repositoryRoot = fileURLToPath(new URL('../../../../', import.meta.url));
 const HOME_DESCRIPTION_PATTERN = /^description: "(.+)"$/m;
-const HOME_META_DESCRIPTION_PATTERN = /^metaDescription: "(.+)"$/m;
 const LLMS_PRODUCT_PITCH_PATTERN = /\$\{PRODUCT_HEADLINE\}\. \$\{PRODUCT_DESCRIPTION\}/;
 type TestPage = Parameters<typeof getLLMText>[0];
 
@@ -30,17 +24,15 @@ test('keeps crawler-facing docs surfaces on the canonical product positioning', 
   const description = homeSource.match(HOME_DESCRIPTION_PATTERN)?.[1];
   assert.ok(description);
   assert.equal(description, PRODUCT_DESCRIPTION);
-  const metaDescription = homeSource.match(HOME_META_DESCRIPTION_PATTERN)?.[1];
-  assert.equal(metaDescription, PRODUCT_META_DESCRIPTION);
   assert.ok(homeSource.includes(`title: "${PRODUCT_HEADLINE}"`));
   assert.ok(normalizeWhitespace(homeSource).includes(PRODUCT_DESCRIPTION));
 
   const metadata = buildPageMetadata({
     url: '/',
-    data: {title: 'Shipfox', description, metaDescription},
+    data: {title: 'Shipfox', description},
   });
-  assert.equal(metadata.description, PRODUCT_META_DESCRIPTION);
-  assert.equal(metadata.openGraph?.description, PRODUCT_META_DESCRIPTION);
+  assert.equal(metadata.description, PRODUCT_DESCRIPTION);
+  assert.equal(metadata.openGraph?.description, PRODUCT_DESCRIPTION);
 
   assert.ok(llmsRoute.includes('PRODUCT_HEADLINE'));
   assert.ok(llmsRoute.includes('PRODUCT_DESCRIPTION'));
@@ -64,5 +56,4 @@ test('records the canonical product pitch in the docs writing guide', async () =
   assert.ok(writingGuide.includes(`canonical product category is **${PRODUCT_CATEGORY}**`));
   assert.ok(writingGuide.includes(`> ${PRODUCT_HEADLINE}`));
   assert.ok(normalizedWritingGuide.includes(PRODUCT_DESCRIPTION));
-  assert.ok(normalizedWritingGuide.includes(PRODUCT_META_DESCRIPTION));
 });
