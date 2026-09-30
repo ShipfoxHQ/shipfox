@@ -19,6 +19,13 @@ export {
   runScores,
   safeTask,
 } from './langfuse.js';
+export type {McpCallRecord, McpCallStatus} from './mcp-calls.js';
+export {
+  type McpProxy,
+  type McpProxyOptions,
+  type McpProxySession,
+  startMcpProxy,
+} from './mcp-proxy.js';
 export {
   type PiTranscript,
   type PiTranscriptExport,

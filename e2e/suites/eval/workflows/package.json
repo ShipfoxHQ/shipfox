@@ -12,10 +12,13 @@
     "shipfox-eval-workflows": "./dist/cli.js"
   },
   "imports": {
+    "#agent-access-oauth.js": "./src/agent-access-oauth.ts",
     "#claude-transcript.js": "./src/claude-transcript.ts",
     "#cli.js": "./src/cli.ts",
     "#discovery.js": "./src/discovery.ts",
     "#langfuse.js": "./src/langfuse.ts",
+    "#mcp-calls.js": "./src/mcp-calls.ts",
+    "#mcp-proxy.js": "./src/mcp-proxy.ts",
     "#media.js": "./src/media.ts",
     "#pi-transcript.js": "./src/pi-transcript.ts",
     "#results.js": "./src/results.ts",
@@ -37,10 +40,13 @@
     "@langfuse/otel": "catalog:",
     "@langfuse/tracing": "catalog:",
     "@opentelemetry/sdk-trace-node": "catalog:",
+    "@shipfox/api-auth-dto": "workspace:*",
+    "@shipfox/e2e-core": "workspace:*",
     "yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "catalog:",
     "@shipfox/biome": "workspace:*",
     "@shipfox/depcruise": "workspace:*",
     "@shipfox/swc": "workspace:*",
