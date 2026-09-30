@@ -157,7 +157,7 @@ Instance metrics live in `src/metrics/` and are scraped per pod. Only the leader
 | `integrations_discord_guilds` | gauge | none. Guild count from the last `READY`, for the privileged-intent reach estimate. |
 | `integrations_discord_gateway_cursor_lag` | gauge | none. Sequences received minus committed. |
 
-The library has no Invalid Session event, so `invalid_session` counts a `null` session the library writes while a session is stored and the destroy is not ours. `sent` counts in the Identify guard. The dispatch queue records `failed` when a handler throws; handlers record the other outcomes.
+The library has no Invalid Session event, so `invalid_session` counts a `null` session the library writes while a session is stored and the destroy is not ours. `sent` counts in the Identify guard. The dispatch queue records `failed` when a handler throws; the message handler records `processed`, `duplicate`, and `connection_unavailable`, and nothing for a DM or a malformed message.
 
 Sentry reports use the `integrations.discord.gateway` boundary: Identify refused, `shards > 1`, a `401` on the bot token (once per failure streak), and no ready socket for 5 minutes while leading (once per stretch).
 

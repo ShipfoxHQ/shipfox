@@ -6,12 +6,17 @@ import {getDiscordGatewaySession} from '#db/gateway-sessions.js';
 import {upsertDiscordInstallation} from '#db/installations.js';
 import {discordGatewaySessions} from '#db/schema/gateway-sessions.js';
 import {discordInstallations} from '#db/schema/installations.js';
+import {recordDiscordGatewayDispatch} from '#metrics/index.js';
 import {type FakeGateway, startFakeGateway} from '#test/fake-discord-gateway.js';
 import {BOT_ROLE_ID, fakeConnection, GUILD_ID} from '#test/index.js';
 import {type DiscordGatewayRun, startDiscordGatewayRun} from './gateway-connection.js';
 import {createDiscordGatewayHandlers} from './gateway-handlers.js';
 
 vi.mock('@shipfox/node-error-monitoring', () => ({reportError: vi.fn()}));
+vi.mock('#metrics/index.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#metrics/index.js')>()),
+  recordDiscordGatewayDispatch: vi.fn(),
+}));
 
 const SHARD_ID = 0;
 const TEST_TIMEOUT_MS = 20_000;
@@ -37,6 +42,7 @@ describe('Discord Gateway message handlers', () => {
       status: 'installed',
     });
     vi.mocked(reportError).mockClear();
+    vi.mocked(recordDiscordGatewayDispatch).mockClear();
   });
 
   afterEach(async () => {
@@ -120,6 +126,40 @@ describe('Discord Gateway message handlers', () => {
         thread_id: THREAD_ID,
         root_channel_id: CHANNEL_ID,
         mentions_bot: true,
+      });
+      expect(recordDiscordGatewayDispatch).toHaveBeenCalledWith({
+        event: 'message_create',
+        outcome: 'processed',
+      });
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'counts a message for an unconnected guild and nothing for a DM',
+    async () => {
+      const {handlers, published} = arrangeHandlers();
+      connect(handlers);
+      await vi.waitFor(() => expect(gateway.sessionId).toBeDefined(), {timeout: 10_000});
+      gateway.dispatch('MESSAGE_CREATE', {
+        id: 'dm',
+        channel_id: 'dm-channel',
+        author: {id: 'user-1'},
+      });
+
+      const last = gateway.dispatch('MESSAGE_CREATE', {
+        id: 'other-guild',
+        channel_id: CHANNEL_ID,
+        guild_id: 'guild-unconnected',
+        author: {id: 'user-1'},
+      });
+
+      await waitForCommitted(last);
+      expect(published).toHaveLength(0);
+      expect(recordDiscordGatewayDispatch).toHaveBeenCalledTimes(1);
+      expect(recordDiscordGatewayDispatch).toHaveBeenCalledWith({
+        event: 'message_create',
+        outcome: 'connection_unavailable',
       });
     },
     TEST_TIMEOUT_MS,

@@ -1,4 +1,5 @@
 import {createDiscordApiClient, type DiscordApiClient} from '#api/client.js';
+import {recordDiscordGatewayDispatch} from '#metrics/index.js';
 import {createDiscordChannelCache} from './channel-cache.js';
 import type {DispatchHandlers} from './gateway-dispatch-queue.js';
 import {type DiscordMessageHandlerOptions, handleDiscordMessageCreate} from './message-create.js';
@@ -43,7 +44,9 @@ export function createDiscordGatewayHandlers(
     CHANNEL_DELETE: forget,
     THREAD_DELETE: forget,
     MESSAGE_CREATE: async ({d}) => {
-      await handleDiscordMessageCreate({...messageOptions, channels}, d);
+      const outcome = await handleDiscordMessageCreate({...messageOptions, channels}, d);
+      // A failure is recorded by the dispatch queue, and an ignored message has no metric label.
+      if (outcome !== 'ignored') recordDiscordGatewayDispatch({event: 'message_create', outcome});
     },
   };
 }
