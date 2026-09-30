@@ -23,7 +23,7 @@ export const discordAgentToolCatalog = [
   tool({
     id: 'read_channel',
     description:
-      'Read messages from a Discord channel or thread in reverse chronological order (newest first). Use before or after with a message ID to page.',
+      'Read messages from a Discord channel or thread in reverse chronological order (newest first). Page with a message ID in either before or after, not both.',
     inputSchema: objectSchema(
       {
         channel_id: snowflakeSchema('ID of a channel or thread in the connected Discord server'),

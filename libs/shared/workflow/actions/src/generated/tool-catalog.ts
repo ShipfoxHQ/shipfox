@@ -31,7 +31,7 @@ export interface ProviderToolCatalog {
   };
   discord: {
     /**
-     * Read messages from a Discord channel or thread in reverse chronological order (newest first). Use before or after with a message ID to page.
+     * Read messages from a Discord channel or thread in reverse chronological order (newest first). Page with a message ID in either before or after, not both.
      */
     read_channel: {arguments: DiscordReadChannelArguments; result: 'json'};
   };

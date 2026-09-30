@@ -11,12 +11,18 @@ export interface DiscordToolContext {
 export interface DiscordToolOperation {
   /** Named in the answer to a `403`, so an admin knows what to grant the bot in the channel. */
   permissionHint: string;
+  /** Rules a JSON Schema cannot express. Returns the message for the agent. */
+  validate?(args: Record<string, unknown>): string | undefined;
   run(args: Record<string, unknown>, context: DiscordToolContext): Promise<Record<string, unknown>>;
 }
 
 export const DISCORD_TOOL_OPERATIONS: Partial<Record<DiscordAgentToolId, DiscordToolOperation>> = {
   read_channel: {
     permissionHint: 'View Channel and Read Message History',
+    validate: (args) =>
+      args.before !== undefined && args.after !== undefined
+        ? 'Parameters before and after cannot be used together'
+        : undefined,
     async run(args, {discord, guildId, guard}) {
       const channelId = stringArgument(args, 'channel_id');
       await guard({channelId, guildId});

@@ -106,7 +106,8 @@ async function executeDiscordToolCall(params: {
   if (!tool || !operation) {
     return discordToolError(`Unknown Discord tool: ${call.toolId}`, 'invalid-request');
   }
-  const validationError = validateDiscordToolArguments(tool, call.arguments);
+  const validationError =
+    validateDiscordToolArguments(tool, call.arguments) ?? operation.validate?.(call.arguments);
   if (validationError) return discordToolError(validationError, 'invalid-request');
 
   try {
@@ -150,10 +151,8 @@ function mapDiscordToolFailure(params: {
         'access-denied',
       );
     case 'not-found':
-      return discordToolError(
-        error.status === undefined ? error.message : 'Not found in this server',
-        'not-found',
-      );
+      // One answer for a missing channel and a channel in another server.
+      return discordToolError('Not found in this server', 'not-found');
     case 'rate-limited':
       return discordToolError(error.message, 'rate-limited', error.retryAfterSeconds);
     case 'timeout':

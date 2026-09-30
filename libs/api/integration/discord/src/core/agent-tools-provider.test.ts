@@ -174,7 +174,7 @@ describe('DiscordAgentToolsProvider', () => {
 
       expect(result).toMatchObject({
         isError: true,
-        content: [{text: 'Channel not found in this server'}],
+        content: [{text: 'Not found in this server'}],
         structuredContent: {code: 'not-found'},
       });
       expect(discord.listChannelMessages).not.toHaveBeenCalled();
@@ -263,6 +263,23 @@ describe('DiscordAgentToolsProvider', () => {
         content: [{text: 'Not found in this server'}],
         structuredContent: {code: 'not-found'},
       });
+    });
+
+    it('answers a channel in another guild exactly like a missing channel', async () => {
+      const missing = await callTool(
+        setup({channel: failure('not-found', 404)}).provider,
+        'read_channel',
+        {
+          channel_id: CHANNEL_ID,
+        },
+      );
+      const otherGuild = await callTool(
+        setup({channel: {id: CHANNEL_ID, type: 0, guild_id: OTHER_GUILD_ID}}).provider,
+        'read_channel',
+        {channel_id: CHANNEL_ID},
+      );
+
+      expect(otherGuild).toEqual(missing);
     });
 
     it('maps 429 to rate-limited with the retry delay', async () => {
