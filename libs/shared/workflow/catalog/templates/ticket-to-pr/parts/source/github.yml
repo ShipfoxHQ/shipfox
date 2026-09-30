@@ -251,6 +251,7 @@ reply: |
       # option:resolve_threads=addressed end
     integrations:
       - connection: github_source # bind:source
+        allow_write: true
         include:
           - add_reply_to_pull_request_comment
           # option:resolve_threads=addressed begin

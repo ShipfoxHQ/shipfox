@@ -740,11 +740,13 @@ describe('ticket to PR template', () => {
     const document = workflow(githubIssues);
     const steps = at(document, 'jobs', 'implement', 'steps') as YamlRecord[];
     const mark = step(document, 'implement', 'mark_in_progress');
+    const read = step(document, 'implement', 'read_labels');
+    const issue = {labels: labels.map((name) => ({name}))};
     const context = {
       steps: {
         task: {outputs: {ticket_id: '42'}},
         prepare: {outputs: {owner: 'acme', repo: 'api'}},
-        read_labels: {outputs: {labels}},
+        read_labels: {outputs: {labels: evaluate(at(read, 'outputs', 'labels'), {result: issue})}},
       },
     };
 

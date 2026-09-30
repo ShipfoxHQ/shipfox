@@ -73,12 +73,12 @@ mark_in_progress: |
       repo: ${{ steps.prepare.outputs.repo }}
       issue_number: ${{ int(steps.task.outputs.ticket_id) }}
     outputs:
-      labels: ${{ result.labels.map(label, label.name) }}
+      labels: ${{ toJson(result.labels.map(label, label.name)) }}
     gate:
       on_failure:
         restart_from: task
   - key: mark_in_progress
-    if: ${{ steps.task.outputs.ticket_id != "" && !steps.read_labels.outputs.labels.exists(name, name == "replace-with-in-progress-label") }}
+    if: ${{ steps.task.outputs.ticket_id != "" && !fromJson(steps.read_labels.outputs.labels).exists(name, name == "replace-with-in-progress-label") }}
     tool: issue_write.update
     connection: github_source # bind:source
     with:
@@ -86,7 +86,7 @@ mark_in_progress: |
       repo: ${{ steps.prepare.outputs.repo }}
       issue_number: ${{ int(steps.task.outputs.ticket_id) }}
       # GitHub replaces the whole label set, so keep the issue's other labels.
-      labels: ${{ steps.read_labels.outputs.labels + ["replace-with-in-progress-label"] }}
+      labels: ${{ fromJson(steps.read_labels.outputs.labels) + ["replace-with-in-progress-label"] }}
     gate:
       on_failure:
         restart_from: task
