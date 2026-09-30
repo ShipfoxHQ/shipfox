@@ -1,6 +1,7 @@
 import type {discordCommandDefinitions} from '@shipfox/api-integration-discord-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import ky, {HTTPError, TimeoutError} from 'ky';
+import {z} from 'zod';
 import {config} from '#config.js';
 import {DiscordIntegrationProviderError} from '#core/errors.js';
 
@@ -12,6 +13,8 @@ export interface DiscordRole {
   id: string;
   name: string;
   managed: boolean;
+  /** The granted permission bitfield as a decimal string. */
+  permissions?: string | undefined;
   tags?: {bot_id?: string} | undefined;
 }
 
@@ -60,7 +63,16 @@ export interface DiscordApplicationCommand {
 
 export type DiscordApplicationCommandDefinition = (typeof discordCommandDefinitions)[number];
 
+export interface DiscordAuthorization {
+  /** The installer's user token. It is only needed to revoke it. */
+  accessToken: string;
+  /** Absent when the person completed the flow without adding the bot to a server. */
+  guild: {id: string; name: string} | undefined;
+}
+
 export interface DiscordApiClient {
+  exchangeAuthorizationCode(input: {code: string}): Promise<DiscordAuthorization>;
+  revokeAccessToken(input: {accessToken: string}): Promise<void>;
   getGuild(input: {guildId: string}): Promise<DiscordGuild>;
   getChannel(input: {channelId: string}): Promise<DiscordChannel>;
   /** Newest first, as Discord returns them. */
@@ -82,15 +94,24 @@ export interface CreateDiscordApiClientOptions {
   botToken?: string | undefined;
   baseUrl?: string | undefined;
   applicationId?: string | undefined;
+  clientSecret?: string | undefined;
+  redirectUrl?: string | undefined;
 }
 
 interface DiscordRequest {
   operation: string;
-  method: 'GET' | 'PUT' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   path: string;
   query?: Record<string, string | number | undefined>;
   json?: unknown;
+  /** OAuth endpoints authenticate with the client credentials in the form, not the bot token. */
+  form?: Record<string, string>;
 }
+
+const tokenResponseSchema = z.object({
+  access_token: z.string().min(1),
+  guild: z.object({id: z.string().min(1), name: z.string()}).optional(),
+});
 
 /**
  * Requests are never retried, including the retries ky applies to GET by default:
@@ -102,14 +123,20 @@ export function createDiscordApiClient(
   const botToken = options.botToken ?? config.DISCORD_BOT_TOKEN;
   const baseUrl = (options.baseUrl ?? config.DISCORD_API_BASE_URL).replace(TRAILING_SLASHES_RE, '');
   const applicationId = options.applicationId ?? config.DISCORD_APPLICATION_ID;
+  const clientSecret = options.clientSecret ?? config.DISCORD_OAUTH_CLIENT_SECRET;
+  const redirectUrl = options.redirectUrl ?? config.DISCORD_OAUTH_REDIRECT_URL;
 
   async function request<T>(input: DiscordRequest): Promise<T> {
     try {
       const response = await ky(`${baseUrl}${input.path}`, {
         method: input.method,
-        headers: {authorization: `Bot ${botToken}`},
-        ...(input.query === undefined ? {} : {searchParams: definedParams(input.query)}),
-        ...(input.json === undefined ? {} : {json: input.json}),
+        ...(input.form
+          ? {body: new URLSearchParams(input.form)}
+          : {
+              headers: {authorization: `Bot ${botToken}`},
+              ...(input.query === undefined ? {} : {searchParams: definedParams(input.query)}),
+              ...(input.json === undefined ? {} : {json: input.json}),
+            }),
         retry: 0,
         timeout: DISCORD_API_TIMEOUT_MS,
       });
@@ -121,6 +148,41 @@ export function createDiscordApiClient(
   }
 
   return {
+    async exchangeAuthorizationCode({code}) {
+      const body = await request<unknown>({
+        operation: 'exchange-authorization-code',
+        method: 'POST',
+        path: '/oauth2/token',
+        form: {
+          client_id: applicationId,
+          client_secret: clientSecret,
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: redirectUrl,
+        },
+      });
+      const parsed = tokenResponseSchema.safeParse(body);
+      if (!parsed.success) {
+        throw new DiscordIntegrationProviderError({
+          reason: 'malformed-provider-response',
+          message: 'Discord returned an unexpected token response',
+        });
+      }
+      return {accessToken: parsed.data.access_token, guild: parsed.data.guild};
+    },
+    async revokeAccessToken({accessToken}) {
+      await request<unknown>({
+        operation: 'revoke-access-token',
+        method: 'POST',
+        path: '/oauth2/token/revoke',
+        form: {
+          client_id: applicationId,
+          client_secret: clientSecret,
+          token: accessToken,
+          token_type_hint: 'access_token',
+        },
+      });
+    },
     getGuild: ({guildId}) =>
       request({
         operation: 'get-guild',

@@ -150,6 +150,101 @@ describe('Discord REST client', () => {
     });
   });
 
+  describe('OAuth', () => {
+    function stubFormFetch(response: Response) {
+      const sent: {request: Request; form: Record<string, string>}[] = [];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: Request | URL) => {
+          const request = input as Request;
+          const text = await request.clone().text();
+          sent.push({request, form: Object.fromEntries(new URLSearchParams(text))});
+          return response;
+        }),
+      );
+      return sent;
+    }
+
+    it('exchanges the code with the client credentials and returns the guild', async () => {
+      const sent = stubFormFetch(
+        json({
+          token_type: 'Bearer',
+          access_token: 'user-token',
+          expires_in: 604800,
+          refresh_token: 'refresh-token',
+          scope: '',
+          guild: {id: 'guild-1', name: 'Acme', roles: []},
+        }),
+      );
+
+      const authorization = await createDiscordApiClient({
+        baseUrl: 'https://discord.test/api/v10',
+        applicationId: 'app-1',
+        clientSecret: 'client-secret',
+        redirectUrl: 'https://shipfox.test/callback',
+      }).exchangeAuthorizationCode({code: 'code-1'});
+
+      const [{request, form}] = sent as [(typeof sent)[number]];
+      expect(authorization).toEqual({
+        accessToken: 'user-token',
+        guild: {id: 'guild-1', name: 'Acme'},
+      });
+      expect(request.method).toBe('POST');
+      expect(request.url).toBe('https://discord.test/api/v10/oauth2/token');
+      expect(request.headers.get('content-type')).toContain('application/x-www-form-urlencoded');
+      expect(request.headers.get('authorization')).toBeNull();
+      expect(form).toEqual({
+        client_id: 'app-1',
+        client_secret: 'client-secret',
+        grant_type: 'authorization_code',
+        code: 'code-1',
+        redirect_uri: 'https://shipfox.test/callback',
+      });
+    });
+
+    it('returns no guild when the exchange carries none', async () => {
+      stubFetch(json({access_token: 'user-token'}));
+
+      await expect(client.exchangeAuthorizationCode({code: 'code-1'})).resolves.toEqual({
+        accessToken: 'user-token',
+        guild: undefined,
+      });
+    });
+
+    it('rejects a token response without an access token', async () => {
+      stubFetch(json({guild: {id: 'guild-1', name: 'Acme'}}));
+
+      const error = await rejection(client.exchangeAuthorizationCode({code: 'code-1'}));
+
+      expect(error.reason).toBe('malformed-provider-response');
+    });
+
+    it('maps a rejected code to provider rejected', async () => {
+      stubFetch(json({error: 'invalid_grant'}, 400));
+
+      const error = await rejection(client.exchangeAuthorizationCode({code: 'used-code'}));
+
+      expect(error.reason).toBe('provider-rejected');
+      expect(error.status).toBe(400);
+    });
+
+    it('revokes the user access token', async () => {
+      const sent = stubFormFetch(json({}));
+
+      await client.revokeAccessToken({accessToken: 'user-token'});
+
+      const [{request, form}] = sent as [(typeof sent)[number]];
+      expect(request.method).toBe('POST');
+      expect(request.url).toBe('https://discord.test/api/v10/oauth2/token/revoke');
+      expect(form).toEqual({
+        client_id: 'app-1',
+        client_secret: 'test-discord-client-secret',
+        token: 'user-token',
+        token_type_hint: 'access_token',
+      });
+    });
+  });
+
   describe('error mapping', () => {
     it('maps 401 to unavailable credentials', async () => {
       stubFetch(json({code: 0, message: '401: Unauthorized'}, 401));

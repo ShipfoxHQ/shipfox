@@ -1,3 +1,4 @@
+import {setTimeout as sleep} from 'node:timers/promises';
 import {runMigrations} from '@shipfox/node-drizzle';
 import {createApp} from '@shipfox/node-fastify';
 import {openPostgresSession} from '@shipfox/node-postgres';
@@ -17,7 +18,9 @@ async function loadDiscordProvider() {
   vi.stubEnv('DISCORD_BOT_TOKEN', 'discord-bot-token');
   vi.stubEnv('DISCORD_GATEWAY_ENABLED', 'false');
   const discordPackage = await import('@shipfox/api-integration-discord');
-  const part = await discordProviderModule.load();
+  const part = await discordProviderModule.load({
+    requireActiveWorkspaceMembership: () => Promise.resolve(),
+  });
   if (!part.database) throw new Error('Discord provider database is not configured');
   await runMigrations(
     part.database.db(),
@@ -35,13 +38,13 @@ afterEach(() => {
 describe('Discord provider scaffold', () => {
   const context = useIntegrationRouteTest();
 
-  it('registers the interactions processor for the discord.interaction route', async () => {
+  it('registers the interactions processor and the install routes', async () => {
     const {part} = await loadDiscordProvider();
 
     expect(part.webhookProcessors).toEqual([
       expect.objectContaining({routeIds: ['discord.interaction']}),
     ]);
-    expect(part.provider.routes).toHaveLength(1);
+    expect(part.provider.routes).toHaveLength(2);
   });
 
   it('contributes the command registration as a startup task', async () => {
@@ -257,5 +260,255 @@ describe('Discord provider scaffold', () => {
       deliveryId: messageId,
       payload: {mentions_bot: true, root_channel_id: 'channel-1'},
     });
+  });
+});
+
+const API_VERSION_PREFIX_RE = /^\/api\/[^/]+/;
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return {promise, resolve};
+}
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {'content-type': 'application/json'},
+  });
+}
+
+/** A Discord REST fake where leaving the guild removes the bot, with hooks to pause a call. */
+function fakeDiscord(input: {
+  guildId: string;
+  applicationId: string;
+  beforeGetGuild?: () => Promise<void>;
+  beforeLeave?: () => Promise<void>;
+}) {
+  const state = {botInGuild: true, calls: [] as string[]};
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (request: Request | URL) => {
+      const {method, url} = request as Request;
+      const call = `${method} ${new URL(url).pathname.replace(API_VERSION_PREFIX_RE, '')}`;
+      state.calls.push(call);
+      if (call === 'POST /oauth2/token') {
+        return json({access_token: 'user-token', guild: {id: input.guildId, name: 'Acme'}});
+      }
+      if (call === 'POST /oauth2/token/revoke') return json({});
+      if (call === `GET /guilds/${input.guildId}`) {
+        await input.beforeGetGuild?.();
+        if (!state.botInGuild) return json({code: 10004, message: 'Unknown Guild'}, 404);
+        return json({
+          id: input.guildId,
+          name: 'Acme',
+          roles: [
+            {
+              id: 'bot-role',
+              name: 'Shipfox',
+              managed: true,
+              permissions: '309237730368',
+              tags: {bot_id: input.applicationId},
+            },
+          ],
+        });
+      }
+      if (call === `DELETE /users/@me/guilds/${input.guildId}`) {
+        await input.beforeLeave?.();
+        state.botInGuild = false;
+        return new Response(null, {status: 204});
+      }
+      throw new Error(`Unexpected Discord call: ${call}`);
+    }),
+  );
+  return state;
+}
+
+describe('Discord OAuth connect', () => {
+  const context = useIntegrationRouteTest();
+
+  async function setup() {
+    const {part, discordPackage} = await loadDiscordProvider();
+    if (!part.e2eRoutes) throw new Error('Discord E2E routes are not configured');
+    const guildId = `guild-${crypto.randomUUID()}`;
+    const app = await createTestApp([part.provider]);
+    const state = () =>
+      discordPackage.signDiscordInstallState({
+        workspaceId: context.workspaceId,
+        userId: 'user-1',
+        nonce: 'browser-nonce-1',
+      });
+    const callback = () =>
+      app.inject({
+        method: 'GET',
+        url: `/integrations/discord/callback/api?${new URLSearchParams({code: 'code-1', state: state()})}`,
+        headers: {
+          authorization: 'Bearer user',
+          cookie: 'shipfox_discord_install_state=browser-nonce-1',
+        },
+      });
+    const deleteConnection = (connectionId: string) =>
+      app.inject({
+        method: 'DELETE',
+        url: `/integration-connections/${connectionId}`,
+        headers: {authorization: 'Bearer user'},
+      });
+    const seedConnection = async (workspaceId = context.workspaceId) => {
+      const seedApp = await createApp({routes: part.e2eRoutes ?? [], swagger: false});
+      const created = await seedApp.inject({
+        method: 'POST',
+        url: '/integrations/discord-connections',
+        payload: {
+          workspace_id: workspaceId,
+          guild_id: guildId,
+          guild_name: 'Acme',
+          permissions: '309237730368',
+          bot_role_id: 'old-role',
+        },
+      });
+      return created.json().id as string;
+    };
+    const discord = (
+      hooks: {beforeGetGuild?: () => Promise<void>; beforeLeave?: () => Promise<void>} = {},
+    ) =>
+      fakeDiscord({guildId, applicationId: discordPackage.config.DISCORD_APPLICATION_ID, ...hooks});
+    return {discordPackage, guildId, callback, deleteConnection, seedConnection, discord};
+  }
+
+  it('connects a new server, then reconnects it with a bumped generation', async () => {
+    const {discordPackage, guildId, callback, discord} = await setup();
+    discord();
+
+    const first = await callback();
+
+    expect(first.statusCode).toBe(200);
+    expect(first.json()).toMatchObject({
+      outcome: 'connected',
+      connection: {
+        provider: 'discord',
+        workspace_id: context.workspaceId,
+        external_account_id: guildId,
+        lifecycle_status: 'active',
+      },
+    });
+    await expect(discordPackage.getDiscordInstallationByGuildId(guildId)).resolves.toMatchObject({
+      status: 'installed',
+      guildName: 'Acme',
+      permissions: '309237730368',
+      botRoleId: 'bot-role',
+      generation: 1,
+    });
+
+    const second = await callback();
+
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toMatchObject({
+      outcome: 'reconnected',
+      connection: {id: first.json().connection.id},
+    });
+    await expect(discordPackage.getDiscordInstallationByGuildId(guildId)).resolves.toMatchObject({
+      generation: 2,
+    });
+    await expect(
+      listIntegrationConnections({workspaceId: context.workspaceId}),
+    ).resolves.toHaveLength(1);
+  });
+
+  it('rejects a server that another workspace holds and leaves it untouched', async () => {
+    const {discordPackage, guildId, callback, seedConnection, discord} = await setup();
+    discord();
+    await seedConnection(crypto.randomUUID());
+
+    const res = await callback();
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('discord-installation-already-linked');
+    await expect(discordPackage.getDiscordInstallationByGuildId(guildId)).resolves.toMatchObject({
+      generation: 1,
+      botRoleId: 'old-role',
+    });
+  });
+
+  it('fails the install with bot-not-in-guild when a delete commits first, then connects once the bot is re-added', async () => {
+    const {discordPackage, guildId, callback, deleteConnection, seedConnection, discord} =
+      await setup();
+    const connectionId = await seedConnection();
+    const leaveStarted = deferred();
+    const releaseLeave = deferred();
+    const fake = discord({
+      beforeLeave: async () => {
+        leaveStarted.resolve();
+        await releaseLeave.promise;
+      },
+    });
+
+    const deletion = deleteConnection(connectionId);
+    await leaveStarted.promise;
+    // The records are gone and the delete is paused before leaving the guild.
+    await expect(discordPackage.getDiscordInstallationByGuildId(guildId)).resolves.toBeUndefined();
+    const reinstall = callback();
+    await vi.waitFor(() => expect(fake.calls).toContain('POST /oauth2/token/revoke'));
+    await sleep(150);
+    expect(fake.calls).not.toContain(`GET /guilds/${guildId}`);
+    releaseLeave.resolve();
+    const [deleted, failed] = await Promise.all([deletion, reinstall]);
+
+    expect(deleted.statusCode).toBe(204);
+    expect(failed.statusCode).toBe(422);
+    expect(failed.json().code).toBe('discord-bot-not-in-guild');
+    await expect(discordPackage.getDiscordInstallationByGuildId(guildId)).resolves.toBeUndefined();
+    await expect(
+      listIntegrationConnections({workspaceId: context.workspaceId}),
+    ).resolves.toHaveLength(0);
+
+    fake.botInGuild = true;
+    const retried = await callback();
+
+    expect(retried.statusCode).toBe(200);
+    expect(retried.json().outcome).toBe('connected');
+    await expect(discordPackage.getDiscordInstallationByGuildId(guildId)).resolves.toMatchObject({
+      status: 'installed',
+    });
+    expect(fake.botInGuild).toBe(true);
+  });
+
+  it('runs a delete queued behind an install after the install commits, leaving no records and no bot', async () => {
+    const {discordPackage, guildId, callback, deleteConnection, seedConnection, discord} =
+      await setup();
+    const connectionId = await seedConnection();
+    const getGuildStarted = deferred();
+    const releaseGetGuild = deferred();
+    const fake = discord({
+      beforeGetGuild: async () => {
+        getGuildStarted.resolve();
+        await releaseGetGuild.promise;
+      },
+    });
+
+    const reinstall = callback();
+    await getGuildStarted.promise;
+    const deletion = deleteConnection(connectionId);
+    await sleep(150);
+    // The delete waits on the guild lock, so the bot has not been asked to leave.
+    expect(fake.calls).not.toContain(`DELETE /users/@me/guilds/${guildId}`);
+    await expect(discordPackage.getDiscordInstallationByGuildId(guildId)).resolves.toMatchObject({
+      generation: 1,
+    });
+    releaseGetGuild.resolve();
+    const [reinstalled, deleted] = await Promise.all([reinstall, deletion]);
+
+    expect(reinstalled.statusCode).toBe(200);
+    expect(reinstalled.json().outcome).toBe('reconnected');
+    expect(deleted.statusCode).toBe(204);
+    expect(fake.calls.indexOf(`GET /guilds/${guildId}`)).toBeLessThan(
+      fake.calls.indexOf(`DELETE /users/@me/guilds/${guildId}`),
+    );
+    expect(fake.botInGuild).toBe(false);
+    await expect(discordPackage.getDiscordInstallationByGuildId(guildId)).resolves.toBeUndefined();
+    await expect(
+      listIntegrationConnections({workspaceId: context.workspaceId}),
+    ).resolves.toHaveLength(0);
   });
 });
