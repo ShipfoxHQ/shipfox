@@ -18,3 +18,12 @@ export type {
   GithubReviewCommentFixture,
   GithubReviewThreadFixture,
 } from './pull-requests.js';
+export {
+  type GithubAuthorAssociation,
+  type GithubWebhookDelivery,
+  type GithubWebhookSender,
+  type SendPullRequestClosedParams,
+  type SendPullRequestReviewCommentParams,
+  type SentReviewComment,
+  signGithubWebhook,
+} from './webhook-events.js';
