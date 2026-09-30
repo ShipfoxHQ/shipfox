@@ -13,16 +13,16 @@ jobs:
   inspect:
     checkout: false
     outputs:
-      eligible: ${{ steps.open_repairs.outputs.count == 0 && steps.history.outputs.previous_conclusion != "failure" }}
-      open_repairs: ${{ steps.open_repairs.outputs.count }}
-      previous_conclusion: ${{ steps.history.outputs.previous_conclusion }}
+      open_repairs: ${{ size(steps.open_repairs.outputs.head_refs.filter(ref, ref.startsWith("shipfox/default-branch-ci/" + string(event.workflow_run.workflow_id) + "-"))) }}
+      previous_conclusion: >-
+        ${{ (steps.history.outputs.runs.filter(r, r.head_branch == event.repository.default_branch && r.event in ["push", "schedule"] && r.status == "completed" && r.conclusion in ["success", "failure"] && r.run_number < event.workflow_run.run_number).map(r, r.conclusion) + ["unknown"])[0] }}
     steps:
       # part:source.open_repairs
       # part:source.history
 
   investigate:
     needs: inspect
-    if: ${{ needs.all(n, n.status == "succeeded") && jobs.inspect.outputs.eligible }}
+    if: ${{ needs.all(n, n.status == "succeeded") && jobs.inspect.outputs.open_repairs == 0 && jobs.inspect.outputs.previous_conclusion != "failure" }}
     checkout: false
     outputs:
       status: ${{ steps.investigate.outputs.status }}
