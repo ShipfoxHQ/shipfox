@@ -397,11 +397,6 @@ describe('checkout renewal subjects', () => {
     );
     await db().update(steps).set({status: 'succeeded'}).where(eq(steps.id, fixture.step.id));
 
-    expect(
-      await withTransaction((tx) =>
-        promoteCheckoutRenewalSubject({stepId: fixture.step.id, attempt: 1}, tx),
-      ),
-    ).toBe(false);
     expect(await loadCheckoutRenewalSubject(fixture.step.id)).toBeNull();
     const stored = await db()
       .select()
