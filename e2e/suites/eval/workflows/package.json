@@ -20,9 +20,15 @@
     "#mcp-calls.js": "./src/mcp-calls.ts",
     "#mcp-proxy.js": "./src/mcp-proxy.ts",
     "#media.js": "./src/media.ts",
+    "#onboarding-prompt.js": "./src/onboarding-prompt.ts",
+    "#onboarding-run.js": "./src/onboarding-run.ts",
+    "#onboarding-schema.js": "./src/onboarding-schema.ts",
+    "#onboarding-session.js": "./src/onboarding-session.ts",
+    "#onboarding-workspace.js": "./src/onboarding-workspace.ts",
     "#pi-transcript.js": "./src/pi-transcript.ts",
     "#results.js": "./src/results.ts",
-    "#schema.js": "./src/schema.ts"
+    "#schema.js": "./src/schema.ts",
+    "#simulated-user.js": "./src/simulated-user.ts"
   },
   "scripts": {
     "build": "shipfox-swc && chmod +x dist/cli.js",
@@ -36,12 +42,22 @@
     "type": "shipfox-tsc-check"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "catalog:",
+    "@anthropic-ai/sdk": "catalog:",
     "@langfuse/client": "catalog:",
     "@langfuse/otel": "catalog:",
     "@langfuse/tracing": "catalog:",
     "@opentelemetry/sdk-trace-node": "catalog:",
     "@shipfox/api-auth-dto": "workspace:*",
+    "@shipfox/api-definitions-dto": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-driver-github": "workspace:*",
+    "@shipfox/e2e-driver-linear": "workspace:*",
+    "@shipfox/e2e-setup-auth": "workspace:*",
+    "@shipfox/e2e-setup-integrations": "workspace:*",
+    "@shipfox/e2e-setup-projects": "workspace:*",
+    "@shipfox/e2e-setup-workspaces": "workspace:*",
+    "@shipfox/workflow-templates": "workspace:*",
     "yaml": "catalog:",
     "zod": "catalog:"
   },

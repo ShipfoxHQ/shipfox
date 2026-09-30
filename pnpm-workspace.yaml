@@ -240,5 +240,6 @@ packages:
   - "tools/**"
   - "turbo/**"
   - "!libs/client/shell/test/external/fixture/**"
+  - "!e2e/suites/eval/workflows/cases/**"
   - "!**/vite/types/**"
   - "!**/node_modules/**"

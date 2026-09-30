@@ -106,7 +106,7 @@ async function startFakeStack(clock: {now: number}): Promise<FakeStack> {
         client_id: 'client-1',
         client_name: 'Shipfox eval agent',
         redirect_uris: ['http://127.0.0.1:43210/oauth/callback'],
-        grant_types: ['authorization_code', 'refresh_token'],
+        grant_types: ['authorization_code'],
         response_types: ['code'],
         token_endpoint_auth_method: 'none',
       });

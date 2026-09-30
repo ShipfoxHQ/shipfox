@@ -30,12 +30,12 @@ function globToRegExp(pattern: string): RegExp {
   return new RegExp(`${expression}$`, 'u');
 }
 
-function matchesCase(id: string, filter: string | undefined): boolean {
+export function matchesCase(id: string, filter: string | undefined): boolean {
   if (!filter || filter === '*') return true;
   return globToRegExp(filter.replaceAll('\\', '/')).test(id);
 }
 
-async function findCaseDirectories(root: string): Promise<string[]> {
+export async function findCaseDirectories(root: string): Promise<string[]> {
   const directories: string[] = [];
   const walk = async (directory: string): Promise<void> => {
     const entries = await readdir(directory, {withFileTypes: true});

@@ -1,0 +1,20 @@
+prompt: template:ticket-to-pr
+workspace:
+  connections: [github]
+  project:
+    repository: acme/report-cli
+persona: |
+  Facts:
+  - You lead a small team that maintains report-cli.
+  - You have no ticket tracker. You give the agent tasks yourself.
+  - The tests run with `npm test`.
+
+  Goal: an agent that turns a task into a pull request.
+
+  Scripted answers:
+  - Asked whether to open the PR now: say you want to review the file first.
+k: 1
+max_turns: 40
+timeout_seconds: 1200
+expect:
+  outcome: validated

@@ -3,15 +3,17 @@ import {join} from 'node:path';
 import {parseArgs} from 'node:util';
 import {caseSupportsMode, discoverCases} from './discovery.js';
 import {exportToLangfuse, isLangfuseConfigured} from './langfuse.js';
+import {runOnboardingSuite} from './onboarding-run.js';
 import {type ResultsRun, writeResults} from './results.js';
 
 const usage = `Usage: shipfox-eval-workflows [options]
 
 Options:
-  --suite <templates>       Suite to run (default: templates)
+  --suite <templates|onboarding>
+                            Suite to run (default: templates)
   --mode <scripted|live>    Evaluation mode (default: scripted)
   --case <pattern>          Case path or glob to run
-  --repeat <count>          Number of repeats (default: 1)
+  --repeat <count>          Number of repeats (default: 1; the case's k for onboarding)
   --max-cost-usd <amount>   Stop before exceeding this budget
   --help                    Show this help
 `;
@@ -20,7 +22,8 @@ export interface EvalCliOptions {
   suite: 'templates' | 'onboarding';
   mode: 'scripted' | 'live';
   caseFilter?: string;
-  repeat: number;
+  /** Unset, templates run once and onboarding cases run their own `k`. */
+  repeat?: number;
   maxCostUsd?: number;
 }
 
@@ -53,7 +56,7 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
       suite: {type: 'string', default: 'templates'},
       mode: {type: 'string', default: 'scripted'},
       case: {type: 'string'},
-      repeat: {type: 'string', default: '1'},
+      repeat: {type: 'string'},
       'max-cost-usd': {type: 'string'},
       help: {type: 'boolean', short: 'h', default: false},
     },
@@ -73,8 +76,8 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
     help: values.help,
     suite,
     mode,
-    repeat: positiveInteger(values.repeat, '--repeat'),
   };
+  if (values.repeat !== undefined) options.repeat = positiveInteger(values.repeat, '--repeat');
   if (values.case !== undefined) options.caseFilter = values.case;
   if (values['max-cost-usd'] !== undefined) {
     options.maxCostUsd = nonNegativeNumber(values['max-cost-usd'], '--max-cost-usd');
@@ -95,7 +98,7 @@ export interface EvalRunOptions extends EvalCliOptions {
 export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
   const cwd = options.cwd ?? process.cwd();
   if (options.suite !== 'templates') {
-    throw new Error('The onboarding suite is reserved for the onboarding case schema.');
+    throw new Error('The onboarding suite runs through runOnboardingSuite.');
   }
   // Results are written without executing cases, so a live run would report passes it never ran.
   if (options.mode === 'live') {
@@ -131,7 +134,7 @@ export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
   return writeResults({
     cases: discovered,
     mode: options.mode,
-    repeat: options.repeat,
+    repeat: options.repeat ?? 1,
     ...(options.resultsDirectory === undefined ? {} : {resultsDirectory: options.resultsDirectory}),
     ...(options.runId === undefined ? {} : {runId: options.runId}),
   });
@@ -155,13 +158,36 @@ async function exportRun({
       suite: options.suite,
       mode: options.mode,
       run,
-      metadata: {case_filter: options.caseFilter ?? null, repeat: options.repeat},
+      metadata: {case_filter: options.caseFilter ?? null, repeat: options.repeat ?? 1},
     });
     if (exported)
       stdout(`Exported ${exported.items} items to Langfuse as ${exported.experiment}.\n`);
   } catch (error) {
     stderr(`Langfuse export failed: ${error instanceof Error ? error.message : String(error)}\n`);
   }
+}
+
+// Scores never fail a run, so only cases that could not be run at all make the exit code non-zero.
+async function runOnboardingCli({
+  options,
+  stdout,
+  stderr,
+}: {
+  options: EvalCliOptions;
+  stdout: (message: string) => void;
+  stderr: (message: string) => void;
+}): Promise<number> {
+  const run = await runOnboardingSuite({
+    ...(options.caseFilter === undefined ? {} : {caseFilter: options.caseFilter}),
+    ...(options.repeat === undefined ? {} : {repeat: options.repeat}),
+    ...(options.maxCostUsd === undefined ? {} : {maxCostUsd: options.maxCostUsd}),
+  });
+  stdout(`Ran ${run.results.length} onboarding sessions. Results: ${run.directory}\n`);
+  const failed = run.results.filter((result) => result.status === 'error');
+  for (const result of failed) {
+    stderr(`${result.case} #${result.repeat}: ${result.error ?? 'failed'}\n`);
+  }
+  return failed.length === 0 ? 0 : 1;
 }
 
 export async function runCli(
@@ -177,10 +203,11 @@ export async function runCli(
       stdout(usage);
       return 0;
     }
+    if (options.suite === 'onboarding') return await runOnboardingCli({options, stdout, stderr});
     const run = await runEval({
       suite: options.suite,
       mode: options.mode,
-      repeat: options.repeat,
+      ...(options.repeat === undefined ? {} : {repeat: options.repeat}),
       ...(options.caseFilter === undefined ? {} : {caseFilter: options.caseFilter}),
       ...(options.maxCostUsd === undefined ? {} : {maxCostUsd: options.maxCostUsd}),
       ...(environment.cwd === undefined ? {} : {cwd: environment.cwd}),

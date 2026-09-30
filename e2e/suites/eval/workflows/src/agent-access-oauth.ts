@@ -46,7 +46,8 @@ export async function registerAgentAccessClient(
     body: JSON.stringify({
       client_name: options.clientName,
       redirect_uris: [options.redirectUri],
-      grant_types: ['authorization_code', 'refresh_token'],
+      // Registration accepts only this grant today, yet the code exchange still issues a refresh token.
+      grant_types: ['authorization_code'],
       response_types: ['code'],
       token_endpoint_auth_method: 'none',
     }),
