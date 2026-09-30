@@ -1,3 +1,4 @@
+import {RequiredActionLink} from '@shipfox/client-shell/runtime';
 import {
   Alert,
   AlertActions,
@@ -5,7 +6,6 @@ import {
   AlertDescription,
   AlertTitle,
 } from '@shipfox/react-ui/alert';
-import {Button} from '@shipfox/react-ui/button';
 import {Icon} from '@shipfox/react-ui/icon';
 import type {AgentModel, ModelLock} from '#core/models.js';
 
@@ -37,9 +37,7 @@ export function ModelLockNotices({models}: {models: readonly AgentModel[]}) {
             <AlertDescription>{lock.message}</AlertDescription>
             {lock.action ? (
               <AlertActions>
-                <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
-                  <a href={lock.action.url}>{lock.action.message}</a>
-                </Button>
+                <RequiredActionLink action={lock.action} appearance="link" />
               </AlertActions>
             ) : null}
           </AlertContent>

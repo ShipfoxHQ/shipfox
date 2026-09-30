@@ -8,6 +8,7 @@ import type {
   SetDefaultHarnessResponseDto,
   SetDefaultModelProviderResponseDto,
 } from '@shipfox/api-agent-dto';
+import type {RequiredAction} from '@shipfox/policy-notice';
 import type {
   AgentModel,
   BuiltinProviderConfig,
@@ -113,7 +114,7 @@ function toAgentModel(model: {
   locked?:
     | {
         label: string;
-        notice: {message: string; requiredAction?: {message: string; url: string} | undefined};
+        notice: {message: string; requiredAction?: RequiredAction | undefined};
       }
     | undefined;
   api?: AgentModel['api'];
@@ -139,8 +140,6 @@ function toModelLock(locked: NonNullable<Parameters<typeof toAgentModel>[0]['loc
   return {
     label: locked.label,
     message: locked.notice.message,
-    ...(requiredAction === undefined
-      ? {}
-      : {action: {message: requiredAction.message, url: requiredAction.url}}),
+    ...(requiredAction === undefined ? {} : {action: requiredAction}),
   };
 }

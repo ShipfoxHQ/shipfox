@@ -30,6 +30,7 @@ documentation model and other engineering sources, start with the
 | [0018: Client analytics subject context](0018-client-analytics-subject-context.md) | Accepted; amends ADR 0001 and ADR 0013 | Shell-owned user and workspace context for client analytics captures. |
 | [0019: Collection navigation](0019-collection-navigation.md) | Proposed; amends ADR 0003 | The completeness rule for local sorting and filtering, the shared append footer contract, and feature-owned navigation state. |
 | [0020: Header actions chrome slot](0020-header-actions-chrome-slot.md) | Accepted; amends ADR 0001 | The optional routed application-header action slot and its error isolation. |
+| [0021: Required action rendering and intent slot](0021-required-action-rendering-and-intent-slot.md) | Accepted; amends ADR 0001 | The shared required action component, its URL rule, and the optional intent chrome slot. |
 
 When a decision changes, add a new ADR that supersedes or amends the earlier
 record. Keep the original record intact so readers can understand why the

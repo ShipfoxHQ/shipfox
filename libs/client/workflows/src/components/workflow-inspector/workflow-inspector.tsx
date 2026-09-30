@@ -1,3 +1,4 @@
+import {RequiredActionLink} from '@shipfox/client-shell/runtime';
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {
   type JobExecutionUsage,
@@ -8,6 +9,7 @@ import {
   RunUsageSummary,
   useJobExecutionUsageQuery,
 } from '@shipfox/client-usage';
+import type {RequiredAction} from '@shipfox/policy-notice';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout, CalloutContent, CalloutDescription, CalloutTitle} from '@shipfox/react-ui/callout';
@@ -612,7 +614,7 @@ function StatusReasonSection({
 }: {
   reason: string;
   message: string | null | undefined;
-  requiredAction?: {message: string; url: string} | undefined;
+  requiredAction?: RequiredAction | undefined;
 }) {
   const label =
     reason === 'queue_timed_out' ? (message ?? 'Not started within 1 h') : humanize(reason);
@@ -625,9 +627,7 @@ function StatusReasonSection({
       ) : null}
       {requiredAction ? (
         <InspectorSectionBody>
-          <Button asChild size="2xs" variant="secondary" iconRight="chevronRight">
-            <a href={requiredAction.url}>{requiredAction.message}</a>
-          </Button>
+          <RequiredActionLink action={requiredAction} appearance="link" />
         </InspectorSectionBody>
       ) : null}
     </InspectorSection>

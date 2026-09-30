@@ -1,4 +1,4 @@
-import {Component, type PropsWithChildren} from 'react';
+import {Component, type PropsWithChildren, type ReactNode} from 'react';
 
 export interface ReportErrorBoundaryProps extends PropsWithChildren {
   /** Message reported when the guarded slot throws; names the slot in diagnostics. */
@@ -14,6 +14,8 @@ export interface ReportErrorBoundaryProps extends PropsWithChildren {
    * retry the same failing slot in a loop.
    */
   retryKey?: unknown;
+  /** Rendered after a failure. Defaults to nothing. */
+  fallback?: ReactNode;
 }
 
 type ReportErrorBoundaryState = {hasError: boolean};
@@ -30,8 +32,8 @@ function reportFailure(label: string, cause: unknown): void {
 
 /**
  * Isolates an optional chrome slot from the rest of the shell. A render
- * failure reports the error and renders nothing instead of unmounting the
- * shell; the owner retries the slot by passing a new `retryKey`, so a
+ * failure reports the error and renders the fallback (nothing by default)
+ * instead of unmounting the shell; the owner retries the slot by passing a new `retryKey`, so a
  * transient failure recovers without a reload.
  */
 export class ReportErrorBoundary extends Component<
@@ -57,6 +59,6 @@ export class ReportErrorBoundary extends Component<
   }
 
   override render() {
-    return this.state.hasError ? null : this.props.children;
+    return this.state.hasError ? (this.props.fallback ?? null) : this.props.children;
   }
 }

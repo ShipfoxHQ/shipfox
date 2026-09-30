@@ -137,7 +137,7 @@ function workspaceCapacityEmptyState(
     title: 'Queued for workspace capacity',
     description: `Queued: this workspace is using ${inUse} of ${capacity} ${unitLabel} it can run at once. The job starts when a running job finishes.`,
     status,
-    ...(requiredAction ? {action: {label: requiredAction.message, href: requiredAction.url}} : {}),
+    ...(requiredAction ? {action: requiredAction} : {}),
   };
 }
 
@@ -159,7 +159,7 @@ function noticeAction(jobExecution: JobExecution): Pick<StepListEmptyState, 'act
     jobExecution.statusReason !== 'queue_timed_out'
   )
     return {};
-  return {action: {label: requiredAction.message, href: requiredAction.url}};
+  return {action: requiredAction};
 }
 
 export function emptyStateForMissingExecution(job: Job): StepListEmptyState {

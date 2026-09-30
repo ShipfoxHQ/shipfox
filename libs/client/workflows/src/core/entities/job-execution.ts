@@ -1,4 +1,4 @@
-import type {PolicyNotice} from '@shipfox/policy-notice';
+import type {PolicyNotice, RequiredAction} from '@shipfox/policy-notice';
 import {type Duration, intervalToDuration} from 'date-fns';
 import type {Step} from './step.js';
 import type {EvaluationTraceEntry} from './step-attempt.js';
@@ -20,7 +20,7 @@ export interface WorkflowExecutionEvent {
 export interface StatusReasonNotice {
   reason: string;
   message: string;
-  requiredAction?: {reason: string; message: string; url: string} | undefined;
+  requiredAction?: RequiredAction | undefined;
 }
 export type JobExecutionTime =
   | {state: 'fixed'; elapsed: Duration}
@@ -53,7 +53,7 @@ interface JobExecutionFields {
         inUse: number;
         capacity: number;
         unitLabel: string;
-        requiredAction: {reason: string; message: string; url: string} | null;
+        requiredAction: RequiredAction | null;
       }
     | null
     | undefined;
@@ -87,7 +87,7 @@ export class JobExecution {
         inUse: number;
         capacity: number;
         unitLabel: string;
-        requiredAction: {reason: string; message: string; url: string} | null;
+        requiredAction: RequiredAction | null;
       }
     | null
     | undefined;

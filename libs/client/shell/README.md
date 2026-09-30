@@ -114,6 +114,12 @@ composition and collision rules.
 - The shared frame resolves the deepest route's `content`, `data`, or `focused`
   declaration and accounts for the measured session-banner height. A registered
   session banner that returns `null` reserves no space.
+- `RequiredActionLink` renders every required action. It opens application-relative and same-origin URLs
+  in the same tab, other `http(s)` origins in a new tab without credentials, and `mailto:` URLs as plain
+  links. It shows the message as text for any other URL. A composing application handles actions that
+  carry an `intent` through the optional `RequiredActionIntent` chrome slot. Without the slot, or when
+  the slot throws, the action renders its `url`. See
+  [ADR 0021](../../../docs/adr/0021-required-action-rendering-and-intent-slot.md).
 - Consumers import browser components from `@shipfox/client-shell/runtime`.
   The package root remains safe for build-time feature evaluation.
 
