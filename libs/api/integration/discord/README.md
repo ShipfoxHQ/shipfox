@@ -131,6 +131,24 @@ The leader runs one shard (`shardCount: 1`) with the `GUILDS`, `GUILD_MESSAGES`,
 - **Identify guard.** Every Identify waits on the manager's throttler: 5 s apart, refused below 100 remaining starts until `reset_after`, and `shards > 1` reported once. It waits and never throws, because a throw makes the library retry after 500 ms. Reports use the `integrations.discord.gateway` boundary.
 - **Backoff.** Failed connects retry after 5 s, doubling up to 5 minutes, with jitter that only shortens the delay.
 
+## Metrics and reports
+
+Instance metrics live in `src/metrics/` and are scraped per pod. Only the leader reports the Gateway values.
+
+| Metric | Type | Labels |
+| --- | --- | --- |
+| `integrations_discord_gateway_connected` | gauge | none. 1 on the leader while the socket is ready, otherwise 0. |
+| `integrations_discord_gateway_identifies` | counter | `outcome`: `sent`, `refused_budget`. |
+| `integrations_discord_gateway_resumes` | counter | `outcome`: `resumed`, `invalid_session`. |
+| `integrations_discord_gateway_dispatches` | counter | `event`: `message_create`, `message_reaction_add`. `outcome`: `processed`, `duplicate`, `connection_unavailable`, `failed`. |
+| `integrations_discord_identify_remaining` | gauge | none. From the last `/gateway/bot` answer. |
+| `integrations_discord_guilds` | gauge | none. Guild count from the last `READY`, for the privileged-intent reach estimate. |
+| `integrations_discord_gateway_cursor_lag` | gauge | none. Sequences received minus committed. |
+
+The library has no Invalid Session event, so `invalid_session` counts a `null` session the library writes while a session is stored and the destroy is not ours. `sent` counts in the Identify guard. The dispatch queue records `failed` when a handler throws; handlers record the other outcomes.
+
+Sentry reports use the `integrations.discord.gateway` boundary: Identify refused, `shards > 1`, a `401` on the bot token (once per failure streak), and no ready socket for 5 minutes while leading (once per stretch).
+
 This build skips every dispatch, so it commits messages it cannot publish. Do not enable `DISCORD_GATEWAY_ENABLED` in staging or production until the message and reaction handlers are deployed.
 
 ## License

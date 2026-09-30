@@ -3,6 +3,14 @@ import {createDiscordApiClient, type DiscordGatewayBot} from '#api/client.js';
 import {db} from '#db/db.js';
 import {getDiscordGatewaySession} from '#db/gateway-sessions.js';
 import {discordGatewaySessions} from '#db/schema/gateway-sessions.js';
+import {
+  recordDiscordGatewayDispatch,
+  recordDiscordGatewayResume,
+  setDiscordGatewayConnected,
+  setDiscordGatewayCursorLagSource,
+  setDiscordGuildCount,
+  setDiscordIdentifyRemaining,
+} from '#metrics/index.js';
 import {type FakeGateway, startFakeGateway} from '#test/fake-discord-gateway.js';
 import {
   type DiscordGatewayRun,
@@ -12,6 +20,15 @@ import {
 import type {GatewayDispatchPayload} from './gateway-dispatch-queue.js';
 
 vi.mock('@shipfox/node-error-monitoring', () => ({reportError: vi.fn()}));
+vi.mock('#metrics/index.js', () => ({
+  recordDiscordGatewayDispatch: vi.fn(),
+  recordDiscordGatewayIdentify: vi.fn(),
+  recordDiscordGatewayResume: vi.fn(),
+  setDiscordGatewayConnected: vi.fn(),
+  setDiscordGatewayCursorLagSource: vi.fn(),
+  setDiscordGuildCount: vi.fn(),
+  setDiscordIdentifyRemaining: vi.fn(),
+}));
 
 const SHARD_ID = 0;
 const TEST_TIMEOUT_MS = 20_000;
@@ -28,6 +45,12 @@ describe('Discord Gateway connection', () => {
     await db().delete(discordGatewaySessions);
     gateway = await startFakeGateway();
     vi.mocked(reportError).mockClear();
+    vi.mocked(recordDiscordGatewayDispatch).mockClear();
+    vi.mocked(recordDiscordGatewayResume).mockClear();
+    vi.mocked(setDiscordGatewayConnected).mockClear();
+    vi.mocked(setDiscordGatewayCursorLagSource).mockClear();
+    vi.mocked(setDiscordGuildCount).mockClear();
+    vi.mocked(setDiscordIdentifyRemaining).mockClear();
   });
 
   afterEach(async () => {
@@ -87,6 +110,27 @@ describe('Discord Gateway connection', () => {
         committedSequence: message,
       });
       expect(gateway.identifies).toBe(1);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'reports the socket as connected and the guild count once READY arrives, and clears them on stop',
+    async () => {
+      const run = connect();
+      await vi.waitFor(() => expect(setDiscordGatewayConnected).toHaveBeenLastCalledWith(true), {
+        timeout: 10_000,
+      });
+      expect(setDiscordGuildCount).toHaveBeenCalledWith(0);
+      const lagSource = vi.mocked(setDiscordGatewayCursorLagSource).mock.calls[0]?.[0];
+      expect(lagSource?.()).toBeGreaterThanOrEqual(0);
+
+      await stop(run);
+
+      expect(setDiscordGatewayConnected).toHaveBeenLastCalledWith(false);
+      expect(setDiscordGatewayCursorLagSource).toHaveBeenLastCalledWith(undefined);
+      expect(setDiscordGuildCount).toHaveBeenLastCalledWith(undefined);
+      expect(setDiscordIdentifyRemaining).toHaveBeenLastCalledWith(undefined);
     },
     TEST_TIMEOUT_MS,
   );
@@ -169,6 +213,9 @@ describe('Discord Gateway connection', () => {
       await vi.waitFor(() => expect(gateway.resumes).toHaveLength(1), {timeout: 10_000});
       expect(gateway.resumes[0]).toEqual({sessionId, seq: message});
       expect(gateway.identifies).toBe(1);
+      await vi.waitFor(() =>
+        expect(recordDiscordGatewayResume).toHaveBeenCalledExactlyOnceWith('resumed'),
+      );
       await waitForStored((row) => (row.committedSequence ?? 0) > message);
     },
     TEST_TIMEOUT_MS,
@@ -225,6 +272,10 @@ describe('Discord Gateway connection', () => {
         timeout: 10_000,
       });
       expect(gateway.clientCloseCodes).toContain(4000);
+      expect(recordDiscordGatewayDispatch).toHaveBeenCalledExactlyOnceWith({
+        event: 'message_create',
+        outcome: 'failed',
+      });
       expect(gateway.resumes[0]).toEqual({sessionId, seq: failed - 1});
       expect(gateway.identifies).toBe(1);
       expect(reportError).toHaveBeenCalled();
@@ -259,6 +310,7 @@ describe('Discord Gateway connection', () => {
 
       await vi.waitFor(() => expect(gateway.identifies).toBe(2), {timeout: 15_000});
       expect(guardChecks).toHaveBeenCalledTimes(2);
+      expect(recordDiscordGatewayResume).toHaveBeenCalledWith('invalid_session');
       expect(gateway.sessionId).not.toBe(firstSessionId);
       await waitForStored(
         (row) => row.sessionId === gateway.sessionId && row.committedSequence === 1,
@@ -307,6 +359,42 @@ describe('Discord Gateway connection', () => {
       getGatewayBot.mockResolvedValue(bot(500));
 
       await vi.waitFor(() => expect(gateway.identifies).toBe(1), {timeout: 10_000});
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'reports a leader that has had no ready socket for too long, once, and stops when it is ready',
+    async () => {
+      const bot = (remaining: number): DiscordGatewayBot => ({
+        url: 'unused',
+        shards: 1,
+        session_start_limit: {total: 1000, remaining, reset_after: 30, max_concurrency: 1},
+      });
+      const getGatewayBot = vi.fn().mockResolvedValue(bot(0));
+      const notReady = expect.objectContaining({
+        message: expect.stringContaining('no ready socket'),
+      });
+      connect({getGatewayBot, notReadyReportMs: 150});
+
+      await vi.waitFor(
+        () => expect(reportError).toHaveBeenCalledWith(notReady, expect.anything()),
+        {timeout: 10_000},
+      );
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const reports = vi
+        .mocked(reportError)
+        .mock.calls.filter(([error]) =>
+          String((error as Error).message).includes('no ready socket'),
+        );
+      expect(reports).toHaveLength(1);
+      expect(setDiscordGatewayConnected).not.toHaveBeenCalledWith(true);
+
+      getGatewayBot.mockResolvedValue(bot(500));
+
+      await vi.waitFor(() => expect(setDiscordGatewayConnected).toHaveBeenLastCalledWith(true), {
+        timeout: 10_000,
+      });
     },
     TEST_TIMEOUT_MS,
   );
