@@ -63,6 +63,10 @@ describe('Linear event builders', () => {
     const prompted = buildAgentSessionEnvelope({...base, action: 'prompted', prompt: 'hi'});
 
     expect(created).not.toHaveProperty('agentActivity');
+    expect(created).toMatchObject({
+      action: 'created',
+      agentSession: {issue: {id: 'issue-1', identifier: 'ENG-1'}},
+    });
     expect(prompted).toMatchObject({
       action: 'prompted',
       type: 'AgentSessionEvent',
