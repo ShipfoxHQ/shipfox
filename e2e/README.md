@@ -335,6 +335,11 @@ mise run evals -- --suite templates --mode scripted
 mise run evals -- --suite templates --mode scripted --case fixture --repeat 3
 ```
 
+Evaluations also export to Langfuse when `LANGFUSE_PUBLIC_KEY` and
+`LANGFUSE_SECRET_KEY` are set. `LANGFUSE_BASE_URL` selects the region and
+defaults to the EU cloud. Each `<suite>/<mode>` is one experiment, and each
+case and repeat is one item. Without the keys, only local results are written.
+
 The harness reads Conductor worktree ports from `.context/local-services/env`,
 starts the API with E2E routes enabled, starts the client with the test VCS
 provider enabled, waits for both to become ready, and then runs
