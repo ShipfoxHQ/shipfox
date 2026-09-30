@@ -270,6 +270,7 @@ export function e2eEnv(sourceEnv) {
   const notionApiBaseUrl = valueOr(sourceEnv.NOTION_API_BASE_URL, () =>
     e2eNotionApiBaseUrl(apiUrl),
   );
+  const jiraApiBaseUrl = valueOr(sourceEnv.JIRA_API_BASE_URL, () => e2eJiraApiBaseUrl(apiUrl));
   const discordApiBaseUrl = valueOr(sourceEnv.DISCORD_API_BASE_URL, () =>
     e2eDiscordApiBaseUrl(apiUrl),
   );
@@ -349,6 +350,7 @@ export function e2eEnv(sourceEnv) {
       'e2e-github-install-state-secret',
     ),
     CLICKUP_API_BASE_URL: clickupApiBaseUrl,
+    JIRA_API_BASE_URL: jiraApiBaseUrl,
     DISCORD_API_BASE_URL: discordApiBaseUrl,
     DISCORD_APPLICATION_ID: valueOr(sourceEnv.DISCORD_APPLICATION_ID, 'e2e-discord-application-id'),
     DISCORD_BOT_TOKEN: valueOr(sourceEnv.DISCORD_BOT_TOKEN, 'e2e-discord-bot-token'),
@@ -513,6 +515,22 @@ export function e2eDiscordApiBaseUrl(apiUrl) {
   }
   endpoint.hostname = '127.0.0.1';
   endpoint.port = String(discordApiPort);
+  endpoint.pathname = '/';
+  endpoint.search = '';
+  endpoint.hash = '';
+  return endpoint.toString();
+}
+
+export function e2eJiraApiBaseUrl(apiUrl) {
+  const endpoint = new URL(apiUrl);
+  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
+  // The last port of the worktree block, after the registry at API + 17.
+  const jiraApiPort = apiPort + 18;
+  if (jiraApiPort > 65_535) {
+    throw new Error(`Cannot derive a Jira API port from API port ${apiPort}.`);
+  }
+  endpoint.hostname = '127.0.0.1';
+  endpoint.port = String(jiraApiPort);
   endpoint.pathname = '/';
   endpoint.search = '';
   endpoint.hash = '';
