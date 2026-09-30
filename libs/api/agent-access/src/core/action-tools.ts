@@ -391,7 +391,7 @@ function mapStartRunFailure(
       const labels = details.labels
         .filter((label): label is string => typeof label === 'string')
         .slice(0, 10)
-        .map(boundErrorDetail);
+        .map((label) => label.slice(0, 64));
       return {
         message: `Runner labels are not valid: ${labels.map(quote).join(', ')}. Use lowercase letters, digits, ".", "_" and "-".`,
         details: {labels},

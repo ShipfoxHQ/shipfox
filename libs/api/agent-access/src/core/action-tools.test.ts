@@ -1093,6 +1093,28 @@ describe('agent-access action tools', () => {
     });
   });
 
+  test('keeps the runner-label error inside the details limit', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.fireManualTrigger).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.fireManualTrigger,
+        'invalid-job-runner-labels',
+        {labels: Array.from({length: 12}, () => 'L'.repeat(600))},
+      ),
+    );
+
+    const response = await tool(tools, 'fire_manual_trigger').execute({
+      context,
+      arguments: {definition_id: definitionId},
+    });
+
+    expect(response).toMatchObject({
+      ok: false,
+      error: {code: 'invalid-job-runner-labels', details: {labels: expect.any(Array)}},
+    });
+    expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
+  });
+
   test('names the runner labels and size figures of a refused start', async () => {
     const {triggers, tools} = clients();
     vi.mocked(triggers.fireManualTrigger)
