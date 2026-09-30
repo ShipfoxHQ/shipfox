@@ -26,6 +26,7 @@ async function loadDiscordModuleParts(
     getDiscordInstallationByConnectionId,
     getDiscordInstallationByGuildId,
     migrationsPath: discordMigrationsPath,
+    registerDiscordCommands,
     upsertDiscordInstallation,
   } = await import('@shipfox/api-integration-discord');
   let providerCapabilities: IntegrationCapability[] = [];
@@ -111,6 +112,7 @@ async function loadDiscordModuleParts(
         connectionCapabilities: providerCapabilities,
       }),
     ],
+    startupTasks: [async () => void (await registerDiscordCommands())],
     services: discordConfig.DISCORD_GATEWAY_ENABLED ? [createDiscordGateway()] : undefined,
     database: {
       db: discordDb,

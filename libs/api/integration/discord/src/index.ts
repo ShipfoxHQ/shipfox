@@ -34,6 +34,11 @@ export {
   type DiscordAgentToolsProviderOptions,
   type DiscordToolCallResult,
 } from '#core/agent-tools-provider.js';
+export type {
+  RegisterDiscordCommandsOptions,
+  RegisterDiscordCommandsResult,
+} from '#core/command-registration.js';
+export {discordCommandsMatch, registerDiscordCommands} from '#core/command-registration.js';
 export {discordConnectionExternalUrl} from '#core/connection-url.js';
 export {DiscordIntegrationProviderError} from '#core/errors.js';
 export {

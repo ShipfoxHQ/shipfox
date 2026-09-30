@@ -40,6 +40,12 @@ describe('Discord provider scaffold', () => {
     expect(part.provider.routes).toHaveLength(1);
   });
 
+  it('contributes the command registration as a startup task', async () => {
+    const {part} = await loadDiscordProvider();
+
+    expect(part.startupTasks).toHaveLength(1);
+  });
+
   it('deletes a guild installation so the same guild can be reinstalled', async () => {
     const {part, discordPackage} = await loadDiscordProvider();
     if (!part.e2eRoutes) throw new Error('Discord E2E routes are not configured');

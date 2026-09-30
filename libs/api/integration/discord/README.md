@@ -12,6 +12,7 @@
 - **`createDiscordApiClient`** calls the Discord REST API as the bot and maps failures to `DiscordIntegrationProviderError`.
 - **`createDiscordGateway`** returns the Gateway `ModuleService`: the leader election with the shard connection as the leader's work. It connects with `@discordjs/ws`, resumes from the stored committed cursor, and identifies through an Identify guard.
 - **`DiscordAgentToolsProvider`** serves the agent tools as the bot. The provider registers it as the `agent_tools` adapter, and `@shipfox/api-integration-discord/agent-tools` exports the catalog for the docs and action-type generators. It offers `read_channel`.
+- **`registerDiscordCommands`** compares the application's registered commands with the `/shipfox` and "Send to Shipfox" definitions from `discord-dto` and overwrites them only on a difference. The integrations module runs it as a startup task on every replica.
 - **`config`** defines the Discord application, OAuth, bot, Gateway, and API settings.
 
 ## Installation and setup
