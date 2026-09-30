@@ -14,7 +14,7 @@ import {retryConnectionSlugCollision, slugifyConnectionSlug} from '#providers/co
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
 async function loadDiscordModuleParts(
-  _options: Parameters<IntegrationProviderModule['load']>[0] = {},
+  options: Parameters<IntegrationProviderModule['load']>[0] = {},
 ): Promise<IntegrationModuleParts> {
   const {
     config: discordConfig,
@@ -96,6 +96,14 @@ async function loadDiscordModuleParts(
       publishIntegrationEventReceived,
       recordDeliveryOnly,
       getIntegrationConnectionById,
+    },
+    install: {
+      getExistingDiscordConnection,
+      connectDiscordInstallation,
+      connectionCapabilities: [],
+      ...(options.requireActiveWorkspaceMembership
+        ? {requireActiveWorkspaceMembership: options.requireActiveWorkspaceMembership}
+        : {}),
     },
   });
 

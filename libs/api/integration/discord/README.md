@@ -6,6 +6,7 @@
 
 - **`createDiscordIntegrationProvider`** exposes the Discord provider metadata, guild external URL, and the connection cleanup hooks. Deletion runs under the per-guild advisory lock `integrations:discord:guild:<guild_id>` (`withDiscordGuildLock`, 30 s bounded wait), and once the records commit the bot leaves the guild. A `403` or `404` from Discord counts as done, and any other failure is logged.
 - **Installation repository exports** create, find, and delete Discord guild installations owned by the provider database.
+- **`createDiscordInstallRoutes`** serves the OAuth connect flow. The core adapter passes it through the provider's `install` option.
 - **`createDiscordWebhookRoutes` and `createDiscordWebhookProcessor`** receive Discord interactions, verify them, and publish command events.
 - **`createDiscordE2eRoutes`** exposes the synthetic connection route used by integration and E2E tests.
 - **`createDiscordGatewayService`** returns the `ModuleService` that elects one Gateway leader per shard with a Postgres advisory lock. Each replica holds a dedicated connection, retries every 10 s, and checks it with `SELECT 1` every 15 s. The `onLeading` and `onLost` callbacks carry the leader's work; `onLost` runs before the lock is released on shutdown.
@@ -69,11 +70,31 @@ The executable environment contract is defined in [`src/config.ts`](src/config.t
 
 Commands are answered with an ephemeral message. It says the server is not connected when the guild has no active connection, warns that replies may not appear when `app_permissions` lacks `VIEW_CHANNEL` or `SEND_MESSAGES` (`SEND_MESSAGES_IN_THREADS` in a thread), and otherwise says "Working on it."
 
+`POST /integrations/discord/install` takes `{workspace_id}` and returns the Discord authorize URL: `scope=bot applications.commands` (no `identify`), the bot permissions integer `309237730368`, `integration_type=0`, `response_type=code`, and a signed `state`. The state carries the workspace id, user id, nonce, and a 30-minute expiry, signed with `DISCORD_OAUTH_CLIENT_SECRET`.
+
+`GET /integrations/discord/callback/api` completes the install for the signed-in user:
+
+1. The state must verify and belong to the session user, or the request fails before any Discord call.
+2. The code exchange returns the guild. The `guild_id` on the callback query is never used. The user token is revoked right after, and a failed revoke is only logged.
+3. The route takes the guild lock and holds it through step 6, so a concurrent disconnect either finishes first or waits for the new records.
+4. `GET /guilds/{id}` with the bot token confirms the bot is in the guild and gives the managed role (`tags.bot_id` equal to `DISCORD_APPLICATION_ID`) with its `permissions`.
+5. A guild held by another workspace fails with `409`.
+6. The core adapter upserts the connection (`active`) and the installation (`installed`, `permissions`, `bot_role_id`, bumped `generation`) in one transaction.
+
+| Outcome | Response |
+| --- | --- |
+| `connected`, `reconnected` | `200` with `{outcome, connection}`. `reconnected` means the workspace already held the guild. |
+| `access_denied` | `200` with `{outcome}`. The person cancelled on Discord. |
+| `state-invalid` | `400` `invalid-discord-install-state`, or `403` `discord-install-state-actor-mismatch`. |
+| `already-linked` | `409` `discord-installation-already-linked`. |
+| `bot-not-in-guild` | `422` `discord-bot-not-in-guild`. The exchange had no guild, or the membership check answered `403` or `404`. |
+| `provider-unavailable` | `503`, or `429` when Discord rate limits. Other OAuth errors are `422` `discord-oauth-callback-error`. |
+
 `createDiscordE2eRoutes` registers `POST /integrations/discord-connections` under the E2E route prefix. It accepts the Discord DTO seed body and returns the integration connection DTO. This route is for test setup, not production clients.
 
 ## REST client
 
-`createDiscordApiClient()` reads `DISCORD_BOT_TOKEN`, `DISCORD_API_BASE_URL`, and `DISCORD_APPLICATION_ID` from `config`. Pass options to override them. It exposes `getGuild`, `getChannel`, `listChannelMessages`, `leaveGuild`, `getGatewayBot`, `listApplicationCommands`, and `overwriteApplicationCommands`.
+`createDiscordApiClient()` reads `DISCORD_BOT_TOKEN`, `DISCORD_API_BASE_URL`, `DISCORD_APPLICATION_ID`, `DISCORD_OAUTH_CLIENT_SECRET`, and `DISCORD_OAUTH_REDIRECT_URL` from `config`. Pass options to override them. It exposes `exchangeAuthorizationCode` and `revokeAccessToken` for the install flow, which authenticate with the OAuth client credentials instead of the bot token, and `getGuild`, `getChannel`, `listChannelMessages`, `leaveGuild`, `getGatewayBot`, `listApplicationCommands`, and `overwriteApplicationCommands`.
 
 Requests time out after 10 seconds and are never retried, because Discord counts `401`, `403`, and `429` answers toward an IP-wide block. Failures throw `DiscordIntegrationProviderError`:
 

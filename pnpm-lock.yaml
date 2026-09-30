@@ -4005,15 +4005,24 @@ importers:
       '@discordjs/ws':
         specifier: 'catalog:'
         version: 2.0.4
+      '@shipfox/api-auth-context':
+        specifier: workspace:*
+        version: link:../../auth-context
       '@shipfox/api-integration-discord-dto':
         specifier: workspace:*
         version: link:../discord-dto
       '@shipfox/api-integration-spi':
         specifier: workspace:*
         version: link:../spi
+      '@shipfox/api-workspaces-dto':
+        specifier: workspace:*
+        version: link:../../workspaces-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../../shared/common/inter-module
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle

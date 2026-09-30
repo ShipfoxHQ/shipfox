@@ -11,6 +11,10 @@ import {withDiscordGuildLock} from '#db/guild-lock.js';
 import {type DiscordInstallation, getDiscordInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
 import {
+  type CreateDiscordInstallRoutesOptions,
+  createDiscordInstallRoutes,
+} from '#presentation/routes/install.js';
+import {
   type CreateDiscordWebhookRoutesOptions,
   createDiscordWebhookRoutes,
 } from '#presentation/routes/webhooks.js';
@@ -21,6 +25,7 @@ export type {
   DiscordApiClient,
   DiscordApplicationCommand,
   DiscordApplicationCommandDefinition,
+  DiscordAuthorization,
   DiscordChannel,
   DiscordGatewayBot,
   DiscordGuild,
@@ -50,6 +55,7 @@ export {
   type GatewayLostReason,
 } from '#core/gateway-service.js';
 export type {ConnectDiscordInstallationInput} from '#core/install.js';
+export {DISCORD_BOT_PERMISSIONS} from '#core/install.js';
 export type {
   DiscordCommand,
   DiscordCommandOutcome,
@@ -70,6 +76,7 @@ export {
   isDiscordTimestampFresh,
   verifyDiscordSignature,
 } from '#core/signature.js';
+export {signDiscordInstallState} from '#core/state.js';
 export type {
   CreateDiscordWebhookProcessorOptions,
   DiscordInteractionProcessingResult,
@@ -99,6 +106,10 @@ export {
   createDiscordE2eRoutes,
 } from '#presentation/e2eRoutes/index.js';
 export {
+  type CreateDiscordInstallRoutesOptions,
+  createDiscordInstallRoutes,
+} from '#presentation/routes/install.js';
+export {
   type CreateDiscordWebhookRoutesOptions,
   createDiscordWebhookRoutes,
 } from '#presentation/routes/webhooks.js';
@@ -113,6 +124,7 @@ export interface CreateDiscordIntegrationProviderOptions {
     deleteConnectionRecords?: (connection: {id: string}, options: {tx: unknown}) => Promise<void>;
   };
   routes?: CreateDiscordWebhookRoutesOptions | undefined;
+  install?: Omit<CreateDiscordInstallRoutesOptions, 'discord'> | undefined;
 }
 
 export function createDiscordIntegrationProvider(
@@ -126,10 +138,12 @@ export function createDiscordIntegrationProvider(
   const webhookProcessor = webhookRoutes
     ? (webhookRoutes.processor ?? createDiscordWebhookProcessor(webhookRoutes))
     : undefined;
-  const routes: RouteGroup[] =
-    webhookRoutes && webhookProcessor
+  const routes: RouteGroup[] = [
+    ...(webhookRoutes && webhookProcessor
       ? [createDiscordWebhookRoutes({...webhookRoutes, processor: webhookProcessor})]
-      : [];
+      : []),
+    ...(options.install ? [createDiscordInstallRoutes({...options.install, discord})] : []),
+  ];
 
   return {
     provider: DISCORD_PROVIDER,
