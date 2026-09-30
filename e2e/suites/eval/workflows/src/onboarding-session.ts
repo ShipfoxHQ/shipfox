@@ -8,6 +8,8 @@ import type {SimulatedUser, SimulatorUsage} from './simulated-user.js';
 
 // Pinned so a result names the agent it measured; the default of the CLI moves with releases.
 export const DEFAULT_AGENT_MODEL = 'claude-sonnet-5-5';
+// An interrupted query normally reports its result within seconds; this only bounds a hung SDK.
+export const DEFAULT_DRAIN_SECONDS = 15;
 const PARAGRAPH_SEPARATOR = /\n\s*\n/u;
 const TRAILING_FORMATTING = /[\s*_"'`)\]]+$/u;
 
@@ -45,7 +47,7 @@ export interface OnboardingSessionResult {
 export type ClaudeQuery = (params: {
   prompt: AsyncIterable<SDKUserMessage>;
   options: Options;
-}) => AsyncIterable<SDKMessage>;
+}) => AsyncIterable<SDKMessage> & {interrupt?: () => Promise<unknown>};
 
 export interface OnboardingSessionOptions {
   prompt: string;
@@ -56,6 +58,11 @@ export interface OnboardingSessionOptions {
   simulatedUser: SimulatedUser;
   maxTurns: number;
   timeoutSeconds: number;
+  /**
+   * How long a session stopped at a limit waits for the SDK's result message, which carries its
+   * usage, before it aborts the query. Defaults to `DEFAULT_DRAIN_SECONDS`.
+   */
+  drainSeconds?: number;
   /** The environment the agent's process sees. See `agentEnvironment`. */
   env: Record<string, string>;
   model?: string;
@@ -187,11 +194,23 @@ class Session {
   finalMessage = '';
   sessionId: string | undefined;
   agent = emptyAgentUsage();
+  /** Interrupts the running query, so it ends its turn and reports its result. */
+  interrupt: (() => Promise<unknown>) | undefined;
   #lastText = '';
+  #draining = false;
+  #resultSeen = false;
+  // Between a result and the next user message the agent does nothing, so its usage is complete.
+  #idle = false;
+  #drainTimer: NodeJS.Timeout | undefined;
 
   constructor(options: OnboardingSessionOptions, now: () => number) {
     this.#options = options;
     this.#now = now;
+  }
+
+  /** Whether the loop can stop reading: stopped, and not still waiting for a draining result. */
+  get done(): boolean {
+    return this.stopped && !(this.#draining && !this.#resultSeen);
   }
 
   get transcript(): string {
@@ -209,17 +228,31 @@ class Session {
   }
 
   say(content: string): void {
+    this.#idle = false;
     this.record({type: 'user', message: {role: 'user', content}, parent_tool_use_id: null});
     this.#input.push(content);
   }
 
-  stop(reason: SessionStopReason, message?: string): void {
+  /**
+   * Ends the session. A limit stop passes `drain` so a query that is mid-turn is interrupted and
+   * read on until its result message arrives: aborting would lose the usage, and the sessions
+   * that hit a limit are the expensive ones.
+   */
+  stop(reason: SessionStopReason, message?: string, {drain = false} = {}): void {
     if (this.stopped) return;
     this.stopped = true;
     this.stopReason = reason;
     if (message !== undefined) this.error = message;
     this.#input.close();
-    this.controller.abort();
+    if (!drain || this.#idle) {
+      this.controller.abort();
+      return;
+    }
+    this.#draining = true;
+    // The SDK may never answer, and an abort can't wait for it.
+    const graceMs = (this.#options.drainSeconds ?? DEFAULT_DRAIN_SECONDS) * 1_000;
+    this.#drainTimer = setTimeout(() => this.controller.abort(), graceMs);
+    this.interrupt?.().catch(() => this.controller.abort());
   }
 
   get input(): AsyncIterable<SDKUserMessage> {
@@ -227,6 +260,7 @@ class Session {
   }
 
   finish(): void {
+    clearTimeout(this.#drainTimer);
     this.#input.close();
     if (!this.controller.signal.aborted) this.controller.abort();
   }
@@ -250,6 +284,11 @@ class Session {
     if (message.type === 'system' && message.subtype === 'init')
       this.sessionId = message.session_id;
     this.record(message);
+    if (this.stopped) {
+      // The turns after a limit stop are only read for the usage in their result.
+      if (message.type === 'result') this.#takeResult(message);
+      return;
+    }
     if (message.type === 'assistant' && message.parent_tool_use_id === null)
       this.#countTurn(message);
     if (message.type === 'system' && message.subtype === 'api_retry') this.#checkRetry(message);
@@ -266,12 +305,20 @@ class Session {
     this.turns += 1;
     this.#lastText = assistantText(message) || this.#lastText;
     if (this.turns > this.#options.maxTurns) {
-      this.stop('max_turns', `The agent used more than ${this.#options.maxTurns} turns.`);
+      this.stop('max_turns', `The agent used more than ${this.#options.maxTurns} turns.`, {
+        drain: true,
+      });
     }
   }
 
-  async #handleResult(message: ResultMessage): Promise<void> {
+  #takeResult(message: ResultMessage): void {
     this.agent = agentUsageFrom(message);
+    this.#resultSeen = true;
+    this.#idle = true;
+  }
+
+  async #handleResult(message: ResultMessage): Promise<void> {
+    this.#takeResult(message);
     if (message.subtype !== 'success') {
       this.stop(
         RESULT_STOP_REASONS[message.subtype] ?? 'error',
@@ -332,17 +379,20 @@ export async function runOnboardingSession(
   const startedAt = now();
   const session = new Session(options, now);
   const timer = setTimeout(
-    () => session.stop('timeout', `The session timeout of ${options.timeoutSeconds}s ran out.`),
+    () =>
+      session.stop('timeout', `The session timeout of ${options.timeoutSeconds}s ran out.`, {
+        drain: true,
+      }),
     options.timeoutSeconds * 1_000,
   );
 
   try {
     session.say(options.prompt);
     const messages = query({prompt: session.input, options: claudeOptions(options, session)});
+    session.interrupt = () => messages.interrupt?.() ?? Promise.resolve();
     for await (const message of messages) {
-      if (session.stopped) break;
       await session.handle(message);
-      if (session.stopped) break;
+      if (session.done) break;
     }
   } catch (caught) {
     // An abort is how a timeout or a turn limit ends the stream, and stop() already said why.
