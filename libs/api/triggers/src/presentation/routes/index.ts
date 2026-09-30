@@ -4,6 +4,7 @@ import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module'
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {RouteGroup} from '@shipfox/node-fastify';
+import {createCheckRunReadinessRoute} from './check-run-readiness.js';
 import {createDevRunRoute} from './create-dev-run.js';
 import {createFireManualTriggerRoute} from './fire-manual.js';
 import {getTriggerEventRoute} from './get-trigger-event.js';
@@ -20,7 +21,10 @@ export function createTriggerRoutes(
     {
       prefix: '/workflow-definitions',
       auth: AUTH_USER,
-      routes: [createFireManualTriggerRoute(workflows, secrets)],
+      routes: [
+        createCheckRunReadinessRoute(workflows, projects),
+        createFireManualTriggerRoute(workflows, secrets),
+      ],
     },
     {
       prefix: '/dev-runs',
