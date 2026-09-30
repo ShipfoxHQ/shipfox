@@ -195,6 +195,7 @@ jobs:
             --image-repository ghcr.io/shipfoxhq/provisioner-docker \
             --image-repository ghcr.io/shipfoxhq/provisioner-ec2 \
             --image-repository ghcr.io/shipfoxhq/registry \
+            --image-repository ghcr.io/shipfoxhq/registry-client \
             --image-repository ghcr.io/shipfoxhq/runner \
             --github-output "$GITHUB_OUTPUT" \
             --github-summary "$GITHUB_STEP_SUMMARY"
@@ -590,6 +591,9 @@ jobs:
           - package: "@shipfox/registry"
             image: registry
             repository: ghcr.io/shipfoxhq/registry
+          - package: "@shipfox/registry-client"
+            image: registry-client
+            repository: ghcr.io/shipfoxhq/registry-client
           - package: "@shipfox/runner"
             image: runner
             repository: ghcr.io/shipfoxhq/runner

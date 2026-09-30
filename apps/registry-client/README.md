@@ -32,6 +32,15 @@ mise exec -- pnpm --filter @shipfox/registry-client dev
 The pages are at `http://localhost:16130/registry`. `.env` points
 `REGISTRY_URL` at the local registry on port 16120.
 
+Build the image with:
+
+```sh
+mise exec -- pnpm --filter @shipfox/registry-client image
+```
+
+The image runs the standalone server on port 3000. Set `REGISTRY_URL` and
+`REGISTRY_CLIENT_PUBLIC_URL` when you start the container.
+
 ## Usage
 
 Open a package page by its registry name:
