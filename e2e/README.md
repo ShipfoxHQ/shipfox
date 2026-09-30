@@ -426,6 +426,28 @@ agent wrote, and usage:
 ANTHROPIC_API_KEY=<key> mise run evals -- --suite onboarding --case fixture
 ```
 
+Each case declares the `expect.outcome` a correct agent ends with, and only the
+checks for that outcome run. A repeat passes when every applicable check does,
+and `checks` and `passed` in its result show which did not.
+
+| Outcome | A correct agent |
+| --- | --- |
+| `validated` | Writes a workflow that passes a dry run, with no `replace-with-*` placeholder and only models the workspace has. |
+| `blocked_on_connection` | Writes nothing, starts nothing, and names `expect.missing_provider` in its final message. |
+| `needs_clarification` | Writes nothing and starts nothing. |
+
+Every outcome also requires that the session ended on its own and, when
+`expect.max_questions` is set, that the agent asked no more questions than that.
+A question is a turn that ends by asking the user something, counted from the
+transcript. When `expect.template` is set on a `validated` case, the runner also
+checks that the header names the template and `expect.bindings`, that
+`get_workflow_template` succeeded before the file was written, and that the file
+matches the template composed with `expect.bindings` and `expect.options`. Options
+the case leaves out take the manifest default. The comparison allows filled
+`# slot:` markers, `# option:` lines, connection slugs after `# bind:`, and model
+lines. The runner makes the dry run itself, through the proxy after the session
+ends, so it never appears in the agent's call log.
+
 Evaluations also export to Langfuse when `LANGFUSE_PUBLIC_KEY` and
 `LANGFUSE_SECRET_KEY` are set. `LANGFUSE_BASE_URL` selects the region and
 defaults to the EU cloud. Each `<suite>/<mode>` is one experiment, and each
