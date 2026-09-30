@@ -31,9 +31,17 @@ export interface ProviderToolCatalog {
   };
   discord: {
     /**
+     * List the channels of the connected Discord server, and optionally its active threads, to find a channel ID by name.
+     */
+    list_channels: {arguments: DiscordListChannelsArguments; result: 'json'};
+    /**
      * Read messages from a Discord channel or thread in reverse chronological order (newest first). Page with a message ID in either before or after, not both.
      */
     read_channel: {arguments: DiscordReadChannelArguments; result: 'json'};
+    /**
+     * Read a Discord thread, oldest message first. With a thread ID as channel_id, returns the message the thread started from, then the thread. With a channel ID and the ID of a message that started a thread, returns that message then its thread. With a channel ID and a message ID that started no thread, returns that single message. The same arguments work for a mention at the top level of a channel and inside a thread.
+     */
+    read_thread: {arguments: DiscordReadThreadArguments; result: 'json'};
   };
   gitea: {
     /**
@@ -1054,6 +1062,17 @@ export interface ClickupUpdateTaskArguments {
   };
 }
 
+export interface DiscordListChannelsArguments {
+  /**
+   * Only return channels whose name contains this text, ignoring case
+   */
+  name_contains?: string;
+  /**
+   * Also return the active threads of the server (default false)
+   */
+  include_threads?: boolean;
+}
+
 export interface DiscordReadChannelArguments {
   /**
    * ID of a channel or thread in the connected Discord server
@@ -1071,6 +1090,21 @@ export interface DiscordReadChannelArguments {
    * Only return messages newer than this message ID
    */
   after?: string;
+}
+
+export interface DiscordReadThreadArguments {
+  /**
+   * ID of a channel or thread in the connected Discord server
+   */
+  channel_id: string;
+  /**
+   * ID of a message in the channel. Required unless channel_id is a thread, and ignored when it is one
+   */
+  message_id?: string;
+  /**
+   * Most recent thread messages to return, 1 to 100 (default 50)
+   */
+  limit?: number;
 }
 
 export interface GiteaCommentOnIssueArguments {

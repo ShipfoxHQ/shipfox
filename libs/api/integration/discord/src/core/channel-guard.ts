@@ -1,7 +1,15 @@
 import type {DiscordApiClient} from '#api/client.js';
 import {DiscordIntegrationProviderError} from '#core/errors.js';
 
-export type DiscordChannelGuard = (input: {channelId: string; guildId: string}) => Promise<void>;
+export interface DiscordGuardedChannel {
+  type: number;
+  parentId: string | null;
+}
+
+export type DiscordChannelGuard = (input: {
+  channelId: string;
+  guildId: string;
+}) => Promise<DiscordGuardedChannel>;
 
 /**
  * The bot token reaches every server the bot is in, so a channel-scoped call must first prove the
@@ -9,28 +17,33 @@ export type DiscordChannelGuard = (input: {channelId: string; guildId: string}) 
  * cached for the life of the process, and a failed lookup is never cached.
  */
 export function createDiscordChannelGuard(discord: Pick<DiscordApiClient, 'getChannel'>) {
-  const guildByChannel = new Map<string, string | null>();
+  const channels = new Map<string, DiscordGuardedChannel & {guildId: string | null}>();
 
   const guard: DiscordChannelGuard = async ({channelId, guildId}) => {
-    let channelGuildId = guildByChannel.get(channelId);
-    if (channelGuildId === undefined) {
+    let known = channels.get(channelId);
+    if (known === undefined) {
       const channel = await discord.getChannel({channelId});
-      channelGuildId = channel.guild_id ?? null;
-      guildByChannel.set(channelId, channelGuildId);
+      known = {
+        guildId: channel.guild_id ?? null,
+        type: channel.type,
+        parentId: channel.parent_id ?? null,
+      };
+      channels.set(channelId, known);
     }
-    if (channelGuildId === null) {
+    if (known.guildId === null) {
       throw new DiscordIntegrationProviderError({
         reason: 'access-denied',
         message: 'Direct message channels are not supported',
       });
     }
-    if (channelGuildId !== guildId) {
+    if (known.guildId !== guildId) {
       // Same answer as a missing channel, so a channel ID in another server is not confirmed.
       throw new DiscordIntegrationProviderError({
         reason: 'not-found',
         message: 'Channel not found in this server',
       });
     }
+    return {type: known.type, parentId: known.parentId};
   };
   return guard;
 }

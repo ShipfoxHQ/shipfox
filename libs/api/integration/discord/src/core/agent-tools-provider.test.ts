@@ -46,10 +46,12 @@ function installation(overrides: Partial<DiscordInstallation> = {}): DiscordInst
   };
 }
 
-function message(id: string): DiscordMessage {
+const THREAD_ID = '600000000000000006';
+
+function message(id: string, channelId = CHANNEL_ID): DiscordMessage {
   return {
     id,
-    channel_id: CHANNEL_ID,
+    channel_id: channelId,
     content: `message ${id}`,
     author: {id: '400000000000000004', username: 'ada'},
     timestamp: '2026-09-29T12:00:00.000Z',
@@ -60,6 +62,9 @@ function setup(
   options: {
     channel?: DiscordChannel | Error;
     messages?: DiscordMessage[] | Error;
+    message?: DiscordMessage | Error;
+    channels?: DiscordChannel[];
+    threads?: DiscordChannel[];
     installation?: DiscordInstallation | undefined;
   } = {},
 ) {
@@ -70,8 +75,15 @@ function setup(
       channel instanceof Error ? Promise.reject(channel) : Promise.resolve(channel),
     ),
     listChannelMessages: vi.fn(() =>
-      messages instanceof Error ? Promise.reject(messages) : Promise.resolve(messages),
+      messages instanceof Error ? Promise.reject(messages) : Promise.resolve([...messages]),
     ),
+    getMessage: vi.fn(() =>
+      options.message instanceof Error
+        ? Promise.reject(options.message)
+        : Promise.resolve(options.message ?? message('1')),
+    ),
+    listGuildChannels: vi.fn(() => Promise.resolve(options.channels ?? [])),
+    listActiveGuildThreads: vi.fn(() => Promise.resolve(options.threads ?? [])),
   };
   const provider = new DiscordAgentToolsProvider({
     discord,
@@ -109,13 +121,15 @@ describe('DiscordAgentToolsProvider', () => {
   });
 
   describe('catalog', () => {
-    it('publishes read_channel as a read tool selectable on its own', () => {
+    it('publishes the read tools, each selectable on its own', () => {
       const {provider} = setup();
 
       expect(provider.catalog()).toBe(discordAgentToolCatalog);
       expect(provider.selectionCatalog()).toBe(discordAgentToolSelectionCatalog);
       expect(discordAgentToolSelectionCatalog.selectors).toEqual([
         {token: 'read_channel', kind: 'standalone', sensitivity: 'read', sensitive: false},
+        {token: 'read_thread', kind: 'standalone', sensitivity: 'read', sensitive: false},
+        {token: 'list_channels', kind: 'standalone', sensitivity: 'read', sensitive: false},
       ]);
     });
   });
@@ -161,6 +175,227 @@ describe('DiscordAgentToolsProvider', () => {
         ],
       });
       expect(JSON.parse(result.content[0]?.text ?? '')).toEqual(result.structuredContent);
+    });
+  });
+
+  describe('read_thread', () => {
+    const threadChannel = {id: THREAD_ID, type: 11, guild_id: GUILD_ID, parent_id: CHANNEL_ID};
+
+    it('reads the starter message then the thread oldest first from a thread', async () => {
+      const {provider, discord} = setup({
+        channel: threadChannel,
+        message: message(THREAD_ID),
+        messages: [message('3', THREAD_ID), message('2', THREAD_ID)],
+      });
+
+      const result = await callTool(provider, 'read_thread', {
+        channel_id: THREAD_ID,
+        message_id: '700000000000000007',
+        limit: 2,
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(discord.getMessage).toHaveBeenCalledWith({
+        channelId: CHANNEL_ID,
+        messageId: THREAD_ID,
+      });
+      expect(discord.listChannelMessages).toHaveBeenCalledWith({channelId: THREAD_ID, limit: 2});
+      expect(result.structuredContent).toMatchObject({
+        messages: [
+          {
+            id: THREAD_ID,
+            url: `https://discord.com/channels/${GUILD_ID}/${CHANNEL_ID}/${THREAD_ID}`,
+          },
+          {id: '2', url: `https://discord.com/channels/${GUILD_ID}/${THREAD_ID}/2`},
+          {id: '3', url: `https://discord.com/channels/${GUILD_ID}/${THREAD_ID}/3`},
+        ],
+      });
+    });
+
+    it('reads a thread that has no starter message', async () => {
+      const {provider} = setup({
+        channel: threadChannel,
+        message: failure('not-found', 404),
+        messages: [message('3', THREAD_ID), message('2', THREAD_ID)],
+      });
+
+      const result = await callTool(provider, 'read_thread', {channel_id: THREAD_ID});
+
+      expect(result.structuredContent).toMatchObject({messages: [{id: '2'}, {id: '3'}]});
+    });
+
+    it('reads a message that started a thread, then its thread', async () => {
+      const starter = {...message(THREAD_ID), thread: {id: THREAD_ID}};
+      const {provider, discord} = setup({
+        message: starter,
+        messages: [message('3', THREAD_ID), message('2', THREAD_ID)],
+      });
+
+      const result = await callTool(provider, 'read_thread', {
+        channel_id: CHANNEL_ID,
+        message_id: THREAD_ID,
+      });
+
+      expect(discord.getMessage).toHaveBeenCalledWith({
+        channelId: CHANNEL_ID,
+        messageId: THREAD_ID,
+      });
+      expect(discord.listChannelMessages).toHaveBeenCalledWith({channelId: THREAD_ID, limit: 50});
+      expect(result.structuredContent).toMatchObject({
+        messages: [{id: THREAD_ID}, {id: '2'}, {id: '3'}],
+      });
+    });
+
+    it('reads a single message that started no thread', async () => {
+      const {provider, discord} = setup({message: message('9')});
+
+      const result = await callTool(provider, 'read_thread', {
+        channel_id: CHANNEL_ID,
+        message_id: '9',
+      });
+
+      expect(discord.listChannelMessages).not.toHaveBeenCalled();
+      expect(result.structuredContent).toMatchObject({
+        messages: [{id: '9', url: `https://discord.com/channels/${GUILD_ID}/${CHANNEL_ID}/9`}],
+      });
+    });
+
+    it('asks for message_id when the channel is not a thread', async () => {
+      const {provider, discord} = setup();
+
+      const result = await callTool(provider, 'read_thread', {channel_id: CHANNEL_ID});
+
+      expect(result).toMatchObject({
+        isError: true,
+        content: [{text: 'Parameter message_id is required in a channel'}],
+        structuredContent: {code: 'invalid-request'},
+      });
+      expect(discord.getMessage).not.toHaveBeenCalled();
+    });
+
+    it('surfaces a starter failure that is not a missing message', async () => {
+      const {provider} = setup({
+        channel: threadChannel,
+        message: failure('access-denied', 403, {discordCode: 50001}),
+      });
+
+      const result = await callTool(provider, 'read_thread', {channel_id: THREAD_ID});
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'access-denied'}});
+      expect(result.content[0]?.text).toContain('View Channel and Read Message History');
+    });
+
+    it('denies a thread in another guild without reading it', async () => {
+      const {provider, discord} = setup({channel: {...threadChannel, guild_id: OTHER_GUILD_ID}});
+
+      const result = await callTool(provider, 'read_thread', {channel_id: THREAD_ID});
+
+      expect(result).toMatchObject({
+        isError: true,
+        content: [{text: 'Not found in this server'}],
+        structuredContent: {code: 'not-found'},
+      });
+      expect(discord.getMessage).not.toHaveBeenCalled();
+      expect(discord.listChannelMessages).not.toHaveBeenCalled();
+    });
+
+    it('denies a channel in another guild without reading the message', async () => {
+      const {provider, discord} = setup({
+        channel: {id: CHANNEL_ID, type: 0, guild_id: OTHER_GUILD_ID},
+      });
+
+      const result = await callTool(provider, 'read_thread', {
+        channel_id: CHANNEL_ID,
+        message_id: '9',
+      });
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'not-found'}});
+      expect(discord.getMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('list_channels', () => {
+    const channels: DiscordChannel[] = [
+      {id: '1', type: 4, name: 'Support'},
+      {id: '2', type: 0, name: 'support-eu', parent_id: '1', topic: 'Help for EU customers'},
+      {id: '3', type: 0, name: 'random'},
+    ];
+    const threads: DiscordChannel[] = [{id: '4', type: 11, name: 'Support bug', parent_id: '2'}];
+
+    it('lists the channels of the connection guild without threads by default', async () => {
+      const {provider, discord} = setup({channels, threads});
+
+      const result = await callTool(provider, 'list_channels', {});
+
+      expect(result.isError).toBeUndefined();
+      expect(discord.listGuildChannels).toHaveBeenCalledWith({guildId: GUILD_ID});
+      expect(discord.listActiveGuildThreads).not.toHaveBeenCalled();
+      expect(result.structuredContent).toEqual({
+        channels: [
+          {id: '1', name: 'Support', type: 4, parent_id: null, topic: null},
+          {id: '2', name: 'support-eu', type: 0, parent_id: '1', topic: 'Help for EU customers'},
+          {id: '3', name: 'random', type: 0, parent_id: null, topic: null},
+        ],
+      });
+    });
+
+    it('adds the active threads on request', async () => {
+      const {provider, discord} = setup({channels, threads});
+
+      const result = await callTool(provider, 'list_channels', {include_threads: true});
+
+      expect(discord.listActiveGuildThreads).toHaveBeenCalledWith({guildId: GUILD_ID});
+      expect(result.structuredContent).toMatchObject({
+        channels: [{id: '1'}, {id: '2'}, {id: '3'}, {id: '4', type: 11, parent_id: '2'}],
+      });
+    });
+
+    it('filters on the name ignoring case, threads included', async () => {
+      const {provider} = setup({channels, threads});
+
+      const result = await callTool(provider, 'list_channels', {
+        name_contains: 'SUPPORT',
+        include_threads: true,
+      });
+
+      expect(result.structuredContent).toMatchObject({
+        channels: [{id: '1'}, {id: '2'}, {id: '4'}],
+      });
+    });
+
+    it('never takes the guild from the arguments', async () => {
+      const {provider, discord} = setup({channels});
+
+      const result = await callTool(provider, 'list_channels', {guild_id: OTHER_GUILD_ID});
+
+      expect(result).toMatchObject({
+        isError: true,
+        content: [{text: 'Unknown parameter: guild_id'}],
+      });
+      expect(discord.listGuildChannels).not.toHaveBeenCalled();
+    });
+
+    it('maps 403 to a message naming the server and the likely missing permission', async () => {
+      const {provider, discord} = setup();
+      discord.listGuildChannels.mockRejectedValueOnce(failure('access-denied', 403));
+
+      const result = await callTool(provider, 'list_channels', {});
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'access-denied'}});
+      expect(result.content[0]?.text).toContain('this server');
+      expect(result.content[0]?.text).toContain('View Channels');
+    });
+
+    it('rejects a non-boolean include_threads before calling Discord', async () => {
+      const {provider, discord} = setup();
+
+      const result = await callTool(provider, 'list_channels', {include_threads: 'yes'});
+
+      expect(result).toMatchObject({
+        isError: true,
+        content: [{text: 'Parameter include_threads must be a boolean'}],
+      });
+      expect(discord.listGuildChannels).not.toHaveBeenCalled();
     });
   });
 

@@ -15,6 +15,14 @@ export class DiscordIntegrationProviderError extends IntegrationProviderError {
   }
 }
 
+/** An argument rule that depends on what Discord says about the channel, so validation cannot catch it. */
+export class DiscordToolArgumentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DiscordToolArgumentError';
+  }
+}
+
 export class DiscordInstallStateError extends Error {
   constructor(message = 'Invalid Discord install state') {
     super(message);
