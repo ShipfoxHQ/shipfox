@@ -255,6 +255,33 @@ describe('exportClaudeTranscript', () => {
     expect(failed?.attributes['langfuse.observation.level']).toBe('ERROR');
   });
 
+  it('warns about a tool whose result never arrives', () => {
+    // A run that hits its turn or time limit ends right after the tool call.
+    const cutOff = [
+      line({
+        type: 'user',
+        timestamp: '2026-09-29T10:00:00.000Z',
+        message: {role: 'user', content: 'Run the tests.'},
+      }),
+      assistant({
+        at: '2026-09-29T10:00:02.000Z',
+        id: 'msg_1',
+        content: [{type: 'tool_use', id: 'toolu_1', name: 'Bash', input: {command: 'npm test'}}],
+        usage: {input_tokens: 10, output_tokens: 5},
+        stopReason: 'tool_use',
+      }),
+    ].join('\n');
+
+    exportClaudeTranscript({jsonl: cutOff});
+
+    const [tool] = spansOfType(exporter.getFinishedSpans(), 'tool');
+    expect(tool?.attributes['langfuse.observation.level']).toBe('WARNING');
+    expect(tool?.attributes['langfuse.observation.status_message']).toBe(
+      'No tool result in the transcript',
+    );
+    expect(tool?.attributes['langfuse.observation.output']).toBeUndefined();
+  });
+
   it('attaches the raw JSONL as media on the session span', () => {
     exportClaudeTranscript({jsonl: transcript});
 
