@@ -1,3 +1,4 @@
+import type {AgentConfigInvalidReason} from '@shipfox/api-workflows-dto';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {ClientError} from '@shipfox/node-fastify';
@@ -81,7 +82,7 @@ export function mapStartRunError(error: unknown, method: StartRunMethod): Client
         'agent-config-unresolvable',
         {
           status: 422,
-          details: {definition_id: error.details.definitionId},
+          details: agentConfigUnresolvableDetails(error.details),
           cause: error,
         },
       );
@@ -138,6 +139,24 @@ function interpolationUnresolvableDetails(details: {
     source: details.source,
     ...(details.envKey === undefined ? {} : {env_key: details.envKey}),
     ...(details.variableKey === undefined ? {} : {variable_key: details.variableKey}),
+    ...(details.jobKey === undefined ? {} : {job_key: details.jobKey}),
+    ...(details.step === undefined ? {} : {step: details.step}),
+  };
+}
+
+function agentConfigUnresolvableDetails(details: {
+  definitionId: string;
+  reason?: AgentConfigInvalidReason | undefined;
+  model?: string | undefined;
+  provider?: string | undefined;
+  jobKey?: string | undefined;
+  step?: {key?: string | undefined; name?: string | undefined; index: number} | undefined;
+}) {
+  return {
+    definition_id: details.definitionId,
+    ...(details.reason === undefined ? {} : {reason: details.reason}),
+    ...(details.model === undefined ? {} : {model: details.model}),
+    ...(details.provider === undefined ? {} : {provider: details.provider}),
     ...(details.jobKey === undefined ? {} : {job_key: details.jobKey}),
     ...(details.step === undefined ? {} : {step: details.step}),
   };

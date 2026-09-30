@@ -6,6 +6,7 @@ import type {
   AgentToolMaterializationSnapshot,
 } from '#core/agent-tools.js';
 import type {StepConfigDispatchPlan} from '#core/entities/step.js';
+import {AgentConfigUnresolvableError} from '#core/errors.js';
 import {resolveStepConfig, type WorkflowStepTemplateDiagnostic} from './resolve-step-config.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
@@ -91,6 +92,12 @@ export async function materializeJobExecutionSteps(
           definitionId,
           agentToolContext,
           agentToolSnapshot,
+        }).catch((error: unknown) => {
+          if (!(error instanceof AgentConfigUnresolvableError)) throw error;
+          throw error.at({
+            jobKey: job.key,
+            step: {key: step.key, name: step.name, index: stepPosition + 1},
+          });
         });
         return {
           key: step.key ?? null,

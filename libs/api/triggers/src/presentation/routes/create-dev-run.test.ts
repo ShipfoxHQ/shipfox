@@ -730,8 +730,15 @@ describe('POST /dev-runs', () => {
   test.each([
     [
       'agent-config-unresolvable',
-      {definitionId: crypto.randomUUID()},
-      {code: 'agent-config-unresolvable', details: {definition_id: expect.any(String)}},
+      {definitionId: crypto.randomUUID(), reason: 'provider-unsupported', provider: 'nope'},
+      {
+        code: 'agent-config-unresolvable',
+        details: {
+          definition_id: expect.any(String),
+          reason: 'provider-unsupported',
+          provider: 'nope',
+        },
+      },
     ],
     [
       'agent-integration-materialization-failed',

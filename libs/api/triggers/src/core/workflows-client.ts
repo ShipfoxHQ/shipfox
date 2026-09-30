@@ -75,13 +75,14 @@ function knownStartDiagnostic(
     case 'workspace-deleted':
     case 'definition-not-found':
     case 'project-mismatch':
-    case 'agent-config-unresolvable':
     case 'agent-integration-materialization-failed':
       return {version: 1, code: error.code};
     case 'parent-run-not-found':
     case 'run-depth-exceeded':
     case 'run-tree-limit-exceeded':
       return {version: 1, code: 'unexpected-workflow-start-failure'};
+    case 'agent-config-unresolvable':
+      return agentConfigDiagnostic(error.details);
     case 'interpolation-unresolvable': {
       const {details} = error;
       const envKey = details.envKey?.slice(0, 200);
@@ -151,5 +152,23 @@ function diagnosticStep(
     ...(key ? {key} : {}),
     ...(name ? {name} : {}),
     index: step.index,
+  };
+}
+
+function agentConfigDiagnostic(
+  details: Extract<StartRunKnownError, {code: 'agent-config-unresolvable'}>['details'],
+): TriggerDecisionDiagnostic {
+  const model = details.model?.slice(0, 200);
+  const provider = details.provider?.slice(0, 200);
+  const jobKey = details.jobKey?.slice(0, 200);
+  const step = diagnosticStep(details.step);
+  return {
+    version: 1,
+    code: 'agent-config-unresolvable',
+    ...(details.reason ? {reason: details.reason} : {}),
+    ...(model ? {model} : {}),
+    ...(provider ? {provider} : {}),
+    ...(jobKey ? {jobKey} : {}),
+    ...(step ? {step} : {}),
   };
 }

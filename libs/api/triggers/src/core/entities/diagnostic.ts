@@ -1,3 +1,5 @@
+import type {AgentConfigInvalidReason} from '@shipfox/api-workflows-dto';
+
 export type TriggerExpressionActualType =
   | 'string'
   | 'int'
@@ -26,8 +28,16 @@ export type TriggerDecisionDiagnostic =
         | 'workspace-deleted'
         | 'definition-not-found'
         | 'project-mismatch'
-        | 'agent-config-unresolvable'
         | 'agent-integration-materialization-failed';
+    }
+  | {
+      version: 1;
+      code: 'agent-config-unresolvable';
+      reason?: AgentConfigInvalidReason;
+      model?: string;
+      provider?: string;
+      jobKey?: string;
+      step?: {key?: string; name?: string; index: number};
     }
   | {
       version: 1;

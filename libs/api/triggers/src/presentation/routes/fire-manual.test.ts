@@ -97,6 +97,44 @@ describe('POST /:definitionId/fire-manual', () => {
     });
   });
 
+  test('names the unusable agent setting and where it is set in the 422 details', async () => {
+    const definitionId = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
+    fireManualTriggerMock.mockRejectedValue(
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startRunFromTrigger,
+        'agent-config-unresolvable',
+        {
+          definitionId,
+          reason: 'model-unknown',
+          model: 'gpt-9',
+          provider: 'openai',
+          jobKey: 'review',
+          step: {key: 'summarize', name: 'Summarize', index: 3},
+        },
+      ),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/${definitionId}/fire-manual`,
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({
+      code: 'agent-config-unresolvable',
+      details: {
+        definition_id: definitionId,
+        reason: 'model-unknown',
+        model: 'gpt-9',
+        provider: 'openai',
+        job_key: 'review',
+        step: {key: 'summarize', name: 'Summarize', index: 3},
+      },
+    });
+  });
+
   test('names the missing variable and where it is read in the 422 details', async () => {
     const definitionId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});

@@ -1,4 +1,5 @@
 import type {
+  AgentConfigInvalidReason,
   AgentThinking,
   Harness,
   ModelProviderRef,
@@ -303,15 +304,15 @@ export class CustomModelProviderStoredSecretBaseUrlChangeError extends Error {
   }
 }
 
-/** Errors the agent config resolver raises for settings a workspace cannot run. */
-export function isAgentConfigResolutionError(
-  error: unknown,
-): error is
+export type AgentConfigResolutionError =
   | InvalidAgentModelError
   | UnsupportedHarnessProviderError
   | UnsupportedHarnessThinkingError
   | UnsupportedModelProviderError
-  | WorkspaceProvidersDisabledError {
+  | WorkspaceProvidersDisabledError;
+
+/** Errors the agent config resolver raises for settings a workspace cannot run. */
+export function isAgentConfigResolutionError(error: unknown): error is AgentConfigResolutionError {
   return (
     error instanceof InvalidAgentModelError ||
     error instanceof UnsupportedHarnessProviderError ||
@@ -319,4 +320,34 @@ export function isAgentConfigResolutionError(
     error instanceof UnsupportedModelProviderError ||
     error instanceof WorkspaceProvidersDisabledError
   );
+}
+
+export interface AgentConfigInvalidDetails {
+  readonly reason: AgentConfigInvalidReason;
+  readonly message?: string;
+  readonly model?: string;
+  readonly provider?: string;
+  readonly managed_provider_id?: string;
+}
+
+/** The structured cause of an agent config resolution error, as the inter-module contract carries it. */
+export function agentConfigInvalidDetails(
+  error: AgentConfigResolutionError,
+): AgentConfigInvalidDetails {
+  if (error instanceof InvalidAgentModelError) {
+    return {reason: 'model-unknown', model: error.model, provider: error.providerId};
+  }
+  if (error instanceof UnsupportedModelProviderError) {
+    return {reason: 'provider-unsupported', provider: error.providerId};
+  }
+  if (error instanceof UnsupportedHarnessProviderError) {
+    return {reason: 'harness-unsupported', provider: error.providerId};
+  }
+  if (error instanceof UnsupportedHarnessThinkingError) return {reason: 'thinking-unsupported'};
+  return {
+    reason: 'workspace-providers-disabled',
+    message: error.message,
+    provider: error.managedProviderId,
+    managed_provider_id: error.managedProviderId,
+  };
 }

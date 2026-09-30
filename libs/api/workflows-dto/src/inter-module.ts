@@ -1,4 +1,5 @@
 import {
+  agentConfigInvalidReasonSchema,
   agentSessionDescriptorSchema,
   harnessSchema,
   materializedAgentIntegrationSchema,
@@ -148,6 +149,15 @@ const interpolationUnresolvableDetailsSchema = z.object({
   source: z.string(),
   envKey: z.string().optional(),
   variableKey: z.string().optional(),
+  jobKey: z.string().optional(),
+  step: stepLocationSchema.optional(),
+});
+
+const agentConfigUnresolvableDetailsSchema = z.object({
+  definitionId: idSchema,
+  reason: agentConfigInvalidReasonSchema.optional(),
+  model: z.string().optional(),
+  provider: z.string().optional(),
   jobKey: z.string().optional(),
   step: stepLocationSchema.optional(),
 });
@@ -333,7 +343,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'parent-run-not-found': z.object({}),
         'run-depth-exceeded': z.object({}),
         'run-tree-limit-exceeded': z.object({}),
-        'agent-config-unresolvable': z.object({definitionId: idSchema}),
+        'agent-config-unresolvable': agentConfigUnresolvableDetailsSchema,
         'agent-integration-materialization-failed': z.object({}),
         'interpolation-unresolvable': interpolationUnresolvableDetailsSchema,
         'invalid-job-runner-labels': z.object({labels: z.array(z.string())}),
@@ -419,7 +429,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'workspace-suspended': z.object({workspaceId: idSchema}),
         'workspace-deleted': z.object({workspaceId: idSchema}),
         'admission-denied': admissionDeniedDetailsSchema,
-        'agent-config-unresolvable': z.object({definitionId: idSchema}),
+        'agent-config-unresolvable': agentConfigUnresolvableDetailsSchema,
         'agent-integration-materialization-failed': z.object({}),
         'interpolation-unresolvable': interpolationUnresolvableDetailsSchema,
         'invalid-job-runner-labels': z.object({labels: z.array(z.string())}),

@@ -1,4 +1,8 @@
 export {
+  type AgentConfigInvalidReason,
+  agentConfigInvalidReasonSchema,
+} from '@shipfox/api-agent-dto';
+export {
   AGENT_RUNTIME_CONFIG_RENEWAL_HEADER,
   type AgentConfigIssueDto,
   type AgentRuntimeConfigQueryDto,

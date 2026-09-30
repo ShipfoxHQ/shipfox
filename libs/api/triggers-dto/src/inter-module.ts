@@ -5,6 +5,7 @@ import {
 } from '@shipfox/api-definitions-dto';
 import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {
+  agentConfigInvalidReasonSchema,
   workflowDiagnosticFieldSchema,
   workflowExecutionPayloadFieldSchema,
 } from '@shipfox/api-workflows-dto';
@@ -83,11 +84,19 @@ export const triggerDecisionDiagnosticSchema = z.discriminatedUnion('code', [
     'workspace-deleted',
     'definition-not-found',
     'project-mismatch',
-    'agent-config-unresolvable',
     'agent-integration-materialization-failed',
     'unexpected-workflow-start-failure',
     'unexpected-listener-delivery-failure',
   ].map((code) => z.strictObject({version: diagnosticVersionSchema, code: z.literal(code)})),
+  z.strictObject({
+    version: diagnosticVersionSchema,
+    code: z.literal('agent-config-unresolvable'),
+    reason: agentConfigInvalidReasonSchema.optional(),
+    model: diagnosticFieldSchema.optional(),
+    provider: diagnosticFieldSchema.optional(),
+    jobKey: diagnosticFieldSchema.optional(),
+    step: diagnosticStepSchema.optional(),
+  }),
   z.strictObject({
     version: diagnosticVersionSchema,
     code: z.literal('secret-not-found'),
@@ -305,7 +314,20 @@ const startRunErrors = {
   'parent-run-not-found': z.object({}),
   'run-depth-exceeded': z.object({}),
   'run-tree-limit-exceeded': z.object({}),
-  'agent-config-unresolvable': z.object({definitionId: idSchema}),
+  'agent-config-unresolvable': z.object({
+    definitionId: idSchema,
+    reason: agentConfigInvalidReasonSchema.optional(),
+    model: z.string().optional(),
+    provider: z.string().optional(),
+    jobKey: z.string().optional(),
+    step: z
+      .object({
+        key: z.string().optional(),
+        name: z.string().optional(),
+        index: z.number().int().positive(),
+      })
+      .optional(),
+  }),
   'agent-integration-materialization-failed': z.object({}),
   'interpolation-unresolvable': z.object({
     definitionId: idSchema,

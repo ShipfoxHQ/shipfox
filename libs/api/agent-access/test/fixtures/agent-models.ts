@@ -98,7 +98,7 @@ export function createTestAgentClient(params: {
             createInterModuleKnownError(
               agentInterModuleContract.methods.resolveAgentConfig,
               'agent-config-invalid',
-              {},
+              {reason: 'model-unknown', provider},
             ),
           );
         }

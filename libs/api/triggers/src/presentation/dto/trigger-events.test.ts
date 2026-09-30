@@ -202,6 +202,43 @@ describe('trigger-events mappers', () => {
       expect(triggerDecisionDiagnosticDtoSchema.safeParse(dto.diagnostic).success).toBe(true);
     });
 
+    test('maps the agent configuration reason, model, provider and location', () => {
+      const dto = toTriggerDecisionDto({
+        ...decision,
+        reason: 'agent-config-unresolvable',
+        diagnostic: {
+          version: 1,
+          code: 'agent-config-unresolvable',
+          reason: 'model-unknown',
+          model: 'gpt-9',
+          provider: 'openai',
+          jobKey: 'review',
+          step: {key: 'summarize', index: 3},
+        },
+      });
+
+      expect(dto.diagnostic).toEqual({
+        version: 1,
+        code: 'agent-config-unresolvable',
+        reason: 'model-unknown',
+        model: 'gpt-9',
+        provider: 'openai',
+        job_key: 'review',
+        step: {key: 'summarize', index: 3},
+      });
+      expect(triggerDecisionDiagnosticDtoSchema.safeParse(dto.diagnostic).success).toBe(true);
+    });
+
+    test('maps a stored agent configuration row without a reason', () => {
+      const dto = toTriggerDecisionDto({
+        ...decision,
+        diagnostic: {version: 1, code: 'agent-config-unresolvable'},
+      });
+
+      expect(dto.diagnostic).toEqual({version: 1, code: 'agent-config-unresolvable'});
+      expect(triggerDecisionDiagnosticDtoSchema.safeParse(dto.diagnostic).success).toBe(true);
+    });
+
     test('maps a stored row without the new fields', () => {
       const dto = toTriggerDecisionDto({
         ...decision,

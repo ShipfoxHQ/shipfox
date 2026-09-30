@@ -1,3 +1,4 @@
+import type {AgentConfigInvalidReason} from '@shipfox/api-agent-dto';
 import type {WorkflowExecutionPayloadFieldDto} from '@shipfox/api-workflows-dto';
 import type {JobStatus} from './entities/job.js';
 import type {WorkflowRunStatus} from './entities/workflow-run.js';
@@ -56,15 +57,25 @@ export interface AgentConfigUnresolvableErrorOptions {
   readonly message?: string;
   readonly code?: string;
   readonly managedProviderId?: string;
+  readonly reason?: AgentConfigInvalidReason | undefined;
+  readonly model?: string | undefined;
+  readonly provider?: string | undefined;
+  readonly jobKey?: string | undefined;
+  readonly step?: InterpolationUnresolvableStep | undefined;
 }
 
 export class AgentConfigUnresolvableError extends Error {
   readonly code?: string | undefined;
   readonly managedProviderId?: string | undefined;
+  readonly reason?: AgentConfigInvalidReason | undefined;
+  readonly model?: string | undefined;
+  readonly provider?: string | undefined;
+  readonly jobKey?: string | undefined;
+  readonly step?: InterpolationUnresolvableStep | undefined;
 
   constructor(
     readonly definitionId: string,
-    options?: AgentConfigUnresolvableErrorOptions | undefined,
+    private readonly options?: AgentConfigUnresolvableErrorOptions | undefined,
   ) {
     super(
       options?.message ?? `Agent configuration cannot be resolved for definition ${definitionId}`,
@@ -73,6 +84,23 @@ export class AgentConfigUnresolvableError extends Error {
     this.name = 'AgentConfigUnresolvableError';
     this.code = options?.code;
     this.managedProviderId = options?.managedProviderId;
+    this.reason = options?.reason;
+    this.model = options?.model;
+    this.provider = options?.provider;
+    this.jobKey = options?.jobKey;
+    this.step = options?.step;
+  }
+
+  /** The same failure, placed at the job and step whose agent settings it came from. */
+  at(location: {
+    readonly jobKey: string;
+    readonly step: InterpolationUnresolvableStep;
+  }): AgentConfigUnresolvableError {
+    return new AgentConfigUnresolvableError(this.definitionId, {
+      ...this.options,
+      message: this.message,
+      ...location,
+    });
   }
 }
 

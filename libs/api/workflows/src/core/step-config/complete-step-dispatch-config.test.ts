@@ -12,11 +12,7 @@ import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {agentThinkingSchema} from '@shipfox/workflow-document';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import type {Step} from '#core/entities/step.js';
-import {
-  AgentConfigUnresolvableError,
-  InterpolationUnresolvableError,
-  ToolConfigInvalidError,
-} from '#core/errors.js';
+import {InterpolationUnresolvableError, ToolConfigInvalidError} from '#core/errors.js';
 import {completeStepDispatchConfig, planReadsContext} from './complete-step-dispatch-config.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
@@ -1197,7 +1193,7 @@ describe('completeStepDispatchConfig', () => {
       throw createInterModuleKnownError(
         agentInterModuleContract.methods.resolveAgentConfig,
         'agent-config-invalid',
-        {},
+        {reason: 'model-unknown', model: 'gpt-9', provider: 'openai'},
       );
     };
 
@@ -1209,7 +1205,12 @@ describe('completeStepDispatchConfig', () => {
         definitionId: 'def-1',
       });
 
-    await expect(act()).rejects.toThrow(AgentConfigUnresolvableError);
+    await expect(act()).rejects.toMatchObject({
+      name: 'AgentConfigUnresolvableError',
+      reason: 'model-unknown',
+      model: 'gpt-9',
+      provider: 'openai',
+    });
   });
 
   it('preserves managed provider policy details in unresolvable agent config errors', async () => {
@@ -1227,7 +1228,9 @@ describe('completeStepDispatchConfig', () => {
         agentInterModuleContract.methods.resolveAgentConfig,
         'agent-config-invalid',
         {
+          reason: 'workspace-providers-disabled',
           message: 'This instance only supports provider `shipfox`.',
+          provider: 'shipfox',
           managed_provider_id: 'shipfox',
         },
       );
@@ -1246,6 +1249,8 @@ describe('completeStepDispatchConfig', () => {
       message: 'This instance only supports provider `shipfox`.',
       code: 'workspace-providers-disabled',
       managedProviderId: 'shipfox',
+      reason: 'workspace-providers-disabled',
+      provider: 'shipfox',
     });
   });
 

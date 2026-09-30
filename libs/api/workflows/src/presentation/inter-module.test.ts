@@ -1808,6 +1808,31 @@ describe('Workflows inter-module presentation', () => {
     });
   });
 
+  test('carries the reason, model, provider and location in agent-config-unresolvable details', () => {
+    const result = toStartRunKnownError(
+      new AgentConfigUnresolvableError(input.definitionId, {
+        reason: 'model-unknown',
+        model: 'gpt-9',
+        provider: 'openai',
+        jobKey: 'review',
+        step: {key: 'summarize', name: 'Summarize', index: 3},
+      }),
+      input.definitionId,
+    );
+
+    expect(result).toMatchObject({
+      code: 'agent-config-unresolvable',
+      details: {
+        definitionId: input.definitionId,
+        reason: 'model-unknown',
+        model: 'gpt-9',
+        provider: 'openai',
+        jobKey: 'review',
+        step: {key: 'summarize', name: 'Summarize', index: 3},
+      },
+    });
+  });
+
   test('leaves the legacy diagnostic error unmapped', () => {
     const error = new WorkflowDiagnosticTooLargeError('config', 64 * 1024, 64 * 1024 + 1);
 
