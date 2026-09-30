@@ -398,6 +398,7 @@ describe('ticket to PR template', () => {
   it.each([
     {description: 'Expose GET /health.', expected: 'Expose GET /health.'},
     {description: null, expected: ''},
+    {description: {type: 'doc', version: 1, content: []}, expected: ''},
   ])('reads the Jira ticket from an issue event with description $description', ({
     description,
     expected,
