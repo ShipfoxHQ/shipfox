@@ -189,7 +189,10 @@ export function WorkspaceSecretsSection({
   onCreateKeyClear,
 }: {
   workspaceId: string;
-  /** Opens the create modal with this key filled in, e.g. from a `?create=KEY` link. */
+  /**
+   * Opens the create modal with this key filled in, e.g. from a `?create=KEY` link. Pair it with
+   * `onCreateKeyClear`, which must drop the key; otherwise the modal reopens after closing.
+   */
   createKey?: string | undefined;
   onCreateKeyClear?: (() => void) | undefined;
 }) {

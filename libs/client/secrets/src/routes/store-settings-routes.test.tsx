@@ -23,14 +23,12 @@ const cases = [
     name: 'secrets',
     route: secretsSettingsRoute,
     dialogName: 'Create secret',
-    nameInput: 'secret-key',
     list: () => secretsListResponse({secrets: []}),
   },
   {
     name: 'variables',
     route: variablesSettingsRoute,
     dialogName: 'Create variable',
-    nameInput: 'variable-key',
     list: () => variablesListResponse({variables: []}),
   },
 ] as const;
