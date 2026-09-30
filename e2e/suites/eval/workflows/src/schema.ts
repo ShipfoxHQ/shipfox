@@ -67,7 +67,16 @@ const scenarioStepSchema = z.union([startStepSchema, sendStepSchema, awaitStepSc
 
 export type ScenarioStep = z.infer<typeof scenarioStepSchema>;
 
-const writeExpectationSchema = z.record(z.string().min(1), z.unknown());
+// One kind of write, as in `github.push: {branch: $pr.head, count: 2}`. The other fields are
+// matched against the write, so `count: 0` states a write that must not happen.
+const writeExpectationSchema = z
+  .record(
+    z.string().min(1),
+    z.object({count: z.number().int().nonnegative().default(1)}).passthrough(),
+  )
+  .refine((expectation) => Object.keys(expectation).length === 1, {
+    message: 'must name exactly one kind of write',
+  });
 const expectSchema = z
   .object({
     outputs: z.record(z.string().min(1), z.unknown()).optional(),

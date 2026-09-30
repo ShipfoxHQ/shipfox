@@ -40,7 +40,7 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   `github.add_labels` (`POST /issues/:number/labels`), and `github.remove_label`
   (`DELETE /issues/:number/labels/:name`, `payload.name` is the label); each targets
   `owner/repo#<number>`. Comments on a number no issue is seeded for, such as a pull
-  request, are recorded without being stored. Each branch update from a git push is a `push`
+  request, are recorded without being stored. Each branch update from a git push is a `github.push`
   write with `repository`, `branch`, `before`, and `after`; a missing side is `null`.
   `RecordedWrite` itself lives in `@shipfox/e2e-core`.
 - `GithubApiMock.sendPullRequestReviewComment(params)`: records a review comment as a new

@@ -110,7 +110,8 @@ export interface WorkflowRunObservation extends WorkflowRunOverviewHeaderDto {
   current_attempt: number;
   latest_attempt: number;
   updated_at: string;
-  attempt: WorkflowRunAttemptDto;
+  /** Outputs are set only when the attempt succeeded. */
+  attempt: WorkflowRunAttemptDto & {outputs?: Record<string, unknown> | null};
   has_started_job_execution: boolean;
   jobs: WorkflowJobObservation[];
 }

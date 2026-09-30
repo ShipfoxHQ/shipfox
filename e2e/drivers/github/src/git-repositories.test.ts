@@ -158,7 +158,7 @@ describe('GitHub fake git transport', () => {
 
     expect(mock.writes()).toEqual([
       {
-        kind: 'push',
+        kind: 'github.push',
         target: 'acme/report-cli:shipfox/task-1-1-1',
         payload: {
           repository: 'acme/report-cli',
@@ -168,7 +168,7 @@ describe('GitHub fake git transport', () => {
         },
       },
       {
-        kind: 'push',
+        kind: 'github.push',
         target: 'acme/report-cli:shipfox/task-1-1-1',
         payload: {
           repository: 'acme/report-cli',
@@ -178,7 +178,7 @@ describe('GitHub fake git transport', () => {
         },
       },
       {
-        kind: 'push',
+        kind: 'github.push',
         target: 'acme/report-cli:shipfox/task-1-1-1',
         payload: {
           repository: 'acme/report-cli',
