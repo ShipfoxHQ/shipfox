@@ -36,7 +36,15 @@ import {VariableForm} from './variable-form.js';
 const EMPTY_VARIABLES_DESCRIPTION =
   'Create a variable to store non-sensitive configuration like regions, flags, and log levels.';
 
-type FormState = {mode: 'create'} | {mode: 'edit'; variable: VariablePreview} | null;
+type FormState =
+  | {mode: 'create'; key?: string | undefined}
+  | {mode: 'edit'; variable: VariablePreview}
+  | null;
+
+function resolveFormState(opened: FormState, createKey: string | undefined): FormState {
+  if (opened || createKey === undefined) return opened;
+  return {mode: 'create', key: createKey};
+}
 
 interface VariablesTableMeta {
   onDelete: (key: string) => void;
@@ -178,10 +186,23 @@ function getVariablesEmptyContent({
   );
 }
 
-export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) {
+export function WorkspaceVariablesSection({
+  workspaceId,
+  createKey,
+  onCreateKeyClear,
+}: {
+  workspaceId: string;
+  /**
+   * Opens the create modal with this key filled in, e.g. from a `?create=KEY` link. Pair it with
+   * `onCreateKeyClear`, which must drop the key; otherwise the modal reopens after closing.
+   */
+  createKey?: string | undefined;
+  onCreateKeyClear?: (() => void) | undefined;
+}) {
   const variablesQuery = useVariablesQuery(workspaceId);
   const deleteVariable = useDeleteVariableMutation();
-  const [formState, setFormState] = useState<FormState>(null);
+  const [openedFormState, setFormState] = useState<FormState>(null);
+  const formState = resolveFormState(openedFormState, createKey);
   const [deleteKey, setDeleteKey] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | undefined>();
   const [search, setSearch] = useState('');
@@ -205,6 +226,11 @@ export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) 
   const visibleVariables = table.getRowModel().rows.length;
   const hasSearch = search.length > 0;
   const hasLoadedData = variablesQuery.data !== undefined;
+
+  function closeForm() {
+    setFormState(null);
+    onCreateKeyClear?.();
+  }
 
   function closeDelete() {
     setDeleteKey(null);
@@ -273,7 +299,7 @@ export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) 
       <Modal
         open={formState !== null}
         onOpenChange={(open) => {
-          if (!open) setFormState(null);
+          if (!open) closeForm();
         }}
       >
         <ModalContent>
@@ -286,7 +312,7 @@ export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) 
             <VariableForm
               workspaceId={workspaceId}
               mode={formState.mode}
-              existingKey={formState.mode === 'edit' ? formState.variable.key : undefined}
+              existingKey={formState.mode === 'edit' ? formState.variable.key : formState.key}
               existingValue={formState.mode === 'edit' ? formState.variable.value : undefined}
               existingValueTruncated={
                 formState.mode === 'edit' ? formState.variable.valueTruncated : undefined
@@ -294,10 +320,10 @@ export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) 
               reservedKeys={(variablesQuery.data ?? []).map((variable) => variable.key)}
               onSaved={() => {
                 const wasEdit = formState.mode === 'edit';
-                setFormState(null);
+                closeForm();
                 toast.success(wasEdit ? 'Variable updated' : 'Variable created');
               }}
-              onCancel={() => setFormState(null)}
+              onCancel={closeForm}
             />
           ) : null}
         </ModalContent>

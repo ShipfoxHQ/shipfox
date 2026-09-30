@@ -37,7 +37,12 @@ const EMPTY_SECRETS_DESCRIPTION =
   'Create a secret to store sensitive values like API keys, tokens, and passwords.';
 const SECRETS_SECURITY_NOTE = 'Encrypted, write-only values for sensitive data.';
 
-type FormState = {mode: 'create'} | {mode: 'edit'; key: string} | null;
+type FormState = {mode: 'create'; key?: string | undefined} | {mode: 'edit'; key: string} | null;
+
+function resolveFormState(opened: FormState, createKey: string | undefined): FormState {
+  if (opened || createKey === undefined) return opened;
+  return {mode: 'create', key: createKey};
+}
 
 interface SecretsTableMeta {
   onDelete: (key: string) => void;
@@ -178,10 +183,23 @@ function getSecretsEmptyContent({
   );
 }
 
-export function WorkspaceSecretsSection({workspaceId}: {workspaceId: string}) {
+export function WorkspaceSecretsSection({
+  workspaceId,
+  createKey,
+  onCreateKeyClear,
+}: {
+  workspaceId: string;
+  /**
+   * Opens the create modal with this key filled in, e.g. from a `?create=KEY` link. Pair it with
+   * `onCreateKeyClear`, which must drop the key; otherwise the modal reopens after closing.
+   */
+  createKey?: string | undefined;
+  onCreateKeyClear?: (() => void) | undefined;
+}) {
   const secretsQuery = useSecretsQuery(workspaceId);
   const deleteSecret = useDeleteSecretMutation();
-  const [formState, setFormState] = useState<FormState>(null);
+  const [openedFormState, setFormState] = useState<FormState>(null);
+  const formState = resolveFormState(openedFormState, createKey);
   const [deleteKey, setDeleteKey] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | undefined>();
   const [search, setSearch] = useState('');
@@ -205,6 +223,11 @@ export function WorkspaceSecretsSection({workspaceId}: {workspaceId: string}) {
   const visibleSecrets = table.getRowModel().rows.length;
   const hasSearch = search.length > 0;
   const hasLoadedData = secretsQuery.data !== undefined;
+
+  function closeForm() {
+    setFormState(null);
+    onCreateKeyClear?.();
+  }
 
   function closeDelete() {
     setDeleteKey(null);
@@ -276,7 +299,7 @@ export function WorkspaceSecretsSection({workspaceId}: {workspaceId: string}) {
       <Modal
         open={formState !== null}
         onOpenChange={(open) => {
-          if (!open) setFormState(null);
+          if (!open) closeForm();
         }}
       >
         <ModalContent>
@@ -289,14 +312,14 @@ export function WorkspaceSecretsSection({workspaceId}: {workspaceId: string}) {
             <SecretForm
               workspaceId={workspaceId}
               mode={formState.mode}
-              existingKey={formState.mode === 'edit' ? formState.key : undefined}
+              existingKey={formState.key}
               reservedKeys={(secretsQuery.data ?? []).map((secret) => secret.key)}
               onSaved={() => {
                 const wasEdit = formState.mode === 'edit';
-                setFormState(null);
+                closeForm();
                 toast.success(wasEdit ? 'Secret updated' : 'Secret created');
               }}
-              onCancel={() => setFormState(null)}
+              onCancel={closeForm}
             />
           ) : null}
         </ModalContent>
