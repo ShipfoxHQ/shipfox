@@ -2,6 +2,7 @@ import {mkdir, writeFile} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
 import type {RecordedWrite} from '@shipfox/e2e-core';
 import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
+import type {ScriptedManagedProviderRequest} from '@shipfox/e2e-setup-agent';
 import type {ScenarioStepRecord} from './scenario.js';
 
 /** `compile` only creates each variant's definition, and runs nothing. */
@@ -34,6 +35,10 @@ export interface CaseResult {
   writes?: RecordedWrite[];
   /** The case runner's log file. */
   runner_log?: string;
+  /** On failure, the requests the scripted model provider served, with their prompts' ends. */
+  model_requests?: ScriptedManagedProviderRequest[];
+  /** On failure, the last lines of the case runner's log. */
+  runner_log_tail?: string;
 }
 
 export interface ResultsRun {

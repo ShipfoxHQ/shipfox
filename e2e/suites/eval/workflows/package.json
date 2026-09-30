@@ -20,6 +20,7 @@
     "#compose.js": "./src/compose.ts",
     "#discovery.js": "./src/discovery.ts",
     "#execute.js": "./src/execute.ts",
+    "#github-events.js": "./src/github-events.ts",
     "#github-project.js": "./src/github-project.ts",
     "#langfuse.js": "./src/langfuse.ts",
     "#mcp-calls.js": "./src/mcp-calls.ts",
@@ -34,6 +35,7 @@
     "#references.js": "./src/references.ts",
     "#results.js": "./src/results.ts",
     "#scenario.js": "./src/scenario.ts",
+    "#scripted.js": "./src/scripted.ts",
     "#schema.js": "./src/schema.ts",
     "#senders.js": "./src/senders.ts",
     "#simulated-user.js": "./src/simulated-user.ts"
@@ -64,6 +66,7 @@
     "@shipfox/e2e-driver-linear": "workspace:*",
     "@shipfox/e2e-driver-runner-process": "workspace:*",
     "@shipfox/e2e-observe-workflows": "workspace:*",
+    "@shipfox/e2e-setup-agent": "workspace:*",
     "@shipfox/e2e-setup-auth": "workspace:*",
     "@shipfox/e2e-setup-integrations": "workspace:*",
     "@shipfox/e2e-setup-projects": "workspace:*",
