@@ -1,8 +1,19 @@
 import {reportError} from '@shipfox/node-error-monitoring';
 import type {DiscordGatewayBot} from '#api/client.js';
+import {DiscordIntegrationProviderError} from '#core/errors.js';
+import {recordDiscordGatewayIdentify, setDiscordIdentifyRemaining} from '#metrics/index.js';
 import {createIdentifyGuard} from './gateway-identify-guard.js';
 
 vi.mock('@shipfox/node-error-monitoring', () => ({reportError: vi.fn()}));
+vi.mock('#metrics/index.js', () => ({
+  recordDiscordGatewayDispatch: vi.fn(),
+  recordDiscordGatewayIdentify: vi.fn(),
+  recordDiscordGatewayResume: vi.fn(),
+  setDiscordGatewayConnected: vi.fn(),
+  setDiscordGatewayCursorLagSource: vi.fn(),
+  setDiscordGuildCount: vi.fn(),
+  setDiscordIdentifyRemaining: vi.fn(),
+}));
 
 function gatewayBot(overrides: {
   remaining?: number;
@@ -24,6 +35,8 @@ function gatewayBot(overrides: {
 describe('Identify guard', () => {
   afterEach(() => {
     vi.mocked(reportError).mockClear();
+    vi.mocked(recordDiscordGatewayIdentify).mockClear();
+    vi.mocked(setDiscordIdentifyRemaining).mockClear();
   });
 
   it('lets an Identify through when the budget is healthy', async () => {
@@ -34,6 +47,8 @@ describe('Identify guard', () => {
 
     expect(getGatewayBot).toHaveBeenCalledTimes(1);
     expect(reportError).not.toHaveBeenCalled();
+    expect(recordDiscordGatewayIdentify).toHaveBeenCalledExactlyOnceWith('sent');
+    expect(setDiscordIdentifyRemaining).toHaveBeenCalledWith(1000);
   });
 
   it('spaces Identify calls apart', async () => {
@@ -66,6 +81,11 @@ describe('Identify guard', () => {
     expect(vi.mocked(reportError).mock.calls[0]?.[1]).toEqual({
       boundary: 'integrations.discord.gateway',
     });
+    expect(vi.mocked(recordDiscordGatewayIdentify).mock.calls).toEqual([
+      ['refused_budget'],
+      ['sent'],
+    ]);
+    expect(setDiscordIdentifyRemaining).toHaveBeenNthCalledWith(1, 99);
   });
 
   it('allows an Identify at exactly 100 remaining', async () => {
@@ -87,6 +107,39 @@ describe('Identify guard', () => {
     await guard.waitForIdentify(0, new AbortController().signal);
 
     expect(getGatewayBot).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports a rejected bot token once while the budget check keeps failing', async () => {
+    const rejected = new DiscordIntegrationProviderError({
+      reason: 'credentials-unavailable',
+      message: 'Discord rejected the bot token',
+      status: 401,
+    });
+    const getGatewayBot = vi
+      .fn()
+      .mockRejectedValueOnce(rejected)
+      .mockRejectedValueOnce(rejected)
+      .mockResolvedValue(gatewayBot({}));
+    const guard = createIdentifyGuard({getGatewayBot, spacingMs: 1, backoffMs: () => 5});
+
+    await guard.waitForIdentify(0, new AbortController().signal);
+
+    expect(getGatewayBot).toHaveBeenCalledTimes(3);
+    expect(reportError).toHaveBeenCalledExactlyOnceWith(rejected, {
+      boundary: 'integrations.discord.gateway',
+    });
+  });
+
+  it('does not report other budget check failures', async () => {
+    const getGatewayBot = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Discord is down'))
+      .mockResolvedValue(gatewayBot({}));
+    const guard = createIdentifyGuard({getGatewayBot, spacingMs: 1, backoffMs: () => 5});
+
+    await guard.waitForIdentify(0, new AbortController().signal);
+
+    expect(reportError).not.toHaveBeenCalled();
   });
 
   it('reports a recommended shard count above one once and still identifies', async () => {

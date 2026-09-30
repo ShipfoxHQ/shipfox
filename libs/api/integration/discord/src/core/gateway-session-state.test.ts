@@ -1,6 +1,9 @@
 import type {SessionInfo} from '@discordjs/ws';
 import type {DiscordGatewaySession} from '#db/gateway-sessions.js';
+import {recordDiscordGatewayResume} from '#metrics/index.js';
 import {ContiguousMark, GatewaySessionState} from './gateway-session-state.js';
+
+vi.mock('#metrics/index.js', () => ({recordDiscordGatewayResume: vi.fn()}));
 
 function sessionInfo(overrides: Partial<SessionInfo> = {}): SessionInfo {
   return {
@@ -111,6 +114,7 @@ describe('GatewaySessionState', () => {
   });
 
   it('clears the session when the library reports null', () => {
+    vi.mocked(recordDiscordGatewayResume).mockClear();
     const onSessionChange = vi.fn();
     const state = new GatewaySessionState({stored: storedSession(), onSessionChange});
 
@@ -118,9 +122,20 @@ describe('GatewaySessionState', () => {
 
     expect(state.retrieve(0)).toBeNull();
     expect(onSessionChange).toHaveBeenCalledTimes(1);
+    expect(recordDiscordGatewayResume).toHaveBeenCalledExactlyOnceWith('invalid_session');
+  });
+
+  it('does not count an Invalid Session when no session was stored', () => {
+    vi.mocked(recordDiscordGatewayResume).mockClear();
+    const state = new GatewaySessionState({stored: undefined, onSessionChange: vi.fn()});
+
+    state.update(0, null);
+
+    expect(recordDiscordGatewayResume).not.toHaveBeenCalled();
   });
 
   it('keeps the session when the null comes from our own destroy', async () => {
+    vi.mocked(recordDiscordGatewayResume).mockClear();
     const onSessionChange = vi.fn();
     const state = new GatewaySessionState({stored: storedSession(), onSessionChange});
 
@@ -131,6 +146,20 @@ describe('GatewaySessionState', () => {
 
     expect(state.retrieve(0)).toMatchObject({sessionId: 'stored-session', sequence: 40});
     expect(onSessionChange).not.toHaveBeenCalled();
+    expect(recordDiscordGatewayResume).not.toHaveBeenCalled();
+  });
+
+  it('reports the received sequences no handler has finished as cursor lag', () => {
+    const state = new GatewaySessionState({stored: undefined, onSessionChange: vi.fn()});
+    state.update(0, sessionInfo({sequence: 1}));
+    state.update(0, sessionInfo({sequence: 4}));
+
+    expect(state.cursorLag).toBe(4);
+
+    state.commit({sequence: 1, epoch: state.epoch});
+    state.commit({sequence: 2, epoch: state.epoch});
+
+    expect(state.cursorLag).toBe(2);
   });
 
   it('keeps clearing sessions again after our own destroy ends', async () => {

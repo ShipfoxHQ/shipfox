@@ -11,6 +11,12 @@ import {
   getDiscordGatewaySession,
   startDiscordGatewaySession,
 } from '#db/gateway-sessions.js';
+import {
+  recordDiscordGatewayResume,
+  setDiscordGatewayConnected,
+  setDiscordGatewayCursorLagSource,
+  setDiscordGuildCount,
+} from '#metrics/index.js';
 import {gatewayBackoffMs} from './gateway-backoff.js';
 import {
   type DispatchHandlers,
@@ -40,6 +46,8 @@ export const GATEWAY_KEEP_SESSION_CLOSE_CODE = 4000;
 export const GATEWAY_FLUSH_INTERVAL_MS = 5_000;
 /** A connection that stayed ready this long is healthy, so the next failure backs off from the start. */
 export const GATEWAY_STABLE_MS = 60_000;
+/** A leader without a ready socket this long needs attention, such as a rejected token. */
+export const GATEWAY_NOT_READY_REPORT_MS = 5 * 60_000;
 const DESTROY_TIMEOUT_MS = 5_000;
 const STOPPED = new Error('Discord Gateway stopped');
 const API_VERSION_RE = /\/v(\d+)$/;
@@ -54,6 +62,7 @@ export interface DiscordGatewayRunOptions {
   identifySpacingMs?: number;
   flushIntervalMs?: number;
   stableMs?: number;
+  notReadyReportMs?: number;
   /** Delay before the next connection attempt. Defaults to 5 s doubling up to 5 minutes, jittered. */
   backoffMs?: (attempt: number) => number;
 }
@@ -72,6 +81,7 @@ export function startDiscordGatewayRun(options: DiscordGatewayRunOptions = {}): 
   const apiBaseUrl = options.apiBaseUrl ?? config.DISCORD_API_BASE_URL;
   const flushIntervalMs = options.flushIntervalMs ?? GATEWAY_FLUSH_INTERVAL_MS;
   const stableMs = options.stableMs ?? GATEWAY_STABLE_MS;
+  const notReadyReportMs = options.notReadyReportMs ?? GATEWAY_NOT_READY_REPORT_MS;
   const stopController = new AbortController();
   const {signal} = stopController;
 
@@ -90,6 +100,27 @@ export function startDiscordGatewayRun(options: DiscordGatewayRunOptions = {}): 
     if (loadedState) void persistence.flush(loadedState);
   }, flushIntervalMs);
   flushTimer.unref();
+
+  // Armed while the leader has no ready socket and cleared once the shard is ready again.
+  let notReadyTimer: NodeJS.Timeout | undefined;
+  markNotReady();
+
+  function markReady(): void {
+    clearTimeout(notReadyTimer);
+    notReadyTimer = undefined;
+    setDiscordGatewayConnected(true);
+  }
+
+  function markNotReady(): void {
+    setDiscordGatewayConnected(false);
+    if (notReadyTimer || signal.aborted) return;
+    notReadyTimer = setTimeout(() => {
+      reportError(new Error(`Discord Gateway has had no ready socket for ${notReadyReportMs} ms`), {
+        boundary: GATEWAY_ERROR_BOUNDARY,
+      });
+    }, notReadyReportMs);
+    notReadyTimer.unref();
+  }
 
   const finished = runUntilStopped().catch((error: unknown) => {
     logger().error({err: error}, 'Discord Gateway connection loop failed');
@@ -133,6 +164,7 @@ export function startDiscordGatewayRun(options: DiscordGatewayRunOptions = {}): 
     loadedState = await loadState();
     const state = loadedState;
     if (!state) return;
+    setDiscordGatewayCursorLagSource(() => state.cursorLag);
     let attempt = 0;
     while (!signal.aborted) {
       const {failure, readyAt} = await runManager(state);
@@ -169,12 +201,17 @@ export function startDiscordGatewayRun(options: DiscordGatewayRunOptions = {}): 
     manager.on(WebSocketShardEvents.Dispatch, (payload: GatewayDispatchPayload) =>
       queue.push(payload),
     );
-    manager.on(WebSocketShardEvents.Ready, () => {
+    manager.on(WebSocketShardEvents.Ready, (ready) => {
       readyAt = Date.now();
+      markReady();
+      setDiscordGuildCount(ready.guilds.length);
     });
     manager.on(WebSocketShardEvents.Resumed, () => {
       readyAt = Date.now();
+      markReady();
+      recordDiscordGatewayResume('resumed');
     });
+    manager.on(WebSocketShardEvents.Closed, markNotReady);
     // The library emits this only for closes it will not recover from, such as a rejected token or
     // disallowed intents. Failing here reports it and rebuilds the manager after backoff.
     manager.on(WebSocketShardEvents.Error, fail);
@@ -186,6 +223,7 @@ export function startDiscordGatewayRun(options: DiscordGatewayRunOptions = {}): 
     const outcome = await failed;
     signal.removeEventListener('abort', onStop);
     queue.drop();
+    markNotReady();
     await destroyKeepingSession(manager, state);
     return {
       ...(outcome === STOPPED ? {} : {failure: outcome}),
@@ -219,6 +257,9 @@ export function startDiscordGatewayRun(options: DiscordGatewayRunOptions = {}): 
       stopController.abort();
       await finished;
       clearInterval(flushTimer);
+      clearTimeout(notReadyTimer);
+      setDiscordGatewayConnected(false);
+      setDiscordGatewayCursorLagSource(undefined);
       if (loadedState) await persistence.flush(loadedState);
     },
   };

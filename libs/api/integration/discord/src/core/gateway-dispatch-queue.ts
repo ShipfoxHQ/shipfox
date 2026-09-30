@@ -1,7 +1,13 @@
 import type {GatewayDispatchPayload as LibraryDispatchPayload} from 'discord-api-types/v10';
+import {type DiscordGatewayDispatchEvent, recordDiscordGatewayDispatch} from '#metrics/index.js';
 import type {GatewaySessionState} from './gateway-session-state.js';
 
 export type GatewayDispatchPayload = LibraryDispatchPayload;
+
+const DISPATCH_EVENT_LABELS: Partial<Record<string, DiscordGatewayDispatchEvent>> = {
+  MESSAGE_CREATE: 'message_create',
+  MESSAGE_REACTION_ADD: 'message_reaction_add',
+};
 
 /** A handler publishes the dispatch or decides it needs nothing. Throwing ends the manager. */
 export type DispatchHandler = (payload: GatewayDispatchPayload) => Promise<void> | void;
@@ -46,16 +52,20 @@ export class DispatchQueue {
   async #drain(): Promise<void> {
     if (this.#draining) return;
     this.#draining = true;
+    let currentType = '';
     try {
       while (!this.#dropped) {
         const item = this.#pending.shift();
         if (!item) return;
         if (item.epoch !== this.#state.epoch) continue;
+        currentType = item.payload.t;
         await this.#handlers[item.payload.t]?.(item.payload);
         if (this.#dropped) return;
         this.#state.commit({sequence: item.payload.s, epoch: item.epoch});
       }
     } catch (error) {
+      const event = DISPATCH_EVENT_LABELS[currentType];
+      if (event) recordDiscordGatewayDispatch({event, outcome: 'failed'});
       this.drop();
       this.#onFailure(error instanceof Error ? error : new Error(String(error)));
     } finally {

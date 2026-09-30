@@ -3,6 +3,8 @@ import type {IIdentifyThrottler} from '@discordjs/ws';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {DiscordGatewayBot} from '#api/client.js';
+import {DiscordIntegrationProviderError} from '#core/errors.js';
+import {recordDiscordGatewayIdentify, setDiscordIdentifyRemaining} from '#metrics/index.js';
 import {gatewayBackoffMs} from './gateway-backoff.js';
 
 export const GATEWAY_ERROR_BOUNDARY = 'integrations.discord.gateway';
@@ -30,6 +32,7 @@ export function createIdentifyGuard(options: IdentifyGuardOptions): IIdentifyThr
   const minRemaining = options.minRemaining ?? IDENTIFY_MIN_REMAINING;
   let lastIdentifyAt = 0;
   let reportedShards = false;
+  let reportedUnauthorized = false;
   let queue: Promise<unknown> = Promise.resolve();
 
   async function waitForIdentify(signal: AbortSignal): Promise<void> {
@@ -48,6 +51,7 @@ export function createIdentifyGuard(options: IdentifyGuardOptions): IIdentifyThr
         continue;
       }
       failures = 0;
+      reportedUnauthorized = false;
 
       const refusedForMs = assessBudget(bot);
       if (refusedForMs !== undefined) {
@@ -55,6 +59,7 @@ export function createIdentifyGuard(options: IdentifyGuardOptions): IIdentifyThr
         continue;
       }
       lastIdentifyAt = Date.now();
+      recordDiscordGatewayIdentify('sent');
       return;
     }
   }
@@ -68,7 +73,9 @@ export function createIdentifyGuard(options: IdentifyGuardOptions): IIdentifyThr
       });
     }
     const {remaining, reset_after: resetAfterMs} = bot.session_start_limit;
+    setDiscordIdentifyRemaining(remaining);
     if (remaining >= minRemaining) return undefined;
+    recordDiscordGatewayIdentify('refused_budget');
     reportError(new Error(`Identify refused: ${remaining} session starts remaining`), {
       boundary: GATEWAY_ERROR_BOUNDARY,
     });
@@ -80,8 +87,17 @@ export function createIdentifyGuard(options: IdentifyGuardOptions): IIdentifyThr
       return await options.getGatewayBot();
     } catch (error) {
       logger().warn({err: error}, 'Discord Gateway Identify budget check failed');
+      reportRejectedToken(error);
       return undefined;
     }
+  }
+
+  /** Reports once per failure streak: the check retries with backoff until the token is fixed. */
+  function reportRejectedToken(error: unknown): void {
+    if (reportedUnauthorized) return;
+    if (!(error instanceof DiscordIntegrationProviderError) || error.status !== 401) return;
+    reportedUnauthorized = true;
+    reportError(error, {boundary: GATEWAY_ERROR_BOUNDARY});
   }
 
   return {

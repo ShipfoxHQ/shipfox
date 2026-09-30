@@ -1,5 +1,6 @@
 import type {SessionInfo} from '@discordjs/ws';
 import type {DiscordGatewaySession} from '#db/gateway-sessions.js';
+import {recordDiscordGatewayResume} from '#metrics/index.js';
 
 export const GATEWAY_SHARD_ID = 0;
 export const GATEWAY_SHARD_COUNT = 1;
@@ -81,6 +82,11 @@ export class GatewaySessionState {
     return this.#sessionId;
   }
 
+  /** Sequences the library received that no handler has finished. */
+  get cursorLag(): number {
+    return Math.max(0, this.#receivedSequence - this.#mark.value);
+  }
+
   snapshot(): GatewaySessionSnapshot {
     return {
       sessionId: this.#sessionId,
@@ -122,6 +128,8 @@ export class GatewaySessionState {
   update = (_shardId: number, info: SessionInfo | null): void => {
     if (info === null) {
       if (this.#ownDestroyDepth > 0 || this.#sessionId === null) return;
+      // The library has no Invalid Session event, but it clears a stored session when Discord sends one.
+      recordDiscordGatewayResume('invalid_session');
       this.#startEpoch({sessionId: null, resumeGatewayUrl: null, receivedSequence: 0});
       return;
     }
