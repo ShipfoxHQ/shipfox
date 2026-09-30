@@ -1,6 +1,6 @@
 # @shipfox/e2e-driver-linear
 
-A fake Linear hosted MCP server for E2E suites. It stands in for the Linear MCP endpoint the API reads from `LINEAR_MCP_ENDPOINT`, so suites exercise the real Linear integration and tool bridge against deterministic responses. Faking Linear is on purpose: it is the external system under integration.
+A fake Linear hosted MCP server and signed webhook sender for E2E suites. The server stands in for the Linear MCP endpoint the API reads from `LINEAR_MCP_ENDPOINT`, so suites exercise the real Linear integration and tool bridge against deterministic responses. Faking Linear is on purpose: it is the external system under integration.
 
 ## Public API
 
@@ -12,6 +12,13 @@ A fake Linear hosted MCP server for E2E suites. It stands in for the Linear MCP 
 - `LinearMcpMock.calls` and `uploads`: every tool call and upload request, in arrival order.
 - `LinearMcpMock.writes()`: the accepted state-changing tool calls as `RecordedWrite` entries
   (`kind`, `target`, `payload`). Today that is `save_comment`, targeted at its issue.
+- `postLinearIssueUpdate(params)` and `postLinearAgentSession(params)`: post a signed `Issue`
+  update or `AgentSessionEvent` (`created` or `prompted`) delivery to the API's Linear webhook
+  route and return its `Linear-Delivery` ID, for correlating a run when a matching trigger starts
+  one. Signing reads `LINEAR_WEBHOOK_SIGNING_SECRET`, which the E2E harness sets.
+  `organizationId` must be the organization of a connection made with `createLinearConnection`.
+- `buildIssueUpdateEnvelope` and `buildAgentSessionEnvelope`: the payloads, in the shape of
+  Linear's webhooks, for suites that post them another way.
 - `LINEAR_*_RESULT_MARKER` and `LINEAR_UPLOAD_FIXTURES`: constants the suites assert on.
 
 ## Local Checks
