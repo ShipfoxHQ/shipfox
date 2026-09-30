@@ -6,6 +6,7 @@ type DocsPage = {
   data: {
     title: string;
     description?: string;
+    metaDescription?: string;
   };
 };
 
@@ -19,9 +20,10 @@ export function buildPageMetadata(
   // toUrl carries the /docs basePath, which Next does not apply to manually
   // built metadata URLs.
   const image = toUrl('/shipfox-og.jpg', origin, prefix);
+  const description = page.data.metaDescription ?? page.data.description;
   return {
     title,
-    description: page.data.description,
+    description,
     metadataBase: new URL(origin),
     alternates: {
       canonical: canonicalUrl,
@@ -29,14 +31,14 @@ export function buildPageMetadata(
     },
     openGraph: {
       title,
-      description: page.data.description,
+      description,
       url: canonicalUrl,
       images: [
         {
           url: image,
           width: 1200,
           height: 630,
-          alt: 'Shipfox: Your AI Software Factory',
+          alt: 'Shipfox: Run coding agents like CI pipelines',
         },
       ],
       siteName: 'Shipfox',
@@ -50,7 +52,7 @@ export function buildPageMetadata(
           url: image,
           width: 1200,
           height: 630,
-          alt: 'Shipfox: Your AI Software Factory',
+          alt: 'Shipfox: Run coding agents like CI pipelines',
         },
       ],
     },

@@ -37,15 +37,16 @@ The canonical product category is **AI software factory**.
 
 Use this product headline on public overview surfaces:
 
-> Your AI Software Factory
+> Run coding agents like CI pipelines
 
-Use this subtitle with the headline:
+Follow the headline with this description. Also use it in machine-readable
+summaries such as `llms.txt`:
 
-> Agentic coding makes engineers faster. Shipfox gives them a factory.
+> Turn tickets, alerts, and failed checks into workflows in your repo. Agents and the exact commands your team specifies, delivered as PRs you review. Any model, any stack. Open source.
 
-Use this description in public metadata and machine-readable summaries:
+Use this shorter description for search engine and link previews:
 
-> Shipfox is a platform for automating engineering work with AI agents. Turn tickets, alerts, and failed checks into work ready for review.
+> Turn tickets, alerts, and failed checks into workflows in your repo. Agents and your team's exact commands, delivered as PRs you review. Open source.
 
 On overview pages, follow the headline with a literal product definition and
 one concrete example before introducing technical concepts. Describe who the

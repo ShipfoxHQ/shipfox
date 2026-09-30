@@ -17,10 +17,11 @@ data density, unambiguous status, and no marketing fluff.
 
 ## Product Purpose
 
-Agentic coding makes engineers faster. Shipfox gives them a factory.
+Run coding agents like CI pipelines.
 
-Shipfox is a platform for automating engineering work with AI agents. Turn
-tickets, alerts, and failed checks into work ready for review.
+Turn tickets, alerts, and failed checks into workflows in your repo. Agents and
+the exact commands your team specifies, delivered as PRs you review. Any model,
+any stack. Open source.
 
 Workflows plug into the tools that power an engineering team, such as ticketing,
 monitoring, chat, and source control, through one secured layer. The same
@@ -103,11 +104,13 @@ Constraints:
 ## Brand Commitments
 
 - **Name:** Shipfox. Domain: shipfox.io.
-- **Headline:** "Your AI Software Factory."
-- **Subtitle:** "Agentic coding makes engineers faster. Shipfox gives them a
-  factory."
-- **Description:** "Shipfox is a platform for automating engineering work with
-  AI agents. Turn tickets, alerts, and failed checks into work ready for review."
+- **Headline:** "Run coding agents like CI pipelines."
+- **Description:** "Turn tickets, alerts, and failed checks into workflows in
+  your repo. Agents and the exact commands your team specifies, delivered as PRs
+  you review. Any model, any stack. Open source."
+- **Search description:** "Turn tickets, alerts, and failed checks into
+  workflows in your repo. Agents and your team's exact commands, delivered as
+  PRs you review. Open source."
 - **Voice:** direct, technical, no marketing fluff. Written for engineers who read
   logs at 2am. See `WRITING.md` and `apps/docs/WRITING.md` for repository prose
   conventions; product docs terminology there is binding.

@@ -20,6 +20,8 @@ export const docs = defineDocs({
     schema: frontmatterSchema.extend({
       sidebarTitle: z.string().optional(),
       status: z.string().optional(),
+      // Search engine and link previews use this instead of `description` when set.
+      metaDescription: z.string().optional(),
       // Generated reference document ids, such as `integrations/jira/tools`.
       toolReference: z.string().optional(),
       eventReference: z.string().optional(),
