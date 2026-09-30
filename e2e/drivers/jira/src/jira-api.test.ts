@@ -39,6 +39,48 @@ describe('Jira API mock', () => {
     }
   });
 
+  it('keeps every value of a repeated query parameter', async () => {
+    const mock = await startJiraApiMock(new URL('http://127.0.0.1:0'));
+
+    try {
+      await fetch(
+        new URL(`${REST}/issue/ENG-1?fields=summary&fields=status&expand=names`, mock.endpoint),
+      );
+
+      expect(mock.calls[0]).toMatchObject({
+        query: {fields: ['summary', 'status'], expand: 'names'},
+      });
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it.each([
+    {kind: 'search_issues', method: 'POST', path: '/search/jql', body: {jql: 'project = ENG'}},
+    {kind: 'get_issue_comments', method: 'GET', path: '/issue/ENG-1/comment'},
+    {kind: 'get_issue_transitions', method: 'GET', path: '/issue/ENG-1/transitions'},
+    {kind: 'get_project', method: 'GET', path: '/project/ENG'},
+    {kind: 'get_user', method: 'GET', path: '/user?accountId=acct-1'},
+  ])('serves and records $kind as a read', async ({kind, method, path, body}) => {
+    const mock = await startJiraApiMock(new URL('http://127.0.0.1:0'));
+
+    try {
+      const response = await fetch(new URL(`${REST}${path}`, mock.endpoint), {
+        method,
+        ...(body === undefined
+          ? {}
+          : {headers: {'content-type': 'application/json'}, body: JSON.stringify(body)}),
+      });
+
+      expect(response.status).toBe(200);
+      expect(mock.calls).toHaveLength(1);
+      expect(mock.calls[0]).toMatchObject({kind, cloudId: 'cloud-1'});
+      expect(mock.writes()).toEqual([]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
   it('records each write with its target and body', async () => {
     const mock = await startJiraApiMock(new URL('http://127.0.0.1:0'));
     const send = (method: string, path: string, body: unknown) =>

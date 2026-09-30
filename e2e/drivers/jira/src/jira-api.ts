@@ -12,7 +12,8 @@ type JiraBody = Record<string, unknown>;
 interface JiraCallBase {
   authorization: string | undefined;
   cloudId: string;
-  query: Record<string, string>;
+  /** A parameter sent more than once, such as `fields`, holds all its values in order. */
+  query: Record<string, string | string[]>;
 }
 
 type JiraIssueCall<Kind extends string> = JiraCallBase & {kind: Kind; idOrKey: string};
@@ -173,7 +174,7 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
     handle: (context) => {
       context.calls.push({kind: 'get_user', ...context.base});
       sendJson(context.response, 200, {
-        accountId: context.base.query.accountId ?? 'e2e-account',
+        accountId: firstQueryValue(context.base.query.accountId) ?? 'e2e-account',
         displayName: 'E2E user',
       });
     },
@@ -274,7 +275,7 @@ async function handleJiraRequest(params: {
       base: {
         authorization: params.request.headers.authorization,
         cloudId,
-        query: Object.fromEntries(requestUrl.searchParams.entries()),
+        query: parseQuery(requestUrl.searchParams),
       },
       idOrKey: decodeURIComponent(routeMatch[1] ?? ''),
       body: isRecord(body) ? body : {},
@@ -284,6 +285,19 @@ async function handleJiraRequest(params: {
 
   if (pathMatched) sendJson(params.response, 405, {errorMessages: ['Method not allowed']});
   else sendJson(params.response, 404, {errorMessages: ['Unknown Jira endpoint']});
+}
+
+function firstQueryValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function parseQuery(params: URLSearchParams): Record<string, string | string[]> {
+  const query: Record<string, string | string[]> = {};
+  for (const key of new Set(params.keys())) {
+    const values = params.getAll(key);
+    query[key] = values.length === 1 ? (values[0] ?? '') : values;
+  }
+  return query;
 }
 
 function issueBody(idOrKey: string): JiraBody {

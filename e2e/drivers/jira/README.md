@@ -8,7 +8,8 @@ A fake Jira REST API for E2E suites. The fake stands in for `api.atlassian.com` 
   routes (issue, comments, transitions, project, user, and JQL search) and the write routes
   (create and update issue, add comment, transition, and assign). Waits for the port when a spec
   in another worker holds it.
-- `JiraApiMock.calls`: every request the fake handled, as `JiraApiMockCall` entries.
+- `JiraApiMock.calls`: every recognized request the fake handled, as `JiraApiMockCall` entries. Unknown paths and
+  methods get a 404 or 405 and are not recorded.
 - `JiraApiMock.writes()`: the writes the fake accepted, as `RecordedWrite` entries targeted at
   the issue key, or at the project for a created issue.
 
