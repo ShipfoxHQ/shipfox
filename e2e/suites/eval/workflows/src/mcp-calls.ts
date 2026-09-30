@@ -106,6 +106,7 @@ function outcomeFor(params: {
       },
     };
   }
+  if (!succeeded) return {status: 'error'};
   const toolError = toolErrorFrom(response.result);
   return toolError ? {status: 'tool_error', error: toolError} : {status: 'ok'};
 }

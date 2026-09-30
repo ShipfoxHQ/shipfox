@@ -12,6 +12,7 @@ const MINUTE_MS = 60_000;
 interface FakeStack {
   origin: string;
   refreshes: number;
+  registrations: number;
   tokenRequests: URLSearchParams[];
   mcpBearers: string[];
   /** Makes the API reject the next presented access token, as when it is revoked early. */
@@ -40,6 +41,7 @@ async function startFakeStack(clock: {now: number}): Promise<FakeStack> {
   const stack: FakeStack = {
     origin: '',
     refreshes: 0,
+    registrations: 0,
     tokenRequests: [],
     mcpBearers: [],
     rejectNextToken: () => {
@@ -99,6 +101,7 @@ async function startFakeStack(clock: {now: number}): Promise<FakeStack> {
 
   function handleOAuth(path: string, body: string, response: ServerResponse): boolean {
     if (path === '/oauth/register') {
+      stack.registrations += 1;
       sendJson(response, 201, {
         client_id: 'client-1',
         client_name: 'Shipfox eval agent',
@@ -278,6 +281,7 @@ describe('agent-access MCP proxy', () => {
     const codeExchanges = stack.tokenRequests.filter(
       (form) => form.get('grant_type') === 'authorization_code',
     );
+    expect(stack.registrations).toBe(1);
     expect(codeExchanges).toHaveLength(2);
     expect(codeExchanges.map((form) => form.get('client_id'))).toEqual(['client-1', 'client-1']);
   });
