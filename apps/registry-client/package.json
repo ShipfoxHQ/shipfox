@@ -15,6 +15,7 @@
     "build": "next build",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
+    "image": "shipfox-docker --image registry-client",
     "dev": "next dev --port ${SHIPFOX_REGISTRY_CLIENT_PORT:-16130}",
     "test": "shipfox-vitest-run",
     "type": "shipfox-tsc-check"
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
+    "@shipfox/docker": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
     "@tailwindcss/postcss": "catalog:",
