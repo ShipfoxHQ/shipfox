@@ -59,6 +59,7 @@ node tools/registry-release/dist/cli.js check --mode pr
 registry: https://api.registry.shipfox.io
 namespace: shipfox
 packages:
+  - {kind: action, path: libs/shared/workflow/catalog/actions/*}
   - {kind: template, path: libs/shared/workflow/catalog/templates/*}
 ```
 

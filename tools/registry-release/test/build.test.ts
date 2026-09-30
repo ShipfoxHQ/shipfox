@@ -206,7 +206,7 @@ describe('buildPackage for a template', () => {
 });
 
 describe('the first-party catalog', () => {
-  it('builds every configured template with stable digests', async () => {
+  it('builds every configured package with stable digests', async () => {
     const root = join(import.meta.dirname, '../../..');
     const config = await loadConfig(join(root, 'tools/registry-release/registry.config.yaml'));
     const packages = await discoverPackages({root, config});
@@ -219,6 +219,7 @@ describe('the first-party catalog', () => {
     );
 
     expect(first.map(({package: name}) => name)).toContain('shipfox/ticket-to-pr');
+    expect(first.map(({package: name}) => name)).toContain('shipfox/slack-thread-digest');
     expect(second.map(({fingerprint}) => fingerprint)).toEqual(
       first.map(({fingerprint}) => fingerprint),
     );

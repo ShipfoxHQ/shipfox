@@ -1,0 +1,26 @@
+{
+  "name": "@shipfox/action-slack-thread-digest",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "libs/shared/workflow/catalog/actions/slack-thread-digest"
+  },
+  "license": "MIT",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "test": "shipfox-vitest-run",
+    "test:watch": "shipfox-vitest-watch",
+    "type": "shipfox-tsc-check"
+  },
+  "devDependencies": {
+    "@shipfox/actions": "workspace:*",
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*"
+  }
+}

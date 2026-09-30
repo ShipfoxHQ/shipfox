@@ -10025,6 +10025,24 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/vitest
 
+  libs/shared/workflow/catalog/actions/slack-thread-digest:
+    devDependencies:
+      '@shipfox/actions':
+        specifier: workspace:*
+        version: link:../../../actions
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../../../tools/biome
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../../../tools/vitest
+
   libs/shared/workflow/catalog/templates/ask-codebase: {}
 
   libs/shared/workflow/catalog/templates/fix-default-branch-ci: {}

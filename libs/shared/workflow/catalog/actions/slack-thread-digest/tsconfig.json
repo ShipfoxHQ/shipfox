@@ -1,0 +1,9 @@
+{
+  "extends": "@shipfox/ts-config/node",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true
+  },
+  "include": ["src", "vitest.config.ts", "node_modules/@shipfox/vitest/globals.d.ts"]
+}

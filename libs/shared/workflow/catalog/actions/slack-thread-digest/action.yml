@@ -1,0 +1,33 @@
+name: Slack thread digest
+description: Turns a Slack thread into Markdown with authors and links.
+keywords: [slack, markdown, thread]
+main: src/index.ts
+
+inputs:
+  channel_id:
+    description: ID of the channel that holds the thread.
+    required: true
+  thread_ts:
+    description: Timestamp of the thread's parent message.
+    required: true
+  destination:
+    description: Path of the Markdown file to write, relative to the working directory.
+    default: context/slack-thread.md
+
+outputs:
+  path:
+    description: Path of the Markdown file.
+    required: true
+  message_count:
+    description: Messages written, the parent included.
+    type: number
+    required: true
+  complete:
+    description: False when Slack reports more replies than the export holds.
+    type: boolean
+    required: true
+
+integrations:
+  slack:
+    provider: slack
+    include: [read_thread, read_user_profile, get_permalink]
