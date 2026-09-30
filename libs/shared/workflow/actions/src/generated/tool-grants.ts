@@ -22,6 +22,8 @@ export const toolGrants: Readonly<Record<string, Readonly<Record<string, ToolGra
     list_channels: {sensitivity: 'read', result: 'json'},
     read_channel: {sensitivity: 'read', result: 'json'},
     read_thread: {sensitivity: 'read', result: 'json'},
+    read_user_profile: {sensitivity: 'read', result: 'json'},
+    search_messages: {sensitivity: 'read', result: 'json'},
   },
   gitea: {
     comment_on_issue: {sensitivity: 'write', result: 'json'},

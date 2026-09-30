@@ -44,6 +44,19 @@ export interface DiscordMessage {
   [field: string]: unknown;
 }
 
+export interface DiscordGuildMember {
+  user: {id: string; username: string; global_name?: string | null | undefined; bot?: boolean};
+  nick?: string | null | undefined;
+  roles: string[];
+  joined_at: string;
+}
+
+export interface DiscordMessageSearchResult {
+  total_results: number;
+  /** One group per match: the matching message, flagged `hit: true`, with its neighbors. */
+  messages: DiscordMessage[][];
+}
+
 export interface DiscordGatewayBot {
   url: string;
   shards: number;
@@ -89,6 +102,15 @@ export interface DiscordApiClient {
   /** Threads are not included. */
   listGuildChannels(input: {guildId: string}): Promise<DiscordChannel[]>;
   listActiveGuildThreads(input: {guildId: string}): Promise<DiscordChannel[]>;
+  searchGuildMessages(input: {
+    guildId: string;
+    content: string;
+    channelId?: string | undefined;
+    authorId?: string | undefined;
+    limit?: number | undefined;
+    offset?: number | undefined;
+  }): Promise<DiscordMessageSearchResult>;
+  getGuildMember(input: {guildId: string; userId: string}): Promise<DiscordGuildMember>;
   leaveGuild(input: {guildId: string}): Promise<void>;
   getGatewayBot(): Promise<DiscordGatewayBot>;
   listApplicationCommands(): Promise<DiscordApplicationCommand[]>;
@@ -148,6 +170,18 @@ export function createDiscordApiClient(
         timeout: DISCORD_API_TIMEOUT_MS,
       });
       if (response.status === 204) return undefined as T;
+      // Only guild message search answers 202, while Discord builds the index for a new server.
+      if (response.status === 202) {
+        throw new DiscordIntegrationProviderError({
+          reason: 'rate-limited',
+          message: 'Discord is indexing this server',
+          status: 202,
+          retryAfterSeconds: retryAfterSeconds(
+            readBody(await response.json().catch(() => undefined)).retry_after,
+            response.headers,
+          ),
+        });
+      }
       return (await response.json()) as T;
     } catch (error) {
       throw mapDiscordError(input.operation, error);
@@ -229,6 +263,19 @@ export function createDiscordApiClient(
       });
       return body.threads;
     },
+    searchGuildMessages: ({guildId, content, channelId, authorId, limit, offset}) =>
+      request({
+        operation: 'search-guild-messages',
+        method: 'GET',
+        path: `/guilds/${encodeURIComponent(guildId)}/messages/search`,
+        query: {content, channel_id: channelId, author_id: authorId, limit, offset},
+      }),
+    getGuildMember: ({guildId, userId}) =>
+      request({
+        operation: 'get-guild-member',
+        method: 'GET',
+        path: `/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}`,
+      }),
     async leaveGuild({guildId}) {
       await request<void>({
         operation: 'leave-guild',

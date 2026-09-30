@@ -1,5 +1,10 @@
 import type {IntegrationConnection} from '@shipfox/api-integration-spi';
-import type {DiscordChannel, DiscordMessage} from '#api/client.js';
+import type {
+  DiscordChannel,
+  DiscordGuildMember,
+  DiscordMessage,
+  DiscordMessageSearchResult,
+} from '#api/client.js';
 import type {DiscordInstallation} from '#db/installations.js';
 import {discordAgentToolCatalog, discordAgentToolSelectionCatalog} from './agent-tools.js';
 import {DiscordAgentToolsProvider, type DiscordToolCallResult} from './agent-tools-provider.js';
@@ -11,6 +16,7 @@ vi.mock('@shipfox/node-error-monitoring', () => errorMonitoring);
 const GUILD_ID = '100000000000000001';
 const OTHER_GUILD_ID = '200000000000000002';
 const CHANNEL_ID = '300000000000000003';
+const USER_ID = '400000000000000004';
 
 function connection(): IntegrationConnection<'discord'> {
   const now = new Date();
@@ -58,6 +64,15 @@ function message(id: string, channelId = CHANNEL_ID): DiscordMessage {
   };
 }
 
+function guildMember(): DiscordGuildMember {
+  return {
+    user: {id: USER_ID, username: 'ada', global_name: 'Ada Lovelace'},
+    nick: 'Ada',
+    roles: ['600000000000000006'],
+    joined_at: '2026-01-02T03:04:05.000Z',
+  };
+}
+
 function setup(
   options: {
     channel?: DiscordChannel | Error;
@@ -65,11 +80,15 @@ function setup(
     message?: DiscordMessage | Error;
     channels?: DiscordChannel[];
     threads?: DiscordChannel[];
+    search?: DiscordMessageSearchResult | Error;
+    member?: DiscordGuildMember | Error;
     installation?: DiscordInstallation | undefined;
   } = {},
 ) {
   const channel = options.channel ?? {id: CHANNEL_ID, type: 0, guild_id: GUILD_ID};
   const messages = options.messages ?? [message('2'), message('1')];
+  const search = options.search ?? {total_results: 0, messages: []};
+  const member = options.member ?? guildMember();
   const discord = {
     getChannel: vi.fn(() =>
       channel instanceof Error ? Promise.reject(channel) : Promise.resolve(channel),
@@ -84,6 +103,12 @@ function setup(
     ),
     listGuildChannels: vi.fn(() => Promise.resolve(options.channels ?? [])),
     listActiveGuildThreads: vi.fn(() => Promise.resolve(options.threads ?? [])),
+    searchGuildMessages: vi.fn(() =>
+      search instanceof Error ? Promise.reject(search) : Promise.resolve(search),
+    ),
+    getGuildMember: vi.fn(() =>
+      member instanceof Error ? Promise.reject(member) : Promise.resolve(member),
+    ),
   };
   const provider = new DiscordAgentToolsProvider({
     discord,
@@ -130,6 +155,8 @@ describe('DiscordAgentToolsProvider', () => {
         {token: 'read_channel', kind: 'standalone', sensitivity: 'read', sensitive: false},
         {token: 'read_thread', kind: 'standalone', sensitivity: 'read', sensitive: false},
         {token: 'list_channels', kind: 'standalone', sensitivity: 'read', sensitive: false},
+        {token: 'search_messages', kind: 'standalone', sensitivity: 'read', sensitive: false},
+        {token: 'read_user_profile', kind: 'standalone', sensitivity: 'read', sensitive: false},
       ]);
     });
   });
@@ -396,6 +423,206 @@ describe('DiscordAgentToolsProvider', () => {
         content: [{text: 'Parameter include_threads must be a boolean'}],
       });
       expect(discord.listGuildChannels).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('search_messages', () => {
+    it('searches the connection guild and returns each hit with a link', async () => {
+      const {provider, discord} = setup({
+        search: {
+          total_results: 1,
+          messages: [
+            [
+              {...message('1'), content: 'before'},
+              {...message('2'), content: 'deploy failed', hit: true},
+            ],
+          ],
+        },
+      });
+
+      const result = await callTool(provider, 'search_messages', {
+        query: 'deploy',
+        channel_id: CHANNEL_ID,
+        author_id: USER_ID,
+        limit: 5,
+        offset: 10,
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(discord.searchGuildMessages).toHaveBeenCalledWith({
+        guildId: GUILD_ID,
+        content: 'deploy',
+        channelId: CHANNEL_ID,
+        authorId: USER_ID,
+        limit: 5,
+        offset: 10,
+      });
+      expect(result.structuredContent).toEqual({
+        total_results: 1,
+        messages: [
+          {
+            ...message('2'),
+            content: 'deploy failed',
+            hit: true,
+            url: `https://discord.com/channels/${GUILD_ID}/${CHANNEL_ID}/2`,
+          },
+        ],
+      });
+    });
+
+    it('searches the whole guild without resolving a channel', async () => {
+      const {provider, discord} = setup();
+
+      const result = await callTool(provider, 'search_messages', {query: 'deploy'});
+
+      expect(result.structuredContent).toEqual({total_results: 0, messages: []});
+      expect(discord.getChannel).not.toHaveBeenCalled();
+    });
+
+    it('maps an indexing answer to rate-limited with the retry delay', async () => {
+      const {provider} = setup({
+        search: new DiscordIntegrationProviderError({
+          reason: 'rate-limited',
+          message: 'Discord is indexing this server',
+          status: 202,
+          retryAfterSeconds: 1,
+        }),
+      });
+
+      const result = await callTool(provider, 'search_messages', {query: 'deploy'});
+
+      expect(result).toMatchObject({
+        isError: true,
+        content: [{text: 'Discord is indexing this server'}],
+        structuredContent: {code: 'rate-limited', retryAfterSeconds: 1},
+      });
+    });
+
+    it('denies a channel filter in another guild without searching', async () => {
+      const {provider, discord} = setup({
+        channel: {id: CHANNEL_ID, type: 0, guild_id: OTHER_GUILD_ID},
+      });
+
+      const result = await callTool(provider, 'search_messages', {
+        query: 'deploy',
+        channel_id: CHANNEL_ID,
+      });
+
+      expect(result).toMatchObject({
+        isError: true,
+        content: [{text: 'Not found in this server'}],
+        structuredContent: {code: 'not-found'},
+      });
+      expect(discord.searchGuildMessages).not.toHaveBeenCalled();
+    });
+
+    it('denies a direct message channel filter without searching', async () => {
+      const {provider, discord} = setup({channel: {id: CHANNEL_ID, type: 1}});
+
+      const result = await callTool(provider, 'search_messages', {
+        query: 'deploy',
+        channel_id: CHANNEL_ID,
+      });
+
+      expect(result).toMatchObject({isError: true, structuredContent: {code: 'access-denied'}});
+      expect(discord.searchGuildMessages).not.toHaveBeenCalled();
+    });
+
+    it('does not accept a guild from the arguments', async () => {
+      const {provider, discord} = setup();
+
+      const result = await callTool(provider, 'search_messages', {
+        query: 'deploy',
+        guild_id: OTHER_GUILD_ID,
+      });
+
+      expect(result).toMatchObject({
+        isError: true,
+        content: [{text: 'Unknown parameter: guild_id'}],
+      });
+      expect(discord.searchGuildMessages).not.toHaveBeenCalled();
+    });
+
+    it('names the server in a 403 when no channel is given', async () => {
+      const {provider} = setup({search: failure('access-denied', 403, {discordCode: 50001})});
+
+      const result = await callTool(provider, 'search_messages', {query: 'deploy'});
+
+      expect(result.content[0]?.text).toContain('this server');
+      expect(result.content[0]?.text).toContain('View Channel and Read Message History');
+    });
+  });
+
+  describe('read_user_profile', () => {
+    it('reads the member from the connection guild', async () => {
+      const {provider, discord} = setup();
+
+      const result = await callTool(provider, 'read_user_profile', {user_id: USER_ID});
+
+      expect(result.isError).toBeUndefined();
+      expect(discord.getGuildMember).toHaveBeenCalledWith({guildId: GUILD_ID, userId: USER_ID});
+      expect(result.structuredContent).toEqual({
+        id: USER_ID,
+        username: 'ada',
+        global_name: 'Ada Lovelace',
+        nickname: 'Ada',
+        bot: false,
+        roles: ['600000000000000006'],
+        joined_at: '2026-01-02T03:04:05.000Z',
+      });
+    });
+
+    it('answers null for a member without a nickname or global name', async () => {
+      const {provider} = setup({
+        member: {
+          user: {id: USER_ID, username: 'ada'},
+          roles: [],
+          joined_at: '2026-01-02T03:04:05Z',
+        },
+      });
+
+      const result = await callTool(provider, 'read_user_profile', {user_id: USER_ID});
+
+      expect(result.structuredContent).toMatchObject({global_name: null, nickname: null});
+    });
+
+    it('answers a 403 without naming a permission', async () => {
+      const {provider} = setup({member: failure('access-denied', 403, {discordCode: 50001})});
+
+      const result = await callTool(provider, 'read_user_profile', {user_id: USER_ID});
+
+      expect(result).toMatchObject({
+        isError: true,
+        content: [{text: 'Discord denied access to this server.'}],
+        structuredContent: {code: 'access-denied'},
+      });
+    });
+
+    it('answers a user that is not in the connection guild as not found', async () => {
+      const {provider} = setup({member: failure('not-found', 404, {discordCode: 10007})});
+
+      const result = await callTool(provider, 'read_user_profile', {user_id: USER_ID});
+
+      expect(result).toMatchObject({
+        isError: true,
+        content: [{text: 'Not found in this server'}],
+        structuredContent: {code: 'not-found'},
+      });
+    });
+
+    it('does not accept a guild from the arguments', async () => {
+      const {provider, discord} = setup();
+
+      const result = await callTool(provider, 'read_user_profile', {
+        user_id: USER_ID,
+        guild_id: OTHER_GUILD_ID,
+      });
+
+      expect(result).toMatchObject({
+        isError: true,
+        content: [{text: 'Unknown parameter: guild_id'}],
+      });
+      expect(discord.getGuildMember).not.toHaveBeenCalled();
     });
   });
 
