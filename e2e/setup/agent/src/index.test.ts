@@ -194,6 +194,16 @@ describe('agent e2e helper', () => {
     });
   });
 
+  it('sends a project to the OpenRouter managed provider', async () => {
+    const {registerOpenRouterManagedProvider} = await import('./index.js');
+
+    await registerOpenRouterManagedProvider({projectId: '11111111-1111-4111-8111-111111111111'});
+
+    expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/managed-inference/openrouter', {
+      json: {project_id: '11111111-1111-4111-8111-111111111111'},
+    });
+  });
+
   it('reads recorded scripted managed provider requests', async () => {
     requestJson.mockResolvedValueOnce({
       requests: [{index: 0, project_id: workspaceId, surprise: false}],

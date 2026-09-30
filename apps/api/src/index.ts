@@ -15,6 +15,9 @@ try {
       : (await import('./e2e-managed-inference.js')).createE2eManagedInferenceProvider(
           e2eManagedProviderBaseUrl,
           apiServerConfig.E2E_ADMIN_API_KEY,
+          apiConfig.E2E_OPENROUTER_API_KEY === undefined
+            ? {}
+            : {openRouter: {apiKey: apiConfig.E2E_OPENROUTER_API_KEY}},
         );
   await runServer({
     modules: await defaultModules(
@@ -22,7 +25,10 @@ try {
         ? {}
         : {
             agentModuleOptions: {managedProvider: e2eManagedInference.provider},
-            extension: () => [e2eManagedInference.module],
+            extension: ({usage}) => {
+              e2eManagedInference.bindUsage(usage);
+              return [e2eManagedInference.module];
+            },
           },
     ),
     onStartupFailure: (error) => {

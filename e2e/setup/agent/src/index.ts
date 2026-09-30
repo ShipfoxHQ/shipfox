@@ -325,6 +325,15 @@ export async function registerScriptedManagedProvider(
   });
 }
 
+/** Sends a project's managed-provider requests to OpenRouter. Needs `E2E_OPENROUTER_API_KEY` on the API. */
+export async function registerOpenRouterManagedProvider(params: {
+  projectId: string;
+}): Promise<void> {
+  await requestJson('post', '/__e2e/managed-inference/openrouter', {
+    json: {project_id: params.projectId},
+  });
+}
+
 export async function getScriptedManagedProviderRequests(params: {
   projectId: string;
 }): Promise<ScriptedManagedProviderRequest[]> {
@@ -352,6 +361,7 @@ export function createAgentHelper() {
     createAnthropicFakeModelProviderConfig,
     createAnthropicModelProviderConfig,
     getScriptedManagedProviderRequests,
+    registerOpenRouterManagedProvider,
     registerScriptedManagedProvider,
     createOpenAiCompatibleCustomProvider,
     createOllamaCustomProvider,

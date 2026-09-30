@@ -340,6 +340,18 @@ Evaluations also export to Langfuse when `LANGFUSE_PUBLIC_KEY` and
 defaults to the EU cloud. Each `<suite>/<mode>` is one experiment, and each
 case and repeat is one item. Without the keys, only local results are written.
 
+The managed provider fixture can send a project's model calls to OpenRouter
+instead of answering with fixed text or a script. Set `E2E_OPENROUTER_API_KEY`
+for the harness, then register the project with `registerOpenRouterManagedProvider`
+from `@shipfox/e2e-setup-agent`. It serves the catalog models named in
+`apps/api/src/e2e-openrouter.ts` as OpenAI chat completions and records their
+tokens as usage. The flow test `openrouter-managed-provider.e2e.ts` covers it,
+skips without the key, and spends real money, so run it by hand:
+
+```sh
+E2E_OPENROUTER_API_KEY=<key> mise run e2e -- --filter=@shipfox/e2e-flow-workflows
+```
+
 The harness reads Conductor worktree ports from `.context/local-services/env`,
 starts the API with E2E routes enabled, starts the client with the test VCS
 provider enabled, waits for both to become ready, and then runs

@@ -596,6 +596,9 @@ importers:
       '@shipfox/api-server':
         specifier: workspace:*
         version: link:../../libs/api/server
+      '@shipfox/api-usage-dto':
+        specifier: workspace:*
+        version: link:../../libs/api/usage-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../libs/shared/common/config
@@ -630,9 +633,15 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../tools/vitest
+      '@shipfox/workflow-templates':
+        specifier: workspace:*
+        version: link:../../libs/shared/workflow/templates
       tsx:
         specifier: 'catalog:'
         version: 4.22.4
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.0
 
   apps/client:
     dependencies:

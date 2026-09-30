@@ -23,6 +23,7 @@
   "dependencies": {
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-server": "workspace:*",
+    "@shipfox/api-usage-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
@@ -36,6 +37,8 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
-    "tsx": "catalog:"
+    "@shipfox/workflow-templates": "workspace:*",
+    "tsx": "catalog:",
+    "yaml": "catalog:"
   }
 }
