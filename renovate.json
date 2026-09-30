@@ -94,6 +94,14 @@
       "rangeStrategy": "bump"
     },
     {
+      "description": "The Discord Gateway checkpoint depends on when @discordjs/ws calls its session hooks. Review each update on its own, with the Gateway connection tests, instead of inside the grouped patch and minor update.",
+      "groupName": "discordjs-ws",
+      "groupSlug": "discordjs-ws",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["@discordjs/ws"],
+      "rangeStrategy": "bump"
+    },
+    {
       "description": "Biome ships its formatter and platform binaries as one exact release. Wait for all five members and combine major and non-major releases so the generated-output toolchain stays coherent.",
       "groupName": "biome-distribution",
       "groupSlug": "biome-distribution",

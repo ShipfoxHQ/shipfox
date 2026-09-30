@@ -17,7 +17,7 @@ async function loadDiscordModuleParts(
   const {
     config: discordConfig,
     createDiscordE2eRoutes,
-    createDiscordGatewayService,
+    createDiscordGateway,
     createDiscordIntegrationProvider,
     deleteDiscordInstallationByConnectionId,
     db: discordDb,
@@ -105,7 +105,7 @@ async function loadDiscordModuleParts(
         connectionCapabilities: [],
       }),
     ],
-    services: discordConfig.DISCORD_GATEWAY_ENABLED ? [createDiscordGatewayService()] : undefined,
+    services: discordConfig.DISCORD_GATEWAY_ENABLED ? [createDiscordGateway()] : undefined,
     database: {
       db: discordDb,
       migrationsPath: discordMigrationsPath,

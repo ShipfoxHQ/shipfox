@@ -10,6 +10,7 @@
 - **`createDiscordE2eRoutes`** exposes the synthetic connection route used by integration and E2E tests.
 - **`createDiscordGatewayService`** returns the `ModuleService` that elects one Gateway leader per shard with a Postgres advisory lock. Each replica holds a dedicated connection, retries every 10 s, and checks it with `SELECT 1` every 15 s. The `onLeading` and `onLost` callbacks carry the leader's work; `onLost` runs before the lock is released on shutdown.
 - **`createDiscordApiClient`** calls the Discord REST API as the bot and maps failures to `DiscordIntegrationProviderError`.
+- **`createDiscordGateway`** returns the Gateway `ModuleService`: the leader election with the shard connection as the leader's work. It connects with `@discordjs/ws`, resumes from the stored committed cursor, and identifies through an Identify guard.
 - **`config`** defines the Discord application, OAuth, bot, Gateway, and API settings.
 
 ## Installation and setup
@@ -50,7 +51,7 @@ The executable environment contract is defined in [`src/config.ts`](src/config.t
 | `DISCORD_OAUTH_REDIRECT_URL` | Discord OAuth callback URL. |
 | `DISCORD_PUBLIC_KEY` | Interaction signature verification key. |
 | `DISCORD_BOT_TOKEN` | Bot token for Discord API access. |
-| `DISCORD_GATEWAY_ENABLED` | Starts the Gateway service, which elects one leader per shard. |
+| `DISCORD_GATEWAY_ENABLED` | Starts the Gateway service, which elects one leader per shard and connects it to Discord. Keep it off in shared environments until message and reaction ingestion are deployed. |
 | `DISCORD_API_BASE_URL` | Discord API base URL, including E2E overrides. |
 
 ## Routes
@@ -102,6 +103,19 @@ mise exec -- pnpm check:api-migrations
 ```
 
 The persistence tests use the repository PostgreSQL test service. Start it with `mise exec -- pnpm dev:services:up` when it is not already running.
+
+## Gateway connection
+
+The leader runs one shard (`shardCount: 1`) with the `GUILDS`, `GUILD_MESSAGES`, `GUILD_MESSAGE_REACTIONS`, and `MESSAGE_CONTENT` intents. It connects in the background, so the election keeps checking its lock while Discord is slow.
+
+- **Resume.** A stored session is resumed from `committed_sequence`, with no age check. An Invalid Session falls back to Identify inside the library.
+- **Hooks.** `retrieveSessionInfo` and `updateSessionInfo` are synchronous and in memory, because the library calls them on every frame and does not serialize frames. The row is written every 5 s and on shutdown. A new session id resets the committed mark and is written at once.
+- **Committed mark.** Dispatches run in emit order, one at a time, through a handler registry. The mark is the highest sequence with every lower one handled, because the library can emit `READY` after `GUILD_CREATE`. A dispatch without a handler is skipped and committed.
+- **Handler failure.** The manager is destroyed with close code `4000`, its queue is dropped, and a new manager resumes from the mark after backoff. Close code `1000` would end the session on Discord's side, and the store ignores the library's `null` session while the destroy is ours. A close the library will not recover from, such as a rejected token or disallowed intents, takes the same path and is reported.
+- **Identify guard.** Every Identify waits on the manager's throttler: 5 s apart, refused below 100 remaining starts until `reset_after`, and `shards > 1` reported once. It waits and never throws, because a throw makes the library retry after 500 ms. Reports use the `integrations.discord.gateway` boundary.
+- **Backoff.** Failed connects retry after 5 s, doubling up to 5 minutes, with jitter that only shortens the delay.
+
+This build skips every dispatch, so it commits messages it cannot publish. Do not enable `DISCORD_GATEWAY_ENABLED` in staging or production until the message and reaction handlers are deployed.
 
 ## License
 
