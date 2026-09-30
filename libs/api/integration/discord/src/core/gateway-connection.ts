@@ -16,6 +16,7 @@ import {
   setDiscordGatewayConnected,
   setDiscordGatewayCursorLagSource,
   setDiscordGuildCount,
+  setDiscordIdentifyRemaining,
 } from '#metrics/index.js';
 import {gatewayBackoffMs} from './gateway-backoff.js';
 import {
@@ -260,6 +261,8 @@ export function startDiscordGatewayRun(options: DiscordGatewayRunOptions = {}): 
       clearTimeout(notReadyTimer);
       setDiscordGatewayConnected(false);
       setDiscordGatewayCursorLagSource(undefined);
+      setDiscordGuildCount(undefined);
+      setDiscordIdentifyRemaining(undefined);
       if (loadedState) await persistence.flush(loadedState);
     },
   };

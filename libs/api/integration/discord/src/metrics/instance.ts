@@ -84,11 +84,11 @@ export function setDiscordGatewayConnected(value: boolean): void {
   connected = value;
 }
 
-export function setDiscordIdentifyRemaining(value: number): void {
+export function setDiscordIdentifyRemaining(value: number | undefined): void {
   identifyRemaining = value;
 }
 
-export function setDiscordGuildCount(value: number): void {
+export function setDiscordGuildCount(value: number | undefined): void {
   guildCount = value;
 }
 

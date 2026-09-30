@@ -71,7 +71,11 @@ describe('Discord Gateway metrics', () => {
     expect(observed('integrations_discord_gateway_cursor_lag')).toEqual([3]);
 
     metrics.setDiscordGatewayCursorLagSource(undefined);
+    metrics.setDiscordGuildCount(undefined);
+    metrics.setDiscordIdentifyRemaining(undefined);
 
     expect(observed('integrations_discord_gateway_cursor_lag')).toEqual([]);
+    expect(observed('integrations_discord_guilds')).toEqual([]);
+    expect(observed('integrations_discord_identify_remaining')).toEqual([]);
   });
 });

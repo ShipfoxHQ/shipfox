@@ -9,6 +9,7 @@ import {
   setDiscordGatewayConnected,
   setDiscordGatewayCursorLagSource,
   setDiscordGuildCount,
+  setDiscordIdentifyRemaining,
 } from '#metrics/index.js';
 import {type FakeGateway, startFakeGateway} from '#test/fake-discord-gateway.js';
 import {
@@ -49,6 +50,7 @@ describe('Discord Gateway connection', () => {
     vi.mocked(setDiscordGatewayConnected).mockClear();
     vi.mocked(setDiscordGatewayCursorLagSource).mockClear();
     vi.mocked(setDiscordGuildCount).mockClear();
+    vi.mocked(setDiscordIdentifyRemaining).mockClear();
   });
 
   afterEach(async () => {
@@ -127,6 +129,8 @@ describe('Discord Gateway connection', () => {
 
       expect(setDiscordGatewayConnected).toHaveBeenLastCalledWith(false);
       expect(setDiscordGatewayCursorLagSource).toHaveBeenLastCalledWith(undefined);
+      expect(setDiscordGuildCount).toHaveBeenLastCalledWith(undefined);
+      expect(setDiscordIdentifyRemaining).toHaveBeenLastCalledWith(undefined);
     },
     TEST_TIMEOUT_MS,
   );
