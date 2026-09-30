@@ -20,10 +20,7 @@ interface RunUsageResponse {
 }
 
 // Spends real money. Run it by hand with E2E_OPENROUTER_API_KEY set for the API and this suite.
-test.skip(
-  process.env.E2E_OPENROUTER_API_KEY === undefined,
-  'Needs E2E_OPENROUTER_API_KEY to call OpenRouter',
-);
+test.skip(!process.env.E2E_OPENROUTER_API_KEY, 'Needs E2E_OPENROUTER_API_KEY to call OpenRouter');
 
 test('runs a catalog Pi step through OpenRouter and records its tokens', async ({
   suite,
