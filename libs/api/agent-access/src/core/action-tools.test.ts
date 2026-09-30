@@ -960,4 +960,206 @@ describe('agent-access action tools', () => {
       error: {code: 'admission-denied', details: {reason: 'capacity'}},
     });
   });
+
+  test('names the missing variable and where it is read', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.fireManualTrigger).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.fireManualTrigger,
+        'interpolation-unresolvable',
+        {
+          definitionId,
+          field: 'job.if',
+          source: 'vars.E2E_SCHEDULE_ENABLED',
+          variableKey: 'E2E_SCHEDULE_ENABLED',
+          jobKey: 'e2e',
+        },
+      ),
+    );
+
+    const response = await tool(tools, 'fire_manual_trigger').execute({
+      context,
+      arguments: {definition_id: definitionId},
+    });
+
+    expect(response).toEqual({
+      ok: false,
+      error: {
+        code: 'interpolation-unresolvable',
+        message:
+          'Variable `E2E_SCHEDULE_ENABLED` is not set. It is read in job `e2e`, field `job.if`. Every variable a workflow references must exist, even in a branch that does not run. Define it in the workspace variables, then start the run again.',
+        details: {
+          field: 'job.if',
+          source: 'vars.E2E_SCHEDULE_ENABLED',
+          variable_key: 'E2E_SCHEDULE_ENABLED',
+          job_key: 'e2e',
+        },
+      },
+    });
+    expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
+  });
+
+  test('names the step and env key of a missing variable', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.createDevRun).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.createDevRun,
+        'interpolation-unresolvable',
+        {
+          definitionId,
+          field: 'env',
+          source: 'vars.API_URL',
+          envKey: 'URL',
+          variableKey: 'API_URL',
+          jobKey: 'deploy',
+          step: {key: 'ship', name: 'Ship it', index: 2},
+        },
+      ),
+    );
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        content: 'triggers: {}',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+      },
+    });
+
+    expect(response).toMatchObject({
+      ok: false,
+      error: {
+        message: expect.stringContaining(
+          'It is read in job `deploy`, step 2 (`ship`), field `env.URL`.',
+        ),
+        details: {
+          variable_key: 'API_URL',
+          job_key: 'deploy',
+          step: {key: 'ship', name: 'Ship it', index: 2},
+        },
+      },
+    });
+  });
+
+  test('names the missing trigger secret', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.fireManualTrigger).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.fireManualTrigger,
+        'secret-not-found',
+        {key: 'DEPLOY_TOKEN'},
+      ),
+    );
+
+    const response = await tool(tools, 'fire_manual_trigger').execute({
+      context,
+      arguments: {definition_id: definitionId},
+    });
+
+    expect(response).toEqual({
+      ok: false,
+      error: {
+        code: 'secret-not-found',
+        message:
+          'Secret `DEPLOY_TOKEN` is not set in this project or workspace. The trigger passes it to the workflow. Create the secret, then start the run again.',
+        details: {key: 'DEPLOY_TOKEN'},
+      },
+    });
+  });
+
+  test('names the unmapped secret input', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.fireManualTrigger).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.fireManualTrigger,
+        'secret-input-missing',
+        {key: 'DEPLOY_TOKEN'},
+      ),
+    );
+
+    const response = await tool(tools, 'fire_manual_trigger').execute({
+      context,
+      arguments: {definition_id: definitionId},
+    });
+
+    expect(response).toMatchObject({
+      ok: false,
+      error: {
+        code: 'secret-input-missing',
+        message: expect.stringContaining('Secret input `DEPLOY_TOKEN` was not passed.'),
+        details: {key: 'DEPLOY_TOKEN'},
+      },
+    });
+  });
+
+  test('keeps the runner-label error inside the details limit', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.fireManualTrigger).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.fireManualTrigger,
+        'invalid-job-runner-labels',
+        {labels: Array.from({length: 12}, () => 'L'.repeat(600))},
+      ),
+    );
+
+    const response = await tool(tools, 'fire_manual_trigger').execute({
+      context,
+      arguments: {definition_id: definitionId},
+    });
+
+    expect(response).toMatchObject({
+      ok: false,
+      error: {code: 'invalid-job-runner-labels', details: {labels: expect.any(Array)}},
+    });
+    expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
+  });
+
+  test('names the runner labels and size figures of a refused start', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.fireManualTrigger)
+      .mockRejectedValueOnce(
+        createInterModuleKnownError(
+          triggersInterModuleContract.methods.fireManualTrigger,
+          'invalid-job-runner-labels',
+          {labels: ['Big Box', 'gpu']},
+        ),
+      )
+      .mockRejectedValueOnce(
+        createInterModuleKnownError(
+          triggersInterModuleContract.methods.fireManualTrigger,
+          'source-snapshot-too-large',
+          {limitBytes: 1000, measuredBytes: 2500},
+        ),
+      )
+      .mockRejectedValueOnce(
+        createInterModuleKnownError(
+          triggersInterModuleContract.methods.fireManualTrigger,
+          'workflow-execution-payload-too-large',
+          {field: 'resolved_config', limitBytes: 1000, measuredBytes: 2500, overshootBytes: 1500},
+        ),
+      );
+    const fire = tool(tools, 'fire_manual_trigger');
+    const args = {context, arguments: {definition_id: definitionId}};
+
+    expect(await fire.execute(args)).toMatchObject({
+      error: {
+        message:
+          'Runner labels are not valid: `Big Box`, `gpu`. Use lowercase letters, digits, ".", "_" and "-".',
+        details: {labels: ['Big Box', 'gpu']},
+      },
+    });
+    expect(await fire.execute(args)).toMatchObject({
+      error: {
+        message: 'Workflow file is too large: 2500 bytes, limit 1000 bytes.',
+        details: {limit_bytes: 1000, measured_bytes: 2500},
+      },
+    });
+    expect(await fire.execute(args)).toMatchObject({
+      error: {
+        message: '`resolved_config` is too large: 2500 bytes, limit 1000 bytes.',
+        details: {field: 'resolved_config', limit_bytes: 1000, measured_bytes: 2500},
+      },
+    });
+  });
 });

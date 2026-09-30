@@ -298,6 +298,15 @@ const startRunErrors = {
     field: interpolationFieldSchema,
     source: z.string(),
     envKey: z.string().optional(),
+    variableKey: z.string().optional(),
+    jobKey: z.string().optional(),
+    step: z
+      .object({
+        key: z.string().optional(),
+        name: z.string().optional(),
+        index: z.number().int().positive(),
+      })
+      .optional(),
   }),
   'invalid-job-runner-labels': z.object({labels: z.array(z.string())}),
   'source-snapshot-too-large': z.object({

@@ -464,6 +464,90 @@ describe('Shipfox agent tools', () => {
     });
   });
 
+  it('names the missing variable and where it is read', async () => {
+    const {triggers, provider} = createProvider();
+    triggers.fireManualTrigger.mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.fireManualTrigger,
+        'interpolation-unresolvable',
+        {
+          definitionId,
+          field: 'env',
+          source: 'vars.API_URL',
+          envKey: 'URL',
+          variableKey: 'API_URL',
+          jobKey: 'deploy',
+          step: {key: 'ship', index: 2},
+        },
+      ),
+    );
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+
+    const result = await session.call({
+      toolId: 'start_workflow_run',
+      arguments: {workflow: 'child.yml'},
+    });
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: [
+        {
+          text: 'Variable `API_URL` is not set. It is read in job `deploy`, step 2 (`ship`), field `env.URL`. Every variable a workflow references must exist, even in a branch that does not run. Define it in the workspace variables, then start the run again.',
+        },
+      ],
+      structuredContent: {
+        code: 'interpolation-unresolvable',
+        variableKey: 'API_URL',
+        jobKey: 'deploy',
+      },
+    });
+  });
+
+  it('names the runner labels and size figures of a refused start', async () => {
+    const {triggers, provider} = createProvider();
+    triggers.fireManualTrigger
+      .mockRejectedValueOnce(
+        createInterModuleKnownError(
+          triggersInterModuleContract.methods.fireManualTrigger,
+          'invalid-job-runner-labels',
+          {labels: ['Big Box']},
+        ),
+      )
+      .mockRejectedValueOnce(
+        createInterModuleKnownError(
+          triggersInterModuleContract.methods.fireManualTrigger,
+          'workflow-execution-payload-too-large',
+          {field: 'resolved_config', limitBytes: 1000, measuredBytes: 2500, overshootBytes: 1500},
+        ),
+      );
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+    const call = () =>
+      session.call({toolId: 'start_workflow_run', arguments: {workflow: 'child.yml'}});
+
+    expect(await call()).toMatchObject({
+      isError: true,
+      content: [
+        {
+          text: 'Runner labels are not valid: `Big Box`. Use lowercase letters, digits, ".", "_" and "-".',
+        },
+      ],
+    });
+    expect(await call()).toMatchObject({
+      isError: true,
+      content: [{text: '`resolved_config` is too large: 2500 bytes, limit 1000 bytes.'}],
+    });
+  });
+
   it.each([
     'definition-not-found',
     'parent-run-not-found',

@@ -2,6 +2,7 @@ import {createHash, randomUUID} from 'node:crypto';
 import {
   AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES,
   AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES,
+  AGENT_ACCESS_ERROR_MESSAGE_MAX_LENGTH,
   agentAccessOutputSchema,
   cancelWorkflowRunInputJsonSchema,
   cancelWorkflowRunInputSchema,
@@ -351,7 +352,130 @@ function mapProducerError(
   if (code === 'run-already-finished' && typeof details.status === 'string') {
     return agentAccessError(code, {details: {status: details.status}});
   }
+  const startFailure = mapStartRunFailure(code, details);
+  if (startFailure !== undefined) {
+    return agentAccessError(code, {
+      message: startFailure.message.slice(0, AGENT_ACCESS_ERROR_MESSAGE_MAX_LENGTH),
+      details: startFailure.details,
+    });
+  }
   return agentAccessError(code);
+}
+
+interface MappedFailure {
+  message: string;
+  details: Record<string, unknown>;
+}
+
+function mapStartRunFailure(
+  code: string,
+  details: Record<string, unknown>,
+): MappedFailure | undefined {
+  switch (code) {
+    case 'interpolation-unresolvable':
+      return mapInterpolationUnresolvable(details);
+    case 'secret-not-found':
+      if (typeof details.key !== 'string') return undefined;
+      return {
+        message: `Secret ${quote(details.key)} is not set in this project or workspace. The trigger passes it to the workflow. Create the secret, then start the run again.`,
+        details: {key: boundErrorDetail(details.key)},
+      };
+    case 'secret-input-missing':
+      if (typeof details.key !== 'string') return undefined;
+      return {
+        message: `Secret input ${quote(details.key)} was not passed. The workflow reads it as secrets.inputs.${boundErrorDetail(details.key)}, but the trigger does not map it. Add it to the trigger's secrets: in the workflow file.`,
+        details: {key: boundErrorDetail(details.key)},
+      };
+    case 'invalid-job-runner-labels': {
+      if (!Array.isArray(details.labels)) return undefined;
+      const labels = details.labels
+        .filter((label): label is string => typeof label === 'string')
+        .slice(0, 10)
+        .map((label) => label.slice(0, 64));
+      return {
+        message: `Runner labels are not valid: ${labels.map(quote).join(', ')}. Use lowercase letters, digits, ".", "_" and "-".`,
+        details: {labels},
+      };
+    }
+    case 'source-snapshot-too-large':
+      return mapSizeFailure('Workflow file is too large', undefined, details);
+    case 'diagnostic-too-large':
+    case 'workflow-execution-payload-too-large':
+      return typeof details.field === 'string'
+        ? mapSizeFailure(`${quote(details.field)} is too large`, details.field, details)
+        : undefined;
+    default:
+      return undefined;
+  }
+}
+
+function mapInterpolationUnresolvable(details: Record<string, unknown>): MappedFailure | undefined {
+  if (typeof details.field !== 'string' || typeof details.source !== 'string') return undefined;
+  const envKey = typeof details.envKey === 'string' ? details.envKey : undefined;
+  const variableKey = typeof details.variableKey === 'string' ? details.variableKey : undefined;
+  const jobKey = typeof details.jobKey === 'string' ? details.jobKey : undefined;
+  const step = mapStepLocation(details.step);
+  const location = [
+    jobKey === undefined ? undefined : `job ${quote(jobKey)}`,
+    step === undefined ? undefined : `step ${step.label}`,
+    `field ${quote(envKey === undefined ? details.field : `${details.field}.${envKey}`)}`,
+  ]
+    .filter((part) => part !== undefined)
+    .join(', ');
+  const message =
+    variableKey === undefined
+      ? `${quote(details.source)} in ${location} could not be resolved when the run started.`
+      : `Variable ${quote(variableKey)} is not set. It is read in ${location}. Every variable a workflow references must exist, even in a branch that does not run. Define it in the workspace variables, then start the run again.`;
+  return {
+    message,
+    details: {
+      field: boundErrorDetail(details.field),
+      source: boundErrorDetail(details.source),
+      ...(envKey === undefined ? {} : {env_key: boundErrorDetail(envKey)}),
+      ...(variableKey === undefined ? {} : {variable_key: boundErrorDetail(variableKey)}),
+      ...(jobKey === undefined ? {} : {job_key: boundErrorDetail(jobKey)}),
+      ...(step === undefined ? {} : {step: step.details}),
+    },
+  };
+}
+
+function mapStepLocation(
+  value: unknown,
+): {label: string; details: Record<string, unknown>} | undefined {
+  if (!isRecord(value) || typeof value.index !== 'number') return undefined;
+  const key = typeof value.key === 'string' ? value.key : undefined;
+  const name = typeof value.name === 'string' ? value.name : undefined;
+  const named = key ?? name;
+  return {
+    label: named === undefined ? String(value.index) : `${value.index} (${quote(named)})`,
+    details: {
+      index: value.index,
+      ...(key === undefined ? {} : {key: boundErrorDetail(key)}),
+      ...(name === undefined ? {} : {name: boundErrorDetail(name)}),
+    },
+  };
+}
+
+function mapSizeFailure(
+  subject: string,
+  field: string | undefined,
+  details: Record<string, unknown>,
+): MappedFailure | undefined {
+  if (typeof details.limitBytes !== 'number' || typeof details.measuredBytes !== 'number') {
+    return undefined;
+  }
+  return {
+    message: `${subject}: ${details.measuredBytes} bytes, limit ${details.limitBytes} bytes.`,
+    details: {
+      ...(field === undefined ? {} : {field: boundErrorDetail(field)}),
+      limit_bytes: details.limitBytes,
+      measured_bytes: details.measuredBytes,
+    },
+  };
+}
+
+function quote(value: string): string {
+  return `\`${boundErrorDetail(value)}\``;
 }
 
 function mapDevRunErrorDetails(
