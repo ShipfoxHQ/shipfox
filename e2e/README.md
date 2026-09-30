@@ -353,6 +353,7 @@ Evaluations also export to Langfuse when `LANGFUSE_PUBLIC_KEY` and
 `LANGFUSE_SECRET_KEY` are set. `LANGFUSE_BASE_URL` selects the region and
 defaults to the EU cloud. Each `<suite>/<mode>` is one experiment, and each
 case and repeat is one item. Without the keys, only local results are written.
+Onboarding results are local-only for now.
 
 `exportClaudeTranscript` in `@shipfox/e2e-eval-workflows` turns a Claude session
 transcript into one generation per model call and one tool span per tool call,

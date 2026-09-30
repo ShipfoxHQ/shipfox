@@ -40,6 +40,12 @@ describe('onboarding case schema', () => {
     );
   });
 
+  it('rejects a template choice without a provider', () => {
+    expect(() =>
+      parseOnboardingCase({...validCase, prompt: 'template:ticket-to-pr?tracker'}),
+    ).toThrow(invalidPromptPattern);
+  });
+
   it('requires the github connection a project runs on', () => {
     expect(() =>
       parseOnboardingCase({

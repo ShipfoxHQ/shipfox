@@ -1,6 +1,6 @@
 import {fileURLToPath} from 'node:url';
 import {describe, expect, it} from '@shipfox/vitest/vi';
-import {discoverOnboardingCases, runOnboardingSuite} from './onboarding-run.js';
+import {discoverOnboardingCases, outOfBudget, runOnboardingSuite} from './onboarding-run.js';
 
 const apiKeyPattern = /ANTHROPIC_API_KEY/u;
 
@@ -21,5 +21,13 @@ describe('onboarding suite', () => {
 
   it('asks for the API key before it touches the stack', async () => {
     await expect(runOnboardingSuite({env: {}})).rejects.toThrow(apiKeyPattern);
+  });
+
+  it('stops starting repeats once the budget is spent', () => {
+    const results = [{cost_usd: 0.6}, {cost_usd: 0.5}];
+
+    expect(outOfBudget({results, maxCostUsd: 1})).toBe(true);
+    expect(outOfBudget({results, maxCostUsd: 2})).toBe(false);
+    expect(outOfBudget({results, maxCostUsd: undefined})).toBe(false);
   });
 });

@@ -6,7 +6,8 @@ import {CaseValidationError, formatValidationIssues} from './schema.js';
 /** Providers an onboarding workspace can hold a connection to, each backed by a fake. */
 export const ONBOARDING_PROVIDERS = ['github', 'linear'] as const;
 
-const TEMPLATE_PROMPT_PATTERN = /^template:[a-z0-9][a-z0-9-]*(\?.*)?$/u;
+const TEMPLATE_PROMPT_PATTERN =
+  /^template:[a-z0-9][a-z0-9-]*(\?[a-z0-9_-]+=[a-z0-9_-]+(&[a-z0-9_-]+=[a-z0-9_-]+)*)?$/u;
 
 const promptSchema = z
   .string()

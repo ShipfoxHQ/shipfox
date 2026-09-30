@@ -180,6 +180,7 @@ async function runOnboardingCli({
   const run = await runOnboardingSuite({
     ...(options.caseFilter === undefined ? {} : {caseFilter: options.caseFilter}),
     ...(options.repeat === undefined ? {} : {repeat: options.repeat}),
+    ...(options.maxCostUsd === undefined ? {} : {maxCostUsd: options.maxCostUsd}),
   });
   stdout(`Ran ${run.results.length} onboarding sessions. Results: ${run.directory}\n`);
   const failed = run.results.filter((result) => result.status === 'error');

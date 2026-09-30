@@ -160,6 +160,42 @@ describe('runOnboardingSession', () => {
     expect(session.turns).toBe(3);
   });
 
+  it('does not answer a question that would need a turn beyond the limit', async () => {
+    const {query, prompts} = scriptedQuery([
+      [assistant('Which tracker?'), result('Which tracker?')],
+      [assistant('Done.'), result('Done.')],
+    ]);
+
+    const session = await runOnboardingSession({
+      ...baseOptions,
+      maxTurns: 1,
+      query,
+      simulatedUser: answering(['Linear']),
+    });
+
+    expect(session).toMatchObject({stop_reason: 'max_turns', questions: []});
+    expect(prompts).toEqual(['Set up a workflow']);
+  });
+
+  it('cancels a pending simulated answer at the timeout', async () => {
+    const {query} = scriptedQuery([[assistant('Which tracker?'), result('Which tracker?')]]);
+    const simulatedUser: SimulatedUser = {
+      answer: (_question, {signal} = {}) =>
+        new Promise((_, reject) =>
+          signal?.addEventListener('abort', () => reject(new Error('answer aborted'))),
+        ),
+    };
+
+    const session = await runOnboardingSession({
+      ...baseOptions,
+      timeoutSeconds: 0.05,
+      query,
+      simulatedUser,
+    });
+
+    expect(session.stop_reason).toBe('timeout');
+  });
+
   it('stops at the timeout and keeps what the agent did so far', async () => {
     const query: ClaudeQuery = ({options}) =>
       (async function* () {

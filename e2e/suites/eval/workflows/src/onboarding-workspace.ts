@@ -101,7 +101,11 @@ async function waitForProjectSync({
         `/definitions?${new URLSearchParams({project_id: projectId, limit: '100'})}`,
       );
       status = response.sync?.status ?? 'null';
-      return status === 'failed' || status === 'succeeded' ? response : null;
+      // The fixture has no workflow files, so that failure is the expected way to finish.
+      const finished =
+        status === 'succeeded' ||
+        (status === 'failed' && response.sync?.last_error_code === 'no-workflow-files');
+      return finished ? response : null;
     },
   );
 }

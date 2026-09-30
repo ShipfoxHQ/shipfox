@@ -69,6 +69,8 @@ export interface OnboardingRunOptions {
   caseFilter?: string;
   /** Overrides each case's `k`. */
   repeat?: number;
+  /** Stops starting new repeats once the agents have spent this much. */
+  maxCostUsd?: number;
   casesRoot?: string;
   resultsDirectory?: string;
   runId?: string;
@@ -146,8 +148,8 @@ async function executeRepeat({
     result.cost_usd = session.usage.agent.cost_usd;
     result.mcp_calls = workspace.proxySession.calls();
     result.written_files = await collectWorkflowFiles(workspace.cwd);
-    result.status = 'completed';
     if (session.stop_reason === 'error') result.error = session.error ?? 'The session failed.';
+    result.status = session.stop_reason === 'error' ? 'error' : 'completed';
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
   } finally {
@@ -186,6 +188,30 @@ async function writeOnboardingResults(run: OnboardingRun): Promise<void> {
   await writeFile(join(run.directory, 'summary.md'), summaryMarkdown(run));
 }
 
+async function requireCases(options: OnboardingRunOptions): Promise<DiscoveredOnboardingCase[]> {
+  const discovered = await discoverOnboardingCases(
+    options.casesRoot,
+    options.caseFilter === undefined ? {} : {filter: options.caseFilter},
+  );
+  if (discovered.length === 0) {
+    const selected = options.caseFilter ? ` matching "${options.caseFilter}"` : '';
+    throw new Error(`No onboarding cases${selected} were found.`);
+  }
+  return discovered;
+}
+
+/** Whether the repeats so far have spent the run's budget, so no new repeat should start. */
+export function outOfBudget({
+  results,
+  maxCostUsd,
+}: {
+  results: Array<{cost_usd: number}>;
+  maxCostUsd: number | undefined;
+}): boolean {
+  if (maxCostUsd === undefined) return false;
+  return results.reduce((total, result) => total + result.cost_usd, 0) >= maxCostUsd;
+}
+
 /**
  * Runs every onboarding case `k` times against the running stack, one at a time. The MCP proxy
  * lives for the whole run so the OAuth client is registered once.
@@ -196,15 +222,7 @@ export async function runOnboardingSuite(
   const env = options.env ?? process.env;
   const apiKey = env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is required to run the onboarding suite.');
-
-  const discovered = await discoverOnboardingCases(
-    options.casesRoot,
-    options.caseFilter === undefined ? {} : {filter: options.caseFilter},
-  );
-  if (discovered.length === 0) {
-    const selected = options.caseFilter ? ` matching "${options.caseFilter}"` : '';
-    throw new Error(`No onboarding cases${selected} were found.`);
-  }
+  const discovered = await requireCases(options);
 
   const runId = options.runId ?? createRunId();
   const run: OnboardingRun = {
@@ -221,6 +239,7 @@ export async function runOnboardingSuite(
     for (const entry of discovered) {
       const repeats = options.repeat ?? entry.definition.k;
       for (let repeat = 1; repeat <= repeats; repeat += 1) {
+        if (outOfBudget({results: run.results, maxCostUsd: options.maxCostUsd})) break;
         run.results.push(
           await executeRepeat({
             discovered: entry,

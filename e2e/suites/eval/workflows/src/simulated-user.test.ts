@@ -42,6 +42,16 @@ describe('createSimulatedUser', () => {
     ]);
   });
 
+  it('passes the cancellation signal to the API call', async () => {
+    const create = fakeApi(['Linear.']);
+    const user = createSimulatedUser({persona: 'p', messages: {create}});
+    const controller = new AbortController();
+
+    await user.answer('Which tracker?', {signal: controller.signal});
+
+    expect(create.mock.calls[0]?.[1]).toEqual({signal: controller.signal});
+  });
+
   it('fails on an empty answer instead of sending nothing to the agent', async () => {
     const user = createSimulatedUser({persona: 'p', messages: {create: fakeApi([' '])}});
 

@@ -284,7 +284,15 @@ class Session {
       this.stop('completed');
       return;
     }
-    const answer = await this.#options.simulatedUser.answer(this.finalMessage);
+    // Answering would start another model call, which the limit doesn't allow.
+    if (this.turns >= this.#options.maxTurns) {
+      this.stop('max_turns', `The agent used its ${this.#options.maxTurns} turns and asked again.`);
+      return;
+    }
+    // The timeout aborts the answer too, so a slow simulator can't hold the session past it.
+    const answer = await this.#options.simulatedUser.answer(this.finalMessage, {
+      signal: this.controller.signal,
+    });
     this.simulator.input_tokens += answer.usage.input_tokens;
     this.simulator.output_tokens += answer.usage.output_tokens;
     this.questions.push({question: this.finalMessage, answer: answer.text});

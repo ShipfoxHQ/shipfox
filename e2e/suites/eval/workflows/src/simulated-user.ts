@@ -16,17 +16,20 @@ export interface SimulatedAnswer {
 
 export interface SimulatedUser {
   /** Answers one question from the agent, in the persona's voice. */
-  answer(question: string): Promise<SimulatedAnswer>;
+  answer(question: string, options?: {signal?: AbortSignal}): Promise<SimulatedAnswer>;
 }
 
 /** The part of the Anthropic client the simulator calls, so tests can stand in for the API. */
 export interface SimulatorMessagesApi {
-  create(params: {
-    model: string;
-    max_tokens: number;
-    system: string;
-    messages: Array<{role: 'user' | 'assistant'; content: string}>;
-  }): Promise<{
+  create(
+    params: {
+      model: string;
+      max_tokens: number;
+      system: string;
+      messages: Array<{role: 'user' | 'assistant'; content: string}>;
+    },
+    options?: {signal?: AbortSignal},
+  ): Promise<{
     content: Array<{type: string; text?: string}>;
     usage: {input_tokens: number; output_tokens: number};
   }>;
@@ -54,7 +57,7 @@ Rules:
 
 function defaultMessagesApi(apiKey: string | undefined): SimulatorMessagesApi {
   const client = new Anthropic({apiKey});
-  return {create: async (params) => await client.messages.create(params)};
+  return {create: async (params, options) => await client.messages.create(params, options)};
 }
 
 /**
@@ -68,14 +71,12 @@ export function createSimulatedUser(options: CreateSimulatedUserOptions): Simula
   const history: Array<{role: 'user' | 'assistant'; content: string}> = [];
 
   return {
-    async answer(question) {
+    async answer(question, {signal} = {}) {
       history.push({role: 'user', content: question});
-      const response = await messages.create({
-        model,
-        max_tokens: MAX_ANSWER_TOKENS,
-        system,
-        messages: [...history],
-      });
+      const response = await messages.create(
+        {model, max_tokens: MAX_ANSWER_TOKENS, system, messages: [...history]},
+        signal === undefined ? undefined : {signal},
+      );
       const text = response.content
         .flatMap((block) => (block.type === 'text' && block.text !== undefined ? [block.text] : []))
         .join('')
