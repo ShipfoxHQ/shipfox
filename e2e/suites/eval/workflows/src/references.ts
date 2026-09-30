@@ -23,8 +23,9 @@ function fieldOf(pr: PullRequestReference, field: ReferenceField): string | numb
 
 /**
  * Replaces `$pr` and `$pr.<field>` strings anywhere in a scenario value. A string that is only a
- * reference becomes the value itself. A reference inside longer text becomes its text, as in
- * `Opened pull request: $pr.url`. `url` is the pull request's address.
+ * reference becomes the value itself. A `$pr.<field>` inside longer text becomes its text, as in
+ * `Opened pull request: $pr.url`. A bare `$pr` inside longer text is left as it is. `url` is the
+ * pull request's address.
  */
 export function resolveReferences(value: unknown, references: ScenarioReferences): unknown {
   if (typeof value === 'string') {

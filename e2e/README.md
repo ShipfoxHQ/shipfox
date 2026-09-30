@@ -342,7 +342,7 @@ fake repository. A case that binds a role to Jira also gets the Jira fake and
 a Jira connection. The case composes its template variant through the template
 loader, binds each role to its connection's slug, and creates the definition.
 A case sets every option its variant uses, because an option left out keeps
-all of its blocks. Its `fills` map gives the `replace-with-*` placeholders
+all of its blocks. Its `placeholders` map gives the `replace-with-*` placeholders
 that have no slot, such as a Jira project key, the values a person would give
 the coding agent. Then it starts a local runner with a label of its own. The runner
 gets an empty global Git configuration, so a developer's own settings, such as
@@ -401,8 +401,8 @@ A scenario step is one of:
   `pull_request.closed`. The Jira sender sends signed `jira:issue_created` and
   `jira:issue_updated` events, with an `issue` (`key`, `summary`, and
   optionally `id`, `status`, `project`, `labels`, and `description`) and
-  optionally `previous_status` or `previous_labels`, which become the
-  changelog. Jira writes are recorded as `jira.add_comment`,
+  optionally `previous_status` or `previous_labels` on `jira:issue_updated`,
+  which become the changelog. Jira writes are recorded as `jira.add_comment`,
   `jira.transition_issue`, and so on, with the issue ID or key as the target.
   Other providers need an `EventSender` passed to `runEval`.
 - `await`: a `job` status, a `listener` that is `ready`, a listener `execution`

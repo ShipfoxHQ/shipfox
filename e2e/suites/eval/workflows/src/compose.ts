@@ -67,7 +67,8 @@ export function fillSlots({yaml, slots}: {yaml: string; slots: Record<string, st
 
 /**
  * Replaces the `replace-with-*` placeholders the coding agent edits in the composed file, such as
- * the team key a Linear trigger filters on. Slot placeholders stay for `fillSlots`.
+ * the team key a Linear trigger filters on. Slot placeholders stay for `fillSlots`. A placeholder
+ * matches as a whole token, so `replace-with-project` leaves `replace-with-project-key` alone.
  */
 export function fillPlaceholders({
   yaml,
@@ -78,12 +79,17 @@ export function fillPlaceholders({
 }): string {
   let filled = yaml;
   for (const [placeholder, value] of Object.entries(placeholders)) {
-    if (!filled.includes(placeholder)) {
+    const token = new RegExp(`${escapeRegExp(placeholder)}(?![A-Za-z0-9/_-])`, 'gu');
+    if (!token.test(filled)) {
       throw new Error(`The composed workflow has no placeholder ${placeholder}.`);
     }
-    filled = filled.replaceAll(placeholder, () => value);
+    filled = filled.replace(token, () => value);
   }
   return filled;
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[|\\{}()[\]^$+*?./]/gu, '\\$&');
 }
 
 /** Sends the workflow to the case's own runner instead of the shared `shipfox` label. */

@@ -53,6 +53,17 @@ describe('fillSlots', () => {
 });
 
 describe('fillPlaceholders', () => {
+  it('leaves a longer placeholder alone when a fill names its prefix', () => {
+    const yaml = 'a: replace-with-project\nb: replace-with-project-key';
+
+    const filled = fillPlaceholders({
+      yaml,
+      placeholders: {'replace-with-project': 'app', 'replace-with-project-key': 'ENG'},
+    });
+
+    expect(filled).toBe('a: app\nb: ENG');
+  });
+
   it('replaces every occurrence of a placeholder and leaves the others', () => {
     const yaml = 'a: replace-with-team-key\nb: replace-with-team-key\nc: replace-with-test-command';
 
