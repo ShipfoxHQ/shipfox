@@ -9,6 +9,7 @@ export function createTestWorkflowsClient(): WorkflowsModuleClient {
   return createFakeInterModuleClients({
     workflows: defineInterModulePresentation(workflowsInterModuleContract, {
       listRunnerCatalogNames: vi.fn(),
+      checkRunReadiness: vi.fn(),
       startRunFromTrigger: vi.fn(),
       startDevRun: vi.fn(),
       cancelWorkflowRun: vi.fn(),

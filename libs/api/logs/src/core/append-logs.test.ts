@@ -231,6 +231,7 @@ describe('appendLogs', () => {
       const workflows = createFakeInterModuleClients({
         workflows: defineInterModulePresentation(workflowsInterModuleContract, {
           listRunnerCatalogNames: vi.fn(),
+          checkRunReadiness: vi.fn(),
           startRunFromTrigger: vi.fn(),
           startDevRun: vi.fn(),
           cancelWorkflowRun: vi.fn(),
@@ -303,6 +304,7 @@ describe('appendLogs', () => {
       const workflows = createFakeInterModuleClients({
         workflows: defineInterModulePresentation(workflowsInterModuleContract, {
           listRunnerCatalogNames: vi.fn(),
+          checkRunReadiness: vi.fn(),
           startRunFromTrigger: vi.fn(),
           startDevRun: vi.fn(),
           cancelWorkflowRun: vi.fn(),
@@ -410,6 +412,7 @@ describe('appendLogs', () => {
       const workflows = createFakeInterModuleClients({
         workflows: defineInterModulePresentation(workflowsInterModuleContract, {
           listRunnerCatalogNames: vi.fn(),
+          checkRunReadiness: vi.fn(),
           startRunFromTrigger: vi.fn(),
           startDevRun: vi.fn(),
           cancelWorkflowRun: vi.fn(),
@@ -494,6 +497,7 @@ describe('appendLogs', () => {
       const workflows = createFakeInterModuleClients({
         workflows: defineInterModulePresentation(workflowsInterModuleContract, {
           listRunnerCatalogNames: vi.fn(),
+          checkRunReadiness: vi.fn(),
           startRunFromTrigger: vi.fn(),
           startDevRun: vi.fn(),
           cancelWorkflowRun: vi.fn(),
