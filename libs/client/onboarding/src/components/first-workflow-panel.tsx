@@ -9,6 +9,7 @@ import {Panel, PanelBody, PanelHeader, PanelRow, PanelTitle} from '@shipfox/reac
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Text} from '@shipfox/react-ui/typography';
+import {FIRST_WORKFLOW_PROMPT} from '@shipfox/workflow-templates/prompt';
 import {Link} from '@tanstack/react-router';
 import {type ReactNode, useEffect, useId, useRef, useState} from 'react';
 import type {FirstWorkflowProgress} from '#core/setup-checklist.js';
@@ -21,8 +22,7 @@ import {useWorkspaceAgentGrant, type WorkspaceAgentGrant} from '#hooks/api/agent
 import {useWorkspaceWorkflowTemplatesQuery} from '#hooks/api/workflow-templates.js';
 import type {WorkspaceReference} from './setup-checklist-types.js';
 
-export const FIRST_WORKFLOW_PROMPT =
-  "Set up a Shipfox workflow for this repository: read the Shipfox MCP server's `create-workflow-from-template` skill and follow it.";
+export {FIRST_WORKFLOW_PROMPT};
 
 const EXAMPLES_URL = 'https://www.shipfox.io/docs/examples';
 

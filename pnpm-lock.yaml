@@ -2426,6 +2426,12 @@ importers:
 
   e2e/suites/eval/workflows:
     dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: 'catalog:'
+        version: 0.3.246(@anthropic-ai/sdk@0.110.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
+      '@anthropic-ai/sdk':
+        specifier: 'catalog:'
+        version: 0.110.0(zod@4.4.3)
       '@langfuse/client':
         specifier: 'catalog:'
         version: 5.11.1(@opentelemetry/api@1.9.1)
@@ -2441,9 +2447,33 @@ importers:
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/auth-dto
+      '@shipfox/api-definitions-dto':
+        specifier: workspace:*
+        version: link:../../../../libs/api/definitions-dto
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../../core
+      '@shipfox/e2e-driver-github':
+        specifier: workspace:*
+        version: link:../../../drivers/github
+      '@shipfox/e2e-driver-linear':
+        specifier: workspace:*
+        version: link:../../../drivers/linear
+      '@shipfox/e2e-setup-auth':
+        specifier: workspace:*
+        version: link:../../../setup/auth
+      '@shipfox/e2e-setup-integrations':
+        specifier: workspace:*
+        version: link:../../../setup/integrations
+      '@shipfox/e2e-setup-projects':
+        specifier: workspace:*
+        version: link:../../../setup/projects
+      '@shipfox/e2e-setup-workspaces':
+        specifier: workspace:*
+        version: link:../../../setup/workspaces
+      '@shipfox/workflow-templates':
+        specifier: workspace:*
+        version: link:../../../../libs/shared/workflow/templates
       yaml:
         specifier: 'catalog:'
         version: 2.9.0
@@ -7180,6 +7210,9 @@ importers:
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
+      '@shipfox/workflow-templates':
+        specifier: workspace:*
+        version: link:../../shared/workflow/templates
       '@swc/helpers':
         specifier: 'catalog:'
         version: 0.5.23

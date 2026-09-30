@@ -61,6 +61,7 @@
     "@shipfox/client-workflows": "workspace:*",
     "@shipfox/client-workspace-settings": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
+    "@shipfox/workflow-templates": "workspace:*",
     "@swc/helpers": "catalog:"
   },
   "peerDependencies": {

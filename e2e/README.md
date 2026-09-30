@@ -337,6 +337,18 @@ mise run evals -- --suite templates --mode scripted
 mise run evals -- --suite templates --mode scripted --case fixture --repeat 3
 ```
 
+The onboarding suite drives a real Claude Agent SDK session against the stack.
+Each case in `cases/onboarding/` sets up a workspace, a fixture repository, and
+a recording MCP proxy, then answers the agent's questions with a simulated user
+that follows the case's `persona`. It needs `ANTHROPIC_API_KEY`, ignores
+`--mode`, runs each case `k` times unless `--repeat` is set, and writes one JSON
+result per repeat with the transcript, the MCP call log, the workflow files the
+agent wrote, and usage:
+
+```sh
+ANTHROPIC_API_KEY=<key> mise run evals -- --suite onboarding --case fixture
+```
+
 Evaluations also export to Langfuse when `LANGFUSE_PUBLIC_KEY` and
 `LANGFUSE_SECRET_KEY` are set. `LANGFUSE_BASE_URL` selects the region and
 defaults to the EU cloud. Each `<suite>/<mode>` is one experiment, and each

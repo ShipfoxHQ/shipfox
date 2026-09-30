@@ -4,6 +4,10 @@ export interface BuildTemplatePromptInput {
   choices?: readonly string[];
 }
 
+/** The prompt the first-workflow panel shows for a user who has not picked a template yet. */
+export const FIRST_WORKFLOW_PROMPT =
+  "Set up a Shipfox workflow for this repository: read the Shipfox MCP server's `create-workflow-from-template` skill and follow it.";
+
 /** The prompt a user pastes into a coding agent; the create-workflow-from-template skill confirms each choice it names. */
 export function buildTemplatePrompt({templateId, choices = []}: BuildTemplatePromptInput): string {
   const suffix = choices.length > 0 ? `, ${choices.join(' and ')}` : '';
