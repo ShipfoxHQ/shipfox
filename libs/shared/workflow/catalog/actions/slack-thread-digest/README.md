@@ -74,8 +74,8 @@ File: [rollback.log](https://acme.slack.com/files/U2/F1/rollback.log)
   warning, and the message keeps the user ID or the bare timestamp.
 - **The destination is relative to the step working directory.** Missing directories are
   created, and an existing file is replaced.
-- **Message text is copied as Slack returns it,** including Slack's `<@U123>` mentions and
-  `<url|label>` links.
+- **Message text keeps Slack's markup,** such as `<@U123>` mentions and `<url|label>` links.
+  Surrounding whitespace is trimmed, and a message without text shows `_No text._`.
 
 ## Development
 
