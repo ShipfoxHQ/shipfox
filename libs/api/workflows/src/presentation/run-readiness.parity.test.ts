@@ -1,19 +1,30 @@
 import {createWorkflowModelSnapshot, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import {type RunIssue, workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
+import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
 import {eq} from 'drizzle-orm';
 import {InterpolationUnresolvableError} from '#core/errors.js';
 import {collectRunRequirements} from '#core/run-requirements.js';
+import {completeStepDispatchConfig} from '#core/step-config/index.js';
 import {db} from '#db/db.js';
 import {deliverEventToListener} from '#db/job-listener-events.js';
 import {drainListenerEventsIntoExecution} from '#db/job-listeners.js';
 import {jobs} from '#db/schema/jobs.js';
-import {createWorkflowRun, getJobsByWorkflowRunId} from '#db/workflow-runs.js';
+import {steps as stepsTable} from '#db/schema/steps.js';
+import {createWorkflowRun, getJobsByWorkflowRunId, getStepsByJobId} from '#db/workflow-runs.js';
+import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
+import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
+import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
+import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
+import {fakeLeaseTokenAuthMethod} from '#test/fixtures/lease-token.js';
+import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
+import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {expression, template} from '#test/helpers/workflow-runs.js';
 import {workflowModel} from '#test/index.js';
 import {createWorkflowsInterModulePresentation} from './inter-module.js';
+import {createLeaseTokenRouteGroup} from './routes/index.js';
 
 interface ParityFixture {
   readonly name: string;
@@ -218,7 +229,9 @@ describe('run readiness parity with run creation and execution creation', () => 
       (error: unknown) => error,
     );
 
-    expect(definitions).toEqual([{definitionId, issues: expect.any(Array)}]);
+    expect(definitions).toEqual([
+      {definitionId, issues: expect.any(Array), secretInputs: expect.any(Array)},
+    ]);
     expect(
       definitions[0]?.issues.map((issue) => ({
         key: issue.key,
@@ -247,6 +260,194 @@ describe('run readiness parity with run creation and execution creation', () => 
     }
   });
 });
+
+interface SecretParityFixture {
+  readonly name: string;
+  readonly model: () => WorkflowModel;
+  readonly workspaceSecrets?: readonly string[];
+  readonly projectSecrets?: readonly string[];
+  /** Defined in a sibling project, which this project's runs never see. */
+  readonly siblingProjectSecrets?: readonly string[];
+  readonly issues: readonly {readonly key: string; readonly fields: readonly string[]}[];
+  readonly secretInputs: readonly string[];
+  /** What the runner's step-secrets pull returns for the run step once the run has started. */
+  readonly pull:
+    | {readonly status: 200}
+    | {readonly status: 422; readonly code: string; readonly key: string};
+}
+
+const SECRET_FIXTURES: readonly SecretParityFixture[] = [
+  {
+    name: 'a missing secret in a step env',
+    model: () =>
+      workflowModel({
+        jobs: {build: {steps: [{run: 'echo build', env: {TOKEN: template('secrets.API_TOKEN')}}]}},
+      }),
+    issues: [{key: 'API_TOKEN', fields: ['env']}],
+    secretInputs: [],
+    pull: {status: 422, code: 'secret-not-found', key: 'API_TOKEN'},
+  },
+  {
+    name: 'a missing secret in a run command',
+    model: () =>
+      workflowModel({
+        jobs: {build: {steps: [{run: `deploy --token ${template('secrets.local.API_TOKEN')}`}]}},
+      }),
+    issues: [{key: 'API_TOKEN', fields: ['run']}],
+    secretInputs: [],
+    pull: {status: 422, code: 'secret-not-found', key: 'API_TOKEN'},
+  },
+  {
+    name: 'a secret defined at workspace scope',
+    model: () =>
+      workflowModel({
+        jobs: {build: {steps: [{run: 'echo build', env: {TOKEN: template('secrets.API_TOKEN')}}]}},
+      }),
+    workspaceSecrets: ['API_TOKEN'],
+    issues: [],
+    secretInputs: [],
+    pull: {status: 200},
+  },
+  {
+    name: 'a secret defined at project scope',
+    model: () =>
+      workflowModel({
+        jobs: {build: {steps: [{run: 'echo build', env: {TOKEN: template('secrets.API_TOKEN')}}]}},
+      }),
+    projectSecrets: ['API_TOKEN'],
+    issues: [],
+    secretInputs: [],
+    pull: {status: 200},
+  },
+  {
+    name: 'a secret that only a sibling project defines',
+    model: () =>
+      workflowModel({
+        jobs: {build: {steps: [{run: 'echo build', env: {TOKEN: template('secrets.API_TOKEN')}}]}},
+      }),
+    siblingProjectSecrets: ['API_TOKEN'],
+    issues: [{key: 'API_TOKEN', fields: ['env']}],
+    secretInputs: [],
+    pull: {status: 422, code: 'secret-not-found', key: 'API_TOKEN'},
+  },
+  {
+    name: 'a secret input, which a trigger supplies and readiness leaves to it',
+    model: () =>
+      workflowModel({
+        jobs: {
+          build: {
+            steps: [{run: 'echo build', env: {TOKEN: template('secrets.inputs.DEPLOY_TOKEN')}}],
+          },
+        },
+      }),
+    issues: [],
+    secretInputs: ['DEPLOY_TOKEN'],
+    pull: {status: 422, code: 'secret-input-missing', key: 'DEPLOY_TOKEN'},
+  },
+];
+
+describe('step secret readiness parity with run creation and the step-secrets pull', () => {
+  let app: FastifyInstance;
+  const pullSecrets = createTestSecretsClient();
+
+  beforeAll(async () => {
+    app = await createApp({
+      auth: [fakeLeaseTokenAuthMethod],
+      routes: [
+        createLeaseTokenRouteGroup({
+          agent: agentTestClient,
+          annotations: annotationsTestClient,
+          auth: workflowsTestAuthClient,
+          definitions: {} as never,
+          integrations: {} as never,
+          projects: projectsTestClient,
+          runners: runnersTestClient,
+          secrets: pullSecrets,
+        }),
+      ],
+      swagger: false,
+    });
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await closeApp();
+  });
+
+  it.each(SECRET_FIXTURES)('$name', async (fixture) => {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+    const model = fixture.model();
+    const secrets = createTestSecretsClient();
+    for (const [scope, names] of [
+      [{}, fixture.workspaceSecrets],
+      [{projectId}, fixture.projectSecrets],
+      [{projectId: crypto.randomUUID()}, fixture.siblingProjectSecrets],
+    ] as const) {
+      await secrets.setSecrets({workspaceId, ...scope, values: variableValues(names)});
+      await pullSecrets.setSecrets({workspaceId, ...scope, values: variableValues(names)});
+    }
+    const client = readinessClient({workspaceId, projectId, definitionId, model, secrets});
+
+    const {definitions} = await client.checkRunReadiness({
+      workspaceId,
+      projectId,
+      definitionIds: [definitionId],
+    });
+    const run = await startRun({workspaceId, projectId, definitionId, model, secrets});
+    const pull = await pullRunStepSecrets(app, run.id);
+
+    // A missing step secret never refuses the start: the job fails when the step pulls it.
+    expect(
+      definitions[0]?.issues.map((issue) => ({
+        kind: issue.kind,
+        effect: issue.effect,
+        key: issue.key,
+        fields: issue.locations.map((location) => location.field),
+      })),
+    ).toEqual(
+      fixture.issues.map((issue) => ({
+        kind: 'secret-missing',
+        effect: 'fails-job',
+        ...issue,
+      })),
+    );
+    expect(definitions[0]?.secretInputs.map((input) => input.key)).toEqual(fixture.secretInputs);
+    expect(pull.statusCode).toBe(fixture.pull.status);
+    if (fixture.pull.status === 422) {
+      expect(pull.json()).toMatchObject({
+        code: fixture.pull.code,
+        details: {key: fixture.pull.key},
+      });
+    }
+  });
+});
+
+async function pullRunStepSecrets(app: FastifyInstance, runId: string) {
+  const [job] = await getJobsByWorkflowRunId(runId);
+  if (!job) throw new Error('Expected the run to create a job');
+  await db().update(jobs).set({status: 'running'}).where(eq(jobs.id, job.id));
+  const step = (await getStepsByJobId(job.id)).find((candidate) => candidate.type === 'run');
+  if (!step) throw new Error('Expected the job to create a run step');
+  // Dispatch turns the planned secret references into the bindings the pull resolves.
+  const completed = await completeStepDispatchConfig({
+    step,
+    context: {site: 'step-dispatch', values: {}},
+    definitionId: job.id,
+  });
+  await db()
+    .update(stepsTable)
+    .set({status: 'running', config: completed.config})
+    .where(eq(stepsTable.id, step.id));
+  const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+
+  return await app.inject({
+    method: 'GET',
+    url: `/runs/jobs/current/steps/${step.id}/secrets?attempt=${step.currentAttempt}`,
+    headers: {authorization: `Bearer ${token}`},
+  });
+}
 
 describe('checkRunReadiness definitions', () => {
   it('leaves out ids that name no definition in the project', async () => {

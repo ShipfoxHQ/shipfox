@@ -168,15 +168,32 @@ const runIssueLocationSchema = z.object({
  */
 const runIssueEffectSchema = z.enum(['blocks-start', 'fails-job']);
 
+const runIssueLocationsSchema = z.array(runIssueLocationSchema).min(1).max(RUN_ISSUE_LOCATIONS_MAX);
+
 export const runIssueSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('variable-missing'),
     key: z.string(),
-    locations: z.array(runIssueLocationSchema).min(1).max(RUN_ISSUE_LOCATIONS_MAX),
+    locations: runIssueLocationsSchema,
     moreLocations: z.number().int().positive().optional(),
     effect: runIssueEffectSchema,
   }),
+  z.object({
+    kind: z.literal('secret-missing'),
+    key: z.string(),
+    locations: runIssueLocationsSchema,
+    moreLocations: z.number().int().positive().optional(),
+    // The runner pulls step secrets after the run has started.
+    effect: z.literal('fails-job'),
+  }),
 ]);
+
+/** A `secrets.inputs.<key>` reference, for a trigger to compare with its secret mappings. */
+const runSecretInputReferenceSchema = z.object({
+  key: z.string(),
+  locations: runIssueLocationsSchema,
+  moreLocations: z.number().int().positive().optional(),
+});
 
 const attemptSchema = z.number().int().min(1).max(WORKFLOW_RUN_ATTEMPT_MAX);
 const workflowRunAttemptsInterModulePageSchema = z.object({
@@ -307,7 +324,13 @@ export const workflowsInterModuleContract = defineInterModuleContract({
       }),
       // Ids that name no definition in the project are left out of the result.
       output: z.object({
-        definitions: z.array(z.object({definitionId: idSchema, issues: z.array(runIssueSchema)})),
+        definitions: z.array(
+          z.object({
+            definitionId: idSchema,
+            issues: z.array(runIssueSchema),
+            secretInputs: z.array(runSecretInputReferenceSchema),
+          }),
+        ),
       }),
     },
     startRunFromTrigger: {
