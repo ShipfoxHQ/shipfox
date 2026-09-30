@@ -356,7 +356,9 @@ A case that finishes its scenario is then checked against `expect`:
   `pull_request: $pr` match what the write acted on, and every other field
   matches the write's payload. A write that matches no entry fails the case as
   unexpected, and one that matches a `count: 0` entry fails it as forbidden. A
-  case with no `writes` expects none. Reads are never checked.
+  case with no `writes` expects none. Reads are never checked. Each entry
+  counts every write it matches, so entries that overlap count the same write
+  twice.
 
 The result is `failed` and lists each unmatched or missing write with its
 payload. The recorded writes are in the result file.
