@@ -7,6 +7,16 @@ export interface LinearIssueFixtureData {
   title: string;
   teamId: string;
   stateId: string;
+  /** The team key, such as `ENG`. Triggers filter on `team.key`, so it is sent with the team. */
+  teamKey?: string | undefined;
+  description?: string | undefined;
+  /** The labels the issue has when the event fires. */
+  labels?: readonly LinearLabelFixtureData[] | undefined;
+}
+
+export interface LinearLabelFixtureData {
+  id: string;
+  name: string;
 }
 
 export interface LinearEventTarget {
@@ -29,11 +39,21 @@ export function signLinearHeaders(params: {
   };
 }
 
+function issueUrl(issue: LinearIssueFixtureData): string {
+  return `https://linear.app/e2e/issue/${issue.identifier}`;
+}
+
+function issueTeam(issue: LinearIssueFixtureData) {
+  return issue.teamKey === undefined ? {} : {team: {id: issue.teamId, key: issue.teamKey}};
+}
+
 export function buildIssueUpdateEnvelope(
   params: LinearEventTarget & {
     issue: LinearIssueFixtureData;
     previousStateId: string;
     actorId: string;
+    /** The label IDs the issue had before the update. Linear sends them as `labelIds` with the change. */
+    previousLabelIds?: readonly string[] | undefined;
   },
 ) {
   return {
@@ -47,9 +67,16 @@ export function buildIssueUpdateEnvelope(
       title: params.issue.title,
       teamId: params.issue.teamId,
       stateId: params.issue.stateId,
+      url: issueUrl(params.issue),
+      ...issueTeam(params.issue),
+      ...(params.issue.description === undefined ? {} : {description: params.issue.description}),
+      ...(params.issue.labels === undefined ? {} : {labels: params.issue.labels}),
     },
-    updatedFrom: {stateId: params.previousStateId},
-    url: `https://linear.app/e2e/issue/${params.issue.identifier}`,
+    updatedFrom: {
+      stateId: params.previousStateId,
+      ...(params.previousLabelIds === undefined ? {} : {labelIds: params.previousLabelIds}),
+    },
+    url: issueUrl(params.issue),
     organizationId: params.organizationId,
     webhookTimestamp: Date.now(),
     webhookId: randomUUID(),
@@ -83,7 +110,9 @@ export function buildAgentSessionEnvelope(
         identifier: params.issue.identifier,
         title: params.issue.title,
         teamId: params.issue.teamId,
-        url: `https://linear.app/e2e/issue/${params.issue.identifier}`,
+        ...issueTeam(params.issue),
+        ...(params.issue.description === undefined ? {} : {description: params.issue.description}),
+        url: issueUrl(params.issue),
       },
       status: 'pending',
     },

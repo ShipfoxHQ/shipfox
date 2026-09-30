@@ -65,6 +65,27 @@ export function fillSlots({yaml, slots}: {yaml: string; slots: Record<string, st
   return filled;
 }
 
+/**
+ * Replaces the `replace-with-*` placeholders the coding agent edits in the composed file, such as
+ * the team key a Linear trigger filters on. Slot placeholders stay for `fillSlots`.
+ */
+export function fillPlaceholders({
+  yaml,
+  placeholders,
+}: {
+  yaml: string;
+  placeholders: Record<string, string>;
+}): string {
+  let filled = yaml;
+  for (const [placeholder, value] of Object.entries(placeholders)) {
+    if (!filled.includes(placeholder)) {
+      throw new Error(`The composed workflow has no placeholder ${placeholder}.`);
+    }
+    filled = filled.replaceAll(placeholder, () => value);
+  }
+  return filled;
+}
+
 /** Sends the workflow to the case's own runner instead of the shared `shipfox` label. */
 export function setRunnerLabel({yaml, label}: {yaml: string; label: string}): string {
   let replaced = 0;
@@ -95,7 +116,10 @@ export async function composeCaseWorkflow({
     throw new Error(`The template loader does not serve ${templateCase.template}.`);
   }
   return setRunnerLabel({
-    yaml: fillSlots({yaml: composed, slots: templateCase.slots}),
+    yaml: fillSlots({
+      yaml: fillPlaceholders({yaml: composed, placeholders: templateCase.placeholders}),
+      slots: templateCase.slots,
+    }),
     label: runnerLabel,
   });
 }

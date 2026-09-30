@@ -23,6 +23,8 @@
     "#github-events.js": "./src/github-events.ts",
     "#github-project.js": "./src/github-project.ts",
     "#langfuse.js": "./src/langfuse.ts",
+    "#linear-events.js": "./src/linear-events.ts",
+    "#linear-workspace.js": "./src/linear-workspace.ts",
     "#mcp-calls.js": "./src/mcp-calls.ts",
     "#mcp-proxy.js": "./src/mcp-proxy.ts",
     "#media.js": "./src/media.ts",

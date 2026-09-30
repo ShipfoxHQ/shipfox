@@ -75,4 +75,41 @@ describe('Linear event builders', () => {
       agentActivity: {content: {type: 'prompt', body: 'hi'}},
     });
   });
+
+  it('sends the team key, labels, and previous labels for triggers that filter on them', () => {
+    const labeled = {
+      ...issue,
+      teamKey: 'ENG',
+      description: 'Body',
+      labels: [{id: 'label-1', name: 'shipfox'}],
+    };
+
+    const update = buildIssueUpdateEnvelope({
+      organizationId: 'org-1',
+      issue: labeled,
+      previousStateId: 'state-2',
+      previousLabelIds: [],
+      actorId: 'user-1',
+    });
+    const session = buildAgentSessionEnvelope({
+      organizationId: 'org-1',
+      appUserId: 'app-1',
+      sessionId: 'session-1',
+      action: 'created',
+      issue: labeled,
+    });
+
+    expect(update).toMatchObject({
+      data: {
+        team: {id: 'team-1', key: 'ENG'},
+        description: 'Body',
+        labels: labeled.labels,
+        url: 'https://linear.app/e2e/issue/ENG-1',
+      },
+      updatedFrom: {labelIds: []},
+    });
+    expect(session).toMatchObject({
+      agentSession: {issue: {team: {id: 'team-1', key: 'ENG'}, description: 'Body'}},
+    });
+  });
 });

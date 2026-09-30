@@ -5,6 +5,8 @@ import {z} from 'zod';
 const bindingsSchema = z.record(z.string().min(1), z.string().min(1));
 const optionsSchema = z.record(z.string().min(1), z.unknown());
 const slotsSchema = z.record(z.string().min(1), z.string());
+// A placeholder the coding agent edits in the composed file, such as `replace-with-team-key`.
+const placeholdersSchema = z.record(z.string().regex(/^replace-with-[A-Za-z0-9/-]+$/u), z.string());
 const stepTimeoutSchema = z.number().int().positive().optional();
 // One provider and one event, as in `github: {pull_request.closed: {...}}`.
 const eventSchema = z
@@ -63,6 +65,31 @@ const awaitStepSchema = z
   })
   .strict();
 
+const linearIssueSeedSchema = z
+  .object({
+    id: z.string().min(1),
+    identifier: z.string().min(1),
+    title: z.string().min(1),
+    description: z.string().optional(),
+    // The team key, such as `ENG`.
+    team: z.string().min(1),
+    // Label names the issue has before any scenario event.
+    labels: z.array(z.string().min(1)).default([]),
+  })
+  .strict();
+
+// What the provider fakes serve before the scenario starts.
+const seedSchema = z
+  .object({
+    linear: z
+      .object({issues: z.array(linearIssueSeedSchema).min(1)})
+      .strict()
+      .optional(),
+  })
+  .strict();
+
+export type LinearIssueSeed = z.infer<typeof linearIssueSeedSchema>;
+
 const scenarioStepSchema = z.union([startStepSchema, sendStepSchema, awaitStepSchema]);
 
 export type ScenarioStep = z.infer<typeof scenarioStepSchema>;
@@ -91,6 +118,8 @@ export const templateCaseSchema = z
     bindings: bindingsSchema.default({}),
     options: optionsSchema.default({}),
     slots: slotsSchema.default({}),
+    placeholders: placeholdersSchema.default({}),
+    seed: seedSchema.default({}),
     modes: z
       .array(z.enum(['scripted', 'live']))
       .min(1)
