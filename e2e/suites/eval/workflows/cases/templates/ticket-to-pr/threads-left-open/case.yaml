@@ -9,9 +9,6 @@ modes: [scripted]
 repository: acme/report-cli
 timeout_seconds: 900
 
-covers:
-  - With the feedback loop, pushes fixes, replies to inline review comments, and can resolve addressed threads.
-
 scenario:
   - start:
       manual:
