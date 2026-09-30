@@ -173,6 +173,7 @@ describe('parsePiTranscript', () => {
     );
 
     expect(parsed.modelCalls).toHaveLength(1);
+    expect(parsed.skippedLines).toBe(1);
     expect(parsed.toolExecutions[0]?.result).toBeUndefined();
   });
 
@@ -182,6 +183,7 @@ describe('parsePiTranscript', () => {
       toolExecutions: [],
       startTime: undefined,
       endTime: undefined,
+      skippedLines: 0,
     });
   });
 });
@@ -260,5 +262,41 @@ describe('recordPiTranscript', () => {
     const step = byName(exporter.getFinishedSpans(), 'implement');
     expect(millis(step.startTime)).toBe(Date.parse('2026-09-30T10:00:00.000Z'));
     expect(millis(step.endTime)).toBe(Date.parse('2026-09-30T10:00:09.000Z'));
+  });
+
+  it('flags a failed model call and a tool that never answered', () => {
+    const jsonl = message({
+      timestamp: '2026-09-30T10:00:03.000Z',
+      message: {
+        role: 'assistant',
+        stopReason: 'error',
+        errorMessage: 'provider down',
+        content: [{type: 'toolCall', id: 'call-9', name: 'read', arguments: {}}],
+      },
+    });
+
+    recordPiTranscript({step: 'implement', jsonl});
+
+    const spans = exporter.getFinishedSpans();
+    const generation = byName(spans, 'model call 1');
+    const tool = byName(spans, 'read');
+    expect(generation.attributes['langfuse.observation.level']).toBe('ERROR');
+    expect(generation.attributes['langfuse.observation.status_message']).toBe('provider down');
+    expect(tool.attributes['langfuse.observation.level']).toBe('WARNING');
+  });
+
+  it('records the number of unreadable lines on the step span', () => {
+    recordPiTranscript({step: 'implement', jsonl: `{not json\n${transcript}`});
+
+    const step = byName(exporter.getFinishedSpans(), 'implement');
+    const metadata = step.attributes['langfuse.observation.metadata.skipped_lines'];
+    expect(metadata).toBe('1');
+  });
+
+  it('rejects a session with no readable model call', () => {
+    const record = () => recordPiTranscript({step: 'implement', jsonl: '{"unexpected":true}\n'});
+
+    expect(record).toThrow('No model calls found in the pi session for implement');
+    expect(exporter.getFinishedSpans()).toEqual([]);
   });
 });

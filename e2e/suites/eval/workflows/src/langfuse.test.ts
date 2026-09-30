@@ -2,7 +2,13 @@ import {mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {Evaluation, ExperimentParams, LangfuseClient} from '@langfuse/client';
-import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
+import {setLangfuseTracerProvider} from '@langfuse/tracing';
+import {
+  InMemorySpanExporter,
+  NodeTracerProvider,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-node';
+import {afterAll, afterEach, beforeEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {
   buildExperimentItems,
   describeRun,
@@ -16,6 +22,20 @@ import type {CaseResult, ResultsRun} from './results.js';
 
 const markdownDataUri = /^data:text\/markdown;base64,/u;
 const temporaryDirectories: string[] = [];
+const spanExporter = new InMemorySpanExporter();
+const tracerProvider = new NodeTracerProvider({
+  spanProcessors: [new SimpleSpanProcessor(spanExporter)],
+});
+setLangfuseTracerProvider(tracerProvider);
+
+beforeEach(() => {
+  spanExporter.reset();
+});
+
+afterAll(async () => {
+  setLangfuseTracerProvider(null);
+  await tracerProvider.shutdown();
+});
 
 afterEach(async () => {
   await Promise.all(
@@ -128,21 +148,38 @@ describe('agent transcripts', () => {
     message: {role: 'assistant', content: [{type: 'text', text: 'Done.'}], model: 'gpt-6-luna'},
   })}\n`;
 
-  it('keeps transcripts out of the item output', async () => {
-    const recorded = result({agent_transcripts: [{step: 'implement', harness: 'pi', jsonl}]});
+  async function runTask(recorded: CaseResult): Promise<Record<string, unknown>> {
     const task = safeTask({
-      results: new Map([['ticket-to-pr/feedback-loop#1', recorded]]),
+      results: new Map([[`${recorded.case}#1`, recorded]]),
       summary: '# Summary',
     });
+    return (await task({input: {case: recorded.case, repeat: 1}})) as Record<string, unknown>;
+  }
 
-    const output = (await task({input: {case: recorded.case, repeat: 1}})) as Record<
-      string,
-      unknown
-    >;
+  it('records each transcript as a step span and keeps it out of the item output', async () => {
+    const output = await runTask(
+      result({agent_transcripts: [{step: 'implement', harness: 'pi', jsonl}]}),
+    );
 
     expect(output.agent_transcripts).toBeUndefined();
     expect(output.status).toBe('passed');
     expect(output.transcript_errors).toBeUndefined();
+    expect(spanExporter.getFinishedSpans().map((span) => span.name)).toEqual([
+      'model call 1',
+      'implement',
+    ]);
+  });
+
+  it('reports a transcript that cannot be read without changing the result status', async () => {
+    const output = await runTask(
+      result({agent_transcripts: [{step: 'implement', harness: 'pi', jsonl: '{"unexpected":1}'}]}),
+    );
+
+    expect(output.status).toBe('passed');
+    expect(output.transcript_errors).toEqual([
+      expect.stringContaining('implement: No model calls found'),
+    ]);
+    expect(spanExporter.getFinishedSpans()).toEqual([]);
   });
 });
 

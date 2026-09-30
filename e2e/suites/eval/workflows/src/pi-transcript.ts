@@ -87,6 +87,8 @@ export interface PiTranscript {
   toolExecutions: PiToolExecution[];
   startTime: Date | undefined;
   endTime: Date | undefined;
+  /** Lines that were not valid session entries, which points at format drift when many. */
+  skippedLines: number;
 }
 
 interface ContentBlock {
@@ -145,20 +147,27 @@ function chatMessage(message: z.infer<typeof messageSchema>): PiChatMessage {
   };
 }
 
-function parseEntries(jsonl: string): z.infer<typeof entrySchema>[] {
+function parseEntries(jsonl: string): {
+  entries: z.infer<typeof entrySchema>[];
+  skippedLines: number;
+} {
   const entries: z.infer<typeof entrySchema>[] = [];
+  let skippedLines = 0;
   for (const line of jsonl.split('\n')) {
     if (!line.trim()) continue;
-    let json: unknown;
-    try {
-      json = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    const parsed = entrySchema.safeParse(json);
+    const parsed = entrySchema.safeParse(parseJsonLine(line));
     if (parsed.success) entries.push(parsed.data);
+    else skippedLines += 1;
   }
-  return entries;
+  return {entries, skippedLines};
+}
+
+function parseJsonLine(line: string): unknown {
+  try {
+    return JSON.parse(line);
+  } catch {
+    return undefined;
+  }
 }
 
 function validDate(value: number | undefined): Date | undefined {
@@ -262,7 +271,8 @@ export function parsePiTranscript(jsonl: string): PiTranscript {
   const builder = new TranscriptBuilder();
   let firstTime: Date | undefined;
 
-  for (const entry of parseEntries(jsonl)) {
+  const {entries, skippedLines} = parseEntries(jsonl);
+  for (const entry of entries) {
     const entryTime = entryDate(entry.timestamp);
     firstTime ??= entryTime;
     const message = entry.message;
@@ -289,6 +299,7 @@ export function parsePiTranscript(jsonl: string): PiTranscript {
     toolExecutions: [...builder.executions.values()],
     startTime: sorted[0],
     endTime: sorted.at(-1),
+    skippedLines,
   };
 }
 
@@ -404,6 +415,12 @@ export interface RecordPiTranscriptOptions {
  */
 export function recordPiTranscript(options: RecordPiTranscriptOptions): LangfuseSpan {
   const transcript = parsePiTranscript(options.jsonl);
+  // Every agent step makes a model call, so none in a non-empty session means the format changed.
+  if (options.jsonl.trim() && transcript.modelCalls.length === 0) {
+    throw new Error(
+      `No model calls found in the pi session for ${options.step} (${transcript.skippedLines} unreadable lines).`,
+    );
+  }
   const stepSpan = startObservation(
     options.step,
     {
@@ -411,6 +428,7 @@ export function recordPiTranscript(options: RecordPiTranscriptOptions): Langfuse
       metadata: {
         model_calls: transcript.modelCalls.length,
         tool_calls: transcript.toolExecutions.length,
+        skipped_lines: transcript.skippedLines,
       },
     },
     {
