@@ -193,7 +193,7 @@ describe('Discord Gateway connection', () => {
 
       await waitForStored((row) => row.committedSequence === 2);
 
-      expect(seen.sort()).toEqual(['GUILD_CREATE', 'READY']);
+      expect(seen).toEqual(['GUILD_CREATE', 'READY']);
     },
     TEST_TIMEOUT_MS,
   );
@@ -263,6 +263,24 @@ describe('Discord Gateway connection', () => {
       await waitForStored(
         (row) => row.sessionId === gateway.sessionId && row.committedSequence === 1,
       );
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'reports a close the library will not recover from and connects again after backoff',
+    async () => {
+      const DISALLOWED_INTENTS = 4014;
+      gateway.rejectNextIdentify(DISALLOWED_INTENTS);
+
+      connect();
+
+      await vi.waitFor(() => expect(gateway.identifies).toBe(2), {timeout: 10_000});
+      expect(reportError).toHaveBeenCalledWith(
+        expect.objectContaining({message: 'Used disallowed intents'}),
+        {boundary: 'integrations.discord.gateway'},
+      );
+      await waitForStored((row) => row.sessionId === gateway.sessionId);
     },
     TEST_TIMEOUT_MS,
   );

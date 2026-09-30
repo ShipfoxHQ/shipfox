@@ -29,6 +29,8 @@ export interface FakeGateway {
   dispatch(t: string, d: unknown): number;
   /** Answers the next Resume with an Invalid Session that cannot be resumed. */
   rejectNextResume(): void;
+  /** Closes the socket with this code instead of answering the next Identify, like a rejected token or intents. */
+  rejectNextIdentify(code: number): void;
   /** Ends the socket without a close frame, like a crashed process would. */
   dropSocket(): void;
   close(): Promise<void>;
@@ -48,6 +50,7 @@ export async function startFakeGateway(options: FakeGatewayOptions = {}): Promis
   let identifies = 0;
   let gatewayBotCalls = 0;
   let rejectResume = false;
+  let rejectIdentifyCode: number | undefined;
   let limit = {remaining: 1000, resetAfterMs: 60_000, shards: 1};
   let current: WebSocket | undefined;
   const resumes: {sessionId: string; seq: number}[] = [];
@@ -91,6 +94,12 @@ export async function startFakeGateway(options: FakeGatewayOptions = {}): Promis
 
   function identify(socket: WebSocket): void {
     identifies++;
+    if (rejectIdentifyCode !== undefined) {
+      const code = rejectIdentifyCode;
+      rejectIdentifyCode = undefined;
+      socket.close(code);
+      return;
+    }
     sessionId = `fake-session-${++sessionCount}`;
     seq = 0;
     log = [];
@@ -166,6 +175,9 @@ export async function startFakeGateway(options: FakeGatewayOptions = {}): Promis
     },
     rejectNextResume() {
       rejectResume = true;
+    },
+    rejectNextIdentify(code) {
+      rejectIdentifyCode = code;
     },
     dropSocket() {
       current?.terminate();

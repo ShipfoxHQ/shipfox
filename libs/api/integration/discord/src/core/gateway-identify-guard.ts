@@ -40,6 +40,7 @@ export function createIdentifyGuard(options: IdentifyGuardOptions): IIdentifyThr
       if (spacingLeftMs > 0) await sleep(spacingLeftMs, undefined, {signal});
 
       const bot = await fetchGatewayBot();
+      signal.throwIfAborted();
       if (!bot) {
         const retryMs = options.backoffMs?.(failures) ?? gatewayBackoffMs({attempt: failures});
         failures++;

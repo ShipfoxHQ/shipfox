@@ -103,8 +103,9 @@ export function startDiscordGatewayRun(options: DiscordGatewayRunOptions = {}): 
         const stored = await getDiscordGatewaySession({shardId: GATEWAY_SHARD_ID});
         const state: GatewaySessionState = new GatewaySessionState({
           stored,
-          onSessionChange: () => persistence.writeSessionChange(state),
+          onSessionChange: () => void persistence.flush(state),
         });
+        persistence.storedSessionId = stored?.sessionId ?? null;
         return state;
       } catch (error) {
         logger().error({err: error}, 'Discord Gateway could not read its session row');
@@ -174,9 +175,9 @@ export function startDiscordGatewayRun(options: DiscordGatewayRunOptions = {}): 
     manager.on(WebSocketShardEvents.Resumed, () => {
       readyAt = Date.now();
     });
-    manager.on(WebSocketShardEvents.Error, (error) => {
-      logger().warn({err: error}, 'Discord Gateway shard error');
-    });
+    // The library emits this only for closes it will not recover from, such as a rejected token or
+    // disallowed intents. Failing here reports it and rebuilds the manager after backoff.
+    manager.on(WebSocketShardEvents.Error, fail);
     manager.on(WebSocketShardEvents.SocketError, (error) => {
       logger().warn({err: error}, 'Discord Gateway socket error');
     });
@@ -236,37 +237,35 @@ function createRest(params: {apiBaseUrl: string; botToken: string}): REST {
 function createSessionPersistence() {
   let chain: Promise<void> = Promise.resolve();
   let flushedVersion = -1;
+  const persistence = {
+    /** The session id the row holds. A flush replaces the row's session first when it differs. */
+    storedSessionId: null as string | null,
+    flush(state: GatewaySessionState): Promise<void> {
+      chain = chain.then(() => write(state)).catch(onWriteFailure);
+      return chain;
+    },
+  };
 
-  function enqueue(write: () => Promise<void>): Promise<void> {
-    chain = chain.then(write).catch((error: unknown) => {
-      logger().error({err: error}, 'Discord Gateway session write failed');
-      reportError(error, {boundary: GATEWAY_ERROR_BOUNDARY});
-    });
-    return chain;
+  async function write(state: GatewaySessionState): Promise<void> {
+    const version = state.version;
+    if (version === flushedVersion) return;
+    const snapshot = state.snapshot();
+    const {sessionId, resumeGatewayUrl} = snapshot;
+    if (sessionId && resumeGatewayUrl && sessionId !== persistence.storedSessionId) {
+      await startDiscordGatewaySession({shardId: GATEWAY_SHARD_ID, sessionId, resumeGatewayUrl});
+      persistence.storedSessionId = sessionId;
+    }
+    await flushDiscordGatewaySession({shardId: GATEWAY_SHARD_ID, ...snapshot});
+    if (sessionId === null) persistence.storedSessionId = null;
+    flushedVersion = version;
   }
 
-  function flush(state: GatewaySessionState): Promise<void> {
-    return enqueue(async () => {
-      const version = state.version;
-      if (version === flushedVersion) return;
-      const snapshot = state.snapshot();
-      await flushDiscordGatewaySession({shardId: GATEWAY_SHARD_ID, ...snapshot});
-      flushedVersion = version;
-    });
+  function onWriteFailure(error: unknown): void {
+    logger().error({err: error}, 'Discord Gateway session write failed');
+    reportError(error, {boundary: GATEWAY_ERROR_BOUNDARY});
   }
 
-  /** A new session is written at once: the resume point must never pair an old session with new cursors. */
-  function writeSessionChange(state: GatewaySessionState): void {
-    void enqueue(async () => {
-      const {sessionId, resumeGatewayUrl} = state.snapshot();
-      if (sessionId && resumeGatewayUrl) {
-        await startDiscordGatewaySession({shardId: GATEWAY_SHARD_ID, sessionId, resumeGatewayUrl});
-      }
-    });
-    void flush(state);
-  }
-
-  return {flush, writeSessionChange};
+  return persistence;
 }
 
 async function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {

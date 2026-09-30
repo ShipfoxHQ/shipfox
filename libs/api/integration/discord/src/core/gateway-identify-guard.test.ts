@@ -53,12 +53,14 @@ describe('Identify guard', () => {
   it('refuses below 100 remaining, reports it, and waits for the reset', async () => {
     const getGatewayBot = vi
       .fn()
-      .mockResolvedValueOnce(gatewayBot({remaining: 99, resetAfterMs: 20}))
+      .mockResolvedValueOnce(gatewayBot({remaining: 99, resetAfterMs: 100}))
       .mockResolvedValue(gatewayBot({remaining: 1000}));
     const guard = createIdentifyGuard({getGatewayBot, spacingMs: 20});
+    const startedAt = Date.now();
 
     await guard.waitForIdentify(0, new AbortController().signal);
 
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(90);
     expect(getGatewayBot).toHaveBeenCalledTimes(2);
     expect(reportError).toHaveBeenCalledTimes(1);
     expect(vi.mocked(reportError).mock.calls[0]?.[1]).toEqual({
@@ -111,5 +113,18 @@ describe('Identify guard', () => {
     setTimeout(() => controller.abort(), 30);
 
     await expect(waiting).rejects.toThrow();
+  });
+
+  it('rejects instead of clearing the Identify when the shard closes during the budget check', async () => {
+    const controller = new AbortController();
+    const guard = createIdentifyGuard({
+      getGatewayBot: async () => {
+        controller.abort();
+        return await Promise.resolve(gatewayBot({}));
+      },
+      spacingMs: 1,
+    });
+
+    await expect(guard.waitForIdentify(0, controller.signal)).rejects.toThrow();
   });
 });

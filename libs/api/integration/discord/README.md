@@ -91,10 +91,6 @@ mise exec -- pnpm check:api-migrations
 
 The persistence tests use the repository PostgreSQL test service. Start it with `mise exec -- pnpm dev:services:up` when it is not already running.
 
-## License
-
-MIT
-
 ## Gateway connection
 
 The leader runs one shard (`shardCount: 1`) with the `GUILDS`, `GUILD_MESSAGES`, `GUILD_MESSAGE_REACTIONS`, and `MESSAGE_CONTENT` intents. It connects in the background, so the election keeps checking its lock while Discord is slow.
@@ -102,8 +98,12 @@ The leader runs one shard (`shardCount: 1`) with the `GUILDS`, `GUILD_MESSAGES`,
 - **Resume.** A stored session is resumed from `committed_sequence`, with no age check. An Invalid Session falls back to Identify inside the library.
 - **Hooks.** `retrieveSessionInfo` and `updateSessionInfo` are synchronous and in memory, because the library calls them on every frame and does not serialize frames. The row is written every 5 s and on shutdown. A new session id resets the committed mark and is written at once.
 - **Committed mark.** Dispatches run in emit order, one at a time, through a handler registry. The mark is the highest sequence with every lower one handled, because the library can emit `READY` after `GUILD_CREATE`. A dispatch without a handler is skipped and committed.
-- **Handler failure.** The manager is destroyed with close code `4000`, its queue is dropped, and a new manager resumes from the mark after backoff. Close code `1000` would end the session on Discord's side, and the store ignores the library's `null` session while the destroy is ours.
+- **Handler failure.** The manager is destroyed with close code `4000`, its queue is dropped, and a new manager resumes from the mark after backoff. Close code `1000` would end the session on Discord's side, and the store ignores the library's `null` session while the destroy is ours. A close the library will not recover from, such as a rejected token or disallowed intents, takes the same path and is reported.
 - **Identify guard.** Every Identify waits on the manager's throttler: 5 s apart, refused below 100 remaining starts until `reset_after`, and `shards > 1` reported once. It waits and never throws, because a throw makes the library retry after 500 ms. Reports use the `integrations.discord.gateway` boundary.
 - **Backoff.** Failed connects retry after 5 s, doubling up to 5 minutes, with jitter that only shortens the delay.
 
 This build skips every dispatch, so it commits messages it cannot publish. Do not enable `DISCORD_GATEWAY_ENABLED` in staging or production until the message and reaction handlers are deployed.
+
+## License
+
+MIT

@@ -205,6 +205,10 @@ Exact pins need a clear reason. Use an exact version only in these cases.
 - A package ships a platform-specific binary or companion from the same release.
 - A formatter, compiler, or other development tool produces repository-owned
   output. That output must change only in an explicit update.
+- A runtime library's internal call ordering is part of a design contract that
+  tests pin, so every update needs its own review. `@discordjs/ws` is pinned
+  because the Discord Gateway checkpoint depends on when the library calls its
+  session hooks.
 
 The policy entry and Renovate rule must state which condition applies. Exact pins
 are not the default for published packages.
