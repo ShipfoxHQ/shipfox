@@ -4,7 +4,7 @@
 
 ## What it does
 
-- **`createDiscordIntegrationProvider`** exposes the Discord provider metadata, guild external URL, and connection-record cleanup hook.
+- **`createDiscordIntegrationProvider`** exposes the Discord provider metadata, guild external URL, and the connection cleanup hooks. Deletion runs under the per-guild advisory lock `integrations:discord:guild:<guild_id>` (`withDiscordGuildLock`, 30 s bounded wait), and once the records commit the bot leaves the guild. A `403` or `404` from Discord counts as done, and any other failure is logged.
 - **Installation repository exports** create, find, and delete Discord guild installations owned by the provider database.
 - **`createDiscordWebhookRoutes` and `createDiscordWebhookProcessor`** receive Discord interactions, verify them, and publish command events.
 - **`createDiscordE2eRoutes`** exposes the synthetic connection route used by integration and E2E tests.
