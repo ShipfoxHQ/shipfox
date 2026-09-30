@@ -10,12 +10,19 @@ export type TriggerEventIssueDescriptionPart =
   | {kind: 'code'; value: string}
   | {kind: 'bytes'; value: number};
 
+export interface TriggerEventIssueAction {
+  kind: 'add-variable' | 'add-secret';
+  label: string;
+  key: string;
+}
+
 export interface TriggerEventIssue {
   id: string;
   title: string;
   targetName?: string;
   description: TriggerEventIssueDescriptionPart[];
   affectedCount: number;
+  action?: TriggerEventIssueAction;
 }
 
 export interface TriggerEventIssueCallout {
@@ -30,6 +37,19 @@ interface MappableTriggerEventIssue extends TriggerEventIssue {
   groupKey?: string;
   groupedDescription?: TriggerEventIssueDescriptionPart[];
 }
+
+type InterpolationDiagnostic = Extract<
+  TriggerEventDecisionDiagnostic,
+  {code: 'interpolation-unresolvable'}
+>;
+
+const PREDICATE_FIELD_NAMES: Record<string, string> = {
+  'job.if': 'if',
+  'job.success': 'success',
+  'job.listening.filter': 'filter',
+  'step.if': 'if',
+  'step.gate.success': 'success',
+};
 
 const MAX_VISIBLE_ISSUES = 3;
 const LEGACY_WORKFLOW_ERROR = /^workflows\.[^:]+: ([a-z][a-z0-9-]+)$/;
@@ -242,20 +262,20 @@ function diagnosticIssue(
         text(`Shipfox could not prepare the agent integrations for ${targetName}.`),
       ]);
     case 'secret-not-found':
-      return issue(decision, 'Secret is unavailable', [
-        code(diagnostic.key),
-        text(` could not be found for ${targetName}. Check the trigger secret mapping and scope.`),
-      ]);
+      return issue(
+        decision,
+        `Secret ${diagnostic.key} is not set`,
+        [text(`The ${targetName} trigger passes it to the workflow.`)],
+        {action: {kind: 'add-secret', label: 'Add secret', key: diagnostic.key}},
+      );
     case 'secret-input-missing':
-      return issue(decision, 'Secret input is not passed', [
-        code(diagnostic.key),
-        text(` was not passed to ${targetName}. Add it to the trigger secrets mapping.`),
+      return issue(decision, `Secret input ${diagnostic.key} is not passed`, [
+        text(
+          `The ${targetName} trigger doesn't pass secrets.inputs.${diagnostic.key}. Add it to the trigger's secrets: in the workflow file.`,
+        ),
       ]);
     case 'interpolation-unresolvable':
-      return issue(decision, 'Workflow value could not be resolved', [
-        code(diagnostic.envKey ?? diagnostic.field),
-        text(` could not be resolved in ${diagnostic.field} for ${targetName}.`),
-      ]);
+      return interpolationIssue(decision, diagnostic);
     case 'invalid-job-runner-labels': {
       const visibleLabels = diagnostic.labels.slice(0, 3);
       const remaining = diagnostic.labels.length - visibleLabels.length;
@@ -306,6 +326,74 @@ function diagnosticIssue(
     case 'unexpected-workflow-start-failure':
       return workflowFallbackIssue(decision);
   }
+}
+
+function interpolationIssue(
+  decision: TriggerEventMatchedWorkflowResult,
+  diagnostic: InterpolationDiagnostic,
+): MappableTriggerEventIssue {
+  if (diagnostic.variableKey === undefined) {
+    return issue(decision, 'Workflow value could not be resolved', [
+      code(diagnostic.envKey ?? diagnostic.field),
+      text(` could not be resolved in ${diagnostic.field} for ${decision.subscriptionName}.`),
+    ]);
+  }
+  return issue(
+    decision,
+    `Variable ${diagnostic.variableKey} is not set`,
+    [
+      ...variableLocation(diagnostic),
+      text(
+        " reads it. Every variable a workflow references must exist, even in a branch that doesn't run.",
+      ),
+    ],
+    {action: {kind: 'add-variable', label: 'Add variable', key: diagnostic.variableKey}},
+  );
+}
+
+function variableLocation(diagnostic: InterpolationDiagnostic): TriggerEventIssueDescriptionPart[] {
+  const stepName =
+    diagnostic.step === undefined
+      ? undefined
+      : (diagnostic.step.name ?? diagnostic.step.key ?? `#${diagnostic.step.index}`);
+  const predicate = PREDICATE_FIELD_NAMES[diagnostic.field];
+  return predicate === undefined
+    ? valueLocation(diagnostic, stepName)
+    : predicateLocation(diagnostic, predicate, stepName);
+}
+
+function predicateLocation(
+  diagnostic: InterpolationDiagnostic,
+  predicate: string,
+  stepName: string | undefined,
+): TriggerEventIssueDescriptionPart[] {
+  const subject = [
+    ...(stepName === undefined ? [] : [text('step '), code(stepName)]),
+    ...(diagnostic.jobKey === undefined
+      ? []
+      : [text(`${stepName === undefined ? '' : ' of '}job `), code(diagnostic.jobKey)]),
+  ];
+  return [
+    text('The '),
+    code(predicate),
+    ...(subject.length === 0 ? [] : [text(' on '), ...subject]),
+  ];
+}
+
+function valueLocation(
+  diagnostic: InterpolationDiagnostic,
+  stepName: string | undefined,
+): TriggerEventIssueDescriptionPart[] {
+  const field =
+    diagnostic.field === 'env' && diagnostic.envKey !== undefined
+      ? `env.${diagnostic.envKey}`
+      : diagnostic.field;
+  const parts: TriggerEventIssueDescriptionPart[][] = [
+    ...(diagnostic.jobKey === undefined ? [] : [[text('Job '), code(diagnostic.jobKey)]]),
+    ...(stepName === undefined ? [] : [[text('step '), code(stepName)]]),
+    [code(field)],
+  ];
+  return parts.flatMap((part, index) => (index === 0 ? part : [text(', '), ...part]));
 }
 
 function processingIssue(diagnostic: TriggerEventProcessingDiagnostic): MappableTriggerEventIssue {
@@ -416,7 +504,7 @@ function issue(
   decision: TriggerEventMatchedWorkflowResult,
   title: string,
   description: TriggerEventIssueDescriptionPart[],
-  grouping?: Pick<MappableTriggerEventIssue, 'groupKey' | 'groupedDescription'>,
+  extras?: Pick<MappableTriggerEventIssue, 'groupKey' | 'groupedDescription' | 'action'>,
 ): MappableTriggerEventIssue {
   return {
     id: decision.id,
@@ -424,7 +512,7 @@ function issue(
     targetName: decision.subscriptionName,
     description,
     affectedCount: 1,
-    ...grouping,
+    ...extras,
   };
 }
 

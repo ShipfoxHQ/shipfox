@@ -8,20 +8,27 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
     Link: ({
       to,
       params,
-      search: _search,
+      search,
       children,
       ...props
     }: AnchorHTMLAttributes<HTMLAnchorElement> & {
       to: string;
       params?: Record<string, string> | undefined;
-      search?: unknown;
+      search?: Record<string, string | undefined> | undefined;
       children: ReactNode;
     }) => {
-      const href = Object.entries(params ?? {}).reduce(
-        (path, [key, value]) => path.split(`$${key}`).join(value),
+      const path = Object.entries(params ?? {}).reduce(
+        (acc, [key, value]) => acc.split(`$${key}`).join(value),
         to,
       );
-      return createElement('a', {href, ...props}, children);
+      const query = new URLSearchParams(
+        Object.entries(search ?? {}).filter((entry): entry is [string, string] => entry[1] != null),
+      ).toString();
+      return createElement(
+        'a',
+        {href: query === '' ? path : `${path}?${query}`, ...props},
+        children,
+      );
     },
   };
 });

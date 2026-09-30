@@ -26,7 +26,11 @@ import type {
   TriggerEventDetail as TriggerEventDetailModel,
   TriggerEventMatchedWorkflowResult,
 } from '#core/trigger-event.js';
-import {getTriggerEventIssueCallout, type TriggerEventIssue} from '#core/trigger-event-issues.js';
+import {
+  getTriggerEventIssueCallout,
+  type TriggerEventIssue,
+  type TriggerEventIssueAction,
+} from '#core/trigger-event-issues.js';
 import {useTriggerEventQuery} from '#hooks/api/trigger-events.js';
 import {triggerEventResult} from './trigger-event-result.js';
 import {TriggerSourceIcon} from './trigger-source-icon.js';
@@ -140,7 +144,7 @@ export function TriggerEventDetailView({
         key={event.id}
         className="flex min-h-0 flex-1 flex-col gap-group overflow-y-auto scrollbar [&>*]:shrink-0"
       >
-        <EventIssueCallout event={event} />
+        <EventIssueCallout event={event} workspaceSlug={workspaceSlug} />
         <EventRuns workspaceId={workspaceId} workspaceSlug={workspaceSlug} event={event} />
         <EventPayload payload={formattedPayload} />
       </div>
@@ -148,7 +152,13 @@ export function TriggerEventDetailView({
   );
 }
 
-function EventIssueCallout({event}: {event: TriggerEventDetailModel}) {
+function EventIssueCallout({
+  event,
+  workspaceSlug,
+}: {
+  event: TriggerEventDetailModel;
+  workspaceSlug: string | undefined;
+}) {
   const callout = getTriggerEventIssueCallout(event);
   if (callout === null) return null;
   const firstIssue = callout.issues[0];
@@ -163,7 +173,7 @@ function EventIssueCallout({event}: {event: TriggerEventDetailModel}) {
             <p className="mb-tight">{callout.successSummary}</p>
           )}
           {callout.issues.length === 1 ? (
-            <IssueDescription issue={firstIssue} />
+            <IssueDescription issue={firstIssue} workspaceSlug={workspaceSlug} />
           ) : (
             <ul className="flex flex-col gap-tight">
               {callout.issues.map((issue) => (
@@ -174,7 +184,7 @@ function EventIssueCallout({event}: {event: TriggerEventDetailModel}) {
                       : (issue.targetName ?? issue.title)}
                     :
                   </span>{' '}
-                  <IssueDescription issue={issue} />
+                  <IssueDescription issue={issue} workspaceSlug={workspaceSlug} />
                 </li>
               ))}
             </ul>
@@ -191,8 +201,14 @@ function EventIssueCallout({event}: {event: TriggerEventDetailModel}) {
   );
 }
 
-function IssueDescription({issue}: {issue: TriggerEventIssue}) {
-  return issue.description.map((part, index) => {
+function IssueDescription({
+  issue,
+  workspaceSlug,
+}: {
+  issue: TriggerEventIssue;
+  workspaceSlug: string | undefined;
+}) {
+  const parts = issue.description.map((part, index) => {
     const key = `${part.kind}:${index}`;
     if (part.kind === 'code') {
       return (
@@ -203,6 +219,36 @@ function IssueDescription({issue}: {issue: TriggerEventIssue}) {
     }
     return <span key={key}>{part.kind === 'bytes' ? formatBytes(part.value) : part.value}</span>;
   });
+  if (issue.action === undefined || workspaceSlug === undefined) return parts;
+  return (
+    <>
+      {parts}
+      <IssueActionLink action={issue.action} workspaceSlug={workspaceSlug} />
+    </>
+  );
+}
+
+function IssueActionLink({
+  action,
+  workspaceSlug,
+}: {
+  action: TriggerEventIssueAction;
+  workspaceSlug: string;
+}) {
+  const to =
+    action.kind === 'add-variable'
+      ? '/w/$workspaceSlug/settings/variables'
+      : '/w/$workspaceSlug/settings/secrets';
+  return (
+    <Link
+      to={to}
+      params={{workspaceSlug}}
+      search={{create: action.key}}
+      className="mt-tight block font-medium text-foreground-neutral-base underline"
+    >
+      {action.label}
+    </Link>
+  );
 }
 
 function triggerEventDisplayLabel(event: Pick<TriggerEventDetailModel, 'event' | 'source'>) {

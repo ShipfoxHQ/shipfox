@@ -197,6 +197,34 @@ describe('TriggerEventDetailView', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
+  test('links a missing variable to the prefilled variable settings form', async () => {
+    const base = makeEvent();
+    renderDetailView({
+      ...base,
+      outcome: 'errored',
+      decisions: base.decisions.map((decision) => ({
+        ...decision,
+        decision: 'dispatch-error',
+        run_id: null,
+        run_name: null,
+        reason: 'interpolation-unresolvable',
+        diagnostic: {
+          version: 1,
+          code: 'interpolation-unresolvable',
+          field: 'job.if',
+          variable_key: 'E2E_SCHEDULE_ENABLED',
+          job_key: 'e2e',
+        },
+      })),
+    });
+
+    expect(await screen.findByText('Variable E2E_SCHEDULE_ENABLED is not set')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Add variable'})).toHaveAttribute(
+      'href',
+      '/w/acme/settings/variables?create=E2E_SCHEDULE_ENABLED',
+    );
+  });
+
   test('resolves a matched project from its detail query when it is not in the list page', async () => {
     renderDetailView(makeEvent(), vi.fn(), {
       includeListProject: false,
