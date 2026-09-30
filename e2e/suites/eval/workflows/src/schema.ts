@@ -5,13 +5,59 @@ import {z} from 'zod';
 const bindingsSchema = z.record(z.string().min(1), z.string().min(1));
 const optionsSchema = z.record(z.string().min(1), z.unknown());
 const slotsSchema = z.record(z.string().min(1), z.string());
-const scenarioValueSchema = z.record(z.string().min(1), z.unknown());
-
-const scenarioStepSchema = z.union([
-  z.object({start: scenarioValueSchema}).strict(),
-  z.object({send: scenarioValueSchema}).strict(),
-  z.object({await: scenarioValueSchema}).strict(),
+const stepTimeoutSchema = z.number().int().positive().optional();
+// One provider and one event, as in `github: {pull_request.closed: {...}}`.
+const eventSchema = z.record(z.string().min(1), z.record(z.string().min(1), z.unknown())).refine(
+  (event) => {
+    const providers = Object.values(event);
+    return providers.length === 1 && Object.keys(providers[0] ?? {}).length === 1;
+  },
+  {message: 'must name exactly one provider and one event'},
+);
+const jobStatusSchema = z.enum([
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+  'skipped',
 ]);
+const executionStatusSchema = z.enum(['pending', 'running', 'succeeded', 'failed', 'cancelled']);
+const runStatusSchema = z.enum(['succeeded', 'failed', 'cancelled']);
+
+const startStepSchema = z.union([
+  z
+    .object({
+      start: z.object({manual: z.object({inputs: z.record(z.string(), z.unknown()).default({})})}),
+      timeout_seconds: stepTimeoutSchema,
+    })
+    .strict(),
+  z.object({start: z.object({event: eventSchema}), timeout_seconds: stepTimeoutSchema}).strict(),
+]);
+
+const sendStepSchema = z.object({send: eventSchema, timeout_seconds: stepTimeoutSchema}).strict();
+
+const awaitStepSchema = z
+  .object({
+    await: z.union([
+      z.object({job: z.string().min(1), status: jobStatusSchema}).strict(),
+      z.object({listener: z.string().min(1), ready: z.literal(true)}).strict(),
+      z
+        .object({
+          listener: z.string().min(1),
+          execution: z.number().int().positive(),
+          status: executionStatusSchema,
+        })
+        .strict(),
+      z.object({run: runStatusSchema}).strict(),
+    ]),
+    timeout_seconds: stepTimeoutSchema,
+  })
+  .strict();
+
+const scenarioStepSchema = z.union([startStepSchema, sendStepSchema, awaitStepSchema]);
+
+export type ScenarioStep = z.infer<typeof scenarioStepSchema>;
 
 const writeExpectationSchema = z.record(z.string().min(1), z.unknown());
 const expectSchema = z
@@ -33,6 +79,8 @@ export const templateCaseSchema = z
       .min(1)
       .default(['scripted']),
     repository: z.string().min(1).optional(),
+    // A catalog directory, relative to the case directory, for cases that run a fixture template.
+    catalog: z.string().min(1).optional(),
     timeout_seconds: z.number().int().positive().default(900),
     scenario: z.array(scenarioStepSchema).min(1),
     expect: expectSchema,

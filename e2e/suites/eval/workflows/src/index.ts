@@ -8,7 +8,9 @@ export {
   parseClaudeTranscript,
 } from './claude-transcript.js';
 export {type EvalCliOptions, type EvalRunOptions, parseEvalArgs, runCli, runEval} from './cli.js';
+export {composeCaseWorkflow, fillSlots, setRunnerLabel, templateLoaderFor} from './compose.js';
 export {caseSupportsMode, type DiscoveredCase, discoverCases} from './discovery.js';
+export {type ExecuteCaseOptions, executeTemplateCase} from './execute.js';
 export {
   describeRun,
   exportToLangfuse,
@@ -33,6 +35,7 @@ export {
   type RecordPiTranscriptOptions,
   recordPiTranscript,
 } from './pi-transcript.js';
+export {type PullRequestReference, resolveReferences} from './references.js';
 export {
   type AgentTranscript,
   type CaseResult,
@@ -41,6 +44,12 @@ export {
   writeResults,
 } from './results.js';
 export {
+  runScenario,
+  type ScenarioDriver,
+  ScenarioError,
+  type ScenarioStepRecord,
+} from './scenario.js';
+export {
   CaseValidationError,
   formatValidationIssues,
   loadTemplateCase,
@@ -48,3 +57,4 @@ export {
   type TemplateCase,
   templateCaseSchema,
 } from './schema.js';
+export type {EventSender, EventSenderContext, EventSenders} from './senders.js';

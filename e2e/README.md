@@ -337,6 +337,28 @@ mise run evals -- --suite templates --mode scripted
 mise run evals -- --suite templates --mode scripted --case fixture --repeat 3
 ```
 
+Each case arranges its own workspace, GitHub connection, and project on a
+fake repository, composes its template variant through the template loader,
+creates the definition, and starts a local runner with a label of its own. It
+then runs the case's `scenario` in order and writes the run observation to
+`results/<run-id>/<case>/<repeat>.json`. The exit code is non-zero when a
+scripted case errors.
+
+A scenario step is one of:
+
+- `start`: `manual` with `inputs`, or `event` with a provider event.
+- `send`: a provider event, such as `github: {pull_request.closed: {...}}`.
+  `$pr` and `$pr.head` in an event payload resolve to the pull request the run
+  opened in the GitHub fake. A provider needs an `EventSender` passed to
+  `runEval` before a case can send or start with its events.
+- `await`: a `job` status, a `listener` that is `ready`, a listener `execution`
+  status, or the `run` status. A job, execution, or run that ends in another
+  terminal status fails the step at once.
+
+Every step takes its own `timeout_seconds`, capped by the case's
+`timeout_seconds`. A case runs a fixture template instead of a shipped one when
+its `catalog` names a template directory next to its `case.yaml`.
+
 The onboarding suite drives a real Claude Agent SDK session against the stack.
 Each case in `cases/onboarding/` sets up a workspace, a fixture repository, and
 a recording MCP proxy, then answers the agent's questions with a simulated user

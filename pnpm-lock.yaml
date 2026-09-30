@@ -2450,6 +2450,9 @@ importers:
       '@shipfox/api-definitions-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/definitions-dto
+      '@shipfox/api-triggers-dto':
+        specifier: workspace:*
+        version: link:../../../../libs/api/triggers-dto
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../../core
@@ -2459,6 +2462,12 @@ importers:
       '@shipfox/e2e-driver-linear':
         specifier: workspace:*
         version: link:../../../drivers/linear
+      '@shipfox/e2e-driver-runner-process':
+        specifier: workspace:*
+        version: link:../../../drivers/runner-process
+      '@shipfox/e2e-observe-workflows':
+        specifier: workspace:*
+        version: link:../../../observe/workflows
       '@shipfox/e2e-setup-auth':
         specifier: workspace:*
         version: link:../../../setup/auth
@@ -2471,6 +2480,9 @@ importers:
       '@shipfox/e2e-setup-workspaces':
         specifier: workspace:*
         version: link:../../../setup/workspaces
+      '@shipfox/runner':
+        specifier: workspace:*
+        version: link:../../../../apps/runner
       '@shipfox/workflow-templates':
         specifier: workspace:*
         version: link:../../../../libs/shared/workflow/templates

@@ -1,10 +1,11 @@
-import {mkdir, mkdtemp, readdir, rm, writeFile} from 'node:fs/promises';
+import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {runEval} from './cli.js';
 import {discoverCases} from './discovery.js';
+import type {CaseResult} from './results.js';
 
 const temporaryDirectories: string[] = [];
 const invalidCasePattern = /scenario/iu;
@@ -37,6 +38,15 @@ describe('template case discovery', () => {
   });
 });
 
+const passing = ({discovered, repeat}: {discovered: {id: string}; repeat: number}): CaseResult => ({
+  case: discovered.id,
+  mode: 'scripted',
+  repeat,
+  status: 'passed',
+  duration_ms: 1,
+  cost_usd: 0,
+});
+
 describe('eval results', () => {
   it('writes one result per repeat and a summary', async () => {
     const root = await mkdtemp(join(tmpdir(), 'shipfox-eval-results-'));
@@ -51,6 +61,7 @@ describe('eval results', () => {
       caseFilter: 'fixture',
       resultsDirectory,
       runId: 'proof',
+      execute: async (params) => passing(params),
     });
 
     expect(run.results).toHaveLength(2);
@@ -59,6 +70,30 @@ describe('eval results', () => {
       '2.json',
     ]);
     expect(await readdir(join(resultsDirectory, 'proof'))).toContain('summary.md');
+  });
+
+  it('lists the reason of an errored case in the summary', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'shipfox-eval-errors-'));
+    temporaryDirectories.push(root);
+    const resultsDirectory = join(root, 'results');
+
+    await runEval({
+      suite: 'templates',
+      mode: 'scripted',
+      repeat: 1,
+      cwd: fileURLToPath(new URL('../', import.meta.url)),
+      caseFilter: 'fixture',
+      resultsDirectory,
+      runId: 'errors',
+      execute: async (params) => ({
+        ...passing(params),
+        status: 'error',
+        error: 'Step 2 failed\nthe run ended failed',
+      }),
+    });
+
+    const summary = await readFile(join(resultsDirectory, 'errors', 'summary.md'), 'utf8');
+    expect(summary).toContain('- `fixture` repeat 1: Step 2 failed / the run ended failed');
   });
 
   it('rejects live mode until cases execute', async () => {

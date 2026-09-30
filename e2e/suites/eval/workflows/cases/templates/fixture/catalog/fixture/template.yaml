@@ -1,0 +1,27 @@
+title: Fixture task
+summary: Check out the project repository and run its setup and test commands.
+starts: Someone starts it manually
+keywords: [fixture]
+flow:
+  - kind: trigger
+    title: Someone starts the workflow
+    detail: A manual start with the repository name.
+  - kind: check
+    title: The workflow runs the test command
+    detail: The workflow runs the repository's setup and test commands.
+writes: []
+prerequisites: []
+related: []
+roles:
+  source:
+    from: project
+    providers: [github]
+options: []
+models: {}
+slots:
+  - id: setup_commands
+    description: Shell commands to prepare the repository before tests run.
+  - id: test_command
+    description: Command to run the repository checks.
+secrets: []
+variables: []

@@ -1,10 +1,11 @@
 template: shipfox/fixture
+catalog: catalog
 bindings:
   source: github
 options: {}
 slots:
-  setup_commands: "- key: setup\n  run: npm ci"
-  test_command: npm test
+  setup_commands: "- key: setup\n  run: test -f package.json"
+  test_command: test -f src/greeting.txt
 modes: [scripted, live]
 repository: acme/fixture
 scenario:
@@ -12,6 +13,9 @@ scenario:
       manual:
         inputs:
           repository: acme/fixture
+  - await:
+      job: implement
+      status: succeeded
   - await:
       run: succeeded
 expect:
