@@ -142,6 +142,7 @@ function collectStepReferences(step: WorkflowModelStep, scope: Scope): void {
       collectFieldReferences(step.templates?.prompt, scope, {field: 'agent.prompt'});
       collectFieldReferences(step.templates?.model, scope, {field: 'agent.model'});
       collectFieldReferences(step.templates?.provider, scope, {field: 'agent.provider'});
+      collectFieldReferences(step.templates?.thinking, scope, {field: 'agent.thinking'});
       collectFieldReferences(step.session?.key, scope, {field: 'agent.session'});
       return;
     case 'tool':

@@ -51,6 +51,30 @@ describe('collectRunRequirements', () => {
     ]);
   });
 
+  test('locates job fields by job and agent fields by step', () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {
+          executionName: template('vars.JOB_NAME'),
+          steps: [{key: 'ask', prompt: 'fix it', thinking: template('vars.THINKING') as 'low'}],
+        },
+      },
+    });
+
+    const {variables} = collectRunRequirements(model, model.jobs);
+
+    expect(variables).toEqual([
+      {key: 'JOB_NAME', field: 'job.execution_name', source: 'vars.JOB_NAME', jobKey: 'fix'},
+      {
+        key: 'THINKING',
+        field: 'agent.thinking',
+        source: 'vars.THINKING',
+        jobKey: 'fix',
+        step: {key: 'ask', index: 1},
+      },
+    ]);
+  });
+
   test('gives workflow-level references no job or step location', () => {
     const model = workflowModel({
       runName: template('vars.ENVIRONMENT'),
