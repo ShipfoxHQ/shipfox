@@ -82,6 +82,21 @@ describe('Discord REST client', () => {
       });
     });
 
+    it('lists channel messages with only the pagination parameters that are set', async () => {
+      const messages = [{id: 'message-2', channel_id: 'channel-1', content: 'hi'}];
+      const fetchMock = stubFetch(json(messages));
+
+      await expect(
+        client.listChannelMessages({channelId: 'channel-1', limit: 50, before: 'message-3'}),
+      ).resolves.toEqual(messages);
+
+      const request = sentRequest(fetchMock);
+      expect(request.method).toBe('GET');
+      expect(request.url).toBe(
+        'https://discord.test/api/v10/channels/channel-1/messages?limit=50&before=message-3',
+      );
+    });
+
     it('leaves a guild and accepts the empty response', async () => {
       const fetchMock = stubFetch(new Response(null, {status: 204}));
 

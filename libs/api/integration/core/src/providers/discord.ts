@@ -1,6 +1,8 @@
 import type {ConnectDiscordInstallationInput} from '@shipfox/api-integration-discord';
 import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/api-integration-spi';
 import {config} from '#config.js';
+import type {IntegrationCapability} from '#core/entities/provider.js';
+import {getIntegrationProviderCapabilities} from '#core/providers/registry.js';
 import {
   getIntegrationConnectionById,
   resolveUniqueConnectionSlug,
@@ -26,6 +28,7 @@ async function loadDiscordModuleParts(
     migrationsPath: discordMigrationsPath,
     upsertDiscordInstallation,
   } = await import('@shipfox/api-integration-discord');
+  let providerCapabilities: IntegrationCapability[] = [];
 
   async function getExistingDiscordConnection(input: {
     guildId: string;
@@ -60,6 +63,7 @@ async function loadDiscordModuleParts(
             slug,
             displayName: input.displayName ?? input.guildName,
             lifecycleStatus: input.lifecycleStatus ?? 'error',
+            capabilities: providerCapabilities,
           },
           {tx},
         );
@@ -95,6 +99,8 @@ async function loadDiscordModuleParts(
     },
   });
 
+  providerCapabilities = getIntegrationProviderCapabilities(integrationProvider.adapters);
+
   return {
     provider: integrationProvider,
     webhookProcessors: integrationProvider.webhookProcessors,
@@ -102,7 +108,7 @@ async function loadDiscordModuleParts(
       createDiscordE2eRoutes({
         getExistingDiscordConnection,
         connectDiscordInstallation,
-        connectionCapabilities: [],
+        connectionCapabilities: providerCapabilities,
       }),
     ],
     services: discordConfig.DISCORD_GATEWAY_ENABLED ? [createDiscordGateway()] : undefined,

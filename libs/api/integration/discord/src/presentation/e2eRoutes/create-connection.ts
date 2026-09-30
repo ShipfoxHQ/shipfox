@@ -2,7 +2,7 @@ import {
   createE2eDiscordConnectionBodySchema,
   createE2eDiscordConnectionResponseSchema,
 } from '@shipfox/api-integration-discord-dto';
-import type {IntegrationConnection} from '@shipfox/api-integration-spi';
+import type {IntegrationCapability, IntegrationConnection} from '@shipfox/api-integration-spi';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import type {ConnectDiscordInstallationInput} from '#core/install.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
@@ -14,7 +14,7 @@ export interface CreateE2eDiscordConnectionRouteOptions {
   connectDiscordInstallation: (
     input: ConnectDiscordInstallationInput,
   ) => Promise<IntegrationConnection<'discord'>>;
-  connectionCapabilities: [];
+  connectionCapabilities: IntegrationCapability[];
 }
 
 export function createE2eDiscordConnectionRoute(options: CreateE2eDiscordConnectionRouteOptions) {

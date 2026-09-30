@@ -18,6 +18,7 @@ export const toolGrants: Readonly<Record<string, Readonly<Record<string, ToolGra
     search_tasks: {sensitivity: 'read', result: 'json'},
     update_task: {sensitivity: 'write', result: 'json'},
   },
+  discord: {read_channel: {sensitivity: 'read', result: 'json'}},
   gitea: {
     comment_on_issue: {sensitivity: 'write', result: 'json'},
     get_issue: {sensitivity: 'read', result: 'json'},

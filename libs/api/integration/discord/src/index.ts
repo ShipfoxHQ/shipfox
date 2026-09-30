@@ -2,6 +2,7 @@ import {DISCORD_PROVIDER, discordEventCatalog} from '@shipfox/api-integration-di
 import type {RouteGroup} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import {createDiscordApiClient, type DiscordApiClient} from '#api/client.js';
+import {DiscordAgentToolsProvider} from '#core/agent-tools-provider.js';
 import {discordConnectionExternalUrl} from '#core/connection-url.js';
 import {DiscordIntegrationProviderError} from '#core/errors.js';
 import {createDiscordWebhookProcessor} from '#core/webhook-processor.js';
@@ -23,10 +24,16 @@ export type {
   DiscordChannel,
   DiscordGatewayBot,
   DiscordGuild,
+  DiscordMessage,
   DiscordRole,
 } from '#api/client.js';
 export {createDiscordApiClient, DISCORD_API_TIMEOUT_MS} from '#api/client.js';
 export {config} from '#config.js';
+export {
+  DiscordAgentToolsProvider,
+  type DiscordAgentToolsProviderOptions,
+  type DiscordToolCallResult,
+} from '#core/agent-tools-provider.js';
 export {discordConnectionExternalUrl} from '#core/connection-url.js';
 export {DiscordIntegrationProviderError} from '#core/errors.js';
 export {
@@ -98,10 +105,10 @@ export {
 export {closeDb, db, migrationsPath};
 
 export interface CreateDiscordIntegrationProviderOptions {
+  discord?: DiscordApiClient | undefined;
   getDiscordInstallationByConnectionId?: (
     connectionId: string,
   ) => Promise<DiscordInstallation | undefined>;
-  discord?: DiscordApiClient | undefined;
   cleanup?: {
     deleteConnectionRecords?: (connection: {id: string}, options: {tx: unknown}) => Promise<void>;
   };
@@ -113,6 +120,8 @@ export function createDiscordIntegrationProvider(
 ) {
   const getInstallationByConnectionId =
     options.getDiscordInstallationByConnectionId ?? getDiscordInstallationByConnectionId;
+  const discord = options.discord ?? createDiscordApiClient();
+  const agentTools = new DiscordAgentToolsProvider({discord, getInstallationByConnectionId});
   const webhookRoutes = options.routes;
   const webhookProcessor = webhookRoutes
     ? (webhookRoutes.processor ?? createDiscordWebhookProcessor(webhookRoutes))
@@ -121,7 +130,6 @@ export function createDiscordIntegrationProvider(
     webhookRoutes && webhookProcessor
       ? [createDiscordWebhookRoutes({...webhookRoutes, processor: webhookProcessor})]
       : [];
-  let discordClient = options.discord;
 
   return {
     provider: DISCORD_PROVIDER,
@@ -131,7 +139,7 @@ export function createDiscordIntegrationProvider(
       const installation = await getInstallationByConnectionId(connection.id);
       return installation ? discordConnectionExternalUrl(installation.guildId) : undefined;
     },
-    adapters: {},
+    adapters: {agent_tools: agentTools},
     /**
      * Leaving the guild runs after the records commit, so the guild lock has to cover both. Without
      * it a reinstall could commit in between and the delayed leave would remove the new bot.
@@ -151,9 +159,8 @@ export function createDiscordIntegrationProvider(
       if (!installation) return undefined;
       const {guildId} = installation;
       return async () => {
-        discordClient ??= createDiscordApiClient();
         try {
-          await discordClient.leaveGuild({guildId});
+          await discord.leaveGuild({guildId});
         } catch (error) {
           // 403 and 404 both mean the bot is already out of the guild.
           if (

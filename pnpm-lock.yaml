@@ -10112,6 +10112,9 @@ importers:
       '@shipfox/api-integration-clickup':
         specifier: workspace:*
         version: link:../../libs/api/integration/clickup
+      '@shipfox/api-integration-discord':
+        specifier: workspace:*
+        version: link:../../libs/api/integration/discord
       '@shipfox/api-integration-gitea':
         specifier: workspace:*
         version: link:../../libs/api/integration/gitea

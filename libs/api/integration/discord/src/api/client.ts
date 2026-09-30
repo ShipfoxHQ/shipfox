@@ -29,6 +29,15 @@ export interface DiscordChannel {
   name?: string | undefined;
 }
 
+export interface DiscordMessage {
+  id: string;
+  channel_id: string;
+  content: string;
+  author: {id: string; username: string; bot?: boolean | undefined};
+  timestamp: string;
+  [field: string]: unknown;
+}
+
 export interface DiscordGatewayBot {
   url: string;
   shards: number;
@@ -54,6 +63,13 @@ export type DiscordApplicationCommandDefinition = (typeof discordCommandDefiniti
 export interface DiscordApiClient {
   getGuild(input: {guildId: string}): Promise<DiscordGuild>;
   getChannel(input: {channelId: string}): Promise<DiscordChannel>;
+  /** Newest first, as Discord returns them. */
+  listChannelMessages(input: {
+    channelId: string;
+    limit?: number | undefined;
+    before?: string | undefined;
+    after?: string | undefined;
+  }): Promise<DiscordMessage[]>;
   leaveGuild(input: {guildId: string}): Promise<void>;
   getGatewayBot(): Promise<DiscordGatewayBot>;
   listApplicationCommands(): Promise<DiscordApplicationCommand[]>;
@@ -72,6 +88,7 @@ interface DiscordRequest {
   operation: string;
   method: 'GET' | 'PUT' | 'DELETE';
   path: string;
+  query?: Record<string, string | number | undefined>;
   json?: unknown;
 }
 
@@ -91,6 +108,7 @@ export function createDiscordApiClient(
       const response = await ky(`${baseUrl}${input.path}`, {
         method: input.method,
         headers: {authorization: `Bot ${botToken}`},
+        ...(input.query === undefined ? {} : {searchParams: definedParams(input.query)}),
         ...(input.json === undefined ? {} : {json: input.json}),
         retry: 0,
         timeout: DISCORD_API_TIMEOUT_MS,
@@ -115,6 +133,13 @@ export function createDiscordApiClient(
         method: 'GET',
         path: `/channels/${encodeURIComponent(channelId)}`,
       }),
+    listChannelMessages: ({channelId, limit, before, after}) =>
+      request({
+        operation: 'list-channel-messages',
+        method: 'GET',
+        path: `/channels/${encodeURIComponent(channelId)}/messages`,
+        query: {limit, before, after},
+      }),
     async leaveGuild({guildId}) {
       await request<void>({
         operation: 'leave-guild',
@@ -138,6 +163,16 @@ export function createDiscordApiClient(
         json: commands,
       }),
   };
+}
+
+function definedParams(
+  query: Record<string, string | number | undefined>,
+): Record<string, string | number> {
+  return Object.fromEntries(
+    Object.entries(query).filter(
+      (entry): entry is [string, string | number] => entry[1] !== undefined,
+    ),
+  );
 }
 
 export function mapDiscordError(
