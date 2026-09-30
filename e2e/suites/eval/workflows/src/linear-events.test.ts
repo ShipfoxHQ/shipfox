@@ -110,14 +110,20 @@ describe('createLinearEventSender', () => {
   });
 
   it('fails after the last delivery when no run ever starts', async () => {
-    postAgentSession.mockResolvedValue('never');
+    let delivered = 0;
+    postAgentSession.mockImplementation(() => {
+      delivered += 1;
+      return Promise.resolve(`delivery-${delivered}`);
+    });
     waitForRun.mockRejectedValue(new Error('No run.'));
     const send = createLinearEventSender(options);
 
     await expect(
       send({event: 'agentSession.created', payload: {issue: 'ENG-7'}, context}),
     ).rejects.toThrow(noRunPattern);
-    expect(describeDecisions).toHaveBeenCalledWith({deliveryId: 'never', context});
+    expect(postAgentSession).toHaveBeenCalledTimes(6);
+    expect(describeDecisions).toHaveBeenCalledTimes(1);
+    expect(describeDecisions).toHaveBeenCalledWith({deliveryId: 'delivery-6', context});
   });
 
   it('rejects an issue the case did not seed', async () => {
