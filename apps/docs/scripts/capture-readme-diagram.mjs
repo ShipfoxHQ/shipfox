@@ -1,4 +1,5 @@
 import {mkdir} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
 import {chromium} from '@playwright/test';
 
 // The repository README can't render the introduction diagram's markup, so it embeds
@@ -49,7 +50,7 @@ try {
     await page.evaluate(() => document.fonts.ready);
     const diagram = page.locator('figure', {hasText: 'How a Shipfox workflow runs'});
     await diagram.screenshot({
-      path: new URL(`workflow-overview-${colorScheme}.png`, outputDir).pathname,
+      path: fileURLToPath(new URL(`workflow-overview-${colorScheme}.png`, outputDir)),
       omitBackground: true,
       animations: 'disabled',
     });
