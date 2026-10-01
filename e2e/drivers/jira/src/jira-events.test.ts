@@ -73,4 +73,29 @@ describe('Jira event builders', () => {
       changelog: {items: [{field: 'status', fromString: 'To Do', toString: 'In Progress'}]},
     });
   });
+
+  it('builds a label event with the project, the labels, and the label change', () => {
+    const envelope = buildJiraIssueEnvelope({
+      event: 'jira:issue_updated',
+      issue: {
+        ...issue,
+        projectKey: 'ENG',
+        labels: ['bug', 'shipfox'],
+        siteUrl: 'https://site.atlassian.example.test',
+      },
+      webhookId: 42,
+      actorAccountId: 'account-1',
+      previousLabels: ['bug'],
+    });
+
+    expect(envelope).toMatchObject({
+      issue: {
+        self: 'https://site.atlassian.example.test/rest/api/3/issue/10001',
+        fields: {project: {key: 'ENG'}, labels: ['bug', 'shipfox']},
+      },
+      changelog: {
+        items: [{field: 'labels', fieldId: 'labels', fromString: 'bug', toString: 'bug shipfox'}],
+      },
+    });
+  });
 });

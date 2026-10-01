@@ -1,0 +1,9 @@
+{
+  "name": "ticket-to-pr-jira-label-created-comment-only-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

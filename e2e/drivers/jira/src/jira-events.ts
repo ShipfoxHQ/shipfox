@@ -8,6 +8,12 @@ export interface JiraIssueFixtureData {
   key: string;
   summary: string;
   statusName: string;
+  /** The key of the project the issue belongs to, which triggers filter on. */
+  projectKey?: string | undefined;
+  labels?: string[] | undefined;
+  description?: string | undefined;
+  /** The site the issue lives on. Jira's `self` link is built from it. */
+  siteUrl?: string | undefined;
 }
 
 export interface JiraIssueEventParams {
@@ -18,6 +24,8 @@ export interface JiraIssueEventParams {
   actorAccountId: string;
   /** The status the issue moved from. Sent as a changelog item on `jira:issue_updated`. */
   previousStatusName?: string | undefined;
+  /** The labels the issue had before. Sent as a changelog item on `jira:issue_updated`. */
+  previousLabels?: string[] | undefined;
 }
 
 export function signJiraAuthorization(): string {
@@ -36,8 +44,48 @@ export function signJiraAuthorization(): string {
   return `Bearer ${signingInput}.${signature}`;
 }
 
+function issueFields(issue: JiraIssueFixtureData) {
+  return {
+    summary: issue.summary,
+    status: {name: issue.statusName},
+    ...(issue.projectKey === undefined ? {} : {project: {key: issue.projectKey}}),
+    ...(issue.labels === undefined ? {} : {labels: issue.labels}),
+    ...(issue.description === undefined ? {} : {description: issue.description}),
+  };
+}
+
+function changelogItems(params: JiraIssueEventParams) {
+  const {issue, previousStatusName, previousLabels} = params;
+  return [
+    ...(previousStatusName === undefined
+      ? []
+      : [
+          {
+            field: 'status',
+            fieldtype: 'jira',
+            fieldId: 'status',
+            fromString: previousStatusName,
+            toString: issue.statusName,
+          },
+        ]),
+    // Jira lists labels as one space-separated string.
+    ...(previousLabels === undefined
+      ? []
+      : [
+          {
+            field: 'labels',
+            fieldtype: 'jira',
+            fieldId: 'labels',
+            fromString: previousLabels.join(' '),
+            toString: (issue.labels ?? []).join(' '),
+          },
+        ]),
+  ];
+}
+
 export function buildJiraIssueEnvelope(params: JiraIssueEventParams) {
   const isUpdate = params.event === 'jira:issue_updated';
+  const items = changelogItems(params);
   return {
     webhookEvent: params.event,
     timestamp: Date.now(),
@@ -46,27 +94,12 @@ export function buildJiraIssueEnvelope(params: JiraIssueEventParams) {
     issue: {
       id: params.issue.id,
       key: params.issue.key,
-      fields: {
-        summary: params.issue.summary,
-        status: {name: params.issue.statusName},
-      },
+      ...(params.issue.siteUrl === undefined
+        ? {}
+        : {self: `${params.issue.siteUrl}/rest/api/3/issue/${params.issue.id}`}),
+      fields: issueFields(params.issue),
     },
-    ...(isUpdate && params.previousStatusName !== undefined
-      ? {
-          changelog: {
-            id: randomUUID(),
-            items: [
-              {
-                field: 'status',
-                fieldtype: 'jira',
-                fieldId: 'status',
-                fromString: params.previousStatusName,
-                toString: params.issue.statusName,
-              },
-            ],
-          },
-        }
-      : {}),
+    ...(isUpdate && items.length > 0 ? {changelog: {id: randomUUID(), items}} : {}),
     matchedWebhookIds: [params.webhookId],
   };
 }

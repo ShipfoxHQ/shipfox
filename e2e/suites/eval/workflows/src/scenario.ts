@@ -4,6 +4,8 @@ import type {ScenarioStep} from './schema.js';
 
 const DEFAULT_START_TIMEOUT_SECONDS = 60;
 const DEFAULT_AWAIT_TIMEOUT_SECONDS = 180;
+// How long one delivery gets to start a run before the step sends it again.
+const START_ATTEMPT_MS = 15_000;
 const NO_RUN = 'No run has started. Put a start step first.';
 
 export interface ScenarioStepRecord {
@@ -39,11 +41,14 @@ export interface ScenarioDriver {
 
 export class ScenarioError extends Error {
   readonly records: ScenarioStepRecord[];
+  /** The run the scenario had started when it failed, so the failure can show what it did. */
+  readonly runId: string | undefined;
 
-  constructor(message: string, records: ScenarioStepRecord[]) {
+  constructor(message: string, records: ScenarioStepRecord[], runId?: string) {
     super(message);
     this.name = 'ScenarioError';
     this.records = records;
+    this.runId = runId;
   }
 }
 
@@ -153,17 +158,45 @@ async function runStep({
     deadline,
   });
   const event = eventOf(step.start.event, driver);
-  const startedAt = Date.now();
-  const {deliveryId} = await driver.sendEvent({
-    ...event,
-    signal: boundedSignal({signal, timeoutMs}),
-  });
-  if (deliveryId === undefined) {
-    throw new Error(`The ${event.provider} sender returned no delivery to follow.`);
+  return await startFromEvent({event, timeoutMs, driver, signal});
+}
+
+/**
+ * Sends the event until a run starts. A delivery that lands before the definition's trigger is
+ * active starts nothing, so a run that doesn't appear in time gets the event again. The send and
+ * the waits for the run share the step's one timeout.
+ */
+async function startFromEvent({
+  event,
+  timeoutMs,
+  driver,
+  signal,
+}: {
+  event: ReturnType<typeof eventOf>;
+  timeoutMs: number;
+  driver: ScenarioDriver;
+  signal?: AbortSignal | undefined;
+}): Promise<string> {
+  const stepDeadline = Date.now() + timeoutMs;
+  while (true) {
+    const {deliveryId} = await driver.sendEvent({
+      ...event,
+      signal: boundedSignal({signal, timeoutMs: Math.max(stepDeadline - Date.now(), 1)}),
+    });
+    if (deliveryId === undefined) {
+      throw new Error(`The ${event.provider} sender returned no delivery to follow.`);
+    }
+    const remainingMs = Math.max(stepDeadline - Date.now(), 1);
+    try {
+      return await driver.runForDelivery({
+        deliveryId,
+        timeoutMs: Math.min(START_ATTEMPT_MS, remainingMs),
+        signal,
+      });
+    } catch (error) {
+      if (signal?.aborted || stepDeadline - Date.now() <= 0) throw error;
+    }
   }
-  // The send and the wait for the run share the step's one timeout.
-  const remainingMs = Math.max(timeoutMs - (Date.now() - startedAt), 1);
-  return await driver.runForDelivery({deliveryId, timeoutMs: remainingMs, signal});
 }
 
 /**
@@ -201,14 +234,22 @@ export async function runScenario({
         duration_ms: Date.now() - startedAt,
         error: message,
       });
-      throw new ScenarioError(`Step ${index + 1} (${description}) failed: ${message}`, records);
+      throw new ScenarioError(
+        `Step ${index + 1} (${description}) failed: ${message}`,
+        records,
+        runId,
+      );
     }
   }
 
   // The last step can finish just as the case is aborted. Keep the records with the failure.
   if (signal?.aborted) {
     const reason = signal.reason instanceof Error ? signal.reason.message : 'the case was aborted';
-    throw new ScenarioError(`The scenario was aborted after its last step: ${reason}`, records);
+    throw new ScenarioError(
+      `The scenario was aborted after its last step: ${reason}`,
+      records,
+      runId,
+    );
   }
   if (runId === undefined) throw new Error(NO_RUN);
   return {runId, records};

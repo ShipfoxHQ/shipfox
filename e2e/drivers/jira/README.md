@@ -18,7 +18,12 @@ A fake Jira REST API and signed webhook sender for E2E suites. The fake stands i
   harness sets. `connectionId` and `webhookId` must belong to a connection made with
   `createJiraConnection` and its `webhookIds`.
 - `buildJiraIssueEnvelope`: the payload, in the shape of Jira's webhooks, for suites that post it
-  another way.
+  another way. An issue can carry `projectKey`, `labels`, `description`, and `siteUrl` (for the
+  `self` link), and an update can carry `previousLabels` next to `previousStatusName`, which the
+  payload lists as changelog items.
+- `JIRA_IN_PROGRESS_TRANSITION_ID`: the transition the fake offers into a status of the
+  in-progress category. The fake's issue is in the `new` category, so workflows that move a ticket
+  to in progress find it.
 
 ## Local Checks
 

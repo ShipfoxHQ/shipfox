@@ -11,15 +11,32 @@ export interface ScenarioReferences {
   pr: () => PullRequestReference;
 }
 
-const REFERENCE = /^\$pr(?:\.(number|head|base|sha|repository))?$/u;
+const FIELDS = ['number', 'head', 'base', 'sha', 'repository', 'url'] as const;
+type ReferenceField = (typeof FIELDS)[number];
+const WHOLE_REFERENCE = /^\$pr(?:\.(number|head|base|sha|repository|url))?$/u;
+const EMBEDDED_REFERENCE = /\$pr\.(number|head|base|sha|repository|url)\b/gu;
 
-/** Replaces `$pr` and `$pr.<field>` strings anywhere in a scenario value. */
+// The GitHub fake serves every pull request at this address.
+function fieldOf(pr: PullRequestReference, field: ReferenceField): string | number {
+  return field === 'url' ? `https://github.com/${pr.repository}/pull/${pr.number}` : pr[field];
+}
+
+/**
+ * Replaces `$pr` and `$pr.<field>` strings anywhere in a scenario value. A string that is only a
+ * reference becomes the value itself. A `$pr.<field>` inside longer text becomes its text, as in
+ * `Opened pull request: $pr.url`. A bare `$pr` inside longer text is left as it is. `url` is the
+ * pull request's address.
+ */
 export function resolveReferences(value: unknown, references: ScenarioReferences): unknown {
   if (typeof value === 'string') {
-    const match = REFERENCE.exec(value);
-    if (!match) return value;
-    const pr = references.pr();
-    return match[1] === undefined ? pr : pr[match[1] as keyof PullRequestReference];
+    const whole = WHOLE_REFERENCE.exec(value);
+    if (whole) {
+      const pr = references.pr();
+      return whole[1] === undefined ? pr : fieldOf(pr, whole[1] as ReferenceField);
+    }
+    return value.replace(EMBEDDED_REFERENCE, (_match, field: ReferenceField) =>
+      String(fieldOf(references.pr(), field)),
+    );
   }
   if (Array.isArray(value)) return value.map((item) => resolveReferences(item, references));
   if (typeof value === 'object' && value !== null) {
