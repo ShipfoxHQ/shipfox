@@ -179,11 +179,18 @@ function CategoryRow({label}: {label: string}) {
     <tr>
       <th
         scope="rowgroup"
-        colSpan={4}
-        className="border-t border-fd-border bg-fd-card p-panel-compact text-sm font-semibold"
+        colSpan={2}
+        className="border-t border-fd-border p-panel-compact text-sm font-semibold"
       >
         {label}
       </th>
+      {editions.slice(1).map((edition) => (
+        <td
+          aria-hidden="true"
+          className={`border-t border-fd-border ${edition.featured ? 'bg-fd-muted' : ''}`}
+          key={edition.id}
+        />
+      ))}
     </tr>
   );
 }
@@ -196,7 +203,7 @@ function ComparisonRow({label, values}: {label: string; values: readonly React.R
       </th>
       {values.map((value, index) => (
         <td
-          className={`p-panel-compact align-top leading-6 ${index === 1 ? 'bg-fd-muted' : ''}`}
+          className={`p-panel-compact align-top leading-6 ${editions[index].featured ? 'bg-fd-muted' : ''}`}
           key={editions[index].id}
         >
           {value}
