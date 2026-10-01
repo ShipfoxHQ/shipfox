@@ -45,6 +45,8 @@ import {
 import type {RunnerCatalog} from '@shipfox/runner-labels';
 import {DEFAULT_HARNESS, harnessSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
+import {cacheAgentDefaults, checkAgentConfigReadiness} from '#core/agent-config-readiness.js';
+import {createAgentDefaultsResolver} from '#core/agent-defaults.js';
 import {findFrozenActionIntegrations, flattenActionIntegrations} from '#core/agent-tools.js';
 import type {Step, StepType} from '#core/entities/step.js';
 import type {WorkflowRunTriggerReference} from '#core/entities/workflow-run.js';
@@ -71,6 +73,7 @@ import {
   DefinitionNotFoundError,
   InterpolationUnresolvableError,
   listRunnerCatalogNames,
+  modelHasAgentStep,
   ProjectMismatchError,
   runDevWorkflow,
   runWorkflow,
@@ -367,15 +370,24 @@ export function createWorkflowsInterModulePresentation(params: {
       const definedVariables = new Set(variableNames.flatMap(({names}) => names));
       const definedSecrets = new Set(secretNames.flatMap(({names}) => names));
 
+      const resolveAgentDefaults = cacheAgentDefaults(
+        createAgentDefaultsResolver(params.agent, input.workspaceId),
+      );
+
       return {
-        definitions: definitions.map(({definitionId, model}) => ({
-          definitionId,
-          issues: [
-            ...checkVariableReadiness({model, definedNames: definedVariables}),
-            ...checkSecretReadiness({model, definedNames: definedSecrets}),
-          ],
-          secretInputs: collectSecretInputReferences(model),
-        })),
+        definitions: await Promise.all(
+          definitions.map(async ({definitionId, model}) => ({
+            definitionId,
+            issues: [
+              ...checkVariableReadiness({model, definedNames: definedVariables}),
+              ...checkSecretReadiness({model, definedNames: definedSecrets}),
+              ...(modelHasAgentStep(model)
+                ? await checkAgentConfigReadiness({model, definitionId, resolveAgentDefaults})
+                : []),
+            ],
+            secretInputs: collectSecretInputReferences(model),
+          })),
+        ),
       };
     },
     startRunFromTrigger: async (input) => {

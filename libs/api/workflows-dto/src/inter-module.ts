@@ -196,6 +196,15 @@ export const runIssueSchema = z.discriminatedUnion('kind', [
     // The runner pulls step secrets after the run has started.
     effect: z.literal('fails-job'),
   }),
+  z.object({
+    kind: z.literal('agent-config-invalid'),
+    reason: agentConfigInvalidReasonSchema,
+    model: z.string().optional(),
+    provider: z.string().optional(),
+    locations: runIssueLocationsSchema,
+    moreLocations: z.number().int().positive().optional(),
+    effect: runIssueEffectSchema,
+  }),
 ]);
 
 /** A `secrets.inputs.<key>` reference, for a trigger to compare with its secret mappings. */

@@ -112,6 +112,43 @@ describe('GET /workflow-definitions/readiness', () => {
     });
   });
 
+  test('maps an agent configuration issue, which has no key', async () => {
+    const definitionId = crypto.randomUUID();
+    checkRunReadiness.mockResolvedValue({
+      definitions: [
+        {
+          definitionId,
+          issues: [
+            {
+              kind: 'agent-config-invalid',
+              reason: 'model-unknown',
+              model: 'gpt-nine',
+              provider: 'openai',
+              locations: [
+                {jobKey: 'review', step: {key: 'triage', index: 1}, field: 'agent.model'},
+              ],
+              effect: 'fails-job',
+            },
+          ],
+        },
+      ],
+    });
+
+    const res = await app.inject({method: 'GET', url: query([definitionId])});
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().definitions[0].issues).toEqual([
+      {
+        kind: 'agent-config-invalid',
+        reason: 'model-unknown',
+        model: 'gpt-nine',
+        provider: 'openai',
+        locations: [{job_key: 'review', step: {key: 'triage', index: 1}, field: 'agent.model'}],
+        effect: 'fails-job',
+      },
+    ]);
+  });
+
   test('omits more_locations when every location is listed', async () => {
     const definitionId = crypto.randomUUID();
     checkRunReadiness.mockResolvedValue({

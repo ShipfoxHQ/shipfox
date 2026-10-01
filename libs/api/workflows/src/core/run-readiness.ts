@@ -8,6 +8,8 @@ import {
 } from './run-requirements.js';
 
 type RunIssueEffect = RunIssue['effect'];
+type VariableIssue = Extract<RunIssue, {kind: 'variable-missing'}>;
+type SecretIssue = Extract<RunIssue, {kind: 'secret-missing'}>;
 type RunIssueLocation = RunIssue['locations'][number];
 type RunIssueStep = NonNullable<RunIssueLocation['step']>;
 
@@ -33,7 +35,7 @@ export function checkVariableReadiness(params: {
   readonly model: WorkflowModel;
   /** Names that exist at workspace scope or at project scope. */
   readonly definedNames: ReadonlySet<string>;
-}): RunIssue[] {
+}): VariableIssue[] {
   const {model, definedNames} = params;
   const startReferences = collectRequired(
     collectRunRequirements(
@@ -61,7 +63,7 @@ function issuesFor(
   references: readonly ReferencedVariable[],
   effect: RunIssueEffect,
   definedNames: ReadonlySet<string>,
-): RunIssue[] {
+): VariableIssue[] {
   return groupByKey(references.filter((reference) => !definedNames.has(reference.key))).map(
     (group) => ({kind: 'variable-missing' as const, ...group, effect}),
   );
@@ -76,7 +78,7 @@ export function checkSecretReadiness(params: {
   readonly model: WorkflowModel;
   /** Names that exist at workspace scope or at project scope. */
   readonly definedNames: ReadonlySet<string>;
-}): RunIssue[] {
+}): SecretIssue[] {
   const {model, definedNames} = params;
   const missing = collectRunRequirements(model, model.jobs).secrets.filter(
     (reference) => reference.store === 'local' && !definedNames.has(reference.key),
@@ -113,15 +115,19 @@ function groupByKey(
 
   return [...locationsByKey.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, locations]) => {
-      const all = [...locations.values()];
-      const more = all.length - RUN_ISSUE_LOCATIONS_MAX;
-      return {
-        key,
-        locations: all.slice(0, RUN_ISSUE_LOCATIONS_MAX),
-        ...(more > 0 ? {moreLocations: more} : {}),
-      };
-    });
+    .map(([key, locations]) => ({key, ...capLocations([...locations.values()])}));
+}
+
+/** Keep the first few locations and count the rest. */
+export function capLocations(locations: readonly RunIssueLocation[]): {
+  readonly locations: RunIssueLocation[];
+  readonly moreLocations?: number;
+} {
+  const more = locations.length - RUN_ISSUE_LOCATIONS_MAX;
+  return {
+    locations: locations.slice(0, RUN_ISSUE_LOCATIONS_MAX),
+    ...(more > 0 ? {moreLocations: more} : {}),
+  };
 }
 
 function toLocation(reference: ReferencedVariable | ReferencedSecret): RunIssueLocation {

@@ -1,4 +1,5 @@
 import {secretKeySchema} from '@shipfox/api-secrets-dto';
+import {agentConfigInvalidReasonSchema} from '@shipfox/api-workflows-dto';
 import {z} from 'zod';
 
 /** Matches the definitions list page limit. */
@@ -49,6 +50,15 @@ export const runIssueDtoSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('secret-missing'),
     key: secretKeySchema,
+    locations: z.array(runIssueLocationSchema),
+    more_locations: z.number().int().positive().optional(),
+    effect: runIssueEffectSchema,
+  }),
+  z.object({
+    kind: z.literal('agent-config-invalid'),
+    reason: agentConfigInvalidReasonSchema,
+    model: z.string().optional(),
+    provider: z.string().optional(),
     locations: z.array(runIssueLocationSchema),
     more_locations: z.number().int().positive().optional(),
     effect: runIssueEffectSchema,

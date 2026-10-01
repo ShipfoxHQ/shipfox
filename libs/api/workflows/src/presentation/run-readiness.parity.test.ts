@@ -1,10 +1,14 @@
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
+import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {createWorkflowModelSnapshot, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import {type RunIssue, workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
 import {eq} from 'drizzle-orm';
-import {InterpolationUnresolvableError} from '#core/errors.js';
+import {createAgentDefaultsResolver} from '#core/agent-defaults.js';
+import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {collectRunRequirements} from '#core/run-requirements.js';
 import {completeStepDispatchConfig} from '#core/step-config/index.js';
 import {db} from '#db/db.js';
@@ -14,7 +18,7 @@ import {jobs} from '#db/schema/jobs.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
 import {createWorkflowRun, getJobsByWorkflowRunId, getStepsByJobId} from '#db/workflow-runs.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
-import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
+import {agentTestClient, resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
 import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
 import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {fakeLeaseTokenAuthMethod} from '#test/fixtures/lease-token.js';
@@ -233,7 +237,7 @@ describe('run readiness parity with run creation and execution creation', () => 
       {definitionId, issues: expect.any(Array), secretInputs: expect.any(Array)},
     ]);
     expect(
-      definitions[0]?.issues.map((issue) => ({
+      definitions[0]?.issues.map(keyedIssue).map((issue) => ({
         key: issue.key,
         effect: issue.effect,
         fields: issue.locations.map((location) => location.field),
@@ -400,7 +404,7 @@ describe('step secret readiness parity with run creation and the step-secrets pu
 
     // A missing step secret never refuses the start: the job fails when the step pulls it.
     expect(
-      definitions[0]?.issues.map((issue) => ({
+      definitions[0]?.issues.map(keyedIssue).map((issue) => ({
         kind: issue.kind,
         effect: issue.effect,
         key: issue.key,
@@ -455,6 +459,317 @@ async function pullRunStepSecrets(app: FastifyInstance, runId: string) {
   });
 }
 
+interface AgentParityFixture {
+  readonly name: string;
+  readonly model: () => WorkflowModel;
+  /** The workspace's default model is one the agent module refuses. */
+  readonly invalidWorkspaceDefaults?: boolean;
+  readonly issues: readonly {
+    readonly reason: 'model-unknown' | 'provider-unsupported';
+    readonly model?: string;
+    readonly provider?: string;
+    readonly effect: RunIssue['effect'];
+    readonly fields: readonly string[];
+  }[];
+}
+
+const INVALID_MODEL = 'not-a-model';
+const RETIRED_DEFAULT_MODEL = 'retired-default';
+
+const agentJob = (step: Record<string, unknown>, job: Record<string, unknown> = {}) => ({
+  ...job,
+  steps: [{prompt: 'Review it.', ...step}],
+});
+
+const AGENT_FIXTURES: readonly AgentParityFixture[] = [
+  {
+    name: 'a literal invalid model in a normal job',
+    model: () => workflowModel({jobs: {review: agentJob({model: INVALID_MODEL})}}),
+    issues: [
+      {
+        reason: 'model-unknown',
+        model: INVALID_MODEL,
+        provider: 'anthropic',
+        effect: 'blocks-start',
+        fields: ['agent.model'],
+      },
+    ],
+  },
+  {
+    name: 'a literal invalid model in a listening job',
+    model: () =>
+      workflowModel({
+        jobs: {review: agentJob({model: INVALID_MODEL}, {listening: listeningOn()})},
+      }),
+    issues: [
+      {
+        reason: 'model-unknown',
+        model: INVALID_MODEL,
+        provider: 'anthropic',
+        effect: 'fails-job',
+        fields: ['agent.model'],
+      },
+    ],
+  },
+  {
+    name: 'a literal invalid model with a session key from a deferred root',
+    model: () =>
+      workflowModel({
+        jobs: {
+          review: agentJob({
+            model: INVALID_MODEL,
+            session: template('steps.build.outputs.sha'),
+          }),
+        },
+      }),
+    issues: [
+      {
+        reason: 'model-unknown',
+        model: INVALID_MODEL,
+        provider: 'anthropic',
+        effect: 'fails-job',
+        fields: ['agent.model'],
+      },
+    ],
+  },
+  {
+    name: 'a literal invalid model with a session key that run creation fills',
+    model: () =>
+      workflowModel({
+        jobs: {
+          review: agentJob({model: INVALID_MODEL, session: template('run.name')}),
+        },
+      }),
+    issues: [
+      {
+        reason: 'model-unknown',
+        model: INVALID_MODEL,
+        provider: 'anthropic',
+        effect: 'blocks-start',
+        fields: ['agent.model'],
+      },
+    ],
+  },
+  {
+    name: 'a model from execution.events[0].data.model, which only an execution knows',
+    model: () =>
+      workflowModel({
+        jobs: {review: agentJob({model: template('execution.events[0].data.model')})},
+      }),
+    issues: [],
+  },
+  {
+    name: 'a model and a provider that run creation fills from the trigger and the run name',
+    model: () =>
+      workflowModel({
+        jobs: {
+          review: agentJob({
+            model: template('run.name'),
+            provider: template('trigger.source'),
+          }),
+        },
+      }),
+    issues: [],
+  },
+  {
+    name: 'an invalid literal provider next to a templated model',
+    model: () =>
+      workflowModel({
+        jobs: {
+          review: agentJob({
+            provider: 'not-a-provider',
+            model: template('execution.events[0].data.model'),
+          }),
+        },
+      }),
+    issues: [],
+  },
+  {
+    name: 'an invalid literal provider',
+    model: () => workflowModel({jobs: {review: agentJob({provider: 'not-a-provider'})}}),
+    issues: [
+      {
+        reason: 'provider-unsupported',
+        provider: 'not-a-provider',
+        effect: 'blocks-start',
+        fields: ['agent.provider'],
+      },
+    ],
+  },
+  {
+    name: 'invalid workspace defaults in a normal job',
+    model: () => workflowModel({jobs: {review: agentJob({})}}),
+    invalidWorkspaceDefaults: true,
+    issues: [
+      {
+        reason: 'model-unknown',
+        model: RETIRED_DEFAULT_MODEL,
+        provider: 'anthropic',
+        effect: 'blocks-start',
+        fields: ['agent.model'],
+      },
+    ],
+  },
+  {
+    name: 'invalid workspace defaults in a listening job',
+    model: () => workflowModel({jobs: {review: agentJob({}, {listening: listeningOn()})}}),
+    invalidWorkspaceDefaults: true,
+    issues: [
+      {
+        reason: 'model-unknown',
+        model: RETIRED_DEFAULT_MODEL,
+        provider: 'anthropic',
+        effect: 'fails-job',
+        fields: ['agent.model'],
+      },
+    ],
+  },
+  {
+    name: 'invalid workspace defaults that a literal model overrides',
+    model: () => workflowModel({jobs: {review: agentJob({model: 'claude-opus-4-8'})}}),
+    invalidWorkspaceDefaults: true,
+    issues: [],
+  },
+  {
+    name: 'a valid configuration',
+    model: () => workflowModel({jobs: {review: agentJob({model: 'claude-opus-4-8'})}}),
+    issues: [],
+  },
+];
+
+describe('agent configuration readiness parity with run creation, execution creation and dispatch', () => {
+  it.each(AGENT_FIXTURES)('$name', async (fixture) => {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+    const model = fixture.model();
+    const secrets = createTestSecretsClient();
+    const agent = agentClient({
+      invalidDefaultsWorkspaceId: fixture.invalidWorkspaceDefaults ? workspaceId : undefined,
+    });
+    const client = readinessClient({workspaceId, projectId, definitionId, model, secrets, agent});
+    const expectBlocked = fixture.issues.some((issue) => issue.effect === 'blocks-start');
+    const expectFailedLater = fixture.issues.some((issue) => issue.effect === 'fails-job');
+
+    const {definitions} = await client.checkRunReadiness({
+      workspaceId,
+      projectId,
+      definitionIds: [definitionId],
+    });
+    const started = await startRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model,
+      secrets,
+      agent,
+    }).then(
+      (run) => ({run}),
+      (error: unknown) => ({error}),
+    );
+
+    expect(
+      definitions[0]?.issues.map((issue) => {
+        if (issue.kind !== 'agent-config-invalid') throw new Error(`Unexpected ${issue.kind}`);
+        return {
+          reason: issue.reason,
+          ...(issue.model === undefined ? {} : {model: issue.model}),
+          ...(issue.provider === undefined ? {} : {provider: issue.provider}),
+          effect: issue.effect,
+          fields: issue.locations.map((location) => location.field),
+        };
+      }),
+    ).toEqual(fixture.issues);
+    if (expectBlocked) {
+      expect('error' in started && started.error).toBeInstanceOf(AgentConfigUnresolvableError);
+      expect(refusal(started)).toMatchObject({
+        reason: fixture.issues[0]?.reason,
+        model: fixture.issues[0]?.model,
+      });
+      return;
+    }
+    expect('error' in started).toBe(false);
+    if (!hasListeningJob(model) && !expectFailedLater) return;
+
+    // The run started, so the issue is for a job that fails after it has.
+    if (hasListeningJob(model)) {
+      const status = await listenerExecutionStatus({
+        workspaceId,
+        projectId,
+        model,
+        secrets,
+        agent,
+      });
+      expect(status).toBe(expectFailedLater ? 'failed' : 'pending');
+      return;
+    }
+    if (!('run' in started)) throw new Error('Expected the run to start');
+    await expect(
+      dispatchAgentStep({runId: started.run.id, agent, workspaceId}),
+    ).rejects.toBeInstanceOf(AgentConfigUnresolvableError);
+  });
+});
+
+/**
+ * An agent module that refuses one model and one provider, and, for one workspace, refuses
+ * the default model it would otherwise pick.
+ */
+function agentClient(options: {
+  invalidDefaultsWorkspaceId?: string | undefined;
+}): AgentInterModuleClient {
+  return {
+    ...agentTestClient,
+    resolveAgentConfig: async ({workspaceId, config}) => {
+      const defaultModel =
+        workspaceId !== null && workspaceId === options.invalidDefaultsWorkspaceId
+          ? RETIRED_DEFAULT_MODEL
+          : undefined;
+      const model = config.model ?? defaultModel;
+      const provider = config.provider ?? 'anthropic';
+      if (config.provider === 'not-a-provider') {
+        throw createInterModuleKnownError(
+          agentInterModuleContract.methods.resolveAgentConfig,
+          'agent-config-invalid',
+          {reason: 'provider-unsupported', provider},
+        );
+      }
+      if (model === INVALID_MODEL || model === RETIRED_DEFAULT_MODEL) {
+        throw createInterModuleKnownError(
+          agentInterModuleContract.methods.resolveAgentConfig,
+          'agent-config-invalid',
+          {reason: 'model-unknown', model, provider},
+        );
+      }
+      return await resolveTestAgentDefaults(config);
+    },
+  };
+}
+
+function refusal(started: {run: unknown} | {error: unknown}): AgentConfigUnresolvableError {
+  if (!('error' in started) || !(started.error instanceof AgentConfigUnresolvableError)) {
+    throw new Error('Expected the start to be refused for its agent configuration');
+  }
+  return started.error;
+}
+
+/** Complete the run's agent step the way dispatch does, which resolves with no workspace. */
+async function dispatchAgentStep(params: {
+  runId: string;
+  agent: AgentInterModuleClient;
+  workspaceId: string;
+}) {
+  const [job] = await getJobsByWorkflowRunId(params.runId);
+  if (!job) throw new Error('Expected the run to create a job');
+  const step = (await getStepsByJobId(job.id)).find((candidate) => candidate.type === 'agent');
+  if (!step) throw new Error('Expected the job to create an agent step');
+  return await completeStepDispatchConfig({
+    step,
+    context: {site: 'step-dispatch', values: {}},
+    resolveAgentDefaults: createAgentDefaultsResolver(params.agent, null),
+    definitionId: job.id,
+  });
+}
+
 describe('checkRunReadiness definitions', () => {
   it('leaves out ids that name no definition in the project', async () => {
     const workspaceId = crypto.randomUUID();
@@ -478,6 +793,11 @@ describe('checkRunReadiness definitions', () => {
   });
 });
 
+function keyedIssue(issue: RunIssue): Exclude<RunIssue, {kind: 'agent-config-invalid'}> {
+  if (issue.kind === 'agent-config-invalid') throw new Error('Expected a variable or secret issue');
+  return issue;
+}
+
 function variableValues(names: readonly string[] | undefined): Record<string, string> {
   return Object.fromEntries((names ?? []).map((name) => [name, 'on']));
 }
@@ -492,6 +812,7 @@ function readinessClient(params: {
   definitionId: string;
   model: WorkflowModel;
   secrets: ReturnType<typeof createTestSecretsClient>;
+  agent?: AgentInterModuleClient;
 }) {
   const definitions = {
     getDefinitionForWorkflowRun: async ({definitionId}: {definitionId: string}) => ({
@@ -509,7 +830,7 @@ function readinessClient(params: {
     }),
   } as unknown as DefinitionsInterModuleClient;
   const presentation = createWorkflowsInterModulePresentation({
-    agent: {} as never,
+    agent: params.agent ?? ({} as never),
     definitions,
     integrations: {} as never,
     projects: {} as never,
@@ -530,6 +851,7 @@ function startRun(params: {
   definitionId: string;
   model: WorkflowModel;
   secrets: ReturnType<typeof createTestSecretsClient>;
+  agent?: AgentInterModuleClient;
 }) {
   return createWorkflowRun({
     workspaceId: params.workspaceId,
@@ -543,6 +865,9 @@ function startRun(params: {
       userId: crypto.randomUUID(),
     },
     secrets: params.secrets,
+    ...(params.agent === undefined
+      ? {}
+      : {resolveAgentDefaults: createAgentDefaultsResolver(params.agent, params.workspaceId)}),
   });
 }
 
@@ -556,6 +881,7 @@ async function listenerExecutionStatus(params: {
   projectId: string;
   model: WorkflowModel;
   secrets: ReturnType<typeof createTestSecretsClient>;
+  agent?: AgentInterModuleClient;
 }): Promise<string> {
   const everything = createTestSecretsClient();
   await everything.setSecrets({
@@ -593,6 +919,7 @@ async function listenerExecutionStatus(params: {
     jobId: listening.id,
     expectedSequence: 1,
     secrets: params.secrets,
+    ...(params.agent === undefined ? {} : {agent: params.agent}),
   });
 
   if (result.kind !== 'execution') throw new Error(`Expected an execution, got ${result.kind}`);
