@@ -675,6 +675,29 @@ describe('integration materialization reasons', () => {
     });
   });
 
+  test('leaves the reason out when the provider has no catalog', () => {
+    const error = materializationFailure(() =>
+      materializeToolStep({
+        jobKey: 'build',
+        stepId: 'build-tool',
+        tool: {id: 'issue_read'},
+        connection: 'team-slack',
+        context: {
+          ...materializationContext(),
+          workspaceConnectionSnapshot: new Map([
+            [
+              'team-slack',
+              {id: 'connection-slack', provider: 'slack', capabilities: ['agent_tools']},
+            ],
+          ]),
+        },
+      }),
+    );
+
+    expect(error.message).toBe('Integration provider slack has no agent tool catalog');
+    expect(error.reason).toBeUndefined();
+  });
+
   test('names an unknown method of a known tool', () => {
     const error = materializationFailure(() =>
       materializeToolStep({

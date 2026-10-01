@@ -172,7 +172,12 @@ export function materializeToolStep(params: {
     missingMessage: `Integration connection ${params.connection} was not found while materializing tool step`,
   });
   const catalog = params.context.catalogs.get(connection.provider);
-  const entry = catalog?.find((candidate) => candidate.id === params.tool.id);
+  if (catalog === undefined) {
+    throw new AgentIntegrationMaterializationError(
+      `Integration provider ${connection.provider} has no agent tool catalog`,
+    );
+  }
+  const entry = catalog.find((candidate) => candidate.id === params.tool.id);
   if (entry === undefined) {
     throw new AgentIntegrationMaterializationError(`Unknown integration tool: ${params.tool.id}`, {
       reason: 'tool-unknown',
