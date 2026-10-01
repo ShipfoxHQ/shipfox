@@ -53,6 +53,48 @@ describe('WorkflowRunView', () => {
     expect(screen.queryByRole('tab', {name: 'Jobs'})).not.toBeInTheDocument();
   });
 
+  test('keeps the admission action when a re-run is refused', async () => {
+    const user = userEvent.setup();
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const fetchImpl = configureRunFetch([], {status: 'succeeded'});
+    configureApiClient({
+      fetchImpl: vi.fn((input: RequestInfo | URL) => {
+        if (requestUrl(input).endsWith(`/workflows/runs/${RUN_ID}/rerun`)) {
+          return Promise.resolve(
+            jsonResponse(
+              {
+                code: 'admission-denied',
+                message: 'Workflow admission denied',
+                details: {
+                  reason: 'The monthly run allowance is used up.',
+                  required_action: {
+                    message: 'Run allowance reached',
+                    url: 'https://billing.example.test/upgrade',
+                  },
+                },
+              },
+              {status: 409},
+            ),
+          );
+        }
+        return fetchImpl(input);
+      }),
+    });
+
+    renderView();
+    await user.click(await screen.findByRole('button', {name: 'Re-run workflow'}));
+
+    expect(await screen.findByText('Run allowance reached')).toBeInTheDocument();
+    expect(screen.getByText('The monthly run allowance is used up.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', {name: 'Open'}));
+    expect(open).toHaveBeenCalledWith(
+      'https://billing.example.test/upgrade',
+      '_blank',
+      'noopener,noreferrer',
+    );
+    open.mockRestore();
+  });
+
   test('opens the all-jobs Summary on the dependency graph by default', async () => {
     configureRunFetch();
 

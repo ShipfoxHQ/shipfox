@@ -691,7 +691,20 @@ function RunViewContent({
       });
     } catch (error) {
       const copy = runStartErrorCopy(error);
-      toast.error(copy.title, {description: copyMessageText(copy.message)});
+      // A re-run reuses the frozen variables, so the only action it can reach is the external one
+      // an admission refusal carries.
+      const action = copy.action?.kind === 'link' && copy.action.external ? copy.action : undefined;
+      toast.error(copy.title, {
+        description: copyMessageText(copy.message),
+        ...(action
+          ? {
+              action: {
+                label: action.label,
+                onClick: () => window.open(action.to, '_blank', 'noopener,noreferrer'),
+              },
+            }
+          : {}),
+      });
     }
   }
 
