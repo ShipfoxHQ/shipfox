@@ -1,5 +1,8 @@
 import type {AgentConfigInvalidReason} from '@shipfox/api-agent-dto';
-import type {WorkflowExecutionPayloadFieldDto} from '@shipfox/api-workflows-dto';
+import type {
+  AgentIntegrationMaterializationReason,
+  WorkflowExecutionPayloadFieldDto,
+} from '@shipfox/api-workflows-dto';
 import type {JobStatus} from './entities/job.js';
 import type {WorkflowRunStatus} from './entities/workflow-run.js';
 import type {RequiredAction} from './workspace-admission.js';
@@ -122,10 +125,40 @@ export class AgentStepSessionClaimError extends Error {
   }
 }
 
+export interface AgentIntegrationMaterializationErrorOptions {
+  readonly reason?: AgentIntegrationMaterializationReason | undefined;
+  readonly connection?: string | undefined;
+  readonly tool?: string | undefined;
+  readonly jobKey?: string | undefined;
+  readonly step?: InterpolationUnresolvableStep | undefined;
+}
+
 export class AgentIntegrationMaterializationError extends Error {
-  constructor(message: string) {
+  readonly reason?: AgentIntegrationMaterializationReason | undefined;
+  readonly connection?: string | undefined;
+  readonly tool?: string | undefined;
+  readonly jobKey?: string | undefined;
+  readonly step?: InterpolationUnresolvableStep | undefined;
+
+  constructor(
+    message: string,
+    private readonly options?: AgentIntegrationMaterializationErrorOptions | undefined,
+  ) {
     super(message);
     this.name = 'AgentIntegrationMaterializationError';
+    this.reason = options?.reason;
+    this.connection = options?.connection;
+    this.tool = options?.tool;
+    this.jobKey = options?.jobKey;
+    this.step = options?.step;
+  }
+
+  /** The same failure, placed at the job and step whose integrations it came from. */
+  at(location: {
+    readonly jobKey: string;
+    readonly step: InterpolationUnresolvableStep;
+  }): AgentIntegrationMaterializationError {
+    return new AgentIntegrationMaterializationError(this.message, {...this.options, ...location});
   }
 }
 

@@ -5,10 +5,12 @@ export {
 export {
   AGENT_RUNTIME_CONFIG_RENEWAL_HEADER,
   type AgentConfigIssueDto,
+  type AgentIntegrationMaterializationReason,
   type AgentRuntimeConfigQueryDto,
   type AgentStepSessionDescriptorDto,
   type AgentStepSessionIntentDto,
   agentConfigIssueSchema,
+  agentIntegrationMaterializationReasonSchema,
   agentRuntimeConfigQuerySchema,
   agentStepSessionDescriptorSchema,
   agentStepSessionIntentSchema,

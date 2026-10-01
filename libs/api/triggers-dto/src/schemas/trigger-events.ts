@@ -1,5 +1,8 @@
 import {secretKeySchema} from '@shipfox/api-secrets-dto';
-import {agentConfigInvalidReasonSchema} from '@shipfox/api-workflows-dto';
+import {
+  agentConfigInvalidReasonSchema,
+  agentIntegrationMaterializationReasonSchema,
+} from '@shipfox/api-workflows-dto';
 import {z} from 'zod';
 
 export const triggerEventOriginSchema = z.enum([
@@ -101,6 +104,11 @@ export const triggerDecisionDiagnosticDtoSchema = z.discriminatedUnion('code', [
   z.strictObject({
     version: diagnosticVersionSchema,
     code: z.literal('agent-integration-materialization-failed'),
+    reason: agentIntegrationMaterializationReasonSchema.optional(),
+    connection: diagnosticFieldSchema.optional(),
+    tool: diagnosticFieldSchema.optional(),
+    job_key: diagnosticFieldSchema.optional(),
+    step: diagnosticStepSchema.optional(),
   }),
   z.strictObject({
     version: diagnosticVersionSchema,

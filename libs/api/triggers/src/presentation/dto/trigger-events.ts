@@ -119,6 +119,8 @@ function toTriggerDecisionDiagnosticDto(
       };
     case 'agent-config-unresolvable':
       return agentConfigDiagnosticDto(diagnostic);
+    case 'agent-integration-materialization-failed':
+      return agentIntegrationDiagnosticDto(diagnostic);
     case 'source-snapshot-too-large':
       return {
         version: diagnostic.version,
@@ -165,6 +167,23 @@ function agentConfigDiagnosticDto(
     ...(diagnostic.reason === undefined ? {} : {reason: diagnostic.reason}),
     ...(diagnostic.model === undefined ? {} : {model: diagnostic.model}),
     ...(diagnostic.provider === undefined ? {} : {provider: diagnostic.provider}),
+    ...(diagnostic.jobKey === undefined ? {} : {job_key: diagnostic.jobKey}),
+    ...(diagnostic.step === undefined ? {} : {step: diagnostic.step}),
+  };
+}
+
+function agentIntegrationDiagnosticDto(
+  diagnostic: Extract<
+    TriggerDecisionDiagnostic,
+    {code: 'agent-integration-materialization-failed'}
+  >,
+): TriggerDecisionDiagnosticDto {
+  return {
+    version: diagnostic.version,
+    code: diagnostic.code,
+    ...(diagnostic.reason === undefined ? {} : {reason: diagnostic.reason}),
+    ...(diagnostic.connection === undefined ? {} : {connection: diagnostic.connection}),
+    ...(diagnostic.tool === undefined ? {} : {tool: diagnostic.tool}),
     ...(diagnostic.jobKey === undefined ? {} : {job_key: diagnostic.jobKey}),
     ...(diagnostic.step === undefined ? {} : {step: diagnostic.step}),
   };

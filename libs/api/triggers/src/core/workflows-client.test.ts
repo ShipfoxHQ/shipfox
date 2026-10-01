@@ -294,6 +294,43 @@ describe('WorkflowsModuleClient consumer parity', () => {
     expect(startRunDiagnostic(error)).toEqual({version: 1, code: 'agent-config-unresolvable'});
   });
 
+  test('keeps the reason, connection, tool and location of an integration failure', () => {
+    const error = createInterModuleKnownError(
+      workflowsInterModuleContract.methods.startRunFromTrigger,
+      'agent-integration-materialization-failed',
+      {
+        reason: 'tool-unknown',
+        connection: 'team-slack',
+        tool: 'send_message',
+        jobKey: 'review',
+        step: {key: 'notify', index: 2},
+      },
+    );
+
+    expect(startRunDiagnostic(error)).toEqual({
+      version: 1,
+      code: 'agent-integration-materialization-failed',
+      reason: 'tool-unknown',
+      connection: 'team-slack',
+      tool: 'send_message',
+      jobKey: 'review',
+      step: {key: 'notify', index: 2},
+    });
+  });
+
+  test('records an integration failure without a cause as the bare code', () => {
+    const error = createInterModuleKnownError(
+      workflowsInterModuleContract.methods.startRunFromTrigger,
+      'agent-integration-materialization-failed',
+      {},
+    );
+
+    expect(startRunDiagnostic(error)).toEqual({
+      version: 1,
+      code: 'agent-integration-materialization-failed',
+    });
+  });
+
   test('preserves checked workflow start details and classifies unknown failures', () => {
     const labelsError = createInterModuleKnownError(
       workflowsInterModuleContract.methods.startRunFromTrigger,
