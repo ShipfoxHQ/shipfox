@@ -13,6 +13,7 @@ import {serializeSolutionsComparison} from './solutions-comparison';
 import {serializeTemplateCatalog, serializeTemplateDetail} from './template-catalog/markdown';
 import type {TemplateCatalogEntry, TemplateDetail} from './template-catalog/types';
 import type {ToolReferenceDocument} from './tool-reference/document';
+import {serializeWorkflowOverview} from './workflow-overview';
 
 const INTERNAL_DOC_HOSTS = new Set([
   'localhost',
@@ -228,6 +229,8 @@ export const stringifyMachineReadableComponent: StringifyCallback = (
       return `\0${JSON.stringify({name: 'ModelCatalog', children: '', attributes: {}})}\0`;
     case 'TemplateGallery':
       return `\0${JSON.stringify({name: 'TemplateGallery', children: '', attributes: {}})}\0`;
+    case 'WorkflowOverview':
+      return `\0${JSON.stringify({name: 'WorkflowOverview', children: '', attributes: {}})}\0`;
     case 'TemplateDetail':
       return `\0${JSON.stringify({name: 'TemplateDetail', children: '', attributes: {id: attributeValue(node, 'id')}})}\0`;
     case 'Callout':
@@ -293,6 +296,7 @@ const placeholderSerializers: Record<
     return serializeSolutionsComparison(options.integrationCatalog);
   },
   EditionsComparison: () => serializeEditionsComparison(),
+  WorkflowOverview: () => serializeWorkflowOverview(),
   IntegrationCatalog: (options) => {
     if (!options.integrationCatalog) {
       throw new Error('Integration catalog data is unavailable for machine-readable Markdown.');
