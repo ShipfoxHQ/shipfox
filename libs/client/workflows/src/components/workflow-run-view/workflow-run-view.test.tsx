@@ -42,6 +42,10 @@ describe('WorkflowRunView', () => {
     Element.prototype.scrollIntoView = vi.fn();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   test('reserves the shared run workspace while the run is loading', async () => {
     configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
 
@@ -92,7 +96,6 @@ describe('WorkflowRunView', () => {
       '_blank',
       'noopener,noreferrer',
     );
-    open.mockRestore();
   });
 
   test('opens the all-jobs Summary on the dependency graph by default', async () => {
