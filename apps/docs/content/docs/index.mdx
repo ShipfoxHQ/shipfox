@@ -4,6 +4,8 @@ sidebarTitle: "Introduction"
 description: "Shipfox runs your recurring engineering work with coding agents and returns it ready for your team."
 ---
 
+import {WorkflowOverview} from '@/app/components/workflow-overview';
+
 A big part of your team's week goes to recurring work: small tickets,
 dependency updates, failing checks, alerts, release chores. Coding agents made
 each engineer faster, but the work is still manual, one task at a time. And the
@@ -20,6 +22,8 @@ And the factory improves itself. Run workflows that watch your other runs, find
 what is slow or failing, and suggest changes.
 
 ## Run coding agents like CI pipelines
+
+<WorkflowOverview />
 
 1. An event starts a workflow. A ticket, a new pull request, an alert, a failed
    check, or a schedule.
