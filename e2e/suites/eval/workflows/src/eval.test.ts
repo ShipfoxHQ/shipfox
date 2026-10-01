@@ -12,6 +12,7 @@ const temporaryDirectories: string[] = [];
 const invalidCasePattern = /scenario/iu;
 const invalidScenarioPattern = /case\.yaml: scenario\.\d+: Invalid input/u;
 const duplicatePattern = /issue identifiers must be unique/u;
+const duplicateNumberPattern = /issue numbers must be unique/u;
 const undeclaredModePattern = /does not declare mode "live"/u;
 const seedPattern = /seed\.slack\.thread/u;
 const placeholderPattern = /placeholders/u;
@@ -269,6 +270,20 @@ describe('case seed schema', () => {
     expect(() => parseTemplateCase({...base, placeholders: {channel: 'C1'}})).toThrow(
       placeholderPattern,
     );
+  });
+
+  it('rejects two seeded GitHub issues with the same number', () => {
+    const github = {number: 1, title: 'Task'};
+    const seed = {github: {issues: [github, {...github, title: 'Other'}]}};
+
+    expect(() => parseTemplateCase({...base, seed})).toThrow(duplicateNumberPattern);
+  });
+
+  it('accepts seeded GitHub issues with distinct numbers', () => {
+    const github = {number: 1, title: 'Task'};
+    const seed = {github: {issues: [github, {...github, number: 2}]}};
+
+    expect(parseTemplateCase({...base, seed}).seed.github?.issues).toHaveLength(2);
   });
 });
 

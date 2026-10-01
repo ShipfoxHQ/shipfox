@@ -12,6 +12,7 @@ const context: EventSenderContext = {
 };
 const pr = {number: 1, head: 'shipfox/task-1-1-1', base: 'main', sha: 'abc', repository: 'x/y'};
 const invalidPayloadPattern = /pull_request_review_comment\.created payload is invalid/u;
+const invalidLabeledPattern = /issues\.labeled payload is invalid/u;
 const noRunPattern = /No run started from the signed GitHub deliveries/u;
 const unknownEventPattern = /cannot send issues\.opened/u;
 
@@ -165,6 +166,14 @@ describe('createGithubEventSender', () => {
         context,
       }),
     ).rejects.toThrow(invalidPayloadPattern);
+  });
+
+  it('rejects a blank label sender', async () => {
+    const send = createGithubEventSender(fakeGithub());
+
+    await expect(
+      send({event: 'issues.labeled', payload: {issue: 1, label: 'x', sender: ''}, context}),
+    ).rejects.toThrow(invalidLabeledPattern);
   });
 
   it('rejects an event the fake cannot send', async () => {

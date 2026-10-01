@@ -130,7 +130,14 @@ const seedSchema = z
   .object({
     pull_requests: z.array(seedPullRequestSchema).default([]),
     github: z
-      .object({issues: z.array(githubIssueSeedSchema).min(1)})
+      .object({
+        issues: z
+          .array(githubIssueSeedSchema)
+          .min(1)
+          .refine((issues) => new Set(issues.map(({number}) => number)).size === issues.length, {
+            message: 'issue numbers must be unique',
+          }),
+      })
       .strict()
       .optional(),
     linear: z

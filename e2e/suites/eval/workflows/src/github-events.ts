@@ -52,7 +52,7 @@ const issueLabeledSchema = z
   .object({
     issue: z.number().int().positive(),
     label: z.string().min(1),
-    sender: z.string().optional(),
+    sender: z.string().min(1).optional(),
   })
   .strict();
 
