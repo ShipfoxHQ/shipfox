@@ -75,6 +75,8 @@ const openPrColumn = '@2xl:col-start-9';
 // Rendered as HTML rather than an image so search engines and screen readers get the text.
 // Each visual group is hidden from assistive technology and paired with one sentence that
 // states the same facts in reading order.
+// The repository README embeds screenshots of this diagram. Run `pnpm readme:diagram` after
+// changing it.
 export function WorkflowOverview() {
   return (
     <figure className="not-prose @container my-region flex flex-col gap-inline">
