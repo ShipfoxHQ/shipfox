@@ -74,6 +74,8 @@ export async function deliverUntilRun({
       });
       return {deliveryId};
     } catch (error) {
+      // An aborted step is a timeout or an exhausted budget, not a delivery that started no run.
+      if (signal?.aborted) throw error;
       lastError = error;
     }
   }

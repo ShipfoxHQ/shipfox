@@ -128,6 +128,28 @@ describe('createClickUpEventSender', () => {
     expect(describeDecisions).toHaveBeenCalledWith({deliveryId: 'delivery-6', context});
   });
 
+  it('rethrows the abort when the step is cut off while waiting for a run', async () => {
+    const controller = new AbortController();
+    const aborted = new Error('The step timed out.');
+    post.mockResolvedValueOnce('delivery-1');
+    waitForRun.mockImplementationOnce(() => {
+      controller.abort(aborted);
+      return Promise.reject(aborted);
+    });
+    const send = createClickUpEventSender(options);
+
+    await expect(
+      send({
+        event: 'taskTagUpdated',
+        payload: {task: '86abc', tag: 'shipfox'},
+        context,
+        signal: controller.signal,
+      }),
+    ).rejects.toBe(aborted);
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(describeDecisions).not.toHaveBeenCalled();
+  });
+
   it('rejects a task the case did not seed', async () => {
     const send = createClickUpEventSender(options);
 
