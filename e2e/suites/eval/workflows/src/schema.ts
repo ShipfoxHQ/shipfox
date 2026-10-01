@@ -115,10 +115,31 @@ const clickupTaskSeedSchema = z
   })
   .strict();
 
+const githubIssueSeedSchema = z
+  .object({
+    number: z.number().int().positive(),
+    title: z.string().min(1),
+    body: z.string().optional(),
+    // Label names the issue has before any scenario event.
+    labels: z.array(z.string().min(1)).default([]),
+  })
+  .strict();
+
 // What the provider fakes serve before the scenario starts.
 const seedSchema = z
   .object({
     pull_requests: z.array(seedPullRequestSchema).default([]),
+    github: z
+      .object({
+        issues: z
+          .array(githubIssueSeedSchema)
+          .min(1)
+          .refine((issues) => new Set(issues.map(({number}) => number)).size === issues.length, {
+            message: 'issue numbers must be unique',
+          }),
+      })
+      .strict()
+      .optional(),
     linear: z
       .object({
         issues: z

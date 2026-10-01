@@ -414,7 +414,7 @@ A scenario step is one of:
   its address. Inside longer text,
   as in `Opened pull request: $pr.url`, a reference becomes its text. The
   case's GitHub fake sends `pull_request_review_comment.created`,
-  `pull_request.closed`, and `workflow_run.completed`. The case's Slack connection sends a signed `app_mention`,
+  `pull_request.closed`, `workflow_run.completed`, and `issues.labeled`. The case's Slack connection sends a signed `app_mention`,
   with `thread_ts` for a mention inside a thread. The Jira sender sends signed `jira:issue_created` and
   `jira:issue_updated` events, with an `issue` (`key`, `summary`, and
   optionally `id`, `status`, `project`, `labels`, and `description`) and
@@ -425,6 +425,13 @@ A scenario step is one of:
 - `await`: a `job` status, a `listener` that is `ready`, a listener `execution`
   status, or the `run` status. A job, execution, or run that ends in another
   terminal status fails the step at once.
+
+A case that starts from a GitHub issue loads it with `seed.github.issues`, each
+with a `number`, `title`, `body`, and `labels`, into the GitHub fake. Its
+`issues.labeled` event, `{issue: <number>, label: <name>}`, adds the label to
+the seeded issue and delivers it again until a run starts, because a delivery
+that lands before the trigger is active starts nothing.
+`cases/templates/ticket-to-pr/github-label` is the worked example.
 
 Every step takes its own `timeout_seconds`, capped by the case's
 `timeout_seconds`. A case runs a fixture template instead of a shipped one when

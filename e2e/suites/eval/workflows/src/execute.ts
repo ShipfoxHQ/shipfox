@@ -533,6 +533,7 @@ async function arrange({
     await arrangeGithubProject({
       caseDirectory: discovered.directory,
       repository: templateCase.repository,
+      issues: templateCase.seed.github?.issues ?? [],
       label: discovered.id,
       pullRequests: templateCase.seed.pull_requests,
       cleanups,
