@@ -73,7 +73,7 @@ export const runIssueDtoSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     kind: z.literal('trigger-secret-missing'),
-    key: z.string(),
+    key: secretKeySchema,
     trigger: runIssueTriggerSchema,
     effect: z.literal('blocks-start'),
   }),
