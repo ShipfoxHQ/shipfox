@@ -94,16 +94,10 @@ describe('devRunErrorCopy', () => {
     ],
     ['inputs-not-allowed', 422, 'Inputs not allowed', 'This trigger does not accept inputs.'],
     [
-      'workflow-interpolation-unresolvable',
-      422,
-      'Workflow inputs unresolved',
-      'The workflow references inputs that could not be resolved. Check the trigger inputs and try again.',
-    ],
-    [
       'workspace-suspended',
       409,
       'Workspace suspended',
-      'Your workspace is suspended. Runs cannot start until it is active again.',
+      "Runs can't start until the workspace is active again.",
     ],
     [
       'source-unavailable',
@@ -130,6 +124,26 @@ describe('devRunErrorCopy', () => {
     const copy = devRunErrorCopy(apiError('trigger-filtered', 409));
 
     expect(copy.message).toBe('The trigger filter did not match this event.');
+  });
+
+  test('names the missing variable the way a manual run does', () => {
+    const copy = devRunErrorCopy(
+      apiError('workflow-interpolation-unresolvable', 422, {
+        variable_key: 'E2E_SCHEDULE_ENABLED',
+        job_key: 'e2e',
+        field: 'job.if',
+      }),
+    );
+
+    expect(copy.title).toBe('Variable E2E_SCHEDULE_ENABLED is not set');
+    expect(copy.message).toContain('The if on job e2e reads it.');
+  });
+
+  test('keeps a generic title when the unresolved value is not a variable', () => {
+    const copy = devRunErrorCopy(apiError('workflow-interpolation-unresolvable', 422));
+
+    expect(copy.title).not.toBe('Workflow inputs unresolved');
+    expect(copy.message).not.toContain('Server message');
   });
 
   test('translates network errors', () => {

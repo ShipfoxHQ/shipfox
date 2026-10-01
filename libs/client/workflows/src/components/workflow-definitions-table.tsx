@@ -9,12 +9,22 @@ import {RelativeTime} from '@shipfox/react-ui/relative-time';
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {createColumnHelper, metaHelper, tableFeatures, useTable} from '@tanstack/react-table';
 import type {ReactNode} from 'react';
+import type {IssueCopy} from '#core/run-issue-copy.js';
+import {RunIssueCallout} from './run-issue-callout.js';
+
+export interface WorkflowRunError {
+  definitionId: string;
+  copy: IssueCopy;
+}
 
 interface WorkflowDefinitionsTableMeta {
   onOpenDefinition: (definition: Definition) => void;
   onRun: (definition: Definition) => void;
-  runError: {definitionId: string; message: string} | null;
+  onDismissRunError: () => void;
+  onRefreshDefinitions: () => void;
+  runError: WorkflowRunError | null;
   runningDefinitionId: string | null;
+  workspaceSlug: string | undefined;
 }
 
 const workflowDefinitionsFeatures = tableFeatures({
@@ -42,8 +52,7 @@ const workflowDefinitionColumns = workflowDefinitionColumnHelper.columns([
     cell: ({row, table}) => {
       const definition = row.original;
       const meta = table.options.meta;
-      const runErrorMessage =
-        meta?.runError?.definitionId === definition.id ? meta.runError.message : null;
+      const runError = meta?.runError?.definitionId === definition.id ? meta.runError : null;
 
       return (
         <div className="flex min-w-0 flex-col gap-tight">
@@ -59,10 +68,13 @@ const workflowDefinitionColumns = workflowDefinitionColumnHelper.columns([
               {definition.configPath ?? 'Manual definition'}
             </Code>
           </button>
-          {runErrorMessage ? (
-            <Text size="xs" className="text-tag-error-text">
-              {runErrorMessage}
-            </Text>
+          {runError && meta ? (
+            <RunIssueCallout
+              copy={runError.copy}
+              workspaceSlug={meta.workspaceSlug}
+              onDismiss={meta.onDismissRunError}
+              onRefresh={meta.onRefreshDefinitions}
+            />
           ) : null}
         </div>
       );
@@ -112,9 +124,12 @@ export interface WorkflowDefinitionsTableProps {
   onOpenDefinition: (definition: Definition) => void;
   onRetry: () => void;
   onRun: (definition: Definition) => void;
-  runError: {definitionId: string; message: string} | null;
+  onDismissRunError: () => void;
+  onRefreshDefinitions: () => void;
+  runError: WorkflowRunError | null;
   runningDefinitionId: string | null;
   sync: DefinitionSyncSummary | null;
+  workspaceSlug: string | undefined;
 }
 
 export function WorkflowDefinitionsTable({
@@ -129,16 +144,27 @@ export function WorkflowDefinitionsTable({
   onOpenDefinition,
   onRetry,
   onRun,
+  onDismissRunError,
+  onRefreshDefinitions,
   runError,
   runningDefinitionId,
   sync,
+  workspaceSlug,
 }: WorkflowDefinitionsTableProps) {
   const table = useTable({
     columns: workflowDefinitionColumns,
     data: definitions,
     features: workflowDefinitionsFeatures,
     getRowId: (definition) => definition.id,
-    meta: {onOpenDefinition, onRun, runError, runningDefinitionId},
+    meta: {
+      onOpenDefinition,
+      onRun,
+      onDismissRunError,
+      onRefreshDefinitions,
+      runError,
+      runningDefinitionId,
+      workspaceSlug,
+    },
   });
   let emptyContent: ReactNode;
 

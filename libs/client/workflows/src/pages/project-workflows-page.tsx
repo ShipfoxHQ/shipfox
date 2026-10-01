@@ -7,7 +7,7 @@ import {
   useDefinitionsInfiniteQuery,
   useProjectQuery,
 } from '@shipfox/client-projects';
-import {useChrome} from '@shipfox/client-shell/runtime';
+import {parseWorkspaceParams, useChrome, useRouteParams} from '@shipfox/client-shell/runtime';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Callout} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
@@ -25,7 +25,11 @@ import {toast} from '@shipfox/react-ui/toast';
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {type ReactNode, useState} from 'react';
 import {DefinitionPackagesPanel} from '#components/definition-packages-panel/definition-packages-panel.js';
-import {WorkflowDefinitionsTable} from '#components/workflow-definitions-table.js';
+import {
+  WorkflowDefinitionsTable,
+  type WorkflowRunError,
+} from '#components/workflow-definitions-table.js';
+import {runStartErrorCopy} from '#core/run-issue-copy.js';
 import {usePackageUpdatesQuery} from '#hooks/api/package-updates.js';
 import {useFireManualWorkflowMutation} from '#hooks/api/workflow-runs.js';
 
@@ -42,7 +46,8 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
   const definitionsQuery = useDefinitionsInfiniteQuery(projectId);
   const fireManual = useFireManualWorkflowMutation();
   const [selectedDefinition, setSelectedDefinition] = useState<Definition | null>(null);
-  const [runError, setRunError] = useState<{definitionId: string; message: string} | null>(null);
+  const {workspaceSlug} = useRouteParams(parseWorkspaceParams);
+  const [runError, setRunError] = useState<WorkflowRunError | null>(null);
   const definitions = definitionsQuery.data?.pages.flatMap((page) => page.definitions) ?? [];
   const sync = definitionsQuery.data?.pages[0]?.sync;
 
@@ -53,9 +58,7 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
       await fireManual.mutateAsync({projectId, definitionId: definition.id});
       toast.success('Run queued');
     } catch (error) {
-      const message = errorMessage(error, 'Could not queue run.');
-      setRunError({definitionId: definition.id, message});
-      toast.error(message);
+      setRunError({definitionId: definition.id, copy: runStartErrorCopy(error)});
     }
   }
 
@@ -128,6 +131,12 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
                 onRun={(definition) => {
                   void handleRun(definition);
                 }}
+                onDismissRunError={() => setRunError(null)}
+                onRefreshDefinitions={() => {
+                  setRunError(null);
+                  void definitionsQuery.refetch();
+                }}
+                workspaceSlug={workspaceSlug}
               />
             </FirstWorkflowSlot>
           </>
@@ -371,10 +380,4 @@ function Metadata({label, value}: {label: string; value: string}) {
       </Text>
     </div>
   );
-}
-
-function errorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError && error.message) return error.message;
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
 }

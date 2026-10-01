@@ -171,6 +171,11 @@ function usesIt(issue: LocatedIssue): CopySegment[] {
   return [...subject, text(isPlural ? ' use it.' : ' uses it.')];
 }
 
+/** The message as one plain string, for surfaces that cannot render code segments. */
+export function copyMessageText(message: CopySegment[]): string {
+  return message.map((segment) => segment.value).join('');
+}
+
 export function runIssueCopy(issue: RunIssue): IssueCopy {
   switch (issue.kind) {
     case 'variable-missing':

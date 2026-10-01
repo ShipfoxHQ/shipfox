@@ -32,6 +32,7 @@ import {
   type RunAnnotationSummary,
   type RunJobExplanation,
 } from '#core/run-annotation.js';
+import {copyMessageText, runStartErrorCopy} from '#core/run-issue-copy.js';
 import {
   isWorkflowRunTerminal,
   type StepSourceLocation,
@@ -689,7 +690,21 @@ function RunViewContent({
         }) as never,
       });
     } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : 'Could not start re-run');
+      const copy = runStartErrorCopy(error);
+      // A re-run reuses the frozen variables, so the only action it can reach is the external one
+      // an admission refusal carries.
+      const action = copy.action?.kind === 'link' && copy.action.external ? copy.action : undefined;
+      toast.error(copy.title, {
+        description: copyMessageText(copy.message),
+        ...(action
+          ? {
+              action: {
+                label: action.label,
+                onClick: () => window.open(action.to, '_blank', 'noopener,noreferrer'),
+              },
+            }
+          : {}),
+      });
     }
   }
 

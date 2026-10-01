@@ -1,6 +1,8 @@
+import {ApiError} from '@shipfox/client-api';
 import type {Definition, DefinitionSyncSummary} from '@shipfox/client-projects';
 import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
 import type {Meta, StoryObj} from '@storybook/react';
+import {runStartErrorCopy} from '#core/run-issue-copy.js';
 import {
   WorkflowDefinitionsTable,
   type WorkflowDefinitionsTableProps,
@@ -51,9 +53,12 @@ const defaultArgs = {
   onOpenDefinition: () => undefined,
   onRetry: () => undefined,
   onRun: () => undefined,
+  onDismissRunError: () => undefined,
+  onRefreshDefinitions: () => undefined,
   runError: null,
   runningDefinitionId: null,
   sync,
+  workspaceSlug: 'acme',
 } satisfies WorkflowDefinitionsTableProps;
 
 const meta = {
@@ -95,6 +100,61 @@ export const NavigationStates: Story = {
       <WorkflowDefinitionsTable {...args} hasNextPage isFetchingNextPage />
       <WorkflowDefinitionsTable {...args} hasNextPage isFetchNextPageError />
       <WorkflowDefinitionsTable {...args} />
+    </div>
+  ),
+};
+
+function refusedStart(code: string, details: unknown) {
+  return runStartErrorCopy(
+    new ApiError({message: '', code, status: 422, details: {message: '', code, details}}),
+  );
+}
+
+export const RefusedStart: Story = {
+  render: (args) => (
+    <div className="grid grid-cols-1 gap-section">
+      <WorkflowDefinitionsTable
+        {...args}
+        runError={{
+          definitionId: 'deploy-production',
+          copy: refusedStart('workflow-interpolation-unresolvable', {
+            variable_key: 'E2E_SCHEDULE_ENABLED',
+            job_key: 'e2e',
+            field: 'job.if',
+          }),
+        }}
+      />
+      <WorkflowDefinitionsTable
+        {...args}
+        runError={{
+          definitionId: 'deploy-production',
+          copy: refusedStart('secret-not-found', {key: 'DEPLOY_TOKEN'}),
+        }}
+      />
+      <WorkflowDefinitionsTable
+        {...args}
+        runError={{
+          definitionId: 'nightly-verification',
+          copy: refusedStart('admission-denied', {
+            reason: 'The monthly run allowance is used up.',
+            required_action: {
+              message: 'Run allowance reached',
+              url: 'https://billing.example.test/upgrade',
+            },
+          }),
+        }}
+      />
+      <WorkflowDefinitionsTable
+        {...args}
+        runError={{
+          definitionId: 'manual-release',
+          copy: refusedStart('manual-trigger-not-found', {}),
+        }}
+      />
+      <WorkflowDefinitionsTable
+        {...args}
+        runError={{definitionId: 'deploy-production', copy: refusedStart('unknown', {})}}
+      />
     </div>
   ),
 };
