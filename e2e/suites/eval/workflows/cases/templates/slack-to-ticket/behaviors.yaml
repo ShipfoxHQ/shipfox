@@ -1,0 +1,10 @@
+# The scripted cases slack-to-ticket must keep. Each `case` is a directory next to this file.
+cases:
+  - case: mention-creates-ticket
+    proves: A mention of the app creates one Linear ticket in the team, then links it once in the thread.
+  - case: manual-start-with-project
+    proves: A manual start without the mention trigger creates the ticket in the chosen project and links it in the thread.
+  - case: needs-information
+    proves: A request with no stated change posts questions in the thread and creates no ticket.
+  - case: already-tracked
+    proves: A mention in a thread that already has a ticket posts that ticket in the thread and creates no new one.

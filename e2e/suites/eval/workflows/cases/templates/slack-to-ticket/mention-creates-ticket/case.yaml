@@ -1,0 +1,54 @@
+template: shipfox/slack-to-ticket
+bindings: {chat: slack, tracker: linear, source: github}
+# Every option is named, because an option left out keeps all of its blocks.
+options:
+  entry_point: mention
+  ticket_project: team_only
+placeholders:
+  replace-with-channel-id: C0EVAL0001
+  replace-with-team-key: ENG
+modes: [scripted]
+timeout_seconds: 600
+
+covers:
+  - Creates one ticket per thread in the chosen team, and in the chosen project when set.
+  - Replies once in the thread.
+
+# The thread the Slack fake serves. The scripted agent doesn't read it, so it only has to
+# make sense next to the scenario.
+seed:
+  slack:
+    channel: C0EVAL0001
+    thread:
+      - ts: '1721300000.000100'
+        user: U0EVALUSER
+        text: '<@U0EVALBOT> create a ticket to retry webhook delivery after a timeout'
+
+scenario:
+  - start:
+      event:
+        slack:
+          app_mention:
+            channel: C0EVAL0001
+            ts: '1721300000.000100'
+            user: U0EVALUSER
+            text: '<@U0EVALBOT> create a ticket to retry webhook delivery after a timeout'
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  writes:
+    - linear.save_issue:
+        target: ENG
+        title: Retry webhook delivery after a timeout
+        description: {contains: '## Problem'}
+        links:
+          - title: Slack thread
+            url: https://e2e.slack.com/archives/C0EVAL0001/p1721300000000100
+        count: 1
+    # The link goes in the thread the mention started, and names the ticket the fake created.
+    - slack.chat.postMessage:
+        target: C0EVAL0001
+        thread_ts: '1721300000.000100'
+        text: {contains: 'Ticket ENG-101 tracks this thread'}
+        count: 1

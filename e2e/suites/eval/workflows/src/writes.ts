@@ -36,9 +36,17 @@ function describeWrite(write: RecordedWrite): string {
   return `${write.kind} ${write.target} ${show(write.payload)}`;
 }
 
+function isContainsMatcher(value: unknown): value is {contains: string} {
+  return isRecord(value) && Object.keys(value).length === 1 && typeof value.contains === 'string';
+}
+
 // Objects match when every expected field matches, so an expectation names only what it cares
-// about. Anything else, arrays included, must be equal.
+// about. `{contains: text}` matches a string that includes the text, for messages that carry
+// values a case can't predict, such as a commit. Anything else, arrays included, must be equal.
 function containsValue(actual: unknown, expected: unknown): boolean {
+  if (isContainsMatcher(expected)) {
+    return typeof actual === 'string' && actual.includes(expected.contains);
+  }
   if (isRecord(expected) && isRecord(actual)) {
     return Object.entries(expected).every(([key, value]) => containsValue(actual[key], value));
   }

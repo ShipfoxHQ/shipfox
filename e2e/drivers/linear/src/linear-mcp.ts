@@ -9,6 +9,10 @@ export const LINEAR_READ_RESULT_MARKER = 'linear-read-result-marker';
 export const LINEAR_WRITE_RESULT_MARKER = 'linear-write-result-marker';
 /** Path prefix the mock serves uploads under, standing in for `https://uploads.linear.app/`. */
 export const LINEAR_UPLOADS_PATH = '/uploads/';
+/** The number of the first issue a `save_issue` without an `id` creates, as in `ENG-101`. */
+const LINEAR_CREATED_ISSUE_FIRST_NUMBER = 101;
+/** The team a created issue joins when `save_issue` names none. */
+const LINEAR_DEFAULT_TEAM_KEY = 'ENG';
 /** Small pages make every list in a fixture workspace paginate. */
 const LINEAR_WORKSPACE_PAGE_SIZE = 2;
 
@@ -91,6 +95,7 @@ export async function startLinearMcpMock(
   const endpoint = options.endpoint ?? new URL(requiredLinearMcpEndpoint());
   const calls: LinearMcpCall[] = [];
   const uploads: LinearUploadRequest[] = [];
+  const createdIssues = {count: 0};
   let boundEndpoint = endpoint;
   const server = createServer((request, response) => {
     const path = new URL(request.url ?? '/', boundEndpoint).pathname;
@@ -101,6 +106,7 @@ export async function startLinearMcpMock(
     void handleMcpRequest({
       calls,
       workspace: options.workspace,
+      createdIssues,
       endpoint: boundEndpoint,
       request,
       response,
@@ -129,25 +135,33 @@ export async function startLinearMcpMock(
   };
 }
 
-// `save_comment` names its issue `issueId`, and `save_issue` names it `id`.
+// `save_comment` names its issue `issueId`, and `save_issue` names it `id`. A `save_issue` without
+// an `id` creates an issue, so its target is the team that owns it.
 const WRITE_TOOLS: Readonly<Record<string, 'issueId' | 'id'>> = {
   save_comment: 'issueId',
   save_issue: 'id',
 };
 
+function writeTarget(call: LinearMcpCall, targetField: 'issueId' | 'id'): string {
+  const target = call.arguments[targetField];
+  if (target === undefined && call.toolName === 'save_issue') {
+    return String(call.arguments.team ?? LINEAR_DEFAULT_TEAM_KEY);
+  }
+  return String(target);
+}
+
 function linearWrites(calls: readonly LinearMcpCall[]): RecordedWrite[] {
   return calls.flatMap((call) => {
     const targetField = WRITE_TOOLS[call.toolName];
     if (targetField === undefined) return [];
-    return [
-      {kind: call.toolName, target: String(call.arguments[targetField]), payload: call.arguments},
-    ];
+    return [{kind: call.toolName, target: writeTarget(call, targetField), payload: call.arguments}];
   });
 }
 
 async function handleMcpRequest(params: {
   calls: LinearMcpCall[];
   workspace: LinearWorkspaceFixture | undefined;
+  createdIssues: {count: number};
   endpoint: URL;
   request: IncomingMessage;
   response: ServerResponse;
@@ -201,18 +215,31 @@ async function handleMcpRequest(params: {
     mcp.registerTool(
       'save_issue',
       {
-        description: 'Update a deterministic Linear issue.',
+        description: 'Create or update a deterministic Linear issue.',
         inputSchema: {
-          id: z.string(),
+          id: z.string().optional(),
+          team: z.string().optional(),
+          project: z.string().optional(),
           state: z.string().optional(),
           title: z.string().optional(),
           description: z.string().optional(),
           assignee: z.string().optional(),
+          links: z.array(z.object({title: z.string(), url: z.string()})).optional(),
         },
       },
       (arguments_) => {
         record('save_issue', arguments_);
-        return {content: [{type: 'text', text: LINEAR_WRITE_RESULT_MARKER}]};
+        if (arguments_.id !== undefined) {
+          return {content: [{type: 'text', text: LINEAR_WRITE_RESULT_MARKER}]};
+        }
+        // The hosted MCP names an issue by its identifier, and so does the result.
+        params.createdIssues.count += 1;
+        const id = `${arguments_.team ?? LINEAR_DEFAULT_TEAM_KEY}-${LINEAR_CREATED_ISSUE_FIRST_NUMBER + params.createdIssues.count - 1}`;
+        return jsonResult({
+          id,
+          title: arguments_.title,
+          url: `https://linear.app/e2e/issue/${id}`,
+        });
       },
     );
     const transport = new StreamableHTTPServerTransport();

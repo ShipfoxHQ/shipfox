@@ -1,0 +1,16 @@
+# `draft`: reads the thread and the code, then drafts the ticket. The step ends once every
+# declared output is set.
+- match: {prompt_contains: create a ticket to retry webhook delivery after a timeout}
+  replies:
+    - tool: set_output
+      args: {key: status, value: '"ready"'}
+    - tool: set_output
+      args: {key: title, value: '"Retry webhook delivery after a timeout"'}
+    - tool: set_output
+      args:
+        key: description
+        value: '"## Problem\n\nA webhook that times out is dropped.\n\n## Scope\n\nRetry the delivery.\n\n## Acceptance criteria\n\n- [ ] A timed-out delivery is retried.\n\n## Open questions\n\nNone."'
+    - tool: set_output
+      args: {key: reply, value: '"The ticket asks for a retry after a timeout. No open questions remain."'}
+    - tool: set_output
+      args: {key: existing_ticket, value: '""'}
