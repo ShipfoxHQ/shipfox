@@ -1,0 +1,30 @@
+template: shipfox/fix-default-branch-ci
+bindings: {source: github}
+options: {}
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+placeholders:
+  replace-with-owner/repository: acme/report-cli
+  replace-with-workflow-path: .github/workflows/ci.yml
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+covers:
+  - Pushes a branch and opens a draft repair pull request.
+
+scenario:
+  # The fixture's default branch fails its checks, and the event reports that run.
+  - start:
+      event:
+        github:
+          workflow_run.completed: {conclusion: failure}
+  # The repair passes the checks, so the run opens a draft pull request.
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  writes:
+    - github.push: {branch: $pr.head, count: 1}
+    - github.create_pull_request: {pull_request: $pr, base: main, draft: true, count: 1}

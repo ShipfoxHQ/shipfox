@@ -1,0 +1,8 @@
+# The scripted cases fix-default-branch-ci must keep. Each `case` is a directory next to this file.
+cases:
+  - case: repair-without-report
+    proves: A failed run on the default branch starts the workflow, and a passing repair opens a draft pull request, with no Slack post.
+  - case: repair-with-report
+    proves: With Slack and both outcomes, the same start opens the draft pull request and posts once about it.
+  - case: needs-person-with-report
+    proves: With Slack, a failure the agent cannot repair pushes nothing, opens no pull request, and posts once about it.

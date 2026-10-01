@@ -10,9 +10,9 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
 - `startGithubApiMock(options?)`: start the fake and return a `GithubApiMock`. It
   serves installation tokens, repository and issue reads, pull request create,
   list, read, update, and merge, review comment replies, issue comments, issue
-  search, GraphQL review threads and `createCommitOnBranch`, issue creation, and
-  check runs. Waits for the port when a spec in another worker holds it. Git
-  transport needs `git` on the `PATH`.
+  search, GraphQL review threads and `createCommitOnBranch`, issue creation, check
+  runs, and an empty workflow run history. Waits for the port when a spec in
+  another worker holds it. Git transport needs `git` on the `PATH`.
 - `GithubApiMock.calls`: every request the fake handled, as `GithubApiMockCall`
   entries in arrival order.
 - `GithubApiMock.pullRequests`, `reviewThreads`, and `branchHeads`: state a test

@@ -1,0 +1,15 @@
+# `investigate`: finds a cause with no safe small repair, changes nothing, and stages nothing.
+# The step ends once every declared output is set, so the unused one is set empty.
+- match: {prompt_contains: Investigate a failed GitHub Actions run}
+  replies:
+    - tool: set_output
+      args: {key: status, value: '"needs_human"'}
+    - tool: set_output
+      args: {key: classification, value: '"unknown"'}
+    - tool: set_output
+      args:
+        key: summary
+        value: '"The report test fails on the default branch, and no change in the recent history explains it."'
+    - tool: set_output
+      args: {key: pr_title, value: ''}
+    - text: Needs a person.

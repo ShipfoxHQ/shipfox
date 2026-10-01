@@ -1,0 +1,23 @@
+# `investigate`: finds the cause, repairs it, and stages the repair. Later steps run the checks,
+# package the patch, and open the pull request.
+- match: {prompt_contains: Investigate a failed GitHub Actions run}
+  replies:
+    - tool: edit
+      args:
+        path: src/report.js
+        edits:
+          - oldText: ".join(', ')"
+            newText: ".join('\\n')"
+    - tool: bash
+      args: {command: git add src/report.js}
+    - tool: set_output
+      args: {key: status, value: '"repair_candidate"'}
+    - tool: set_output
+      args: {key: classification, value: '"deterministic_regression"'}
+    - tool: set_output
+      args:
+        key: summary
+        value: '"The report joined its rows with a comma instead of a newline. The join now uses a newline, and the repository test passes."'
+    - tool: set_output
+      args: {key: pr_title, value: Join report rows with newlines}
+    - text: Staged the repair.

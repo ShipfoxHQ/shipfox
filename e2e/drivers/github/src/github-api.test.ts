@@ -415,6 +415,22 @@ describe('GitHub API mock', () => {
     }
   });
 
+  it('answers a workflow run history with no runs', async () => {
+    const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
+
+    try {
+      const response = await fetch(
+        new URL('/repos/shipfox/e2e/actions/workflows/42/runs?per_page=100', mock.endpoint),
+        {headers: {authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`}},
+      );
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({total_count: 0, workflow_runs: []});
+    } finally {
+      await mock.stop();
+    }
+  });
+
   it('serves pull requests and lands a commit only on the expected branch head', async () => {
     const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
     const headers = {

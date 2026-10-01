@@ -1,0 +1,41 @@
+template: shipfox/fix-default-branch-ci
+bindings: {source: github, report: slack}
+options: {}
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+placeholders:
+  replace-with-owner/repository: acme/report-cli
+  replace-with-workflow-path: .github/workflows/ci.yml
+  replace-with-channel-id: C0EVALREPORT
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+covers:
+  - With Slack, posts about failures that need a person, repair pull requests, or both.
+
+# The Slack fake needs a thread to serve. The report only posts to the channel.
+seed:
+  slack:
+    channel: C0EVALREPORT
+    thread:
+      - ts: '1721300000.000100'
+        user: U0ONCALL
+        text: CI is red on main again.
+
+scenario:
+  # The fixture's default branch fails its checks, and the event reports that run.
+  - start:
+      event:
+        github:
+          workflow_run.completed: {conclusion: failure}
+  # The cause has no safe small repair, so the run pushes nothing and only reports.
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  writes:
+    - github.push: {count: 0}
+    - github.create_pull_request: {count: 0}
+    - slack.chat.postMessage: {target: C0EVALREPORT, count: 1}
