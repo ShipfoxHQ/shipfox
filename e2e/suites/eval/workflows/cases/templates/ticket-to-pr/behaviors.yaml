@@ -18,3 +18,7 @@ cases:
     proves: Moving a ClickUp task to the trigger status opens the PR, then comments on the task and moves it to in progress.
   - case: clickup-status-no-write-back
     proves: The same start opens the PR with ticket_write_back none, and makes no ClickUp comment or status change.
+  - case: github-label
+    proves: Adding the GitHub label opens the PR, then comments on the issue and adds the in-progress label.
+  - case: github-label-no-write-back
+    proves: The same start opens the PR with ticket_write_back none, and makes no issue comment or label change.

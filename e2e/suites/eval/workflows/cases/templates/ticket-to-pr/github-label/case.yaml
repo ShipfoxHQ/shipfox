@@ -1,0 +1,51 @@
+template: shipfox/ticket-to-pr
+bindings: {tracker: github, source: github}
+# Every option is named, because an option left out keeps all of its blocks. The feedback loop
+# has its own case, so the run ends once the pull request is open.
+options:
+  github_trigger: label
+  feedback_loop: "off"
+  resolve_threads: addressed
+  pr_mode: draft
+  ticket_write_back: comment_and_transition
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+placeholders:
+  replace-with-owner/repository: acme/report-cli
+  replace-with-label-name: shipfox
+  replace-with-in-progress-label: in progress
+seed:
+  github:
+    issues:
+      - number: 1
+        title: Add a --json flag to the report command
+        body: The report command only prints text. Scripts that read it need JSON.
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+covers:
+  - Pushes a branch and opens a task pull request, as a draft by default.
+  - With a tracker, comments on the ticket and can set its in-progress status, or an in-progress label on GitHub, unless ticket updates are off.
+
+scenario:
+  - start:
+      event:
+        github:
+          issues.labeled: {issue: 1, label: shipfox}
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  outputs: {status: implemented, identifier: issue-1}
+  writes:
+    - github.push: {branch: $pr.head, count: 1}
+    - github.create_pull_request: {pull_request: $pr, base: main, draft: true, count: 1}
+    # GitHub replaces the whole label set, so the in-progress label joins the issue's own.
+    - github.update_issue: {target: 'acme/report-cli#1', labels: [shipfox, in progress], count: 1}
+    # The issue takes number 1, so the pull request takes number 2.
+    - github.create_issue_comment:
+        target: 'acme/report-cli#1'
+        body: 'Opened pull request: https://github.com/acme/report-cli/pull/2'
+        count: 1

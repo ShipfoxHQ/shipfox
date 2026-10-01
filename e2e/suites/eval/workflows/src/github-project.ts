@@ -123,6 +123,13 @@ export interface GithubProjectOptions {
   /** Its `repo/` directory, when present, seeds the fake repository. */
   caseDirectory?: string | undefined;
   repository?: string | undefined;
+  /** Loaded into the fake as open issues of the repository. */
+  issues?: ReadonlyArray<{
+    number: number;
+    title: string;
+    body?: string | undefined;
+    labels: string[];
+  }>;
   /** Names the workspace, and keeps the fake installation apart from other runs. */
   label: string;
   /** Pull requests the fake holds before the scenario starts. */
@@ -149,6 +156,14 @@ export async function arrangeGithubProject(options: GithubProjectOptions) {
   await seedRepository({caseDirectory: options.caseDirectory, directory: seedDirectory});
   const {owner, name} = repositoryName({repository: options.repository, uniqueId});
   const repository = await github.addRepository({owner, name, seedDirectory});
+  for (const issue of options.issues ?? []) {
+    github.issues.set(issue.number, {
+      repository: repository.fullName,
+      title: issue.title,
+      body: issue.body,
+      labels: issue.labels,
+    });
+  }
   await seedPullRequests({
     github,
     repository,

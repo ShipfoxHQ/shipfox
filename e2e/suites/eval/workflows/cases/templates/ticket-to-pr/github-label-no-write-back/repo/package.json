@@ -1,0 +1,12 @@
+{
+  "name": "ticket-to-pr-github-label-no-write-back-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "report": "src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

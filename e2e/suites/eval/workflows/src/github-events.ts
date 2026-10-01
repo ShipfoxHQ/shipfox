@@ -1,7 +1,11 @@
 import type {GithubWebhookSender} from '@shipfox/e2e-driver-github';
+import {waitForRunByDeliveryId} from '@shipfox/e2e-observe-workflows';
 import {z} from 'zod';
 import {formatValidationIssues} from './schema.js';
-import type {EventSender} from './senders.js';
+import type {EventSender, EventSenderContext} from './senders.js';
+
+const MAX_DELIVERY_ATTEMPTS = 6;
+const RUN_LOOKUP_TIMEOUT_MS = 5_000;
 
 // `$pr` resolves to the whole pull request reference. Only its number picks the pull request.
 const pullRequestSchema = z.object({number: z.number().int().positive()}).passthrough();
@@ -44,6 +48,14 @@ const workflowRunCompletedSchema = z
   })
   .strict();
 
+const issueLabeledSchema = z
+  .object({
+    issue: z.number().int().positive(),
+    label: z.string().min(1),
+    sender: z.string().optional(),
+  })
+  .strict();
+
 function parsePayload<T>({
   schema,
   event,
@@ -63,12 +75,51 @@ function parsePayload<T>({
 }
 
 /**
+ * A delivery that lands before the definition's subscription is active starts no run. So the
+ * sender delivers again, with a new delivery, until one starts a run. It returns the delivery that
+ * did.
+ */
+async function deliverUntilRun({
+  deliver,
+  context,
+  signal,
+  waitForRun,
+}: {
+  deliver: () => Promise<{deliveryId: string}>;
+  context: EventSenderContext;
+  signal?: AbortSignal | undefined;
+  waitForRun: typeof waitForRunByDeliveryId;
+}): Promise<{deliveryId: string}> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_DELIVERY_ATTEMPTS && !signal?.aborted; attempt += 1) {
+    const {deliveryId} = await deliver();
+    try {
+      await waitForRun({
+        deliveryId,
+        projectId: context.projectId,
+        workspaceId: context.workspaceId,
+        token: context.token,
+        timeoutMs: RUN_LOOKUP_TIMEOUT_MS,
+        ...(signal === undefined ? {} : {signal}),
+      });
+      return {deliveryId};
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error('No run started from the signed GitHub deliveries.', {cause: lastError});
+}
+
+/**
  * Delivers a scenario's GitHub events through the case's GitHub fake, which updates its pull
  * request state and signs the webhook the way GitHub does. A `workflow_run.completed` event
  * belongs to the case repository. Its head is the named pull request's, or else the default branch.
  */
-export function createGithubEventSender(github: GithubWebhookSender): EventSender {
-  return async ({event, payload, context}) => {
+export function createGithubEventSender(
+  github: GithubWebhookSender,
+  {waitForRun = waitForRunByDeliveryId}: {waitForRun?: typeof waitForRunByDeliveryId} = {},
+): EventSender {
+  return async ({event, payload, context, signal}) => {
     switch (event) {
       case 'pull_request_review_comment.created': {
         const comment = parsePayload({schema: reviewCommentSchema, event, payload});
@@ -97,6 +148,22 @@ export function createGithubEventSender(github: GithubWebhookSender): EventSende
           actor: run.actor,
           headCommitMessage: run.head_commit_message,
           runAttempt: run.run_attempt,
+        });
+      }
+      case 'issues.labeled': {
+        // An issue label event is expected to start a run, because the template's issue trigger is
+        // the only subscriber a case defines.
+        const labeled = parsePayload({schema: issueLabeledSchema, event, payload});
+        return await deliverUntilRun({
+          context,
+          signal,
+          waitForRun,
+          deliver: async () =>
+            await github.sendIssueLabeled({
+              issueNumber: labeled.issue,
+              label: labeled.label,
+              sender: labeled.sender,
+            }),
         });
       }
       default:

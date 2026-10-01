@@ -12,6 +12,7 @@ const context: EventSenderContext = {
 };
 const pr = {number: 1, head: 'shipfox/task-1-1-1', base: 'main', sha: 'abc', repository: 'x/y'};
 const invalidPayloadPattern = /pull_request_review_comment\.created payload is invalid/u;
+const noRunPattern = /No run started from the signed GitHub deliveries/u;
 const unknownEventPattern = /cannot send issues\.opened/u;
 
 function fakeGithub() {
@@ -21,10 +22,15 @@ function fakeGithub() {
     ),
     sendPullRequestClosed: vi.fn(() => Promise.resolve({deliveryId: 'closed-delivery'})),
     sendWorkflowRunCompleted: vi.fn(() => Promise.resolve({deliveryId: 'run-delivery'})),
+    sendIssueLabeled: vi
+      .fn()
+      .mockResolvedValueOnce({deliveryId: 'labeled-1'})
+      .mockResolvedValueOnce({deliveryId: 'labeled-2'}),
   } as unknown as GithubWebhookSender & {
     sendPullRequestReviewComment: ReturnType<typeof vi.fn>;
     sendPullRequestClosed: ReturnType<typeof vi.fn>;
     sendWorkflowRunCompleted: ReturnType<typeof vi.fn>;
+    sendIssueLabeled: ReturnType<typeof vi.fn>;
   };
 }
 
@@ -95,6 +101,58 @@ describe('createGithubEventSender', () => {
     expect(github.sendWorkflowRunCompleted).toHaveBeenCalledWith(
       expect.objectContaining({repository: 'acme/report-cli', pullNumbers: undefined}),
     );
+  });
+
+  it('labels the issue and returns the delivery that started a run', async () => {
+    const github = fakeGithub();
+    const waitForRun = vi.fn(() => Promise.resolve({id: 'run'}));
+    const send = createGithubEventSender(github, {waitForRun} as never);
+
+    const delivery = await send({
+      event: 'issues.labeled',
+      payload: {issue: 1, label: 'shipfox'},
+      context,
+    });
+
+    expect(delivery).toEqual({deliveryId: 'labeled-1'});
+    expect(github.sendIssueLabeled).toHaveBeenCalledWith({
+      issueNumber: 1,
+      label: 'shipfox',
+      sender: undefined,
+    });
+    expect(waitForRun).toHaveBeenCalledWith(
+      expect.objectContaining({deliveryId: 'labeled-1', projectId: 'project'}),
+    );
+  });
+
+  it('delivers the label event again when no run started for the first delivery', async () => {
+    const github = fakeGithub();
+    const waitForRun = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('no run'))
+      .mockResolvedValueOnce({id: 'run'});
+    const send = createGithubEventSender(github, {waitForRun} as never);
+
+    const delivery = await send({
+      event: 'issues.labeled',
+      payload: {issue: 1, label: 'shipfox'},
+      context,
+    });
+
+    expect(delivery).toEqual({deliveryId: 'labeled-2'});
+    expect(github.sendIssueLabeled).toHaveBeenCalledTimes(2);
+  });
+
+  it('fails when no delivery starts a run', async () => {
+    const waitForRun = vi.fn(() => Promise.reject(new Error('no run')));
+    const github = fakeGithub();
+    github.sendIssueLabeled.mockResolvedValue({deliveryId: 'labeled-n'});
+    const send = createGithubEventSender(github, {waitForRun} as never);
+
+    await expect(
+      send({event: 'issues.labeled', payload: {issue: 1, label: 'shipfox'}, context}),
+    ).rejects.toThrow(noRunPattern);
+    expect(github.sendIssueLabeled).toHaveBeenCalledTimes(6);
   });
 
   it('rejects a payload with an unknown field', async () => {
