@@ -135,6 +135,40 @@ describe('POST /:definitionId/fire-manual', () => {
     });
   });
 
+  test('names the unusable integration and where it is set in the 422 details', async () => {
+    const definitionId = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
+    fireManualTriggerMock.mockRejectedValue(
+      createInterModuleKnownError(
+        workflowsInterModuleContract.methods.startRunFromTrigger,
+        'agent-integration-materialization-failed',
+        {
+          reason: 'connection-missing',
+          connection: 'team-slack',
+          jobKey: 'review',
+          step: {key: 'notify', name: 'Notify', index: 2},
+        },
+      ),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/${definitionId}/fire-manual`,
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toEqual({
+      code: 'agent-integration-materialization-failed',
+      details: {
+        reason: 'connection-missing',
+        connection: 'team-slack',
+        job_key: 'review',
+        step: {key: 'notify', name: 'Notify', index: 2},
+      },
+    });
+  });
+
   test('names the missing variable and where it is read in the 422 details', async () => {
     const definitionId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});

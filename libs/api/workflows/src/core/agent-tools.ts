@@ -114,6 +114,7 @@ export async function loadAgentToolMaterializationContext(params: {
   if (defaultConnection === null) {
     throw new AgentIntegrationMaterializationError(
       `Source connection ${project.sourceConnectionId} was not found while materializing agent integrations`,
+      {reason: 'source-connection-missing', connection: project.sourceConnectionId},
     );
   }
 
@@ -172,9 +173,14 @@ export function materializeToolStep(params: {
   });
   const catalog = params.context.catalogs.get(connection.provider);
   const entry = catalog?.find((candidate) => candidate.id === params.tool.id);
-  if (entry === undefined)
-    throw new AgentIntegrationMaterializationError(`Unknown integration tool: ${params.tool.id}`);
-  const method = resolveToolMethod(entry, params.tool.method);
+  if (entry === undefined) {
+    throw new AgentIntegrationMaterializationError(`Unknown integration tool: ${params.tool.id}`, {
+      reason: 'tool-unknown',
+      connection: connection.slug,
+      tool: params.tool.id,
+    });
+  }
+  const method = resolveToolMethod(entry, params.tool.method, connection.slug);
   return deepFreeze({
     connectionId: connection.id,
     connectionSlug: connection.slug,
@@ -228,6 +234,7 @@ function materializeActionIntegration(params: {
   if (connection.provider !== params.integration.provider) {
     throw new AgentIntegrationMaterializationError(
       `Action integration ${params.alias} expects a ${params.integration.provider} connection, but ${connection.slug} is ${connection.provider}`,
+      {reason: 'connection-provider-mismatch', connection: connection.slug},
     );
   }
   const catalog = params.context.catalogs.get(connection.provider);
@@ -237,9 +244,12 @@ function materializeActionIntegration(params: {
     );
   }
 
-  const tools = selectToolStates({catalog, include: params.integration.include, exclude: []}).map(
-    (state) => ({...materializedTool(state), result: state.entry.result}),
-  );
+  const tools = selectToolStates({
+    catalog,
+    connection: connection.slug,
+    include: params.integration.include,
+    exclude: [],
+  }).map((state) => ({...materializedTool(state), result: state.entry.result}));
   return {
     connectionId: connection.id,
     connectionSlug: connection.slug,
@@ -252,6 +262,7 @@ function materializeActionIntegration(params: {
 function resolveToolMethod(
   entry: AgentToolCatalogEntry,
   methodId: string | undefined,
+  connectionSlug: string,
 ): AgentToolCatalogMethod | undefined {
   if (methodId === undefined) return undefined;
 
@@ -259,6 +270,7 @@ function resolveToolMethod(
   if (method === undefined) {
     throw new AgentIntegrationMaterializationError(
       `Unknown integration tool: ${entry.id}.${methodId}`,
+      {reason: 'tool-unknown', connection: connectionSlug, tool: `${entry.id}.${methodId}`},
     );
   }
   return method;
@@ -354,7 +366,17 @@ export function createAgentToolMaterializationSnapshot(params: {
 
   const {context} = params;
   const steps = params.model.jobs.flatMap((job) =>
-    job.steps.flatMap((step) => snapshotStep({jobKey: job.key, step, context}) ?? []),
+    job.steps.flatMap((step, stepPosition) => {
+      try {
+        return snapshotStep({jobKey: job.key, step, context}) ?? [];
+      } catch (error) {
+        if (!(error instanceof AgentIntegrationMaterializationError)) throw error;
+        throw error.at({
+          jobKey: job.key,
+          step: {key: step.key, name: step.name, index: stepPosition + 1},
+        });
+      }
+    }),
   );
 
   return steps.length === 0 ? null : {steps};
@@ -423,6 +445,7 @@ function materializeAgentIntegration(params: {
 
   const tools = selectToolStates({
     catalog,
+    connection: connection.slug,
     include: params.integration.include,
     exclude: params.integration.exclude ?? [],
   }).map(materializedTool);
@@ -467,7 +490,10 @@ function resolveConnection(params: {
 
   const connection = params.context.workspaceConnectionSnapshot.get(params.connectionSlug);
   if (connection === undefined) {
-    throw new AgentIntegrationMaterializationError(params.missingMessage);
+    throw new AgentIntegrationMaterializationError(params.missingMessage, {
+      reason: 'connection-missing',
+      connection: params.connectionSlug,
+    });
   }
   return {
     id: connection.id,
@@ -478,22 +504,36 @@ function resolveConnection(params: {
 
 function selectToolStates(params: {
   readonly catalog: readonly AgentToolCatalogEntry[];
+  readonly connection: string;
   readonly include: readonly string[];
   readonly exclude: readonly string[];
 }): SelectedToolState[] {
   const selected = new Map<string, SelectedToolState>();
 
   for (const token of params.include) {
-    applySelection({catalog: params.catalog, selected, token, mode: 'include'});
+    applySelection({
+      catalog: params.catalog,
+      connection: params.connection,
+      selected,
+      token,
+      mode: 'include',
+    });
   }
   for (const token of params.exclude) {
-    applySelection({catalog: params.catalog, selected, token, mode: 'exclude'});
+    applySelection({
+      catalog: params.catalog,
+      connection: params.connection,
+      selected,
+      token,
+      mode: 'exclude',
+    });
   }
 
   const states = params.catalog.flatMap((entry) => selected.get(entry.id) ?? []);
   if (states.length === 0) {
     throw new AgentIntegrationMaterializationError(
       'Agent integration selection resolved to no tools',
+      {reason: 'no-tools-selected', connection: params.connection},
     );
   }
   return states;
@@ -501,6 +541,7 @@ function selectToolStates(params: {
 
 function applySelection(params: {
   readonly catalog: readonly AgentToolCatalogEntry[];
+  readonly connection: string;
   readonly selected: Map<string, SelectedToolState>;
   readonly token: string;
   readonly mode: 'include' | 'exclude';
@@ -512,7 +553,11 @@ function applySelection(params: {
 
   const match = findCatalogSelection(params.catalog, params.token);
   if (match === undefined) {
-    throw new AgentIntegrationMaterializationError(`Unknown integration tool: ${params.token}`);
+    throw new AgentIntegrationMaterializationError(`Unknown integration tool: ${params.token}`, {
+      reason: 'tool-unknown',
+      connection: params.connection,
+      tool: params.token,
+    });
   }
   applyEntrySelection(params, match.entry, match.method);
 }

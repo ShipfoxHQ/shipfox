@@ -239,6 +239,46 @@ describe('trigger-events mappers', () => {
       expect(triggerDecisionDiagnosticDtoSchema.safeParse(dto.diagnostic).success).toBe(true);
     });
 
+    test('maps the integration reason, connection, tool and location', () => {
+      const dto = toTriggerDecisionDto({
+        ...decision,
+        reason: 'agent-integration-materialization-failed',
+        diagnostic: {
+          version: 1,
+          code: 'agent-integration-materialization-failed',
+          reason: 'tool-unknown',
+          connection: 'team-slack',
+          tool: 'send_message',
+          jobKey: 'review',
+          step: {key: 'notify', index: 2},
+        },
+      });
+
+      expect(dto.diagnostic).toEqual({
+        version: 1,
+        code: 'agent-integration-materialization-failed',
+        reason: 'tool-unknown',
+        connection: 'team-slack',
+        tool: 'send_message',
+        job_key: 'review',
+        step: {key: 'notify', index: 2},
+      });
+      expect(triggerDecisionDiagnosticDtoSchema.safeParse(dto.diagnostic).success).toBe(true);
+    });
+
+    test('maps a stored integration row without a reason', () => {
+      const dto = toTriggerDecisionDto({
+        ...decision,
+        diagnostic: {version: 1, code: 'agent-integration-materialization-failed'},
+      });
+
+      expect(dto.diagnostic).toEqual({
+        version: 1,
+        code: 'agent-integration-materialization-failed',
+      });
+      expect(triggerDecisionDiagnosticDtoSchema.safeParse(dto.diagnostic).success).toBe(true);
+    });
+
     test('maps a stored row without the new fields', () => {
       const dto = toTriggerDecisionDto({
         ...decision,

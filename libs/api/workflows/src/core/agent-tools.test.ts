@@ -375,6 +375,12 @@ describe('action integrations', () => {
     ).toThrow(
       new AgentIntegrationMaterializationError(
         'Integration connection removed-slack was not found while materializing action integration slack',
+        {
+          reason: 'connection-missing',
+          connection: 'removed-slack',
+          jobKey: 'build',
+          step: {key: 'thread', index: 1},
+        },
       ),
     );
   });
@@ -388,6 +394,12 @@ describe('action integrations', () => {
     ).toThrow(
       new AgentIntegrationMaterializationError(
         'Action integration slack expects a slack connection, but github-main is github',
+        {
+          reason: 'connection-provider-mismatch',
+          connection: 'github-main',
+          jobKey: 'build',
+          step: {key: 'thread', index: 1},
+        },
       ),
     );
   });
@@ -528,5 +540,211 @@ describe('action integrations', () => {
       sensitivity: 'write',
       methods: [{id: 'read'}, {id: 'reply'}],
     });
+  });
+});
+
+describe('integration materialization reasons', () => {
+  function materializationFailure(run: () => unknown): AgentIntegrationMaterializationError {
+    try {
+      run();
+    } catch (error) {
+      if (error instanceof AgentIntegrationMaterializationError) return error;
+      throw error;
+    }
+    throw new Error('Expected a materialization failure');
+  }
+
+  function actionStepModel(params: {connection: string; provider?: string; include?: string[]}) {
+    return workflowModel({
+      name: 'Actions',
+      runner: 'ubuntu-latest',
+      jobs: {
+        build: {
+          steps: [
+            {run: 'echo ready'},
+            {
+              key: 'thread',
+              uses: './.shipfox/actions/slack-thread',
+              action: {
+                integrations: {
+                  slack: {
+                    provider: params.provider ?? 'slack',
+                    connection: params.connection,
+                    include: params.include ?? ['thread'],
+                    allowWrite: false,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  function context(): AgentToolMaterializationContext {
+    return {
+      catalogs: new Map([
+        [
+          'slack',
+          [
+            {
+              id: 'thread',
+              description: 'Read threads.',
+              sensitivity: 'read',
+              sensitive: false,
+              requiredScope: ['channels:history'],
+              result: 'json',
+              inputSchema: {type: 'object'},
+            },
+          ],
+        ],
+      ]),
+      workspaceConnectionSnapshot: new Map([
+        ['team-slack', {id: 'connection-slack', provider: 'slack', capabilities: ['agent_tools']}],
+        ['github-main', {id: 'connection-1', provider: 'github', capabilities: ['agent_tools']}],
+      ]),
+      defaultConnection: {id: 'connection-1', slug: 'github-main', provider: 'github'},
+    };
+  }
+
+  test('names a missing connection and where the step is', () => {
+    const error = materializationFailure(() =>
+      createAgentToolMaterializationSnapshot({
+        model: actionStepModel({connection: 'removed-slack'}),
+        context: context(),
+      }),
+    );
+
+    expect(error).toMatchObject({
+      reason: 'connection-missing',
+      connection: 'removed-slack',
+      jobKey: 'build',
+      step: {key: 'thread', index: 2},
+    });
+  });
+
+  test('names a connection that belongs to another provider', () => {
+    const error = materializationFailure(() =>
+      createAgentToolMaterializationSnapshot({
+        model: actionStepModel({connection: 'github-main'}),
+        context: context(),
+      }),
+    );
+
+    expect(error).toMatchObject({
+      reason: 'connection-provider-mismatch',
+      connection: 'github-main',
+      jobKey: 'build',
+      step: {key: 'thread', index: 2},
+    });
+  });
+
+  test('names an unknown tool and the connection it was looked up on', () => {
+    const error = materializationFailure(() =>
+      createAgentToolMaterializationSnapshot({
+        model: actionStepModel({connection: 'team-slack', include: ['missing_tool']}),
+        context: context(),
+      }),
+    );
+
+    expect(error).toMatchObject({
+      reason: 'tool-unknown',
+      connection: 'team-slack',
+      tool: 'missing_tool',
+      jobKey: 'build',
+      step: {key: 'thread', index: 2},
+    });
+  });
+
+  test('names an unknown tool id of a tool step', () => {
+    const error = materializationFailure(() =>
+      materializeToolStep({
+        jobKey: 'build',
+        stepId: 'build-tool',
+        tool: {id: 'missing_tool'},
+        connection: 'github-main',
+        context: materializationContext(),
+      }),
+    );
+
+    expect(error).toMatchObject({
+      reason: 'tool-unknown',
+      connection: 'github-main',
+      tool: 'missing_tool',
+    });
+  });
+
+  test('names an unknown method of a known tool', () => {
+    const error = materializationFailure(() =>
+      materializeToolStep({
+        jobKey: 'build',
+        stepId: 'build-tool',
+        tool: {id: 'issue_read', method: 'missing'},
+        connection: 'github-main',
+        context: materializationContext(),
+      }),
+    );
+
+    expect(error).toMatchObject({
+      reason: 'tool-unknown',
+      connection: 'github-main',
+      tool: 'issue_read.missing',
+    });
+  });
+
+  test('reports a selection that resolves to no tools', () => {
+    const error = materializationFailure(() =>
+      createAgentToolMaterializationSnapshot({
+        model: actionStepModel({connection: 'team-slack', include: []}),
+        context: context(),
+      }),
+    );
+
+    expect(error).toMatchObject({
+      reason: 'no-tools-selected',
+      connection: 'team-slack',
+      jobKey: 'build',
+      step: {key: 'thread', index: 2},
+    });
+  });
+
+  test('names the source connection a project points at when it is gone', async () => {
+    const model = workflowModel({
+      name: 'Tools',
+      runner: 'ubuntu-latest',
+      jobs: {build: {steps: [{tool: 'get_issue', with: {id: 'ENG-1'}}]}},
+    });
+    const projects = {
+      getProjectById: () => Promise.resolve({project: {sourceConnectionId: 'source-1'}}),
+    };
+    const integrations = {
+      getAgentToolsContext: () =>
+        Promise.resolve({catalogs: [], workspaceConnections: [], defaultConnection: null}),
+    };
+
+    const error = await loadAgentToolMaterializationContext({
+      model,
+      workspaceId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      integrations: integrations as never,
+      projects: projects as never,
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(AgentIntegrationMaterializationError);
+    expect(error).toMatchObject({reason: 'source-connection-missing', connection: 'source-1'});
+  });
+
+  test('leaves the reason out for a setup failure', () => {
+    const error = materializationFailure(() =>
+      materializeToolStep({
+        jobKey: 'build',
+        stepId: 'build-tool',
+        tool: {id: 'issue_read'},
+        context: undefined,
+      }),
+    );
+
+    expect(error.reason).toBeUndefined();
   });
 });

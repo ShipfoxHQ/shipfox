@@ -75,7 +75,6 @@ function knownStartDiagnostic(
     case 'workspace-deleted':
     case 'definition-not-found':
     case 'project-mismatch':
-    case 'agent-integration-materialization-failed':
       return {version: 1, code: error.code};
     case 'parent-run-not-found':
     case 'run-depth-exceeded':
@@ -83,6 +82,8 @@ function knownStartDiagnostic(
       return {version: 1, code: 'unexpected-workflow-start-failure'};
     case 'agent-config-unresolvable':
       return agentConfigDiagnostic(error.details);
+    case 'agent-integration-materialization-failed':
+      return agentIntegrationDiagnostic(error.details);
     case 'interpolation-unresolvable': {
       const {details} = error;
       const envKey = details.envKey?.slice(0, 200);
@@ -168,6 +169,27 @@ function agentConfigDiagnostic(
     ...(details.reason ? {reason: details.reason} : {}),
     ...(model ? {model} : {}),
     ...(provider ? {provider} : {}),
+    ...(jobKey ? {jobKey} : {}),
+    ...(step ? {step} : {}),
+  };
+}
+
+function agentIntegrationDiagnostic(
+  details: Extract<
+    StartRunKnownError,
+    {code: 'agent-integration-materialization-failed'}
+  >['details'],
+): TriggerDecisionDiagnostic {
+  const connection = details.connection?.slice(0, 200);
+  const tool = details.tool?.slice(0, 200);
+  const jobKey = details.jobKey?.slice(0, 200);
+  const step = diagnosticStep(details.step);
+  return {
+    version: 1,
+    code: 'agent-integration-materialization-failed',
+    ...(details.reason ? {reason: details.reason} : {}),
+    ...(connection ? {connection} : {}),
+    ...(tool ? {tool} : {}),
     ...(jobKey ? {jobKey} : {}),
     ...(step ? {step} : {}),
   };

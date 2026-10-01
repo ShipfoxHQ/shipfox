@@ -1245,7 +1245,11 @@ function toRunCreationKnownError(
     );
   }
   if (error instanceof AgentIntegrationMaterializationError) {
-    return createInterModuleKnownError(method, 'agent-integration-materialization-failed', {});
+    return createInterModuleKnownError(
+      method,
+      'agent-integration-materialization-failed',
+      agentIntegrationMaterializationDetails(error),
+    );
   }
   if (error instanceof InterpolationUnresolvableError) {
     return createInterModuleKnownError(method, 'interpolation-unresolvable', {
@@ -1330,6 +1334,16 @@ function agentConfigUnresolvableDetails(error: AgentConfigUnresolvableError) {
     ...(error.reason === undefined ? {} : {reason: error.reason}),
     ...(error.model === undefined ? {} : {model: error.model}),
     ...(error.provider === undefined ? {} : {provider: error.provider}),
+    ...(error.jobKey === undefined ? {} : {jobKey: error.jobKey}),
+    ...(error.step === undefined ? {} : {step: error.step}),
+  };
+}
+
+function agentIntegrationMaterializationDetails(error: AgentIntegrationMaterializationError) {
+  return {
+    ...(error.reason === undefined ? {} : {reason: error.reason}),
+    ...(error.connection === undefined ? {} : {connection: error.connection}),
+    ...(error.tool === undefined ? {} : {tool: error.tool}),
     ...(error.jobKey === undefined ? {} : {jobKey: error.jobKey}),
     ...(error.step === undefined ? {} : {step: error.step}),
   };

@@ -1833,6 +1833,30 @@ describe('Workflows inter-module presentation', () => {
     });
   });
 
+  test('carries the reason, connection, tool and location in agent-integration-materialization-failed details', () => {
+    const result = toStartRunKnownError(
+      new AgentIntegrationMaterializationError('Unknown integration tool: nope', {
+        reason: 'tool-unknown',
+        connection: 'team-slack',
+        tool: 'nope',
+        jobKey: 'review',
+        step: {key: 'summarize', name: 'Summarize', index: 3},
+      }),
+      input.definitionId,
+    );
+
+    expect(result).toMatchObject({
+      code: 'agent-integration-materialization-failed',
+      details: {
+        reason: 'tool-unknown',
+        connection: 'team-slack',
+        tool: 'nope',
+        jobKey: 'review',
+        step: {key: 'summarize', name: 'Summarize', index: 3},
+      },
+    });
+  });
+
   test('leaves the legacy diagnostic error unmapped', () => {
     const error = new WorkflowDiagnosticTooLargeError('config', 64 * 1024, 64 * 1024 + 1);
 

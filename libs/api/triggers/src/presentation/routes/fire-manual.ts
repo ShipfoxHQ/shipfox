@@ -4,7 +4,10 @@ import {
   fireManualTriggerBodySchema,
   fireManualTriggerResponseSchema,
 } from '@shipfox/api-triggers-dto';
-import {agentConfigInvalidReasonSchema} from '@shipfox/api-workflows-dto';
+import {
+  agentConfigInvalidReasonSchema,
+  agentIntegrationMaterializationReasonSchema,
+} from '@shipfox/api-workflows-dto';
 import {
   type WorkflowsModuleClient,
   workflowsInterModuleContract,
@@ -51,6 +54,14 @@ const startRunErrorDetailsSchema = z.union([
   z.object({labels: z.array(z.string())}),
   z.object({key: z.string()}),
   z.object({limit_bytes: z.number().int().positive(), measured_bytes: z.number().int().positive()}),
+  // All fields are optional, so this member must stay last or it would absorb the others.
+  z.object({
+    reason: agentIntegrationMaterializationReasonSchema.optional(),
+    connection: z.string().optional(),
+    tool: z.string().optional(),
+    job_key: z.string().optional(),
+    step: startRunStepSchema.optional(),
+  }),
 ]);
 
 export function createFireManualTriggerRoute(

@@ -1,4 +1,7 @@
-import type {AgentConfigInvalidReason} from '@shipfox/api-workflows-dto';
+import type {
+  AgentConfigInvalidReason,
+  AgentIntegrationMaterializationReason,
+} from '@shipfox/api-workflows-dto';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {ClientError} from '@shipfox/node-fastify';
@@ -90,7 +93,7 @@ export function mapStartRunError(error: unknown, method: StartRunMethod): Client
       return new ClientError(
         'Agent integration configuration cannot be materialized',
         'agent-integration-materialization-failed',
-        {status: 422, cause: error},
+        {status: 422, details: agentIntegrationMaterializationDetails(error.details), cause: error},
       );
     case 'interpolation-unresolvable':
       return new ClientError(
@@ -157,6 +160,22 @@ function agentConfigUnresolvableDetails(details: {
     ...(details.reason === undefined ? {} : {reason: details.reason}),
     ...(details.model === undefined ? {} : {model: details.model}),
     ...(details.provider === undefined ? {} : {provider: details.provider}),
+    ...(details.jobKey === undefined ? {} : {job_key: details.jobKey}),
+    ...(details.step === undefined ? {} : {step: details.step}),
+  };
+}
+
+function agentIntegrationMaterializationDetails(details: {
+  reason?: AgentIntegrationMaterializationReason | undefined;
+  connection?: string | undefined;
+  tool?: string | undefined;
+  jobKey?: string | undefined;
+  step?: {key?: string | undefined; name?: string | undefined; index: number} | undefined;
+}) {
+  return {
+    ...(details.reason === undefined ? {} : {reason: details.reason}),
+    ...(details.connection === undefined ? {} : {connection: details.connection}),
+    ...(details.tool === undefined ? {} : {tool: details.tool}),
     ...(details.jobKey === undefined ? {} : {job_key: details.jobKey}),
     ...(details.step === undefined ? {} : {step: details.step}),
   };

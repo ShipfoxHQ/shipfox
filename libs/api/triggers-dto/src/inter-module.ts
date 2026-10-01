@@ -6,6 +6,7 @@ import {
 import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {
   agentConfigInvalidReasonSchema,
+  agentIntegrationMaterializationReasonSchema,
   workflowDiagnosticFieldSchema,
   workflowExecutionPayloadFieldSchema,
 } from '@shipfox/api-workflows-dto';
@@ -84,7 +85,6 @@ export const triggerDecisionDiagnosticSchema = z.discriminatedUnion('code', [
     'workspace-deleted',
     'definition-not-found',
     'project-mismatch',
-    'agent-integration-materialization-failed',
     'unexpected-workflow-start-failure',
     'unexpected-listener-delivery-failure',
   ].map((code) => z.strictObject({version: diagnosticVersionSchema, code: z.literal(code)})),
@@ -94,6 +94,15 @@ export const triggerDecisionDiagnosticSchema = z.discriminatedUnion('code', [
     reason: agentConfigInvalidReasonSchema.optional(),
     model: diagnosticFieldSchema.optional(),
     provider: diagnosticFieldSchema.optional(),
+    jobKey: diagnosticFieldSchema.optional(),
+    step: diagnosticStepSchema.optional(),
+  }),
+  z.strictObject({
+    version: diagnosticVersionSchema,
+    code: z.literal('agent-integration-materialization-failed'),
+    reason: agentIntegrationMaterializationReasonSchema.optional(),
+    connection: diagnosticFieldSchema.optional(),
+    tool: diagnosticFieldSchema.optional(),
     jobKey: diagnosticFieldSchema.optional(),
     step: diagnosticStepSchema.optional(),
   }),
@@ -328,7 +337,19 @@ const startRunErrors = {
       })
       .optional(),
   }),
-  'agent-integration-materialization-failed': z.object({}),
+  'agent-integration-materialization-failed': z.object({
+    reason: agentIntegrationMaterializationReasonSchema.optional(),
+    connection: z.string().optional(),
+    tool: z.string().optional(),
+    jobKey: z.string().optional(),
+    step: z
+      .object({
+        key: z.string().optional(),
+        name: z.string().optional(),
+        index: z.number().int().positive(),
+      })
+      .optional(),
+  }),
   'interpolation-unresolvable': z.object({
     definitionId: idSchema,
     field: interpolationFieldSchema,

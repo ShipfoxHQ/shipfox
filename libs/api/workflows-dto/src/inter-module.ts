@@ -10,6 +10,7 @@ import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
 import {requiredActionSchema} from '@shipfox/policy-notice';
 import {z} from 'zod';
+import {agentIntegrationMaterializationReasonSchema} from './schemas/agent-integration-reason.js';
 import {runnerCatalogNamesResponseSchema} from './schemas/runner-catalog.js';
 import {stepAttemptDetailResponseSchema} from './schemas/step-attempt-detail.js';
 import {
@@ -158,6 +159,14 @@ const agentConfigUnresolvableDetailsSchema = z.object({
   reason: agentConfigInvalidReasonSchema.optional(),
   model: z.string().optional(),
   provider: z.string().optional(),
+  jobKey: z.string().optional(),
+  step: stepLocationSchema.optional(),
+});
+
+const agentIntegrationMaterializationFailedDetailsSchema = z.object({
+  reason: agentIntegrationMaterializationReasonSchema.optional(),
+  connection: z.string().optional(),
+  tool: z.string().optional(),
   jobKey: z.string().optional(),
   step: stepLocationSchema.optional(),
 });
@@ -367,7 +376,8 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'run-depth-exceeded': z.object({}),
         'run-tree-limit-exceeded': z.object({}),
         'agent-config-unresolvable': agentConfigUnresolvableDetailsSchema,
-        'agent-integration-materialization-failed': z.object({}),
+        'agent-integration-materialization-failed':
+          agentIntegrationMaterializationFailedDetailsSchema,
         'interpolation-unresolvable': interpolationUnresolvableDetailsSchema,
         'invalid-job-runner-labels': z.object({labels: z.array(z.string())}),
         'source-snapshot-too-large': z.object({
@@ -453,7 +463,8 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'workspace-deleted': z.object({workspaceId: idSchema}),
         'admission-denied': admissionDeniedDetailsSchema,
         'agent-config-unresolvable': agentConfigUnresolvableDetailsSchema,
-        'agent-integration-materialization-failed': z.object({}),
+        'agent-integration-materialization-failed':
+          agentIntegrationMaterializationFailedDetailsSchema,
         'interpolation-unresolvable': interpolationUnresolvableDetailsSchema,
         'invalid-job-runner-labels': z.object({labels: z.array(z.string())}),
         'source-snapshot-too-large': z.object({

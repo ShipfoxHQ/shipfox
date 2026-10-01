@@ -1,4 +1,7 @@
-import type {AgentConfigInvalidReason} from '@shipfox/api-workflows-dto';
+import type {
+  AgentConfigInvalidReason,
+  AgentIntegrationMaterializationReason,
+} from '@shipfox/api-workflows-dto';
 
 export type TriggerExpressionActualType =
   | 'string'
@@ -27,8 +30,7 @@ export type TriggerDecisionDiagnostic =
         | 'workspace-suspended'
         | 'workspace-deleted'
         | 'definition-not-found'
-        | 'project-mismatch'
-        | 'agent-integration-materialization-failed';
+        | 'project-mismatch';
     }
   | {
       version: 1;
@@ -36,6 +38,15 @@ export type TriggerDecisionDiagnostic =
       reason?: AgentConfigInvalidReason;
       model?: string;
       provider?: string;
+      jobKey?: string;
+      step?: {key?: string; name?: string; index: number};
+    }
+  | {
+      version: 1;
+      code: 'agent-integration-materialization-failed';
+      reason?: AgentIntegrationMaterializationReason;
+      connection?: string;
+      tool?: string;
       jobKey?: string;
       step?: {key?: string; name?: string; index: number};
     }
