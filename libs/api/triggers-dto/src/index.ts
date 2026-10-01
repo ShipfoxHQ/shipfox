@@ -17,6 +17,7 @@ export {
   type RunIssueDto,
   type RunIssueEffectDto,
   type RunIssueLocationDto,
+  type RunIssueTriggerDto,
   type RunReadinessQueryDto,
   type RunReadinessResponseDto,
   runIssueDtoSchema,
