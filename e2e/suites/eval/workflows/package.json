@@ -18,7 +18,6 @@
     "#cli.js": "./src/cli.ts",
     "#compile.js": "./src/compile.ts",
     "#compose.js": "./src/compose.ts",
-    "#deliver.js": "./src/deliver.ts",
     "#discovery.js": "./src/discovery.ts",
     "#execute.js": "./src/execute.ts",
     "#github-events.js": "./src/github-events.ts",

@@ -11,6 +11,8 @@ export const LINEAR_WRITE_RESULT_MARKER = 'linear-write-result-marker';
 export const LINEAR_UPLOADS_PATH = '/uploads/';
 /** The number of the first issue a `save_issue` without an `id` creates, as in `ENG-101`. */
 const LINEAR_CREATED_ISSUE_FIRST_NUMBER = 101;
+/** The team a created issue joins when `save_issue` names none. */
+const LINEAR_DEFAULT_TEAM_KEY = 'ENG';
 /** Small pages make every list in a fixture workspace paginate. */
 const LINEAR_WORKSPACE_PAGE_SIZE = 2;
 
@@ -143,7 +145,7 @@ const WRITE_TOOLS: Readonly<Record<string, 'issueId' | 'id'>> = {
 function writeTarget(call: LinearMcpCall, targetField: 'issueId' | 'id'): string {
   const target = call.arguments[targetField];
   if (target === undefined && call.toolName === 'save_issue') {
-    return String(call.arguments.team);
+    return String(call.arguments.team ?? LINEAR_DEFAULT_TEAM_KEY);
   }
   return String(target);
 }
@@ -232,7 +234,7 @@ async function handleMcpRequest(params: {
         }
         // The hosted MCP names an issue by its identifier, and so does the result.
         params.createdIssues.count += 1;
-        const id = `${arguments_.team ?? 'ENG'}-${LINEAR_CREATED_ISSUE_FIRST_NUMBER + params.createdIssues.count - 1}`;
+        const id = `${arguments_.team ?? LINEAR_DEFAULT_TEAM_KEY}-${LINEAR_CREATED_ISSUE_FIRST_NUMBER + params.createdIssues.count - 1}`;
         return jsonResult({
           id,
           title: arguments_.title,

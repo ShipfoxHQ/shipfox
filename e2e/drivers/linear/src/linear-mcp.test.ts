@@ -124,6 +124,27 @@ describe('Linear MCP mock', () => {
     }
   });
 
+  it('puts a created issue without a team in the default team', async () => {
+    const mock = await startLinearMcpMock({endpoint: new URL('http://127.0.0.1:0/mcp')});
+    const client = new Client({name: 'linear-mcp-test', version: '0.0.0'});
+    const transport = new StreamableHTTPClientTransport(mock.endpoint);
+
+    try {
+      await client.connect(transport as unknown as Transport);
+      await client.callTool(
+        {name: 'save_issue', arguments: {title: 'No team'}},
+        CallToolResultSchema,
+      );
+
+      expect(mock.writes()).toEqual([
+        {kind: 'save_issue', target: 'ENG', payload: {title: 'No team'}},
+      ]);
+    } finally {
+      await client.close();
+      await mock.stop();
+    }
+  });
+
   it('serves uploads to bearer-authenticated requests', async () => {
     const mock = await startLinearMcpMock({endpoint: new URL('http://127.0.0.1:0/mcp')});
     const url = new URL('e2e-org/report/report.pdf?signature=signed', mock.uploadsUrl);
