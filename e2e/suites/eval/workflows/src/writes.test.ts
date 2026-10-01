@@ -140,10 +140,12 @@ describe('checkWrites', () => {
       {'slack.chat.postMessage': {text: {contains: texts}, count: 1}},
     ];
 
-    expect(checkWrites({expected: contains(['Build #1', 'Failed: build']), recorded: [report]})).toEqual(
-      [],
-    );
-    expect(checkWrites({expected: contains(['Build #1', 'Failed: test']), recorded: [report]})).toHaveLength(2);
+    expect(
+      checkWrites({expected: contains(['Build #1', 'Failed: build']), recorded: [report]}),
+    ).toEqual([]);
+    expect(
+      checkWrites({expected: contains(['Build #1', 'Failed: test']), recorded: [report]}),
+    ).toHaveLength(2);
     expect(checkWrites({expected: contains([]), recorded: [report]})).toHaveLength(2);
   });
 
