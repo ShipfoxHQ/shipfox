@@ -10,3 +10,11 @@ cases:
     proves: Adding the Linear label opens the PR, then comments on the issue and moves it to in progress.
   - case: linear-label-no-write-back
     proves: The same start opens the PR with ticket_write_back none, and makes no Linear comment or state change.
+  - case: clickup-tag
+    proves: Adding the ClickUp tag to a task opens the PR, then comments on the task and moves it to in progress.
+  - case: clickup-tag-no-write-back
+    proves: The same start opens the PR with ticket_write_back none, and makes no ClickUp comment or status change.
+  - case: clickup-status
+    proves: Moving a ClickUp task to the trigger status opens the PR, then comments on the task and moves it to in progress.
+  - case: clickup-status-no-write-back
+    proves: The same start opens the PR with ticket_write_back none, and makes no ClickUp comment or status change.

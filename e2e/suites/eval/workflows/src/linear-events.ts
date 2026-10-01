@@ -1,4 +1,3 @@
-import {createApiClient} from '@shipfox/e2e-core';
 import {
   type LinearIssueFixtureData,
   postLinearAgentSession,
@@ -6,11 +5,10 @@ import {
 } from '@shipfox/e2e-driver-linear';
 import {waitForRunByDeliveryId} from '@shipfox/e2e-observe-workflows';
 import {z} from 'zod';
+import {deliverUntilRun, describeDecisions, type RunLookup} from './deliveries.js';
 import {formatValidationIssues, type LinearIssueSeed} from './schema.js';
 import type {EventSender} from './senders.js';
 
-const MAX_DELIVERY_ATTEMPTS = 6;
-const RUN_LOOKUP_TIMEOUT_MS = 5_000;
 const STATE_ID = 'eval-state-todo';
 
 const agentSessionSchema = z.object({issue: z.string().min(1)}).strict();
@@ -20,11 +18,9 @@ const issueUpdateSchema = z
   .strict();
 
 /** What the sender uses to post and follow a delivery. Tests replace it. */
-export interface LinearDelivery {
+export interface LinearDelivery extends RunLookup {
   postAgentSession: typeof postLinearAgentSession;
   postIssueUpdate: typeof postLinearIssueUpdate;
-  waitForRun: typeof waitForRunByDeliveryId;
-  describeDecisions: typeof describeDecisions;
 }
 
 const defaultDelivery: LinearDelivery = {
@@ -98,75 +94,6 @@ function findIssue({
   return issue;
 }
 
-/** What the trigger decided about a delivery, so a run that never started can be explained. */
-async function describeDecisions({
-  deliveryId,
-  context,
-}: {
-  deliveryId: string;
-  context: Parameters<EventSender>[0]['context'];
-}): Promise<string> {
-  try {
-    const client = createApiClient({token: context.token});
-    const list = await client.requestJson<{
-      trigger_events: Array<{id: string; delivery_id: string | null}>;
-    }>(
-      'get',
-      `/trigger-events?${new URLSearchParams({workspace_id: context.workspaceId, limit: '100'})}`,
-    );
-    const event = list.trigger_events.find((candidate) => candidate.delivery_id === deliveryId);
-    if (event === undefined) return `The API recorded no trigger event for delivery ${deliveryId}.`;
-    const detail = await client.requestJson<{decisions: unknown[]}>(
-      'get',
-      `/trigger-events/${encodeURIComponent(event.id)}`,
-    );
-    return `Trigger decisions for delivery ${deliveryId}: ${JSON.stringify(detail.decisions)}`;
-  } catch (error) {
-    return `Could not read the trigger decisions: ${error instanceof Error ? error.message : String(error)}`;
-  }
-}
-
-/**
- * A delivery that lands before the definition's subscription is active starts no run. So the
- * sender posts again, with a new delivery, until one starts a run. It returns the delivery that
- * did.
- */
-async function deliverUntilRun({
-  post,
-  delivery,
-  context,
-  signal,
-}: {
-  post: () => Promise<string>;
-  delivery: Pick<LinearDelivery, 'waitForRun' | 'describeDecisions'>;
-  context: Parameters<EventSender>[0]['context'];
-  signal?: AbortSignal | undefined;
-}): Promise<{deliveryId: string}> {
-  let lastError: unknown;
-  let lastDeliveryId = '';
-  for (let attempt = 1; attempt <= MAX_DELIVERY_ATTEMPTS && !signal?.aborted; attempt += 1) {
-    const deliveryId = await post();
-    lastDeliveryId = deliveryId;
-    try {
-      await delivery.waitForRun({
-        deliveryId,
-        projectId: context.projectId,
-        workspaceId: context.workspaceId,
-        token: context.token,
-        timeoutMs: RUN_LOOKUP_TIMEOUT_MS,
-        ...(signal === undefined ? {} : {signal}),
-      });
-      return {deliveryId};
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw new Error(
-    `No run started from the signed Linear deliveries. ${await delivery.describeDecisions({deliveryId: lastDeliveryId, context})}`,
-    {cause: lastError},
-  );
-}
-
 /**
  * Delivers a scenario's Linear events to the stack, signed the way Linear signs them. Every
  * Linear event a scenario sends is expected to start a run, because the triggers are the only
@@ -180,6 +107,7 @@ export function createLinearEventSender(options: LinearSenderOptions): EventSend
         const session = parsePayload({schema: agentSessionSchema, event, payload});
         const issue = findIssue({issues: options.issues, identifier: session.issue});
         return await deliverUntilRun({
+          provider: 'Linear',
           context,
           signal,
           delivery,
@@ -198,6 +126,7 @@ export function createLinearEventSender(options: LinearSenderOptions): EventSend
         const issue = findIssue({issues: options.issues, identifier: update.issue});
         const labels = [...new Set([...issue.labels, update.added_label])];
         return await deliverUntilRun({
+          provider: 'Linear',
           context,
           signal,
           delivery,

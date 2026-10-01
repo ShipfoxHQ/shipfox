@@ -105,6 +105,16 @@ const seedPullRequestSchema = z
   })
   .strict();
 
+const clickupTaskSeedSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    description: z.string().optional(),
+    // The ID of the List that holds the task, which a ClickUp trigger filters on.
+    list: z.string().min(1),
+  })
+  .strict();
+
 // What the provider fakes serve before the scenario starts.
 const seedSchema = z
   .object({
@@ -130,12 +140,24 @@ const seedSchema = z
       })
       .strict()
       .optional(),
+    clickup: z
+      .object({
+        tasks: z
+          .array(clickupTaskSeedSchema)
+          .min(1)
+          .refine((tasks) => new Set(tasks.map(({id}) => id)).size === tasks.length, {
+            message: 'task IDs must be unique',
+          }),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
 export type LinearIssueSeed = z.infer<typeof linearIssueSeedSchema>;
 export type SlackSeed = NonNullable<z.infer<typeof seedSchema>['slack']>;
 export type SeedPullRequest = z.infer<typeof seedPullRequestSchema>;
+export type ClickUpTaskSeed = z.infer<typeof clickupTaskSeedSchema>;
 
 // Fires the manual trigger of one of the case's `workflows` and waits for that run to end with
 // the status given. The run it starts is not the one the case observes.

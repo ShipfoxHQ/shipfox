@@ -25,6 +25,7 @@ import {
 } from '@shipfox/e2e-setup-agent';
 import {parse as parseYaml} from 'yaml';
 import {runAwait} from './awaits.js';
+import {arrangeClickUpWorkspace} from './clickup-workspace.js';
 import {bindConnectionSlugs} from './compile.js';
 import {composeCaseWorkflow, setRunnerLabel, templateLoaderFor} from './compose.js';
 import type {DiscoveredCase} from './discovery.js';
@@ -39,7 +40,7 @@ import type {CaseResult} from './results.js';
 import {runScenario, type ScenarioDriver, ScenarioError} from './scenario.js';
 import type {TemplateCase} from './schema.js';
 import {agentStepKeys} from './scripted.js';
-import type {EventSenders} from './senders.js';
+import type {EventSender, EventSenders} from './senders.js';
 import {arrangeSlackWorkspace} from './slack-workspace.js';
 import {checkOutputs, checkWrites} from './writes.js';
 
@@ -351,7 +352,11 @@ function failureMessage({
   return `The local runner exited (code ${exit.code}, signal ${exit.signal}) before the scenario finished. ${message}${arrangement.runnerTail()}`;
 }
 
-/** The Linear, Jira, and Slack connections and fakes a case binds. A provider it doesn't bind is skipped. */
+/**
+ * The Linear, Jira, Slack, and ClickUp connections and fakes a case binds. A provider it doesn't
+ * bind is skipped. It returns the connection slug and the event sender of each, by provider, and
+ * reads the writes of all of them.
+ */
 async function arrangeProviderFakes({
   templateCase,
   workspaceId,
@@ -364,24 +369,34 @@ async function arrangeProviderFakes({
   cleanups: Array<() => Promise<void>>;
 }) {
   const binds = (provider: string) => Object.values(templateCase.bindings).includes(provider);
-  const linearIssues = templateCase.seed.linear?.issues ?? [];
-  const linear = binds('linear')
-    ? await arrangeLinearWorkspace({workspaceId, uniqueId, issues: linearIssues, cleanups})
-    : undefined;
+  const fakes: Record<
+    string,
+    {connectionSlug: string; sender: EventSender; writes: () => RecordedWrite[]}
+  > = {};
 
-  const jira = binds('jira')
-    ? await arrangeJiraTracker({workspaceId, uniqueId, cleanups})
-    : undefined;
+  if (binds('linear')) {
+    const issues = templateCase.seed.linear?.issues ?? [];
+    fakes.linear = await arrangeLinearWorkspace({workspaceId, uniqueId, issues, cleanups});
+  }
+  if (binds('jira')) fakes.jira = await arrangeJiraTracker({workspaceId, uniqueId, cleanups});
+  if (binds('slack')) {
+    const seed = templateCase.seed.slack;
+    fakes.slack = await arrangeSlackWorkspace({workspaceId, uniqueId, seed, cleanups});
+  }
+  if (binds('clickup')) {
+    const tasks = templateCase.seed.clickup?.tasks ?? [];
+    fakes.clickup = await arrangeClickUpWorkspace({workspaceId, uniqueId, tasks, cleanups});
+  }
 
-  const slack = binds('slack')
-    ? await arrangeSlackWorkspace({
-        workspaceId,
-        uniqueId,
-        seed: templateCase.seed.slack,
-        cleanups,
-      })
-    : undefined;
-  return {linear, jira, slack};
+  return {
+    connectionSlugs: Object.fromEntries(
+      Object.entries(fakes).map(([provider, fake]) => [provider, fake.connectionSlug]),
+    ),
+    senders: Object.fromEntries(
+      Object.entries(fakes).map(([provider, fake]) => [provider, fake.sender]),
+    ) as EventSenders,
+    writes: () => Object.values(fakes).flatMap((fake) => fake.writes()),
+  };
 }
 
 /** A definition with a file path is a repository definition, which is how Shipfox names a workflow. */
@@ -565,20 +580,18 @@ async function arrange({
     },
   );
 
-  const {linear, jira, slack} = await arrangeProviderFakes({
+  const providers = await arrangeProviderFakes({
     templateCase,
     workspaceId: workspace.id,
     uniqueId,
     cleanups,
   });
 
-  // The case workspace holds a connection to the GitHub fake, and to the Linear, Jira, and Slack
-  // fakes when the case binds them, so only those roles bind.
+  // The case workspace holds a connection to the GitHub fake, and to the Linear, Jira, Slack, and
+  // ClickUp fakes when the case binds them, so only those roles bind.
   const connectionSlugs: Record<string, string> = {
     github: connection.slug,
-    ...(linear === undefined ? {} : {linear: linear.connectionSlug}),
-    ...(jira === undefined ? {} : {jira: jira.connectionSlug}),
-    ...(slack === undefined ? {} : {slack: slack.connectionSlug}),
+    ...providers.connectionSlugs,
   };
   const slugs = Object.fromEntries(
     Object.entries(templateCase.bindings).flatMap(([role, provider]) => {
@@ -645,9 +658,7 @@ async function arrange({
 
   const senders: EventSenders = {
     github: createGithubEventSender(github),
-    ...(linear === undefined ? {} : {linear: linear.sender}),
-    ...(jira === undefined ? {} : {jira: jira.sender}),
-    ...(slack === undefined ? {} : {slack: slack.sender}),
+    ...providers.senders,
     ...options.senders,
   };
   const pullRequest = (): PullRequestReference => {
@@ -741,12 +752,7 @@ async function arrange({
     runnerExit: () => exit,
     runnerAborted: exited.signal,
     runnerTail: () => localRunnerLogTail(logFile),
-    writes: () => [
-      ...github.writes(),
-      ...(linear?.writes() ?? []),
-      ...(jira?.writes() ?? []),
-      ...(slack?.writes() ?? []),
-    ],
+    writes: () => [...github.writes(), ...providers.writes()],
     references: driver.references,
     modelRequests: async () =>
       script === undefined

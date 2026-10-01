@@ -1,0 +1,45 @@
+template: shipfox/ticket-to-pr
+bindings: {tracker: clickup, source: github}
+# Every option is named, because an option left out keeps all of its blocks. The feedback loop
+# has its own case, so the run ends once the pull request is open.
+options:
+  clickup_trigger: tag
+  feedback_loop: "off"
+  resolve_threads: addressed
+  pr_mode: draft
+  ticket_write_back: none
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+placeholders:
+  replace-with-list-id: eval-list-1
+  replace-with-tag-name: shipfox
+seed:
+  clickup:
+    tasks:
+      - id: 86eval7
+        name: Add a --json flag to the report command
+        description: The report command only prints text. Scripts that read it need JSON.
+        list: eval-list-1
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+covers:
+  - Pushes a branch and opens a task pull request, as a draft by default.
+
+scenario:
+  - start:
+      event:
+        clickup:
+          taskTagUpdated: {task: 86eval7, tag: shipfox}
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  outputs: {status: implemented, identifier: CU-86eval7}
+  writes:
+    - github.push: {branch: $pr.head, count: 1}
+    - github.create_pull_request: {pull_request: $pr, base: main, draft: true, count: 1}
+    - clickup.add_comment: {count: 0}
+    - clickup.update_task: {count: 0}
