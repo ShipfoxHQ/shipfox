@@ -38,6 +38,14 @@ scenario:
 
 expect:
   writes:
-    # The tested patch goes into the comment, and the branch stays as it is.
+    # The tested patch goes into the comment, and the branch stays as it is. The comment carries the
+    # patch and the repair's summary, which a diagnosis without a patch lacks.
     - github.push: {count: 0}
-    - github.create_issue_comment: {pull_request: $pr, count: 1}
+    - github.create_issue_comment:
+        pull_request: $pr
+        body:
+          contains:
+            - The report now imports padEnd as pad.
+            - Apply the patch below to the checked-out commit after review.
+            - shipfox-repair.base64
+        count: 1
