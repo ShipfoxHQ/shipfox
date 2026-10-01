@@ -32,6 +32,11 @@ what is slow or failing, and suggest changes.
 
 ## Run coding agents like CI pipelines
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="apps/docs/public/readme/workflow-overview-dark.png" />
+  <img width="880" alt="How a Shipfox workflow runs: a ticket, pull request, alert, check, or schedule starts a workflow of agent, tool, and run steps on an isolated runner. Failed tests send work back to the fix step. The result reaches your team as a pull request ready for review, and a comment resumes the workflow." src="apps/docs/public/readme/workflow-overview-light.png" />
+</picture>
+
 1. An event starts a workflow. A ticket, a new pull request, an alert, a failed
    check, or a schedule.
 2. The workflow does the work. It mixes AI agents with the exact commands you

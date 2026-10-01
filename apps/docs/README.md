@@ -16,6 +16,19 @@ pnpm dev
 
 Open http://localhost:3500 with your browser to see the result.
 
+## README diagram
+
+The repository README shows the introduction diagram as screenshots in
+`public/readme/`, one for light mode and one for dark mode. GitHub can't render
+the component itself. After you change the diagram, keep `pnpm dev` running and
+regenerate the screenshots:
+
+```bash
+pnpm readme:diagram
+```
+
+Set `DOCS_URL` if the docs server isn't at `http://localhost:3500`.
+
 ## Analytics
 
 The production Vercel deployment requires these public browser variables:
