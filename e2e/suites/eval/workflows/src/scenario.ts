@@ -32,6 +32,16 @@ export interface ScenarioDriver {
     timeoutMs: number;
     signal?: AbortSignal | undefined;
   }): Promise<string>;
+  /** Fires a workflow of the case and resolves once its run ended with `status`. */
+  fireWorkflow(params: {
+    workflow: string;
+    inputs: Record<string, unknown>;
+    status: 'succeeded' | 'failed' | 'cancelled';
+    timeoutMs: number;
+    signal?: AbortSignal | undefined;
+  }): Promise<void>;
+  /** The run the case's own workflow started on an event of a fired workflow. */
+  runTriggered(params: {timeoutMs: number; signal?: AbortSignal | undefined}): Promise<string>;
   awaitStep(params: {
     step: Extract<ScenarioStep, {await: unknown}>['await'];
     runId: string;
@@ -66,7 +76,9 @@ function describeStep(step: ScenarioStep): string {
     const {provider, event} = singleEvent(step.send);
     return `send ${provider} ${event}`;
   }
+  if ('fire' in step) return `fire ${step.fire.workflow}`;
   if ('manual' in step.start) return 'start manual';
+  if ('triggered' in step.start) return 'start triggered';
   const {provider, event} = singleEvent(step.start.event);
   return `start ${provider} ${event}`;
 }
@@ -148,7 +160,31 @@ async function runStep({
     });
     return runId;
   }
+  if ('fire' in step) {
+    await driver.fireWorkflow({
+      workflow: step.fire.workflow,
+      inputs: resolveReferences(step.fire.inputs, driver.references) as Record<string, unknown>,
+      status: step.fire.status,
+      timeoutMs: budget({
+        seconds: step.timeout_seconds,
+        fallback: DEFAULT_AWAIT_TIMEOUT_SECONDS,
+        deadline,
+      }),
+      signal,
+    });
+    return runId;
+  }
   if (runId !== undefined) throw new Error('A run has already started.');
+  if ('triggered' in step.start) {
+    return await driver.runTriggered({
+      timeoutMs: budget({
+        seconds: step.timeout_seconds,
+        fallback: DEFAULT_START_TIMEOUT_SECONDS,
+        deadline,
+      }),
+      signal,
+    });
+  }
   if ('manual' in step.start) {
     const inputs = resolveReferences(step.start.manual.inputs, driver.references);
     return await driver.startManual({inputs: inputs as Record<string, unknown>});

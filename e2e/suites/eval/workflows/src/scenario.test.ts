@@ -16,6 +16,8 @@ function createDriver(overrides: Partial<ScenarioDriver> = {}): ScenarioDriver {
     startManual: vi.fn(async () => 'run-1'),
     sendEvent: vi.fn(async () => ({})),
     runForDelivery: vi.fn(async () => 'run-2'),
+    fireWorkflow: vi.fn(async () => undefined),
+    runTriggered: vi.fn(async () => 'run-3'),
     awaitStep: vi.fn(async () => undefined),
     ...overrides,
   };
@@ -126,6 +128,35 @@ describe('runScenario', () => {
     await expect(runScenario({steps, driver, deadline: farDeadline()})).rejects.toThrow(
       'a run for the delivery',
     );
+  });
+
+  it('follows the run that a fired workflow triggers', async () => {
+    const driver = createDriver();
+    const steps: ScenarioStep[] = [
+      {fire: {workflow: 'failing', inputs: {}, status: 'failed'}, timeout_seconds: 30},
+      {start: {triggered: true}},
+      {await: {run: 'succeeded'}},
+    ];
+
+    const result = await runScenario({steps, driver, deadline: farDeadline()});
+
+    expect(result.runId).toBe('run-3');
+    expect(result.records.map((record) => record.step)).toEqual([
+      'fire failing',
+      'start triggered',
+      'await run succeeded',
+    ]);
+    expect(driver.fireWorkflow).toHaveBeenCalledWith({
+      workflow: 'failing',
+      inputs: {},
+      status: 'failed',
+      timeoutMs: 30_000,
+      signal: undefined,
+    });
+    expect(driver.runTriggered).toHaveBeenCalledWith(
+      expect.objectContaining({timeoutMs: expect.any(Number)}),
+    );
+    expect(driver.startManual).not.toHaveBeenCalled();
   });
 
   it('fails an event start whose sender returns no delivery', async () => {

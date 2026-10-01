@@ -1,0 +1,13 @@
+name: Failing build
+runner: shipfox
+triggers:
+  manual:
+    source: manual
+jobs:
+  build:
+    checkout: false
+    steps:
+      - name: Compile
+        run: |
+          echo "eval-compile-error: unexpected token"
+          exit 1

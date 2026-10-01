@@ -1,0 +1,6 @@
+# The scripted cases report-failed-runs must keep. Each `case` is a directory next to this file.
+cases:
+  - case: failed-run
+    proves: A failed run gets one Slack report naming its failed step with the end of its log.
+  - case: ignores-passing-runs
+    proves: A run that succeeds gets no report, so only the failed run that follows is reported.
