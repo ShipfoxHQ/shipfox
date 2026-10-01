@@ -135,6 +135,9 @@ describe('runScenario', () => {
       timeoutMs: 30_000,
       signal: undefined,
     });
+    expect(driver.runTriggered).toHaveBeenCalledWith(
+      expect.objectContaining({timeoutMs: expect.any(Number)}),
+    );
     expect(driver.startManual).not.toHaveBeenCalled();
   });
 

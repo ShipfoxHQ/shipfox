@@ -1,5 +1,5 @@
-template: shipfox/report-failed-runs
-behaviors:
+# The scripted cases report-failed-runs must keep. Each `case` is a directory next to this file.
+cases:
   - case: failed-run
     proves: A failed run gets one Slack report naming its failed step with the end of its log.
   - case: ignores-passing-runs

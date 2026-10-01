@@ -411,18 +411,24 @@ async function fireManual({
   client,
   definitionId,
   inputs,
+  timeoutMs = START_TIMEOUT_MS,
+  signal,
 }: {
   client: ReturnType<typeof createApiClient>;
   definitionId: string;
   inputs: Record<string, unknown>;
+  /** Bounds the wait for the trigger to accept the run. */
+  timeoutMs?: number;
+  signal?: AbortSignal | undefined;
 }): Promise<string> {
   const response = await pollUntil<FireManualTriggerResponseDto>(
     {
-      timeoutMs: START_TIMEOUT_MS,
+      timeoutMs,
       intervalMs: 250,
       maxIntervalMs: 4_000,
       backoffFactor: 1.5,
       describe: () => `manual trigger of definition ${definitionId}`,
+      ...(signal === undefined ? {} : {signal}),
     },
     async () =>
       await client.requestJson<FireManualTriggerResponseDto>(
@@ -667,8 +673,22 @@ async function arrange({
     fireWorkflow: async ({workflow, inputs, status, timeoutMs, signal}) => {
       const fired = otherDefinitions.get(workflow);
       if (fired === undefined) throw new Error(`The case has no workflow named "${workflow}".`);
-      const runId = await fireManual({client, definitionId: fired.id, inputs});
-      await runAwait({step: {run: status}, runId, token: session.token, timeoutMs, signal});
+      // Firing and waiting for the run's end share the step's one timeout.
+      const startedAt = Date.now();
+      const runId = await fireManual({
+        client,
+        definitionId: fired.id,
+        inputs,
+        timeoutMs: Math.min(timeoutMs, START_TIMEOUT_MS),
+        signal,
+      });
+      await runAwait({
+        step: {run: status},
+        runId,
+        token: session.token,
+        timeoutMs: Math.max(timeoutMs - (Date.now() - startedAt), 1),
+        signal,
+      });
     },
     runTriggered: async ({timeoutMs, signal}) =>
       await waitForTriggeredRun({
