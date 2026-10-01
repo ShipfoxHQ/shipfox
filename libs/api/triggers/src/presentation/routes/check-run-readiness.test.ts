@@ -3,10 +3,12 @@ import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-modul
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
+import {triggerSubscriptionFactory} from '#test/index.js';
 import {createCheckRunReadinessRoute} from './check-run-readiness.js';
 
 const checkRunReadiness = vi.fn();
 const getProjectById = vi.fn();
+const listSecretNames = vi.fn();
 const workflows = {checkRunReadiness} as unknown as WorkflowsModuleClient;
 const projects = {getProjectById} as never;
 
@@ -36,7 +38,7 @@ describe('GET /workflow-definitions/readiness', () => {
       );
       done();
     });
-    const route = createCheckRunReadinessRoute(workflows, projects);
+    const route = createCheckRunReadinessRoute(workflows, projects, {listSecretNames});
     app.get('/workflow-definitions/readiness', route);
     await app.ready();
   });
@@ -47,6 +49,8 @@ describe('GET /workflow-definitions/readiness', () => {
     memberships = [{workspaceId, role: 'admin', workspaceStatus: 'active'}];
     checkRunReadiness.mockReset();
     getProjectById.mockReset();
+    listSecretNames.mockReset();
+    listSecretNames.mockResolvedValue({names: []});
     getProjectById.mockResolvedValue({project: {id: projectId, workspaceId}});
     checkRunReadiness.mockResolvedValue({definitions: []});
   });
@@ -253,5 +257,176 @@ describe('GET /workflow-definitions/readiness', () => {
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('workspace-suspended');
     expect(checkRunReadiness).not.toHaveBeenCalled();
+  });
+  describe('trigger-scoped issues', () => {
+    const definitionId = () => crypto.randomUUID();
+
+    function readiness(id: string, secretInputs: unknown[] = []) {
+      checkRunReadiness.mockResolvedValue({
+        definitions: [{definitionId: id, issues: [], secretInputs}],
+      });
+    }
+
+    function namesBy(scope: {workspace: string[]; project: string[]}) {
+      listSecretNames.mockImplementation(async ({projectId}: {projectId?: string}) => ({
+        names: projectId === undefined ? scope.workspace : scope.project,
+      }));
+    }
+
+    test('reports a missing mapped secret only for the trigger that maps it', async () => {
+      const id = definitionId();
+      readiness(id);
+      namesBy({workspace: ['PRESENT'], project: []});
+      await triggerSubscriptionFactory.create({
+        workspaceId,
+        projectId,
+        workflowDefinitionId: id,
+        name: 'nightly',
+        source: 'cron',
+        event: 'tick',
+        config: {secrets: {DEPLOY_TOKEN: 'GONE_TOKEN'}},
+      });
+      await triggerSubscriptionFactory.create({
+        workspaceId,
+        projectId,
+        workflowDefinitionId: id,
+        name: 'manual',
+        source: 'manual',
+        event: 'fire',
+        config: {secrets: {DEPLOY_TOKEN: 'PRESENT'}},
+      });
+
+      const res = await app.inject({method: 'GET', url: query([id])});
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().definitions[0].issues).toEqual([
+        {
+          kind: 'trigger-secret-missing',
+          key: 'GONE_TOKEN',
+          trigger: {source: 'cron', event: 'tick', name: 'nightly'},
+          effect: 'blocks-start',
+        },
+      ]);
+    });
+
+    test('counts a secret defined at project scope only as defined', async () => {
+      const id = definitionId();
+      readiness(id);
+      namesBy({workspace: [], project: ['PROJECT_TOKEN']});
+      await triggerSubscriptionFactory.create({
+        workspaceId,
+        projectId,
+        workflowDefinitionId: id,
+        config: {secrets: {DEPLOY_TOKEN: 'PROJECT_TOKEN'}},
+      });
+
+      const res = await app.inject({method: 'GET', url: query([id])});
+
+      expect(res.json().definitions[0].issues).toEqual([]);
+      expect(listSecretNames).toHaveBeenCalledWith({workspaceId});
+      expect(listSecretNames).toHaveBeenCalledWith({workspaceId, projectId});
+    });
+
+    test('reports a secret input the trigger mapping does not provide, with its locations', async () => {
+      const id = definitionId();
+      readiness(id, [
+        {
+          key: 'DEPLOY_TOKEN',
+          locations: [{jobKey: 'deploy', step: {key: 'push', index: 2}, field: 'env', envKey: 'T'}],
+          moreLocations: 2,
+        },
+        {key: 'MAPPED', locations: [{jobKey: 'deploy', field: 'run'}]},
+      ]);
+      namesBy({workspace: ['PRESENT'], project: []});
+      await triggerSubscriptionFactory.create({
+        workspaceId,
+        projectId,
+        workflowDefinitionId: id,
+        name: 'manual',
+        source: 'manual',
+        event: 'fire',
+        config: {secrets: {MAPPED: 'PRESENT'}},
+      });
+
+      const res = await app.inject({method: 'GET', url: query([id])});
+
+      expect(res.json().definitions[0].issues).toEqual([
+        {
+          kind: 'secret-input-unmapped',
+          key: 'DEPLOY_TOKEN',
+          trigger: {source: 'manual', event: 'fire', name: 'manual'},
+          locations: [
+            {job_key: 'deploy', step: {key: 'push', index: 2}, field: 'env', env_key: 'T'},
+          ],
+          more_locations: 2,
+          effect: 'fails-job',
+        },
+      ]);
+    });
+
+    test('lists an issue that blocks the start before one that fails a job', async () => {
+      const id = definitionId();
+      checkRunReadiness.mockResolvedValue({
+        definitions: [
+          {
+            definitionId: id,
+            issues: [
+              {
+                kind: 'secret-missing',
+                key: 'STEP_TOKEN',
+                locations: [{jobKey: 'build', field: 'run'}],
+                effect: 'fails-job',
+              },
+            ],
+            secretInputs: [],
+          },
+        ],
+      });
+      namesBy({workspace: [], project: []});
+      await triggerSubscriptionFactory.create({
+        workspaceId,
+        projectId,
+        workflowDefinitionId: id,
+        config: {secrets: {DEPLOY_TOKEN: 'GONE_TOKEN'}},
+      });
+
+      const res = await app.inject({method: 'GET', url: query([id])});
+
+      expect(res.json().definitions[0].issues.map((issue: {kind: string}) => issue.kind)).toEqual([
+        'trigger-secret-missing',
+        'secret-missing',
+      ]);
+    });
+
+    test('does not look up secret names when no trigger maps a secret', async () => {
+      const id = definitionId();
+      readiness(id);
+      await triggerSubscriptionFactory.create({
+        workspaceId,
+        projectId,
+        workflowDefinitionId: id,
+        config: {},
+      });
+
+      const res = await app.inject({method: 'GET', url: query([id])});
+
+      expect(res.json().definitions[0].issues).toEqual([]);
+      expect(listSecretNames).not.toHaveBeenCalled();
+    });
+
+    test('ignores subscriptions that belong to another project', async () => {
+      const id = definitionId();
+      readiness(id, [{key: 'DEPLOY_TOKEN', locations: [{jobKey: 'deploy', field: 'run'}]}]);
+      await triggerSubscriptionFactory.create({
+        workspaceId,
+        projectId: crypto.randomUUID(),
+        workflowDefinitionId: id,
+        config: {},
+      });
+
+      const res = await app.inject({method: 'GET', url: query([id])});
+
+      expect(res.json().definitions[0].issues).toEqual([]);
+    });
   });
 });

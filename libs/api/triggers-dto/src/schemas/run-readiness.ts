@@ -32,6 +32,14 @@ const runIssueLocationSchema = z.object({
 });
 export type RunIssueLocationDto = z.infer<typeof runIssueLocationSchema>;
 
+/** The trigger a trigger-scoped issue applies to. `name` is the trigger's name in the workflow file. */
+const runIssueTriggerSchema = z.object({
+  source: z.string(),
+  event: z.string().optional(),
+  name: z.string().optional(),
+});
+export type RunIssueTriggerDto = z.infer<typeof runIssueTriggerSchema>;
+
 /**
  * What an issue does when a run happens: `blocks-start` refuses the run, `fails-job` lets it
  * start and fails a job later.
@@ -62,6 +70,20 @@ export const runIssueDtoSchema = z.discriminatedUnion('kind', [
     locations: z.array(runIssueLocationSchema),
     more_locations: z.number().int().positive().optional(),
     effect: runIssueEffectSchema,
+  }),
+  z.object({
+    kind: z.literal('trigger-secret-missing'),
+    key: secretKeySchema,
+    trigger: runIssueTriggerSchema,
+    effect: z.literal('blocks-start'),
+  }),
+  z.object({
+    kind: z.literal('secret-input-unmapped'),
+    key: z.string(),
+    trigger: runIssueTriggerSchema,
+    locations: z.array(runIssueLocationSchema),
+    more_locations: z.number().int().positive().optional(),
+    effect: z.literal('fails-job'),
   }),
 ]);
 export type RunIssueDto = z.infer<typeof runIssueDtoSchema>;

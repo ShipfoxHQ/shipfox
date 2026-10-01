@@ -15,14 +15,14 @@ export function createTriggerRoutes(
   workflows: WorkflowsModuleClient,
   definitions: DefinitionsInterModuleClient,
   projects: ProjectsModuleClient,
-  secrets?: Pick<SecretsInterModuleClient, 'getSecret'>,
+  secrets: Pick<SecretsInterModuleClient, 'getSecret' | 'listSecretNames'>,
 ): RouteGroup[] {
   return [
     {
       prefix: '/workflow-definitions',
       auth: AUTH_USER,
       routes: [
-        createCheckRunReadinessRoute(workflows, projects),
+        createCheckRunReadinessRoute(workflows, projects, secrets),
         createFireManualTriggerRoute(workflows, secrets),
       ],
     },
