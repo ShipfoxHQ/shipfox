@@ -68,6 +68,29 @@ describe('GitHub API mock pull requests', () => {
     }
   });
 
+  it('reads the author of a seeded pull request', async () => {
+    const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
+    mock.pullRequests.set(1, {
+      repository: 'acme/app',
+      ref: 'dependabot/npm_and_yarn/left-pad-1.1.0',
+      sha: 'b'.repeat(40),
+      author: 'dependabot[bot]',
+    });
+    mock.pullRequests.set(2, {repository: 'acme/app', ref: 'feature', sha: 'c'.repeat(40)});
+
+    try {
+      const read = (number: number) =>
+        fetch(new URL(`/repos/acme/app/pulls/${number}`, mock.endpoint), {headers: HEADERS});
+
+      await expect((await read(1)).json()).resolves.toMatchObject({
+        user: {login: 'dependabot[bot]'},
+      });
+      await expect((await read(2)).json()).resolves.toMatchObject({user: {login: 'e2e-author'}});
+    } finally {
+      await mock.stop();
+    }
+  });
+
   it('merges a ready pull request and refuses to reopen it', async () => {
     const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
     const request = (method: string, path: string, body: Record<string, unknown>) =>

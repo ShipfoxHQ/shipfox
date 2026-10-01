@@ -17,7 +17,8 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   entries in arrival order.
 - `GithubApiMock.pullRequests`, `reviewThreads`, and `branchHeads`: state a test
   seeds once it knows the commits. Pull requests created through the API land in
-  `pullRequests`, and replies and thread resolution update `reviewThreads`.
+  `pullRequests`, and replies and thread resolution update `reviewThreads`. A pull
+  request's `author` is the login its `user` reports, and defaults to `e2e-author`.
 - `GithubApiMock.issues`: issues by number, with title, body, state, labels, assignees,
   and comments. `GET /repos/:owner/:repo/issues/:number` and its `/comments` and
   `/labels` routes read them. An issue read for a number not listed answers a synthetic
@@ -29,6 +30,10 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   `clone_url`, so `git remote get-url origin` keeps the `github.com/<owner>/<repo>`
   identity that templates parse. Git requests need the token the fake mints, as
   basic auth with the password set to the token.
+- `GithubApiMock.addBranch(params)`: commits a directory as the whole tree of a new
+  branch, on top of the default branch, and returns its tip. The branch tip also
+  lands in `branchHeads`. A seeded pull request on it reports that tip as its head.
+  Adding a branch records no write.
 - `GithubApiMock.writes()`: the accepted state-changing requests as `RecordedWrite`
   entries (`kind`, `target`, `payload`) in arrival order. A request that GitHub
   would reject is not recorded. `target` is `owner/repo#<number>` for pull

@@ -87,9 +87,21 @@ const slackMessageSeedSchema = z
   })
   .strict();
 
+// A pull request the GitHub fake holds before the scenario starts, such as a dependency update.
+const seedPullRequestSchema = z
+  .object({
+    branch: z.string().min(1),
+    author: z.string().min(1).optional(),
+    title: z.string().min(1).optional(),
+    // A directory of files, relative to the case directory, laid over `repo/` as the branch's tree.
+    files: z.string().min(1).optional(),
+  })
+  .strict();
+
 // What the provider fakes serve before the scenario starts.
 const seedSchema = z
   .object({
+    pull_requests: z.array(seedPullRequestSchema).default([]),
     linear: z
       .object({
         issues: z
@@ -116,6 +128,7 @@ const seedSchema = z
 
 export type LinearIssueSeed = z.infer<typeof linearIssueSeedSchema>;
 export type SlackSeed = NonNullable<z.infer<typeof seedSchema>['slack']>;
+export type SeedPullRequest = z.infer<typeof seedPullRequestSchema>;
 
 const scenarioStepSchema = z.union([startStepSchema, sendStepSchema, awaitStepSchema]);
 
@@ -146,7 +159,7 @@ export const templateCaseSchema = z
     options: optionsSchema.default({}),
     slots: slotsSchema.default({}),
     placeholders: placeholdersSchema.default({}),
-    seed: seedSchema.default({}),
+    seed: seedSchema.default({pull_requests: []}),
     modes: z
       .array(z.enum(['scripted', 'live']))
       .min(1)

@@ -398,6 +398,7 @@ async function arrange({
       caseDirectory: discovered.directory,
       repository: templateCase.repository,
       label: discovered.id,
+      pullRequests: templateCase.seed.pull_requests,
       cleanups,
     });
   const runnerLabel = `eval-${uniqueId}`;

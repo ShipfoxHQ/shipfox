@@ -1,0 +1,11 @@
+# `fix_failure`: edits nothing and hands the failure to a person.
+- match: {prompt_contains: Diagnose the failed CI run on this pull request in this checkout.}
+  replies:
+    - tool: set_output
+      args: {key: status, value: '"needs_human"'}
+    - tool: set_output
+      args:
+        key: summary
+        value: pad 2.0.0 renamed its pad export to padEnd. A person has to decide whether the report adopts the new name or pins pad 1.0.0, so no repair was made.
+    - tool: set_output
+      args: {key: commit_title, value: ''}

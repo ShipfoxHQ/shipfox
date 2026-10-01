@@ -1,0 +1,20 @@
+# `fix_failure`: renames the import for the new export, stages the change, and sets the outputs.
+# The step ends once every declared output is set.
+- match: {prompt_contains: Diagnose the failed CI run on this pull request in this checkout.}
+  replies:
+    - tool: edit
+      args:
+        path: src/report.js
+        edits:
+          - oldText: import {pad} from '../vendor/pad/index.js';
+            newText: import {padEnd as pad} from '../vendor/pad/index.js';
+    - tool: bash
+      args: {command: git add src/report.js}
+    - tool: set_output
+      args: {key: status, value: '"repair_candidate"'}
+    - tool: set_output
+      args:
+        key: summary
+        value: pad 2.0.0 renamed its pad export to padEnd. The report imports it under its old name, so the tests failed on import. The report now imports padEnd as pad. The installation and the tests pass.
+    - tool: set_output
+      args: {key: commit_title, value: Import padEnd from pad 2.0.0}

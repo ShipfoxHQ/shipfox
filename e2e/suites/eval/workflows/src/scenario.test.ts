@@ -1,3 +1,4 @@
+import {PollTimeoutError} from '@shipfox/e2e-core';
 import {describe, expect, it, vi} from '@shipfox/vitest/vi';
 import {runScenario, type ScenarioDriver, ScenarioError} from './scenario.js';
 import type {ScenarioStep} from './schema.js';
@@ -77,7 +78,9 @@ describe('runScenario', () => {
         .mockResolvedValueOnce({deliveryId: 'delivery-2'}),
       runForDelivery: vi
         .fn()
-        .mockRejectedValueOnce(new Error('no run for delivery-1'))
+        .mockRejectedValueOnce(
+          new PollTimeoutError({timeoutMs: 15_000, description: 'a run for delivery-1'}),
+        )
         .mockResolvedValueOnce('run-2'),
     });
     const steps: ScenarioStep[] = [
@@ -93,12 +96,27 @@ describe('runScenario', () => {
     );
   });
 
+  it('fails an event start at once when the lookup fails for another reason', async () => {
+    const driver = createDriver({
+      sendEvent: vi.fn(() => Promise.resolve({deliveryId: 'delivery-1'})),
+      runForDelivery: vi.fn(() => Promise.reject(new Error('The API refused the lookup.'))),
+    });
+    const steps: ScenarioStep[] = [
+      {start: {event: {jira: {'jira:issue_updated': {}}}}, timeout_seconds: 30},
+    ];
+
+    await expect(runScenario({steps, driver, deadline: farDeadline()})).rejects.toThrow(
+      'The API refused the lookup.',
+    );
+    expect(driver.sendEvent).toHaveBeenCalledTimes(1);
+  });
+
   it('fails an event start that never starts a run within the step timeout', async () => {
     const driver = createDriver({
       sendEvent: vi.fn(async () => ({deliveryId: 'delivery-1'})),
       runForDelivery: vi.fn(async () => {
         await new Promise((resolve) => setTimeout(resolve, 60));
-        throw new Error('no run for the delivery');
+        throw new PollTimeoutError({timeoutMs: 60, description: 'a run for the delivery'});
       }),
     });
     const steps: ScenarioStep[] = [
@@ -106,7 +124,7 @@ describe('runScenario', () => {
     ];
 
     await expect(runScenario({steps, driver, deadline: farDeadline()})).rejects.toThrow(
-      'no run for the delivery',
+      'a run for the delivery',
     );
   });
 

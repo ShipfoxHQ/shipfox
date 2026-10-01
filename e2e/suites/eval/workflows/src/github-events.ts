@@ -23,6 +23,27 @@ const pullRequestClosedSchema = z
   .object({pull_request: pullRequestSchema, merged: z.boolean().optional()})
   .strict();
 
+const workflowRunCompletedSchema = z
+  .object({
+    pull_request: pullRequestSchema.optional(),
+    conclusion: z
+      .enum([
+        'success',
+        'failure',
+        'cancelled',
+        'timed_out',
+        'skipped',
+        'neutral',
+        'action_required',
+        'stale',
+      ])
+      .optional(),
+    actor: z.string().min(1).optional(),
+    head_commit_message: z.string().optional(),
+    run_attempt: z.number().int().positive().optional(),
+  })
+  .strict();
+
 function parsePayload<T>({
   schema,
   event,
@@ -43,10 +64,11 @@ function parsePayload<T>({
 
 /**
  * Delivers a scenario's GitHub events through the case's GitHub fake, which updates its pull
- * request state and signs the webhook the way GitHub does.
+ * request state and signs the webhook the way GitHub does. A `workflow_run.completed` event
+ * belongs to the case repository. Its head is the named pull request's, or else the default branch.
  */
 export function createGithubEventSender(github: GithubWebhookSender): EventSender {
-  return async ({event, payload}) => {
+  return async ({event, payload, context}) => {
     switch (event) {
       case 'pull_request_review_comment.created': {
         const comment = parsePayload({schema: reviewCommentSchema, event, payload});
@@ -64,6 +86,17 @@ export function createGithubEventSender(github: GithubWebhookSender): EventSende
         return await github.sendPullRequestClosed({
           pullNumber: closed.pull_request.number,
           merged: closed.merged,
+        });
+      }
+      case 'workflow_run.completed': {
+        const run = parsePayload({schema: workflowRunCompletedSchema, event, payload});
+        return await github.sendWorkflowRunCompleted({
+          repository: context.repository,
+          pullNumbers: run.pull_request === undefined ? undefined : [run.pull_request.number],
+          conclusion: run.conclusion,
+          actor: run.actor,
+          headCommitMessage: run.head_commit_message,
+          runAttempt: run.run_attempt,
         });
       }
       default:

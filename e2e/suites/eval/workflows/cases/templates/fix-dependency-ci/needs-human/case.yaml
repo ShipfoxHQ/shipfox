@@ -1,0 +1,43 @@
+template: shipfox/fix-dependency-ci
+bindings: {source: github}
+# Every option is set, because an unset option keeps its markers in the composed workflow.
+options: {pr_selection: dependency_bot, bot_identity: dependabot, delivery_mode: push_fix}
+placeholders:
+  replace-with-owner/repository: acme/report-cli
+slots:
+  setup_commands: "- key: setup\n  run: node --version"
+  install_command: npm ci --no-audit --no-fund
+  test_command: npm test
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+covers:
+  - Comments on the pull request with the result.
+
+# The bot's pull request bumps the vendored pad package to a version that renames its export, so
+# the repository's tests fail on the branch. The agent decides a person has to choose the fix.
+seed:
+  pull_requests:
+    - branch: dependabot/npm_and_yarn/pad-2.0.0
+      author: dependabot[bot]
+      title: Bump pad from 1.0.0 to 2.0.0
+      files: dependency-update
+
+scenario:
+  - start:
+      event:
+        github:
+          workflow_run.completed:
+            pull_request: $pr
+            actor: dependabot[bot]
+            conclusion: failure
+            head_commit_message: Bump pad from 1.0.0 to 2.0.0
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  writes:
+    # The diagnosis is the only write. Nothing is pushed for a failure that needs a person.
+    - github.push: {count: 0}
+    - github.create_issue_comment: {pull_request: $pr, count: 1}
