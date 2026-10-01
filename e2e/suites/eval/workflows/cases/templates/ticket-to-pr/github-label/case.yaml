@@ -44,8 +44,7 @@ expect:
     - github.create_pull_request: {pull_request: $pr, base: main, draft: true, count: 1}
     # GitHub replaces the whole label set, so the in-progress label joins the issue's own.
     - github.update_issue: {target: 'acme/report-cli#1', labels: [shipfox, in progress], count: 1}
-    # The issue takes number 1, so the pull request takes number 2.
     - github.create_issue_comment:
         target: 'acme/report-cli#1'
-        body: 'Opened pull request: https://github.com/acme/report-cli/pull/2'
+        body: 'Opened pull request: $pr.url'
         count: 1
