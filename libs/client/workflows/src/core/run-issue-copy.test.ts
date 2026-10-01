@@ -1,6 +1,7 @@
 import {ApiError} from '@shipfox/client-api';
 import {
   type CopySegment,
+  copyMessageText,
   type RunIssue,
   runIssueCopy,
   runStartErrorCopy,
@@ -424,5 +425,17 @@ describe('runStartErrorCopy', () => {
     );
 
     expect(copy.title).toBe('A value in env could not be resolved');
+  });
+});
+
+describe('copyMessageText', () => {
+  test('joins text and code segments into one string', () => {
+    expect(
+      copyMessageText([
+        {kind: 'text', value: 'Job '},
+        {kind: 'code', value: 'e2e'},
+        {kind: 'text', value: ' reads it.'},
+      ]),
+    ).toBe('Job e2e reads it.');
   });
 });

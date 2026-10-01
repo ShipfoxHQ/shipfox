@@ -37,9 +37,12 @@ const defaultProps: WorkflowDefinitionsTableProps = {
   onOpenDefinition: vi.fn(),
   onRetry: vi.fn(),
   onRun: vi.fn(),
+  onDismissRunError: vi.fn(),
+  onRefreshDefinitions: vi.fn(),
   runError: null,
   runningDefinitionId: null,
   sync: null,
+  workspaceSlug: 'acme',
 };
 
 function table(props: Partial<WorkflowDefinitionsTableProps> = {}) {

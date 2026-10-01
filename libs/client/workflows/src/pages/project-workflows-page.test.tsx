@@ -626,6 +626,142 @@ describe('ProjectWorkflowsPage', () => {
     expect(await screen.findByText('Run queued')).toBeInTheDocument();
   });
 
+  describe('when the run is refused', () => {
+    async function clickRun() {
+      const [runButton] = await screen.findAllByRole('button', {name: 'Run'});
+      if (!runButton) throw new Error('Run button was not rendered');
+      fireEvent.click(runButton);
+    }
+
+    function refusedRun(code: string, status: number, details: unknown) {
+      return jsonResponse({code, message: `Server message for ${code}`, details}, {status});
+    }
+
+    test('shows the missing variable in a row callout with a prefilled create link', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          run: refusedRun('workflow-interpolation-unresolvable', 422, {
+            variable_key: 'E2E_SCHEDULE_ENABLED',
+            job_key: 'e2e',
+            field: 'job.if',
+            source: 'vars.E2E_SCHEDULE_ENABLED',
+          }),
+        }),
+      });
+
+      renderWorkflowsPage();
+      await clickRun();
+
+      const callout = await screen.findByRole('alert');
+      expect(within(callout).getByText('Variable E2E_SCHEDULE_ENABLED is not set')).toBeVisible();
+      expect(callout).toHaveTextContent('The if on job e2e reads it.');
+      const link = within(callout).getByRole('link', {name: 'Add variable'});
+      expect(link).toHaveAttribute('href', expect.stringContaining('/w/acme/settings/variables'));
+      expect(link).toHaveAttribute('href', expect.stringContaining('create=E2E_SCHEDULE_ENABLED'));
+      expect(callout.closest('tr')).toHaveAttribute('data-row-id', DEFINITION_ID);
+      expect(screen.queryByText('Could not queue run.')).not.toBeInTheDocument();
+      expect(document.querySelector('[data-sonner-toast]')).not.toBeInTheDocument();
+    });
+
+    test('shows the missing secret in a row callout with a prefilled create link', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          run: refusedRun('secret-not-found', 422, {key: 'DEPLOY_TOKEN'}),
+        }),
+      });
+
+      renderWorkflowsPage();
+      await clickRun();
+
+      const callout = await screen.findByRole('alert');
+      expect(within(callout).getByText('Secret DEPLOY_TOKEN is not set')).toBeVisible();
+      expect(within(callout).getByRole('link', {name: 'Add secret'})).toHaveAttribute(
+        'href',
+        expect.stringContaining('create=DEPLOY_TOKEN'),
+      );
+      expect(document.querySelector('[data-sonner-toast]')).not.toBeInTheDocument();
+    });
+
+    test('shows the admission refusal with the server-provided action', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          run: refusedRun('admission-denied', 409, {
+            workspace_id: PROJECT_TEST_WID,
+            reason: 'The monthly run allowance is used up.',
+            required_action: {
+              reason: 'quota',
+              message: 'Run allowance reached',
+              url: 'https://billing.example.test/upgrade',
+            },
+          }),
+        }),
+      });
+
+      renderWorkflowsPage();
+      await clickRun();
+
+      const callout = await screen.findByRole('alert');
+      expect(within(callout).getByText('Run allowance reached')).toBeVisible();
+      expect(callout).toHaveTextContent('The monthly run allowance is used up.');
+      expect(within(callout).getByRole('link', {name: 'Open'})).toHaveAttribute(
+        'href',
+        'https://billing.example.test/upgrade',
+      );
+      expect(document.querySelector('[data-sonner-toast]')).not.toBeInTheDocument();
+    });
+
+    test('never renders an unknown server message', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          run: refusedRun('something-new', 500, {}),
+        }),
+      });
+
+      renderWorkflowsPage();
+      await clickRun();
+
+      const callout = await screen.findByRole('alert');
+      expect(callout).toHaveTextContent('Could not start the run');
+      expect(callout).toHaveTextContent('Try again in a moment.');
+      expect(callout).not.toHaveTextContent('Server message');
+    });
+
+    test('dismisses the callout', async () => {
+      configureApiClient({
+        fetchImpl: createProjectDetailFetch({
+          run: refusedRun('workspace-suspended', 409, {}),
+        }),
+      });
+
+      renderWorkflowsPage();
+      await clickRun();
+
+      fireEvent.click(await screen.findByRole('button', {name: 'Dismiss error'}));
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    test('refreshes the definitions from the changed-workflow action', async () => {
+      const fetchImpl = createProjectDetailFetch({
+        run: refusedRun('manual-trigger-not-found', 409, {}),
+      });
+      configureApiClient({fetchImpl});
+
+      renderWorkflowsPage();
+      await clickRun();
+      const definitionRequests = () =>
+        fetchImpl.mock.calls.filter(
+          ([input]) => new URL(requestInputUrl(input)).pathname === '/definitions',
+        ).length;
+      const before = definitionRequests();
+
+      fireEvent.click(await screen.findByRole('button', {name: 'Refresh'}));
+
+      await waitFor(() => expect(definitionRequests()).toBeGreaterThan(before));
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+  });
+
   test('renders not found state', async () => {
     configureApiClient({
       fetchImpl: vi.fn((input) => {

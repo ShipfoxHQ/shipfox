@@ -32,6 +32,7 @@ import {
   type RunAnnotationSummary,
   type RunJobExplanation,
 } from '#core/run-annotation.js';
+import {copyMessageText, runStartErrorCopy} from '#core/run-issue-copy.js';
 import {
   isWorkflowRunTerminal,
   type StepSourceLocation,
@@ -689,7 +690,8 @@ function RunViewContent({
         }) as never,
       });
     } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : 'Could not start re-run');
+      const copy = runStartErrorCopy(error);
+      toast.error(copy.title, {description: copyMessageText(copy.message)});
     }
   }
 

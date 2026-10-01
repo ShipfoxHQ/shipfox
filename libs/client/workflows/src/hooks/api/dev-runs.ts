@@ -2,6 +2,7 @@ import {createDevRunResponseSchema} from '@shipfox/api-triggers-dto';
 import {ApiError, checkedApiRequest} from '@shipfox/client-api';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import type {DefinitionAtRefListing, DefinitionAtRefTrigger} from '#core/definitions-at-ref.js';
+import {copyMessageText, runStartErrorCopy} from '#core/run-issue-copy.js';
 import type {DevRunLaunch, WorkflowRunListItem} from '#core/workflow-run.js';
 import {
   WorkflowRunAttemptSummary,
@@ -353,16 +354,20 @@ export function devRunErrorCopy(error: unknown): DevRunErrorCopy {
         message: 'This trigger does not accept inputs.',
       };
     case 'workflow-interpolation-unresolvable':
-      return {
-        title: 'Workflow inputs unresolved',
-        message:
-          'The workflow references inputs that could not be resolved. Check the trigger inputs and try again.',
-      };
+    case 'secret-not-found':
+    case 'secret-input-missing':
+    case 'agent-config-unresolvable':
+    case 'agent-integration-materialization-failed':
+    case 'invalid-job-runner-labels':
+    case 'source-snapshot-too-large':
+    case 'workflow-execution-payload-too-large':
+    case 'admission-denied':
     case 'workspace-suspended':
-      return {
-        title: 'Workspace suspended',
-        message: 'Your workspace is suspended. Runs cannot start until it is active again.',
-      };
+    case 'workspace-not-found':
+    case 'workspace-deleted': {
+      const {title, message} = runStartErrorCopy(error);
+      return {title, message: copyMessageText(message)};
+    }
     default:
       return {
         title: 'Could not start the run',
