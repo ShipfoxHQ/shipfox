@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
-import {runEval} from './cli.js';
+import {exitCodeFor, runEval} from './cli.js';
 import {discoverCases} from './discovery.js';
 import type {CaseResult} from './results.js';
 import {parseTemplateCase} from './schema.js';
@@ -11,8 +11,8 @@ import {parseTemplateCase} from './schema.js';
 const temporaryDirectories: string[] = [];
 const invalidCasePattern = /scenario/iu;
 const invalidScenarioPattern = /case\.yaml: scenario\.\d+: Invalid input/u;
-const liveModePattern = /live mode/iu;
 const duplicatePattern = /issue identifiers must be unique/u;
+const undeclaredModePattern = /does not declare mode "live"/u;
 
 afterEach(async () => {
   await Promise.all(
@@ -99,15 +99,112 @@ describe('eval results', () => {
     expect(summary).toContain('- `fixture` repeat 1: Step 2 failed / the run ended failed');
   });
 
-  it('rejects live mode until cases execute', async () => {
+  it('runs only the cases that declare the mode', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'shipfox-eval-modes-'));
+    temporaryDirectories.push(root);
+    const executed: string[] = [];
+
+    const run = await runEval({
+      suite: 'templates',
+      mode: 'live',
+      cwd: fileURLToPath(new URL('../', import.meta.url)),
+      resultsDirectory: join(root, 'results'),
+      execute: (params) => {
+        executed.push(params.discovered.id);
+        return Promise.resolve({...passing(params), mode: 'live'});
+      },
+    });
+
+    expect(run.results).toHaveLength(executed.length);
+    expect(executed).toContain('ticket-to-pr/live-json-flag');
+    expect(executed).not.toContain('ticket-to-pr/feedback-loop');
+  });
+
+  it('refuses a mode no selected case declares', async () => {
     await expect(
       runEval({
         suite: 'templates',
         mode: 'live',
-        repeat: 1,
         cwd: fileURLToPath(new URL('../', import.meta.url)),
+        caseFilter: 'ticket-to-pr/feedback-loop',
+        execute: async (params) => passing(params),
       }),
-    ).rejects.toThrow(liveModePattern);
+    ).rejects.toThrow(undeclaredModePattern);
+  });
+
+  it('stops starting case runs once the budget is spent', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'shipfox-eval-budget-'));
+    temporaryDirectories.push(root);
+    const resultsDirectory = join(root, 'results');
+
+    const run = await runEval({
+      suite: 'templates',
+      mode: 'scripted',
+      repeat: 4,
+      maxCostUsd: 1,
+      cwd: fileURLToPath(new URL('../', import.meta.url)),
+      caseFilter: 'fixture',
+      resultsDirectory,
+      runId: 'budget',
+      execute: async (params) => ({...passing(params), cost_usd: 0.6}),
+    });
+
+    expect(run.results).toHaveLength(2);
+    expect(run.skipped_for_budget).toBe(2);
+    expect(await readFile(join(resultsDirectory, 'budget', 'summary.md'), 'utf8')).toContain(
+      'Not started, budget spent: 2',
+    );
+  });
+
+  it('lists the live measures and hidden tests in the summary', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'shipfox-eval-live-summary-'));
+    temporaryDirectories.push(root);
+    const resultsDirectory = join(root, 'results');
+
+    await runEval({
+      suite: 'templates',
+      mode: 'live',
+      cwd: fileURLToPath(new URL('../', import.meta.url)),
+      caseFilter: 'ticket-to-pr/live-json-flag',
+      resultsDirectory,
+      runId: 'live',
+      execute: async (params) => ({
+        ...passing(params),
+        mode: 'live',
+        duration_ms: 12_500,
+        cost_usd: 0.25,
+        measures: {
+          input_tokens: 1200,
+          output_tokens: 300,
+          cache_read_tokens: 0,
+          reasoning_tokens: 0,
+          model_requests: 4,
+          gate_retries: 1,
+        },
+        hidden_tests: {passed: true, exit_code: 0, output_tail: ''},
+      }),
+    });
+
+    expect(await readFile(join(resultsDirectory, 'live', 'summary.md'), 'utf8')).toContain(
+      '| `ticket-to-pr/live-json-flag` | 1 | passed | passed | 1200 | 300 | 1 | 12.5 | 0.2500 |',
+    );
+  });
+});
+
+describe('exit code', () => {
+  const result = (status: CaseResult['status']): CaseResult => ({
+    ...passing({discovered: {id: 'case'}, repeat: 1}),
+    status,
+  });
+
+  it('fails a scripted run on any case that did not pass', () => {
+    expect(exitCodeFor({mode: 'scripted', results: [result('passed'), result('failed')]})).toBe(1);
+    expect(exitCodeFor({mode: 'scripted', results: [result('passed')]})).toBe(0);
+  });
+
+  it('fails a live run only on cases that could not be run', () => {
+    expect(exitCodeFor({mode: 'live', results: [result('passed'), result('failed')]})).toBe(0);
+    expect(exitCodeFor({mode: 'live', results: [result('failed'), result('error')]})).toBe(1);
   });
 });
 

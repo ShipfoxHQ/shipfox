@@ -17,7 +17,9 @@ import {
   waitForRunByDeliveryId,
 } from '@shipfox/e2e-observe-workflows';
 import {
+  getOpenRouterCost,
   getScriptedManagedProviderRequests,
+  registerOpenRouterManagedProvider,
   registerScriptedManagedProvider,
   type ScriptedManagedProviderRequest,
 } from '@shipfox/e2e-setup-agent';
@@ -28,7 +30,9 @@ import {composeCaseWorkflow, templateLoaderFor} from './compose.js';
 import type {DiscoveredCase} from './discovery.js';
 import {createGithubEventSender} from './github-events.js';
 import {arrangeGithubProject} from './github-project.js';
+import {type HiddenTestsResult, runHiddenTests} from './hidden-tests.js';
 import {arrangeLinearWorkspace} from './linear-workspace.js';
+import {collectMeasures, type RunMeasures} from './measures.js';
 import {type PullRequestReference, resolveReferences} from './references.js';
 import type {CaseResult} from './results.js';
 import {runScenario, type ScenarioDriver, ScenarioError} from './scenario.js';
@@ -41,6 +45,7 @@ const START_TIMEOUT_MS = 60_000;
 const RUNNER_TOKEN_TTL_SECONDS = 3_600;
 const RUNNER_LOG_TAIL_LINES = 200;
 const MAX_PROMPT_CHARACTERS = 2_000;
+const HIDDEN_TESTS_TIMEOUT_MS = 300_000;
 
 export interface ExecuteCaseOptions {
   discovered: DiscoveredCase;
@@ -64,6 +69,12 @@ interface Arrangement {
   references: ScenarioDriver['references'];
   /** Every request the scripted model provider served, when the case registered a script. */
   modelRequests: () => Promise<ScriptedManagedProviderRequest[] | undefined>;
+  /** Live runs only: the tokens and gate retries of a finished run. */
+  measures: (params: {runId: string; observation: WorkflowRunObservation}) => Promise<RunMeasures>;
+  /** Live runs only: what OpenRouter charged for the case's model requests, in USD. */
+  cost: () => Promise<number>;
+  /** Runs the case's hidden tests on the branch of the pull request the run opened. */
+  hiddenTests: () => Promise<HiddenTestsResult | undefined>;
 }
 
 function stepKeysOf(yaml: string): string[] {
@@ -126,26 +137,9 @@ export async function executeTemplateCase(options: ExecuteCaseOptions): Promise<
     result.composed_yaml = arrangement.yaml;
     result.runner_log = arrangement.runnerLogFile;
 
-    const controller = new AbortController();
-    const timer = setTimeout(
-      () => controller.abort(new Error('The case timeout ran out.')),
-      templateCase.timeout_seconds * 1_000,
-    );
-    arrangement.runnerAborted.addEventListener('abort', () => controller.abort(), {once: true});
-    // A runner that exited during setup aborted before this listener existed.
-    if (arrangement.runnerAborted.aborted) controller.abort();
-    try {
-      const scenario = await runScenario({
-        steps: templateCase.scenario,
-        driver: arrangement.driver,
-        deadline: Date.now() + templateCase.timeout_seconds * 1_000,
-        signal: controller.signal,
-      });
-      runId = scenario.runId;
-      result.steps = scenario.records;
-    } finally {
-      clearTimeout(timer);
-    }
+    const scenario = await driveScenario({templateCase, arrangement});
+    runId = scenario.runId;
+    result.steps = scenario.records;
     result.status = 'passed';
     result.run_id = runId;
     result.observation = await observeWholeRun({
@@ -162,6 +156,7 @@ export async function executeTemplateCase(options: ExecuteCaseOptions): Promise<
         references: arrangement.references,
       }),
       ...surpriseFailures(await arrangement.modelRequests()),
+      ...(mode === 'live' ? await gradeLiveRun({result, arrangement, runId}) : []),
     ];
     if (failures.length > 0) {
       result.status = 'failed';
@@ -173,6 +168,9 @@ export async function executeTemplateCase(options: ExecuteCaseOptions): Promise<
     if (arrangement !== undefined) result.writes = arrangement.writes();
     result.error = failureMessage({error, arrangement});
   } finally {
+    if (mode === 'live' && arrangement !== undefined) {
+      await recordCost({result, arrangement});
+    }
     for (const cleanup of cleanups.reverse()) await cleanup().catch(() => undefined);
     if (result.status !== 'passed' && arrangement !== undefined) {
       await attachFailureContext({result, arrangement});
@@ -180,6 +178,73 @@ export async function executeTemplateCase(options: ExecuteCaseOptions): Promise<
     result.duration_ms = Date.now() - startedAt;
   }
   return result;
+}
+
+/** Runs the scenario within the case's timeout, and stops it when the case's runner exits. */
+async function driveScenario({
+  templateCase,
+  arrangement,
+}: {
+  templateCase: TemplateCase;
+  arrangement: Arrangement;
+}) {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new Error('The case timeout ran out.')),
+    templateCase.timeout_seconds * 1_000,
+  );
+  arrangement.runnerAborted.addEventListener('abort', () => controller.abort(), {once: true});
+  // A runner that exited during setup aborted before this listener existed.
+  if (arrangement.runnerAborted.aborted) controller.abort();
+  try {
+    return await runScenario({
+      steps: templateCase.scenario,
+      driver: arrangement.driver,
+      deadline: Date.now() + templateCase.timeout_seconds * 1_000,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The measures of a live run and its hidden tests, and what the hidden tests failed. */
+async function gradeLiveRun({
+  result,
+  arrangement,
+  runId,
+}: {
+  result: CaseResult;
+  arrangement: Arrangement;
+  runId: string;
+}): Promise<string[]> {
+  if (result.observation !== undefined) {
+    result.measures = await arrangement.measures({runId, observation: result.observation});
+  }
+  const hiddenTests = await arrangement.hiddenTests();
+  if (hiddenTests === undefined) return [];
+  result.hidden_tests = hiddenTests;
+  if (hiddenTests.passed) return [];
+  // Without an exit code the test command never finished, and its output holds the reason.
+  const reason = hiddenTests.exit_code === null ? ` ${hiddenTests.output_tail}` : '';
+  return [`The hidden tests failed (exit code ${hiddenTests.exit_code}).${reason}`];
+}
+
+/** Spent even when the case failed, so the budget counts it. */
+async function recordCost({
+  result,
+  arrangement,
+}: {
+  result: CaseResult;
+  arrangement: Arrangement;
+}): Promise<void> {
+  try {
+    result.cost_usd = await arrangement.cost();
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    result.status = 'error';
+    result.error = `${result.error ?? ''}\nThe cost could not be read: ${reason}`.trim();
+  }
 }
 
 /** A request the script had no reply for, one message each. */
@@ -368,6 +433,7 @@ async function arrange({
   if (script !== undefined) {
     await registerScriptedManagedProvider({projectId: project.id, entries: script});
   }
+  if (options.mode === 'live') await registerOpenRouterManagedProvider({projectId: project.id});
 
   const senders: EventSenders = {
     github: createGithubEventSender(github),
@@ -460,5 +526,34 @@ async function arrange({
       script === undefined
         ? undefined
         : await getScriptedManagedProviderRequests({projectId: project.id}),
+    measures: async ({runId, observation}) =>
+      await collectMeasures({client, workspaceId: workspace.id, runId, observation}),
+    cost: async () => (await getOpenRouterCost({projectId: project.id})).cost_usd,
+    hiddenTests: async () => {
+      const hiddenTests = templateCase.live?.hidden_tests;
+      if (hiddenTests === undefined) return undefined;
+      const testCommand = templateCase.slots.test_command;
+      if (testCommand === undefined) {
+        throw new Error('A case with hidden_tests needs a test_command slot to run them with.');
+      }
+      let branch: string;
+      try {
+        branch = pullRequest().head;
+      } catch {
+        return {
+          passed: false,
+          exit_code: null,
+          output_tail: 'The run opened no pull request, so there was no branch to test.',
+        };
+      }
+      return await runHiddenTests({
+        repositoryPath: repository.path,
+        branch,
+        caseDirectory: discovered.directory,
+        hiddenTests,
+        testCommand,
+        timeoutMs: HIDDEN_TESTS_TIMEOUT_MS,
+      });
+    },
   };
 }

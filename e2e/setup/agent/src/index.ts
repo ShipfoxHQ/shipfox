@@ -334,6 +334,22 @@ export async function registerOpenRouterManagedProvider(params: {
   });
 }
 
+export interface OpenRouterCost {
+  project_id: string;
+  /** What OpenRouter charged for the project's completions so far, in USD. */
+  cost_usd: number;
+  /** The completions whose response carried a cost. */
+  priced_requests: number;
+}
+
+export async function getOpenRouterCost(params: {projectId: string}): Promise<OpenRouterCost> {
+  return await requestJson<OpenRouterCost>(
+    'get',
+    `/__e2e/managed-inference/openrouter/${params.projectId}/cost`,
+    {},
+  );
+}
+
 export async function getScriptedManagedProviderRequests(params: {
   projectId: string;
 }): Promise<ScriptedManagedProviderRequest[]> {
@@ -362,6 +378,7 @@ export function createAgentHelper() {
     createAnthropicModelProviderConfig,
     getScriptedManagedProviderRequests,
     registerOpenRouterManagedProvider,
+    getOpenRouterCost,
     registerScriptedManagedProvider,
     createOpenAiCompatibleCustomProvider,
     createOllamaCustomProvider,

@@ -33,6 +33,8 @@ export type InferenceUsageIdentity = Pick<
 
 export type RecordInferenceSegment = (segment: InferenceSegmentInputDto) => Promise<void>;
 
+export type RecordInferenceCost = (params: {projectId: string; costUsd: number}) => void;
+
 export interface InferenceReply {
   code(statusCode: number): InferenceReply;
   header(name: string, value: string): InferenceReply;
@@ -51,6 +53,8 @@ interface CompletionUsage {
   outputTokens: number;
   cacheReadTokens: number;
   reasoningTokens: number;
+  /** What OpenRouter charged, in USD. Absent when the response leaves it out. */
+  costUsd: number | undefined;
 }
 
 /** Forwards one OpenAI chat completion to OpenRouter and records the usage it reports. */
@@ -59,9 +63,10 @@ export async function forwardToOpenRouter(params: {
   body: unknown;
   identity: InferenceUsageIdentity;
   record: RecordInferenceSegment | undefined;
+  recordCost: RecordInferenceCost | undefined;
   reply: InferenceReply;
 }): Promise<unknown> {
-  const {backend, body, identity, record, reply} = params;
+  const {backend, body, identity, record, recordCost, reply} = params;
   const catalogModel = isRecord(body) && typeof body.model === 'string' ? body.model : undefined;
   if (
     !isRecord(body) ||
@@ -96,7 +101,11 @@ export async function forwardToOpenRouter(params: {
   }
 
   const recordUsage = async (usage: CompletionUsage | undefined) => {
-    if (usage === undefined || record === undefined) return;
+    if (usage === undefined) return;
+    if (usage.costUsd !== undefined) {
+      recordCost?.({projectId: identity.projectId, costUsd: usage.costUsd});
+    }
+    if (record === undefined) return;
     try {
       await record(toSegment({identity, model: catalogModel, usage, windowStart}));
     } catch (error) {
@@ -114,12 +123,16 @@ export async function forwardToOpenRouter(params: {
     .send(text);
 }
 
-/** Asks a streamed completion to end with its usage, which OpenRouter otherwise may leave out. */
+/**
+ * Asks OpenRouter to report the cost of every completion, and a streamed one to end with its
+ * usage, which OpenRouter otherwise may leave out.
+ */
 function upstreamBody(body: Record<string, unknown>, model: string): Record<string, unknown> {
-  if (body.stream !== true) return {...body, model};
+  if (body.stream !== true) return {...body, model, usage: {include: true}};
   return {
     ...body,
     model,
+    usage: {include: true},
     stream_options: {
       ...(isRecord(body.stream_options) ? body.stream_options : {}),
       include_usage: true,
@@ -227,6 +240,10 @@ function completionUsage(value: unknown): CompletionUsage | undefined {
           ? value.completion_tokens_details.reasoning_tokens
           : 0,
       ) ?? 0,
+    costUsd:
+      typeof value.cost === 'number' && Number.isFinite(value.cost) && value.cost >= 0
+        ? value.cost
+        : undefined,
   };
 }
 

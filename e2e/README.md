@@ -471,6 +471,23 @@ skips without the key, and spends real money, so run it by hand:
 E2E_OPENROUTER_API_KEY=<key> mise run e2e -- --filter=@shipfox/e2e-flow-workflows
 ```
 
+Live mode runs the cases that declare `modes: [live]` through that OpenRouter
+backend, so it needs the same key for the harness. It spends real money, so run
+it by hand. `--repeat` runs each case that many times, and
+`--max-cost-usd` stops starting new case runs once the runs so far have cost
+that much. The cost is what OpenRouter reported for the case's model requests.
+Each result carries its `measures`: the tokens from the usage route, and the
+gate retries, which are the step attempts after each step's first. A case with
+`live.hidden_tests` also gets them tested. After the run, the runner clones the
+pull request's branch from the fake repository, copies the file or directory
+from the case's `hidden_tests/` directory into the clone at the same path, and
+runs the `test_command` slot. A failing hidden test fails the case. Only a case
+with status `error` makes the exit code non-zero:
+
+```sh
+E2E_OPENROUTER_API_KEY=<key> mise run evals -- --suite templates --mode live --case 'ticket-to-pr/live-json-flag' --repeat 3 --max-cost-usd 5
+```
+
 The harness reads Conductor worktree ports from `.context/local-services/env`,
 starts the API with E2E routes enabled, starts the client with the test VCS
 provider enabled, waits for both to become ready, and then runs

@@ -1,6 +1,7 @@
 import {fileURLToPath} from 'node:url';
 import {describe, expect, it} from '@shipfox/vitest/vi';
-import {discoverOnboardingCases, outOfBudget, runOnboardingSuite} from './onboarding-run.js';
+import {discoverOnboardingCases, runOnboardingSuite} from './onboarding-run.js';
+import {outOfBudget} from './results.js';
 
 const apiKeyPattern = /ANTHROPIC_API_KEY/u;
 

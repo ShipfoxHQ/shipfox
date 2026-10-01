@@ -1,0 +1,31 @@
+template: shipfox/ticket-to-pr
+bindings: {source: github}
+# Without the feedback loop, the run ends once the pull request is open.
+options: {feedback_loop: off}
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+modes: [live]
+repository: acme/report-cli
+timeout_seconds: 1200
+
+scenario:
+  - start:
+      manual:
+        inputs:
+          repository: acme/report-cli
+          title: Add a --json flag to the report command
+          description: The report command only prints text. Scripts that read it need JSON.
+          acceptance_criteria: With --json, the report command prints its rows as a JSON array.
+  - await: {run: succeeded}
+    timeout_seconds: 900
+
+expect:
+  outputs: {status: implemented}
+  writes:
+    - github.push: {branch: $pr.head, count: 1}
+    - github.create_pull_request: {pull_request: $pr, base: main, draft: true, count: 1}
+
+live:
+  # Copied from hidden_tests/ into the pushed branch after the run, then run with test_command.
+  hidden_tests: src/report-json.test.js

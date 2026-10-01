@@ -3,6 +3,8 @@ import {dirname, join} from 'node:path';
 import type {RecordedWrite} from '@shipfox/e2e-core';
 import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
 import type {ScriptedManagedProviderRequest} from '@shipfox/e2e-setup-agent';
+import type {HiddenTestsResult} from './hidden-tests.js';
+import type {RunMeasures} from './measures.js';
 import type {ScenarioStepRecord} from './scenario.js';
 
 /** `compile` only creates each variant's definition, and runs nothing. */
@@ -33,6 +35,10 @@ export interface CaseResult {
   observation?: WorkflowRunObservation;
   /** Every write the fakes recorded, in arrival order. */
   writes?: RecordedWrite[];
+  /** Live runs: the tokens the run used and how often a gate sent a step back. */
+  measures?: RunMeasures;
+  /** Live runs: the case's hidden tests, run on the branch the run pushed. */
+  hidden_tests?: HiddenTestsResult;
   /** The case runner's log file. */
   runner_log?: string;
   /** On failure, the requests the scripted model provider served, with their prompts' ends. */
@@ -45,6 +51,8 @@ export interface ResultsRun {
   runId: string;
   directory: string;
   results: CaseResult[];
+  /** Case repeats left unstarted because the run's budget was spent. */
+  skipped_for_budget?: number;
 }
 
 export interface WriteResultsOptions<Case extends {id: string}> {
@@ -53,8 +61,22 @@ export interface WriteResultsOptions<Case extends {id: string}> {
   repeat: number;
   /** Runs one case repeat. It must not throw; a case that can't finish is an `error` result. */
   execute: (params: {discovered: Case; repeat: number}) => Promise<CaseResult>;
+  /** Stops starting case repeats once the results so far cost this much. */
+  maxCostUsd?: number | undefined;
   resultsDirectory?: string;
   runId?: string;
+}
+
+/** Whether the repeats so far have spent the run's budget, so no new repeat should start. */
+export function outOfBudget({
+  results,
+  maxCostUsd,
+}: {
+  results: Array<{cost_usd: number}>;
+  maxCostUsd: number | undefined;
+}): boolean {
+  if (maxCostUsd === undefined) return false;
+  return results.reduce((total, result) => total + result.cost_usd, 0) >= maxCostUsd;
 }
 
 export function createRunId(now = new Date()): string {
@@ -63,6 +85,23 @@ export function createRunId(now = new Date()): string {
 
 function resultPath(runDirectory: string, result: CaseResult): string {
   return join(runDirectory, result.case, `${result.repeat}.json`);
+}
+
+const tableHeader = ['| Case | Repeat | Status | Cost (USD) |', '| --- | ---: | --- | ---: |'];
+const liveTableHeader = [
+  '| Case | Repeat | Status | Hidden tests | Tokens in | Tokens out | Gate retries | Duration (s) | Cost (USD) |',
+  '| --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+];
+
+function row(result: CaseResult): string {
+  return `| \`${result.case}\` | ${result.repeat} | ${result.status} | ${result.cost_usd.toFixed(4)} |`;
+}
+
+function liveRow(result: CaseResult): string {
+  const {measures, hidden_tests: hiddenTests} = result;
+  let hidden = '-';
+  if (hiddenTests !== undefined) hidden = hiddenTests.passed ? 'passed' : 'failed';
+  return `| \`${result.case}\` | ${result.repeat} | ${result.status} | ${hidden} | ${measures?.input_tokens ?? '-'} | ${measures?.output_tokens ?? '-'} | ${measures?.gate_retries ?? '-'} | ${(result.duration_ms / 1000).toFixed(1)} | ${result.cost_usd.toFixed(4)} |`;
 }
 
 function summaryMarkdown(run: ResultsRun, mode: EvalMode): string {
@@ -78,16 +117,14 @@ function summaryMarkdown(run: ResultsRun, mode: EvalMode): string {
     `- Passed: ${passed}`,
     `- Failed: ${failed}`,
     `- Errors: ${errors}`,
+    ...(run.skipped_for_budget ? [`- Not started, budget spent: ${run.skipped_for_budget}`] : []),
     '',
-    '| Case | Repeat | Status | Cost (USD) |',
-    '| --- | ---: | --- | ---: |',
+    ...(mode === 'live' ? liveTableHeader : tableHeader),
   ];
   const failures = run.results.filter((result) => result.error !== undefined);
 
   for (const result of run.results) {
-    lines.push(
-      `| \`${result.case}\` | ${result.repeat} | ${result.status} | ${result.cost_usd.toFixed(4)} |`,
-    );
+    lines.push(mode === 'live' ? liveRow(result) : row(result));
   }
 
   if (failures.length > 0) {
@@ -109,9 +146,14 @@ export async function writeResults<Case extends {id: string}>(
   const runId = options.runId ?? createRunId();
   const directory = join(options.resultsDirectory ?? 'results', runId);
   const results: CaseResult[] = [];
+  let skipped = 0;
 
   for (const discoveredCase of options.cases) {
     for (let repeat = 1; repeat <= options.repeat; repeat += 1) {
+      if (outOfBudget({results, maxCostUsd: options.maxCostUsd})) {
+        skipped += 1;
+        continue;
+      }
       const result = await options.execute({discovered: discoveredCase, repeat});
       results.push(result);
       const path = resultPath(directory, result);
@@ -120,7 +162,12 @@ export async function writeResults<Case extends {id: string}>(
     }
   }
 
-  const run = {runId, directory, results};
+  const run: ResultsRun = {
+    runId,
+    directory,
+    results,
+    ...(skipped === 0 ? {} : {skipped_for_budget: skipped}),
+  };
   await mkdir(directory, {recursive: true});
   await writeFile(join(directory, 'summary.md'), summaryMarkdown(run, options.mode));
   return run;
