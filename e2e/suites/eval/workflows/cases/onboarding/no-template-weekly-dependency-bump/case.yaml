@@ -1,0 +1,26 @@
+prompt: generic
+workspace:
+  connections: [github]
+  project:
+    repository: acme/report-cli
+persona: |
+  Facts:
+  - You lead a small team that maintains report-cli.
+  - Every Monday morning you want an agent to update the patch and minor versions of the
+    dependencies in package.json and open a pull request if the tests still pass.
+  - It runs on a schedule. No ticket, comment, or pull request should start it.
+  - You have no ticket tracker and do not use Slack with Shipfox.
+  - Dependencies install with `npm install` and the tests run with `npm test`.
+  - You do not know the names of Shipfox's templates.
+
+  Goal: a weekly dependency update pull request that nobody has to remember to open.
+
+  Scripted answers:
+  - Shown a list of templates: say none of them does this, and ask for a workflow of your own.
+  - Asked whether to open the workflow pull request now: say you want to review the file first.
+k: 3
+max_turns: 40
+timeout_seconds: 1200
+expect:
+  outcome: validated
+  max_questions: 8

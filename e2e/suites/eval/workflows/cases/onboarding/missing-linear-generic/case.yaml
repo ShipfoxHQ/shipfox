@@ -1,0 +1,25 @@
+prompt: generic
+workspace:
+  connections: [github]
+  project:
+    repository: acme/report-cli
+persona: |
+  Facts:
+  - You lead a small team that maintains report-cli.
+  - Your tickets live in Linear, but Linear is not connected to Shipfox, and you will not
+    connect it today.
+  - Starting from a Linear ticket is the point. A workflow you can only start by hand is
+    no use to you.
+
+  Goal: when a ticket in Linear is ready, an agent does the work and opens a pull request.
+
+  Scripted answers:
+  - Told to connect Linear first: say you will do that later.
+  - Offered a workflow that does not start from Linear: say no.
+k: 3
+max_turns: 20
+timeout_seconds: 600
+expect:
+  outcome: blocked_on_connection
+  missing_provider: linear
+  max_questions: 4

@@ -15,9 +15,9 @@ const templatePattern = /template/iu;
 const missingProviderPattern = /missing_provider/iu;
 
 describe('onboarding case schema', () => {
-  it('loads the fixture case', async () => {
+  it('loads the named-template case', async () => {
     const fixture = await loadOnboardingCase(
-      fileURLToPath(new URL('../cases/onboarding/fixture/case.yaml', import.meta.url)),
+      fileURLToPath(new URL('../cases/onboarding/ticket-to-pr-named/case.yaml', import.meta.url)),
     );
 
     expect(fixture.prompt).toBe('template:ticket-to-pr');

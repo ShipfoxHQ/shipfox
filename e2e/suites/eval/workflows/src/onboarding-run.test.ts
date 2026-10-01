@@ -6,12 +6,16 @@ import {outOfBudget} from './results.js';
 const apiKeyPattern = /ANTHROPIC_API_KEY/u;
 
 describe('onboarding suite', () => {
-  it('discovers the fixture case', async () => {
+  it('discovers the shipped cases by their directory', async () => {
     const cases = await discoverOnboardingCases(
       fileURLToPath(new URL('../cases/onboarding/', import.meta.url)),
+      {filter: 'close-templates-*'},
     );
 
-    expect(cases.map((entry) => entry.id)).toEqual(['fixture']);
+    expect(cases.map((entry) => entry.id)).toEqual([
+      'close-templates-default-branch-ci',
+      'close-templates-dependency-pr-ci',
+    ]);
   });
 
   it('filters cases by glob', async () => {

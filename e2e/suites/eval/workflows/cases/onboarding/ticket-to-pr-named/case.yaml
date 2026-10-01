@@ -13,7 +13,7 @@ persona: |
 
   Scripted answers:
   - Asked whether to open the PR now: say you want to review the file first.
-k: 1
+k: 3
 max_turns: 40
 timeout_seconds: 1200
 expect:

@@ -1,0 +1,21 @@
+prompt: Use Shipfox to make our app faster.
+workspace:
+  connections: [github]
+  project:
+    repository: acme/report-cli
+persona: |
+  Facts:
+  - You lead a small team that maintains report-cli.
+  - You do not know what is slow, and you have no measurements.
+  - You do not know what you would want to automate.
+
+  Goal: the app feels faster. You cannot describe anything more specific.
+
+  Rules for this case: answer "I don't know" to every question about what to automate, what is
+  slow, or how to measure it.
+k: 3
+max_turns: 20
+timeout_seconds: 600
+expect:
+  outcome: needs_clarification
+  max_questions: 4
