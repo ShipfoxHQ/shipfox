@@ -13,13 +13,31 @@ timeout_seconds: 600
 covers:
   - Replies once in the thread.
 
+# The thread the Slack fake serves. The scripted agent doesn't read it, so it only has to
+# make sense next to the scenario.
+seed:
+  slack:
+    channel: C0EVAL0001
+    thread:
+      - ts: '1721300000.000400'
+        user: U0EVALUSER
+        text: Webhooks that time out are dropped.
+      - ts: '1721300030.000450'
+        user: U0EVALBOT
+        thread_ts: '1721300000.000400'
+        text: Ticket ENG-42 tracks this thread
+      - ts: '1721300060.000500'
+        user: U0EVALUSER
+        thread_ts: '1721300000.000400'
+        text: '<@U0EVALBOT> create a ticket for this again'
+
 scenario:
   - start:
       event:
         slack:
           app_mention:
             channel: C0EVAL0001
-            ts: '1721300000.000500'
+            ts: '1721300060.000500'
             thread_ts: '1721300000.000400'
             user: U0EVALUSER
             text: '<@U0EVALBOT> create a ticket for this again'

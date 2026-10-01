@@ -365,9 +365,6 @@ async function arrangeProviderFakes({
 }) {
   const binds = (provider: string) => Object.values(templateCase.bindings).includes(provider);
   const linearIssues = templateCase.seed.linear?.issues ?? [];
-  if (binds('linear') && linearIssues.length === 0) {
-    throw new Error('The case binds Linear but seeds no Linear issue under seed.linear.issues.');
-  }
   const linear = binds('linear')
     ? await arrangeLinearWorkspace({workspaceId, uniqueId, issues: linearIssues, cleanups})
     : undefined;

@@ -14,6 +14,16 @@ covers:
   - Creates one ticket per thread in the chosen team, and in the chosen project when set.
   - Replies once in the thread.
 
+# The thread the Slack fake serves. The scripted agent doesn't read it, so it only has to
+# make sense next to the scenario.
+seed:
+  slack:
+    channel: C0EVAL0001
+    thread:
+      - ts: '1721300000.000100'
+        user: U0EVALUSER
+        text: '<@U0EVALBOT> create a ticket to retry webhook delivery after a timeout'
+
 scenario:
   - start:
       event:

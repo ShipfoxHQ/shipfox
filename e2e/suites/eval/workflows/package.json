@@ -45,8 +45,6 @@
     "#scripted.js": "./src/scripted.ts",
     "#schema.js": "./src/schema.ts",
     "#senders.js": "./src/senders.ts",
-    "#slack-events.js": "./src/slack-events.ts",
-    "#slack-workspace.js": "./src/slack-workspace.ts",
     "#simulated-user.js": "./src/simulated-user.ts",
     "#slack-events.js": "./src/slack-events.ts",
     "#slack-workspace.js": "./src/slack-workspace.ts",

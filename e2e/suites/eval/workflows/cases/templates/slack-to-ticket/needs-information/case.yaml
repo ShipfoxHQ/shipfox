@@ -13,6 +13,16 @@ timeout_seconds: 600
 covers:
   - Replies once in the thread.
 
+# The thread the Slack fake serves. The scripted agent doesn't read it, so it only has to
+# make sense next to the scenario.
+seed:
+  slack:
+    channel: C0EVAL0001
+    thread:
+      - ts: '1721300000.000300'
+        user: U0EVALUSER
+        text: '<@U0EVALBOT> make a ticket for the thing we talked about'
+
 scenario:
   - start:
       event:
