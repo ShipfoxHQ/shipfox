@@ -1,0 +1,32 @@
+template: shipfox/ask-codebase
+bindings: {chat: slack, source: github}
+# Another workflow starts this one, so no mention trigger exists to fire twice.
+options: {entry_point: dispatch_only}
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+covers:
+  - Replies once in the thread.
+
+seed:
+  slack:
+    channel: C0ASKCODE03
+    thread:
+      - ts: '1721300000.000100'
+        user: U0ASKER
+        text: We should add a flag for CSV output next to --json.
+
+scenario:
+  - start:
+      manual:
+        inputs:
+          channel_id: C0ASKCODE03
+          thread_ts: '1721300000.000100'
+          request: Which output formats does the report command support today?
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  writes:
+    - slack.chat.postMessage: {target: C0ASKCODE03, thread_ts: '1721300000.000100', count: 1}

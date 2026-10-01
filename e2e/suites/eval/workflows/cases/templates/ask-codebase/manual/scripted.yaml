@@ -1,0 +1,10 @@
+# `answer`: the manual start passes the question as `request`, which the prompt shows as the
+# message that started the run.
+- match: {prompt_contains: Which output formats does the report command support today?}
+  replies:
+    - tool: set_output
+      args: {key: status, value: '"answered"'}
+    - tool: set_output
+      args:
+        key: reply
+        value: '"Two. `src/report.js:5` prints one `status: total` line per status, or a JSON array when the arguments include `--json`. I found no CSV output."'

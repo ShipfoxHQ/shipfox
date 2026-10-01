@@ -1,0 +1,8 @@
+# The scripted cases ask-codebase must keep. Each `case` is a directory next to this file.
+cases:
+  - case: mention
+    proves: A mention of the app starts a run that reads the thread and the code, then replies once under the question.
+  - case: mention-in-thread
+    proves: A mention inside a thread reads the whole thread and replies once under its parent message.
+  - case: manual
+    proves: A manual start with dispatch_only passes the channel, thread, and question, and the run replies once in that thread.

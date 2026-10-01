@@ -2514,6 +2514,9 @@ importers:
       '@shipfox/e2e-driver-runner-process':
         specifier: workspace:*
         version: link:../../../drivers/runner-process
+      '@shipfox/e2e-driver-slack':
+        specifier: workspace:*
+        version: link:../../../drivers/slack
       '@shipfox/e2e-observe-workflows':
         specifier: workspace:*
         version: link:../../../observe/workflows

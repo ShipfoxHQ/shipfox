@@ -1,0 +1,9 @@
+# `answer`: the mention alone is not a question, so the answer depends on reading the thread above it.
+- match: {prompt_contains: Does the report command have a machine-readable output?}
+  replies:
+    - tool: set_output
+      args: {key: status, value: '"answered"'}
+    - tool: set_output
+      args:
+        key: reply
+        value: '"Yes. `README.md` documents `report --json`, and `src/report.js:6` prints the rows as a JSON array when the arguments include `--json`."'

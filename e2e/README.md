@@ -355,6 +355,14 @@ carries the last 200 lines of its runner log. With a script, it also carries
 the model requests the script served. The exit code is non-zero when any case
 errors or fails its expectations.
 
+A case that binds a role to Slack also gets a Slack connection and a Slack
+fake in its workspace. The fake serves the thread under `seed.slack.thread`,
+oldest first, and records each posted message as `slack.chat.postMessage`,
+targeted at its channel. The API calls one Slack address, so cases that use
+Slack run one at a time. `placeholders` fills the `replace-with-*` values a
+person edits in the composed file, such as `replace-with-channel-id`, which
+must name `seed.slack.channel` for a mention trigger to match.
+
 A case with agent steps puts their model replies in `scripted.yaml`, next to
 `case.yaml`. In scripted mode the runner registers it with the scripted
 managed provider for the case's project, and refuses a case with agent steps
@@ -398,7 +406,8 @@ A scenario step is one of:
   opened in the GitHub fake, and `$pr.url` to its address. Inside longer text,
   as in `Opened pull request: $pr.url`, a reference becomes its text. The
   case's GitHub fake sends `pull_request_review_comment.created` and
-  `pull_request.closed`. The Jira sender sends signed `jira:issue_created` and
+  `pull_request.closed`. The case's Slack connection sends a signed `app_mention`,
+  with `thread_ts` for a mention inside a thread. The Jira sender sends signed `jira:issue_created` and
   `jira:issue_updated` events, with an `issue` (`key`, `summary`, and
   optionally `id`, `status`, `project`, `labels`, and `description`) and
   optionally `previous_status` or `previous_labels` on `jira:issue_updated`,

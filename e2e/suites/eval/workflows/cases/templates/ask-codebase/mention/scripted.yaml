@@ -1,0 +1,9 @@
+# `answer`: reads the question from the prompt and answers it from the repository.
+- match: {prompt_contains: Where does the report command read the --json flag?}
+  replies:
+    - tool: set_output
+      args: {key: status, value: '"answered"'}
+    - tool: set_output
+      args:
+        key: reply
+        value: '"The `report` function in `src/report.js:6` reads it. It checks whether the arguments include `--json`, and `src/cli.js` only passes the arguments through."'
