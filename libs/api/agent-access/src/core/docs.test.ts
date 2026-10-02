@@ -44,7 +44,7 @@ describe('documentation host cache', () => {
           },
         );
       }
-      if (input.pathname.endsWith('llms.mdx/understand')) {
+      if (input.pathname.endsWith('mcp.mdx/understand')) {
         if (init?.headers && 'If-None-Match' in init.headers)
           return new Response(null, {status: 304});
         return new Response('# How Shipfox works', {headers: {etag: 'page-1'}});
@@ -75,7 +75,7 @@ describe('documentation host cache', () => {
     expect(docs.isPageCached('understand')).toBe(false);
     expect(await docs.readPage('understand')).toMatchObject({text: '# How Shipfox works'});
     expect(fetcher).toHaveBeenCalledWith(
-      new URL('https://docs.example.test/docs/llms.mdx/understand'),
+      new URL('https://docs.example.test/docs/mcp.mdx/understand'),
       {headers: {'If-None-Match': 'page-1'}},
     );
     refresh?.();
@@ -160,7 +160,7 @@ describe('documentation host cache', () => {
     );
     const fetcher = vi.fn((target: URL) => {
       if (target.pathname.endsWith('llms.txt')) return new Response(homeIndex);
-      if (target.pathname.endsWith('index.md')) return new Response('# Introduction');
+      if (target.pathname.endsWith('mcp.mdx/home')) return new Response('# Introduction');
       if (target.pathname.endsWith('api/search')) {
         return new Response(JSON.stringify([{url: '/', content: 'Start here'}]));
       }
@@ -183,7 +183,7 @@ describe('documentation host cache', () => {
         uri: 'docs://shipfox/home',
       },
     ]);
-    expect(fetcher).toHaveBeenCalledWith(new URL('https://docs.example.test/docs/index.md'), {
+    expect(fetcher).toHaveBeenCalledWith(new URL('https://docs.example.test/docs/mcp.mdx/home'), {
       headers: {},
     });
   });

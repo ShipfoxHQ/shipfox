@@ -34,7 +34,7 @@ describe('documentation MCP surface', () => {
     const recordCall = vi.fn();
     const fetcher = vi.fn((target: URL) => {
       if (target.pathname.endsWith('llms.txt')) return new Response(index);
-      if (target.pathname.endsWith('llms.mdx/understand'))
+      if (target.pathname.endsWith('mcp.mdx/understand'))
         return new Response('# How Shipfox works');
       throw new Error(`Unexpected URL ${target}`);
     });
@@ -106,7 +106,7 @@ describe('documentation MCP surface', () => {
   test('charges uncached reads and search in the same rate window', async () => {
     const fetcher = vi.fn((target: URL) => {
       if (target.pathname.endsWith('llms.txt')) return new Response(index);
-      if (target.pathname.endsWith('llms.mdx/understand'))
+      if (target.pathname.endsWith('mcp.mdx/understand'))
         return new Response('# How Shipfox works');
       if (target.pathname.endsWith('api/search'))
         return new Response(

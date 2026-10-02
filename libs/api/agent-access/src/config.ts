@@ -4,7 +4,7 @@ const TRAILING_SLASH = /\/$/u;
 
 export const config = createConfig({
   DOCS_BASE_URL: str({
-    desc: 'Base URL of the Shipfox documentation site. Set an absolute HTTP or HTTPS URL, or set an empty string to disable MCP docs resources and search.',
+    desc: 'Base URL of the Shipfox documentation site. Set an absolute HTTP or HTTPS URL to a docs site that serves `mcp.mdx/<slug>` pages, or set an empty string to disable MCP docs resources and search.',
     default: 'https://www.shipfox.io/docs',
   }),
 });
