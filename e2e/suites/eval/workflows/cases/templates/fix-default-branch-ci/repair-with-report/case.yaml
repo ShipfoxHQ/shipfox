@@ -14,7 +14,7 @@ timeout_seconds: 600
 
 covers:
   - Pushes a branch and opens a draft repair pull request.
-  - With Slack, posts about failures that need a person, repair pull requests, or both.
+  - With Slack or Discord, posts about failures that need a person, repair pull requests, or both.
 
 # The Slack fake needs a thread to serve. The report only posts to the channel.
 seed:
