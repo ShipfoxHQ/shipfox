@@ -1,8 +1,8 @@
 import {argosScreenshot} from '@argos-ci/storybook/vitest';
 import type {Meta, StoryObj} from '@storybook/react';
-import {screen, waitFor} from '@testing-library/react';
+import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {useState} from 'react';
+import {type ComponentProps, useState} from 'react';
 import {expect} from 'storybook/test';
 import {Avatar} from '../avatar/index.js';
 import {Button} from '../button/index.js';
@@ -15,6 +15,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSegmentedRadioGroup,
+  DropdownMenuSegmentedRadioItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -49,6 +51,8 @@ const meta = {
     DropdownMenuCheckboxItem,
     DropdownMenuRadioGroup,
     DropdownMenuRadioItem,
+    DropdownMenuSegmentedRadioGroup,
+    DropdownMenuSegmentedRadioItem,
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuGroup,
@@ -425,6 +429,67 @@ export const CompleteExample: Story = {
         )}
       </div>
     );
+  },
+};
+
+function SegmentedRadioGroupMenu({
+  args,
+  forceOpen,
+}: {
+  args: ComponentProps<typeof DropdownMenuContent>;
+  forceOpen: boolean;
+}) {
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
+  const [theme, setTheme] = useState('dark');
+
+  return (
+    <div
+      ref={setContainer}
+      className="relative flex h-500 w-500 items-center justify-center rounded-16 bg-background-subtle-base shadow-tooltip overflow-visible"
+    >
+      {container && (
+        <DropdownMenu open={forceOpen ? true : undefined}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="secondary" className={forceOpen ? hideTriggerInTests() : undefined}>
+              Open Menu
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent {...args} className="w-220" container={container}>
+            <DropdownMenuItem icon="userLine">Profile settings</DropdownMenuItem>
+            <DropdownMenuSegmentedRadioGroup label="Theme" value={theme} onValueChange={setTheme}>
+              <DropdownMenuSegmentedRadioItem value="light" icon="sunLine" label="Light" />
+              <DropdownMenuSegmentedRadioItem value="dark" icon="moonLine" label="Dark" />
+              <DropdownMenuSegmentedRadioItem value="system" icon="computerLine" label="System" />
+            </DropdownMenuSegmentedRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem icon="logoutCircleLine">Log out</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  );
+}
+
+export const SegmentedRadioGroup: Story = {
+  play: (ctx) => screenshotOpenMenu(ctx, 'DropdownMenu Segmented Radio Group Open'),
+  render: (args) => <SegmentedRadioGroupMenu args={args} forceOpen={isTestEnvironment()} />,
+};
+
+export const TestSegmentedRadioGroupSelection: Story = {
+  render: (args) => <SegmentedRadioGroupMenu args={args} forceOpen={false} />,
+  play: async () => {
+    await userEvent.click(await screen.findByRole('button', {name: 'Open Menu'}));
+    const group = await screen.findByRole('group', {name: 'Theme'});
+    const light = within(group).getByRole('menuitemradio', {name: 'Light'});
+
+    await userEvent.click(light);
+
+    expect(light).toHaveAttribute('aria-checked', 'true');
+    expect(within(group).getByRole('menuitemradio', {name: 'Dark'})).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
+    expect(screen.getByRole('menu')).toBeVisible();
   },
 };
 

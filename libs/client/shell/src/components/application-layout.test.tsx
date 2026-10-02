@@ -320,11 +320,11 @@ describe('ApplicationLayout', () => {
     expect(await screen.findByRole('menuitem', {name: 'Root account action'})).toBeVisible();
     expect(screen.getByText('root@example.com')).toBeVisible();
     expect(screen.getByText('Theme')).toBeVisible();
-    expect(screen.getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual([
-      'Light',
-      'Dark',
-      'System',
-    ]);
+    expect(
+      within(screen.getByRole('group', {name: 'Theme'}))
+        .getAllByRole('menuitemradio')
+        .map((item) => item.getAttribute('aria-label')),
+    ).toEqual(['Light', 'Dark', 'System']);
     expect(screen.getByRole('menuitem', {name: 'Logout'})).toHaveAttribute('href', '/auth/logout');
   });
 

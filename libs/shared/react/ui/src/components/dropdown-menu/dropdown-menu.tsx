@@ -2,7 +2,7 @@
 
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import {cva, type VariantProps} from 'class-variance-authority';
-import type {ComponentProps} from 'react';
+import {type ComponentProps, useId} from 'react';
 import {cn} from '#utils/cn.js';
 import {Icon, type IconName} from '../icon/index.js';
 
@@ -305,6 +305,85 @@ function DropdownMenuRadioItem({
   );
 }
 
+type DropdownMenuSegmentedRadioGroupProps = ComponentProps<
+  typeof DropdownMenuPrimitive.RadioGroup
+> & {
+  label: string;
+};
+
+/**
+ * A labelled row with a compact icon segmented control. The segments stay menu
+ * radio items rather than a standalone radio group because the menu swallows
+ * Tab, so only menu items are reachable from the keyboard.
+ */
+function DropdownMenuSegmentedRadioGroup({
+  label,
+  className,
+  ...props
+}: DropdownMenuSegmentedRadioGroupProps) {
+  const labelId = useId();
+
+  return (
+    <div
+      data-slot="dropdown-menu-segmented-radio-group"
+      className={cn('flex items-center justify-between gap-8 px-8 py-4', className)}
+    >
+      <span id={labelId} className="select-none text-sm leading-20 text-foreground-neutral-subtle">
+        {label}
+      </span>
+      <DropdownMenuPrimitive.RadioGroup
+        aria-labelledby={labelId}
+        className="flex items-center gap-2 rounded-8 bg-background-switch-off p-2"
+        {...props}
+      />
+    </div>
+  );
+}
+
+type DropdownMenuSegmentedRadioItemProps = Omit<
+  ComponentProps<typeof DropdownMenuPrimitive.RadioItem>,
+  'children'
+> & {
+  icon: IconName;
+  label: string;
+};
+
+function DropdownMenuSegmentedRadioItem({
+  className,
+  icon,
+  label,
+  onSelect,
+  ...props
+}: DropdownMenuSegmentedRadioItemProps) {
+  return (
+    <DropdownMenuPrimitive.RadioItem
+      data-slot="dropdown-menu-segmented-radio-item"
+      aria-label={label}
+      textValue={label}
+      className={cn(
+        [
+          'flex h-20 w-28 cursor-pointer select-none items-center justify-center rounded-6',
+          'text-foreground-neutral-muted outline-none transition-[background-color,color,box-shadow]',
+          'data-[state=unchecked]:data-highlighted:bg-background-button-transparent-hover data-highlighted:text-foreground-neutral-base',
+          'data-disabled:pointer-events-none data-disabled:text-foreground-neutral-disabled',
+          'data-[state=checked]:bg-background-button-neutral-default data-[state=checked]:text-foreground-neutral-base data-[state=checked]:shadow-button-neutral',
+          // The checked thumb's elevation shadow must not hide the focus ring.
+          'focus-visible:shadow-focus-inset data-[state=checked]:focus-visible:shadow-focus-inset',
+        ],
+        className,
+      )}
+      // Keep the menu open so the change is visible in place.
+      onSelect={(e) => {
+        e.preventDefault();
+        onSelect?.(e);
+      }}
+      {...props}
+    >
+      <Icon name={icon} className="size-14" />
+    </DropdownMenuPrimitive.RadioItem>
+  );
+}
+
 function DropdownMenuSeparator({
   className,
   ...props
@@ -410,6 +489,8 @@ export type {
   DropdownMenuItemProps,
   DropdownMenuLabelProps,
   DropdownMenuRadioItemProps,
+  DropdownMenuSegmentedRadioGroupProps,
+  DropdownMenuSegmentedRadioItemProps,
   DropdownMenuShortcutProps,
   DropdownMenuSubTriggerProps,
 };
@@ -423,6 +504,8 @@ export {
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSegmentedRadioGroup,
+  DropdownMenuSegmentedRadioItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuSub,
