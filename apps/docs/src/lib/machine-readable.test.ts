@@ -314,3 +314,77 @@ test('keeps the trailing spaces of a prompt line inside a quoted agent handoff',
   assert.ok(lines.includes('> First line  '));
   assert.ok(lines.includes('>'));
 });
+
+function stringifyForHumans(
+  type: 'mdxJsxFlowElement' | 'mdxJsxTextElement',
+  children: string[],
+): unknown {
+  const stringify = stringifyMachineReadableComponent as unknown as (
+    node: unknown,
+    parent: unknown,
+    state: unknown,
+  ) => unknown;
+  const state = {
+    containerFlow: (parent: {children: {value: string}[]}) =>
+      parent.children.map((child) => child.value).join('\n\n'),
+  };
+
+  return stringify(
+    {
+      type,
+      name: 'ForHumans',
+      attributes: [],
+      children: children.map((value) => ({type: 'html', value})),
+    },
+    undefined,
+    state,
+  );
+}
+
+function forHumansPage(): string {
+  const placeholder = stringifyForHumans('mdxJsxFlowElement', [
+    'Paste this prompt.',
+    'Then review the result.',
+  ]);
+  assert.equal(typeof placeholder, 'string');
+  return `Intro.\n\n${placeholder}\n\nOutro.`;
+}
+
+test('keeps ForHumans children in the human rendering', () => {
+  assert.equal(
+    serializeMachineReadableMarkdown(forHumansPage(), {audience: 'human'}),
+    'Intro.\n\nPaste this prompt.\n\nThen review the result.\n\nOutro.',
+  );
+});
+
+test('drops the ForHumans block from the mcp rendering', () => {
+  assert.equal(
+    serializeMachineReadableMarkdown(forHumansPage(), {audience: 'mcp'}),
+    'Intro.\n\nOutro.',
+  );
+});
+
+test('fails a ForHumans used inside a paragraph', () => {
+  assert.throws(() => stringifyForHumans('mdxJsxTextElement', ['inline']), {
+    message: 'ForHumans must be a block on its own line, not part of a paragraph.',
+  });
+});
+
+test('fails a generated component inside ForHumans', () => {
+  const nested = '\0{"name":"TemplateDetail","children":"","attributes":{"id":"ticket-to-pr"}}\0';
+
+  assert.throws(() => stringifyForHumans('mdxJsxFlowElement', [nested]), {
+    message: 'ForHumans cannot contain a generated component.',
+  });
+});
+
+test('fails a ForHumans nested inside a Callout', () => {
+  const placeholder = stringifyForHumans('mdxJsxFlowElement', ['Paste this prompt.']);
+
+  for (const audience of ['human', 'mcp'] as const) {
+    assert.throws(
+      () => serializeMachineReadableMarkdown(`> **Note**\n> ${placeholder}\n> After`, {audience}),
+      {message: 'ForHumans cannot be nested inside a Callout, quote, or list.'},
+    );
+  }
+});

@@ -214,8 +214,9 @@ type PlaceholderOptions = Pick<
 
 const placeholderSerializers: Record<
   string,
-  (options: PlaceholderOptions, attributes: Record<string, unknown>) => string
+  (options: PlaceholderOptions, attributes: Record<string, unknown>, children: string) => string
 > = {
+  ForHumans: (options, _attributes, children) => (options.audience === 'human' ? children : ''),
   ComparisonTable: (options) => {
     if (!options.integrationCatalog) {
       throw new Error('ComparisonTable requires an integration catalog.');
@@ -270,29 +271,42 @@ const placeholderSerializers: Record<
 };
 
 function replacePlaceholders(markdown: string, options: PlaceholderOptions): string {
-  return markdown.replace(/\0([\s\S]*?)\0/g, (_match, value: string, offset: number) => {
-    let placeholder: unknown;
-    try {
-      placeholder = JSON.parse(value);
-    } catch {
-      throw new Error('Machine-readable Markdown contains an invalid component placeholder.');
-    }
+  // Trailing newlines are captured so a dropped block doesn't leave a gap of blank lines.
+  return markdown.replace(
+    /\0([\s\S]*?)\0(\n*)/g,
+    (_match, value: string, trailing: string, offset: number) => {
+      let placeholder: unknown;
+      try {
+        placeholder = JSON.parse(value);
+      } catch {
+        throw new Error('Machine-readable Markdown contains an invalid component placeholder.');
+      }
 
-    if (!isPlaceholder(placeholder)) {
-      throw new Error('Machine-readable Markdown contains an invalid component placeholder.');
-    }
+      if (!isPlaceholder(placeholder)) {
+        throw new Error('Machine-readable Markdown contains an invalid component placeholder.');
+      }
 
-    const serialize = placeholderSerializers[placeholder.name];
-    if (!serialize) {
-      throw new Error(
-        `Machine-readable Markdown contains an unresolved component placeholder: ${placeholder.name}`,
+      const serialize = placeholderSerializers[placeholder.name];
+      if (!serialize) {
+        throw new Error(
+          `Machine-readable Markdown contains an unresolved component placeholder: ${placeholder.name}`,
+        );
+      }
+      // A dropped block inside a Callout, quote, or list would leave its marker behind.
+      if (
+        placeholder.name === 'ForHumans' &&
+        markdown.lastIndexOf('\n', offset - 1) + 1 !== offset
+      ) {
+        throw new Error('ForHumans cannot be nested inside a Callout, quote, or list.');
+      }
+
+      const resolved = continueQuote(
+        serialize(options, placeholder.attributes ?? {}, placeholder.children ?? ''),
+        linePrefix(markdown, offset),
       );
-    }
-    return continueQuote(
-      serialize(options, placeholder.attributes ?? {}),
-      linePrefix(markdown, offset),
-    );
-  });
+      return resolved ? `${resolved}${trailing}` : '';
+    },
+  );
 }
 
 // A placeholder inside a blockquote or Callout resolves to several lines, and
@@ -419,7 +433,7 @@ function imageDescription(tag: string): string {
 
 function isPlaceholder(
   value: unknown,
-): value is {name: string; attributes?: Record<string, unknown>} {
+): value is {name: string; children?: string; attributes?: Record<string, unknown>} {
   return (
     typeof value === 'object' && value !== null && 'name' in value && typeof value.name === 'string'
   );

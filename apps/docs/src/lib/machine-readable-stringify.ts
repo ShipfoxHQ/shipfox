@@ -34,6 +34,8 @@ export const stringifyMachineReadableComponent: StringifyCallback = (
   if (!isMdxElement(node)) return undefined;
 
   switch (node.name) {
+    case 'ForHumans':
+      return forHumansPlaceholder(node, state, info);
     case 'EditionsComparison':
       return `\0${JSON.stringify({name: 'EditionsComparison', children: '', attributes: {}})}\0`;
     case 'ComparisonTable':
@@ -156,6 +158,22 @@ function calloutLabel(title?: string, type?: string): string | undefined {
   const cleanType = type?.trim();
   if (cleanTitle && cleanType) return `${cleanTitle} (${cleanType})`;
   return cleanTitle || cleanType;
+}
+
+function forHumansPlaceholder(
+  node: MdxElementNode,
+  state: StringifyState,
+  info: StringifyInfo,
+): string {
+  if (node.type !== 'mdxJsxFlowElement') {
+    throw new Error('ForHumans must be a block on its own line, not part of a paragraph.');
+  }
+
+  const children = childrenMarkdown(node, state, info);
+  if (children.includes('\0')) {
+    throw new Error('ForHumans cannot contain a generated component.');
+  }
+  return `\0${JSON.stringify({name: 'ForHumans', children, attributes: {}})}\0`;
 }
 
 function attributeValue(node: MdxElementNode, name: string): string | undefined {

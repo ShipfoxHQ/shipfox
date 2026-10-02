@@ -7,6 +7,7 @@ import {Tab, Tabs} from 'fumadocs-ui/components/tabs';
 import {TypeTable} from 'fumadocs-ui/components/type-table';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type {MDXComponents} from 'mdx/types';
+import type {ReactNode} from 'react';
 import {AgentHandoff} from '@/app/components/agent-handoff';
 import {DocsCard} from '@/app/components/docs-card';
 import {DocsImage} from '@/app/components/docs-image';
@@ -29,6 +30,7 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     Cards,
     DocsImage,
     DocsVideo,
+    ForHumans,
     IntegrationCatalog,
     ModelCatalog,
     TemplateGallery,
@@ -60,6 +62,10 @@ function ToolReferencePlaceholder(): never {
 
 function EventReferencePlaceholder(): never {
   throw new Error('EventReference requires an `eventReference` id in the page frontmatter.');
+}
+
+function ForHumans({children}: {children?: ReactNode}) {
+  return <>{children}</>;
 }
 
 function IntegrationCatalog() {
