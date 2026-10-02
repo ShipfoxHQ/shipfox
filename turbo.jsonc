@@ -161,6 +161,7 @@
       "dependsOn": ["^build", "build"],
       "passThroughEnv": [
         "ADMIN_BOOTSTRAP_TOKEN",
+        "ANTHROPIC_API_KEY",
         "CLIENT_BASE_URL",
         "CLICKUP_API_BASE_URL",
         "DISCORD_API_BASE_URL",
