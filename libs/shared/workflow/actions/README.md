@@ -34,6 +34,10 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
   the runner: routes, request and response shapes, limits, and environment variable names.
 - **`@shipfox/actions/download-writer`** writes tool downloads into the job workspace. The runner
   and the testing helper use it, so tests write files the way runs do. Actions do not import it.
+- **`@shipfox/actions/tool-grants`** exports `toolGrants`, the generated list of every catalog
+  tool by provider slug and tool id, and the `ToolGrant` type. A grant has `sensitivity` (`read` or
+  `write`), `result` (`json` or `file`), and, for a family tool, `methods` with the sensitivity of
+  each method.
 - **`@shipfox/actions/testing`** runs an action from a unit test with fake tools. It exports
   `runAction`, `toolResult`, and `toolError`. See [Testing an action](#testing-an-action).
 
