@@ -233,7 +233,7 @@ async function assertMcpRoute(origin) {
   const rewritten = await request(origin, `${basePath}/getting-started.mdx`);
   const llms = await request(origin, `${basePath}/llms.mdx/getting-started`);
   assert(rewritten.body.equals(llms.body), 'getting-started.mdx no longer rewrites to llms.mdx');
-  assert.equal(llms.robotsTag, '', 'llms.mdx must stay indexable');
+  assert.equal(rewritten.robotsTag, '', 'getting-started.mdx must stay indexable');
 
   const missing = await request(origin, `${basePath}/mcp.mdx`);
   assert.equal(missing.status, 404, 'mcp.mdx has no empty-slug route');
