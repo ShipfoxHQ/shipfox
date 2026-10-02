@@ -418,6 +418,12 @@ does not revoke a grant that was already issued, because a lost token response i
 from a replay. Refresh-token reuse outside the grace window revokes the grant family, and a lost
 rotation response therefore requires a new consent flow.
 
+A sign-in lasts at most 30 days from the grant's last consent (`consented_at`,
+`AGENT_GRANT_MAX_SIGN_IN_AGE_DAYS`), even when the client refreshes steadily. Every refresh token
+issued on a grant, by code exchange or rotation, expires at the earlier of its sliding lifetime and
+`consented_at` plus 30 days. Approving consent again resets `consented_at`. Once the cap passes,
+rotation returns `invalid_grant` and the client asks the user to sign in again.
+
 ## API
 
 The package exports a module factory. Pass it the Workspaces inter-module client from the

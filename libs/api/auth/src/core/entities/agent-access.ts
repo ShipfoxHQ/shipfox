@@ -31,6 +31,8 @@ export interface AgentGrant {
   userId: string;
   workspaceId: string;
   clientId: string;
+  /** Last approved consent. Caps how long any refresh token on the grant can live. */
+  consentedAt: Date;
   lastUsedAt: Date | null;
   revokedAt: Date | null;
   terminalAt: Date | null;

@@ -16,7 +16,7 @@ import {createOAuthClientResolver, type OAuthClientResolver} from '#core/oauth-c
 import {OAUTH_AUTHORIZATION_REQUEST_TTL_SECONDS} from '#core/oauth-flow.js';
 import {createAgentClient, findAgentClientByClientId} from '#db/agent-access.js';
 import {db} from '#db/db.js';
-import {agentAuthorizationCodes, agentRefreshTokens} from '#db/schema/agent-access.js';
+import {agentAuthorizationCodes, agentGrants, agentRefreshTokens} from '#db/schema/agent-access.js';
 import {users} from '#db/schema/users.js';
 import {createJwtAuthMethod} from '#presentation/auth/jwt-auth.js';
 import {createVerifiedSession, ROUTE_TEST_SECRET} from '#test/routes.js';
@@ -460,6 +460,80 @@ describe('dormant OAuth authorization and token routes', () => {
     );
     expect(revokedSuccessor.statusCode).toBe(400);
     expect(revokedSuccessor.json()).toMatchObject({error: 'invalid_grant'});
+  });
+
+  it('caps refresh-token expiry at 30 days from consent and rejects rotation after it', async () => {
+    const workspaceId = crypto.randomUUID();
+    const account = await createVerifiedSession('oauth-sign-in-age');
+    const client = await createTestClient();
+    app = await createTestApp(workspaceClient(workspaceId));
+    const dayMs = 24 * 60 * 60 * 1000;
+    const authorizationPkce = pkce();
+    const authorization = await app.inject({
+      method: 'GET',
+      url: authorizationUrl(client.clientId, authorizationPkce.challenge),
+      headers: {'x-forwarded-for': '198.51.100.240'},
+    });
+    const requestId = new URL(authorization.headers.location ?? '').searchParams.get('request_id');
+    const approval = await app.inject({
+      method: 'POST',
+      url: `/oauth/consents/${requestId}/approve`,
+      headers: bearer(account.token),
+      payload: {workspace_id: workspaceId},
+    });
+    const code = new URL(approval.json().redirect_url).searchParams.get('code') ?? '';
+    const token = await app.inject(
+      tokenForm(
+        {
+          grant_type: 'authorization_code',
+          client_id: client.clientId,
+          code,
+          redirect_uri: REDIRECT_URI,
+          code_verifier: authorizationPkce.verifier,
+        },
+        '198.51.100.241',
+      ),
+    );
+    expect(token.statusCode).toBe(200);
+
+    const consentedAt = new Date(Date.now() - 20 * dayMs);
+    await db()
+      .update(agentGrants)
+      .set({consentedAt})
+      .where(eq(agentGrants.workspaceId, workspaceId));
+    const rotated = await app.inject(
+      tokenForm(
+        {
+          grant_type: 'refresh_token',
+          client_id: client.clientId,
+          refresh_token: token.json().refresh_token,
+        },
+        '198.51.100.242',
+      ),
+    );
+    expect(rotated.statusCode).toBe(200);
+    const [issued] = await db()
+      .select({expiresAt: agentRefreshTokens.expiresAt})
+      .from(agentRefreshTokens)
+      .where(eq(agentRefreshTokens.hashedToken, hashOpaqueToken(rotated.json().refresh_token)));
+    expect(issued?.expiresAt).toEqual(new Date(consentedAt.getTime() + 30 * dayMs));
+
+    await db()
+      .update(agentRefreshTokens)
+      .set({expiresAt: new Date(Date.now() - 1_000)})
+      .where(eq(agentRefreshTokens.hashedToken, hashOpaqueToken(rotated.json().refresh_token)));
+    const afterCap = await app.inject(
+      tokenForm(
+        {
+          grant_type: 'refresh_token',
+          client_id: client.clientId,
+          refresh_token: rotated.json().refresh_token,
+        },
+        '198.51.100.243',
+      ),
+    );
+    expect(afterCap.statusCode).toBe(400);
+    expect(afterCap.json()).toMatchObject({error: 'invalid_grant'});
   });
 
   it('rejects impersonated approval and preserves 404-shaped workspace ownership failures', async () => {

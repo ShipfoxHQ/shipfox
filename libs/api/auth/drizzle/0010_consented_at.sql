@@ -1,0 +1,1 @@
+ALTER TABLE "auth_agent_grants" ADD COLUMN "consented_at" timestamp with time zone DEFAULT now() NOT NULL;

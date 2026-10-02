@@ -69,6 +69,7 @@ export const agentGrants = pgTable(
     clientId: uuid('client_id')
       .notNull()
       .references(() => agentClients.id, {onDelete: 'cascade'}),
+    consentedAt: timestamp('consented_at', {withTimezone: true}).notNull().defaultNow(),
     lastUsedAt: timestamp('last_used_at', {withTimezone: true}),
     revokedAt: timestamp('revoked_at', {withTimezone: true}),
     terminalAt: timestamp('terminal_at', {withTimezone: true}),
@@ -185,6 +186,7 @@ export function toAgentGrant(row: AgentGrantDb): AgentGrant {
     userId: row.userId,
     workspaceId: row.workspaceId,
     clientId: row.clientId,
+    consentedAt: row.consentedAt,
     lastUsedAt: row.lastUsedAt,
     revokedAt: row.revokedAt,
     terminalAt: row.terminalAt,

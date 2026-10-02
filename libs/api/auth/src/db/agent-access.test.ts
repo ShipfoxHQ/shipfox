@@ -220,6 +220,121 @@ describe('agent-access db', () => {
     ).toBeUndefined();
   });
 
+  describe('maximum sign-in age', () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    async function createGrantConsentedDaysAgo(days: number) {
+      const user = await userFactory.create();
+      const client = await createAgentClient({
+        clientId: `https://client.example/${crypto.randomUUID()}`,
+        name: 'Sign-in age client',
+        redirectUris: ['https://client.example/callback'],
+        kind: 'registered',
+      });
+      const grant = await createAgentGrant({
+        userId: user.id,
+        workspaceId: crypto.randomUUID(),
+        clientId: client.id,
+      });
+      const consentedAt = new Date(Date.now() - days * DAY_MS);
+      await db().update(agentGrants).set({consentedAt}).where(eq(agentGrants.id, grant.id));
+      return {grant, consentedAt};
+    }
+
+    test('sets consented_at when the grant is created', async () => {
+      const before = Date.now();
+      const {grant} = await createGrantConsentedDaysAgo(0);
+
+      expect(grant.consentedAt.getTime()).toBeGreaterThanOrEqual(before - 1_000);
+      expect(grant.consentedAt.getTime()).toBeLessThanOrEqual(Date.now() + 1_000);
+    });
+
+    test('resets consented_at on reauthorization', async () => {
+      const {grant, consentedAt} = await createGrantConsentedDaysAgo(20);
+
+      const reauthorized = await createAgentGrant({
+        userId: grant.userId,
+        workspaceId: grant.workspaceId,
+        clientId: grant.clientId,
+      });
+
+      expect(reauthorized.id).toBe(grant.id);
+      expect(reauthorized.consentedAt.getTime()).toBeGreaterThan(
+        consentedAt.getTime() + 19 * DAY_MS,
+      );
+    });
+
+    test('caps a new refresh token at 30 days from consent', async () => {
+      const {grant, consentedAt} = await createGrantConsentedDaysAgo(20);
+
+      const token = await createAgentRefreshToken({
+        grantId: grant.id,
+        hashedToken: hashOpaqueToken(`capped-${crypto.randomUUID()}`),
+      });
+
+      expect(token.expiresAt).toEqual(new Date(consentedAt.getTime() + 30 * DAY_MS));
+    });
+
+    test('caps a rotated refresh token at 30 days from consent', async () => {
+      const {grant, consentedAt} = await createGrantConsentedDaysAgo(20);
+      const first = await createAgentRefreshToken({
+        grantId: grant.id,
+        hashedToken: hashOpaqueToken(`capped-first-${crypto.randomUUID()}`),
+      });
+
+      const successor = await rotateAgentRefreshToken({
+        hashedToken: first.hashedToken,
+        replacementHashedToken: hashOpaqueToken(`capped-successor-${crypto.randomUUID()}`),
+      });
+
+      expect(successor?.expiresAt).toEqual(new Date(consentedAt.getTime() + 30 * DAY_MS));
+    });
+
+    test('keeps the sliding lifetime while it ends before the cap', async () => {
+      const {grant} = await createGrantConsentedDaysAgo(1);
+      const requested = new Date(Date.now() + 60_000);
+
+      const token = await createAgentRefreshToken({
+        grantId: grant.id,
+        hashedToken: hashOpaqueToken(`uncapped-${crypto.randomUUID()}`),
+        expiresAt: requested,
+      });
+
+      expect(token.expiresAt).toEqual(requested);
+    });
+
+    test('does not rotate a token once the cap has passed', async () => {
+      const {grant} = await createGrantConsentedDaysAgo(31);
+      const token = await createAgentRefreshToken({
+        grantId: grant.id,
+        hashedToken: hashOpaqueToken(`cap-passed-${crypto.randomUUID()}`),
+      });
+      expect(token.expiresAt.getTime()).toBeLessThan(Date.now());
+
+      const successor = await rotateAgentRefreshToken({
+        hashedToken: token.hashedToken,
+        replacementHashedToken: hashOpaqueToken(`cap-passed-successor-${crypto.randomUUID()}`),
+      });
+
+      expect(successor).toBeUndefined();
+    });
+
+    test('closes the grant once its last token has expired at the cap', async () => {
+      const {grant, consentedAt} = await createGrantConsentedDaysAgo(20);
+      await createAgentRefreshToken({
+        grantId: grant.id,
+        hashedToken: hashOpaqueToken(`cleanup-${crypto.randomUUID()}`),
+      });
+      const cap = new Date(consentedAt.getTime() + 30 * DAY_MS);
+
+      await transitionAgentGrantsToTerminal({now: new Date(cap.getTime() - 1_000)});
+      expect(await findAgentGrant({id: grant.id})).toMatchObject({terminalAt: null});
+
+      await transitionAgentGrantsToTerminal({now: new Date(cap.getTime() + 1_000)});
+      expect((await findAgentGrant({id: grant.id}))?.terminalAt).not.toBeNull();
+    });
+  });
+
   test('serializes concurrent refresh rotation and revokes the complete grant family', async () => {
     const user = await userFactory.create();
     const client = await createAgentClient({
