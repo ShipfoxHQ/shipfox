@@ -47,6 +47,8 @@ interface FenceMarker {
   length: number;
 }
 
+export type MarkdownAudience = 'human' | 'mcp';
+
 export interface MachineReadableMarkdownOptions {
   integrationCatalog?: readonly CatalogProvider[];
   modelCatalog?: ModelCatalog;
@@ -57,6 +59,10 @@ export interface MachineReadableMarkdownOptions {
   pageUrl?: string;
   requiredFacts?: readonly string[];
   sourcePath?: string;
+}
+
+export interface SerializeMachineReadableMarkdownOptions extends MachineReadableMarkdownOptions {
+  audience: MarkdownAudience;
 }
 
 export function canonicalDocsUrl(pageUrl: string): string {
@@ -126,7 +132,7 @@ export function serializeIntegrationCatalog(providers: readonly CatalogProvider[
 
 export function serializeMachineReadableMarkdown(
   markdown: string,
-  options: MachineReadableMarkdownOptions = {},
+  options: SerializeMachineReadableMarkdownOptions,
 ): string {
   let serialized = replacePlaceholders(markdown, options);
   serialized = replaceUnusableImages(serialized);

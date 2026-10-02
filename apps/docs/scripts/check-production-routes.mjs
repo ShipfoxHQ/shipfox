@@ -92,6 +92,7 @@ async function request(origin, path, accept) {
       status: response.status,
       contentType: response.headers.get('content-type') ?? '',
       vary: response.headers.get('vary') ?? '',
+      robotsTag: response.headers.get('x-robots-tag') ?? '',
       body: Buffer.from(await response.arrayBuffer()),
     };
   } catch (error) {
@@ -213,6 +214,41 @@ async function assertStableRoute(origin, route) {
   );
 }
 
+async function assertMcpRoute(origin) {
+  const markdown = {status: 200, contentType: 'text/markdown'};
+  const pairs = [
+    {mcp: `${basePath}/mcp.mdx/getting-started`, web: `${basePath}/llms.mdx/getting-started`},
+    {mcp: `${basePath}/mcp.mdx/home`, web: `${basePath}/index.md`},
+  ];
+  for (const {mcp, web} of pairs) {
+    const mcpResponse = await request(origin, mcp);
+    assertResponse(mcpResponse, markdown, mcp);
+    assert.equal(mcpResponse.robotsTag, 'noindex', `${mcp}: missing X-Robots-Tag: noindex`);
+    const webResponse = await request(origin, web);
+    assertResponse(webResponse, markdown, web);
+    assert(mcpResponse.body.equals(webResponse.body), `${mcp}: differs from ${web}`);
+  }
+
+  // The `.mdx` rewrite must keep targeting llms.mdx and must not capture mcp.mdx.
+  const rewritten = await request(origin, `${basePath}/getting-started.mdx`);
+  const llms = await request(origin, `${basePath}/llms.mdx/getting-started`);
+  assert(rewritten.body.equals(llms.body), 'getting-started.mdx no longer rewrites to llms.mdx');
+  assert.equal(llms.robotsTag, '', 'llms.mdx must stay indexable');
+
+  const missing = await request(origin, `${basePath}/mcp.mdx`);
+  assert.equal(missing.status, 404, 'mcp.mdx has no empty-slug route');
+
+  const robots = await request(origin, `${basePath}/robots.txt`);
+  assert(
+    robots.body.toString('utf8').includes(`Disallow: ${basePath}/mcp.mdx/`),
+    'robots.txt does not disallow mcp.mdx',
+  );
+  for (const path of [`${basePath}/llms.txt`, `${basePath}/sitemap.xml`]) {
+    const discovery = await request(origin, path);
+    assert(!discovery.body.toString('utf8').includes('mcp.mdx'), `${path} links to mcp.mdx`);
+  }
+}
+
 function spawnDocsServer(port) {
   let serverLogs = '';
   const child = spawn(
@@ -310,6 +346,8 @@ try {
     },
   ];
   for (const route of excludedRoutes) await assertStableRoute(docsServer.origin, route);
+
+  await assertMcpRoute(docsServer.origin);
 
   await assertHtmlSequence(
     docsServer.origin,

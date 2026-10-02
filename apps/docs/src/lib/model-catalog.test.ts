@@ -105,7 +105,7 @@ test('renders the same catalog values in HTML and machine-readable Markdown', ()
   const markdown = serializeModelCatalog(catalog);
   const serializedComponent = serializeMachineReadableMarkdown(
     '\0{"name":"ModelCatalog","children":"","attributes":{}}\0',
-    {modelCatalog: catalog},
+    {audience: 'human', modelCatalog: catalog},
   );
 
   assert.ok(html.includes('GPT 5.6 Luna'));
@@ -139,6 +139,7 @@ test('serializes a cloud models page with one Available models heading', () => {
     '\0{"name":"ModelCatalog","children":"","attributes":{}}\0',
   ].join('\n');
   const serializedPage = serializeMachineReadableMarkdown(page, {
+    audience: 'human',
     modelCatalog: catalog,
     pageUrl: '/reference/cloud-models',
     requiredFacts: ['## Available models'],

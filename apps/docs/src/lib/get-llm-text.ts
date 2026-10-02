@@ -3,6 +3,7 @@ import {config} from '@/config';
 import {
   assertMachineReadableMarkdown,
   canonicalDocsUrl,
+  type MarkdownAudience,
   serializeMachineReadableMarkdown,
 } from '@/lib/machine-readable';
 import type {source} from '@/lib/source';
@@ -12,7 +13,10 @@ const TRAILING_SLASH_PATTERN = /\/$/;
 const INTEGRATION_EVENTS_PAGE_PATTERN = /^\/integrations\/[^/]+\/events$/;
 const INTEGRATION_TOOLS_PAGE_PATTERN = /^\/integrations\/[^/]+\/tools$/;
 
-export async function getLLMText(page: InferPageType<typeof source>) {
+export async function getLLMText(
+  page: InferPageType<typeof source>,
+  {audience}: {audience: MarkdownAudience},
+) {
   const processed = await page.data.getText('processed');
   const description = page.data.description;
   if (typeof description !== 'string' || description.length === 0) {
@@ -42,6 +46,7 @@ export async function getLLMText(page: InferPageType<typeof source>) {
       ? await import('@/lib/template-catalog/source')
       : undefined;
   const body = serializeMachineReadableMarkdown(processed, {
+    audience,
     integrationCatalog,
     modelCatalog,
     toolReference,

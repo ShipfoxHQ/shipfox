@@ -54,7 +54,7 @@ function testPage(url: string, body: string, description = 'Test page descriptio
 
 test('applies required generated facts to every reference page family', async () => {
   for (const page of pages) {
-    const markdown = await getLLMText(testPage(page.url, page.body));
+    const markdown = await getLLMText(testPage(page.url, page.body), {audience: 'human'});
     assert.equal(markdown.split('\n', 1)[0], `# Test page (${canonicalDocsUrl(page.url)})`);
     assert.match(markdown, DESCRIPTION_PATTERN);
     assert.ok(markdown.includes(page.body));
@@ -62,11 +62,26 @@ test('applies required generated facts to every reference page family', async ()
 });
 
 test('reports the source page when description or generated facts are missing', async () => {
-  await assert.rejects(getLLMText(testPage('/reference/contexts', '## Available contexts', '')), {
-    message: 'Documentation page "/reference/contexts" is missing a description.',
-  });
-  await assert.rejects(getLLMText(testPage('/reference/workflow-schema', '## Workflow')), {
-    message:
-      'Machine-readable Markdown for /reference/workflow-schema is missing generated fact: | `name` |',
-  });
+  await assert.rejects(
+    getLLMText(testPage('/reference/contexts', '## Available contexts', ''), {audience: 'human'}),
+    {
+      message: 'Documentation page "/reference/contexts" is missing a description.',
+    },
+  );
+  await assert.rejects(
+    getLLMText(testPage('/reference/workflow-schema', '## Workflow'), {audience: 'human'}),
+    {
+      message:
+        'Machine-readable Markdown for /reference/workflow-schema is missing generated fact: | `name` |',
+    },
+  );
+});
+
+test('renders the same Markdown for both audiences until a page distinguishes them', async () => {
+  const page = testPage('/reference/model-providers', pages[2].body);
+
+  assert.equal(
+    await getLLMText(page, {audience: 'mcp'}),
+    await getLLMText(page, {audience: 'human'}),
+  );
 });
