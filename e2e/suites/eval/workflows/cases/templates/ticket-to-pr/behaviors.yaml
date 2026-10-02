@@ -2,6 +2,12 @@
 cases:
   - case: feedback-loop
     proves: PR opened as draft, review comment answered, fix pushed, thread resolved, run ends when the PR closes.
+  - case: one-shot
+    proves: With feedback_loop off, the run ends after the pull request opens, with no listener.
+  - case: clarification
+    proves: With feedback_loop off and a needs_clarification result, nothing is pushed, no pull request opens, and the questions are in the outputs.
+  - case: threads-left-open
+    proves: With resolve_threads never, the reply and the fix happen and no review thread is resolved.
   - case: linear-agent-session
     proves: Assigning or mentioning the Shipfox agent on a Linear issue opens the PR, then comments on the issue and moves it to in progress.
   - case: linear-agent-session-no-write-back

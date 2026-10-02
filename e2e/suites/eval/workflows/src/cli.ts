@@ -2,7 +2,9 @@
 import {join} from 'node:path';
 import {parseArgs} from 'node:util';
 import {preflightCheck} from '@shipfox/e2e-core';
+import {shippedTemplateLoader} from '@shipfox/workflow-templates';
 import {runCompile} from './compile.js';
+import {checkTemplateCoverage} from './coverage.js';
 import {caseSupportsMode, type DiscoveredCase, discoverCases} from './discovery.js';
 import {executeTemplateCase} from './execute.js';
 import {exportToLangfuse, isLangfuseConfigured} from './langfuse.js';
@@ -251,6 +253,33 @@ async function runCompileCli({
   return failed.length === 0 ? 0 : 1;
 }
 
+// A filtered run cannot judge the whole suite, so only a full scripted run checks coverage. It
+// reads files only, so it runs before the stack preflight and a missing case fails fast.
+async function coverageHolds({
+  options,
+  cwd,
+  stdout,
+  stderr,
+}: {
+  options: EvalCliOptions;
+  cwd: string;
+  stdout: (message: string) => void;
+  stderr: (message: string) => void;
+}): Promise<boolean> {
+  if (options.mode !== 'scripted' || options.caseFilter !== undefined) return true;
+  const root = caseRoot('templates', cwd);
+  const coverage = await checkTemplateCoverage({
+    casesRoot: root,
+    loader: shippedTemplateLoader,
+    cases: await discoverCases(root),
+  });
+  if (coverage.pending.length > 0) {
+    stdout(`Pending, no behaviors.yaml yet: ${coverage.pending.join(', ')}\n`);
+  }
+  for (const problem of coverage.problems) stderr(`${problem}\n`);
+  return coverage.problems.length === 0;
+}
+
 /** Scripted cases block CI. Live scores never fail a run, only cases that could not be run. */
 export function exitCodeFor({mode, results}: {mode: EvalMode; results: CaseResult[]}): number {
   const blocking =
@@ -258,6 +287,40 @@ export function exitCodeFor({mode, results}: {mode: EvalMode; results: CaseResul
       ? results.filter((result) => result.status === 'error')
       : results.filter((result) => result.status !== 'passed');
   return blocking.length > 0 ? 1 : 0;
+}
+
+async function runTemplatesCli({
+  options,
+  cwd,
+  stdout,
+  stderr,
+}: {
+  options: EvalCliOptions;
+  cwd?: string | undefined;
+  stdout: (message: string) => void;
+  stderr: (message: string) => void;
+}): Promise<number> {
+  if (!(await coverageHolds({options, cwd: cwd ?? process.cwd(), stdout, stderr}))) return 1;
+  const run = await runEval({
+    suite: options.suite,
+    mode: options.mode,
+    ...(options.repeat === undefined ? {} : {repeat: options.repeat}),
+    ...(options.caseFilter === undefined ? {} : {caseFilter: options.caseFilter}),
+    ...(options.maxCostUsd === undefined ? {} : {maxCostUsd: options.maxCostUsd}),
+    ...(cwd === undefined ? {} : {cwd, resultsDirectory: `${cwd}/results`}),
+  });
+  const failed = run.results.filter((result: CaseResult) => result.status !== 'passed');
+  stdout(
+    `Ran ${run.results.length} case runs, ${failed.length} not passed. Results: ${run.directory}\n`,
+  );
+  if (run.skipped_for_budget) {
+    stdout(`Budget spent: ${run.skipped_for_budget} case runs were not started.\n`);
+  }
+  for (const result of failed) {
+    stderr(`${result.case} (repeat ${result.repeat}): ${result.error}\n`);
+  }
+  await exportRun({options, run, stdout, stderr});
+  return exitCodeFor({mode: options.mode, results: run.results});
 }
 
 export async function runCli(
@@ -277,27 +340,7 @@ export async function runCli(
     if (options.mode === 'compile') {
       return await runCompileCli({options, stdout, stderr, cwd: environment.cwd});
     }
-    const run = await runEval({
-      suite: options.suite,
-      mode: options.mode,
-      ...(options.repeat === undefined ? {} : {repeat: options.repeat}),
-      ...(options.caseFilter === undefined ? {} : {caseFilter: options.caseFilter}),
-      ...(options.maxCostUsd === undefined ? {} : {maxCostUsd: options.maxCostUsd}),
-      ...(environment.cwd === undefined ? {} : {cwd: environment.cwd}),
-      ...(environment.cwd === undefined ? {} : {resultsDirectory: `${environment.cwd}/results`}),
-    });
-    const failed = run.results.filter((result: CaseResult) => result.status !== 'passed');
-    stdout(
-      `Ran ${run.results.length} case runs, ${failed.length} not passed. Results: ${run.directory}\n`,
-    );
-    if (run.skipped_for_budget) {
-      stdout(`Budget spent: ${run.skipped_for_budget} case runs were not started.\n`);
-    }
-    for (const result of failed) {
-      stderr(`${result.case} (repeat ${result.repeat}): ${result.error}\n`);
-    }
-    await exportRun({options, run, stdout, stderr});
-    return exitCodeFor({mode: options.mode, results: run.results});
+    return await runTemplatesCli({options, cwd: environment.cwd, stdout, stderr});
   } catch (error) {
     stderr(`Eval failed: ${error instanceof Error ? error.message : String(error)}\n`);
     return 1;
