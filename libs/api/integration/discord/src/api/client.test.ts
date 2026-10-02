@@ -244,6 +244,56 @@ describe('Discord REST client', () => {
       expect(sent[0]?.body).toEqual({name: 'Question'});
     });
 
+    it('creates a public thread that hangs off no message', async () => {
+      const sent = stubBodyFetch(json({id: 'thread-1', type: 11}));
+
+      await client.createThread({channelId: 'channel-1', name: 'Release'});
+
+      expect(sent[0]?.request.method).toBe('POST');
+      expect(sent[0]?.request.url).toBe('https://discord.test/api/v10/channels/channel-1/threads');
+      expect(sent[0]?.body).toEqual({name: 'Release', type: 11});
+    });
+
+    it('creates a forum post whose first message pings users only', async () => {
+      const sent = stubBodyFetch(json({id: 'thread-1', type: 11}));
+
+      await client.createThread({channelId: 'forum-1', name: 'Question', post: 'How? @everyone'});
+
+      expect(sent[0]?.body).toEqual({
+        name: 'Question',
+        message: {content: 'How? @everyone', allowed_mentions: {parse: ['users']}},
+      });
+    });
+
+    it('edits a message and pings users only', async () => {
+      const sent = stubBodyFetch(json({id: 'message-1'}));
+
+      await client.editMessage({channelId: 'channel-1', messageId: 'message-1', content: 'Done'});
+
+      expect(sent[0]?.request.method).toBe('PATCH');
+      expect(sent[0]?.request.url).toBe(
+        'https://discord.test/api/v10/channels/channel-1/messages/message-1',
+      );
+      expect(sent[0]?.body).toEqual({content: 'Done', allowed_mentions: {parse: ['users']}});
+    });
+
+    it.each([
+      ['a Unicode emoji', '👍', '%F0%9F%91%8D'],
+      ['a custom emoji', 'shipit:123', 'shipit%3A123'],
+    ])('adds a reaction with %s and accepts the empty response', async (_name, emoji, encoded) => {
+      const fetchMock = stubFetch(new Response(null, {status: 204}));
+
+      await expect(
+        client.addReaction({channelId: 'channel-1', messageId: 'message-1', emoji}),
+      ).resolves.toBeUndefined();
+
+      const request = sentRequest(fetchMock);
+      expect(request.method).toBe('PUT');
+      expect(request.url).toBe(
+        `https://discord.test/api/v10/channels/channel-1/messages/message-1/reactions/${encoded}/@me`,
+      );
+    });
+
     it('leaves a guild and accepts the empty response', async () => {
       const fetchMock = stubFetch(new Response(null, {status: 204}));
 

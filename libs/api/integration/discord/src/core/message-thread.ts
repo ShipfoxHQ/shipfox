@@ -5,12 +5,14 @@ const WHITESPACE_RE = /\s+/g;
 
 /**
  * Returns the id of the thread that hangs off a message, starting a public one named after the
- * message's first 80 characters when there is none. The channel must already be verified.
+ * message's first 80 characters, or `name` when given, when there is none. The channel must
+ * already be verified.
  */
 export async function ensureMessageThread(input: {
   discord: Pick<DiscordApiClient, 'getMessage' | 'startThreadFromMessage'>;
   channelId: string;
   messageId: string;
+  name?: string | undefined;
 }): Promise<string> {
   const {discord, channelId, messageId} = input;
   const message = await discord.getMessage({channelId, messageId});
@@ -18,7 +20,7 @@ export async function ensureMessageThread(input: {
   const thread = await discord.startThreadFromMessage({
     channelId,
     messageId,
-    name: threadName(message.content),
+    name: input.name ?? threadName(message.content),
   });
   return thread.id;
 }

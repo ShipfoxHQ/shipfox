@@ -31,6 +31,14 @@ export interface ProviderToolCatalog {
   };
   discord: {
     /**
+     * Add a reaction from the bot to a message. emoji is the Unicode emoji itself, for example 👍, or name:id for a custom emoji of the server.
+     */
+    add_reaction: {arguments: DiscordAddReactionArguments; result: 'json'};
+    /**
+     * Create a public thread in a Discord channel. With message_id, the thread starts from that message and its ID is returned when the message already has a thread. Without it, the thread stands alone. In a forum or media channel, message is required and becomes the post: message_id is not accepted there. Only users are pinged, never roles or @everyone. Post in the new thread with send_message, using the returned ID as channel_id.
+     */
+    create_thread: {arguments: DiscordCreateThreadArguments; result: 'json'};
+    /**
      * List the channels of the connected Discord server, and optionally its active threads, to find a channel ID by name.
      */
     list_channels: {arguments: DiscordListChannelsArguments; result: 'json'};
@@ -54,6 +62,10 @@ export interface ProviderToolCatalog {
      * Send a message to a Discord channel or thread as the bot. Markdown is supported. Messages over 2,000 characters are split on paragraph, line, or word boundaries into up to 5 messages, and messages over 10,000 characters are refused. Only users are pinged, never roles or @everyone. To answer in the thread of a message, pass its ID as thread_message_id: the thread is created if the message has none, and thread_message_id is ignored when channel_id is already a thread.
      */
     send_message: {arguments: DiscordSendMessageArguments; result: 'json'};
+    /**
+     * Replace the text of a message the bot posted in a Discord channel or thread. Messages from anyone else cannot be edited. Markdown is supported, up to 2,000 characters, and the text is not split. Only users are pinged, never roles or @everyone.
+     */
+    update_message: {arguments: DiscordUpdateMessageArguments; result: 'json'};
   };
   gitea: {
     /**
@@ -1074,6 +1086,40 @@ export interface ClickupUpdateTaskArguments {
   };
 }
 
+export interface DiscordAddReactionArguments {
+  /**
+   * ID of the channel or thread the message is in
+   */
+  channel_id: string;
+  /**
+   * ID of the message to react to
+   */
+  message_id: string;
+  /**
+   * Unicode emoji, or name:id for a custom emoji
+   */
+  emoji: string;
+}
+
+export interface DiscordCreateThreadArguments {
+  /**
+   * ID of a channel in the connected Discord server
+   */
+  channel_id: string;
+  /**
+   * Thread name, 1 to 100 characters
+   */
+  name: string;
+  /**
+   * ID of a message in channel_id to start the thread from. Not accepted in a forum or media channel
+   */
+  message_id?: string;
+  /**
+   * Text of the post in Markdown, up to 2,000 characters. Required in a forum or media channel, and not accepted elsewhere
+   */
+  message?: string;
+}
+
 export interface DiscordListChannelsArguments {
   /**
    * Only return channels whose name contains this text, ignoring case
@@ -1166,6 +1212,21 @@ export interface DiscordSendMessageArguments {
    * ID of a message in channel_id whose thread receives the message, created when the message has none
    */
   thread_message_id?: string;
+}
+
+export interface DiscordUpdateMessageArguments {
+  /**
+   * ID of the channel or thread the message is in
+   */
+  channel_id: string;
+  /**
+   * ID of the message to edit
+   */
+  message_id: string;
+  /**
+   * New message text in Markdown, up to 2,000 characters
+   */
+  message: string;
 }
 
 export interface GiteaCommentOnIssueArguments {
