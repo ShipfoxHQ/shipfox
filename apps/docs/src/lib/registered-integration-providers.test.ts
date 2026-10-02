@@ -7,6 +7,7 @@ import {
 
 const expectedProviderOrder = [
   'shipfox',
+  'webhooks',
   'github',
   'linear',
   'jira',
@@ -15,7 +16,6 @@ const expectedProviderOrder = [
   'sentry',
   'posthog',
   'slack',
-  'webhooks',
 ];
 
 test('sorts registered providers by category and display priority', () => {

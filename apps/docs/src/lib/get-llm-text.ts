@@ -24,10 +24,14 @@ export async function getLLMText(
     throw new Error(`Documentation page "${source}" is missing a description.`);
   }
 
-  const integrationCatalog =
+  const integrationCatalogSource =
     processed.includes('IntegrationCatalog') || processed.includes('ComparisonTable')
-      ? (await import('@/lib/integration-catalog-source')).getIntegrationCatalog()
+      ? await import('@/lib/integration-catalog-source')
       : undefined;
+  const integrationCatalog = integrationCatalogSource?.getIntegrationCatalog();
+  const requestableIntegrations = processed.includes('IntegrationCatalog')
+    ? integrationCatalogSource?.getRequestableIntegrations(integrationCatalog)
+    : undefined;
   const modelCatalog = processed.includes('ModelCatalog')
     ? await (await import('@/lib/model-catalog-source')).getModelCatalog()
     : undefined;
@@ -48,6 +52,7 @@ export async function getLLMText(
   const body = serializeMachineReadableMarkdown(processed, {
     audience,
     integrationCatalog,
+    requestableIntegrations,
     modelCatalog,
     toolReference,
     eventReference,

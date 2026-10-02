@@ -1,8 +1,8 @@
 import {normalizeCatalogQuery} from '@/lib/docs-analytics-core';
 import {
+  type CatalogEntry,
   type CatalogFilters,
-  type CatalogProvider,
-  filterProviders,
+  filterCatalogEntries,
 } from '@/lib/integration-catalog';
 
 export function catalogAnalyticsContext(filters: CatalogFilters) {
@@ -11,6 +11,7 @@ export function catalogAnalyticsContext(filters: CatalogFilters) {
     query: query.query,
     query_length: query.queryLength,
     query_redacted: query.queryRedacted,
+    selected_availability: filters.availability,
     selected_capabilities: filters.capability,
     selected_categories: filters.category,
   };
@@ -25,10 +26,10 @@ export function catalogSearchProperties(filters: CatalogFilters, resultCount: nu
 }
 
 export function catalogFilterChangedProperties(
-  providers: readonly CatalogProvider[],
+  entries: readonly CatalogEntry[],
   filters: CatalogFilters,
   change: {
-    facet: 'capability' | 'category' | 'all';
+    facet: 'availability' | 'capability' | 'category' | 'all';
     value: string;
     action: 'selected' | 'removed' | 'cleared';
   },
@@ -36,21 +37,22 @@ export function catalogFilterChangedProperties(
   return {
     ...catalogAnalyticsContext(filters),
     ...change,
-    result_count: filterProviders(providers, filters).length,
+    result_count: filterCatalogEntries(entries, filters).length,
   };
 }
 
 export function catalogResultClickedProperties(
   filters: CatalogFilters,
-  filteredProviders: readonly CatalogProvider[],
-  provider: CatalogProvider,
-  target: 'overview' | 'setup',
+  filteredEntries: readonly CatalogEntry[],
+  entry: CatalogEntry,
+  target: 'overview' | 'setup' | 'request',
 ) {
   return {
     ...catalogAnalyticsContext(filters),
-    provider: provider.slug,
+    provider: entry.slug,
+    availability: entry.availability,
     target,
-    result_rank: filteredProviders.findIndex((candidate) => candidate.slug === provider.slug) + 1,
-    result_count: filteredProviders.length,
+    result_rank: filteredEntries.findIndex((candidate) => candidate.slug === entry.slug) + 1,
+    result_count: filteredEntries.length,
   };
 }

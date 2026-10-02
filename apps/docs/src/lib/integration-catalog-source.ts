@@ -2,12 +2,19 @@ import 'server-only';
 
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
-import type {CatalogCapability, CatalogProvider} from '@/lib/integration-catalog';
+import {
+  type CatalogCapability,
+  type CatalogEntry,
+  type CatalogProvider,
+  INTEGRATION_CATALOG_CATEGORIES,
+  type RequestableIntegration,
+} from '@/lib/integration-catalog';
 import {validateIntegrationCatalog} from '@/lib/integration-catalog-validation';
 import {
   registeredIntegrationProviders,
   sortRegisteredIntegrationProviders,
 } from '@/lib/registered-integration-providers';
+import {requestableIntegrations} from '@/lib/requestable-integrations';
 import {source} from '@/lib/source';
 
 export {validateIntegrationCatalog} from '@/lib/integration-catalog-validation';
@@ -64,6 +71,38 @@ export function getIntegrationCatalog(): CatalogProvider[] {
   );
 
   return sortRegisteredIntegrationProviders(providers);
+}
+
+// Self-serve providers come first in their registered order, then the
+// integrations a workspace can ask for, grouped by category.
+export function getIntegrationCatalogEntries(): CatalogEntry[] {
+  const providers = getIntegrationCatalog();
+  return [
+    ...providers.map((provider) => ({...provider, availability: 'self_serve' as const})),
+    ...getRequestableIntegrations(providers).map((integration) => ({
+      ...integration,
+      availability: 'on_request' as const,
+    })),
+  ];
+}
+
+export function getRequestableIntegrations(
+  providers: readonly CatalogProvider[] = getIntegrationCatalog(),
+): RequestableIntegration[] {
+  const providerSlugs = new Set(providers.map((provider) => provider.slug));
+  for (const integration of requestableIntegrations) {
+    if (providerSlugs.has(integration.slug))
+      throw new Error(
+        `Integration "${integration.slug}" has docs pages, so remove it from the on-request list.`,
+      );
+  }
+
+  return requestableIntegrations.toSorted(
+    (left, right) =>
+      INTEGRATION_CATALOG_CATEGORIES.indexOf(left.categories[0]) -
+        INTEGRATION_CATALOG_CATEGORIES.indexOf(right.categories[0]) ||
+      left.name.localeCompare(right.name),
+  );
 }
 
 function getGeneratedCatalogData(): Record<string, GeneratedCatalogData> {

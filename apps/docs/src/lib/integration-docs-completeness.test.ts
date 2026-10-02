@@ -83,7 +83,7 @@ const validInput: IntegrationDocsCompletenessInput = {
     ),
     webhooks: directory('webhooks', ['index', 'setup', 'events'], ['setup', 'events'], {
       capabilities: ['events'],
-      categories: ['custom'],
+      categories: ['built-in'],
       aliases: ['hooks'],
     }),
     linear: directory(
@@ -122,13 +122,13 @@ const validInput: IntegrationDocsCompletenessInput = {
       ['setup', 'events', 'tools'],
       {
         capabilities: ['events', 'agent_tools'],
-        categories: ['issue-tracking'],
+        categories: ['docs-knowledge', 'issue-tracking'],
         aliases: ['docs', 'wiki', 'knowledge base', 'project management'],
       },
     ),
     posthog: directory('posthog', ['index', 'setup', 'tools'], ['setup', 'tools'], {
       capabilities: ['agent_tools'],
-      categories: ['observability'],
+      categories: ['product-analytics', 'observability'],
       aliases: ['analytics', 'product analytics', 'feature flags', 'experiments'],
     }),
     shipfox: directory('shipfox', ['index', 'events', 'tools'], ['events', 'tools'], {
@@ -253,7 +253,7 @@ test('reports catalog frontmatter that omits the registered primary category', (
         ...clickup,
         overview: {
           ...clickupOverview,
-          catalog: {...clickupOverview.catalog, categories: ['custom']},
+          catalog: {...clickupOverview.catalog, categories: ['messaging']},
         },
       },
     },
@@ -293,7 +293,7 @@ test('reports only the built-in-source diagnostic for its integration directory'
       ...validInput.integrationDirectories,
       cron: directory('cron', ['index'], [], {
         capabilities: [],
-        categories: ['custom'],
+        categories: ['built-in'],
         aliases: ['schedule'],
       }),
     },

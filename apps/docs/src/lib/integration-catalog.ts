@@ -6,11 +6,22 @@ export const INTEGRATION_CATALOG_CAPABILITIES = [
 export const INTEGRATION_CATALOG_CATEGORIES = [
   'built-in',
   'source-control',
+  'ci-cd',
   'issue-tracking',
+  'docs-knowledge',
   'observability',
+  'product-analytics',
+  'incident-management',
   'messaging',
-  'custom',
+  'security',
+  'cloud',
+  'data',
+  'support',
+  'design',
+  'mobile-release',
+  'business',
 ] as const;
+export const INTEGRATION_CATALOG_AVAILABILITIES = ['self_serve', 'on_request'] as const;
 export const INTEGRATION_CATALOG_ICONS = [
   'github',
   'sentry',
@@ -27,6 +38,7 @@ export const INTEGRATION_CATALOG_ICONS = [
 export type CatalogCapability = (typeof INTEGRATION_CATALOG_CAPABILITIES)[number];
 export type CatalogCategory = (typeof INTEGRATION_CATALOG_CATEGORIES)[number];
 export type CatalogIcon = (typeof INTEGRATION_CATALOG_ICONS)[number];
+export type CatalogAvailability = (typeof INTEGRATION_CATALOG_AVAILABILITIES)[number];
 
 export const catalogCapabilityLabels: Record<CatalogCapability, string> = {
   source_control: 'Code checkout',
@@ -37,11 +49,35 @@ export const catalogCapabilityLabels: Record<CatalogCapability, string> = {
 export const catalogCategoryLabels: Record<CatalogCategory, string> = {
   'built-in': 'Built-in',
   'source-control': 'Source control',
-  observability: 'Observability',
-  custom: 'Webhook',
+  'ci-cd': 'CI/CD and deploys',
   'issue-tracking': 'Issue tracking',
-  messaging: 'Messaging',
+  'docs-knowledge': 'Docs and knowledge',
+  observability: 'Observability',
+  'product-analytics': 'Product analytics and flags',
+  'incident-management': 'Incidents and on-call',
+  messaging: 'Messaging and email',
+  security: 'Security and compliance',
+  cloud: 'Cloud and infrastructure',
+  data: 'Data and databases',
+  support: 'Support and CRM',
+  design: 'Design and feedback',
+  'mobile-release': 'Mobile releases',
+  business: 'Business tools',
 };
+
+export const catalogAvailabilityLabels: Record<CatalogAvailability, string> = {
+  self_serve: 'Self-serve',
+  on_request: 'On request',
+};
+
+// Tally fills the `integration` hidden field from the query string and posts
+// each submission to Slack, so a request needs no backend of its own.
+const INTEGRATION_REQUEST_FORM_URL = 'https://forms.shipfox.io/integration-request';
+
+export function integrationRequestHref(integrationName?: string): string {
+  if (!integrationName) return INTEGRATION_REQUEST_FORM_URL;
+  return `${INTEGRATION_REQUEST_FORM_URL}?${new URLSearchParams({integration: integrationName})}`;
+}
 
 export interface CatalogProvider {
   slug: string;
@@ -57,65 +93,100 @@ export interface CatalogProvider {
   toolCount: number;
 }
 
+// An integration Shipfox does not ship yet. It has no events, tools, or setup
+// page, only a way to ask for it.
+export interface RequestableIntegration {
+  slug: string;
+  name: string;
+  summary: string;
+  categories: CatalogCategory[];
+  aliases: string[];
+  // A single path in a 24x24 view box, drawn in the current text colour.
+  iconPath: string;
+}
+
+export type CatalogEntry =
+  | ({availability: 'self_serve'} & CatalogProvider)
+  | ({availability: 'on_request'} & RequestableIntegration);
+
 export interface CatalogFilters {
   query: string;
+  availability: readonly CatalogAvailability[];
   capability: readonly CatalogCapability[];
   category: readonly CatalogCategory[];
 }
 
 export const emptyCatalogFilters: CatalogFilters = {
   query: '',
+  availability: [],
   capability: [],
   category: [],
 };
 
-export function filterProviders(
-  providers: readonly CatalogProvider[],
+export function filterCatalogEntries(
+  entries: readonly CatalogEntry[],
   filters: CatalogFilters,
-): CatalogProvider[] {
+): CatalogEntry[] {
   const query = filters.query.trim().toLocaleLowerCase();
 
-  return providers.filter((provider) => {
+  return entries.filter((entry) => {
     return (
-      matchesQuery(provider, query) &&
-      matchesCapabilities(provider, filters.capability) &&
-      matchesCategories(provider, filters.category)
+      matchesQuery(entry, query) &&
+      matchesAvailability(entry, filters.availability) &&
+      matchesCapabilities(entry, filters.capability) &&
+      matchesCategories(entry, filters.category)
     );
   });
 }
 
 export function countFacetValues(
-  providers: readonly CatalogProvider[],
+  entries: readonly CatalogEntry[],
   filters: CatalogFilters,
 ): {
+  availability: Record<CatalogAvailability, number>;
   capability: Record<CatalogCapability, number>;
   category: Record<CatalogCategory, number>;
 } {
   const query = filters.query.trim().toLocaleLowerCase();
 
   return {
+    availability: countValues(INTEGRATION_CATALOG_AVAILABILITIES, (availability) =>
+      entries.filter(
+        (entry) =>
+          matchesQuery(entry, query) &&
+          matchesCapabilities(entry, filters.capability) &&
+          matchesCategories(entry, filters.category) &&
+          entry.availability === availability,
+      ),
+    ),
     capability: countValues(INTEGRATION_CATALOG_CAPABILITIES, (capability) =>
-      providers.filter(
-        (provider) =>
-          matchesQuery(provider, query) &&
-          matchesCategories(provider, filters.category) &&
-          provider.capabilities.includes(capability),
+      entries.filter(
+        (entry) =>
+          matchesQuery(entry, query) &&
+          matchesAvailability(entry, filters.availability) &&
+          matchesCategories(entry, filters.category) &&
+          entryCapabilities(entry).includes(capability),
       ),
     ),
     category: countValues(INTEGRATION_CATALOG_CATEGORIES, (category) =>
-      providers.filter(
-        (provider) =>
-          matchesQuery(provider, query) &&
-          matchesCapabilities(provider, filters.capability) &&
-          provider.categories.includes(category),
+      entries.filter(
+        (entry) =>
+          matchesQuery(entry, query) &&
+          matchesAvailability(entry, filters.availability) &&
+          matchesCapabilities(entry, filters.capability) &&
+          entry.categories.includes(category),
       ),
     ),
   };
 }
 
+function entryCapabilities(entry: CatalogEntry): readonly CatalogCapability[] {
+  return entry.availability === 'self_serve' ? entry.capabilities : [];
+}
+
 function countValues<Value extends string>(
   values: readonly Value[],
-  matches: (value: Value) => readonly CatalogProvider[],
+  matches: (value: Value) => readonly CatalogEntry[],
 ): Record<Value, number> {
   const counts = {} as Record<Value, number>;
 
@@ -126,14 +197,14 @@ function countValues<Value extends string>(
   return counts;
 }
 
-function matchesQuery(provider: CatalogProvider, query: string): boolean {
+function matchesQuery(entry: CatalogEntry, query: string): boolean {
   if (query.length === 0) return true;
 
   const searchableText = [
-    provider.name,
-    provider.summary,
-    ...provider.categories.map((category) => catalogCategoryLabels[category]),
-    ...provider.aliases,
+    entry.name,
+    entry.summary,
+    ...entry.categories.map((category) => catalogCategoryLabels[category]),
+    ...entry.aliases,
   ]
     .join(' ')
     .toLocaleLowerCase();
@@ -141,21 +212,25 @@ function matchesQuery(provider: CatalogProvider, query: string): boolean {
   return searchableText.includes(query);
 }
 
+function matchesAvailability(
+  entry: CatalogEntry,
+  availabilities: readonly CatalogAvailability[],
+): boolean {
+  return availabilities.length === 0 || availabilities.includes(entry.availability);
+}
+
 function matchesCapabilities(
-  provider: CatalogProvider,
+  entry: CatalogEntry,
   capabilities: readonly CatalogCapability[],
 ): boolean {
   return (
     capabilities.length === 0 ||
-    capabilities.some((capability) => provider.capabilities.includes(capability))
+    capabilities.some((capability) => entryCapabilities(entry).includes(capability))
   );
 }
 
-function matchesCategories(
-  provider: CatalogProvider,
-  categories: readonly CatalogCategory[],
-): boolean {
+function matchesCategories(entry: CatalogEntry, categories: readonly CatalogCategory[]): boolean {
   return (
-    categories.length === 0 || categories.some((category) => provider.categories.includes(category))
+    categories.length === 0 || categories.some((category) => entry.categories.includes(category))
   );
 }

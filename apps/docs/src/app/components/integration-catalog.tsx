@@ -1,8 +1,8 @@
 'use client';
 
-import {ArrowRight, Search, Webhook, X} from 'lucide-react';
+import {ArrowRight, ArrowUpRight, Search, Webhook, X} from 'lucide-react';
 import Link from 'next/link';
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {type ReactNode, useEffect, useMemo, useRef, useState} from 'react';
 import {
   siClickup,
   siGithub,
@@ -16,15 +16,21 @@ import {
 import {captureDocsEvent} from '@/lib/docs-analytics';
 import {nextCatalogSearchState, normalizeCatalogQuery} from '@/lib/docs-analytics-core';
 import {
+  type CatalogEntry,
+  type CatalogFilters,
   type CatalogIcon,
   type CatalogProvider,
+  catalogAvailabilityLabels,
   catalogCapabilityLabels,
   catalogCategoryLabels,
   countFacetValues,
   emptyCatalogFilters,
-  filterProviders,
+  filterCatalogEntries,
+  INTEGRATION_CATALOG_AVAILABILITIES,
   INTEGRATION_CATALOG_CAPABILITIES,
   INTEGRATION_CATALOG_CATEGORIES,
+  integrationRequestHref,
+  type RequestableIntegration,
 } from '@/lib/integration-catalog';
 import {
   catalogFilterChangedProperties,
@@ -33,19 +39,21 @@ import {
 } from '@/lib/integration-catalog-analytics';
 
 interface IntegrationCatalogProps {
-  providers: CatalogProvider[];
+  entries: CatalogEntry[];
 }
 
-export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
+type FacetKey = 'availability' | 'capability' | 'category';
+
+export function IntegrationCatalog({entries}: IntegrationCatalogProps) {
   const [filters, setFilters] = useState(emptyCatalogFilters);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const lastCapturedQuery = useRef<string | null>(null);
-  const filteredProviders = useMemo(
-    () => filterProviders(providers, filters),
-    [filters, providers],
-  );
-  const facetCounts = useMemo(() => countFacetValues(providers, filters), [filters, providers]);
-  const activeFilterCount = filters.capability.length + filters.category.length;
+  const filteredEntries = useMemo(() => filterCatalogEntries(entries, filters), [filters, entries]);
+  const facetCounts = useMemo(() => countFacetValues(entries, filters), [filters, entries]);
+  const selfServeEntries = filteredEntries.filter((entry) => entry.availability === 'self_serve');
+  const onRequestEntries = filteredEntries.filter((entry) => entry.availability === 'on_request');
+  const activeFilterCount =
+    filters.availability.length + filters.capability.length + filters.category.length;
   const hasFilters = filters.query.length > 0 || activeFilterCount > 0;
 
   useEffect(() => {
@@ -61,18 +69,18 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
       if (searchState.capture)
         captureDocsEvent(
           'docs_catalog_searched',
-          catalogSearchProperties(filters, filteredProviders.length),
+          catalogSearchProperties(filters, filteredEntries.length),
         );
     }, 750);
 
     return () => window.clearTimeout(timer);
-  }, [filteredProviders.length, filters]);
+  }, [filteredEntries.length, filters]);
 
   function clearFilters() {
     if (hasFilters)
       captureDocsEvent(
         'docs_catalog_filter_changed',
-        catalogFilterChangedProperties(providers, emptyCatalogFilters, {
+        catalogFilterChangedProperties(entries, emptyCatalogFilters, {
           facet: 'all',
           value: 'all',
           action: 'cleared',
@@ -81,60 +89,50 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
     setFilters(emptyCatalogFilters);
   }
 
-  function toggleCapability(value: (typeof INTEGRATION_CATALOG_CAPABILITIES)[number]) {
-    const isSelected = filters.capability.includes(value);
-    const nextFilters = {
-      ...filters,
-      capability: toggleFilter(filters.capability, value),
-    };
+  function changeFacet(
+    facet: FacetKey,
+    value: string,
+    nextFilters: CatalogFilters,
+    action: 'selected' | 'removed',
+  ) {
     setFilters(nextFilters);
     captureDocsEvent(
       'docs_catalog_filter_changed',
-      catalogFilterChangedProperties(providers, nextFilters, {
-        facet: 'capability',
-        value,
-        action: isSelected ? 'removed' : 'selected',
-      }),
+      catalogFilterChangedProperties(entries, nextFilters, {facet, value, action}),
+    );
+  }
+
+  function toggleAvailability(value: (typeof INTEGRATION_CATALOG_AVAILABILITIES)[number]) {
+    changeFacet(
+      'availability',
+      value,
+      {...filters, availability: toggleFilter(filters.availability, value)},
+      filters.availability.includes(value) ? 'removed' : 'selected',
+    );
+  }
+
+  function toggleCapability(value: (typeof INTEGRATION_CATALOG_CAPABILITIES)[number]) {
+    changeFacet(
+      'capability',
+      value,
+      {...filters, capability: toggleFilter(filters.capability, value)},
+      filters.capability.includes(value) ? 'removed' : 'selected',
     );
   }
 
   function toggleCategory(value: (typeof INTEGRATION_CATALOG_CATEGORIES)[number]) {
-    const isSelected = filters.category.includes(value);
-    const nextFilters = {...filters, category: toggleFilter(filters.category, value)};
-    setFilters(nextFilters);
-    captureDocsEvent(
-      'docs_catalog_filter_changed',
-      catalogFilterChangedProperties(providers, nextFilters, {
-        facet: 'category',
-        value,
-        action: isSelected ? 'removed' : 'selected',
-      }),
+    changeFacet(
+      'category',
+      value,
+      {...filters, category: toggleFilter(filters.category, value)},
+      filters.category.includes(value) ? 'removed' : 'selected',
     );
   }
 
-  function removeCapability(value: (typeof INTEGRATION_CATALOG_CAPABILITIES)[number]) {
-    const nextFilters = {...filters, capability: removeFilter(filters.capability, value)};
-    setFilters(nextFilters);
+  function captureResultClick(entry: CatalogEntry, target: 'overview' | 'setup' | 'request') {
     captureDocsEvent(
-      'docs_catalog_filter_changed',
-      catalogFilterChangedProperties(providers, nextFilters, {
-        facet: 'capability',
-        value,
-        action: 'removed',
-      }),
-    );
-  }
-
-  function removeCategory(value: (typeof INTEGRATION_CATALOG_CATEGORIES)[number]) {
-    const nextFilters = {...filters, category: removeFilter(filters.category, value)};
-    setFilters(nextFilters);
-    captureDocsEvent(
-      'docs_catalog_filter_changed',
-      catalogFilterChangedProperties(providers, nextFilters, {
-        facet: 'category',
-        value,
-        action: 'removed',
-      }),
+      'docs_catalog_result_clicked',
+      catalogResultClickedProperties(filters, filteredEntries, entry, target),
     );
   }
 
@@ -203,6 +201,14 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
         </div>
         <div className="flex flex-col gap-section">
           <FacetGroup
+            label="Availability"
+            values={INTEGRATION_CATALOG_AVAILABILITIES}
+            selected={filters.availability}
+            labels={catalogAvailabilityLabels}
+            counts={facetCounts.availability}
+            onToggle={toggleAvailability}
+          />
+          <FacetGroup
             label="What it does"
             values={INTEGRATION_CATALOG_CAPABILITIES}
             selected={filters.capability}
@@ -224,37 +230,45 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
       <div className="flex flex-col gap-section lg:col-start-1">
         <div className="flex flex-col gap-cluster">
           <p aria-live="polite" className="text-sm text-fd-muted-foreground">
-            {filteredProviders.length}{' '}
-            {filteredProviders.length === 1 ? 'integration' : 'integrations'} found
+            {filteredEntries.length} {filteredEntries.length === 1 ? 'integration' : 'integrations'}{' '}
+            found
           </p>
           {activeFilterCount > 0 ? (
             <div className="flex flex-wrap gap-inline">
+              {filters.availability.map((availability) => (
+                <FilterChip
+                  key={availability}
+                  label={catalogAvailabilityLabels[availability]}
+                  onRemove={() => toggleAvailability(availability)}
+                />
+              ))}
               {filters.capability.map((capability) => (
                 <FilterChip
                   key={capability}
                   label={catalogCapabilityLabels[capability]}
-                  onRemove={() => removeCapability(capability)}
+                  onRemove={() => toggleCapability(capability)}
                 />
               ))}
               {filters.category.map((category) => (
                 <FilterChip
                   key={category}
                   label={catalogCategoryLabels[category]}
-                  onRemove={() => removeCategory(category)}
+                  onRemove={() => toggleCategory(category)}
                 />
               ))}
             </div>
           ) : null}
         </div>
 
-        {filteredProviders.length === 0 ? (
+        {filteredEntries.length === 0 ? (
           <div className="flex flex-col items-center gap-group rounded-lg border border-dashed border-fd-border p-panel text-center">
             <div className="flex flex-col items-center gap-inline">
               <p className="text-sm font-medium text-fd-foreground">
                 No integrations match these filters
               </p>
               <p className="text-sm text-fd-muted-foreground">
-                Try another term or remove a filter.
+                Try another term or remove a filter. If your tool isn't listed,{' '}
+                <RequestLink>request it</RequestLink>.
               </p>
             </div>
             {hasFilters ? (
@@ -268,20 +282,45 @@ export function IntegrationCatalog({providers}: IntegrationCatalogProps) {
             ) : null}
           </div>
         ) : (
-          <ul className="divide-y divide-fd-border border-y border-fd-border">
-            {filteredProviders.map((provider) => (
-              <IntegrationDirectoryItem
-                key={provider.slug}
-                provider={provider}
-                onNavigate={(target) =>
-                  captureDocsEvent(
-                    'docs_catalog_result_clicked',
-                    catalogResultClickedProperties(filters, filteredProviders, provider, target),
-                  )
+          <>
+            {selfServeEntries.length > 0 ? (
+              <CatalogSection
+                id="ready-to-connect"
+                title="Ready to connect"
+                gridClassName="sm:grid-cols-2"
+                description="Connect these yourself from your workspace."
+              >
+                {selfServeEntries.map((entry) => (
+                  <SelfServeCard
+                    key={entry.slug}
+                    provider={entry}
+                    onNavigate={(target) => captureResultClick(entry, target)}
+                  />
+                ))}
+              </CatalogSection>
+            ) : null}
+            {onRequestEntries.length > 0 ? (
+              <CatalogSection
+                id="available-on-request"
+                title="Available on request"
+                gridClassName="sm:grid-cols-2 xl:grid-cols-3"
+                description="Request access and Shipfox enables it for your workspace."
+                footer={
+                  <p className="text-sm text-fd-muted-foreground">
+                    Not listed? <RequestLink>Request another integration</RequestLink>.
+                  </p>
                 }
-              />
-            ))}
-          </ul>
+              >
+                {onRequestEntries.map((entry) => (
+                  <OnRequestCard
+                    key={entry.slug}
+                    integration={entry}
+                    onRequest={() => captureResultClick(entry, 'request')}
+                  />
+                ))}
+              </CatalogSection>
+            ) : null}
+          </>
         )}
       </div>
     </section>
@@ -356,7 +395,43 @@ function FilterChip({label, onRemove}: {label: string; onRemove: () => void}) {
   );
 }
 
-function IntegrationDirectoryItem({
+function CatalogSection({
+  id,
+  title,
+  description,
+  gridClassName,
+  footer,
+  children,
+}: {
+  id: string;
+  title: string;
+  description: string;
+  gridClassName: string;
+  footer?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-group">
+      <div className="flex flex-col gap-tight">
+        <h2 id={id} className="text-base font-semibold text-fd-foreground">
+          {title}
+        </h2>
+        <p className="text-sm text-fd-muted-foreground">{description}</p>
+      </div>
+      <ul className={`grid gap-group ${gridClassName}`}>{children}</ul>
+      {footer}
+    </section>
+  );
+}
+
+const cardClassName =
+  'relative flex flex-col gap-group rounded-lg border p-panel-compact transition-colors hover:border-fd-primary/40 hover:bg-fd-accent/40';
+// Stretches the card's primary link over the whole card, so secondary links
+// stay separate anchors instead of nesting inside it.
+const stretchedLinkClassName =
+  'outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-2 focus-visible:after:ring-fd-ring';
+
+function SelfServeCard({
   provider,
   onNavigate,
 }: {
@@ -372,23 +447,31 @@ function IntegrationDirectoryItem({
   ].filter(Boolean);
 
   return (
-    <li className="flex min-w-0 items-center gap-group py-row">
-      <Link
-        href={provider.overviewHref}
-        onClick={() => onNavigate('overview')}
-        className="flex min-h-11 min-w-0 flex-1 items-center gap-cluster rounded-md text-fd-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-fd-ring"
-      >
+    <li className={`${cardClassName} border-fd-border bg-fd-card`}>
+      <div className="flex items-start gap-cluster">
         <ProviderIcon icon={provider.icon} />
-        <span className="flex min-w-0 flex-col gap-tight">
-          <span className="font-semibold">{provider.name}</span>
-          <span className="text-xs leading-4 text-fd-muted-foreground">{details.join(' · ')}</span>
+        <span className="flex min-w-0 flex-1 flex-col gap-tight">
+          <Link
+            href={provider.overviewHref}
+            onClick={() => onNavigate('overview')}
+            className={`font-semibold leading-snug text-fd-foreground hover:underline ${stretchedLinkClassName}`}
+          >
+            {provider.name}
+          </Link>
+          {details.length > 0 ? (
+            <span className="text-xs leading-4 text-fd-muted-foreground">
+              {details.join(' · ')}
+            </span>
+          ) : null}
         </span>
-      </Link>
+      </div>
+      <p className="line-clamp-2 text-sm text-fd-muted-foreground">{provider.summary}</p>
       {provider.setupHref ? (
         <Link
           href={provider.setupHref}
           onClick={() => onNavigate('setup')}
-          className="inline-flex min-h-11 shrink-0 items-center gap-tight rounded-md px-tight text-sm font-medium text-fd-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-fd-ring"
+          aria-label={`Set up ${provider.name}`}
+          className="relative z-10 mt-auto inline-flex min-h-11 items-center gap-tight self-start rounded-md text-sm font-medium text-fd-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-fd-ring"
         >
           Set up
           <ArrowRight aria-hidden="true" className="size-4" />
@@ -398,23 +481,82 @@ function IntegrationDirectoryItem({
   );
 }
 
+function OnRequestCard({
+  integration,
+  onRequest,
+}: {
+  integration: RequestableIntegration;
+  onRequest: () => void;
+}) {
+  return (
+    <li className={`${cardClassName} border-dashed border-fd-border`}>
+      <div className="flex items-center gap-cluster">
+        <RequestableIcon integration={integration} />
+        <span className="font-semibold leading-snug text-fd-foreground">{integration.name}</span>
+      </div>
+      <p className="line-clamp-3 text-sm text-fd-muted-foreground">{integration.summary}</p>
+      <RequestLink
+        integrationName={integration.name}
+        onClick={onRequest}
+        className={`mt-auto inline-flex min-h-11 items-center gap-tight self-start text-sm font-medium text-fd-foreground hover:underline ${stretchedLinkClassName}`}
+      >
+        Request access
+        <ArrowUpRight aria-hidden="true" className="size-4" />
+      </RequestLink>
+    </li>
+  );
+}
+
+function RequestLink({
+  integrationName,
+  onClick,
+  className = 'font-medium text-fd-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-fd-ring',
+  children,
+}: {
+  integrationName?: string;
+  onClick?: () => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      href={integrationRequestHref(integrationName)}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={onClick}
+      aria-label={integrationName ? `Request access to ${integrationName}` : undefined}
+      className={className}
+    >
+      {children}
+    </a>
+  );
+}
+
 function toggleFilter<Value>(values: readonly Value[], value: Value): Value[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
-function removeFilter<Value>(values: readonly Value[], value: Value): Value[] {
-  return values.filter((item) => item !== value);
+function RequestableIcon({integration}: {integration: RequestableIntegration}) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="size-5 shrink-0 fill-current text-fd-muted-foreground"
+    >
+      <path d={integration.iconPath} />
+    </svg>
+  );
 }
 
 function ProviderIcon({icon}: {icon: CatalogIcon}) {
   if (icon === 'webhooks')
-    return <Webhook aria-hidden="true" className="size-5 shrink-0 text-fd-muted-foreground" />;
+    return <Webhook aria-hidden="true" className="size-5 shrink-0 text-fd-foreground" />;
   if (icon === 'shipfox')
     return (
       <svg
         aria-hidden="true"
         viewBox="0 0 200 200"
-        className="size-5 shrink-0 fill-current text-fd-muted-foreground"
+        className="size-5 shrink-0 fill-current text-fd-foreground"
       >
         <path d="M35.4766 71.1779L87.8471 174.764C92.9421 184.842 107.058 184.842 112.153 174.764L164.523 71.1779L192.438 85.4265C200.787 89.6883 202.593 101.048 195.992 107.787L109.671 195.911C104.33 201.363 95.6704 201.363 90.3295 195.911L4.0079 107.787C-2.59278 101.048 -0.787007 89.6883 7.56226 85.4265L35.4766 71.1779ZM100 38.2425L171.913 1.53536C183.748 -4.50572 196.251 8.42284 190.182 20.4265L164.523 71.1779L100 38.2425ZM100 38.2425L28.0872 1.53536C16.2522 -4.50571 3.74943 8.42284 9.81817 20.4265L35.4766 71.1779L100 38.2425Z" />
       </svg>
@@ -435,7 +577,7 @@ function ProviderIcon({icon}: {icon: CatalogIcon}) {
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
-      className="size-5 shrink-0 fill-current text-fd-muted-foreground"
+      className="size-5 shrink-0 fill-current text-fd-foreground"
     >
       <path d={brandIcon.path} />
     </svg>
