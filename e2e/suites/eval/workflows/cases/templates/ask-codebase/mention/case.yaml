@@ -8,7 +8,7 @@ repository: acme/report-cli
 timeout_seconds: 600
 
 covers:
-  - Replies once in the thread.
+  - Replies once in the thread. On Discord, starts the thread under the mention when it has none.
 
 seed:
   slack:

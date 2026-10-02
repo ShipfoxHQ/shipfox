@@ -8,7 +8,7 @@ repository: acme/report-cli
 timeout_seconds: 600
 
 covers:
-  - Replies once in the thread.
+  - Replies once in the thread. On Discord, starts the thread under the mention when it has none.
 
 # The question was asked earlier in the thread. The mention is a later reply, so the run reads the
 # whole thread and answers under its parent message.
