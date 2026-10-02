@@ -1,12 +1,11 @@
-title: Create a ticket from a Slack conversation
-summary: Turn a request in a Slack thread into a Linear ticket grounded in your code.
-starts: Someone asks the Shipfox app to create a ticket from a Slack thread
+title: Create a ticket from a chat conversation
+summary: Turn a request in a Slack or Discord conversation into a Linear ticket grounded in your code.
+starts: Someone asks Shipfox in chat to create a ticket from a conversation
 keywords: [tickets, triage, intake, chatops]
 flow:
   - kind: trigger
-    provider: slack
-    title: Someone asks for a ticket in Slack
-    detail: They mention the Shipfox app in a thread. A Slack dispatcher can also start it.
+    title: Someone asks for a ticket in chat
+    detail: They mention the Shipfox app in a thread. A chat dispatcher can also start it.
   - kind: agent
     title: The agent reads the thread and the code
     detail: It drafts the problem, scope, and acceptance criteria from what the thread says, and links the relevant code. It asks questions when an essential fact is missing.
@@ -15,20 +14,19 @@ flow:
     title: The workflow creates a Linear ticket
     detail: A thread gets one ticket. A repeated request gets the existing one.
   - kind: write
-    provider: slack
     title: The workflow links the ticket in the thread
     detail: You review the ticket before work starts.
 writes:
   - provider: linear
     action: Creates one ticket per thread in the chosen team, and in the chosen project when set.
-  - provider: slack
-    action: Replies once in the thread.
+  - action: Replies once in the thread. On Discord, starts the thread under the mention when it has none.
 prerequisites:
-  - Invite the Shipfox app to each Slack channel where it creates tickets.
+  - With Slack, invite the Shipfox app to each channel where it creates tickets.
+  - With Discord, let the Shipfox bot view each channel where it creates tickets, read its history, and send messages and create public threads there.
 related: [shipfox/slack-dispatcher, shipfox/ask-codebase, shipfox/ticket-to-pr]
 roles:
   chat:
-    providers: [slack]
+    providers: [slack, discord]
   tracker:
     providers: [linear]
   source:
@@ -39,12 +37,12 @@ options:
     question: How should people ask for a ticket?
     choices:
       - id: mention
-        label: Mention the app in Slack
+        label: Mention the app in chat
         default: true
         tradeoff: The app creates a ticket when someone mentions it in the channels you pick.
       - id: dispatch_only
         label: Through another workflow
-        tradeoff: Another workflow, such as a Slack dispatcher, starts this one. Pick it when another workflow already answers mentions, so each mention does not start two workflows.
+        tradeoff: Another workflow, such as a chat dispatcher, starts this one. Pick it when another workflow already answers mentions, so each mention does not start two workflows.
   - id: ticket_project
     question: Should new tickets join a Linear project?
     applies_to: [linear]
@@ -58,7 +56,7 @@ options:
         tradeoff: Also adds every ticket to one Linear project. Requires the project's name or ID.
 models:
   draft:
-    note: Reads the Slack thread and the repository, then drafts a ticket grounded in both. Needs a strong model with high thinking.
+    note: Reads the chat conversation and the repository, then drafts a ticket grounded in both. Needs a strong model with high thinking.
 slots: []
 secrets: []
 variables: []
