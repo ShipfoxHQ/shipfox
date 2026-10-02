@@ -68,7 +68,7 @@ describe('template coverage', () => {
     const coverage = await check(live);
 
     expect(coverage.problems).toContain(
-      'ticket-to-pr: required case "one-shot" does not run in scripted mode for shipfox/ticket-to-pr',
+      'ticket-to-pr: required case "one-shot" exists but is not a scripted case of shipfox/ticket-to-pr',
     );
   });
 

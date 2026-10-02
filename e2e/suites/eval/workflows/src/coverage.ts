@@ -65,7 +65,7 @@ function templateProblems({
     if (scriptedIds.has(id)) continue;
     problems.push(
       cases.some((entry) => entry.id === id)
-        ? `${template.id}: required case "${name}" does not run in scripted mode for ${template.package}`
+        ? `${template.id}: required case "${name}" exists but is not a scripted case of ${template.package}`
         : `${template.id}: required case "${name}" does not exist`,
     );
   }
