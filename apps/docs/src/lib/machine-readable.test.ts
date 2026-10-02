@@ -299,3 +299,18 @@ test('keeps an agent handoff inside the blockquote that holds its placeholder', 
     ].join('\n'),
   );
 });
+
+test('keeps the trailing spaces of a prompt line inside a quoted agent handoff', () => {
+  const placeholder = `\0${JSON.stringify({
+    name: 'AgentHandoff',
+    children: '',
+    attributes: {...handoff, prompt: 'First line  \n\nLast line'},
+  })}\0`;
+
+  const lines = serializeMachineReadableMarkdown(`> ${placeholder}`, {audience: 'human'}).split(
+    '\n',
+  );
+
+  assert.ok(lines.includes('> First line  '));
+  assert.ok(lines.includes('>'));
+});

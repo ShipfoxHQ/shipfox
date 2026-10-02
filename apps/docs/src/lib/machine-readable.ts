@@ -307,7 +307,10 @@ function continueQuote(text: string, prefix: string): string {
   if (!prefix) return text;
   return text
     .split('\n')
-    .map((line, index) => (index === 0 ? line : `${prefix}${line}`.trimEnd()))
+    .map((line, index) => {
+      if (index === 0) return line;
+      return line === '' ? prefix.trimEnd() : `${prefix}${line}`;
+    })
     .join('\n');
 }
 
