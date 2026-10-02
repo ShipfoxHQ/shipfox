@@ -124,6 +124,32 @@ test('serializes integration catalog placeholders as complete Markdown facts', (
   assert.equal(markdown.includes('](/'), false);
 });
 
+test('lists on-request integrations as unavailable to workflows', () => {
+  const markdown = serializeMachineReadableMarkdown(
+    '\0{"name":"IntegrationCatalog","children":"","attributes":{}}\0',
+    {
+      audience: 'human',
+      integrationCatalog: [github],
+      requestableIntegrations: [
+        {
+          slug: 'gitlab',
+          name: 'GitLab',
+          summary: 'Trigger workflows from merge requests.',
+          categories: ['source-control'],
+          aliases: ['git'],
+          iconPath: 'M0 0h24v24H0z',
+        },
+      ],
+      requiredFacts: ['## Integration catalog', '## Available on request'],
+    },
+  );
+
+  assert.ok(markdown.includes('a workflow cannot reference it'));
+  assert.ok(
+    markdown.includes('| GitLab | Source control | Trigger workflows from merge requests. |'),
+  );
+});
+
 test('replaces unusable imported image sources with descriptive text', () => {
   const markdown = serializeMachineReadableMarkdown('<img alt="Run detail" src="__img0" />', {
     audience: 'human',

@@ -6,6 +6,8 @@ import {
   type CatalogProvider,
   catalogCapabilityLabels,
   catalogCategoryLabels,
+  integrationRequestHref,
+  type RequestableIntegration,
 } from './integration-catalog';
 import {inlineCode, tableValue} from './markdown';
 import {type ModelCatalog, serializeModelCatalog} from './model-catalog';
@@ -54,6 +56,7 @@ export {renderAgentHandoff};
 
 export interface MachineReadableMarkdownOptions {
   integrationCatalog?: readonly CatalogProvider[];
+  requestableIntegrations?: readonly RequestableIntegration[];
   modelCatalog?: ModelCatalog;
   toolReference?: ToolReferenceDocument;
   eventReference?: EventReferenceDocument;
@@ -96,7 +99,10 @@ export function canonicalizeDocumentationUrl(destination: string, pageUrl?: stri
   return canonicalPath(`${parsed.pathname}${parsed.search}${parsed.hash}`);
 }
 
-export function serializeIntegrationCatalog(providers: readonly CatalogProvider[]): string {
+export function serializeIntegrationCatalog(
+  providers: readonly CatalogProvider[],
+  requestableIntegrations: readonly RequestableIntegration[] = [],
+): string {
   const sections = providers.map((provider) => {
     const events = provider.eventCount
       ? `${provider.eventCount} ([event catalog](/integrations/${provider.slug}/events))`
@@ -130,6 +136,24 @@ export function serializeIntegrationCatalog(providers: readonly CatalogProvider[
     'Every integration listed here is available in the documentation and carries the capabilities, event, and tool facts shown below.',
     '',
     sections.join('\n\n'),
+    ...(requestableIntegrations.length > 0
+      ? ['', serializeRequestableIntegrations(requestableIntegrations)]
+      : []),
+  ].join('\n');
+}
+
+function serializeRequestableIntegrations(integrations: readonly RequestableIntegration[]): string {
+  return [
+    '## Available on request',
+    '',
+    `These integrations need access first. Until Shipfox enables one for a workspace, it has no events, tools, or integration connection, so a workflow cannot reference it. A workspace can request access through the [integration request form](${integrationRequestHref()}).`,
+    '',
+    '| Integration | Type | Intended use |',
+    '|---|---|---|',
+    ...integrations.map(
+      (integration) =>
+        `| ${tableValue(integration.name)} | ${tableValue(integration.categories.map((value) => catalogCategoryLabels[value]).join(', '))} | ${tableValue(integration.summary)} |`,
+    ),
   ].join('\n');
 }
 
@@ -204,6 +228,7 @@ export function assertMachineReadableMarkdown(
 type PlaceholderOptions = Pick<
   MachineReadableMarkdownOptions,
   | 'integrationCatalog'
+  | 'requestableIntegrations'
   | 'modelCatalog'
   | 'toolReference'
   | 'eventReference'
@@ -229,7 +254,7 @@ const placeholderSerializers: Record<
     if (!options.integrationCatalog) {
       throw new Error('Integration catalog data is unavailable for machine-readable Markdown.');
     }
-    return serializeIntegrationCatalog(options.integrationCatalog);
+    return serializeIntegrationCatalog(options.integrationCatalog, options.requestableIntegrations);
   },
   ModelCatalog: (options) => {
     if (!options.modelCatalog) {

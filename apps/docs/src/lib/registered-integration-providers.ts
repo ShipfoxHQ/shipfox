@@ -62,8 +62,8 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
     kind: 'catalog',
     connectable: true,
     capabilities: ['events', 'agent_tools'],
-    category: 'issue-tracking',
-    displayPriority: 4,
+    category: 'docs-knowledge',
+    displayPriority: 1,
   },
   {
     slug: 'sentry',
@@ -78,8 +78,8 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
     kind: 'catalog',
     connectable: true,
     capabilities: ['agent_tools'],
-    category: 'observability',
-    displayPriority: 2,
+    category: 'product-analytics',
+    displayPriority: 1,
   },
   {
     slug: 'slack',
@@ -94,8 +94,8 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
     kind: 'catalog',
     connectable: true,
     capabilities: ['events'],
-    category: 'custom',
-    displayPriority: 1,
+    category: 'built-in',
+    displayPriority: 2,
   },
   {
     slug: 'shipfox',

@@ -16,7 +16,7 @@ import {IntegrationCatalog as IntegrationCatalogClient} from '@/app/components/i
 import {ModelCatalogTable} from '@/app/components/model-catalog';
 import {TemplateDetail} from '@/app/components/template-catalog/template-detail';
 import {TemplateGallery as TemplateGalleryClient} from '@/app/components/template-catalog/template-gallery';
-import {getIntegrationCatalog} from '@/lib/integration-catalog-source';
+import {getIntegrationCatalogEntries} from '@/lib/integration-catalog-source';
 import {getModelCatalog} from '@/lib/model-catalog-source';
 import {getTemplateCatalog} from '@/lib/template-catalog/source';
 
@@ -69,7 +69,7 @@ function ForHumans({children}: {children?: ReactNode}) {
 }
 
 function IntegrationCatalog() {
-  return <IntegrationCatalogClient providers={getIntegrationCatalog()} />;
+  return <IntegrationCatalogClient entries={getIntegrationCatalogEntries()} />;
 }
 
 async function ModelCatalog() {

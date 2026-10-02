@@ -3,13 +3,18 @@
 import posthog from 'posthog-js';
 import type {AskAiAnswerProperties, AskAiQuestionProperties} from '@/lib/ask-ai-analytics';
 import {buildDocsEventProperties} from '@/lib/docs-analytics-core';
-import type {CatalogCapability, CatalogCategory} from '@/lib/integration-catalog';
+import type {
+  CatalogAvailability,
+  CatalogCapability,
+  CatalogCategory,
+} from '@/lib/integration-catalog';
 import {basePath} from '@/url';
 
 interface CatalogContext {
   query: string;
   query_length: number;
   query_redacted: boolean;
+  selected_availability: readonly CatalogAvailability[];
   selected_capabilities: readonly CatalogCapability[];
   selected_categories: readonly CatalogCategory[];
 }
@@ -18,14 +23,15 @@ interface DocsAnalyticsEvents {
   docs_page_feedback: {page: string; helpful: boolean};
   docs_catalog_searched: CatalogContext & {result_count: number; has_results: boolean};
   docs_catalog_filter_changed: CatalogContext & {
-    facet: 'capability' | 'category' | 'all';
+    facet: 'availability' | 'capability' | 'category' | 'all';
     value: string;
     action: 'selected' | 'removed' | 'cleared';
     result_count: number;
   };
   docs_catalog_result_clicked: CatalogContext & {
     provider: string;
-    target: 'overview' | 'setup';
+    availability: CatalogAvailability;
+    target: 'overview' | 'setup' | 'request';
     result_rank: number;
     result_count: number;
   };
