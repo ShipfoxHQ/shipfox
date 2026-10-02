@@ -108,7 +108,7 @@ The agent reads message text only. It cannot open files uploaded to the thread, 
 ## Discord threads
 
 A Discord mention at the top level of a channel starts a public thread on that message, and the workflow's replies go there. A mention inside a thread gets replies in the same thread.
-The bot needs View Channel, Read Message History, Send Messages, and Create Public Threads in each listed channel.
+The bot needs View Channel, Read Message History, Send Messages, Send Messages in Threads, and Create Public Threads in each listed channel.
 Discord limits a message to 2,000 characters, and `send_message` splits longer replies. Ticket links carry no preview.
 The agent reads the latest 100 messages of a thread. In a longer thread, it drafts from those.
 

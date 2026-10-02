@@ -5,7 +5,7 @@ keywords: [tickets, triage, intake, chatops]
 flow:
   - kind: trigger
     title: Someone asks for a ticket in chat
-    detail: They mention the Shipfox app in a thread. A chat dispatcher can also start it.
+    detail: They mention the Shipfox app in a channel or thread. A chat dispatcher can also start it.
   - kind: agent
     title: The agent reads the thread and the code
     detail: It drafts the problem, scope, and acceptance criteria from what the thread says, and links the relevant code. It asks questions when an essential fact is missing.
@@ -22,7 +22,7 @@ writes:
   - action: Replies once in the thread. On Discord, starts the thread under the mention when it has none.
 prerequisites:
   - With Slack, invite the Shipfox app to each channel where it creates tickets.
-  - With Discord, let the Shipfox bot view each channel where it creates tickets, read its history, and send messages and create public threads there.
+  - With Discord, let the Shipfox bot view each channel where it creates tickets, read its history, send messages, send messages in threads, and create public threads there.
 related: [shipfox/slack-dispatcher, shipfox/ask-codebase, shipfox/ticket-to-pr]
 roles:
   chat:
