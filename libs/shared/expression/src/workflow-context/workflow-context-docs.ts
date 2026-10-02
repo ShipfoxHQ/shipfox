@@ -177,7 +177,8 @@ export const workflowContextDocs = [
   },
   {
     root: 'step',
-    summary: 'The current step. Its properties depend on the field that reads it.',
+    summary:
+      'The current step. Its properties depend on the field that reads it. The `gate.success` of a tool step has no `exit_code`. It reads `error` instead: the `code` and `status` of a failed tool call, or null when the call did not fail. `status` is absent when the failure has none, so guard it with `has()`.',
     fields: {
       attempt: 'Attempt number of the step, starting at one. Not readable in `gate.success`.',
       is_retry:

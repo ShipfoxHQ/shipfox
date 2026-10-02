@@ -551,6 +551,34 @@ describe('workflow context registry', () => {
     ).toThrow(InvalidWorkflowExpressionError);
   });
 
+  it('types step.error in the tool-step gate context', () => {
+    for (const source of [
+      'step.status == "failed" && step.error.code == "not-found"',
+      'step.error != null && has(step.error.status) && step.error.status == 404',
+    ]) {
+      expect(() =>
+        createWorkflowExpression({
+          source,
+          check: {
+            mode: 'typed',
+            typeEnvironment: toolStepReportTypeEnvironment,
+            expectedResultType: 'bool',
+          },
+        }),
+      ).not.toThrow();
+    }
+    expect(() =>
+      createWorkflowExpression({
+        source: 'step.error.code == 1',
+        check: {
+          mode: 'typed',
+          typeEnvironment: toolStepReportTypeEnvironment,
+          expectedResultType: 'bool',
+        },
+      }),
+    ).toThrow(InvalidWorkflowExpressionError);
+  });
+
   it('preserves exit_code through non-tool step overlays', () => {
     const stepsEnvironment = buildTypedRootsEnvironment({steps: [{key: 'build'}]});
     const selfEnvironment = buildTypedRootsEnvironment({currentStep: {key: 'build'}});
@@ -1022,6 +1050,7 @@ describe('workflow context registry', () => {
           fields: {
             status: 'string',
             outputs: {kind: 'map'},
+            error: {kind: 'object', fields: {code: 'string', status: 'int'}},
           },
         },
       });

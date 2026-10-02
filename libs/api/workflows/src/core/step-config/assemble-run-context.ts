@@ -1125,6 +1125,9 @@ export function assembleGateContext(params: {
   readonly status: StepStatus;
   readonly exitCode: number | null;
   readonly output?: Record<string, unknown> | null | undefined;
+  // Tool steps only: `null` when the call did not fail. Left undefined, the
+  // context has no `step.error`, as for runner steps.
+  readonly error?: {readonly code: string; readonly status?: number | undefined} | null | undefined;
   readonly vars?: Record<string, string> | undefined;
 }): WorkflowEvaluationContext {
   return {
@@ -1135,6 +1138,19 @@ export function assembleGateContext(params: {
         ...(params.exitCode === null ? {} : {exit_code: BigInt(params.exitCode)}),
         status: params.status,
         outputs: params.output ?? {},
+        ...(params.error === undefined
+          ? {}
+          : {
+              error:
+                params.error === null
+                  ? null
+                  : {
+                      code: params.error.code,
+                      ...(params.error.status === undefined
+                        ? {}
+                        : {status: BigInt(params.error.status)}),
+                    },
+            }),
       },
     },
   };
