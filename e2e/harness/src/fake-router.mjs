@@ -21,8 +21,15 @@ const PROBE_TIMEOUT_MS = 500;
 export async function startFakeRouter({name, endpoint}) {
   const routes = new Map();
   const routeIdsByKey = new Map();
+  // Registrations probe a holder before they take its key, so they run one at a time.
+  let registering = Promise.resolve();
+  const register = (params) => {
+    const result = registering.then(() => handleRegister(params));
+    registering = result.catch(() => undefined);
+    return result;
+  };
   const server = createServer((request, response) => {
-    handleRequest({name, routes, routeIdsByKey, request, response}).catch((error) => {
+    handleRequest({name, routes, routeIdsByKey, register, request, response}).catch((error) => {
       process.stderr.write(`${name} fake router request failed: ${String(error)}\n`);
       if (!response.headersSent) sendJson(response, 502, {message: `${name} fake router failure`});
       else response.end();
@@ -73,10 +80,10 @@ function credentialOf(authorization) {
   return separator < 0 ? undefined : decoded.slice(separator + 1);
 }
 
-async function handleRequest({name, routes, routeIdsByKey, request, response}) {
+async function handleRequest({name, routes, routeIdsByKey, register, request, response}) {
   const url = new URL(request.url ?? '/', 'http://router.invalid');
   if (url.pathname === FAKE_ROUTES_PATH && request.method === 'POST') {
-    await handleRegister({name, routes, routeIdsByKey, request, response});
+    await register({name, routes, routeIdsByKey, request, response});
     return;
   }
   const routeMatch = url.pathname.match(ROUTE_PATH);
@@ -159,7 +166,15 @@ function forward({target, request, response}) {
         );
         upstreamResponse.pipe(response);
         upstreamResponse.once('end', resolve);
-        upstreamResponse.once('error', resolve);
+        // The fake can die after it sent headers; close the downstream response instead of hanging it.
+        upstreamResponse.once('error', (error) => {
+          response.destroy(error);
+          resolve();
+        });
+        upstreamResponse.once('aborted', () => {
+          response.destroy();
+          resolve();
+        });
       },
     );
     upstream.once('error', (error) => {

@@ -9,7 +9,8 @@ A fake Linear hosted MCP server and signed webhook sender for E2E suites. The se
   `LinearWorkspaceFixture` when `options.workspace` is set, plus signed-upload style
   attachment downloads under `uploadsUrl`. `options.accessToken` is the token of the
   connection the spec creates: the stack router sends the fake the requests that carry it, so
-  specs in other workers share the address. `options.endpoint` listens directly instead.
+  specs in other workers share the address. The token is required unless `options.endpoint`
+  is set, which listens directly instead.
 - `LinearMcpMock.calls` and `uploads`: every tool call and upload request, in arrival order.
 - `LinearMcpMock.writes()`: the accepted state-changing tool calls as `RecordedWrite` entries
   (`kind`, `target`, `payload`). Today that is `save_comment` and `save_issue`, targeted at their

@@ -1,6 +1,6 @@
 import {once} from 'node:events';
 import {createServer, type Server} from 'node:http';
-import {listenFake} from './fake-routing.js';
+import {type ListeningFake, listenFake} from './fake-routing.js';
 
 interface RouterRequest {
   method: string | undefined;
@@ -45,9 +45,10 @@ describe('listenFake', () => {
   it('registers a private fake with the stack router and unregisters it on close', async () => {
     const router = await startStubRouter();
     const server = createServer((_request, response) => response.end('ok'));
+    let listening: ListeningFake | undefined;
 
     try {
-      const listening = await listenFake({
+      listening = await listenFake({
         server,
         endpoint: undefined,
         stackEndpoint: () => router.endpoint,
@@ -59,6 +60,7 @@ describe('listenFake', () => {
       expect(registration?.body).toMatchObject({keys: ['token-a']});
 
       await listening.close();
+      listening = undefined;
 
       expect(router.requests.at(-1)).toMatchObject({
         method: 'DELETE',
@@ -66,6 +68,7 @@ describe('listenFake', () => {
       });
       expect(server.listening).toBe(false);
     } finally {
+      await listening?.close();
       await router.stop();
     }
   });

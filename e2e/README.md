@@ -553,8 +553,8 @@ provider enabled, waits for both to become ready, and then runs
 `turbo test:e2e`, or `turbo evals` for `mise run evals`.
 
 The harness also starts a credential router at the address the API reads for each
-provider fake (GitHub, Slack, Linear, Jira, ClickUp, and Notion), unless the
-caller set that address in the environment. A router holds no fixtures. Each spec
+provider fake (GitHub, Slack, Linear, Jira, ClickUp, and Notion), which is the
+address in the environment when one is set. A router holds no fixtures. Each spec
 runs its own fake on a private port and registers the credentials the API presents
 to it, through `listenFake` in `@shipfox/e2e-core`, and the router forwards a request
 to the fake that registered its credential. Specs and eval cases that use the same

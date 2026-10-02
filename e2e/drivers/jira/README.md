@@ -8,8 +8,8 @@ A fake Jira REST API and signed webhook sender for E2E suites. The fake stands i
   routes (issue, comments, transitions, project, user, and JQL search) and the write routes
   (create and update issue, add comment, transition, and assign). `options.accessToken` is the
   token of the connection the spec creates: the stack router sends the fake the requests that
-  carry it, so specs in other workers share the address. `options.endpoint` listens directly
-  instead.
+  carry it, so specs in other workers share the address. The token is required unless
+  `options.endpoint` is set, which listens directly instead.
 - `JiraApiMock.calls`: every recognized request the fake handled, as `JiraApiMockCall` entries. Unknown paths and
   methods get a 404 or 405 and are not recorded.
 - `JiraApiMock.writes()`: the writes the fake accepted, as `RecordedWrite` entries targeted at

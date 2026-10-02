@@ -7,7 +7,8 @@ A fake ClickUp API and event sender for E2E suites. The fake stands in for `api.
 - `startClickUpApiMock(options?)`: start the fake and return a `ClickUpApiMock`. It
   serves task reads, task updates, and task comments. `options.accessToken` is the token of the
   connection the spec creates: the stack router sends the fake the requests that carry it, so
-  specs in other workers share the address. `options.endpoint` listens directly instead.
+  specs in other workers share the address. The token is required unless `options.endpoint`
+  is set, which listens directly instead.
   `options.tasks` lists the tasks it serves
   by ID, with their name, URL, and Markdown description. Any other task gets a placeholder.
 - `ClickUpApiMock.calls`: every request the fake handled, as `ClickUpApiMockCall` entries.

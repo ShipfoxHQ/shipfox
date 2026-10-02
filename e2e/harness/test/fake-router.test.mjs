@@ -190,3 +190,52 @@ test('lists mint keys before credentials', () => {
 
   assert.deepEqual(keys, ['installation:5', 'app-jwt']);
 });
+
+test('lets only one of two simultaneous registrations take over a dead fake', async () => {
+  const dead = await startFake('dead');
+  const first = await startFake('first');
+  const second = await startFake('second');
+  try {
+    await withRouter(async (endpoint) => {
+      await register(endpoint, ['contested'], dead.origin);
+      await dead.stop();
+
+      const statuses = (
+        await Promise.all([
+          register(endpoint, ['contested'], first.origin),
+          register(endpoint, ['contested'], second.origin),
+        ])
+      ).map((response) => response.status);
+
+      assert.deepEqual(statuses.sort(), [201, 409]);
+    });
+  } finally {
+    await first.stop();
+    await second.stop();
+  }
+});
+
+test('closes the response when the fake dies after it sent headers', async () => {
+  const server = createServer((request, response) => {
+    response.writeHead(200, {'content-length': '100'});
+    response.write('partial');
+    setImmediate(() => request.socket.destroy());
+  });
+  server.listen({host: '127.0.0.1', port: 0});
+  await once(server, 'listening');
+  try {
+    await withRouter(async (endpoint) => {
+      await register(endpoint, ['token-a'], `http://127.0.0.1:${server.address().port}`);
+
+      const response = await fetch(new URL('/thing', endpoint), {
+        headers: {authorization: 'Bearer token-a'},
+        signal: AbortSignal.timeout(5_000),
+      });
+
+      await assert.rejects(response.text());
+    });
+  } finally {
+    server.close();
+    server.closeAllConnections();
+  }
+});
