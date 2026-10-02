@@ -38,14 +38,17 @@ test('keeps crawler-facing docs surfaces on the canonical product positioning', 
   assert.ok(llmsRoute.includes('PRODUCT_DESCRIPTION'));
   assert.match(llmsRoute, LLMS_PRODUCT_PITCH_PATTERN);
 
-  const homeMarkdown = await getLLMText({
-    url: '/',
-    data: {
-      title: 'Shipfox',
-      description,
-      getText: async () => 'Docs home',
-    },
-  } as unknown as TestPage);
+  const homeMarkdown = await getLLMText(
+    {
+      url: '/',
+      data: {
+        title: 'Shipfox',
+        description,
+        getText: async () => 'Docs home',
+      },
+    } as unknown as TestPage,
+    {audience: 'human'},
+  );
   assert.ok(homeMarkdown.includes(`Description: ${PRODUCT_DESCRIPTION}`));
 });
 

@@ -106,6 +106,7 @@ test('serializes integration catalog placeholders as complete Markdown facts', (
   const markdown = serializeMachineReadableMarkdown(
     '\0{"name":"IntegrationCatalog","children":"","attributes":{}}\0',
     {
+      audience: 'human',
       integrationCatalog: [github],
       requiredFacts: ['## Integration catalog', '### GitHub'],
     },
@@ -122,7 +123,9 @@ test('serializes integration catalog placeholders as complete Markdown facts', (
 });
 
 test('replaces unusable imported image sources with descriptive text', () => {
-  const markdown = serializeMachineReadableMarkdown('<img alt="Run detail" src="__img0" />');
+  const markdown = serializeMachineReadableMarkdown('<img alt="Run detail" src="__img0" />', {
+    audience: 'human',
+  });
 
   assert.equal(markdown, '[Image: Run detail]');
 });
@@ -136,6 +139,7 @@ test('fails deterministic checks for unresolved components and links', () => {
     () =>
       serializeMachineReadableMarkdown(
         '\0{"name":"UnknownComponent","children":"","attributes":{}}\0',
+        {audience: 'human'},
       ),
     {
       message:

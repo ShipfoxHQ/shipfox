@@ -46,7 +46,7 @@ function renderPage(page: DocumentationPageSource): Promise<string> {
 
   // Page Markdown is fixed for the lifetime of the server and the same pages
   // answer many questions, so each page is rendered once.
-  const rendered = getLLMText(page);
+  const rendered = getLLMText(page, {audience: 'human'});
   renderedPages.set(page.url, rendered);
   return rendered;
 }

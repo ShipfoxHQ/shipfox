@@ -9,7 +9,7 @@ export async function GET(_req: Request, {params}: {params: Promise<{slug?: stri
   const page = source.getPage(slug);
   if (!page) notFound();
 
-  return new Response(await getLLMText(page), {
+  return new Response(await getLLMText(page, {audience: 'human'}), {
     headers: {'Content-Type': 'text/markdown; charset=utf-8'},
   });
 }
