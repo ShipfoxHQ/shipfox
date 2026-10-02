@@ -55,7 +55,7 @@ The `investigate` job publishes `status`, `classification`, and `summary`. The `
 The `report` role is optional. Without it, the workflow has no `report` job and needs no Slack or Discord connection.
 
 With Slack or Discord, replace every `replace-with-channel-id` with the ID of the channel that receives reports.
-Use a channel ID, not a name. A Slack ID looks like `C0ABC12345`, and a Discord ID is a number such as `1234567890123456789`.
+Use a channel ID, not a name. A Slack ID looks like `C0ABC12345`. A Discord ID is all digits, so keep it in quotes, such as `'1234567890123456789'`, or YAML reads it as a number.
 
 For `report_outcomes`, keep each marked block whose list includes the chosen choice and remove the others:
 

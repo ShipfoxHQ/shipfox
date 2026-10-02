@@ -429,42 +429,48 @@ describe('default-branch CI repair template', () => {
     expect(result.stderr).toContain('changed the commit history');
   });
 
-  it.each([
-    {
-      deliver: 'succeeded',
-      status: 'repair_candidate',
-      outcome: 'ready',
-      posts: ['report_pull_request'],
-    },
-    {deliver: 'skipped', status: 'needs_human', outcome: 'none', posts: ['report_diagnosis']},
-    {
-      deliver: 'skipped',
-      status: 'repair_candidate',
-      outcome: 'patch_too_large',
-      posts: ['report_diagnosis'],
-    },
-    {deliver: 'skipped', status: 'not_actionable', outcome: 'none', posts: []},
-    {deliver: 'failed', status: 'repair_candidate', outcome: 'ready', posts: []},
-  ])('posts $posts to the chat report for $status with $outcome after delivery $deliver', ({
-    deliver,
-    status,
-    outcome,
-    posts,
-  }) => {
-    const document = workflow(true, 'both');
-    const jobs = {
-      investigate: {status: 'succeeded', outputs: {status, outcome}},
-      deliver: {status: deliver},
-    };
+  describe.each(reportProviders)('%s report conditions', (provider) => {
+    it.each([
+      {
+        deliver: 'succeeded',
+        status: 'repair_candidate',
+        outcome: 'ready',
+        posts: ['report_pull_request'],
+      },
+      {deliver: 'skipped', status: 'needs_human', outcome: 'none', posts: ['report_diagnosis']},
+      {
+        deliver: 'skipped',
+        status: 'repair_candidate',
+        outcome: 'patch_too_large',
+        posts: ['report_diagnosis'],
+      },
+      {deliver: 'skipped', status: 'not_actionable', outcome: 'none', posts: []},
+      {deliver: 'failed', status: 'repair_candidate', outcome: 'ready', posts: []},
+    ])('posts $posts for $status with $outcome after delivery $deliver', ({
+      deliver,
+      status,
+      outcome,
+      posts,
+    }) => {
+      const document = workflow(true, 'both', provider);
+      const jobs = {
+        investigate: {status: 'succeeded', outputs: {status, outcome}},
+        deliver: {status: deliver},
+      };
 
-    expect(evaluate(at(document, 'jobs', 'report', 'if'), {jobs})).toBe(true);
-    const report = at(document, 'jobs', 'report', 'steps') as YamlRecord[];
-    expect(report.filter((entry) => evaluate(entry.if, {jobs})).map(({key}) => key)).toEqual(posts);
-  });
+      expect(evaluate(at(document, 'jobs', 'report', 'if'), {jobs})).toBe(true);
+      const report = at(document, 'jobs', 'report', 'steps') as YamlRecord[];
+      expect(report.filter((entry) => evaluate(entry.if, {jobs})).map(({key}) => key)).toEqual(
+        posts,
+      );
+    });
 
-  it('posts nothing when the failure was skipped before investigation', () => {
-    const jobs = {investigate: {status: 'skipped'}, deliver: {status: 'skipped'}};
+    it('posts nothing when the failure was skipped before investigation', () => {
+      const jobs = {investigate: {status: 'skipped'}, deliver: {status: 'skipped'}};
 
-    expect(evaluate(at(workflow(true), 'jobs', 'report', 'if'), {jobs})).toBe(false);
+      expect(
+        evaluate(at(workflow(true, 'needs_person', provider), 'jobs', 'report', 'if'), {jobs}),
+      ).toBe(false);
+    });
   });
 });
