@@ -27,7 +27,7 @@ const THREAD_NAME_MAX_LENGTH = 100;
 const EMOJI_MAX_LENGTH = 64;
 const CUSTOM_EMOJI_RE = /^\w{2,32}:\d{1,20}$/;
 const WHITESPACE_RE = /\s/;
-const NON_ASCII_RE = /\P{ASCII}/u;
+const UNICODE_EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20E3/u;
 
 export interface DiscordToolContext {
   discord: DiscordToolClient;
@@ -194,7 +194,8 @@ export const DISCORD_TOOL_OPERATIONS: Partial<Record<DiscordAgentToolId, Discord
     },
   },
   create_thread: {
-    permissionHint: 'View Channel, Read Message History, and Create Public Threads',
+    permissionHint:
+      'View Channel, Read Message History, and Create Public Threads, plus Send Messages in a forum or media channel',
     validate(args) {
       const length = Array.from(stringArgument(args, 'name').trim()).length;
       return length === 0 || length > THREAD_NAME_MAX_LENGTH
@@ -266,7 +267,9 @@ export const DISCORD_TOOL_OPERATIONS: Partial<Record<DiscordAgentToolId, Discord
       const emoji = stringArgument(args, 'emoji');
       if (emoji.length > EMOJI_MAX_LENGTH || WHITESPACE_RE.test(emoji)) return INVALID_EMOJI;
       // A custom emoji is name:id. Anything else must be the emoji itself, not a :shortcode:.
-      const valid = emoji.includes(':') ? CUSTOM_EMOJI_RE.test(emoji) : NON_ASCII_RE.test(emoji);
+      const valid = emoji.includes(':')
+        ? CUSTOM_EMOJI_RE.test(emoji)
+        : UNICODE_EMOJI_RE.test(emoji);
       return valid ? undefined : INVALID_EMOJI;
     },
     async run(args, {discord, guildId, guard}) {

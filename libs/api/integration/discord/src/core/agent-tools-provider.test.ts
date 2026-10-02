@@ -1041,6 +1041,24 @@ describe('DiscordAgentToolsProvider', () => {
       expect(discord.getChannel).not.toHaveBeenCalled();
     });
 
+    it('names Send Messages as well on a 403, which a forum post needs', async () => {
+      const {provider, discord} = setup({
+        channel: {id: CHANNEL_ID, type: 15, guild_id: GUILD_ID},
+      });
+      discord.createThread.mockRejectedValueOnce(
+        failure('access-denied', 403, {discordCode: 50013}),
+      );
+
+      const result = await callTool(provider, 'create_thread', {
+        channel_id: CHANNEL_ID,
+        name: 'Question',
+        message: 'How?',
+      });
+
+      expect(result.content[0]?.text).toContain('Create Public Threads');
+      expect(result.content[0]?.text).toContain('Send Messages in a forum or media channel');
+    });
+
     it('denies a channel in another guild without creating a thread', async () => {
       const {provider, discord} = setup({
         channel: {id: CHANNEL_ID, type: 0, guild_id: OTHER_GUILD_ID},
@@ -1185,6 +1203,7 @@ describe('DiscordAgentToolsProvider', () => {
     it.each([
       ['a Unicode emoji', '👍'],
       ['a keycap emoji', '1️⃣'],
+      ['a flag emoji', '🇫🇷'],
       ['a custom emoji', 'shipit:800000000000000008'],
     ])('adds %s under the verified channel', async (_name, emoji) => {
       const {provider, discord} = setup();
@@ -1212,6 +1231,7 @@ describe('DiscordAgentToolsProvider', () => {
     it.each([
       ['a shortcode', ':thumbsup:'],
       ['a word', 'thumbsup'],
+      ['a letter that is not an emoji', 'é'],
       ['a custom emoji without an ID', 'shipit:abc'],
       ['a custom emoji in angle brackets', '<:shipit:800000000000000008>'],
       ['text with a space', '👍 👎'],
