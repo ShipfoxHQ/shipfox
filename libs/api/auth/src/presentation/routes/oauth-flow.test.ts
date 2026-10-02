@@ -14,7 +14,11 @@ import {OAuthMetadataFetchError} from '#core/errors.js';
 import {signUserToken} from '#core/jwt.js';
 import {createOAuthClientResolver, type OAuthClientResolver} from '#core/oauth-client-resolver.js';
 import {OAUTH_AUTHORIZATION_REQUEST_TTL_SECONDS} from '#core/oauth-flow.js';
-import {createAgentClient, findAgentClientByClientId} from '#db/agent-access.js';
+import {
+  createAgentClient,
+  findAgentClientByClientId,
+  revokeAgentGrantForUser,
+} from '#db/agent-access.js';
 import {db} from '#db/db.js';
 import {agentAuthorizationCodes, agentGrants, agentRefreshTokens} from '#db/schema/agent-access.js';
 import {users} from '#db/schema/users.js';
@@ -381,85 +385,190 @@ describe('dormant OAuth authorization and token routes', () => {
     );
   });
 
-  it('revokes the grant family when a refresh-token replay arrives after the grace window', async () => {
-    const workspaceId = crypto.randomUUID();
-    const workspaces = workspaceClient(workspaceId);
-    const account = await createVerifiedSession('oauth-refresh-reuse');
-    const client = await createTestClient();
-    let currentNow = new Date();
-    app = await createTestApp(workspaces, {now: () => currentNow});
-    const firstPkce = pkce();
-    const authorization = await app.inject({
-      method: 'GET',
-      url: authorizationUrl(client.clientId, firstPkce.challenge),
-      headers: {'x-forwarded-for': '198.51.100.254'},
+  describe('refresh-token replays', () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    let ipCounter = 0;
+
+    function nextIp(): string {
+      ipCounter += 1;
+      return `203.0.113.${(ipCounter % 250) + 1}`;
+    }
+
+    async function signIn(params: {
+      app: FastifyInstance;
+      clientId: string;
+      workspaceId: string;
+      accountToken: string;
+    }): Promise<string> {
+      const challenge = pkce();
+      const authorization = await params.app.inject({
+        method: 'GET',
+        url: authorizationUrl(params.clientId, challenge.challenge),
+        headers: {'x-forwarded-for': nextIp()},
+      });
+      const requestId = new URL(authorization.headers.location ?? '').searchParams.get(
+        'request_id',
+      );
+      const approval = await params.app.inject({
+        method: 'POST',
+        url: `/oauth/consents/${requestId}/approve`,
+        headers: bearer(params.accountToken),
+        payload: {workspace_id: params.workspaceId},
+      });
+      const code = new URL(approval.json().redirect_url).searchParams.get('code') ?? '';
+      const token = await params.app.inject(
+        tokenForm(
+          {
+            grant_type: 'authorization_code',
+            client_id: params.clientId,
+            code,
+            redirect_uri: REDIRECT_URI,
+            code_verifier: challenge.verifier,
+          },
+          nextIp(),
+        ),
+      );
+      expect(token.statusCode).toBe(200);
+      return token.json().refresh_token;
+    }
+
+    function refresh(params: {app: FastifyInstance; clientId: string; refreshToken: string}) {
+      return params.app.inject(
+        tokenForm(
+          {
+            grant_type: 'refresh_token',
+            client_id: params.clientId,
+            refresh_token: params.refreshToken,
+          },
+          nextIp(),
+        ),
+      );
+    }
+
+    it('keeps serving an older refresh token after it was rotated, without a new refresh token', async () => {
+      const workspaceId = crypto.randomUUID();
+      const account = await createVerifiedSession('oauth-refresh-two-process');
+      const client = await createTestClient();
+      let currentNow = new Date();
+      app = await createTestApp(workspaceClient(workspaceId), {now: () => currentNow});
+      const r1 = await signIn({
+        app,
+        clientId: client.clientId,
+        workspaceId,
+        accountToken: account.token,
+      });
+
+      const rotated = await refresh({app, clientId: client.clientId, refreshToken: r1});
+      const r2 = rotated.json().refresh_token;
+      expect(rotated.statusCode).toBe(200);
+      expect(r2).toEqual(expect.any(String));
+
+      currentNow = new Date(
+        currentNow.getTime() + (config.AUTH_REFRESH_ROTATION_GRACE_SECONDS + 1) * 1000,
+      );
+      const stale = await refresh({app, clientId: client.clientId, refreshToken: r1});
+      expect(stale.statusCode).toBe(200);
+      expect(stale.json().access_token).toEqual(expect.any(String));
+      expect(stale.json()).not.toHaveProperty('refresh_token');
+
+      const rotatedAgain = await refresh({app, clientId: client.clientId, refreshToken: r2});
+      expect(rotatedAgain.statusCode).toBe(200);
+      expect(rotatedAgain.json().refresh_token).toEqual(expect.any(String));
+
+      const staleAgain = await refresh({app, clientId: client.clientId, refreshToken: r1});
+      expect(staleAgain.statusCode).toBe(200);
+      expect(staleAgain.json()).not.toHaveProperty('refresh_token');
     });
-    const requestId = new URL(authorization.headers.location ?? '').searchParams.get('request_id');
-    const approval = await app.inject({
-      method: 'POST',
-      url: `/oauth/consents/${requestId}/approve`,
-      headers: bearer(account.token),
-      payload: {workspace_id: workspaceId},
+
+    it('lets an attacker who refreshes first keep refreshing only until 30 days after consent', async () => {
+      const workspaceId = crypto.randomUUID();
+      const account = await createVerifiedSession('oauth-refresh-attacker-first');
+      const client = await createTestClient();
+      app = await createTestApp(workspaceClient(workspaceId));
+      const r1 = await signIn({
+        app,
+        clientId: client.clientId,
+        workspaceId,
+        accountToken: account.token,
+      });
+      const consentedAt = new Date(Date.now() - 29 * DAY_MS);
+      await db()
+        .update(agentGrants)
+        .set({consentedAt})
+        .where(eq(agentGrants.workspaceId, workspaceId));
+      const cap = new Date(consentedAt.getTime() + 30 * DAY_MS);
+
+      const attackerRotation = await refresh({app, clientId: client.clientId, refreshToken: r1});
+      expect(attackerRotation.statusCode).toBe(200);
+      const attackerChain = [attackerRotation.json().refresh_token];
+
+      const legitimate = await refresh({app, clientId: client.clientId, refreshToken: r1});
+      expect(legitimate.statusCode).toBe(200);
+      expect(legitimate.json().access_token).toEqual(expect.any(String));
+      expect(legitimate.json()).not.toHaveProperty('refresh_token');
+
+      for (let index = 0; index < 3; index += 1) {
+        const next = await refresh({
+          app,
+          clientId: client.clientId,
+          refreshToken: attackerChain[index] as string,
+        });
+        expect(next.statusCode).toBe(200);
+        attackerChain.push(next.json().refresh_token);
+      }
+      for (const token of attackerChain) {
+        const [row] = await db()
+          .select({expiresAt: agentRefreshTokens.expiresAt})
+          .from(agentRefreshTokens)
+          .where(eq(agentRefreshTokens.hashedToken, hashOpaqueToken(token)));
+        expect(row?.expiresAt).toEqual(cap);
+      }
+
+      // Move the clock past consent + 30 days: every token is now expired.
+      const [grant] = await db()
+        .select({id: agentGrants.id})
+        .from(agentGrants)
+        .where(eq(agentGrants.workspaceId, workspaceId));
+      if (!grant) throw new Error('Expected the sign-in to create a grant');
+      await db()
+        .update(agentRefreshTokens)
+        .set({expiresAt: new Date(Date.now() - 1_000)})
+        .where(eq(agentRefreshTokens.grantId, grant.id));
+      for (const token of [r1, ...attackerChain]) {
+        const rejected = await refresh({app, clientId: client.clientId, refreshToken: token});
+        expect(rejected.statusCode).toBe(400);
+        expect(rejected.json()).toMatchObject({error: 'invalid_grant'});
+      }
     });
-    const code = new URL(approval.json().redirect_url).searchParams.get('code') ?? '';
-    const token = await app.inject(
-      tokenForm(
-        {
-          grant_type: 'authorization_code',
-          client_id: client.clientId,
-          code,
-          redirect_uri: REDIRECT_URI,
-          code_verifier: firstPkce.verifier,
-        },
-        '198.51.100.255',
-      ),
-    );
-    const predecessor = token.json().refresh_token;
-    expect(token.statusCode).toBe(200);
-    expect(predecessor).toEqual(expect.any(String));
 
-    const rotated = await app.inject(
-      tokenForm(
-        {
-          grant_type: 'refresh_token',
-          client_id: client.clientId,
-          refresh_token: predecessor,
-        },
-        '198.51.100.1',
-      ),
-    );
-    const successor = rotated.json().refresh_token;
-    expect(rotated.statusCode).toBe(200);
-    expect(successor).toEqual(expect.any(String));
+    it('rejects every token of a grant after Disconnect', async () => {
+      const workspaceId = crypto.randomUUID();
+      const account = await createVerifiedSession('oauth-refresh-disconnect');
+      const client = await createTestClient();
+      app = await createTestApp(workspaceClient(workspaceId));
+      const r1 = await signIn({
+        app,
+        clientId: client.clientId,
+        workspaceId,
+        accountToken: account.token,
+      });
+      const rotated = await refresh({app, clientId: client.clientId, refreshToken: r1});
+      const r2 = rotated.json().refresh_token;
+      expect(rotated.statusCode).toBe(200);
+      const [grant] = await db()
+        .select({id: agentGrants.id})
+        .from(agentGrants)
+        .where(eq(agentGrants.workspaceId, workspaceId));
+      if (!grant) throw new Error('Expected the sign-in to create a grant');
 
-    currentNow = new Date(
-      currentNow.getTime() + (config.AUTH_REFRESH_ROTATION_GRACE_SECONDS + 1) * 1000,
-    );
-    const reused = await app.inject(
-      tokenForm(
-        {
-          grant_type: 'refresh_token',
-          client_id: client.clientId,
-          refresh_token: predecessor,
-        },
-        '198.51.100.2',
-      ),
-    );
-    expect(reused.statusCode).toBe(400);
-    expect(reused.json()).toMatchObject({error: 'invalid_grant'});
+      await revokeAgentGrantForUser({userId: account.userId, grantId: grant.id});
 
-    const revokedSuccessor = await app.inject(
-      tokenForm(
-        {
-          grant_type: 'refresh_token',
-          client_id: client.clientId,
-          refresh_token: successor,
-        },
-        '198.51.100.3',
-      ),
-    );
-    expect(revokedSuccessor.statusCode).toBe(400);
-    expect(revokedSuccessor.json()).toMatchObject({error: 'invalid_grant'});
+      for (const token of [r1, r2]) {
+        const rejected = await refresh({app, clientId: client.clientId, refreshToken: token});
+        expect(rejected.statusCode).toBe(400);
+        expect(rejected.json()).toMatchObject({error: 'invalid_grant'});
+      }
+    });
   });
 
   it('caps refresh-token expiry at 30 days from consent and rejects rotation after it', async () => {

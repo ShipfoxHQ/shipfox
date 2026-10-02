@@ -444,10 +444,6 @@ export async function exchangeOAuthRefreshToken(params: {
     ...(params.options.now ? {now} : {}),
   };
   const outcome = await exchangeAgentRefreshToken(exchangeParams);
-  if (outcome.kind === 'reused') {
-    recordTokenRefreshed('reused');
-    throw invalidGrant();
-  }
   if (outcome.kind === 'rejected' || !outcome.grant) {
     recordTokenRefreshed('rejected');
     throw invalidGrant();
