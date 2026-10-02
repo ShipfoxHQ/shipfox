@@ -304,15 +304,12 @@ describe('agent-access db', () => {
     });
 
     test('does not rotate a token once the cap has passed', async () => {
-      const {grant} = await createGrantConsentedDaysAgo(29);
+      const {grant} = await createGrantConsentedDaysAgo(31);
       const token = await createAgentRefreshToken({
         grantId: grant.id,
         hashedToken: hashOpaqueToken(`cap-passed-${crypto.randomUUID()}`),
       });
-      await db()
-        .update(agentRefreshTokens)
-        .set({expiresAt: new Date(Date.now() - 1_000)})
-        .where(eq(agentRefreshTokens.id, token.id));
+      expect(token.expiresAt.getTime()).toBeLessThan(Date.now());
 
       const successor = await rotateAgentRefreshToken({
         hashedToken: token.hashedToken,
