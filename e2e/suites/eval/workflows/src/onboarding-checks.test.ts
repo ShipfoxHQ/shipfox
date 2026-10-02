@@ -84,6 +84,13 @@ async function validatedRun(): Promise<GradeOnboardingRunOptions> {
   };
 }
 
+function withoutTemplateHeader(yaml: string): string {
+  return yaml
+    .split('\n')
+    .filter((line) => !line.startsWith('# shipfox-template:'))
+    .join('\n');
+}
+
 function failed(checks: OnboardingCheck[]): string[] {
   return checks.filter((entry) => !entry.passed).map((entry) => entry.id);
 }
@@ -193,10 +200,7 @@ describe('validated outcome', () => {
       written_files: [
         {
           ...file,
-          content: file.content
-            .split('\n')
-            .filter((line) => !line.startsWith('# shipfox-template:'))
-            .join('\n'),
+          content: withoutTemplateHeader(file.content),
         },
       ],
     });
@@ -244,10 +248,17 @@ describe('validated outcome', () => {
     );
   });
 
-  it('skips the template checks when the case sets no template', async () => {
+  it('passes a plain workflow when the case sets no template', async () => {
     const run = await validatedRun();
+    const [file] = run.written_files;
+    if (file === undefined) throw new Error('The fixture run writes a file.');
 
-    const grade = gradeOnboardingRun({...run, expect: {outcome: 'validated'}, mcp_calls: []});
+    const grade = gradeOnboardingRun({
+      ...run,
+      expect: {outcome: 'validated'},
+      mcp_calls: [],
+      written_files: [{...file, content: withoutTemplateHeader(file.content)}],
+    });
 
     expect(grade.checks.map((entry) => entry.id)).toEqual([
       'ended_on_its_own',
@@ -255,8 +266,18 @@ describe('validated outcome', () => {
       'dry_run',
       'no_placeholder',
       'models_in_catalog',
+      'no_template_header',
     ]);
     expect(grade.passed).toBe(true);
+  });
+
+  it('fails a template-derived workflow when the case sets no template', async () => {
+    const run = await validatedRun();
+
+    const grade = gradeOnboardingRun({...run, expect: {outcome: 'validated'}});
+
+    expect(failed(grade.checks)).toEqual(['no_template_header']);
+    expect(grade.passed).toBe(false);
   });
 
   it('fails a session that stopped at a limit before it finished', async () => {
