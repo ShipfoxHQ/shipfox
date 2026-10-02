@@ -1,0 +1,31 @@
+template: shipfox/ticket-to-pr
+bindings: {source: github}
+# Without the feedback loop, the run ends once the pull request is open.
+options: {feedback_loop: off}
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+modes: [live]
+repository: acme/text-utils
+timeout_seconds: 1200
+
+scenario:
+  - start:
+      manual:
+        inputs:
+          repository: acme/text-utils
+          title: Keep accented letters readable in slugs
+          description: slugify drops every accented letter, so Crème brûlée becomes cr-me-br-l-e.
+          acceptance_criteria: Accented letters keep their base letter, so Crème brûlée becomes creme-brulee. Other behavior stays the same.
+  - await: {run: succeeded}
+    timeout_seconds: 900
+
+expect:
+  outputs: {status: implemented}
+  writes:
+    - github.push: {branch: $pr.head, count: 1}
+    - github.create_pull_request: {pull_request: $pr, base: main, draft: true, count: 1}
+
+live:
+  # Copied from hidden_tests/ into the pushed branch after the run, then run with test_command.
+  hidden_tests: src/slugify-accents.test.js

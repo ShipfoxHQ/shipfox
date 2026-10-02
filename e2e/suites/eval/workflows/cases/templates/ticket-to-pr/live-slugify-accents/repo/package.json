@@ -1,0 +1,9 @@
+{
+  "name": "ticket-to-pr-slugify-accents-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

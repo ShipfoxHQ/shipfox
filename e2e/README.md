@@ -527,6 +527,24 @@ with status `error` makes the exit code non-zero:
 E2E_OPENROUTER_API_KEY=<key> mise run evals -- --suite templates --mode live --case 'ticket-to-pr/live-json-flag' --repeat 3 --max-cost-usd 5
 ```
 
+The ticket-to-pr live task set is the cases named `ticket-to-pr/live-*`. Each
+seeds a small Node repository, and its tests run with `node --test`:
+
+| Case | Task | Correct end |
+| -- | -- | -- |
+| `live-json-flag` | Add a `--json` flag to a report CLI | Pull request that passes the hidden tests |
+| `live-slugify-accents` | Keep accented letters in slugs | Pull request that passes the hidden tests |
+| `live-compound-durations` | Parse durations such as `1h30m` | Pull request that passes the hidden tests |
+| `live-last-page-bug` | Fix paging that loses rows on the last page | Pull request that passes the hidden tests |
+| `live-quoted-csv-fields` | Support quoted CSV fields | Pull request that passes the hidden tests |
+| `live-clarification-vague` | A task with no testable outcome | `needs_clarification`, no push, no pull request |
+| `live-clarification-conflict` | A description and acceptance criteria that contradict | `needs_clarification`, no push, no pull request |
+
+Run the set with `--case 'ticket-to-pr/live-*' --repeat 3`. Checks are hard
+only: the run's outputs, the recorded writes, and the hidden tests. The
+`summary.md` of a run lists each case's passes out of its repeats under
+"Passes per case".
+
 The harness reads Conductor worktree ports from `.context/local-services/env`,
 starts the API with E2E routes enabled, starts the client with the test VCS
 provider enabled, waits for both to become ready, and then runs

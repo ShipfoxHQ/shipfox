@@ -1,0 +1,27 @@
+template: shipfox/ticket-to-pr
+bindings: {source: github}
+options: {feedback_loop: off}
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+modes: [live]
+repository: acme/hello-lib
+timeout_seconds: 1200
+
+scenario:
+  - start:
+      manual:
+        inputs:
+          repository: acme/hello-lib
+          title: Make the greeting nicer
+          description: People say the greeting feels cold.
+          acceptance_criteria: It feels friendlier.
+  - await: {run: succeeded}
+    timeout_seconds: 900
+
+expect:
+  # The task can't be done as written, so a correct agent asks and changes nothing.
+  outputs: {status: needs_clarification}
+  writes:
+    - github.push: {count: 0}
+    - github.create_pull_request: {count: 0}
