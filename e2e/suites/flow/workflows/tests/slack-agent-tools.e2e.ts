@@ -21,7 +21,6 @@ import {seedProjectWithApiDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
 const CLAUDE_AGENT_MODEL = 'deterministic-slack-tools-agent';
-const SLACK_BOT_TOKEN = 'xoxb-e2e-slack-bot-token';
 const REPORT_TIMEOUT_MS = 120_000;
 // A failure before the report's subscription activates starts no report, so the test fails again.
 const REPORT_WAIT_MS = 20_000;
@@ -29,9 +28,6 @@ const MAX_FAILURE_ATTEMPTS = 5;
 const REPORT_CHANNEL = 'C0REPORTE2E';
 const FAILING_PATH = '.shipfox/workflows/always-fails.yml';
 const REPORT_PATH = '.shipfox/workflows/report-failed-runs.yml';
-
-// The API calls one Slack API mock address, so Slack tests share its port and run serially.
-test.describe.configure({mode: 'serial'});
 
 test('starts a run from a signed Slack mention and calls Slack agent tools', async ({
   suite,
@@ -41,7 +37,8 @@ test('starts a run from a signed Slack mention and calls Slack agent tools', asy
   const channel = `C${uniqueId}`;
   const threadTs = '1721300000.000001';
   const replyText = 'I read the Slack thread.';
-  const slackApi = await startSlackApiMock();
+  const botToken = `xoxb-e2e-${uniqueId}`;
+  const slackApi = await startSlackApiMock({botToken});
   let fakeModelProvider: Awaited<ReturnType<typeof startFakeOpenAiModelProvider>> | undefined;
 
   try {
@@ -53,7 +50,7 @@ test('starts a run from a signed Slack mention and calls Slack agent tools', asy
       teamName: `E2E Slack ${uniqueId}`,
       appId: `A${uniqueId}`,
       botUserId: `Ubot${uniqueId}`,
-      botToken: SLACK_BOT_TOKEN,
+      botToken,
       scopes: ['app_mentions:read', 'channels:history', 'chat:write'],
     });
     const repliesTool = `mcp__shipfox_integration_tools__${connection.slug}__read_thread`;
@@ -101,13 +98,13 @@ test('starts a run from a signed Slack mention and calls Slack agent tools', asy
     expect(slackApi.calls).toEqual([
       {
         kind: 'conversations.replies',
-        authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+        authorization: `Bearer ${botToken}`,
         channel,
         ts: threadTs,
       },
       {
         kind: 'chat.postMessage',
-        authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+        authorization: `Bearer ${botToken}`,
         channel,
         threadTs,
         text: replyText,
@@ -135,7 +132,8 @@ test('reports a failed run to Slack from its run.completed event', async ({suite
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const token = suite.sessionToken;
   const client = createApiClient({token});
-  const slackApi = await startSlackApiMock();
+  const botToken = `xoxb-report-failed-runs-${uniqueId}`;
+  const slackApi = await startSlackApiMock({botToken});
   const runnerLabel = `e2e-report-failed-runs-${uniqueId}`;
   let localRunner: Awaited<ReturnType<typeof startSuiteLocalRunner>> | undefined;
 
@@ -159,7 +157,7 @@ test('reports a failed run to Slack from its run.completed event', async ({suite
       teamName: `E2E Slack ${uniqueId}`,
       appId: `A${uniqueId}`,
       botUserId: `U${uniqueId}`,
-      botToken: `xoxb-report-failed-runs-${uniqueId}`,
+      botToken,
     });
     localRunner = await startSuiteLocalRunner({
       workspaceId: suite.workspaceId,

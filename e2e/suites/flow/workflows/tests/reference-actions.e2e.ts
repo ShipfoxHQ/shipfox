@@ -45,9 +45,6 @@ const GITHUB_REPOSITORY = 'shipfox/e2e';
 const BLOB_BYTES = 900 * 1024;
 const OVERSIZED_BYTES = 1_100_000;
 
-// The API calls each provider mock at one address, so these tests take turns on the ports.
-test.describe.configure({mode: 'serial'});
-
 type Attach = (
   name: string,
   options: {body: Buffer | string; contentType: string},
@@ -165,16 +162,21 @@ function shortId(): string {
 
 test('the Slack thread action exports every page of a thread', async ({suite}, testInfo) => {
   const channel = `C${shortId().toUpperCase()}`;
-  const slackApi = await startSlackApiMock({threadPages: SLACK_THREAD_PAGES, users: SLACK_USERS});
+  const uniqueId = shortId();
+  const botToken = `xoxb-e2e-${uniqueId}`;
+  const slackApi = await startSlackApiMock({
+    botToken,
+    threadPages: SLACK_THREAD_PAGES,
+    users: SLACK_USERS,
+  });
   try {
-    const uniqueId = shortId();
     const connection = await createSlackConnection({
       workspaceId: suite.workspaceId,
       teamId: `T${uniqueId}`,
       teamName: `E2E Slack ${uniqueId}`,
       appId: `A${uniqueId}`,
       botUserId: `Ubot${uniqueId}`,
-      botToken: `xoxb-e2e-${uniqueId}`,
+      botToken,
       scopes: ['channels:history', 'users:read'],
     });
 
@@ -431,16 +433,20 @@ test('the Linear context action walks the issue graph and reports its gaps', asy
     process.env.LINEAR_UPLOADS_URL ??
       new URL(LINEAR_UPLOADS_PATH, process.env.LINEAR_MCP_ENDPOINT).href,
   );
-  const linear = await startLinearMcpMock({workspace: linearContextWorkspace(uploadsUrl)});
+  const uniqueId = shortId();
+  const accessToken = `linear-e2e-token-${uniqueId}`;
+  const linear = await startLinearMcpMock({
+    accessToken,
+    workspace: linearContextWorkspace(uploadsUrl),
+  });
   try {
-    const uniqueId = shortId();
     const connection = await createLinearConnection({
       workspaceId: suite.workspaceId,
       organizationId: `linear-org-${uniqueId}`,
       organizationUrlKey: `e2e-${uniqueId}`,
       appUserId: `linear-app-user-${uniqueId}`,
       displayName: `Linear reference actions ${uniqueId}`,
-      accessToken: `linear-e2e-token-${uniqueId}`,
+      accessToken,
     });
     const exportStep = (issueId: string, allowPartial: boolean) => `
       - key: context

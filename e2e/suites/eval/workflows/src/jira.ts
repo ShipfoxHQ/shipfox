@@ -58,7 +58,8 @@ export async function arrangeJiraTracker({
   uniqueId: string;
   cleanups: Array<() => Promise<void>>;
 }): Promise<JiraTracker> {
-  const mock = await startJiraApiMock();
+  const accessToken = `jira-access-token-${uniqueId}`;
+  const mock = await startJiraApiMock({accessToken});
   cleanups.push(() => mock.stop());
 
   const siteUrl = `https://eval-${uniqueId}.atlassian.example.test`;
@@ -70,7 +71,7 @@ export async function arrangeJiraTracker({
     siteName: `Eval Jira ${uniqueId}`,
     authorizingAccountId: `eval-account-${uniqueId}`,
     displayName: `Eval Jira ${uniqueId}`,
-    accessToken: `jira-access-token-${uniqueId}`,
+    accessToken,
     webhookIds: [webhookId],
   });
   return {

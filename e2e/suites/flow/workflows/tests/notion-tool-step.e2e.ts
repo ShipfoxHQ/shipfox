@@ -22,7 +22,7 @@ test('starts a run from a signed Notion delivery and calls the get_page tool ste
   const authorizedByUserId = crypto.randomUUID();
   const notionWorkspaceId = crypto.randomUUID();
   const accessToken = `notion-access-token-${uniqueId}`;
-  const notionApi = await startNotionApiMock();
+  const notionApi = await startNotionApiMock({accessToken});
   let localRunner: Awaited<ReturnType<typeof startSuiteLocalRunner>> | undefined;
 
   try {

@@ -1,11 +1,5 @@
-import {once} from 'node:events';
-import {
-  createServer,
-  type Server as HttpServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from 'node:http';
-import type {RecordedWrite} from '@shipfox/e2e-core';
+import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
+import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-core';
 
 export const NOTION_PAGE_RESULT_MARKER = 'notion-page-result-marker';
 
@@ -26,12 +20,23 @@ export interface NotionApiMock {
   stop(): Promise<void>;
 }
 
+export interface NotionApiMockOptions {
+  /**
+   * The access token the API presents, from the connection the spec creates. The fake shares the
+   * stack's Notion address with other specs and answers the requests that carry this token.
+   */
+  accessToken?: string | undefined;
+  /** Listens here directly instead of behind the stack's router. Unit tests pass port 0. */
+  endpoint?: URL | undefined;
+}
+
 export async function startNotionApiMock(
-  endpoint = new URL(requiredNotionApiBaseUrl()),
+  options: NotionApiMockOptions = {},
 ): Promise<NotionApiMock> {
-  validateEndpoint(endpoint);
+  const configuredEndpoint = options.endpoint ?? new URL(requiredNotionApiBaseUrl());
+  validateEndpoint(configuredEndpoint);
   const calls: NotionApiMockCall[] = [];
-  let boundEndpoint = endpoint;
+  let boundEndpoint = configuredEndpoint;
   const server = createServer((request, response) => {
     try {
       handleNotionRequest({calls, endpoint: boundEndpoint, request, response});
@@ -47,11 +52,18 @@ export async function startNotionApiMock(
     }
   });
 
+  let listening: ListeningFake;
   try {
-    boundEndpoint = await listen(server, endpoint);
+    listening = await listenFake({
+      server,
+      endpoint: options.endpoint,
+      stackEndpoint: () => configuredEndpoint,
+      credentials: [options.accessToken],
+    });
   } catch (error) {
-    throw new Error(`Notion API mock failed to start at ${endpoint}`, {cause: error});
+    throw new Error(`Notion API mock failed to start at ${configuredEndpoint}`, {cause: error});
   }
+  boundEndpoint = listening.endpoint;
 
   return {
     calls,
@@ -59,7 +71,7 @@ export async function startNotionApiMock(
     writes: () => [],
     stop: async () => {
       try {
-        await close(server);
+        await listening.close();
       } catch (error) {
         throw new Error(`Notion API mock failed to stop at ${boundEndpoint}`, {cause: error});
       }
@@ -129,21 +141,6 @@ function validateEndpoint(endpoint: URL): void {
       `NOTION_API_BASE_URL must not include a path for the Notion API mock (received ${endpoint}).`,
     );
   }
-}
-
-async function listen(server: HttpServer, endpoint: URL): Promise<URL> {
-  server.listen({host: endpoint.hostname, port: Number(endpoint.port)});
-  await once(server, 'listening');
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('Expected TCP server address.');
-  const boundEndpoint = new URL(endpoint);
-  boundEndpoint.port = String(address.port);
-  return boundEndpoint;
-}
-
-async function close(server: HttpServer): Promise<void> {
-  server.close();
-  await once(server, 'close');
 }
 
 function sendJson(response: ServerResponse, statusCode: number, body: unknown): void {

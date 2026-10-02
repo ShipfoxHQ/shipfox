@@ -41,7 +41,9 @@ export async function arrangeLinearWorkspace({
   /** Cleanups run in reverse, by the caller, however the run ends. */
   cleanups: Array<() => Promise<void>>;
 }): Promise<LinearWorkspace> {
+  const accessToken = `lin_oauth_${uniqueId}`;
   const mock = await startLinearMcpMock({
+    accessToken,
     workspace: {
       issues: Object.fromEntries(issues.map((issue) => [issue.identifier, issueFixture(issue)])),
       documents: {},
@@ -58,7 +60,7 @@ export async function arrangeLinearWorkspace({
     organizationUrlKey: `eval-${uniqueId}`,
     appUserId,
     displayName: `Eval Linear ${uniqueId}`,
-    accessToken: `lin_oauth_${uniqueId}`,
+    accessToken,
   });
 
   return {

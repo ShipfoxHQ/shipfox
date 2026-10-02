@@ -25,8 +25,6 @@ type ClickUpTestInfo = {
 const CLAUDE_AGENT_MODEL = 'deterministic-clickup-tools-agent';
 const CLICKUP_TERMINAL_TIMEOUT_MS = 60_000;
 
-test.describe.configure({mode: 'serial'});
-
 test('starts a run from an authorizing user ClickUp comment and calls ClickUp agent tools', async ({
   suite,
 }: {suite: SuiteContext}, testInfo: ClickUpTestInfo) => {
@@ -38,7 +36,7 @@ test('starts a run from an authorizing user ClickUp comment and calls ClickUp ag
   const accessToken = `clickup-access-token-${uniqueId}`;
   const commentText = 'Please read this task and report back.';
   const replyText = 'I read the ClickUp task.';
-  const clickupApi = await startClickUpApiMock();
+  const clickupApi = await startClickUpApiMock({accessToken});
   let fakeModelProvider: Awaited<ReturnType<typeof startFakeOpenAiModelProvider>> | undefined;
   let localRunner: Awaited<ReturnType<typeof startSuiteLocalRunner>> | undefined;
 

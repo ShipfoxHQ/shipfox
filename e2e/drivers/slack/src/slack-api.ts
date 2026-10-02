@@ -1,5 +1,5 @@
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
-import {closeServer, listenOnEndpoint, type RecordedWrite} from '@shipfox/e2e-core';
+import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-core';
 
 export const SLACK_REPLIES_MARKER = 'slack-replies-marker';
 export const SLACK_POSTED_TS = '1721300000.000002';
@@ -33,6 +33,12 @@ export interface SlackThreadPage {
 }
 
 export interface SlackApiMockOptions {
+  /**
+   * The bot token the API presents, from the connection the spec creates. The fake shares the
+   * stack's Slack address with other specs and answers the requests that carry this token.
+   */
+  botToken?: string | undefined;
+  /** Listens here directly instead of behind the stack's router. Unit tests pass port 0. */
   endpoint?: URL | undefined;
   /** Thread pages by the cursor that requests them, `''` for the first page. */
   threadPages?: Readonly<Record<string, SlackThreadPage>> | undefined;
@@ -51,11 +57,10 @@ export interface SlackApiMock {
 }
 
 export async function startSlackApiMock(options: SlackApiMockOptions = {}): Promise<SlackApiMock> {
-  const endpoint = options.endpoint ?? new URL(requiredSlackApiBaseUrl());
   const calls: SlackApiMockCall[] = [];
   const writes: RecordedWrite[] = [];
   const failures: {postMessage: string | null} = {postMessage: null};
-  let boundEndpoint = endpoint;
+  let boundEndpoint = new URL('http://127.0.0.1');
   const server = createServer((request, response) => {
     void handleSlackRequest({
       calls,
@@ -68,11 +73,18 @@ export async function startSlackApiMock(options: SlackApiMockOptions = {}): Prom
     });
   });
 
+  let listening: ListeningFake;
   try {
-    boundEndpoint = await listenOnEndpoint(server, endpoint);
+    listening = await listenFake({
+      server,
+      endpoint: options.endpoint,
+      stackEndpoint: () => new URL(requiredSlackApiBaseUrl()),
+      credentials: [options.botToken],
+    });
   } catch (error) {
-    throw new Error(`Slack API mock failed to start at ${endpoint}`, {cause: error});
+    throw new Error('Slack API mock failed to start', {cause: error});
   }
+  boundEndpoint = listening.endpoint;
 
   return {
     calls,
@@ -83,7 +95,7 @@ export async function startSlackApiMock(options: SlackApiMockOptions = {}): Prom
     },
     stop: async () => {
       try {
-        await closeServer(server);
+        await listening.close();
       } catch (error) {
         throw new Error(`Slack API mock failed to stop at ${boundEndpoint}`, {cause: error});
       }

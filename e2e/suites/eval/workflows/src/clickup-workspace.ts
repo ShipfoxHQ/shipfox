@@ -24,8 +24,8 @@ export interface ClickUpWorkspace {
 
 /**
  * A ClickUp connection in the case's workspace, and the fake behind it. The fake serves the seeded
- * tasks and records the writes the workflow makes to them. It listens where the API expects
- * ClickUp, so one case uses it at a time.
+ * tasks and records the writes the workflow makes to them. The API reaches it by the connection's
+ * access token, so cases that use ClickUp can run together.
  */
 export async function arrangeClickUpWorkspace({
   workspaceId,
@@ -39,7 +39,8 @@ export async function arrangeClickUpWorkspace({
   /** Cleanups run in reverse, by the caller, however the run ends. */
   cleanups: Array<() => Promise<void>>;
 }): Promise<ClickUpWorkspace> {
-  const mock = await startClickUpApiMock(undefined, {tasks: tasks.map(taskFixture)});
+  const accessToken = `clickup-access-token-${uniqueId}`;
+  const mock = await startClickUpApiMock({accessToken, tasks: tasks.map(taskFixture)});
   cleanups.push(() => mock.stop());
 
   const webhookId = `eval-webhook-${uniqueId}`;
@@ -50,7 +51,7 @@ export async function arrangeClickUpWorkspace({
     teamId: `eval-team-${uniqueId}`,
     teamName: `Eval ClickUp ${uniqueId}`,
     authorizingUserId,
-    accessToken: `clickup-access-token-${uniqueId}`,
+    accessToken,
     webhookId,
     webhookSecret,
     displayName: `Eval ClickUp ${uniqueId}`,

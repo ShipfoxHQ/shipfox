@@ -5,8 +5,10 @@ A fake Slack Web API and Events sender for E2E suites. The fake stands in for `s
 ## Public API
 
 - `startSlackApiMock(options?)`: start the fake and return a `SlackApiMock`. It serves
-  `conversations.replies`, `users.info`, `chat.getPermalink`, and `chat.postMessage`. Waits for
-  the port when a spec in another worker holds it.
+  `conversations.replies`, `users.info`, `chat.getPermalink`, and `chat.postMessage`. `options.botToken` is the
+  token of the connection the spec creates: the stack router sends the fake the requests that
+  carry it, so specs in other workers share the address. `options.endpoint` listens directly
+  instead.
 - `SlackApiMock.calls`: every request the fake handled, as `SlackApiMockCall` entries.
 - `SlackApiMock.writes()`: the `chat.postMessage` requests the fake accepted, as
   `RecordedWrite` entries targeted at their channel. A post made to fail with

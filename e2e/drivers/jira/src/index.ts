@@ -4,6 +4,7 @@ export {
   JIRA_ISSUE_RESULT_MARKER,
   type JiraApiMock,
   type JiraApiMockCall,
+  type JiraApiMockOptions,
   startJiraApiMock,
 } from './jira-api.js';
 export {

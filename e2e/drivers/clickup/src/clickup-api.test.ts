@@ -2,13 +2,13 @@ import {startClickUpApiMock} from './clickup-api.js';
 
 describe('ClickUp API mock', () => {
   it('fails fast when the endpoint omits a port', async () => {
-    await expect(startClickUpApiMock(new URL('http://127.0.0.1'))).rejects.toThrow(
+    await expect(startClickUpApiMock({endpoint: new URL('http://127.0.0.1')})).rejects.toThrow(
       'CLICKUP_API_BASE_URL must include an explicit port for the ClickUp API mock',
     );
   });
 
   it('allows an explicit port 0 for ephemeral test endpoints', async () => {
-    const mock = await startClickUpApiMock(new URL('http://127.0.0.1:0'));
+    const mock = await startClickUpApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
     try {
       expect(mock.endpoint.port).not.toBe('0');
@@ -18,7 +18,7 @@ describe('ClickUp API mock', () => {
   });
 
   it('records comments as writes and reads as calls only', async () => {
-    const mock = await startClickUpApiMock(new URL('http://127.0.0.1:0'));
+    const mock = await startClickUpApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
     try {
       await fetch(new URL('/api/v2/task/86abc', mock.endpoint));
@@ -38,7 +38,8 @@ describe('ClickUp API mock', () => {
   });
 
   it('serves a fixture task and records a status update as a write', async () => {
-    const mock = await startClickUpApiMock(new URL('http://127.0.0.1:0'), {
+    const mock = await startClickUpApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
       tasks: [
         {
           id: '86abc',
@@ -73,14 +74,14 @@ describe('ClickUp API mock', () => {
   });
 
   it('fails fast when the endpoint includes a path prefix', async () => {
-    await expect(startClickUpApiMock(new URL('http://127.0.0.1:9000/clickup'))).rejects.toThrow(
-      'CLICKUP_API_BASE_URL must not include a path for the ClickUp API mock',
-    );
+    await expect(
+      startClickUpApiMock({endpoint: new URL('http://127.0.0.1:9000/clickup')}),
+    ).rejects.toThrow('CLICKUP_API_BASE_URL must not include a path for the ClickUp API mock');
   });
 
   it('logs malformed requests before returning a bounded error', async () => {
     const stderrWrite = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    const mock = await startClickUpApiMock(new URL('http://127.0.0.1:0'));
+    const mock = await startClickUpApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
     try {
       const response = await fetch(new URL('/api/v2/task/e2e/comment', mock.endpoint), {

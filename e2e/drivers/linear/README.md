@@ -7,8 +7,9 @@ A fake Linear hosted MCP server and signed webhook sender for E2E suites. The se
 - `startLinearMcpMock(options?)`: start the fake and return a `LinearMcpMock`. It serves
   `get_issue` and `save_comment` by default, or the read tools over a
   `LinearWorkspaceFixture` when `options.workspace` is set, plus signed-upload style
-  attachment downloads under `uploadsUrl`. Waits for the port when a spec in another worker
-  holds it.
+  attachment downloads under `uploadsUrl`. `options.accessToken` is the token of the
+  connection the spec creates: the stack router sends the fake the requests that carry it, so
+  specs in other workers share the address. `options.endpoint` listens directly instead.
 - `LinearMcpMock.calls` and `uploads`: every tool call and upload request, in arrival order.
 - `LinearMcpMock.writes()`: the accepted state-changing tool calls as `RecordedWrite` entries
   (`kind`, `target`, `payload`). Today that is `save_comment` and `save_issue`, targeted at their

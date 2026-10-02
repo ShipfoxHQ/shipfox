@@ -30,10 +30,11 @@ export async function arrangeSlackWorkspace({
   /** Cleanups run in reverse, by the caller, however the run ends. */
   cleanups: Array<() => Promise<void>>;
 }): Promise<SlackWorkspace> {
-  // The API calls one Slack address, so cases that use Slack run one at a time.
-  const mock = await startSlackApiMock(
-    seed === undefined ? {} : {threadPages: {'': {messages: seed.thread}}},
-  );
+  const botToken = `xoxb-eval-${uniqueId}`;
+  const mock = await startSlackApiMock({
+    botToken,
+    ...(seed === undefined ? {} : {threadPages: {'': {messages: seed.thread}}}),
+  });
   cleanups.push(() => mock.stop());
 
   const teamId = `T${uniqueId}`;
@@ -43,7 +44,7 @@ export async function arrangeSlackWorkspace({
     teamName: `Eval Slack ${uniqueId}`,
     appId: `A${uniqueId}`,
     botUserId: `Ubot${uniqueId}`,
-    botToken: `xoxb-eval-${uniqueId}`,
+    botToken,
     scopes: ['app_mentions:read', 'channels:history', 'chat:write'],
   });
 

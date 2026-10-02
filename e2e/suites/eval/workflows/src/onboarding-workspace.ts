@@ -167,7 +167,8 @@ export async function arrangeOnboardingWorkspace(
   await waitForProjectSync({projectId: project.id, token: session.token});
 
   if (templateCase.workspace.connections.includes('linear')) {
-    const linear = await startLinearMcpMock();
+    const accessToken = `lin_oauth_${uniqueId}`;
+    const linear = await startLinearMcpMock({accessToken});
     cleanups.push(() => linear.stop());
     await createLinearConnection({
       workspaceId: workspace.id,
@@ -175,7 +176,7 @@ export async function arrangeOnboardingWorkspace(
       organizationUrlKey: `eval-${uniqueId}`,
       appUserId: `eval-app-${uniqueId}`,
       displayName: `Eval ${uniqueId}`,
-      accessToken: `lin_oauth_${uniqueId}`,
+      accessToken,
     });
   }
 

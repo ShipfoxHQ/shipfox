@@ -1,5 +1,5 @@
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
-import {closeServer, listenOnEndpoint, type RecordedWrite} from '@shipfox/e2e-core';
+import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-core';
 
 export const JIRA_ISSUE_RESULT_MARKER = 'jira-issue-result-marker';
 export const JIRA_COMMENT_RESULT_MARKER = 'jira-comment-result-marker';
@@ -42,12 +42,21 @@ export interface JiraApiMock {
   stop(): Promise<void>;
 }
 
-export async function startJiraApiMock(
-  endpoint = new URL(requiredJiraApiBaseUrl()),
-): Promise<JiraApiMock> {
-  validateEndpoint(endpoint);
+export interface JiraApiMockOptions {
+  /**
+   * The access token the API presents, from the connection the spec creates. The fake shares the
+   * stack's Jira address with other specs and answers the requests that carry this token.
+   */
+  accessToken?: string | undefined;
+  /** Listens here directly instead of behind the stack's router. Unit tests pass port 0. */
+  endpoint?: URL | undefined;
+}
+
+export async function startJiraApiMock(options: JiraApiMockOptions = {}): Promise<JiraApiMock> {
+  const configuredEndpoint = options.endpoint ?? new URL(requiredJiraApiBaseUrl());
+  validateEndpoint(configuredEndpoint);
   const calls: JiraApiMockCall[] = [];
-  let boundEndpoint = endpoint;
+  let boundEndpoint = configuredEndpoint;
   const server = createServer((request, response) => {
     void handleJiraRequest({calls, endpoint: boundEndpoint, request, response}).catch((error) => {
       const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
@@ -60,11 +69,18 @@ export async function startJiraApiMock(
     });
   });
 
+  let listening: ListeningFake;
   try {
-    boundEndpoint = await listenOnEndpoint(server, endpoint);
+    listening = await listenFake({
+      server,
+      endpoint: options.endpoint,
+      stackEndpoint: () => configuredEndpoint,
+      credentials: [options.accessToken],
+    });
   } catch (error) {
-    throw new Error(`Jira API mock failed to start at ${endpoint}`, {cause: error});
+    throw new Error(`Jira API mock failed to start at ${configuredEndpoint}`, {cause: error});
   }
+  boundEndpoint = listening.endpoint;
 
   return {
     calls,
@@ -72,7 +88,7 @@ export async function startJiraApiMock(
     writes: () => jiraWrites(calls),
     stop: async () => {
       try {
-        await closeServer(server);
+        await listening.close();
       } catch (error) {
         throw new Error(`Jira API mock failed to stop at ${boundEndpoint}`, {cause: error});
       }
