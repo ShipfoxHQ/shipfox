@@ -24,6 +24,7 @@ import {
   AGENT_ACCESS_RETENTION_TIMEOUT_MARGIN_MS,
   AGENT_AUTHORIZATION_RETENTION_DAYS,
   AGENT_CLIENT_RETENTION_DAYS,
+  AGENT_GRANT_MAX_SIGN_IN_AGE_DAYS,
   AGENT_GRANT_RETENTION_DAYS,
   AGENT_REFRESH_TOKEN_RETENTION_DAYS,
 } from './agent-access-retention.js';
@@ -208,6 +209,12 @@ function validateRotationGraceSeconds(graceSeconds: number): number {
 /** Returns the default sliding lifetime for a newly issued agent refresh token. */
 export function agentRefreshTokenExpiresAt(now: Date = new Date()): Date {
   return new Date(now.getTime() + config.AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS * MILLISECONDS_PER_DAY);
+}
+
+/** Caps a refresh-token expiry at the grant's last consent plus the maximum sign-in age. */
+function capAgentRefreshTokenExpiresAt(grant: AgentGrant, requested: Date): Date {
+  const cap = grant.consentedAt.getTime() + AGENT_GRANT_MAX_SIGN_IN_AGE_DAYS * MILLISECONDS_PER_DAY;
+  return new Date(Math.min(requested.getTime(), cap));
 }
 
 /**
@@ -567,6 +574,7 @@ export async function createAgentGrantTx(
       target: [agentGrants.userId, agentGrants.workspaceId, agentGrants.clientId],
       targetWhere: sql`${agentGrants.revokedAt} IS NULL AND ${agentGrants.terminalAt} IS NULL`,
       set: {
+        consentedAt: sql`now()`,
         updatedAt: sql`now()`,
       },
     })
@@ -779,7 +787,7 @@ export async function exchangeAgentAuthorizationCode(params: {
 export interface CreateAgentRefreshTokenParams {
   grantId: string;
   hashedToken: string;
-  /** Defaults to the configured 14-day lifetime. */
+  /** Defaults to the configured 14-day lifetime, capped at 30 days from the grant's consent. */
   expiresAt?: Date;
 }
 
@@ -793,10 +801,14 @@ export async function createAgentRefreshTokenTx(
   tx: AgentAccessTx,
   params: CreateAgentRefreshTokenParams,
 ): Promise<AgentRefreshToken> {
-  await requireActiveAgentGrant(tx, params.grantId);
+  const grant = await requireActiveAgentGrant(tx, params.grantId);
+  const expiresAt = capAgentRefreshTokenExpiresAt(
+    grant,
+    params.expiresAt ?? agentRefreshTokenExpiresAt(),
+  );
   const rows = await tx
     .insert(agentRefreshTokens)
-    .values({...params, expiresAt: params.expiresAt ?? agentRefreshTokenExpiresAt()})
+    .values({...params, expiresAt})
     .returning();
   const row = rows[0];
   if (!row) throw new Error('Insert returned no rows');
@@ -968,7 +980,7 @@ export async function resolveAgentRefreshTokenReplayTx(
 export async function rotateAgentRefreshToken(params: {
   hashedToken: string;
   replacementHashedToken: string;
-  /** Defaults to the configured 14-day sliding lifetime. */
+  /** Defaults to the configured 14-day sliding lifetime, capped at 30 days from the grant's consent. */
   replacementExpiresAt?: Date;
 }): Promise<AgentRefreshToken | undefined> {
   return await db().transaction((tx) => rotateAgentRefreshTokenTx(tx, params));
@@ -982,7 +994,6 @@ export async function rotateAgentRefreshTokenTx(
     replacementExpiresAt?: Date;
   },
 ): Promise<AgentRefreshToken | undefined> {
-  const replacementExpiresAt = params.replacementExpiresAt ?? agentRefreshTokenExpiresAt();
   const existingRows = await tx
     .select()
     .from(agentRefreshTokens)
@@ -998,6 +1009,10 @@ export async function rotateAgentRefreshTokenTx(
 
   const grant = await lockActiveAgentGrant(tx, existing.grantId);
   if (!grant) return undefined;
+  const replacementExpiresAt = capAgentRefreshTokenExpiresAt(
+    grant,
+    params.replacementExpiresAt ?? agentRefreshTokenExpiresAt(),
+  );
 
   const rows = await tx
     .update(agentRefreshTokens)

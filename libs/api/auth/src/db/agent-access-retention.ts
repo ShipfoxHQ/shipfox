@@ -3,6 +3,9 @@ export const AGENT_REFRESH_TOKEN_RETENTION_DAYS = 30;
 export const AGENT_GRANT_RETENTION_DAYS = 90;
 export const AGENT_CLIENT_RETENTION_DAYS = 30;
 
+/** No agent refresh token outlives its grant's last consent by more than this. */
+export const AGENT_GRANT_MAX_SIGN_IN_AGE_DAYS = 30;
+
 export const AGENT_ACCESS_RETENTION_BATCH_LIMIT = 200;
 export const AGENT_ACCESS_RETENTION_MAX_ITERATIONS = 1_000;
 export const AGENT_ACCESS_RETENTION_TIME_BUDGET_MS = 4 * 60_000;
