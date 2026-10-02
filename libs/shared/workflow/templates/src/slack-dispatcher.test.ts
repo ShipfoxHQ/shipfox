@@ -15,6 +15,9 @@ parseWorkflowDocument(parseYaml(composed));
 const workflow = parseYaml(composed) as YamlRecord;
 const expressionPattern = /^\$\{\{\s*([\s\S]*?)\s*\}\}$/;
 const environment = createWorkflowEnvironment();
+const channelIdInput = /- channel_id: the Discord channel ID above, exactly\./g;
+const messageIdInput = /- message_id: the message ID above, exactly\./g;
+const slackOnlyText = /Slack|thread_ts/;
 const childRunId = '0199a8f0-0000-7000-8000-000000000001';
 
 function at(value: unknown, ...path: (string | number)[]): unknown {
@@ -271,5 +274,185 @@ describe('Slack dispatcher template', () => {
         '_Review it before you merge it._',
       ].join('\n'),
     );
+  });
+});
+
+describe('Discord dispatcher template', () => {
+  const discordYaml = composeTemplate(template, {chat: 'discord'});
+  parseWorkflowDocument(parseYaml(discordYaml));
+  const discord = parseYaml(discordYaml) as YamlRecord;
+  const discordStep = (job: string, key: string): YamlRecord => {
+    const steps = at(discord, 'jobs', job, 'steps') as YamlRecord[];
+    const found = steps.find((entry) => entry.key === key);
+    if (found === undefined) throw new Error(`Missing Discord step ${job}.${key}`);
+    return found;
+  };
+
+  it('starts only from Discord mentions, so no workflow can start it', () => {
+    expect(Object.keys(at(discord, 'triggers') as YamlRecord)).toEqual(['on_mention']);
+  });
+
+  it.each([
+    {
+      name: 'a person mentioning the app in an allowed channel',
+      event: {mentions_bot: true, author: {bot: false}, root_channel_id: 'C_ALLOWED'},
+      expected: true,
+    },
+    {
+      name: 'a person mentioning the app in a thread of an allowed channel',
+      event: {
+        mentions_bot: true,
+        author: {bot: false},
+        thread_id: 'T1',
+        root_channel_id: 'C_ALLOWED',
+      },
+      expected: true,
+    },
+    {
+      name: 'a person mentioning the app in another channel',
+      event: {mentions_bot: true, author: {bot: false}, root_channel_id: 'C_OTHER'},
+      expected: false,
+    },
+    {
+      name: 'a person mentioning the app where the parent channel is unknown',
+      event: {mentions_bot: true, author: {bot: false}, thread_id: 'T1'},
+      expected: false,
+    },
+    {
+      name: 'a person who does not mention the app',
+      event: {mentions_bot: false, author: {bot: false}, root_channel_id: 'C_ALLOWED'},
+      expected: false,
+    },
+    {
+      name: 'a bot',
+      event: {mentions_bot: true, author: {bot: true}, root_channel_id: 'C_ALLOWED'},
+      expected: false,
+    },
+  ])('routes a message from $name: $expected', ({event, expected}) => {
+    const filter = String(at(discord, 'triggers', 'on_mention', 'filter')).replace(
+      'replace-with-channel-id',
+      'C_ALLOWED',
+    );
+
+    expect(evaluate(filter, {event})).toBe(expected);
+  });
+
+  it('replies under the mention and links it from the event', () => {
+    const outputs = at(discord, 'jobs', 'thread', 'outputs') as YamlRecord;
+    const event = {
+      id: 'M2',
+      channel_id: 'C1',
+      content: '<@B> file a ticket',
+      url: 'https://discord.com/channels/G1/C1/M2',
+    };
+
+    expect(
+      Object.fromEntries(
+        ['channel_id', 'message_id', 'request', 'permalink'].map((key) => [
+          key,
+          evaluate(outputs[key], {event}),
+        ]),
+      ),
+    ).toEqual({
+      channel_id: 'C1',
+      message_id: 'M2',
+      request: '<@B> file a ticket',
+      permalink: 'https://discord.com/channels/G1/C1/M2',
+    });
+  });
+
+  it('writes only Discord thread replies and one workflow start', () => {
+    const tools = Object.values(at(discord, 'jobs') as YamlRecord).flatMap((job) =>
+      ((job as YamlRecord).steps as YamlRecord[]).flatMap((entry) =>
+        entry.tool === undefined ? [] : [String(entry.tool)],
+      ),
+    );
+
+    expect(tools).toEqual([
+      'read_thread',
+      'send_message',
+      'start_workflow_run',
+      'send_message',
+      'send_message',
+      'send_message',
+      'send_message',
+      'send_message',
+    ]);
+    for (const job of Object.values(at(discord, 'jobs') as YamlRecord)) {
+      expect((job as YamlRecord).checkout).toBe(false);
+    }
+  });
+
+  it('lists the Discord thread inputs for the routed workflows', () => {
+    const prompt = String(discordStep('route', 'route').prompt);
+
+    expect(prompt.match(channelIdInput)).toHaveLength(2);
+    expect(prompt.match(messageIdInput)).toHaveLength(2);
+    expect(prompt).not.toMatch(slackOnlyText);
+  });
+
+  it.each([
+    {
+      name: 'the same message',
+      inputs: {channel_id: 'C1', message_id: 'M1', request: 'Why?'},
+      ok: true,
+    },
+    {name: 'no thread inputs', inputs: {repository: 'acme/api', title: 'Fix'}, ok: true},
+    {name: 'another channel', inputs: {channel_id: 'C2', message_id: 'M1'}, ok: false},
+    {name: 'another message', inputs: {channel_id: 'C1', message_id: 'M9'}, ok: false},
+  ])('checks that routed inputs name $name: $ok', ({inputs, ok}) => {
+    const check = discordStep('route', 'check_thread');
+    const sameThread = evaluate((check.env as YamlRecord).SAME_THREAD, {
+      steps: {route: {outputs: {inputs}}},
+      jobs: {thread: {outputs: {channel_id: 'C1', message_id: 'M1'}}},
+    });
+
+    const result = spawnSync('bash', ['-eo', 'pipefail', '-c', String(check.run)], {
+      encoding: 'utf8',
+      env: {...process.env, SAME_THREAD: String(sameThread)},
+    });
+
+    expect(result.status === 0).toBe(ok);
+  });
+
+  it('opens or reuses the thread of the mention for every message it posts', () => {
+    const posts = Object.values(at(discord, 'jobs') as YamlRecord).flatMap((job) =>
+      ((job as YamlRecord).steps as YamlRecord[]).filter((entry) => entry.tool === 'send_message'),
+    );
+
+    expect(posts).toHaveLength(6);
+    for (const post of posts) {
+      expect(post.with).toMatchObject({
+        channel_id: '${{ jobs.thread.outputs.channel_id }}',
+        thread_message_id: '${{ jobs.thread.outputs.message_id }}',
+      });
+    }
+  });
+
+  it('asks the person to mention the app again after questions', () => {
+    const message = at(discordStep('route', 'reply'), 'with', 'message');
+
+    expect(
+      evaluate(message, {
+        steps: {route: {outputs: {status: 'needs_information', reply: 'Which?'}}},
+      }),
+    ).toBe('Which?\n\n_Answer in this thread, then mention the app again._');
+  });
+
+  it('reports an opened pull request in the thread', () => {
+    const steps = at(discord, 'jobs', 'follow_up', 'steps') as YamlRecord[];
+    const events = [
+      jobCompleted({
+        key: 'implement',
+        status: 'succeeded',
+        outputs: {status: 'implemented', pr_url: 'https://github.com/acme/api/pull/7'},
+      }),
+    ];
+
+    expect(
+      steps
+        .filter((entry) => evaluate(entry.if, {execution: {events}}) === true)
+        .map((entry) => entry.key),
+    ).toEqual(['pull_request']);
   });
 });

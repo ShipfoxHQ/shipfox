@@ -1,8 +1,8 @@
-# Route Slack requests to your workflows
+# Route chat requests to your workflows
 
-Let people mention one Slack app for any request. The dispatcher reads the thread, picks the workflow that handles the request, and starts it with the inputs it needs.
+Let people mention one chat app, in Slack or Discord, for any request. The dispatcher reads the thread, picks the workflow that handles the request, and starts it with the inputs it needs.
 
-This template connects the starter factory. Questions go to the codebase question workflow, ticket requests to the Slack ticket workflow, and change requests to the task to pull request workflow. Each routed workflow runs on its own and reports in the same thread.
+This template connects the starter factory. Questions go to the codebase question workflow, ticket requests to the ticket workflow, and change requests to the task to pull request workflow. Each routed workflow runs on its own and reports in the same thread.
 
 ## Scope the workflow
 
@@ -13,7 +13,7 @@ The route agent has no tools. It reads the thread that the `thread` job passes i
 Tool steps outside the agent post in the thread and start the routed workflow.
 
 Mentions from other apps and bots are ignored, so another bot cannot start a run.
-Replace `replace-with-channel-id` with the IDs of the channels where the app routes requests, such as `["C0ABC12345", "C0DEF67890"]`. The app ignores mentions everywhere else, even in channels it belongs to.
+Replace `replace-with-channel-id` with the IDs of the channels where the app routes requests, such as `["C0ABC12345", "C0DEF67890"]` in Slack or `["1290000000000000001"]` in Discord. The app ignores mentions everywhere else, even in channels it belongs to. In Discord, a mention inside a thread counts for the channel the thread belongs to, when Shipfox can resolve that channel.
 
 Do not list a channel in this workflow and in a workflow that answers mentions on its own. Both would reply to one mention. The routed workflows use `dispatch_only` for this reason.
 
@@ -36,10 +36,10 @@ Any synced workflow with a `manual` trigger in the project can be routed. To add
 
 1. Add a numbered entry to the prompt with its path, what it does, when to use it, where its result appears, and each input it reads.
 2. Add its path to the `workflow` output's `enum`.
-3. Make sure the workflow reports its result. It can reply in the thread from its `channel_id` and `thread_ts` inputs, like the codebase question workflow does.
+3. Make sure the workflow reports its result. It can reply in the thread from its thread inputs, like the codebase question workflow does. These are `channel_id` and `thread_ts` in Slack, and `channel_id` and `message_id` in Discord.
 
 Describe inputs as the workflow reads them. The agent passes every input as a string, and each input is limited to 4,000 characters.
-The `check_thread` step fails the run when the inputs name a `channel_id` or `thread_ts` other than the thread that started it. A routed workflow therefore cannot reply in another channel.
+The `check_thread` step fails the run when the inputs name a `channel_id` or `thread_ts` (`message_id` in Discord) other than the thread that started it. A routed workflow therefore cannot reply in another channel.
 
 ## Choose a model
 
@@ -68,16 +68,16 @@ The routed workflow reports its result in the thread:
 | Routed workflow | Result in the thread |
 | --- | --- |
 | Codebase question | The routed workflow posts the answer, its questions, or a failure notice. |
-| Slack ticket | The routed workflow posts the ticket link, its questions, or a failure notice. |
+| Ticket | The routed workflow posts the ticket link, its questions, or a failure notice. |
 | Task to pull request | The dispatcher's `follow_up` job posts the pull request link, the agent's questions, or that the run stopped before it opened a pull request. |
 
-The task to pull request workflow does not post in Slack. The `follow_up` job listens for Shipfox events of the routed run:
+The task to pull request workflow does not post in chat. The `follow_up` job listens for Shipfox events of the routed run:
 
 - The `implement` job's `job.completed` event arrives when the pull request opens. It carries the job's `status`, `questions`, and `pr_url` outputs.
 - The routed run's `run.completed` event ends the listener for workflows that report themselves.
 
 The listener handles one batch of events and stops after 12 hours. With the feedback loop on, the task run stays open until the pull request closes, but the dispatcher run ends when the pull request opens.
-For another workflow that does not post in Slack, add a matcher for its result job and a step that posts the result.
+For another workflow that does not post in chat, add a matcher for its result job and a step that posts the result.
 
 The listener starts after the `route` job finishes. The dispatcher misses an `implement` job that finishes before that, and posts nothing when the run completes. An implementation job checks out and changes code first, so it rarely finishes that fast.
 
@@ -85,7 +85,7 @@ A routed workflow whose first job fails posts nothing, for example when no runne
 
 ## Duplicates and loops
 
-- Slack retries of the same event are recorded once, so they do not start a second run.
+- Retries of the same Slack or Discord event are recorded once, so they do not start a second run.
 - When Shipfox retries the `start` step after a temporary failure, it returns the same routed run. A manual rerun of the step can start another one.
 - The route agent looks for the `Shipfox started` message. When the request that started the run was already started and nothing new was asked, it replies with `already_started`.
 - Two mentions that start before either run posts its start message can each start a workflow.

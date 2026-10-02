@@ -250,6 +250,14 @@ async function createProviderConnection({
           botToken: 'xoxb-eval-slack-bot-token',
         })
       ).slug;
+    case 'discord':
+      return (
+        await createDiscordConnection({
+          workspaceId,
+          guildId: `guild-${uniqueId}`,
+          guildName: `Eval Discord ${uniqueId}`,
+        })
+      ).slug;
     case 'clickup':
       return (
         await createClickUpConnection({

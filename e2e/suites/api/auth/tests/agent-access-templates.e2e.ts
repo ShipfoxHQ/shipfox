@@ -135,7 +135,7 @@ test.describe('agent-access workflow templates', () => {
       });
       expect(before.templates.find(({id}) => id === 'slack-dispatcher')).toMatchObject({
         compatible: false,
-        missing_providers: ['slack'],
+        missing_providers: ['slack', 'discord'],
       });
       expect(before.templates.find(({id}) => id === 'fix-default-branch-ci')).toMatchObject({
         compatible: true,

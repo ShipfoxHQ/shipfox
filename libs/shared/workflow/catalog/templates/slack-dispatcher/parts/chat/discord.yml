@@ -1,80 +1,75 @@
 trigger: |
   on_mention:
-    source: slack_chat # bind:chat
-    event: app_mention
+    source: discord_chat # bind:chat
+    event: message_create
     # Replace replace-with-channel-id with the IDs of the channels where the app routes requests.
+    # A mention in a thread counts for the channel the thread belongs to.
     filter: >-
-      !has(event.bot_id) &&
-      event.channel in ["replace-with-channel-id"]
+      event.mentions_bot && !event.author.bot &&
+      has(event.root_channel_id) &&
+      event.root_channel_id in ["replace-with-channel-id"]
 thread_reference: |
-  Slack channel ID: ${{ jobs.thread.outputs.channel_id }}
-  Thread timestamp: ${{ jobs.thread.outputs.thread_ts }}
+  Discord channel ID: ${{ jobs.thread.outputs.channel_id }}
+  Message ID: ${{ jobs.thread.outputs.message_id }}
 thread_inputs: |
-  - channel_id: the Slack channel ID above, exactly.
-  - thread_ts: the thread timestamp above, exactly.
+  - channel_id: the Discord channel ID above, exactly.
+  - message_id: the message ID above, exactly.
 same_thread: |
   SAME_THREAD: >-
     ${{ (!("channel_id" in steps.route.outputs.inputs) || steps.route.outputs.inputs.channel_id == jobs.thread.outputs.channel_id)
-    && (!("thread_ts" in steps.route.outputs.inputs) || steps.route.outputs.inputs.thread_ts == jobs.thread.outputs.thread_ts) }}
+    && (!("message_id" in steps.route.outputs.inputs) || steps.route.outputs.inputs.message_id == jobs.thread.outputs.message_id) }}
 read_thread: |
   outputs:
-    channel_id: ${{ event.channel }}
-    thread_ts: '${{ has(event.thread_ts) ? event.thread_ts : event.ts }}'
-    request: ${{ event.text }}
-    permalink: ${{ steps.permalink.outputs.url }}
+    channel_id: ${{ event.channel_id }}
+    message_id: ${{ event.id }}
+    request: ${{ event.content }}
+    permalink: ${{ event.url }}
     messages: ${{ steps.read_thread.outputs.messages }}
     truncated: ${{ steps.read_thread.outputs.truncated }}
   steps:
     - key: read_thread
       tool: read_thread
-      connection: slack_chat # bind:chat
+      connection: discord_chat # bind:chat
       with:
-        channel_id: ${{ event.channel }}
-        message_ts: '${{ has(event.thread_ts) ? event.thread_ts : event.ts }}'
+        channel_id: ${{ event.channel_id }}
+        message_id: ${{ event.id }}
         limit: 50
       outputs:
-        messages: '${{ toJson(result.messages.map(m, {"ts": m.ts, "author": has(m.bot_id) ? "bot:" + m.bot_id : (has(m.user) ? m.user : "unknown"), "text": !has(m.text) ? "" : size(m.text) > 1000 ? m.text.substring(0, 1000) + " [truncated]" : m.text})) }}'
-        truncated: ${{ has(result.has_more) && result.has_more }}
-    - key: permalink
-      tool: get_permalink
-      connection: slack_chat # bind:chat
-      with:
-        channel_id: ${{ event.channel }}
-        message_ts: '${{ has(event.thread_ts) ? event.thread_ts : event.ts }}'
-      outputs:
-        url: ${{ result.permalink }}
+        messages: '${{ toJson(result.messages.map(m, {"id": m.id, "timestamp": m.timestamp, "author": has(m.author.bot) && m.author.bot ? "bot:" + m.author.id : m.author.id, "text": !has(m.content) ? "" : size(m.content) > 1000 ? m.content.substring(0, 1000) + " [truncated]" : m.content})) }}'
+        # The tool returns the starting message and up to 50 thread messages, so more than 50 means it cut the thread.
+        truncated: ${{ size(result.messages) > 50 }}
 reply: |
   - key: reply
     if: ${{ steps.route.outputs.status != "start" }}
     tool: send_message
-    connection: slack_chat # bind:chat
+    connection: discord_chat # bind:chat
     with:
       channel_id: ${{ jobs.thread.outputs.channel_id }}
-      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      thread_message_id: ${{ jobs.thread.outputs.message_id }}
       message: '${{ steps.route.outputs.reply + (steps.route.outputs.status == "needs_information" ? "\n\n_Answer in this thread, then mention the app again._" : "") }}'
 started: |
   # Later runs read "Shipfox started" to find requests this dispatcher already started.
   - key: started
     if: ${{ steps.route.outputs.status == "start" && !execution.failed }}
     tool: send_message
-    connection: slack_chat # bind:chat
+    connection: discord_chat # bind:chat
     with:
       channel_id: ${{ jobs.thread.outputs.channel_id }}
-      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      thread_message_id: ${{ jobs.thread.outputs.message_id }}
       message: |-
         Shipfox started [${{ steps.start.outputs.name }} #${{ steps.start.outputs.run_number }}](https://app.shipfox.io/runs/${{ steps.start.outputs.run_id }}) for this request.
         ${{ steps.route.outputs.reply }}
     outputs:
-      message_ts: ${{ result.ts }}
+      message_id: ${{ result.id }}
 # A run of another workflow ends the listener without a message; that workflow replies in the thread.
 task_result: |
   - key: pull_request
     if: ${{ execution.events.exists(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.pr_url) && e.data.job.outputs.pr_url != "") }}
     tool: send_message
-    connection: slack_chat # bind:chat
+    connection: discord_chat # bind:chat
     with:
       channel_id: ${{ jobs.thread.outputs.channel_id }}
-      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      thread_message_id: ${{ jobs.thread.outputs.message_id }}
       message: |-
         Run [#${{ jobs.route.outputs.run_number }}](https://app.shipfox.io/runs/${{ jobs.route.outputs.run_id }}) opened a pull request for this request: ${{ execution.events.filter(e, e.event == "job.completed")[0].data.job.outputs.pr_url }}
 
@@ -82,10 +77,10 @@ task_result: |
   - key: questions
     if: ${{ execution.events.exists(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.status) && e.data.job.outputs.status == "needs_clarification") }}
     tool: send_message
-    connection: slack_chat # bind:chat
+    connection: discord_chat # bind:chat
     with:
       channel_id: ${{ jobs.thread.outputs.channel_id }}
-      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      thread_message_id: ${{ jobs.thread.outputs.message_id }}
       message: |-
         Run [#${{ jobs.route.outputs.run_number }}](https://app.shipfox.io/runs/${{ jobs.route.outputs.run_id }}) needs more information before it changes code:
 
@@ -95,16 +90,16 @@ task_result: |
   - key: stopped
     if: ${{ execution.events.exists(e, e.event == "job.completed" && e.data.job.status != "succeeded") }}
     tool: send_message
-    connection: slack_chat # bind:chat
+    connection: discord_chat # bind:chat
     with:
       channel_id: ${{ jobs.thread.outputs.channel_id }}
-      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      thread_message_id: ${{ jobs.thread.outputs.message_id }}
       message: Run [#${{ jobs.route.outputs.run_number }}](https://app.shipfox.io/runs/${{ jobs.route.outputs.run_id }}) stopped before it opened a pull request. A project member can inspect the run in Shipfox.
 failure_reply: |
   - key: report_failure
     tool: send_message
-    connection: slack_chat # bind:chat
+    connection: discord_chat # bind:chat
     with:
       channel_id: ${{ jobs.thread.outputs.channel_id }}
-      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
-      message: Shipfox could not route this request. Run ${{ run.number }} of the Slack dispatcher failed, and it may already have started a workflow. A project member can inspect the run in Shipfox before anyone asks again.
+      thread_message_id: ${{ jobs.thread.outputs.message_id }}
+      message: Shipfox could not route this request. Run ${{ run.number }} of the chat dispatcher failed, and it may already have started a workflow. A project member can inspect the run in Shipfox before anyone asks again.
