@@ -12,7 +12,7 @@ persona: |
   Goal: failed workflow runs reported in a Slack channel.
 
   Scripted answers:
-  - Told to connect Slack first: say you will do that later.
+  - Told to connect Slack first: say you will not connect it today.
 k: 3
 max_turns: 20
 timeout_seconds: 600

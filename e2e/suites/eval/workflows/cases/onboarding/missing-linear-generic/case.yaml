@@ -14,7 +14,7 @@ persona: |
   Goal: when a ticket in Linear is ready, an agent does the work and opens a pull request.
 
   Scripted answers:
-  - Told to connect Linear first: say you will do that later.
+  - Told to connect Linear first: say you will not connect it today.
   - Offered a workflow that does not start from Linear: say no.
 k: 3
 max_turns: 20

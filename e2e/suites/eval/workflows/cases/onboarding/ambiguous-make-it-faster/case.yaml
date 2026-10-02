@@ -13,6 +13,10 @@ persona: |
 
   Rules for this case: answer "I don't know" to every question about what to automate, what is
   slow, or how to measure it.
+
+  Scripted answers:
+  - Told the request is too vague to turn into a workflow: agree, and say you will come back
+    with something specific.
 k: 3
 max_turns: 20
 timeout_seconds: 600

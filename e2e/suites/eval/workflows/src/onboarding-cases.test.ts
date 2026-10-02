@@ -45,15 +45,26 @@ describe('shipped onboarding cases', () => {
     const {roles, options} = found.manifest;
 
     for (const [role, provider] of Object.entries(definition.expect.bindings ?? {})) {
+      expect(roles[role], `role ${role}`).toBeDefined();
       expect(roles[role]?.providers, `role ${role}`).toContain(provider);
       expect(definition.workspace.connections, `connection for ${role}`).toContain(provider);
     }
     for (const [option, choice] of Object.entries(definition.expect.options ?? {})) {
       const declared = options.find(({id}) => id === option);
+      expect(declared, `option ${option}`).toBeDefined();
       expect(
         declared?.choices.map(({id}) => id),
         `option ${option}`,
       ).toContain(choice);
+    }
+  });
+
+  it('names only shipped templates in template prompts', async () => {
+    for (const {id, definition} of cases) {
+      if (!definition.prompt.startsWith('template:')) continue;
+      const templateId = definition.prompt.slice('template:'.length).split('?')[0];
+      const found = await shippedTemplateLoader.get({package: `shipfox/${templateId}`});
+      expect(found, `${id} prompts for ${templateId}`).toBeDefined();
     }
   });
 

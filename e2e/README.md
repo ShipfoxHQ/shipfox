@@ -462,7 +462,7 @@ result per repeat with the transcript, the MCP call log, the workflow files the
 agent wrote, and usage:
 
 ```sh
-ANTHROPIC_API_KEY=<key> mise run evals -- --suite onboarding --case fixture
+ANTHROPIC_API_KEY=<key> mise run evals -- --suite onboarding --case ticket-to-pr-named
 ```
 
 Each case declares the `expect.outcome` a correct agent ends with, and only the
