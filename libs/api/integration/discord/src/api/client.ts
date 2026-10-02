@@ -7,6 +7,7 @@ import {DiscordIntegrationProviderError} from '#core/errors.js';
 
 export const DISCORD_API_TIMEOUT_MS = 10_000;
 
+const PUBLIC_THREAD_TYPE = 11;
 const TRAILING_SLASHES_RE = /\/+$/;
 
 export interface DiscordRole {
@@ -110,6 +111,23 @@ export interface DiscordApiClient {
     messageId: string;
     name: string;
   }): Promise<DiscordChannel>;
+  /**
+   * Starts a public thread that hangs off no message. A forum or media channel only takes posts:
+   * pass `post` there, and the thread is created with that message as its first one.
+   */
+  createThread(input: {
+    channelId: string;
+    name: string;
+    post?: string | undefined;
+  }): Promise<DiscordChannel>;
+  /** Pings users named in `content` only, never roles or `@everyone`. */
+  editMessage(input: {
+    channelId: string;
+    messageId: string;
+    content: string;
+  }): Promise<DiscordMessage>;
+  /** `emoji` is the Unicode emoji, or `name:id` for a custom one. */
+  addReaction(input: {channelId: string; messageId: string; emoji: string}): Promise<void>;
   /** Threads are not included. */
   listGuildChannels(input: {guildId: string}): Promise<DiscordChannel[]>;
   listActiveGuildThreads(input: {guildId: string}): Promise<DiscordChannel[]>;
@@ -140,7 +158,7 @@ export interface CreateDiscordApiClientOptions {
 
 interface DiscordRequest {
   operation: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   path: string;
   query?: Record<string, string | number | undefined>;
   json?: unknown;
@@ -280,6 +298,31 @@ export function createDiscordApiClient(
         path: `/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/threads`,
         json: {name},
       }),
+    createThread: ({channelId, name, post}) =>
+      request({
+        operation: 'create-thread',
+        method: 'POST',
+        path: `/channels/${encodeURIComponent(channelId)}/threads`,
+        // Discord defaults to a private thread, and a forum post is public by nature.
+        json:
+          post === undefined
+            ? {name, type: PUBLIC_THREAD_TYPE}
+            : {name, message: {content: post, allowed_mentions: {parse: ['users']}}},
+      }),
+    editMessage: ({channelId, messageId, content}) =>
+      request({
+        operation: 'edit-message',
+        method: 'PATCH',
+        path: `/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}`,
+        json: {content, allowed_mentions: {parse: ['users']}},
+      }),
+    async addReaction({channelId, messageId, emoji}) {
+      await request<void>({
+        operation: 'add-reaction',
+        method: 'PUT',
+        path: `/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/reactions/${encodeURIComponent(emoji)}/@me`,
+      });
+    },
     listGuildChannels: ({guildId}) =>
       request({
         operation: 'list-guild-channels',

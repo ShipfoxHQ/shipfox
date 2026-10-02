@@ -1,9 +1,9 @@
 import type {DiscordAgentToolId} from '@shipfox/api-integration-discord-dto';
 import type {DiscordApiClient, DiscordChannel, DiscordMessage} from '#api/client.js';
 import type {DiscordChannelGuard} from '#core/channel-guard.js';
-import {isDiscordThreadType} from '#core/channel-types.js';
+import {isDiscordForumType, isDiscordThreadType} from '#core/channel-types.js';
 import {DiscordIntegrationProviderError, DiscordToolArgumentError} from '#core/errors.js';
-import {splitDiscordMessage} from '#core/message-split.js';
+import {DISCORD_MESSAGE_LIMIT, splitDiscordMessage} from '#core/message-split.js';
 import {ensureMessageThread} from '#core/message-thread.js';
 
 export type DiscordToolClient = Pick<
@@ -17,9 +17,17 @@ export type DiscordToolClient = Pick<
   | 'getGuildMember'
   | 'createMessage'
   | 'startThreadFromMessage'
+  | 'createThread'
+  | 'editMessage'
+  | 'addReaction'
 >;
 
 const DEFAULT_THREAD_LIMIT = 50;
+const THREAD_NAME_MAX_LENGTH = 100;
+const EMOJI_MAX_LENGTH = 64;
+const CUSTOM_EMOJI_RE = /^\w{2,32}:\d{1,20}$/;
+const WHITESPACE_RE = /\s/;
+const NON_ASCII_RE = /\P{ASCII}/u;
 
 export interface DiscordToolContext {
   discord: DiscordToolClient;
@@ -185,7 +193,113 @@ export const DISCORD_TOOL_OPERATIONS: Partial<Record<DiscordAgentToolId, Discord
       return {id: first?.id, channel_id: targetId, url: first?.url, messages};
     },
   },
+  create_thread: {
+    permissionHint: 'View Channel, Read Message History, and Create Public Threads',
+    validate(args) {
+      const length = Array.from(stringArgument(args, 'name').trim()).length;
+      return length === 0 || length > THREAD_NAME_MAX_LENGTH
+        ? `Parameter name must be 1 to ${THREAD_NAME_MAX_LENGTH} characters`
+        : undefined;
+    },
+    async run(args, {discord, guildId, guard}) {
+      const channelId = stringArgument(args, 'channel_id');
+      const name = stringArgument(args, 'name').trim();
+      const messageId = optionalString(args.message_id);
+      const post = optionalString(args.message);
+      const {type} = await guard({channelId, guildId});
+
+      if (isDiscordThreadType(type)) {
+        throw new DiscordToolArgumentError(
+          'A thread cannot be created inside a thread. Use the channel the thread belongs to',
+        );
+      }
+      let threadId: string;
+      if (isDiscordForumType(type)) {
+        if (messageId !== undefined) {
+          throw new DiscordToolArgumentError(
+            'Parameter message_id is not accepted in a forum or media channel',
+          );
+        }
+        if (post === undefined) {
+          throw new DiscordToolArgumentError(
+            'Parameter message is required in a forum or media channel',
+          );
+        }
+        threadId = (await discord.createThread({channelId, name, post: messageText(post)})).id;
+      } else if (post !== undefined) {
+        throw new DiscordToolArgumentError(
+          'Parameter message is only accepted in a forum or media channel. Post in the thread with send_message',
+        );
+      } else if (messageId === undefined) {
+        threadId = (await discord.createThread({channelId, name})).id;
+      } else {
+        threadId = await ensureMessageThread({discord, channelId, messageId, name});
+      }
+      return {
+        id: threadId,
+        channel_id: channelId,
+        url: discordChannelUrl({guildId, channelId: threadId}),
+      };
+    },
+  },
+  update_message: {
+    permissionHint: 'View Channel and Read Message History',
+    validate: (args) =>
+      stringArgument(args, 'message').trim() === ''
+        ? 'Parameter message must not be empty'
+        : undefined,
+    async run(args, {discord, guildId, guard}) {
+      const content = messageText(stringArgument(args, 'message'));
+      const channelId = stringArgument(args, 'channel_id');
+      await guard({channelId, guildId});
+      const message = await discord.editMessage({
+        channelId,
+        messageId: stringArgument(args, 'message_id'),
+        content,
+      });
+      return withUrl(message, guildId);
+    },
+  },
+  add_reaction: {
+    permissionHint: 'View Channel, Read Message History, and Add Reactions',
+    validate(args) {
+      const emoji = stringArgument(args, 'emoji');
+      if (emoji.length > EMOJI_MAX_LENGTH || WHITESPACE_RE.test(emoji)) return INVALID_EMOJI;
+      // A custom emoji is name:id. Anything else must be the emoji itself, not a :shortcode:.
+      const valid = emoji.includes(':') ? CUSTOM_EMOJI_RE.test(emoji) : NON_ASCII_RE.test(emoji);
+      return valid ? undefined : INVALID_EMOJI;
+    },
+    async run(args, {discord, guildId, guard}) {
+      const channelId = stringArgument(args, 'channel_id');
+      const messageId = stringArgument(args, 'message_id');
+      const emoji = stringArgument(args, 'emoji');
+      await guard({channelId, guildId});
+      await discord.addReaction({channelId, messageId, emoji});
+      return {
+        channel_id: channelId,
+        message_id: messageId,
+        emoji,
+        url: discordMessageUrl({guildId, channelId, messageId}),
+      };
+    },
+  },
 };
+
+const INVALID_EMOJI =
+  'Parameter emoji must be a Unicode emoji, or name:id for a custom emoji. Shortcodes such as :thumbsup: are not accepted';
+
+/** One message, never split: a post or an edit has no continuation. */
+function messageText(text: string): string {
+  const content = text.trim();
+  if (content === '') throw new DiscordToolArgumentError('The message must not be empty');
+  if (content.length > DISCORD_MESSAGE_LIMIT) {
+    throw new DiscordIntegrationProviderError({
+      reason: 'content-too-large',
+      message: `The message is too long for Discord. Shorten it to ${DISCORD_MESSAGE_LIMIT} characters or fewer.`,
+    });
+  }
+  return content;
+}
 
 /** Discord answers newest first; a thread reads better oldest first. */
 async function listThreadMessages(
@@ -229,6 +343,10 @@ function toChannelEntry(channel: DiscordChannel) {
     parent_id: channel.parent_id ?? null,
     topic: channel.topic ?? null,
   };
+}
+
+function discordChannelUrl(input: {guildId: string; channelId: string}): string {
+  return `https://discord.com/channels/${input.guildId}/${input.channelId}`;
 }
 
 export function discordMessageUrl(input: {

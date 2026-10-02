@@ -22,6 +22,9 @@ import {createDiscordChannelGuard} from '#core/channel-guard.js';
 import {DiscordIntegrationProviderError, DiscordToolArgumentError} from '#core/errors.js';
 import type {DiscordInstallation} from '#db/installations.js';
 
+/** Discord's answer to an edit of a message another user posted. */
+const CANNOT_EDIT_OTHERS_MESSAGE = 50005;
+
 type DiscordIntegrationConnection = IntegrationConnection<'discord'>;
 type DiscordToolCall = Parameters<AgentToolSession<DiscordToolCallResult>['call']>[0];
 
@@ -146,6 +149,9 @@ function mapDiscordToolFailure(params: {
         'credentials-unavailable',
       );
     case 'access-denied':
+      if (error.discordCode === CANNOT_EDIT_OTHERS_MESSAGE) {
+        return discordToolError('Only messages posted by the bot can be edited', 'access-denied');
+      }
       // Only answers from Discord carry a status. Boundary rejections keep their own message.
       return discordToolError(
         error.status === undefined

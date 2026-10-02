@@ -183,6 +183,73 @@ export const discordAgentToolCatalog = [
       },
     },
   }),
+  tool({
+    id: 'create_thread',
+    sensitivity: 'write',
+    description:
+      'Create a public thread in a Discord channel. With message_id, the thread starts from that message and its ID is returned when the message already has a thread. Without it, the thread stands alone. In a forum or media channel, message is required and becomes the post: message_id is not accepted there. Only users are pinged, never roles or @everyone. Post in the new thread with send_message, using the returned ID as channel_id.',
+    inputSchema: objectSchema(
+      {
+        channel_id: snowflakeSchema('ID of a channel in the connected Discord server'),
+        name: stringSchema('Thread name, 1 to 100 characters'),
+        message_id: snowflakeSchema(
+          'ID of a message in channel_id to start the thread from. Not accepted in a forum or media channel',
+        ),
+        message: stringSchema(
+          'Text of the post in Markdown, up to 2,000 characters. Required in a forum or media channel, and not accepted elsewhere',
+        ),
+      },
+      ['channel_id', 'name'],
+    ),
+    outputSchema: {
+      type: 'object',
+      additionalProperties: true,
+      properties: {
+        id: stringSchema('ID of the thread'),
+        channel_id: stringSchema('ID of the channel the thread belongs to'),
+        url: stringSchema('Link to the thread'),
+      },
+    },
+  }),
+  tool({
+    id: 'update_message',
+    sensitivity: 'write',
+    description:
+      'Replace the text of a message the bot posted in a Discord channel or thread. Messages from anyone else cannot be edited. Markdown is supported, up to 2,000 characters, and the text is not split. Only users are pinged, never roles or @everyone.',
+    inputSchema: objectSchema(
+      {
+        channel_id: snowflakeSchema('ID of the channel or thread the message is in'),
+        message_id: snowflakeSchema('ID of the message to edit'),
+        message: stringSchema('New message text in Markdown, up to 2,000 characters'),
+      },
+      ['channel_id', 'message_id', 'message'],
+    ),
+    outputSchema: messageSchema('The edited message'),
+  }),
+  tool({
+    id: 'add_reaction',
+    sensitivity: 'write',
+    description:
+      'Add a reaction from the bot to a message. emoji is the Unicode emoji itself, for example 👍, or name:id for a custom emoji of the server.',
+    inputSchema: objectSchema(
+      {
+        channel_id: snowflakeSchema('ID of the channel or thread the message is in'),
+        message_id: snowflakeSchema('ID of the message to react to'),
+        emoji: stringSchema('Unicode emoji, or name:id for a custom emoji'),
+      },
+      ['channel_id', 'message_id', 'emoji'],
+    ),
+    outputSchema: {
+      type: 'object',
+      additionalProperties: true,
+      properties: {
+        channel_id: stringSchema('ID of the channel or thread the message is in'),
+        message_id: stringSchema('ID of the message reacted to'),
+        emoji: stringSchema('The emoji added'),
+        url: stringSchema('Link to the message'),
+      },
+    },
+  }),
 ] as const satisfies readonly DiscordAgentToolCatalogEntry[];
 
 export const discordAgentToolSelectionCatalog: AgentToolSelectionCatalog = {
@@ -230,30 +297,31 @@ function messagesOutputSchema(
     additionalProperties: true,
     properties: {
       ...extraProperties,
-      messages: {
-        type: 'array',
-        description,
-        items: {
-          type: 'object',
-          additionalProperties: true,
-          properties: {
-            id: stringSchema('Message ID'),
-            channel_id: stringSchema('ID of the channel or thread the message is in'),
-            url: stringSchema('Link to the message'),
-            content: stringSchema('Message text'),
-            author: {
-              type: 'object',
-              additionalProperties: true,
-              properties: {
-                id: stringSchema('Author user ID'),
-                username: stringSchema('Author username'),
-                bot: {type: 'boolean', description: 'Whether the author is a bot'},
-              },
-            },
-            timestamp: stringSchema('ISO 8601 timestamp of when the message was sent'),
-          },
+      messages: {type: 'array', description, items: messageSchema()},
+    },
+  };
+}
+
+function messageSchema(description?: string): AgentToolJsonSchema {
+  return {
+    type: 'object',
+    additionalProperties: true,
+    ...(description === undefined ? {} : {description}),
+    properties: {
+      id: stringSchema('Message ID'),
+      channel_id: stringSchema('ID of the channel or thread the message is in'),
+      url: stringSchema('Link to the message'),
+      content: stringSchema('Message text'),
+      author: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          id: stringSchema('Author user ID'),
+          username: stringSchema('Author username'),
+          bot: {type: 'boolean', description: 'Whether the author is a bot'},
         },
       },
+      timestamp: stringSchema('ISO 8601 timestamp of when the message was sent'),
     },
   };
 }
