@@ -45,8 +45,8 @@ export function createE2eDiscordInjectDispatchRoute(options: InjectE2eDiscordDis
           op: 0,
           t: name,
           s: body.sequence ?? body.dispatch.s ?? 0,
-          // A message from the connection's server carries its id, as Discord's does.
-          d: {guild_id: installation.guildId, ...data},
+          // The connection decides the server, so a payload cannot route to another installation.
+          d: {...data, guild_id: installation.guildId},
         } as Parameters<typeof handler>[0],
         {sessionId: body.session_id},
       );

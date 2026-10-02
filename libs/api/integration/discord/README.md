@@ -94,7 +94,7 @@ Commands are answered with an ephemeral message. It says the server is not conne
 
 `createDiscordE2eRoutes` registers `POST /integrations/discord-connections` under the E2E route prefix. It accepts the Discord DTO seed body and returns the integration connection DTO. This route is for test setup, not production clients.
 
-It also registers `POST /integrations/discord-dispatches`. The body names a `connection_id`, an optional `session_id` and `sequence`, and a `dispatch` with its name (`t`) and data (`d`). The route runs it through the same handlers the Gateway service uses, filling `guild_id` from the connection's installation, and answers `204`. A dispatch with no handler is `400` `discord-dispatch-invalid`, and a connection without an installation is `404` `discord-connection-not-found`. The E2E stack runs with `DISCORD_GATEWAY_ENABLED=false`, so this is how a message reaches the handlers there.
+It also registers `POST /integrations/discord-dispatches`. The body names a `connection_id`, an optional `session_id` and `sequence`, and a `dispatch` with its name (`t`) and data (`d`). The route runs it through the same handlers the Gateway service uses, setting `guild_id` from the connection's installation, and answers `204`. A dispatch with no handler is `400` `discord-dispatch-invalid`, and a connection without an installation is `404` `discord-connection-not-found`. The E2E stack runs with `DISCORD_GATEWAY_ENABLED=false`, so this is how a message reaches the handlers there.
 
 ## REST client
 

@@ -70,6 +70,24 @@ describe('Discord E2E routes', () => {
     );
   });
 
+  it('sets the guild from the connection even when the payload names another', async () => {
+    const {app, messageCreate} = await arrange();
+
+    await app.inject({
+      method: 'POST',
+      url: '/integrations/discord-dispatches',
+      payload: {
+        connection_id: CONNECTION_ID,
+        dispatch: {t: 'MESSAGE_CREATE', d: {id: 'message-1', guild_id: 'guild-2'}},
+      },
+    });
+
+    expect(messageCreate).toHaveBeenCalledWith(
+      expect.objectContaining({d: expect.objectContaining({guild_id: 'guild-1'})}),
+      expect.anything(),
+    );
+  });
+
   it('rejects a dispatch the Gateway has no handler for', async () => {
     const {app, messageCreate} = await arrange();
 

@@ -14,8 +14,8 @@ Discord server. Faking Discord is on purpose: it is the external system under in
   thread started from a message takes that message's ID, as Discord does. One test at a time can
   hold the port, so keep the tests that use it in one serial file.
 - `injectDiscordMessageCreate(params)`: deliver a `MESSAGE_CREATE` dispatch that mentions the bot
-  through `POST /__e2e/integrations/discord-dispatches`, which runs the handler the Gateway service
-  uses. `connectionId` must belong to a connection made with `createDiscordConnection`. The message
+  unless `mentionsBot` is false, through `POST /__e2e/integrations/discord-dispatches`, which runs
+  the handler the Gateway service uses. `connectionId` must belong to a connection made with `createDiscordConnection`. The message
   ID is the delivery ID the API records. `buildMessageCreate(params)` returns the payload alone.
 - `postDiscordSlashCommand(params)`: post a signed `/shipfox prompt:` interaction to
   `/webhooks/integrations/discord/interactions` and return the interaction ID, which is the
