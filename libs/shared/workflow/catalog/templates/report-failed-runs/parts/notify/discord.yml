@@ -1,0 +1,28 @@
+send_report: |
+  - key: notify
+    tool: send_message
+    connection: discord_notify # bind:notify
+    with:
+      # Replace with the ID of the channel that receives reports, such as 1234567890123456789.
+      channel_id: replace-with-discord-channel-id
+      # Every part is capped so the message stays under Discord's 2,000-character limit.
+      message: >-
+        ${{ "**[" + (event.workflow.name.size() > 80 ? event.workflow.name.substring(0, 80) + "…" : event.workflow.name) + " #" + string(event.run.number) + "](<https://app.shipfox.io/runs/" + event.run.id + ">)** " + event.run.status
+        + (event.run.attempt > 1 ? " on attempt " + string(event.run.attempt) : "")
+        + " in " + (event.project.name.size() > 80 ? event.project.name.substring(0, 80) + "…" : event.project.name)
+        + (steps.detail.outputs.failed != "" ? "\nFailed: " + (steps.detail.outputs.failed.size() > 300 ? steps.detail.outputs.failed.substring(0, 300) + "…" : steps.detail.outputs.failed) : "")
+        + (steps.detail.outputs.error != "" ? "\nError: " + (steps.detail.outputs.error.size() > 300 ? steps.detail.outputs.error.substring(0, 300) + "…" : steps.detail.outputs.error) : "")
+        + (steps.logs.outputs.excerpt != "" ? "\n```\n" + steps.logs.outputs.excerpt + "\n```" : "")
+        + "\nNext: " + steps.detail.outputs.next }}
+    outputs:
+      message_id: ${{ result.id }}
+      channel: ${{ result.channel_id }}
+send_diagnosis: |
+  - key: reply
+    tool: send_message
+    connection: discord_notify # bind:notify
+    with:
+      channel_id: ${{ jobs.report.outputs.channel }}
+      thread_message_id: ${{ jobs.report.outputs.message_id }}
+      # send_message splits a long reply into up to 5 messages and refuses more than 10,000 characters.
+      message: '${{ steps.diagnose.outputs.diagnosis.size() > 9000 ? steps.diagnose.outputs.diagnosis.substring(0, 9000) + "…" : steps.diagnose.outputs.diagnosis }}'

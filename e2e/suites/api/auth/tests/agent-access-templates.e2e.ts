@@ -292,7 +292,7 @@ test.describe('agent-access workflow templates', () => {
 
       expect(before.templates.find(({id}) => id === 'report-failed-runs')).toMatchObject({
         compatible: false,
-        missing_providers: ['slack'],
+        missing_providers: ['slack', 'discord'],
       });
       expect(template.suggested_bindings).toEqual({notify: [slack.slug]});
       expect(template.workflow_yaml).toContain('source: shipfox');

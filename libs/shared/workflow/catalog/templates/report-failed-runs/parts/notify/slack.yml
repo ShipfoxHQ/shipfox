@@ -15,7 +15,7 @@ send_report: |
         + (steps.logs.outputs.excerpt != "" ? "\n```\n" + steps.logs.outputs.excerpt + "\n```" : "")
         + "\nNext: " + steps.detail.outputs.next }}
     outputs:
-      ts: ${{ result.ts }}
+      message_id: ${{ result.ts }}
       channel: ${{ result.channel }}
 send_diagnosis: |
   - key: reply
@@ -23,5 +23,5 @@ send_diagnosis: |
     connection: slack_notify # bind:notify
     with:
       channel_id: ${{ jobs.report.outputs.channel }}
-      thread_ts: ${{ jobs.report.outputs.message_ts }}
+      thread_ts: ${{ jobs.report.outputs.message_id }}
       message: '${{ steps.diagnose.outputs.diagnosis.size() > 11000 ? steps.diagnose.outputs.diagnosis.substring(0, 11000) + "…" : steps.diagnose.outputs.diagnosis }}'

@@ -7,7 +7,10 @@ import {loadShippedTemplates} from './loader.js';
 
 const template = loadShippedTemplates().find((entry) => entry.id === 'report-failed-runs');
 if (template === undefined) throw new Error('Missing failed run report template');
-const composed = composeTemplate(template, {notify: 'slack'});
+const composed = {
+  slack: composeTemplate(template, {notify: 'slack'}),
+  discord: composeTemplate(template, {notify: 'discord'}),
+};
 const optionMarker = /^\s*# option:(\w+)=(\w+) (begin|end)$/;
 const interpolationOpen = /^\$\{\{/u;
 const interpolationClose = /\}\}$/u;
@@ -21,10 +24,10 @@ const projectId = 'replace-with-project-id';
 
 type Selections = typeof defaults;
 
-function workflow(selections: Partial<Selections> = {}) {
+function workflow(selections: Partial<Selections> = {}, provider: keyof typeof composed = 'slack') {
   const selected = {...defaults, ...selections};
   const open: boolean[] = [];
-  const yaml = composed
+  const yaml = composed[provider]
     .split('\n')
     .filter((line) => {
       const marker = optionMarker.exec(line);
@@ -82,8 +85,8 @@ function matches(event: ReturnType<typeof completedEvent>, selections?: Partial<
   return evaluate(filter, {event});
 }
 
-function reportStep(key: string) {
-  const step = workflow().jobs.report?.steps.find((entry) => entry.key === key);
+function reportStep(key: string, provider: keyof typeof composed = 'slack') {
+  const step = workflow({}, provider).jobs.report?.steps.find((entry) => entry.key === key);
   if (step === undefined) throw new Error(`Missing ${key} step`);
   return step as {outputs?: Record<string, string>; with?: Record<string, string>};
 }
@@ -94,8 +97,12 @@ function stepOutput(key: string, output: string) {
   return value;
 }
 
-function message(event: ReturnType<typeof completedEvent>, steps: Record<string, unknown>) {
-  const source = reportStep('notify').with?.message;
+function message(
+  event: ReturnType<typeof completedEvent>,
+  steps: Record<string, unknown>,
+  provider: keyof typeof composed = 'slack',
+) {
+  const source = reportStep('notify', provider).with?.message;
   if (source === undefined) throw new Error('Missing notify message');
   return source.replace(interpolationSegment, (_segment, expression: string) =>
     String(evaluate(expression, {event, steps})),
@@ -124,6 +131,15 @@ function failedJob(reason: string, steps: readonly Record<string, unknown>[] = [
     selected_execution: {steps: {items: steps}},
   };
 }
+
+const longEvent = completedEvent(
+  {},
+  {workflow: {name: 'W'.repeat(5000)}, project: {name: 'P'.repeat(5000)}},
+);
+const longSteps = {
+  detail: {outputs: {failed: 'f'.repeat(5000), error: 'e'.repeat(2048), next: 'Rerun.'}},
+  logs: {outputs: {excerpt: `…${'l'.repeat(800)}`}},
+};
 
 describe('failed run report', () => {
   it.each([
@@ -178,7 +194,7 @@ describe('failed run report', () => {
     expect(diagnose?.steps.map((step) => step.key)).toEqual(['diagnose', 'reply']);
     expect(diagnose?.steps[1]).toMatchObject({
       with: {
-        thread_ts: '${{ jobs.report.outputs.message_ts }}',
+        thread_ts: '${{ jobs.report.outputs.message_id }}',
         message: expect.stringContaining('steps.diagnose.outputs.diagnosis'),
       },
     });
@@ -259,16 +275,64 @@ describe('failed run report', () => {
   });
 
   it('keeps the report under the Slack message limit', () => {
-    const event = completedEvent(
-      {},
-      {workflow: {name: 'W'.repeat(5000)}, project: {name: 'P'.repeat(5000)}},
+    const text = message(longEvent, longSteps);
+
+    expect(text.length).toBeLessThan(12_000);
+  });
+});
+
+describe('failed run report on Discord', () => {
+  it.each([
+    {},
+    {scope: 'workspace'},
+    {workflow_filter: 'selected'},
+  ])('diagnoses in the thread of the report in the %o variant', (selections) => {
+    const jobs = workflow(selections, 'discord').jobs;
+
+    expect(jobs.report?.outputs).toEqual({
+      message_id: '${{ steps.notify.outputs.message_id }}',
+      channel: '${{ steps.notify.outputs.channel }}',
+    });
+    expect(jobs.diagnose?.steps.map((step) => step.key)).toEqual(['diagnose', 'reply']);
+    expect(jobs.diagnose?.steps[1]).toMatchObject({
+      tool: 'send_message',
+      with: {
+        channel_id: '${{ jobs.report.outputs.channel }}',
+        thread_message_id: '${{ jobs.report.outputs.message_id }}',
+      },
+    });
+  });
+
+  it('links the run without an embed and names its attempt and project', () => {
+    const text = message(
+      completedEvent({attempt: 2}),
+      {
+        detail: {outputs: {failed: '`build` › `Run tests`', error: '', next: 'Rerun.'}},
+        logs: {outputs: {excerpt: 'Error: boom'}},
+      },
+      'discord',
     );
 
-    const text = message(event, {
-      detail: {outputs: {failed: 'f'.repeat(5000), error: 'e'.repeat(2048), next: 'Rerun.'}},
-      logs: {outputs: {excerpt: `…${'l'.repeat(800)}`}},
-    });
+    expect(text).toBe(
+      '**[Deploy #7](<https://app.shipfox.io/runs/0198a100-0000-7000-8000-000000000003>)** failed on attempt 2 in api\nFailed: `build` › `Run tests`\n```\nError: boom\n```\nNext: Rerun.',
+    );
+  });
+
+  it('keeps the report under the Discord message limit', () => {
+    const text = message(longEvent, longSteps, 'discord');
 
     expect(text.length).toBeLessThan(2_000);
+  });
+
+  it('cuts a long diagnosis below the send_message limit', () => {
+    const reply = workflow({}, 'discord').jobs.diagnose?.steps[1] as {
+      with?: Record<string, string>;
+    };
+
+    const text = evaluate(reply.with?.message ?? '', {
+      steps: {diagnose: {outputs: {diagnosis: 'd'.repeat(20_000)}}},
+    });
+
+    expect((text as string).length).toBe(9001);
   });
 });
