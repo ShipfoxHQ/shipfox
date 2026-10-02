@@ -3,6 +3,7 @@ import type {DefinitionResponseDto} from '@shipfox/api-definitions-dto';
 import {E2eApiError, preflightCheck} from '@shipfox/e2e-core';
 import {
   createClickUpConnection,
+  createDiscordConnection,
   createJiraConnection,
   createLinearConnection,
   createSlackConnection,
@@ -247,6 +248,14 @@ async function createProviderConnection({
           appId: `A${uniqueId}`,
           botUserId: `Ubot${uniqueId}`,
           botToken: 'xoxb-eval-slack-bot-token',
+        })
+      ).slug;
+    case 'discord':
+      return (
+        await createDiscordConnection({
+          workspaceId,
+          guildId: `guild-${uniqueId}`,
+          guildName: `Eval Discord ${uniqueId}`,
         })
       ).slug;
     case 'clickup':

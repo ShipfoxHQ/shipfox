@@ -13,7 +13,7 @@ The route agent has no tools. It reads the thread that the `thread` job passes i
 Tool steps outside the agent post in the thread and start the routed workflow.
 
 Mentions from other apps and bots are ignored, so another bot cannot start a run.
-Replace `replace-with-channel-id` with the IDs of the channels where the app routes requests, such as `["C0ABC12345", "C0DEF67890"]` in Slack or `["1290000000000000001"]` in Discord. The app ignores mentions everywhere else, even in channels it belongs to. In Discord, a mention inside a thread counts for the channel the thread belongs to.
+Replace `replace-with-channel-id` with the IDs of the channels where the app routes requests, such as `["C0ABC12345", "C0DEF67890"]` in Slack or `["1290000000000000001"]` in Discord. The app ignores mentions everywhere else, even in channels it belongs to. In Discord, a mention inside a thread counts for the channel the thread belongs to, when Shipfox can resolve that channel.
 
 Do not list a channel in this workflow and in a workflow that answers mentions on its own. Both would reply to one mention. The routed workflows use `dispatch_only` for this reason.
 

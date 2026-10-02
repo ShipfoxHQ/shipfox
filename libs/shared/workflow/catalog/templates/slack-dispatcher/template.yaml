@@ -25,7 +25,7 @@ writes:
   - action: Replies once in the thread, and later posts the pull request link for a change. On Discord, starts the thread under the mention when it has none.
 prerequisites:
   - With Slack, invite the Shipfox app to each channel where it routes requests.
-  - With Discord, let the Shipfox bot view each channel where it routes requests, read its history, and send messages and create public threads there.
+  - With Discord, let the Shipfox bot view each channel where it routes requests, read its history, send messages, send messages in threads, and create public threads there.
   - Set up each workflow it starts in the same project first. Set the codebase question and ticket workflows to start only from another workflow.
 related: [shipfox/ask-codebase, shipfox/slack-to-ticket, shipfox/ticket-to-pr]
 roles:

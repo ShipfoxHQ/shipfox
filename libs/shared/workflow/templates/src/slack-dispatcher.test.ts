@@ -15,6 +15,7 @@ parseWorkflowDocument(parseYaml(composed));
 const workflow = parseYaml(composed) as YamlRecord;
 const expressionPattern = /^\$\{\{\s*([\s\S]*?)\s*\}\}$/;
 const environment = createWorkflowEnvironment();
+const channelIdInput = /- channel_id: the Discord channel ID above, exactly\./g;
 const messageIdInput = /- message_id: the message ID above, exactly\./g;
 const slackOnlyText = /Slack|thread_ts/;
 const childRunId = '0199a8f0-0000-7000-8000-000000000001';
@@ -385,6 +386,7 @@ describe('Discord dispatcher template', () => {
   it('lists the Discord thread inputs for the routed workflows', () => {
     const prompt = String(discordStep('route', 'route').prompt);
 
+    expect(prompt.match(channelIdInput)).toHaveLength(2);
     expect(prompt.match(messageIdInput)).toHaveLength(2);
     expect(prompt).not.toMatch(slackOnlyText);
   });
