@@ -38,6 +38,13 @@ scenario:
 
 expect:
   writes:
-    # The diagnosis is the only write. Nothing is pushed for a failure that needs a person.
+    # The diagnosis is the only write. Nothing is pushed for a failure that needs a person, and the
+    # comment says so, where a proposed patch would say to apply it.
     - github.push: {count: 0}
-    - github.create_issue_comment: {pull_request: $pr, count: 1}
+    - github.create_issue_comment:
+        pull_request: $pr
+        body:
+          contains:
+            - A person has to decide whether the report adopts the new name or pins pad 1.0.0
+            - A person must act before this failure can be repaired.
+        count: 1
