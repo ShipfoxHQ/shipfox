@@ -2,4 +2,4 @@
 "@shipfox/workflow-templates": minor
 ---
 
-Adds Discord as a second notify provider for the `report-failed-runs` template. The report posts to a Discord channel, and the agent's diagnosis replies in a thread on that message. The report stays under Discord's 2,000-character message limit, and a long diagnosis is split into several messages.
+Adds Discord as a second notify provider for the `report-failed-runs` template. The report posts to a Discord channel, and the agent's diagnosis replies in a thread on that message. A long diagnosis is split into several messages.

@@ -13,7 +13,7 @@ A run that failed before any job started is reported too. The report says no job
 
 After the report posts, the `diagnose` job has an agent read the run and its failed logs.
 It replies in the report's thread with the error line, a likely cause, and one fix to try.
-On Discord, the reply starts a public thread on the report message. A reply over 2,000 characters is split into up to 5 messages, and one over 10,000 characters is cut.
+On Discord, the reply starts a public thread on the report message. A reply over 2,000 characters is split into up to 5 messages, and one over 9,000 characters is cut.
 The agent gets only the read tools `get_workflow_run` and `get_step_logs`.
 The `diagnose` job always succeeds. A failed diagnosis loses only the thread reply.
 
@@ -39,8 +39,8 @@ Replace `slack_notify` with the Slack connection slug in every `connection` line
 Replace `replace-with-slack-channel-id` with the report channel ID.
 
 With Discord, replace `discord_notify` with the Discord connection slug in every `connection` line of the Discord steps.
-Replace `replace-with-discord-channel-id` with the report channel ID, which Discord shows when Developer Mode is on.
-The bot needs permission to view the channel, send messages, and create public threads there.
+Replace `replace-with-discord-channel-id` with the report channel ID, which Discord shows when Developer Mode is on. Keep the quotes, because an unquoted ID is read as a number and loses its last digits.
+The bot needs `View Channel`, `Read Message History`, `Send Messages`, `Send Messages in Threads`, and `Create Public Threads` there.
 Keep every `connection: shipfox` line and `source: shipfox`. They use the built-in Shipfox connection, not a workspace connection.
 
 Report links point to `https://app.shipfox.io/runs/`. On a self-hosted installation, replace `https://app.shipfox.io` with the address of your Shipfox app.

@@ -24,7 +24,7 @@ writes:
     action: Posts a report and a diagnosis reply in a thread for each failed run.
 prerequisites:
   - With Slack, invite the Shipfox app to the report channel.
-  - With Discord, let the Shipfox bot view the report channel, send messages, and create public threads in it.
+  - With Discord, give the Shipfox bot View Channel, Read Message History, Send Messages, Send Messages in Threads, and Create Public Threads in the report channel.
 related: [shipfox/fix-default-branch-ci]
 roles:
   notify:
