@@ -298,8 +298,10 @@ const stepReportTypeEnvironment = {
 } as const satisfies ExpressionTypeEnvironment;
 
 /**
- * Gate context for a tool step: `status` and `outputs`, with no `exit_code`
- * because a tool step never reports one.
+ * Gate context for a tool step: `status`, `outputs`, and `error`, with no
+ * `exit_code` because a tool step never reports one. `error` is `null` unless
+ * the tool call failed; `status` is absent when the failure has no HTTP status,
+ * so read it behind `has(step.error.status)`.
  */
 export const toolStepReportTypeEnvironment = {
   step: {
@@ -307,6 +309,13 @@ export const toolStepReportTypeEnvironment = {
     fields: {
       status: 'string',
       outputs: {kind: 'map'},
+      error: {
+        kind: 'object',
+        fields: {
+          code: 'string',
+          status: 'int',
+        },
+      },
     },
   },
 } as const satisfies ExpressionTypeEnvironment;

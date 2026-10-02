@@ -51,7 +51,8 @@ CEL checks and run-time evaluation for Shipfox workflow expressions.
 - **`buildTypedRootsEnvironment`**: Builds typed step and job roots. Tool steps
   expose `outputs.result` from their catalog schema and omit `exit_code`.
 - **`toolStepReportTypeEnvironment`** and **`WorkflowStepKind`**: Describe the
-  gate context and kind metadata for tool-step expression checks.
+  gate context (`status`, `outputs`, and `error`) and kind metadata for
+  tool-step expression checks.
 - **`workflowInterpolationFieldPolicies`**: Defines the host, fill-site, and
   failure constraints for each interpolatable field. Use
   `workflowInterpolationFieldAcceptsHost` for host checks and

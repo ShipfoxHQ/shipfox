@@ -252,6 +252,63 @@ describe('evaluateGate', () => {
     });
   });
 
+  describe('tool-step step.error', () => {
+    const source = 'step.status == "failed" && step.error.code == "not-found"';
+    const evaluateToolFailure = (error: Record<string, unknown>) =>
+      evaluateGate(
+        readStepGate(gateConfig(source)),
+        {status: 'failed', exitCode: null, error, output: null},
+        undefined,
+        {stepType: 'tool'},
+      );
+
+    test('passes a step whose tool call failed with the expected code', () => {
+      expect(
+        evaluateToolFailure({code: 'not-found', message: 'missing', reason: 'tool_error'}).kind,
+      ).toBe('passed');
+    });
+
+    test('fails a step whose tool call failed with another code', () => {
+      expect(evaluateToolFailure({code: 'provider-unavailable', message: 'down'}).kind).toBe(
+        'failed',
+      );
+    });
+
+    test('exposes the provider status as an integer', () => {
+      const statusSource = 'has(step.error.status) && step.error.status == 404';
+
+      expect(
+        evaluateGate(
+          readStepGate(gateConfig(statusSource)),
+          {status: 'failed', exitCode: null, error: {code: 'not-found', status: 404}},
+          undefined,
+          {stepType: 'tool'},
+        ).kind,
+      ).toBe('passed');
+      expect(
+        evaluateGate(
+          readStepGate(gateConfig(statusSource)),
+          {status: 'failed', exitCode: null, error: {code: 'not-found'}},
+          undefined,
+          {stepType: 'tool'},
+        ).kind,
+      ).toBe('failed');
+    });
+
+    test('is null when the tool call succeeded', () => {
+      const nullSource = 'step.error == null';
+
+      expect(
+        evaluateGate(
+          readStepGate(gateConfig(nullSource)),
+          {status: 'succeeded', exitCode: null, output: {}},
+          undefined,
+          {stepType: 'tool'},
+        ).kind,
+      ).toBe('passed');
+    });
+  });
+
   test('a non-boolean gate result is an evaluation error, not a failed gate', () => {
     const source = 'step.outputs.ready';
     const gate = readStepGate(gateConfig(source));

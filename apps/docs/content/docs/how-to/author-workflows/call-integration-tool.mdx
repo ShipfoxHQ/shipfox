@@ -120,6 +120,27 @@ Check the provider permissions for the integration connection.
 For this example, confirm that the Shipfox app is in the Slack channel.
 Then inspect the integration connection in **Settings → Integrations**.
 
+## Accept an expected failure
+
+A gate on a tool step decides the step result, even when the tool call failed.
+Read `step.error` to tell one failure from another. It holds the `code` of the
+failed call, such as `not-found` or `rate-limited`, and the provider `status`
+when there is one. It is `null` when the call did not fail.
+
+```yaml
+- key: find_issue
+  tool: get_issue
+  connection: linear_acme
+  with:
+    id: ENG-999999
+  gate:
+    success: step.status == "failed" && step.error.code == "not-found"
+```
+
+This step passes when the issue does not exist and fails for any other error.
+Guard `step.error.status` with `has(step.error.status)`, because some failures
+have no status.
+
 To pass a tool result to a later step, read it as `steps.<key>.outputs`. To
 let an agent choose operations, [post a pull-request
 review](/integrations/github/guides/post-pull-request-review).

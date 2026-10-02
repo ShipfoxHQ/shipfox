@@ -118,6 +118,7 @@ export function evaluateGate(
     status: result.status,
     exitCode: result.exitCode ?? null,
     output: result.output,
+    ...(options?.stepType === 'tool' ? {error: toolStepGateError(result)} : {}),
     vars,
   });
   const outcome = evaluatePlannedPredicateAtSite({
@@ -142,6 +143,16 @@ export function evaluateGate(
     return {kind: 'uncheckable', reason: GATE_EVALUATION_ERROR_REASON, source, trace};
   }
   return outcome.value ? {kind: 'passed', source, trace} : {kind: 'failed', source, trace};
+}
+
+// The recorded tool error as the gate reads it, or null when the call did not fail.
+function toolStepGateError(result: StepReport): {code: string; status?: number} | null {
+  if (result.status !== 'failed') return null;
+  const {code, status} = result.error ?? {};
+  return {
+    code: typeof code === 'string' ? code : '',
+    ...(typeof status === 'number' && Number.isInteger(status) ? {status} : {}),
+  };
 }
 
 export function evaluateGateFeedback(params: {
