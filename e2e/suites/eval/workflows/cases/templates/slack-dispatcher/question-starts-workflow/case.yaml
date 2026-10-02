@@ -12,7 +12,6 @@ timeout_seconds: 600
 
 covers:
   - Starts one listed workflow per request.
-  - Replies once in the thread, and later posts the pull request link for a change. On Discord, starts the thread under the mention when it has none.
 
 seed:
   slack:
