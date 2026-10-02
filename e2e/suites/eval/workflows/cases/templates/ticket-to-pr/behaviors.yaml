@@ -28,3 +28,9 @@ cases:
     proves: Adding the GitHub label opens the PR, then comments on the issue and adds the in-progress label.
   - case: github-label-no-write-back
     proves: The same start opens the PR with ticket_write_back none, and makes no issue comment or label change.
+  - case: jira-label-write-back
+    proves: Adding the Jira label to an issue opens the PR, then comments on the issue and moves it to in progress.
+  - case: jira-label-created-comment-only
+    proves: A Jira issue created with the label opens the PR with ticket_write_back comment, comments on the issue, and makes no status change.
+  - case: jira-status-write-back-off
+    proves: Moving a Jira issue to the trigger status opens the PR with ticket_write_back none, and makes no Jira comment or status change.
