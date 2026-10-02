@@ -232,10 +232,12 @@ async function assertMcpRoute(origin) {
   // A page with an agent handoff differs between the renderings.
   const handoff = await request(origin, `${basePath}/mcp.mdx/getting-started`);
   const handoffWeb = await request(origin, `${basePath}/llms.mdx/getting-started`);
-  assert(
-    handoff.body.toString('utf8').includes('skill://shipfox/write-a-workflow/SKILL.md'),
-    'mcp.mdx/getting-started does not name the skill',
-  );
+  for (const skill of ['create-workflow-from-template', 'write-a-workflow']) {
+    assert(
+      handoff.body.toString('utf8').includes(`skill://shipfox/${skill}/SKILL.md`),
+      `mcp.mdx/getting-started does not name the ${skill} skill`,
+    );
+  }
   assert(
     !handoffWeb.body.toString('utf8').includes('skill://'),
     'llms.mdx/getting-started names a skill',
