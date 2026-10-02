@@ -4,12 +4,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
+  DropdownMenuSegmentedRadioGroup,
+  DropdownMenuSegmentedRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shipfox/react-ui/dropdown-menu';
 import {useTheme} from '@shipfox/react-ui/hooks';
+import type {IconName} from '@shipfox/react-ui/icon';
 import type {Theme} from '@shipfox/react-ui/theme';
 import {Link, useLocation} from '@tanstack/react-router';
 import {useMemo} from 'react';
@@ -17,10 +18,10 @@ import {useAuthState} from '#runtime/auth.js';
 import {useChrome} from '#runtime/chrome-context.js';
 import {ReportErrorBoundary} from '#runtime/report-error-boundary.js';
 
-const themeOptions: Array<{value: Theme; label: string}> = [
-  {value: 'light', label: 'Light'},
-  {value: 'dark', label: 'Dark'},
-  {value: 'system', label: 'System'},
+const themeOptions: Array<{value: Theme; label: string; icon: IconName}> = [
+  {value: 'light', label: 'Light', icon: 'sunLine'},
+  {value: 'dark', label: 'Dark', icon: 'moonLine'},
+  {value: 'system', label: 'System', icon: 'computerLine'},
 ];
 
 export function UserMenu() {
@@ -53,16 +54,20 @@ export function UserMenu() {
           {email}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs text-foreground-neutral-muted">
-          Theme
-        </DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+        <DropdownMenuSegmentedRadioGroup
+          label="Theme"
+          value={theme}
+          onValueChange={(value) => setTheme(value as Theme)}
+        >
           {themeOptions.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value}>
-              {option.label}
-            </DropdownMenuRadioItem>
+            <DropdownMenuSegmentedRadioItem
+              key={option.value}
+              value={option.value}
+              icon={option.icon}
+              label={option.label}
+            />
           ))}
-        </DropdownMenuRadioGroup>
+        </DropdownMenuSegmentedRadioGroup>
         {AccountMenuEntry ? (
           <ReportErrorBoundary
             label="Failed to render account menu entry."

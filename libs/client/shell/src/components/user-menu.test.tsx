@@ -41,6 +41,16 @@ describe('UserMenu', () => {
     expect(screen.queryByRole('menuitem', {name: 'Private entry'})).not.toBeInTheDocument();
   });
 
+  test('switches the theme from the segmented control and keeps the menu open', async () => {
+    await openAccountMenu();
+    const light = await screen.findByRole('menuitemradio', {name: 'Light'});
+
+    fireEvent.click(light);
+
+    expect(light).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('menu')).toBeVisible();
+  });
+
   test('renders a composing account-menu entry without replacing shell controls', async () => {
     await openAccountMenu({AccountMenuEntry: PrivateAccountMenuEntry});
 
