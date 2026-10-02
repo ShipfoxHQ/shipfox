@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {once} from 'node:events';
 import {createServer} from 'node:http';
 import {test} from 'node:test';
+import {setTimeout as delay} from 'node:timers/promises';
 import {routeKeys, startFakeRouter} from '../src/fake-router.mjs';
 
 async function startFake(label) {
@@ -229,10 +230,17 @@ test('closes the response when the fake dies after it sent headers', async () =>
 
       const response = await fetch(new URL('/thing', endpoint), {
         headers: {authorization: 'Bearer token-a'},
-        signal: AbortSignal.timeout(5_000),
       });
 
-      await assert.rejects(response.text());
+      // A body the router left open never settles, so the watchdog only trips on a hang.
+      const outcome = await Promise.race([
+        response.text().then(
+          () => 'completed',
+          () => 'rejected',
+        ),
+        delay(5_000, 'hung'),
+      ]);
+      assert.equal(outcome, 'rejected');
     });
   } finally {
     server.close();

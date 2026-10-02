@@ -13,8 +13,9 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   search, GraphQL review threads and `createCommitOnBranch`, issue creation, check
   runs, and an empty workflow run history. The stack router sends the fake the token mints for
   its `installationId` and the requests that carry its `installationToken`, so specs in other
-  workers share the address; make both unique to the spec. `installationId` is required
-  unless `options.endpoint` is set, which listens directly instead. Git transport needs `git` on the `PATH`.
+  workers share the address; make both unique to the spec. Behind the router, `installationId` is
+  required. `options.endpoint` listens directly instead, but the webhook senders below still need
+  `installationId`. Git transport needs `git` on the `PATH`.
 - `GithubApiMock.calls`: every request the fake handled, as `GithubApiMockCall`
   entries in arrival order.
 - `GithubApiMock.pullRequests`, `reviewThreads`, and `branchHeads`: state a test
