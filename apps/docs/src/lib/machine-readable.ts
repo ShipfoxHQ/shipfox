@@ -1,4 +1,4 @@
-import type {LLMsOptions} from 'fumadocs-core/mdx-plugins';
+import {renderAgentHandoff} from './agent-handoff';
 import {canonicalDocsOrigin} from './canonical-docs-origin';
 import {serializeEditionsComparison} from './editions';
 import type {EventReferenceDocument} from './event-reference/document';
@@ -37,8 +37,8 @@ const UNUSABLE_MDX_IMAGE_PATTERN =
 const UNUSABLE_MARKDOWN_IMAGE_PATTERN = /!\[([^\]]*)\]\(\s*<?__img\d+[^)]*\)?/gi;
 const MARKDOWN_LINK_DESTINATION_PATTERN = /(\]\(\s*)(<[^>\n]+>|[^)\s]+)([^)\n]*\))/g;
 const HTML_ATTRIBUTE_PATTERN = /\b(src|href)=(['"])([^'"]+)\2/g;
-const STEP_TITLE_PATTERN = /^\*\*(.*)\*\*$/s;
 const ALT_ATTRIBUTE_PATTERN = /\balt=(['"])(.*?)\1/i;
+const QUOTE_PREFIX_PATTERN = /^(?: {0,3}> ?)+$/;
 
 type FenceCharacter = '`' | '~';
 
@@ -48,6 +48,9 @@ interface FenceMarker {
 }
 
 export type MarkdownAudience = 'human' | 'mcp';
+
+export {stringifyMachineReadableComponent} from './machine-readable-stringify';
+export {renderAgentHandoff};
 
 export interface MachineReadableMarkdownOptions {
   integrationCatalog?: readonly CatalogProvider[];
@@ -198,89 +201,6 @@ export function assertMachineReadableMarkdown(
   }
 }
 
-type StringifyCallback = NonNullable<LLMsOptions['stringify']>;
-type StringifyNode = Parameters<StringifyCallback>[0];
-type StringifyState = Parameters<StringifyCallback>[2];
-type StringifyInfo = Parameters<StringifyCallback>[3];
-type FlowParent = Parameters<StringifyState['containerFlow']>[0];
-type PhrasingParent = Parameters<StringifyState['containerPhrasing']>[0];
-
-interface MdxAttribute {
-  type: string;
-  name: string;
-  value: unknown;
-}
-
-interface MdxElementNode {
-  type: 'mdxJsxFlowElement' | 'mdxJsxTextElement';
-  name: string | null;
-  attributes: MdxAttribute[];
-  children: StringifyNode[];
-}
-
-export const stringifyMachineReadableComponent: StringifyCallback = (
-  node,
-  _parent,
-  state,
-  info,
-) => {
-  if (!isMdxElement(node)) return undefined;
-
-  switch (node.name) {
-    case 'EditionsComparison':
-      return `\0${JSON.stringify({name: 'EditionsComparison', children: '', attributes: {}})}\0`;
-    case 'ComparisonTable':
-      return `\0${JSON.stringify({name: 'ComparisonTable', children: '', attributes: {}})}\0`;
-    case 'ModelCatalog':
-      return `\0${JSON.stringify({name: 'ModelCatalog', children: '', attributes: {}})}\0`;
-    case 'TemplateGallery':
-      return `\0${JSON.stringify({name: 'TemplateGallery', children: '', attributes: {}})}\0`;
-    case 'WorkflowOverview':
-      return `\0${JSON.stringify({name: 'WorkflowOverview', children: '', attributes: {}})}\0`;
-    case 'TemplateDetail':
-      return `\0${JSON.stringify({name: 'TemplateDetail', children: '', attributes: {id: attributeValue(node, 'id')}})}\0`;
-    case 'Callout':
-      return blockquote(
-        childrenMarkdown(node, state, info),
-        calloutLabel(attributeValue(node, 'title'), attributeValue(node, 'type')),
-      );
-    case 'div':
-    case 'Steps':
-    case 'Cards':
-    case 'Accordions':
-    case 'Tabs':
-    case 'Frame':
-      return childrenMarkdown(node, state, info);
-    case 'Card':
-      return titledBlock(
-        attributeValue(node, 'title'),
-        attributeValue(node, 'href'),
-        childrenMarkdown(node, state, info),
-        '###',
-      );
-    case 'Accordion':
-      return titledBlock(
-        attributeValue(node, 'title'),
-        undefined,
-        childrenMarkdown(node, state, info),
-        '###',
-      );
-    case 'Step':
-      return stepMarkdown(node, state, info);
-    case 'Tab':
-      return titledBlock(
-        attributeValue(node, 'title') ??
-          attributeValue(node, 'label') ??
-          attributeValue(node, 'value'),
-        undefined,
-        childrenMarkdown(node, state, info),
-        '####',
-      );
-    default:
-      return undefined;
-  }
-};
-
 type PlaceholderOptions = Pick<
   MachineReadableMarkdownOptions,
   | 'integrationCatalog'
@@ -289,7 +209,8 @@ type PlaceholderOptions = Pick<
   | 'eventReference'
   | 'templateCatalog'
   | 'getTemplateDetail'
->;
+> &
+  Pick<SerializeMachineReadableMarkdownOptions, 'audience'>;
 
 const placeholderSerializers: Record<
   string,
@@ -339,10 +260,17 @@ const placeholderSerializers: Record<
     }
     return serializeTemplateDetail(options.getTemplateDetail(attributes.id));
   },
+  AgentHandoff: (options, attributes) => {
+    const {skill, prompt} = attributes;
+    if (typeof skill !== 'string' || typeof prompt !== 'string') {
+      throw new Error('AgentHandoff requires a skill and a prompt.');
+    }
+    return renderAgentHandoff({skill, prompt, audience: options.audience});
+  },
 };
 
 function replacePlaceholders(markdown: string, options: PlaceholderOptions): string {
-  return markdown.replace(/\0([\s\S]*?)\0/g, (_match, value: string) => {
+  return markdown.replace(/\0([\s\S]*?)\0/g, (_match, value: string, offset: number) => {
     let placeholder: unknown;
     try {
       placeholder = JSON.parse(value);
@@ -360,8 +288,27 @@ function replacePlaceholders(markdown: string, options: PlaceholderOptions): str
         `Machine-readable Markdown contains an unresolved component placeholder: ${placeholder.name}`,
       );
     }
-    return serialize(options, placeholder.attributes ?? {});
+    return continueQuote(
+      serialize(options, placeholder.attributes ?? {}),
+      linePrefix(markdown, offset),
+    );
   });
+}
+
+// A placeholder inside a blockquote or Callout resolves to several lines, and
+// each one needs the quote markers of the line that held the placeholder.
+function linePrefix(markdown: string, offset: number): string {
+  const lineStart = markdown.lastIndexOf('\n', offset - 1) + 1;
+  const before = markdown.slice(lineStart, offset);
+  return QUOTE_PREFIX_PATTERN.test(before) ? before : '';
+}
+
+function continueQuote(text: string, prefix: string): string {
+  if (!prefix) return text;
+  return text
+    .split('\n')
+    .map((line, index) => (index === 0 ? line : `${prefix}${line}`.trimEnd()))
+    .join('\n');
 }
 
 function replaceUnusableImages(markdown: string): string {
@@ -462,78 +409,9 @@ function closesFence(line: string, fence: FenceMarker): boolean {
   );
 }
 
-function childrenMarkdown(
-  node: MdxElementNode,
-  state: StringifyState,
-  info: StringifyInfo,
-): string {
-  return state.containerFlow({type: 'root', children: node.children} as FlowParent, info).trim();
-}
-
-function titledBlock(
-  title: string | undefined,
-  href: string | undefined,
-  content: string,
-  level: string,
-): string {
-  const cleanTitle = title?.trim().replace(/\s+/g, ' ');
-  let heading: string | undefined;
-  if (cleanTitle) {
-    heading = href
-      ? `${level} [${cleanTitle.replaceAll(']', '\\]')}](${href})`
-      : `${level} ${cleanTitle}`;
-  }
-
-  return [heading, content].filter(Boolean).join('\n\n');
-}
-
-function stepMarkdown(node: MdxElementNode, state: StringifyState, info: StringifyInfo): string {
-  const first = node.children[0];
-  if (first?.type !== 'paragraph' || first.children.length !== 1) {
-    return childrenMarkdown(node, state, info);
-  }
-
-  const onlyChild = first.children[0];
-  if (onlyChild?.type !== 'strong') return childrenMarkdown(node, state, info);
-
-  const title = state
-    .containerPhrasing(first as PhrasingParent, info)
-    .replace(STEP_TITLE_PATTERN, '$1')
-    .trim();
-  const content = state
-    .containerFlow({type: 'root', children: node.children.slice(1)} as FlowParent, info)
-    .trim();
-  return [`### ${title}`, content].filter(Boolean).join('\n\n');
-}
-
-function blockquote(content: string, label?: string): string {
-  const lines = content ? content.split('\n') : [];
-  if (label) lines.unshift(`**${label}**`);
-  if (lines.length === 0) return label ? `> **${label}**` : '';
-  return lines.map((line) => (line ? `> ${line}` : '>')).join('\n');
-}
-
-function calloutLabel(title?: string, type?: string): string | undefined {
-  const cleanTitle = title?.trim();
-  const cleanType = type?.trim();
-  if (cleanTitle && cleanType) return `${cleanTitle} (${cleanType})`;
-  return cleanTitle || cleanType;
-}
-
-function attributeValue(node: MdxElementNode, name: string): string | undefined {
-  const attribute = node.attributes.find(
-    (item) => item.type === 'mdxJsxAttribute' && item.name === name,
-  );
-  return attribute && typeof attribute.value === 'string' ? attribute.value : undefined;
-}
-
 function imageDescription(tag: string): string {
   const alt = ALT_ATTRIBUTE_PATTERN.exec(tag)?.[2]?.trim();
   return alt ? `[Image: ${alt}]` : '[Image]';
-}
-
-function isMdxElement(node: StringifyNode): node is StringifyNode & MdxElementNode {
-  return node.type === 'mdxJsxFlowElement' || node.type === 'mdxJsxTextElement';
 }
 
 function isPlaceholder(
