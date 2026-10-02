@@ -6,6 +6,7 @@ import {
   createDiscordConnection,
   createJiraConnection,
   createLinearConnection,
+  createSentryConnection,
   createSlackConnection,
 } from '@shipfox/e2e-setup-integrations';
 import {
@@ -281,6 +282,16 @@ async function createProviderConnection({
           authorizingAccountId: `eval-account-${uniqueId}`,
           displayName: `Eval Jira ${uniqueId}`,
           accessToken: `jira-access-token-${uniqueId}`,
+        })
+      ).slug;
+    case 'sentry':
+      return (
+        await createSentryConnection({
+          workspaceId,
+          installationUuid: `eval-installation-${uniqueId}`,
+          orgSlug: `eval-${uniqueId}`,
+          displayName: `Eval Sentry ${uniqueId}`,
+          accessToken: `sentry-access-token-${uniqueId}`,
         })
       ).slug;
     default:

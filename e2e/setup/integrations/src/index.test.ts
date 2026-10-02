@@ -71,6 +71,29 @@ describe('integrations E2E setup helper', () => {
     });
   });
 
+  it('creates Sentry connections through the protected setup route', async () => {
+    requestJson.mockResolvedValueOnce({id: 'connection-id'});
+    const {createSentryConnection} = await import('./index.js');
+
+    await createSentryConnection({
+      workspaceId: 'workspace-id',
+      installationUuid: 'installation-uuid',
+      orgSlug: 'acme',
+      displayName: 'Sentry Acme',
+      accessToken: 'sentry-access-token',
+    });
+
+    expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/integrations/sentry-connections', {
+      json: {
+        workspace_id: 'workspace-id',
+        installation_uuid: 'installation-uuid',
+        org_slug: 'acme',
+        display_name: 'Sentry Acme',
+        access_token: 'sentry-access-token',
+      },
+    });
+  });
+
   it('creates ClickUp connections through the protected setup route', async () => {
     requestJson.mockResolvedValueOnce({id: 'connection-id'});
     const {createClickUpConnection} = await import('./index.js');

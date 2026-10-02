@@ -19,9 +19,9 @@ export interface ConnectSentryInstallationInput {
   installationUuid: string;
   orgSlug: string;
   displayName: string;
-  installerUserId: string;
+  installerUserId?: string | undefined;
   actorUserId?: string | undefined;
-  codeHash: string;
+  codeHash?: string | undefined;
 }
 
 // sha256 of the single-use authorization code. Stored on the install row so the

@@ -35,6 +35,10 @@ import type {
   PosthogRegion,
 } from '@shipfox/api-integration-posthog-dto';
 import type {
+  CreateE2eSentryConnectionBodyDto,
+  CreateE2eSentryConnectionResponseDto,
+} from '@shipfox/api-integration-sentry-dto';
+import type {
   CreateE2eSlackConnectionBodyDto,
   CreateE2eSlackConnectionResponseDto,
 } from '@shipfox/api-integration-slack-dto';
@@ -75,6 +79,10 @@ export type {
   CreateE2ePosthogConnectionBodyDto,
   CreateE2ePosthogConnectionResponseDto,
 } from '@shipfox/api-integration-posthog-dto';
+export type {
+  CreateE2eSentryConnectionBodyDto,
+  CreateE2eSentryConnectionResponseDto,
+} from '@shipfox/api-integration-sentry-dto';
 export type {
   CreateE2eSlackConnectionBodyDto,
   CreateE2eSlackConnectionResponseDto,
@@ -206,6 +214,36 @@ export async function createJiraConnection(
     'post',
     '/__e2e/integrations/jira-connections',
     {json: jiraConnectionBody(params)},
+  );
+}
+
+export interface CreateSentryConnectionParams {
+  workspaceId: string;
+  installationUuid: string;
+  orgSlug: string;
+  displayName: string;
+  accessToken: string;
+}
+
+function sentryConnectionBody(
+  params: CreateSentryConnectionParams,
+): CreateE2eSentryConnectionBodyDto {
+  return {
+    workspace_id: params.workspaceId,
+    installation_uuid: params.installationUuid,
+    org_slug: params.orgSlug,
+    display_name: params.displayName,
+    access_token: params.accessToken,
+  };
+}
+
+export async function createSentryConnection(
+  params: CreateSentryConnectionParams,
+): Promise<CreateE2eSentryConnectionResponseDto> {
+  return await requestJson<CreateE2eSentryConnectionResponseDto>(
+    'post',
+    '/__e2e/integrations/sentry-connections',
+    {json: sentryConnectionBody(params)},
   );
 }
 

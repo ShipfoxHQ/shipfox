@@ -98,6 +98,10 @@ describe('e2eEnv', () => {
     assert.equal(env.GITEA_CLONE_BASE_URL, 'http://localhost:55356');
     assert.equal(env.INTEGRATIONS_ENABLE_LINEAR_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_JIRA_PROVIDER, 'true');
+    assert.equal(env.INTEGRATIONS_ENABLE_SENTRY_PROVIDER, 'true');
+    assert.equal(env.SENTRY_APP_CLIENT_ID, 'e2e-sentry-client-id');
+    assert.equal(env.SENTRY_APP_CLIENT_SECRET, 'e2e-sentry-client-secret');
+    assert.equal(env.SENTRY_APP_SLUG, 'shipfox-e2e');
     assert.equal(env.INTEGRATIONS_ENABLE_GITHUB_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_SLACK_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_CLICKUP_PROVIDER, 'true');
