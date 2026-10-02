@@ -1,5 +1,7 @@
 import {clickupAgentToolSelectionCatalog} from '@shipfox/api-integration-clickup';
 import {clickupEventCatalog} from '@shipfox/api-integration-clickup-dto';
+import {discordAgentToolSelectionCatalog} from '@shipfox/api-integration-discord/agent-tools';
+import {discordEventCatalog} from '@shipfox/api-integration-discord-dto';
 import {githubAgentToolSelectionCatalog} from '@shipfox/api-integration-github';
 import {githubEventCatalog} from '@shipfox/api-integration-github-dto';
 import {jiraAgentToolSelectionCatalog} from '@shipfox/api-integration-jira';
@@ -71,6 +73,7 @@ const modelMarkerPattern = /^\s*model\s*:\s*[^#\r\n]+\s+#\s*model:([a-z0-9_-]+)\
 
 const providerCatalogs: Readonly<Record<string, ProviderCatalog>> = {
   clickup: catalog(clickupEventCatalog.events, clickupAgentToolSelectionCatalog.selectors),
+  discord: catalog(discordEventCatalog.events, discordAgentToolSelectionCatalog.selectors),
   github: catalog(githubEventCatalog.events, githubAgentToolSelectionCatalog.selectors),
   jira: catalog(jiraEventCatalog.events, jiraAgentToolSelectionCatalog.selectors),
   linear: catalog(linearEventCatalog.events, linearAgentToolSelectionCatalog.selectors),

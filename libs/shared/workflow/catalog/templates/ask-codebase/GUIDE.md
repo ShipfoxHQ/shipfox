@@ -40,7 +40,7 @@ With Discord:
 | Input | Required | Value |
 | --- | --- | --- |
 | `channel_id` | Yes | ID of the channel or thread that holds the message. |
-| `message_id` | Yes | ID of the message to answer under. In a channel, the reply goes in that message's thread, which the workflow creates when it has none. In a thread, the reply goes in the thread and the ID only needs to exist. |
+| `message_id` | Yes | ID of the message to answer under. In a channel, the reply goes in that message's thread, which the workflow creates when it has none. In a thread, the tools ignore it and the reply goes in the thread, but the input is still required. |
 | `request` | No | The question to answer. Without it, the agent answers the latest question addressed to the app in the thread. |
 
 A run without the required inputs fails before the agent starts and posts nothing.
@@ -73,7 +73,7 @@ To ask a follow-up, mention the app again in the same thread. The new run reads 
 
 With Slack, the workflow reads the thread's parent message and its first 49 replies, and keeps the first 1,000 characters of each.
 With Discord, it reads the message the thread started from and the 50 most recent messages of the thread, and keeps the first 1,000 characters of each.
-In Discord, the agent learns that messages may be missing when the thread has 50 or more messages besides the one it started from.
+In Discord, the agent learns that messages may be missing when the read returns 50 or more messages.
 The prompt still includes the full message that started the run. For a longer thread, the agent learns that messages are missing.
 A thread can still exceed the 64 KiB step output limit, for example with many long non-Latin messages. That run fails before the agent starts and posts nothing.
 

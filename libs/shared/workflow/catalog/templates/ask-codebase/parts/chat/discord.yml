@@ -26,7 +26,7 @@ read_thread: |
         limit: 50
       outputs:
         messages: '${{ toJson(result.messages.map(m, {"id": m.id, "timestamp": m.timestamp, "author": has(m.author.bot) && m.author.bot ? "bot:" + m.author.id : m.author.id, "text": !has(m.content) ? "" : size(m.content) > 1000 ? m.content.substring(0, 1000) + " [truncated]" : m.content})) }}'
-        truncated: ${{ size(result.messages) > 50 }}
+        truncated: ${{ size(result.messages) >= 50 }}
 reply: |
   - key: reply
     tool: send_message

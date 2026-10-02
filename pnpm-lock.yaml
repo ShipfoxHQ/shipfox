@@ -3950,6 +3950,9 @@ importers:
       '@shipfox/api-integration-clickup-dto':
         specifier: workspace:*
         version: link:../clickup-dto
+      '@shipfox/api-integration-discord-dto':
+        specifier: workspace:*
+        version: link:../discord-dto
       '@shipfox/api-integration-github-dto':
         specifier: workspace:*
         version: link:../github-dto

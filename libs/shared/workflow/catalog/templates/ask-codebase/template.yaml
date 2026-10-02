@@ -16,7 +16,7 @@ writes:
   - action: Replies once in the thread. On Discord, starts the thread under the mention when it has none.
 prerequisites:
   - With Slack, invite the Shipfox app to each channel where it answers.
-  - With Discord, let the Shipfox bot view each channel where it answers, read its history, and send messages and create public threads there.
+  - With Discord, let the Shipfox bot view each channel where it answers, read its history, send messages, send messages in threads, and create public threads there.
 related: [shipfox/slack-dispatcher, shipfox/slack-to-ticket]
 roles:
   chat:

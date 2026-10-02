@@ -366,7 +366,7 @@ describe('codebase question template on Discord', () => {
     ]);
   });
 
-  it('flags a thread that fills the read limit as possibly truncated', () => {
+  it('flags a read that fills the limit as possibly truncated', () => {
     const outputs = step('thread', 'read_thread', 'discord').outputs as YamlRecord;
     const messages = (count: number) =>
       Array.from({length: count}, (_, index) => ({
@@ -376,8 +376,8 @@ describe('codebase question template on Discord', () => {
         content: 'hi',
       }));
 
-    expect(evaluate(outputs.truncated, {result: {messages: messages(51)}})).toBe(true);
-    expect(evaluate(outputs.truncated, {result: {messages: messages(50)}})).toBe(false);
+    expect(evaluate(outputs.truncated, {result: {messages: messages(50)}})).toBe(true);
+    expect(evaluate(outputs.truncated, {result: {messages: messages(49)}})).toBe(false);
   });
 
   it.each(['reply', 'report_failure'])('posts the %s in the thread of the message', (key) => {
