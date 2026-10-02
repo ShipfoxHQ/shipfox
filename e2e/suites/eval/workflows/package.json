@@ -73,7 +73,6 @@
     "@langfuse/tracing": "catalog:",
     "@modelcontextprotocol/sdk": "catalog:",
     "@opentelemetry/sdk-trace-node": "catalog:",
-    "@shipfox/actions": "workspace:*",
     "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/api-definitions-dto": "workspace:*",
     "@shipfox/api-triggers-dto": "workspace:*",
