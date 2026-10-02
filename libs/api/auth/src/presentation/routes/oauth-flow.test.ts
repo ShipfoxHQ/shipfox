@@ -541,6 +541,30 @@ describe('dormant OAuth authorization and token routes', () => {
       }
     });
 
+    it('keeps the first sign-in working after a second consent for the same client', async () => {
+      const workspaceId = crypto.randomUUID();
+      const account = await createVerifiedSession('oauth-refresh-second-consent');
+      const client = await createTestClient();
+      app = await createTestApp(workspaceClient(workspaceId));
+      const signInParams = {
+        app,
+        clientId: client.clientId,
+        workspaceId,
+        accountToken: account.token,
+      };
+      const first = await signIn(signInParams);
+      const second = await signIn(signInParams);
+
+      const firstRefresh = await refresh({app, clientId: client.clientId, refreshToken: first});
+      expect(firstRefresh.statusCode).toBe(200);
+      expect(firstRefresh.json().access_token).toEqual(expect.any(String));
+      expect(firstRefresh.json()).not.toHaveProperty('refresh_token');
+
+      const secondRefresh = await refresh({app, clientId: client.clientId, refreshToken: second});
+      expect(secondRefresh.statusCode).toBe(200);
+      expect(secondRefresh.json().refresh_token).toEqual(expect.any(String));
+    });
+
     it('rejects every token of a grant after Disconnect', async () => {
       const workspaceId = crypto.randomUUID();
       const account = await createVerifiedSession('oauth-refresh-disconnect');
