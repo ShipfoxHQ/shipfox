@@ -65,6 +65,11 @@ describe('shipped onboarding cases', () => {
       const templateId = definition.prompt.slice('template:'.length).split('?')[0];
       const found = await shippedTemplateLoader.get({package: `shipfox/${templateId}`});
       expect(found, `${id} prompts for ${templateId}`).toBeDefined();
+      if (definition.expect.template !== undefined) {
+        expect(definition.expect.template, `${id} grades another template than it prompts`).toBe(
+          `shipfox/${templateId}`,
+        );
+      }
     }
   });
 
