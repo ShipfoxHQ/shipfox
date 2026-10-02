@@ -1,0 +1,28 @@
+prompt: generic
+workspace:
+  connections: [github]
+  project:
+    repository: acme/report-cli
+persona: |
+  Facts:
+  - You lead a small team that maintains report-cli.
+  - Dependabot opens pull requests that update packages, and CI often fails on them after
+    an upgrade.
+  - You want the fix pushed to the Dependabot pull request's branch.
+  - Failures on the main branch are not your concern right now.
+  - Dependencies install with `npm install` and the tests run with `npm test`.
+  - You do not know the names of Shipfox's templates.
+
+  Goal: Dependabot pull requests that stop failing CI without a person fixing each one.
+
+  Scripted answers:
+  - Asked whether to open the workflow pull request now: say you want to review the file first.
+k: 3
+max_turns: 40
+timeout_seconds: 1200
+expect:
+  outcome: validated
+  template: shipfox/fix-dependency-ci
+  bindings: {source: github}
+  options: {pr_selection: dependency_bot, bot_identity: dependabot, delivery_mode: push_fix}
+  max_questions: 7

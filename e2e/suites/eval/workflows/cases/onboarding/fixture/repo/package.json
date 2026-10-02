@@ -1,7 +1,0 @@
-{
-  "name": "report-cli",
-  "private": true,
-  "scripts": {
-    "test": "node --test"
-  }
-}

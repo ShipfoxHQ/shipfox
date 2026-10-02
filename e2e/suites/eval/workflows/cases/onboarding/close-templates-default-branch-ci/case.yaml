@@ -1,0 +1,29 @@
+prompt: generic
+workspace:
+  connections: [github]
+  project:
+    repository: acme/report-cli
+persona: |
+  Facts:
+  - You lead a small team that maintains report-cli.
+  - Now and then the main branch goes red after a merge, and nobody notices for hours.
+  - You want an agent to find out why CI broke on main and send a pull request with a tested
+    repair.
+  - Pull requests that people or Dependabot open are not the problem.
+  - You do not use Slack with Shipfox.
+  - The GitHub Actions workflow that runs on main is called CI.
+  - The tests run with `npm test`.
+  - You do not know the names of Shipfox's templates.
+
+  Goal: a broken main branch that gets repaired without a person digging through logs.
+
+  Scripted answers:
+  - Asked whether to open the workflow pull request now: say you want to review the file first.
+k: 3
+max_turns: 40
+timeout_seconds: 1200
+expect:
+  outcome: validated
+  template: shipfox/fix-default-branch-ci
+  bindings: {source: github}
+  max_questions: 6

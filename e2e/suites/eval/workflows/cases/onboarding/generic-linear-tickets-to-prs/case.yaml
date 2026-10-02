@@ -1,0 +1,30 @@
+prompt: generic
+workspace:
+  connections: [github, linear]
+  project:
+    repository: acme/report-cli
+persona: |
+  Facts:
+  - You lead a small team that maintains report-cli.
+  - Your tickets live in Linear, in the team ENG.
+  - You want to start a run by assigning the Shipfox agent to an issue.
+  - You want pull requests to open as drafts.
+  - You want the agent to answer review comments and fix failed CI after the pull request
+    opens.
+  - The tests run with `npm test`.
+  - You do not know the names of Shipfox's templates.
+
+  Goal: when a ticket in Linear is ready, an agent does the work and opens a pull request.
+
+  Scripted answers:
+  - Shown a list of templates: pick the one that turns tickets into pull requests.
+  - Asked whether to open the workflow pull request now: say you want to review the file first.
+k: 3
+max_turns: 40
+timeout_seconds: 1200
+expect:
+  outcome: validated
+  template: shipfox/ticket-to-pr
+  bindings: {tracker: linear, source: github}
+  options: {trigger_style: agent_session, pr_mode: draft}
+  max_questions: 9

@@ -1,0 +1,28 @@
+prompt: template:fix-dependency-ci
+workspace:
+  connections: [github]
+  project:
+    repository: acme/report-cli
+persona: |
+  Facts:
+  - You lead a small team that maintains report-cli.
+  - Dependabot opens the dependency update pull requests.
+  - You want the workflow to repair only Dependabot's pull requests, not engineers' branches.
+  - You do not want the agent to push to a branch yet. It should leave a comment with a
+    tested patch.
+  - Dependencies install with `npm install` and the tests run with `npm test`.
+
+  Goal: dependency updates that stop failing CI without a person fixing each one.
+
+  Scripted answers:
+  - Asked to confirm the template and its providers: say yes.
+  - Asked whether to open the workflow pull request now: say you want to review the file first.
+k: 3
+max_turns: 40
+timeout_seconds: 1200
+expect:
+  outcome: validated
+  template: shipfox/fix-dependency-ci
+  bindings: {source: github}
+  options: {pr_selection: dependency_bot, bot_identity: dependabot, delivery_mode: comment_only}
+  max_questions: 6
