@@ -552,7 +552,7 @@ only: the run's outputs, the recorded writes, and the hidden tests. The
 suite every night, and on dispatch. A dispatch takes the suite (`templates`,
 `onboarding`, or `both`), a case filter, a repeat count, the onboarding models,
 and `max_cost_usd`, which defaults to 10 and goes to `--max-cost-usd` on every
-run. Without a repeat count, templates run 3 times and each onboarding case
+suite, so a run of both suites can spend twice that. Without a repeat count, templates run 3 times and each onboarding case
 runs its own `k`. A pull request from this repository that gets the
 `onboarding-evals` label runs the onboarding suite, and a new label event
 replaces the previous run for that pull request. Each run posts every

@@ -38,7 +38,7 @@ on:
         default: ""
         type: string
       max_cost_usd:
-        description: Stops starting new cases once the runs so far have cost this much
+        description: Per suite. Stops a suite from starting new cases once its runs so far have cost this much
         required: false
         default: "10"
         type: string
