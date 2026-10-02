@@ -441,6 +441,37 @@ describe('agent-access db', () => {
     });
   });
 
+  test('serves a rotated refresh replay without a live successor', async () => {
+    const user = await userFactory.create();
+    const client = await createAgentClient({
+      clientId: `https://client.example/${crypto.randomUUID()}`,
+      name: 'Test client',
+      redirectUris: ['https://client.example/callback'],
+      kind: 'registered',
+    });
+    const grant = await createAgentGrant({
+      userId: user.id,
+      workspaceId: crypto.randomUUID(),
+      clientId: client.id,
+    });
+    const predecessor = await createAgentRefreshToken({
+      grantId: grant.id,
+      hashedToken: hashOpaqueToken(`no-successor-${crypto.randomUUID()}`),
+    });
+    const successorHashedToken = hashOpaqueToken(`no-successor-next-${crypto.randomUUID()}`);
+    await rotateAgentRefreshToken({
+      hashedToken: predecessor.hashedToken,
+      replacementHashedToken: successorHashedToken,
+    });
+    await db()
+      .delete(agentRefreshTokens)
+      .where(eq(agentRefreshTokens.hashedToken, successorHashedToken));
+
+    const replay = await resolveAgentRefreshTokenReplay({hashedToken: predecessor.hashedToken});
+
+    expect(replay).toMatchObject({kind: 'grace', predecessor: {id: predecessor.id}});
+  });
+
   test('records the last use of a replayed token and its grant', async () => {
     const user = await userFactory.create();
     const client = await createAgentClient({
