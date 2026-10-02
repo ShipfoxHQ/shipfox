@@ -20,6 +20,7 @@
     "#clickup-workspace.js": "./src/clickup-workspace.ts",
     "#compile.js": "./src/compile.ts",
     "#compose.js": "./src/compose.ts",
+    "#coverage.js": "./src/coverage.ts",
     "#deliveries.js": "./src/deliveries.ts",
     "#discovery.js": "./src/discovery.ts",
     "#execute.js": "./src/execute.ts",
