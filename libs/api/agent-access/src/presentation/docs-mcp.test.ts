@@ -49,7 +49,9 @@ describe('documentation MCP surface', () => {
       recordCall,
     });
     const resources = await client.listResources();
-    expect(client.getInstructions()).toContain('Use search_docs to find a page');
+    expect(client.getInstructions()).toContain(
+      'Use search_docs to find a page. Pages that describe a task name the skill:// resource for it.',
+    );
     expect(resources.resources.map(({uri}) => uri)).toContain('docs://shipfox/index');
     expect(resources.resources.map(({uri}) => uri)).not.toContain('docs://shipfox/understand');
     expect(

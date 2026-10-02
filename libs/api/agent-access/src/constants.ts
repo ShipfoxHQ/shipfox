@@ -36,7 +36,7 @@ export function createAgentAccessMcpInstructions(
     ...(includeIntegrationDiscovery ? [integrationDiscoveryMcpInstruction] : []),
     ...(includeDocs
       ? [
-          'Reference documentation is available as docs://shipfox/ resources. Use search_docs to find a page.',
+          'Reference documentation is available as docs://shipfox/ resources. Use search_docs to find a page. Pages that describe a task name the skill:// resource for it.',
         ]
       : []),
     ...agentAccessMcpInstructionSuffix,
