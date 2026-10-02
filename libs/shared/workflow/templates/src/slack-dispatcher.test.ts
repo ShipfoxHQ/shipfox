@@ -249,6 +249,32 @@ describe('Slack dispatcher template', () => {
     ).toEqual(posted);
   });
 
+  // The platform fills a step's message when it creates the execution, even for a step whose
+  // condition is false, so a message that indexes a missing event fails the whole execution.
+  it.each([
+    {name: 'a workflow that replies itself', events: [runCompleted('succeeded')]},
+    {name: 'a failed workflow that replies itself', events: [runCompleted('failed')]},
+    {
+      name: 'a failed implementation',
+      events: [jobCompleted({key: 'implement', status: 'failed', outputs: null})],
+    },
+  ])('fills every message for $name', ({events}) => {
+    const steps = at(workflow, 'jobs', 'follow_up', 'steps') as YamlRecord[];
+    const context = {
+      jobs: {route: {outputs: {run_id: childRunId, run_number: 12}}},
+      execution: {events},
+    };
+
+    for (const entry of steps) {
+      const message = String(at(entry, 'with', 'message'));
+      expect(() =>
+        message.replace(/\$\{\{\s*([\s\S]*?)\s*\}\}/g, (_match, expression) =>
+          String(environment.evaluate(expression, context)),
+        ),
+      ).not.toThrow();
+    }
+  });
+
   it('links the pull request and the run that opened it', () => {
     const message = String(at(step('follow_up', 'pull_request'), 'with', 'message'));
     const context = {

@@ -76,7 +76,7 @@ task_result: |
       channel_id: ${{ jobs.thread.outputs.channel_id }}
       thread_ts: ${{ jobs.thread.outputs.thread_ts }}
       message: |-
-        Run [#${{ jobs.route.outputs.run_number }}](https://app.shipfox.io/runs/${{ jobs.route.outputs.run_id }}) opened a pull request for this request: ${{ execution.events.filter(e, e.event == "job.completed")[0].data.job.outputs.pr_url }}
+        Run [#${{ jobs.route.outputs.run_number }}](https://app.shipfox.io/runs/${{ jobs.route.outputs.run_id }}) opened a pull request for this request: ${{ size(execution.events.filter(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.pr_url))) > 0 ? execution.events.filter(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.pr_url))[0].data.job.outputs.pr_url : "" }}
 
         _Review it before you merge it._
   - key: questions
@@ -89,7 +89,7 @@ task_result: |
       message: |-
         Run [#${{ jobs.route.outputs.run_number }}](https://app.shipfox.io/runs/${{ jobs.route.outputs.run_id }}) needs more information before it changes code:
 
-        ${{ execution.events.filter(e, e.event == "job.completed")[0].data.job.outputs.questions }}
+        ${{ size(execution.events.filter(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.questions))) > 0 ? execution.events.filter(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.questions))[0].data.job.outputs.questions : "" }}
 
         _Answer in this thread, then mention the app again._
   - key: stopped
