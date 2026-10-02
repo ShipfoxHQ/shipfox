@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {getShippedSkillResource} from '@shipfox/workflow-templates';
 import {getLLMText} from './get-llm-text';
 import {canonicalDocsUrl} from './machine-readable';
 
@@ -85,3 +86,44 @@ test('renders the same Markdown for both audiences until a page distinguishes th
     await getLLMText(page, {audience: 'human'}),
   );
 });
+
+test('names the skill on a skill page in the mcp rendering and keeps the human rendering', async () => {
+  const skill = 'create-workflow-from-template';
+  const prompt = 'Use Shipfox to create a workflow from a template.';
+  const resource = getShippedSkillResource(`skill://shipfox/${skill}/SKILL.md`);
+  assert.ok(resource);
+  assert.equal(resource.catalogPrompt, prompt);
+  const guide = [
+    'This guide is meant to be carried out by your coding agent.',
+    "You start it with one prompt, answer the agent's questions, and review what it reports.",
+  ].join('\n');
+  const body = [
+    'Start from a template.',
+    placeholder({name: 'ForHumans', children: guide, attributes: {}}),
+    '## Start the agent',
+    placeholder({name: 'AgentHandoff', children: '', attributes: {skill, prompt}}),
+  ].join('\n\n');
+  const page = testPage('/how-to/author-workflows/create-workflow-from-template', body);
+
+  const human = await getLLMText(page, {audience: 'human'});
+  const mcp = await getLLMText(page, {audience: 'mcp'});
+
+  assert.ok(
+    human.endsWith(
+      [
+        'Start from a template.',
+        guide,
+        '## Start the agent',
+        'Open your coding agent in your repository and send this prompt:',
+        `\`\`\`text\n${prompt}\n\`\`\``,
+      ].join('\n\n'),
+    ),
+  );
+  assert.ok(mcp.includes(resource.uri));
+  assert.ok(!mcp.includes('```'));
+  assert.ok(!mcp.includes('meant to be carried out by your coding agent'));
+});
+
+function placeholder(component: {name: string; children: string; attributes: object}): string {
+  return `\0${JSON.stringify(component)}\0`;
+}

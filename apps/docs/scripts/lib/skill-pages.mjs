@@ -128,6 +128,7 @@ export function skillPageEntries(resources, pages = SKILL_PAGES) {
 }
 
 export function renderSkillPage({
+  skill,
   title,
   sidebarTitle,
   description,
@@ -144,8 +145,12 @@ export function renderSkillPage({
     '',
     ...intro,
     '',
+    '<ForHumans>',
+    '',
     'This guide is meant to be carried out by your coding agent. You start it with',
     "one prompt, answer the agent's questions, and review what it reports.",
+    '',
+    '</ForHumans>',
     '',
     '## Before you begin',
     '',
@@ -157,13 +162,14 @@ export function renderSkillPage({
     '',
     '## Start the agent',
     '',
-    'Open your coding agent in your repository and send this prompt:',
-    '',
-    '```text',
-    resource.catalogPrompt,
-    '```',
+    `<AgentHandoff skill="${skill}" prompt="${attributeValue(resource.catalogPrompt)}" />`,
     '',
   ].join('\n');
+}
+
+// MDX decodes character references in attribute strings.
+function attributeValue(value) {
+  return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;');
 }
 
 export function renderSkillResourceTable(resources, entries) {
