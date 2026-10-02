@@ -20,6 +20,10 @@ test('keeps a line break inside a quoted field', () => {
   ]);
 });
 
+test('keeps a blank line inside a quoted field', () => {
+  assert.deepEqual(parseCsv('a,"x\n\ny"\nb'), [['a', 'x\n\ny'], ['b']]);
+});
+
 test('keeps empty fields', () => {
   assert.deepEqual(parseCsv('a,,c'), [['a', '', 'c']]);
 });
