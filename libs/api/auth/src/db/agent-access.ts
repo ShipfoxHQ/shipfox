@@ -555,10 +555,11 @@ export async function createAgentGrantTx(
   const row = rows[0];
   if (!row) throw new Error('Upsert returned no rows');
 
-  // Reauthorization invalidates existing refresh tokens before the grant is reused.
+  // Reauthorization supersedes the live refresh token instead of revoking it: other client
+  // processes share that sign-in, and a rotated token keeps replaying until its own expiry.
   await tx
     .update(agentRefreshTokens)
-    .set({revokedAt: sql`now()`, updatedAt: sql`now()`})
+    .set({rotatedAt: sql`now()`, updatedAt: sql`now()`})
     .where(
       and(
         eq(agentRefreshTokens.grantId, row.id),
@@ -1185,7 +1186,6 @@ export async function transitionAgentGrantsToTerminalTx(
     .where(
       and(
         eq(agentRefreshTokens.grantId, agentGrants.id),
-        isNull(agentRefreshTokens.rotatedAt),
         isNull(agentRefreshTokens.revokedAt),
         gt(agentRefreshTokens.expiresAt, now),
       ),
@@ -1230,7 +1230,6 @@ export async function transitionAgentGrantsToTerminalTx(
         .where(
           and(
             eq(agentRefreshTokens.grantId, grant.id),
-            isNull(agentRefreshTokens.rotatedAt),
             isNull(agentRefreshTokens.revokedAt),
             gt(agentRefreshTokens.expiresAt, now),
           ),

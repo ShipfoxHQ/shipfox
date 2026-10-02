@@ -322,6 +322,73 @@ describe('agent-access db', () => {
     });
   });
 
+  describe('reauthorization', () => {
+    async function createGrantWithLiveToken() {
+      const user = await userFactory.create();
+      const client = await createAgentClient({
+        clientId: `https://client.example/${crypto.randomUUID()}`,
+        name: 'Reauthorization client',
+        redirectUris: ['https://client.example/callback'],
+        kind: 'registered',
+      });
+      const params = {userId: user.id, workspaceId: crypto.randomUUID(), clientId: client.id};
+      const grant = await createAgentGrant(params);
+      const token = await createAgentRefreshToken({
+        grantId: grant.id,
+        hashedToken: hashOpaqueToken(`reauthorization-${crypto.randomUUID()}`),
+      });
+      return {grant, token, params};
+    }
+
+    test('supersedes the live refresh token, which then replays as grace', async () => {
+      const {grant, token, params} = await createGrantWithLiveToken();
+
+      const reauthorized = await createAgentGrant(params);
+
+      expect(reauthorized.id).toBe(grant.id);
+      const superseded = await findAgentRefreshTokenByHash({hashedToken: token.hashedToken});
+      expect(superseded).toMatchObject({revokedAt: null, rotatedAt: expect.any(Date)});
+      expect(await resolveAgentRefreshTokenReplay({hashedToken: token.hashedToken})).toMatchObject({
+        kind: 'grace',
+        grant: {id: grant.id},
+        predecessor: {id: token.id},
+      });
+    });
+
+    test('keeps the grant active when a re-authorization is abandoned', async () => {
+      const {grant, token, params} = await createGrantWithLiveToken();
+      const codeExpiresAt = new Date(Date.now() + 60_000);
+      await createAgentGrant(params);
+      await createAgentAuthorizationCode({
+        grantId: grant.id,
+        hashedCode: hashOpaqueToken(`abandoned-${crypto.randomUUID()}`),
+        codeChallenge: 'challenge',
+        redirectUri: 'https://client.example/callback',
+        resource: 'https://api.example/mcp',
+        expiresAt: codeExpiresAt,
+      });
+
+      await pruneAgentAccessBatch({now: new Date(codeExpiresAt.getTime() + 1_000)});
+
+      expect(await findAgentGrant({id: grant.id})).toMatchObject({
+        revokedAt: null,
+        terminalAt: null,
+      });
+      expect(await resolveAgentRefreshTokenReplay({hashedToken: token.hashedToken})).toMatchObject({
+        kind: 'grace',
+      });
+    });
+
+    test('closes the grant once the superseded token has expired', async () => {
+      const {grant, token, params} = await createGrantWithLiveToken();
+      await createAgentGrant(params);
+
+      await transitionAgentGrantsToTerminal({now: new Date(token.expiresAt.getTime() + 1_000)});
+
+      expect((await findAgentGrant({id: grant.id}))?.terminalAt).not.toBeNull();
+    });
+  });
+
   test('serializes concurrent refresh rotation and revokes the complete grant family', async () => {
     const user = await userFactory.create();
     const client = await createAgentClient({
@@ -755,7 +822,7 @@ describe('agent-access db', () => {
     const rotated = await createAgentRefreshToken({
       grantId: grant.id,
       hashedToken: hashOpaqueToken(`retention-rotated-${crypto.randomUUID()}`),
-      expiresAt: new Date(now.getTime() + 60_000),
+      expiresAt: oneDayAgo,
     });
     await db()
       .update(agentRefreshTokens)
