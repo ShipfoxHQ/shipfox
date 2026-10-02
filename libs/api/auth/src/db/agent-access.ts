@@ -48,7 +48,6 @@ export type AgentAccessTx = Parameters<Parameters<ReturnType<typeof db>['transac
 type AgentAccessExecutor = ReturnType<typeof db> | AgentAccessTx;
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
-const MILLISECONDS_PER_SECOND = 1000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 function isUuid(value: string): boolean {
@@ -199,13 +198,6 @@ async function lockAgentClient(
   return row ? toAgentClient(row) : undefined;
 }
 
-function validateRotationGraceSeconds(graceSeconds: number): number {
-  if (!Number.isFinite(graceSeconds) || graceSeconds < 0) {
-    throw new Error('Agent refresh rotation grace must be a non-negative finite number of seconds');
-  }
-  return graceSeconds;
-}
-
 /** Returns the default sliding lifetime for a newly issued agent refresh token. */
 export function agentRefreshTokenExpiresAt(now: Date = new Date()): Date {
   return new Date(now.getTime() + config.AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS * MILLISECONDS_PER_DAY);
@@ -215,25 +207,6 @@ export function agentRefreshTokenExpiresAt(now: Date = new Date()): Date {
 function capAgentRefreshTokenExpiresAt(grant: AgentGrant, requested: Date): Date {
   const cap = grant.consentedAt.getTime() + AGENT_GRANT_MAX_SIGN_IN_AGE_DAYS * MILLISECONDS_PER_DAY;
   return new Date(Math.min(requested.getTime(), cap));
-}
-
-/**
- * A rotated token remains usable for an access-token-only grace response. The
- * row must still exist; pruning deliberately turns later replays into plain
- * unknown-token responses.
- */
-export function isWithinAgentRefreshRotationGrace(params: {
-  rotatedAt: Date | null;
-  now?: Date;
-  graceSeconds?: number | undefined;
-}): boolean {
-  if (!params.rotatedAt) return false;
-  const now = params.now ?? new Date();
-  const graceSeconds = validateRotationGraceSeconds(
-    params.graceSeconds ?? config.AUTH_REFRESH_ROTATION_GRACE_SECONDS,
-  );
-  const elapsedMs = now.getTime() - params.rotatedAt.getTime();
-  return elapsedMs >= 0 && elapsedMs <= graceSeconds * MILLISECONDS_PER_SECOND;
 }
 
 export interface CreateAgentClientParams {
@@ -877,29 +850,23 @@ export async function findActiveAgentRefreshTokenByGrantId(params: {
   return row ? toAgentRefreshToken(row) : undefined;
 }
 
-export type AgentRefreshTokenReplayResult =
-  | {
-      kind: 'grace';
-      grant: AgentGrant;
-      predecessor: AgentRefreshToken;
-      successor: AgentRefreshToken;
-    }
-  | {
-      kind: 'reused';
-      grant: AgentGrant;
-      predecessor: AgentRefreshToken;
-    };
+export type AgentRefreshTokenReplayResult = {
+  kind: 'grace';
+  grant: AgentGrant;
+  predecessor: AgentRefreshToken;
+};
 
 /**
- * Resolves a replay of a retained, rotated token. A grace hit returns the one
- * live successor so the caller can mint an access token without issuing a new
- * refresh cookie. A replay after grace revokes the complete grant family.
- * Missing or pruned rows return undefined and therefore remain plain 401s.
+ * Resolves a replay of a retained, rotated token. Several client processes can
+ * share one sign-in, so a rotated token keeps minting access tokens until its
+ * own expiry while the grant is active. The caller must not hand out a new
+ * refresh token. Replays never revoke; the consent-age cap bounds a leaked
+ * token instead. Missing, revoked, expired or pruned rows return undefined and
+ * therefore remain plain 401s.
  */
 export async function resolveAgentRefreshTokenReplay(params: {
   hashedToken: string;
   now?: Date;
-  graceSeconds?: number;
 }): Promise<AgentRefreshTokenReplayResult | undefined> {
   return await db().transaction((tx) => resolveAgentRefreshTokenReplayTx(tx, params));
 }
@@ -909,7 +876,6 @@ export async function resolveAgentRefreshTokenReplayTx(
   params: {
     hashedToken: string;
     now?: Date;
-    graceSeconds?: number;
   },
 ): Promise<AgentRefreshTokenReplayResult | undefined> {
   const rows = await tx
@@ -937,42 +903,26 @@ export async function resolveAgentRefreshTokenReplayTx(
   if (!current?.rotatedAt) return undefined;
 
   const now = params.now ?? (await databaseClock(tx));
-  if (
-    current.expiresAt.getTime() > now.getTime() &&
-    isWithinAgentRefreshRotationGrace({
-      rotatedAt: current.rotatedAt,
-      now,
-      graceSeconds: params.graceSeconds,
-    })
-  ) {
-    const successorRows = await tx
-      .select()
-      .from(agentRefreshTokens)
-      .where(
-        and(
-          eq(agentRefreshTokens.grantId, current.grantId),
-          isNull(agentRefreshTokens.rotatedAt),
-          isNull(agentRefreshTokens.revokedAt),
-          gt(agentRefreshTokens.expiresAt, now),
-        ),
-      )
-      .limit(1);
-    const successor = successorRows[0];
-    if (!successor) return undefined;
-    return {
-      kind: 'grace',
-      grant,
-      predecessor: toAgentRefreshToken(current),
-      successor: toAgentRefreshToken(successor),
-    };
-  }
+  if (current.expiresAt.getTime() <= now.getTime()) return undefined;
 
-  const revokedGrant = await revokeAgentGrantTx(tx, {grantId: current.grantId});
-  if (!revokedGrant) return undefined;
+  const touchedRows = await tx
+    .update(agentRefreshTokens)
+    .set({lastUsedAt: sql`now()`, updatedAt: sql`now()`})
+    .where(eq(agentRefreshTokens.id, current.id))
+    .returning();
+  const touched = touchedRows[0];
+  if (!touched) return undefined;
+  const touchedGrantRows = await tx
+    .update(agentGrants)
+    .set({lastUsedAt: sql`now()`, updatedAt: sql`now()`})
+    .where(eq(agentGrants.id, current.grantId))
+    .returning();
+  const touchedGrant = touchedGrantRows[0];
+  if (!touchedGrant) return undefined;
   return {
-    kind: 'reused',
-    grant: revokedGrant,
-    predecessor: toAgentRefreshToken(current),
+    kind: 'grace',
+    grant: toAgentGrant(touchedGrant),
+    predecessor: toAgentRefreshToken(touched),
   };
 }
 
@@ -1051,8 +1001,7 @@ export async function rotateAgentRefreshTokenTx(
 export type AgentRefreshExchangeOutcome =
   | {kind: 'rotated'; grant: AgentGrant}
   | {kind: 'grace'; grant: AgentGrant}
-  | {kind: 'rejected'}
-  | {kind: 'reused'; grant: AgentGrant};
+  | {kind: 'rejected'};
 
 async function refreshReplayOutcome(
   tx: AgentAccessTx,
@@ -1063,7 +1012,6 @@ async function refreshReplayOutcome(
     ...(params.now === undefined ? {} : {now: params.now}),
   });
   if (!replay) return {kind: 'rejected'};
-  if (replay.kind === 'reused') return {kind: 'reused', grant: replay.grant};
   return {kind: 'grace', grant: replay.grant};
 }
 

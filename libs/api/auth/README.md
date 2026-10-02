@@ -296,6 +296,34 @@ with the user, workspace, grant, and stream identity.
 - **Tool-call rate limit:** each API instance applies a process-local fixed
   window of 60 calls per credential per minute. Rejections increment the
   bounded `agent_access_tool_calls` metric with outcome `rate-limited`.
+- **Refresh token:** opaque, stored hashed, bound to its `client_id` and
+  `resource`, with membership rechecked on every refresh. A sign-in lasts at
+  most 30 days from the grant's last consent. Replaying a rotated token never
+  revokes the grant. The table below states what a stolen token can do.
+
+| Stolen token | Effect |
+| --- | --- |
+| Already rotated | Mints access tokens until that token's original expiry: at most 14 days after it was issued, never past consent plus 30 days. It cannot mint a refresh token. |
+| Live, attacker refreshes first | The attacker extends the chain with fresh refresh tokens. The legitimate client's later replay revokes nothing. Access lasts until consent plus 30 days. |
+
+Either way, access also ends when the user selects **Disconnect** for the app,
+or when the user leaves the workspace or the workspace or account is
+suspended, which the refresh membership check catches.
+
+Two consequences are accepted:
+
+- **No automatic leak detection.** Reuse detection was the only signal that a
+  refresh token had leaked. It is removed because, for clients that share stored
+  credentials across processes, two holders of one token is the normal case, so
+  the signal fires on legitimate use and acting on it locks out real users.
+- **Signing in again does not evict a thief.** **Disconnect** is the only
+  immediate cutoff. One connected-apps row covers every process of the same
+  app, so a user cannot tell their own refreshes from an attacker's.
+
+**Deviation from OAuth 2.1:** section 4.3.1 and the MCP authorization spec ask
+authorization servers to rotate refresh tokens for public clients so that reuse
+can be detected. The module still rotates but no longer acts on reuse. The
+30-day maximum sign-in age is the compensating control.
 
 The standard `createAuthModule` composition registers the `AUTH_AGENT_ACCESS`
 method and the OAuth and grant-management routes. Applications that compose the
@@ -415,8 +443,14 @@ Management identifiers are caller-owned. Another user's identifier and an unknow
 both return `404`.
 Authorization-code replay returns `invalid_grant` and
 does not revoke a grant that was already issued, because a lost token response is indistinguishable
-from a replay. Refresh-token reuse outside the grace window revokes the grant family, and a lost
-rotation response therefore requires a new consent flow.
+from a replay.
+
+Several client processes can share one stored sign-in, so presenting a rotated refresh token is
+normal. A rotated, unrevoked, unexpired token on an active grant returns an access token only, at
+any time after rotation, never a new refresh token; the client keeps the one it holds. The replay
+sets `last_used_at` on the token and the grant and never revokes. An expired rotated token returns
+`invalid_grant` without revoking. Only the user's **Disconnect** action revokes a grant.
+`AUTH_REFRESH_ROTATION_GRACE_SECONDS` applies to browser sessions only.
 
 A sign-in lasts at most 30 days from the grant's last consent (`consented_at`,
 `AGENT_GRANT_MAX_SIGN_IN_AGE_DAYS`), even when the client refreshes steadily. Every refresh token

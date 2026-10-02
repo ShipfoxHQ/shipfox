@@ -18,7 +18,6 @@ import {
   findAgentGrant,
   findAgentRefreshTokenByHash,
   findPendingAgentAuthorizationRequest,
-  isWithinAgentRefreshRotationGrace,
   lockAgentGrant,
   pruneAgentAccess,
   pruneAgentAccessBatch,
@@ -59,18 +58,6 @@ function deferred<T>() {
 }
 
 describe('agent-access db', () => {
-  test('does not accept a future rotation timestamp as a grace replay', () => {
-    const now = new Date('2026-09-01T00:00:00.000Z');
-
-    expect(
-      isWithinAgentRefreshRotationGrace({
-        rotatedAt: new Date(now.getTime() + 1_000),
-        now,
-        graceSeconds: 30,
-      }),
-    ).toBe(false);
-  });
-
   test('consumes a pending authorization request exactly once under concurrency', async () => {
     const client = await createAgentClient({
       clientId: `https://client.example/${crypto.randomUUID()}`,
@@ -394,7 +381,7 @@ describe('agent-access db', () => {
     }
   });
 
-  test('serves retained refresh replays during grace and revokes reuse after grace', async () => {
+  test('keeps serving rotated refresh replays after the grace window without revoking', async () => {
     const user = await userFactory.create();
     const client = await createAgentClient({
       clientId: `https://client.example/${crypto.randomUUID()}`,
@@ -433,33 +420,93 @@ describe('agent-access db', () => {
       kind: 'grace',
       grant: {id: grant.id, revokedAt: null},
       predecessor: {id: predecessor.id},
-      successor: {id: successor.id},
     });
 
     await db()
       .update(agentRefreshTokens)
       .set({rotatedAt: new Date(Date.now() - 31_000)})
       .where(eq(agentRefreshTokens.id, predecessor.id));
-    const reused = await resolveAgentRefreshTokenReplay({
+    const lateReplay = await resolveAgentRefreshTokenReplay({
       hashedToken: predecessor.hashedToken,
     });
-    expect(reused).toMatchObject({
-      kind: 'reused',
-      grant: {
-        id: grant.id,
-        revokedAt: expect.any(Date),
-        terminalAt: expect.any(Date),
-      },
+    expect(lateReplay).toMatchObject({
+      kind: 'grace',
+      grant: {id: grant.id, revokedAt: null, terminalAt: null},
+      predecessor: {id: predecessor.id},
     });
+    expect(await findAgentGrant({id: grant.id})).toMatchObject({revokedAt: null});
+    expect(await findAgentRefreshTokenByHash({hashedToken: replacementHashedToken})).toMatchObject({
+      id: successor.id,
+      revokedAt: null,
+    });
+  });
+
+  test('records the last use of a replayed token and its grant', async () => {
+    const user = await userFactory.create();
+    const client = await createAgentClient({
+      clientId: `https://client.example/${crypto.randomUUID()}`,
+      name: 'Test client',
+      redirectUris: ['https://client.example/callback'],
+      kind: 'registered',
+    });
+    const grant = await createAgentGrant({
+      userId: user.id,
+      workspaceId: crypto.randomUUID(),
+      clientId: client.id,
+    });
+    const predecessor = await createAgentRefreshToken({
+      grantId: grant.id,
+      hashedToken: hashOpaqueToken(`last-used-${crypto.randomUUID()}`),
+    });
+    await rotateAgentRefreshToken({
+      hashedToken: predecessor.hashedToken,
+      replacementHashedToken: hashOpaqueToken(`last-used-successor-${crypto.randomUUID()}`),
+    });
+    const longAgo = new Date(Date.now() - 3_600_000);
+    await db()
+      .update(agentRefreshTokens)
+      .set({lastUsedAt: longAgo})
+      .where(eq(agentRefreshTokens.id, predecessor.id));
+    await db().update(agentGrants).set({lastUsedAt: longAgo}).where(eq(agentGrants.id, grant.id));
+
+    const replay = await resolveAgentRefreshTokenReplay({hashedToken: predecessor.hashedToken});
+
+    expect(replay?.kind).toBe('grace');
+    const token = await findAgentRefreshTokenByHash({hashedToken: predecessor.hashedToken});
+    expect(token?.lastUsedAt?.getTime()).toBeGreaterThan(longAgo.getTime());
+    const updatedGrant = await findAgentGrant({id: grant.id});
+    expect(updatedGrant?.lastUsedAt?.getTime()).toBeGreaterThan(longAgo.getTime());
+  });
+
+  test('rejects a replay on a revoked grant', async () => {
+    const user = await userFactory.create();
+    const client = await createAgentClient({
+      clientId: `https://client.example/${crypto.randomUUID()}`,
+      name: 'Test client',
+      redirectUris: ['https://client.example/callback'],
+      kind: 'registered',
+    });
+    const grant = await createAgentGrant({
+      userId: user.id,
+      workspaceId: crypto.randomUUID(),
+      clientId: client.id,
+    });
+    const predecessor = await createAgentRefreshToken({
+      grantId: grant.id,
+      hashedToken: hashOpaqueToken(`revoked-replay-${crypto.randomUUID()}`),
+    });
+    await rotateAgentRefreshToken({
+      hashedToken: predecessor.hashedToken,
+      replacementHashedToken: hashOpaqueToken(`revoked-replay-successor-${crypto.randomUUID()}`),
+    });
+    await revokeAgentGrant({grantId: grant.id});
+
     expect(
-      await findAgentRefreshTokenByHash({hashedToken: predecessor.hashedToken}),
-    ).toBeUndefined();
-    expect(
-      await findAgentRefreshTokenByHash({hashedToken: replacementHashedToken}),
+      await resolveAgentRefreshTokenReplay({hashedToken: predecessor.hashedToken}),
     ).toBeUndefined();
   });
 
-  test('revokes a grant when a predecessor expires during the rotation grace window', async () => {
+  test('leaves the grant active when an expired predecessor is replayed', async () => {
     const user = await userFactory.create();
     const client = await createAgentClient({
       clientId: `https://client.example/${crypto.randomUUID()}`,
@@ -495,14 +542,8 @@ describe('agent-access db', () => {
       hashedToken: predecessor.hashedToken,
       now: replayNow,
     });
-    expect(replay).toMatchObject({
-      kind: 'reused',
-      grant: {
-        id: grant.id,
-        revokedAt: expect.any(Date),
-        terminalAt: expect.any(Date),
-      },
-    });
+    expect(replay).toBeUndefined();
+    expect(await findAgentGrant({id: grant.id})).toMatchObject({revokedAt: null, terminalAt: null});
   });
 
   test('rejects code exchange and refresh rotation for suspended users', async () => {

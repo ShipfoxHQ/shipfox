@@ -64,7 +64,7 @@ resources and search. The default is the [Shipfox docs site](https://www.shipfox
 | App disconnected in Shipfox | Refresh stops immediately. Actions and log downloads stop on their next request. Read access ends when the current access token expires. |
 | Membership removed, workspace suspended, or account suspended | Actions and log downloads stop on their next request. The next refresh fails, and read access ends within 15 minutes. |
 | 30 days after you connect | The sign-in ends, even if the client is active. The client asks the user to sign in again. Connecting again restarts the 30 days. |
-| Client idle | The stored sign-in expires after the installation's refresh-token lifetime, 14 days by default. The client asks the user to sign in again. |
+| Client idle | The stored sign-in expires after the installation's refresh-token lifetime, 14 days by default. The client asks the user to sign in again. A client that holds an older refresh token can be asked to sign in again when that token's original expiry passes. |
 
 ## Limits
 
