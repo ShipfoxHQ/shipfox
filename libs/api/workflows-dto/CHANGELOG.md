@@ -1,5 +1,67 @@
 # @shipfox/api-workflows-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- ba1aff7: Adds run-started and job-execution-started lifecycle event contracts.
+- 2e5a311: Dev runs accept action uploads. `POST /dev-runs` and the `create_dev_run` MCP tool take an `actions` field: whole action directories, each replacing the ref's copy of its `uses` path. Both routes accept bodies up to 4 MiB. The `create_dev_run` description tells agents which files to send. The run DTO's `dev_source` gains `local_actions`, the uploaded action paths. It defaults to an empty list for older runs.
+- b9a53b2: Adds `status_reason`, `status_reason_message`, and `outputs` to the run overview attempt. The `shipfox` provider's `get_workflow_run` tool returns them on its attempt, and the agent-access `get_workflow_run` tool returns them on the run.
+- a73e712: The integration tool gateway serves action steps as well as agent steps.
+
+  - **Leased tool context:** `getLeasedAgentToolContext` keeps its name and accepts leased `action` steps. Other step types still fail with `leased-step-not-agent`. The result gains `stepType` (`agent` or `action`). For an action step, `integrations` holds the tools frozen at run creation, with one entry per connection, and each tool carries its `result` kind.
+  - **Audit:** the tool call caller adds `action`, on both the audit line and the `integrations_agent_tool_call` metric label. When the runner sends `x-shipfox-call-id`, the audit line records it as `callId`.
+
+- fc455ac: Workflow runs materialize and dispatch action steps (`uses`). Definitions accept `uses` only while `DEFINITION_ACTIONS_ENABLED` is on, and it stays off in production for now.
+
+  - **Step type:** steps gain the `action` type. The job detail and agent access step type enums accept it.
+  - **Config:** an action step's config carries the action (`uses`, snapshot digest, `main`, and name), its `inputs`, the merged workflow, job, and step `env`, the connection binding of each integration alias, and the manifest outputs with `required`.
+  - **Dispatch:** `with` values are completed at dispatch. Defaults fill omitted inputs, and each value is coerced to its declared type. A value that fails coercion fails the attempt with the new `action_input_invalid` reason.
+  - **Error reasons:** `stepErrorReasonSchema` adds `action_input_invalid` (user) and `action_unavailable` (setup, for a runner that cannot load the action snapshot). The agent access diagnostics enum adds both.
+  - **Interpolation fields:** the workflows and triggers inter-module error schemas accept `action.with`.
+  - **Reruns** copy the attempt model, so they run the same action snapshot.
+  - **Client:** the step error reason type accepts the two new reasons.
+
+- 6b01f3d: Names the missing variable and where it is read when a run cannot start. `InterpolationUnresolvableError` and the `interpolation-unresolvable` inter-module error carry optional `variableKey`, `jobKey` and `step`. Predicates report `job.if`, `job.success`, `job.listening.filter`, `step.if` and `step.gate.success` instead of `env`. The error message no longer suggests `has()` for a missing variable.
+- a15e118: Lets a managed model provider refuse a model for one workspace at run time. A provider opts in by implementing `availability`, which returns the workspace's locked models. A locked model fails the step with a 422 `agent-model-unavailable` response and a policy notice. An error from `availability` returns a retryable 503. Credential renewal doesn't recheck, so a running step is never cut off. The stored step error carries the notice, and the model unavailable callout shows its message and required action. Providers without `availability` behave as before.
+- 4aad893: Adds machine placement rules for installation provisioning. A policy can now pass `placement.resolve`, and a job that needs a reserved runner label but only matches refused templates fails within one poll with the new `runner_not_allowed` status reason and its notice. The client shows the notice and its action.
+- c6f2ae3: `checkRunReadiness` now reports `agent-config-invalid` for an agent step whose model, provider or thinking level the agent module refuses. It checks only steps whose `model`, `provider` and `thinking` are literal or absent, so a templated value never produces an issue. An absent value falls back to the workspace defaults. The issue blocks the start for a normal job, and fails the job when the job is listening or the session key is filled after run creation. The readiness route returns the new issue with its `reason`, `model` and `provider`. `@shipfox/expression` exports `shouldFillAtSite`.
+- fafbe84: `checkRunReadiness` now reports `secret-missing` for a step secret that is defined at neither workspace nor project scope. It fails the job after the run starts, and never refuses the start. Each definition also lists the `secrets.inputs.*` it reads, so a trigger can compare them with its secret mappings.
+- 737c625: Adds the `checkRunReadiness` inter-module operation, which reports the variables a workflow reads that are not defined at workspace or project scope. Each `variable-missing` issue says whether it blocks the run from starting or fails a job after the run starts, and where the variable is read.
+- 507915a: A required action can carry an optional `intent`, and `REQUIRED_ACTION_INTENTS` lists the known values. `intent` names a behavior a composing application may provide in place of opening `url`, such as `contact-support`. `url` stays required as the fallback, and an unknown `intent` still parses.
+
+  The admission denial contract, the HTTP 409 `required_action`, and the agent-access error details now keep `intent` when it is set.
+
+- 94e77bc: Stores an optional runner-reported `log_path` on step attempts and exposes it in dispatch context when a finalized step log is available.
+- dd20040: Names the cause of a refused start when an agent step's configuration cannot be used. The agent `agent-config-invalid` error carries a `reason` (`model-unknown`, `provider-unsupported`, `harness-unsupported`, `thinking-unsupported` or `workspace-providers-disabled`) with the `model` and `provider` where they apply. `agent-config-unresolvable` passes them on with the job and step, in the inter-module error, the 422 `details` (`reason`, `model`, `provider`, `job_key`, `step`) and the trigger diagnostic. Every new field is optional, so stored diagnostics still map.
+- daf0208: Names the cause of a refused start when an integration connection or tool cannot be materialized. `agent-integration-materialization-failed` carries a `reason` (`connection-missing`, `connection-provider-mismatch`, `source-connection-missing`, `tool-unknown` or `no-tools-selected`) with the `connection` and `tool` where they apply, and the job and step it came from. They reach the inter-module error, the 422 `details` (`reason`, `connection`, `tool`, `job_key`, `step`) and the trigger diagnostic. Setup failures keep no reason. Every new field is optional, so stored diagnostics still map.
+- 6b2a308: Adds the workflow outputs runtime. `WorkflowModel` gains optional `outputs` and `outputTypes`. When a run attempt succeeds, its outputs are evaluated with the job-output limits and stored on the attempt. An output that cannot be evaluated or is too large fails the attempt with the `output_invalid` or `output_too_large` status reason. The lifecycle event context returns `run.outputs`, and run creation errors can name the `workflow.outputs` field.
+
+### Patch Changes
+
+- 3869c1d: Fail queued job executions that are not claimed before the configured queue timeout and start execution timeouts from the persisted claim timestamp.
+- Updated dependencies [e99aa97]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [f05ecde]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [8872f36]
+- Updated dependencies [a99c11b]
+- Updated dependencies [af3b91f]
+- Updated dependencies [a15e118]
+- Updated dependencies [507915a]
+- Updated dependencies [a429987]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [dd20040]
+- Updated dependencies [00dd046]
+- Updated dependencies [6b2a308]
+- Updated dependencies [70e6983]
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/api-agent-dto@34.0.0
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/policy-notice@0.1.0
+
 ## 33.0.0
 
 ### Patch Changes

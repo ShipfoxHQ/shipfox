@@ -1,5 +1,58 @@
 # @shipfox/client-integrations
 
+## 53.0.0
+
+### Major Changes
+
+- 5e12647: Lets a member choose among several linkable GitHub installations. `POST /integrations/github/link/complete` now returns up to 20 candidates with a five-minute signed selection token, and `POST /integrations/github/link/select` connects the chosen installation. More candidates return `github-too-many-linkable-installations`, which replaces `github-multiple-linkable-installations` and `GithubMultipleLinkableInstallationsError`. `GithubApiClient.listUserInstallations` now returns installation details instead of IDs. The GitHub callback page shows the installation picker, and `completeGithubLink` can now return a selection instead of a connection.
+
+### Minor Changes
+
+- c64d42f: Adds actor-bound GitHub link OAuth routes, DTOs, and client adapters for reconnecting accessible installations.
+- a02f5cf: Adds Discord to the client integrations gallery with OAuth install and callback wiring. Adds the callback DTO contract and Discord provider name to workflow failure annotations.
+- 96a66ed: Recovers orphaned GitHub installations by starting the link flow from incomplete callback landings and from an unlisted `/w/$workspaceSlug/integrations/github/link` support route, and handles link callbacks.
+
+### Patch Changes
+
+- 658d71f: Reports incomplete GitHub callbacks to analytics and Sentry.
+- Updated dependencies [c64d42f]
+- Updated dependencies [9e7dd0e]
+- Updated dependencies [a02f5cf]
+- Updated dependencies [eec818d]
+- Updated dependencies [2c9838a]
+- Updated dependencies [4273dad]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [2021ae8]
+- Updated dependencies [474e21f]
+- Updated dependencies [5e12647]
+- Updated dependencies [2c89020]
+- Updated dependencies [b4c1fa2]
+- Updated dependencies [3726d36]
+- Updated dependencies [93b8cac]
+- Updated dependencies [a328042]
+- Updated dependencies [9f27c98]
+- Updated dependencies [7056182]
+- Updated dependencies [e2e561c]
+- Updated dependencies [9485c57]
+- Updated dependencies [82f2480]
+  - @shipfox/api-integration-github-dto@34.0.0
+  - @shipfox/api-integration-discord-dto@34.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/integration-icons@0.6.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/api-integration-jira-dto@34.0.0
+  - @shipfox/api-integration-sentry-dto@34.0.0
+  - @shipfox/client-auth@53.0.0
+  - @shipfox/client-ui@53.0.0
+  - @shipfox/api-integration-clickup-dto@34.0.0
+  - @shipfox/api-integration-gitea-dto@34.0.0
+  - @shipfox/api-integration-linear-dto@34.0.0
+  - @shipfox/api-integration-notion-dto@34.0.0
+  - @shipfox/api-integration-posthog-dto@34.0.0
+  - @shipfox/api-integration-slack-dto@34.0.0
+  - @shipfox/api-integration-webhook-dto@34.0.0
+
 ## 52.0.3
 
 ### Patch Changes

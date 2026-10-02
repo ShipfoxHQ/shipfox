@@ -1,5 +1,34 @@
 # @shipfox/workflow-document
 
+## 3.11.0
+
+### Minor Changes
+
+- 6b4ae32: Workflow steps can declare an action with `uses`, and `actionManifestSchema` describes the `action.yml` manifest. Both stay off by default until workflow actions launch.
+
+  - **Action steps:** `uses` takes a normalized repository path that starts with `./`. Other forms, such as `owner/repo@ref`, fail with "not supported yet". `connections` binds manifest aliases to connection slugs, and `with` passes inputs. A secret reference in `with` must be the whole value of a top-level input.
+  - **Forbidden fields:** an action step rejects `run`, agent fields, `checkout`, `tool`, `connection`, and `outputs`. Other step kinds reject `uses` and `connections`.
+  - **Opt-in:** `parseWorkflowDocument(input, {actions: true})` accepts action steps. Without it, `uses` fails with "Action steps (`uses`) are not supported yet." `buildWorkflowJsonSchema({actions: true})` adds the action fields; the default schema is unchanged.
+  - **Manifest:** `actionManifestSchema`, `buildActionManifestJsonSchema`, and the `ActionManifest` types cover `name`, `description`, `runtime`, `main`, typed `inputs` and `outputs`, and `integrations` with explicit selectors.
+  - **Messages:** `with` size, depth, and JSON-tree errors now start with "`with`" instead of "Tool `with`".
+
+- cb411b1: Action steps can reference a registry version, such as `uses: shipfox/slack-thread-digest@1.4.2`. Registry references stay off by default.
+
+  - **Opt-in:** `parseWorkflowDocument(input, {actions: true, registryActions: true})` accepts registry references. Without `registryActions`, every registry form still fails with "Remote actions are not supported yet". `workflowDocumentStepSchema` used directly accepts them.
+  - **Grammar:** a reference is `namespace/name@MAJOR.MINOR.PATCH`. Namespaces and names are 2 to 40 lowercase letters, digits, and single hyphens. Ranges, tags, pre-release versions, and bare names fail with "Pin an exact version". A host such as `registry.acme.dev/...` fails with "Other registries are not supported yet", and `owner/repo/path@ref` fails with "Remote actions come from the registry, not from Git". Repository path forms keep their messages.
+  - **Parsed reference:** `parseWorkflowActionRef(uses)` returns `{kind: 'local', path}` or `{kind: 'registry', namespace, name, version}`, or the message for an invalid value.
+  - **Manifest:** `action.yml` accepts optional `keywords` (up to 10 slugs) and `related` (registry package names).
+
+- dbe45d5: Adds the action bundle codec. `encodeActionBundle` writes the files of an action directory as canonical JSON with a `sha256:<hex>` digest and a gzipped stored form, and `decodeActionBundle` reads it back after checking the digest.
+
+  Definitions stores action snapshots per workspace and digest, and the new `getActionSnapshot` inter-module method returns the manifest, the gzipped bundle as base64, and the byte length of the uncompressed bundle, or the `action-snapshot-not-found` known error.
+
+- e71cded: Accepts top-level workflow `outputs`. The document schema takes a map from output names to templates, with the job-outputs entry limit. The new `workflow.outputs` expression field reads the `jobs`, `inputs`, `vars`, `workflow`, `run`, `trigger`, and `event` contexts. Definitions normalize the map into `WorkflowModel.outputs` and `outputTypes` and type-check each output against the declared job outputs, so a reference to an undeclared job output is a sync error. The workflow outputs runtime now evaluates under the `workflow.outputs` field.
+
+### Patch Changes
+
+- cfd75e4: Points the `gate.success` field description at the renamed feedback-loops docs section.
+
 ## 3.10.0
 
 ### Minor Changes

@@ -1,5 +1,22 @@
 # @shipfox/api-integration-posthog
 
+## 34.0.0
+
+### Patch Changes
+
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [c8e0869]
+- Updated dependencies [e2e561c]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/api-integration-spi@4.4.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/api-integration-posthog-dto@34.0.0
+
 ## 32.2.0
 
 ### Patch Changes

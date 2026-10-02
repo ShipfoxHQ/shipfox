@@ -1,5 +1,20 @@
 # @shipfox/client-workspace-settings
 
+## 53.0.0
+
+### Patch Changes
+
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [2021ae8]
+- Updated dependencies [2c89020]
+- Updated dependencies [93b8cac]
+- Updated dependencies [a328042]
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/client-auth@53.0.0
+  - @shipfox/client-ui@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

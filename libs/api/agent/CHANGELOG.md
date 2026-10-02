@@ -1,5 +1,60 @@
 # @shipfox/api-agent
 
+## 34.0.0
+
+### Minor Changes
+
+- a99c11b: Show managed models that a workspace cannot run. The workspace model catalog marks them `locked`, validation warns with `model-locked` and never rejects, and the model lists mark them with a lock and explain the reason once, with the required action, while keeping them selectable.
+- a15e118: Lets a managed model provider refuse a model for one workspace at run time. A provider opts in by implementing `availability`, which returns the workspace's locked models. A locked model fails the step with a 422 `agent-model-unavailable` response and a policy notice. An error from `availability` returns a retryable 503. Credential renewal doesn't recheck, so a running step is never cut off. The stored step error carries the notice, and the model unavailable callout shows its message and required action. Providers without `availability` behave as before.
+- dd20040: Names the cause of a refused start when an agent step's configuration cannot be used. The agent `agent-config-invalid` error carries a `reason` (`model-unknown`, `provider-unsupported`, `harness-unsupported`, `thinking-unsupported` or `workspace-providers-disabled`) with the `model` and `provider` where they apply. `agent-config-unresolvable` passes them on with the job and step, in the inter-module error, the 422 `details` (`reason`, `model`, `provider`, `job_key`, `step`) and the trigger diagnostic. Every new field is optional, so stored diagnostics still map.
+- 70e6983: Adds `managed_provider_id` to the `getWorkspaceModels` inter-module result, so consumers can tell the managed provider's models apart from bring-your-own-key providers.
+
+### Patch Changes
+
+- 68d6cd6: Adds lab and display label fields to workspace model contracts while preserving strict agent-access projections.
+- 8a4f3d8: Adds the GET /__e2e/agent/sessions/:stepAttemptId route and exports the e2eSessionTranscriptResponseSchema/E2eSessionTranscriptResponseDto contract for decrypted agent session transcripts.
+- Updated dependencies [e99aa97]
+- Updated dependencies [6b4ae32]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [2e5a311]
+- Updated dependencies [2d009f4]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [c06262b]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [a73e712]
+- Updated dependencies [a99c11b]
+- Updated dependencies [fc455ac]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [3869c1d]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4aad893]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [cb411b1]
+- Updated dependencies [507915a]
+- Updated dependencies [94e77bc]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [e71cded]
+- Updated dependencies [6b2a308]
+- Updated dependencies [70e6983]
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/workflow-document@3.11.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-agent-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/node-module@1.1.3
+  - @shipfox/node-temporal@0.5.3
+
 ## 33.0.0
 
 ### Patch Changes

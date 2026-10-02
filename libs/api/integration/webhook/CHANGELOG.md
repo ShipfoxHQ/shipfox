@@ -1,5 +1,21 @@
 # @shipfox/api-integration-webhook
 
+## 34.0.0
+
+### Patch Changes
+
+- Updated dependencies [c06262b]
+- Updated dependencies [c8e0869]
+- Updated dependencies [c06262b]
+- Updated dependencies [e2e561c]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/api-integration-spi@4.4.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-integration-webhook-dto@34.0.0
+
 ## 31.0.0
 
 ### Patch Changes

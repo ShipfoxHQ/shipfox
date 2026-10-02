@@ -1,5 +1,49 @@
 # @shipfox/runner-protocol
 
+## 0.2.57
+
+### Patch Changes
+
+- 901e5b3: A step that fails on a missing secret now names the secret.
+
+  - **API:** `secret-not-found` and `secret-input-missing` from the step secrets route carry `details: {key, store}`.
+  - **Runner:** the step failure reads "Secret `K` is not set in this project or workspace." or "Secret input `K` was not passed to this run." When the API sends no details, the runner keeps the generic message.
+
+- Updated dependencies [e99aa97]
+- Updated dependencies [a2fbdd3]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [2e5a311]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [a73e712]
+- Updated dependencies [b64fff6]
+- Updated dependencies [a99c11b]
+- Updated dependencies [fc455ac]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [3869c1d]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4aad893]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [507915a]
+- Updated dependencies [3aa5d7a]
+- Updated dependencies [a429987]
+- Updated dependencies [94e77bc]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [6b2a308]
+- Updated dependencies [70e6983]
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/api-runners-dto@34.0.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-agent-dto@34.0.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/policy-notice@0.1.0
+  - @shipfox/api-logs-dto@34.0.0
+
 ## 0.2.56
 
 ### Patch Changes

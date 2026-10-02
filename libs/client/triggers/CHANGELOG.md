@@ -1,5 +1,37 @@
 # @shipfox/client-triggers
 
+## 53.0.0
+
+### Patch Changes
+
+- a9e85c1: Exposes the missing variable in refused manual starts and trigger history. The 422 `workflow-interpolation-unresolvable` details carry optional `variable_key`, `job_key` and `step`. The `interpolation-unresolvable` diagnostic gains optional `variableKey`, `jobKey`, `step` and `source`, and a missing secret input records its own `secret-input-missing` diagnostic instead of `unexpected-workflow-start-failure`. A manual fire that fails on a missing secret is now recorded as a terminal error.
+- 9f185e9: Event history names the missing variable or secret behind a failed workflow start and links to the prefilled Add variable or Add secret form.
+- Updated dependencies [2e5a311]
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [a9e85c1]
+- Updated dependencies [2021ae8]
+- Updated dependencies [2c89020]
+- Updated dependencies [93b8cac]
+- Updated dependencies [fc455ac]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [ac3561b]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [d77a8c4]
+- Updated dependencies [507915a]
+- Updated dependencies [a328042]
+- Updated dependencies [7056182]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [ffffc16]
+- Updated dependencies [6b2a308]
+  - @shipfox/api-triggers-dto@34.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/integration-icons@0.6.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/client-projects@53.0.0
+  - @shipfox/client-ui@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

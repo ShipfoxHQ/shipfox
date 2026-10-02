@@ -1,5 +1,19 @@
 # @shipfox/annotations
 
+## 34.0.0
+
+### Patch Changes
+
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [c06262b]
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/node-module@1.1.3
+
 ## 29.1.0
 
 ### Patch Changes

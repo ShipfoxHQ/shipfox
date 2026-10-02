@@ -1,5 +1,14 @@
 # @shipfox/api-integration-core-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- 4273dad: Adds the Discord interaction webhook route to the shared stored-request contract.
+- e2e561c: Reads source files as strict UTF-8 and lists symlinks and submodules. Fetching a file that is not valid UTF-8 now fails with the `binary-file-unsupported` reason instead of replacing invalid bytes. Source file listings now report `symlink` and `submodule` entries next to `file` entries. Workflow sync ignores those entries and reports a workflow file that is not UTF-8 text as an invalid definition for that file.
+- 9485c57: Adds the `checkTemplateConformance` inter-module operation. It checks the tool and event references of a composed workflow template against the integration catalog of the instance. It returns one issue for each reference that the instance cannot serve.
+- 82f2480: Adds a `json` or `file` result kind to agent tool catalog entries. An absent kind means `json`. The connection tool catalog and the agent tools context carry the resolved kind, and the MCP gateway neither lists nor calls file tools.
+
 ## 31.0.0
 
 ### Major Changes

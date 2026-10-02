@@ -1,5 +1,94 @@
 # @shipfox/api-triggers
 
+## 34.0.0
+
+### Minor Changes
+
+- a9e85c1: Exposes the missing variable in refused manual starts and trigger history. The 422 `workflow-interpolation-unresolvable` details carry optional `variable_key`, `job_key` and `step`. The `interpolation-unresolvable` diagnostic gains optional `variableKey`, `jobKey`, `step` and `source`, and a missing secret input records its own `secret-input-missing` diagnostic instead of `unexpected-workflow-start-failure`. A manual fire that fails on a missing secret is now recorded as a terminal error.
+- 6c0d6bd: Adds Shipfox run and job lifecycle events for workflow triggers.
+- d77a8c4: Adds `GET /workflow-definitions/readiness`, which reports for up to 100 definitions what the workspace still lacks before their runs can start cleanly. Each issue says where it is read and whether it blocks the run from starting or fails a job after the run starts.
+- 507915a: A required action can carry an optional `intent`, and `REQUIRED_ACTION_INTENTS` lists the known values. `intent` names a behavior a composing application may provide in place of opening `url`, such as `contact-support`. `url` stays required as the fallback, and an unknown `intent` still parses.
+
+  The admission denial contract, the HTTP 409 `required_action`, and the agent-access error details now keep `intent` when it is set.
+
+- dd20040: Names the cause of a refused start when an agent step's configuration cannot be used. The agent `agent-config-invalid` error carries a `reason` (`model-unknown`, `provider-unsupported`, `harness-unsupported`, `thinking-unsupported` or `workspace-providers-disabled`) with the `model` and `provider` where they apply. `agent-config-unresolvable` passes them on with the job and step, in the inter-module error, the 422 `details` (`reason`, `model`, `provider`, `job_key`, `step`) and the trigger diagnostic. Every new field is optional, so stored diagnostics still map.
+- daf0208: Names the cause of a refused start when an integration connection or tool cannot be materialized. `agent-integration-materialization-failed` carries a `reason` (`connection-missing`, `connection-provider-mismatch`, `source-connection-missing`, `tool-unknown` or `no-tools-selected`) with the `connection` and `tool` where they apply, and the job and step it came from. They reach the inter-module error, the 422 `details` (`reason`, `connection`, `tool`, `job_key`, `step`) and the trigger diagnostic. Setup failures keep no reason. Every new field is optional, so stored diagnostics still map.
+- ffffc16: The workflow readiness route now reports trigger-scoped issues. A trigger whose `secrets:` mapping points at a secret that exists at neither project nor workspace scope gets `trigger-secret-missing`, which blocks that trigger's runs from starting. A `secrets.inputs.K` the workflow reads but a trigger's mapping does not provide gets `secret-input-unmapped`, which fails the step that reads it.
+
+### Patch Changes
+
+- 1418393: Adds the E2E-only route `GET /__e2e/triggers/definitions/:definitionId/readiness`, which reports whether a definition's trigger subscriptions are projected.
+- 2e5a311: Dev runs accept action uploads. `POST /dev-runs` and the `create_dev_run` MCP tool take an `actions` field: whole action directories, each replacing the ref's copy of its `uses` path. Both routes accept bodies up to 4 MiB. The `create_dev_run` description tells agents which files to send. The run DTO's `dev_source` gains `local_actions`, the uploaded action paths. It defaults to an empty list for older runs.
+- a9bf139: Maps `definition-not-found` to 404 and `project-mismatch` to 409 for manual triggers, and `workflow-execution-payload-too-large` to 422 with `field`, `limit_bytes` and `measured_bytes` for both manual triggers and dev runs. These start failures no longer return a 500.
+- c6f2ae3: `checkRunReadiness` now reports `agent-config-invalid` for an agent step whose model, provider or thinking level the agent module refuses. It checks only steps whose `model`, `provider` and `thinking` are literal or absent, so a templated value never produces an issue. An absent value falls back to the workspace defaults. The issue blocks the start for a normal job, and fails the job when the job is listening or the session key is filled after run creation. The readiness route returns the new issue with its `reason`, `model` and `provider`. `@shipfox/expression` exports `shouldFillAtSite`.
+- edd18ca: Shipfox `run.completed` events now carry the completed attempt's workflow outputs in `run.outputs`.
+- Updated dependencies [e99aa97]
+- Updated dependencies [6b4ae32]
+- Updated dependencies [af3b91f]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [027e401]
+- Updated dependencies [2e5a311]
+- Updated dependencies [f05ecde]
+- Updated dependencies [2d009f4]
+- Updated dependencies [4273dad]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [a9e85c1]
+- Updated dependencies [b76c004]
+- Updated dependencies [39c5466]
+- Updated dependencies [c06262b]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [a73e712]
+- Updated dependencies [8872f36]
+- Updated dependencies [fc455ac]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [ac3561b]
+- Updated dependencies [af3b91f]
+- Updated dependencies [e40ec8b]
+- Updated dependencies [c06262b]
+- Updated dependencies [3869c1d]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4aad893]
+- Updated dependencies [6c0d6bd]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [d77a8c4]
+- Updated dependencies [cb411b1]
+- Updated dependencies [507915a]
+- Updated dependencies [ebe3ac1]
+- Updated dependencies [94e77bc]
+- Updated dependencies [96ac908]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e2e561c]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [00dd046]
+- Updated dependencies [9485c57]
+- Updated dependencies [82f2480]
+- Updated dependencies [3c8db4c]
+- Updated dependencies [ffffc16]
+- Updated dependencies [e71cded]
+- Updated dependencies [6b2a308]
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/workflow-document@3.11.0
+  - @shipfox/expression@2.12.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/api-integration-shipfox-dto@34.0.0
+  - @shipfox/api-triggers-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/node-module@1.1.3
+  - @shipfox/node-temporal@0.5.3
+
 ## 33.0.0
 
 ### Patch Changes

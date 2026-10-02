@@ -1,5 +1,72 @@
 # @shipfox/api-agent-access-dto
 
+## 34.0.0
+
+### Major Changes
+
+- 5588247: Replaces the `models` list in the `get_workflow_authoring_context` result with `model_count`. The `write-a-workflow` skill now finds models through `list_workspace_models` and writes the chosen `provider`.
+- 70e6983: Replaces `suggested_models` in the `get_workflow_template` result with bounded `model_recommendations`, so the response fits the size limit for any workspace catalog.
+
+  Placeholders are grouped by the binding their tested model resolves to. Each group has a mode: `recommended` (the tested model and up to four labelled alternatives), `template_default` (the tested model without scores), `workspace_default` (the tested model is unavailable), or `choose`. Every choice carries its complete binding and `provider_required`.
+
+  `@shipfox/workflow-templates` removes `suggestModels` and the manifest `models.<placeholder>.reference` field; the `# model:` line now records the tested setting. The `create-workflow-from-template` skill confirms models per group through a new `choose-models.md` reference.
+
+### Minor Changes
+
+- 2e5a311: Dev runs accept action uploads. `POST /dev-runs` and the `create_dev_run` MCP tool take an `actions` field: whole action directories, each replacing the ref's copy of its `uses` path. Both routes accept bodies up to 4 MiB. The `create_dev_run` description tells agents which files to send. The run DTO's `dev_source` gains `local_actions`, the uploaded action paths. It defaults to an empty list for older runs.
+- cc644b8: `list_workflow_templates` now marks each role with `from_project`. `get_workflow_template` accepts a project role that matches the project's source provider, and its errors now carry a `message` that names the unknown input, missing role, or invalid provider ID. The tool description and the create-workflow-from-template skill show the expected call shape.
+- b9a53b2: Adds `status_reason`, `status_reason_message`, and `outputs` to the run overview attempt. The `shipfox` provider's `get_workflow_run` tool returns them on its attempt, and the agent-access `get_workflow_run` tool returns them on the run.
+- fc455ac: Workflow runs materialize and dispatch action steps (`uses`). Definitions accept `uses` only while `DEFINITION_ACTIONS_ENABLED` is on, and it stays off in production for now.
+
+  - **Step type:** steps gain the `action` type. The job detail and agent access step type enums accept it.
+  - **Config:** an action step's config carries the action (`uses`, snapshot digest, `main`, and name), its `inputs`, the merged workflow, job, and step `env`, the connection binding of each integration alias, and the manifest outputs with `required`.
+  - **Dispatch:** `with` values are completed at dispatch. Defaults fill omitted inputs, and each value is coerced to its declared type. A value that fails coercion fails the attempt with the new `action_input_invalid` reason.
+  - **Error reasons:** `stepErrorReasonSchema` adds `action_input_invalid` (user) and `action_unavailable` (setup, for a runner that cannot load the action snapshot). The agent access diagnostics enum adds both.
+  - **Interpolation fields:** the workflows and triggers inter-module error schemas accept `action.with`.
+  - **Reruns** copy the attempt model, so they run the same action snapshot.
+  - **Client:** the step error reason type accepts the two new reasons.
+
+- e3b9558: Templates can declare optional roles. A role with `optional: true` gives a `question` and a `tradeoff`. When the role is unbound, `composeTemplate` drops its parts. `composeTemplate` now writes the `# shipfox-template:` header from the bound roles, so base workflows must no longer declare it. `templateRoleBindings` lists every supported binding, with each optional role both bound and unbound.
+
+  `list_workflow_templates` returns `optional`, `question`, and `tradeoff` for each role. It computes `compatible` and `missing_providers` from required roles only. `get_workflow_template` accepts optional roles being left out. The create-workflow-from-template skill asks about an optional role only when the workspace has a connection for it.
+
+- 8136245: Adds the paged and filterable `list_workspace_models` MCP read tool.
+- 4aad893: Adds machine placement rules for installation provisioning. A policy can now pass `placement.resolve`, and a job that needs a reserved runner label but only matches refused templates fails within one poll with the new `runner_not_allowed` status reason and its notice. The client shows the notice and its action.
+- 76d054a: Adds the `list_registry_packages`, `get_registry_package`, and `diff_registry_action` MCP read tools, so coding agents can browse registry packages and compare two action versions before upgrading.
+- 00dd046: Definition sync reads the actions that workflows reference with `uses`, at the same commit as the workflows. It stores their snapshots before it applies the definitions. Sync accepts `uses` only while `DEFINITION_ACTIONS_ENABLED` is on.
+
+  - **Change detection:** a workflow with actions hashes its YAML together with the digests of its actions, so a commit that changes only action code produces a new definition. Workflows without actions keep their YAML-only hash.
+  - **Sync error codes:** the sync state error code enums add `action-not-found`, `action-invalid`, `action-too-large`, and `action-unsupported-file`, with a migration for `definitions_sync_error_code`. Manifest diagnostics name the `action.yml` path as their file.
+  - **Warnings:** a relative import that does not resolve inside an action gives an `action-import-unresolved` warning on the importing file.
+
+- 15e9d33: `get_workflow_template` accepts `options`, such as `{"pr_mode": "ready"}`, and returns `workflow_yaml` with only the chosen option blocks. The header keeps the legacy form. A call with an unknown option or choice explains the valid ones. The result also carries the manifest's `writes` and `prerequisites` as authored.
+
+  The create-workflow-from-template skill (revision 14) passes the answers as `options` and takes the applicable writes and prerequisites from the result. The template guides no longer repeat their prerequisites and expected writes.
+
+- b121f14: Adds `GET /workspaces/:workspaceId/workflow-templates` for workspace members. It lists workflow templates grouped as `try_now`, `starts_on_event`, or `needs_connection`, ordered by template rank, each with its providers, missing providers, and setup prompt. The response schema is `listWorkspaceWorkflowTemplatesResponseSchema`. The MCP server instructions now tell agents to follow the `create-workflow-from-template` skill when the user asks to create, set up, or suggest a workflow.
+
+### Patch Changes
+
+- 3869c1d: Fail queued job executions that are not claimed before the configured queue timeout and start execution timeouts from the persisted claim timestamp.
+- 3e8ff99: Manifest v2 makes slots, secrets, and variables described objects; replaces `start_label` with required `starts`; and adds `keywords`, `flow`, `writes`, `prerequisites`, and `related`. It removes manifest `id`, `revision`, `added_at`, and `rank`; the loader supplies identity and compatibility metadata beside the manifest.
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [f05ecde]
+- Updated dependencies [8872f36]
+- Updated dependencies [af3b91f]
+- Updated dependencies [a509c87]
+- Updated dependencies [150d735]
+- Updated dependencies [c8857f4]
+- Updated dependencies [76fbfe9]
+- Updated dependencies [7517867]
+- Updated dependencies [3aa5d7a]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [00dd046]
+- Updated dependencies [6b2a308]
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/registry-format@0.1.0
+  - @shipfox/api-logs-dto@34.0.0
+
 ## 33.1.0
 
 ### Minor Changes

@@ -1,5 +1,19 @@
 # @shipfox/integration-icons
 
+## 0.6.0
+
+### Minor Changes
+
+- 2c9838a: Adds the Discord logo as a `discord` icon and maps the `discord` provider to it.
+- 7056182: Shows the Shipfox logo on Shipfox tool calls and Set Output rows in run activity.
+
+### Patch Changes
+
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [93b8cac]
+  - @shipfox/react-ui@3.4.0
+
 ## 0.5.2
 
 ### Patch Changes

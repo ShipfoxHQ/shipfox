@@ -1,5 +1,67 @@
 # @shipfox/api-triggers-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- 2e5a311: Dev runs accept action uploads. `POST /dev-runs` and the `create_dev_run` MCP tool take an `actions` field: whole action directories, each replacing the ref's copy of its `uses` path. Both routes accept bodies up to 4 MiB. The `create_dev_run` description tells agents which files to send. The run DTO's `dev_source` gains `local_actions`, the uploaded action paths. It defaults to an empty list for older runs.
+- a9e85c1: Exposes the missing variable in refused manual starts and trigger history. The 422 `workflow-interpolation-unresolvable` details carry optional `variable_key`, `job_key` and `step`. The `interpolation-unresolvable` diagnostic gains optional `variableKey`, `jobKey`, `step` and `source`, and a missing secret input records its own `secret-input-missing` diagnostic instead of `unexpected-workflow-start-failure`. A manual fire that fails on a missing secret is now recorded as a terminal error.
+- fc455ac: Workflow runs materialize and dispatch action steps (`uses`). Definitions accept `uses` only while `DEFINITION_ACTIONS_ENABLED` is on, and it stays off in production for now.
+
+  - **Step type:** steps gain the `action` type. The job detail and agent access step type enums accept it.
+  - **Config:** an action step's config carries the action (`uses`, snapshot digest, `main`, and name), its `inputs`, the merged workflow, job, and step `env`, the connection binding of each integration alias, and the manifest outputs with `required`.
+  - **Dispatch:** `with` values are completed at dispatch. Defaults fill omitted inputs, and each value is coerced to its declared type. A value that fails coercion fails the attempt with the new `action_input_invalid` reason.
+  - **Error reasons:** `stepErrorReasonSchema` adds `action_input_invalid` (user) and `action_unavailable` (setup, for a runner that cannot load the action snapshot). The agent access diagnostics enum adds both.
+  - **Interpolation fields:** the workflows and triggers inter-module error schemas accept `action.with`.
+  - **Reruns** copy the attempt model, so they run the same action snapshot.
+  - **Client:** the step error reason type accepts the two new reasons.
+
+- 6b01f3d: Names the missing variable and where it is read when a run cannot start. `InterpolationUnresolvableError` and the `interpolation-unresolvable` inter-module error carry optional `variableKey`, `jobKey` and `step`. Predicates report `job.if`, `job.success`, `job.listening.filter`, `step.if` and `step.gate.success` instead of `env`. The error message no longer suggests `has()` for a missing variable.
+- ac3561b: Names what is missing in MCP tool errors when a run cannot start. `fire_manual_trigger` and `create_dev_run` include the variable key and where it is read, the trigger secret key, runner labels and size figures in the error message and details. `start_workflow_run` does the same. The `interpolation-unresolvable` error from Triggers now carries the optional `variableKey`, `jobKey` and `step`.
+- c6f2ae3: `checkRunReadiness` now reports `agent-config-invalid` for an agent step whose model, provider or thinking level the agent module refuses. It checks only steps whose `model`, `provider` and `thinking` are literal or absent, so a templated value never produces an issue. An absent value falls back to the workspace defaults. The issue blocks the start for a normal job, and fails the job when the job is listening or the session key is filled after run creation. The readiness route returns the new issue with its `reason`, `model` and `provider`. `@shipfox/expression` exports `shouldFillAtSite`.
+- d77a8c4: Adds `GET /workflow-definitions/readiness`, which reports for up to 100 definitions what the workspace still lacks before their runs can start cleanly. Each issue says where it is read and whether it blocks the run from starting or fails a job after the run starts.
+- 507915a: A required action can carry an optional `intent`, and `REQUIRED_ACTION_INTENTS` lists the known values. `intent` names a behavior a composing application may provide in place of opening `url`, such as `contact-support`. `url` stays required as the fallback, and an unknown `intent` still parses.
+
+  The admission denial contract, the HTTP 409 `required_action`, and the agent-access error details now keep `intent` when it is set.
+
+- dd20040: Names the cause of a refused start when an agent step's configuration cannot be used. The agent `agent-config-invalid` error carries a `reason` (`model-unknown`, `provider-unsupported`, `harness-unsupported`, `thinking-unsupported` or `workspace-providers-disabled`) with the `model` and `provider` where they apply. `agent-config-unresolvable` passes them on with the job and step, in the inter-module error, the 422 `details` (`reason`, `model`, `provider`, `job_key`, `step`) and the trigger diagnostic. Every new field is optional, so stored diagnostics still map.
+- daf0208: Names the cause of a refused start when an integration connection or tool cannot be materialized. `agent-integration-materialization-failed` carries a `reason` (`connection-missing`, `connection-provider-mismatch`, `source-connection-missing`, `tool-unknown` or `no-tools-selected`) with the `connection` and `tool` where they apply, and the job and step it came from. They reach the inter-module error, the 422 `details` (`reason`, `connection`, `tool`, `job_key`, `step`) and the trigger diagnostic. Setup failures keep no reason. Every new field is optional, so stored diagnostics still map.
+- ffffc16: The workflow readiness route now reports trigger-scoped issues. A trigger whose `secrets:` mapping points at a secret that exists at neither project nor workspace scope gets `trigger-secret-missing`, which blocks that trigger's runs from starting. A `secrets.inputs.K` the workflow reads but a trigger's mapping does not provide gets `secret-input-unmapped`, which fails the step that reads it.
+- 6b2a308: Adds the workflow outputs runtime. `WorkflowModel` gains optional `outputs` and `outputTypes`. When a run attempt succeeds, its outputs are evaluated with the job-output limits and stored on the attempt. An output that cannot be evaluated or is too large fails the attempt with the `output_invalid` or `output_too_large` status reason. The lifecycle event context returns `run.outputs`, and run creation errors can name the `workflow.outputs` field.
+
+### Patch Changes
+
+- Updated dependencies [e99aa97]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [2e5a311]
+- Updated dependencies [f05ecde]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [a73e712]
+- Updated dependencies [8872f36]
+- Updated dependencies [fc455ac]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [af3b91f]
+- Updated dependencies [3869c1d]
+- Updated dependencies [a15e118]
+- Updated dependencies [4aad893]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [507915a]
+- Updated dependencies [a429987]
+- Updated dependencies [94e77bc]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [00dd046]
+- Updated dependencies [6b2a308]
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/policy-notice@0.1.0
+
 ## 33.0.0
 
 ### Patch Changes
