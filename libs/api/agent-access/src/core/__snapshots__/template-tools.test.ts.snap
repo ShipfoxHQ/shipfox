@@ -139,6 +139,7 @@ exports[`agent-access template tools > lists the shipped templates for a GitHub-
         "id": "slack-dispatcher",
         "missing_providers": [
           "slack",
+          "discord",
         ],
         "revision": 1,
         "roles": [
@@ -151,12 +152,17 @@ exports[`agent-access template tools > lists the shipped templates for a GitHub-
                 "provider": "slack",
                 "suggested_bindings": [],
               },
+              {
+                "compatible": false,
+                "provider": "discord",
+                "suggested_bindings": [],
+              },
             ],
             "role": "chat",
           },
         ],
-        "summary": "Mention one Slack app for any request, and it starts the workflow that handles it.",
-        "title": "Route Slack requests to your workflows",
+        "summary": "Mention one chat app for any request, and it starts the workflow that handles it.",
+        "title": "Route chat requests to your workflows",
       },
       {
         "added_at": "2026-09-27",

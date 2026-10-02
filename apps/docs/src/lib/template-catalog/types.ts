@@ -4,6 +4,7 @@ export type TemplateIcon =
   | 'jira'
   | 'clickup'
   | 'slack'
+  | 'discord'
   | 'sentry'
   | 'notion'
   | 'posthog'
@@ -15,6 +16,7 @@ export const templateIconLabels: Record<TemplateIcon, string> = {
   jira: 'Jira',
   clickup: 'ClickUp',
   slack: 'Slack',
+  discord: 'Discord',
   sentry: 'Sentry',
   notion: 'Notion',
   posthog: 'PostHog',

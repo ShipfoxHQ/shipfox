@@ -1,5 +1,6 @@
 import {
   siClickup,
+  siDiscord,
   siGithub,
   siJira,
   siLinear,
@@ -12,6 +13,7 @@ import {type TemplateIcon as Icon, templateIconLabels} from '@/lib/template-cata
 
 const brandIcons = {
   clickup: siClickup,
+  discord: siDiscord,
   github: siGithub,
   jira: siJira,
   linear: siLinear,
