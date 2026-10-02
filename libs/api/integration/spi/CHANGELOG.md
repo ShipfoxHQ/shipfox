@@ -1,5 +1,29 @@
 # @shipfox/api-integration-spi
 
+## 4.4.0
+
+### Minor Changes
+
+- c8e0869: Adds a `not-found` integration provider error reason. The tool gateway keeps it as the tool call error code instead of `unknown`, and does not report it as an unexpected failure. Linear tool errors for a missing record, or one the token cannot see, now carry it.
+- e2e561c: Reads source files as strict UTF-8 and lists symlinks and submodules. Fetching a file that is not valid UTF-8 now fails with the `binary-file-unsupported` reason instead of replacing invalid bytes. Source file listings now report `symlink` and `submodule` entries next to `file` entries. Workflow sync ignores those entries and reports a workflow file that is not UTF-8 text as an invalid definition for that file.
+- 7d9b08a: Integration providers can serve file tools, and leased action steps download their files through the tool gateway.
+
+  - **Adapter:** `AgentToolsProvider` gains an optional `downloadFile({connection, toolId, arguments, signal})`, which returns `{body, mediaType, filename?, size?}`. A provider whose catalog declares a `file` tool implements it. It passes `signal` to the provider fetch and to the body, so an abandoned transfer stops. `MAX_AGENT_TOOL_FILE_BYTES` is the 100 MiB per-file limit.
+  - **Errors:** `IntegrationProviderErrorReason` adds `file-too-large` and `file-location-not-allowed`.
+  - **Route:** `POST /runs/jobs/current/integration-tools/download` takes `{connection_slug, tool, arguments}` from a leased action step. It authorizes like the MCP route: the frozen grant, the live connection state, and repository scope. It streams the file with `content-type`, `x-shipfox-filename` (RFC 5987), and `x-shipfox-size` when known, and cuts the stream past 100 MiB. The deadline is the smaller of `x-shipfox-deadline` (remaining milliseconds) and 5 minutes. A runner disconnect aborts the provider transfer. Errors before the first byte use the gateway codes. Agent steps get `leased-step-not-action`.
+  - **Audit:** downloads are audited with the `action` caller, `resultKind: 'file'`, and the streamed byte count.
+  - **Frozen result kind:** the gateway reads each tool's frozen `result` kind. A tool frozen as a file tool stays out of MCP `listTools`, even when the live catalog no longer lists it.
+
+- 82f2480: Adds a `json` or `file` result kind to agent tool catalog entries. An absent kind means `json`. The connection tool catalog and the agent tools context carry the resolved kind, and the MCP gateway neither lists nor calls file tools.
+
+### Patch Changes
+
+- Updated dependencies [4273dad]
+- Updated dependencies [e2e561c]
+- Updated dependencies [9485c57]
+- Updated dependencies [82f2480]
+  - @shipfox/api-integration-core-dto@34.0.0
+
 ## 4.3.3
 
 ### Patch Changes

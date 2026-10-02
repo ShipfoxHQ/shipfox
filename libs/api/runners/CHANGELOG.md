@@ -1,5 +1,55 @@
 # @shipfox/api-runners
 
+## 34.0.0
+
+### Minor Changes
+
+- a2fbdd3: Expires pending job executions atomically relative to claims, so an execution is never expired after a runner has claimed it; late or repeated enqueues of an already-handled execution are ignored.
+- b64fff6: Records capacity holds for managed installation runners when the provisioning policy sets `placement`, so each runner counts against its workspace until it stops. Adds the `getWorkspaceCapacityUsage` inter-module read and the `GET /admin/runners/workspaces/:workspaceId/capacity` admin route. Holds do not refuse claims yet.
+- 4aad893: Adds machine placement rules for installation provisioning. A policy can now pass `placement.resolve`, and a job that needs a reserved runner label but only matches refused templates fails within one poll with the new `runner_not_allowed` status reason and its notice. The client shows the notice and its action.
+- 7e4deaa: Accepts `templateOrder: 'smallest'` in the installation placement policy, which sends an unsized job to the template with the fewest units before falling back to the default order.
+
+### Patch Changes
+
+- c06262b: Registration from a runner that predates capability negotiation returns a `runner-upgrade-required` code with an upgrade message. Runner assignment long polls trace only their first read.
+- Updated dependencies [a2fbdd3]
+- Updated dependencies [8a926dc]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [2e5a311]
+- Updated dependencies [2d009f4]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [c06262b]
+- Updated dependencies [a73e712]
+- Updated dependencies [b64fff6]
+- Updated dependencies [fc455ac]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [c06262b]
+- Updated dependencies [3869c1d]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4aad893]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [507915a]
+- Updated dependencies [a429987]
+- Updated dependencies [94e77bc]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [6b2a308]
+  - @shipfox/api-runners-dto@34.0.0
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/policy-notice@0.1.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/node-module@1.1.3
+  - @shipfox/node-temporal@0.5.3
+
 ## 33.0.0
 
 ### Patch Changes

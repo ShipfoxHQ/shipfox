@@ -1,5 +1,18 @@
 # @shipfox/node-module
 
+## 1.1.3
+
+### Patch Changes
+
+- Updated dependencies [c06262b]
+- Updated dependencies [c06262b]
+- Updated dependencies [c06262b]
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/node-temporal@0.5.3
+
 ## 1.1.2
 
 ### Patch Changes

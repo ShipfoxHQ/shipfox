@@ -1,5 +1,11 @@
 # @shipfox/api-auth-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- 8a926dc: Adds an email-based user summary lookup to the Auth inter-module contract.
+
 ## 29.1.0
 
 ### Minor Changes

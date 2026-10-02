@@ -1,5 +1,48 @@
 # @shipfox/api-integration-github
 
+## 34.0.0
+
+### Major Changes
+
+- 5e12647: Lets a member choose among several linkable GitHub installations. `POST /integrations/github/link/complete` now returns up to 20 candidates with a five-minute signed selection token, and `POST /integrations/github/link/select` connects the chosen installation. More candidates return `github-too-many-linkable-installations`, which replaces `github-multiple-linkable-installations` and `GithubMultipleLinkableInstallationsError`. `GithubApiClient.listUserInstallations` now returns installation details instead of IDs. The GitHub callback page shows the installation picker, and `completeGithubLink` can now return a selection instead of a connection.
+
+### Minor Changes
+
+- c64d42f: Adds actor-bound GitHub link OAuth routes, DTOs, and client adapters for reconnecting accessible installations.
+
+### Patch Changes
+
+- 9e7dd0e: Record unknown GitHub installations and expose a service-level orphan gauge.
+- 82d7d73: Removes GitHub installation records when their integration connections are deleted.
+- 474e21f: Adds GitHub installation identity logging and install callback outcome telemetry, and records install callback outcomes on the `integrations_github_connect` counter. Extends the GitHub webhook payload schema with nullable `installation.account.login`, `installation.account.type`, `sender.login`, and `requester.login` fields.
+- e2e561c: Reads source files as strict UTF-8 and lists symlinks and submodules. Fetching a file that is not valid UTF-8 now fails with the `binary-file-unsupported` reason instead of replacing invalid bytes. Source file listings now report `symlink` and `submodule` entries next to `file` entries. Workflow sync ignores those entries and reports a workflow file that is not UTF-8 text as an invalid definition for that file.
+- 7d9b08a: Integration providers can serve file tools, and leased action steps download their files through the tool gateway.
+
+  - **Adapter:** `AgentToolsProvider` gains an optional `downloadFile({connection, toolId, arguments, signal})`, which returns `{body, mediaType, filename?, size?}`. A provider whose catalog declares a `file` tool implements it. It passes `signal` to the provider fetch and to the body, so an abandoned transfer stops. `MAX_AGENT_TOOL_FILE_BYTES` is the 100 MiB per-file limit.
+  - **Errors:** `IntegrationProviderErrorReason` adds `file-too-large` and `file-location-not-allowed`.
+  - **Route:** `POST /runs/jobs/current/integration-tools/download` takes `{connection_slug, tool, arguments}` from a leased action step. It authorizes like the MCP route: the frozen grant, the live connection state, and repository scope. It streams the file with `content-type`, `x-shipfox-filename` (RFC 5987), and `x-shipfox-size` when known, and cuts the stream past 100 MiB. The deadline is the smaller of `x-shipfox-deadline` (remaining milliseconds) and 5 minutes. A runner disconnect aborts the provider transfer. Errors before the first byte use the gateway codes. Agent steps get `leased-step-not-action`.
+  - **Audit:** downloads are audited with the `action` caller, `resultKind: 'file'`, and the streamed byte count.
+  - **Frozen result kind:** the gateway reads each tool's frozen `result` kind. A tool frozen as a file tool stays out of MCP `listTools`, even when the live catalog no longer lists it.
+
+- Updated dependencies [c64d42f]
+- Updated dependencies [9e7dd0e]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [474e21f]
+- Updated dependencies [5e12647]
+- Updated dependencies [c8e0869]
+- Updated dependencies [c06262b]
+- Updated dependencies [e2e561c]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+  - @shipfox/api-integration-github-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/api-integration-spi@4.4.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 31.0.0
 
 ### Patch Changes

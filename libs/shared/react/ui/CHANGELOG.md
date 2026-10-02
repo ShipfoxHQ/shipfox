@@ -1,5 +1,16 @@
 # @shipfox/react-ui
 
+## 3.4.0
+
+### Minor Changes
+
+- 2c9838a: Adds the Discord logo as a `discord` icon and maps the `discord` provider to it.
+- f57e1d1: Adds `DropdownMenuSegmentedRadioGroup` and `DropdownMenuSegmentedRadioItem`, a labelled row of icon segments for a short single choice inside a dropdown menu. The user menu now picks the theme with light, dark, and system icons.
+
+### Patch Changes
+
+- 93b8cac: `LogDisclosureTrigger` now keeps its label at full width and truncates the summary first. The label truncates only when it alone is wider than the row.
+
 ## 3.3.0
 
 ### Minor Changes

@@ -1,5 +1,30 @@
 # @shipfox/expression
 
+## 2.12.0
+
+### Minor Changes
+
+- af3b91f: Adds the `action.with` interpolation field for action step inputs. Like `tool.with`, it resolves at step dispatch. Unlike `tool.with`, it also accepts bare `secrets` references, which the runner fills.
+- 39c5466: A failed step keeps the outputs it set, typed by their declarations. Values that do not match their declaration are dropped.
+- e40ec8b: Adds an optional `required` flag to step output declarations. When a declaration sets `required: false`, `coerceStepOutputs` accepts a result without that output and still type-checks the value when it is present. Declarations without the flag stay required. Expressions can check an optional output with `has()`. Reading an absent output raises the existing missing-path error.
+
+  The workflows step reader now keeps `required` when it reads output declarations from step config.
+
+- c6f2ae3: `checkRunReadiness` now reports `agent-config-invalid` for an agent step whose model, provider or thinking level the agent module refuses. It checks only steps whose `model`, `provider` and `thinking` are literal or absent, so a templated value never produces an issue. An absent value falls back to the workspace defaults. The issue blocks the start for a normal job, and fails the job when the job is listening or the session key is filled after run creation. The readiness route returns the new issue with its `reason`, `model` and `provider`. `@shipfox/expression` exports `shouldFillAtSite`.
+- 96ac908: Adds `log_path` to `steps.<key>`, `steps.<key>.attempts[]`, and `step.restart.from` in workflow expressions, and rejects it in job outputs, workflow outputs, and `tool` step inputs.
+- 3c8db4c: The gate of a tool step can read `step.error`, with the `code` and optional provider `status` of a failed tool call, or null when the call did not fail. A gate can accept an expected failure and tell a missing object from an outage.
+- e71cded: Accepts top-level workflow `outputs`. The document schema takes a map from output names to templates, with the job-outputs entry limit. The new `workflow.outputs` expression field reads the `jobs`, `inputs`, `vars`, `workflow`, `run`, `trigger`, and `event` contexts. Definitions normalize the map into `WorkflowModel.outputs` and `outputTypes` and type-check each output against the declared job outputs, so a reference to an undeclared job output is a sync error. The workflow outputs runtime now evaluates under the `workflow.outputs` field.
+
+### Patch Changes
+
+- b76c004: Correctly infers mapped expressions as lists and preserves their element types, allowing list outputs to validate against their JSON Schemas.
+- Updated dependencies [6b4ae32]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [cb411b1]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e71cded]
+  - @shipfox/workflow-document@3.11.0
+
 ## 2.11.2
 
 ### Patch Changes

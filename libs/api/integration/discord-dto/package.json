@@ -1,7 +1,7 @@
 {
   "name": "@shipfox/api-integration-discord-dto",
   "license": "MIT",
-  "version": "31.0.0",
+  "version": "34.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",

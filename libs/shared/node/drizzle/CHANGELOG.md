@@ -1,5 +1,12 @@
 # @shipfox/node-drizzle
 
+## 0.3.7
+
+### Patch Changes
+
+- Updated dependencies [2d009f4]
+  - @shipfox/node-postgres@0.6.0
+
 ## 0.3.6
 
 ### Patch Changes

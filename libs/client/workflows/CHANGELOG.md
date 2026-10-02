@@ -1,5 +1,115 @@
 # @shipfox/client-workflows
 
+## 53.0.0
+
+### Minor Changes
+
+- 851908c: Adds a Packages panel to the workflow definition sheet. It lists the registry actions and templates the definition pins and flags newer versions with "Update available", "Changes permissions", and "Needs your input". Template updates come with a copyable upgrade prompt, and both kinds show their changelog. The panel renders nothing when the definition uses no registry package.
+- 2021ae8: The project workflows page shows the first workflow panel when the project has no workflow.
+
+  - **`@shipfox/client-shell`:** `ChromeSlots` gains an optional `FirstWorkflowPanel` slot that receives `projectId`.
+  - **`@shipfox/client-workflows`:** `ProjectWorkflowsPage` renders the slot in place of the empty definitions list once definitions have loaded, the project has none, and sync is neither pending nor running. Without the slot, the page keeps its empty list. When the project has no definitions, a sync that failed only because the repository has no workflow files no longer shows the "Workflow sync failed" callout; the empty state already says so.
+  - **`@shipfox/client-onboarding`:** exports `ProjectFirstWorkflowPanel`, also from `/feature` as a lazy component. It reads the progress of that project only, so a definition or a test run in another project never changes it, and it ignores the checklist's dismissal. It shows a skeleton while that progress loads and falls back to choose mode if the read fails. Once the project has a definition, it renders nothing and refreshes the project's definitions list.
+  - **`@shipfox/client-features`:** the default project workflows page shows the first workflow panel when the project has no workflow.
+
+- c481dab: The Get-started checklist tracks the first workflow, from a test run to the first synced definition.
+
+  - **Tracked row:** the first-workflow row now counts toward completion. It reads "Create your first workflow" and links to the workspace home. Once a dev run succeeds, it reads "A test run succeeded" and links to that run. It is done once the workspace has a definition.
+  - **Input:** `deriveSetupChecklist` takes a required `firstWorkflow` progress (`open`, `test_run_succeeded` with its `testRunId`, or `done`). `FirstWorkflowProgress` and `FirstWorkflowState` are exported. The quickstart action on this row is removed.
+  - **Refresh:** the hosts read each project's definitions and succeeded dev runs, stopping at the first definition. They reload when the window regains focus and poll every 15 seconds while the tab is visible, until the row is done. A dismissed checklist makes no request.
+  - **Celebration:** when the home panel sees the row turn done, it plays a burst and captures `first_workflow_activated`. If the same change completes the checklist, only the checklist completion plays. A workspace that already had a definition when the page loaded shows no burst.
+  - **Analytics:** `first_workflow_test_run_shown` is captured, with the host, the first time the row shows "A test run succeeded".
+  - **`@shipfox/client-workflows`:** exports `listWorkflowRuns`.
+
+- a15e118: Lets a managed model provider refuse a model for one workspace at run time. A provider opts in by implementing `availability`, which returns the workspace's locked models. A locked model fails the step with a 422 `agent-model-unavailable` response and a policy notice. An error from `availability` returns a retryable 503. Credential renewal doesn't recheck, so a running step is never cut off. The stored step error carries the notice, and the model unavailable callout shows its message and required action. Providers without `availability` behave as before.
+- 4aad893: Adds machine placement rules for installation provisioning. A policy can now pass `placement.resolve`, and a job that needs a reserved runner label but only matches refused templates fails within one poll with the new `runner_not_allowed` status reason and its notice. The client shows the notice and its action.
+- 8317a3c: The run page shows action steps (`uses`).
+
+  - **Step inspector:** an action step shows an `Action` badge and an Action section with the `uses` path, a short snapshot digest, the source commit on dev runs, and the node and `@shipfox/actions` versions from the step's first log line. It lists the resolved inputs, with secret-bound inputs shown as `*** (secrets.KEY)`, and each integration alias with its connection and granted tools marked Read or Write.
+  - **Failures:** callouts explain `action_input_invalid`, `action_unavailable`, an early exit, an out-of-memory kill, and missing, undeclared, mistyped, or oversized outputs. An invalid input also shows as "Step did not run" in the step's log area, naming the input.
+  - **Logs:** action tool calls reuse the tool-step rows, named `<alias>__<tool>` and resolved from the step's bindings, with the alias and connection in the expanded row. A download shows its file name, size, media type, and SHA-256. A failed write whose outcome is unknown reads "outcome unknown", and a call still open when the step ended reads "interrupted".
+  - **`@shipfox/client-logs`:** `IntegrationActionTool` accepts optional `alias` and `result` fields, and `ActionPresentation` accepts optional `outcome` and `meta` fields.
+
+### Patch Changes
+
+- fc455ac: Workflow runs materialize and dispatch action steps (`uses`). Definitions accept `uses` only while `DEFINITION_ACTIONS_ENABLED` is on, and it stays off in production for now.
+
+  - **Step type:** steps gain the `action` type. The job detail and agent access step type enums accept it.
+  - **Config:** an action step's config carries the action (`uses`, snapshot digest, `main`, and name), its `inputs`, the merged workflow, job, and step `env`, the connection binding of each integration alias, and the manifest outputs with `required`.
+  - **Dispatch:** `with` values are completed at dispatch. Defaults fill omitted inputs, and each value is coerced to its declared type. A value that fails coercion fails the attempt with the new `action_input_invalid` reason.
+  - **Error reasons:** `stepErrorReasonSchema` adds `action_input_invalid` (user) and `action_unavailable` (setup, for a runner that cannot load the action snapshot). The agent access diagnostics enum adds both.
+  - **Interpolation fields:** the workflows and triggers inter-module error schemas accept `action.with`.
+  - **Reruns** copy the attempt model, so they run the same action snapshot.
+  - **Client:** the step error reason type accepts the two new reasons.
+
+- 3869c1d: Fail queued job executions that are not claimed before the configured queue timeout and start execution timeouts from the persisted claim timestamp.
+- a328042: `@shipfox/client-shell` exports `RequiredActionLink`, `RequiredActionDefaultLink`, and `RequiredActionTrigger`, and `ChromeSlots` gains an optional `RequiredActionIntent` slot for actions that carry an `intent`. Every required action now renders through one URL rule: relative and same-origin URLs open in the same tab, other `http(s)` origins open in a new tab, `mailto:` URLs are plain links, and any other URL shows the message as text.
+
+  Workflow and agent surfaces render required actions through it. The duration notice's billing link now opens in the same tab.
+
+- d0c49b5: Step and job failure copy uses plain words and active voice, and each message names the next action.
+
+  - **Rerun or new run:** a message says "rerun the job" when a workspace setting fixes the failure, and "start a new run" when the workflow file must change. A rerun keeps the workflow file of the original run.
+  - **`@shipfox/client-workflows`:** the step failure callouts and the job empty states use the new copy. The model availability callout names the model, for example "claude-opus-4-8 is not available in this workspace". `lease_expired`, `provider_lost`, `lifecycle_violation`, and `runner_lost` share one title; the failure code still tells them apart.
+  - **`@shipfox/api-workflows`:** failure annotations give the same recovery advice as the step callouts. Annotations that already exist keep their old text until the step or job fails again.
+
+- 405e69e: A refused run start on the Workflows page shows a callout on the workflow row that names the missing variable or secret and links to the fix, instead of a generic toast.
+- Updated dependencies [ba1aff7]
+- Updated dependencies [c64d42f]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [2e5a311]
+- Updated dependencies [f05ecde]
+- Updated dependencies [a02f5cf]
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [a9e85c1]
+- Updated dependencies [2021ae8]
+- Updated dependencies [a73e712]
+- Updated dependencies [5e12647]
+- Updated dependencies [2c89020]
+- Updated dependencies [8872f36]
+- Updated dependencies [93b8cac]
+- Updated dependencies [fc455ac]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [ac3561b]
+- Updated dependencies [af3b91f]
+- Updated dependencies [658d71f]
+- Updated dependencies [3869c1d]
+- Updated dependencies [a15e118]
+- Updated dependencies [96a66ed]
+- Updated dependencies [4aad893]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [d77a8c4]
+- Updated dependencies [507915a]
+- Updated dependencies [a328042]
+- Updated dependencies [a429987]
+- Updated dependencies [7056182]
+- Updated dependencies [8317a3c]
+- Updated dependencies [94e77bc]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [00dd046]
+- Updated dependencies [9f185e9]
+- Updated dependencies [ffffc16]
+- Updated dependencies [6b2a308]
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/client-integrations@53.0.0
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/api-triggers-dto@34.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/client-triggers@53.0.0
+  - @shipfox/policy-notice@0.1.0
+  - @shipfox/client-logs@53.0.0
+  - @shipfox/client-projects@53.0.0
+  - @shipfox/client-ui@53.0.0
+  - @shipfox/client-usage@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

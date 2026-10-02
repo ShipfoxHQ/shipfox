@@ -1,5 +1,25 @@
 # @shipfox/api-integration-github-dto
 
+## 34.0.0
+
+### Major Changes
+
+- 5e12647: Lets a member choose among several linkable GitHub installations. `POST /integrations/github/link/complete` now returns up to 20 candidates with a five-minute signed selection token, and `POST /integrations/github/link/select` connects the chosen installation. More candidates return `github-too-many-linkable-installations`, which replaces `github-multiple-linkable-installations` and `GithubMultipleLinkableInstallationsError`. `GithubApiClient.listUserInstallations` now returns installation details instead of IDs. The GitHub callback page shows the installation picker, and `completeGithubLink` can now return a selection instead of a connection.
+
+### Minor Changes
+
+- c64d42f: Adds actor-bound GitHub link OAuth routes, DTOs, and client adapters for reconnecting accessible installations.
+- 474e21f: Adds GitHub installation identity logging and install callback outcome telemetry, and records install callback outcomes on the `integrations_github_connect` counter. Extends the GitHub webhook payload schema with nullable `installation.account.login`, `installation.account.type`, `sender.login`, and `requester.login` fields.
+
+### Patch Changes
+
+- 9e7dd0e: Record unknown GitHub installations and expose a service-level orphan gauge.
+- Updated dependencies [4273dad]
+- Updated dependencies [e2e561c]
+- Updated dependencies [9485c57]
+- Updated dependencies [82f2480]
+  - @shipfox/api-integration-core-dto@34.0.0
+
 ## 31.0.0
 
 ### Major Changes

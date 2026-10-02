@@ -1,5 +1,35 @@
 # @shipfox/api-auth
 
+## 34.0.0
+
+### Minor Changes
+
+- 8a926dc: Adds an email-based user summary lookup to the Auth inter-module contract.
+
+### Patch Changes
+
+- d764315: Signing in again to an app that already has an agent grant no longer revokes the refresh token other client processes hold. The old token is marked rotated and keeps returning access tokens until its own expiry, so a new sign-in from another project or machine no longer logs the others out. Grant cleanup now counts rotated refresh tokens that have not expired as usable.
+- d865fc1: Stops revoking agent grants when a rotated refresh token is replayed. A rotated token now keeps returning access tokens, without a new refresh token, until its own expiry, so several client processes sharing one sign-in no longer log each other out. Disconnecting the app and the 30-day sign-in cap still end access.
+- cab2d1e: Caps agent sign-ins at 30 days from the last consent. Refresh tokens issued on an agent grant now expire no later than 30 days after the user last approved the connection, and approving again resets the clock. Existing grants get 30 days from the migration.
+- 3869c1d: Fail queued job executions that are not claimed before the configured queue timeout and start execution timeouts from the persisted claim timestamp.
+- 7e0041d: Keeps a browser session signed in when a refresh response never reaches the browser, and limits refresh-token reuse revocation to the affected session.
+- Updated dependencies [8a926dc]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [c06262b]
+- Updated dependencies [c06262b]
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-email-challenges@1.1.21
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/node-module@1.1.3
+  - @shipfox/node-mailer@0.2.8
+  - @shipfox/node-temporal@0.5.3
+
 ## 29.1.0
 
 ### Minor Changes

@@ -1,5 +1,154 @@
 # @shipfox/api-definitions
 
+## 34.0.0
+
+### Minor Changes
+
+- 6b4ae32: `DEFINITION_ACTIONS_ENABLED` controls whether workflow definitions accept action steps (`uses`). It defaults to `false`, and to `true` when `NODE_ENV` is set to a value other than `production`. Definition validation, sync, and dev runs read it. Until action steps are normalized, a parsed `uses` step fails validation with "not supported yet".
+- 3b3e25c: Definitions record the registry packages they use and report newer versions.
+
+  - **Refs:** Definitions report the registry actions and templates they use. A template with a pre-registry header gets no update notice.
+  - **Notices:** `GET /workspaces/:workspaceId/definitions/:definitionId/package-updates` returns, per reference, the latest version, whether it is behind, the highest bump over the skipped versions, whether an action widens its capabilities, the newest changelog entries, and the upgrade prompt for a template. It is separate from the definition read, so definition pages never wait on the registry.
+  - **Prompt:** `buildUpgradePrompt` from `@shipfox/workflow-templates/prompt` writes the prompt a user pastes into a coding agent to upgrade a template.
+
+- fb79732: Definition sync and dev runs resolve registry actions, such as `uses: shipfox/slack-thread-digest@1.4.2`. Registry actions turn on when `DEFINITION_ACTIONS_ENABLED` is on and `REGISTRY_URL` is set. Definitions now read `REGISTRY_URL` too, to decide whether to accept registry references.
+
+  - **Resolution:** the Registry module returns a verified version, and the definitions module checks that the bundle's `action.yml` equals the signed manifest. Sync and dev runs store the bundle as a workspace action snapshot with the new `registry` source, so the runtime bundle route and the runner stay unchanged.
+  - **Limits:** the 20-action limit per workflow file counts repository and registry actions together. Registry bundles skip the repository size limits and the relative import check, because the registry bundles them. Uploads apply to `./` paths only.
+  - **Model:** action steps gain `origin` (`local` or `registry`), and registry steps also carry `package` and `version`. Models stored before this change omit `origin` and mean `local`. The step config sent to the runner carries the same fields.
+  - **Sync errors:** a missing version is `action-not-found`. A version that fails verification, an unsupported document format, or a bundle that differs from its signed manifest is `action-invalid`. Both appear as diagnostics on the workflow file that references the action. An unavailable registry fails the sync attempt and retries.
+  - **Dev runs:** a registry failure fails the run with an `invalid-definition` message that names the action.
+
+- 8872f36: Shipfox lifecycle events now resolve their workflow context by lineage, so `source: shipfox` triggers dispatch instead of being dropped. The definitions contract adds a `getWorkflow` method for this lookup.
+- a99c11b: Show managed models that a workspace cannot run. The workspace model catalog marks them `locked`, validation warns with `model-locked` and never rejects, and the model lists mark them with a lock and explain the reason once, with the required action, while keeping them selectable.
+- af3b91f: Definition validation normalizes action steps (`uses`) into the workflow model.
+
+  - **Model:** `WorkflowModelActionStep` carries the action's path, snapshot digest, name, entry file, input declarations, and integration bindings, plus `with`, `env`, and outputs from the manifest. Every output declares `required` explicitly, and the manifest default is `false`.
+  - **Validation:** `DefinitionValidationOptions.actionManifests` supplies the manifest and digest for each `uses` path. A step is checked against its manifest: known inputs, required inputs, literal input types, secrets only as whole top-level input values, one connection per integration alias, and connections that exist, match the alias provider, and serve agent tools. Manifest selectors must exist in the provider catalog, and write tools need `allow_write`. An action without a resolved manifest fails with "could not be resolved".
+  - **Integration context:** `needsIntegrationValidationContext` also returns `true` when a referenced manifest declares integrations.
+  - **Workflows:** run creation rejects action steps until they can be materialized.
+
+- 96ac908: Adds `log_path` to `steps.<key>`, `steps.<key>.attempts[]`, and `step.restart.from` in workflow expressions, and rejects it in job outputs, workflow outputs, and `tool` step inputs.
+- dbe45d5: Adds the action bundle codec. `encodeActionBundle` writes the files of an action directory as canonical JSON with a `sha256:<hex>` digest and a gzipped stored form, and `decodeActionBundle` reads it back after checking the digest.
+
+  Definitions stores action snapshots per workspace and digest, and the new `getActionSnapshot` inter-module method returns the manifest, the gzipped bundle as base64, and the byte length of the uncompressed bundle, or the `action-snapshot-not-found` known error.
+
+- e71cded: Accepts top-level workflow `outputs`. The document schema takes a map from output names to templates, with the job-outputs entry limit. The new `workflow.outputs` expression field reads the `jobs`, `inputs`, `vars`, `workflow`, `run`, `trigger`, and `event` contexts. Definitions normalize the map into `WorkflowModel.outputs` and `outputTypes` and type-check each output against the declared job outputs, so a reference to an undeclared job output is a sync error. The workflow outputs runtime now evaluates under the `workflow.outputs` field.
+
+### Patch Changes
+
+- 026cf88: Adds a relative import check for action bundles: each static `./` or `../` import in a TypeScript or JavaScript action file must resolve to a file inside the action directory. Adds the `es-module-lexer` dependency.
+- f05ecde: Dev runs now resolve workflow actions. `resolveDefinitionAtRef` reads each referenced action at the pinned commit, or takes it from the new `actions` uploads. An upload replaces its action directory completely. Uploaded snapshots are stored with source `dev_local`. An upload that no step uses gives an `action-upload-unused` warning. A relative import that does not resolve fails the dev run. Local content and action files together are capped at 1 MiB. `@shipfox/api-definitions-dto` exports `actionUploadsSchema` and `MAX_LOCAL_UPLOAD_BYTES`.
+- 59c3ea8: Reads the central Shipfox Registry by default. `REGISTRY_URL` defaults to `https://api.registry.shipfox.io` and `REGISTRY_TRUSTED_KEYS` defaults to its production signing key. Set `REGISTRY_URL` to an empty value to turn the registry off.
+- 1e58954: Adds resolution of action directories referenced with `uses`: reads each directory at a commit, validates its manifest, builds the bundle and digest, and enforces the action size and file-type limits.
+- e2e561c: Reads source files as strict UTF-8 and lists symlinks and submodules. Fetching a file that is not valid UTF-8 now fails with the `binary-file-unsupported` reason instead of replacing invalid bytes. Source file listings now report `symlink` and `submodule` entries next to `file` entries. Workflow sync ignores those entries and reports a workflow file that is not UTF-8 text as an invalid definition for that file.
+- 00dd046: Definition sync reads the actions that workflows reference with `uses`, at the same commit as the workflows. It stores their snapshots before it applies the definitions. Sync accepts `uses` only while `DEFINITION_ACTIONS_ENABLED` is on.
+
+  - **Change detection:** a workflow with actions hashes its YAML together with the digests of its actions, so a commit that changes only action code produces a new definition. Workflows without actions keep their YAML-only hash.
+  - **Sync error codes:** the sync state error code enums add `action-not-found`, `action-invalid`, `action-too-large`, and `action-unsupported-file`, with a migration for `definitions_sync_error_code`. Manifest diagnostics name the `action.yml` path as their file.
+  - **Warnings:** a relative import that does not resolve inside an action gives an `action-import-unresolved` warning on the importing file.
+
+- Updated dependencies [e99aa97]
+- Updated dependencies [6b4ae32]
+- Updated dependencies [af3b91f]
+- Updated dependencies [b97171d]
+- Updated dependencies [5f88947]
+- Updated dependencies [5a14986]
+- Updated dependencies [9806da2]
+- Updated dependencies [5588247]
+- Updated dependencies [ba0d750]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [e1cfc2a]
+- Updated dependencies [e64c10d]
+- Updated dependencies [175482e]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [f05ecde]
+- Updated dependencies [2d009f4]
+- Updated dependencies [4273dad]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [cc644b8]
+- Updated dependencies [b76c004]
+- Updated dependencies [39c5466]
+- Updated dependencies [c06262b]
+- Updated dependencies [eab1dd7]
+- Updated dependencies [8b16e92]
+- Updated dependencies [184305a]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [48b8237]
+- Updated dependencies [fdca5b6]
+- Updated dependencies [8872f36]
+- Updated dependencies [a99c11b]
+- Updated dependencies [af3b91f]
+- Updated dependencies [f5bdc5b]
+- Updated dependencies [e40ec8b]
+- Updated dependencies [e3b9558]
+- Updated dependencies [c06262b]
+- Updated dependencies [9674325]
+- Updated dependencies [5ce9d5b]
+- Updated dependencies [55152c5]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [cb411b1]
+- Updated dependencies [f64bff1]
+- Updated dependencies [0975515]
+- Updated dependencies [a509c87]
+- Updated dependencies [150d735]
+- Updated dependencies [c8857f4]
+- Updated dependencies [76fbfe9]
+- Updated dependencies [7517867]
+- Updated dependencies [5fb1fbd]
+- Updated dependencies [b1cc902]
+- Updated dependencies [9674325]
+- Updated dependencies [15282f5]
+- Updated dependencies [71c11b1]
+- Updated dependencies [3c92a34]
+- Updated dependencies [257e53e]
+- Updated dependencies [e701cfc]
+- Updated dependencies [96ac908]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e2e561c]
+- Updated dependencies [dd20040]
+- Updated dependencies [00dd046]
+- Updated dependencies [da36a04]
+- Updated dependencies [fe15ea2]
+- Updated dependencies [9485c57]
+- Updated dependencies [f9c2dec]
+- Updated dependencies [4a664ca]
+- Updated dependencies [e663112]
+- Updated dependencies [3e8ff99]
+- Updated dependencies [70e6983]
+- Updated dependencies [15e9d33]
+- Updated dependencies [f187551]
+- Updated dependencies [d0fcdae]
+- Updated dependencies [8786552]
+- Updated dependencies [8f54fc9]
+- Updated dependencies [a4c05ba]
+- Updated dependencies [c14f398]
+- Updated dependencies [82f2480]
+- Updated dependencies [3c8db4c]
+- Updated dependencies [e71cded]
+- Updated dependencies [6b2a308]
+- Updated dependencies [70e6983]
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/workflow-document@3.11.0
+  - @shipfox/expression@2.12.0
+  - @shipfox/workflow-templates@2.0.0
+  - @shipfox/api-agent-dto@34.0.0
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-registry-dto@34.0.0
+  - @shipfox/registry-format@0.1.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/node-module@1.1.3
+  - @shipfox/node-temporal@0.5.3
+
 ## 33.0.0
 
 ### Patch Changes

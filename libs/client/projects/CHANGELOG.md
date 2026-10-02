@@ -1,5 +1,44 @@
 # @shipfox/client-projects
 
+## 53.0.0
+
+### Patch Changes
+
+- Updated dependencies [c64d42f]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [f05ecde]
+- Updated dependencies [a02f5cf]
+- Updated dependencies [2c9838a]
+- Updated dependencies [4273dad]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [2021ae8]
+- Updated dependencies [5e12647]
+- Updated dependencies [2c89020]
+- Updated dependencies [8872f36]
+- Updated dependencies [a99c11b]
+- Updated dependencies [93b8cac]
+- Updated dependencies [1320dac]
+- Updated dependencies [853a185]
+- Updated dependencies [af3b91f]
+- Updated dependencies [658d71f]
+- Updated dependencies [96a66ed]
+- Updated dependencies [a328042]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e2e561c]
+- Updated dependencies [00dd046]
+- Updated dependencies [9485c57]
+- Updated dependencies [82f2480]
+- Updated dependencies [6b2a308]
+  - @shipfox/client-integrations@53.0.0
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/client-agent@53.0.0
+  - @shipfox/client-auth@53.0.0
+  - @shipfox/client-ui@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

@@ -1,5 +1,162 @@
 # @shipfox/api-integration-core
 
+## 34.0.0
+
+### Minor Changes
+
+- a73e712: The integration tool gateway serves action steps as well as agent steps.
+
+  - **Leased tool context:** `getLeasedAgentToolContext` keeps its name and accepts leased `action` steps. Other step types still fail with `leased-step-not-agent`. The result gains `stepType` (`agent` or `action`). For an action step, `integrations` holds the tools frozen at run creation, with one entry per connection, and each tool carries its `result` kind.
+  - **Audit:** the tool call caller adds `action`, on both the audit line and the `integrations_agent_tool_call` metric label. When the runner sends `x-shipfox-call-id`, the audit line records it as `callId`.
+
+- c8e0869: Adds a `not-found` integration provider error reason. The tool gateway keeps it as the tool call error code instead of `unknown`, and does not report it as an unexpected failure. Linear tool errors for a missing record, or one the token cannot see, now carry it.
+- 6c0d6bd: Adds Shipfox run and job lifecycle events for workflow triggers.
+- 9485c57: Adds the `checkTemplateConformance` inter-module operation. It checks the tool and event references of a composed workflow template against the integration catalog of the instance. It returns one issue for each reference that the instance cannot serve.
+- 7d9b08a: Integration providers can serve file tools, and leased action steps download their files through the tool gateway.
+
+  - **Adapter:** `AgentToolsProvider` gains an optional `downloadFile({connection, toolId, arguments, signal})`, which returns `{body, mediaType, filename?, size?}`. A provider whose catalog declares a `file` tool implements it. It passes `signal` to the provider fetch and to the body, so an abandoned transfer stops. `MAX_AGENT_TOOL_FILE_BYTES` is the 100 MiB per-file limit.
+  - **Errors:** `IntegrationProviderErrorReason` adds `file-too-large` and `file-location-not-allowed`.
+  - **Route:** `POST /runs/jobs/current/integration-tools/download` takes `{connection_slug, tool, arguments}` from a leased action step. It authorizes like the MCP route: the frozen grant, the live connection state, and repository scope. It streams the file with `content-type`, `x-shipfox-filename` (RFC 5987), and `x-shipfox-size` when known, and cuts the stream past 100 MiB. The deadline is the smaller of `x-shipfox-deadline` (remaining milliseconds) and 5 minutes. A runner disconnect aborts the provider transfer. Errors before the first byte use the gateway codes. Agent steps get `leased-step-not-action`.
+  - **Audit:** downloads are audited with the `action` caller, `resultKind: 'file'`, and the streamed byte count.
+  - **Frozen result kind:** the gateway reads each tool's frozen `result` kind. A tool frozen as a file tool stays out of MCP `listTools`, even when the live catalog no longer lists it.
+
+- 82f2480: Adds a `json` or `file` result kind to agent tool catalog entries. An absent kind means `json`. The connection tool catalog and the agent tools context carry the resolved kind, and the MCP gateway neither lists nor calls file tools.
+
+### Patch Changes
+
+- 9e7dd0e: Record unknown GitHub installations and expose a service-level orphan gauge.
+- 73f496d: Register the `/shipfox` and "Send to Shipfox" Discord commands at startup, overwriting them only when they differ.
+- 280260c: The E2E routes can inject a Discord Gateway dispatch through the handlers the Gateway service uses.
+- cdc958f: Connects the Discord Gateway leader to Discord with `@discordjs/ws`. The leader resumes from the committed cursor stored in its session row, or identifies when there is no session. It skips and commits every dispatch for now, so keep `DISCORD_GATEWAY_ENABLED` off in shared environments until message and reaction ingestion ship. Every Identify waits on a guard that spaces calls 5 seconds apart and refuses below 100 remaining starts. A handler failure destroys the manager with close code `4000` and resumes from the mark after a jittered backoff of 5 seconds up to 5 minutes.
+- 2d009f4: Adds Discord Gateway leader election. When `DISCORD_GATEWAY_ENABLED` is set, each API replica runs `DiscordGatewayService`, and one replica holds the shard 0 Postgres advisory lock on a dedicated connection. The others retry every 10 seconds. The leader checks the connection every 15 seconds and reports `onLost` if it drops. `@shipfox/node-postgres` exports `openPostgresSession` for connections that live outside the pool.
+- 7c77f5d: Tracks the bot's Discord guild membership from the Gateway: when the bot is removed from a guild, the Discord connection is marked `error`, and re-adding the bot restores it to `active`. The installation keeps the bot's managed role id across leader changes.
+- 5ffbd17: Receives Discord interactions at `POST /webhooks/integrations/discord/interactions`. Requests are verified with Ed25519 and rejected when their timestamp is more than 300 seconds from receipt. The `/shipfox` and `Send to Shipfox` commands publish `slash_command` and `message_command` events, and Discord gets an ephemeral acknowledgement.
+- 491fce5: Publishes Discord messages as `message_create` events from the Gateway leader. Each event carries `mentions_bot` (the bot user in `mentions`, or the installation's managed role in `mention_roles`), an explicit `author.bot`, and `url`. The placement fields are conditional: `thread_id` is set for a message in a thread, and `root_channel_id` when the channel, or the thread's parent, is known. The message id is the delivery id, so resume replays, duplicate sessions, and overlapping leaders publish a message once. Direct messages and messages for a missing, removed, or inactive connection are dropped. A channel cache fed by `GUILD_CREATE` and the channel and thread dispatches resolves placement, with one `GET /channels/{id}` on a miss. Reaction dispatches are still skipped, so keep `DISCORD_GATEWAY_ENABLED` off in shared environments until reaction ingestion ships.
+- b3796d7: Adds the Discord OAuth connect flow: an install route that returns the authorize URL, and a callback route that exchanges the code, checks the bot is in the server under the per-guild lock, and connects or reconnects it. The install state is bound to the browser that started it. Adds the OAuth code exchange and token revoke to the Discord REST client.
+- be060f4: Adds config-gated Discord connection support and persists guild installation data.
+- 1153277: Adds the Discord agent tools adapter with the `read_channel` tool.
+
+  - **Tool:** `read_channel` reads messages from a channel or thread in the connected server, newest first, with `limit`, `before`, and `after`. Each message carries a `url`.
+  - **Server boundary:** the bot token reaches every server the bot is in, so a channel call first resolves the channel's server and fails unless it is the connection's server. Direct message channels are rejected. The answer is cached for the life of the process.
+  - **Errors:** a `403` names the channel and the permission the bot probably lacks. A `429` returns `retryAfterSeconds`. A `401` reports the broken bot token. A session fails with `credentials-unavailable` when the installation is missing or removed.
+  - **Catalog:** `@shipfox/api-integration-discord/agent-tools` exports the catalog, and connections created through the core module now advertise the `agent_tools` capability.
+  - **Types:** `ProviderToolCatalog` in `@shipfox/actions` lists `discord.read_channel`.
+
+- 82d7d73: Removes GitHub installation records when their integration connections are deleted.
+- 2a1b6eb: Action steps can download Linear uploads with the `download_file` tool.
+
+  - **Tool:** `download_file` is a native `file` tool that takes `{url}`. The URL must start with `https://uploads.linear.app/`, or the tool fails with `file-location-not-allowed`. Signed URLs are accepted. The tool drops the signature and fetches with the connection's token.
+  - **Fetch:** every hop passes `@shipfox/node-egress-guard`. The tool follows up to 3 redirects, only to `https` locations, and drops the token once the origin changes. A file that announces more than 100 MiB fails with `file-too-large`.
+  - **Configuration:** `LINEAR_UPLOADS_URL` sets the uploads base URL, and `LINEAR_UPLOADS_ALLOW_PRIVATE_NETWORKS` lets a local test server stand in for it. Both default to the production behavior.
+  - **Types:** `ProviderToolCatalog` in `@shipfox/actions` lists `linear.download_file` with a `file` result.
+
+- 81a3514: The integration tools gateway MCP route now accepts request bodies up to 2 MiB. An agent `create_commit` call with a file near its 1,000,000-byte limit no longer fails after base64 encoding.
+- ebe3ac1: Adds the Shipfox lifecycle event names, payload schemas, empty event catalog, and exported built-in integration connection ID contract.
+- e2e561c: Reads source files as strict UTF-8 and lists symlinks and submodules. Fetching a file that is not valid UTF-8 now fails with the `binary-file-unsupported` reason instead of replacing invalid bytes. Source file listings now report `symlink` and `submodule` entries next to `file` entries. Workflow sync ignores those entries and reports a workflow file that is not UTF-8 text as an invalid definition for that file.
+- Updated dependencies [ba1aff7]
+- Updated dependencies [c64d42f]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [9e7dd0e]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [027e401]
+- Updated dependencies [2e5a311]
+- Updated dependencies [f05ecde]
+- Updated dependencies [73f496d]
+- Updated dependencies [280260c]
+- Updated dependencies [cdc958f]
+- Updated dependencies [2d009f4]
+- Updated dependencies [7cd8aea]
+- Updated dependencies [ddada51]
+- Updated dependencies [7c77f5d]
+- Updated dependencies [728e369]
+- Updated dependencies [4273dad]
+- Updated dependencies [5ffbd17]
+- Updated dependencies [491fce5]
+- Updated dependencies [b3796d7]
+- Updated dependencies [21f52ab]
+- Updated dependencies [1153277]
+- Updated dependencies [e6986cb]
+- Updated dependencies [979b1a5]
+- Updated dependencies [7d2b854]
+- Updated dependencies [62f96d4]
+- Updated dependencies [bc9f9c7]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [a9e85c1]
+- Updated dependencies [c06262b]
+- Updated dependencies [a73e712]
+- Updated dependencies [9f5cf64]
+- Updated dependencies [82d7d73]
+- Updated dependencies [474e21f]
+- Updated dependencies [5e12647]
+- Updated dependencies [b4c1fa2]
+- Updated dependencies [3726d36]
+- Updated dependencies [8872f36]
+- Updated dependencies [2a1b6eb]
+- Updated dependencies [a99c11b]
+- Updated dependencies [fc455ac]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [ac3561b]
+- Updated dependencies [af3b91f]
+- Updated dependencies [c8e0869]
+- Updated dependencies [c06262b]
+- Updated dependencies [3869c1d]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4aad893]
+- Updated dependencies [6c0d6bd]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [d77a8c4]
+- Updated dependencies [507915a]
+- Updated dependencies [3aa5d7a]
+- Updated dependencies [9f27c98]
+- Updated dependencies [ebe3ac1]
+- Updated dependencies [b1cc902]
+- Updated dependencies [e701cfc]
+- Updated dependencies [94e77bc]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e2e561c]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [00dd046]
+- Updated dependencies [9485c57]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+- Updated dependencies [ffffc16]
+- Updated dependencies [6b2a308]
+- Updated dependencies [70e6983]
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-integration-github@34.0.0
+  - @shipfox/api-agent-dto@34.0.0
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/api-integration-shipfox-dto@34.0.0
+  - @shipfox/api-triggers-dto@34.0.0
+  - @shipfox/api-integration-discord@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/api-integration-shipfox@34.0.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/api-integration-gitea@34.0.0
+  - @shipfox/api-integration-jira@34.0.0
+  - @shipfox/api-integration-linear@34.0.0
+  - @shipfox/api-integration-spi@4.4.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-logs-dto@34.0.0
+  - @shipfox/api-integration-sentry@34.0.0
+  - @shipfox/api-integration-slack@34.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-integration-clickup@34.0.0
+  - @shipfox/api-integration-notion@34.0.0
+  - @shipfox/api-integration-posthog@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/api-integration-webhook@34.0.0
+  - @shipfox/node-module@1.1.3
+  - @shipfox/node-temporal@0.5.3
+
 ## 33.2.0
 
 ### Minor Changes
