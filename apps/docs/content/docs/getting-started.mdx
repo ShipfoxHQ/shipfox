@@ -23,17 +23,21 @@ Add the Shipfox MCP server to your coding agent:
 
 Start from a template. The agent suggests the ones that fit your workspace:
 
-```text
-Use Shipfox to create a workflow from a template.
-```
+<AgentHandoff
+  skill="create-workflow-from-template"
+  prompt="Use Shipfox to create a workflow from a template."
+/>
 
+<ForHumans>
 To pick one yourself, copy its prompt from [Examples](/examples).
+</ForHumans>
 
 Or describe your own workflow:
 
-```text
-Use Shipfox to write a workflow for this repository.
-```
+<AgentHandoff
+  skill="write-a-workflow"
+  prompt="Use Shipfox to write a workflow for this repository."
+/>
 
 The agent asks a few questions, tests the workflow on your repository, and
 opens a pull request. Merge it to turn the workflow on.

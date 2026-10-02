@@ -217,7 +217,7 @@ async function assertStableRoute(origin, route) {
 async function assertMcpRoute(origin) {
   const markdown = {status: 200, contentType: 'text/markdown'};
   const pairs = [
-    {mcp: `${basePath}/mcp.mdx/getting-started`, web: `${basePath}/llms.mdx/getting-started`},
+    {mcp: `${basePath}/mcp.mdx/compare-approaches`, web: `${basePath}/llms.mdx/compare-approaches`},
     {mcp: `${basePath}/mcp.mdx/home`, web: `${basePath}/index.md`},
   ];
   for (const {mcp, web} of pairs) {
@@ -228,6 +228,18 @@ async function assertMcpRoute(origin) {
     assertResponse(webResponse, markdown, web);
     assert(mcpResponse.body.equals(webResponse.body), `${mcp}: differs from ${web}`);
   }
+
+  // A page with an agent handoff differs between the renderings.
+  const handoff = await request(origin, `${basePath}/mcp.mdx/getting-started`);
+  const handoffWeb = await request(origin, `${basePath}/llms.mdx/getting-started`);
+  assert(
+    handoff.body.toString('utf8').includes('skill://shipfox/write-a-workflow/SKILL.md'),
+    'mcp.mdx/getting-started does not name the skill',
+  );
+  assert(
+    !handoffWeb.body.toString('utf8').includes('skill://'),
+    'llms.mdx/getting-started names a skill',
+  );
 
   // The `.mdx` rewrite must keep targeting llms.mdx and must not capture mcp.mdx.
   const rewritten = await request(origin, `${basePath}/getting-started.mdx`);
