@@ -144,7 +144,10 @@ test.describe('agent-access workflow templates', () => {
           expect.objectContaining({
             role: 'report',
             optional: true,
-            providers: [{provider: 'slack', compatible: false, suggested_bindings: []}],
+            providers: [
+              {provider: 'slack', compatible: false, suggested_bindings: []},
+              {provider: 'discord', compatible: false, suggested_bindings: []},
+            ],
           }),
         ]),
       });
