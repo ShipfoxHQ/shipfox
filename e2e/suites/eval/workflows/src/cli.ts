@@ -32,6 +32,8 @@ Options:
   --repeat <count>          Number of repeats (default: 1; the case's k for onboarding)
   --max-cost-usd <amount>   Stop starting cases once the runs so far have cost this much
                             (live and onboarding runs)
+  --agent-model <model>     Model of the onboarding agent (onboarding suite only)
+  --simulator-model <model> Model of the simulated user (onboarding suite only)
   --help                    Show this help
 `;
 
@@ -43,6 +45,8 @@ export interface EvalCliOptions {
   /** Unset, templates run once and onboarding cases run their own `k`. */
   repeat?: number;
   maxCostUsd?: number;
+  agentModel?: string;
+  simulatorModel?: string;
 }
 
 export interface EvalCliEnvironment {
@@ -67,6 +71,24 @@ function nonNegativeNumber(value: string, option: string): number {
   return parsed;
 }
 
+// Template cases run each template's own anchor models, so only onboarding takes a model.
+function applyModelOptions({
+  options,
+  agentModel,
+  simulatorModel,
+}: {
+  options: EvalCliOptions;
+  agentModel: string | undefined;
+  simulatorModel: string | undefined;
+}): void {
+  if (agentModel === undefined && simulatorModel === undefined) return;
+  if (options.suite !== 'onboarding') {
+    throw new Error('--agent-model and --simulator-model apply to --suite onboarding only');
+  }
+  if (agentModel !== undefined) options.agentModel = agentModel;
+  if (simulatorModel !== undefined) options.simulatorModel = simulatorModel;
+}
+
 export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} {
   const {values} = parseArgs({
     args: argv,
@@ -77,6 +99,8 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
       catalog: {type: 'string'},
       repeat: {type: 'string'},
       'max-cost-usd': {type: 'string'},
+      'agent-model': {type: 'string'},
+      'simulator-model': {type: 'string'},
       help: {type: 'boolean', short: 'h', default: false},
     },
     strict: true,
@@ -108,6 +132,11 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
   if (values['max-cost-usd'] !== undefined) {
     options.maxCostUsd = nonNegativeNumber(values['max-cost-usd'], '--max-cost-usd');
   }
+  applyModelOptions({
+    options,
+    agentModel: values['agent-model'],
+    simulatorModel: values['simulator-model'],
+  });
   return options;
 }
 
@@ -217,6 +246,8 @@ async function runOnboardingCli({
     ...(options.caseFilter === undefined ? {} : {caseFilter: options.caseFilter}),
     ...(options.repeat === undefined ? {} : {repeat: options.repeat}),
     ...(options.maxCostUsd === undefined ? {} : {maxCostUsd: options.maxCostUsd}),
+    ...(options.agentModel === undefined ? {} : {agentModel: options.agentModel}),
+    ...(options.simulatorModel === undefined ? {} : {simulatorModel: options.simulatorModel}),
   });
   stdout(`Ran ${run.results.length} onboarding sessions. Results: ${run.directory}\n`);
   const failed = run.results.filter((result) => result.status === 'error');

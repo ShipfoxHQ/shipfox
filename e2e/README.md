@@ -465,6 +465,9 @@ agent wrote, and usage:
 ANTHROPIC_API_KEY=<key> mise run evals -- --suite onboarding --case ticket-to-pr-named
 ```
 
+`--agent-model` and `--simulator-model` replace the agent's and the simulated
+user's models. Template cases always run each template's own anchor models.
+
 Each case declares the `expect.outcome` a correct agent ends with, and only the
 checks for that outcome run. A repeat passes when every applicable check does,
 and `checks` and `passed` in its result show which did not.
@@ -544,6 +547,24 @@ Run the set with `--case 'ticket-to-pr/live-*' --repeat 3`. Checks are hard
 only: the run's outputs, the recorded writes, and the hidden tests. The
 `summary.md` of a run lists each case's passes out of its repeats under
 "Passes per case".
+
+`.github/workflows/evals.yml` runs the live templates suite and the onboarding
+suite every night, and on dispatch. A dispatch takes the suite (`templates`,
+`onboarding`, or `both`), a case filter, a repeat count, the onboarding models,
+and `max_cost_usd`, which defaults to 10 and goes to `--max-cost-usd` on every
+run. Without a repeat count, templates run 3 times and each onboarding case
+runs its own `k`. A pull request from this repository that gets the
+`onboarding-evals` label runs the onboarding suite, and a new label event
+replaces the previous run for that pull request. Each run posts every
+`summary.md` to the job summary and uploads `results/` as the
+`eval-results-<suite>` artifact. The workflow needs these repository secrets, and its steps pass them to the code under the names it reads:
+
+| Secret | Used for |
+| --- | --- |
+| `EVALS_ANTHROPIC_API_KEY` | The onboarding agent and simulated user |
+| `EVALS_OPENROUTER_API_KEY` | Live template runs, passed to the stack as `E2E_OPENROUTER_API_KEY` |
+| `EVALS_LANGFUSE_PUBLIC_KEY`, `EVALS_LANGFUSE_SECRET_KEY` | The Langfuse export. Without them, only local results are written. |
+| `EVALS_LANGFUSE_BASE_URL` | The Langfuse region. Optional, defaults to the EU cloud. |
 
 The harness reads Conductor worktree ports from `.context/local-services/env`,
 starts the API with E2E routes enabled, starts the client with the test VCS

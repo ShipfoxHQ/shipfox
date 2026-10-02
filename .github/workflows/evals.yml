@@ -1,0 +1,179 @@
+name: Evals
+
+# Live template evals and onboarding evals. They spend real money, so they run only on a
+# schedule, on dispatch, and on pull requests from this repository that carry the label. The
+# wiring evals that block pull requests run in ci.yml.
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Suite to run
+        required: true
+        default: templates
+        type: choice
+        options:
+          - templates
+          - onboarding
+          - both
+      case:
+        description: Case path or glob. Empty runs every case.
+        required: false
+        default: ""
+        type: string
+      repeat:
+        description: Repeats per case. Empty runs 3 for templates and each onboarding case's own k.
+        required: false
+        default: ""
+        type: string
+      agent_model:
+        description: Model of the onboarding agent. Empty uses the runner default.
+        required: false
+        default: ""
+        type: string
+      simulator_model:
+        description: Model of the onboarding simulated user. Empty uses the runner default.
+        required: false
+        default: ""
+        type: string
+      max_cost_usd:
+        description: Stops starting new cases once the runs so far have cost this much
+        required: false
+        default: "10"
+        type: string
+  pull_request:
+    branches:
+      - main
+    types: [labeled]
+
+permissions:
+  contents: read
+
+# A new label run replaces the older one for the same pull request. Scheduled and dispatched runs
+# never cancel each other.
+concurrency:
+  group: evals-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # `mise run` and `mise exec` otherwise install every tool in mise.toml, such
+  # as the uncached 1.4 GB Ollama download. Jobs declare their tools instead.
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
+  MISE_EXEC_AUTO_INSTALL: "false"
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: shipfox
+  TURBO_CACHE: ${{ github.ref == 'refs/heads/main' && 'local:rw,remote:rw' || 'local:rw,remote:r' }}
+
+jobs:
+  evals:
+    name: Evals (${{ matrix.suite }})
+    # Fork pull requests never get these secrets, so only labeled pull requests from this
+    # repository run.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.label.name == 'onboarding-evals' &&
+      github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: >-
+          ${{ fromJSON(
+          github.event_name == 'pull_request' && '["onboarding"]' ||
+          inputs.suite == 'templates' && '["templates"]' ||
+          inputs.suite == 'onboarding' && '["onboarding"]' ||
+          '["templates","onboarding"]') }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Start test services
+        id: test-services
+        env:
+          SHIPFOX_GITEA_HTTP_HOST: 0.0.0.0
+        run: |
+          docker compose up --wait -d postgres temporal garage gitea
+          docker compose run --rm garage-init
+          docker compose run --rm gitea-init
+        background: true
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: node npm:pnpm npm:turbo
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Wait for test services
+        wait: test-services
+
+      - name: Run evals
+        id: evals
+        env:
+          API_URL: http://localhost:16101
+          API_PORT: "16101"
+          AGENT_PROVIDER_VALIDATION_TIMEOUT_MS: "60000"
+          CLIENT_URL: http://localhost:5173
+          E2E_ADMIN_API_KEY: e2e-admin-api-key
+          E2E_ENABLED: "true"
+          GITEA_CLONE_BASE_URL: http://localhost:3000
+          HOST: 0.0.0.0
+          VITE_API_URL: http://localhost:16101
+          VITE_ENABLE_TEST_VCS_PROVIDER: "true"
+          ANTHROPIC_API_KEY: ${{ secrets.EVALS_ANTHROPIC_API_KEY }}
+          E2E_OPENROUTER_API_KEY: ${{ secrets.EVALS_OPENROUTER_API_KEY }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.EVALS_LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.EVALS_LANGFUSE_SECRET_KEY }}
+          LANGFUSE_BASE_URL: ${{ secrets.EVALS_LANGFUSE_BASE_URL }}
+          SUITE: ${{ matrix.suite }}
+          CASE_FILTER: ${{ inputs.case }}
+          REPEAT: ${{ inputs.repeat }}
+          AGENT_MODEL: ${{ inputs.agent_model }}
+          SIMULATOR_MODEL: ${{ inputs.simulator_model }}
+          MAX_COST_USD: ${{ inputs.max_cost_usd || '10' }}
+        run: |
+          # An unset secret expands to an empty string, which the Langfuse client would read as a URL.
+          if [[ -z "$LANGFUSE_BASE_URL" ]]; then unset LANGFUSE_BASE_URL; fi
+
+          args=(--suite "$SUITE" --max-cost-usd "$MAX_COST_USD")
+          if [[ "$SUITE" == "templates" ]]; then
+            args+=(--mode live --repeat "${REPEAT:-3}")
+          elif [[ -n "$REPEAT" ]]; then
+            args+=(--repeat "$REPEAT")
+          fi
+          if [[ -n "$CASE_FILTER" ]]; then args+=(--case "$CASE_FILTER"); fi
+          if [[ "$SUITE" == "onboarding" ]]; then
+            if [[ -n "$AGENT_MODEL" ]]; then args+=(--agent-model "$AGENT_MODEL"); fi
+            if [[ -n "$SIMULATOR_MODEL" ]]; then args+=(--simulator-model "$SIMULATOR_MODEL"); fi
+          fi
+          mise run evals -- "${args[@]}"
+
+      - name: Post summary
+        if: always() && steps.evals.outcome != 'skipped'
+        run: |
+          shopt -s nullglob
+          for summary in e2e/suites/eval/workflows/results/*/summary.md; do
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Upload eval results
+        if: always() && steps.evals.outcome != 'skipped'
+        timeout-minutes: 3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: eval-results-${{ matrix.suite }}
+          path: e2e/suites/eval/workflows/results/
+          if-no-files-found: ignore
+
+      - name: Upload E2E diagnostics
+        if: failure() && steps.evals.outcome == 'failure'
+        timeout-minutes: 3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: eval-diagnostics-${{ matrix.suite }}
+          path: ${{ runner.temp }}/shipfox-e2e-logs/
+          if-no-files-found: error
