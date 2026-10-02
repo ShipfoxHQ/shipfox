@@ -1,0 +1,45 @@
+template: shipfox/slack-dispatcher
+bindings: {chat: slack}
+placeholders:
+  replace-with-channel-id: C0DISPATCH1
+  replace-with-owner/repository: acme/report-cli
+# The dispatcher starts the routed workflow by its path, so the project holds it as that file.
+workflows:
+  ask-codebase: ask-codebase.yml
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+covers:
+  - Starts one listed workflow per request.
+  - Replies once in the thread, and later posts the pull request link for a change. On Discord, starts the thread under the mention when it has none.
+
+seed:
+  slack:
+    channel: C0DISPATCH1
+    thread:
+      - ts: '1721300000.000100'
+        user: U0ASKER
+        text: <@UBOT> Where does the report command read the --json flag?
+
+scenario:
+  - start:
+      event:
+        slack:
+          app_mention:
+            channel: C0DISPATCH1
+            ts: '1721300000.000100'
+            user: U0ASKER
+            text: <@UBOT> Where does the report command read the --json flag?
+  # The routed run ends without a pull request, so the listener ends without a message.
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  # The routed workflow replies on its own, and this one only links its run.
+  writes:
+    - slack.chat.postMessage:
+        target: C0DISPATCH1
+        thread_ts: '1721300000.000100'
+        text: {contains: ['Shipfox started Answer codebase questions in chat #1', 'answers from the code']}
+        count: 1

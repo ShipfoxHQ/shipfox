@@ -1,0 +1,14 @@
+# `route`: the request names no change, so it asks instead of starting a workflow.
+- match: {prompt_contains: Can you fix the report command?}
+  replies:
+    - tool: set_output
+      args: {key: status, value: '"needs_information"'}
+    - tool: set_output
+      args: {key: workflow, value: '""'}
+    - tool: set_output
+      args: {key: inputs, value: '{}'}
+    - tool: set_output
+      args:
+        key: reply
+        value: '"What should the report command do differently? Tell me the current behavior and the one you expect."'
+    - text: Done.

@@ -1,0 +1,16 @@
+# `route`: picks the task workflow and writes its inputs from the thread.
+- match: {prompt_contains: Add a --json flag to the report command. The report command should print}
+  replies:
+    - tool: set_output
+      args: {key: status, value: '"start"'}
+    - tool: set_output
+      args: {key: workflow, value: '".shipfox/workflows/ticket-to-pr.yml"'}
+    - tool: set_output
+      args:
+        key: inputs
+        value: '{"repository": "acme/report-cli", "title": "Add a --json flag to the report command", "description": "Print the report totals as JSON when the --json flag is set.", "acceptance_criteria": "- [ ] The flag prints the totals as JSON\n- [ ] The tests cover it", "url": "https://e2e.slack.com/archives/C0DISPATCH2/p1721300000000300"}'
+    - tool: set_output
+      args:
+        key: reply
+        value: '"The task workflow implements the change and opens a pull request. I will post the link here."'
+    - text: Done.

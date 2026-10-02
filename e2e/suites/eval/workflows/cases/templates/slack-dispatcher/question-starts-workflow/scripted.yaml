@@ -1,0 +1,16 @@
+# `route`: picks the codebase question workflow and restates the question as its input.
+- match: {prompt_contains: Where does the report command read the --json flag?}
+  replies:
+    - tool: set_output
+      args: {key: status, value: '"start"'}
+    - tool: set_output
+      args: {key: workflow, value: '".shipfox/workflows/ask-codebase.yml"'}
+    - tool: set_output
+      args:
+        key: inputs
+        value: '{"channel_id": "C0DISPATCH1", "thread_ts": "1721300000.000100", "request": "Where does the report command read the --json flag?"}'
+    - tool: set_output
+      args:
+        key: reply
+        value: '"The codebase question workflow answers from the code. Its answer appears in this thread."'
+    - text: Done.

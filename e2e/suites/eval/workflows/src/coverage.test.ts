@@ -46,7 +46,15 @@ describe('template coverage', () => {
   });
 
   it('reports templates without a behaviors.yaml as pending, not failed', async () => {
-    const coverage = await check(cases);
+    const root = await mkdtemp(join(tmpdir(), 'shipfox-eval-behaviors-'));
+    temporaryDirectories.push(root);
+    await mkdir(join(root, 'ticket-to-pr'));
+    await writeFile(
+      join(root, 'ticket-to-pr', 'behaviors.yaml'),
+      'cases:\n  - case: one-shot\n    proves: Ends after the pull request opens.\n',
+    );
+
+    const coverage = await check(cases, root);
 
     expect(coverage.pending).toContain('slack-dispatcher');
     expect(coverage.pending).not.toContain('ticket-to-pr');
