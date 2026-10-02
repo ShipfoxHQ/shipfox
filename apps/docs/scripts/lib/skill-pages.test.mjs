@@ -7,8 +7,10 @@ const MISSING_SKILL_PATTERN = /SKILL_PAGES names skills that are not shipped: va
 const PAGE_FRONTMATTER_PATTERN = /^---\ntitle: "Debug It"\nsidebarTitle: "Debug"\n/;
 const MCP_PREREQUISITE_PATTERN =
   /- A coding agent \[connected to the Shipfox MCP\n {2}server\]\(\/how-to\/set-up-work\/connect-mcp-client\)\.\n- Have a run link\.\n/;
-const PAGE_PROMPT_PATTERN =
-  /in your repository and send this prompt:\n\n```text\nDebug my run\.\n```\n$/;
+const FOR_HUMANS_PATTERN =
+  /\n<ForHumans>\n\nThis guide is meant to be carried out by your coding agent\..*\n\n<\/ForHumans>\n/s;
+const PAGE_HANDOFF_PATTERN =
+  /\n## Start the agent\n\n<AgentHandoff skill="debug" prompt="Debug my run\." \/>\n$/;
 const INDEX_ROW_PATTERN = /^\| `skill:\/\/shipfox\/index` \| Skill index \| Find a skill\. \|$/m;
 const SKILL_ROW_PATTERN = /\| \[debug title\]\(\/how-to\/debug\) \|/;
 const REFERENCE_ROW_PATTERN = /\| `skill:\/\/shipfox\/debug\/references\/logs\.md` \| Logs \|/;
@@ -49,8 +51,17 @@ describe('renderSkillPage', () => {
     assert.match(page, PAGE_FRONTMATTER_PATTERN);
     assert.ok(page.includes('\ndebug intro.\n'));
     assert.match(page, MCP_PREREQUISITE_PATTERN);
-    assert.match(page, PAGE_PROMPT_PATTERN);
-    assert.ok(!page.includes('skill'));
+    assert.match(page, FOR_HUMANS_PATTERN);
+    assert.match(page, PAGE_HANDOFF_PATTERN);
+  });
+
+  it('escapes the prompt for an MDX attribute', () => {
+    const [entry] = skillPageEntries(
+      [resource('debug/SKILL.md', {prompt: 'Debug "this" & that.'})],
+      [page('debug')],
+    );
+
+    assert.ok(renderSkillPage(entry).includes('prompt="Debug &quot;this&quot; &amp; that." />'));
   });
 });
 
