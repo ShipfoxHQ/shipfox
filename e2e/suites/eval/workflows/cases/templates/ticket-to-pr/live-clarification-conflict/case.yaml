@@ -1,0 +1,27 @@
+template: shipfox/ticket-to-pr
+bindings: {source: github}
+options: {feedback_loop: off}
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+modes: [live]
+repository: acme/retry-lib
+timeout_seconds: 1200
+
+scenario:
+  - start:
+      manual:
+        inputs:
+          repository: acme/retry-lib
+          title: Make retries never give up
+          description: Callers want the task retried until it works, however long that takes.
+          acceptance_criteria: retry stops after 3 attempts and throws the last error.
+  - await: {run: succeeded}
+    timeout_seconds: 900
+
+expect:
+  # The task can't be done as written, so a correct agent asks and changes nothing.
+  outputs: {status: needs_clarification}
+  writes:
+    - github.push: {count: 0}
+    - github.create_pull_request: {count: 0}

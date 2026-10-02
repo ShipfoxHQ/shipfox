@@ -1,0 +1,31 @@
+template: shipfox/ticket-to-pr
+bindings: {source: github}
+# Without the feedback loop, the run ends once the pull request is open.
+options: {feedback_loop: off}
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+modes: [live]
+repository: acme/list-pager
+timeout_seconds: 1200
+
+scenario:
+  - start:
+      manual:
+        inputs:
+          repository: acme/list-pager
+          title: The last page of results is missing rows
+          description: paginate skips the first rows, returns too few rows on the last page, and reports one page too few when the rows don't fill the last page. Pages count from 1.
+          acceptance_criteria: With pages counting from 1, each page holds its rows, a partly filled last page counts as a page, a page past the end is empty, and an empty list has zero pages.
+  - await: {run: succeeded}
+    timeout_seconds: 900
+
+expect:
+  outputs: {status: implemented}
+  writes:
+    - github.push: {branch: $pr.head, count: 1}
+    - github.create_pull_request: {pull_request: $pr, base: main, draft: true, count: 1}
+
+live:
+  # Copied from hidden_tests/ into the pushed branch after the run, then run with test_command.
+  hidden_tests: src/paginate-pages.test.js

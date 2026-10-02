@@ -193,6 +193,30 @@ describe('eval results', () => {
       '| `ticket-to-pr/live-json-flag` | 1 | passed | passed | 1200 | 300 | 1 | 12.5 | 0.2500 |',
     );
   });
+
+  it('counts the passes of each case across its repeats in the summary', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'shipfox-eval-passes-'));
+    temporaryDirectories.push(root);
+    const resultsDirectory = join(root, 'results');
+
+    await runEval({
+      suite: 'templates',
+      mode: 'scripted',
+      cwd: fileURLToPath(new URL('../', import.meta.url)),
+      caseFilter: 'fixture',
+      repeat: 3,
+      resultsDirectory,
+      runId: 'passes',
+      execute: async (params) => ({
+        ...passing(params),
+        status: params.repeat === 2 ? 'failed' : 'passed',
+      }),
+    });
+
+    expect(await readFile(join(resultsDirectory, 'passes', 'summary.md'), 'utf8')).toContain(
+      '| `fixture` | 2 of 3 |',
+    );
+  });
 });
 
 describe('exit code', () => {

@@ -1,0 +1,9 @@
+{
+  "name": "ticket-to-pr-quoted-csv-fields-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

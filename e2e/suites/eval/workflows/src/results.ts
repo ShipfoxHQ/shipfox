@@ -104,6 +104,25 @@ function liveRow(result: CaseResult): string {
   return `| \`${result.case}\` | ${result.repeat} | ${result.status} | ${hidden} | ${measures?.input_tokens ?? '-'} | ${measures?.output_tokens ?? '-'} | ${measures?.gate_retries ?? '-'} | ${(result.duration_ms / 1000).toFixed(1)} | ${result.cost_usd.toFixed(4)} |`;
 }
 
+/** One row per case, so a case that passes only some of its repeats stands out. */
+function passesPerCase(results: CaseResult[]): string[] {
+  const counts = new Map<string, {passed: number; total: number}>();
+  for (const result of results) {
+    const count = counts.get(result.case) ?? {passed: 0, total: 0};
+    count.total += 1;
+    if (result.status === 'passed') count.passed += 1;
+    counts.set(result.case, count);
+  }
+  return [
+    '## Passes per case',
+    '',
+    '| Case | Passed |',
+    '| --- | ---: |',
+    ...[...counts].map(([id, {passed, total}]) => `| \`${id}\` | ${passed} of ${total} |`),
+    '',
+  ];
+}
+
 function summaryMarkdown(run: ResultsRun, mode: EvalMode): string {
   const passed = run.results.filter((result) => result.status === 'passed').length;
   const failed = run.results.filter((result) => result.status === 'failed').length;
@@ -119,6 +138,7 @@ function summaryMarkdown(run: ResultsRun, mode: EvalMode): string {
     `- Errors: ${errors}`,
     ...(run.skipped_for_budget ? [`- Not started, budget spent: ${run.skipped_for_budget}`] : []),
     '',
+    ...passesPerCase(run.results),
     ...(mode === 'live' ? liveTableHeader : tableHeader),
   ];
   const failures = run.results.filter((result) => result.error !== undefined);

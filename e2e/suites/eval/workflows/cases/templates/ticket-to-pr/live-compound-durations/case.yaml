@@ -1,0 +1,31 @@
+template: shipfox/ticket-to-pr
+bindings: {source: github}
+# Without the feedback loop, the run ends once the pull request is open.
+options: {feedback_loop: off}
+slots:
+  setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
+  test_command: npm test
+modes: [live]
+repository: acme/duration-kit
+timeout_seconds: 1200
+
+scenario:
+  - start:
+      manual:
+        inputs:
+          repository: acme/duration-kit
+          title: Parse compound durations such as 1h30m
+          description: parseDuration only accepts one unit, so 1h30m throws Invalid duration.
+          acceptance_criteria: parseDuration adds up several number-and-unit parts, in any order, and still throws Invalid duration for text that isn't made only of such parts.
+  - await: {run: succeeded}
+    timeout_seconds: 900
+
+expect:
+  outputs: {status: implemented}
+  writes:
+    - github.push: {branch: $pr.head, count: 1}
+    - github.create_pull_request: {pull_request: $pr, base: main, draft: true, count: 1}
+
+live:
+  # Copied from hidden_tests/ into the pushed branch after the run, then run with test_command.
+  hidden_tests: src/duration-compound.test.js
