@@ -5,8 +5,10 @@ import {
   assertMachineReadableMarkdown,
   canonicalDocsUrl,
   canonicalizeDocumentationUrl,
+  renderAgentHandoff,
   rewriteMachineReadableLinks,
   serializeMachineReadableMarkdown,
+  stringifyMachineReadableComponent,
 } from './machine-readable';
 import {inlineCode} from './markdown';
 
@@ -189,4 +191,126 @@ test('uses safe Markdown code spans for values containing backticks', () => {
   assert.equal(inlineCode('value`with`backticks'), '``value`with`backticks``');
   assert.equal(inlineCode('`'), '`` ` ``');
   assert.equal(inlineCode(' \t '), '`  \t  `');
+});
+
+const handoff = {
+  skill: 'create-workflow-from-template',
+  prompt: 'Use Shipfox to create a workflow from a template.',
+} as const;
+
+function handoffElement(type: 'mdxJsxFlowElement' | 'mdxJsxTextElement', skill: string) {
+  return {
+    type,
+    name: 'AgentHandoff',
+    children: [],
+    attributes: [
+      {type: 'mdxJsxAttribute', name: 'skill', value: skill},
+      {type: 'mdxJsxAttribute', name: 'prompt', value: handoff.prompt},
+    ],
+  };
+}
+
+function stringifyHandoff(type: 'mdxJsxFlowElement' | 'mdxJsxTextElement', skill: string) {
+  const stringify = stringifyMachineReadableComponent as unknown as (node: unknown) => unknown;
+  return stringify(handoffElement(type, skill));
+}
+
+test('renders an agent handoff as the prompt to send for a human reader', () => {
+  assert.equal(
+    renderAgentHandoff({...handoff, audience: 'human'}),
+    [
+      'Open your coding agent in your repository and send this prompt:',
+      '',
+      '```text',
+      'Use Shipfox to create a workflow from a template.',
+      '```',
+    ].join('\n'),
+  );
+});
+
+test('fences an agent handoff prompt that contains a code fence', () => {
+  const rendered = renderAgentHandoff({
+    ...handoff,
+    prompt: 'Run:\n```sh\nshipfox validate\n```',
+    audience: 'human',
+  });
+
+  assert.ok(rendered.includes('````text\nRun:\n```sh\nshipfox validate\n```\n````'));
+});
+
+test('renders an agent handoff as facts about the skill for an MCP reader', () => {
+  assert.equal(
+    renderAgentHandoff({...handoff, audience: 'mcp'}),
+    [
+      '> **For coding agents:** The procedure for this task is the',
+      '> `create-workflow-from-template` skill,',
+      '> `skill://shipfox/create-workflow-from-template/SKILL.md`.',
+      '> Example request: "Use Shipfox to create a workflow from a template."',
+    ].join('\n'),
+  );
+});
+
+test('fails an agent handoff that names a skill that is not shipped', () => {
+  assert.throws(() => renderAgentHandoff({skill: 'no-such-skill', prompt: 'x', audience: 'mcp'}), {
+    message: 'AgentHandoff names a skill that is not shipped: no-such-skill',
+  });
+  const placeholder = stringifyHandoff('mdxJsxFlowElement', 'no-such-skill') as string;
+  for (const audience of ['human', 'mcp'] as const) {
+    assert.throws(() => serializeMachineReadableMarkdown(placeholder, {audience}), {
+      message: 'AgentHandoff names a skill that is not shipped: no-such-skill',
+    });
+  }
+});
+
+test('fails an agent handoff used inside a paragraph', () => {
+  assert.throws(() => stringifyHandoff('mdxJsxTextElement', handoff.skill), {
+    message: 'AgentHandoff must be a block on its own line, not part of a paragraph.',
+  });
+});
+
+test('resolves an agent handoff placeholder for each audience', () => {
+  const placeholder = stringifyHandoff('mdxJsxFlowElement', handoff.skill);
+  assert.equal(typeof placeholder, 'string');
+  const markdown = `Intro.\n\n${placeholder}\n\nOutro.`;
+
+  assert.equal(
+    serializeMachineReadableMarkdown(markdown, {audience: 'human'}),
+    `Intro.\n\n${renderAgentHandoff({...handoff, audience: 'human'})}\n\nOutro.`,
+  );
+  assert.equal(
+    serializeMachineReadableMarkdown(markdown, {audience: 'mcp'}),
+    `Intro.\n\n${renderAgentHandoff({...handoff, audience: 'mcp'})}\n\nOutro.`,
+  );
+});
+
+test('keeps an agent handoff inside the blockquote that holds its placeholder', () => {
+  const placeholder = stringifyHandoff('mdxJsxFlowElement', handoff.skill);
+  const markdown = `> **Note**\n>\n> ${placeholder}`;
+
+  assert.equal(
+    serializeMachineReadableMarkdown(markdown, {audience: 'mcp'}),
+    [
+      '> **Note**',
+      '>',
+      '> > **For coding agents:** The procedure for this task is the',
+      '> > `create-workflow-from-template` skill,',
+      '> > `skill://shipfox/create-workflow-from-template/SKILL.md`.',
+      '> > Example request: "Use Shipfox to create a workflow from a template."',
+    ].join('\n'),
+  );
+});
+
+test('keeps the trailing spaces of a prompt line inside a quoted agent handoff', () => {
+  const placeholder = `\0${JSON.stringify({
+    name: 'AgentHandoff',
+    children: '',
+    attributes: {...handoff, prompt: 'First line  \n\nLast line'},
+  })}\0`;
+
+  const lines = serializeMachineReadableMarkdown(`> ${placeholder}`, {audience: 'human'}).split(
+    '\n',
+  );
+
+  assert.ok(lines.includes('> First line  '));
+  assert.ok(lines.includes('>'));
 });

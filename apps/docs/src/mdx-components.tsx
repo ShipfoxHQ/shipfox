@@ -7,6 +7,7 @@ import {Tab, Tabs} from 'fumadocs-ui/components/tabs';
 import {TypeTable} from 'fumadocs-ui/components/type-table';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type {MDXComponents} from 'mdx/types';
+import {AgentHandoff} from '@/app/components/agent-handoff';
 import {DocsCard} from '@/app/components/docs-card';
 import {DocsImage} from '@/app/components/docs-image';
 import {DocsVideo} from '@/app/components/docs-video';
@@ -23,6 +24,7 @@ import {getTemplateCatalog} from '@/lib/template-catalog/source';
 export function getMDXComponents(components?: MDXComponents): MDXComponents {
   return {
     ...defaultMdxComponents,
+    AgentHandoff,
     Card: DocsCard,
     Cards,
     DocsImage,

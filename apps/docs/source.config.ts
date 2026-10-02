@@ -5,7 +5,7 @@ import {
   INTEGRATION_CATALOG_CATEGORIES,
   INTEGRATION_CATALOG_ICONS,
 } from './src/lib/integration-catalog';
-import {stringifyMachineReadableComponent} from './src/lib/machine-readable';
+import {stringifyMachineReadableComponent} from './src/lib/machine-readable-stringify';
 import {remarkGeneratedComponents} from './src/lib/remark-generated-components';
 import {remarkRunnerCatalog} from './src/lib/remark-runner-catalog';
 
