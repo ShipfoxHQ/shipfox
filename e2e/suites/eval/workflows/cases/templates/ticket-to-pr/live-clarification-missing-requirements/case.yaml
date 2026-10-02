@@ -5,17 +5,17 @@ slots:
   setup_commands: "- key: setup\n  run: npm ci --no-audit --no-fund"
   test_command: npm test
 modes: [live]
-repository: acme/hello-lib
+repository: acme/export-lib
 timeout_seconds: 1200
 
 scenario:
   - start:
       manual:
         inputs:
-          repository: acme/hello-lib
-          title: Make the greeting nicer
-          description: People say the greeting feels cold.
-          acceptance_criteria: It feels friendlier.
+          repository: acme/export-lib
+          title: Add the export format the partner asked for
+          description: The partner can't import our CSV files. They emailed their requirements to the account manager.
+          acceptance_criteria: The partner can import our export.
   - await: {run: succeeded}
     timeout_seconds: 900
 

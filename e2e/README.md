@@ -537,7 +537,7 @@ seeds a small Node repository, and its tests run with `node --test`:
 | `live-compound-durations` | Parse durations such as `1h30m` | Pull request that passes the hidden tests |
 | `live-last-page-bug` | Fix paging that loses rows on the last page | Pull request that passes the hidden tests |
 | `live-quoted-csv-fields` | Support quoted CSV fields | Pull request that passes the hidden tests |
-| `live-clarification-vague` | A task with no testable outcome | `needs_clarification`, no push, no pull request |
+| `live-clarification-missing-requirements` | A task that depends on requirements the ticket and repository lack | `needs_clarification`, no push, no pull request |
 | `live-clarification-conflict` | A description and acceptance criteria that contradict | `needs_clarification`, no push, no pull request |
 
 Run the set with `--case 'ticket-to-pr/live-*' --repeat 3`. Checks are hard
