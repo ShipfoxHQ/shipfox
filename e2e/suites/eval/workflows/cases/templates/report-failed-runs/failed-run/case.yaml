@@ -11,7 +11,7 @@ modes: [scripted]
 timeout_seconds: 600
 
 covers:
-  - Posts a report and a diagnosis reply for each failed run.
+  - Posts a report and a diagnosis reply for each failed run. On Discord, the reply starts a thread under the report.
 
 scenario:
   - fire: {workflow: failing, status: failed}
