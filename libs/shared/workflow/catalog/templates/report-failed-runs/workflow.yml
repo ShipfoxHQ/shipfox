@@ -24,7 +24,7 @@ jobs:
     if: ${{ event.workflow.id != workflow.id }}
     checkout: false
     outputs:
-      message_ts: ${{ steps.notify.outputs.ts }}
+      message_id: ${{ steps.notify.outputs.message_id }}
       channel: ${{ steps.notify.outputs.channel }}
     steps:
       - key: detail

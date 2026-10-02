@@ -125,6 +125,7 @@ exports[`agent-access template tools > lists the shipped templates for a GitHub-
         "id": "report-failed-runs",
         "missing_providers": [
           "slack",
+          "discord",
         ],
         "revision": 1,
         "roles": [
@@ -137,11 +138,16 @@ exports[`agent-access template tools > lists the shipped templates for a GitHub-
                 "provider": "slack",
                 "suggested_bindings": [],
               },
+              {
+                "compatible": false,
+                "provider": "discord",
+                "suggested_bindings": [],
+              },
             ],
             "role": "notify",
           },
         ],
-        "summary": "Hear about every failed workflow run in Slack, with the failing step and an agent diagnosis of the cause.",
+        "summary": "Hear about every failed workflow run in Slack or Discord, with the failing step and an agent diagnosis of the cause.",
         "title": "Report failed Shipfox workflow runs",
       },
       {
