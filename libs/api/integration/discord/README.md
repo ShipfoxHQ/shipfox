@@ -8,7 +8,7 @@
 - **Installation repository exports** create, find, and delete Discord guild installations owned by the provider database.
 - **`createDiscordInstallRoutes`** serves the OAuth connect flow. The core adapter passes it through the provider's `install` option.
 - **`createDiscordWebhookRoutes` and `createDiscordWebhookProcessor`** receive Discord interactions, verify them, and publish command events.
-- **`createDiscordE2eRoutes`** exposes the synthetic connection route used by integration and E2E tests.
+- **`createDiscordE2eRoutes`** exposes the synthetic connection route and the dispatch injection route used by integration and E2E tests.
 - **`createDiscordGatewayService`** returns the `ModuleService` that elects one Gateway leader per shard with a Postgres advisory lock. Each replica holds a dedicated connection, retries every 10 s, and checks it with `SELECT 1` every 15 s. The `onLeading` and `onLost` callbacks carry the leader's work; `onLost` runs before the lock is released on shutdown.
 - **`createDiscordApiClient`** calls the Discord REST API as the bot and maps failures to `DiscordIntegrationProviderError`.
 - **`createDiscordGateway`** returns the Gateway `ModuleService`: the leader election with the shard connection as the leader's work. It connects with `@discordjs/ws`, resumes from the stored committed cursor, and identifies through an Identify guard.
@@ -93,6 +93,8 @@ Commands are answered with an ephemeral message. It says the server is not conne
 | `provider-unavailable` | `503`, or `429` when Discord rate limits. Other OAuth errors are `422` `discord-oauth-callback-error`. |
 
 `createDiscordE2eRoutes` registers `POST /integrations/discord-connections` under the E2E route prefix. It accepts the Discord DTO seed body and returns the integration connection DTO. This route is for test setup, not production clients.
+
+It also registers `POST /integrations/discord-dispatches`. The body names a `connection_id`, an optional `session_id` and `sequence`, and a `dispatch` with its name (`t`) and data (`d`). The route runs it through the same handlers the Gateway service uses, setting `guild_id` from the connection's installation, and answers `204`. A dispatch with no handler is `400` `discord-dispatch-invalid`, and a connection without an installation is `404` `discord-connection-not-found`. The E2E stack runs with `DISCORD_GATEWAY_ENABLED=false`, so this is how a message reaches the handlers there.
 
 ## REST client
 

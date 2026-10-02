@@ -1,4 +1,17 @@
 export {
+  type DiscordApiMock,
+  type DiscordApiMockCall,
+  type DiscordApiMockChannel,
+  type DiscordApiMockMessage,
+  type DiscordApiMockOptions,
+  startDiscordApiMock,
+} from './discord-api.js';
+export {
+  buildMessageCreate,
+  type DiscordMessageCreateParams,
+  injectDiscordMessageCreate,
+} from './discord-gateway.js';
+export {
   buildSlashCommandInteraction,
   type DiscordInteractionResponse,
   type DiscordSlashCommandParams,

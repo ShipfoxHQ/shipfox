@@ -1,11 +1,22 @@
 # @shipfox/e2e-driver-discord
 
-A signed Discord interaction sender for E2E suites. It stands in for Discord calling the API's
-interactions endpoint, so a suite can run `/shipfox prompt:` without a real Discord server. Faking
-Discord is on purpose: it is the external system under integration.
+Stand-ins for Discord in E2E suites: a signed interaction sender, a Gateway message injector, and a
+fake REST API. Together they let a suite run `/shipfox prompt:` or mention the bot without a real
+Discord server. Faking Discord is on purpose: it is the external system under integration.
 
 ## Public API
 
+- `startDiscordApiMock(options?)`: serve the part of Discord's REST API the Discord tools use, on
+  `DISCORD_API_BASE_URL`, backed by memory. Add what Discord would already hold with `addChannel`
+  and `addMessage`. The fake answers channels, messages, and thread starts, and accepts bot
+  messages. `writes()` lists the threads and messages it accepted, `messages(channelId)` reads a
+  channel or thread back, and `calls` records every request with its `authorization` header. A
+  thread started from a message takes that message's ID, as Discord does. One test at a time can
+  hold the port, so keep the tests that use it in one serial file.
+- `injectDiscordMessageCreate(params)`: deliver a `MESSAGE_CREATE` dispatch that mentions the bot
+  unless `mentionsBot` is false, through `POST /__e2e/integrations/discord-dispatches`, which runs
+  the handler the Gateway service uses. `connectionId` must belong to a connection made with `createDiscordConnection`. The message
+  ID is the delivery ID the API records. `buildMessageCreate(params)` returns the payload alone.
 - `postDiscordSlashCommand(params)`: post a signed `/shipfox prompt:` interaction to
   `/webhooks/integrations/discord/interactions` and return the interaction ID, which is the
   delivery ID the API records, with the HTTP status and the ephemeral acknowledgement Discord would

@@ -43,7 +43,7 @@ describe('portsFromBase', () => {
       githubApi: 20_011,
       slackApi: 20_012,
       otelTemporalMetrics: 20_013,
-      discordApi: 20_018,
+      discordApi: 20_020,
     });
   });
 });
@@ -81,13 +81,13 @@ describe('standardAppEnv', () => {
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:20010/mcp');
     assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:20011');
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:20012');
-    assert.equal(env.DISCORD_API_BASE_URL, 'http://127.0.0.1:20018');
+    assert.equal(env.DISCORD_API_BASE_URL, 'http://127.0.0.1:20020');
   });
 });
 
 describe('resolvePortRange', () => {
   test('uses the default range when no overrides are configured', () => {
-    assert.deepEqual(resolvePortRange({}), {start: 20_000, end: 45_999, blockSize: 20});
+    assert.deepEqual(resolvePortRange({}), {start: 20_000, end: 45_999, blockSize: 25});
   });
 
   test('reads repository-specific range bounds from the environment', () => {
@@ -96,7 +96,7 @@ describe('resolvePortRange', () => {
         SHIPFOX_PORT_RANGE_START: '30000',
         SHIPFOX_PORT_RANGE_END: '30999',
       }),
-      {start: 30_000, end: 30_999, blockSize: 20},
+      {start: 30_000, end: 30_999, blockSize: 25},
     );
   });
 
@@ -184,7 +184,7 @@ test('does not allocate state when the Compose file is missing', () => {
 });
 
 describe('port leases', () => {
-  test('allocates 20-port blocks and reuses a workspace lease', () => {
+  test('allocates 25-port blocks and reuses a workspace lease', () => {
     const root = mkdtempSync(join(tmpdir(), 'shipfox-port-leases-'));
     const registryFile = join(root, 'shipfox-port-leases.json');
     const firstWorkspace = join(root, 'first');
@@ -194,7 +194,7 @@ describe('port leases', () => {
     try {
       assert.equal(leasePortBlock({workspacePath: firstWorkspace, registryFile}), 20_000);
       assert.equal(leasePortBlock({workspacePath: firstWorkspace, registryFile}), 20_000);
-      assert.equal(leasePortBlock({workspacePath: secondWorkspace, registryFile}), 20_020);
+      assert.equal(leasePortBlock({workspacePath: secondWorkspace, registryFile}), 20_025);
     } finally {
       rmSync(root, {recursive: true, force: true});
     }
@@ -209,8 +209,8 @@ describe('port leases', () => {
     mkdirSync(firstWorkspace);
     mkdirSync(secondWorkspace);
     mkdirSync(thirdWorkspace);
-    const firstRange = {start: 30_000, end: 30_059, blockSize: 20};
-    const overlappingRange = {start: 30_020, end: 30_079, blockSize: 20};
+    const firstRange = {start: 30_000, end: 30_074, blockSize: 25};
+    const overlappingRange = {start: 30_025, end: 30_099, blockSize: 25};
     try {
       assert.equal(
         leasePortBlock({workspacePath: firstWorkspace, registryFile, portRange: firstRange}),
@@ -218,11 +218,11 @@ describe('port leases', () => {
       );
       assert.equal(
         leasePortBlock({workspacePath: secondWorkspace, registryFile, portRange: firstRange}),
-        30_020,
+        30_025,
       );
       assert.equal(
         leasePortBlock({workspacePath: thirdWorkspace, registryFile, portRange: overlappingRange}),
-        30_040,
+        30_050,
       );
     } finally {
       rmSync(root, {recursive: true, force: true});
@@ -253,7 +253,7 @@ describe('port leases', () => {
           workspacePath: secondWorkspace,
           registryFile,
         }),
-        20_020,
+        20_025,
       );
     } finally {
       rmSync(root, {recursive: true, force: true});
@@ -322,8 +322,8 @@ describe('port leases', () => {
       registryFile,
       `${JSON.stringify({
         version: 1,
-        range: {start: 20_000, end: 45_999, blockSize: 20},
-        nextBase: 20_020,
+        range: {start: 20_000, end: 45_999, blockSize: 25},
+        nextBase: 20_025,
         leases: {[workspace]: {base: 20_000, allocatedAt: '2026-07-22T00:00:00.000Z'}},
       })}\n`,
     );
@@ -345,13 +345,13 @@ describe('port leases', () => {
     const root = mkdtempSync(join(tmpdir(), 'shipfox-port-leases-'));
     const registryFile = join(root, 'shipfox-port-leases.json');
     const workspace = join(root, 'workspace');
-    const range = {start: 20_000, end: 45_999, blockSize: 20};
+    const range = {start: 20_000, end: 45_999, blockSize: 25};
     mkdirSync(workspace);
     writeFileSync(
       registryFile,
       `${JSON.stringify({
         version: 2,
-        ranges: {'20000-45999-20': {...range, nextBase: 20_020}},
+        ranges: {'20000-45999-25': {...range, nextBase: 20_025}},
         leases: {
           'conductor-workspace-123': {
             allocatedAt: '2026-07-22T00:00:00.000Z',
@@ -371,6 +371,64 @@ describe('port leases', () => {
           registryFile,
         }),
         20_000,
+      );
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  });
+
+  test('replaces a lease from a 20-port block and keeps its neighbors', () => {
+    const root = mkdtempSync(join(tmpdir(), 'shipfox-port-leases-'));
+    const registryFile = join(root, 'shipfox-port-leases.json');
+    const workspace = join(root, 'workspace');
+    const neighbor = join(root, 'neighbor');
+    const range = {start: 20_000, end: 45_999, blockSize: 20};
+    mkdirSync(workspace);
+    mkdirSync(neighbor);
+    writeFileSync(
+      registryFile,
+      `${JSON.stringify({
+        version: 3,
+        ranges: {'20000-45999-20': {...range, nextBase: 20_040}},
+        leases: {
+          [JSON.stringify(['repository', 'workspace'])]: {
+            allocatedAt: '2026-07-22T00:00:00.000Z',
+            base: 20_000,
+            range,
+            repositoryId: 'repository',
+            workspaceId: 'workspace',
+            workspacePath: workspace,
+          },
+          [JSON.stringify(['repository', 'neighbor'])]: {
+            allocatedAt: '2026-07-22T00:00:00.000Z',
+            base: 20_020,
+            range,
+            repositoryId: 'repository',
+            workspaceId: 'neighbor',
+            workspacePath: neighbor,
+          },
+        },
+      })}\n`,
+    );
+    try {
+      // The new block cannot start inside the neighbor's 20 ports.
+      assert.equal(
+        leasePortBlock({
+          repositoryId: 'repository',
+          workspaceId: 'workspace',
+          workspacePath: workspace,
+          registryFile,
+        }),
+        20_050,
+      );
+      assert.equal(
+        leasePortBlock({
+          repositoryId: 'repository',
+          workspaceId: 'neighbor',
+          workspacePath: neighbor,
+          registryFile,
+        }),
+        20_075,
       );
     } finally {
       rmSync(root, {recursive: true, force: true});

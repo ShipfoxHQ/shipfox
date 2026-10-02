@@ -283,14 +283,6 @@ async function createProviderConnection({
           accessToken: `jira-access-token-${uniqueId}`,
         })
       ).slug;
-    case 'discord':
-      return (
-        await createDiscordConnection({
-          workspaceId,
-          guildId: uniqueId,
-          guildName: `Eval Discord ${uniqueId}`,
-        })
-      ).slug;
     default:
       throw new Error(`No E2E connection route creates a "${provider}" connection.`);
   }

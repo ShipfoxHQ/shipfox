@@ -117,15 +117,15 @@ them. If setup did not finish or the services need recovery, run:
 mise exec -- pnpm dev:services:up
 ```
 
-The command leases a worktree-specific 20-port block, starts PostgreSQL,
+The command leases a worktree-specific 25-port block, starts PostgreSQL,
 Temporal, Garage, and Gitea, and writes the app environment to
 `.context/local-services/env`. Mise loads that file for later commands.
 
 The repository-level port pool is configured with
 `SHIPFOX_PORT_RANGE_START` and `SHIPFOX_PORT_RANGE_END` in `mise.toml`. This
 checkout reserves `20000 to 24999`; another repository sharing the same machine
-should reserve a different range. This checkout supports 250 worktree leases;
-another repository can start at `25000`. All ranges still use 20-port blocks, and
+should reserve a different range. This checkout supports 200 worktree leases;
+another repository can start at `25000`. All ranges use 25-port blocks, and
 the shared `~/.shipfox/shipfox-port-leases.json` registry rejects overlapping
 allocations. Conductor leases use the stable workspace ID, scoped to this
 repository; their recorded paths are refreshed when services start. Archive or

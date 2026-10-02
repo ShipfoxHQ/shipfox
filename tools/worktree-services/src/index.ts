@@ -14,7 +14,8 @@ import {basename, dirname, resolve} from 'node:path';
 
 const composeProjectNameMaxLength = 63;
 const composeProjectNamePrefix = 'shipfox-';
-const portBlockSize = 20;
+const portBlockSize = 25;
+const legacyPortBlockSize = 20;
 const tcpPortPattern = /^\d+$/u;
 const composeProjectNameInvalidChars = /[^a-z0-9_-]+/gu;
 const composeProjectNameLeadingDashes = /^-+/u;
@@ -41,7 +42,7 @@ export const standardPorts = {
   githubApi: 11,
   slackApi: 12,
   otelTemporalMetrics: 13,
-  discordApi: 18,
+  discordApi: 20,
 } as const;
 
 export type StandardPortName = keyof typeof standardPorts;
@@ -276,11 +277,12 @@ export function leasePortBlock({
   return withPortLeaseLock(() => {
     const registry = readPortLeaseRegistry(registryFile);
     const existingLease = registry.leases[leaseKey];
-    if (existingLease) {
+    if (existingLease && !leaseOutgrown(existingLease, resolvedPortRange)) {
       existingLease.workspacePath = resolvedWorkspacePath;
       writePortLeaseRegistry(registry, registryFile);
       return existingLease.base;
     }
+    if (existingLease) delete registry.leases[leaseKey];
 
     const legacyLeaseKey = Object.entries(registry.leases).find(
       ([existingLeaseKey, lease]) =>
@@ -293,14 +295,16 @@ export function leasePortBlock({
       const legacyLease = registry.leases[legacyLeaseKey];
       if (!legacyLease) fail(`Invalid Shipfox port lease registry: ${registryFile}`);
       delete registry.leases[legacyLeaseKey];
-      registry.leases[leaseKey] = {
-        ...legacyLease,
-        repositoryId: leaseRepositoryId,
-        workspaceId: leaseWorkspaceId,
-        workspacePath: resolvedWorkspacePath,
-      };
-      writePortLeaseRegistry(registry, registryFile);
-      return legacyLease.base;
+      if (!leaseOutgrown(legacyLease, resolvedPortRange)) {
+        registry.leases[leaseKey] = {
+          ...legacyLease,
+          repositoryId: leaseRepositoryId,
+          workspaceId: leaseWorkspaceId,
+          workspacePath: resolvedWorkspacePath,
+        };
+        writePortLeaseRegistry(registry, registryFile);
+        return legacyLease.base;
+      }
     }
 
     const base = nextAvailablePortBlock(registry, resolvedPortRange);
@@ -327,7 +331,7 @@ export function findStalePortLeases({
     return Object.entries(registry.leases)
       .map(([workspaceId, lease]) => ({
         ...lease,
-        range: normalizePortRange(lease.range),
+        range: normalizeStoredPortRange(lease.range),
         leaseKey: workspaceId,
       }))
       .filter(
@@ -594,7 +598,7 @@ function readPortLeaseRegistry(registryFile: string): PortLeaseRegistry {
 
 function validateRegistryRanges(ranges: Record<string, unknown>, registryFile: string): void {
   for (const [key, rangeState] of Object.entries(ranges)) {
-    const range = normalizePortRange(rangeState);
+    const range = normalizeStoredPortRange(rangeState);
     if (key !== portRangeKey(range) || !isPortBlockStart(rangeState.nextBase, range)) {
       fail(`Invalid Shipfox port lease registry: ${registryFile}`);
     }
@@ -608,7 +612,7 @@ function normalizeRegistryLeases(
   const leases: Record<string, PortLease> = {};
   for (const [leaseKey, lease] of Object.entries(rawLeases)) {
     if (!isRecord(lease)) fail(`Invalid Shipfox port lease registry: ${registryFile}`);
-    const range = normalizePortRange(lease.range);
+    const range = normalizeStoredPortRange(lease.range);
     if (
       !isPortBlockStart(lease.base, range) ||
       typeof lease.repositoryId !== 'string' ||
@@ -636,7 +640,7 @@ function normalizeRegistryRanges(
 ): PortLeaseRegistry['ranges'] {
   const ranges: PortLeaseRegistry['ranges'] = {};
   for (const [key, rangeState] of Object.entries(rawRanges)) {
-    const range = normalizePortRange(rangeState);
+    const range = normalizeStoredPortRange(rangeState);
     if (!isRecord(rangeState) || !isPortBlockStart(rangeState.nextBase, range)) {
       fail(`Invalid Shipfox port lease registry: ${registryFile}`);
     }
@@ -664,7 +668,7 @@ function migrateVersionOnePortLeaseRegistry(
     fail(`Invalid Shipfox port lease registry: ${registryFile}`);
   let range: PortRange;
   try {
-    range = normalizePortRange(registry.range);
+    range = normalizeStoredPortRange(registry.range);
     if (!isPortBlockStart(registry.nextBase, range)) {
       fail(`Invalid Shipfox port lease registry: ${registryFile}`);
     }
@@ -688,7 +692,7 @@ function migrateVersionTwoPortLeaseRegistry(
   const ranges: PortLeaseRegistry['ranges'] = {};
   try {
     for (const [key, rangeState] of Object.entries(registry.ranges)) {
-      const range = normalizePortRange(rangeState);
+      const range = normalizeStoredPortRange(rangeState);
       if (
         !isRecord(rangeState) ||
         key !== portRangeKey(range) ||
@@ -716,7 +720,7 @@ function legacyRegistryToVersionThree(
   const leases: Record<string, PortLease> = {};
   for (const [legacyKey, lease] of Object.entries(legacyLeases)) {
     if (!isRecord(lease)) fail(`Invalid Shipfox port lease registry: ${registryFile}`);
-    const range = normalizePortRange(lease.range ?? ranges[Object.keys(ranges)[0]]);
+    const range = normalizeStoredPortRange(lease.range ?? ranges[Object.keys(ranges)[0]]);
     if (!isPortBlockStart(lease.base, range))
       fail(`Invalid Shipfox port lease registry: ${registryFile}`);
     const workspacePath = typeof lease.workspacePath === 'string' ? lease.workspacePath : legacyKey;
@@ -807,7 +811,7 @@ function configuredPortValue(value: string | undefined, name: string): number | 
   return Number(normalized);
 }
 
-function normalizePortRange(range: unknown): PortRange {
+function normalizePortRange(range: unknown, blockSizes = [portBlockSize]): PortRange {
   if (!isRecord(range)) fail('Shipfox port range must define start and end ports.');
   const start = Number(range.start);
   const end = Number(range.end);
@@ -819,7 +823,7 @@ function normalizePortRange(range: unknown): PortRange {
     start < 1 ||
     end > 65_535 ||
     end < start ||
-    blockSize !== portBlockSize ||
+    !blockSizes.includes(blockSize) ||
     end - start + 1 < blockSize
   ) {
     fail(
@@ -827,6 +831,16 @@ function normalizePortRange(range: unknown): PortRange {
     );
   }
   return {start, end, blockSize};
+}
+
+/** A registry written before the block grew still holds leases of the old size. */
+function normalizeStoredPortRange(range: unknown): PortRange {
+  return normalizePortRange(range, [portBlockSize, legacyPortBlockSize]);
+}
+
+/** A lease from a smaller block cannot hold every port, so it is replaced rather than reused. */
+function leaseOutgrown(lease: PortLease, range: PortRange): boolean {
+  return lease.range.blockSize < range.blockSize;
 }
 
 function validatePortDefinitions(definitions: StandardPortDefinitions): void {
