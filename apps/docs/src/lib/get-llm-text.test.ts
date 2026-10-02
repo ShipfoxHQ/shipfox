@@ -124,6 +124,48 @@ test('names the skill on a skill page in the mcp rendering and keeps the human r
   assert.ok(!mcp.includes('meant to be carried out by your coding agent'));
 });
 
+test('passes the Quick Start in the mcp rendering and rejects a bare catalog prompt', async () => {
+  const body = [
+    '## Start building',
+    placeholder({
+      name: 'AgentHandoff',
+      children: '',
+      attributes: {
+        skill: 'create-workflow-from-template',
+        prompt: 'Use Shipfox to create a workflow from a template.',
+      },
+    }),
+    placeholder({
+      name: 'ForHumans',
+      children: 'To pick one yourself, copy its prompt from [Examples](/examples).',
+      attributes: {},
+    }),
+    placeholder({
+      name: 'AgentHandoff',
+      children: '',
+      attributes: {
+        skill: 'write-a-workflow',
+        prompt: 'Use Shipfox to write a workflow for this repository.',
+      },
+    }),
+  ].join('\n\n');
+  const quickStart = testPage('/getting-started', body);
+
+  const mcp = await getLLMText(quickStart, {audience: 'mcp'});
+  assert.ok(mcp.includes('skill://shipfox/write-a-workflow/SKILL.md'));
+  assert.ok(!mcp.includes('copy its prompt'));
+
+  const bare = testPage(
+    '/getting-started',
+    '```text\nUse Shipfox to create a workflow from a template.\n```',
+  );
+  await assert.rejects(getLLMText(bare, {audience: 'mcp'}), {
+    message:
+      'Machine-readable Markdown for /getting-started shows the catalog prompt of skill://shipfox/create-workflow-from-template/SKILL.md in a code block. Use AgentHandoff.',
+  });
+  assert.ok(await getLLMText(bare, {audience: 'human'}));
+});
+
 function placeholder(component: {name: string; children: string; attributes: object}): string {
   return `\0${JSON.stringify(component)}\0`;
 }

@@ -1,3 +1,4 @@
+import {listShippedSkillResources} from '@shipfox/workflow-templates';
 import {renderAgentHandoff} from './agent-handoff';
 import {canonicalDocsOrigin} from './canonical-docs-origin';
 import {serializeEditionsComparison} from './editions';
@@ -165,7 +166,33 @@ export function serializeMachineReadableMarkdown(
   serialized = replaceUnusableImages(serialized);
   serialized = rewriteMachineReadableLinks(serialized, options.pageUrl);
   assertMachineReadableMarkdown(serialized, options);
+  if (options.audience === 'mcp') assertNoBareCatalogPrompt(serialized, options);
   return serialized.trim();
+}
+
+/**
+ * Rejects a skill's `catalog_prompt` shown as a code block in the `mcp` rendering,
+ * where `AgentHandoff` should name the skill instead. It knows catalog prompts only,
+ * so a handoff written in other words passes.
+ */
+export function assertNoBareCatalogPrompt(
+  markdown: string,
+  {pageUrl, sourcePath}: MachineReadableMarkdownOptions = {},
+): void {
+  const prompts = new Map<string, string>();
+  for (const resource of listShippedSkillResources()) {
+    if (resource.catalogPrompt) prompts.set(resource.catalogPrompt.trim(), resource.uri);
+  }
+
+  const label = pageLabel(pageUrl, sourcePath);
+  for (const body of fencedBlockBodies(markdown)) {
+    const skillUri = prompts.get(body.trim());
+    if (skillUri) {
+      throw new Error(
+        `Machine-readable Markdown${label ? ` for ${label}` : ''} shows the catalog prompt of ${skillUri} in a code block. Use AgentHandoff.`,
+      );
+    }
+  }
 }
 
 export function rewriteMachineReadableLinks(markdown: string, pageUrl?: string): string {
@@ -433,6 +460,25 @@ function withoutFencedCode(markdown: string): string {
       return !fence;
     })
     .join('\n');
+}
+
+function fencedBlockBodies(markdown: string): string[] {
+  const bodies: string[] = [];
+  let fence: FenceMarker | undefined;
+  let body: string[] = [];
+  for (const line of markdown.split('\n')) {
+    const marker = fenceMarker(line);
+    if (!fence && marker) {
+      fence = marker;
+      body = [];
+    } else if (fence && closesFence(line, fence)) {
+      bodies.push(body.join('\n'));
+      fence = undefined;
+    } else if (fence) {
+      body.push(line);
+    }
+  }
+  return bodies;
 }
 
 function fenceMarker(line: string): FenceMarker | undefined {

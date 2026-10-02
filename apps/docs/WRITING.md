@@ -622,7 +622,29 @@ tells the reader to start it from their coding agent. The page prose, URL, and
 title live in `scripts/lib/skill-pages.mjs`. The prompt comes from the skill's
 `catalog_prompt` in `@shipfox/workflow-templates`. Generation fails until a new
 skill has an entry there. Add its page path to `.gitignore`, and list it in
-the directory's `meta.json` for the sidebar.
+the directory's `meta.json` for the sidebar. The page hands the task to the
+reader's coding agent with `AgentHandoff`; see [MCP rendering](#mcp-rendering).
+
+### MCP rendering
+
+Agents connected to the Shipfox MCP server read each page through
+`mcp.mdx/<slug>`. Only `docs://` reads see this `mcp` rendering. The HTML page,
+site search, Ask AI, `llms.txt`, `llms-full.txt`, `llms.mdx`, and the `.md`
+URLs all keep the `human` rendering.
+
+- **`AgentHandoff`.** Use `<AgentHandoff skill="..." prompt="..." />` for every
+  prompt the reader sends to their coding agent. Never write that prompt in a
+  `text` code block. The `human` rendering shows the lead-in and a copyable
+  prompt. The `mcp` rendering names the skill and quotes the prompt as an
+  example request. An unknown `skill` fails the build.
+- **`ForHumans`.** Wrap text in `<ForHumans>` only where the instruction is for
+  a person, such as "copy its prompt" or "paste this". The `mcp` rendering drops
+  the block. Most text reads fine to both audiences, so leave it unwrapped.
+  `ForHumans` can't sit inside a Callout, quote, or list.
+- **The bare-prompt check.** The build fails when the `mcp` rendering of a page
+  has a code block that equals a shipped skill's `catalog_prompt`. It catches
+  known prompts only. A handoff written in other words passes, so review for
+  them.
 
 ## Schema fields: document only shipped surface
 
