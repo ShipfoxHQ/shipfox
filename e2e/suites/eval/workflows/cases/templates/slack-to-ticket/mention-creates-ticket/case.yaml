@@ -43,7 +43,7 @@ expect:
         title: Retry webhook delivery after a timeout
         description: {contains: '## Problem'}
         links:
-          - title: Slack thread
+          - title: Chat conversation
             url: https://e2e.slack.com/archives/C0EVAL0001/p1721300000000100
         count: 1
     # The link goes in the thread the mention started, and names the ticket the fake created.

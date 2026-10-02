@@ -15,9 +15,9 @@ create: |
 
         ---
 
-        Drafted by Shipfox from a [Slack thread](${{ jobs.thread.outputs.permalink }}) and `${{ jobs.draft.outputs.repository }}` at [`${{ jobs.draft.outputs.commit }}`](${{ jobs.draft.outputs.tree_url }}). Check both before work starts.
+        Drafted by Shipfox from a [chat conversation](${{ jobs.thread.outputs.permalink }}) and `${{ jobs.draft.outputs.repository }}` at [`${{ jobs.draft.outputs.commit }}`](${{ jobs.draft.outputs.tree_url }}). Check both before work starts.
       links:
-        - title: Slack thread
+        - title: Chat conversation
           url: ${{ jobs.thread.outputs.permalink }}
     outputs:
       identifier: ${{ result.id }}

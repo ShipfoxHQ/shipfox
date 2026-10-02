@@ -12,20 +12,27 @@ import {loadShippedTemplates} from './loader.js';
 type YamlRecord = Record<string, unknown>;
 
 const template = loadShippedTemplates().find((entry) => entry.id === 'slack-to-ticket');
-if (template === undefined) throw new Error('Missing Slack ticket template');
-const composed = composeTemplate(template, {chat: 'slack', tracker: 'linear', source: 'github'});
+if (template === undefined) throw new Error('Missing chat ticket template');
+const composedByChat = {
+  slack: composeTemplate(template, {chat: 'slack', tracker: 'linear', source: 'github'}),
+  discord: composeTemplate(template, {chat: 'discord', tracker: 'linear', source: 'github'}),
+};
 const optionMarker = /^\s*# option:(\w+)=(\w+) (begin|end)$/;
 const expressionPattern = /^\$\{\{\s*([\s\S]*?)\s*\}\}$/;
+const startingRequestPattern = /Message that started this run:\n(\$\{\{.*\}\})/;
 const environment = createWorkflowEnvironment();
 const defaults = {entry_point: 'mention', ticket_project: 'team_only'};
 const roots: string[] = [];
 
 type Selections = typeof defaults;
 
-function workflow(selections: Partial<Selections> = {}): YamlRecord {
+function workflow(
+  selections: Partial<Selections> = {},
+  chat: keyof typeof composedByChat = 'slack',
+): YamlRecord {
   const selected = {...defaults, ...selections};
   const open: boolean[] = [];
-  const yaml = composed
+  const yaml = composedByChat[chat]
     .split('\n')
     .filter((line) => {
       const marker = optionMarker.exec(line);
@@ -46,8 +53,13 @@ function at(value: unknown, ...path: (string | number)[]): unknown {
   return path.reduce<unknown>((current, key) => (current as YamlRecord)[key], value);
 }
 
-function step(job: string, key: string, selections: Partial<Selections> = {}): YamlRecord {
-  const steps = at(workflow(selections), 'jobs', job, 'steps') as YamlRecord[];
+function step(
+  job: string,
+  key: string,
+  selections: Partial<Selections> = {},
+  chat: keyof typeof composedByChat = 'slack',
+): YamlRecord {
+  const steps = at(workflow(selections, chat), 'jobs', job, 'steps') as YamlRecord[];
   const found = steps.find((entry) => entry.key === key);
   if (found === undefined) throw new Error(`Missing step ${job}.${key}`);
   return found;
@@ -56,6 +68,10 @@ function step(job: string, key: string, selections: Partial<Selections> = {}): Y
 function evaluate(source: unknown, context: YamlRecord): unknown {
   const expression = expressionPattern.exec(String(source))?.[1] ?? String(source);
   return environment.evaluate(expression, context);
+}
+
+function expression(path: string): string {
+  return `\${{ ${path} }}`;
 }
 
 function toolSteps(document: YamlRecord): string[] {
@@ -181,5 +197,152 @@ describe('Slack ticket template', () => {
         '',
       ].join('\n'),
     );
+  });
+});
+
+describe('Discord ticket template', () => {
+  const discord = (selections: Partial<Selections> = {}) => workflow(selections, 'discord');
+  const discordStep = (job: string, key: string) => step(job, key, {}, 'discord');
+
+  it('keeps a manual entry point and adds the mention trigger only when selected', () => {
+    expect(Object.keys(at(discord(), 'triggers') as YamlRecord)).toEqual(['manual', 'on_mention']);
+    expect(
+      Object.keys(at(discord({entry_point: 'dispatch_only'}), 'triggers') as YamlRecord),
+    ).toEqual(['manual']);
+    expect(at(discord(), 'triggers', 'on_mention')).toMatchObject({
+      source: 'discord_chat',
+      event: 'message_create',
+    });
+  });
+
+  it.each([
+    {
+      name: 'a person in an allowed channel',
+      event: {mentions_bot: true, author: {bot: false}, root_channel_id: '111'},
+      expected: true,
+    },
+    {
+      name: 'a person in a thread of an allowed channel',
+      event: {mentions_bot: true, author: {bot: false}, root_channel_id: '111', thread_id: '999'},
+      expected: true,
+    },
+    {
+      name: 'a person in another channel',
+      event: {mentions_bot: true, author: {bot: false}, root_channel_id: '222'},
+      expected: false,
+    },
+    {
+      name: 'a message that does not mention the bot',
+      event: {mentions_bot: false, author: {bot: false}, root_channel_id: '111'},
+      expected: false,
+    },
+    {
+      name: 'a bot',
+      event: {mentions_bot: true, author: {bot: true}, root_channel_id: '111'},
+      expected: false,
+    },
+    {
+      name: 'a message whose channel is unknown',
+      event: {mentions_bot: true, author: {bot: false}},
+      expected: false,
+    },
+  ])('starts for a message from $name: $expected', ({event, expected}) => {
+    const filter = String(at(discord(), 'triggers', 'on_mention', 'filter')).replace(
+      'replace-with-channel-id',
+      '111',
+    );
+
+    expect(evaluate(filter, {event})).toBe(expected);
+  });
+
+  it('drafts from a read-only checkout with read-only Discord thread access', () => {
+    expect(at(discord(), 'jobs', 'draft', 'checkout')).toEqual({
+      permissions: {contents: 'read'},
+      'persist-credentials': false,
+    });
+    expect(discordStep('draft', 'draft').integrations).toEqual([
+      {connection: 'discord_chat', include: ['read_thread']},
+    ]);
+  });
+
+  it('limits writes to one Linear ticket and Discord thread replies', () => {
+    expect(toolSteps(discord())).toEqual([
+      'read_thread',
+      'send_message',
+      'send_message',
+      'save_issue',
+      'send_message',
+      'send_message',
+    ]);
+  });
+
+  it('replies in the thread of the message that started the run, from an event or a manual start', () => {
+    const outputs = at(discord(), 'jobs', 'thread', 'outputs') as YamlRecord;
+    const event = {channel_id: '111', id: '555'};
+    const inputs = {channel_id: '222', message_id: '666'};
+
+    expect(evaluate(outputs.channel_id, {trigger: {source: 'on_mention'}, event})).toBe('111');
+    expect(evaluate(outputs.message_id, {trigger: {source: 'on_mention'}, event})).toBe('555');
+    expect(evaluate(outputs.channel_id, {trigger: {source: 'manual'}, inputs})).toBe('222');
+    expect(evaluate(outputs.message_id, {trigger: {source: 'manual'}, inputs})).toBe('666');
+    for (const key of ['ask', 'already_tracked']) {
+      expect(discordStep('draft', key).with).toMatchObject({
+        channel_id: expression('jobs.thread.outputs.channel_id'),
+        thread_message_id: expression('jobs.thread.outputs.message_id'),
+      });
+    }
+    for (const [job, key] of [
+      ['ticket', 'link_back'],
+      ['report_failure', 'report_failure'],
+    ] as const) {
+      expect(discordStep(job, key).with).toMatchObject({
+        channel_id: expression('jobs.thread.outputs.channel_id'),
+        thread_message_id: expression('jobs.thread.outputs.message_id'),
+      });
+    }
+  });
+
+  it('links the conversation from the first message that the thread read returns', () => {
+    const permalink = discordStep('thread', 'permalink');
+
+    expect(permalink.with).toMatchObject({limit: 1});
+    expect(
+      evaluate((permalink.outputs as YamlRecord).url, {
+        result: {messages: [{url: 'https://discord.com/channels/1/2/3'}]},
+      }),
+    ).toBe('https://discord.com/channels/1/2/3');
+  });
+
+  it.each([
+    {name: 'a mention', context: {trigger: {source: 'on_mention'}, event: {content: 'Track this'}}},
+    {
+      name: 'a manual start',
+      context: {trigger: {source: 'manual'}, inputs: {request: 'Track this'}},
+    },
+  ])('hands the request of $name to the agent', ({context}) => {
+    const prompt = String(discordStep('draft', 'draft').prompt);
+    const request = startingRequestPattern.exec(prompt)?.[1];
+
+    expect(request).toBeDefined();
+    expect(evaluate(request, context)).toBe('Track this');
+  });
+
+  it('publishes the link message ID as reply_id', () => {
+    const outputs = at(discord(), 'jobs', 'ticket', 'outputs') as YamlRecord;
+
+    expect(Object.keys(outputs)).toEqual(['ticket', 'ticket_url', 'reply_id']);
+    expect(
+      evaluate((discordStep('ticket', 'link_back').outputs as YamlRecord).message_id, {
+        result: {id: '777'},
+      }),
+    ).toBe('777');
+  });
+
+  it('keeps the Slack outputs unchanged', () => {
+    expect(Object.keys(at(workflow(), 'jobs', 'ticket', 'outputs') as YamlRecord)).toEqual([
+      'ticket',
+      'ticket_url',
+      'reply_ts',
+    ]);
   });
 });

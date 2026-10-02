@@ -97,7 +97,7 @@ describe('GET /workspaces/:workspaceId/workflow-templates', () => {
       start_label: 'GitHub Actions fails on the default branch',
     });
     expect(body.templates.find(({id}) => id === 'slack-to-ticket')).toMatchObject({
-      missing_providers: ['slack', 'linear'],
+      missing_providers: ['slack', 'discord', 'linear'],
     });
     expect(listConnectionsByWorkspace).toHaveBeenCalledWith({workspaceId, limit: 100});
   });

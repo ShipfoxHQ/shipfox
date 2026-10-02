@@ -181,6 +181,7 @@ exports[`agent-access template tools > lists the shipped templates for a GitHub-
         "id": "slack-to-ticket",
         "missing_providers": [
           "slack",
+          "discord",
           "linear",
         ],
         "revision": 1,
@@ -192,6 +193,11 @@ exports[`agent-access template tools > lists the shipped templates for a GitHub-
               {
                 "compatible": false,
                 "provider": "slack",
+                "suggested_bindings": [],
+              },
+              {
+                "compatible": false,
+                "provider": "discord",
                 "suggested_bindings": [],
               },
             ],
@@ -224,8 +230,8 @@ exports[`agent-access template tools > lists the shipped templates for a GitHub-
             "role": "source",
           },
         ],
-        "summary": "Turn a request in a Slack thread into a Linear ticket grounded in your code.",
-        "title": "Create a ticket from a Slack conversation",
+        "summary": "Turn a request in a Slack or Discord conversation into a Linear ticket grounded in your code.",
+        "title": "Create a ticket from a chat conversation",
       },
       {
         "added_at": "2026-09-23",
