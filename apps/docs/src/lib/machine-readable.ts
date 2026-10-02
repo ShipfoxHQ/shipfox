@@ -258,7 +258,10 @@ const placeholderSerializers: Record<
     if (!options.getTemplateDetail || typeof attributes.id !== 'string') {
       throw new Error('Example data is unavailable for machine-readable Markdown.');
     }
-    return serializeTemplateDetail(options.getTemplateDetail(attributes.id));
+    return serializeTemplateDetail({
+      template: options.getTemplateDetail(attributes.id),
+      audience: options.audience,
+    });
   },
   AgentHandoff: (options, attributes) => {
     const {skill, prompt} = attributes;

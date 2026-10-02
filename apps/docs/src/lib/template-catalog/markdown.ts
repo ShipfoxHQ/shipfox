@@ -1,3 +1,5 @@
+import {renderAgentHandoff} from '../agent-handoff';
+import type {MarkdownAudience} from '../machine-readable';
 import {inlineCode} from '../markdown';
 import {buildTemplatePagePrompt} from './prompt';
 import {
@@ -8,6 +10,8 @@ import {
   templateIntegrations,
 } from './types';
 
+const CREATE_WORKFLOW_SKILL = 'create-workflow-from-template';
+
 export function serializeTemplateCatalog(templates: readonly TemplateCatalogEntry[]): string {
   return templates
     .map(
@@ -17,7 +21,13 @@ export function serializeTemplateCatalog(templates: readonly TemplateCatalogEntr
     .join('\n');
 }
 
-export function serializeTemplateDetail(template: TemplateDetail): string {
+export function serializeTemplateDetail({
+  template,
+  audience,
+}: {
+  template: TemplateDetail;
+  audience: MarkdownAudience;
+}): string {
   const variant = template.variants.at(-1);
   const sections = [
     `Starts when: ${template.starts}. Integrations: ${integrationNames(template)}.`,
@@ -73,14 +83,15 @@ export function serializeTemplateDetail(template: TemplateDetail): string {
     );
   }
 
+  const prompt = buildTemplatePagePrompt(template.id, template.roles, variant?.bindings ?? {});
   sections.push(
     '## Set up this workflow',
-    'Open your coding agent in your repository and paste this prompt. The agent needs the [Shipfox MCP server](/how-to/set-up-work/connect-mcp-client).',
-    [
-      '```text',
-      buildTemplatePagePrompt(template.id, template.roles, variant?.bindings ?? {}),
-      '```',
-    ].join('\n'),
+    ...(audience === 'human'
+      ? [
+          'Open your coding agent in your repository and paste this prompt. The agent needs the [Shipfox MCP server](/how-to/set-up-work/connect-mcp-client).',
+          ['```text', prompt, '```'].join('\n'),
+        ]
+      : [renderAgentHandoff({skill: CREATE_WORKFLOW_SKILL, prompt, audience})]),
     `The workflow file, \`.shipfox/workflows/${template.id}.yml\`, with every default:`,
     ['```yaml', (variant?.yaml ?? '').trimEnd(), '```'].join('\n'),
   );
