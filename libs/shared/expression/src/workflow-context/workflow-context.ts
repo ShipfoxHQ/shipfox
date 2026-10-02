@@ -321,7 +321,8 @@ export const toolStepReportTypeEnvironment = {
 } as const satisfies ExpressionTypeEnvironment;
 
 // A tool step never reports an exit code: the call outcome is the attempt
-// status, and the gate context of a tool step reads `status` and `outputs` only.
+// status. Its gate context reads `status`, `outputs`, and `error`, but a
+// finished attempt keeps only `status` and `outputs`.
 const toolStepAttemptType = {
   kind: 'object',
   fields: {
