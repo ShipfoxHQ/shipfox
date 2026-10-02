@@ -48,7 +48,10 @@ const TEMPLATE_PACKAGE_PATTERN = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/u;
 const expectSchema = z
   .object({
     outcome: z.enum(ONBOARDING_OUTCOMES),
-    /** The registry package the written workflow must come from, such as `shipfox/ticket-to-pr`. */
+    /**
+     * The registry package the written workflow must come from, such as `shipfox/ticket-to-pr`.
+     * A `validated` case without one expects a workflow with no template header.
+     */
     template: z
       .string()
       .regex(TEMPLATE_PACKAGE_PATTERN, 'A template reads `namespace/name`.')

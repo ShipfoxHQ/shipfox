@@ -297,6 +297,16 @@ function checkModels({
   );
 }
 
+/** A case without a `template` is one where the user declined every template. */
+function checkNoTemplateHeader(files: WrittenFile[]): OnboardingCheck {
+  const derived = files.filter((written) => parseTemplateHeader(written.content) !== undefined);
+  return check(
+    'no_template_header',
+    derived.length === 0,
+    `Carries a template header: ${derived.map((written) => written.path).join(', ')}.`,
+  );
+}
+
 function validatedChecks(
   options: GradeOnboardingRunOptions,
   entries: TranscriptEntry[],
@@ -316,7 +326,9 @@ function validatedChecks(
     ),
     checkModels({evidence, file}),
   ];
-  if (expected.template === undefined) return checks;
+  if (expected.template === undefined) {
+    return [...checks, checkNoTemplateHeader(files)];
+  }
   return [
     ...checks,
     checkHeader({expected, file}),
