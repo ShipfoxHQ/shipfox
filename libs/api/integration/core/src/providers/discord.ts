@@ -112,6 +112,13 @@ async function loadDiscordModuleParts(
 
   providerCapabilities = getIntegrationProviderCapabilities(integrationProvider.adapters);
 
+  const gatewayHandlers = createDiscordGatewayHandlers({
+    coreDb: db,
+    publishIntegrationEventReceived,
+    getIntegrationConnectionById,
+    updateConnectionLifecycleStatus: updateIntegrationConnectionLifecycleStatus,
+  });
+
   return {
     provider: integrationProvider,
     webhookProcessors: integrationProvider.webhookProcessors,
@@ -120,20 +127,13 @@ async function loadDiscordModuleParts(
         getExistingDiscordConnection,
         connectDiscordInstallation,
         connectionCapabilities: providerCapabilities,
+        handlers: gatewayHandlers,
+        getDiscordInstallationByConnectionId,
       }),
     ],
     startupTasks: [async () => void (await registerDiscordCommands())],
     services: discordConfig.DISCORD_GATEWAY_ENABLED
-      ? [
-          createDiscordGateway({
-            handlers: createDiscordGatewayHandlers({
-              coreDb: db,
-              publishIntegrationEventReceived,
-              getIntegrationConnectionById,
-              updateConnectionLifecycleStatus: updateIntegrationConnectionLifecycleStatus,
-            }),
-          }),
-        ]
+      ? [createDiscordGateway({handlers: gatewayHandlers})]
       : undefined,
     database: {
       db: discordDb,

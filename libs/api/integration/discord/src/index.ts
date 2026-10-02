@@ -116,6 +116,10 @@ export {
   createDiscordE2eRoutes,
 } from '#presentation/e2eRoutes/index.js';
 export {
+  createE2eDiscordInjectDispatchRoute,
+  type InjectE2eDiscordDispatchRouteOptions,
+} from '#presentation/e2eRoutes/inject-dispatch.js';
+export {
   type CreateDiscordInstallRoutesOptions,
   createDiscordInstallRoutes,
 } from '#presentation/routes/install.js';
