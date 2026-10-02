@@ -62,6 +62,16 @@
         "default": "./dist/runtime-files.js"
       }
     },
+    "./tool-grants": {
+      "workspace-source": {
+        "types": "./src/generated/tool-grants.ts",
+        "default": "./src/generated/tool-grants.ts"
+      },
+      "default": {
+        "types": "./dist/generated/tool-grants.d.ts",
+        "default": "./dist/generated/tool-grants.js"
+      }
+    },
     "./testing": {
       "workspace-source": {
         "types": "./src/testing/index.ts",
