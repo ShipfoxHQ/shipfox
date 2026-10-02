@@ -23,6 +23,7 @@ async function loadSentryModuleParts(
   options: Parameters<IntegrationProviderModule['load']>[0] = {},
 ): Promise<IntegrationModuleParts> {
   const {
+    createSentryE2eRoutes,
     createSentryIntegrationProvider,
     createSentryMaintenanceWorker,
     createSentryReadClient,
@@ -139,6 +140,15 @@ async function loadSentryModuleParts(
   return {
     provider: integrationProvider,
     webhookProcessors: integrationProvider.webhookProcessors,
+    e2eRoutes: [
+      createSentryE2eRoutes({
+        secrets,
+        getSentryInstallation: ({installationUuid}) =>
+          getSentryInstallationByInstallationUuid(installationUuid),
+        getConnectionById,
+        connectSentryInstallation,
+      }),
+    ],
     database: {
       db: sentryDb,
       migrationsPath: sentryMigrationsPath,

@@ -443,6 +443,16 @@ export function e2eEnv(sourceEnv) {
       sourceEnv.INTEGRATIONS_ENABLE_JIRA_PROVIDER,
       'true',
     ),
+    INTEGRATIONS_ENABLE_SENTRY_PROVIDER: valueOr(
+      sourceEnv.INTEGRATIONS_ENABLE_SENTRY_PROVIDER,
+      'true',
+    ),
+    SENTRY_APP_CLIENT_ID: valueOr(sourceEnv.SENTRY_APP_CLIENT_ID, 'e2e-sentry-client-id'),
+    SENTRY_APP_CLIENT_SECRET: valueOr(
+      sourceEnv.SENTRY_APP_CLIENT_SECRET,
+      'e2e-sentry-client-secret',
+    ),
+    SENTRY_APP_SLUG: valueOr(sourceEnv.SENTRY_APP_SLUG, 'shipfox-e2e'),
     INTEGRATIONS_ENABLE_SLACK_PROVIDER: valueOr(
       sourceEnv.INTEGRATIONS_ENABLE_SLACK_PROVIDER,
       'true',

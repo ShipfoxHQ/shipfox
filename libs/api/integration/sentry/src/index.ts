@@ -62,7 +62,11 @@ export type {
   SentryReadClient,
   SentrySecretsStore,
 } from '#core/read-client.js';
-export {createSentryReadClient, sentrySecretsNamespace} from '#core/read-client.js';
+export {
+  createSentryReadClient,
+  sentrySecretsNamespace,
+  storeSentryAccessToken,
+} from '#core/read-client.js';
 export {
   handleSentryInstallationCreated,
   handleSentryInstallationDeleted,
@@ -84,6 +88,14 @@ export {
   persistVerifiedUnclaimedInstallation,
   upsertSentryInstallation,
 } from '#db/installations.js';
+export {
+  type CreateE2eSentryConnectionRouteOptions,
+  createE2eSentryConnectionRoute,
+} from '#presentation/e2eRoutes/create-connection.js';
+export {
+  type CreateSentryE2eRoutesOptions,
+  createSentryE2eRoutes,
+} from '#presentation/e2eRoutes/index.js';
 export {closeDb, db, migrationsPath};
 
 export interface CreateSentryIntegrationProviderOptions

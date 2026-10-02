@@ -34,6 +34,20 @@ export function sentrySecretsNamespace(connectionId: string): string {
   return `system/integrations/sentry/${connectionId}`;
 }
 
+export async function storeSentryAccessToken(params: {
+  secrets: Pick<SentrySecretsStore, 'setSecrets'>;
+  workspaceId: string;
+  connectionId: string;
+  token: string;
+  expiresAt: string;
+}): Promise<void> {
+  await params.secrets.setSecrets({
+    workspaceId: params.workspaceId,
+    namespace: sentrySecretsNamespace(params.connectionId),
+    values: {[ACCESS_TOKEN_KEY]: params.token, [EXPIRES_AT_KEY]: params.expiresAt},
+  });
+}
+
 export function createSentryReadClient(params: CreateSentryReadClientParams) {
   const api = params.api ?? createSentryApiClient();
   const getInstallation = params.getInstallation ?? getSentryInstallationByConnectionId;
@@ -79,10 +93,12 @@ export function createSentryReadClient(params: CreateSentryReadClientParams) {
             'Sentry authorization expiry was invalid',
           );
         }
-        await params.secrets.setSecrets({
+        await storeSentryAccessToken({
+          secrets: params.secrets,
           workspaceId: input.workspaceId,
-          namespace: sentrySecretsNamespace(input.connectionId),
-          values: {[ACCESS_TOKEN_KEY]: minted.token, [EXPIRES_AT_KEY]: minted.expiresAt},
+          connectionId: input.connectionId,
+          token: minted.token,
+          expiresAt: minted.expiresAt,
         });
         return minted.token;
       });

@@ -1948,6 +1948,9 @@ importers:
       '@shipfox/api-integration-posthog-dto':
         specifier: workspace:*
         version: link:../../../libs/api/integration/posthog-dto
+      '@shipfox/api-integration-sentry-dto':
+        specifier: workspace:*
+        version: link:../../../libs/api/integration/sentry-dto
       '@shipfox/api-integration-slack-dto':
         specifier: workspace:*
         version: link:../../../libs/api/integration/slack-dto
