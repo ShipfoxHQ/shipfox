@@ -38,7 +38,7 @@ reply: |
 
         _Answered from `${{ steps.revision.outputs.repository }}` at `${{ steps.revision.outputs.commit }}`. Check the cited files before relying on this answer._
     outputs:
-      message_ts: ${{ result.ts }}
+      message_id: ${{ result.ts }}
 failure_reply: |
   - key: report_failure
     tool: send_message

@@ -127,7 +127,7 @@ test.describe('agent-access workflow templates', () => {
       });
       expect(before.templates.find(({id}) => id === 'ask-codebase')).toMatchObject({
         compatible: false,
-        missing_providers: ['slack'],
+        missing_providers: ['slack', 'discord'],
       });
       expect(before.templates.find(({id}) => id === 'slack-to-ticket')).toMatchObject({
         compatible: false,

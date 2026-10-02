@@ -1,0 +1,50 @@
+trigger: |
+  # option:entry_point=mention begin
+  on_mention:
+    source: discord_chat # bind:chat
+    event: message_create
+    # Replace replace-with-channel-id with the IDs of the channels where the app answers.
+    filter: >-
+      event.mentions_bot && !event.author.bot &&
+      has(event.root_channel_id) &&
+      event.root_channel_id in ["replace-with-channel-id"]
+  # option:entry_point=mention end
+read_thread: |
+  outputs:
+    channel_id: '${{ trigger.source == "manual" ? inputs.channel_id : event.channel_id }}'
+    message_id: '${{ trigger.source == "manual" ? inputs.message_id : event.id }}'
+    request: '${{ trigger.source == "manual" ? (has(inputs.request) ? inputs.request : "") : event.content }}'
+    messages: ${{ steps.read_thread.outputs.messages }}
+    truncated: ${{ steps.read_thread.outputs.truncated }}
+  steps:
+    - key: read_thread
+      tool: read_thread
+      connection: discord_chat # bind:chat
+      with:
+        channel_id: '${{ trigger.source == "manual" ? inputs.channel_id : event.channel_id }}'
+        message_id: '${{ trigger.source == "manual" ? inputs.message_id : event.id }}'
+        limit: 50
+      outputs:
+        messages: '${{ toJson(result.messages.map(m, {"id": m.id, "timestamp": m.timestamp, "author": has(m.author.bot) && m.author.bot ? "bot:" + m.author.id : m.author.id, "text": !has(m.content) ? "" : size(m.content) > 1000 ? m.content.substring(0, 1000) + " [truncated]" : m.content})) }}'
+        truncated: ${{ size(result.messages) > 50 }}
+reply: |
+  - key: reply
+    tool: send_message
+    connection: discord_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_message_id: ${{ jobs.thread.outputs.message_id }}
+      message: |-
+        ${{ steps.answer.outputs.reply }}
+
+        _Answered from `${{ steps.revision.outputs.repository }}` at `${{ steps.revision.outputs.commit }}`. Check the cited files before relying on this answer._
+    outputs:
+      message_id: ${{ result.id }}
+failure_reply: |
+  - key: report_failure
+    tool: send_message
+    connection: discord_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_message_id: ${{ jobs.thread.outputs.message_id }}
+      message: Shipfox could not answer this question. Run ${{ run.number }} of the codebase question workflow failed. A project member can inspect the run in Shipfox.

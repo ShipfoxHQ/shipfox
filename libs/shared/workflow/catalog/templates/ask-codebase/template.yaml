@@ -1,28 +1,26 @@
-title: Ask the codebase in Slack
-summary: Answer questions about your code in Slack, with references to the files.
-starts: Someone mentions the Shipfox app in Slack, or another workflow starts it manually
+title: Ask the codebase in chat
+summary: Answer questions about your code in chat, with references to the files.
+starts: Someone mentions the Shipfox app in chat, or another workflow starts it manually
 keywords: [questions, codebase, chatops, read-only]
 flow:
   - kind: trigger
-    provider: slack
-    title: Someone asks a question in Slack
-    detail: They mention the Shipfox app in a channel, or another workflow, such as a Slack dispatcher, starts it.
+    title: Someone asks a question in chat
+    detail: They mention the Shipfox app in a channel, or another workflow, such as a chat dispatcher, starts it.
   - kind: agent
     title: The agent reads the thread and the code
     detail: It reads the default branch and changes nothing.
   - kind: write
-    provider: slack
     title: The agent replies in the thread
     detail: It links the files it read and says when it is not sure.
 writes:
-  - provider: slack
-    action: Replies once in the thread.
+  - action: Replies once in the thread. On Discord, starts the thread under the mention when it has none.
 prerequisites:
-  - Invite the Shipfox app to each Slack channel where it answers.
+  - With Slack, invite the Shipfox app to each channel where it answers.
+  - With Discord, let the Shipfox bot view each channel where it answers, read its history, and send messages and create public threads there.
 related: [shipfox/slack-dispatcher, shipfox/slack-to-ticket]
 roles:
   chat:
-    providers: [slack]
+    providers: [slack, discord]
   source:
     from: project
     providers: [github]
@@ -31,15 +29,15 @@ options:
     question: How should people ask a question?
     choices:
       - id: mention
-        label: Mention the app in Slack
+        label: Mention the app in chat
         default: true
         tradeoff: The app answers when someone mentions it in the channels you pick.
       - id: dispatch_only
         label: Through another workflow
-        tradeoff: Another workflow, such as a Slack dispatcher, starts this one. Pick it when another workflow already answers mentions, so each mention does not get two replies.
+        tradeoff: Another workflow, such as a chat dispatcher, starts this one. Pick it when another workflow already answers mentions, so each mention does not get two replies.
 models:
   answer:
-    note: Analyzes the repository to answer the Slack thread's question with one grounded reply. Needs a strong model with high thinking.
+    note: Analyzes the repository to answer the chat thread's question with one grounded reply. Needs a strong model with high thinking.
 slots: []
 secrets: []
 variables: []
