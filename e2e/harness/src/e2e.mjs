@@ -515,7 +515,8 @@ export function e2eClickUpApiBaseUrl(apiUrl) {
 export function e2eDiscordApiBaseUrl(apiUrl) {
   const endpoint = new URL(apiUrl);
   const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
-  const discordApiPort = apiPort + 17;
+  // After Jira at API + 18, in a 25-port worktree block that ends at API + 23.
+  const discordApiPort = apiPort + 19;
   if (discordApiPort > 65_535) {
     throw new Error(`Cannot derive a Discord API port from API port ${apiPort}.`);
   }
@@ -530,7 +531,7 @@ export function e2eDiscordApiBaseUrl(apiUrl) {
 export function e2eJiraApiBaseUrl(apiUrl) {
   const endpoint = new URL(apiUrl);
   const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
-  // The last port of the worktree block, after the registry at API + 17.
+  // After the registry at API + 17.
   const jiraApiPort = apiPort + 18;
   if (jiraApiPort > 65_535) {
     throw new Error(`Cannot derive a Jira API port from API port ${apiPort}.`);

@@ -102,7 +102,7 @@ describe('e2eEnv', () => {
     assert.equal(env.INTEGRATIONS_ENABLE_SLACK_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_CLICKUP_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_DISCORD_PROVIDER, 'true');
-    assert.equal(env.DISCORD_API_BASE_URL, 'http://127.0.0.1:55368/');
+    assert.equal(env.DISCORD_API_BASE_URL, 'http://127.0.0.1:55370/');
     assert.equal(env.DISCORD_GATEWAY_ENABLED, 'false');
     assert.equal(env.INTEGRATIONS_ENABLE_NOTION_PROVIDER, 'true');
     assert.equal(env.NOTION_API_BASE_URL, 'http://127.0.0.1:55366/');
@@ -289,12 +289,12 @@ describe('Discord signing keys', () => {
 
 describe('e2eDiscordApiBaseUrl', () => {
   test('reserves the Discord API port after the API port', () => {
-    assert.equal(e2eDiscordApiBaseUrl('http://localhost:16101'), 'http://127.0.0.1:16118/');
+    assert.equal(e2eDiscordApiBaseUrl('http://localhost:16101'), 'http://127.0.0.1:16120/');
   });
 });
 
 describe('e2eJiraApiBaseUrl', () => {
-  test('reserves the last port of the API block for the Jira API', () => {
+  test('reserves the port after the registry for the Jira API', () => {
     assert.equal(e2eJiraApiBaseUrl('http://localhost:16101'), 'http://127.0.0.1:16119/');
   });
 });
