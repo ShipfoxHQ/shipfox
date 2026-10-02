@@ -2,7 +2,7 @@ import {createServer, type IncomingMessage, type ServerResponse} from 'node:http
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
-import {closeServer, listenOnEndpoint, type RecordedWrite} from '@shipfox/e2e-core';
+import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-core';
 import {z} from 'zod';
 
 export const LINEAR_READ_RESULT_MARKER = 'linear-read-result-marker';
@@ -74,6 +74,12 @@ export interface LinearIssueFixture extends Record<string, unknown> {
 }
 
 export interface LinearMcpMockOptions {
+  /**
+   * The access token the API presents, from the connection the spec creates. The fake shares the
+   * stack's Linear address with other specs and answers the requests that carry this token.
+   */
+  accessToken?: string | undefined;
+  /** Listens here directly instead of behind the stack's router. Unit tests pass port 0. */
   endpoint?: URL | undefined;
   /** Serves the read tools from this workspace instead of fixed markers. */
   workspace?: LinearWorkspaceFixture | undefined;
@@ -92,11 +98,10 @@ export interface LinearMcpMock {
 export async function startLinearMcpMock(
   options: LinearMcpMockOptions = {},
 ): Promise<LinearMcpMock> {
-  const endpoint = options.endpoint ?? new URL(requiredLinearMcpEndpoint());
   const calls: LinearMcpCall[] = [];
   const uploads: LinearUploadRequest[] = [];
   const createdIssues = {count: 0};
-  let boundEndpoint = endpoint;
+  let boundEndpoint = new URL('http://127.0.0.1');
   const server = createServer((request, response) => {
     const path = new URL(request.url ?? '/', boundEndpoint).pathname;
     if (path.startsWith(LINEAR_UPLOADS_PATH)) {
@@ -113,11 +118,18 @@ export async function startLinearMcpMock(
     });
   });
 
+  let listening: ListeningFake;
   try {
-    boundEndpoint = await listenOnEndpoint(server, endpoint);
+    listening = await listenFake({
+      server,
+      endpoint: options.endpoint,
+      stackEndpoint: () => new URL(requiredLinearMcpEndpoint()),
+      credentials: [options.accessToken],
+    });
   } catch (error) {
-    throw new Error(`Linear MCP mock failed to start at ${endpoint}`, {cause: error});
+    throw new Error('Linear MCP mock failed to start', {cause: error});
   }
+  boundEndpoint = listening.endpoint;
 
   return {
     calls,
@@ -127,7 +139,7 @@ export async function startLinearMcpMock(
     writes: () => linearWrites(calls),
     stop: async () => {
       try {
-        await closeServer(server);
+        await listening.close();
       } catch (error) {
         throw new Error(`Linear MCP mock failed to stop at ${boundEndpoint}`, {cause: error});
       }

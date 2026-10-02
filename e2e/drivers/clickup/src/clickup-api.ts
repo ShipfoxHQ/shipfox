@@ -1,11 +1,5 @@
-import {once} from 'node:events';
-import {
-  createServer,
-  type Server as HttpServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from 'node:http';
-import type {RecordedWrite} from '@shipfox/e2e-core';
+import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
+import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-core';
 
 export const CLICKUP_TASK_RESULT_MARKER = 'clickup-task-result-marker';
 export const CLICKUP_COMMENT_RESULT_MARKER = 'clickup-comment-result-marker';
@@ -22,6 +16,13 @@ export interface ClickUpTaskFixture {
 }
 
 export interface StartClickUpApiMockOptions {
+  /**
+   * The access token the API presents, from the connection the spec creates. The fake shares the
+   * stack's ClickUp address with other specs and answers the requests that carry this token.
+   */
+  accessToken?: string | undefined;
+  /** Listens here directly instead of behind the stack's router. Unit tests pass port 0. */
+  endpoint?: URL | undefined;
   /** Tasks the fake serves by ID. Any other task gets a placeholder. */
   tasks?: readonly ClickUpTaskFixture[];
 }
@@ -57,13 +58,13 @@ export interface ClickUpApiMock {
 }
 
 export async function startClickUpApiMock(
-  endpoint = new URL(requiredClickUpApiBaseUrl()),
   options: StartClickUpApiMockOptions = {},
 ): Promise<ClickUpApiMock> {
-  validateEndpoint(endpoint);
+  const configuredEndpoint = options.endpoint ?? new URL(requiredClickUpApiBaseUrl());
+  validateEndpoint(configuredEndpoint);
   const calls: ClickUpApiMockCall[] = [];
   const tasks = new Map((options.tasks ?? []).map((task) => [task.id, task]));
-  let boundEndpoint = endpoint;
+  let boundEndpoint = configuredEndpoint;
   const server = createServer((request, response) => {
     void handleClickUpRequest({calls, tasks, endpoint: boundEndpoint, request, response}).catch(
       (error) => {
@@ -79,11 +80,18 @@ export async function startClickUpApiMock(
     );
   });
 
+  let listening: ListeningFake;
   try {
-    boundEndpoint = await listen(server, endpoint);
+    listening = await listenFake({
+      server,
+      endpoint: options.endpoint,
+      stackEndpoint: () => configuredEndpoint,
+      credentials: [options.accessToken],
+    });
   } catch (error) {
-    throw new Error(`ClickUp API mock failed to start at ${endpoint}`, {cause: error});
+    throw new Error(`ClickUp API mock failed to start at ${configuredEndpoint}`, {cause: error});
   }
+  boundEndpoint = listening.endpoint;
 
   return {
     calls,
@@ -91,7 +99,7 @@ export async function startClickUpApiMock(
     writes: () => clickUpWrites(calls),
     stop: async () => {
       try {
-        await close(server);
+        await listening.close();
       } catch (error) {
         throw new Error(`ClickUp API mock failed to stop at ${boundEndpoint}`, {cause: error});
       }
@@ -227,21 +235,6 @@ function validateEndpoint(endpoint: URL): void {
       `CLICKUP_API_BASE_URL must not include a path for the ClickUp API mock (received ${endpoint}).`,
     );
   }
-}
-
-async function listen(server: HttpServer, endpoint: URL): Promise<URL> {
-  server.listen({host: endpoint.hostname, port: Number(endpoint.port)});
-  await once(server, 'listening');
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('Expected TCP server address.');
-  const boundEndpoint = new URL(endpoint);
-  boundEndpoint.port = String(address.port);
-  return boundEndpoint;
-}
-
-async function close(server: HttpServer): Promise<void> {
-  server.close();
-  await once(server, 'close');
 }
 
 async function readJsonBody(request: NodeJS.ReadableStream): Promise<unknown> {

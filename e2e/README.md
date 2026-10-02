@@ -131,7 +131,9 @@ package when the helper needs typed request or response contracts.
 `drivers/*` is the only sanctioned bypass from product HTTP:
 
 - `drivers/gitea` talks directly to the local Gitea instance because Gitea is the external system under integration.
-- `drivers/github`, `drivers/linear`, `drivers/slack`, `drivers/clickup`, and `drivers/notion` fake their provider's API because each provider is the external system under integration. Each fake exposes `writes()`, the state-changing requests it accepted.
+- `drivers/github`, `drivers/linear`, `drivers/slack`, `drivers/clickup`, `drivers/jira`, and `drivers/notion` fake their provider's API because each provider is the external system under integration. Each fake exposes `writes()`, the state-changing requests it accepted.
+
+  The API reads one address per provider, so the harness starts a small router there, and each spec runs its own fake on a private port and registers the credential the API presents to it (an access token, or the installation for GitHub). The router sends a request to the fake that registered its credential, so specs that use the same provider run in parallel and each fake records only its own calls and writes. Give each spec its own tokens. A fake started without a router, such as in a driver's unit test, passes an `endpoint` and listens there. See `harness/src/fake-router.mjs`.
 - `drivers/posthog` reads and controls the read-only PostHog fake that the harness starts, through harness routes. It fakes nothing itself and has no `writes()`.
 - `drivers/runner-process` starts local runner/provisioner processes because runner capacity is process infrastructure, not product data.
 
@@ -358,8 +360,8 @@ errors or fails its expectations.
 A case that binds a role to Slack also gets a Slack connection and a Slack
 fake in its workspace. The fake serves the thread under `seed.slack.thread`,
 oldest first, and records each posted message as `slack.chat.postMessage`,
-targeted at its channel. The API calls one Slack address, so cases that use
-Slack run one at a time. `placeholders` fills the `replace-with-*` values a
+targeted at its channel. The fake answers the requests that carry the case's
+bot token, so cases that use Slack run together. `placeholders` fills the `replace-with-*` values a
 person edits in the composed file, such as `replace-with-channel-id`, which
 must name `seed.slack.channel` for a mention trigger to match.
 
@@ -549,6 +551,15 @@ The harness reads Conductor worktree ports from `.context/local-services/env`,
 starts the API with E2E routes enabled, starts the client with the test VCS
 provider enabled, waits for both to become ready, and then runs
 `turbo test:e2e`, or `turbo evals` for `mise run evals`.
+
+The harness also starts a credential router at the address the API reads for each
+provider fake (GitHub, Slack, Linear, Jira, ClickUp, and Notion), which is the
+address in the environment when one is set. A router holds no fixtures. Each spec
+runs its own fake on a private port and registers the credentials the API presents
+to it, through `listenFake` in `@shipfox/e2e-core`, and the router forwards a request
+to the fake that registered its credential. Specs and eval cases that use the same
+provider therefore run in parallel. A spec started outside the harness fails with
+the router's address in the message.
 
 The harness also runs a local Shipfox Registry on the API port plus 17. It
 recreates the `registry_e2e` database and a file store, builds the fixture

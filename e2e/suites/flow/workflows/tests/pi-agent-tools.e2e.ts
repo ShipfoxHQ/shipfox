@@ -25,7 +25,7 @@ const TERMINAL_TIMEOUT_MS = 60_000;
 test('runs Linear tools through the Pi integration-tools path', async ({suite}, testInfo) => {
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const accessToken = `linear-pi-e2e-token-${uniqueId}`;
-  const mcpMock = await startLinearMcpMock();
+  const mcpMock = await startLinearMcpMock({accessToken});
   let fakeModelProvider: Awaited<ReturnType<typeof startFakeOpenAiModelProvider>> | undefined;
   let providerId: string | undefined;
 

@@ -18,9 +18,11 @@ import {
   e2eTestVcsPort,
   parseArgs,
   startCommand,
+  startFakeRouters,
   turboBuildCommandArgs,
   turboCommandArgs,
 } from '../src/e2e.mjs';
+import {startFakeRouter} from '../src/fake-router.mjs';
 
 const unknownCommandPattern = /Unknown command/;
 const posthogOverridePairPattern =
@@ -539,6 +541,42 @@ describe('copyPlaywrightTestResults', () => {
     } finally {
       process.chdir(originalCwd);
       await rm(workspaceDir, {recursive: true, force: true});
+    }
+  });
+});
+
+describe('startFakeRouters', () => {
+  test('starts a router for each provider fake at the address the API reads', async () => {
+    const env = e2eEnv({API_URL: 'http://localhost:26101'});
+    const routers = await startFakeRouters(env);
+    try {
+      assert.deepEqual(
+        routers.map((router) => router.name),
+        ['github', 'slack', 'linear', 'jira', 'clickup', 'notion'],
+      );
+      const response = await fetch(new URL('/thing', env.SLACK_API_BASE_URL));
+      assert.equal(response.status, 404);
+    } finally {
+      await Promise.all(routers.map((router) => router.stop()));
+    }
+  });
+
+  test('releases the routers it started when a later port is taken', async () => {
+    const env = e2eEnv({API_URL: 'http://localhost:26201'});
+    const holder = await startFakeRouter({
+      name: 'holder',
+      endpoint: new URL(env.LINEAR_MCP_ENDPOINT),
+    });
+    try {
+      await assert.rejects(startFakeRouters(env));
+
+      const github = await startFakeRouter({
+        name: 'github',
+        endpoint: new URL(env.GITHUB_API_BASE_URL),
+      });
+      await github.stop();
+    } finally {
+      await holder.stop();
     }
   });
 });

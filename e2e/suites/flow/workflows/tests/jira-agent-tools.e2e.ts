@@ -26,8 +26,6 @@ type JiraTestInfo = {
 const CLAUDE_AGENT_MODEL = 'deterministic-jira-tools-agent';
 const JIRA_TERMINAL_TIMEOUT_MS = 60_000;
 
-test.describe.configure({mode: 'serial'});
-
 test('runs a Jira read tool and a comment tool against the Jira fake', async ({
   suite,
 }: {suite: SuiteContext}, testInfo: JiraTestInfo) => {
@@ -36,7 +34,7 @@ test('runs a Jira read tool and a comment tool against the Jira fake', async ({
   const issueKey = `E2E-${Math.floor(Math.random() * 9_000) + 1_000}`;
   const accessToken = `jira-access-token-${uniqueId}`;
   const replyText = 'I read the Jira issue.';
-  const jiraApi = await startJiraApiMock();
+  const jiraApi = await startJiraApiMock({accessToken});
   let fakeModelProvider: Awaited<ReturnType<typeof startFakeOpenAiModelProvider>> | undefined;
   let localRunner: Awaited<ReturnType<typeof startSuiteLocalRunner>> | undefined;
 

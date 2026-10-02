@@ -4,19 +4,19 @@ const REST = '/ex/jira/cloud-1/rest/api/3';
 
 describe('Jira API mock', () => {
   it('fails fast when the endpoint omits a port', async () => {
-    await expect(startJiraApiMock(new URL('http://127.0.0.1'))).rejects.toThrow(
+    await expect(startJiraApiMock({endpoint: new URL('http://127.0.0.1')})).rejects.toThrow(
       'JIRA_API_BASE_URL must include an explicit port for the Jira API mock',
     );
   });
 
   it('fails fast when the endpoint includes a path prefix', async () => {
-    await expect(startJiraApiMock(new URL('http://127.0.0.1:9000/jira'))).rejects.toThrow(
-      'JIRA_API_BASE_URL must not include a path for the Jira API mock',
-    );
+    await expect(
+      startJiraApiMock({endpoint: new URL('http://127.0.0.1:9000/jira')}),
+    ).rejects.toThrow('JIRA_API_BASE_URL must not include a path for the Jira API mock');
   });
 
   it('records reads as calls only', async () => {
-    const mock = await startJiraApiMock(new URL('http://127.0.0.1:0'));
+    const mock = await startJiraApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
     try {
       const response = await fetch(new URL(`${REST}/issue/ENG-1?fields=summary`, mock.endpoint), {
@@ -40,7 +40,7 @@ describe('Jira API mock', () => {
   });
 
   it('keeps every value of a repeated query parameter', async () => {
-    const mock = await startJiraApiMock(new URL('http://127.0.0.1:0'));
+    const mock = await startJiraApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
     try {
       await fetch(
@@ -62,7 +62,7 @@ describe('Jira API mock', () => {
     {kind: 'get_project', method: 'GET', path: '/project/ENG'},
     {kind: 'get_user', method: 'GET', path: '/user?accountId=acct-1'},
   ])('serves and records $kind as a read', async ({kind, method, path, body}) => {
-    const mock = await startJiraApiMock(new URL('http://127.0.0.1:0'));
+    const mock = await startJiraApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
     try {
       const response = await fetch(new URL(`${REST}${path}`, mock.endpoint), {
@@ -82,7 +82,7 @@ describe('Jira API mock', () => {
   });
 
   it('records each write with its target and body', async () => {
-    const mock = await startJiraApiMock(new URL('http://127.0.0.1:0'));
+    const mock = await startJiraApiMock({endpoint: new URL('http://127.0.0.1:0')});
     const send = (method: string, path: string, body: unknown) =>
       fetch(new URL(`${REST}${path}`, mock.endpoint), {
         method,
@@ -113,7 +113,7 @@ describe('Jira API mock', () => {
   });
 
   it('answers unknown paths with 404 and known paths with the wrong method with 405', async () => {
-    const mock = await startJiraApiMock(new URL('http://127.0.0.1:0'));
+    const mock = await startJiraApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
     try {
       const unknown = await fetch(new URL(`${REST}/dashboard`, mock.endpoint));
@@ -131,7 +131,7 @@ describe('Jira API mock', () => {
 
   it('logs malformed requests before returning a bounded error', async () => {
     const stderrWrite = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    const mock = await startJiraApiMock(new URL('http://127.0.0.1:0'));
+    const mock = await startJiraApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
     try {
       const response = await fetch(new URL(`${REST}/issue/ENG-1/comment`, mock.endpoint), {
@@ -150,7 +150,7 @@ describe('Jira API mock', () => {
   });
 
   it('serves the issue status and an in-progress transition for status-aware workflows', async () => {
-    const mock = await startJiraApiMock(new URL('http://127.0.0.1:0'));
+    const mock = await startJiraApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
     try {
       const issue = (await (

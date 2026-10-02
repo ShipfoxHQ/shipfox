@@ -5,6 +5,7 @@ import {closeSync, openSync} from 'node:fs';
 import {cp, mkdir, readdir, stat} from 'node:fs/promises';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {startFakeRouter} from './fake-router.mjs';
 import {startPosthogMock} from './posthog-mock.mjs';
 import {
   e2eRegistryEnv,
@@ -26,6 +27,15 @@ const defaultTurboTask = 'test:e2e';
 const evalTurboTask = 'evals';
 const defaultE2eBuildFilter = '@shipfox/e2e-*...';
 const trailingSlashPattern = /\/$/;
+// Provider fakes that specs run privately and register with a router at the address the API reads.
+const fakeRouterEnvNames = {
+  github: 'GITHUB_API_BASE_URL',
+  slack: 'SLACK_API_BASE_URL',
+  linear: 'LINEAR_MCP_ENDPOINT',
+  jira: 'JIRA_API_BASE_URL',
+  clickup: 'CLICKUP_API_BASE_URL',
+  notion: 'NOTION_API_BASE_URL',
+};
 let generatedGithubAppPrivateKey;
 let generatedDiscordSigningKeys;
 let generatedE2eBootstrapToken;
@@ -48,6 +58,7 @@ export async function main(argv) {
   const logDir = resolve(options.logDir ?? defaultLogDir(process.env));
   const servers = [];
   let posthogMock;
+  let fakeRouters = [];
   let exitCode = 0;
   let shuttingDown = false;
 
@@ -78,6 +89,7 @@ export async function main(argv) {
     ) {
       posthogMock = await startPosthogMock(new URL(env.POSTHOG_API_BASE_URL));
     }
+    fakeRouters = await startFakeRouters(env);
     const registryEnv = e2eRegistryEnv(env);
     await seedLocalRegistry({env: registryEnv, logFile: join(logDir, 'shipfox-registry-seed.log')});
     servers.push(
@@ -142,6 +154,13 @@ export async function main(argv) {
           `Failed to stop PostHog E2E mock: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
+      for (const router of fakeRouters) {
+        await router.stop().catch((error) => {
+          printError(
+            `Failed to stop ${router.name} fake router: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
+      }
     }
   }
 
@@ -233,6 +252,21 @@ function applyInlineOption(arg, options) {
     return true;
   }
   return false;
+}
+
+/** One router per provider fake, at the address the API reads for it. */
+export async function startFakeRouters(env) {
+  const routers = [];
+  try {
+    for (const [name, envName] of Object.entries(fakeRouterEnvNames)) {
+      const router = await startFakeRouter({name, endpoint: new URL(env[envName])});
+      routers.push({name, stop: router.stop});
+    }
+  } catch (error) {
+    await Promise.allSettled(routers.map((router) => router.stop()));
+    throw error;
+  }
+  return routers;
 }
 
 function valueOr(value, fallback) {

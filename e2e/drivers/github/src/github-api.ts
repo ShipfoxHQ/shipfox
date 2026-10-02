@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
-import {closeServer, listenOnEndpoint, type RecordedWrite} from '@shipfox/e2e-core';
+import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-core';
 import {
   type AddGithubBranchParams,
   type AddGithubRepositoryParams,
@@ -159,7 +159,13 @@ export interface GithubApiMockFailure {
 }
 
 export interface GithubApiMockOptions {
+  /** Listens here directly instead of behind the stack's router. Unit tests pass port 0. */
   endpoint?: URL | undefined;
+  /**
+   * The installation of the connection the spec creates. The fake shares the stack's GitHub
+   * address with other specs and answers the token mints for this installation and the requests
+   * that carry the token it mints, so both must be unique to the spec.
+   */
   installationId?: number | undefined;
   installationToken?: string | undefined;
   /** Signs the webhook events the fake sends. Defaults to `GITHUB_APP_WEBHOOK_SECRET`. */
@@ -213,8 +219,7 @@ export async function startGithubApiMock(
   });
   addConfiguredCheckRunId(knownCheckRunIds, checkRunCreateResponse);
   addConfiguredCheckRunId(knownCheckRunIds, checkRunUpdateResponse);
-  const endpoint = options.endpoint ?? new URL(requiredGithubApiBaseUrl());
-  let boundEndpoint = endpoint;
+  let boundEndpoint = new URL('http://127.0.0.1');
   const server = createServer((request, response) => {
     void handleGithubRequest({
       calls,
@@ -238,11 +243,20 @@ export async function startGithubApiMock(
     });
   });
 
+  let listening: ListeningFake;
   try {
-    boundEndpoint = await listenOnEndpoint(server, endpoint);
+    listening = await listenFake({
+      server,
+      endpoint: options.endpoint,
+      stackEndpoint: () => new URL(requiredGithubApiBaseUrl()),
+      credentials:
+        installationId === undefined ? [] : [`installation:${installationId}`, installationToken],
+    });
   } catch (error) {
-    throw new Error(`GitHub API mock failed to start at ${endpoint}`, {cause: error});
+    await repositories.close();
+    throw new Error('GitHub API mock failed to start', {cause: error});
   }
+  boundEndpoint = listening.endpoint;
 
   return {
     calls,
@@ -261,7 +275,7 @@ export async function startGithubApiMock(
     writes: () => [...writes],
     stop: async () => {
       try {
-        await closeServer(server);
+        await listening.close();
         await repositories.close();
       } catch (error) {
         throw new Error(`GitHub API mock failed to stop at ${boundEndpoint}`, {cause: error});
