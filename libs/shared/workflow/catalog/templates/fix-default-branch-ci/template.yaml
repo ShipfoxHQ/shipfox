@@ -15,30 +15,29 @@ flow:
     title: The agent opens a repair pull request
     detail: It opens a pull request only when it can fix the cause and your checks pass. If the cause is outside your code, such as a registry outage, it does nothing.
   - kind: write
-    provider: slack
-    title: With Slack, you are notified
+    title: With Slack or Discord, you are notified
     detail: The workflow posts about failures that need a person, the repair pull requests it opens, or both.
 writes:
   - provider: github
     action: Pushes a branch and opens a draft repair pull request.
-  - provider: slack
-    action: With Slack, posts about failures that need a person, repair pull requests, or both.
+  - action: With Slack or Discord, posts about failures that need a person, repair pull requests, or both.
 prerequisites:
   - With Slack, invite the Shipfox app to the report channel.
+  - With Discord, give the Shipfox bot access to the report channel.
 related: [shipfox/fix-dependency-ci, shipfox/report-failed-runs]
 roles:
   source:
     from: project
     providers: [github]
   report:
-    providers: [slack]
+    providers: [slack, discord]
     optional: true
-    question: Should the workflow notify you on Slack?
-    tradeoff: Posts in a Slack channel you choose about failures that need a person, the fix pull requests it opens, or both. Outages at external providers are never posted. Requires the Shipfox app in that channel.
+    question: Should the workflow notify you on Slack or Discord?
+    tradeoff: Posts in a channel you choose about failures that need a person, the fix pull requests it opens, or both. Outages at external providers are never posted. Requires the Shipfox app in that Slack channel, or access for the Shipfox bot in that Discord channel.
 options:
   - id: report_outcomes
-    question: What should the workflow notify you about on Slack?
-    applies_to: [slack]
+    question: What should the workflow notify you about?
+    applies_to: [slack, discord]
     choices:
       - id: needs_person
         label: Failures that need a person

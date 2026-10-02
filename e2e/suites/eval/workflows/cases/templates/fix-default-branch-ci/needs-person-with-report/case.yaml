@@ -13,7 +13,7 @@ repository: acme/report-cli
 timeout_seconds: 600
 
 covers:
-  - With Slack, posts about failures that need a person, repair pull requests, or both.
+  - With Slack or Discord, posts about failures that need a person, repair pull requests, or both.
 
 # The Slack fake needs a thread to serve. The report only posts to the channel.
 seed:

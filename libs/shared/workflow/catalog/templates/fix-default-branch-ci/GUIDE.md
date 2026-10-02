@@ -50,18 +50,20 @@ The `investigate` job publishes `status`, `classification`, and `summary`. The `
 
 ## Choose the options
 
-### Slack report
+### Chat report
 
-The `report` role is optional. Without it, the workflow has no `report` job and needs no Slack connection.
+The `report` role is optional. Without it, the workflow has no `report` job and needs no Slack or Discord connection.
 
-With Slack, replace every `replace-with-channel-id` with the ID of the channel that receives reports, such as `C0ABC12345`.
-Use a channel ID, not a name.
+With Slack or Discord, replace every `replace-with-channel-id` with the ID of the channel that receives reports.
+Use a channel ID, not a name. A Slack ID looks like `C0ABC12345`. A Discord ID is all digits, so keep it in quotes, such as `'1234567890123456789'`, or YAML reads it as a number.
 
 For `report_outcomes`, keep each marked block whose list includes the chosen choice and remove the others:
 
 - `needs_person` posts the diagnosis when the status is `needs_human` or the repair patch is too large to deliver.
 - `pull_requests` posts one message when a repair pull request opens.
 - `both` posts both messages.
+
+On Discord, a message over 2,000 characters arrives as several messages, because the tool splits it.
 
 External outages, skipped failures, and other `not_actionable` outcomes are never posted.
 
@@ -93,7 +95,7 @@ A separate job checks out the investigated commit with write access, applies the
 The shell commit is not signed by this template. Check signing and sign-off requirements before enabling the workflow.
 
 Delivery rejects changed commit history, unstaged changes, unignored untracked files, and empty repairs.
-Patches larger than 30,000 bytes are not delivered. They are posted as a diagnosis when the Slack report uses `needs_person` or `both`.
+Patches larger than 30,000 bytes are not delivered. They are posted as a diagnosis when the chat report uses `needs_person` or `both`.
 
 A failed run can leave a pushed branch without a pull request. Delete that branch before starting the run again.
 The workflow posts nothing about its own failures. Use Shipfox run notifications for those.

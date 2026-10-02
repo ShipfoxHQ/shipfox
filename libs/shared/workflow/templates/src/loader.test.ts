@@ -288,6 +288,7 @@ describe('workflow template loader', () => {
         ...template.parts,
         report: {
           slack: {...template.parts.report?.slack, trigger: 'manual:\n  source: manual'},
+          discord: {...template.parts.report?.discord, trigger: 'manual:\n  source: manual'},
         },
       },
     };

@@ -10,6 +10,7 @@ import {composeTemplate} from './composer.js';
 import {loadShippedTemplates} from './loader.js';
 
 type ReportOutcomes = 'needs_person' | 'pull_requests' | 'both';
+type ReportProvider = 'slack' | 'discord';
 type YamlRecord = Record<string, unknown>;
 
 const template = loadShippedTemplates().find((entry) => entry.id === 'fix-default-branch-ci');
@@ -19,12 +20,17 @@ const expressionPattern = /^\$\{\{\s*([\s\S]*?)\s*\}\}$/;
 const interpolationPattern = /\$\{\{\s*([\s\S]*?)\s*\}\}/g;
 const environment = createWorkflowEnvironment();
 const roots: string[] = [];
+const reportProviders = ['slack', 'discord'] as const;
 
-function render(report: boolean, outcomes: ReportOutcomes = 'needs_person'): string {
+function render(
+  report: boolean,
+  outcomes: ReportOutcomes = 'needs_person',
+  provider: ReportProvider = 'slack',
+): string {
   if (template === undefined) throw new Error('Missing default-branch CI template');
   const composed = composeTemplate(
     template,
-    report ? {source: 'github', report: 'slack'} : {source: 'github'},
+    report ? {source: 'github', report: provider} : {source: 'github'},
   );
   let selected = true;
   return composed
@@ -40,8 +46,12 @@ function render(report: boolean, outcomes: ReportOutcomes = 'needs_person'): str
     .join('\n');
 }
 
-function workflow(report = false, outcomes: ReportOutcomes = 'needs_person'): YamlRecord {
-  const yaml = render(report, outcomes);
+function workflow(
+  report = false,
+  outcomes: ReportOutcomes = 'needs_person',
+  provider: ReportProvider = 'slack',
+): YamlRecord {
+  const yaml = render(report, outcomes, provider);
   parseWorkflowDocument(parseYaml(yaml));
   return parseYaml(yaml) as YamlRecord;
 }
@@ -157,7 +167,7 @@ afterEach(() => {
 });
 
 describe('default-branch CI repair template', () => {
-  it('adds the Slack report job and header binding only when the report role is bound', () => {
+  it('adds the report job and header binding only when the report role is bound', () => {
     expect(Object.keys(at(workflow(false), 'jobs') as YamlRecord)).toEqual([
       'inspect',
       'investigate',
@@ -166,25 +176,47 @@ describe('default-branch CI repair template', () => {
     expect(render(false)).toContain('# shipfox-template: fix-default-branch-ci@1 source=github\n');
     expect(render(false)).not.toContain('send_message');
 
-    expect(Object.keys(at(workflow(true), 'jobs') as YamlRecord)).toEqual([
-      'inspect',
-      'investigate',
-      'deliver',
-      'report',
-    ]);
-    expect(render(true)).toContain(
-      '# shipfox-template: fix-default-branch-ci@1 source=github report=slack\n',
-    );
+    for (const provider of reportProviders) {
+      expect(
+        Object.keys(at(workflow(true, 'needs_person', provider), 'jobs') as YamlRecord),
+      ).toEqual(['inspect', 'investigate', 'deliver', 'report']);
+      expect(render(true, 'needs_person', provider)).toContain(
+        `# shipfox-template: fix-default-branch-ci@1 source=github report=${provider}\n`,
+      );
+    }
   });
 
-  it.each([
-    {outcomes: 'needs_person', steps: ['report_diagnosis']},
-    {outcomes: 'pull_requests', steps: ['report_pull_request']},
-    {outcomes: 'both', steps: ['report_diagnosis', 'report_pull_request']},
-  ] as const)('posts $outcomes to Slack', ({outcomes, steps}) => {
-    const report = at(workflow(true, outcomes), 'jobs', 'report', 'steps') as YamlRecord[];
+  it.each(
+    reportProviders.flatMap((provider) => [
+      {provider, outcomes: 'needs_person', steps: ['report_diagnosis']},
+      {provider, outcomes: 'pull_requests', steps: ['report_pull_request']},
+      {provider, outcomes: 'both', steps: ['report_diagnosis', 'report_pull_request']},
+    ]),
+  )('posts $outcomes to $provider', ({provider, outcomes, steps}) => {
+    const report = at(
+      workflow(true, outcomes as ReportOutcomes, provider),
+      'jobs',
+      'report',
+      'steps',
+    ) as YamlRecord[];
 
     expect(report.map(({key}) => key)).toEqual(steps);
+    for (const entry of report) {
+      expect(entry).toMatchObject({
+        tool: 'send_message',
+        connection: `${provider}_report`,
+        with: {channel_id: 'replace-with-channel-id'},
+      });
+    }
+  });
+
+  it('writes the same report text for Slack and Discord', () => {
+    const messages = (provider: ReportProvider) =>
+      (at(workflow(true, 'both', provider), 'jobs', 'report', 'steps') as YamlRecord[]).map(
+        (entry) => at(entry, 'with', 'message'),
+      );
+
+    expect(messages('discord')).toEqual(messages('slack'));
   });
 
   it('investigates from a read-only checkout and gives the agent only read tools', () => {
@@ -397,42 +429,48 @@ describe('default-branch CI repair template', () => {
     expect(result.stderr).toContain('changed the commit history');
   });
 
-  it.each([
-    {
-      deliver: 'succeeded',
-      status: 'repair_candidate',
-      outcome: 'ready',
-      posts: ['report_pull_request'],
-    },
-    {deliver: 'skipped', status: 'needs_human', outcome: 'none', posts: ['report_diagnosis']},
-    {
-      deliver: 'skipped',
-      status: 'repair_candidate',
-      outcome: 'patch_too_large',
-      posts: ['report_diagnosis'],
-    },
-    {deliver: 'skipped', status: 'not_actionable', outcome: 'none', posts: []},
-    {deliver: 'failed', status: 'repair_candidate', outcome: 'ready', posts: []},
-  ])('posts $posts to Slack for $status with $outcome after delivery $deliver', ({
-    deliver,
-    status,
-    outcome,
-    posts,
-  }) => {
-    const document = workflow(true, 'both');
-    const jobs = {
-      investigate: {status: 'succeeded', outputs: {status, outcome}},
-      deliver: {status: deliver},
-    };
+  describe.each(reportProviders)('%s report conditions', (provider) => {
+    it.each([
+      {
+        deliver: 'succeeded',
+        status: 'repair_candidate',
+        outcome: 'ready',
+        posts: ['report_pull_request'],
+      },
+      {deliver: 'skipped', status: 'needs_human', outcome: 'none', posts: ['report_diagnosis']},
+      {
+        deliver: 'skipped',
+        status: 'repair_candidate',
+        outcome: 'patch_too_large',
+        posts: ['report_diagnosis'],
+      },
+      {deliver: 'skipped', status: 'not_actionable', outcome: 'none', posts: []},
+      {deliver: 'failed', status: 'repair_candidate', outcome: 'ready', posts: []},
+    ])('posts $posts for $status with $outcome after delivery $deliver', ({
+      deliver,
+      status,
+      outcome,
+      posts,
+    }) => {
+      const document = workflow(true, 'both', provider);
+      const jobs = {
+        investigate: {status: 'succeeded', outputs: {status, outcome}},
+        deliver: {status: deliver},
+      };
 
-    expect(evaluate(at(document, 'jobs', 'report', 'if'), {jobs})).toBe(true);
-    const report = at(document, 'jobs', 'report', 'steps') as YamlRecord[];
-    expect(report.filter((entry) => evaluate(entry.if, {jobs})).map(({key}) => key)).toEqual(posts);
-  });
+      expect(evaluate(at(document, 'jobs', 'report', 'if'), {jobs})).toBe(true);
+      const report = at(document, 'jobs', 'report', 'steps') as YamlRecord[];
+      expect(report.filter((entry) => evaluate(entry.if, {jobs})).map(({key}) => key)).toEqual(
+        posts,
+      );
+    });
 
-  it('posts nothing when the failure was skipped before investigation', () => {
-    const jobs = {investigate: {status: 'skipped'}, deliver: {status: 'skipped'}};
+    it('posts nothing when the failure was skipped before investigation', () => {
+      const jobs = {investigate: {status: 'skipped'}, deliver: {status: 'skipped'}};
 
-    expect(evaluate(at(workflow(true), 'jobs', 'report', 'if'), {jobs})).toBe(false);
+      expect(
+        evaluate(at(workflow(true, 'needs_person', provider), 'jobs', 'report', 'if'), {jobs}),
+      ).toBe(false);
+    });
   });
 });

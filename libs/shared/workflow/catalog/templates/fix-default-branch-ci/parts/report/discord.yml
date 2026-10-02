@@ -1,0 +1,33 @@
+job: |
+  report:
+    needs: [investigate, deliver]
+    if: ${{ jobs.investigate.status == "succeeded" }}
+    checkout: false
+    steps:
+      # option:report_outcomes=needs_person,both begin
+      - key: report_diagnosis
+        if: ${{ jobs.investigate.outputs.status == "needs_human" || jobs.investigate.outputs.outcome == "patch_too_large" }}
+        tool: send_message
+        connection: discord_report # bind:report
+        with:
+          # Replace replace-with-channel-id with the ID of the channel that receives reports.
+          channel_id: 'replace-with-channel-id'
+          message: |-
+            **${{ event.workflow_run.name }} failed on `${{ event.repository.default_branch }}` and needs a person**
+            [Run ${{ event.workflow_run.run_number }}](${{ event.workflow_run.html_url }}) in `${{ event.repository.full_name }}`. Cause: `${{ jobs.investigate.outputs.classification }}`. ${{ jobs.investigate.outputs.outcome == "patch_too_large" ? "A repair passed the configured checks, but its patch exceeds the 30,000-byte delivery limit. No pull request was opened." : "No pull request was opened." }}
+
+            ${{ jobs.investigate.outputs.summary }}
+      # option:report_outcomes=needs_person,both end
+      # option:report_outcomes=pull_requests,both begin
+      - key: report_pull_request
+        if: ${{ jobs.deliver.status == "succeeded" }}
+        tool: send_message
+        connection: discord_report # bind:report
+        with:
+          channel_id: 'replace-with-channel-id'
+          message: |-
+            **Repair opened for ${{ event.workflow_run.name }} on `${{ event.repository.default_branch }}`**
+            [Pull request #${{ jobs.deliver.outputs.pr_number }}](${{ jobs.deliver.outputs.pr_url }}) repairs [run ${{ event.workflow_run.run_number }}](${{ event.workflow_run.html_url }}) in `${{ event.repository.full_name }}`. Cause: `${{ jobs.investigate.outputs.classification }}`.
+
+            ${{ jobs.investigate.outputs.summary }}
+      # option:report_outcomes=pull_requests,both end
