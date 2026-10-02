@@ -1,0 +1,22 @@
+name: Answer codebase questions in chat
+runner: shipfox
+triggers:
+  manual:
+    source: manual
+jobs:
+  answer:
+    checkout: false
+    steps:
+      - key: verify_input
+        name: Verify the routed inputs
+        env:
+          CHANNEL_ID: '${{ inputs.channel_id }}'
+          THREAD_TS: '${{ inputs.thread_ts }}'
+          REQUEST: '${{ inputs.request }}'
+        run: |
+          # The dispatcher's listener registers after the routed run starts, and an event sent before
+          # it is lost. A real answer takes far longer than this.
+          sleep 10
+          test "$CHANNEL_ID" = C0DISPATCH1
+          test "$THREAD_TS" = 1721300000.000100
+          test "$REQUEST" = "Where does the report command read the --json flag?"

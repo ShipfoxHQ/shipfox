@@ -1,0 +1,8 @@
+# The scripted cases slack-dispatcher must keep. Each `case` is a directory next to this file.
+cases:
+  - case: question-starts-workflow
+    proves: A mention that asks a question starts the codebase question workflow once and replies once in the thread with its run.
+  - case: change-posts-pull-request
+    proves: A mention that asks for a change starts the task workflow, then posts the pull request link in the thread when that run opens it.
+  - case: needs-information
+    proves: A request that lacks an input gets questions in the thread and starts no workflow.

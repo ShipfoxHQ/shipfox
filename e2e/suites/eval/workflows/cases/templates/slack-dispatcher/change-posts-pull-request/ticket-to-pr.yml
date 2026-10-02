@@ -1,0 +1,29 @@
+name: Implement a task and open a pull request
+runner: shipfox
+triggers:
+  manual:
+    source: manual
+# The dispatcher follows the `implement` job, which ends when the pull request opens.
+jobs:
+  implement:
+    checkout: false
+    outputs:
+      status: ${{ steps.open_pr.outputs.status }}
+      pr_url: ${{ steps.open_pr.outputs.pr_url }}
+      questions: ${{ steps.open_pr.outputs.questions }}
+    steps:
+      - key: open_pr
+        env:
+          REPOSITORY: '${{ inputs.repository }}'
+          TITLE: '${{ inputs.title }}'
+        run: |
+          # The dispatcher's listener registers after the routed run starts, and an event sent before
+          # it is lost. A real task run takes far longer than this.
+          sleep 10
+          test "$REPOSITORY" = acme/report-cli
+          test "$TITLE" = "Add a --json flag to the report command"
+          printf 'status=implemented\npr_url=https://github.com/acme/report-cli/pull/7\nquestions=\n' >> "$SHIPFOX_OUTPUT"
+        outputs:
+          status: string
+          pr_url: string
+          questions: string

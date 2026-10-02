@@ -1,0 +1,47 @@
+template: shipfox/slack-dispatcher
+bindings: {chat: slack}
+placeholders:
+  replace-with-channel-id: C0DISPATCH2
+  replace-with-owner/repository: acme/report-cli
+workflows:
+  ticket-to-pr: ticket-to-pr.yml
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+covers:
+  - Replies once in the thread, and later posts the pull request link for a change. On Discord, starts the thread under the mention when it has none.
+
+seed:
+  slack:
+    channel: C0DISPATCH2
+    thread:
+      - ts: '1721300000.000300'
+        user: U0ASKER
+        text: <@UBOT> Add a --json flag to the report command. The report command should print its totals as JSON when the flag is set, and the tests should cover it.
+
+scenario:
+  - start:
+      event:
+        slack:
+          app_mention:
+            channel: C0DISPATCH2
+            ts: '1721300000.000300'
+            user: U0ASKER
+            text: <@UBOT> Add a --json flag to the report command. The report command should print its totals as JSON when the flag is set, and the tests should cover it.
+  # The routed run ends after it opens the pull request, and the listener posts the link.
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  writes:
+    - slack.chat.postMessage:
+        target: C0DISPATCH2
+        thread_ts: '1721300000.000300'
+        text: {contains: ['Shipfox started Implement a task and open a pull request #1', 'opens a pull request']}
+        count: 1
+    - slack.chat.postMessage:
+        target: C0DISPATCH2
+        thread_ts: '1721300000.000300'
+        text: {contains: ['opened a pull request for this request: https://github.com/acme/report-cli/pull/7', 'Review it before you merge it.']}
+        count: 1

@@ -1,0 +1,38 @@
+template: shipfox/slack-dispatcher
+bindings: {chat: slack}
+placeholders:
+  replace-with-channel-id: C0DISPATCH3
+  replace-with-owner/repository: acme/report-cli
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+seed:
+  slack:
+    channel: C0DISPATCH3
+    thread:
+      - ts: '1721300000.000400'
+        user: U0ASKER
+        text: <@UBOT> Can you fix the report command?
+
+scenario:
+  - start:
+      event:
+        slack:
+          app_mention:
+            channel: C0DISPATCH3
+            ts: '1721300000.000400'
+            user: U0ASKER
+            text: <@UBOT> Can you fix the report command?
+  # The questions are the whole result, so no listening job starts.
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  # Without a routed workflow, the only write is the questions under the request.
+  writes:
+    - slack.chat.postMessage:
+        target: C0DISPATCH3
+        thread_ts: '1721300000.000400'
+        text: {contains: ['What should the report command do differently?', 'mention the app again']}
+        count: 1
