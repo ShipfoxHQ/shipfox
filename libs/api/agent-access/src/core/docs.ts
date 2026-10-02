@@ -118,12 +118,9 @@ export function createDocsCache(options: {
     const operation = (async () => {
       const previous = pages.get(slug);
       try {
-        const response = await fetcher(
-          url(slug === DOCS_HOME_SLUG ? 'index.md' : `llms.mdx/${slug}`),
-          {
-            headers: previous?.etag ? {'If-None-Match': previous.etag} : {},
-          },
-        );
+        const response = await fetcher(url(`mcp.mdx/${slug}`), {
+          headers: previous?.etag ? {'If-None-Match': previous.etag} : {},
+        });
         if (response.status === 304 && previous) {
           pages.set(slug, {...previous, fetchedAt: now()});
           return;
