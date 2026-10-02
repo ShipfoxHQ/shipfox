@@ -19,7 +19,7 @@ flow:
 writes:
   - provider: linear
     action: Creates one ticket per thread in the chosen team, and in the chosen project when set.
-  - action: Replies once in the thread. On Discord, starts the thread under the mention when it has none.
+  - action: Replies once in the thread.
 prerequisites:
   - With Slack, invite the Shipfox app to each channel where it creates tickets.
   - With Discord, let the Shipfox bot view each channel where it creates tickets, read its history, send messages, send messages in threads, and create public threads there.
