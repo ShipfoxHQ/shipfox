@@ -3,7 +3,6 @@ export type TemplateIcon =
   | 'linear'
   | 'jira'
   | 'clickup'
-  | 'discord'
   | 'slack'
   | 'discord'
   | 'sentry'
@@ -16,7 +15,6 @@ export const templateIconLabels: Record<TemplateIcon, string> = {
   linear: 'Linear',
   jira: 'Jira',
   clickup: 'ClickUp',
-  discord: 'Discord',
   slack: 'Slack',
   discord: 'Discord',
   sentry: 'Sentry',
