@@ -14,6 +14,7 @@ const shapePattern = /shape/iu;
 const methodPattern = /method needs its tool/iu;
 const targetKindPattern = /kind/iu;
 const issuePattern = /Linear issue/iu;
+const emptyPattern = /must not be empty/iu;
 const listedTwicePattern = /listed twice/iu;
 
 const getIssue = {
@@ -128,6 +129,14 @@ describe('contract case schema', () => {
     const steps = [{tool: 'get_issue', expect: {error: 'not-found', values: {id: 'a'}}}];
 
     expect(() => parseContractCase({...getIssue, kind: 'error', steps})).toThrow(noOutputPattern);
+  });
+
+  it('rejects empty values and includes assertions', () => {
+    for (const expectation of [{values: {}}, {includes: {}}, {includes: {'messages[0]': {}}}]) {
+      const steps = [{tool: 'get_issue', expect: expectation}];
+
+      expect(() => parseContractCase({...getIssue, steps})).toThrow(emptyPattern);
+    }
   });
 
   it('rejects an error in an effect', () => {

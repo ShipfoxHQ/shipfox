@@ -46,11 +46,17 @@ const shapeSchema: z.ZodType<ContractShape> = z.lazy(() =>
   z.union([z.enum(SHAPE_TYPES), shapeMapSchema, z.tuple([shapeMapSchema])]),
 );
 
+function nonEmpty<T extends z.ZodType<Record<string, unknown>>>(schema: T) {
+  return schema.refine((map) => Object.keys(map).length > 0, {message: 'must not be empty'});
+}
+
 const outputExpectSchema = z
   .object({
     shape: shapeSchema.optional(),
-    values: z.record(pathSchema, scalarSchema).optional(),
-    includes: z.record(pathSchema, z.record(pathSchema, scalarSchema)).optional(),
+    values: nonEmpty(z.record(pathSchema, scalarSchema)).optional(),
+    includes: nonEmpty(
+      z.record(pathSchema, nonEmpty(z.record(pathSchema, scalarSchema))),
+    ).optional(),
   })
   .strict();
 

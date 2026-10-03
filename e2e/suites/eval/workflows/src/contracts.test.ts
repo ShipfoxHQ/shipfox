@@ -9,6 +9,7 @@ const targetPattern = /\$target\.linear\.missing_issue\.identifier is only for c
 const laterPattern = /\$steps\.later\.id reads a step that runs later/u;
 const directoryPattern = /does not match its directory "slack"/u;
 const providerPattern = /provider "jira" is not in sandbox\.yaml/u;
+const extensionPattern = /use the `\.yaml` extension/u;
 const yamlPattern = /could not parse YAML/u;
 
 const sandbox = `
@@ -120,6 +121,12 @@ describe('loadContracts', () => {
     );
 
     await expect(loadContracts(root)).rejects.toThrow(providerPattern);
+  });
+
+  it('rejects a case file with the .yml extension', async () => {
+    await writeFixture('linear/get-issue.yml', getIssue);
+
+    await expect(loadContracts(root)).rejects.toThrow(extensionPattern);
   });
 
   it('rejects a file that is not YAML', async () => {

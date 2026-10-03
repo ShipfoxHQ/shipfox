@@ -68,8 +68,11 @@ export async function loadContracts(root = defaultContractsRoot): Promise<Contra
   for (const provider of await listEntries({directory: root, directories: true})) {
     const directory = join(root, provider);
     for (const file of await listEntries({directory, directories: false})) {
-      if (!file.endsWith('.yaml')) continue;
       const path = join(directory, file);
+      if (file.endsWith('.yml')) {
+        throw new CaseValidationError(path, 'contract files use the `.yaml` extension');
+      }
+      if (!file.endsWith('.yaml')) continue;
       const id = `${provider}/${basename(file, '.yaml')}`;
       const document = await readYamlFile(path);
 
@@ -77,23 +80,31 @@ export async function loadContracts(root = defaultContractsRoot): Promise<Contra
         const definition = parseContractExemption(document, path);
         assertProviderDirectory({provider: definition.provider, directory: provider, path});
         files.exemptions.push({id, path, definition});
-        continue;
+      } else {
+        const definition = parseContractCase(document, path);
+        assertProviderDirectory({provider: definition.provider, directory: provider, path});
+        assertCaseReferences({definition, manifest, path});
+        files.cases.push({id, path, definition});
       }
-
-      const definition = parseContractCase(document, path);
-      assertProviderDirectory({provider: definition.provider, directory: provider, path});
-      if (manifest[definition.provider] === undefined) {
-        throw new CaseValidationError(
-          path,
-          `provider "${definition.provider}" is not in sandbox.yaml`,
-        );
-      }
-      const problems = checkCaseReferences({contractCase: definition, manifest});
-      if (problems.length > 0) throw new CaseValidationError(path, problems.join('\n'));
-      files.cases.push({id, path, definition});
     }
   }
   return files;
+}
+
+function assertCaseReferences({
+  definition,
+  manifest,
+  path,
+}: {
+  definition: ContractCase;
+  manifest: SandboxManifest;
+  path: string;
+}) {
+  if (manifest[definition.provider] === undefined) {
+    throw new CaseValidationError(path, `provider "${definition.provider}" is not in sandbox.yaml`);
+  }
+  const problems = checkCaseReferences({contractCase: definition, manifest});
+  if (problems.length > 0) throw new CaseValidationError(path, problems.join('\n'));
 }
 
 function assertProviderDirectory({
