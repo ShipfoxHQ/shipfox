@@ -34,6 +34,27 @@ describe('Postgres client', () => {
     expect(remove).toHaveBeenCalledOnce();
   });
 
+  it('survives a connection dropped while a client is checked out', async () => {
+    const pool = createPostgresClient();
+    const client = await pool.connect();
+
+    const act = () => client.emit('error', new Error('Connection terminated unexpectedly'));
+    client.release(true);
+
+    expect(act).not.toThrow();
+  });
+
+  it('survives a connection dropped while a client is idle', async () => {
+    const pool = createPostgresClient();
+    const client = await pool.connect();
+    client.release();
+
+    const act = () => client.emit('error', new Error('Connection terminated unexpectedly'));
+
+    expect(act).not.toThrow();
+    expect(pool.totalCount).toBe(0);
+  });
+
   it('reports a successful health query', async () => {
     const pool = createPostgresClient();
     vi.spyOn(pool, 'query').mockResolvedValue({rowCount: 1} as never);

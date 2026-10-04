@@ -35,12 +35,20 @@ async function closePoolConnections(pool: pg.Pool): Promise<void> {
   }
 }
 
+function ignoreConnectionError(): void {
+  // The failed query reports the error to its caller.
+}
+
 export function createPostgresClient(options?: pg.PoolConfig): pg.Pool {
   if (_pool) {
     throw new Error('Postgres client has already been created');
   }
 
   _pool = new pg.Pool(createPoolConfig(config, options));
+  // A dropped connection already rejects the query in flight and evicts the client. Without
+  // listeners, Node also throws the same failure as an uncaught exception and stops the process.
+  _pool.on('error', ignoreConnectionError);
+  _pool.on('connect', (client) => client.on('error', ignoreConnectionError));
   return _pool;
 }
 
