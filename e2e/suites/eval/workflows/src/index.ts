@@ -24,6 +24,41 @@ export {
   setRunnerLabel,
   templateLoaderFor,
 } from './compose.js';
+export {
+  type ContractReference,
+  type ContractReferenceResolver,
+  checkCaseReferences,
+  findContractReferences,
+  type ManifestReference,
+  parseContractReference,
+  resolveContractReferences,
+  type StepsReference,
+} from './contract-references.js';
+export {
+  type BacklogEntry,
+  type ContractBacklog,
+  type ContractCase,
+  type ContractExemption,
+  type ContractKind,
+  type ContractScalar,
+  type ContractShape,
+  type ContractStep,
+  contractBacklogSchema,
+  contractCaseSchema,
+  contractExemptionSchema,
+  parseContractBacklog,
+  parseContractCase,
+  parseContractExemption,
+  parseSandboxManifest,
+  type SandboxManifest,
+  sandboxManifestSchema,
+} from './contract-schema.js';
+export {
+  type ContractFiles,
+  type LoadedContractCase,
+  type LoadedContractExemption,
+  loadContracts,
+} from './contracts.js';
 export {caseSupportsMode, type DiscoveredCase, discoverCases} from './discovery.js';
 export {type ExecuteCaseOptions, executeTemplateCase} from './execute.js';
 export {
