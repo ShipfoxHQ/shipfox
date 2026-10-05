@@ -225,6 +225,7 @@ describe('checkContractCoverage', () => {
 
     expect(checkContractCoverage({grants, files}).problems).toEqual([
       'case linear/save: effect "read_issue" names "linear.read_issue" is not in the catalog',
+      'write linear.save_issue has no case, exemption, or backlog entry',
     ]);
   });
 
@@ -322,6 +323,30 @@ describe('checkContractCoverage', () => {
         problemsOf(arrangeWrite({effect: savedIssue, kind: 'read', backlogged: true})),
       ).toEqual(['case linear/save: write step "save_issue" needs a case of kind `round-trip`']);
     });
+  });
+
+  it('keeps the backlog entry of a write whose effect names an unknown tool', () => {
+    const files = arrange({
+      cases: [
+        getIssue,
+        issueReadGet,
+        {
+          id: 'linear/save',
+          provider: 'linear',
+          kind: 'round-trip',
+          steps: [{key: 'save', tool: 'save_issue', effect: {...savedIssue, tool: 'read_issue'}}],
+        },
+      ],
+      exemptions: [{id: 'gitea/all', provider: 'gitea'}],
+      backlog: [
+        {tool: 'github.issue_read', method: 'get_comments', kind: 'read', issue: 'ENG-1'},
+        {tool: 'linear.save_issue', kind: 'write', issue: 'ENG-1'},
+      ],
+    });
+
+    expect(checkContractCoverage({grants, files}).problems).toEqual([
+      'case linear/save: effect "read_issue" names "linear.read_issue" is not in the catalog',
+    ]);
   });
 
   it('does not count an effect read as the read tool case', () => {

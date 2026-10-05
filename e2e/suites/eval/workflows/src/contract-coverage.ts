@@ -154,26 +154,40 @@ function writeProblems({
   return problems;
 }
 
-/** Reports the catalog names of a step and its effect that the catalog does not have. */
-function unknownStepProblems({
+/**
+ * Checks one step of a case: the catalog names it and its effect use, and for a write whether its
+ * `effect` proves it. `covers` is whether the step is the case of its tool or method. A write
+ * covers only through a valid `effect`, and an effect is a read that proves a write, so it is
+ * never the case of the read it uses.
+ */
+function checkStep({
   grants,
   provider,
+  kind,
   step,
+  units,
 }: {
   grants: CatalogGrants;
   provider: string;
+  kind: ContractCase['kind'];
   step: ContractStep;
-}): string[] {
-  const named = [
-    {where: `step "${step.tool}"`, reference: {provider, ...step}},
-    ...(step.effect === undefined
-      ? []
-      : [{where: `effect "${step.effect.tool}"`, reference: {provider, ...step.effect}}]),
-  ];
-  return named.flatMap(({where, reference}) => {
-    const reason = unknownReason({grants, reference, methodRequired: true});
-    return reason === undefined ? [] : [`${where} names ${reason}`];
-  });
+  units: ReadonlyMap<string, CatalogUnit>;
+}): {problems: string[]; covers: boolean} {
+  const reasonOf = (reference: Reference) =>
+    unknownReason({grants, reference, methodRequired: true});
+  const stepReason = reasonOf({provider, ...step});
+  if (stepReason !== undefined) {
+    return {problems: [`step "${step.tool}" names ${stepReason}`], covers: false};
+  }
+  const effectReason = step.effect && reasonOf({provider, ...step.effect});
+  const problems = effectReason ? [`effect "${step.effect?.tool}" names ${effectReason}`] : [];
+  if (units.get(unitKey({provider, ...step}))?.kind !== 'write') return {problems, covers: true};
+
+  const writeFailures = writeProblems({step, provider, kind, units});
+  return {
+    problems: [...problems, ...writeFailures],
+    covers: writeFailures.length === 0 && !effectReason,
+  };
 }
 
 function collectCaseCoverage({
@@ -189,21 +203,11 @@ function collectCaseCoverage({
   const covered = new Map<string, string[]>();
   const problems: string[] = [];
   for (const {id, definition} of files.cases) {
-    const {provider} = definition;
+    const {provider, kind} = definition;
     for (const step of definition.steps) {
-      const unknown = unknownStepProblems({grants, provider, step});
-      problems.push(...unknown.map((problem) => `case ${id}: ${problem}`));
-      if (unknownReason({grants, reference: {provider, ...step}, methodRequired: true})) continue;
-
-      const key = unitKey({provider, ...step});
-      // A write counts as covered only through a write step with a valid `effect`. An effect is a
-      // read that proves a write, so it is never the case of the read it uses.
-      const writeFailures =
-        unitsByKey.get(key)?.kind === 'write'
-          ? writeProblems({step, provider, kind: definition.kind, units: unitsByKey})
-          : [];
-      problems.push(...writeFailures.map((problem) => `case ${id}: ${problem}`));
-      if (writeFailures.length === 0) addId({map: covered, key, id});
+      const checked = checkStep({grants, provider, kind, step, units: unitsByKey});
+      problems.push(...checked.problems.map((problem) => `case ${id}: ${problem}`));
+      if (checked.covers) addId({map: covered, key: unitKey({provider, ...step}), id});
     }
   }
   return {covered, problems};
