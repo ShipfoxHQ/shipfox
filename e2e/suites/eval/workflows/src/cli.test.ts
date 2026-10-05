@@ -32,8 +32,14 @@ describe('workers option', () => {
     expect(parseEvalArgs(['--workers', '2']).workers).toBe(2);
   });
 
-  it('leaves the default to the template run', () => {
-    expect(parseEvalArgs([]).workers).toBeUndefined();
+  it('defaults to 4 workers for scripted and live template runs', () => {
+    expect(parseEvalArgs([]).workers).toBe(4);
+    expect(parseEvalArgs(['--mode', 'live']).workers).toBe(4);
+  });
+
+  it('sets no workers for the onboarding suite and compile mode', () => {
+    expect(parseEvalArgs(['--suite', 'onboarding']).workers).toBeUndefined();
+    expect(parseEvalArgs(['--mode', 'compile']).workers).toBeUndefined();
   });
 
   it('rejects a count that is not a positive integer', () => {

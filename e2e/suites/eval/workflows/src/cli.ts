@@ -47,7 +47,7 @@ export interface EvalCliOptions {
   /** Unset, templates run once and onboarding cases run their own `k`. */
   repeat?: number;
   maxCostUsd?: number;
-  /** Unset, template runs use `DEFAULT_WORKERS`. */
+  /** Template runs only. The command line defaults to `DEFAULT_WORKERS`, `runEval` to one. */
   workers?: number;
   agentModel?: string;
   simulatorModel?: string;
@@ -84,13 +84,13 @@ function parseWorkers({
   suite,
   mode,
 }: {
-  workers: string;
+  workers: string | undefined;
   suite: EvalCliOptions['suite'];
   mode: EvalMode;
-}): number {
-  if (suite === 'onboarding' || mode === 'compile') {
-    throw new Error('--workers applies to scripted and live template runs only');
-  }
+}): number | undefined {
+  const spreads = suite === 'templates' && mode !== 'compile';
+  if (workers === undefined) return spreads ? DEFAULT_WORKERS : undefined;
+  if (!spreads) throw new Error('--workers applies to scripted and live template runs only');
   return positiveInteger(workers, '--workers');
 }
 
@@ -151,9 +151,8 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
     mode,
   };
   if (values.repeat !== undefined) options.repeat = positiveInteger(values.repeat, '--repeat');
-  if (values.workers !== undefined) {
-    options.workers = parseWorkers({workers: values.workers, suite, mode});
-  }
+  const workers = parseWorkers({workers: values.workers, suite, mode});
+  if (workers !== undefined) options.workers = workers;
   if (values.case !== undefined) options.caseFilter = values.case;
   if (values.catalog !== undefined) options.catalog = values.catalog;
   if (values['max-cost-usd'] !== undefined) {
@@ -366,7 +365,7 @@ async function runTemplatesCli({
     ...(options.repeat === undefined ? {} : {repeat: options.repeat}),
     ...(options.caseFilter === undefined ? {} : {caseFilter: options.caseFilter}),
     ...(options.maxCostUsd === undefined ? {} : {maxCostUsd: options.maxCostUsd}),
-    workers: options.workers ?? DEFAULT_WORKERS,
+    ...(options.workers === undefined ? {} : {workers: options.workers}),
     ...(cwd === undefined ? {} : {cwd, resultsDirectory: `${cwd}/results`}),
   });
   const failed = run.results.filter((result: CaseResult) => result.status !== 'passed');

@@ -225,9 +225,11 @@ describe('parallel workers', () => {
     repeat,
     execute,
     maxCostUsd,
+    caseFilter = 'fixture',
   }: {
-    workers: number;
+    workers?: number;
     repeat: number;
+    caseFilter?: string;
     execute: (params: {discovered: {id: string}; repeat: number}) => Promise<CaseResult>;
     maxCostUsd?: number;
   }) => {
@@ -237,10 +239,10 @@ describe('parallel workers', () => {
       suite: 'templates',
       mode: 'scripted',
       cwd: fileURLToPath(new URL('../', import.meta.url)),
-      caseFilter: 'fixture',
+      caseFilter,
       resultsDirectory: join(root, 'results'),
       repeat,
-      workers,
+      ...(workers === undefined ? {} : {workers}),
       ...(maxCostUsd === undefined ? {} : {maxCostUsd}),
       execute,
     });
@@ -266,32 +268,30 @@ describe('parallel workers', () => {
     expect(peak).toBe(3);
   });
 
-  it('lists the results in case order however the repeats finish', async () => {
+  it('lists the results in case order, whatever order the repeats finish in', async () => {
+    const started: string[] = [];
+
     const run = await runWith({
-      workers: 3,
-      repeat: 3,
-      // The first repeat finishes last.
+      workers: 4,
+      repeat: 2,
+      caseFilter: 'ticket-to-pr/*',
+      // The case repeats started first finish last.
       execute: async (params) => {
-        await new Promise((resolve) => setTimeout(resolve, (4 - params.repeat) * 20));
+        const position = started.push(`${params.discovered.id}#${params.repeat}`);
+        await new Promise((resolve) => setTimeout(resolve, Math.max(0, 50 - position * 10)));
         return passing(params);
       },
     });
 
-    expect(run.results.map((result) => result.repeat)).toEqual([1, 2, 3]);
+    expect(new Set(started.map((entry) => entry.split('#')[0])).size).toBeGreaterThan(1);
+    expect(run.results.map((result) => `${result.case}#${result.repeat}`)).toEqual(started);
   });
 
   it('starts one case repeat at a time by default', async () => {
     let running = 0;
     let peak = 0;
-    const root = await mkdtemp(join(tmpdir(), 'shipfox-eval-default-workers-'));
-    temporaryDirectories.push(root);
 
-    await runEval({
-      suite: 'templates',
-      mode: 'scripted',
-      cwd: fileURLToPath(new URL('../', import.meta.url)),
-      caseFilter: 'fixture',
-      resultsDirectory: join(root, 'results'),
+    await runWith({
       repeat: 3,
       execute: async (params) => {
         running += 1;
