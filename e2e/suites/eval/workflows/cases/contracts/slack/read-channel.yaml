@@ -1,0 +1,14 @@
+provider: slack
+modes: [real]
+steps:
+  - tool: read_channel
+    with:
+      channel_id: $fixture.slack.read_channel.id
+      limit: 5
+    # The channel holds about 20 messages, so the first page has a cursor.
+    expect:
+      shape:
+        messages: [{ts: string, text: string}]
+        has_more: boolean
+      values:
+        has_more: true

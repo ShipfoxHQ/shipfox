@@ -114,6 +114,8 @@ github:
           resource_id: $fixture.github.workflow.file
         expect:
           values: {id: $fixture.github.workflow.id, name: $fixture.github.workflow.name}
+  # The two fixtures each agent job asks its model to read back.
+  agent: {reads: [issue, pull_request]}
   targets:
     # The owner exists, so the call fails on the repository and not on the owner.
     missing_repository: {kind: absent, owner: ShipfoxSandbox, name: contract-absent-7f3a9c41}
@@ -218,19 +220,75 @@ linear:
           values: {uuid: $fixture.linear.project.id, name: $fixture.linear.project.name}
     milestone: {id: 78f5b498-6c53-4e69-8fce-32cc67027324, name: Contract fixture milestone}
     document: {id: 471c6da6-c647-4770-b6d3-27dc53189810, title: Contract fixture document}
+  agent: {reads: [team, issue]}
   targets:
     missing_issue: {kind: absent, identifier: SAR-999999}
 slack:
   connection: slack_shipfox
   fixtures:
     # The read channel holds about 20 messages, so a case that passes a small `limit` gets a cursor.
-    read_channel: {id: C0C7QHHBNNL, name: test_contract-tests-read}
+    read_channel:
+      id: C0C7QHHBNNL
+      name: test_contract-tests-read
+      read:
+        tool: read_channel_info
+        with: {channel_id: $fixture.slack.read_channel.id}
+        expect:
+          values:
+            channel.id: $fixture.slack.read_channel.id
+            channel.name: $fixture.slack.read_channel.name
     # The root of a thread with two replies. Its text is "This is a contract test, do not modify".
-    thread: {ts: '1791226001.009789', reply_ts: '1791226033.072769', last_reply_ts: '1791226036.117099'}
-    reaction_message: {ts: '1791226072.112799'}
-    unicode_message: {ts: '1791226138.522499'}
-    user: {id: U06P0R4V877}
-    write_channel: {id: C0C6ZSXHEJ0, name: test_contract-tests-write}
+    thread:
+      ts: '1791226001.009789'
+      reply_ts: '1791226033.072769'
+      last_reply_ts: '1791226036.117099'
+      read:
+        tool: read_thread
+        with:
+          channel_id: $fixture.slack.read_channel.id
+          message_ts: $fixture.slack.thread.ts
+        expect:
+          values:
+            messages[0].ts: $fixture.slack.thread.ts
+            messages[2].ts: $fixture.slack.thread.last_reply_ts
+    reaction_message:
+      ts: '1791226072.112799'
+      read:
+        tool: read_thread
+        with:
+          channel_id: $fixture.slack.read_channel.id
+          message_ts: $fixture.slack.reaction_message.ts
+        expect:
+          values:
+            messages[0].ts: $fixture.slack.reaction_message.ts
+    unicode_message:
+      ts: '1791226138.522499'
+      read:
+        tool: read_thread
+        with:
+          channel_id: $fixture.slack.read_channel.id
+          message_ts: $fixture.slack.unicode_message.ts
+        expect:
+          values:
+            messages[0].ts: $fixture.slack.unicode_message.ts
+    user:
+      id: U06P0R4V877
+      read:
+        tool: read_user_profile
+        with: {user_id: $fixture.slack.user.id}
+        expect:
+          values: {user.id: $fixture.slack.user.id}
+    write_channel:
+      id: C0C6ZSXHEJ0
+      name: test_contract-tests-write
+      read:
+        tool: read_channel_info
+        with: {channel_id: $fixture.slack.write_channel.id}
+        expect:
+          values:
+            channel.id: $fixture.slack.write_channel.id
+            channel.name: $fixture.slack.write_channel.name
+  agent: {reads: [read_channel, user]}
   targets:
     missing_channel: {kind: absent, id: C0000000000}
     # A private channel the bot has not joined.
@@ -242,22 +300,68 @@ clickup:
     list: {id: '901222980414', name: Contracts read}
     # Task 869fca5cw has a long markdown and unicode description, 32 comments, a priority, a due
     # date, and a tag. The list holds 104 tasks, so `search_tasks` has a second page.
-    task: {id: 869fca5cw, name: 'Fixture task: markdown, unicode, long description'}
-    parent_task: {id: 869fca5eg, name: 'Fixture task: parent with subtask'}
-    subtask: {id: 869fca5ek, name: 'Fixture task: subtask'}
-    closed_task: {id: 869fca5ep, name: 'Fixture task: closed'}
+    task:
+      id: 869fca5cw
+      name: 'Fixture task: markdown, unicode, long description'
+      read:
+        tool: get_task
+        with: {task_id: $fixture.clickup.task.id}
+        expect:
+          values: {id: $fixture.clickup.task.id, name: $fixture.clickup.task.name}
+    parent_task:
+      id: 869fca5eg
+      name: 'Fixture task: parent with subtask'
+      read:
+        tool: get_task
+        with: {task_id: $fixture.clickup.parent_task.id}
+        expect:
+          values: {id: $fixture.clickup.parent_task.id, name: $fixture.clickup.parent_task.name}
+    subtask:
+      id: 869fca5ek
+      name: 'Fixture task: subtask'
+      read:
+        tool: get_task
+        with: {task_id: $fixture.clickup.subtask.id}
+        expect:
+          values: {id: $fixture.clickup.subtask.id, name: $fixture.clickup.subtask.name}
+    closed_task:
+      id: 869fca5ep
+      name: 'Fixture task: closed'
+      read:
+        tool: get_task
+        with: {task_id: $fixture.clickup.closed_task.id}
+        expect:
+          values: {id: $fixture.clickup.closed_task.id, name: $fixture.clickup.closed_task.name}
     write_list: {id: '901222980415', name: Contracts write}
+  agent: {reads: [task, closed_task]}
   targets:
     missing_task: {kind: absent, id: 869zzzzzz}
 notion:
   connection: notion_shipfox
   fixtures:
     # The page has 65 blocks (markdown, unicode, a table, and a code block) and 32 comments.
-    page: {id: 3f0c6baa-a59e-8196-b7be-c029ce003cdb, title: 'Fixture page: markdown, unicode, long content'}
+    page:
+      id: 3f0c6baa-a59e-8196-b7be-c029ce003cdb
+      title: 'Fixture page: markdown, unicode, long content'
+      read:
+        tool: get_page
+        with: {page_id: $fixture.notion.page.id}
+        expect:
+          values: {id: $fixture.notion.page.id, title: $fixture.notion.page.title}
     # 105 rows, so a query has a second page.
     data_source: {id: 5b1fefb2-b903-4a0b-a9c5-545f17fcf955, name: Fixture data source}
     archived_page: {id: 3f0c6baa-a59e-81b1-8f36-e6e5e19c3f84, title: 'Fixture page: archived'}
-    write_parent_page: {id: 3f0c6baa-a59e-81a7-a48b-f0546bed3e65, title: Contracts write}
+    write_parent_page:
+      id: 3f0c6baa-a59e-81a7-a48b-f0546bed3e65
+      title: Contracts write
+      read:
+        tool: get_page
+        with: {page_id: $fixture.notion.write_parent_page.id}
+        expect:
+          values:
+            id: $fixture.notion.write_parent_page.id
+            title: $fixture.notion.write_parent_page.title
+  agent: {reads: [page, write_parent_page]}
   targets:
     # A well-formed UUID, so Notion answers that the page is missing, not that the id is invalid.
     missing_page: {kind: absent, id: 00000000-0000-4000-8000-000000000000}
@@ -267,15 +371,36 @@ posthog:
     # The EU project `sandbox`. It holds 40 `contract_event`, 10 `contract_purchase`, and one
     # `$exception`, from 4 users, all dated September 2026. Cases must not use relative date ranges.
     project: {id: 295166, region: eu}
-    event: {name: contract_event, count: 40}
+    event:
+      name: contract_event
+      count: 40
+      read:
+        tool: execute-sql
+        with:
+          query: >-
+            SELECT count() FROM events WHERE event = 'contract_event'
+            AND timestamp >= toDateTime('2026-09-01') AND timestamp < toDateTime('2026-10-01')
+        expect:
+          values:
+            results[0][0]: $fixture.posthog.event.count
     purchase_event: {name: contract_purchase, count: 10}
-    feature_flag: {id: 301243, key: contract-flag}
+    feature_flag:
+      id: 301243
+      key: contract-flag
+      read:
+        tool: feature-flag-get-all
+        with: {key: $fixture.posthog.feature_flag.key}
+        expect:
+          values:
+            results[0].id: $fixture.posthog.feature_flag.id
+            results[0].key: $fixture.posthog.feature_flag.key
     disabled_feature_flag: {id: 301244, key: contract-flag-disabled}
     insight: {id: 6355500, short_id: wTSHwcPR, name: Contract fixture insight}
     dashboard: {id: 999696, name: Contract fixture dashboard}
     experiment: {id: 99531, name: Contract fixture experiment}
     survey: {id: 01a10dad-d398-0000-5b35-0c6a08cd8ee8, name: Contract fixture survey}
     error_issue: {id: 01a10dad-c7e2-7443-80df-5aed63a6eb5d, name: ContractError}
+  agent: {reads: [event, feature_flag]}
   targets:
     missing_feature_flag: {kind: absent, id: 999999999}
 jira:

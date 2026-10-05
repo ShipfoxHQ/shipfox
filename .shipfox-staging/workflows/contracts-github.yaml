@@ -277,3 +277,88 @@ jobs:
           shape_pull_requests_0_state: ${{ has(result.pull_requests) && type(result.pull_requests) == type([]) && size(result.pull_requests) > 0 && [result.pull_requests[0]].all(i0, has(i0.state) && type(i0.state) == type("")) }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_pull_requests_0_number && step.outputs.shape_pull_requests_0_title && step.outputs.shape_pull_requests_0_state
+  agent_anthropic:
+    checkout: false
+    steps:
+      - key: agent
+        harness: claude
+        provider: anthropic
+        model: claude-haiku-4-5
+        thinking: low
+        prompt: |
+          Call each tool below once, with exactly the input shown, then report the fields asked for.
+          Call no other tool.
+
+          1. Call `issue_read` with {"method":"get","owner":"ShipfoxSandbox","repo":"contract-tests","issue_number":1}.
+             Report the field `number` of its result as `issue_number`.
+             Report the field `title` of its result as `issue_title`.
+          2. Call `pull_request_read` with {"method":"get","owner":"ShipfoxSandbox","repo":"contract-tests","pull_number":35}.
+             Report the field `number` of its result as `pull_request_number`.
+             Report the field `state` of its result as `pull_request_state`.
+        integrations:
+          - connection: github_shipfoxsandbox
+            include:
+              - actions_get
+              - actions_list
+              - get_job_logs
+              - issue_read
+              - list_issue_types
+              - list_issues
+              - list_pull_requests
+              - pull_request_read
+              - search_issues
+              - search_pull_requests
+            allow_write: false
+        outputs:
+          issue_number:
+            type: number
+          issue_title:
+            type: string
+          pull_request_number:
+            type: number
+          pull_request_state:
+            type: string
+        gate:
+          success: 'step.status == "succeeded" && (type(step.outputs.issue_number) == type(1) || type(step.outputs.issue_number) == type(1.0)) && step.outputs.issue_number == 1 && type(step.outputs.issue_title) == type("") && step.outputs.issue_title == "Fixture issue: markdown, unicode, long body" && (type(step.outputs.pull_request_number) == type(1) || type(step.outputs.pull_request_number) == type(1.0)) && step.outputs.pull_request_number == 35 && type(step.outputs.pull_request_state) == type("") && step.outputs.pull_request_state == "open"'
+  agent_deepseek:
+    checkout: false
+    steps:
+      - key: agent
+        harness: pi
+        model: deepseek-v4-flash-0731
+        thinking: low
+        prompt: |
+          Call each tool below once, with exactly the input shown, then report the fields asked for.
+          Call no other tool.
+
+          1. Call `issue_read` with {"method":"get","owner":"ShipfoxSandbox","repo":"contract-tests","issue_number":1}.
+             Report the field `number` of its result as `issue_number`.
+             Report the field `title` of its result as `issue_title`.
+          2. Call `pull_request_read` with {"method":"get","owner":"ShipfoxSandbox","repo":"contract-tests","pull_number":35}.
+             Report the field `number` of its result as `pull_request_number`.
+             Report the field `state` of its result as `pull_request_state`.
+        integrations:
+          - connection: github_shipfoxsandbox
+            include:
+              - actions_get
+              - actions_list
+              - get_job_logs
+              - issue_read
+              - list_issue_types
+              - list_issues
+              - list_pull_requests
+              - pull_request_read
+              - search_issues
+              - search_pull_requests
+            allow_write: false
+        outputs:
+          issue_number:
+            type: number
+          issue_title:
+            type: string
+          pull_request_number:
+            type: number
+          pull_request_state:
+            type: string
+        gate:
+          success: 'step.status == "succeeded" && (type(step.outputs.issue_number) == type(1) || type(step.outputs.issue_number) == type(1.0)) && step.outputs.issue_number == 1 && type(step.outputs.issue_title) == type("") && step.outputs.issue_title == "Fixture issue: markdown, unicode, long body" && (type(step.outputs.pull_request_number) == type(1) || type(step.outputs.pull_request_number) == type(1.0)) && step.outputs.pull_request_number == 35 && type(step.outputs.pull_request_state) == type("") && step.outputs.pull_request_state == "open"'

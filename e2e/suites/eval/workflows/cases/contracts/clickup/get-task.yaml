@@ -1,0 +1,15 @@
+provider: clickup
+modes: [real]
+steps:
+  - tool: get_task
+    with:
+      task_id: $fixture.clickup.task.id
+    expect:
+      shape:
+        id: string
+        name: string
+        list: {id: string}
+      values:
+        id: $fixture.clickup.task.id
+        name: $fixture.clickup.task.name
+        list.id: $fixture.clickup.list.id

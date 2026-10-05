@@ -1,0 +1,15 @@
+provider: notion
+modes: [real]
+steps:
+  - tool: search
+    with:
+      query: $fixture.notion.page.title
+      object: page
+      # The largest page, so other shared pages cannot rank the fixture out of the results.
+      page_size: 100
+    expect:
+      shape:
+        results: [{id: string}]
+        has_more: boolean
+      includes:
+        results: {id: $fixture.notion.page.id}

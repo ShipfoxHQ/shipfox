@@ -1,0 +1,11 @@
+provider: notion
+modes: [real]
+steps:
+  - tool: get_page_content
+    with:
+      page_id: $fixture.notion.page.id
+    expect:
+      shape:
+        markdown: string
+        truncated: boolean
+        unknown_block_ids: list

@@ -1,0 +1,13 @@
+provider: slack
+modes: [real]
+steps:
+  - tool: read_channel_info
+    with:
+      channel_id: $fixture.slack.read_channel.id
+      include_num_members: true
+    expect:
+      shape:
+        channel: {id: string, name: string, num_members: number}
+      values:
+        channel.id: $fixture.slack.read_channel.id
+        channel.name: $fixture.slack.read_channel.name

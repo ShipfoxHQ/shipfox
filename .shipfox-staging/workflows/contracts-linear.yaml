@@ -310,3 +310,134 @@ jobs:
           shape_0_snippet: ${{ type(result) == type([]) && size(result) > 0 && [result[0]].all(i0, has(i0.snippet) && type(i0.snippet) == type("")) }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_0_id && step.outputs.shape_0_title && step.outputs.shape_0_url && step.outputs.shape_0_snippet
+  agent_anthropic:
+    checkout: false
+    steps:
+      - key: agent
+        harness: claude
+        provider: anthropic
+        model: claude-haiku-4-5
+        thinking: low
+        prompt: |
+          Call each tool below once, with exactly the input shown, then report the fields asked for.
+          Call no other tool.
+
+          1. Call `get_team` with {"query":"4016fa95-dfda-4139-88ba-133ba5955b01"}.
+             Report the field `id` of its result as `team_id`.
+             Report the field `name` of its result as `team_name`.
+          2. Call `get_issue` with {"id":"SAR-5"}.
+             Report the field `id` of its result as `issue_id`.
+             Report the field `uuid` of its result as `issue_uuid`.
+        integrations:
+          - connection: linear_shipfox_sandbox
+            include:
+              - download_file
+              - extract_images
+              - get_agent_skill
+              - get_attachment
+              - get_diff
+              - get_diff_threads
+              - get_document
+              - get_issue
+              - get_issue_status
+              - get_milestone
+              - get_project
+              - get_release
+              - get_release_note
+              - get_status_updates
+              - get_team
+              - get_user
+              - list_agent_skills
+              - list_comments
+              - list_cycles
+              - list_diffs
+              - list_documents
+              - list_issue_labels
+              - list_issue_statuses
+              - list_issues
+              - list_milestones
+              - list_project_labels
+              - list_projects
+              - list_release_notes
+              - list_release_pipelines
+              - list_releases
+              - list_teams
+              - list_users
+              - search_documentation
+            allow_write: false
+        outputs:
+          team_id:
+            type: string
+          team_name:
+            type: string
+          issue_id:
+            type: string
+          issue_uuid:
+            type: string
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.team_id) == type("") && step.outputs.team_id == "4016fa95-dfda-4139-88ba-133ba5955b01" && type(step.outputs.team_name) == type("") && step.outputs.team_name == "sandbox-read" && type(step.outputs.issue_id) == type("") && step.outputs.issue_id == "SAR-5" && type(step.outputs.issue_uuid) == type("") && step.outputs.issue_uuid == "da047291-1dce-4606-a928-d29f4bd8e8b1"
+  agent_deepseek:
+    checkout: false
+    steps:
+      - key: agent
+        harness: pi
+        model: deepseek-v4-flash-0731
+        thinking: low
+        prompt: |
+          Call each tool below once, with exactly the input shown, then report the fields asked for.
+          Call no other tool.
+
+          1. Call `get_team` with {"query":"4016fa95-dfda-4139-88ba-133ba5955b01"}.
+             Report the field `id` of its result as `team_id`.
+             Report the field `name` of its result as `team_name`.
+          2. Call `get_issue` with {"id":"SAR-5"}.
+             Report the field `id` of its result as `issue_id`.
+             Report the field `uuid` of its result as `issue_uuid`.
+        integrations:
+          - connection: linear_shipfox_sandbox
+            include:
+              - download_file
+              - extract_images
+              - get_agent_skill
+              - get_attachment
+              - get_diff
+              - get_diff_threads
+              - get_document
+              - get_issue
+              - get_issue_status
+              - get_milestone
+              - get_project
+              - get_release
+              - get_release_note
+              - get_status_updates
+              - get_team
+              - get_user
+              - list_agent_skills
+              - list_comments
+              - list_cycles
+              - list_diffs
+              - list_documents
+              - list_issue_labels
+              - list_issue_statuses
+              - list_issues
+              - list_milestones
+              - list_project_labels
+              - list_projects
+              - list_release_notes
+              - list_release_pipelines
+              - list_releases
+              - list_teams
+              - list_users
+              - search_documentation
+            allow_write: false
+        outputs:
+          team_id:
+            type: string
+          team_name:
+            type: string
+          issue_id:
+            type: string
+          issue_uuid:
+            type: string
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.team_id) == type("") && step.outputs.team_id == "4016fa95-dfda-4139-88ba-133ba5955b01" && type(step.outputs.team_name) == type("") && step.outputs.team_name == "sandbox-read" && type(step.outputs.issue_id) == type("") && step.outputs.issue_id == "SAR-5" && type(step.outputs.issue_uuid) == type("") && step.outputs.issue_uuid == "da047291-1dce-4606-a928-d29f4bd8e8b1"
