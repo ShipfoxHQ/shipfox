@@ -154,9 +154,11 @@ The caller maps its own query results to the derivation inputs:
   false.
 - The teammates row renders done at `memberCount >= 2` or
   `pendingInvitationCount >= 1`, but stays a pointer.
-- The panel and indicator render nothing while their queries load, so a
-  workspace that finished setup never sees a placeholder. The slots exported
-  from `./feature` load lazily behind their own hidden Suspense boundary.
+- The panel and indicator render nothing until enough queries have settled to
+  know what to show, so a workspace that finished setup never sees a
+  placeholder. An open tracked step can appear while other families are still
+  loading. The slots exported from `./feature` load lazily behind their own
+  hidden Suspense boundary.
 - The panel and indicator render nothing for an initially complete checklist;
   the mounted host that observes the final tracked row transition renders the
   completion state and owns its one-shot burst.
