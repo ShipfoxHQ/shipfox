@@ -5,7 +5,9 @@ steps:
     with:
       list_ids: [$fixture.clickup.list.id]
       page: 0
-    # The list holds 104 tasks, so the first page is not the last.
+      include_closed: true
+      subtasks: true
+    # The list holds 104 tasks counting the closed one and the subtask, so the first page is not the last.
     expect:
       shape:
         tasks: [{id: string, name: string}]

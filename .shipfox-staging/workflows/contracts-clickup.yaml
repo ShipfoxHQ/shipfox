@@ -89,6 +89,8 @@ jobs:
           list_ids:
             - "901222980414"
           page: 0
+          include_closed: true
+          subtasks: true
         outputs:
           shape_tasks_0_id: ${{ has(result.tasks) && type(result.tasks) == type([]) && size(result.tasks) > 0 && [result.tasks[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
           shape_tasks_0_name: ${{ has(result.tasks) && type(result.tasks) == type([]) && size(result.tasks) > 0 && [result.tasks[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}

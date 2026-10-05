@@ -82,7 +82,7 @@ jobs:
         with:
           query: "Fixture page: markdown, unicode, long content"
           object: page
-          page_size: 10
+          page_size: 100
         outputs:
           shape_results_0_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
           shape_has_more: ${{ has(result.has_more) && type(result.has_more) == type(true) }}

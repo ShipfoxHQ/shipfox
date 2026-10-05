@@ -5,7 +5,8 @@ steps:
     with:
       query: $fixture.notion.page.title
       object: page
-      page_size: 10
+      # The largest page, so other shared pages cannot rank the fixture out of the results.
+      page_size: 100
     expect:
       shape:
         results: [{id: string}]
