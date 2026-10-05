@@ -1,0 +1,6 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: list_teams
+    expect:
+      shape: {teams: list}

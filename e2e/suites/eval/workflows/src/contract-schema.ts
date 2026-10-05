@@ -72,6 +72,7 @@ const stepExpectSchema = outputExpectSchema
     {message: 'a step that expects an error has no output to check', path: ['error']},
   );
 
+// The shape of a step that only reads: an effect, or the read of a fixture.
 const effectSchema = z
   .object({
     tool: toolSchema,
@@ -93,6 +94,7 @@ const stepSchema = z
   .strict();
 
 export type ContractStep = z.infer<typeof stepSchema>;
+export type ContractRead = z.infer<typeof effectSchema>;
 
 /** One contract case. It becomes one job in its provider's workflow. */
 export const contractCaseSchema = z
@@ -164,7 +166,13 @@ export const contractExemptionSchema = z
 
 export type ContractExemption = z.infer<typeof contractExemptionSchema>;
 
-const fixtureFieldsSchema = z.record(z.string().regex(FIELD_PATTERN), scalarSchema);
+// `read` is the one non-scalar key of a fixture, so a fixture field can't be named `read`.
+const fixtureSchema = z
+  .object({read: effectSchema.optional()})
+  .catchall(scalarSchema)
+  .refine((fixture) => Object.keys(fixture).every((field) => FIELD_PATTERN.test(field)), {
+    message: 'field names must be letters, digits, and `_`',
+  });
 
 const targetSchema = z
   .object({kind: z.enum(TARGET_KINDS)})
@@ -177,8 +185,9 @@ const providerSandboxSchema = z
   .object({
     // The slug of the provider's sandbox connection, such as `linear_sandbox`.
     connection: nameSchema,
-    // Objects that exist and that the connection can read.
-    fixtures: z.record(nameSchema, fixtureFieldsSchema).default({}),
+    // Objects that exist and that the connection can read. A fixture's `read` is the call the
+    // `fixtures` job makes to prove it still exists.
+    fixtures: z.record(nameSchema, fixtureSchema).default({}),
     // Objects that must fail, so error cases use them and nothing else does.
     targets: z.record(nameSchema, targetSchema).default({}),
   })

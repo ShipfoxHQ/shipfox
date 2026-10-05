@@ -217,6 +217,27 @@ describe('sandbox manifest schema', () => {
   it('rejects a provider without a connection', () => {
     expect(() => parseSandboxManifest({linear: {fixtures: {}}})).toThrow();
   });
+
+  it('loads the read of a fixture beside its fields', () => {
+    const read = {tool: 'get_issue', with: {id: '$fixture.linear.issue.identifier'}};
+    const parsed = parseSandboxManifest({
+      linear: {connection: 'linear_sandbox', fixtures: {issue: {identifier: 'CON-1', read}}},
+    });
+
+    expect(parsed.linear?.fixtures.issue?.identifier).toBe('CON-1');
+    expect(parsed.linear?.fixtures.issue?.read).toEqual({...read, expect: {}});
+  });
+
+  it('rejects a fixture read with an unknown key', () => {
+    const invalid = {
+      linear: {
+        connection: 'linear_sandbox',
+        fixtures: {issue: {read: {tool: 'get_issue', effect: {}}}},
+      },
+    };
+
+    expect(() => parseSandboxManifest(invalid)).toThrow();
+  });
 });
 
 describe('contract backlog schema', () => {

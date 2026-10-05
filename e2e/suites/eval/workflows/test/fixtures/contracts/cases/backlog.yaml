@@ -1,0 +1,3 @@
+ceiling: 1
+entries:
+  - {tool: linear.save_issue, kind: write, issue: ENG-2816}

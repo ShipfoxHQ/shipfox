@@ -1,0 +1,25 @@
+github:
+  connection: github_sandbox
+  fixtures:
+    repository: {owner: contracts-sandbox, name: fixtures}
+    issue:
+      number: 1
+      read:
+        tool: issue_read
+        method: get
+        with:
+          owner: $fixture.github.repository.owner
+          repo: $fixture.github.repository.name
+          issue_number: $fixture.github.issue.number
+linear:
+  connection: linear_sandbox
+  fixtures:
+    issue:
+      identifier: CON-1
+      uuid: 8e3b
+      read:
+        tool: get_issue
+        with: {id: $fixture.linear.issue.identifier}
+        expect:
+          values: {id: $fixture.linear.issue.identifier}
+    team: {id: 4f0c, name: Contracts}

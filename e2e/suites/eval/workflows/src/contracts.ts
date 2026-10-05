@@ -1,7 +1,7 @@
 import {readdir, readFile} from 'node:fs/promises';
 import {basename, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {checkCaseReferences} from './contract-references.js';
+import {checkCaseReferences, checkManifestReferences} from './contract-references.js';
 import {
   type ContractBacklog,
   type ContractCase,
@@ -61,6 +61,10 @@ function isExemptionDocument(document: unknown): boolean {
 export async function loadContracts(root = defaultContractsRoot): Promise<ContractFiles> {
   const manifestPath = join(root, 'sandbox.yaml');
   const manifest = parseSandboxManifest(await readYamlFile(manifestPath), manifestPath);
+  const manifestProblems = checkManifestReferences(manifest);
+  if (manifestProblems.length > 0) {
+    throw new CaseValidationError(manifestPath, manifestProblems.join('\n'));
+  }
   const backlogPath = join(root, 'backlog.yaml');
   const backlog = parseContractBacklog(await readYamlFile(backlogPath), backlogPath);
 

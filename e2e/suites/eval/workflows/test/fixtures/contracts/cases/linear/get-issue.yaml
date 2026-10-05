@@ -1,0 +1,17 @@
+provider: linear
+modes: [real, fake]
+steps:
+  - tool: get_issue
+    with:
+      id: $fixture.linear.issue.identifier
+    expect:
+      shape:
+        id: string
+        uuid: string
+        priority: number
+        team: {key: string}
+        labels: [{name: string}]
+      values:
+        id: $fixture.linear.issue.identifier
+        uuid: $fixture.linear.issue.uuid
+        labels[0].name: bug
