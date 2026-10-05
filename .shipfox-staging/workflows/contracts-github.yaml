@@ -11,7 +11,7 @@ jobs:
     steps:
       - key: issue
         tool: issue_read.get
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -23,7 +23,7 @@ jobs:
           success: 'step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 1 && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Fixture issue: markdown, unicode, long body"'
       - key: closed_issue
         tool: issue_read.get
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -35,7 +35,7 @@ jobs:
           success: step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 2 && type(step.outputs.value_state) == type("") && step.outputs.value_state == "closed"
       - key: parent_issue
         tool: issue_read.get
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -46,7 +46,7 @@ jobs:
           success: step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 3
       - key: sub_issue
         tool: issue_read.get
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -57,7 +57,7 @@ jobs:
           success: step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 4
       - key: pull_request
         tool: pull_request_read.get
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -69,7 +69,7 @@ jobs:
           success: step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 35 && type(step.outputs.value_state) == type("") && step.outputs.value_state == "open"
       - key: closed_pull_request
         tool: pull_request_read.get
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -82,7 +82,7 @@ jobs:
           success: step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 36 && type(step.outputs.value_state) == type("") && step.outputs.value_state == "closed" && type(step.outputs.value_merged) == type(true) && step.outputs.value_merged == false
       - key: merged_pull_request
         tool: pull_request_read.get
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -95,7 +95,7 @@ jobs:
           success: step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 37 && type(step.outputs.value_state) == type("") && step.outputs.value_state == "closed" && type(step.outputs.value_merged) == type(true) && step.outputs.value_merged == true
       - key: workflow
         tool: actions_get.get_workflow
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -110,7 +110,7 @@ jobs:
     steps:
       - key: actions_get_get_workflow
         tool: actions_get.get_workflow
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -129,7 +129,7 @@ jobs:
     steps:
       - key: actions_list_list_workflow_runs
         tool: actions_list.list_workflow_runs
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -145,7 +145,7 @@ jobs:
     steps:
       - key: actions_list_list_workflows
         tool: actions_list.list_workflows
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -162,7 +162,7 @@ jobs:
     steps:
       - key: issue_read_get
         tool: issue_read.get
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -182,7 +182,7 @@ jobs:
     steps:
       - key: list_issue_types
         tool: list_issue_types
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -195,7 +195,7 @@ jobs:
     steps:
       - key: list_issues
         tool: list_issues
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -210,7 +210,7 @@ jobs:
     steps:
       - key: list_pull_requests
         tool: list_pull_requests
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -227,7 +227,7 @@ jobs:
     steps:
       - key: pull_request_read_get
         tool: pull_request_read.get
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -248,7 +248,7 @@ jobs:
     steps:
       - key: search_issues
         tool: search_issues
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
@@ -265,7 +265,7 @@ jobs:
     steps:
       - key: search_pull_requests
         tool: search_pull_requests
-        connection: github_sandbox
+        connection: github_shipfoxsandbox
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
