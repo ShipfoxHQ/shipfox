@@ -1,1 +1,29 @@
-{}
+jira:
+  connection: jira_shipfox_sandbox
+  fixtures:
+    # The Jira Cloud site is the one the connection authorizes, so no site field is needed.
+    read_project: {key: E2ER, id: '10001', name: 'E2E - Read'}
+    write_project: {key: E2EW, id: '10002', name: 'E2E - Write'}
+    # An issue in `read_project` with comments and workflow transitions.
+    issue: {key: E2ER-1, id: '10010', summary: 'E2E - Example issue'}
+    comment: {id: '10000', body: 'This is a test comment used by contract tests, do not modify it.'}
+    user: {account_id: '712020:f852ec40-ff63-415f-9dd3-1a681b8c9037', display_name: 'Noé Charmet'}
+sentry:
+  connection: sentry_shipfox
+  fixtures:
+    organization: {slug: shipfox, name: Shipfox}
+    project: {id: '4512204696977488', slug: sandbox}
+    # The issue that `sentry-fixture-seed.yaml` keeps alive with one event a day. Its events change,
+    # so no event id is pinned. Sentry ids are numeric strings.
+    issue: {id: '151508352', short_id: SANDBOX-1, title: Contract fixture event}
+discord:
+  connection: discord_shipfox_sandbox
+  fixtures:
+    # Discord ids are snowflakes, too large for a YAML number: keep every id quoted.
+    server: {id: '1556715286223388702', name: 'Shipfox - Sandbox'}
+    read_channel: {id: '1556715356926517279', name: contract-test-read}
+    # A message in `read_channel` and a thread in it.
+    message: {id: '1556715416456273941', content: 'Contract test read message, do not modify'}
+    thread: {id: '1556728176573681897', name: Contract test thread}
+    write_channel: {id: '1556728776744898701', name: contract-test-write}
+    user: {id: '1223593063809548341', username: noe_charmet_shipfox}
