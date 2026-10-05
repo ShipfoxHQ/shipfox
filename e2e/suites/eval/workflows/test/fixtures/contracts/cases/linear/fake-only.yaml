@@ -1,0 +1,5 @@
+provider: linear
+modes: [fake]
+steps:
+  - tool: get_issue
+    with: {id: $fixture.linear.issue.identifier}

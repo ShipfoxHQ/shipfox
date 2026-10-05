@@ -1,0 +1,12 @@
+provider: github
+modes: [real]
+steps:
+  - tool: issue_read
+    method: get
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $fixture.github.issue.number
+    expect:
+      shape: {number: number, title: string, state: string}
+      values: {number: $fixture.github.issue.number}

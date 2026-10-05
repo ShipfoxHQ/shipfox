@@ -217,3 +217,41 @@ function referenceProblem({
   }
   return undefined;
 }
+
+/**
+ * Reports the references of the fixture reads in the manifest that cannot be resolved. A read
+ * runs before any case, so it may use `$fixture` and nothing else.
+ */
+export function checkManifestReferences(manifest: SandboxManifest): string[] {
+  const reads = Object.entries(manifest).flatMap(([provider, sandbox]) =>
+    Object.entries(sandbox.fixtures).flatMap(([name, fixture]) =>
+      fixture.read === undefined
+        ? []
+        : [{where: `${provider}.fixtures.${name}.read`, ...fixture.read}],
+    ),
+  );
+  return reads.flatMap(({where, ...read}) =>
+    findContractReferences({with: read.with, expect: read.expect}).flatMap((found) => {
+      const problem = fixtureReadProblem({found, manifest});
+      return problem === undefined
+        ? []
+        : [`${where}${found.path === '' ? '' : `.${found.path}`}: ${problem}`];
+    }),
+  );
+}
+
+function fixtureReadProblem({
+  found,
+  manifest,
+}: {
+  found: FoundReference;
+  manifest: SandboxManifest;
+}): string | undefined {
+  const {reference, token} = found;
+  if (reference === undefined) return `unknown reference ${token}`;
+  if (reference.kind !== 'fixture') return `${token} is not available in a fixture read`;
+  if (resolveManifestValue({manifest, reference}) === undefined) {
+    return `${token} is not in sandbox.yaml`;
+  }
+  return undefined;
+}

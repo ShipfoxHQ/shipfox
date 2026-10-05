@@ -11,6 +11,8 @@ const directoryPattern = /does not match its directory "slack"/u;
 const providerPattern = /provider "jira" is not in sandbox\.yaml/u;
 const extensionPattern = /use the `\.yaml` extension/u;
 const yamlPattern = /could not parse YAML/u;
+const fixtureReadPattern =
+  /linear\.fixtures\.issue\.read\.with\.id: \$steps\.get\.id is not available in a fixture read/u;
 
 const sandbox = `
 linear:
@@ -127,6 +129,18 @@ describe('loadContracts', () => {
     await writeFixture('linear/get-issue.yml', getIssue);
 
     await expect(loadContracts(root)).rejects.toThrow(extensionPattern);
+  });
+
+  it('rejects a fixture read that uses a reference other than $fixture', async () => {
+    await writeFixture(
+      'sandbox.yaml',
+      sandbox.replace(
+        'issue: {identifier: CON-1, uuid: 8e3b}',
+        'issue: {identifier: CON-1, read: {tool: get_issue, with: {id: $steps.get.id}}}',
+      ),
+    );
+
+    await expect(loadContracts(root)).rejects.toThrow(fixtureReadPattern);
   });
 
   it('rejects a file that is not YAML', async () => {

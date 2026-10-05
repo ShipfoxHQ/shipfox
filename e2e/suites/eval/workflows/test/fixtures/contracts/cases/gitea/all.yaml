@@ -1,0 +1,2 @@
+provider: gitea
+exempt: {reason: No Gitea in staging.}
