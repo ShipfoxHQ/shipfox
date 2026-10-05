@@ -9,7 +9,7 @@
 # exist, and its value is one nobody can create by accident. An `inaccessible` target exists outside
 # the connection's reach.
 github:
-  connection: github_sandbox
+  connection: github_shipfoxsandbox
   fixtures:
     repository: {owner: ShipfoxSandbox, name: contract-tests}
     # Issue 1 has a long markdown and unicode body, 32 comments, and three labels. Issues 5 to 34
