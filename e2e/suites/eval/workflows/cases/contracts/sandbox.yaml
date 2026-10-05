@@ -1,9 +1,9 @@
 # The sandbox accounts the contract cases run against. The ids end up public, so they point at
 # sandbox objects only.
 #
-# `fixtures` are objects that exist and that the connection can read. Round-trip cases write only
-# in the `write_*` containers. The `read` that proves each fixture still exists is added with the
-# cases that use it.
+# `fixtures` are objects that exist and that the connection can read. A fixture's `read` is the call
+# the `fixtures` job makes to prove it still exists. Round-trip cases write only in the `write_*`
+# containers.
 #
 # `targets` are objects that must fail, and only error cases read them. An `absent` target does not
 # exist, and its value is one nobody can create by accident. An `inaccessible` target exists outside
@@ -14,17 +14,106 @@ github:
     repository: {owner: ShipfoxSandbox, name: contract-tests}
     # Issue 1 has a long markdown and unicode body, 32 comments, and three labels. Issues 5 to 34
     # fill a second page.
-    issue: {number: 1, title: 'Fixture issue: markdown, unicode, long body'}
-    closed_issue: {number: 2, title: 'Fixture issue: closed'}
-    parent_issue: {number: 3, title: 'Fixture issue: parent with sub-issue'}
-    sub_issue: {number: 4, title: 'Fixture issue: sub-issue'}
+    issue:
+      number: 1
+      title: 'Fixture issue: markdown, unicode, long body'
+      read:
+        tool: issue_read
+        method: get
+        with:
+          owner: $fixture.github.repository.owner
+          repo: $fixture.github.repository.name
+          issue_number: $fixture.github.issue.number
+        expect:
+          values: {number: $fixture.github.issue.number, title: $fixture.github.issue.title}
+    closed_issue:
+      number: 2
+      title: 'Fixture issue: closed'
+      read:
+        tool: issue_read
+        method: get
+        with:
+          owner: $fixture.github.repository.owner
+          repo: $fixture.github.repository.name
+          issue_number: $fixture.github.closed_issue.number
+        expect:
+          values: {number: $fixture.github.closed_issue.number, state: closed}
+    parent_issue:
+      number: 3
+      title: 'Fixture issue: parent with sub-issue'
+      read:
+        tool: issue_read
+        method: get
+        with:
+          owner: $fixture.github.repository.owner
+          repo: $fixture.github.repository.name
+          issue_number: $fixture.github.parent_issue.number
+        expect:
+          values: {number: $fixture.github.parent_issue.number}
+    sub_issue:
+      number: 4
+      title: 'Fixture issue: sub-issue'
+      read:
+        tool: issue_read
+        method: get
+        with:
+          owner: $fixture.github.repository.owner
+          repo: $fixture.github.repository.name
+          issue_number: $fixture.github.sub_issue.number
+        expect:
+          values: {number: $fixture.github.sub_issue.number}
     label: {name: contract-fixture}
     # Pull request 35 has a review with two threads, one reply, one resolved thread, and check runs.
-    pull_request: {number: 35, title: 'Fixture PR: open, with review threads'}
-    closed_pull_request: {number: 36, title: 'Fixture PR: closed'}
-    merged_pull_request: {number: 37, title: 'Fixture PR: merged'}
+    pull_request:
+      number: 35
+      title: 'Fixture PR: open, with review threads'
+      read:
+        tool: pull_request_read
+        method: get
+        with:
+          owner: $fixture.github.repository.owner
+          repo: $fixture.github.repository.name
+          pull_number: $fixture.github.pull_request.number
+        expect:
+          values: {number: $fixture.github.pull_request.number, state: open}
+    closed_pull_request:
+      number: 36
+      title: 'Fixture PR: closed'
+      read:
+        tool: pull_request_read
+        method: get
+        with:
+          owner: $fixture.github.repository.owner
+          repo: $fixture.github.repository.name
+          pull_number: $fixture.github.closed_pull_request.number
+        expect:
+          values: {number: $fixture.github.closed_pull_request.number, state: closed, merged: false}
+    merged_pull_request:
+      number: 37
+      title: 'Fixture PR: merged'
+      read:
+        tool: pull_request_read
+        method: get
+        with:
+          owner: $fixture.github.repository.owner
+          repo: $fixture.github.repository.name
+          pull_number: $fixture.github.merged_pull_request.number
+        expect:
+          values: {number: $fixture.github.merged_pull_request.number, state: closed, merged: true}
     # Runs expire, so cases find the latest completed run through `list_workflow_runs`.
-    workflow: {id: 375690478, file: fixture.yml, name: Fixture}
+    workflow:
+      id: 375690478
+      file: fixture.yml
+      name: Fixture
+      read:
+        tool: actions_get
+        method: get_workflow
+        with:
+          owner: $fixture.github.repository.owner
+          repo: $fixture.github.repository.name
+          resource_id: $fixture.github.workflow.file
+        expect:
+          values: {id: $fixture.github.workflow.id, name: $fixture.github.workflow.name}
   targets:
     # The owner exists, so the call fails on the repository and not on the owner.
     missing_repository: {kind: absent, owner: ShipfoxSandbox, name: contract-absent-7f3a9c41}
@@ -33,20 +122,100 @@ github:
 linear:
   connection: linear_shipfox_sandbox
   fixtures:
-    team: {id: 4016fa95-dfda-4139-88ba-133ba5955b01, key: SAR, name: sandbox-read}
-    write_team: {id: 9356e9c7-94d5-444d-83eb-d54b22c8082c, key: SAW, name: sandbox-write}
+    team:
+      id: 4016fa95-dfda-4139-88ba-133ba5955b01
+      key: SAR
+      name: sandbox-read
+      read:
+        tool: get_team
+        with: {query: $fixture.linear.team.id}
+        expect:
+          values: {id: $fixture.linear.team.id, name: $fixture.linear.team.name}
+    write_team:
+      id: 9356e9c7-94d5-444d-83eb-d54b22c8082c
+      key: SAW
+      name: sandbox-write
+      read:
+        tool: get_team
+        with: {query: $fixture.linear.write_team.id}
+        expect:
+          values: {id: $fixture.linear.write_team.id, name: $fixture.linear.write_team.name}
     # The connection's own bot user, so the public manifest holds no person.
-    user: {id: b2f39d6d-42c5-4111-b521-bbfa50b73b36, name: Shipfox - Staging}
+    user:
+      id: b2f39d6d-42c5-4111-b521-bbfa50b73b36
+      name: Shipfox - Staging
+      read:
+        tool: get_user
+        with: {query: $fixture.linear.user.id}
+        expect:
+          values: {id: $fixture.linear.user.id, name: $fixture.linear.user.name}
     # SAR-5 has a long markdown and unicode body, 32 comments, two labels, a project, a milestone,
     # and an attachment. SAR-10 to SAR-39 fill a second page of issues.
-    issue: {identifier: SAR-5, uuid: da047291-1dce-4606-a928-d29f4bd8e8b1, title: 'Fixture issue: markdown, unicode, long body'}
-    parent_issue: {identifier: SAR-6, uuid: 9f8221a7-cf0d-4fc6-aa2b-948ed622c570, title: 'Fixture issue: parent with sub-issue'}
-    sub_issue: {identifier: SAR-7, uuid: 743e8dd1-6486-4814-b9b0-d981afe4b0be, title: 'Fixture issue: sub-issue'}
-    canceled_issue: {identifier: SAR-8, uuid: a3896f17-a49b-4c42-bb6c-4fb0a6c2c996, title: 'Fixture issue: canceled'}
-    done_issue: {identifier: SAR-9, uuid: 853d10b4-036d-474c-adf4-4a0ebe6efbee, title: 'Fixture issue: done'}
-    issue_status: {id: 91e00ebb-7180-424a-b436-82c9f2d75346, name: Todo}
+    issue:
+      identifier: SAR-5
+      uuid: da047291-1dce-4606-a928-d29f4bd8e8b1
+      title: 'Fixture issue: markdown, unicode, long body'
+      read:
+        tool: get_issue
+        with: {id: $fixture.linear.issue.identifier}
+        expect:
+          values: {id: $fixture.linear.issue.identifier, uuid: $fixture.linear.issue.uuid}
+    parent_issue:
+      identifier: SAR-6
+      uuid: 9f8221a7-cf0d-4fc6-aa2b-948ed622c570
+      title: 'Fixture issue: parent with sub-issue'
+      read:
+        tool: get_issue
+        with: {id: $fixture.linear.parent_issue.identifier}
+        expect:
+          values: {id: $fixture.linear.parent_issue.identifier, uuid: $fixture.linear.parent_issue.uuid}
+    sub_issue:
+      identifier: SAR-7
+      uuid: 743e8dd1-6486-4814-b9b0-d981afe4b0be
+      title: 'Fixture issue: sub-issue'
+      read:
+        tool: get_issue
+        with: {id: $fixture.linear.sub_issue.identifier}
+        expect:
+          values: {id: $fixture.linear.sub_issue.identifier, uuid: $fixture.linear.sub_issue.uuid}
+    canceled_issue:
+      identifier: SAR-8
+      uuid: a3896f17-a49b-4c42-bb6c-4fb0a6c2c996
+      title: 'Fixture issue: canceled'
+      read:
+        tool: get_issue
+        with: {id: $fixture.linear.canceled_issue.identifier}
+        expect:
+          values: {id: $fixture.linear.canceled_issue.identifier, uuid: $fixture.linear.canceled_issue.uuid}
+    done_issue:
+      identifier: SAR-9
+      uuid: 853d10b4-036d-474c-adf4-4a0ebe6efbee
+      title: 'Fixture issue: done'
+      read:
+        tool: get_issue
+        with: {id: $fixture.linear.done_issue.identifier}
+        expect:
+          values: {id: $fixture.linear.done_issue.identifier, uuid: $fixture.linear.done_issue.uuid}
+    issue_status:
+      id: 91e00ebb-7180-424a-b436-82c9f2d75346
+      name: Todo
+      read:
+        tool: get_issue_status
+        with:
+          id: $fixture.linear.issue_status.id
+          name: $fixture.linear.issue_status.name
+          team: $fixture.linear.team.id
+        expect:
+          values: {id: $fixture.linear.issue_status.id, name: $fixture.linear.issue_status.name}
     label: {id: 166e6019-a6be-4812-a527-1f8e3b2369a6, name: contract-fixture}
-    project: {id: fa265fda-fe3e-4049-a2a8-b4173aa5b266, name: Contract fixture project}
+    project:
+      id: fa265fda-fe3e-4049-a2a8-b4173aa5b266
+      name: Contract fixture project
+      read:
+        tool: get_project
+        with: {query: $fixture.linear.project.id}
+        expect:
+          values: {uuid: $fixture.linear.project.id, name: $fixture.linear.project.name}
     milestone: {id: 78f5b498-6c53-4e69-8fce-32cc67027324, name: Contract fixture milestone}
     document: {id: 471c6da6-c647-4770-b6d3-27dc53189810, title: Contract fixture document}
   targets:

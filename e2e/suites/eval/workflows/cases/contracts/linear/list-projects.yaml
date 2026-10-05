@@ -1,0 +1,13 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: list_projects
+    with:
+      query: $fixture.linear.project.name
+      limit: 1
+    expect:
+      shape:
+        projects: [{id: string, uuid: string, name: string}]
+      values:
+        projects[0].uuid: $fixture.linear.project.id
+        projects[0].name: $fixture.linear.project.name

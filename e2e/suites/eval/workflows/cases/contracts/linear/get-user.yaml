@@ -1,0 +1,11 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: get_user
+    with:
+      query: $fixture.linear.user.id
+    expect:
+      shape: {id: string, name: string}
+      values:
+        id: $fixture.linear.user.id
+        name: $fixture.linear.user.name

@@ -1,0 +1,19 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: get_issue
+    with:
+      id: $fixture.linear.issue.identifier
+    expect:
+      shape:
+        id: string
+        uuid: string
+        title: string
+        url: string
+        status: string
+        priority: {value: number, name: string}
+        labels: list
+      values:
+        id: $fixture.linear.issue.identifier
+        uuid: $fixture.linear.issue.uuid
+        title: $fixture.linear.issue.title

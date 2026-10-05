@@ -1,0 +1,9 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: list_issue_statuses
+    with:
+      team: $fixture.linear.team.id
+    # The result is a bare list, so only its first item is checked.
+    expect:
+      shape: [{id: string, name: string, type: string}]

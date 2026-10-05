@@ -1,0 +1,12 @@
+provider: github
+modes: [real]
+steps:
+  - tool: search_pull_requests
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      query: Fixture
+      per_page: 5
+    expect:
+      shape:
+        pull_requests: [{number: number, title: string, state: string}]

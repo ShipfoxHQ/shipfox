@@ -1,0 +1,9 @@
+provider: github
+modes: [real]
+steps:
+  - tool: list_issue_types
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+    expect:
+      shape: {issue_types: list}

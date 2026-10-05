@@ -1,0 +1,13 @@
+provider: github
+modes: [real]
+steps:
+  - tool: actions_list
+    method: list_workflow_runs
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      resource_id: $fixture.github.workflow.file
+      per_page: 5
+    # Runs expire, so the list may be empty one day: only its fields are checked.
+    expect:
+      shape: {total_count: number, workflow_runs: list}

@@ -1,0 +1,13 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: get_issue_status
+    with:
+      id: $fixture.linear.issue_status.id
+      name: $fixture.linear.issue_status.name
+      team: $fixture.linear.team.id
+    expect:
+      shape: {id: string, name: string, type: string}
+      values:
+        id: $fixture.linear.issue_status.id
+        name: $fixture.linear.issue_status.name

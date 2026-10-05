@@ -1,0 +1,12 @@
+provider: github
+modes: [real]
+steps:
+  - tool: actions_list
+    method: list_workflows
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+    expect:
+      shape:
+        total_count: number
+        workflows: [{id: number, name: string, path: string, state: string}]

@@ -1,0 +1,14 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: list_comments
+    with:
+      issueId: $fixture.linear.issue.identifier
+      limit: 10
+    # The fixture issue holds 32 comments, so the first page has a next one.
+    expect:
+      shape:
+        comments: [{id: string, body: string}]
+        hasNextPage: boolean
+      values:
+        hasNextPage: true

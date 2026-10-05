@@ -1,0 +1,13 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: list_users
+    with:
+      query: $fixture.linear.user.name
+      limit: 1
+    expect:
+      shape:
+        users: [{id: string, name: string}]
+      values:
+        users[0].id: $fixture.linear.user.id
+        users[0].name: $fixture.linear.user.name
