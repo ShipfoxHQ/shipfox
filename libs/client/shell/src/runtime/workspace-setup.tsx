@@ -16,6 +16,11 @@ export interface WorkspaceSetupRouteOptions {
   workspaceId: string;
   workspaceSlug: string;
   pathname: string;
+  /**
+   * Re-runs the gate. A gate that answers from a local hint calls it when its
+   * background read contradicts the answer it already returned.
+   */
+  revalidate?: () => void;
 }
 export type WorkspaceSetupGate = (
   options: WorkspaceSetupRouteOptions,

@@ -276,6 +276,23 @@ function modelProviderConfig() {
   };
 }
 
+function gateOptions() {
+  return {
+    queryClient: new QueryClient({defaultOptions: {queries: {retry: false}}}),
+    workspaceId: WORKSPACE_ID,
+    workspaceSlug: WORKSPACE_SLUG,
+    pathname: `/w/${WORKSPACE_SLUG}`,
+  };
+}
+
+async function rememberWorkspaceHasProject() {
+  configureApiClient({
+    baseUrl: 'https://api.example.test',
+    fetchImpl: setupFetch({projects: [projectStub()]}),
+  });
+  await loadWorkspaceSetupRoute(gateOptions());
+}
+
 function calledUrls(fetchImpl: ReturnType<typeof setupFetch>) {
   return fetchImpl.mock.calls.map(([input]) =>
     input instanceof Request ? input.url : String(input),
@@ -713,6 +730,35 @@ describe('workspace setup route hook', () => {
 
     expect(await screen.findByText('Workspace home')).toBeInTheDocument();
     expect(calledUrls(fetchImpl).filter((url) => url.includes('/projects?'))).toHaveLength(2);
+  });
+
+  test('lets a workspace that had a project through without waiting on the read', async () => {
+    await rememberWorkspaceHasProject();
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: setupFetch({projectsPending: true}),
+    });
+
+    const state = await loadWorkspaceSetupRoute({
+      ...gateOptions(),
+      revalidate: vi.fn(),
+    });
+
+    expect(state).toEqual({hideProjectNavigation: false});
+  });
+
+  test('drops the hint and re-runs the gate when the workspace has no project left', async () => {
+    await rememberWorkspaceHasProject();
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: setupFetch()});
+    const options = gateOptions();
+    const revalidate = vi.fn();
+
+    await loadWorkspaceSetupRoute({...options, revalidate});
+
+    await waitFor(() => expect(revalidate).toHaveBeenCalledOnce());
+    await expect(loadWorkspaceSetupRoute({...options, revalidate})).rejects.toMatchObject({
+      options: {to: '/w/$workspaceSlug/integrations'},
+    });
   });
 
   test('uses a generic workspace error for descendant route failures', async () => {

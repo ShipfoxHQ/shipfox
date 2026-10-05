@@ -14,11 +14,28 @@ import {
   type WorkspaceSetupRouteOptions,
   type WorkspaceSetupState,
 } from '@shipfox/client-shell/runtime';
+import type {BrowserStorageKey} from '@shipfox/react-ui/utils';
+import {createTypedBrowserStorage, localStorageOrUndefined} from '@shipfox/react-ui/utils';
 import type {QueryClient} from '@tanstack/react-query';
 import {redirect} from '@tanstack/react-router';
 
 const TRAILING_SLASHES_RE = /\/+$/u;
 const WORKSPACE_SUMMARY_STALE_TIME_MS = 30_000;
+
+const workspaceHasProjectHintKey = {
+  key: 'shipfox.workspaceSetup.hasProject',
+  lifetime: 'persistent',
+  principalScope: 'workspace',
+  serialize: (hasProject: boolean) => JSON.stringify(hasProject),
+  parse: (raw: string) => {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return typeof parsed === 'boolean' ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  },
+} satisfies BrowserStorageKey<boolean>;
 
 export type {WorkspaceSetupRouteOptions} from '@shipfox/client-shell/runtime';
 
@@ -27,6 +44,7 @@ export async function loadWorkspaceSetupRoute({
   workspaceId,
   workspaceSlug,
   pathname,
+  revalidate,
 }: WorkspaceSetupRouteOptions): Promise<WorkspaceSetupState> {
   const workspace = await fetchWorkspaceSummary(queryClient, workspaceId);
   const workspaceStatus = workspace?.status;
@@ -41,10 +59,10 @@ export async function loadWorkspaceSetupRoute({
       return assertNever(workspaceStatus);
   }
 
-  const projects = await fetchWorkspaceProjectExistence(queryClient, workspaceId);
+  const hasProject = await workspaceHasProject({queryClient, workspaceId, revalidate});
   const normalizedPathname = normalizePath(pathname);
 
-  if (projects.projects.length > 0) {
+  if (hasProject) {
     if (isSetupMembersPath(normalizedPathname, workspaceSlug)) {
       throw redirect({
         to: '/w/$workspaceSlug/settings/members',
@@ -127,6 +145,44 @@ async function fetchWorkspaceSummary(queryClient: QueryClient, workspaceId: stri
   } catch (error) {
     throw new WorkspaceSetupLoadError(error);
   }
+}
+
+/**
+ * A workspace that had a project on this device is let through at once and
+ * checked in the background, so an established workspace never waits on the
+ * read. The hint only steers navigation: when the read finds no project, it is
+ * dropped and the gate runs again without it.
+ */
+async function workspaceHasProject({
+  queryClient,
+  workspaceId,
+  revalidate,
+}: {
+  queryClient: QueryClient;
+  workspaceId: string;
+  revalidate: (() => void) | undefined;
+}) {
+  const hint = createTypedBrowserStorage(localStorageOrUndefined, workspaceHasProjectHintKey, {
+    workspaceId,
+  });
+
+  if (revalidate && hint.read() === true) {
+    void queryClient.fetchQuery(projectExistenceQueryOptions(workspaceId)).then(
+      (projects) => {
+        if (projects.projects.length > 0) return;
+        hint.remove();
+        revalidate();
+      },
+      () => undefined,
+    );
+    return true;
+  }
+
+  const projects = await fetchWorkspaceProjectExistence(queryClient, workspaceId);
+  const hasProject = projects.projects.length > 0;
+  if (hasProject) hint.write(true);
+  else hint.remove();
+  return hasProject;
 }
 
 async function fetchWorkspaceProjectExistence(queryClient: QueryClient, workspaceId: string) {
