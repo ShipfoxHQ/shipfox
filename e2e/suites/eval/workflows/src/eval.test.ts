@@ -219,6 +219,106 @@ describe('eval results', () => {
   });
 });
 
+describe('parallel workers', () => {
+  const runWith = async ({
+    workers,
+    repeat,
+    execute,
+    maxCostUsd,
+  }: {
+    workers: number;
+    repeat: number;
+    execute: (params: {discovered: {id: string}; repeat: number}) => Promise<CaseResult>;
+    maxCostUsd?: number;
+  }) => {
+    const root = await mkdtemp(join(tmpdir(), 'shipfox-eval-workers-'));
+    temporaryDirectories.push(root);
+    return await runEval({
+      suite: 'templates',
+      mode: 'scripted',
+      cwd: fileURLToPath(new URL('../', import.meta.url)),
+      caseFilter: 'fixture',
+      resultsDirectory: join(root, 'results'),
+      repeat,
+      workers,
+      ...(maxCostUsd === undefined ? {} : {maxCostUsd}),
+      execute,
+    });
+  };
+
+  it('runs no more case repeats at once than there are workers', async () => {
+    let running = 0;
+    let peak = 0;
+
+    const run = await runWith({
+      workers: 3,
+      repeat: 7,
+      execute: async (params) => {
+        running += 1;
+        peak = Math.max(peak, running);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        running -= 1;
+        return passing(params);
+      },
+    });
+
+    expect(run.results).toHaveLength(7);
+    expect(peak).toBe(3);
+  });
+
+  it('lists the results in case order however the repeats finish', async () => {
+    const run = await runWith({
+      workers: 3,
+      repeat: 3,
+      // The first repeat finishes last.
+      execute: async (params) => {
+        await new Promise((resolve) => setTimeout(resolve, (4 - params.repeat) * 20));
+        return passing(params);
+      },
+    });
+
+    expect(run.results.map((result) => result.repeat)).toEqual([1, 2, 3]);
+  });
+
+  it('starts one case repeat at a time by default', async () => {
+    let running = 0;
+    let peak = 0;
+    const root = await mkdtemp(join(tmpdir(), 'shipfox-eval-default-workers-'));
+    temporaryDirectories.push(root);
+
+    await runEval({
+      suite: 'templates',
+      mode: 'scripted',
+      cwd: fileURLToPath(new URL('../', import.meta.url)),
+      caseFilter: 'fixture',
+      resultsDirectory: join(root, 'results'),
+      repeat: 3,
+      execute: async (params) => {
+        running += 1;
+        peak = Math.max(peak, running);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        running -= 1;
+        return passing(params);
+      },
+    });
+
+    expect(peak).toBe(1);
+  });
+
+  it('stops starting case repeats once the budget is spent', async () => {
+    const run = await runWith({
+      workers: 2,
+      repeat: 6,
+      maxCostUsd: 1,
+      execute: async (params) => ({...passing(params), cost_usd: 0.6}),
+    });
+
+    // Two repeats were in flight when the budget ran out, so it is passed by one repeat per worker.
+    expect(run.results).toHaveLength(2);
+    expect(run.skipped_for_budget).toBe(4);
+  });
+});
+
 describe('exit code', () => {
   const result = (status: CaseResult['status']): CaseResult => ({
     ...passing({discovered: {id: 'case'}, repeat: 1}),

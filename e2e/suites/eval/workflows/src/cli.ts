@@ -30,6 +30,8 @@ Options:
   --catalog <directory>     Compile the templates of a catalog directory instead of the
                             shipped ones (compile mode only)
   --repeat <count>          Number of repeats (default: 1; the case's k for onboarding)
+  --workers <count>         Case repeats to run at once (default: 4; scripted and live
+                            template runs only)
   --max-cost-usd <amount>   Stop starting cases once the runs so far have cost this much
                             (live and onboarding runs)
   --agent-model <model>     Model of the onboarding agent (onboarding suite only)
@@ -45,6 +47,8 @@ export interface EvalCliOptions {
   /** Unset, templates run once and onboarding cases run their own `k`. */
   repeat?: number;
   maxCostUsd?: number;
+  /** Unset, template runs use `DEFAULT_WORKERS`. */
+  workers?: number;
   agentModel?: string;
   simulatorModel?: string;
 }
@@ -54,6 +58,9 @@ export interface EvalCliEnvironment {
   stdout?: (message: string) => void;
   stderr?: (message: string) => void;
 }
+
+/** Each case has its own workspace, runner, and fake credentials, so cases don't interfere. */
+export const DEFAULT_WORKERS = 4;
 
 function positiveInteger(value: string, option: string): number {
   const parsed = Number(value);
@@ -69,6 +76,22 @@ function nonNegativeNumber(value: string, option: string): number {
     throw new Error(`${option} must be a non-negative number`);
   }
   return parsed;
+}
+
+// Only template runs have cases to spread over workers.
+function parseWorkers({
+  workers,
+  suite,
+  mode,
+}: {
+  workers: string;
+  suite: EvalCliOptions['suite'];
+  mode: EvalMode;
+}): number {
+  if (suite === 'onboarding' || mode === 'compile') {
+    throw new Error('--workers applies to scripted and live template runs only');
+  }
+  return positiveInteger(workers, '--workers');
 }
 
 // Template cases run each template's own anchor models, so only onboarding takes a model.
@@ -99,6 +122,7 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
       catalog: {type: 'string'},
       repeat: {type: 'string'},
       'max-cost-usd': {type: 'string'},
+      workers: {type: 'string'},
       'agent-model': {type: 'string'},
       'simulator-model': {type: 'string'},
       help: {type: 'boolean', short: 'h', default: false},
@@ -127,6 +151,9 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
     mode,
   };
   if (values.repeat !== undefined) options.repeat = positiveInteger(values.repeat, '--repeat');
+  if (values.workers !== undefined) {
+    options.workers = parseWorkers({workers: values.workers, suite, mode});
+  }
   if (values.case !== undefined) options.caseFilter = values.case;
   if (values.catalog !== undefined) options.catalog = values.catalog;
   if (values['max-cost-usd'] !== undefined) {
@@ -200,6 +227,7 @@ export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
     execute,
     runId,
     maxCostUsd: options.maxCostUsd,
+    workers: options.workers,
     ...(options.resultsDirectory === undefined ? {} : {resultsDirectory: options.resultsDirectory}),
   });
 }
@@ -338,6 +366,7 @@ async function runTemplatesCli({
     ...(options.repeat === undefined ? {} : {repeat: options.repeat}),
     ...(options.caseFilter === undefined ? {} : {caseFilter: options.caseFilter}),
     ...(options.maxCostUsd === undefined ? {} : {maxCostUsd: options.maxCostUsd}),
+    workers: options.workers ?? DEFAULT_WORKERS,
     ...(cwd === undefined ? {} : {cwd, resultsDirectory: `${cwd}/results`}),
   });
   const failed = run.results.filter((result: CaseResult) => result.status !== 'passed');
