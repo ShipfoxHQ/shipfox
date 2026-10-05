@@ -64,6 +64,7 @@ function createParams() {
     sessionMemberships: [],
     requireWorkspaceMembership: vi.fn().mockResolvedValue(undefined),
     getExistingClickUpConnection: vi.fn().mockResolvedValue(undefined),
+    getClickUpInstallationByConnectionId: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -152,6 +153,39 @@ describe('ClickUp OAuth installation', () => {
       ClickUpInstallationAlreadyLinkedError,
     );
     expect(params.tokenStore.storeTokens).not.toHaveBeenCalled();
+  });
+
+  it('replaces the grant and webhook when the same Shipfox workspace reconnects', async () => {
+    const params = createParams();
+    params.clickup.getAuthorizedWorkspaces.mockResolvedValue([{id: 'team-1', name: 'Acme'}]);
+    params.getExistingClickUpConnection.mockResolvedValue(params.activeConnection);
+    params.getClickUpInstallationByConnectionId.mockResolvedValue({webhookId: 'old-webhook'});
+
+    const result = await handleClickUpCallback(params);
+
+    expect(result).toBe(params.activeConnection);
+    expect(params.connectClickUpInstallation).toHaveBeenCalledWith(
+      expect.objectContaining({workspaceId: params.workspaceId, lifecycleStatus: 'active'}),
+    );
+    expect(params.clickup.deleteWebhook).toHaveBeenCalledWith({
+      accessToken: 'access-token',
+      webhookId: 'old-webhook',
+    });
+    expect(params.updateClickUpInstallationWebhook).toHaveBeenCalledWith({
+      connectionId: 'connection-1',
+      webhookId: 'webhook-1',
+    });
+    expect(params.disconnectClickUpInstallation).not.toHaveBeenCalled();
+  });
+
+  it('keeps the existing connection when a reconnect cannot store the token', async () => {
+    const params = createParams();
+    params.clickup.getAuthorizedWorkspaces.mockResolvedValue([{id: 'team-1', name: 'Acme'}]);
+    params.getExistingClickUpConnection.mockResolvedValue(params.activeConnection);
+    params.tokenStore.storeTokens.mockRejectedValue(new Error('secrets unavailable'));
+
+    await expect(handleClickUpCallback(params)).rejects.toThrow('secrets unavailable');
+    expect(params.disconnectClickUpInstallation).not.toHaveBeenCalled();
   });
 
   it('rejects a callback state created by another user before exchanging the code', async () => {

@@ -4,7 +4,12 @@ import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {ClickUpApiClient} from '#api/client.js';
 import type {ClickUpTokenStore} from '#core/tokens.js';
-import {type ClickUpInstallationLock, withClickUpInstallationLock} from '#db/installations.js';
+import {
+  type ClickUpInstallation,
+  type ClickUpInstallationLock,
+  getClickUpInstallationByConnectionId,
+  withClickUpInstallationLock,
+} from '#db/installations.js';
 import {
   ClickUpInstallationAlreadyLinkedError,
   ClickUpInstallStateActorMismatchError,
@@ -54,6 +59,9 @@ export interface HandleClickUpCallbackParams {
   markConnectionError(input: {connectionId: string}): Promise<void>;
   webhookUrlForConnection(connectionId: string): string;
   withClickUpInstallationLock?: ClickUpInstallationLock;
+  getClickUpInstallationByConnectionId?: (
+    connectionId: string,
+  ) => Promise<ClickUpInstallation | undefined>;
 }
 
 export async function handleClickUpCallback(
@@ -75,13 +83,21 @@ export async function handleClickUpCallback(
 
   return await withInstallationLock(workspace.id, async () => {
     const existing = await params.getExistingClickUpConnection({teamId: workspace.id});
-    if (existing) throw new ClickUpInstallationAlreadyLinkedError(workspace.id);
+    if (existing && existing.workspaceId !== claims.workspaceId) {
+      throw new ClickUpInstallationAlreadyLinkedError(workspace.id);
+    }
+    const getInstallation =
+      params.getClickUpInstallationByConnectionId ?? getClickUpInstallationByConnectionId;
+    const previousWebhookId = existing ? (await getInstallation(existing.id))?.webhookId : null;
 
     const connection = await params.connectClickUpInstallation({
       workspaceId: claims.workspaceId,
       teamId: workspace.id,
       teamName: workspace.name,
       authorizingUserId: identity.id,
+      // An active connection stays active while its grant is replaced, so the
+      // reconnect does not announce the connection as newly available.
+      ...(existing?.lifecycleStatus === 'active' ? {lifecycleStatus: 'active' as const} : {}),
       displayName: `ClickUp ${workspace.name}`,
     });
     try {
@@ -91,8 +107,16 @@ export async function handleClickUpCallback(
         editedBy: claims.userId,
       });
     } catch (error) {
-      await bestEffortDisconnect(params, connection.id);
+      if (!existing) await bestEffortDisconnect(params, connection.id);
       throw error;
+    }
+
+    if (previousWebhookId) {
+      await bestEffortDeleteWebhook(params, {
+        connectionId: connection.id,
+        accessToken: authorization.accessToken,
+        webhookId: previousWebhookId,
+      });
     }
 
     return await registerClickUpWebhook({
@@ -213,6 +237,23 @@ export async function registerClickUpWebhook(
       );
     }
     throw error;
+  }
+}
+
+async function bestEffortDeleteWebhook(
+  params: Pick<HandleClickUpCallbackParams, 'clickup'>,
+  input: {connectionId: string; accessToken: string; webhookId: string},
+): Promise<void> {
+  try {
+    await params.clickup.deleteWebhook({
+      accessToken: input.accessToken,
+      webhookId: input.webhookId,
+    });
+  } catch (error) {
+    logger().warn(
+      {err: error, connectionId: input.connectionId, webhookId: input.webhookId},
+      'ClickUp webhook deletion failed during reconnect',
+    );
   }
 }
 
