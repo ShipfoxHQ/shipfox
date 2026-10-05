@@ -1,0 +1,13 @@
+provider: slack
+modes: [real]
+steps:
+  - tool: search_channels
+    with:
+      query: $fixture.slack.read_channel.name
+      # The tool matches names within one page, so the page has to hold every channel.
+      limit: 1000
+    expect:
+      shape:
+        channels: [{id: string, name: string}]
+      includes:
+        channels: {id: $fixture.slack.read_channel.id, name: $fixture.slack.read_channel.name}

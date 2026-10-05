@@ -1,0 +1,14 @@
+provider: notion
+modes: [real]
+steps:
+  - tool: search
+    with:
+      query: $fixture.notion.page.title
+      object: page
+      page_size: 10
+    expect:
+      shape:
+        results: [{id: string}]
+        has_more: boolean
+      includes:
+        results: {id: $fixture.notion.page.id}

@@ -1,0 +1,13 @@
+provider: notion
+modes: [real]
+steps:
+  - tool: get_comments
+    with:
+      block_id: $fixture.notion.page.id
+    # The page holds 32 comments, which fit in one page of results.
+    expect:
+      shape:
+        results: [{id: string}]
+        has_more: boolean
+      values:
+        has_more: false

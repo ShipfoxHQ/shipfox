@@ -1,0 +1,14 @@
+provider: notion
+modes: [real]
+steps:
+  - tool: get_page
+    with:
+      page_id: $fixture.notion.page.id
+    expect:
+      shape:
+        id: string
+        url: string
+        title: string
+      values:
+        id: $fixture.notion.page.id
+        title: $fixture.notion.page.title

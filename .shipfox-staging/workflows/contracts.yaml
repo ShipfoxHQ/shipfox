@@ -14,6 +14,11 @@ jobs:
   start:
     checkout: false
     steps:
+      - key: clickup
+        tool: start_workflow_run
+        connection: shipfox
+        with:
+          workflow: .shipfox-staging/workflows/contracts-clickup.yaml
       - key: github
         tool: start_workflow_run
         connection: shipfox
@@ -24,3 +29,18 @@ jobs:
         connection: shipfox
         with:
           workflow: .shipfox-staging/workflows/contracts-linear.yaml
+      - key: notion
+        tool: start_workflow_run
+        connection: shipfox
+        with:
+          workflow: .shipfox-staging/workflows/contracts-notion.yaml
+      - key: posthog
+        tool: start_workflow_run
+        connection: shipfox
+        with:
+          workflow: .shipfox-staging/workflows/contracts-posthog.yaml
+      - key: slack
+        tool: start_workflow_run
+        connection: shipfox
+        with:
+          workflow: .shipfox-staging/workflows/contracts-slack.yaml

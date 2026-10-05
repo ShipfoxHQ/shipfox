@@ -1,0 +1,10 @@
+provider: clickup
+modes: [real]
+steps:
+  - tool: get_task_comments
+    with:
+      task_id: $fixture.clickup.task.id
+    # The task holds 32 comments, and ClickUp answers with one page of them.
+    expect:
+      shape:
+        comments: [{id: string, comment_text: string}]

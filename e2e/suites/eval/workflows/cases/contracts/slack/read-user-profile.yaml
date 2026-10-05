@@ -1,0 +1,11 @@
+provider: slack
+modes: [real]
+steps:
+  - tool: read_user_profile
+    with:
+      user_id: $fixture.slack.user.id
+    expect:
+      shape:
+        user: {id: string, name: string}
+      values:
+        user.id: $fixture.slack.user.id

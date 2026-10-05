@@ -1,0 +1,14 @@
+provider: clickup
+modes: [real]
+steps:
+  - tool: search_tasks
+    with:
+      list_ids: [$fixture.clickup.list.id]
+      page: 0
+    # The list holds 104 tasks, so the first page is not the last.
+    expect:
+      shape:
+        tasks: [{id: string, name: string}]
+        last_page: boolean
+      values:
+        last_page: false

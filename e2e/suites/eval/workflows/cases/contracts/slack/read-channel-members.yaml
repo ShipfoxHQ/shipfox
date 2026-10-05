@@ -1,0 +1,10 @@
+provider: slack
+modes: [real]
+steps:
+  - tool: read_channel_members
+    with:
+      channel_id: $fixture.slack.read_channel.id
+      limit: 1
+    expect:
+      shape:
+        members: list

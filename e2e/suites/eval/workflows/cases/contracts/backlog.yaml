@@ -1,10 +1,7 @@
-ceiling: 151
+ceiling: 136
 entries:
   - {tool: clickup.add_comment, kind: write, issue: ENG-2815}
   - {tool: clickup.create_task, kind: write, issue: ENG-2815}
-  - {tool: clickup.get_task, kind: read, issue: ENG-2800}
-  - {tool: clickup.get_task_comments, kind: read, issue: ENG-2800}
-  - {tool: clickup.search_tasks, kind: read, issue: ENG-2800}
   - {tool: clickup.update_task, kind: write, issue: ENG-2815}
   - {tool: discord.add_reaction, kind: write, issue: ENG-2827}
   - {tool: discord.create_thread, kind: write, issue: ENG-2827}
@@ -110,21 +107,15 @@ entries:
   - {tool: linear.save_status_update, kind: write, issue: ENG-2830}
   - {tool: notion.add_comment, kind: write, issue: ENG-2815}
   - {tool: notion.create_page, kind: write, issue: ENG-2815}
-  - {tool: notion.get_comments, kind: read, issue: ENG-2800}
-  - {tool: notion.get_page, kind: read, issue: ENG-2800}
-  - {tool: notion.get_page_content, kind: read, issue: ENG-2800}
   - {tool: notion.query_data_source, kind: read, issue: ENG-2822}
-  - {tool: notion.search, kind: read, issue: ENG-2800}
   - {tool: notion.update_page, kind: write, issue: ENG-2815}
   - {tool: posthog.dashboard-get, kind: read, issue: ENG-2813}
   - {tool: posthog.dashboard-insights-run, kind: read, issue: ENG-2813}
   - {tool: posthog.dashboards-get-all, kind: read, issue: ENG-2813}
   - {tool: posthog.docs-search, kind: read, issue: ENG-2813}
-  - {tool: posthog.execute-sql, kind: read, issue: ENG-2800}
   - {tool: posthog.experiment-get, kind: read, issue: ENG-2813}
   - {tool: posthog.experiment-list, kind: read, issue: ENG-2813}
   - {tool: posthog.experiment-results-get, kind: read, issue: ENG-2813}
-  - {tool: posthog.feature-flag-get-all, kind: read, issue: ENG-2800}
   - {tool: posthog.feature-flag-get-definition, kind: read, issue: ENG-2813}
   - {tool: posthog.insight-get, kind: read, issue: ENG-2813}
   - {tool: posthog.insight-query, kind: read, issue: ENG-2813}
@@ -142,12 +133,6 @@ entries:
   - {tool: slack.add_reaction, kind: write, issue: ENG-2814}
   - {tool: slack.create_canvas, kind: write, issue: ENG-2814}
   - {tool: slack.get_permalink, kind: read, issue: ENG-2822}
-  - {tool: slack.read_channel, kind: read, issue: ENG-2800}
-  - {tool: slack.read_channel_info, kind: read, issue: ENG-2800}
-  - {tool: slack.read_channel_members, kind: read, issue: ENG-2800}
-  - {tool: slack.read_thread, kind: read, issue: ENG-2800}
-  - {tool: slack.read_user_profile, kind: read, issue: ENG-2800}
   - {tool: slack.schedule_message, kind: write, issue: ENG-2814}
-  - {tool: slack.search_channels, kind: read, issue: ENG-2800}
   - {tool: slack.send_message, kind: write, issue: ENG-2814}
   - {tool: slack.update_message, kind: write, issue: ENG-2814}

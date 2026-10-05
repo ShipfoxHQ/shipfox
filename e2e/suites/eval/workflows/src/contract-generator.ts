@@ -34,18 +34,20 @@ export interface ContractAgentModel {
   /** The job key, so an alert names the model that failed. */
   key: string;
   harness: 'pi' | 'claude';
-  provider: string;
+  /** Left out for a model the managed provider serves, which is the one the workspace resolves. */
+  provider?: string;
   model: string;
 }
 
 /**
  * The model families every agent job runs on: the cheapest Anthropic model and the cheapest model
  * of another family in the catalog. The job only has to call a tool, so a bigger model adds cost
- * and no coverage.
+ * and no coverage. The DeepSeek id is a managed model id, which no direct `deepseek` provider
+ * serves, so the job names no provider.
  */
 export const CONTRACT_AGENT_MODELS: readonly ContractAgentModel[] = [
   {key: 'agent_anthropic', harness: 'claude', provider: 'anthropic', model: 'claude-haiku-4-5'},
-  {key: 'agent_deepseek', harness: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash-0731'},
+  {key: 'agent_deepseek', harness: 'pi', model: 'deepseek-v4-flash-0731'},
 ];
 
 type ToolGrants = Readonly<Record<string, Readonly<Record<string, ToolGrant>>>>;
@@ -320,7 +322,7 @@ function agentJob({
       {
         key: 'agent',
         harness: model.harness,
-        provider: model.provider,
+        ...(model.provider === undefined ? {} : {provider: model.provider}),
         model: model.model,
         thinking: 'low',
         prompt,
