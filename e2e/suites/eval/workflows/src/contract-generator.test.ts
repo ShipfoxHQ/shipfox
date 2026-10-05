@@ -23,6 +23,7 @@ const shapeFieldPattern = /the shape field "bad-field" must be letters/u;
 const agentJobKeyPattern = /the job key "agent_anthropic" is used by another case/u;
 const noReadToolPattern = /linear\.agent: the catalog has no read tool to enable/u;
 const agentReadFixturePattern = /linear\.agent\.reads: "missing" is not a fixture with a read/u;
+const agentOutputNamePattern = /linear\.agent: two reports are named "issue_team_id"/u;
 const agentReadValuesPattern = /the read of fixture "team" has no expect\.values to compare/u;
 
 const read: ToolGrant = {sensitivity: 'read', result: 'json'};
@@ -84,7 +85,7 @@ describe('generateContractFiles', () => {
   });
 
   it('keeps cases that do not run in real mode out of the files', async () => {
-    const generated = generateContractFiles(await generate());
+    const generated = generateContractFiles(await generate(), {grants});
     const linear = generated.find(({name}) => name === 'contracts-linear.yaml');
 
     expect(linear?.content).not.toContain('fake_only');
@@ -99,7 +100,7 @@ describe('generateContractFiles', () => {
       'provider: linear\nmodes: [fake]\nsteps:\n  - tool: get_issue\n',
     );
 
-    expect(generateContractFiles(await generate())).toEqual([]);
+    expect(generateContractFiles(await generate(), {grants})).toEqual([]);
   });
 
   it('adds one agent job per model family to a provider that declares agent reads', async () => {
@@ -146,6 +147,35 @@ describe('generateContractFiles', () => {
     await expect(generate()).rejects.toThrow(agentReadValuesPattern);
   });
 
+  it('rejects two agent reports that make the same output name', async () => {
+    // `issue` + `team_id` and `issue_team` + `id` both make `issue_team_id`.
+    const manifest = await readFile(join(casesRoot, 'sandbox.yaml'), 'utf8');
+    await writeFile(
+      join(casesRoot, 'sandbox.yaml'),
+      manifest
+        .replace(
+          'values: {id: $fixture.linear.issue.identifier}',
+          'values: {id: $fixture.linear.issue.identifier, team_id: $fixture.linear.team.id}',
+        )
+        .replace(
+          '  targets:',
+          [
+            '    issue_team:',
+            '      read:',
+            '        tool: get_team',
+            '        expect:',
+            '          values: {id: $fixture.linear.team.id}',
+            '  targets:',
+          ].join('\n'),
+        )
+        .replace('reads: [issue, team]', 'reads: [issue, issue_team]'),
+    );
+
+    await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
+      agentOutputNamePattern,
+    );
+  });
+
   it('rejects a case whose job key is an agent job key', async () => {
     await writeCase(
       'linear/agent-anthropic.yaml',
@@ -163,7 +193,7 @@ describe('generateContractFiles', () => {
       'provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue_comments\n',
     );
 
-    const linear = generateContractFiles(await generate()).find(
+    const linear = generateContractFiles(await generate(), {grants}).find(
       ({name}) => name === 'contracts-linear.yaml',
     );
 
@@ -171,7 +201,7 @@ describe('generateContractFiles', () => {
   });
 
   it('starts a provider file only when the provider has fixtures with a read', async () => {
-    const github = generateContractFiles(await generate()).find(
+    const github = generateContractFiles(await generate(), {grants}).find(
       ({name}) => name === 'contracts-github.yaml',
     );
 
@@ -185,7 +215,7 @@ describe('generateContractFiles', () => {
       'provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n',
     );
 
-    await expect(async () => generateContractFiles(await generate())).rejects.toThrow(
+    await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
       duplicateJobPattern,
     );
   });
@@ -196,7 +226,7 @@ describe('generateContractFiles', () => {
       'provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n',
     );
 
-    await expect(async () => generateContractFiles(await generate())).rejects.toThrow(
+    await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
       fileNamePattern,
     );
   });
@@ -207,7 +237,7 @@ describe('generateContractFiles', () => {
       'provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n    expect:\n      shape: {bad-field: string}\n',
     );
 
-    await expect(async () => generateContractFiles(await generate())).rejects.toThrow(
+    await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
       shapeFieldPattern,
     );
   });
@@ -270,7 +300,7 @@ describe('generateContractFiles', () => {
       'linear/round.yaml',
       `${base}kind: round-trip\nsteps:\n  - tool: save_issue\n    effect: {tool: get_issue}\n`,
     );
-    await expect(async () => generateContractFiles(await generate())).rejects.toThrow(
+    await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
       roundTripPattern,
     );
 
@@ -278,7 +308,7 @@ describe('generateContractFiles', () => {
       'linear/round.yaml',
       `${base}steps:\n  - tool: get_issue\n    effect: {tool: get_issue}\n`,
     );
-    await expect(async () => generateContractFiles(await generate())).rejects.toThrow(
+    await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
       effectPattern,
     );
 
@@ -286,7 +316,7 @@ describe('generateContractFiles', () => {
       'linear/round.yaml',
       `${base}steps:\n  - tool: get_issue\n    with: {id: $marker}\n`,
     );
-    await expect(async () => generateContractFiles(await generate())).rejects.toThrow(
+    await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
       markerPattern,
     );
 
@@ -294,7 +324,7 @@ describe('generateContractFiles', () => {
       'linear/round.yaml',
       `${base}steps:\n  - tool: get_issue\n    expect:\n      includes: {labels: {name: bug}}\n`,
     );
-    await expect(async () => generateContractFiles(await generate())).rejects.toThrow(
+    await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
       includesPattern,
     );
   });

@@ -203,7 +203,13 @@ function providerWorkflow({
       addJob({
         key: model.key,
         origin: `${provider}.agent`,
-        job: agentJob({model, connection: sandbox.connection, include, reads}),
+        job: agentJob({
+          model,
+          connection: sandbox.connection,
+          include,
+          reads,
+          origin: `${provider}.agent`,
+        }),
       });
     }
   }
@@ -247,7 +253,7 @@ function agentRead({
   const origin = `${provider}.agent.reads.${name}`;
   const read = sandbox.fixtures[name]?.read;
   if (read === undefined) throw new Error(`${origin}: the fixture has no read`);
-  const resolver = generationResolver({manifest, origin});
+  const resolver = generationResolver({manifest, origin, allowTargets: false});
   const input = resolveContractReferences(read.with, resolver) as Record<string, unknown>;
   const values = resolveContractReferences(read.expect.values ?? {}, resolver) as Record<
     string,
@@ -269,13 +275,21 @@ function agentJob({
   connection,
   include,
   reads,
+  origin,
 }: {
   model: ContractAgentModel;
   connection: string;
   include: string[];
   reads: AgentRead[];
+  origin: string;
 }) {
   const reports = reads.flatMap((read) => read.reports);
+  const outputs: Record<string, {type: string}> = {};
+  for (const {output, value} of reports) {
+    if (outputs[output] !== undefined)
+      throw new Error(`${origin}: two reports are named "${output}"`);
+    outputs[output] = {type: typeof value};
+  }
   const prompt = [
     'Call each tool below once, with exactly the input shown, then report the fields asked for.',
     'Call no other tool.',
@@ -301,9 +315,7 @@ function agentJob({
         prompt,
         // A copy per job, so the YAML writer doesn't turn the shared list into an alias.
         integrations: [{connection, include: [...include], allow_write: false}],
-        outputs: Object.fromEntries(
-          reports.map(({output, value}) => [output, {type: typeof value}]),
-        ),
+        outputs,
         gate: {
           success: [
             'step.status == "succeeded"',
