@@ -339,6 +339,13 @@ mise run evals -- --suite templates --mode scripted
 mise run evals -- --suite templates --mode scripted --case fixture --repeat 3
 ```
 
+A template run starts 4 case repeats at once, and `--workers <count>` changes that.
+Every case has its own workspace, runner label, and fake credentials, so cases don't
+share state. Results stay in case order regardless of completion order. With
+`--max-cost-usd`, repeats already running when the budget is spent still finish, so a
+run can pass the budget by up to one repeat per worker. The onboarding suite and compile
+mode don't take `--workers`.
+
 Each case arranges its own workspace, GitHub connection, and project on a
 fake repository. A case that binds a role to Jira also gets the Jira fake and
 a Jira connection. The case composes its template variant through the template

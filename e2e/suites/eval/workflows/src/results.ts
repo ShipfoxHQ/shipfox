@@ -63,6 +63,8 @@ export interface WriteResultsOptions<Case extends {id: string}> {
   execute: (params: {discovered: Case; repeat: number}) => Promise<CaseResult>;
   /** Stops starting case repeats once the results so far cost this much. */
   maxCostUsd?: number | undefined;
+  /** How many case repeats run at once (default 1). */
+  workers?: number | undefined;
   resultsDirectory?: string;
   runId?: string;
 }
@@ -165,22 +167,35 @@ export async function writeResults<Case extends {id: string}>(
 ): Promise<ResultsRun> {
   const runId = options.runId ?? createRunId();
   const directory = join(options.resultsDirectory ?? 'results', runId);
-  const results: CaseResult[] = [];
-  let skipped = 0;
+  const jobs = options.cases.flatMap((discoveredCase) =>
+    Array.from({length: options.repeat}, (_, index) => ({discoveredCase, repeat: index + 1})),
+  );
+  // Results land in the order the case repeats finish. The slots keep the summary in case order.
+  const slots: Array<CaseResult | undefined> = jobs.map(() => undefined);
+  const finished: CaseResult[] = [];
+  let next = 0;
 
-  for (const discoveredCase of options.cases) {
-    for (let repeat = 1; repeat <= options.repeat; repeat += 1) {
-      if (outOfBudget({results, maxCostUsd: options.maxCostUsd})) {
-        skipped += 1;
-        continue;
-      }
-      const result = await options.execute({discovered: discoveredCase, repeat});
-      results.push(result);
+  // A case repeat in flight has not spent anything yet, so with several workers the budget can
+  // be passed by up to one case repeat per worker.
+  const work = async () => {
+    while (next < jobs.length) {
+      const index = next;
+      next += 1;
+      const job = jobs[index] as (typeof jobs)[number];
+      if (outOfBudget({results: finished, maxCostUsd: options.maxCostUsd})) continue;
+      const result = await options.execute({discovered: job.discoveredCase, repeat: job.repeat});
+      finished.push(result);
+      slots[index] = result;
       const path = resultPath(directory, result);
       await mkdir(dirname(path), {recursive: true});
       await writeFile(path, `${JSON.stringify(result, null, 2)}\n`);
     }
-  }
+  };
+  const workers = Math.max(1, Math.min(options.workers ?? 1, jobs.length));
+  await Promise.all(Array.from({length: workers}, work));
+
+  const results = slots.filter((result): result is CaseResult => result !== undefined);
+  const skipped = jobs.length - results.length;
 
   const run: ResultsRun = {
     runId,
