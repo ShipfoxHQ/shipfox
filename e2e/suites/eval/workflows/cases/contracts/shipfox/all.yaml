@@ -1,0 +1,3 @@
+provider: shipfox
+exempt:
+  reason: First-party tools. The flow suite runs them against the real API.
