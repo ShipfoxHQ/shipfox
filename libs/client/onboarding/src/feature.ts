@@ -1,21 +1,29 @@
 import {defineClientFeature} from '@shipfox/client-shell';
-import {lazy} from 'react';
+import {createElement, type FunctionComponent, lazy, Suspense} from 'react';
+import type {WorkspaceSetupHostProps} from './components/setup-checklist-types.js';
 
 export const onboardingFeature = defineClientFeature({
   id: 'shipfox.onboarding',
 });
 
-export const WorkspaceSetupChecklist = lazy(async () => {
-  const module = await import('./components/setup-checklist.js');
-  return {default: module.WorkspaceSetupChecklist};
-});
+// Each slot suspends on its own hidden boundary. Without one, the lazy load
+// suspends the host route and replaces the whole page with its pending loader.
+function lazySlot<Props extends object>(
+  load: () => Promise<FunctionComponent<Props>>,
+): FunctionComponent<Props> {
+  const Slot: FunctionComponent<Props> = lazy(async () => ({default: await load()}));
+  return (props) => createElement(Suspense, {fallback: null}, createElement(Slot, props));
+}
 
-export const WorkspaceSetupIndicator = lazy(async () => {
-  const module = await import('./components/setup-checklist.js');
-  return {default: module.WorkspaceSetupIndicator};
-});
+export const WorkspaceSetupChecklist = lazySlot<WorkspaceSetupHostProps>(
+  async () => (await import('./components/setup-checklist.js')).WorkspaceSetupChecklist,
+);
 
-export const ProjectFirstWorkflowPanel = lazy(async () => {
-  const module = await import('./components/project-first-workflow-panel.js');
-  return {default: module.ProjectFirstWorkflowPanel};
-});
+export const WorkspaceSetupIndicator = lazySlot<WorkspaceSetupHostProps>(
+  async () => (await import('./components/setup-checklist.js')).WorkspaceSetupIndicator,
+);
+
+export const ProjectFirstWorkflowPanel = lazySlot<{projectId: string}>(
+  async () =>
+    (await import('./components/project-first-workflow-panel.js')).ProjectFirstWorkflowPanel,
+);

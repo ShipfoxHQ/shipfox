@@ -17,7 +17,6 @@ import {FirstWorkflowCelebration, SetupChecklistCompletion} from './setup-checkl
 import {
   type ChecklistExpansionControl,
   ChecklistHeader,
-  ChecklistSkeleton,
   checklistCountLabel,
 } from './setup-checklist-host-primitives.js';
 import {SetupChecklistNextStep} from './setup-checklist-next-step.js';
@@ -89,18 +88,16 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
 
   if (dismissal.dismissed) return null;
 
-  if (queryState.baseSettled && queryState.checklist.complete && !showCompletion) return null;
+  if (!panelHasContent(queryState, {showCompletion, expanded})) return null;
 
-  const expandable =
-    queryState.baseSettled && !showCompletion && queryState.checklist.items.length > 1;
+  const expandable = !showCompletion && queryState.checklist.items.length > 1;
 
   // `trackedCount` only stops moving once the runner and model-provider families
   // report, so a count shown before then can read "3 of 3 done" over rows that
   // have yet to arrive.
-  const countLabel =
-    queryState.baseSettled && queryState.trackedRowsSettled
-      ? checklistCountLabel(queryState.checklist)
-      : undefined;
+  const countLabel = queryState.trackedRowsSettled
+    ? checklistCountLabel(queryState.checklist)
+    : undefined;
 
   const expansionControl: ChecklistExpansionControl | undefined = expandable
     ? {
@@ -152,6 +149,23 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
 }
 
 /**
+ * The panel sits above the page's own content, so it stays out of the layout
+ * until it knows what it will show. The runner, model-provider, and
+ * first-workflow rows stay hidden while their families load, so promoting a
+ * pointer before they settle would call setup finished a moment too early.
+ */
+function panelHasContent(
+  queryState: ChecklistQueryState,
+  {showCompletion, expanded}: {showCompletion: boolean; expanded: boolean},
+): boolean {
+  if (!queryState.baseSettled) return false;
+  if (showCompletion) return true;
+  if (queryState.checklist.complete) return false;
+  if (expanded || queryState.trackedRowsSettled) return true;
+  return selectNextSetupStep(queryState.checklist)?.tracked === true;
+}
+
+/**
  * The home offers the first workflow only once a run could succeed: runners and
  * a model are known to be available and the workspace has no definition. It
  * reads those facts rather than row visibility, since the checklist hides a row
@@ -192,8 +206,6 @@ function ChecklistPanelBody({
   onAction: (item: SetupChecklistItem) => void;
   onDone: () => void;
 }) {
-  if (!queryState.baseSettled) return <ChecklistSkeleton />;
-
   if (completion) {
     return (
       <SetupChecklistCompletion
@@ -226,12 +238,6 @@ function ChecklistPanelBody({
   }
 
   const nextStep = selectNextSetupStep(queryState.checklist);
-
-  // A pointer only leads once nothing is left to ask for. The runner,
-  // model-provider, and first-workflow rows stay hidden while their families
-  // load, so promoting a pointer, or showing nothing, would call setup finished
-  // a moment too early.
-  if (!nextStep?.tracked && !queryState.trackedRowsSettled) return <ChecklistSkeleton />;
   if (!nextStep) return celebration;
 
   return (

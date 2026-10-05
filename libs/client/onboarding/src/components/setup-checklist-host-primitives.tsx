@@ -1,6 +1,5 @@
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {PanelActions, PanelHeader, PanelTitle} from '@shipfox/react-ui/panel';
-import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {Text} from '@shipfox/react-ui/typography';
 import type {SetupChecklist} from '#core/setup-checklist.js';
 
@@ -67,20 +66,6 @@ export function ChecklistHeader({
         />
       </PanelActions>
     </PanelHeader>
-  );
-}
-
-export function ChecklistSkeleton() {
-  return (
-    <div
-      role="status"
-      aria-label="Loading setup guide"
-      className="flex flex-col gap-inline p-panel"
-    >
-      <Skeleton className="h-16 w-3/4" />
-      <Skeleton className="h-16 w-5/6" />
-      <Skeleton className="h-16 w-2/3" />
-    </div>
   );
 }
 
