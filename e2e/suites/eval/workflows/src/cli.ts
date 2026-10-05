@@ -4,6 +4,7 @@ import {parseArgs} from 'node:util';
 import {preflightCheck} from '@shipfox/e2e-core';
 import {shippedTemplateLoader} from '@shipfox/workflow-templates';
 import {runCompile} from './compile.js';
+import {runContractsCompile} from './contracts-compile.js';
 import {checkTemplateCoverage} from './coverage.js';
 import {caseSupportsMode, type DiscoveredCase, discoverCases} from './discovery.js';
 import {executeTemplateCase} from './execute.js';
@@ -21,14 +22,17 @@ import type {EventSenders} from './senders.js';
 const usage = `Usage: shipfox-eval-workflows [options]
 
 Options:
-  --suite <templates|onboarding>
-                            Suite to run (default: templates)
+  --suite <templates|onboarding|contracts>
+                            Suite to run (default: templates). contracts runs in
+                            compile mode only.
   --mode <scripted|live|compile>
                             Evaluation mode (default: scripted). compile creates a
-                            definition for every template variant and runs nothing.
-  --case <pattern>          Case path or glob to run, or a template id in compile mode
+                            definition for every template variant, or for every contract
+                            workflow file, and runs nothing.
+  --case <pattern>          Case path or glob to run, a template id in compile mode, or a
+                            workflow file name for the contracts suite
   --catalog <directory>     Compile the templates of a catalog directory instead of the
-                            shipped ones (compile mode only)
+                            shipped ones (templates compile mode only)
   --repeat <count>          Number of repeats (default: 1; the case's k for onboarding)
   --workers <count>         Case repeats to run at once (default: 4; scripted and live
                             template runs only)
@@ -40,7 +44,7 @@ Options:
 `;
 
 export interface EvalCliOptions {
-  suite: 'templates' | 'onboarding';
+  suite: 'templates' | 'onboarding' | 'contracts';
   mode: EvalMode;
   caseFilter?: string;
   catalog?: string;
@@ -112,6 +116,26 @@ function applyModelOptions({
   if (simulatorModel !== undefined) options.simulatorModel = simulatorModel;
 }
 
+function assertCompatible({
+  suite,
+  mode,
+  catalog,
+}: {
+  suite: EvalCliOptions['suite'];
+  mode: EvalMode;
+  catalog: string | undefined;
+}): void {
+  if (suite === 'onboarding' && mode === 'compile') {
+    throw new Error('--mode compile applies to --suite templates and contracts only');
+  }
+  if (suite === 'contracts' && mode !== 'compile') {
+    throw new Error('--suite contracts runs with --mode compile only');
+  }
+  if (catalog !== undefined && (mode !== 'compile' || suite !== 'templates')) {
+    throw new Error('--catalog applies to --suite templates --mode compile only');
+  }
+}
+
 export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} {
   const {values} = parseArgs({
     args: argv,
@@ -131,19 +155,14 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
   });
 
   const suite = values.suite;
-  if (suite !== 'templates' && suite !== 'onboarding') {
-    throw new Error(`--suite must be templates or onboarding, received "${suite}"`);
+  if (suite !== 'templates' && suite !== 'onboarding' && suite !== 'contracts') {
+    throw new Error(`--suite must be templates, onboarding, or contracts, received "${suite}"`);
   }
   const mode = values.mode;
   if (mode !== 'scripted' && mode !== 'live' && mode !== 'compile') {
     throw new Error(`--mode must be scripted, live, or compile, received "${mode}"`);
   }
-  if (suite === 'onboarding' && mode === 'compile') {
-    throw new Error('--mode compile applies to --suite templates only');
-  }
-  if (values.catalog !== undefined && mode !== 'compile') {
-    throw new Error('--catalog applies to --mode compile only');
-  }
+  assertCompatible({suite, mode, catalog: values.catalog});
 
   const options: EvalCliOptions & {help: boolean} = {
     help: values.help,
@@ -166,8 +185,8 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
   return options;
 }
 
-function caseRoot(suite: EvalCliOptions['suite'], cwd: string): string {
-  return join(cwd, 'cases', suite === 'templates' ? 'templates' : 'onboarding');
+function caseRoot(suite: 'templates' | 'onboarding', cwd: string): string {
+  return join(cwd, 'cases', suite);
 }
 
 export interface EvalRunOptions extends EvalCliOptions {
@@ -181,8 +200,11 @@ export interface EvalRunOptions extends EvalCliOptions {
 
 export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
   const cwd = options.cwd ?? process.cwd();
-  if (options.suite !== 'templates') {
+  if (options.suite === 'onboarding') {
     throw new Error('The onboarding suite runs through runOnboardingSuite.');
+  }
+  if (options.suite === 'contracts') {
+    throw new Error('The contracts suite runs through runContractsCompile.');
   }
   const {mode} = options;
   if (mode === 'compile') throw new Error('Compile mode runs through runCompile.');
@@ -311,6 +333,32 @@ async function runCompileCli({
   return failed.length === 0 ? 0 : 1;
 }
 
+// Every file that does not compile is reported, so one run shows all that would fail the sync.
+async function runContractsCompileCli({
+  options,
+  stdout,
+  stderr,
+  cwd,
+}: {
+  options: EvalCliOptions;
+  stdout: (message: string) => void;
+  stderr: (message: string) => void;
+  cwd?: string | undefined;
+}): Promise<number> {
+  const run = await runContractsCompile({
+    ...(options.caseFilter === undefined ? {} : {caseFilter: options.caseFilter}),
+    ...(cwd === undefined ? {} : {resultsDirectory: `${cwd}/results`}),
+  });
+  const failed = run.results.filter((result) => result.status === 'error');
+  stdout(
+    `Compiled ${run.results.length} contract workflows, ${failed.length} failed. Results: ${run.directory}\n`,
+  );
+  for (const result of failed) {
+    stderr(`${result.case}:\n${result.error}\n`);
+  }
+  return failed.length === 0 ? 0 : 1;
+}
+
 // A filtered run cannot judge the whole suite, so only a full scripted run checks coverage. It
 // reads files only, so it runs before the stack preflight and a missing case fails fast.
 async function coverageHolds({
@@ -396,6 +444,9 @@ export async function runCli(
       return 0;
     }
     if (options.suite === 'onboarding') return await runOnboardingCli({options, stdout, stderr});
+    if (options.suite === 'contracts') {
+      return await runContractsCompileCli({options, stdout, stderr, cwd: environment.cwd});
+    }
     if (options.mode === 'compile') {
       return await runCompileCli({options, stdout, stderr, cwd: environment.cwd});
     }

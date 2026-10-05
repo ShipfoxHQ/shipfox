@@ -59,6 +59,13 @@ export {
   type LoadedContractExemption,
   loadContracts,
 } from './contracts.js';
+export {
+  type ContractsCompileOptions,
+  type ContractWorkflowFile,
+  listContractWorkflows,
+  markSandboxConnections,
+  runContractsCompile,
+} from './contracts-compile.js';
 export {caseSupportsMode, type DiscoveredCase, discoverCases} from './discovery.js';
 export {type ExecuteCaseOptions, executeTemplateCase} from './execute.js';
 export {

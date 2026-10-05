@@ -21,8 +21,8 @@ const brokenCatalog = fileURLToPath(
 );
 const unboundRolePattern = /binds role "tracker", which the variant does not/u;
 const noVariantsPattern = /No template variants matching "missing"/u;
-const onboardingCompilePattern = /--mode compile applies to --suite templates only/u;
-const catalogModePattern = /--catalog applies to --mode compile only/u;
+const onboardingCompilePattern = /--mode compile applies to --suite templates and contracts only/u;
+const catalogModePattern = /--catalog applies to --suite templates --mode compile only/u;
 const slugPlaceholderPattern = /_(?:tracker|source|chat|report|notify)\s+# bind:/u;
 const temporaryDirectories: string[] = [];
 
