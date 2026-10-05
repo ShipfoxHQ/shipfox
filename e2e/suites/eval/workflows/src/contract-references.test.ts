@@ -182,6 +182,26 @@ describe('checkCaseReferences', () => {
     ]);
   });
 
+  it('rejects $marker and $steps in expect and in an effect expect, which a gate cannot read', () => {
+    const contractCase = readCase([
+      {key: 'first', tool: 'save_issue'},
+      {
+        tool: 'get_issue',
+        expect: {values: {title: 'Contract $marker'}},
+        effect: {
+          tool: 'get_issue',
+          expect: {values: {id: '$steps.first.id'}, includes: {labels: {name: '$marker'}}},
+        },
+      },
+    ]);
+
+    expect(checkCaseReferences({contractCase, manifest})).toEqual([
+      'steps.1.expect.values.title: $marker is only for `with`, not `expect`',
+      'steps.1.effect.expect.values.id: $steps.first.id is only for `with`, not `expect`',
+      'steps.1.effect.expect.includes.labels.name: $marker is only for `with`, not `expect`',
+    ]);
+  });
+
   it('checks references in expect values', () => {
     const contractCase = readCase([
       {tool: 'get_issue', expect: {values: {id: '$fixture.linear.nope.id'}}},

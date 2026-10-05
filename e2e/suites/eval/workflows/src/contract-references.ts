@@ -148,8 +148,9 @@ export function resolveManifestValue({
 
 /**
  * Reports the references of a case that cannot be resolved: an unknown form, a fixture or target
- * the manifest lacks, a target outside an error case, and a `$steps` reference to a key that is
- * missing or runs later. A step's `effect` may read the step it checks.
+ * the manifest lacks, a target outside an error case, a `$steps` reference to a key that is
+ * missing or runs later, and a `$steps` or `$marker` outside a `with`. A step's `effect` may read
+ * the step it checks.
  */
 export function checkCaseReferences({
   contractCase,
@@ -166,9 +167,10 @@ export function checkCaseReferences({
 
   contractCase.steps.forEach((step, index) => {
     const parts = [
-      {name: 'with', value: step.with, lastStep: index - 1},
-      {name: 'expect', value: step.expect, lastStep: index - 1},
-      {name: 'effect', value: step.effect, lastStep: index},
+      {name: 'with', value: step.with, lastStep: index - 1, inExpect: false},
+      {name: 'expect', value: step.expect, lastStep: index - 1, inExpect: true},
+      {name: 'effect.with', value: step.effect?.with, lastStep: index, inExpect: false},
+      {name: 'effect.expect', value: step.effect?.expect, lastStep: index, inExpect: true},
     ];
     for (const part of parts) {
       for (const found of findContractReferences(part.value)) {
@@ -179,6 +181,7 @@ export function checkCaseReferences({
           contractCase,
           keyIndex,
           lastStep: part.lastStep,
+          inExpect: part.inExpect,
         });
         if (problem !== undefined) problems.push(`${where}: ${problem}`);
       }
@@ -193,15 +196,21 @@ function referenceProblem({
   contractCase,
   keyIndex,
   lastStep,
+  inExpect,
 }: {
   found: FoundReference;
   manifest: SandboxManifest;
   contractCase: ContractCase;
   keyIndex: ReadonlyMap<string, number>;
   lastStep: number;
+  inExpect: boolean;
 }): string | undefined {
   const {reference, token} = found;
   if (reference === undefined) return `unknown reference ${token}`;
+  if (inExpect && (reference.kind === 'marker' || reference.kind === 'steps')) {
+    // The gate that checks `expect` reads the step's own result, not the run id or another step.
+    return `${token} is only for \`with\`, not \`expect\``;
+  }
   if (reference.kind === 'marker') return undefined;
   if (reference.kind === 'steps') {
     const position = keyIndex.get(reference.key);

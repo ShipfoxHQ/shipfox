@@ -56,6 +56,47 @@ jobs:
           id: CON-999999
         gate:
           success: step.status == "failed" && step.error.code == "not-found"
+  issue_round_trip:
+    checkout: false
+    steps:
+      - key: create
+        tool: save_issue
+        connection: linear_sandbox
+        with:
+          team: Contracts
+          title: Contract contract-${{ run.id }}
+          labels:
+            - contract
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id
+      - key: create_effect
+        tool: get_issue
+        connection: linear_sandbox
+        with:
+          id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_team_name: '${{ has(result.team) && has(result.team.name) ? result.team.name : "" }}'
+          includes_labels: ${{ has(result.labels) && type(result.labels) == type([]) && result.labels.exists(item, has(item.name) && type(item.name) == type("") && item.name == "contract") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_team_name) == type("") && step.outputs.value_team_name == "Contracts" && step.outputs.includes_labels
+      - key: close
+        tool: save_issue
+        connection: linear_sandbox
+        with:
+          id: ${{ steps.create.outputs.ref_id }}
+          state: Done
+      - key: close_effect
+        tool: get_issue
+        connection: linear_sandbox
+        with:
+          id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_status: '${{ has(result.status) ? result.status : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_status) == type("") && step.outputs.value_status == "Done"
   list_teams:
     checkout: false
     steps:

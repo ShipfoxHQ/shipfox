@@ -59,6 +59,8 @@ const HEADER = [
 const JOB_KEY_PATTERN = /^[a-z][a-z0-9_]*$/u;
 const FIELD_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const FIXTURES_JOB = 'fixtures';
+// The variable of an `exists()` over a list, so it can't clash with the `i<n>` of `presence()`.
+const ITEM = 'item';
 
 type Segment = {field: string} | {index: number};
 
@@ -76,6 +78,11 @@ interface AgentRead {
   input: Record<string, unknown>;
   /** A field of the result, the output that reports it, and the value the fixture holds. */
   reports: {path: string; output: string; value: ContractScalar}[];
+}
+
+/** A CEL expression in a workflow field. */
+function interpolation(source: string): string {
+  return `\${{ ${source} }}`;
 }
 
 function providerWorkflowName(provider: string): string {
@@ -353,28 +360,81 @@ function caseJob({
   manifest: SandboxManifest;
 }) {
   const {definition} = loaded;
-  if (definition.kind === 'round-trip') {
-    throw new Error(`${loaded.id}: cases of kind \`${definition.kind}\` are not generated yet`);
-  }
-  const keys = new Set<string>();
-  const steps = definition.steps.map((step, index) => {
-    if (step.effect !== undefined) {
-      throw new Error(`${loaded.id}: a step \`effect\` is not generated yet`);
+  const keys = definition.steps.map(
+    (step, index) =>
+      step.key ?? (definition.steps.length === 1 ? jobKey : `${jobKey}_${index + 1}`),
+  );
+  const references: StepReferences = {keys: new Set(keys), requests: new Map()};
+  const steps: WorkflowStep[] = [];
+  for (const [index, step] of definition.steps.entries()) {
+    const key = keys[index] as string;
+    const origin = `${loaded.id} steps.${index}`;
+    if (steps.some((compiled) => compiled.key === key)) {
+      throw new Error(`${loaded.id}: the step key "${key}" is used twice`);
     }
-    const key = step.key ?? (definition.steps.length === 1 ? jobKey : `${jobKey}_${index + 1}`);
-    if (keys.has(key)) throw new Error(`${loaded.id}: the step key "${key}" is used twice`);
-    keys.add(key);
-    return compileStep({
-      key,
-      read: step,
-      provider: definition.provider,
-      connection,
-      manifest,
-      origin: `${loaded.id} steps.${index}`,
-      allowTargets: definition.kind === 'error',
-    });
+    steps.push(
+      compileStep({
+        key,
+        read: step,
+        provider: definition.provider,
+        connection,
+        manifest,
+        origin,
+        allowTargets: definition.kind === 'error',
+        references,
+      }),
+    );
+    if (step.effect === undefined) continue;
+    if (definition.kind !== 'round-trip') {
+      throw new Error(`${origin}: a step \`effect\` is only for cases of kind \`round-trip\``);
+    }
+    // The effect is its own step right after the write, so a failed write fails before its read.
+    const effectKey = `${key}_effect`;
+    if (keys.includes(effectKey)) {
+      throw new Error(`${origin}: the effect key "${effectKey}" is used by another step`);
+    }
+    steps.push(
+      compileStep({
+        key: effectKey,
+        read: step.effect,
+        provider: definition.provider,
+        connection,
+        manifest,
+        origin: `${origin} effect`,
+        references,
+      }),
+    );
+  }
+  return {checkout: false, steps: withReferencedOutputs({steps, references, origin: loaded.id})};
+}
+
+/** The `$steps` references of a case, by the key of the step they read and the output they name. */
+interface StepReferences {
+  keys: ReadonlySet<string>;
+  requests: Map<string, Map<string, Segment[]>>;
+}
+
+/** Gives each step the outputs that later steps read through `$steps`. */
+function withReferencedOutputs({
+  steps,
+  references,
+  origin,
+}: {
+  steps: WorkflowStep[];
+  references: StepReferences;
+  origin: string;
+}): WorkflowStep[] {
+  return steps.map((step) => {
+    const requested = references.requests.get(step.key);
+    if (requested === undefined) return step;
+    const outputs = {...step.outputs};
+    for (const [name, segments] of requested) {
+      if (outputs[name] !== undefined)
+        throw new Error(`${origin}: two outputs are named "${name}"`);
+      outputs[name] = interpolation(`${presence({segments})} ? ${accessorOf(segments)} : ""`);
+    }
+    return {...step, outputs};
   });
-  return {checkout: false, steps};
 }
 
 /** The tool call of a step, and the checks of its result as output mappings and a gate. */
@@ -386,6 +446,7 @@ function compileStep({
   manifest,
   origin,
   allowTargets = false,
+  references,
 }: {
   key: string;
   read: ContractRead & {expect: {error?: string | undefined}};
@@ -394,15 +455,20 @@ function compileStep({
   manifest: SandboxManifest;
   origin: string;
   allowTargets?: boolean;
+  references?: StepReferences;
 }): WorkflowStep {
-  const resolver = generationResolver({manifest, origin, allowTargets});
-  const resolvedWith = resolveContractReferences(read.with, resolver) as Record<string, unknown>;
-  const expect = resolveContractReferences(read.expect, resolver) as ContractRead['expect'] & {
+  // `$steps` and `$marker` go in `with`. A gate reads the step's own result and nothing else, so
+  // it can't compare that result to another step's output or to the run id.
+  const resolvedWith = resolveContractReferences(
+    read.with,
+    generationResolver({manifest, origin, allowTargets, references}),
+  ) as Record<string, unknown>;
+  const expect = resolveContractReferences(
+    read.expect,
+    generationResolver({manifest, origin, allowTargets}),
+  ) as ContractRead['expect'] & {
     error?: string | undefined;
   };
-  if (expect.includes !== undefined) {
-    throw new Error(`${origin}: \`expect.includes\` is not generated yet`);
-  }
   const tool = read.method === undefined ? read.tool : `${read.tool}.${read.method}`;
   const call = {
     key,
@@ -425,7 +491,7 @@ function compileStep({
   const checks: string[] = [];
   const addCheck = ({name, mapping, check}: {name: string; mapping: string; check: string}) => {
     if (outputs[name] !== undefined) throw new Error(`${origin}: two checks are named "${name}"`);
-    outputs[name] = `\${{ ${mapping} }}`;
+    outputs[name] = interpolation(mapping);
     checks.push(check);
   };
 
@@ -452,6 +518,30 @@ function compileStep({
     });
   }
 
+  for (const [path, item] of Object.entries(expect.includes ?? {})) {
+    const segments = parsePath({path, origin});
+    const name = `includes_${segmentName(segments)}`;
+    // An index in the list's path opens a scope per index, so the item's own scopes start after.
+    const scope = segments.filter((segment) => 'index' in segment).length;
+    const conditions = Object.entries(item).map(([field, value]) =>
+      presence({
+        segments: parsePath({path: field, origin}),
+        root: ITEM,
+        scope,
+        check: (accessor) => valueCheck({accessor, value}),
+      }),
+    );
+    addCheck({
+      name,
+      mapping: presence({
+        segments,
+        check: (accessor) =>
+          `type(${accessor}) == type([]) && ${accessor}.exists(${ITEM}, ${conditions.join(' && ')})`,
+      }),
+      check: `step.outputs.${name}`,
+    });
+  }
+
   return {
     ...call,
     ...(checks.length === 0
@@ -465,13 +555,15 @@ function generationResolver({
   manifest,
   origin,
   allowTargets,
+  references,
 }: {
   manifest: SandboxManifest;
   origin: string;
   allowTargets: boolean;
+  references?: StepReferences | undefined;
 }): ContractReferenceResolver {
-  const unsupported = (token: string) => () => {
-    throw new Error(`${origin}: ${token} is not generated yet`);
+  const withOnly = (token: string) => () => {
+    throw new Error(`${origin}: ${token} is only for the \`with\` of a step in a case`);
   };
   return {
     fixture: (reference) => {
@@ -488,8 +580,23 @@ function generationResolver({
         throw new Error(`${origin}: a target reference is not in the manifest`);
       return value;
     },
-    steps: unsupported('$steps'),
-    marker: unsupported('$marker'),
+    steps:
+      references === undefined
+        ? withOnly('$steps')
+        : ({key, path}) => {
+            if (!references.keys.has(key)) {
+              throw new Error(`${origin}: $steps.${key} names a step key the case doesn't have`);
+            }
+            const segments = parsePath({path, origin});
+            const name = `ref_${segmentName(segments)}`;
+            const requested = references.requests.get(key) ?? new Map<string, Segment[]>();
+            requested.set(name, segments);
+            references.requests.set(key, requested);
+            return interpolation(`steps.${key}.outputs.${name}`);
+          },
+    // The run id makes every written object traceable to its run.
+    marker:
+      references === undefined ? withOnly('$marker') : () => `contract-${interpolation('run.id')}`,
   };
 }
 

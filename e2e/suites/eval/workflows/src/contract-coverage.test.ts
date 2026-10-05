@@ -30,7 +30,13 @@ const grants: CatalogGrants = {
 };
 
 interface FilesInput {
-  cases?: Array<{id: string; provider: string; modes?: string[]; steps: unknown[]}>;
+  cases?: Array<{
+    id: string;
+    provider: string;
+    kind?: string;
+    modes?: string[];
+    steps: unknown[];
+  }>;
   exemptions?: Array<{id: string; provider: string; tool?: string; method?: string}>;
   backlog?: Array<Record<string, string>>;
   ceiling?: number;
@@ -40,10 +46,10 @@ function arrange({cases = [], exemptions = [], backlog = [], ceiling}: FilesInpu
   return {
     manifest: {},
     backlog: parseContractBacklog({ceiling: ceiling ?? backlog.length, entries: backlog}),
-    cases: cases.map(({id, provider, modes = ['real', 'fake'], steps}) => ({
+    cases: cases.map(({id, provider, kind, modes = ['real', 'fake'], steps}) => ({
       id,
       path: `${id}.yaml`,
-      definition: parseContractCase({provider, modes, steps}),
+      definition: parseContractCase({provider, kind, modes, steps}),
     })),
     exemptions: exemptions.map(({id, provider, tool, method}) => ({
       id,
@@ -82,6 +88,13 @@ describe('checkContractCoverage', () => {
     id: 'github/issue-read-get',
     provider: 'github',
     steps: [{tool: 'issue_read', method: 'get'}],
+  };
+
+  // The effect of a write: it reads the issue the write created and checks a value.
+  const savedIssue = {
+    tool: 'get_issue',
+    with: {id: '$steps.save.id'},
+    expect: {values: {title: 'Contract'}},
   };
 
   it('passes when every unit has a case, an exemption, or a backlog entry', () => {
@@ -203,7 +216,8 @@ describe('checkContractCoverage', () => {
         {
           id: 'linear/save',
           provider: 'linear',
-          steps: [{tool: 'save_issue', effect: {tool: 'read_issue'}}],
+          kind: 'round-trip',
+          steps: [{key: 'save', tool: 'save_issue', effect: {...savedIssue, tool: 'read_issue'}}],
         },
       ],
       backlog: [{tool: 'github.issue_read', method: 'get_comments', kind: 'read', issue: 'ENG-1'}],
@@ -214,6 +228,102 @@ describe('checkContractCoverage', () => {
     ]);
   });
 
+  describe('effect rules', () => {
+    const arrangeWrite = ({
+      effect,
+      kind = 'round-trip',
+      backlogged = false,
+    }: {
+      effect?: unknown;
+      kind?: string;
+      backlogged?: boolean;
+    }) =>
+      arrange({
+        cases: [
+          getIssue,
+          issueReadGet,
+          {
+            id: 'linear/save',
+            provider: 'linear',
+            kind,
+            steps: [{key: 'save', tool: 'save_issue', ...(effect === undefined ? {} : {effect})}],
+          },
+        ],
+        exemptions: [{id: 'gitea/all', provider: 'gitea'}],
+        backlog: [
+          {tool: 'github.issue_read', method: 'get_comments', kind: 'read', issue: 'ENG-1'},
+          ...(backlogged ? [{tool: 'linear.save_issue', kind: 'write', issue: 'ENG-1'}] : []),
+        ],
+      });
+
+    const problemsOf = (files: ContractFiles) => checkContractCoverage({grants, files}).problems;
+
+    it('accepts a write whose effect reads an object the run created', () => {
+      expect(problemsOf(arrangeWrite({effect: savedIssue}))).toEqual([]);
+    });
+
+    it('accepts a write whose effect filters its read with the marker', () => {
+      const effect = {
+        tool: 'get_issue',
+        with: {id: 'Contract $marker'},
+        expect: {includes: {labels: {name: 'bug'}}},
+      };
+
+      expect(problemsOf(arrangeWrite({effect}))).toEqual([]);
+    });
+
+    it('fails a write without an effect', () => {
+      expect(problemsOf(arrangeWrite({}))).toEqual([
+        'case linear/save: write step "save_issue" has no `effect`',
+        'write linear.save_issue has no case, exemption, or backlog entry',
+      ]);
+    });
+
+    it('keeps the backlog entry of a write whose effect is not valid', () => {
+      expect(problemsOf(arrangeWrite({backlogged: true}))).toEqual([
+        'case linear/save: write step "save_issue" has no `effect`',
+      ]);
+    });
+
+    it('fails an effect with only a shape check', () => {
+      const effect = {...savedIssue, expect: {shape: {id: 'string'}}};
+
+      expect(problemsOf(arrangeWrite({effect, backlogged: true}))).toEqual([
+        'case linear/save: the effect of write step "save_issue" needs `expect.values` or `expect.includes`, a shape check proves nothing',
+      ]);
+    });
+
+    it('fails an effect with no assertion at all', () => {
+      const effect = {tool: 'get_issue', with: {id: '$steps.save.id'}};
+
+      expect(problemsOf(arrangeWrite({effect, backlogged: true}))).toEqual([
+        'case linear/save: the effect of write step "save_issue" needs `expect.values` or `expect.includes`, a shape check proves nothing',
+      ]);
+    });
+
+    it('fails an effect on static data', () => {
+      const effect = {...savedIssue, with: {id: 'CON-1'}};
+
+      expect(problemsOf(arrangeWrite({effect, backlogged: true}))).toEqual([
+        'case linear/save: the effect of write step "save_issue" reads static data: read an object this run created through `$steps`, or filter the read with `$marker`',
+      ]);
+    });
+
+    it('fails an effect that writes', () => {
+      const effect = {...savedIssue, tool: 'save_issue'};
+
+      expect(problemsOf(arrangeWrite({effect, backlogged: true}))).toEqual([
+        'case linear/save: the effect of write step "save_issue" must read, not write',
+      ]);
+    });
+
+    it('fails a write step outside a round-trip case', () => {
+      expect(
+        problemsOf(arrangeWrite({effect: savedIssue, kind: 'read', backlogged: true})),
+      ).toEqual(['case linear/save: write step "save_issue" needs a case of kind `round-trip`']);
+    });
+  });
+
   it('does not count an effect read as the read tool case', () => {
     const files = arrange({
       cases: [
@@ -221,7 +331,8 @@ describe('checkContractCoverage', () => {
         {
           id: 'linear/save',
           provider: 'linear',
-          steps: [{tool: 'save_issue', effect: {tool: 'get_issue'}}],
+          kind: 'round-trip',
+          steps: [{key: 'save', tool: 'save_issue', effect: savedIssue}],
         },
       ],
       exemptions: [{id: 'gitea/all', provider: 'gitea'}],
