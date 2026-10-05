@@ -1,0 +1,9 @@
+provider: linear
+kind: error
+modes: [real, fake]
+steps:
+  - tool: get_issue
+    with:
+      id: $target.linear.missing_issue.identifier
+    expect:
+      error: not-found

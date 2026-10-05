@@ -37,6 +37,16 @@ jobs:
           value_labels_0_name: '${{ has(result.labels) && type(result.labels) == list && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.name)) ? result.labels[0].name : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_uuid && step.outputs.shape_priority && step.outputs.shape_team_key && step.outputs.shape_labels_0_name && type(step.outputs.value_id) == string && step.outputs.value_id == "CON-1" && type(step.outputs.value_uuid) == string && step.outputs.value_uuid == "8e3b" && type(step.outputs.value_labels_0_name) == string && step.outputs.value_labels_0_name == "bug"
+  get_issue_not_found:
+    checkout: false
+    steps:
+      - key: get_issue_not_found
+        tool: get_issue
+        connection: linear_sandbox
+        with:
+          id: CON-999999
+        gate:
+          success: step.status == "failed" && step.error.code == "not-found"
   list_teams:
     checkout: false
     steps:
