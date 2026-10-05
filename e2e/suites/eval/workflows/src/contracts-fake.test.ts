@@ -1,10 +1,9 @@
-import {mkdtemp, readFile, rm} from 'node:fs/promises';
+import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {WorkflowJobObservation, WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
 import {afterEach, beforeEach, describe, expect, it} from '@shipfox/vitest/vi';
-import {runCli} from './cli.js';
 import {loadContracts} from './contracts.js';
 import {
   type FakeProviderPlan,
@@ -198,16 +197,19 @@ describe('runContractsFake', () => {
     ).rejects.toThrow(noMatchPattern);
   });
 
-  it('passes without a stack when no case runs against a fake', async () => {
-    const output: string[] = [];
+  it('runs nothing, and needs no stack, when no case runs against a fake', async () => {
+    // A contracts root with no case, so the test holds whatever fake cases the repository gains.
+    const root = join(directory, 'contracts');
+    await mkdir(root);
+    await writeFile(join(root, 'sandbox.yaml'), '{}\n');
+    await writeFile(join(root, 'backlog.yaml'), 'ceiling: 0\nentries: []\n');
 
-    const exitCode = await runCli(['--suite', 'contracts', '--mode', 'fake'], {
-      cwd: directory,
-      stdout: (message) => output.push(message),
-      stderr: (message) => output.push(message),
+    const run = await runContractsFake({
+      contractsRoot: root,
+      resultsDirectory: join(directory, 'results'),
+      runId: 'empty-run',
     });
 
-    expect(output.join('')).toContain('Ran 0 fake contract cases, 0 not passed.');
-    expect(exitCode).toBe(0);
+    expect(run.results).toEqual([]);
   });
 });

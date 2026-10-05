@@ -483,7 +483,7 @@ generated fake workflows have no `fixtures` job and no agent jobs. `--case`
 filters by case id, provider, or workflow file name. `test:e2e` runs it.
 
 ```sh
-mise run evals -- --suite contracts --case 'github/*'
+mise run evals -- --suite contracts
 ```
 
 The onboarding suite drives a real Claude Agent SDK session against the stack.
