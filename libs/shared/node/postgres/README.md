@@ -4,7 +4,7 @@ PostgreSQL pool setup for Shipfox services and Node.js 24 apps.
 
 ## What it does
 
-- **`createPostgresClient(options?)`**: Creates one shared `pg.Pool` from the environment and optional overrides.
+- **`createPostgresClient(options?)`**: Creates one shared `pg.Pool` from the environment and optional overrides. A dropped connection rejects the query in flight and does not stop the process.
 - **`pgClient()`**: Returns the shared pool after initialization.
 - **`closePostgresClient()`**: Closes and clears the shared pool.
 - **`openPostgresSession()`**: Opens a connected client outside the pool for session-scoped state such as advisory locks. The caller closes it.
