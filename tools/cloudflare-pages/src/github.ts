@@ -59,6 +59,10 @@ function deploymentEnvironmentSettings(environment: string): {
   return settings ?? {label: environment, transient: false, production: false};
 }
 
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 function parseJsonOutput(output: string, command: string): JsonObject {
   try {
     const value: unknown = JSON.parse(output);
@@ -95,6 +99,44 @@ async function callGitHubApi({
   return parseJsonOutput(result.output, 'GitHub API');
 }
 
+async function readPullRequestState(params: {
+  repository: string;
+  pullRequest: string;
+  command: string;
+  attempts: number;
+  retryDelayMs: number;
+  cwd: string | undefined;
+  runner: CommandRunner;
+  timeoutMs: number;
+}): Promise<JsonObject> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= params.attempts; attempt += 1) {
+    try {
+      const result = await params.runner(
+        params.command,
+        [
+          'api',
+          `repos/${params.repository}/pulls/${params.pullRequest}`,
+          '--jq',
+          '{headSha: .head.sha, state: .state, baseRef: .base.ref}',
+        ],
+        {cwd: params.cwd, stream: false, timeoutMs: params.timeoutMs},
+      );
+      return parseJsonOutput(result.output, 'GitHub pull request');
+    } catch (error) {
+      lastError = error;
+      if (attempt < params.attempts && params.retryDelayMs > 0)
+        await wait(attempt * params.retryDelayMs);
+    }
+  }
+
+  throw new Error(
+    `GitHub pull request lookup failed after ${params.attempts} attempt(s): ${
+      lastError instanceof Error ? lastError.message : lastError
+    }`,
+  );
+}
+
 /**
  * Confirm that a pull request still points at the commit being deployed.
  * This closes the race between a queued build and a later commit pushed to
@@ -105,6 +147,8 @@ export async function assertCurrentCommit({
   pullRequest = process.env.CLOUDFLARE_PAGES_PR_NUMBER,
   commit = process.env.CLOUDFLARE_PAGES_COMMIT_SHA ?? process.env.GITHUB_SHA,
   command = 'gh',
+  attempts = 3,
+  retryDelayMs = 2_000,
   cwd,
   runner = runCommand,
   timeoutMs = 60_000,
@@ -112,22 +156,27 @@ export async function assertCurrentCommit({
   repository?: string | undefined;
   pullRequest?: string | undefined;
   commit?: string | undefined;
+  attempts?: number | undefined;
+  retryDelayMs?: number | undefined;
 }): Promise<{pullRequest: string; commit: string}> {
   const resolvedRepository = required(repository, 'repository');
   const resolvedPullRequest = required(pullRequest, 'pullRequest');
   const resolvedCommit = required(commit, 'commit');
+  if (!Number.isInteger(attempts) || attempts < 1)
+    throw new Error('attempts must be a positive integer');
 
-  const result = await runner(
+  // Only the lookup is retried. A closed, retargeted, or moved pull request is
+  // a real answer and must fail on the first response that reports it.
+  const pullRequestState = await readPullRequestState({
+    repository: resolvedRepository,
+    pullRequest: resolvedPullRequest,
     command,
-    [
-      'api',
-      `repos/${resolvedRepository}/pulls/${resolvedPullRequest}`,
-      '--jq',
-      '{headSha: .head.sha, state: .state, baseRef: .base.ref}',
-    ],
-    {cwd, stream: false, timeoutMs},
-  );
-  const pullRequestState = parseJsonOutput(result.output, 'GitHub pull request');
+    attempts,
+    retryDelayMs,
+    cwd,
+    runner,
+    timeoutMs,
+  });
   const currentCommit =
     typeof pullRequestState.headSha === 'string' ? pullRequestState.headSha : '';
   const state = typeof pullRequestState.state === 'string' ? pullRequestState.state : '';
