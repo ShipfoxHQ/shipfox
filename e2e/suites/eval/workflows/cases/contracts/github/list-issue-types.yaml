@@ -6,4 +6,5 @@ steps:
       owner: $fixture.github.repository.owner
       repo: $fixture.github.repository.name
     expect:
-      shape: {issue_types: list}
+      shape:
+        issue_types: [{name: string}]

@@ -44,7 +44,7 @@ A case names a catalog tool, its input, and what the result must hold:
 
 ```yaml
 provider: linear
-modes: [real, fake]
+modes: [real]
 steps:
   - tool: get_issue
     with:

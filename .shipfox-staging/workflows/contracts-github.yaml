@@ -187,9 +187,9 @@ jobs:
           owner: ShipfoxSandbox
           repo: contract-tests
         outputs:
-          shape_issue_types: ${{ has(result.issue_types) && type(result.issue_types) == type([]) }}
+          shape_issue_types_0_name: ${{ has(result.issue_types) && type(result.issue_types) == type([]) && size(result.issue_types) > 0 && [result.issue_types[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
         gate:
-          success: step.status == "succeeded" && step.outputs.shape_issue_types
+          success: step.status == "succeeded" && step.outputs.shape_issue_types_0_name
   list_issues:
     checkout: false
     steps:
