@@ -216,11 +216,13 @@ function checkBacklog({
   files,
   units,
   covered,
+  exempt,
 }: {
   grants: CatalogGrants;
   files: ContractFiles;
   units: readonly CatalogUnit[];
   covered: ReadonlyMap<string, string[]>;
+  exempt: ReadonlyMap<string, string[]>;
 }) {
   const unitsByKey = new Map(units.map((unit) => [unit.key, unit]));
   const backlogged = new Set<string>();
@@ -234,8 +236,12 @@ function checkBacklog({
       continue;
     }
     backlogged.add(name);
-    if (covered.has(name))
+    if (covered.has(name)) {
       problems.push(`backlog entry ${name} now has a case, so remove the entry`);
+    }
+    if (exempt.has(name)) {
+      problems.push(`backlog entry ${name} is exempt, so remove the entry`);
+    }
     const unit = unitsByKey.get(name);
     if (unit !== undefined && unit.kind !== entry.kind) {
       problems.push(`backlog entry ${name} is a ${entry.kind}, but the catalog says ${unit.kind}`);
@@ -272,7 +278,7 @@ export function checkContractCoverage({
     }
   }
 
-  const backlog = checkBacklog({grants, files, units, covered});
+  const backlog = checkBacklog({grants, files, units, covered, exempt});
   problems.push(...backlog.problems);
 
   for (const unit of units) {

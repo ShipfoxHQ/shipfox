@@ -137,6 +137,21 @@ describe('checkContractCoverage', () => {
     ]);
   });
 
+  it('fails a backlog entry for an exempt unit', () => {
+    const files = arrange({
+      ...everythingElse,
+      cases: [getIssue, issueReadGet],
+      backlog: [
+        ...(everythingElse.backlog ?? []),
+        {tool: 'gitea.get_issue', kind: 'read', issue: 'ENG-1'},
+      ],
+    });
+
+    expect(checkContractCoverage({grants, files}).problems).toEqual([
+      'backlog entry gitea.get_issue is exempt, so remove the entry',
+    ]);
+  });
+
   it('fails a tool that has an exemption and a case', () => {
     const files = arrange({
       ...everythingElse,
