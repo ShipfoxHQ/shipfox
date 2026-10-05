@@ -1,0 +1,3 @@
+provider: gitea
+exempt:
+  reason: Staging has no Gitea instance.
