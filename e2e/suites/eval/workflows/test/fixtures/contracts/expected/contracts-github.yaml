@@ -27,9 +27,9 @@ jobs:
           repo: fixtures
           issue_number: 1
         outputs:
-          shape_number: ${{ has(result.number) && (type(result.number) == int || type(result.number) == double) }}
-          shape_title: ${{ has(result.title) && type(result.title) == string }}
-          shape_state: ${{ has(result.state) && type(result.state) == string }}
+          shape_number: ${{ has(result.number) && (type(result.number) == type(1) || type(result.number) == type(1.0)) }}
+          shape_title: ${{ has(result.title) && type(result.title) == type("") }}
+          shape_state: ${{ has(result.state) && type(result.state) == type("") }}
           value_number: '${{ has(result.number) ? result.number : "" }}'
         gate:
-          success: step.status == "succeeded" && step.outputs.shape_number && step.outputs.shape_title && step.outputs.shape_state && (type(step.outputs.value_number) == int || type(step.outputs.value_number) == double) && step.outputs.value_number == 1
+          success: step.status == "succeeded" && step.outputs.shape_number && step.outputs.shape_title && step.outputs.shape_state && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 1

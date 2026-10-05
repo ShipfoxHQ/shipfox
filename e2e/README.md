@@ -469,6 +469,23 @@ each sandbox the files name, such as `linear_sandbox`, binds the slugs, and
 requires zero error diagnostics and every trigger active. A failure names the
 file path. `--case` filters by file name. `test:e2e` runs it.
 
+`--suite contracts` runs the contract cases that list `fake` in their `modes`
+against the E2E fakes, and `--mode fake` is its default. It arranges one
+workspace and GitHub project, a local runner, and a connection to each fake.
+It seeds each fake from the `fixtures` of `cases/contracts/sandbox.yaml`
+through the provider's adapter in `src/contract-fakes.ts`, generates the
+provider workflows from the `fake` cases, and starts each one manually, one at
+a time, because the Slack, ClickUp, and Linear fakes listen on fixed
+addresses. Each job maps to its case. A job that fails means the fake answers
+differently from the provider, and any failed case makes the exit code
+non-zero. A provider can have `fake` cases only once it has an adapter. The
+generated fake workflows have no `fixtures` job and no agent jobs. `--case`
+filters by case id, provider, or workflow file name. `test:e2e` runs it.
+
+```sh
+mise run evals -- --suite contracts
+```
+
 The onboarding suite drives a real Claude Agent SDK session against the stack.
 Each case in `cases/onboarding/` sets up a workspace, a fixture repository, and
 a recording MCP proxy, then answers the agent's questions with a simulated user

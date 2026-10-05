@@ -326,7 +326,7 @@ async function createProviderConnection({
 }
 
 // A rejected definition explains itself in the response body, not in the status.
-function failureMessage(error: unknown): string {
+export function failureMessage(error: unknown): string {
   if (error instanceof E2eApiError && error.details !== undefined) {
     return `${error.message}\n${JSON.stringify(error.details)}`;
   }

@@ -87,22 +87,23 @@ function render(document: unknown): string {
   return `${HEADER}${stringify(document, {lineWidth: 0})}`;
 }
 
+export type ContractGenerationMode = 'real' | 'fake';
+
 /**
- * Compiles the real-mode contract workflows: one file per provider with a real case, and the
- * `contracts.yaml` that starts them. Files come back in name order. Nothing is written when no
- * case runs against the real provider. Agent jobs are real-only, so they follow the real cases.
+ * Compiles the contract workflows of one mode: one file per provider with a case in that mode, and
+ * for `real` the `contracts.yaml` that starts them. Files come back in name order. Nothing comes
+ * back when no case runs in the mode.
+ *
+ * Only `real` files have a `fixtures` job and agent jobs. The `fixtures` job tells a broken sandbox
+ * from a broken tool, and the fake is seeded from the same fixtures, so the cases show both. Agent
+ * jobs need a real model.
  */
 export function generateContractFiles(
   files: ContractFiles,
-  {grants = toolGrants}: {grants?: ToolGrants} = {},
+  {grants = toolGrants, mode = 'real'}: {grants?: ToolGrants; mode?: ContractGenerationMode} = {},
 ): GeneratedFile[] {
-  const providers = [
-    ...new Set(
-      files.cases
-        .filter(({definition}) => definition.modes.includes('real'))
-        .map(({definition}) => definition.provider),
-    ),
-  ].sort();
+  const inMode = files.cases.filter(({definition}) => definition.modes.includes(mode));
+  const providers = [...new Set(inMode.map(({definition}) => definition.provider))].sort();
   if (providers.length === 0) return [];
 
   const generated = providers.map((provider) => ({
@@ -110,18 +111,19 @@ export function generateContractFiles(
     content: render(
       providerWorkflow({
         provider,
+        mode,
         manifest: files.manifest,
         grants,
-        cases: files.cases.filter(
-          ({definition}) => definition.provider === provider && definition.modes.includes('real'),
-        ),
+        cases: inMode.filter(({definition}) => definition.provider === provider),
       }),
     ),
   }));
-  generated.push({
-    name: CONTRACTS_WORKFLOW_NAME,
-    content: render(startWorkflow(providers)),
-  });
+  if (mode === 'real') {
+    generated.push({
+      name: CONTRACTS_WORKFLOW_NAME,
+      content: render(startWorkflow(providers)),
+    });
+  }
   return generated.sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -149,11 +151,13 @@ function startWorkflow(providers: string[]) {
 
 function providerWorkflow({
   provider,
+  mode,
   manifest,
   grants,
   cases,
 }: {
   provider: string;
+  mode: ContractGenerationMode;
   manifest: SandboxManifest;
   grants: ToolGrants;
   cases: LoadedContractCase[];
@@ -163,7 +167,7 @@ function providerWorkflow({
 
   const jobs: Record<string, unknown> = {};
   const fixtureSteps = Object.entries(sandbox.fixtures).flatMap(([name, fixture]) =>
-    fixture.read === undefined
+    fixture.read === undefined || mode === 'fake'
       ? []
       : [
           compileStep({
@@ -193,7 +197,7 @@ function providerWorkflow({
       job: caseJob({jobKey: key, loaded, connection: sandbox.connection, manifest}),
     });
   }
-  if (sandbox.agent !== undefined) {
+  if (sandbox.agent !== undefined && mode === 'real') {
     const reads = sandbox.agent.reads.map((name) => agentRead({name, provider, sandbox, manifest}));
     const include = readSelectors(grants[provider]);
     if (include.length === 0) {
@@ -329,7 +333,7 @@ function agentJob({
   };
 }
 
-function caseJobKey({id}: LoadedContractCase): string {
+export function caseJobKey({id}: LoadedContractCase): string {
   const key = basename(id).replaceAll('-', '_');
   if (!JOB_KEY_PATTERN.test(key)) {
     throw new Error(`${id}: the file name must make a job key of lowercase letters, digits, and _`);
@@ -560,7 +564,7 @@ function presence({
       continue;
     }
     const item = `i${scope}`;
-    guards.push(`type(${accessor}) == list`, `size(${accessor}) > ${segment.index}`);
+    guards.push(`type(${accessor}) == type([])`, `size(${accessor}) > ${segment.index}`);
     const inner = presence({
       segments: segments.slice(position + 1),
       check,
@@ -577,24 +581,25 @@ function presence({
 function typeCheck({accessor, type}: {accessor: string; type: ShapeLeaf['type']}): string {
   switch (type) {
     case 'string':
-      return `type(${accessor}) == string`;
+      return `type(${accessor}) == type("")`;
     case 'number':
       // A JSON number is an int or a double depending on how it was read.
-      return `(type(${accessor}) == int || type(${accessor}) == double)`;
+      return `(type(${accessor}) == type(1) || type(${accessor}) == type(1.0))`;
     case 'boolean':
-      return `type(${accessor}) == bool`;
+      return `type(${accessor}) == type(true)`;
     case 'list':
-      return `type(${accessor}) == list`;
+      return `type(${accessor}) == type([])`;
     case 'object':
-      return `type(${accessor}) == map`;
+      return `type(${accessor}) == type({})`;
   }
 }
 
 /** A comparison that never errors on a result of another type: it is false instead. */
 function valueCheck({accessor, value}: {accessor: string; value: ContractScalar}): string {
   if (typeof value === 'string') {
-    return `type(${accessor}) == string && ${accessor} == ${JSON.stringify(value)}`;
+    return `type(${accessor}) == type("") && ${accessor} == ${JSON.stringify(value)}`;
   }
-  if (typeof value === 'boolean') return `type(${accessor}) == bool && ${accessor} == ${value}`;
+  if (typeof value === 'boolean')
+    return `type(${accessor}) == type(true) && ${accessor} == ${value}`;
   return `${typeCheck({accessor, type: 'number'})} && ${accessor} == ${value}`;
 }

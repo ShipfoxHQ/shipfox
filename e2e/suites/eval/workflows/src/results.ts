@@ -7,8 +7,11 @@ import type {HiddenTestsResult} from './hidden-tests.js';
 import type {RunMeasures} from './measures.js';
 import type {ScenarioStepRecord} from './scenario.js';
 
-/** `compile` only creates each variant's definition, and runs nothing. */
-export type EvalMode = 'scripted' | 'live' | 'compile';
+/**
+ * `compile` only creates each variant's definition, and runs nothing. `fake` is the contracts
+ * suite running its cases against the E2E fakes.
+ */
+export type EvalMode = 'scripted' | 'live' | 'compile' | 'fake';
 
 /** The session of one agent step, as the harness wrote it. */
 export interface AgentTranscript {
