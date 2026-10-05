@@ -1,6 +1,6 @@
 import {useClientAnalytics, useMaybeActiveWorkspace} from '@shipfox/client-shell/runtime';
 import {Panel, PanelBody} from '@shipfox/react-ui/panel';
-import {useCallback, useId, useState} from 'react';
+import {type ReactNode, useCallback, useId, useState} from 'react';
 import {type SetupChecklistItem, selectNextSetupStep} from '#core/setup-checklist.js';
 import {type ChecklistQueryState, useSetupChecklistQueryState} from '#hooks/api/setup-checklist.js';
 import {
@@ -20,26 +20,40 @@ import {
   checklistCountLabel,
 } from './setup-checklist-host-primitives.js';
 import {SetupChecklistNextStep} from './setup-checklist-next-step.js';
-import type {WorkspaceReference, WorkspaceSetupHostProps} from './setup-checklist-types.js';
+import type {WorkspaceReference, WorkspaceSetupChecklistProps} from './setup-checklist-types.js';
 
-export function WorkspaceSetupChecklist(props: WorkspaceSetupHostProps = {}) {
+export function WorkspaceSetupChecklist(props: WorkspaceSetupChecklistProps = {}) {
   if (props.workspace) {
     return (
-      <WorkspaceSetupChecklistForWorkspace key={props.workspace.id} workspace={props.workspace} />
+      <WorkspaceSetupChecklistForWorkspace
+        key={props.workspace.id}
+        workspace={props.workspace}
+        companion={props.companion}
+      />
     );
   }
 
-  return <WorkspaceSetupChecklistFromShell />;
+  return <WorkspaceSetupChecklistFromShell companion={props.companion} />;
 }
 
-function WorkspaceSetupChecklistFromShell() {
+function WorkspaceSetupChecklistFromShell({companion}: {companion: ReactNode}) {
   const workspace = useMaybeActiveWorkspace();
   return workspace ? (
-    <WorkspaceSetupChecklistForWorkspace key={workspace.id} workspace={workspace} />
+    <WorkspaceSetupChecklistForWorkspace
+      key={workspace.id}
+      workspace={workspace}
+      companion={companion}
+    />
   ) : null;
 }
 
-function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceReference}) {
+function WorkspaceSetupChecklistForWorkspace({
+  workspace,
+  companion,
+}: {
+  workspace: WorkspaceReference;
+  companion: ReactNode;
+}) {
   const dismissal = useChecklistDismissal(workspace.id);
   const {expanded, toggle: toggleExpansion} = useChecklistExpansion(workspace.id);
   const queryState = useSetupChecklistQueryState(workspace.id, !dismissal.dismissed);
@@ -134,16 +148,17 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
     </Panel>
   );
 
-  if (!firstWorkflowPanelProgress) return checklistPanel;
-
   return (
     <>
       {checklistPanel}
-      <FirstWorkflowPanel
-        workspace={workspace}
-        progress={firstWorkflowPanelProgress}
-        surface="home"
-      />
+      {companion}
+      {firstWorkflowPanelProgress ? (
+        <FirstWorkflowPanel
+          workspace={workspace}
+          progress={firstWorkflowPanelProgress}
+          surface="home"
+        />
+      ) : null}
     </>
   );
 }

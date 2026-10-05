@@ -269,6 +269,117 @@ describe('workspace checklist hosts', () => {
     clearWorkspaceSetupChecklistDismissal(WORKSPACE.id);
   });
 
+  describe('companion', () => {
+    const companion = <div data-testid="companion" />;
+
+    test('renders below the panel while steps are open', async () => {
+      const queryClient = createQueryClient();
+      seedQueries(queryClient);
+
+      renderWithProviders(
+        <WorkspaceSetupChecklist workspace={WORKSPACE} companion={companion} />,
+        queryClient,
+        {capture: vi.fn()},
+      );
+
+      const panel = await screen.findByRole('region', {name: 'Get started'});
+      const rendered = screen.getByTestId('companion');
+      expect(
+        panel.compareDocumentPosition(rendered) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(panel).not.toContainElement(rendered);
+    });
+
+    test('is absent after dismissal and does not subscribe to checklist queries', () => {
+      const queryClient = createQueryClient();
+      const fetchImpl = vi.fn();
+      configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+      dismissWorkspaceSetupChecklist(WORKSPACE.id);
+
+      renderWithProviders(
+        <WorkspaceSetupChecklist workspace={WORKSPACE} companion={companion} />,
+        queryClient,
+        {capture: vi.fn()},
+      );
+
+      expect(screen.queryByTestId('companion')).not.toBeInTheDocument();
+      expect(fetchImpl).not.toHaveBeenCalled();
+      expect(
+        queryClient.getQueryCache().find({queryKey: firstWorkflowKey()})?.getObserversCount() ?? 0,
+      ).toBe(0);
+    });
+
+    test('is absent while the checklist is complete on load', async () => {
+      const queryClient = createQueryClient();
+      seedQueries(queryClient, true);
+
+      renderWithProviders(
+        <WorkspaceSetupChecklist workspace={WORKSPACE} companion={companion} />,
+        queryClient,
+        {capture: vi.fn()},
+      );
+
+      await waitFor(() =>
+        expect(
+          queryClient
+            .getQueryCache()
+            .find({queryKey: integrationProvidersQueryOptions().queryKey})
+            ?.getObserversCount(),
+        ).toBeGreaterThan(0),
+      );
+      expect(screen.queryByRole('region', {name: 'Get started'})).not.toBeInTheDocument();
+      expect(screen.queryByTestId('companion')).not.toBeInTheDocument();
+    });
+
+    test('is absent while the base queries have not settled', () => {
+      const queryClient = createQueryClient();
+      configureApiClient({
+        baseUrl: 'https://api.example.test',
+        fetchImpl: vi.fn(() => new Promise<Response>(() => undefined)),
+      });
+
+      renderWithProviders(
+        <WorkspaceSetupChecklist workspace={WORKSPACE} companion={companion} />,
+        queryClient,
+        {capture: vi.fn()},
+      );
+
+      expect(screen.queryByRole('region', {name: 'Get started'})).not.toBeInTheDocument();
+      expect(screen.queryByTestId('companion')).not.toBeInTheDocument();
+    });
+
+    test('stays through the completion state and leaves with the panel on Done', async () => {
+      const queryClient = createQueryClient();
+      seedQueries(queryClient);
+      const capture = vi.fn();
+
+      renderWithProviders(
+        <WorkspaceSetupChecklist workspace={WORKSPACE} companion={companion} />,
+        queryClient,
+        {capture},
+      );
+      expect(await screen.findByTestId('companion')).toBeInTheDocument();
+
+      act(() => {
+        queryClient.setQueryData(integrationConnectionsQueryOptions(WORKSPACE.id).queryKey, [
+          connection('github', 'active'),
+          connection('linear', 'active'),
+        ]);
+      });
+
+      expect(await screen.findByText("You're set up")).toBeInTheDocument();
+      expect(screen.getByTestId('companion')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', {name: 'Done'}));
+
+      expect(screen.queryByRole('region', {name: 'Get started'})).not.toBeInTheDocument();
+      expect(screen.queryByTestId('companion')).not.toBeInTheDocument();
+      for (const event of ['onboarding_checklist_shown', 'onboarding_checklist_completed']) {
+        expect(capture.mock.calls.filter(([name]) => name === event)).toHaveLength(1);
+      }
+    });
+  });
+
   test('renders the completion state only after an observed false-to-true transition', async () => {
     const queryClient = createQueryClient();
     seedQueries(queryClient);

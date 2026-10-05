@@ -32,6 +32,7 @@ export {
   type SetupChecklistBodyProps,
   type WorkspaceReference,
   WorkspaceSetupChecklist,
+  type WorkspaceSetupChecklistProps,
   type WorkspaceSetupHostProps,
   WorkspaceSetupIndicator,
 } from './components/setup-checklist.js';

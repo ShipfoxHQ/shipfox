@@ -4,6 +4,7 @@ export {SetupChecklistNextStep} from './setup-checklist-next-step.js';
 export type {
   SetupChecklistBodyProps,
   WorkspaceReference,
+  WorkspaceSetupChecklistProps,
   WorkspaceSetupHostProps,
 } from './setup-checklist-types.js';
 export {WorkspaceSetupChecklist} from './workspace-setup-checklist.js';
