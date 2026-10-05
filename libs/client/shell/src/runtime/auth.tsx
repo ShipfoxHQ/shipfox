@@ -1478,7 +1478,7 @@ export function AuthRuntime({
   const adoptedControl = getAdoptedSessionControl(store);
   const authState = useAtomValue(authStateAtom);
   const refreshAuth = useRefreshAuth();
-  const {enterGuest} = useAuthTransition();
+  const {enterAuthenticated, enterGuest} = useAuthTransition();
   const {
     adoptedSession,
     adoptSession,
@@ -1542,10 +1542,17 @@ export function AuthRuntime({
         await refreshAuth().catch(() => undefined);
         return;
       }
+      // A restorer that declines has usually already read the cookie session.
+      // Entering that snapshot avoids a second, identical refresh round trip.
+      let ordinarySnapshot: AuthenticatedSession | undefined;
+      const snapshotOrdinarySession = async (signal?: AbortSignal) => {
+        ordinarySnapshot = await getOrdinarySessionSnapshot(signal);
+        return ordinarySnapshot;
+      };
       try {
         const result = await restorer({
-          getOrdinarySessionSnapshot,
-          snapshotOrdinarySession: getOrdinarySessionSnapshot,
+          getOrdinarySessionSnapshot: snapshotOrdinarySession,
+          snapshotOrdinarySession,
           adoptSession,
           releaseAdoptedSession,
         });
@@ -1569,6 +1576,10 @@ export function AuthRuntime({
           return;
         }
         if (decision.kind === 'pending') return;
+        if (ordinarySnapshot) {
+          await enterAuthenticated(ordinarySnapshot);
+          return;
+        }
         await refreshAuth().catch(() => undefined);
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
@@ -1582,6 +1593,7 @@ export function AuthRuntime({
   }, [
     adoptSession,
     effects,
+    enterAuthenticated,
     enterGuest,
     getOrdinarySessionSnapshot,
     refreshAuth,
