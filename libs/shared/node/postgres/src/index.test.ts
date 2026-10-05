@@ -39,9 +39,8 @@ describe('Postgres client', () => {
     const client = await pool.connect();
 
     const act = () => client.emit('error', new Error('Connection terminated unexpectedly'));
-    client.release(true);
-
     expect(act).not.toThrow();
+    client.release(true);
   });
 
   it('survives a connection dropped while a client is idle', async () => {
