@@ -1,4 +1,6 @@
 import type {ToolGrant} from '@shipfox/actions/tool-grants';
+import {findContractReferences} from './contract-references.js';
+import type {ContractCase, ContractStep} from './contract-schema.js';
 import type {ContractFiles} from './contracts.js';
 
 export type CatalogGrants = Readonly<Record<string, Readonly<Record<string, ToolGrant>>>>;
@@ -106,28 +108,106 @@ function addId({map, key, id}: {map: Map<string, string[]>; key: string; id: str
   map.set(key, [...(map.get(key) ?? []), id]);
 }
 
-function collectCaseCoverage({grants, files}: {grants: CatalogGrants; files: ContractFiles}) {
+/**
+ * Reports why a write step does not prove its write: it sits outside a round-trip case, it has no
+ * `effect`, or its `effect` proves nothing. An `effect` needs a `values` or `includes` assertion,
+ * because a shape check holds with or without the write. It also reads an object this run
+ * created, through `$steps`, or filters its read with `$marker`. Data left over from an earlier
+ * run then can't satisfy it. A gate can't read the run id, so `$marker` filters the read and is
+ * never asserted.
+ */
+function writeProblems({
+  step,
+  provider,
+  kind,
+  units,
+}: {
+  step: ContractStep;
+  provider: string;
+  kind: ContractCase['kind'];
+  units: ReadonlyMap<string, CatalogUnit>;
+}): string[] {
+  const name = `write step "${step.tool}"`;
+  if (kind !== 'round-trip') return [`${name} needs a case of kind \`round-trip\``];
+  const {effect} = step;
+  if (effect === undefined) return [`${name} has no \`effect\``];
+  const problems: string[] = [];
+  const effectUnit = units.get(unitKey({provider, ...effect}));
+  if (effectUnit?.kind === 'write') problems.push(`the effect of ${name} must read, not write`);
+  if (
+    Object.keys(effect.expect.values ?? {}).length +
+      Object.keys(effect.expect.includes ?? {}).length ===
+    0
+  ) {
+    problems.push(
+      `the effect of ${name} needs \`expect.values\` or \`expect.includes\`, a shape check proves nothing`,
+    );
+  }
+  const anchored = findContractReferences(effect.with).some(
+    ({reference}) => reference?.kind === 'steps' || reference?.kind === 'marker',
+  );
+  if (!anchored) {
+    problems.push(
+      `the effect of ${name} reads static data: read an object this run created through \`$steps\`, or filter the read with \`$marker\``,
+    );
+  }
+  return problems;
+}
+
+/**
+ * Checks one step of a case: the catalog names it and its effect use, and for a write whether its
+ * `effect` proves it. `covers` is whether the step is the case of its tool or method. A write
+ * covers only through a valid `effect`, and an effect is a read that proves a write, so it is
+ * never the case of the read it uses.
+ */
+function checkStep({
+  grants,
+  provider,
+  kind,
+  step,
+  units,
+}: {
+  grants: CatalogGrants;
+  provider: string;
+  kind: ContractCase['kind'];
+  step: ContractStep;
+  units: ReadonlyMap<string, CatalogUnit>;
+}): {problems: string[]; covers: boolean} {
+  const reasonOf = (reference: Reference) =>
+    unknownReason({grants, reference, methodRequired: true});
+  const stepReason = reasonOf({provider, ...step});
+  if (stepReason !== undefined) {
+    return {problems: [`step "${step.tool}" names ${stepReason}`], covers: false};
+  }
+  const effectReason = step.effect && reasonOf({provider, ...step.effect});
+  const problems = effectReason ? [`effect "${step.effect?.tool}" names ${effectReason}`] : [];
+  if (units.get(unitKey({provider, ...step}))?.kind !== 'write') return {problems, covers: true};
+
+  const writeFailures = writeProblems({step, provider, kind, units});
+  return {
+    problems: [...problems, ...writeFailures],
+    covers: writeFailures.length === 0 && !effectReason,
+  };
+}
+
+function collectCaseCoverage({
+  grants,
+  files,
+  units,
+}: {
+  grants: CatalogGrants;
+  files: ContractFiles;
+  units: readonly CatalogUnit[];
+}) {
+  const unitsByKey = new Map(units.map((unit) => [unit.key, unit]));
   const covered = new Map<string, string[]>();
   const problems: string[] = [];
   for (const {id, definition} of files.cases) {
-    const {provider} = definition;
-    // An effect is only a read that proves a write, so it does not count as the read's case.
-    const references = definition.steps.flatMap((step) => [
-      {where: `step "${step.tool}"`, covers: true, reference: {provider, ...step}},
-      ...(step.effect === undefined
-        ? []
-        : [
-            {
-              where: `effect "${step.effect.tool}"`,
-              covers: false,
-              reference: {provider, ...step.effect},
-            },
-          ]),
-    ]);
-    for (const {where, covers, reference} of references) {
-      const reason = unknownReason({grants, reference, methodRequired: true});
-      if (reason !== undefined) problems.push(`case ${id}: ${where} names ${reason}`);
-      else if (covers) addId({map: covered, key: unitKey(reference), id});
+    const {provider, kind} = definition;
+    for (const step of definition.steps) {
+      const checked = checkStep({grants, provider, kind, step, units: unitsByKey});
+      problems.push(...checked.problems.map((problem) => `case ${id}: ${problem}`));
+      if (checked.covers) addId({map: covered, key: unitKey({provider, ...step}), id});
     }
   }
   return {covered, problems};
@@ -177,7 +257,7 @@ function collectCoverage({
   files: ContractFiles;
   units: readonly CatalogUnit[];
 }): Coverage {
-  const cases = collectCaseCoverage({grants, files});
+  const cases = collectCaseCoverage({grants, files, units});
   const exemptions = collectExemptions({grants, files, units});
   return {
     covered: cases.covered,
@@ -257,7 +337,7 @@ function checkBacklog({
 /**
  * Checks the contract files against the tool catalog: every tool and method has a case, an
  * exemption, or a backlog entry, and the three never contradict each other or the catalog.
- * A write counts as covered by any step on it for now. The effect rules come with round-trip cases.
+ * A write counts as covered only through a write step with a valid `effect`.
  */
 export function checkContractCoverage({
   grants,

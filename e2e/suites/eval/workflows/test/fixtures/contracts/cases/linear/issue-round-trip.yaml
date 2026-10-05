@@ -1,0 +1,34 @@
+provider: linear
+kind: round-trip
+modes: [real]
+steps:
+  - key: create
+    tool: save_issue
+    with:
+      team: $fixture.linear.team.name
+      title: Contract $marker
+      labels: [contract]
+    expect:
+      shape:
+        id: string
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.create.id
+      expect:
+        values:
+          team.name: $fixture.linear.team.name
+        includes:
+          labels: {name: contract}
+  - key: close
+    tool: save_issue
+    with:
+      id: $steps.create.id
+      state: Done
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.create.id
+      expect:
+        values:
+          status: Done

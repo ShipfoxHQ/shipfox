@@ -9,10 +9,9 @@ import {defaultOutputRoot, findContractDrift, writeContractFiles} from './contra
 import {type ContractFiles, loadContracts} from './contracts.js';
 
 const fixtureRoot = fileURLToPath(new URL('../test/fixtures/contracts/', import.meta.url));
-const roundTripPattern = /cases of kind `round-trip` are not generated yet/u;
-const effectPattern = /a step `effect` is not generated yet/u;
-const markerPattern = /\$marker is not generated yet/u;
-const includesPattern = /`expect\.includes` is not generated yet/u;
+const effectPattern = /a step `effect` is only for cases of kind `round-trip`/u;
+const effectKeyPattern = /the effect key "a_effect" is used by another step/u;
+const withOnlyPattern = /is only for `with`, not `expect`/u;
 const targetPattern =
   /\$target\.linear\.missing_issue\.identifier is only for cases of kind `error`/u;
 const fixtureReadPattern = /is not available in a fixture read/u;
@@ -142,7 +141,7 @@ describe('generateContractFiles', () => {
     expect(linear?.content).toContain('include:\n              - get_issue\n');
     expect(linear?.content).toContain('- issue_label.get\n');
     expect(linear?.content).not.toContain('issue_label.update');
-    expect(linear?.content).not.toContain('save_issue\n');
+    expect(linear?.content).not.toContain('- save_issue\n');
   });
 
   it('rejects an agent job when the catalog has no read tool for the provider', async () => {
@@ -314,39 +313,114 @@ describe('generateContractFiles', () => {
     await expect(generate()).rejects.toThrow(missingErrorPattern);
   });
 
-  it('does not generate round-trip cases, effects, $marker, or includes yet', async () => {
-    const base = 'provider: linear\nmodes: [real]\n';
-    await writeCase(
-      'linear/round.yaml',
-      `${base}kind: round-trip\nsteps:\n  - tool: save_issue\n    effect: {tool: get_issue}\n`,
-    );
-    await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
-      roundTripPattern,
-    );
+  describe('round-trip cases', () => {
+    const roundTrip = (steps: string) =>
+      `provider: linear\nkind: round-trip\nmodes: [real]\nsteps:\n${steps}`;
 
-    await writeCase(
-      'linear/round.yaml',
-      `${base}steps:\n  - tool: get_issue\n    effect: {tool: get_issue}\n`,
-    );
-    await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
-      effectPattern,
-    );
+    async function generatedLinear(): Promise<string> {
+      const files = generateContractFiles(await generate(), {grants});
+      return files.find(({name}) => name === 'contracts-linear.yaml')?.content ?? '';
+    }
 
-    await writeCase(
-      'linear/round.yaml',
-      `${base}steps:\n  - tool: get_issue\n    with: {id: $marker}\n`,
-    );
-    await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
-      markerPattern,
-    );
+    it('puts each effect in its own step right after its write', async () => {
+      const content = await generatedLinear();
 
-    await writeCase(
-      'linear/round.yaml',
-      `${base}steps:\n  - tool: get_issue\n    expect:\n      includes: {labels: {name: bug}}\n`,
-    );
-    await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
-      includesPattern,
-    );
+      const order = [...content.matchAll(/- key: ((?:create|close)(?:_effect)?)\n/gu)].map(
+        ([, key]) => key,
+      );
+      expect(order).toEqual(['create', 'create_effect', 'close', 'close_effect']);
+    });
+
+    it('maps a $steps reference to an output of the step it reads', async () => {
+      const content = await generatedLinear();
+
+      expect(content).toContain(`ref_id: '\${{ has(result.id) ? result.id : "" }}'`);
+      expect(content).toContain(`id: \${{ steps.create.outputs.ref_id }}`);
+    });
+
+    it('compiles $marker to the run id in `with`', async () => {
+      expect(await generatedLinear()).toContain(`title: Contract contract-\${{ run.id }}`);
+    });
+
+    it('compiles expect.includes to exists() over the list', async () => {
+      expect(await generatedLinear()).toContain(
+        `includes_labels: \${{ has(result.labels) && type(result.labels) == type([]) && result.labels.exists(item, has(item.name) && type(item.name) == type("") && item.name == "contract") }}`,
+      );
+    });
+
+    it('checks every field of an included item, and keeps scopes apart in nested paths', async () => {
+      await writeCase(
+        'linear/nested.yaml',
+        `provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n    expect:\n      includes:\n        teams[0].labels: {name: bug, 'tags[0].id': 3}\n`,
+      );
+
+      const content = (await generatedLinear())
+        .split('\n')
+        .find((line) => line.includes('includes_teams_0_labels:'));
+
+      expect(content).toContain(
+        '[result.teams[0]].all(i0, has(i0.labels) && type(i0.labels) == type([]) && i0.labels.exists(item, has(item.name) && type(item.name) == type("") && item.name == "bug" && ',
+      );
+      expect(content).toContain('[item.tags[0]].all(i1, has(i1.id)');
+    });
+
+    it('generates round-trip cases in fake mode', async () => {
+      await writeCase(
+        'linear/fake-trip.yaml',
+        (await readFile(join(casesRoot, 'linear', 'issue-round-trip.yaml'), 'utf8')).replace(
+          '[real]',
+          '[real, fake]',
+        ),
+      );
+
+      const files = generateContractFiles(await generate(), {grants, mode: 'fake'});
+
+      expect(files.find(({name}) => name === 'contracts-linear.yaml')?.content).toContain(
+        'fake_trip:',
+      );
+    });
+
+    it('rejects an effect outside a round-trip case', async () => {
+      await writeCase(
+        'linear/read-effect.yaml',
+        'provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n    effect: {tool: get_issue}\n',
+      );
+
+      await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
+        effectPattern,
+      );
+    });
+
+    it('rejects an effect key that another step uses', async () => {
+      await writeCase(
+        'linear/clash.yaml',
+        roundTrip(
+          '  - {key: a, tool: save_issue, effect: {tool: get_issue, with: {id: $steps.a.id}}}\n  - {key: a_effect, tool: get_issue}\n',
+        ),
+      );
+
+      await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
+        effectKeyPattern,
+      );
+    });
+
+    it('rejects $marker and $steps in expect, where a gate cannot read them', async () => {
+      await writeCase(
+        'linear/marker-expect.yaml',
+        roundTrip(
+          '  - tool: save_issue\n    effect:\n      tool: get_issue\n      expect:\n        values: {title: $marker}\n',
+        ),
+      );
+      await expect(generate()).rejects.toThrow(withOnlyPattern);
+
+      await writeCase(
+        'linear/marker-expect.yaml',
+        roundTrip(
+          '  - key: a\n    tool: save_issue\n  - tool: get_issue\n    expect:\n      values: {id: $steps.a.id}\n',
+        ),
+      );
+      await expect(generate()).rejects.toThrow(withOnlyPattern);
+    });
   });
 });
 
