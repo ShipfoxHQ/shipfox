@@ -93,6 +93,26 @@ function applyModelOptions({
   if (simulatorModel !== undefined) options.simulatorModel = simulatorModel;
 }
 
+function assertCompatible({
+  suite,
+  mode,
+  catalog,
+}: {
+  suite: EvalCliOptions['suite'];
+  mode: EvalMode;
+  catalog: string | undefined;
+}): void {
+  if (suite === 'onboarding' && mode === 'compile') {
+    throw new Error('--mode compile applies to --suite templates and contracts only');
+  }
+  if (suite === 'contracts' && mode !== 'compile') {
+    throw new Error('--suite contracts runs with --mode compile only');
+  }
+  if (catalog !== undefined && (mode !== 'compile' || suite !== 'templates')) {
+    throw new Error('--catalog applies to --suite templates --mode compile only');
+  }
+}
+
 export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} {
   const {values} = parseArgs({
     args: argv,
@@ -118,15 +138,7 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
   if (mode !== 'scripted' && mode !== 'live' && mode !== 'compile') {
     throw new Error(`--mode must be scripted, live, or compile, received "${mode}"`);
   }
-  if (suite === 'onboarding' && mode === 'compile') {
-    throw new Error('--mode compile applies to --suite templates and contracts only');
-  }
-  if (suite === 'contracts' && mode !== 'compile') {
-    throw new Error('--suite contracts runs with --mode compile only');
-  }
-  if (values.catalog !== undefined && (mode !== 'compile' || suite !== 'templates')) {
-    throw new Error('--catalog applies to --suite templates --mode compile only');
-  }
+  assertCompatible({suite, mode, catalog: values.catalog});
 
   const options: EvalCliOptions & {help: boolean} = {
     help: values.help,
