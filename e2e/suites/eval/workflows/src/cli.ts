@@ -5,6 +5,7 @@ import {preflightCheck} from '@shipfox/e2e-core';
 import {shippedTemplateLoader} from '@shipfox/workflow-templates';
 import {runCompile} from './compile.js';
 import {runContractsCompile} from './contracts-compile.js';
+import {runContractsFake} from './contracts-fake.js';
 import {checkTemplateCoverage} from './coverage.js';
 import {caseSupportsMode, type DiscoveredCase, discoverCases} from './discovery.js';
 import {executeTemplateCase} from './execute.js';
@@ -24,13 +25,14 @@ const usage = `Usage: shipfox-eval-workflows [options]
 Options:
   --suite <templates|onboarding|contracts>
                             Suite to run (default: templates). contracts runs in
-                            compile mode only.
-  --mode <scripted|live|compile>
-                            Evaluation mode (default: scripted). compile creates a
-                            definition for every template variant, or for every contract
-                            workflow file, and runs nothing.
+                            fake or compile mode.
+  --mode <scripted|live|compile|fake>
+                            Evaluation mode (default: scripted, fake for contracts).
+                            compile creates a definition for every template variant, or
+                            for every contract workflow file, and runs nothing. fake runs
+                            the contract cases against the E2E fakes.
   --case <pattern>          Case path or glob to run, a template id in compile mode, or a
-                            workflow file name for the contracts suite
+                            case id, provider, or workflow file name for the contracts suite
   --catalog <directory>     Compile the templates of a catalog directory instead of the
                             shipped ones (templates compile mode only)
   --repeat <count>          Number of repeats (default: 1; the case's k for onboarding)
@@ -128,8 +130,11 @@ function assertCompatible({
   if (suite === 'onboarding' && mode === 'compile') {
     throw new Error('--mode compile applies to --suite templates and contracts only');
   }
-  if (suite === 'contracts' && mode !== 'compile') {
-    throw new Error('--suite contracts runs with --mode compile only');
+  if (mode === 'fake' && suite !== 'contracts') {
+    throw new Error('--mode fake applies to --suite contracts only');
+  }
+  if (suite === 'contracts' && mode !== 'compile' && mode !== 'fake') {
+    throw new Error('--suite contracts runs with --mode fake or compile only');
   }
   if (catalog !== undefined && (mode !== 'compile' || suite !== 'templates')) {
     throw new Error('--catalog applies to --suite templates --mode compile only');
@@ -141,7 +146,7 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
     args: argv,
     options: {
       suite: {type: 'string', default: 'templates'},
-      mode: {type: 'string', default: 'scripted'},
+      mode: {type: 'string'},
       case: {type: 'string'},
       catalog: {type: 'string'},
       repeat: {type: 'string'},
@@ -158,9 +163,9 @@ export function parseEvalArgs(argv: string[]): EvalCliOptions & {help: boolean} 
   if (suite !== 'templates' && suite !== 'onboarding' && suite !== 'contracts') {
     throw new Error(`--suite must be templates, onboarding, or contracts, received "${suite}"`);
   }
-  const mode = values.mode;
-  if (mode !== 'scripted' && mode !== 'live' && mode !== 'compile') {
-    throw new Error(`--mode must be scripted, live, or compile, received "${mode}"`);
+  const mode = values.mode ?? (suite === 'contracts' ? 'fake' : 'scripted');
+  if (mode !== 'scripted' && mode !== 'live' && mode !== 'compile' && mode !== 'fake') {
+    throw new Error(`--mode must be scripted, live, compile, or fake, received "${mode}"`);
   }
   assertCompatible({suite, mode, catalog: values.catalog});
 
@@ -204,10 +209,11 @@ export async function runEval(options: EvalRunOptions): Promise<ResultsRun> {
     throw new Error('The onboarding suite runs through runOnboardingSuite.');
   }
   if (options.suite === 'contracts') {
-    throw new Error('The contracts suite runs through runContractsCompile.');
+    throw new Error('The contracts suite runs through runContractsFake and runContractsCompile.');
   }
   const {mode} = options;
   if (mode === 'compile') throw new Error('Compile mode runs through runCompile.');
+  if (mode === 'fake') throw new Error('Fake mode runs through runContractsFake.');
   const found = await discoverCases(
     caseRoot(options.suite, cwd),
     options.caseFilter === undefined ? {} : {filter: options.caseFilter},
@@ -266,7 +272,8 @@ async function exportRun({
   stderr: (message: string) => void;
 }): Promise<void> {
   const {mode} = options;
-  if (mode === 'compile' || !isLangfuseConfigured()) return;
+  // Only template runs have scores to export.
+  if (mode === 'compile' || mode === 'fake' || !isLangfuseConfigured()) return;
   try {
     const exported = await exportToLangfuse({
       suite: options.suite,
@@ -352,6 +359,35 @@ async function runContractsCompileCli({
   const failed = run.results.filter((result) => result.status === 'error');
   stdout(
     `Compiled ${run.results.length} contract workflows, ${failed.length} failed. Results: ${run.directory}\n`,
+  );
+  for (const result of failed) {
+    stderr(`${result.case}:\n${result.error}\n`);
+  }
+  return failed.length === 0 ? 0 : 1;
+}
+
+// A failed case means a fake answers differently from the provider, so it fails the run. An error
+// means the case could not be decided, which is as blocking as a failure.
+async function runContractsFakeCli({
+  options,
+  stdout,
+  stderr,
+  cwd,
+}: {
+  options: EvalCliOptions;
+  stdout: (message: string) => void;
+  stderr: (message: string) => void;
+  cwd?: string | undefined;
+}): Promise<number> {
+  const run = await runContractsFake({
+    ...(options.caseFilter === undefined ? {} : {caseFilter: options.caseFilter}),
+    ...(cwd === undefined
+      ? {}
+      : {workDirectory: `${cwd}/.eval-run`, resultsDirectory: `${cwd}/results`}),
+  });
+  const failed = run.results.filter((result) => result.status !== 'passed');
+  stdout(
+    `Ran ${run.results.length} fake contract cases, ${failed.length} not passed. Results: ${run.directory}\n`,
   );
   for (const result of failed) {
     stderr(`${result.case}:\n${result.error}\n`);
@@ -445,7 +481,8 @@ export async function runCli(
     }
     if (options.suite === 'onboarding') return await runOnboardingCli({options, stdout, stderr});
     if (options.suite === 'contracts') {
-      return await runContractsCompileCli({options, stdout, stderr, cwd: environment.cwd});
+      const run = options.mode === 'fake' ? runContractsFakeCli : runContractsCompileCli;
+      return await run({options, stdout, stderr, cwd: environment.cwd});
     }
     if (options.mode === 'compile') {
       return await runCompileCli({options, stdout, stderr, cwd: environment.cwd});

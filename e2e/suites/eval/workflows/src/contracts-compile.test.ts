@@ -15,7 +15,8 @@ import {
 import type {CaseResult} from './results.js';
 
 const fixtures = fileURLToPath(new URL('../test/fixtures/contracts/', import.meta.url));
-const contractsOnlyPattern = /--suite contracts runs with --mode compile only/u;
+const contractsOnlyPattern = /--suite contracts runs with --mode fake or compile only/u;
+const fakeOnlyPattern = /--mode fake applies to --suite contracts only/u;
 const noFilesPattern = /No contract workflow files matching "contracts-missing.yaml"/u;
 const catalogPattern = /--catalog applies to --suite templates --mode compile only/u;
 
@@ -148,8 +149,20 @@ describe('contracts suite options', () => {
     });
   });
 
-  it('rejects a mode other than compile', () => {
-    expect(() => parseEvalArgs(['--suite', 'contracts'])).toThrow(contractsOnlyPattern);
+  it('runs the contracts suite in fake mode unless told otherwise', () => {
+    expect(parseEvalArgs(['--suite', 'contracts'])).toMatchObject({
+      suite: 'contracts',
+      mode: 'fake',
+    });
+  });
+
+  it('rejects the template modes for the contracts suite, and fake mode for the others', () => {
+    expect(() => parseEvalArgs(['--suite', 'contracts', '--mode', 'scripted'])).toThrow(
+      contractsOnlyPattern,
+    );
+    expect(() => parseEvalArgs(['--suite', 'templates', '--mode', 'fake'])).toThrow(
+      fakeOnlyPattern,
+    );
   });
 
   it('rejects a catalog', () => {

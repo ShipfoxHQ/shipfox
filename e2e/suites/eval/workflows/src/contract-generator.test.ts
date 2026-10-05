@@ -92,6 +92,26 @@ describe('generateContractFiles', () => {
     expect(generated.map(({name}) => name)).not.toContain('contracts-gitea.yaml');
   });
 
+  it('generates the fake files from the fake cases only, without the real-only jobs', async () => {
+    const generated = generateContractFiles(await generate(), {grants, mode: 'fake'});
+
+    // Only Linear has a fake case, and nothing starts the provider files in fake mode.
+    expect(generated.map(({name}) => name)).toEqual(['contracts-linear.yaml']);
+    const linear = generated[0]?.content ?? '';
+    expect(linear).toContain('  get_issue:\n');
+    expect(linear).toContain('  get_issue_not_found:\n');
+    expect(linear).toContain('  fake_only:\n');
+    expect(linear).not.toContain('list_teams');
+    expect(linear).not.toContain('  fixtures:\n');
+    expect(linear).not.toContain('agent_');
+  });
+
+  it('generates nothing in fake mode when no case runs against a fake', async () => {
+    await rm(join(casesRoot, 'linear'), {recursive: true});
+
+    expect(generateContractFiles(await generate(), {grants, mode: 'fake'})).toEqual([]);
+  });
+
   it('generates nothing when no case runs in real mode', async () => {
     await rm(join(casesRoot, 'linear'), {recursive: true});
     await rm(join(casesRoot, 'github'), {recursive: true});

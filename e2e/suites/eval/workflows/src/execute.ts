@@ -1,21 +1,9 @@
-import {mkdir, readFile, writeFile} from 'node:fs/promises';
+import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import type {DefinitionResponseDto} from '@shipfox/api-definitions-dto';
-import type {FireManualTriggerResponseDto} from '@shipfox/api-triggers-dto';
 import {type createApiClient, pollUntil, type RecordedWrite, requestJson} from '@shipfox/e2e-core';
-import {
-  type LocalRunnerExit,
-  localRunnerLogTail,
-  mintManualRegistrationToken,
-  startLocalRunner,
-  stopLocalRunner,
-  waitForLocalRunnerExit,
-} from '@shipfox/e2e-driver-runner-process';
-import {
-  observeRun,
-  type WorkflowRunObservation,
-  waitForRunByDeliveryId,
-} from '@shipfox/e2e-observe-workflows';
+import type {LocalRunnerExit} from '@shipfox/e2e-driver-runner-process';
+import {type WorkflowRunObservation, waitForRunByDeliveryId} from '@shipfox/e2e-observe-workflows';
 import {
   getOpenRouterCost,
   getScriptedManagedProviderRequests,
@@ -25,9 +13,11 @@ import {
 } from '@shipfox/e2e-setup-agent';
 import {parse as parseYaml} from 'yaml';
 import {runAwait} from './awaits.js';
+import {startCaseRunner} from './case-runner.js';
 import {arrangeClickUpWorkspace} from './clickup-workspace.js';
 import {bindConnectionSlugs} from './compile.js';
 import {composeCaseWorkflow, setRunnerLabel, templateLoaderFor} from './compose.js';
+import {createDefinition, fireManual, START_TIMEOUT_MS} from './definitions.js';
 import type {DiscoveredCase} from './discovery.js';
 import {createGithubEventSender} from './github-events.js';
 import {arrangeGithubProject} from './github-project.js';
@@ -35,6 +25,7 @@ import {type HiddenTestsResult, runHiddenTests} from './hidden-tests.js';
 import {arrangeJiraTracker} from './jira.js';
 import {arrangeLinearWorkspace} from './linear-workspace.js';
 import {collectMeasures, type RunMeasures} from './measures.js';
+import {observeWholeRun} from './observation.js';
 import {type PullRequestReference, resolveReferences} from './references.js';
 import type {CaseResult} from './results.js';
 import {runScenario, type ScenarioDriver, ScenarioError} from './scenario.js';
@@ -44,8 +35,6 @@ import type {EventSender, EventSenders} from './senders.js';
 import {arrangeSlackWorkspace} from './slack-workspace.js';
 import {checkOutputs, checkWrites} from './writes.js';
 
-const START_TIMEOUT_MS = 60_000;
-const RUNNER_TOKEN_TTL_SECONDS = 3_600;
 const RUNNER_LOG_TAIL_LINES = 200;
 const MAX_PROMPT_CHARACTERS = 2_000;
 const HIDDEN_TESTS_TIMEOUT_MS = 300_000;
@@ -78,40 +67,6 @@ interface Arrangement {
   cost: () => Promise<number>;
   /** Runs the case's hidden tests on the branch of the pull request the run opened. */
   hiddenTests: () => Promise<HiddenTestsResult | undefined>;
-}
-
-function stepKeysOf(yaml: string): string[] {
-  const document = parseYaml(yaml) as {jobs?: Record<string, {steps?: Array<{key?: string}>}>};
-  return Object.values(document.jobs ?? {}).flatMap((job) =>
-    (job.steps ?? []).flatMap((step) => (step.key === undefined ? [] : [step.key])),
-  );
-}
-
-/** The run with every job's executions and steps, so the result shows what happened. */
-async function observeWholeRun({
-  runId,
-  token,
-  yaml,
-}: {
-  runId: string;
-  token: string;
-  yaml: string;
-}): Promise<WorkflowRunObservation> {
-  const overview = await observeRun({runId, token});
-  const stepKeys = stepKeysOf(yaml);
-  return await observeRun({
-    runId,
-    token,
-    selection: {
-      jobs: overview.jobs.map((job) => ({
-        jobKey: job.key,
-        includeDefaultExecution: true,
-        executionSequences: 'all',
-        includeContext: true,
-        stepKeys,
-      })),
-    },
-  });
 }
 
 /**
@@ -399,62 +354,6 @@ async function arrangeProviderFakes({
   };
 }
 
-/** A definition with a file path is a repository definition, which is how Shipfox names a workflow. */
-async function createDefinition({
-  client,
-  projectId,
-  yaml,
-  file,
-}: {
-  client: ReturnType<typeof createApiClient>;
-  projectId: string;
-  yaml: string;
-  file?: {path: string; ref: string} | undefined;
-}): Promise<DefinitionResponseDto> {
-  return await client.requestJson<DefinitionResponseDto>('post', '/definitions', {
-    json: {
-      project_id: projectId,
-      yaml,
-      ...(file === undefined
-        ? {source: 'manual'}
-        : {source: 'vcs', config_path: file.path, ref: file.ref}),
-    },
-  });
-}
-
-async function fireManual({
-  client,
-  definitionId,
-  inputs,
-  timeoutMs = START_TIMEOUT_MS,
-  signal,
-}: {
-  client: ReturnType<typeof createApiClient>;
-  definitionId: string;
-  inputs: Record<string, unknown>;
-  /** Bounds the wait for the trigger to accept the run. */
-  timeoutMs?: number;
-  signal?: AbortSignal | undefined;
-}): Promise<string> {
-  const response = await pollUntil<FireManualTriggerResponseDto>(
-    {
-      timeoutMs,
-      intervalMs: 250,
-      maxIntervalMs: 4_000,
-      backoffFactor: 1.5,
-      describe: () => `manual trigger of definition ${definitionId}`,
-      ...(signal === undefined ? {} : {signal}),
-    },
-    async () =>
-      await client.requestJson<FireManualTriggerResponseDto>(
-        'post',
-        `/workflow-definitions/${definitionId}/fire-manual`,
-        {json: {inputs}},
-      ),
-  );
-  return response.workflow_run_id;
-}
-
 function hasEventTrigger(yaml: string): boolean {
   const document = parseYaml(yaml) as {triggers?: Record<string, {source?: string}>};
   return Object.values(document.triggers ?? {}).some((trigger) => trigger.source !== 'manual');
@@ -538,48 +437,14 @@ async function arrange({
       pullRequests: templateCase.seed.pull_requests,
       cleanups,
     });
-  const runnerLabel = `eval-${uniqueId}`;
-
-  const runnerDirectory = join(workDirectory, 'runners');
-  await mkdir(runnerDirectory, {recursive: true});
-  const logFile = join(runnerDirectory, `${runnerLabel}.log`);
-  // Job git config includes the global one, so a developer's commit signing would break pushes.
-  const gitConfig = join(runnerDirectory, `${runnerLabel}.gitconfig`);
-  await writeFile(gitConfig, '');
-  const registrationToken = await mintManualRegistrationToken({
+  const runner = await startCaseRunner({
     workspaceId: workspace.id,
     userToken: session.token,
-    name: `Eval ${uniqueId}`,
-    ttlSeconds: RUNNER_TOKEN_TTL_SECONDS,
+    uniqueId,
+    workDirectory,
+    cleanups,
   });
-  const runner = startLocalRunner({
-    workspaceId: workspace.id,
-    registrationToken: registrationToken.raw_token,
-    labels: [runnerLabel],
-    logFile,
-    workspaceRoot: join(workDirectory, 'runner-workspaces', runnerLabel),
-    extraEnv: {GIT_CONFIG_GLOBAL: gitConfig},
-  });
-  let stopping = false;
-  cleanups.push(async () => {
-    stopping = true;
-    await stopLocalRunner(runner);
-  });
-  let exit: LocalRunnerExit | undefined;
-  const exited = new AbortController();
-  waitForLocalRunnerExit(runner).then(
-    (value) => {
-      if (stopping) return;
-      exit = value;
-      exited.abort();
-    },
-    () => {
-      // The child process failed to spawn or crashed before it could report an exit.
-      if (stopping) return;
-      exit = {code: null, signal: null};
-      exited.abort();
-    },
-  );
+  const runnerLabel = runner.label;
 
   const providers = await arrangeProviderFakes({
     templateCase,
@@ -749,10 +614,10 @@ async function arrange({
     driver,
     token: session.token,
     yaml,
-    runnerLogFile: logFile,
-    runnerExit: () => exit,
-    runnerAborted: exited.signal,
-    runnerTail: () => localRunnerLogTail(logFile),
+    runnerLogFile: runner.logFile,
+    runnerExit: runner.exit,
+    runnerAborted: runner.aborted,
+    runnerTail: runner.tail,
     writes: () => [...github.writes(), ...providers.writes()],
     references: driver.references,
     modelRequests: async () =>

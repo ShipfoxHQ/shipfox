@@ -17,7 +17,7 @@ jobs:
         outputs:
           value_id: '${{ has(result.id) ? result.id : "" }}'
         gate:
-          success: step.status == "succeeded" && type(step.outputs.value_id) == string && step.outputs.value_id == "CON-1"
+          success: step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "CON-1"
       - key: team
         tool: get_team
         connection: linear_sandbox
@@ -26,7 +26,7 @@ jobs:
         outputs:
           value_id: '${{ has(result.id) ? result.id : "" }}'
         gate:
-          success: step.status == "succeeded" && type(step.outputs.value_id) == string && step.outputs.value_id == "4f0c"
+          success: step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "4f0c"
   get_issue:
     checkout: false
     steps:
@@ -36,16 +36,16 @@ jobs:
         with:
           id: CON-1
         outputs:
-          shape_id: ${{ has(result.id) && type(result.id) == string }}
-          shape_uuid: ${{ has(result.uuid) && type(result.uuid) == string }}
-          shape_priority: ${{ has(result.priority) && (type(result.priority) == int || type(result.priority) == double) }}
-          shape_team_key: ${{ has(result.team) && has(result.team.key) && type(result.team.key) == string }}
-          shape_labels_0_name: ${{ has(result.labels) && type(result.labels) == list && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.name) && type(i0.name) == string) }}
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_uuid: ${{ has(result.uuid) && type(result.uuid) == type("") }}
+          shape_priority: ${{ has(result.priority) && (type(result.priority) == type(1) || type(result.priority) == type(1.0)) }}
+          shape_team_key: ${{ has(result.team) && has(result.team.key) && type(result.team.key) == type("") }}
+          shape_labels_0_name: ${{ has(result.labels) && type(result.labels) == type([]) && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
           value_id: '${{ has(result.id) ? result.id : "" }}'
           value_uuid: '${{ has(result.uuid) ? result.uuid : "" }}'
-          value_labels_0_name: '${{ has(result.labels) && type(result.labels) == list && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.name)) ? result.labels[0].name : "" }}'
+          value_labels_0_name: '${{ has(result.labels) && type(result.labels) == type([]) && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.name)) ? result.labels[0].name : "" }}'
         gate:
-          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_uuid && step.outputs.shape_priority && step.outputs.shape_team_key && step.outputs.shape_labels_0_name && type(step.outputs.value_id) == string && step.outputs.value_id == "CON-1" && type(step.outputs.value_uuid) == string && step.outputs.value_uuid == "8e3b" && type(step.outputs.value_labels_0_name) == string && step.outputs.value_labels_0_name == "bug"
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_uuid && step.outputs.shape_priority && step.outputs.shape_team_key && step.outputs.shape_labels_0_name && type(step.outputs.value_id) == type("") && step.outputs.value_id == "CON-1" && type(step.outputs.value_uuid) == type("") && step.outputs.value_uuid == "8e3b" && type(step.outputs.value_labels_0_name) == type("") && step.outputs.value_labels_0_name == "bug"
   get_issue_not_found:
     checkout: false
     steps:
@@ -63,7 +63,7 @@ jobs:
         tool: list_teams
         connection: linear_sandbox
         outputs:
-          shape_teams: ${{ has(result.teams) && type(result.teams) == list }}
+          shape_teams: ${{ has(result.teams) && type(result.teams) == type([]) }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_teams
   agent_anthropic:
@@ -96,7 +96,7 @@ jobs:
           team_id:
             type: string
         gate:
-          success: step.status == "succeeded" && type(step.outputs.issue_id) == string && step.outputs.issue_id == "CON-1" && type(step.outputs.team_id) == string && step.outputs.team_id == "4f0c"
+          success: step.status == "succeeded" && type(step.outputs.issue_id) == type("") && step.outputs.issue_id == "CON-1" && type(step.outputs.team_id) == type("") && step.outputs.team_id == "4f0c"
   agent_deepseek:
     checkout: false
     steps:
@@ -127,4 +127,4 @@ jobs:
           team_id:
             type: string
         gate:
-          success: step.status == "succeeded" && type(step.outputs.issue_id) == string && step.outputs.issue_id == "CON-1" && type(step.outputs.team_id) == string && step.outputs.team_id == "4f0c"
+          success: step.status == "succeeded" && type(step.outputs.issue_id) == type("") && step.outputs.issue_id == "CON-1" && type(step.outputs.team_id) == type("") && step.outputs.team_id == "4f0c"
