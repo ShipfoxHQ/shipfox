@@ -223,6 +223,45 @@ describe('continuity-aware adopted sessions', () => {
     expect(seenTokens).toEqual([`Bearer ${TARGET_SESSION.accessToken}`]);
   });
 
+  test('enters the snapshot a declining restorer already read without refreshing again', async () => {
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      return Promise.resolve(jsonResponse({memberships: []}));
+    });
+    const restorer = vi.fn(
+      async ({
+        snapshotOrdinarySession,
+      }: {
+        snapshotOrdinarySession: () => Promise<AuthenticatedSession>;
+      }) => {
+        await snapshotOrdinarySession();
+        return null;
+      },
+    );
+    const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+    const store = createStore();
+
+    resetApiClient();
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    render(
+      <ShellProviderStack
+        features={[]}
+        queryClient={queryClient}
+        store={store}
+        auth={{effects: true, bootRestorer: restorer}}
+      >
+        <div data-testid="app" />
+      </ShellProviderStack>,
+    );
+
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+    const refreshCalls = fetchImpl.mock.calls.filter(([input]) =>
+      requestUrl(input).endsWith('/auth/refresh'),
+    );
+    expect(refreshCalls).toHaveLength(1);
+  });
+
   test('renders an explicit boot recovery decision without entering a principal', async () => {
     const recoveryError = new Error('window needs recovery');
     let receivedError: unknown;

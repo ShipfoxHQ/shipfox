@@ -27,8 +27,10 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import {Suspense} from 'react';
 import {deriveIntegrationReadiness} from '#core/integration-readiness.js';
 import {deriveSetupChecklist, type FirstWorkflowProgress} from '#core/setup-checklist.js';
+import {WorkspaceSetupIndicator as WorkspaceSetupIndicatorSlot} from '#feature.js';
 import {firstWorkflowQueryKeys} from '#hooks/api/first-workflow.js';
 import {
   SetupChecklistBody,
@@ -41,7 +43,6 @@ const WORKSPACE: WorkspaceReference = {id: 'test-workspace', slug: 'acme'};
 const OTHER_WORKSPACE: WorkspaceReference = {id: 'other-test-workspace', slug: 'acme'};
 const GET_STARTED_BUTTON_RE = /Get started/u;
 const SHOW_ALL_STEPS_RE = /Show all/u;
-const DONE_COUNT_RE = /\d+ of \d+ done/u;
 const now = new Date().toISOString();
 const githubProvider: IntegrationProvider = {
   provider: 'github',
@@ -485,18 +486,19 @@ describe('workspace checklist hosts', () => {
     expect(await screen.findByText("You're set up")).toBeInTheDocument();
   });
 
-  test('keeps the panel skeleton while base queries are pending', async () => {
+  test('renders no panel while base queries are pending', async () => {
     const queryClient = createQueryClient();
-    configureApiClient({
-      baseUrl: 'https://api.example.test',
-      fetchImpl: vi.fn(() => pendingResponse()),
-    });
+    const fetchImpl = vi.fn(() => pendingResponse());
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
-    renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {
-      capture: vi.fn(),
-    });
+    const {container} = renderWithProviders(
+      <WorkspaceSetupChecklist workspace={WORKSPACE} />,
+      queryClient,
+      {capture: vi.fn()},
+    );
 
-    expect(await screen.findByRole('status', {name: 'Loading setup guide'})).toBeInTheDocument();
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
   });
 
   test('hides rows from failed query families without marking the checklist complete', async () => {
@@ -510,9 +512,7 @@ describe('workspace checklist hosts', () => {
       capture: vi.fn(),
     });
 
-    await waitFor(() => {
-      expect(screen.queryByRole('status', {name: 'Loading setup guide'})).not.toBeInTheDocument();
-    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
     expect(screen.queryByText('Connect your tools')).not.toBeInTheDocument();
     expect(screen.queryByText('Set up runner capacity')).not.toBeInTheDocument();
     expect(screen.queryByText('Configure a model provider')).not.toBeInTheDocument();
@@ -539,7 +539,6 @@ describe('workspace checklist hosts', () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByRole('status', {name: 'Loading setup guide'})).not.toBeInTheDocument();
       expect(screen.queryByRole('region', {name: 'Get started'})).not.toBeInTheDocument();
     });
   });
@@ -583,8 +582,6 @@ describe('workspace checklist hosts', () => {
     const capture = vi.fn();
 
     renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {capture});
-
-    expect(await screen.findByRole('status', {name: 'Loading setup guide'})).toBeInTheDocument();
 
     act(() => {
       seedQueries(queryClient, true);
@@ -738,7 +735,7 @@ describe('workspace checklist hosts', () => {
     });
   });
 
-  test('keeps the skeleton rather than promoting a pointer while optional families load', async () => {
+  test('renders no panel rather than promoting a pointer while optional families load', async () => {
     const queryClient = createQueryClient();
     configureApiClient({
       baseUrl: 'https://api.example.test',
@@ -753,14 +750,17 @@ describe('workspace checklist hosts', () => {
       connection('linear', 'active'),
     ]);
 
-    renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {
-      capture: vi.fn(),
-    });
+    const fetchImpl = vi.fn(() => pendingResponse());
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
-    expect(await screen.findByRole('status', {name: 'Loading setup guide'})).toBeInTheDocument();
-    expect(screen.queryByText('Invite your teammates')).not.toBeInTheDocument();
-    // The tracked rows are still hidden, so no count may claim they are done.
-    expect(screen.queryByText(DONE_COUNT_RE)).not.toBeInTheDocument();
+    const {container} = renderWithProviders(
+      <WorkspaceSetupChecklist workspace={WORKSPACE} />,
+      queryClient,
+      {capture: vi.fn()},
+    );
+
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
   });
 
   test('does not wait on the teammates family, which cannot change the count', async () => {
@@ -1121,5 +1121,29 @@ describe('first workflow panel on the home', () => {
     renderHome(queryClient);
 
     await expectNoPanel();
+  });
+});
+
+describe('lazy chrome slots', () => {
+  test('never suspend the host route while the slot loads', async () => {
+    const queryClient = createQueryClient();
+    const fetchImpl = vi.fn(() => pendingResponse());
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    const onRoutePending = vi.fn();
+    function RoutePending() {
+      onRoutePending();
+      return null;
+    }
+
+    renderWithProviders(
+      <Suspense fallback={<RoutePending />}>
+        <WorkspaceSetupIndicatorSlot workspace={WORKSPACE} />
+      </Suspense>,
+      queryClient,
+      {capture: vi.fn()},
+    );
+
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalled());
+    expect(onRoutePending).not.toHaveBeenCalled();
   });
 });

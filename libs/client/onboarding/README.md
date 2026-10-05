@@ -9,6 +9,10 @@ post-activation Get-started checklist, and its panel and top-bar hosts.
   "where should this user be" from live queries on every navigation under
   `/w/$workspaceSlug`: suspended check, then project existence, then usable
   source connections, then model-provider handling, then project creation.
+  Once it has seen a project, it remembers that on the device and lets the
+  workspace through at once, checking project existence in the background. If
+  that check finds no project, it drops the hint and calls `revalidate` to run
+  again.
 - **`deriveIntegrationReadiness`**: the readiness model shared with the
   first-workflow spec. It turns the provider catalog and the workspace's
   connections into per-provider `connected` and `attention` state, an
@@ -150,6 +154,11 @@ The caller maps its own query results to the derivation inputs:
   false.
 - The teammates row renders done at `memberCount >= 2` or
   `pendingInvitationCount >= 1`, but stays a pointer.
+- The panel and indicator render nothing until enough queries have settled to
+  know what to show, so a workspace that finished setup never sees a
+  placeholder. An open tracked step can appear while other families are still
+  loading. The slots exported from `./feature` load lazily behind their own
+  hidden Suspense boundary.
 - The panel and indicator render nothing for an initially complete checklist;
   the mounted host that observes the final tracked row transition renders the
   completion state and owns its one-shot burst.

@@ -101,6 +101,7 @@ export function buildAnchorSkeleton({
         workspaceId: workspace.id,
         workspaceSlug: params.workspaceSlug,
         pathname: location.pathname,
+        ...(context.revalidateRoutes ? {revalidate: context.revalidateRoutes} : {}),
       });
     },
     pendingComponent: () => (

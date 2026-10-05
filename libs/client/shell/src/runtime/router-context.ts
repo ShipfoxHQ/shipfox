@@ -16,6 +16,8 @@ export interface RouterContext {
   auth: AuthStateValue | undefined;
   queryClient: QueryClient | undefined;
   workspaceSetup?: WorkspaceSetupGate;
+  /** Re-runs route guards; the workspace setup gate receives it as `revalidate`. */
+  revalidateRoutes?: () => void;
   projectSlugResolver?: ProjectSlugResolver;
   /** Whether the composing application supplied the unresolved-workspace slot. */
   unresolvedWorkspaceAvailable?: boolean;

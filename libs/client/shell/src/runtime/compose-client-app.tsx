@@ -11,7 +11,7 @@ import {TooltipProvider} from '@shipfox/react-ui/tooltip';
 import type {QueryClient} from '@tanstack/react-query';
 import {type AnyRouter, RouterProvider} from '@tanstack/react-router';
 import {createStore} from 'jotai';
-import {StrictMode, useEffect} from 'react';
+import {StrictMode, useCallback, useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
 import {composeClientFeatures} from '#compose/compose-client-features.js';
 import type {ClientFeature} from '#contract.js';
@@ -110,6 +110,9 @@ function RoutedApp({
   unresolvedWorkspaceAvailable: boolean;
 }) {
   const auth = useAuthState();
+  const revalidateRoutes = useCallback(() => {
+    void router.invalidate();
+  }, [router]);
 
   useEffect(() => {
     if (!auth.isLoading && auth.routeRevision !== undefined) router.invalidate();
@@ -123,6 +126,7 @@ function RoutedApp({
           auth,
           queryClient,
           workspaceSetup,
+          revalidateRoutes,
           projectSlugResolver,
           unresolvedWorkspaceAvailable,
         } as never
