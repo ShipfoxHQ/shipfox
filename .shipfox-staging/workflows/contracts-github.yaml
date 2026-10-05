@@ -296,7 +296,7 @@ jobs:
              Report the field `number` of its result as `pull_request_number`.
              Report the field `state` of its result as `pull_request_state`.
         integrations:
-          - connection: github_sandbox
+          - connection: github_shipfoxsandbox
             include:
               - actions_get
               - actions_list
@@ -338,7 +338,7 @@ jobs:
              Report the field `number` of its result as `pull_request_number`.
              Report the field `state` of its result as `pull_request_state`.
         integrations:
-          - connection: github_sandbox
+          - connection: github_shipfoxsandbox
             include:
               - actions_get
               - actions_list
