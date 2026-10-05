@@ -35,7 +35,6 @@ Read fixtures hold large and odd data. Examples: more than one page of results, 
 2. Connect the tenant in the staging workspace through the normal product flow. Give the integration connection the `connection` slug of its provider in `sandbox.yaml`.
 3. Record the fixture ids in `sandbox.yaml`.
 4. Give each fixture a `read`: the call that proves the object still exists. The `fixtures` job of the provider's workflow runs it.
-5. Name two fixtures under `agent.reads`. Each provider workflow gets an agent job per model family, which calls those two reads and reports the values back. Both fixtures need a `read` with `expect.values`.
 
 A provider account links to one integration connection per Shipfox instance. The sandbox connections live next to the company connections in the staging workspace for that reason.
 

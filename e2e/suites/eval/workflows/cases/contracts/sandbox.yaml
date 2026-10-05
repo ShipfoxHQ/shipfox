@@ -114,8 +114,6 @@ github:
           resource_id: $fixture.github.workflow.file
         expect:
           values: {id: $fixture.github.workflow.id, name: $fixture.github.workflow.name}
-  # The two fixtures each agent job asks its model to read back.
-  agent: {reads: [issue, pull_request]}
   targets:
     # The owner exists, so the call fails on the repository and not on the owner.
     missing_repository: {kind: absent, owner: ShipfoxSandbox, name: contract-absent-7f3a9c41}
@@ -220,7 +218,6 @@ linear:
           values: {uuid: $fixture.linear.project.id, name: $fixture.linear.project.name}
     milestone: {id: 78f5b498-6c53-4e69-8fce-32cc67027324, name: Contract fixture milestone}
     document: {id: 471c6da6-c647-4770-b6d3-27dc53189810, title: Contract fixture document}
-  agent: {reads: [team, issue]}
   targets:
     missing_issue: {kind: absent, identifier: SAR-999999}
 slack:
@@ -288,13 +285,12 @@ slack:
           values:
             channel.id: $fixture.slack.write_channel.id
             channel.name: $fixture.slack.write_channel.name
-  agent: {reads: [read_channel, user]}
   targets:
     missing_channel: {kind: absent, id: C0000000000}
     # A private channel the bot has not joined.
     private_channel: {kind: inaccessible, id: C0C6VLHCQVC}
 clickup:
-  connection: clickup_sandbox
+  connection: clickup_shipfox
   fixtures:
     workspace: {id: '90122048821', name: Shipfox Sandbox}
     list: {id: '901222980414', name: Contracts read}
@@ -333,7 +329,6 @@ clickup:
         expect:
           values: {id: $fixture.clickup.closed_task.id, name: $fixture.clickup.closed_task.name}
     write_list: {id: '901222980415', name: Contracts write}
-  agent: {reads: [task, closed_task]}
   targets:
     missing_task: {kind: absent, id: 869zzzzzz}
 notion:
@@ -361,7 +356,6 @@ notion:
           values:
             id: $fixture.notion.write_parent_page.id
             title: $fixture.notion.write_parent_page.title
-  agent: {reads: [page, write_parent_page]}
   targets:
     # A well-formed UUID, so Notion answers that the page is missing, not that the id is invalid.
     missing_page: {kind: absent, id: 00000000-0000-4000-8000-000000000000}
@@ -400,7 +394,6 @@ posthog:
     experiment: {id: 99531, name: Contract fixture experiment}
     survey: {id: 01a10dad-d398-0000-5b35-0c6a08cd8ee8, name: Contract fixture survey}
     error_issue: {id: 01a10dad-c7e2-7443-80df-5aed63a6eb5d, name: ContractError}
-  agent: {reads: [event, feature_flag]}
   targets:
     missing_feature_flag: {kind: absent, id: 999999999}
 jira:

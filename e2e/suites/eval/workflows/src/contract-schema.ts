@@ -181,15 +181,6 @@ const targetSchema = z
     message: 'field names must be letters, digits, and `_`',
   });
 
-const agentSchema = z
-  .object({
-    reads: z
-      .array(nameSchema)
-      .length(2)
-      .refine((reads) => new Set(reads).size === reads.length, {message: 'must name two fixtures'}),
-  })
-  .strict();
-
 const providerSandboxSchema = z
   .object({
     // The slug of the provider's sandbox connection, such as `linear_sandbox`.
@@ -199,8 +190,6 @@ const providerSandboxSchema = z
     fixtures: z.record(nameSchema, fixtureSchema).default({}),
     // Objects that must fail, so error cases use them and nothing else does.
     targets: z.record(nameSchema, targetSchema).default({}),
-    // The two fixtures whose `read` each agent job asks its model to repeat. They need `expect.values`.
-    agent: agentSchema.optional(),
   })
   .strict();
 
