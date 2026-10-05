@@ -23,3 +23,5 @@ linear:
         expect:
           values: {id: $fixture.linear.issue.identifier}
     team: {id: 4f0c, name: Contracts}
+  targets:
+    missing_issue: {kind: absent, identifier: CON-999999}

@@ -185,7 +185,7 @@ function caseJob({
   manifest: SandboxManifest;
 }) {
   const {definition} = loaded;
-  if (definition.kind !== 'read') {
+  if (definition.kind === 'round-trip') {
     throw new Error(`${loaded.id}: cases of kind \`${definition.kind}\` are not generated yet`);
   }
   const keys = new Set<string>();
@@ -203,6 +203,7 @@ function caseJob({
       connection,
       manifest,
       origin: `${loaded.id} steps.${index}`,
+      allowTargets: definition.kind === 'error',
     });
   });
   return {checkout: false, steps};
@@ -216,19 +217,40 @@ function compileStep({
   connection,
   manifest,
   origin,
+  allowTargets = false,
 }: {
   key: string;
-  read: ContractRead;
+  read: ContractRead & {expect: {error?: string | undefined}};
   provider: string;
   connection: string;
   manifest: SandboxManifest;
   origin: string;
+  allowTargets?: boolean;
 }): WorkflowStep {
-  const resolver = generationResolver({manifest, origin});
+  const resolver = generationResolver({manifest, origin, allowTargets});
   const resolvedWith = resolveContractReferences(read.with, resolver) as Record<string, unknown>;
-  const expect = resolveContractReferences(read.expect, resolver) as ContractRead['expect'];
+  const expect = resolveContractReferences(read.expect, resolver) as ContractRead['expect'] & {
+    error?: string | undefined;
+  };
   if (expect.includes !== undefined) {
     throw new Error(`${origin}: \`expect.includes\` is not generated yet`);
+  }
+  const tool = read.method === undefined ? read.tool : `${read.tool}.${read.method}`;
+  const call = {
+    key,
+    tool,
+    connection,
+    ...(Object.keys(resolvedWith).length === 0 ? {} : {with: resolvedWith}),
+  };
+  if (expect.error !== undefined) {
+    // The failure is the contract: a call that succeeds fails the step, so a target that stops
+    // failing fails its case.
+    return {
+      ...call,
+      gate: {
+        success: `step.status == "failed" && step.error.code == ${JSON.stringify(expect.error)}`,
+      },
+    };
   }
 
   const outputs: Record<string, string> = {};
@@ -262,12 +284,8 @@ function compileStep({
     });
   }
 
-  const tool = read.method === undefined ? read.tool : `${read.tool}.${read.method}`;
   return {
-    key,
-    tool,
-    connection,
-    ...(Object.keys(resolvedWith).length === 0 ? {} : {with: resolvedWith}),
+    ...call,
     ...(checks.length === 0
       ? {}
       : // The gate decides the step's result even when the call failed, so it has to see the status.
@@ -278,9 +296,11 @@ function compileStep({
 function generationResolver({
   manifest,
   origin,
+  allowTargets,
 }: {
   manifest: SandboxManifest;
   origin: string;
+  allowTargets: boolean;
 }): ContractReferenceResolver {
   const unsupported = (token: string) => () => {
     throw new Error(`${origin}: ${token} is not generated yet`);
@@ -292,7 +312,14 @@ function generationResolver({
         throw new Error(`${origin}: a fixture reference is not in the manifest`);
       return value;
     },
-    target: unsupported('$target'),
+    // Targets are for error cases. Fixture reads and other cases never see one.
+    target: (reference) => {
+      if (!allowTargets) throw new Error(`${origin}: $target is only for cases of kind \`error\``);
+      const value = resolveManifestValue({manifest, reference});
+      if (value === undefined)
+        throw new Error(`${origin}: a target reference is not in the manifest`);
+      return value;
+    },
     steps: unsupported('$steps'),
     marker: unsupported('$marker'),
   };

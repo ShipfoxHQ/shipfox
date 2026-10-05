@@ -12,6 +12,10 @@ const roundTripPattern = /cases of kind `round-trip` are not generated yet/u;
 const effectPattern = /a step `effect` is not generated yet/u;
 const markerPattern = /\$marker is not generated yet/u;
 const includesPattern = /`expect\.includes` is not generated yet/u;
+const targetPattern =
+  /\$target\.linear\.missing_issue\.identifier is only for cases of kind `error`/u;
+const fixtureReadPattern = /is not available in a fixture read/u;
+const missingErrorPattern = /a case of kind `error` needs a step with `expect.error`/u;
 const duplicateJobPattern = /the job key "get_issue" is used by another case/u;
 const fileNamePattern = /the file name must make a job key/u;
 const shapeFieldPattern = /the shape field "bad-field" must be letters/u;
@@ -128,6 +132,58 @@ describe('generateContractFiles', () => {
     await expect(async () => generateContractFiles(await generate())).rejects.toThrow(
       shapeFieldPattern,
     );
+  });
+
+  it('gates an error case on the failed status and the error code', async () => {
+    const linear = generateContractFiles(await generate()).find(
+      ({name}) => name === 'contracts-linear.yaml',
+    );
+
+    expect(linear?.content).toContain('id: CON-999999');
+    expect(linear?.content).toContain(
+      'success: step.status == "failed" && step.error.code == "not-found"',
+    );
+  });
+
+  it('never reads a target in the fixtures job', async () => {
+    const linear = generateContractFiles(await generate()).find(
+      ({name}) => name === 'contracts-linear.yaml',
+    );
+    const fixtures = linear?.content.split('\n  get_issue:')[0] ?? '';
+
+    expect(fixtures).toContain('  fixtures:\n');
+    expect(fixtures).not.toContain('CON-999999');
+  });
+
+  it('rejects a $target in a read case at load', async () => {
+    await writeCase(
+      'linear/read-target.yaml',
+      'provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n    with: {id: $target.linear.missing_issue.identifier}\n',
+    );
+
+    await expect(generate()).rejects.toThrow(targetPattern);
+  });
+
+  it('rejects a $target in a fixture read at load', async () => {
+    const path = join(casesRoot, 'sandbox.yaml');
+    await writeFile(
+      path,
+      (await readFile(path, 'utf8')).replace(
+        'with: {id: $fixture.linear.issue.identifier}',
+        'with: {id: $target.linear.missing_issue.identifier}',
+      ),
+    );
+
+    await expect(generate()).rejects.toThrow(fixtureReadPattern);
+  });
+
+  it('rejects an error case without a step that expects an error', async () => {
+    await writeCase(
+      'linear/no-error.yaml',
+      'provider: linear\nkind: error\nmodes: [real]\nsteps:\n  - tool: get_issue\n',
+    );
+
+    await expect(generate()).rejects.toThrow(missingErrorPattern);
   });
 
   it('does not generate round-trip cases, effects, $marker, or includes yet', async () => {
