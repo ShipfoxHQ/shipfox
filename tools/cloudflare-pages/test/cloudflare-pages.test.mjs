@@ -38,6 +38,8 @@ const emptyArchiveSelectionPattern = /No applications were selected/;
 const partialDeploymentPattern = /other: Cloudflare Pages Direct Upload failed/;
 const archivedWorkerPattern = /contains executable Pages worker code/;
 const invalidPullRequestLifecyclePattern = /not an open pull request targeting main/;
+const pullRequestLookupFailedPattern =
+  /GitHub pull request lookup failed after 2 attempt\(s\): .*did not return JSON/;
 const cliPath = fileURLToPath(new URL('../bin/cloudflare-pages.js', import.meta.url));
 const execFileAsync = promisify(execFile);
 const exampleApps = [
@@ -1106,6 +1108,70 @@ test('rejects a deployment when the pull request head has moved', async () => {
     }),
     headMovedPattern,
   );
+});
+
+test('retries the pull request lookup when the GitHub API fails', async () => {
+  let attempts = 0;
+  const result = await assertCurrentCommit({
+    repository: 'ShipfoxHQ/example',
+    pullRequest: '42',
+    commit: 'abc123',
+    retryDelayMs: 0,
+    runner: () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new Error(
+          "gh exited with code 1: invalid character 'S' looking for beginning of value",
+        );
+      }
+      if (attempts === 2) return {output: 'Service Unavailable'};
+      return {output: '{"headSha":"abc123","state":"open","baseRef":"main"}\n'};
+    },
+  });
+
+  assert.deepEqual(result, {pullRequest: '42', commit: 'abc123'});
+  assert.equal(attempts, 3);
+});
+
+test('reports the last error when the pull request lookup keeps failing', async () => {
+  let attempts = 0;
+  await assert.rejects(
+    assertCurrentCommit({
+      repository: 'ShipfoxHQ/example',
+      pullRequest: '42',
+      commit: 'abc123',
+      attempts: 2,
+      retryDelayMs: 0,
+      runner: () => {
+        attempts += 1;
+        return {output: 'Service Unavailable'};
+      },
+    }),
+    pullRequestLookupFailedPattern,
+  );
+  assert.equal(attempts, 2);
+});
+
+test('does not retry a pull request that is closed or has moved', async () => {
+  for (const output of [
+    '{"headSha":"def456","state":"open","baseRef":"main"}\n',
+    '{"headSha":"abc123","state":"closed","baseRef":"main"}\n',
+  ]) {
+    let attempts = 0;
+    await assert.rejects(
+      assertCurrentCommit({
+        repository: 'ShipfoxHQ/example',
+        pullRequest: '42',
+        commit: 'abc123',
+        retryDelayMs: 0,
+        runner: () => {
+          attempts += 1;
+          return {output};
+        },
+      }),
+    );
+    assert.equal(attempts, 1);
+  }
 });
 
 test('rejects a closed or retargeted pull request before deployment', async () => {
