@@ -1,0 +1,10 @@
+provider: github
+modes: [real]
+steps:
+  - tool: list_issues
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+    expect:
+      shape:
+        issues: [{number: number, title: string, state: string}]

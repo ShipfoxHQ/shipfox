@@ -1,0 +1,13 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: list_teams
+    with:
+      query: $fixture.linear.team.name
+      limit: 1
+    expect:
+      shape:
+        teams: [{id: string, name: string}]
+      values:
+        teams[0].id: $fixture.linear.team.id
+        teams[0].name: $fixture.linear.team.name

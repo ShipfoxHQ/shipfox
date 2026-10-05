@@ -1,0 +1,20 @@
+provider: github
+modes: [real]
+steps:
+  - tool: pull_request_read
+    method: get
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $fixture.github.pull_request.number
+    expect:
+      shape:
+        number: number
+        title: string
+        state: string
+        head: {ref: string}
+        base: {ref: string}
+      values:
+        number: $fixture.github.pull_request.number
+        title: $fixture.github.pull_request.title
+        state: open

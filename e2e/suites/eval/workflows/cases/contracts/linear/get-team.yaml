@@ -1,0 +1,11 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: get_team
+    with:
+      query: $fixture.linear.team.id
+    expect:
+      shape: {id: string, name: string}
+      values:
+        id: $fixture.linear.team.id
+        name: $fixture.linear.team.name

@@ -1,0 +1,11 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: get_project
+    with:
+      query: $fixture.linear.project.id
+    expect:
+      shape: {id: string, uuid: string, name: string, url: string}
+      values:
+        uuid: $fixture.linear.project.id
+        name: $fixture.linear.project.name

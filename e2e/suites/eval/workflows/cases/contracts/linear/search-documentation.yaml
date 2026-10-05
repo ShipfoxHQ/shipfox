@@ -1,0 +1,9 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: search_documentation
+    with:
+      query: create an issue
+    # The result is a bare list, so only its first item is checked.
+    expect:
+      shape: [{id: string, title: string, url: string, snippet: string}]

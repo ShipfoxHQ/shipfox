@@ -1,0 +1,14 @@
+provider: github
+modes: [real]
+steps:
+  - tool: actions_get
+    method: get_workflow
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      resource_id: $fixture.github.workflow.file
+    expect:
+      shape: {id: number, name: string, path: string, state: string}
+      values:
+        id: $fixture.github.workflow.id
+        name: $fixture.github.workflow.name

@@ -1,0 +1,14 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: list_issues
+    with:
+      team: $fixture.linear.team.id
+      limit: 5
+    # The read team holds more than one page of issues.
+    expect:
+      shape:
+        issues: [{id: string, uuid: string, title: string, status: string}]
+        hasNextPage: boolean
+      values:
+        hasNextPage: true
