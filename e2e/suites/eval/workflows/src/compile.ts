@@ -6,6 +6,8 @@ import {
   createDiscordConnection,
   createJiraConnection,
   createLinearConnection,
+  createNotionConnection,
+  createPosthogConnection,
   createSentryConnection,
   createSlackConnection,
 } from '@shipfox/e2e-setup-integrations';
@@ -284,6 +286,29 @@ async function createProviderConnection({
           accessToken: `jira-access-token-${uniqueId}`,
         })
       ).slug;
+    case 'notion':
+      return (
+        await createNotionConnection({
+          workspaceId,
+          notionWorkspaceId: `eval-notion-${uniqueId}`,
+          workspaceName: `Eval Notion ${uniqueId}`,
+          botId: `eval-bot-${uniqueId}`,
+          authorizedByUserId: `eval-user-${uniqueId}`,
+          accessToken: `notion-access-token-${uniqueId}`,
+          displayName: `Eval Notion ${uniqueId}`,
+        })
+      ).slug;
+    case 'posthog':
+      return (
+        await createPosthogConnection({
+          workspaceId,
+          region: 'us',
+          apiKey: `phx_eval_${uniqueId}`,
+          projectId: `eval-project-${uniqueId}`,
+          projectName: `Eval PostHog ${uniqueId}`,
+          organizationId: `eval-organization-${uniqueId}`,
+        })
+      ).slug;
     case 'sentry':
       return (
         await createSentryConnection({
@@ -307,15 +332,84 @@ function failureMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** A workspace and project that compile definitions, and the connections a definition can name. */
+export interface CompileStack {
+  /** The slug of the workspace's connection to a provider, created when first asked for. */
+  slugOf(provider: string): Promise<string>;
+  /** Creates the definition and returns what is wrong with it. A rejected definition throws. */
+  check(yaml: string): Promise<string[]>;
+}
+
+/**
+ * One workspace and project for every definition, with a connection for each provider created when
+ * first needed. Compilation checks each connection against the workspace, so a definition needs the
+ * same connections a user would have.
+ */
+export async function arrangeCompileStack({
+  cleanups,
+}: {
+  cleanups: Array<() => Promise<void>>;
+}): Promise<CompileStack> {
+  const {uniqueId, workspace, client, connection, project} = await arrangeGithubProject({
+    label: 'compile',
+    cleanups,
+  });
+  const slugs = new Map<string, string>([['github', connection.slug]]);
+
+  return {
+    slugOf: async (provider) => {
+      const known = slugs.get(provider);
+      if (known !== undefined) return known;
+      const slug = await createProviderConnection({
+        provider,
+        workspaceId: workspace.id,
+        uniqueId,
+      });
+      slugs.set(provider, slug);
+      return slug;
+    },
+    check: async (yaml) => {
+      const definition = await client.requestJson<DefinitionResponseDto>('post', '/definitions', {
+        json: {project_id: project.id, source: 'manual', yaml},
+      });
+      return checkCompiledDefinition({yaml, definition});
+    },
+  };
+}
+
+/** Runs one compile, so a rejected or inconsistent definition becomes the result's error. */
+export async function compileResult({
+  id,
+  compile,
+}: {
+  id: string;
+  compile: (result: CaseResult) => Promise<string[]>;
+}): Promise<CaseResult> {
+  const startedAt = Date.now();
+  const result: CaseResult = {
+    case: id,
+    mode: 'compile',
+    repeat: 1,
+    status: 'error',
+    duration_ms: 0,
+    cost_usd: 0,
+  };
+  try {
+    const problems = await compile(result);
+    if (problems.length === 0) result.status = 'passed';
+    else result.error = problems.join('\n');
+  } catch (error) {
+    result.error = failureMessage(error);
+  }
+  result.duration_ms = Date.now() - startedAt;
+  return result;
+}
+
 export interface VariantCompiler {
   compile(variant: CompileVariant): Promise<CaseResult>;
 }
 
-/**
- * One workspace and project for every variant, with a connection for each provider a variant
- * binds, created when the first variant needs it. Compilation checks each connection against the
- * workspace, so a variant needs the same connections a user would have.
- */
+/** Compiles template variants on a stack, with a connection for each provider a variant binds. */
 export async function createVariantCompiler({
   loader,
   cleanups,
@@ -323,63 +417,33 @@ export async function createVariantCompiler({
   loader: TemplateLoader;
   cleanups: Array<() => Promise<void>>;
 }): Promise<VariantCompiler> {
-  const {uniqueId, workspace, client, connection, project} = await arrangeGithubProject({
-    label: 'compile',
-    cleanups,
-  });
-  const slugs = new Map<string, string>([['github', connection.slug]]);
-
-  const slugOf = async (provider: string): Promise<string> => {
-    const known = slugs.get(provider);
-    if (known !== undefined) return known;
-    const slug = await createProviderConnection({
-      provider,
-      workspaceId: workspace.id,
-      uniqueId,
-    });
-    slugs.set(provider, slug);
-    return slug;
-  };
+  const stack = await arrangeCompileStack({cleanups});
 
   return {
-    compile: async (variant) => {
-      const startedAt = Date.now();
-      const result: CaseResult = {
-        case: variant.id,
-        mode: 'compile',
-        repeat: 1,
-        status: 'error',
-        duration_ms: 0,
-        cost_usd: 0,
-      };
-      try {
-        const composed = await loader.compose({
-          package: variant.template.package,
-          bindings: variant.bindings,
-          options: variant.options,
-        });
-        if (composed === undefined) {
-          throw new Error(`The template loader does not serve ${variant.template.package}.`);
-        }
-        const bySlug: Record<string, string> = {};
-        for (const [role, provider] of Object.entries(variant.bindings)) {
-          bySlug[role] = await slugOf(provider);
-        }
-        const yaml = bindConnectionSlugs({yaml: fillTemplatePlaceholders(composed), slugs: bySlug});
-        result.composed_yaml = yaml;
-
-        const definition = await client.requestJson<DefinitionResponseDto>('post', '/definitions', {
-          json: {project_id: project.id, source: 'manual', yaml},
-        });
-        const problems = checkCompiledDefinition({yaml, definition});
-        if (problems.length === 0) result.status = 'passed';
-        else result.error = problems.join('\n');
-      } catch (error) {
-        result.error = failureMessage(error);
-      }
-      result.duration_ms = Date.now() - startedAt;
-      return result;
-    },
+    compile: (variant) =>
+      compileResult({
+        id: variant.id,
+        compile: async (result) => {
+          const composed = await loader.compose({
+            package: variant.template.package,
+            bindings: variant.bindings,
+            options: variant.options,
+          });
+          if (composed === undefined) {
+            throw new Error(`The template loader does not serve ${variant.template.package}.`);
+          }
+          const bySlug: Record<string, string> = {};
+          for (const [role, provider] of Object.entries(variant.bindings)) {
+            bySlug[role] = await stack.slugOf(provider);
+          }
+          const yaml = bindConnectionSlugs({
+            yaml: fillTemplatePlaceholders(composed),
+            slugs: bySlug,
+          });
+          result.composed_yaml = yaml;
+          return await stack.check(yaml);
+        },
+      }),
   };
 }
 

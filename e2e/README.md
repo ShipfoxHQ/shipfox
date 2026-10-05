@@ -455,6 +455,13 @@ of the shipped templates:
 mise run evals -- --suite templates --mode compile --case 'ticket-to-pr'
 ```
 
+`--suite contracts --mode compile` does the same for every workflow file in
+`.shipfox-staging/workflows/`, which the staging instance syncs. One invalid
+file fails that whole sync, so every file counts. It creates a connection for
+each sandbox the files name, such as `linear_sandbox`, binds the slugs, and
+requires zero error diagnostics and every trigger active. A failure names the
+file path. `--case` filters by file name. `test:e2e` runs it.
+
 The onboarding suite drives a real Claude Agent SDK session against the stack.
 Each case in `cases/onboarding/` sets up a workspace, a fixture repository, and
 a recording MCP proxy, then answers the agent's questions with a simulated user

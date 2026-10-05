@@ -24,6 +24,7 @@
     "#contract-output.js": "./src/contract-output.ts",
     "#contract-references.js": "./src/contract-references.ts",
     "#contract-schema.js": "./src/contract-schema.ts",
+    "#contracts-compile.js": "./src/contracts-compile.ts",
     "#contracts.js": "./src/contracts.ts",
     "#coverage.js": "./src/coverage.ts",
     "#deliveries.js": "./src/deliveries.ts",
@@ -67,7 +68,7 @@
     "depcruise": "shipfox-depcruise",
     "evals": "node dist/cli.js",
     "test": "shipfox-vitest-run",
-    "test:e2e": "node dist/cli.js --suite templates --mode compile && node dist/cli.js --suite templates --mode scripted",
+    "test:e2e": "node dist/cli.js --suite templates --mode compile && node dist/cli.js --suite contracts --mode compile && node dist/cli.js --suite templates --mode scripted",
     "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check"
   },
