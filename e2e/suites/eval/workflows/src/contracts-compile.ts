@@ -94,6 +94,9 @@ export async function runContractsCompile(
     ...(options.workflowsDirectory === undefined ? {} : {directory: options.workflowsDirectory}),
     filter: options.caseFilter,
   });
+  if (files.length === 0 && options.caseFilter !== undefined) {
+    throw new Error(`No contract workflow files matching "${options.caseFilter}" were found.`);
+  }
   const manifest = options.manifest ?? (await loadContracts()).manifest;
 
   const cleanups: Array<() => Promise<void>> = [];

@@ -16,6 +16,7 @@ import type {CaseResult} from './results.js';
 
 const fixtures = fileURLToPath(new URL('../test/fixtures/contracts/', import.meta.url));
 const contractsOnlyPattern = /--suite contracts runs with --mode compile only/u;
+const noFilesPattern = /No contract workflow files matching "contracts-missing.yaml"/u;
 const catalogPattern = /--catalog applies to --suite templates --mode compile only/u;
 
 function result(file: ContractWorkflowFile, error?: string): CaseResult {
@@ -89,6 +90,17 @@ describe('contract workflow files', () => {
       ['.shipfox-staging/workflows/contracts-linear.yaml', 'passed'],
       ['.shipfox-staging/workflows/contracts.yaml', 'passed'],
     ]);
+  });
+
+  it('fails when the filter matches no file, so a typo cannot pass', async () => {
+    await expect(
+      runContractsCompile({
+        workflowsDirectory: root,
+        caseFilter: 'contracts-missing.yaml',
+        manifest: (await loadContracts(join(fixtures, 'cases'))).manifest,
+        compile: () => Promise.reject(),
+      }),
+    ).rejects.toThrow(noFilesPattern);
   });
 
   it('passes when no workflow file is generated yet', async () => {

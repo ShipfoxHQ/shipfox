@@ -290,10 +290,11 @@ async function createProviderConnection({
       return (
         await createNotionConnection({
           workspaceId,
-          notionWorkspaceId: `eval-notion-${uniqueId}`,
+          // The route validates all three as UUIDs.
+          notionWorkspaceId: crypto.randomUUID(),
           workspaceName: `Eval Notion ${uniqueId}`,
-          botId: `eval-bot-${uniqueId}`,
-          authorizedByUserId: `eval-user-${uniqueId}`,
+          botId: crypto.randomUUID(),
+          authorizedByUserId: crypto.randomUUID(),
           accessToken: `notion-access-token-${uniqueId}`,
           displayName: `Eval Notion ${uniqueId}`,
         })
