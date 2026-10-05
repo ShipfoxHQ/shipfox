@@ -169,6 +169,12 @@ The caller maps its own query results to the derivation inputs:
   same transition completes the checklist, only the completion burst plays.
 - Both hosts capture `first_workflow_test_run_shown` once per mount, the first
   time they show the row as "A test run succeeded".
+- `WorkspaceSetupChecklist` takes an optional `companion` node. The host renders
+  it directly below the panel, in the same render that mounts the panel, and
+  renders nothing for it whenever the panel itself renders nothing: dismissed,
+  complete on load, or still loading. It stays through the "You're set up"
+  state and leaves with the panel on "Done". It adds no queries and no
+  analytics events.
 - The panel host renders `FirstWorkflowPanel` below the checklist when runners
   are available (installation-managed or workspace capacity), a model is
   available (installation-provided or configured), and the workspace has no

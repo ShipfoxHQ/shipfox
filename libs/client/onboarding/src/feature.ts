@@ -1,6 +1,9 @@
 import {defineClientFeature} from '@shipfox/client-shell';
 import {createElement, type FunctionComponent, lazy, Suspense} from 'react';
-import type {WorkspaceSetupHostProps} from './components/setup-checklist-types.js';
+import type {
+  WorkspaceSetupChecklistProps,
+  WorkspaceSetupHostProps,
+} from './components/setup-checklist-types.js';
 
 export const onboardingFeature = defineClientFeature({
   id: 'shipfox.onboarding',
@@ -15,7 +18,7 @@ function lazySlot<Props extends object>(
   return (props) => createElement(Suspense, {fallback: null}, createElement(Slot, props));
 }
 
-export const WorkspaceSetupChecklist = lazySlot<WorkspaceSetupHostProps>(
+export const WorkspaceSetupChecklist = lazySlot<WorkspaceSetupChecklistProps>(
   async () => (await import('./components/setup-checklist.js')).WorkspaceSetupChecklist,
 );
 
