@@ -32,6 +32,7 @@ import {deriveIntegrationReadiness} from '#core/integration-readiness.js';
 import {deriveSetupChecklist, type FirstWorkflowProgress} from '#core/setup-checklist.js';
 import {WorkspaceSetupIndicator as WorkspaceSetupIndicatorSlot} from '#feature.js';
 import {firstWorkflowQueryKeys} from '#hooks/api/first-workflow.js';
+import {setWorkspaceSetupChecklistExpanded} from '#hooks/use-checklist-expansion.js';
 import {
   SetupChecklistBody,
   type WorkspaceReference,
@@ -750,6 +751,48 @@ describe('workspace checklist hosts', () => {
       connection('linear', 'active'),
     ]);
 
+    const fetchImpl = vi.fn(() => pendingResponse());
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const {container} = renderWithProviders(
+      <WorkspaceSetupChecklist workspace={WORKSPACE} />,
+      queryClient,
+      {capture: vi.fn()},
+    );
+
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  test('renders no panel for a remembered expansion while optional families load', async () => {
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(integrationProvidersQueryOptions().queryKey, [
+      githubProvider,
+      linearProvider,
+    ]);
+    queryClient.setQueryData(integrationConnectionsQueryOptions(WORKSPACE.id).queryKey, [
+      connection('github', 'active'),
+      connection('linear', 'active'),
+    ]);
+    setWorkspaceSetupChecklistExpanded(WORKSPACE.id, true);
+    const fetchImpl = vi.fn(() => pendingResponse());
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const {container} = renderWithProviders(
+      <WorkspaceSetupChecklist workspace={WORKSPACE} />,
+      queryClient,
+      {capture: vi.fn()},
+    );
+
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  test('renders no panel for a finished workspace while the teammates family loads', async () => {
+    const queryClient = createQueryClient();
+    seedQueries(queryClient, true);
+    queryClient.removeQueries({queryKey: listMembersQueryKey(WORKSPACE.id)});
+    queryClient.removeQueries({queryKey: listInvitationsQueryKey(WORKSPACE.id)});
     const fetchImpl = vi.fn(() => pendingResponse());
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 

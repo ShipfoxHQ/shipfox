@@ -72,6 +72,10 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
       expanded: !expanded,
     });
   }, [analytics, expanded, toggleExpansion]);
+  // The panel sits above the page's own content, so it stays out of the layout
+  // until a loaded family reports an open tracked step. Rows stay hidden while
+  // their family loads, so anything less could still turn out to be a finished
+  // workspace and take the panel away a moment later.
   const isVisible =
     !dismissal.dismissed &&
     queryState.baseSettled &&
@@ -86,9 +90,7 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
       (expanded || nextStep?.id === 'first-workflow'),
   );
 
-  if (dismissal.dismissed) return null;
-
-  if (!panelHasContent(queryState, {showCompletion, expanded})) return null;
+  if (!isVisible) return null;
 
   const expandable = !showCompletion && queryState.checklist.items.length > 1;
 
@@ -146,23 +148,6 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
       />
     </>
   );
-}
-
-/**
- * The panel sits above the page's own content, so it stays out of the layout
- * until it knows what it will show. The runner, model-provider, and
- * first-workflow rows stay hidden while their families load, so promoting a
- * pointer before they settle would call setup finished a moment too early.
- */
-function panelHasContent(
-  queryState: ChecklistQueryState,
-  {showCompletion, expanded}: {showCompletion: boolean; expanded: boolean},
-): boolean {
-  if (!queryState.baseSettled) return false;
-  if (showCompletion) return true;
-  if (queryState.checklist.complete) return false;
-  if (expanded || queryState.trackedRowsSettled) return true;
-  return selectNextSetupStep(queryState.checklist)?.tracked === true;
 }
 
 /**

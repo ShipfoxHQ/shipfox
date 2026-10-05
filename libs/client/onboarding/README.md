@@ -157,7 +157,9 @@ The caller maps its own query results to the derivation inputs:
 - The panel and indicator render nothing until enough queries have settled to
   know what to show, so a workspace that finished setup never sees a
   placeholder. An open tracked step can appear while other families are still
-  loading. The slots exported from `./feature` load lazily behind their own
+  loading. Outside the completion state, the panel renders only while a loaded
+  family reports an open tracked step, including when the full list was left
+  open. The slots exported from `./feature` load lazily behind their own
   hidden Suspense boundary.
 - The panel and indicator render nothing for an initially complete checklist;
   the mounted host that observes the final tracked row transition renders the
