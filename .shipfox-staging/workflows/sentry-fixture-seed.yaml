@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+# Sends one event a day to the Sentry sandbox project. The fixed fingerprint keeps every event on
+# one issue, so the issue never ages out of Sentry's retention and its id stays the same. It runs
+# before the nightly contracts, which read that issue.
+name: Sentry fixture seed
+runner: shipfox
+
+triggers:
+  daily:
+    source: cron
+    config:
+      schedule: "0 2 * * *"
+      timezone: UTC
+  manual:
+    source: manual
+
+jobs:
+  seed:
+    checkout: false
+    steps:
+      - key: send_event
+        env:
+          SENTRY_DSN: "${{ secrets.SENTRY_SANDBOX_DSN }}"
+        run: |
+          set -eu
+          # A DSN reads https://<key>@<host>/<project id>.
+          rest="${SENTRY_DSN#https://}"
+          key="${rest%%@*}"
+          rest="${rest#*@}"
+          host="${rest%%/*}"
+          project="${rest#*/}"
+          event_id="$(tr -d '-' < /proc/sys/kernel/random/uuid)"
+          printf '%s\n%s\n%s\n' \
+            "{\"event_id\":\"${event_id}\"}" \
+            '{"type":"event"}' \
+            "{\"event_id\":\"${event_id}\",\"level\":\"error\",\"platform\":\"other\",\"environment\":\"sandbox\",\"message\":\"Contract fixture event\",\"fingerprint\":[\"contract-fixture\"]}" \
+            | curl --silent --show-error --fail-with-body \
+              --request POST \
+              --header 'Content-Type: application/x-sentry-envelope' \
+              --data-binary @- \
+              "https://${host}/api/${project}/envelope/?sentry_key=${key}&sentry_version=7"
