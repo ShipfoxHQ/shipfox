@@ -1,3 +1,92 @@
+# The sandbox accounts the contract cases run against. The ids end up public, so they point at
+# sandbox objects only.
+#
+# `fixtures` are objects that exist and that the connection can read. Round-trip cases write only
+# in the `write_*` containers. The `read` that proves each fixture still exists, and the `targets`
+# that must fail, are added with the cases that use them.
+github:
+  connection: github_sandbox
+  fixtures:
+    repository: {owner: ShipfoxSandbox, name: contract-tests}
+    # Issue 1 has a long markdown and unicode body, 32 comments, and three labels. Issues 5 to 34
+    # fill a second page.
+    issue: {number: 1, title: 'Fixture issue: markdown, unicode, long body'}
+    closed_issue: {number: 2, title: 'Fixture issue: closed'}
+    parent_issue: {number: 3, title: 'Fixture issue: parent with sub-issue'}
+    sub_issue: {number: 4, title: 'Fixture issue: sub-issue'}
+    label: {name: contract-fixture}
+    # Pull request 35 has a review with two threads, one reply, one resolved thread, and check runs.
+    pull_request: {number: 35, title: 'Fixture PR: open, with review threads'}
+    closed_pull_request: {number: 36, title: 'Fixture PR: closed'}
+    merged_pull_request: {number: 37, title: 'Fixture PR: merged'}
+    # Runs expire, so cases find the latest completed run through `list_workflow_runs`.
+    workflow: {id: 375690478, file: fixture.yml, name: Fixture}
+linear:
+  connection: linear_shipfox_sandbox
+  fixtures:
+    team: {id: 4016fa95-dfda-4139-88ba-133ba5955b01, key: SAR, name: sandbox-read}
+    write_team: {id: 9356e9c7-94d5-444d-83eb-d54b22c8082c, key: SAW, name: sandbox-write}
+    # The connection's own bot user, so the public manifest holds no person.
+    user: {id: b2f39d6d-42c5-4111-b521-bbfa50b73b36, name: Shipfox - Staging}
+    # SAR-5 has a long markdown and unicode body, 32 comments, two labels, a project, a milestone,
+    # and an attachment. SAR-10 to SAR-39 fill a second page of issues.
+    issue: {identifier: SAR-5, uuid: da047291-1dce-4606-a928-d29f4bd8e8b1, title: 'Fixture issue: markdown, unicode, long body'}
+    parent_issue: {identifier: SAR-6, uuid: 9f8221a7-cf0d-4fc6-aa2b-948ed622c570, title: 'Fixture issue: parent with sub-issue'}
+    sub_issue: {identifier: SAR-7, uuid: 743e8dd1-6486-4814-b9b0-d981afe4b0be, title: 'Fixture issue: sub-issue'}
+    canceled_issue: {identifier: SAR-8, uuid: a3896f17-a49b-4c42-bb6c-4fb0a6c2c996, title: 'Fixture issue: canceled'}
+    done_issue: {identifier: SAR-9, uuid: 853d10b4-036d-474c-adf4-4a0ebe6efbee, title: 'Fixture issue: done'}
+    issue_status: {id: 91e00ebb-7180-424a-b436-82c9f2d75346, name: Todo}
+    label: {id: 166e6019-a6be-4812-a527-1f8e3b2369a6, name: contract-fixture}
+    project: {id: fa265fda-fe3e-4049-a2a8-b4173aa5b266, name: Contract fixture project}
+    milestone: {id: 78f5b498-6c53-4e69-8fce-32cc67027324, name: Contract fixture milestone}
+    document: {id: 471c6da6-c647-4770-b6d3-27dc53189810, title: Contract fixture document}
+slack:
+  connection: slack_shipfox
+  fixtures:
+    # The read channel holds about 20 messages, so a case that passes a small `limit` gets a cursor.
+    read_channel: {id: C0C7QHHBNNL, name: test_contract-tests-read}
+    # The root of a thread with two replies. Its text is "This is a contract test, do not modify".
+    thread: {ts: '1791226001.009789', reply_ts: '1791226033.072769', last_reply_ts: '1791226036.117099'}
+    reaction_message: {ts: '1791226072.112799'}
+    unicode_message: {ts: '1791226138.522499'}
+    user: {id: U06P0R4V877}
+    write_channel: {id: C0C6ZSXHEJ0, name: test_contract-tests-write}
+clickup:
+  connection: clickup_sandbox
+  fixtures:
+    workspace: {id: '90122048821', name: Shipfox Sandbox}
+    list: {id: '901222980414', name: Contracts read}
+    # Task 869fca5cw has a long markdown and unicode description, 32 comments, a priority, a due
+    # date, and a tag. The list holds 104 tasks, so `search_tasks` has a second page.
+    task: {id: 869fca5cw, name: 'Fixture task: markdown, unicode, long description'}
+    parent_task: {id: 869fca5eg, name: 'Fixture task: parent with subtask'}
+    subtask: {id: 869fca5ek, name: 'Fixture task: subtask'}
+    closed_task: {id: 869fca5ep, name: 'Fixture task: closed'}
+    write_list: {id: '901222980415', name: Contracts write}
+notion:
+  connection: notion_shipfox
+  fixtures:
+    # The page has 65 blocks (markdown, unicode, a table, and a code block) and 32 comments.
+    page: {id: 3f0c6baa-a59e-8196-b7be-c029ce003cdb, title: 'Fixture page: markdown, unicode, long content'}
+    # 105 rows, so a query has a second page.
+    data_source: {id: 5b1fefb2-b903-4a0b-a9c5-545f17fcf955, name: Fixture data source}
+    archived_page: {id: 3f0c6baa-a59e-81b1-8f36-e6e5e19c3f84, title: 'Fixture page: archived'}
+    write_parent_page: {id: 3f0c6baa-a59e-81a7-a48b-f0546bed3e65, title: Contracts write}
+posthog:
+  connection: posthog_sandbox
+  fixtures:
+    # The EU project `sandbox`. It holds 40 `contract_event`, 10 `contract_purchase`, and one
+    # `$exception`, from 4 users, all dated September 2026. Cases must not use relative date ranges.
+    project: {id: 295166, region: eu}
+    event: {name: contract_event, count: 40}
+    purchase_event: {name: contract_purchase, count: 10}
+    feature_flag: {id: 301243, key: contract-flag}
+    disabled_feature_flag: {id: 301244, key: contract-flag-disabled}
+    insight: {id: 6355500, short_id: wTSHwcPR, name: Contract fixture insight}
+    dashboard: {id: 999696, name: Contract fixture dashboard}
+    experiment: {id: 99531, name: Contract fixture experiment}
+    survey: {id: 01a10dad-d398-0000-5b35-0c6a08cd8ee8, name: Contract fixture survey}
+    error_issue: {id: 01a10dad-c7e2-7443-80df-5aed63a6eb5d, name: ContractError}
 jira:
   connection: jira_shipfox_sandbox
   fixtures:
