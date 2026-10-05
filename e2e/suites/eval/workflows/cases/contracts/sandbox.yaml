@@ -2,8 +2,12 @@
 # sandbox objects only.
 #
 # `fixtures` are objects that exist and that the connection can read. Round-trip cases write only
-# in the `write_*` containers. The `read` that proves each fixture still exists, and the `targets`
-# that must fail, are added with the cases that use them.
+# in the `write_*` containers. The `read` that proves each fixture still exists is added with the
+# cases that use it.
+#
+# `targets` are objects that must fail, and only error cases read them. An `absent` target does not
+# exist, and its value is one nobody can create by accident. An `inaccessible` target exists outside
+# the connection's reach.
 github:
   connection: github_sandbox
   fixtures:
@@ -21,6 +25,11 @@ github:
     merged_pull_request: {number: 37, title: 'Fixture PR: merged'}
     # Runs expire, so cases find the latest completed run through `list_workflow_runs`.
     workflow: {id: 375690478, file: fixture.yml, name: Fixture}
+  targets:
+    # The owner exists, so the call fails on the repository and not on the owner.
+    missing_repository: {kind: absent, owner: ShipfoxSandbox, name: contract-absent-7f3a9c41}
+    # A private repository outside the sandbox installation. GitHub answers as if it did not exist.
+    private_repository: {kind: inaccessible, owner: ShipfoxHQ, name: cloud}
 linear:
   connection: linear_shipfox_sandbox
   fixtures:
@@ -40,6 +49,8 @@ linear:
     project: {id: fa265fda-fe3e-4049-a2a8-b4173aa5b266, name: Contract fixture project}
     milestone: {id: 78f5b498-6c53-4e69-8fce-32cc67027324, name: Contract fixture milestone}
     document: {id: 471c6da6-c647-4770-b6d3-27dc53189810, title: Contract fixture document}
+  targets:
+    missing_issue: {kind: absent, identifier: SAR-999999}
 slack:
   connection: slack_shipfox
   fixtures:
@@ -51,6 +62,10 @@ slack:
     unicode_message: {ts: '1791226138.522499'}
     user: {id: U06P0R4V877}
     write_channel: {id: C0C6ZSXHEJ0, name: test_contract-tests-write}
+  targets:
+    missing_channel: {kind: absent, id: C0000000000}
+    # A private channel the bot has not joined.
+    private_channel: {kind: inaccessible, id: C0C6VLHCQVC}
 clickup:
   connection: clickup_sandbox
   fixtures:
@@ -63,6 +78,8 @@ clickup:
     subtask: {id: 869fca5ek, name: 'Fixture task: subtask'}
     closed_task: {id: 869fca5ep, name: 'Fixture task: closed'}
     write_list: {id: '901222980415', name: Contracts write}
+  targets:
+    missing_task: {kind: absent, id: 869zzzzzz}
 notion:
   connection: notion_shipfox
   fixtures:
@@ -72,6 +89,9 @@ notion:
     data_source: {id: 5b1fefb2-b903-4a0b-a9c5-545f17fcf955, name: Fixture data source}
     archived_page: {id: 3f0c6baa-a59e-81b1-8f36-e6e5e19c3f84, title: 'Fixture page: archived'}
     write_parent_page: {id: 3f0c6baa-a59e-81a7-a48b-f0546bed3e65, title: Contracts write}
+  targets:
+    # A well-formed UUID, so Notion answers that the page is missing, not that the id is invalid.
+    missing_page: {kind: absent, id: 00000000-0000-4000-8000-000000000000}
 posthog:
   connection: posthog_sandbox
   fixtures:
@@ -87,6 +107,8 @@ posthog:
     experiment: {id: 99531, name: Contract fixture experiment}
     survey: {id: 01a10dad-d398-0000-5b35-0c6a08cd8ee8, name: Contract fixture survey}
     error_issue: {id: 01a10dad-c7e2-7443-80df-5aed63a6eb5d, name: ContractError}
+  targets:
+    missing_feature_flag: {kind: absent, id: 999999999}
 jira:
   connection: jira_shipfox_sandbox
   fixtures:
@@ -97,6 +119,8 @@ jira:
     issue: {key: E2ER-1, id: '10010', summary: 'E2E - Example issue'}
     comment: {id: '10000', body: 'This is a test comment used by contract tests, do not modify it.'}
     user: {account_id: '712020:f852ec40-ff63-415f-9dd3-1a681b8c9037', display_name: 'Noé Charmet'}
+  targets:
+    missing_issue: {kind: absent, key: E2ER-999999}
 sentry:
   connection: sentry_shipfox
   fixtures:
@@ -105,6 +129,8 @@ sentry:
     # The issue that `sentry-fixture-seed.yaml` keeps alive with one event a day. Its events change,
     # so no event id is pinned. Sentry ids are numeric strings.
     issue: {id: '151508352', short_id: SANDBOX-1, title: Contract fixture event}
+  targets:
+    missing_issue: {kind: absent, id: '999999999999'}
 discord:
   connection: discord_shipfox_sandbox
   fixtures:
@@ -116,3 +142,6 @@ discord:
     thread: {id: '1556728176573681897', name: Contract test thread}
     write_channel: {id: '1556728776744898701', name: contract-test-write}
     user: {id: '1223593063809548341', username: noe_charmet_shipfox}
+  targets:
+    # A snowflake dated in the future, so Discord can never issue it.
+    missing_channel: {kind: absent, id: '9000000000000000000'}
