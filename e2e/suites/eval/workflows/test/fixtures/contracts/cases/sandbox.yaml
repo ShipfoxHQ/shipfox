@@ -22,6 +22,15 @@ linear:
         with: {id: $fixture.linear.issue.identifier}
         expect:
           values: {id: $fixture.linear.issue.identifier}
-    team: {id: 4f0c, name: Contracts}
+    team:
+      id: 4f0c
+      name: Contracts
+      read:
+        tool: get_team
+        with: {query: $fixture.linear.team.name}
+        expect:
+          values: {id: $fixture.linear.team.id}
   targets:
     missing_issue: {kind: absent, identifier: CON-999999}
+  agent:
+    reads: [issue, team]

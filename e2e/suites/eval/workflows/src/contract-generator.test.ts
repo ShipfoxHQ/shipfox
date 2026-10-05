@@ -2,6 +2,7 @@ import {cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/prom
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import type {ToolGrant} from '@shipfox/actions/tool-grants';
 import {afterEach, beforeEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {generateContractFiles} from './contract-generator.js';
 import {defaultOutputRoot, findContractDrift, writeContractFiles} from './contract-output.js';
@@ -19,6 +20,28 @@ const missingErrorPattern = /a case of kind `error` needs a step with `expect.er
 const duplicateJobPattern = /the job key "get_issue" is used by another case/u;
 const fileNamePattern = /the file name must make a job key/u;
 const shapeFieldPattern = /the shape field "bad-field" must be letters/u;
+const agentJobKeyPattern = /the job key "agent_anthropic" is used by another case/u;
+const noReadToolPattern = /linear\.agent: the catalog has no read tool to enable/u;
+const agentReadFixturePattern = /linear\.agent\.reads: "missing" is not a fixture with a read/u;
+const agentReadValuesPattern = /the read of fixture "team" has no expect\.values to compare/u;
+
+const read: ToolGrant = {sensitivity: 'read', result: 'json'};
+const write: ToolGrant = {sensitivity: 'write', result: 'json'};
+const grants: Record<string, Record<string, ToolGrant>> = {
+  github: {issue_read: read},
+  linear: {
+    get_issue: read,
+    get_team: read,
+    list_teams: read,
+    save_issue: write,
+    // A family with a write method is selected method by method.
+    issue_label: {
+      sensitivity: 'write',
+      result: 'json',
+      methods: {get: 'read', update: 'write'},
+    },
+  },
+};
 
 async function readExpected(): Promise<Record<string, string>> {
   const directory = join(fixtureRoot, 'expected');
@@ -53,7 +76,7 @@ describe('generateContractFiles', () => {
   }
 
   it('generates the provider files and the nightly start file for the fixture cases', async () => {
-    const generated = generateContractFiles(await generate());
+    const generated = generateContractFiles(await generate(), {grants});
 
     expect(Object.fromEntries(generated.map(({name, content}) => [name, content]))).toEqual(
       await readExpected(),
@@ -77,6 +100,61 @@ describe('generateContractFiles', () => {
     );
 
     expect(generateContractFiles(await generate())).toEqual([]);
+  });
+
+  it('adds one agent job per model family to a provider that declares agent reads', async () => {
+    const generated = generateContractFiles(await generate(), {grants});
+    const linear = generated.find(({name}) => name === 'contracts-linear.yaml')?.content;
+    const github = generated.find(({name}) => name === 'contracts-github.yaml')?.content;
+
+    expect(linear).toContain('  agent_anthropic:\n');
+    expect(linear).toContain('  agent_deepseek:\n');
+    expect(linear?.match(/allow_write: false/gu)).toHaveLength(2);
+    expect(github).not.toContain('agent_');
+  });
+
+  it('enables every read tool, and only the read methods of a mixed family', async () => {
+    const linear = generateContractFiles(await generate(), {grants}).find(
+      ({name}) => name === 'contracts-linear.yaml',
+    );
+
+    expect(linear?.content).toContain('include:\n              - get_issue\n');
+    expect(linear?.content).toContain('- issue_label.get\n');
+    expect(linear?.content).not.toContain('issue_label.update');
+    expect(linear?.content).not.toContain('save_issue\n');
+  });
+
+  it('rejects an agent job when the catalog has no read tool for the provider', async () => {
+    await expect(async () =>
+      generateContractFiles(await generate(), {grants: {linear: {save_issue: write}}}),
+    ).rejects.toThrow(noReadToolPattern);
+  });
+
+  it('rejects an agent read that names a fixture without a read, or without values', async () => {
+    const manifest = await readFile(join(casesRoot, 'sandbox.yaml'), 'utf8');
+
+    await writeFile(
+      join(casesRoot, 'sandbox.yaml'),
+      manifest.replace('reads: [issue, team]', 'reads: [issue, missing]'),
+    );
+    await expect(generate()).rejects.toThrow(agentReadFixturePattern);
+
+    await writeFile(
+      join(casesRoot, 'sandbox.yaml'),
+      manifest.replace('values: {id: $fixture.linear.team.id}', 'shape: {id: string}'),
+    );
+    await expect(generate()).rejects.toThrow(agentReadValuesPattern);
+  });
+
+  it('rejects a case whose job key is an agent job key', async () => {
+    await writeCase(
+      'linear/agent-anthropic.yaml',
+      'provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n',
+    );
+
+    await expect(async () => generateContractFiles(await generate(), {grants})).rejects.toThrow(
+      agentJobKeyPattern,
+    );
   });
 
   it('names a job after its case file', async () => {
@@ -234,7 +312,7 @@ describe('contract drift', () => {
   });
 
   async function generated() {
-    return generateContractFiles(await loadContracts(join(fixtureRoot, 'cases')));
+    return generateContractFiles(await loadContracts(join(fixtureRoot, 'cases')), {grants});
   }
 
   it('finds no drift after the files are written', async () => {
@@ -261,7 +339,7 @@ describe('contract drift', () => {
       const path = join(casesRoot, 'linear', 'get-issue.yaml');
       await writeFile(path, (await readFile(path, 'utf8')).replace('uuid: string', 'name: string'));
 
-      const edited = generateContractFiles(await loadContracts(casesRoot));
+      const edited = generateContractFiles(await loadContracts(casesRoot), {grants});
 
       expect(await findContractDrift({generated: edited, outputRoot})).toEqual([
         'contracts-linear.yaml differs from the generated file',
