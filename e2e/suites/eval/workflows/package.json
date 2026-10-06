@@ -33,6 +33,7 @@
     "#coverage.js": "./src/coverage.ts",
     "#definitions.js": "./src/definitions.ts",
     "#deliveries.js": "./src/deliveries.ts",
+    "#discord-workspace.js": "./src/discord-workspace.ts",
     "#discovery.js": "./src/discovery.ts",
     "#execute.js": "./src/execute.ts",
     "#github-events.js": "./src/github-events.ts",

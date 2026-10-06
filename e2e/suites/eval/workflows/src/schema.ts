@@ -94,6 +94,15 @@ const slackMessageSeedSchema = z
   })
   .strict();
 
+const discordMessageSeedSchema = z
+  .object({
+    // A numeric ID, as Discord's are.
+    id: z.string().regex(/^\d{1,20}$/u),
+    user: z.string().regex(/^\d{1,20}$/u),
+    content: z.string(),
+  })
+  .strict();
+
 // A pull request the GitHub fake holds before the scenario starts, such as a dependency update.
 const seedPullRequestSchema = z
   .object({
@@ -161,6 +170,20 @@ const seedSchema = z
       })
       .strict()
       .optional(),
+    discord: z
+      .object({
+        // The text channel the messages are in, which the workflow's trigger filter must list.
+        channel: z.string().regex(/^\d{1,20}$/u),
+        // The messages the Discord fake serves in the channel, oldest first.
+        messages: z
+          .array(discordMessageSeedSchema)
+          .min(1)
+          .refine((messages) => new Set(messages.map(({id}) => id)).size === messages.length, {
+            message: 'message IDs must be unique',
+          }),
+      })
+      .strict()
+      .optional(),
     clickup: z
       .object({
         tasks: z
@@ -177,6 +200,7 @@ const seedSchema = z
 
 export type LinearIssueSeed = z.infer<typeof linearIssueSeedSchema>;
 export type SlackSeed = NonNullable<z.infer<typeof seedSchema>['slack']>;
+export type DiscordSeed = NonNullable<z.infer<typeof seedSchema>['discord']>;
 export type SeedPullRequest = z.infer<typeof seedPullRequestSchema>;
 export type ClickUpTaskSeed = z.infer<typeof clickupTaskSeedSchema>;
 

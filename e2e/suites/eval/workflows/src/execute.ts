@@ -18,6 +18,7 @@ import {arrangeClickUpWorkspace} from './clickup-workspace.js';
 import {bindConnectionSlugs} from './compile.js';
 import {composeCaseWorkflow, setRunnerLabel, templateLoaderFor} from './compose.js';
 import {createDefinition, fireManual, START_TIMEOUT_MS} from './definitions.js';
+import {arrangeDiscordWorkspace, withFreshDiscordMessageIds} from './discord-workspace.js';
 import type {DiscoveredCase} from './discovery.js';
 import {createGithubEventSender} from './github-events.js';
 import {arrangeGithubProject} from './github-project.js';
@@ -74,7 +75,14 @@ interface Arrangement {
  * the fake repository, the composed definition, a runner of its own, and then the scenario.
  * It never throws. A case that can't finish is an `error` result with the reason.
  */
-export async function executeTemplateCase(options: ExecuteCaseOptions): Promise<CaseResult> {
+export async function executeTemplateCase(caseOptions: ExecuteCaseOptions): Promise<CaseResult> {
+  const options = {
+    ...caseOptions,
+    discovered: {
+      ...caseOptions.discovered,
+      definition: withFreshDiscordMessageIds(caseOptions.discovered.definition),
+    },
+  };
   const {discovered, mode, repeat} = options;
   const templateCase = discovered.definition;
   const startedAt = Date.now();
@@ -308,7 +316,7 @@ function failureMessage({
 }
 
 /**
- * The Linear, Jira, Slack, and ClickUp connections and fakes a case binds. A provider it doesn't
+ * The Linear, Jira, Slack, Discord, and ClickUp connections and fakes a case binds. A provider it doesn't
  * bind is skipped. It returns the connection slug and the event sender of each, by provider, and
  * reads the writes of all of them.
  */
@@ -337,6 +345,10 @@ async function arrangeProviderFakes({
   if (binds('slack')) {
     const seed = templateCase.seed.slack;
     fakes.slack = await arrangeSlackWorkspace({workspaceId, uniqueId, seed, cleanups});
+  }
+  if (binds('discord')) {
+    const seed = templateCase.seed.discord;
+    fakes.discord = await arrangeDiscordWorkspace({workspaceId, uniqueId, seed, cleanups});
   }
   if (binds('clickup')) {
     const tasks = templateCase.seed.clickup?.tasks ?? [];
@@ -453,8 +465,8 @@ async function arrange({
     cleanups,
   });
 
-  // The case workspace holds a connection to the GitHub fake, and to the Linear, Jira, Slack, and
-  // ClickUp fakes when the case binds them, so only those roles bind.
+  // The case workspace holds a connection to the GitHub fake, and to the Linear, Jira, Slack,
+  // Discord, and ClickUp fakes when the case binds them, so only those roles bind.
   const connectionSlugs: Record<string, string> = {
     github: connection.slug,
     ...providers.connectionSlugs,

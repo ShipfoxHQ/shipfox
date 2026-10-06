@@ -4,5 +4,7 @@ cases:
     proves: A mention of the app starts a run that reads the thread and the code, then replies once under the question.
   - case: mention-in-thread
     proves: A mention inside a thread reads the whole thread and replies once under its parent message.
+  - case: discord-mention
+    proves: A mention in a Discord channel starts a thread under it, reads the question, and replies once in that thread.
   - case: manual
     proves: A manual start with dispatch_only passes the channel, thread, and question, and the run replies once in that thread.

@@ -1,0 +1,9 @@
+{
+  "name": "ask-codebase-discord-mention-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "report": "src/cli.js"
+  }
+}

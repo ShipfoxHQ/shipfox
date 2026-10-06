@@ -1,0 +1,38 @@
+template: shipfox/ask-codebase
+bindings: {chat: discord, source: github}
+options: {entry_point: mention}
+placeholders:
+  replace-with-channel-id: '1721300000000000001'
+modes: [scripted]
+repository: acme/report-cli
+timeout_seconds: 600
+
+covers:
+  - Replies once in the thread. On Discord, starts the thread under the mention when it has none.
+
+# The mention is a message in the channel, so there is no thread yet.
+seed:
+  discord:
+    channel: '1721300000000000001'
+    messages:
+      - id: '1721300000000000100'
+        user: '1721300000000000200'
+        content: '@Shipfox Where does the report command read the --json flag?'
+
+scenario:
+  - start:
+      event:
+        discord:
+          message_create:
+            channel_id: '1721300000000000001'
+            id: '1721300000000000100'
+            user: '1721300000000000200'
+            content: '@Shipfox Where does the report command read the --json flag?'
+  - await: {run: succeeded}
+    timeout_seconds: 300
+
+expect:
+  # The checkout is read-only, so the writes are the thread under the question and the reply in it.
+  writes:
+    - discord.create_thread: {target: '1721300000000000001/1721300000000000100', count: 1}
+    - discord.create_message: {target: '1721300000000000100', count: 1}
