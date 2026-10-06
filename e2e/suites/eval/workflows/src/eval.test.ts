@@ -15,6 +15,7 @@ const duplicatePattern = /issue identifiers must be unique/u;
 const duplicateNumberPattern = /issue numbers must be unique/u;
 const undeclaredModePattern = /does not declare mode "live"/u;
 const seedPattern = /seed\.slack\.thread/u;
+const discordSeedPattern = /seed\.discord/u;
 const placeholderPattern = /placeholders/u;
 const duplicateTaskPattern = /task IDs must be unique/u;
 
@@ -385,6 +386,22 @@ describe('case seed schema', () => {
     const seed = {slack: {channel: 'C1', thread: []}};
 
     expect(() => parseTemplateCase({...base, seed})).toThrow(seedPattern);
+  });
+
+  const discordMessage = {id: '100', user: '200', content: 'Where is it?'};
+
+  it('accepts a seeded Discord channel', () => {
+    const seed = {discord: {channel: '1', messages: [discordMessage]}};
+
+    expect(parseTemplateCase({...base, seed}).seed.discord?.messages).toHaveLength(1);
+  });
+
+  it('rejects a seeded Discord channel with no messages or a non-numeric ID', () => {
+    const empty = {discord: {channel: '1', messages: []}};
+    const named = {discord: {channel: 'general', messages: [discordMessage]}};
+
+    expect(() => parseTemplateCase({...base, seed: empty})).toThrow(discordSeedPattern);
+    expect(() => parseTemplateCase({...base, seed: named})).toThrow(discordSeedPattern);
   });
 
   it('accepts a replace-with placeholder and rejects any other name', () => {

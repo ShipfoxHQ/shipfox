@@ -372,6 +372,15 @@ bot token, so cases that use Slack run together. `placeholders` fills the `repla
 person edits in the composed file, such as `replace-with-channel-id`, which
 must name `seed.slack.channel` for a mention trigger to match.
 
+A case that binds a role to Discord gets a Discord connection and fake the same
+way. The fake serves the text channel under `seed.discord.channel` with its
+`messages`, and records the threads and messages the workflow creates as
+`discord.create_thread` and `discord.create_message`. A `start` step sends
+`discord: {message_create: {channel_id, id, user, content}}` through the handler
+the Gateway service uses, and the message `id` is the delivery ID. The
+API reaches the fake through `DISCORD_API_BASE_URL`, so one Discord case repeat
+at a time can hold it. Pass `--workers 1` with a `--repeat` above 1.
+
 A case with agent steps puts their model replies in `scripted.yaml`, next to
 `case.yaml`. In scripted mode the runner registers it with the scripted
 managed provider for the case's project, and refuses a case with agent steps

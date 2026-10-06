@@ -22,6 +22,7 @@ import {
   createSlackConnection,
 } from '@shipfox/e2e-setup-integrations';
 import type {SandboxManifest} from './contract-schema.js';
+import {discordSnowflake} from './discord-workspace.js';
 import {arrangeJiraTracker} from './jira.js';
 
 /** The `fixtures` of one provider in `sandbox.yaml`. */
@@ -326,13 +327,6 @@ export const notionContractFake: ContractFakeAdapter = async ({
 // Discord's channel types: a text channel and a public thread.
 const TEXT_CHANNEL = 0;
 const PUBLIC_THREAD = 11;
-
-/** A numeric ID of up to 20 digits, which is what the Discord tools accept. */
-function discordSnowflake(): string {
-  return `${Date.now()}${Math.floor(Math.random() * 1_000_000)
-    .toString()
-    .padStart(6, '0')}`;
-}
 
 /** Loads the fixtures the Discord cases read into the fake, under the connection's server. */
 export function seedDiscord({
