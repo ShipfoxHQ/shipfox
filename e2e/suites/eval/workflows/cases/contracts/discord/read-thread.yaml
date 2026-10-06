@@ -5,7 +5,7 @@ steps:
     with:
       channel_id: $fixture.discord.read_channel.id
       message_id: $fixture.discord.message.id
-    # The message has no thread, so it is the only one.
+    # The message has no thread, so the thread part of the answer is empty.
     expect:
       shape:
         messages: [{id: string, channel_id: string, content: string, url: string}]

@@ -300,6 +300,9 @@ describe('seedDiscord', () => {
     expect(() =>
       seedDiscord({discord: mock, guildId, fixtures: {message: fixtures.message ?? {}}}),
     ).toThrow(discordNeedsChannelPattern);
+    expect(() =>
+      seedDiscord({discord: mock, guildId, fixtures: {thread: fixtures.thread ?? {}}}),
+    ).toThrow(discordNeedsChannelPattern);
   });
 
   it('is the adapter of the discord provider', () => {
