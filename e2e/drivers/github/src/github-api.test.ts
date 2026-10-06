@@ -1,7 +1,6 @@
 import {
   GITHUB_GRAPHQL_RESULT_MARKER,
   GITHUB_READ_RESULT_MARKER,
-  GITHUB_SEARCH_RESULT_MARKER,
   GITHUB_STATEFUL_INSTALLATION_TOKEN,
   GITHUB_STATELESS_INSTALLATION_TOKEN,
   GITHUB_WRITE_RESULT_MARKER,
@@ -307,7 +306,7 @@ describe('GitHub API mock', () => {
         headers: {authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`},
       });
       const search = await fetch(
-        new URL('/search/issues?q=is%3Aopen%20repo%3Ashipfox%2Fe2e', mock.endpoint),
+        new URL('/search/issues?q=is%3Aopen%20repo%3Ashipfox%2Foutside', mock.endpoint),
         {headers: {authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`}},
       );
       const graphql = await fetch(new URL('/graphql', mock.endpoint), {
@@ -335,9 +334,7 @@ describe('GitHub API mock', () => {
         id: 43,
         full_name: 'shipfox/outside',
       });
-      await expect(search.json()).resolves.toMatchObject({
-        items: [{marker: GITHUB_SEARCH_RESULT_MARKER}],
-      });
+      await expect(search.json()).resolves.toMatchObject({total_count: 0, items: []});
       await expect(graphql.json()).resolves.toMatchObject({
         data: {
           resolveReviewThread: {
@@ -367,7 +364,7 @@ describe('GitHub API mock', () => {
         {
           kind: 'search-issues',
           authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`,
-          query: 'is:open repo:shipfox/e2e',
+          query: 'is:open repo:shipfox/outside',
         },
         {
           kind: 'graphql',

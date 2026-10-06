@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import type {IncomingMessage, ServerResponse} from 'node:http';
 import type {RecordedWrite} from '@shipfox/e2e-core';
-import {readJsonBodyOrReject, sendJson} from './http.js';
+import {paginate, readJsonBodyOrReject, sendJson} from './http.js';
 
 export const PULL_REQUEST_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)$/u;
 const PULL_REQUESTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls$/u;
@@ -12,6 +12,7 @@ const REVIEW_COMMENT_REPLY_PATH =
 const BOT_LOGIN = 'shipfox-e2e[bot]';
 const DEFAULT_AUTHOR = 'e2e-author';
 const FIXTURE_TIMESTAMP = '2026-01-01T00:00:00Z';
+const PULL_REQUEST_ID_BASE = 2_000_000;
 
 export interface GithubPullRequestFixture {
   /** Repository the pull request belongs to, as `owner/repo`. */
@@ -157,6 +158,33 @@ export function pullRequestPayload(
   };
 }
 
+/** A pull request as the issue list and search return it: the issue it is, plus a `pull_request` link. */
+export function pullRequestIssuePayload(number: number, pullRequest: GithubPullRequestFixture) {
+  const payload = pullRequestPayload(number, pullRequest);
+  return {
+    id: PULL_REQUEST_ID_BASE + number,
+    number,
+    title: payload.title,
+    body: payload.body,
+    state: payload.state,
+    locked: false,
+    draft: payload.draft,
+    user: payload.user,
+    labels: [],
+    assignees: [],
+    comments: 0,
+    html_url: payload.html_url,
+    pull_request: {
+      html_url: payload.html_url,
+      merged_at: pullRequest.merged ? FIXTURE_TIMESTAMP : null,
+    },
+    created_at: FIXTURE_TIMESTAMP,
+    updated_at: FIXTURE_TIMESTAMP,
+    closed_at: payload.state === 'closed' ? FIXTURE_TIMESTAMP : null,
+    author_association: 'MEMBER',
+  };
+}
+
 /** Pull requests are numbered per stack here, so the repository check keeps a request honest. */
 export function findPullRequest(
   pullRequests: Map<number, GithubPullRequestFixture>,
@@ -182,7 +210,7 @@ function listPullRequests(context: RouteContext): void {
     .filter(([, pullRequest]) => base === null || (pullRequest.base ?? 'main') === base)
     .sort(([left], [right]) => right - left)
     .map(([number, pullRequest]) => pullRequestPayload(number, pullRequest));
-  sendJson(context.response, 200, items);
+  sendJson(context.response, 200, paginate(items, searchParams));
 }
 
 async function createPullRequest(context: RouteContext): Promise<void> {
@@ -383,7 +411,7 @@ function commentIds(thread: GithubReviewThreadFixture): number[] {
   return thread.comments.map((comment) => comment.id);
 }
 
-function effectiveState(pullRequest: GithubPullRequestFixture): 'open' | 'closed' {
+export function effectiveState(pullRequest: GithubPullRequestFixture): 'open' | 'closed' {
   return pullRequest.merged ? 'closed' : (pullRequest.state ?? 'open');
 }
 

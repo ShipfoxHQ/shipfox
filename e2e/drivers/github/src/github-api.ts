@@ -2,6 +2,12 @@ import {createHash} from 'node:crypto';
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
 import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-core';
 import {
+  type ActionsRoutes,
+  createActionsRoutes,
+  type GithubWorkflowFixture,
+  type GithubWorkflowRunFixture,
+} from './actions.js';
+import {
   type AddGithubBranchParams,
   type AddGithubRepositoryParams,
   createGitRepositories,
@@ -14,6 +20,7 @@ import {
   findIssue,
   type GithubIssueFixture,
   ISSUE_PATH,
+  ISSUES_PATH,
   type IssueRoutes,
   issuePayload,
 } from './issues.js';
@@ -26,6 +33,7 @@ import {
   type PullRequestRoutes,
   pullRequestPayload,
 } from './pull-requests.js';
+import {searchIssues} from './search.js';
 import {createGithubWebhookSender, type GithubWebhookSender} from './webhook-events.js';
 
 const JWT_SEGMENT_LENGTH = 169;
@@ -38,16 +46,13 @@ export const GITHUB_STATELESS_INSTALLATION_TOKEN =
 export const GITHUB_STATEFUL_INSTALLATION_TOKEN = `ghs_${'d'.repeat(36)}`;
 export const GITHUB_READ_RESULT_MARKER = 'github-read-result-marker';
 export const GITHUB_WRITE_RESULT_MARKER = 'github-write-result-marker';
-export const GITHUB_SEARCH_RESULT_MARKER = 'github-search-result-marker';
 export const GITHUB_GRAPHQL_RESULT_MARKER = 'github-graphql-result-marker';
 
 const INSTALLATION_TOKEN_PATH = /^\/app\/installations\/(\d+)\/access_tokens$/u;
 const REPOSITORY_PATH = /^\/repositories\/(\d+)$/u;
 const REPOSITORY_BY_NAME_PATH = /^\/repos\/([^/]+)\/([^/]+)$/u;
-const ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues$/u;
 const CHECK_RUN_CREATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs$/u;
 const CHECK_RUN_UPDATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs\/(\d+)$/u;
-const WORKFLOW_RUNS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/actions\/workflows\/([^/]+)\/runs$/u;
 const USER_PATH = /^\/users\/([^/]+)$/u;
 const SEARCH_ISSUES_PATH = /^\/search\/issues$/u;
 const GRAPHQL_PATH = /^\/graphql$/u;
@@ -139,6 +144,10 @@ export interface GithubApiMock extends GithubWebhookSender {
    * Pull requests share the numbering, so seed numbers a pull request won't take.
    */
   issues: Map<number, GithubIssueFixture>;
+  /** Workflows by id. A repository with none answers an empty workflow list. */
+  workflows: Map<number, GithubWorkflowFixture>;
+  /** Workflow runs by id. A workflow with none answers an empty run list. */
+  workflowRuns: Map<number, GithubWorkflowRunFixture>;
   /** Branch tips for createCommitOnBranch's compare-and-swap, by branch name. */
   branchHeads: Map<string, string>;
   /** Creates a bare repository the fake serves over git and describes in its repository API. */
@@ -193,6 +202,8 @@ export async function startGithubApiMock(
   const branchHeads = new Map<string, string>();
   const reviewThreads = new Map<string, GithubReviewThreadFixture>();
   const issues = new Map<number, GithubIssueFixture>();
+  const workflows = new Map<number, GithubWorkflowFixture>();
+  const workflowRuns = new Map<number, GithubWorkflowRunFixture>();
   const writes: RecordedWrite[] = [];
   const recordWrite = (write: RecordedWrite, authorization: string | undefined) => {
     if (isCurrentInstallationAuthorization({installationId, installationToken, authorization})) {
@@ -206,7 +217,8 @@ export async function startGithubApiMock(
     issues,
     recordWrite,
   });
-  const issueRoutes = createIssueRoutes({issues, recordWrite});
+  const issueRoutes = createIssueRoutes({issues, pullRequests, recordWrite});
+  const actionsRoutes = createActionsRoutes({workflows, workflowRuns});
   const repositories = createGitRepositories();
   const webhookSender = createGithubWebhookSender({
     installationId,
@@ -235,6 +247,7 @@ export async function startGithubApiMock(
       pullRequestRoutes,
       issues,
       issueRoutes,
+      actionsRoutes,
       branchHeads,
       repositories,
       recordWrite: (write) => writes.push(write),
@@ -264,6 +277,8 @@ export async function startGithubApiMock(
     pullRequests,
     reviewThreads,
     issues,
+    workflows,
+    workflowRuns,
     branchHeads,
     addRepository: (params) => repositories.add(params),
     addBranch: async (params) => {
@@ -298,6 +313,7 @@ interface GithubRequestContext {
   pullRequestRoutes: PullRequestRoutes;
   issues: Map<number, GithubIssueFixture>;
   issueRoutes: IssueRoutes;
+  actionsRoutes: ActionsRoutes;
   branchHeads: Map<string, string>;
   repositories: GitRepositories;
   recordWrite: (write: RecordedWrite) => void;
@@ -321,6 +337,7 @@ async function handleGithubRequest(params: {
   pullRequestRoutes: PullRequestRoutes;
   issues: Map<number, GithubIssueFixture>;
   issueRoutes: IssueRoutes;
+  actionsRoutes: ActionsRoutes;
   branchHeads: Map<string, string>;
   repositories: GitRepositories;
   recordWrite: (write: RecordedWrite) => void;
@@ -407,16 +424,13 @@ async function handleRoutedRequest(
     response: ServerResponse;
     issueRoutes: IssueRoutes;
     pullRequestRoutes: PullRequestRoutes;
+    actionsRoutes: ActionsRoutes;
   },
   requestUrl: URL,
 ): Promise<void> {
   if (await params.issueRoutes.handle(params.request, params.response, requestUrl)) return;
   if (await params.pullRequestRoutes.handle(params.request, params.response, requestUrl)) return;
-  if (requestMatches(params.request, 'GET', requestUrl.pathname.match(WORKFLOW_RUNS_PATH))) {
-    // The fake keeps no run history, so a workflow has never run before the event that starts a case.
-    sendJson(params.response, 200, {total_count: 0, workflow_runs: []});
-    return;
-  }
+  if (params.actionsRoutes.handle(params.request, params.response, requestUrl)) return;
   sendJson(params.response, 404, {message: 'Not Found'});
 }
 
@@ -642,11 +656,15 @@ function handleSearchIssuesRequest(params: GithubRequestContext): void {
       query: params.requestUrl.searchParams.get('q'),
     });
   }
-  sendJson(params.response, 200, {
-    total_count: 1,
-    incomplete_results: false,
-    items: [{marker: GITHUB_SEARCH_RESULT_MARKER}],
-  });
+  sendJson(
+    params.response,
+    200,
+    searchIssues({
+      issues: params.issues,
+      pullRequests: params.pullRequests,
+      query: params.requestUrl.searchParams.get('q') ?? '',
+    }),
+  );
 }
 
 async function handleGraphqlRequest(params: GithubRequestContext): Promise<void> {

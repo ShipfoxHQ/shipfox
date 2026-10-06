@@ -5,7 +5,6 @@ import {createApiClient} from '@shipfox/e2e-core';
 import {
   GITHUB_GRAPHQL_RESULT_MARKER,
   GITHUB_READ_RESULT_MARKER,
-  GITHUB_SEARCH_RESULT_MARKER,
   GITHUB_STATEFUL_INSTALLATION_TOKEN,
   GITHUB_STATELESS_INSTALLATION_TOKEN,
   GITHUB_WRITE_RESULT_MARKER,
@@ -158,7 +157,7 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
           },
           {
             kind: 'message_content_includes',
-            value: GITHUB_SEARCH_RESULT_MARKER,
+            value: 'https://github.com/shipfox/e2e/pull/1',
             minRequestIndex: 2,
           },
           {

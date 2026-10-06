@@ -1,5 +1,5 @@
 provider: github
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: actions_list
     method: list_workflow_runs

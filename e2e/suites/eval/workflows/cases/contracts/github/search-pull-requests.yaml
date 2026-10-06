@@ -1,5 +1,5 @@
 provider: github
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: search_pull_requests
     with:
