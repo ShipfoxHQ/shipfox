@@ -32,7 +32,7 @@ const data: Templates['order-shipped'] = {
 };
 
 describe('createEmailRenderer', () => {
-  test('renders a template from a directory outside the package with the shared chrome', async () => {
+  test('renders a template from a caller-owned directory with the shared chrome', async () => {
     const email = await render('order-shipped', data);
 
     expect(email.subject).toBe('Order for Alice');

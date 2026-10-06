@@ -72,7 +72,7 @@ const {subject, html, text} = await render('balance-low', data);
   silently dropped and both branches render. Wrap it in `<mj-raw>`, for example
   `<mj-raw>{{#if x}}</mj-raw>`. The renderer throws `EmailTemplateError` for a bare block
   helper. `{{#each}}` inside `mj-table` or `mj-text` works as written.
-- **Sanitising.** String values, including those nested in arrays and objects, are stripped
+- **Sanitising.** String values, including those nested in arrays and plain objects, are stripped
   of control characters before rendering. `{{var}}` HTML-escapes them.
 - **Shipping.** The `templatesDir` must ship in your deployment image.
 
