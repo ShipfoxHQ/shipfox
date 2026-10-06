@@ -1,0 +1,15 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: insight-query
+    with:
+      insightId: $fixture.posthog.insight.id
+    expect:
+      shape:
+        insight: {id: number, short_id: string, name: string}
+        results: [{count: number, label: string}]
+      values:
+        insight.id: $fixture.posthog.insight.id
+        insight.short_id: $fixture.posthog.insight.short_id
+        results[0].label: $fixture.posthog.event.name
+        results[0].count: $fixture.posthog.event.count

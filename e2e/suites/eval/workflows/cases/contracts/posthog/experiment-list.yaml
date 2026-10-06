@@ -1,0 +1,12 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: experiment-list
+    with:
+      search: $fixture.posthog.experiment.name
+    expect:
+      shape:
+        count: number
+        results: [{id: number, name: string, status: string}]
+      includes:
+        results: {id: $fixture.posthog.experiment.id, name: $fixture.posthog.experiment.name}

@@ -393,11 +393,54 @@ posthog:
             results[0].id: $fixture.posthog.feature_flag.id
             results[0].key: $fixture.posthog.feature_flag.key
     disabled_feature_flag: {id: 301244, key: contract-flag-disabled}
-    insight: {id: 6355500, short_id: wTSHwcPR, name: Contract fixture insight}
-    dashboard: {id: 999696, name: Contract fixture dashboard}
-    experiment: {id: 99531, name: Contract fixture experiment}
-    survey: {id: 01a10dad-d398-0000-5b35-0c6a08cd8ee8, name: Contract fixture survey}
-    error_issue: {id: 01a10dad-c7e2-7443-80df-5aed63a6eb5d, name: ContractError}
+    insight:
+      id: 6355500
+      short_id: wTSHwcPR
+      name: Contract fixture insight
+      read:
+        tool: insight-get
+        with: {id: $fixture.posthog.insight.id}
+        expect:
+          values:
+            id: $fixture.posthog.insight.id
+    # The dashboard holds no tile.
+    dashboard:
+      id: 999696
+      name: Contract fixture dashboard
+      read:
+        tool: dashboard-get
+        with: {id: $fixture.posthog.dashboard.id}
+        expect:
+          matches:
+            content: '"id":$fixture.posthog.dashboard.id,'
+    # A draft experiment, so it has no results.
+    experiment:
+      id: 99531
+      name: Contract fixture experiment
+      read:
+        tool: experiment-get
+        with: {id: $fixture.posthog.experiment.id}
+        expect:
+          values:
+            id: $fixture.posthog.experiment.id
+    survey:
+      id: 01a10dad-d398-0000-5b35-0c6a08cd8ee8
+      name: Contract fixture survey
+      read:
+        tool: survey-get
+        with: {id: $fixture.posthog.survey.id}
+        expect:
+          values:
+            id: $fixture.posthog.survey.id
+    error_issue:
+      id: 01a10dad-c7e2-7443-80df-5aed63a6eb5d
+      name: ContractError
+      read:
+        tool: query-error-tracking-issue
+        with: {issueId: $fixture.posthog.error_issue.id}
+        expect:
+          values:
+            id: $fixture.posthog.error_issue.id
   targets:
     missing_feature_flag: {kind: absent, id: 999999999}
 jira:

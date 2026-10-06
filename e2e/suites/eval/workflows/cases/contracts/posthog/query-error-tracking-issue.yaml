@@ -1,0 +1,14 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: query-error-tracking-issue
+    with:
+      issueId: $fixture.posthog.error_issue.id
+    expect:
+      shape:
+        id: string
+        name: string
+        status: string
+      values:
+        id: $fixture.posthog.error_issue.id
+        name: $fixture.posthog.error_issue.name

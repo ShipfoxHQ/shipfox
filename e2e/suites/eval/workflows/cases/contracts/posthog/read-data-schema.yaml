@@ -1,0 +1,13 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: read-data-schema
+    with:
+      query:
+        kind: events
+    expect:
+      # The events come as a Markdown list inside text, and a project that stopped sending an event
+      # lists it as "not seen", so only its name is part of the contract.
+      text:
+        - '(^|\n)- `$fixture.posthog.event.name`'
+        - '(^|\n)- `$fixture.posthog.purchase_event.name`'

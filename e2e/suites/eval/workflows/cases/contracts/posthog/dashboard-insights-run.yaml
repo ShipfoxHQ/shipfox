@@ -1,0 +1,12 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: dashboard-insights-run
+    with:
+      id: $fixture.posthog.dashboard.id
+      output_format: json
+    expect:
+      # The fixture dashboard has no tile, so the list is empty and there is no item to check.
+      shape:
+        results: list
+        _posthogUrl: string

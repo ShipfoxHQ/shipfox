@@ -1,0 +1,12 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: feature-flag-get-definition
+    with:
+      id: $fixture.posthog.feature_flag.id
+    expect:
+      shape: {id: number, key: string, active: boolean}
+      values:
+        id: $fixture.posthog.feature_flag.id
+        key: $fixture.posthog.feature_flag.key
+        active: true

@@ -1,0 +1,12 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: surveys-get-all
+    with:
+      search: $fixture.posthog.survey.name
+    expect:
+      shape:
+        count: number
+        results: [{id: string, name: string, type: string}]
+      includes:
+        results: {id: $fixture.posthog.survey.id, name: $fixture.posthog.survey.name}

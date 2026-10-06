@@ -1,0 +1,12 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: dashboard-get
+    with:
+      id: $fixture.posthog.dashboard.id
+    expect:
+      shape:
+        content: string
+      # The dashboard comes as JSON inside a reference block of text.
+      matches:
+        content: '"id":$fixture.posthog.dashboard.id,"name":"$fixture.posthog.dashboard.name"'
