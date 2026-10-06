@@ -1119,7 +1119,11 @@ export async function recordStepResultInTransaction(
     tx,
   );
 
-  const {result, gateEvaluationAllowed} = normalizeReportedStepResult(params, target.config);
+  const {result, gateEvaluationAllowed} = normalizeReportedStepResult(
+    params,
+    target.config,
+    target.type,
+  );
   const transition = await decideReportedStepTransition({
     jobId: jobExecution.jobId,
     stepId: params.stepId,
@@ -1147,6 +1151,7 @@ export async function recordStepResultInTransaction(
 function normalizeReportedStepResult(
   params: RecordStepResultParams,
   config: Record<string, unknown>,
+  stepType: Step['type'],
 ): {result: ReportedStepResult; gateEvaluationAllowed: boolean} {
   const reported: ReportedStepResult = {
     status: params.status,
@@ -1159,7 +1164,7 @@ function normalizeReportedStepResult(
   const reportedDiagnostic = findOversizedReportedDiagnostic(reported);
   if (reportedDiagnostic) return failedReportedStepResult(reported, reportedDiagnostic);
 
-  const outputCoercion = coerceReportedStepOutput(config, reported);
+  const outputCoercion = coerceReportedStepOutput(config, reported, stepType);
   if (outputCoercion.kind === 'coerced') {
     // Output declarations wrap the runner value in a new object. Validate
     // that persisted representation too; the framed runner payload can be
@@ -1327,15 +1332,22 @@ export function classifyReportedStep(
 function coerceReportedStepOutput(
   config: Record<string, unknown>,
   result: ReportedStepResult,
+  stepType: Step['type'],
 ): OutputCoercionResult {
   const declarations = readStepOutputs(config);
+  // Tool steps report typed values from CEL mappings, not runner text, so a string
+  // that looks like JSON must stay a string.
+  const parseJsonText = stepType !== 'tool';
   if (declarations === undefined) return {kind: 'not-applicable'};
   if (result.status !== 'succeeded') {
     if (result.output === null) return {kind: 'not-applicable'};
-    return {kind: 'coerced', output: coerceKeptStepOutputs({declarations, output: result.output})};
+    return {
+      kind: 'coerced',
+      output: coerceKeptStepOutputs({declarations, output: result.output, parseJsonText}),
+    };
   }
 
-  const coerced = coerceStepOutputs({declarations, output: result.output});
+  const coerced = coerceStepOutputs({declarations, output: result.output, parseJsonText});
   if (!coerced.ok) return {kind: 'failed', error: coerced.error};
   return {kind: 'coerced', output: coerced.output};
 }

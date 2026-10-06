@@ -27,3 +27,8 @@ expect:
         target: C0FAILURES
         text: {contains: ['Failing build #1', 'Failed: build › Compile']}
         count: 1
+    - slack.chat.postMessage:
+        target: C0FAILURES
+        thread_ts: '1721300000.000002'
+        text: {contains: ['eval diagnosis']}
+        count: 1

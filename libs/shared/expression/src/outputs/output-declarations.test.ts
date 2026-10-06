@@ -205,6 +205,48 @@ describe('coerceStepOutputs', () => {
     });
   });
 
+  it('keeps string values for JSON outputs when the reporter already typed them', () => {
+    const output = {
+      ts: '1791226001.009789',
+      id: '12345678901234567890',
+      flag: 'true',
+      payload: '{"name":"build"}',
+    };
+
+    const result = coerceStepOutputs({
+      declarations: {
+        ts: {type: 'json'},
+        id: {type: 'json'},
+        flag: {type: 'json'},
+        payload: {type: 'json'},
+      },
+      output,
+      parseJsonText: false,
+    });
+
+    expect(result).toEqual({ok: true, output});
+  });
+
+  it('still validates JSON schemas when text parsing is off', () => {
+    const result = coerceStepOutputs({
+      declarations: {ts: {type: 'json', schema: {type: 'string'}}},
+      output: {ts: '1791226001.009789'},
+      parseJsonText: false,
+    });
+
+    expect(result).toEqual({ok: true, output: {ts: '1791226001.009789'}});
+  });
+
+  it('rejects a value that misses its JSON schema when text parsing is off', () => {
+    const result = coerceStepOutputs({
+      declarations: {ts: {type: 'json', schema: {type: 'object'}}},
+      output: {ts: '1791226001.009789'},
+      parseJsonText: false,
+    });
+
+    expect(result).toMatchObject({ok: false, error: {key: 'ts', reason: 'schema_invalid'}});
+  });
+
   it('coerces declared scalar output values', () => {
     const result = coerceStepOutputs({
       declarations: {
