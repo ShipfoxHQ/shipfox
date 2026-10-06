@@ -72,6 +72,7 @@ await connection.close();
 | `TEMPORAL_NAMESPACE` | `default` | Temporal namespace. |
 | `TEMPORAL_TASK_QUEUE` | `shipfox` | Default task queue for workers. |
 | `TEMPORAL_API_KEY` | none | API key used to connect to Temporal Cloud. Store it as a secret. |
+| `TEMPORAL_PREBUILT_WORKFLOW_BUNDLES` | `false` | Loads build-time workflow bundles outside production. Production always loads them. |
 | `OTEL_TEMPORAL_METRICS_PORT` | `9465` | Port that exposes native Temporal Prometheus metrics. |
 | `OTEL_SDK_DISABLED` | `false` | Disables Temporal telemetry together with the shared OpenTelemetry SDK. |
 
@@ -84,7 +85,8 @@ await connection.close();
 - This package does not configure mutual TLS (mTLS) client certificates.
 - Production packages run `shipfox-temporal-bundle` after SWC emits a workflow entrypoint. The command writes sibling `*.bundle.js` and `*.bundle.meta.json` files.
 - Production workers load the bundle instead of compiling it. Startup fails when an artifact is missing. It also fails when the `@temporalio/worker` version differs from the runtime version.
-- Development workers keep using `workflowsPath`. The bundle build includes workflow interceptors. Production workers use those interceptors from the prebuilt bundle.
+- Development workers keep using `workflowsPath`, which compiles each workflow entrypoint at worker startup. Set `TEMPORAL_PREBUILT_WORKFLOW_BUNDLES=true` to load the bundles from a completed build instead. The E2E harness does this, because it builds the API before it starts it.
+- The bundle build includes workflow interceptors. Production workers use those interceptors from the prebuilt bundle.
 
 ## Development
 
