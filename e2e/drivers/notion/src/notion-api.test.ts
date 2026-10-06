@@ -151,6 +151,8 @@ describe('Notion API mock', () => {
           results: [{id: 'row-1'}, {id: 'row-2'}, {id: 'row-3'}],
           has_more: true,
           next_cursor: '3',
+          type: 'page_or_data_source',
+          page_or_data_source: {},
         });
         expect(second).toMatchObject({
           results: [{id: 'row-4'}, {id: 'row-5'}],

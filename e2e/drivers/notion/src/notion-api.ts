@@ -329,8 +329,8 @@ function queryDataSource({
     results: dataSource.rows.slice(offset, end).map(pageBody),
     next_cursor: end < dataSource.rows.length ? String(end) : null,
     has_more: end < dataSource.rows.length,
-    type: 'page',
-    page: {},
+    type: 'page_or_data_source',
+    page_or_data_source: {},
   });
 }
 
