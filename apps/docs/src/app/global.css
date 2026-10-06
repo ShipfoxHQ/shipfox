@@ -247,6 +247,10 @@ html {
   margin-inline-start: var(--margin-inline);
 }
 
+@utility ms-region {
+  margin-inline-start: var(--margin-region);
+}
+
 @utility mb-inline {
   margin-bottom: var(--margin-inline);
 }
