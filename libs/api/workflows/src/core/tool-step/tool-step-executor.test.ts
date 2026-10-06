@@ -4,6 +4,7 @@ import {type LogsModuleClient, logsInterModuleContract} from '@shipfox/api-logs-
 import {createWorkflowExpression, type OutputDeclarations} from '@shipfox/expression';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {createOutboxRegistry} from '@shipfox/node-module';
+import {SpanStatusCode, trace} from '@shipfox/node-opentelemetry';
 import {eq} from 'drizzle-orm';
 import {MAX_JOB_OUTPUT_NESTING_DEPTH} from '#core/step-config/job-output-limits.js';
 import {db} from '#db/db.js';
@@ -1016,6 +1017,40 @@ describe('tool step executor', () => {
         error_code: 'connection_not_found',
       }),
     ]);
+  });
+
+  test('marks the span as failed when the provider call fails', async () => {
+    const {jobId} = await arrangeToolStep();
+    const callTool = vi.fn<IntegrationsModuleClient['callTool']>().mockResolvedValue({
+      outcome: 'error' as const,
+      code: 'access-denied',
+      message: 'Provider rejected the request',
+    });
+    const appendServerRecords = vi
+      .fn<LogsModuleClient['appendServerRecords']>()
+      .mockResolvedValue({committedLength: 0, capped: false});
+    const span = {setAttribute: vi.fn(), setStatus: vi.fn()};
+    const getActiveSpan = vi.spyOn(trace, 'getActiveSpan').mockReturnValue(span as never);
+
+    try {
+      await nextStepForJob(jobId);
+      await runToolStepExecutorCycle({
+        integrations: {callTool} as unknown as IntegrationsModuleClient,
+        logs: {appendServerRecords} as unknown as LogsModuleClient,
+        signal: new AbortController().signal,
+        claimOwner: 'executor-test',
+        concurrency: 8,
+        callTimeoutMs: 30_000,
+      });
+    } finally {
+      getActiveSpan.mockRestore();
+    }
+
+    expect(span.setAttribute).toHaveBeenCalledWith('error.type', 'access-denied');
+    expect(span.setStatus).toHaveBeenCalledWith({
+      code: SpanStatusCode.ERROR,
+      message: 'access-denied',
+    });
   });
 
   test('maps a raw provider timeout to a retryable provider-timeout error', async () => {

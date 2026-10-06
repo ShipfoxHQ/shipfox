@@ -11,7 +11,10 @@ const ACCESS_TOKEN_KEY = 'ACCESS_TOKEN';
 const EXPIRES_AT_KEY = 'EXPIRES_AT';
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 const LOCK_WAIT_MS = 250;
-const MAX_LOCK_ATTEMPTS = 40;
+// Waiters must outlast the holder, which can spend one full mint timeout plus the conflict waits.
+const MAX_LOCK_ATTEMPTS = 100;
+const MINT_CONFLICT_WAIT_MS = 1_000;
+const MAX_MINT_ATTEMPTS = 5;
 
 export interface SentrySecretsStore {
   getSecret(params: {workspaceId: string; namespace: string; key: string}): Promise<string | null>;
@@ -28,6 +31,7 @@ export interface CreateSentryReadClientParams {
   api?: SentryReadApiClient;
   getInstallation?: typeof getSentryInstallationByConnectionId;
   withRefreshLock?: typeof withSentryRefreshLock;
+  wait?: (ms: number) => Promise<unknown>;
 }
 
 export function sentrySecretsNamespace(connectionId: string): string {
@@ -52,6 +56,7 @@ export function createSentryReadClient(params: CreateSentryReadClientParams) {
   const api = params.api ?? createSentryApiClient();
   const getInstallation = params.getInstallation ?? getSentryInstallationByConnectionId;
   const withRefreshLock = params.withRefreshLock ?? withSentryRefreshLock;
+  const wait = params.wait ?? ((ms: number) => setTimeout(ms));
 
   async function readStoredToken(workspaceId: string, connectionId: string) {
     const namespace = sentrySecretsNamespace(connectionId);
@@ -71,6 +76,19 @@ export function createSentryReadClient(params: CreateSentryReadClientParams) {
     return Number.isFinite(expiresAt) && expiresAt > Date.now() + TOKEN_REFRESH_MARGIN_MS;
   }
 
+  // A conflict means Sentry is still serving an earlier mint, usually one this process gave up
+  // on. Its lock clears within seconds, so the mint is repeated under the same refresh lock.
+  async function mintToken(installationUuid: string) {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await api.mintInstallationToken({installationUuid});
+      } catch (error) {
+        if (!isMintConflict(error) || attempt >= MAX_MINT_ATTEMPTS) throw error;
+        await wait(MINT_CONFLICT_WAIT_MS);
+      }
+    }
+  }
+
   async function getAccessToken(input: {
     connectionId: string;
     workspaceId: string;
@@ -85,7 +103,7 @@ export function createSentryReadClient(params: CreateSentryReadClientParams) {
         const current = await readStoredToken(input.workspaceId, input.connectionId);
         if (isFresh(current) && current.token !== input.rejectedToken) return current.token;
 
-        const minted = await api.mintInstallationToken({installationUuid: input.installationUuid});
+        const minted = await mintToken(input.installationUuid);
         const expiresAt = Date.parse(minted.expiresAt);
         if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() + TOKEN_REFRESH_MARGIN_MS) {
           throw new SentryIntegrationProviderError(
@@ -103,7 +121,7 @@ export function createSentryReadClient(params: CreateSentryReadClientParams) {
         return minted.token;
       });
       if (result.acquired) return result.value;
-      await setTimeout(LOCK_WAIT_MS);
+      await wait(LOCK_WAIT_MS);
       const current = await readStoredToken(input.workspaceId, input.connectionId);
       if (isFresh(current) && current.token !== input.rejectedToken) return current.token;
     }
@@ -208,6 +226,14 @@ export function createSentryReadClient(params: CreateSentryReadClientParams) {
       );
     },
   };
+}
+
+function isMintConflict(error: unknown): boolean {
+  return (
+    error instanceof SentryIntegrationProviderError &&
+    error.reason === 'provider-unavailable' &&
+    error.status === 409
+  );
 }
 
 export type SentryReadClient = ReturnType<typeof createSentryReadClient>;

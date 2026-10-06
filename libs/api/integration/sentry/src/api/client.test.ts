@@ -197,6 +197,22 @@ describe('Sentry authenticated reads', () => {
     await expect(result).rejects.toMatchObject({reason: 'access-denied'});
   });
 
+  it('maps a conflicting token mint to a retryable provider-unavailable', async () => {
+    postMock.mockReturnValue(rejects(httpError(409)));
+
+    const result = createSentryApiClient().mintInstallationToken({installationUuid: 'install-1'});
+
+    await expect(result).rejects.toMatchObject({reason: 'provider-unavailable', status: 409});
+  });
+
+  it('gives the token mint longer than the Sentry token lock', async () => {
+    postMock.mockReturnValue(resolves({token: 'read-token', expiresAt: '2026-09-25T00:00:00Z'}));
+
+    await createSentryApiClient().mintInstallationToken({installationUuid: 'install-1'});
+
+    expect(postMock.mock.calls[0]?.[1]).toMatchObject({timeout: 15_000});
+  });
+
   it('rejects a minted token with a malformed expiry', async () => {
     postMock.mockReturnValue(resolves({token: 'read-token', expiresAt: 'not-a-date'}));
 

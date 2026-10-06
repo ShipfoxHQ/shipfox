@@ -7,6 +7,10 @@ import {SentryIntegrationProviderError} from '#core/errors.js';
 
 const SENTRY_API_BASE = 'https://sentry.io/api/0';
 const JWT_GRANT = 'urn:sentry:params:oauth:grant-type:jwt-bearer';
+const MINT_OPERATION = 'mint-installation-token';
+// Sentry holds its own token lock for up to 10 seconds. A shorter client timeout abandons a mint
+// that Sentry is still serving, and the next mint then conflicts with it.
+const MINT_TIMEOUT_MS = 15_000;
 const NEXT_REL = /rel="?next"?/;
 const HAS_RESULTS = /results="?true"?/;
 const CURSOR_ATTRIBUTE = /(?:^|;)\s*cursor="([^"]+)"/;
@@ -155,7 +159,7 @@ export function createSentryApiClient(): SentryReadApiClient {
     },
 
     async mintInstallationToken(input) {
-      const body = await mapSentryError('mint-installation-token', () =>
+      const body = await mapSentryError(MINT_OPERATION, () =>
         ky
           .post(
             `${SENTRY_API_BASE}/sentry-app-installations/${encodeURIComponent(input.installationUuid)}/authorizations/`,
@@ -163,6 +167,7 @@ export function createSentryApiClient(): SentryReadApiClient {
               headers: {authorization: `Bearer ${signSentryAppAssertion()}`},
               json: {grant_type: JWT_GRANT},
               retry: {limit: 0},
+              timeout: MINT_TIMEOUT_MS,
             },
           )
           .json<unknown>(),
@@ -378,6 +383,15 @@ function mapSentryHttpError(
     return new SentryIntegrationProviderError(
       'provider-rejected',
       status === 400 ? 'Sentry rejected the request parameters' : 'Sentry resource is unavailable',
+      undefined,
+      status,
+    );
+  // Sentry answers 409 while another mint for the same installation is still in progress. The
+  // status is kept so the caller can wait for that mint instead of reporting a permission error.
+  if (operation === MINT_OPERATION && status === 409)
+    return new SentryIntegrationProviderError(
+      'provider-unavailable',
+      'Sentry authorization is already being renewed',
       undefined,
       status,
     );
