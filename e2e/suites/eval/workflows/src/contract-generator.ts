@@ -354,7 +354,7 @@ function compileStep({
     const name = `value_${segmentName(segments)}`;
     addCheck({
       name,
-      mapping: `${presence({segments})} ? ${accessorOf(segments)} : ""`,
+      mapping: stringValueMapping({segments, value}),
       check: valueCheck({accessor: `step.outputs.${name}`, value}),
     });
   }
@@ -539,6 +539,30 @@ function typeCheck({accessor, type}: {accessor: string; type: ShapeLeaf['type']}
       return `type(${accessor}) == type([])`;
     case 'object':
       return `type(${accessor}) == type({})`;
+  }
+}
+
+// A dyn mapping is declared as a json output, and the declaration parses string values, so an id
+// like "901222980414" would come back as a number. A string-typed mapping skips the parse. A
+// result of another type maps to "" and fails the check.
+function stringValueMapping({
+  segments,
+  value,
+}: {
+  segments: Segment[];
+  value: ContractScalar;
+}): string {
+  if (!changedByJsonParse(value)) return `${presence({segments})} ? ${accessorOf(segments)} : ""`;
+  const check = (accessor: string) => typeCheck({accessor, type: 'string'});
+  return `${presence({segments, check})} ? string(${accessorOf(segments)}) : ""`;
+}
+
+function changedByJsonParse(value: ContractScalar): boolean {
+  if (typeof value !== 'string') return false;
+  try {
+    return JSON.parse(value) !== value;
+  } catch {
+    return false;
   }
 }
 

@@ -63,7 +63,7 @@ jobs:
           shape_list_id: ${{ has(result.list) && has(result.list.id) && type(result.list.id) == type("") }}
           value_id: '${{ has(result.id) ? result.id : "" }}'
           value_name: '${{ has(result.name) ? result.name : "" }}'
-          value_list_id: '${{ has(result.list) && has(result.list.id) ? result.list.id : "" }}'
+          value_list_id: '${{ has(result.list) && has(result.list.id) && type(result.list.id) == type("") ? string(result.list.id) : "" }}'
         gate:
           success: 'step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_list_id && type(step.outputs.value_id) == type("") && step.outputs.value_id == "869fca5cw" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Fixture task: markdown, unicode, long description" && type(step.outputs.value_list_id) == type("") && step.outputs.value_list_id == "901222980414"'
   get_task_comments:
