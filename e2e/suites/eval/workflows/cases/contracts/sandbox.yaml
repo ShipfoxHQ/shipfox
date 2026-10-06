@@ -398,7 +398,9 @@ posthog:
   connection: posthog_sandbox
   fixtures:
     # The EU project `sandbox`. It holds 40 `contract_event`, 10 `contract_purchase`, and one
-    # `$exception`, from 4 users, all dated September 2026. Cases must not use relative date ranges.
+    # `$exception`, from 4 users, all dated September 2026. The `experiment_results` fixture adds
+    # 60 exposure and 75 `contract_experiment_purchase` events from 60 other users. Cases must not
+    # use relative date ranges.
     project: {id: 295166, region: eu}
     event:
       name: contract_event
@@ -454,6 +456,18 @@ posthog:
         expect:
           values:
             id: $fixture.posthog.experiment.id
+    # A stopped experiment with one mean metric on `contract_experiment_purchase`. It ran from
+    # 2026-09-01 to 2026-09-30 over 60 users, 30 per variant, so its results do not change.
+    experiment_results:
+      id: 99702
+      name: Contract results experiment
+      feature_flag_key: contract-results-experiment
+      read:
+        tool: experiment-get
+        with: {id: $fixture.posthog.experiment_results.id}
+        expect:
+          values:
+            id: $fixture.posthog.experiment_results.id
     survey:
       id: 01a10dad-d398-0000-5b35-0c6a08cd8ee8
       name: Contract fixture survey
