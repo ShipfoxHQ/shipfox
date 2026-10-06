@@ -1,9 +1,5 @@
-ceiling: 89
+ceiling: 85
 entries:
-  - {tool: discord.add_reaction, kind: write, issue: ENG-2827}
-  - {tool: discord.create_thread, kind: write, issue: ENG-2827}
-  - {tool: discord.send_message, kind: write, issue: ENG-2827}
-  - {tool: discord.update_message, kind: write, issue: ENG-2827}
   - {tool: github.actions_get, method: download_workflow_run_artifact, kind: read, issue: ENG-2818}
   - {tool: github.actions_get, method: get_workflow_job, kind: read, issue: ENG-2818}
   - {tool: github.actions_get, method: get_workflow_run, kind: read, issue: ENG-2818}
