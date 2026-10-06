@@ -159,6 +159,26 @@ describe('Discord API mock', () => {
     }
   });
 
+  it('orders search matches by time across channels', async () => {
+    const {mock, call} = await arrange();
+    mock.addChannel({id: '202', type: 0, guild_id: GUILD_ID});
+    const author = {id: 'user-1', username: 'user'};
+    // The older message is in the channel the fake lists last, so grouping by channel gets it wrong.
+    mock.addMessage({id: '401', channel_id: '202', content: 'match', author});
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    mock.addMessage({id: '400', channel_id: CHANNEL_ID, content: 'match', author});
+
+    try {
+      const result = await call('GET', `/guilds/${GUILD_ID}/messages/search?content=match`);
+
+      expect(
+        (result.body as {messages: {id: string}[][]}).messages.map(([hit]) => hit?.id),
+      ).toEqual(['400', '401']);
+    } finally {
+      await mock.stop();
+    }
+  });
+
   it('answers a member of the server, and 404 for one it does not know', async () => {
     const {mock, call} = await arrange();
     mock.addMember({guildId: GUILD_ID, member: {user: {id: 'user-1', username: 'user'}}});

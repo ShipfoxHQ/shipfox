@@ -234,8 +234,10 @@ function handleSearchMessages(
     .flatMap((channel) => state.messages.get(channel.id) ?? [])
     .filter((message) => message.content.toLowerCase().includes(content))
     .filter((message) => authorId === null || message.author.id === authorId)
-    // Newest first, like Discord.
-    .reverse();
+    // Newest first across channels, like Discord. Reversing first keeps the later message of a
+    // tie ahead, because the sort is stable.
+    .reverse()
+    .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
   sendJson(response, 200, {
     total_results: matches.length,
     messages: matches.slice(offset, offset + limit).map((message) => [{...message, hit: true}]),
