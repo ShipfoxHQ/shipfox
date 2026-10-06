@@ -371,6 +371,7 @@ describe('posthogContractFake', () => {
     await fake.seed({});
     await expect(fake.seed({event: {name: 'contract_event'}})).rejects.toThrow(missingCountPattern);
 
+    expect(seedPosthogMock).toHaveBeenCalledTimes(1);
     expect(seedPosthogMock).toHaveBeenCalledWith({
       apiKey: 'phx_contracts_unique',
       seed: {events: [], feature_flags: []},
