@@ -1,5 +1,5 @@
 provider: notion
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: get_page_content
     with:

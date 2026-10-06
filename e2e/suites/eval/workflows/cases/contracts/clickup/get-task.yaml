@@ -1,5 +1,5 @@
 provider: clickup
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: get_task
     with:

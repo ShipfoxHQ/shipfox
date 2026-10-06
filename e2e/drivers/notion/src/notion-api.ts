@@ -4,16 +4,36 @@ import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-c
 export const NOTION_PAGE_RESULT_MARKER = 'notion-page-result-marker';
 
 const NOTION_PAGE_PATH_RE = /^\/v1\/pages\/([^/]+)$/;
+const NOTION_PAGE_MARKDOWN_PATH_RE = /^\/v1\/pages\/([^/]+)\/markdown$/;
+const NOTION_SEARCH_PATH = '/v1/search';
+const NOTION_COMMENTS_PATH = '/v1/comments';
+const NOTION_PAGE_SIZE = 100;
 const MAX_ERROR_MESSAGE_LENGTH = 1_000;
 
-export type NotionApiMockCall = {
-  kind: 'get_page';
-  authorization: string | undefined;
-  pageId: string;
-};
+/** A page the fake serves, in the shape the tools read. */
+export interface NotionPageFixture {
+  id: string;
+  title: string;
+  /** What `get_page_content` returns. */
+  markdown?: string | undefined;
+  /** Oldest first. */
+  comments?: readonly {id: string; text: string}[] | undefined;
+}
+
+export type NotionApiMockCall =
+  | {kind: 'get_page'; authorization: string | undefined; pageId: string}
+  | {kind: 'get_page_content'; authorization: string | undefined; pageId: string}
+  | {kind: 'get_comments'; authorization: string | undefined; blockId: string}
+  | {
+      kind: 'search';
+      authorization: string | undefined;
+      body: {query?: string; filter?: unknown; page_size?: number};
+    };
 
 export interface NotionApiMock {
   calls: NotionApiMockCall[];
+  /** The pages the fake serves, by ID. Add to it to seed the fake after it started. */
+  pages: Map<string, NotionPageFixture>;
   endpoint: URL;
   /** Writes the fake accepted. The fake serves reads only, so this stays empty. */
   writes(): RecordedWrite[];
@@ -36,11 +56,16 @@ export async function startNotionApiMock(
   const configuredEndpoint = options.endpoint ?? new URL(requiredNotionApiBaseUrl());
   validateEndpoint(configuredEndpoint);
   const calls: NotionApiMockCall[] = [];
+  const pages = new Map<string, NotionPageFixture>();
   let boundEndpoint = configuredEndpoint;
   const server = createServer((request, response) => {
-    try {
-      handleNotionRequest({calls, endpoint: boundEndpoint, request, response});
-    } catch (error) {
+    void handleNotionRequest({
+      calls,
+      pages,
+      endpoint: boundEndpoint,
+      request,
+      response,
+    }).catch((error) => {
       const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
       process.stderr.write(
         `Notion API mock request failed: ${message.slice(0, MAX_ERROR_MESSAGE_LENGTH)}\n`,
@@ -49,7 +74,7 @@ export async function startNotionApiMock(
       if (!response.headersSent)
         sendJson(response, 400, {code: 'E2E_BAD_REQUEST', message: 'Invalid Notion request'});
       else response.end();
-    }
+    });
   });
 
   let listening: ListeningFake;
@@ -67,6 +92,7 @@ export async function startNotionApiMock(
 
   return {
     calls,
+    pages,
     endpoint: boundEndpoint,
     writes: () => [],
     stop: async () => {
@@ -79,34 +105,66 @@ export async function startNotionApiMock(
   };
 }
 
-function handleNotionRequest(params: {
+async function handleNotionRequest(params: {
   calls: NotionApiMockCall[];
+  pages: ReadonlyMap<string, NotionPageFixture>;
   endpoint: URL;
   request: IncomingMessage;
   response: ServerResponse;
-}): void {
-  const requestUrl = new URL(params.request.url ?? '/', params.endpoint);
-  const match = requestUrl.pathname.match(NOTION_PAGE_PATH_RE);
-  if (!match) {
-    sendJson(params.response, 404, {code: 'E2E_NOT_FOUND', message: 'Unknown Notion endpoint'});
+}): Promise<void> {
+  const {calls, pages, request, response} = params;
+  const requestUrl = new URL(request.url ?? '/', params.endpoint);
+  const authorization = request.headers.authorization;
+  const path = requestUrl.pathname;
+
+  const pageMatch = path.match(NOTION_PAGE_PATH_RE);
+  const markdownMatch = path.match(NOTION_PAGE_MARKDOWN_PATH_RE);
+  const expectedMethod = path === NOTION_SEARCH_PATH ? 'POST' : 'GET';
+  if (
+    !(pageMatch || markdownMatch || path === NOTION_SEARCH_PATH || path === NOTION_COMMENTS_PATH)
+  ) {
+    sendJson(response, 404, {code: 'E2E_NOT_FOUND', message: 'Unknown Notion endpoint'});
+    return;
+  }
+  if (request.method !== expectedMethod) {
+    sendJson(response, 405, {code: 'E2E_METHOD_NOT_ALLOWED', message: 'Method not allowed'});
     return;
   }
 
-  if (params.request.method !== 'GET') {
-    sendJson(params.response, 405, {
-      code: 'E2E_METHOD_NOT_ALLOWED',
-      message: 'Method not allowed',
+  if (path === NOTION_SEARCH_PATH) {
+    return search({calls, pages, response, authorization, body: await readJsonBody(request)});
+  }
+  if (path === NOTION_COMMENTS_PATH) {
+    return getComments({
+      calls,
+      pages,
+      response,
+      authorization,
+      blockId: requestUrl.searchParams.get('block_id') ?? '',
+    });
+  }
+
+  if (markdownMatch) {
+    const pageId = decodeURIComponent(markdownMatch[1] ?? '');
+    calls.push({kind: 'get_page_content', authorization, pageId});
+    sendJson(response, 200, {
+      object: 'page_markdown',
+      id: pageId,
+      markdown: pages.get(pageId)?.markdown ?? '',
+      truncated: false,
+      unknown_block_ids: [],
     });
     return;
   }
 
-  const pageId = decodeURIComponent(match[1] ?? '');
-  params.calls.push({
-    kind: 'get_page',
-    authorization: params.request.headers.authorization,
-    pageId,
-  });
-  sendJson(params.response, 200, {
+  const pageId = decodeURIComponent(pageMatch?.[1] ?? '');
+  calls.push({kind: 'get_page', authorization, pageId});
+  const seeded = pages.get(pageId);
+  if (seeded !== undefined) {
+    sendJson(response, 200, pageBody(seeded));
+    return;
+  }
+  sendJson(response, 200, {
     id: pageId,
     url: `https://www.notion.so/${pageId.replaceAll('-', '')}`,
     title: 'E2E Notion page',
@@ -122,6 +180,104 @@ function handleNotionRequest(params: {
     last_edited_time: '2026-01-02T00:00:00.000Z',
     marker: NOTION_PAGE_RESULT_MARKER,
   });
+}
+
+function pageBody(page: NotionPageFixture) {
+  return {
+    object: 'page',
+    id: page.id,
+    url: `https://www.notion.so/${page.id.replaceAll('-', '')}`,
+    parent: {type: 'workspace', workspace: true},
+    properties: {
+      title: {
+        id: 'title',
+        type: 'title',
+        title: [{type: 'text', text: {content: page.title}, plain_text: page.title}],
+      },
+    },
+    created_time: '2026-01-01T00:00:00.000Z',
+    last_edited_time: '2026-01-02T00:00:00.000Z',
+    archived: false,
+    in_trash: false,
+  };
+}
+
+function search({
+  calls,
+  pages,
+  response,
+  authorization,
+  body,
+}: {
+  calls: NotionApiMockCall[];
+  pages: ReadonlyMap<string, NotionPageFixture>;
+  response: ServerResponse;
+  authorization: string | undefined;
+  body: unknown;
+}): void {
+  const request = isJsonObject(body) ? body : {};
+  calls.push({kind: 'search', authorization, body: request});
+  const query = typeof request.query === 'string' ? request.query.toLowerCase() : '';
+  const pageSize =
+    typeof request.page_size === 'number' ? Math.min(request.page_size, NOTION_PAGE_SIZE) : 100;
+  // Only pages are seeded, so a search for data sources finds none.
+  const wantsDataSources = isJsonObject(request.filter) && request.filter.value === 'data_source';
+  const matching = wantsDataSources
+    ? []
+    : [...pages.values()].filter((page) => page.title.toLowerCase().includes(query));
+  sendJson(response, 200, {
+    object: 'list',
+    results: matching.slice(0, pageSize).map(pageBody),
+    next_cursor: null,
+    has_more: false,
+    type: 'page_or_data_source',
+  });
+}
+
+function getComments({
+  calls,
+  pages,
+  response,
+  authorization,
+  blockId,
+}: {
+  calls: NotionApiMockCall[];
+  pages: ReadonlyMap<string, NotionPageFixture>;
+  response: ServerResponse;
+  authorization: string | undefined;
+  blockId: string;
+}): void {
+  calls.push({kind: 'get_comments', authorization, blockId});
+  const comments = (pages.get(blockId)?.comments ?? []).slice(0, NOTION_PAGE_SIZE);
+  sendJson(response, 200, {
+    object: 'list',
+    results: comments.map((comment) => ({
+      object: 'comment',
+      id: comment.id,
+      parent: {type: 'page_id', page_id: blockId},
+      discussion_id: `discussion-${comment.id}`,
+      created_time: '2026-01-01T00:00:00.000Z',
+      last_edited_time: '2026-01-01T00:00:00.000Z',
+      created_by: {object: 'user', id: 'e2e-notion-bot'},
+      rich_text: [{type: 'text', text: {content: comment.text}, plain_text: comment.text}],
+    })),
+    next_cursor: null,
+    has_more: false,
+    type: 'comment',
+  });
+}
+
+async function readJsonBody(request: NodeJS.ReadableStream): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const rawBody = Buffer.concat(chunks).toString('utf8');
+  return rawBody.length === 0 ? undefined : JSON.parse(rawBody);
+}
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function requiredNotionApiBaseUrl(): string {

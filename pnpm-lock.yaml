@@ -2523,6 +2523,9 @@ importers:
       '@shipfox/e2e-driver-linear':
         specifier: workspace:*
         version: link:../../../drivers/linear
+      '@shipfox/e2e-driver-notion':
+        specifier: workspace:*
+        version: link:../../../drivers/notion
       '@shipfox/e2e-driver-runner-process':
         specifier: workspace:*
         version: link:../../../drivers/runner-process
