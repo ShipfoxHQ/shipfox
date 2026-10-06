@@ -443,7 +443,7 @@ const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 // a branch. Object ids stay as written so they answer `ref-invalid` instead of
 // being looked up as a branch.
 function qualifyBranchName(ref: string): string {
-  if (ref.includes('/') || ref.startsWith('-') || GIT_OBJECT_ID_PATTERN.test(ref)) return ref;
+  if (ref.includes('/') || GIT_OBJECT_ID_PATTERN.test(ref)) return ref;
   return `refs/heads/${ref}`;
 }
 
