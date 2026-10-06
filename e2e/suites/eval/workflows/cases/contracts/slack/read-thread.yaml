@@ -1,5 +1,5 @@
 provider: slack
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: read_thread
     with:
@@ -11,6 +11,6 @@ steps:
         messages: [{ts: string, text: string}]
       values:
         messages[0].ts: $fixture.slack.thread.ts
-        messages[0].text: This is a contract test, do not modify
+        messages[0].text: $fixture.slack.thread.text
         messages[1].ts: $fixture.slack.thread.reply_ts
         messages[2].ts: $fixture.slack.thread.last_reply_ts

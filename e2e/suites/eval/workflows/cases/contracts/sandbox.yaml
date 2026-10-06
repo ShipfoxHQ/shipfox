@@ -234,8 +234,9 @@ slack:
           values:
             channel.id: $fixture.slack.read_channel.id
             channel.name: $fixture.slack.read_channel.name
-    # The root of a thread with two replies. Its text is "This is a contract test, do not modify".
+    # The root of a thread with two replies.
     thread:
+      text: This is a contract test, do not modify
       ts: '1791226001.009789'
       reply_ts: '1791226033.072769'
       last_reply_ts: '1791226036.117099'

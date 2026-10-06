@@ -1,5 +1,5 @@
 provider: slack
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: read_channel_members
     with:

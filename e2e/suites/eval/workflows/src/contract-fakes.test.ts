@@ -47,6 +47,7 @@ vi.mock('@shipfox/e2e-driver-notion', async (importOriginal) => {
 vi.mock('@shipfox/e2e-setup-integrations', () => ({
   createClickUpConnection: vi.fn(() => Promise.resolve({id: 'connection-2', slug: 'clickup_fake'})),
   createNotionConnection: vi.fn(() => Promise.resolve({id: 'connection-3', slug: 'notion_fake'})),
+  createSlackConnection: vi.fn(() => Promise.resolve({id: 'connection-4', slug: 'slack_fake'})),
 }));
 
 type ApiClient = ReturnType<typeof createApiClient>;
