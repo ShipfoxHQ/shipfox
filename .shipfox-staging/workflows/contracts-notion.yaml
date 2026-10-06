@@ -19,6 +19,16 @@ jobs:
           value_title: '${{ has(result.title) ? result.title : "" }}'
         gate:
           success: 'step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "3f0c6baa-a59e-8196-b7be-c029ce003cdb" && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Fixture page: markdown, unicode, long content"'
+      - key: data_source
+        tool: query_data_source
+        connection: notion_shipfox
+        with:
+          data_source_id: 5b1fefb2-b903-4a0b-a9c5-545f17fcf955
+          page_size: 1
+        outputs:
+          shape_results_0_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_results_0_id
       - key: write_parent_page
         tool: get_page
         connection: notion_shipfox
@@ -189,6 +199,36 @@ jobs:
           includes_results: ${{ has(result.results) && type(result.results) == type([]) && result.results.exists(item, has(item.rich_text) && type(item.rich_text) == type([]) && size(item.rich_text) > 0 && [item.rich_text[0]].all(i0, has(i0.plain_text) && type(i0.plain_text) == type("") && i0.plain_text == "Contract comment")) }}
         gate:
           success: step.status == "succeeded" && step.outputs.includes_results
+  query_data_source:
+    checkout: false
+    steps:
+      - key: first
+        tool: query_data_source
+        connection: notion_shipfox
+        with:
+          data_source_id: 5b1fefb2-b903-4a0b-a9c5-545f17fcf955
+          page_size: 100
+        outputs:
+          shape_results_0_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_next_cursor: ${{ has(result.next_cursor) && type(result.next_cursor) == type("") }}
+          shape_has_more: ${{ has(result.has_more) && type(result.has_more) == type(true) }}
+          value_has_more: '${{ has(result.has_more) ? result.has_more : "" }}'
+          ref_next_cursor: '${{ has(result.next_cursor) ? result.next_cursor : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_results_0_id && step.outputs.shape_next_cursor && step.outputs.shape_has_more && type(step.outputs.value_has_more) == type(true) && step.outputs.value_has_more == true
+      - key: query_data_source_2
+        tool: query_data_source
+        connection: notion_shipfox
+        with:
+          data_source_id: 5b1fefb2-b903-4a0b-a9c5-545f17fcf955
+          page_size: 100
+          cursor: ${{ steps.first.outputs.ref_next_cursor }}
+        outputs:
+          shape_results_0_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_has_more: ${{ has(result.has_more) && type(result.has_more) == type(true) }}
+          value_has_more: '${{ has(result.has_more) ? result.has_more : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_results_0_id && step.outputs.shape_has_more && type(step.outputs.value_has_more) == type(true) && step.outputs.value_has_more == false
   search:
     checkout: false
     steps:

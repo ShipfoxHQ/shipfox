@@ -69,6 +69,22 @@ jobs:
           value_channel_name: '${{ has(result.channel) && has(result.channel.name) ? result.channel.name : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_channel_id) == type("") && step.outputs.value_channel_id == "C0C6ZSXHEJ0" && type(step.outputs.value_channel_name) == type("") && step.outputs.value_channel_name == "test_contract-tests-write"
+  get_permalink:
+    checkout: false
+    steps:
+      - key: get_permalink
+        tool: get_permalink
+        connection: slack_shipfox
+        with:
+          channel_id: C0C7QHHBNNL
+          message_ts: "1791226001.009789"
+        outputs:
+          shape_channel: ${{ has(result.channel) && type(result.channel) == type("") }}
+          shape_permalink: ${{ has(result.permalink) && type(result.permalink) == type("") }}
+          value_channel: '${{ has(result.channel) ? result.channel : "" }}'
+          matches_permalink: ${{ has(result.permalink) && type(result.permalink) == type("") && result.permalink.matches("^https://[^/]+/archives/C0C7QHHBNNL/p1791226001009789") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_channel && step.outputs.shape_permalink && type(step.outputs.value_channel) == type("") && step.outputs.value_channel == "C0C7QHHBNNL" && step.outputs.matches_permalink
   read_channel:
     checkout: false
     steps:

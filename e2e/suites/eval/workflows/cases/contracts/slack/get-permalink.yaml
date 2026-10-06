@@ -1,0 +1,16 @@
+provider: slack
+modes: [real, fake]
+steps:
+  - tool: get_permalink
+    with:
+      channel_id: $fixture.slack.read_channel.id
+      message_ts: $fixture.slack.thread.ts
+    # The workspace domain is not part of the contract, so a pattern checks the link.
+    expect:
+      shape:
+        channel: string
+        permalink: string
+      values:
+        channel: $fixture.slack.read_channel.id
+      matches:
+        permalink: '^https://[^/]+/archives/C0C7QHHBNNL/p1791226001009789'

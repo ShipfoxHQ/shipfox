@@ -1,0 +1,28 @@
+provider: notion
+modes: [real, fake]
+steps:
+  - key: first
+    tool: query_data_source
+    with:
+      data_source_id: $fixture.notion.data_source.id
+      # The largest page. The data source holds 105 rows, so the first page has a cursor.
+      page_size: 100
+    expect:
+      shape:
+        results: [{id: string}]
+        next_cursor: string
+        has_more: boolean
+      values:
+        has_more: true
+  - tool: query_data_source
+    with:
+      data_source_id: $fixture.notion.data_source.id
+      page_size: 100
+      cursor: $steps.first.next_cursor
+    # The cursor leads to the last 5 rows.
+    expect:
+      shape:
+        results: [{id: string}]
+        has_more: boolean
+      values:
+        has_more: false

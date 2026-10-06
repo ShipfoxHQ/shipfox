@@ -1,4 +1,4 @@
-ceiling: 93
+ceiling: 91
 entries:
   - {tool: discord.add_reaction, kind: write, issue: ENG-2827}
   - {tool: discord.create_thread, kind: write, issue: ENG-2827}
@@ -84,12 +84,10 @@ entries:
   - {tool: linear.save_release, kind: write, issue: ENG-2830}
   - {tool: linear.save_release_note, kind: write, issue: ENG-2830}
   - {tool: linear.save_status_update, kind: write, issue: ENG-2830}
-  - {tool: notion.query_data_source, kind: read, issue: ENG-2822}
   - {tool: posthog.experiment-results-get, kind: read, issue: ENG-3006}
   - {tool: posthog.survey-stats, kind: read, issue: ENG-3005}
   - {tool: slack.add_reaction, kind: write, issue: ENG-2814}
   - {tool: slack.create_canvas, kind: write, issue: ENG-2814}
-  - {tool: slack.get_permalink, kind: read, issue: ENG-2822}
   - {tool: slack.schedule_message, kind: write, issue: ENG-2814}
   - {tool: slack.send_message, kind: write, issue: ENG-2814}
   - {tool: slack.update_message, kind: write, issue: ENG-2814}
