@@ -352,9 +352,10 @@ function compileStep({
   for (const [path, value] of Object.entries(expect.values ?? {})) {
     const segments = parsePath({path, origin});
     const name = `value_${segmentName(segments)}`;
+    const accessor = accessorOf(segments);
     addCheck({
       name,
-      mapping: `${presence({segments})} ? ${accessorOf(segments)} : ""`,
+      mapping: `${presence({segments})} ? ${isReparsedAsNonString(value) ? `toJson(${accessor})` : accessor} : ""`,
       check: valueCheck({accessor: `step.outputs.${name}`, value}),
     });
   }
@@ -539,6 +540,17 @@ function typeCheck({accessor, type}: {accessor: string; type: ShapeLeaf['type']}
       return `type(${accessor}) == type([])`;
     case 'object':
       return `type(${accessor}) == type({})`;
+  }
+}
+
+// A step output declared as json parses a string value, so an id like "901222980414" would come
+// back as a number. Encoding the value as JSON text first makes the parse return the string.
+function isReparsedAsNonString(value: ContractScalar): boolean {
+  if (typeof value !== 'string') return false;
+  try {
+    return typeof JSON.parse(value) !== 'string';
+  } catch {
+    return false;
   }
 }
 
