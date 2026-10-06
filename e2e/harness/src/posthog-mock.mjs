@@ -24,6 +24,7 @@ const REQUIRED_SCOPES = [
   'survey:read',
 ];
 const QUERY_PATH_RE = /^\/api\/projects\/([^/]+)\/query\/$/u;
+const EXEC_JSON_CALL_RE = /^call --json (\S+)/u;
 
 /** The E2E deployment's PostHog double serves both REST and MCP traffic. */
 export async function startPosthogMock(endpoint) {
@@ -242,8 +243,16 @@ async function handleMcp({calls, mcpRequestCounts, pending, request, response}) 
     return;
   }
   sendMcpResult(response, body.id, {
-    content: [{type: 'text', text: `posthog-e2e-result:${body.params?.name}`}],
+    content: [{type: 'text', text: mcpResultText(body.params)}],
   });
+}
+
+// PostHog's `exec` tool answers `call --json <tool>` with the result of that tool as JSON.
+function mcpResultText(params) {
+  const command = params?.name === 'exec' ? params.arguments?.command : undefined;
+  const called = typeof command === 'string' ? EXEC_JSON_CALL_RE.exec(command)?.[1] : undefined;
+  if (called === undefined) return `posthog-e2e-result:${params?.name}`;
+  return JSON.stringify({results: `posthog-e2e-result:${called}`});
 }
 
 function sendMcpInitialize(response, id, protocolVersion) {

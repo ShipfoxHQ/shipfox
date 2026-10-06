@@ -100,7 +100,8 @@ test('runs PostHog agent and tool steps through the regional MCP fake', async ({
     const calls = await waitForPosthogCalls(apiKey, 2);
     expect(process.env.POSTHOG_MCP_ENDPOINT).toBeTruthy();
     expect(calls).toHaveLength(2);
-    expect(calls.every((call) => call.headers['x-posthog-mcp-mode'] === 'tools')).toBe(true);
+    // The agent reads PostHog's compact text. The tool step asks for JSON through `exec`.
+    expect(calls.map((call) => call.headers['x-posthog-mcp-mode'])).toEqual(['tools', 'cli']);
     expect(calls.every((call) => call.headers['x-posthog-read-only'] === 'true')).toBe(true);
     expect(
       calls.every((call) => call.headers['x-posthog-project-id'] === `project-${uniqueId}`),
@@ -110,7 +111,10 @@ test('runs PostHog agent and tool steps through the regional MCP fake', async ({
         (call) => call.headers['x-posthog-organization-id'] === `organization-${uniqueId}`,
       ),
     ).toBe(true);
-    expect(calls.map((call) => call.tool_name)).toEqual(['execute-sql', 'execute-sql']);
+    expect(calls.map((call) => call.tool_name)).toEqual(['execute-sql', 'exec']);
+    expect(calls[1]?.arguments).toEqual({
+      command: 'call --json execute-sql {"query":"SELECT 1 AS tool_probe"}',
+    });
   } finally {
     if (localRunner) {
       await attachLocalRunnerLog(
