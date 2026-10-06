@@ -72,6 +72,79 @@ jobs:
           includes_channels: ${{ has(result.channels) && type(result.channels) == type([]) && result.channels.exists(item, has(item.id) && type(item.id) == type("") && item.id == "1556715356926517279" && has(item.name) && type(item.name) == type("") && item.name == "contract-test-read") }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_channels_0_id && step.outputs.shape_channels_0_name && step.outputs.shape_channels_0_type && step.outputs.includes_channels
+  message_round_trip:
+    checkout: false
+    steps:
+      - key: send
+        tool: send_message
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556728776744898701"
+          message: Contract contract-${{ run.id }}
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_channel_id: ${{ has(result.channel_id) && type(result.channel_id) == type("") }}
+          shape_url: ${{ has(result.url) && type(result.url) == type("") }}
+          shape_messages_0_id: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_messages_0_content: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.content) && type(i0.content) == type("")) }}
+          value_channel_id: '${{ has(result.channel_id) && type(result.channel_id) == type("") ? string(result.channel_id) : "" }}'
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_channel_id && step.outputs.shape_url && step.outputs.shape_messages_0_id && step.outputs.shape_messages_0_content && type(step.outputs.value_channel_id) == type("") && step.outputs.value_channel_id == "1556728776744898701"
+      - key: send_effect
+        tool: read_thread
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556728776744898701"
+          message_id: ${{ steps.send.outputs.ref_id }}
+        outputs:
+          value_messages_0_channel_id: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.channel_id) && type(i0.channel_id) == type("")) ? string(result.messages[0].channel_id) : "" }}'
+          matches_messages_0_content: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.content) && type(i0.content) == type("") && i0.content.matches("^Contract contract-[0-9a-f-]+$")) }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_messages_0_channel_id) == type("") && step.outputs.value_messages_0_channel_id == "1556728776744898701" && step.outputs.matches_messages_0_content
+      - key: update
+        tool: update_message
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556728776744898701"
+          message_id: ${{ steps.send.outputs.ref_id }}
+          message: Contract message updated
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_content: ${{ has(result.content) && type(result.content) == type("") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_content
+      - key: update_effect
+        tool: read_thread
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556728776744898701"
+          message_id: ${{ steps.send.outputs.ref_id }}
+        outputs:
+          value_messages_0_content: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.content)) ? result.messages[0].content : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_messages_0_content) == type("") && step.outputs.value_messages_0_content == "Contract message updated"
+      - key: react
+        tool: add_reaction
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556728776744898701"
+          message_id: ${{ steps.send.outputs.ref_id }}
+          emoji: ✅
+        outputs:
+          value_emoji: '${{ has(result.emoji) ? result.emoji : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_emoji) == type("") && step.outputs.value_emoji == "✅"
+      - key: react_effect
+        tool: read_thread
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556728776744898701"
+          message_id: ${{ steps.send.outputs.ref_id }}
+        outputs:
+          includes_messages_0_reactions: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.reactions) && type(i0.reactions) == type([]) && i0.reactions.exists(item, has(item.emoji) && has(item.emoji.name) && type(item.emoji.name) == type("") && item.emoji.name == "✅" && has(item.me) && type(item.me) == type(true) && item.me == true)) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_messages_0_reactions
   read_channel:
     checkout: false
     steps:
@@ -174,3 +247,52 @@ jobs:
           includes_messages: ${{ has(result.messages) && type(result.messages) == type([]) && result.messages.exists(item, has(item.id) && type(item.id) == type("") && item.id == "1556715416456273941" && has(item.content) && type(item.content) == type("") && item.content == "Contract test read message, do not modify") }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_total_results && step.outputs.shape_messages_0_id && step.outputs.shape_messages_0_content && step.outputs.shape_messages_0_url && step.outputs.includes_messages
+  thread_round_trip:
+    checkout: false
+    steps:
+      - key: anchor
+        tool: send_message
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556728776744898701"
+          message: Contract contract-${{ run.id }} thread anchor
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id
+      - key: anchor_effect
+        tool: read_thread
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556728776744898701"
+          message_id: ${{ steps.anchor.outputs.ref_id }}
+        outputs:
+          value_messages_0_channel_id: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.channel_id) && type(i0.channel_id) == type("")) ? string(result.messages[0].channel_id) : "" }}'
+          matches_messages_0_content: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.content) && type(i0.content) == type("") && i0.content.matches("^Contract contract-[0-9a-f-]+ thread anchor$")) }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_messages_0_channel_id) == type("") && step.outputs.value_messages_0_channel_id == "1556728776744898701" && step.outputs.matches_messages_0_content
+      - key: thread
+        tool: create_thread
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556728776744898701"
+          name: Contract contract-${{ run.id }}
+          message_id: ${{ steps.anchor.outputs.ref_id }}
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_channel_id: ${{ has(result.channel_id) && type(result.channel_id) == type("") }}
+          shape_url: ${{ has(result.url) && type(result.url) == type("") }}
+          value_channel_id: '${{ has(result.channel_id) && type(result.channel_id) == type("") ? string(result.channel_id) : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_channel_id && step.outputs.shape_url && type(step.outputs.value_channel_id) == type("") && step.outputs.value_channel_id == "1556728776744898701"
+      - key: thread_effect
+        tool: list_channels
+        connection: discord_shipfox_sandbox
+        with:
+          name_contains: Contract contract-${{ run.id }}
+          include_threads: true
+        outputs:
+          includes_channels: ${{ has(result.channels) && type(result.channels) == type([]) && result.channels.exists(item, has(item.parent_id) && type(item.parent_id) == type("") && item.parent_id == "1556728776744898701" && has(item.type) && (type(item.type) == type(1) || type(item.type) == type(1.0)) && item.type == 11) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_channels
