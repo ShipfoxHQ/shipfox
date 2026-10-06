@@ -266,6 +266,31 @@ describe('generateContractFiles', () => {
       );
     });
 
+    it('compiles expect.text to matches() over a text result', async () => {
+      await writeCase(
+        'linear/text.yaml',
+        `provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n    expect:\n      text:\n        - '^Contract'\n        - 'bug$'\n`,
+      );
+
+      const content = await generatedLinear();
+
+      expect(content).toContain(
+        `text_0: \${{ type(result) == type("") && result.matches("^Contract") }}`,
+      );
+      expect(content).toContain(
+        `text_1: \${{ type(result) == type("") && result.matches("bug$") }}`,
+      );
+    });
+
+    it('quotes a date-like string so the server does not read it as a date', async () => {
+      await writeCase(
+        'linear/date.yaml',
+        `provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n    with:\n      since: '2026-09-01'\n`,
+      );
+
+      expect(await generatedLinear()).toContain('since: "2026-09-01"');
+    });
+
     it('generates round-trip cases in fake mode', async () => {
       await writeCase(
         'linear/fake-trip.yaml',
