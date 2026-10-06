@@ -101,6 +101,17 @@ jobs:
           value_name: '${{ has(result.name) ? result.name : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "91e00ebb-7180-424a-b436-82c9f2d75346" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Todo"
+      - key: label
+        tool: list_issue_labels
+        connection: linear_shipfox_sandbox
+        with:
+          team: 4016fa95-dfda-4139-88ba-133ba5955b01
+          name: contract-fixture
+          limit: 1
+        outputs:
+          value_labels_0_id: '${{ has(result.labels) && type(result.labels) == type([]) && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.id)) ? result.labels[0].id : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_labels_0_id) == type("") && step.outputs.value_labels_0_id == "166e6019-a6be-4812-a527-1f8e3b2369a6"
       - key: project
         tool: get_project
         connection: linear_shipfox_sandbox
@@ -111,6 +122,44 @@ jobs:
           value_name: '${{ has(result.name) ? result.name : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_uuid) == type("") && step.outputs.value_uuid == "fa265fda-fe3e-4049-a2a8-b4173aa5b266" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Contract fixture project"
+      - key: milestone
+        tool: get_milestone
+        connection: linear_shipfox_sandbox
+        with:
+          project: fa265fda-fe3e-4049-a2a8-b4173aa5b266
+          query: 78f5b498-6c53-4e69-8fce-32cc67027324
+        outputs:
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "78f5b498-6c53-4e69-8fce-32cc67027324" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Contract fixture milestone"
+      - key: document
+        tool: get_document
+        connection: linear_shipfox_sandbox
+        with:
+          id: 471c6da6-c647-4770-b6d3-27dc53189810
+        outputs:
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_title: '${{ has(result.title) ? result.title : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "471c6da6-c647-4770-b6d3-27dc53189810" && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Contract fixture document"
+  get_document:
+    checkout: false
+    steps:
+      - key: get_document
+        tool: get_document
+        connection: linear_shipfox_sandbox
+        with:
+          id: 471c6da6-c647-4770-b6d3-27dc53189810
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_title: ${{ has(result.title) && type(result.title) == type("") }}
+          shape_content: ${{ has(result.content) && type(result.content) == type("") }}
+          shape_url: ${{ has(result.url) && type(result.url) == type("") }}
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_title: '${{ has(result.title) ? result.title : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_title && step.outputs.shape_content && step.outputs.shape_url && type(step.outputs.value_id) == type("") && step.outputs.value_id == "471c6da6-c647-4770-b6d3-27dc53189810" && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Contract fixture document"
   get_issue:
     checkout: false
     steps:
@@ -161,6 +210,22 @@ jobs:
           value_name: '${{ has(result.name) ? result.name : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_type && type(step.outputs.value_id) == type("") && step.outputs.value_id == "91e00ebb-7180-424a-b436-82c9f2d75346" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Todo"
+  get_milestone:
+    checkout: false
+    steps:
+      - key: get_milestone
+        tool: get_milestone
+        connection: linear_shipfox_sandbox
+        with:
+          project: fa265fda-fe3e-4049-a2a8-b4173aa5b266
+          query: 78f5b498-6c53-4e69-8fce-32cc67027324
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_name: ${{ has(result.name) && type(result.name) == type("") }}
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && type(step.outputs.value_id) == type("") && step.outputs.value_id == "78f5b498-6c53-4e69-8fce-32cc67027324" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Contract fixture milestone"
   get_project:
     checkout: false
     steps:
@@ -224,6 +289,57 @@ jobs:
           value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_comments_0_id && step.outputs.shape_comments_0_body && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == true
+  list_cycles:
+    checkout: false
+    steps:
+      - key: list_cycles
+        tool: list_cycles
+        connection: linear_shipfox_sandbox
+        with:
+          teamId: 4016fa95-dfda-4139-88ba-133ba5955b01
+        outputs:
+          shape_0_id: ${{ type(result) == type([]) && size(result) > 0 && [result[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_0_number: ${{ type(result) == type([]) && size(result) > 0 && [result[0]].all(i0, has(i0.number) && (type(i0.number) == type(1) || type(i0.number) == type(1.0))) }}
+          shape_0_startsAt: ${{ type(result) == type([]) && size(result) > 0 && [result[0]].all(i0, has(i0.startsAt) && type(i0.startsAt) == type("")) }}
+          shape_0_endsAt: ${{ type(result) == type([]) && size(result) > 0 && [result[0]].all(i0, has(i0.endsAt) && type(i0.endsAt) == type("")) }}
+          shape_0_isCurrent: ${{ type(result) == type([]) && size(result) > 0 && [result[0]].all(i0, has(i0.isCurrent) && type(i0.isCurrent) == type(true)) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_0_id && step.outputs.shape_0_number && step.outputs.shape_0_startsAt && step.outputs.shape_0_endsAt && step.outputs.shape_0_isCurrent
+  list_documents:
+    checkout: false
+    steps:
+      - key: list_documents
+        tool: list_documents
+        connection: linear_shipfox_sandbox
+        with:
+          query: Contract fixture document
+          limit: 1
+        outputs:
+          shape_documents_0_id: ${{ has(result.documents) && type(result.documents) == type([]) && size(result.documents) > 0 && [result.documents[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_documents_0_title: ${{ has(result.documents) && type(result.documents) == type([]) && size(result.documents) > 0 && [result.documents[0]].all(i0, has(i0.title) && type(i0.title) == type("")) }}
+          shape_documents_0_url: ${{ has(result.documents) && type(result.documents) == type([]) && size(result.documents) > 0 && [result.documents[0]].all(i0, has(i0.url) && type(i0.url) == type("")) }}
+          shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
+          value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_documents_0_id && step.outputs.shape_documents_0_title && step.outputs.shape_documents_0_url && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == true
+  list_issue_labels:
+    checkout: false
+    steps:
+      - key: list_issue_labels
+        tool: list_issue_labels
+        connection: linear_shipfox_sandbox
+        with:
+          team: 4016fa95-dfda-4139-88ba-133ba5955b01
+          name: contract-fixture
+          limit: 1
+        outputs:
+          shape_labels_0_id: ${{ has(result.labels) && type(result.labels) == type([]) && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_labels_0_name: ${{ has(result.labels) && type(result.labels) == type([]) && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
+          value_labels_0_id: '${{ has(result.labels) && type(result.labels) == type([]) && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.id)) ? result.labels[0].id : "" }}'
+          value_labels_0_name: '${{ has(result.labels) && type(result.labels) == type([]) && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.name)) ? result.labels[0].name : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_labels_0_id && step.outputs.shape_labels_0_name && step.outputs.shape_hasNextPage && type(step.outputs.value_labels_0_id) == type("") && step.outputs.value_labels_0_id == "166e6019-a6be-4812-a527-1f8e3b2369a6" && type(step.outputs.value_labels_0_name) == type("") && step.outputs.value_labels_0_name == "contract-fixture"
   list_issue_statuses:
     checkout: false
     steps:
@@ -266,6 +382,34 @@ jobs:
           createdAt: not-a-date
         gate:
           success: step.status == "failed" && step.error.code == "unknown"
+  list_milestones:
+    checkout: false
+    steps:
+      - key: list_milestones
+        tool: list_milestones
+        connection: linear_shipfox_sandbox
+        with:
+          project: fa265fda-fe3e-4049-a2a8-b4173aa5b266
+        outputs:
+          shape_milestones_0_id: ${{ has(result.milestones) && type(result.milestones) == type([]) && size(result.milestones) > 0 && [result.milestones[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_milestones_0_name: ${{ has(result.milestones) && type(result.milestones) == type([]) && size(result.milestones) > 0 && [result.milestones[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          value_milestones_0_id: '${{ has(result.milestones) && type(result.milestones) == type([]) && size(result.milestones) > 0 && [result.milestones[0]].all(i0, has(i0.id)) ? result.milestones[0].id : "" }}'
+          value_milestones_0_name: '${{ has(result.milestones) && type(result.milestones) == type([]) && size(result.milestones) > 0 && [result.milestones[0]].all(i0, has(i0.name)) ? result.milestones[0].name : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_milestones_0_id && step.outputs.shape_milestones_0_name && type(step.outputs.value_milestones_0_id) == type("") && step.outputs.value_milestones_0_id == "78f5b498-6c53-4e69-8fce-32cc67027324" && type(step.outputs.value_milestones_0_name) == type("") && step.outputs.value_milestones_0_name == "Contract fixture milestone"
+  list_project_labels:
+    checkout: false
+    steps:
+      - key: list_project_labels
+        tool: list_project_labels
+        connection: linear_shipfox_sandbox
+        with:
+          limit: 5
+        outputs:
+          shape_labels: ${{ has(result.labels) && type(result.labels) == type([]) }}
+          shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_labels && step.outputs.shape_hasNextPage
   list_projects:
     checkout: false
     steps:

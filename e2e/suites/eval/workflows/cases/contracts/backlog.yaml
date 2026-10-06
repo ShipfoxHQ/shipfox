@@ -1,4 +1,4 @@
-ceiling: 100
+ceiling: 93
 entries:
   - {tool: discord.add_reaction, kind: write, issue: ENG-2827}
   - {tool: discord.create_thread, kind: write, issue: ENG-2827}
@@ -67,18 +67,11 @@ entries:
   - {tool: linear.get_attachment, kind: read, issue: ENG-2820}
   - {tool: linear.get_diff, kind: read, issue: ENG-2820}
   - {tool: linear.get_diff_threads, kind: read, issue: ENG-2820}
-  - {tool: linear.get_document, kind: read, issue: ENG-2812}
-  - {tool: linear.get_milestone, kind: read, issue: ENG-2812}
   - {tool: linear.get_release, kind: read, issue: ENG-2820}
   - {tool: linear.get_release_note, kind: read, issue: ENG-2820}
   - {tool: linear.get_status_updates, kind: read, issue: ENG-2820}
   - {tool: linear.list_agent_skills, kind: read, issue: ENG-2820}
-  - {tool: linear.list_cycles, kind: read, issue: ENG-2812}
   - {tool: linear.list_diffs, kind: read, issue: ENG-2820}
-  - {tool: linear.list_documents, kind: read, issue: ENG-2812}
-  - {tool: linear.list_issue_labels, kind: read, issue: ENG-2812}
-  - {tool: linear.list_milestones, kind: read, issue: ENG-2812}
-  - {tool: linear.list_project_labels, kind: read, issue: ENG-2812}
   - {tool: linear.list_release_notes, kind: read, issue: ENG-2820}
   - {tool: linear.list_release_pipelines, kind: read, issue: ENG-2820}
   - {tool: linear.list_releases, kind: read, issue: ENG-2820}

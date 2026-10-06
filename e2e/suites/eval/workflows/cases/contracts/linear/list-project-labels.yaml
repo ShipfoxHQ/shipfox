@@ -1,0 +1,10 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: list_project_labels
+    with:
+      limit: 5
+    # The sandbox workspace is on the free plan, which has no project labels. The case proves the
+    # call and the response envelope only.
+    expect:
+      shape: {labels: list, hasNextPage: boolean}

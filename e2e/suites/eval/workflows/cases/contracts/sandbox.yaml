@@ -207,7 +207,15 @@ linear:
           team: $fixture.linear.team.id
         expect:
           values: {id: $fixture.linear.issue_status.id, name: $fixture.linear.issue_status.name}
-    label: {id: 166e6019-a6be-4812-a527-1f8e3b2369a6, name: contract-fixture}
+    label:
+      id: 166e6019-a6be-4812-a527-1f8e3b2369a6
+      name: contract-fixture
+      read:
+        tool: list_issue_labels
+        with: {team: $fixture.linear.team.id, name: $fixture.linear.label.name, limit: 1}
+        expect:
+          values:
+            labels[0].id: $fixture.linear.label.id
     project:
       id: fa265fda-fe3e-4049-a2a8-b4173aa5b266
       name: Contract fixture project
@@ -216,8 +224,22 @@ linear:
         with: {query: $fixture.linear.project.id}
         expect:
           values: {uuid: $fixture.linear.project.id, name: $fixture.linear.project.name}
-    milestone: {id: 78f5b498-6c53-4e69-8fce-32cc67027324, name: Contract fixture milestone}
-    document: {id: 471c6da6-c647-4770-b6d3-27dc53189810, title: Contract fixture document}
+    milestone:
+      id: 78f5b498-6c53-4e69-8fce-32cc67027324
+      name: Contract fixture milestone
+      read:
+        tool: get_milestone
+        with: {project: $fixture.linear.project.id, query: $fixture.linear.milestone.id}
+        expect:
+          values: {id: $fixture.linear.milestone.id, name: $fixture.linear.milestone.name}
+    document:
+      id: 471c6da6-c647-4770-b6d3-27dc53189810
+      title: Contract fixture document
+      read:
+        tool: get_document
+        with: {id: $fixture.linear.document.id}
+        expect:
+          values: {id: $fixture.linear.document.id, title: $fixture.linear.document.title}
   targets:
     missing_issue: {kind: absent, identifier: SAR-999999}
 slack:

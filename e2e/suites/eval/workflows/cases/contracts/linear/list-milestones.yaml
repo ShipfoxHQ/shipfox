@@ -1,0 +1,12 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: list_milestones
+    with:
+      project: $fixture.linear.project.id
+    expect:
+      shape:
+        milestones: [{id: string, name: string}]
+      values:
+        milestones[0].id: $fixture.linear.milestone.id
+        milestones[0].name: $fixture.linear.milestone.name

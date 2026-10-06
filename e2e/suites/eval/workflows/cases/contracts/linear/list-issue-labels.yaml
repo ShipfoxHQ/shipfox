@@ -1,0 +1,16 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: list_issue_labels
+    with:
+      team: $fixture.linear.team.id
+      name: $fixture.linear.label.name
+      limit: 1
+    # The fixture label belongs to the read team, so the call names the team.
+    expect:
+      shape:
+        labels: [{id: string, name: string}]
+        hasNextPage: boolean
+      values:
+        labels[0].id: $fixture.linear.label.id
+        labels[0].name: $fixture.linear.label.name
