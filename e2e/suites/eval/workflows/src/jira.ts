@@ -1,5 +1,6 @@
 import type {RecordedWrite} from '@shipfox/e2e-core';
 import {
+  type JiraApiMock,
   type JiraIssueEventName,
   postJiraIssueEvent,
   startJiraApiMock,
@@ -41,6 +42,8 @@ export interface JiraTracker {
   /** The slug the composed workflow's tracker connection uses. */
   connectionSlug: string;
   sender: EventSender;
+  /** The fake, for suites that seed it. */
+  mock: JiraApiMock;
   /** Every write the Jira fake accepted, as `jira.<kind>` entries. Read before it stops. */
   writes: () => RecordedWrite[];
 }
@@ -76,6 +79,7 @@ export async function arrangeJiraTracker({
   });
   return {
     connectionSlug: connection.slug,
+    mock,
     sender: createJiraEventSender({connectionId: connection.id, webhookId, siteUrl}),
     writes: () => prefixJiraWrites(mock.writes()),
   };

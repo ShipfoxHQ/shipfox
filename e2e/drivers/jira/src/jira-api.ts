@@ -34,9 +34,24 @@ export type JiraApiMockCall =
   | JiraIssueWriteCall<'transition_issue'>
   | JiraIssueWriteCall<'assign_issue'>;
 
+/** An object the fake serves with the ids and fields of a sandbox fixture, in place of its defaults. */
+export interface JiraSeed {
+  projects?: Array<{key: string; id: string; name: string}>;
+  /** An issue is served by its key or its ID. It belongs to the project its key starts with. */
+  issues?: Array<{key: string; id: string; summary: string}>;
+  /** A plain-text comment, served on the issue as the ADF document the real API answers with. */
+  comments?: Array<{issueKey: string; id: string; body: string}>;
+  users?: Array<{accountId: string; displayName: string}>;
+}
+
 export interface JiraApiMock {
   calls: JiraApiMockCall[];
   endpoint: URL;
+  /**
+   * Makes the fake answer for these objects the way the provider does. Anything not seeded keeps
+   * the generic answer, so suites that never seed are unaffected.
+   */
+  seed(seed: JiraSeed): void;
   /** Writes the fake accepted, in arrival order. */
   writes(): RecordedWrite[];
   stop(): Promise<void>;
@@ -56,9 +71,16 @@ export async function startJiraApiMock(options: JiraApiMockOptions = {}): Promis
   const configuredEndpoint = options.endpoint ?? new URL(requiredJiraApiBaseUrl());
   validateEndpoint(configuredEndpoint);
   const calls: JiraApiMockCall[] = [];
+  const seeded: SeededJira = {projects: [], issues: [], comments: [], users: []};
   let boundEndpoint = configuredEndpoint;
   const server = createServer((request, response) => {
-    void handleJiraRequest({calls, endpoint: boundEndpoint, request, response}).catch((error) => {
+    void handleJiraRequest({
+      calls,
+      seeded,
+      endpoint: boundEndpoint,
+      request,
+      response,
+    }).catch((error) => {
       const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
       process.stderr.write(
         `Jira API mock request failed: ${message.slice(0, MAX_ERROR_MESSAGE_LENGTH)}\n`,
@@ -85,6 +107,12 @@ export async function startJiraApiMock(options: JiraApiMockOptions = {}): Promis
   return {
     calls,
     endpoint: boundEndpoint,
+    seed: (seed) => {
+      seeded.projects.push(...(seed.projects ?? []));
+      seeded.issues.push(...(seed.issues ?? []));
+      seeded.comments.push(...(seed.comments ?? []));
+      seeded.users.push(...(seed.users ?? []));
+    },
     writes: () => jiraWrites(calls),
     stop: async () => {
       try {
@@ -119,6 +147,8 @@ function createdIssueTarget(call: JiraCallBase & {body: JiraBody}): string {
   return typeof target === 'string' ? target : call.cloudId;
 }
 
+type SeededJira = Required<JiraSeed>;
+
 interface JiraRoute {
   method: string;
   pattern: RegExp;
@@ -127,6 +157,7 @@ interface JiraRoute {
 
 interface JiraRouteContext {
   calls: JiraApiMockCall[];
+  seeded: SeededJira;
   response: ServerResponse;
   base: JiraCallBase;
   /** Capture group 1 of the route pattern, decoded. */
@@ -140,7 +171,12 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
     pattern: /^issue\/([^/]+)$/,
     handle: (context) => {
       context.calls.push({kind: 'get_issue', ...context.base, idOrKey: context.idOrKey});
-      sendJson(context.response, 200, issueBody(context.idOrKey));
+      const issue = findIssue({seeded: context.seeded, idOrKey: context.idOrKey});
+      sendJson(
+        context.response,
+        200,
+        issue === undefined ? issueBody(context.idOrKey) : seededIssueBody(issue),
+      );
     },
   },
   {
@@ -148,7 +184,11 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
     pattern: /^search\/jql$/,
     handle: (context) => {
       context.calls.push({kind: 'search_issues', ...context.base, body: context.body});
-      sendJson(context.response, 200, {issues: [issueBody('E2E-1')], isLast: true});
+      const issues =
+        context.seeded.issues.length === 0
+          ? [issueBody('E2E-1')]
+          : context.seeded.issues.map(seededIssueBody);
+      sendJson(context.response, 200, {issues, isLast: true});
     },
   },
   {
@@ -156,11 +196,15 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
     pattern: /^issue\/([^/]+)\/comment$/,
     handle: (context) => {
       context.calls.push({kind: 'get_issue_comments', ...context.base, idOrKey: context.idOrKey});
+      const issue = findIssue({seeded: context.seeded, idOrKey: context.idOrKey});
+      const comments = context.seeded.comments
+        .filter((comment) => issue !== undefined && comment.issueKey === issue.key)
+        .map(seededCommentBody);
       sendJson(context.response, 200, {
         startAt: 0,
         maxResults: 50,
-        total: 0,
-        comments: [],
+        total: comments.length,
+        comments,
       });
     },
   },
@@ -194,7 +238,14 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
     pattern: /^project\/([^/]+)$/,
     handle: (context) => {
       context.calls.push({kind: 'get_project', ...context.base, idOrKey: context.idOrKey});
-      sendJson(context.response, 200, {id: '10000', key: context.idOrKey, name: 'E2E project'});
+      const project = context.seeded.projects.find(
+        ({key, id}) => key === context.idOrKey || id === context.idOrKey,
+      );
+      sendJson(
+        context.response,
+        200,
+        project ?? {id: '10000', key: context.idOrKey, name: 'E2E project'},
+      );
     },
   },
   {
@@ -202,10 +253,9 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
     pattern: /^(user)$/,
     handle: (context) => {
       context.calls.push({kind: 'get_user', ...context.base});
-      sendJson(context.response, 200, {
-        accountId: firstQueryValue(context.base.query.accountId) ?? 'e2e-account',
-        displayName: 'E2E user',
-      });
+      const accountId = firstQueryValue(context.base.query.accountId) ?? 'e2e-account';
+      const user = context.seeded.users.find((candidate) => candidate.accountId === accountId);
+      sendJson(context.response, 200, {accountId, displayName: user?.displayName ?? 'E2E user'});
     },
   },
   {
@@ -276,6 +326,7 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
 
 async function handleJiraRequest(params: {
   calls: JiraApiMockCall[];
+  seeded: SeededJira;
   endpoint: URL;
   request: IncomingMessage;
   response: ServerResponse;
@@ -300,6 +351,7 @@ async function handleJiraRequest(params: {
     const body = await readJsonBody(params.request);
     route.handle({
       calls: params.calls,
+      seeded: params.seeded,
       response: params.response,
       base: {
         authorization: params.request.headers.authorization,
@@ -337,6 +389,40 @@ function issueBody(idOrKey: string): JiraBody {
       summary: 'E2E Jira issue',
       description: JIRA_ISSUE_RESULT_MARKER,
       status: {name: 'To Do', statusCategory: {key: 'new'}},
+    },
+  };
+}
+
+function findIssue({
+  seeded,
+  idOrKey,
+}: {
+  seeded: SeededJira;
+  idOrKey: string;
+}): SeededJira['issues'][number] | undefined {
+  return seeded.issues.find(({key, id}) => key === idOrKey || id === idOrKey);
+}
+
+function seededIssueBody(issue: SeededJira['issues'][number]): JiraBody {
+  const projectKey = issue.key.slice(0, issue.key.lastIndexOf('-'));
+  return {
+    id: issue.id,
+    key: issue.key,
+    fields: {
+      summary: issue.summary,
+      status: {name: 'To Do', statusCategory: {key: 'new'}},
+      project: {key: projectKey},
+    },
+  };
+}
+
+function seededCommentBody(comment: SeededJira['comments'][number]): JiraBody {
+  return {
+    id: comment.id,
+    body: {
+      type: 'doc',
+      version: 1,
+      content: [{type: 'paragraph', content: [{type: 'text', text: comment.body}]}],
     },
   };
 }

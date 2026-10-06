@@ -6,6 +6,7 @@ import type {createApiClient, RecordedWrite} from '@shipfox/e2e-core';
 import {type ClickUpTaskFixture, startClickUpApiMock} from '@shipfox/e2e-driver-clickup';
 import {type DiscordApiMock, startDiscordApiMock} from '@shipfox/e2e-driver-discord';
 import type {GithubApiMock} from '@shipfox/e2e-driver-github';
+import type {JiraSeed} from '@shipfox/e2e-driver-jira';
 import {startNotionApiMock} from '@shipfox/e2e-driver-notion';
 import {seedPosthogMock} from '@shipfox/e2e-driver-posthog';
 import {
@@ -21,6 +22,7 @@ import {
   createSlackConnection,
 } from '@shipfox/e2e-setup-integrations';
 import type {SandboxManifest} from './contract-schema.js';
+import {arrangeJiraTracker} from './jira.js';
 
 /** The `fixtures` of one provider in `sandbox.yaml`. */
 export type SandboxFixtures = SandboxManifest[string]['fixtures'];
@@ -568,10 +570,80 @@ export function createSlackContractFake({
   };
 }
 
+/** The Jira objects the fixtures describe, with the ids and fields of the sandbox. */
+function jiraSeed(fixtures: SandboxFixtures): JiraSeed {
+  const read = ({fixtureName, name}: {fixtureName: string; name: string}) =>
+    String(
+      requiredField({provider: 'jira', fixture: fixtures[fixtureName] ?? {}, fixtureName, name}),
+    );
+  const projects = ['read_project', 'write_project']
+    .filter((fixtureName) => fixtures[fixtureName] !== undefined)
+    .map((fixtureName) => ({
+      key: read({fixtureName, name: 'key'}),
+      id: read({fixtureName, name: 'id'}),
+      name: read({fixtureName, name: 'name'}),
+    }));
+  const issue =
+    fixtures.issue === undefined
+      ? undefined
+      : {
+          key: read({fixtureName: 'issue', name: 'key'}),
+          id: read({fixtureName: 'issue', name: 'id'}),
+          summary: read({fixtureName: 'issue', name: 'summary'}),
+        };
+  if (fixtures.comment !== undefined && issue === undefined) {
+    throw new Error('The jira comment fixture needs an issue fixture.');
+  }
+  const comment =
+    fixtures.comment === undefined || issue === undefined
+      ? undefined
+      : {
+          issueKey: issue.key,
+          id: read({fixtureName: 'comment', name: 'id'}),
+          body: read({fixtureName: 'comment', name: 'body'}),
+        };
+  const user =
+    fixtures.user === undefined
+      ? undefined
+      : {
+          accountId: read({fixtureName: 'user', name: 'account_id'}),
+          displayName: read({fixtureName: 'user', name: 'display_name'}),
+        };
+  return {
+    projects,
+    issues: issue === undefined ? [] : [issue],
+    comments: comment === undefined ? [] : [comment],
+    users: user === undefined ? [] : [user],
+  };
+}
+
+/**
+ * Jira, with a connection to a fake of its own. It seeds the projects, the `issue` fixture and its
+ * `comment`, and the `user`, with the ids and fields of the sandbox. The fake serves the Jira site
+ * of the connection, so no site fixture is needed.
+ */
+export function createJiraContractFake({
+  arrange = arrangeJiraTracker,
+}: {
+  /** Replaces the fake and its connection, which tests don't have a stack for. */
+  arrange?: typeof arrangeJiraTracker;
+} = {}): ContractFakeAdapter {
+  return async ({workspaceId, uniqueId, cleanups}) => {
+    const {mock, connectionSlug, writes} = await arrange({workspaceId, uniqueId, cleanups});
+    return {
+      connectionSlug,
+      seed: (fixtures) => rejectingSeed(() => mock.seed(jiraSeed(fixtures))),
+      writes,
+    };
+  };
+}
+
 export const slackContractFake = createSlackContractFake({
   startMock: startSlackApiMock,
   createConnection: createSlackConnection,
 });
+
+export const jiraContractFake = createJiraContractFake();
 
 /**
  * PostHog, whose fake the harness runs for the whole stack and answers by API key. The adapter
@@ -630,4 +702,5 @@ export const CONTRACT_FAKE_ADAPTERS: Readonly<Record<string, ContractFakeAdapter
   notion: notionContractFake,
   posthog: posthogContractFake,
   slack: slackContractFake,
+  jira: jiraContractFake,
 };

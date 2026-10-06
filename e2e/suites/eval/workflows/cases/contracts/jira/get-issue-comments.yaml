@@ -1,0 +1,14 @@
+provider: jira
+modes: [real, fake]
+steps:
+  - tool: get_issue_comments
+    with:
+      idOrKey: $fixture.jira.issue.key
+    # Jira answers the body as an ADF document, a paragraph with one text node.
+    expect:
+      shape:
+        total: number
+        comments: [{id: string, body: {type: string, content: list}}]
+      values:
+        comments[0].id: $fixture.jira.comment.id
+        comments[0].body.content[0].content[0].text: $fixture.jira.comment.body

@@ -1,0 +1,16 @@
+provider: jira
+modes: [real, fake]
+steps:
+  - tool: search_issues
+    with:
+      jql: project = E2ER ORDER BY created ASC
+      maxResults: 5
+      fields: [summary]
+    # The oldest issue of the read project is the fixture.
+    expect:
+      shape:
+        issues: [{id: string, key: string, fields: {summary: string}}]
+      values:
+        issues[0].id: $fixture.jira.issue.id
+        issues[0].key: $fixture.jira.issue.key
+        issues[0].fields.summary: $fixture.jira.issue.summary

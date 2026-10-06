@@ -1,4 +1,4 @@
-ceiling: 104
+ceiling: 100
 entries:
   - {tool: discord.add_reaction, kind: write, issue: ENG-2827}
   - {tool: discord.create_thread, kind: write, issue: ENG-2827}
@@ -53,10 +53,6 @@ entries:
   - {tool: jira.add_comment, kind: write, issue: ENG-2826}
   - {tool: jira.assign_issue, kind: write, issue: ENG-2826}
   - {tool: jira.create_issue, kind: write, issue: ENG-2826}
-  - {tool: jira.get_issue_comments, kind: read, issue: ENG-2808}
-  - {tool: jira.get_issue_transitions, kind: read, issue: ENG-2808}
-  - {tool: jira.get_project, kind: read, issue: ENG-2808}
-  - {tool: jira.get_user, kind: read, issue: ENG-2808}
   - {tool: jira.transition_issue, kind: write, issue: ENG-2826}
   - {tool: jira.update_issue, kind: write, issue: ENG-2826}
   - {tool: linear.create_attachment, kind: write, issue: ENG-2816}
