@@ -1,0 +1,20 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: survey-stats
+    with:
+      id: $fixture.posthog.survey.id
+      include_per_question_stats: true
+    expect:
+      shape:
+        survey_id: string
+        rates: {response_rate: number, dismissal_rate: number}
+        stats: object
+        per_question_stats: [{question_id: string, question_text: string, response_count: number}]
+      # The fixture survey has never been shown or answered, so its counts stay at zero.
+      values:
+        survey_id: $fixture.posthog.survey.id
+        rates.response_rate: 0
+        rates.dismissal_rate: 0
+        per_question_stats[0].question_text: What do you think? café 日本語
+        per_question_stats[0].response_count: 0

@@ -381,6 +381,30 @@ jobs:
           value_name: '${{ has(result.name) ? result.name : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_type && step.outputs.shape_questions_0_id && step.outputs.shape_questions_0_question && type(step.outputs.value_id) == type("") && step.outputs.value_id == "01a10dad-d398-0000-5b35-0c6a08cd8ee8" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Contract fixture survey"
+  survey_stats:
+    checkout: false
+    steps:
+      - key: survey_stats
+        tool: survey-stats
+        connection: posthog_sandbox
+        with:
+          id: 01a10dad-d398-0000-5b35-0c6a08cd8ee8
+          include_per_question_stats: true
+        outputs:
+          shape_survey_id: ${{ has(result.survey_id) && type(result.survey_id) == type("") }}
+          shape_rates_response_rate: ${{ has(result.rates) && has(result.rates.response_rate) && (type(result.rates.response_rate) == type(1) || type(result.rates.response_rate) == type(1.0)) }}
+          shape_rates_dismissal_rate: ${{ has(result.rates) && has(result.rates.dismissal_rate) && (type(result.rates.dismissal_rate) == type(1) || type(result.rates.dismissal_rate) == type(1.0)) }}
+          shape_stats: ${{ has(result.stats) && type(result.stats) == type({}) }}
+          shape_per_question_stats_0_question_id: ${{ has(result.per_question_stats) && type(result.per_question_stats) == type([]) && size(result.per_question_stats) > 0 && [result.per_question_stats[0]].all(i0, has(i0.question_id) && type(i0.question_id) == type("")) }}
+          shape_per_question_stats_0_question_text: ${{ has(result.per_question_stats) && type(result.per_question_stats) == type([]) && size(result.per_question_stats) > 0 && [result.per_question_stats[0]].all(i0, has(i0.question_text) && type(i0.question_text) == type("")) }}
+          shape_per_question_stats_0_response_count: ${{ has(result.per_question_stats) && type(result.per_question_stats) == type([]) && size(result.per_question_stats) > 0 && [result.per_question_stats[0]].all(i0, has(i0.response_count) && (type(i0.response_count) == type(1) || type(i0.response_count) == type(1.0))) }}
+          value_survey_id: '${{ has(result.survey_id) ? result.survey_id : "" }}'
+          value_rates_response_rate: '${{ has(result.rates) && has(result.rates.response_rate) ? result.rates.response_rate : "" }}'
+          value_rates_dismissal_rate: '${{ has(result.rates) && has(result.rates.dismissal_rate) ? result.rates.dismissal_rate : "" }}'
+          value_per_question_stats_0_question_text: '${{ has(result.per_question_stats) && type(result.per_question_stats) == type([]) && size(result.per_question_stats) > 0 && [result.per_question_stats[0]].all(i0, has(i0.question_text)) ? result.per_question_stats[0].question_text : "" }}'
+          value_per_question_stats_0_response_count: '${{ has(result.per_question_stats) && type(result.per_question_stats) == type([]) && size(result.per_question_stats) > 0 && [result.per_question_stats[0]].all(i0, has(i0.response_count)) ? result.per_question_stats[0].response_count : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_survey_id && step.outputs.shape_rates_response_rate && step.outputs.shape_rates_dismissal_rate && step.outputs.shape_stats && step.outputs.shape_per_question_stats_0_question_id && step.outputs.shape_per_question_stats_0_question_text && step.outputs.shape_per_question_stats_0_response_count && type(step.outputs.value_survey_id) == type("") && step.outputs.value_survey_id == "01a10dad-d398-0000-5b35-0c6a08cd8ee8" && (type(step.outputs.value_rates_response_rate) == type(1) || type(step.outputs.value_rates_response_rate) == type(1.0)) && step.outputs.value_rates_response_rate == 0 && (type(step.outputs.value_rates_dismissal_rate) == type(1) || type(step.outputs.value_rates_dismissal_rate) == type(1.0)) && step.outputs.value_rates_dismissal_rate == 0 && type(step.outputs.value_per_question_stats_0_question_text) == type("") && step.outputs.value_per_question_stats_0_question_text == "What do you think? café 日本語" && (type(step.outputs.value_per_question_stats_0_response_count) == type(1) || type(step.outputs.value_per_question_stats_0_response_count) == type(1.0)) && step.outputs.value_per_question_stats_0_response_count == 0
   surveys_get_all:
     checkout: false
     steps:
