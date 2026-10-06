@@ -241,6 +241,20 @@ function stringifyHandoff(type: 'mdxJsxFlowElement' | 'mdxJsxTextElement', skill
   return stringify(handoffElement(type, skill));
 }
 
+test('drops the decorative Shippy illustrations', () => {
+  const stringify = stringifyMachineReadableComponent as unknown as (node: unknown) => unknown;
+
+  for (const name of ['Shippy', 'QuickStartComic']) {
+    const placeholder = stringify({type: 'mdxJsxFlowElement', name, children: [], attributes: []});
+
+    assert.equal(typeof placeholder, 'string');
+    assert.equal(
+      serializeMachineReadableMarkdown(`Before.\n\n${placeholder}\n\nAfter.`, {audience: 'human'}),
+      serializeMachineReadableMarkdown('Before.\n\nAfter.', {audience: 'human'}),
+    );
+  }
+});
+
 test('renders an agent handoff as the prompt to send for a human reader', () => {
   assert.equal(
     renderAgentHandoff({...handoff, audience: 'human'}),
