@@ -1,0 +1,10 @@
+provider: clickup
+kind: error
+modes: [real]
+steps:
+  - tool: search_tasks
+    with:
+      list_ids: [$fixture.clickup.list.id]
+      page: -1
+    expect:
+      error: provider-unavailable

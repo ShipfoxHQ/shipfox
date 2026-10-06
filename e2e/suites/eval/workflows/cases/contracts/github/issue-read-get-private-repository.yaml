@@ -1,0 +1,12 @@
+provider: github
+kind: error
+modes: [real]
+steps:
+  - tool: issue_read
+    method: get
+    with:
+      owner: $target.github.private_repository.owner
+      repo: $target.github.private_repository.name
+      issue_number: 1
+    expect:
+      error: provider-rejected

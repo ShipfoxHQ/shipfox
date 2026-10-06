@@ -1,0 +1,9 @@
+provider: posthog
+kind: error
+modes: [real]
+steps:
+  - tool: execute-sql
+    with:
+      query: SELEC nonsense FROM
+    expect:
+      error: unknown

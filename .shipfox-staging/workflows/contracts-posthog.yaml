@@ -41,6 +41,16 @@ jobs:
           matches_results: ${{ has(result.results) && type(result.results) == type("") && result.results.matches("(^|\\n)40$") }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_results && step.outputs.matches_results
+  execute_sql_invalid_query:
+    checkout: false
+    steps:
+      - key: execute_sql_invalid_query
+        tool: execute-sql
+        connection: posthog_sandbox
+        with:
+          query: SELEC nonsense FROM
+        gate:
+          success: step.status == "failed" && step.error.code == "unknown"
   feature_flag_get_all:
     checkout: false
     steps:
@@ -56,3 +66,13 @@ jobs:
           value_results_0_key: '${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.key)) ? result.results[0].key : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_results_0_id && step.outputs.shape_results_0_key && (type(step.outputs.value_results_0_id) == type(1) || type(step.outputs.value_results_0_id) == type(1.0)) && step.outputs.value_results_0_id == 301243 && type(step.outputs.value_results_0_key) == type("") && step.outputs.value_results_0_key == "contract-flag"
+  feature_flag_get_definition_missing_flag:
+    checkout: false
+    steps:
+      - key: feature_flag_get_definition_missing_flag
+        tool: feature-flag-get-definition
+        connection: posthog_sandbox
+        with:
+          id: 999999999
+        gate:
+          success: step.status == "failed" && step.error.code == "unknown"

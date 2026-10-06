@@ -1,0 +1,9 @@
+provider: jira
+kind: error
+modes: [real]
+steps:
+  - tool: get_issue
+    with:
+      idOrKey: $target.jira.missing_issue.key
+    expect:
+      error: provider-unavailable

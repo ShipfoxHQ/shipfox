@@ -1,0 +1,9 @@
+provider: sentry
+kind: error
+modes: [real]
+steps:
+  - tool: get-issue
+    with:
+      issueId: $target.sentry.missing_issue.id
+    expect:
+      error: provider-rejected

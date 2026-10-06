@@ -19,11 +19,21 @@ jobs:
         connection: shipfox
         with:
           workflow: .shipfox-staging/workflows/contracts-clickup.yaml
+      - key: discord
+        tool: start_workflow_run
+        connection: shipfox
+        with:
+          workflow: .shipfox-staging/workflows/contracts-discord.yaml
       - key: github
         tool: start_workflow_run
         connection: shipfox
         with:
           workflow: .shipfox-staging/workflows/contracts-github.yaml
+      - key: jira
+        tool: start_workflow_run
+        connection: shipfox
+        with:
+          workflow: .shipfox-staging/workflows/contracts-jira.yaml
       - key: linear
         tool: start_workflow_run
         connection: shipfox
@@ -39,6 +49,11 @@ jobs:
         connection: shipfox
         with:
           workflow: .shipfox-staging/workflows/contracts-posthog.yaml
+      - key: sentry
+        tool: start_workflow_run
+        connection: shipfox
+        with:
+          workflow: .shipfox-staging/workflows/contracts-sentry.yaml
       - key: slack
         tool: start_workflow_run
         connection: shipfox

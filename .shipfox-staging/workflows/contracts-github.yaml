@@ -177,6 +177,30 @@ jobs:
           value_state: '${{ has(result.state) ? result.state : "" }}'
         gate:
           success: 'step.status == "succeeded" && step.outputs.shape_number && step.outputs.shape_title && step.outputs.shape_state && step.outputs.shape_labels && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 1 && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Fixture issue: markdown, unicode, long body" && type(step.outputs.value_state) == type("") && step.outputs.value_state == "open"'
+  issue_read_get_missing_repository:
+    checkout: false
+    steps:
+      - key: issue_read_get_missing_repository
+        tool: issue_read.get
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-absent-7f3a9c41
+          issue_number: 1
+        gate:
+          success: step.status == "failed" && step.error.code == "provider-rejected"
+  issue_read_get_private_repository:
+    checkout: false
+    steps:
+      - key: issue_read_get_private_repository
+        tool: issue_read.get
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxHQ
+          repo: cloud
+          issue_number: 1
+        gate:
+          success: step.status == "failed" && step.error.code == "provider-rejected"
   list_issue_types:
     checkout: false
     steps:

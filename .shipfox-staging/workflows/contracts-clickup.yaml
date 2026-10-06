@@ -79,6 +79,16 @@ jobs:
           shape_comments_0_comment_text: ${{ has(result.comments) && type(result.comments) == type([]) && size(result.comments) > 0 && [result.comments[0]].all(i0, has(i0.comment_text) && type(i0.comment_text) == type("")) }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_comments_0_id && step.outputs.shape_comments_0_comment_text
+  get_task_missing_task:
+    checkout: false
+    steps:
+      - key: get_task_missing_task
+        tool: get_task
+        connection: clickup_shipfox
+        with:
+          task_id: 869zzzzzz
+        gate:
+          success: step.status == "failed" && step.error.code == "access-denied"
   search_tasks:
     checkout: false
     steps:
@@ -98,3 +108,15 @@ jobs:
           value_last_page: '${{ has(result.last_page) ? result.last_page : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_tasks_0_id && step.outputs.shape_tasks_0_name && step.outputs.shape_last_page && type(step.outputs.value_last_page) == type(true) && step.outputs.value_last_page == false
+  search_tasks_invalid_page:
+    checkout: false
+    steps:
+      - key: search_tasks_invalid_page
+        tool: search_tasks
+        connection: clickup_shipfox
+        with:
+          list_ids:
+            - "901222980414"
+          page: -1
+        gate:
+          success: step.status == "failed" && step.error.code == "provider-unavailable"

@@ -73,6 +73,26 @@ jobs:
           shape_unknown_block_ids: ${{ has(result.unknown_block_ids) && type(result.unknown_block_ids) == type([]) }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_markdown && step.outputs.shape_truncated && step.outputs.shape_unknown_block_ids
+  get_page_invalid_page_id:
+    checkout: false
+    steps:
+      - key: get_page_invalid_page_id
+        tool: get_page
+        connection: notion_shipfox
+        with:
+          page_id: not-a-uuid
+        gate:
+          success: step.status == "failed" && step.error.code == "provider-rejected"
+  get_page_missing_page:
+    checkout: false
+    steps:
+      - key: get_page_missing_page
+        tool: get_page
+        connection: notion_shipfox
+        with:
+          page_id: 00000000-0000-4000-8000-000000000000
+        gate:
+          success: step.status == "failed" && step.error.code == "access-denied"
   search:
     checkout: false
     steps:

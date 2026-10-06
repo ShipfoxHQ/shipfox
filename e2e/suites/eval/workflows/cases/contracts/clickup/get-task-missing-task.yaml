@@ -1,0 +1,9 @@
+provider: clickup
+kind: error
+modes: [real]
+steps:
+  - tool: get_task
+    with:
+      task_id: $target.clickup.missing_task.id
+    expect:
+      error: access-denied

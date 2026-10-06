@@ -133,6 +133,16 @@ jobs:
           value_title: '${{ has(result.title) ? result.title : "" }}'
         gate:
           success: 'step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_uuid && step.outputs.shape_title && step.outputs.shape_url && step.outputs.shape_status && step.outputs.shape_priority_value && step.outputs.shape_priority_name && step.outputs.shape_labels && type(step.outputs.value_id) == type("") && step.outputs.value_id == "SAR-5" && type(step.outputs.value_uuid) == type("") && step.outputs.value_uuid == "da047291-1dce-4606-a928-d29f4bd8e8b1" && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Fixture issue: markdown, unicode, long body"'
+  get_issue_missing_issue:
+    checkout: false
+    steps:
+      - key: get_issue_missing_issue
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: SAR-999999
+        gate:
+          success: step.status == "failed" && step.error.code == "not-found"
   get_issue_status:
     checkout: false
     steps:
@@ -246,6 +256,16 @@ jobs:
           value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_issues_0_id && step.outputs.shape_issues_0_uuid && step.outputs.shape_issues_0_title && step.outputs.shape_issues_0_status && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == true
+  list_issues_invalid_created_at:
+    checkout: false
+    steps:
+      - key: list_issues_invalid_created_at
+        tool: list_issues
+        connection: linear_shipfox_sandbox
+        with:
+          createdAt: not-a-date
+        gate:
+          success: step.status == "failed" && step.error.code == "unknown"
   list_projects:
     checkout: false
     steps:

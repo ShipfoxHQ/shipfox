@@ -61,6 +61,24 @@ steps:
 
 Remove the case's backlog entry in the same change, and lower `ceiling` to the new entry count.
 
+## Write an error case
+
+An error case has `kind: error` and one step with `expect.error`. It reads its object from `$target`, never from `$fixture`, and fails when the call succeeds:
+
+```yaml
+provider: linear
+kind: error
+modes: [real]
+steps:
+  - tool: get_issue
+    with:
+      id: $target.linear.missing_issue.identifier
+    expect:
+      error: not-found
+```
+
+Run the case once against the real provider and write the code the step reports. Providers do not agree on codes: a missing GitHub repository is `provider-rejected`, a missing ClickUp task or Notion page is `access-denied`, and Slack and PostHog answer `unknown`. A case with an input the provider rejects needs no target.
+
 ## Generate the workflows
 
 The generator writes `.shipfox-staging/workflows/` at the repository root. The staging instance syncs that path. Never edit those files by hand.
