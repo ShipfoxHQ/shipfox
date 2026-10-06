@@ -85,6 +85,67 @@ jobs:
           matches_permalink: ${{ has(result.permalink) && type(result.permalink) == type("") && result.permalink.matches("^https://[^/]+/archives/C0C7QHHBNNL/p1791226001009789") }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_channel && step.outputs.shape_permalink && type(step.outputs.value_channel) == type("") && step.outputs.value_channel == "C0C7QHHBNNL" && step.outputs.matches_permalink
+  message_round_trip:
+    checkout: false
+    steps:
+      - key: send
+        tool: send_message
+        connection: slack_shipfox
+        with:
+          channel_id: C0C6ZSXHEJ0
+          message: Contract contract-${{ run.id }}
+        outputs:
+          shape_channel: ${{ has(result.channel) && type(result.channel) == type("") }}
+          shape_ts: ${{ has(result.ts) && type(result.ts) == type("") }}
+          value_channel: '${{ has(result.channel) ? result.channel : "" }}'
+          ref_ts: '${{ has(result.ts) ? result.ts : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_channel && step.outputs.shape_ts && type(step.outputs.value_channel) == type("") && step.outputs.value_channel == "C0C6ZSXHEJ0"
+      - key: send_effect
+        tool: read_thread
+        connection: slack_shipfox
+        with:
+          channel_id: C0C6ZSXHEJ0
+          message_ts: ${{ steps.send.outputs.ref_ts }}
+        outputs:
+          value_messages_0_type: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.type)) ? result.messages[0].type : "" }}'
+          matches_messages_0_text: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.text) && type(i0.text) == type("") && i0.text.matches("^Contract contract-[0-9a-f-]+$")) }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_messages_0_type) == type("") && step.outputs.value_messages_0_type == "message" && step.outputs.matches_messages_0_text
+      - key: update
+        tool: update_message
+        connection: slack_shipfox
+        with:
+          channel_id: C0C6ZSXHEJ0
+          message_ts: ${{ steps.send.outputs.ref_ts }}
+          message: Contract message updated
+      - key: update_effect
+        tool: read_thread
+        connection: slack_shipfox
+        with:
+          channel_id: C0C6ZSXHEJ0
+          message_ts: ${{ steps.send.outputs.ref_ts }}
+        outputs:
+          value_messages_0_text: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.text)) ? result.messages[0].text : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_messages_0_text) == type("") && step.outputs.value_messages_0_text == "Contract message updated"
+      - key: react
+        tool: add_reaction
+        connection: slack_shipfox
+        with:
+          channel_id: C0C6ZSXHEJ0
+          message_ts: ${{ steps.send.outputs.ref_ts }}
+          emoji: white_check_mark
+      - key: react_effect
+        tool: read_thread
+        connection: slack_shipfox
+        with:
+          channel_id: C0C6ZSXHEJ0
+          message_ts: ${{ steps.send.outputs.ref_ts }}
+        outputs:
+          includes_messages_0_reactions: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.reactions) && type(i0.reactions) == type([]) && i0.reactions.exists(item, has(item.name) && type(item.name) == type("") && item.name == "white_check_mark")) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_messages_0_reactions
   read_channel:
     checkout: false
     steps:

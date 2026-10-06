@@ -1,0 +1,54 @@
+provider: slack
+kind: round-trip
+modes: [real]
+steps:
+  - key: send
+    tool: send_message
+    with:
+      channel_id: $fixture.slack.write_channel.id
+      message: Contract $marker
+    expect:
+      shape: {channel: string, ts: string}
+      values:
+        channel: $fixture.slack.write_channel.id
+    # The marker is in the text, so a pattern checks it. The message is this run's, so the values
+    # below can't come from an earlier run.
+    effect:
+      tool: read_thread
+      with:
+        channel_id: $fixture.slack.write_channel.id
+        message_ts: $steps.send.ts
+      expect:
+        values:
+          messages[0].type: message
+        matches:
+          messages[0].text: '^Contract contract-[0-9a-f-]+$'
+  - key: update
+    tool: update_message
+    with:
+      channel_id: $fixture.slack.write_channel.id
+      message_ts: $steps.send.ts
+      message: Contract message updated
+    effect:
+      tool: read_thread
+      with:
+        channel_id: $fixture.slack.write_channel.id
+        message_ts: $steps.send.ts
+      expect:
+        values:
+          messages[0].text: Contract message updated
+  # The tools cannot delete a message, so the message stays in the write channel.
+  - key: react
+    tool: add_reaction
+    with:
+      channel_id: $fixture.slack.write_channel.id
+      message_ts: $steps.send.ts
+      emoji: white_check_mark
+    effect:
+      tool: read_thread
+      with:
+        channel_id: $fixture.slack.write_channel.id
+        message_ts: $steps.send.ts
+      expect:
+        includes:
+          messages[0].reactions: {name: white_check_mark}
