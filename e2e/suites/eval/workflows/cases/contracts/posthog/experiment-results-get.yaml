@@ -1,0 +1,23 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: experiment-results-get
+    with:
+      id: $fixture.posthog.experiment_results.id
+    expect:
+      shape:
+        experiment: {id: number, name: string, status: string}
+        exposures: {total_exposures: {control: number, test: number}}
+        metrics: {primary: {count: number, results: [{index: number}]}}
+      # The experiment is stopped and its September 2026 data is fixed: 30 users per variant,
+      # 30 purchases for control and 45 for test.
+      values:
+        experiment.id: $fixture.posthog.experiment_results.id
+        experiment.name: $fixture.posthog.experiment_results.name
+        exposures.total_exposures.control: 30
+        exposures.total_exposures.test: 30
+        metrics.primary.count: 1
+        metrics.primary.results[0].data.baseline.key: control
+        metrics.primary.results[0].data.baseline.sum: 30
+        metrics.primary.results[0].data.variant_results[0].key: test
+        metrics.primary.results[0].data.variant_results[0].sum: 45

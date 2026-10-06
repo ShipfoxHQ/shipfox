@@ -55,6 +55,15 @@ jobs:
           value_id: '${{ has(result.id) ? result.id : "" }}'
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 99531
+      - key: experiment_results
+        tool: experiment-get
+        connection: posthog_sandbox
+        with:
+          id: 99702
+        outputs:
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 99702
       - key: survey
         tool: survey-get
         connection: posthog_sandbox
@@ -184,6 +193,33 @@ jobs:
           includes_results: ${{ has(result.results) && type(result.results) == type([]) && result.results.exists(item, has(item.id) && (type(item.id) == type(1) || type(item.id) == type(1.0)) && item.id == 99531 && has(item.name) && type(item.name) == type("") && item.name == "Contract fixture experiment") }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_count && step.outputs.shape_results_0_id && step.outputs.shape_results_0_name && step.outputs.shape_results_0_status && step.outputs.includes_results
+  experiment_results_get:
+    checkout: false
+    steps:
+      - key: experiment_results_get
+        tool: experiment-results-get
+        connection: posthog_sandbox
+        with:
+          id: 99702
+        outputs:
+          shape_experiment_id: ${{ has(result.experiment) && has(result.experiment.id) && (type(result.experiment.id) == type(1) || type(result.experiment.id) == type(1.0)) }}
+          shape_experiment_name: ${{ has(result.experiment) && has(result.experiment.name) && type(result.experiment.name) == type("") }}
+          shape_experiment_status: ${{ has(result.experiment) && has(result.experiment.status) && type(result.experiment.status) == type("") }}
+          shape_exposures_total_exposures_control: ${{ has(result.exposures) && has(result.exposures.total_exposures) && has(result.exposures.total_exposures.control) && (type(result.exposures.total_exposures.control) == type(1) || type(result.exposures.total_exposures.control) == type(1.0)) }}
+          shape_exposures_total_exposures_test: ${{ has(result.exposures) && has(result.exposures.total_exposures) && has(result.exposures.total_exposures.test) && (type(result.exposures.total_exposures.test) == type(1) || type(result.exposures.total_exposures.test) == type(1.0)) }}
+          shape_metrics_primary_count: ${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.count) && (type(result.metrics.primary.count) == type(1) || type(result.metrics.primary.count) == type(1.0)) }}
+          shape_metrics_primary_results_0_index: ${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.results) && type(result.metrics.primary.results) == type([]) && size(result.metrics.primary.results) > 0 && [result.metrics.primary.results[0]].all(i0, has(i0.index) && (type(i0.index) == type(1) || type(i0.index) == type(1.0))) }}
+          value_experiment_id: '${{ has(result.experiment) && has(result.experiment.id) ? result.experiment.id : "" }}'
+          value_experiment_name: '${{ has(result.experiment) && has(result.experiment.name) ? result.experiment.name : "" }}'
+          value_exposures_total_exposures_control: '${{ has(result.exposures) && has(result.exposures.total_exposures) && has(result.exposures.total_exposures.control) ? result.exposures.total_exposures.control : "" }}'
+          value_exposures_total_exposures_test: '${{ has(result.exposures) && has(result.exposures.total_exposures) && has(result.exposures.total_exposures.test) ? result.exposures.total_exposures.test : "" }}'
+          value_metrics_primary_count: '${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.count) ? result.metrics.primary.count : "" }}'
+          value_metrics_primary_results_0_data_baseline_key: '${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.results) && type(result.metrics.primary.results) == type([]) && size(result.metrics.primary.results) > 0 && [result.metrics.primary.results[0]].all(i0, has(i0.data) && has(i0.data.baseline) && has(i0.data.baseline.key)) ? result.metrics.primary.results[0].data.baseline.key : "" }}'
+          value_metrics_primary_results_0_data_baseline_sum: '${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.results) && type(result.metrics.primary.results) == type([]) && size(result.metrics.primary.results) > 0 && [result.metrics.primary.results[0]].all(i0, has(i0.data) && has(i0.data.baseline) && has(i0.data.baseline.sum)) ? result.metrics.primary.results[0].data.baseline.sum : "" }}'
+          value_metrics_primary_results_0_data_variant_results_0_key: '${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.results) && type(result.metrics.primary.results) == type([]) && size(result.metrics.primary.results) > 0 && [result.metrics.primary.results[0]].all(i0, has(i0.data) && has(i0.data.variant_results) && type(i0.data.variant_results) == type([]) && size(i0.data.variant_results) > 0 && [i0.data.variant_results[0]].all(i1, has(i1.key))) ? result.metrics.primary.results[0].data.variant_results[0].key : "" }}'
+          value_metrics_primary_results_0_data_variant_results_0_sum: '${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.results) && type(result.metrics.primary.results) == type([]) && size(result.metrics.primary.results) > 0 && [result.metrics.primary.results[0]].all(i0, has(i0.data) && has(i0.data.variant_results) && type(i0.data.variant_results) == type([]) && size(i0.data.variant_results) > 0 && [i0.data.variant_results[0]].all(i1, has(i1.sum))) ? result.metrics.primary.results[0].data.variant_results[0].sum : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_experiment_id && step.outputs.shape_experiment_name && step.outputs.shape_experiment_status && step.outputs.shape_exposures_total_exposures_control && step.outputs.shape_exposures_total_exposures_test && step.outputs.shape_metrics_primary_count && step.outputs.shape_metrics_primary_results_0_index && (type(step.outputs.value_experiment_id) == type(1) || type(step.outputs.value_experiment_id) == type(1.0)) && step.outputs.value_experiment_id == 99702 && type(step.outputs.value_experiment_name) == type("") && step.outputs.value_experiment_name == "Contract results experiment" && (type(step.outputs.value_exposures_total_exposures_control) == type(1) || type(step.outputs.value_exposures_total_exposures_control) == type(1.0)) && step.outputs.value_exposures_total_exposures_control == 30 && (type(step.outputs.value_exposures_total_exposures_test) == type(1) || type(step.outputs.value_exposures_total_exposures_test) == type(1.0)) && step.outputs.value_exposures_total_exposures_test == 30 && (type(step.outputs.value_metrics_primary_count) == type(1) || type(step.outputs.value_metrics_primary_count) == type(1.0)) && step.outputs.value_metrics_primary_count == 1 && type(step.outputs.value_metrics_primary_results_0_data_baseline_key) == type("") && step.outputs.value_metrics_primary_results_0_data_baseline_key == "control" && (type(step.outputs.value_metrics_primary_results_0_data_baseline_sum) == type(1) || type(step.outputs.value_metrics_primary_results_0_data_baseline_sum) == type(1.0)) && step.outputs.value_metrics_primary_results_0_data_baseline_sum == 30 && type(step.outputs.value_metrics_primary_results_0_data_variant_results_0_key) == type("") && step.outputs.value_metrics_primary_results_0_data_variant_results_0_key == "test" && (type(step.outputs.value_metrics_primary_results_0_data_variant_results_0_sum) == type(1) || type(step.outputs.value_metrics_primary_results_0_data_variant_results_0_sum) == type(1.0)) && step.outputs.value_metrics_primary_results_0_data_variant_results_0_sum == 45
   feature_flag_get_all:
     checkout: false
     steps:
