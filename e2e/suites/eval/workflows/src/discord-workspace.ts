@@ -16,15 +16,18 @@ export function discordSnowflake(): string {
 }
 
 /**
- * The case with a fresh ID for each seeded message, replaced wherever the case names it. The API
- * dedupes a Discord event by its message ID across connections, so a case that kept its IDs would
- * start a run only once per database.
+ * The case with a fresh ID for each seeded message, replaced wherever the case names it, in the
+ * seed, the scenario, and the expectations. The API dedupes a Discord event by its message ID
+ * across connections, so a case that kept its IDs would start a run only once per database.
  */
 export function withFreshDiscordMessageIds(templateCase: TemplateCase): TemplateCase {
   const messages = templateCase.seed.discord?.messages ?? [];
   if (messages.length === 0) return templateCase;
   let json = JSON.stringify(templateCase);
-  for (const {id} of messages) json = json.replaceAll(id, discordSnowflake());
+  for (const {id} of messages) {
+    // Another numeric ID that contains this one is not a reference to the message.
+    json = json.replace(new RegExp(`(?<!\\d)${id}(?!\\d)`, 'gu'), discordSnowflake());
+  }
   return JSON.parse(json) as TemplateCase;
 }
 

@@ -34,6 +34,19 @@ describe('withFreshDiscordMessageIds', () => {
     expect(fresh.seed.discord?.channel).toBe(channelId);
   });
 
+  it('leaves a longer numeric ID that contains the message ID alone', () => {
+    const longerId = `${messageId}7`;
+    const templateCase = parseTemplateCase({
+      ...base,
+      seed: {discord: {channel: longerId, messages: [{id: messageId, user: '2', content: 'Hi'}]}},
+    });
+
+    const fresh = withFreshDiscordMessageIds(templateCase);
+
+    expect(fresh.seed.discord?.channel).toBe(longerId);
+    expect(fresh.seed.discord?.messages[0]?.id).not.toBe(messageId);
+  });
+
   it('gives each run its own ID', () => {
     const ids = [discordCase(), discordCase()].map(
       (templateCase) => withFreshDiscordMessageIds(templateCase).seed.discord?.messages[0]?.id,
