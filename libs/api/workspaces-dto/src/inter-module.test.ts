@@ -1,7 +1,7 @@
 import {workspacesInterModuleContract} from './inter-module.js';
 
 describe('workspacesInterModuleContract', () => {
-  test('accepts a minimal workspace summary and a missing result', () => {
+  test('keeps the id, name, and slug of a workspace summary and accepts a missing result', () => {
     const method = workspacesInterModuleContract.methods.getWorkspaceSummary;
     const workspaceId = '00000000-0000-4000-8000-000000000001';
 
@@ -12,7 +12,7 @@ describe('workspacesInterModuleContract', () => {
         slug: 'workspace',
         status: 'active',
       }),
-    ).toEqual({id: workspaceId, name: 'Workspace'});
+    ).toEqual({id: workspaceId, name: 'Workspace', slug: 'workspace'});
     expect(method.output.parse(undefined)).toBeUndefined();
   });
 
