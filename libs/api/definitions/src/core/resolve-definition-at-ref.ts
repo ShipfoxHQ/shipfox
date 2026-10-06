@@ -436,6 +436,17 @@ async function resolveDefinitionRef(params: {
   }
 }
 
+const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
+
+// Source control resolves fully qualified refs only, and a repository reports
+// its default branch as a bare name, so a bare name such as `main` is read as
+// a branch. Object ids stay as written so they answer `ref-invalid` instead of
+// being looked up as a branch.
+function qualifyBranchName(ref: string): string {
+  if (ref.includes('/') || ref.startsWith('-') || GIT_OBJECT_ID_PATTERN.test(ref)) return ref;
+  return `refs/heads/${ref}`;
+}
+
 async function resolveRefToCommit(params: {
   integrations: IntegrationsModuleClient;
   source: ResolvedProjectSource;
@@ -449,7 +460,7 @@ async function resolveRefToCommit(params: {
         workspaceId: params.source.workspaceId,
         connectionId: params.source.connectionId,
         externalRepositoryId: params.source.externalRepositoryId,
-        ref: params.ref,
+        ref: qualifyBranchName(params.ref),
       },
       params.signal,
     );
