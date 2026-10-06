@@ -275,6 +275,8 @@ const placeholderSerializers: Record<
     }
     return serializeSolutionsComparison(options.integrationCatalog);
   },
+  // Decorative art carries nothing a Markdown reader needs.
+  QuickStartComic: () => '',
   EditionsComparison: () => serializeEditionsComparison(),
   WorkflowOverview: () => serializeWorkflowOverview(),
   IntegrationCatalog: (options) => {
