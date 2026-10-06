@@ -266,10 +266,8 @@ async function requestJiraRest(input: JiraAgentToolRequest): Promise<JiraAgentTo
         error instanceof HTTPError &&
         (error.response.status === 400 || error.response.status === 404)
       ) {
-        return {
-          status: error.response.status,
-          body: await readJiraResponseBody(error.response),
-        };
+        // ky already consumed the body into `data`; reading `response` again throws.
+        return {status: error.response.status, body: error.data};
       }
       throw error;
     }
