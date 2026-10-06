@@ -1,0 +1,9 @@
+provider: slack
+kind: error
+modes: [real]
+steps:
+  - tool: read_channel_info
+    with:
+      channel_id: $target.slack.missing_channel.id
+    expect:
+      error: unknown

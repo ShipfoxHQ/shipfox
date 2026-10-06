@@ -1,0 +1,9 @@
+provider: sentry
+kind: error
+modes: [real]
+steps:
+  - tool: list-projects
+    with:
+      cursor: not-a-cursor
+    expect:
+      error: provider-rejected

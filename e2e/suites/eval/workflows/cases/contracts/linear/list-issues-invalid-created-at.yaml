@@ -1,0 +1,9 @@
+provider: linear
+kind: error
+modes: [real]
+steps:
+  - tool: list_issues
+    with:
+      createdAt: not-a-date
+    expect:
+      error: unknown

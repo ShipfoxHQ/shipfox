@@ -1,0 +1,9 @@
+provider: discord
+kind: error
+modes: [real]
+steps:
+  - tool: read_channel
+    with:
+      channel_id: $target.discord.missing_channel.id
+    expect:
+      error: not-found

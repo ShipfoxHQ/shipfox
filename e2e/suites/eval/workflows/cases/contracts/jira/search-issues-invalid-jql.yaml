@@ -1,0 +1,9 @@
+provider: jira
+kind: error
+modes: [real]
+steps:
+  - tool: search_issues
+    with:
+      jql: this is ((not jql
+    expect:
+      error: provider-unavailable

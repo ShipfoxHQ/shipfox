@@ -102,6 +102,26 @@ jobs:
           value_channel_name: '${{ has(result.channel) && has(result.channel.name) ? result.channel.name : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_channel_id && step.outputs.shape_channel_name && step.outputs.shape_channel_num_members && type(step.outputs.value_channel_id) == type("") && step.outputs.value_channel_id == "C0C7QHHBNNL" && type(step.outputs.value_channel_name) == type("") && step.outputs.value_channel_name == "test_contract-tests-read"
+  read_channel_info_missing_channel:
+    checkout: false
+    steps:
+      - key: read_channel_info_missing_channel
+        tool: read_channel_info
+        connection: slack_shipfox
+        with:
+          channel_id: C0000000000
+        gate:
+          success: step.status == "failed" && step.error.code == "unknown"
+  read_channel_info_private_channel:
+    checkout: false
+    steps:
+      - key: read_channel_info_private_channel
+        tool: read_channel_info
+        connection: slack_shipfox
+        with:
+          channel_id: C0C6VLHCQVC
+        gate:
+          success: step.status == "failed" && step.error.code == "unknown"
   read_channel_members:
     checkout: false
     steps:

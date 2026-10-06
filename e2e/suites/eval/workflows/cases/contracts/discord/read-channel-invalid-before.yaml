@@ -1,0 +1,10 @@
+provider: discord
+kind: error
+modes: [real]
+steps:
+  - tool: read_channel
+    with:
+      channel_id: $fixture.discord.read_channel.id
+      before: '99999999999999999999'
+    expect:
+      error: provider-rejected

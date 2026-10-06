@@ -1,0 +1,9 @@
+provider: posthog
+kind: error
+modes: [real]
+steps:
+  - tool: feature-flag-get-definition
+    with:
+      id: $target.posthog.missing_feature_flag.id
+    expect:
+      error: unknown

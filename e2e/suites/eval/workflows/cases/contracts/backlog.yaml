@@ -1,4 +1,4 @@
-ceiling: 136
+ceiling: 130
 entries:
   - {tool: clickup.add_comment, kind: write, issue: ENG-2815}
   - {tool: clickup.create_task, kind: write, issue: ENG-2815}
@@ -6,7 +6,6 @@ entries:
   - {tool: discord.add_reaction, kind: write, issue: ENG-2827}
   - {tool: discord.create_thread, kind: write, issue: ENG-2827}
   - {tool: discord.list_channels, kind: read, issue: ENG-2810}
-  - {tool: discord.read_channel, kind: read, issue: ENG-2810}
   - {tool: discord.read_thread, kind: read, issue: ENG-2810}
   - {tool: discord.read_user_profile, kind: read, issue: ENG-2810}
   - {tool: discord.search_messages, kind: read, issue: ENG-2810}
@@ -61,12 +60,10 @@ entries:
   - {tool: jira.add_comment, kind: write, issue: ENG-2826}
   - {tool: jira.assign_issue, kind: write, issue: ENG-2826}
   - {tool: jira.create_issue, kind: write, issue: ENG-2826}
-  - {tool: jira.get_issue, kind: read, issue: ENG-2808}
   - {tool: jira.get_issue_comments, kind: read, issue: ENG-2808}
   - {tool: jira.get_issue_transitions, kind: read, issue: ENG-2808}
   - {tool: jira.get_project, kind: read, issue: ENG-2808}
   - {tool: jira.get_user, kind: read, issue: ENG-2808}
-  - {tool: jira.search_issues, kind: read, issue: ENG-2808}
   - {tool: jira.transition_issue, kind: write, issue: ENG-2826}
   - {tool: jira.update_issue, kind: write, issue: ENG-2826}
   - {tool: linear.create_attachment, kind: write, issue: ENG-2816}
@@ -116,7 +113,6 @@ entries:
   - {tool: posthog.experiment-get, kind: read, issue: ENG-2813}
   - {tool: posthog.experiment-list, kind: read, issue: ENG-2813}
   - {tool: posthog.experiment-results-get, kind: read, issue: ENG-2813}
-  - {tool: posthog.feature-flag-get-definition, kind: read, issue: ENG-2813}
   - {tool: posthog.insight-get, kind: read, issue: ENG-2813}
   - {tool: posthog.insight-query, kind: read, issue: ENG-2813}
   - {tool: posthog.insights-list, kind: read, issue: ENG-2813}
@@ -126,9 +122,7 @@ entries:
   - {tool: posthog.survey-get, kind: read, issue: ENG-2813}
   - {tool: posthog.survey-stats, kind: read, issue: ENG-2813}
   - {tool: posthog.surveys-get-all, kind: read, issue: ENG-2813}
-  - {tool: sentry.get-issue, kind: read, issue: ENG-2809}
   - {tool: sentry.get-issue-event, kind: read, issue: ENG-2809}
-  - {tool: sentry.list-projects, kind: read, issue: ENG-2809}
   - {tool: sentry.search-issues, kind: read, issue: ENG-2809}
   - {tool: slack.add_reaction, kind: write, issue: ENG-2814}
   - {tool: slack.create_canvas, kind: write, issue: ENG-2814}

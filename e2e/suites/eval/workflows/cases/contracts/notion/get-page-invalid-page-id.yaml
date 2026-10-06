@@ -1,0 +1,9 @@
+provider: notion
+kind: error
+modes: [real]
+steps:
+  - tool: get_page
+    with:
+      page_id: not-a-uuid
+    expect:
+      error: provider-rejected
