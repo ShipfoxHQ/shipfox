@@ -426,12 +426,55 @@ discord:
   fixtures:
     # Discord ids are snowflakes, too large for a YAML number: keep every id quoted.
     server: {id: '1556715286223388702', name: 'Shipfox - Sandbox'}
-    read_channel: {id: '1556715356926517279', name: contract-test-read}
+    read_channel:
+      id: '1556715356926517279'
+      name: contract-test-read
+      read:
+        tool: list_channels
+        with: {name_contains: $fixture.discord.read_channel.name}
+        expect:
+          includes:
+            channels: {id: $fixture.discord.read_channel.id, name: $fixture.discord.read_channel.name}
     # A message in `read_channel` and a thread in it.
-    message: {id: '1556715416456273941', content: 'Contract test read message, do not modify'}
-    thread: {id: '1556728176573681897', name: Contract test thread}
-    write_channel: {id: '1556728776744898701', name: contract-test-write}
-    user: {id: '1223593063809548341', username: noe_charmet_shipfox}
+    message:
+      id: '1556715416456273941'
+      content: 'Contract test read message, do not modify'
+      read:
+        tool: read_thread
+        with:
+          channel_id: $fixture.discord.read_channel.id
+          message_id: $fixture.discord.message.id
+        expect:
+          values:
+            messages[0].id: $fixture.discord.message.id
+            messages[0].content: $fixture.discord.message.content
+    thread:
+      id: '1556728176573681897'
+      name: Contract test thread
+      read:
+        tool: read_thread
+        with: {channel_id: $fixture.discord.thread.id}
+        expect:
+          shape: {messages: list}
+    write_channel:
+      id: '1556728776744898701'
+      name: contract-test-write
+      read:
+        tool: list_channels
+        with: {name_contains: $fixture.discord.write_channel.name}
+        expect:
+          includes:
+            channels: {id: $fixture.discord.write_channel.id, name: $fixture.discord.write_channel.name}
+    user:
+      id: '1223593063809548341'
+      username: noe_charmet_shipfox
+      read:
+        tool: read_user_profile
+        with: {user_id: $fixture.discord.user.id}
+        expect:
+          values:
+            id: $fixture.discord.user.id
+            username: $fixture.discord.user.username
   targets:
     # A snowflake dated in the future, so Discord can never issue it.
     missing_channel: {kind: absent, id: '9000000000000000000'}

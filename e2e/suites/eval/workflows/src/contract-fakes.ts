@@ -4,9 +4,14 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {createApiClient, RecordedWrite} from '@shipfox/e2e-core';
 import {type ClickUpTaskFixture, startClickUpApiMock} from '@shipfox/e2e-driver-clickup';
+import {type DiscordApiMock, startDiscordApiMock} from '@shipfox/e2e-driver-discord';
 import type {GithubApiMock} from '@shipfox/e2e-driver-github';
 import {startNotionApiMock} from '@shipfox/e2e-driver-notion';
-import {createClickUpConnection, createNotionConnection} from '@shipfox/e2e-setup-integrations';
+import {
+  createClickUpConnection,
+  createDiscordConnection,
+  createNotionConnection,
+} from '@shipfox/e2e-setup-integrations';
 import type {SandboxManifest} from './contract-schema.js';
 
 /** The `fixtures` of one provider in `sandbox.yaml`. */
@@ -289,12 +294,102 @@ export const notionContractFake: ContractFakeAdapter = async ({
   };
 };
 
+// Discord's channel types: a text channel and a public thread.
+const TEXT_CHANNEL = 0;
+const PUBLIC_THREAD = 11;
+
+/** A numeric ID of up to 20 digits, which is what the Discord tools accept. */
+function discordSnowflake(): string {
+  return `${Date.now()}${Math.floor(Math.random() * 1_000_000)
+    .toString()
+    .padStart(6, '0')}`;
+}
+
+/** Loads the fixtures the Discord cases read into the fake, under the connection's server. */
+export function seedDiscord({
+  discord,
+  guildId,
+  fixtures,
+}: {
+  discord: DiscordApiMock;
+  guildId: string;
+  fixtures: SandboxFixtures;
+}): void {
+  const {read_channel: channel, thread, message, user} = fixtures;
+  if (channel === undefined) {
+    if (message !== undefined || thread !== undefined) {
+      throw new Error('The discord message and thread fixtures need a read_channel fixture.');
+    }
+    return;
+  }
+  const channelId = String(
+    requiredField({provider: 'discord', fixture: channel, fixtureName: 'read_channel', name: 'id'}),
+  );
+  discord.addChannel({
+    id: channelId,
+    type: TEXT_CHANNEL,
+    guild_id: guildId,
+    name: String(field({fixture: channel, name: 'name'}) ?? 'contract-test-read'),
+  });
+  if (thread !== undefined) {
+    discord.addChannel({
+      id: String(
+        requiredField({provider: 'discord', fixture: thread, fixtureName: 'thread', name: 'id'}),
+      ),
+      type: PUBLIC_THREAD,
+      guild_id: guildId,
+      parent_id: channelId,
+      name: String(field({fixture: thread, name: 'name'}) ?? 'Contract test thread'),
+    });
+  }
+  if (message !== undefined) {
+    discord.addMessage({
+      id: String(
+        requiredField({provider: 'discord', fixture: message, fixtureName: 'message', name: 'id'}),
+      ),
+      channel_id: channelId,
+      content: String(field({fixture: message, name: 'content'}) ?? ''),
+      author: {
+        id: String((user && field({fixture: user, name: 'id'})) ?? '1'),
+        username: String((user && field({fixture: user, name: 'username'})) ?? 'user'),
+      },
+    });
+  }
+}
+
+/**
+ * Discord. The suite starts its fake here and connects it to the workspace. It seeds the
+ * `read_channel` fixture as a text channel, the `thread` fixture as a thread in it, and the
+ * `message` fixture as a message of the channel.
+ *
+ * The connection takes a server ID of its own. The sandbox server's ID can connect to one
+ * workspace per Shipfox instance, so a second run against the same API would fail with a conflict.
+ * The server ID only shows in the `url` of a result, which no case pins.
+ */
+export const discordContractFake: ContractFakeAdapter = async ({workspaceId, cleanups}) => {
+  const discord = await startDiscordApiMock();
+  cleanups.push(() => discord.stop());
+  const guildId = discordSnowflake();
+  const connection = await createDiscordConnection({
+    workspaceId,
+    guildId,
+    guildName: 'Contracts sandbox',
+  });
+
+  return {
+    connectionSlug: connection.slug,
+    seed: (fixtures) => rejectingSeed(() => seedDiscord({discord, guildId, fixtures})),
+    writes: () => discord.writes(),
+  };
+};
+
 /**
  * The adapter of each provider the suite can run in fake mode. A provider joins when its fake
  * parity unit adds its adapter, and its cases gain `fake` in `modes` in the same change.
  */
 export const CONTRACT_FAKE_ADAPTERS: Readonly<Record<string, ContractFakeAdapter>> = {
   github: githubContractFake,
+  discord: discordContractFake,
   clickup: clickupContractFake,
   notion: notionContractFake,
 };

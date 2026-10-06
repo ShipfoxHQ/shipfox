@@ -1,0 +1,14 @@
+provider: discord
+modes: [real, fake]
+steps:
+  - tool: read_thread
+    with:
+      channel_id: $fixture.discord.read_channel.id
+      message_id: $fixture.discord.message.id
+    # The message has no thread, so the thread part of the answer is empty.
+    expect:
+      shape:
+        messages: [{id: string, channel_id: string, content: string, url: string}]
+      values:
+        messages[0].id: $fixture.discord.message.id
+        messages[0].content: $fixture.discord.message.content

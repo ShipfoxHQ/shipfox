@@ -1,0 +1,11 @@
+provider: discord
+modes: [real]
+steps:
+  - tool: list_channels
+    with:
+      name_contains: contract-test
+    expect:
+      shape:
+        channels: [{id: string, name: string, type: number}]
+      includes:
+        channels: {id: $fixture.discord.read_channel.id, name: $fixture.discord.read_channel.name}

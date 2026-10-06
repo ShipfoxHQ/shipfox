@@ -1,13 +1,16 @@
 import type {createApiClient} from '@shipfox/e2e-core';
+import {type DiscordApiMock, startDiscordApiMock} from '@shipfox/e2e-driver-discord';
 import {type GithubApiMock, startGithubApiMock} from '@shipfox/e2e-driver-github';
 import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {
   CONTRACT_FAKE_ADAPTERS,
   type ContractFakeContext,
   clickupContractFake,
+  discordContractFake,
   githubContractFake,
   notionContractFake,
   type SandboxFixtures,
+  seedDiscord,
 } from './contract-fakes.js';
 
 // The fakes listen behind the stack's router in a run. The tests bind them to a free port, and
@@ -51,6 +54,7 @@ type ApiClient = ReturnType<typeof createApiClient>;
 const token = `ghs_${'a'.repeat(40)}`;
 const missingRepositoryPattern = /issue fixture needs a repository fixture/u;
 const missingTitlePattern = /fixture "page" has no "title"/u;
+const discordNeedsChannelPattern = /need a read_channel fixture/u;
 const missingOwnerPattern = /fixture "repository" has no "owner"/u;
 
 describe('githubContractFake', () => {
@@ -230,5 +234,78 @@ describe('clickupContractFake and notionContractFake', () => {
   it('is the adapter of the clickup and notion providers', () => {
     expect(CONTRACT_FAKE_ADAPTERS.clickup).toBe(clickupContractFake);
     expect(CONTRACT_FAKE_ADAPTERS.notion).toBe(notionContractFake);
+  });
+});
+
+describe('seedDiscord', () => {
+  let discord: DiscordApiMock | undefined;
+  const guildId = '2000000000000000001';
+  const fixtures: SandboxFixtures = {
+    read_channel: {id: '1000000000000000001', name: 'contract-test-read'},
+    message: {id: '1000000000000000002', content: 'Contract test read message'},
+    thread: {id: '1000000000000000003', name: 'Contract test thread'},
+    user: {id: '1000000000000000004', username: 'sandbox_user'},
+  };
+
+  afterEach(async () => {
+    await discord?.stop();
+    discord = undefined;
+  });
+
+  async function arrange() {
+    discord = await startDiscordApiMock({endpoint: new URL('http://127.0.0.1:0')});
+    return discord;
+  }
+
+  async function get(path: string) {
+    const response = await fetch(new URL(path, discord?.endpoint));
+    return {status: response.status, body: (await response.json()) as Record<string, unknown>};
+  }
+
+  it('serves the read channel, its thread, and its message with the fixture ids', async () => {
+    const mock = await arrange();
+
+    seedDiscord({discord: mock, guildId, fixtures});
+
+    expect((await get('/channels/1000000000000000001')).body).toMatchObject({
+      type: 0,
+      guild_id: guildId,
+      name: 'contract-test-read',
+    });
+    expect((await get('/channels/1000000000000000003')).body).toMatchObject({
+      type: 11,
+      guild_id: guildId,
+      parent_id: '1000000000000000001',
+      name: 'Contract test thread',
+    });
+    expect(
+      (await get('/channels/1000000000000000001/messages/1000000000000000002')).body,
+    ).toMatchObject({
+      content: 'Contract test read message',
+      author: {id: '1000000000000000004', username: 'sandbox_user'},
+    });
+  });
+
+  it('seeds nothing for a manifest without Discord fixtures', async () => {
+    const mock = await arrange();
+
+    seedDiscord({discord: mock, guildId, fixtures: {}});
+
+    expect((await get('/channels/1000000000000000001')).status).toBe(404);
+  });
+
+  it('rejects a message or a thread without a read channel', async () => {
+    const mock = await arrange();
+
+    expect(() =>
+      seedDiscord({discord: mock, guildId, fixtures: {message: fixtures.message ?? {}}}),
+    ).toThrow(discordNeedsChannelPattern);
+    expect(() =>
+      seedDiscord({discord: mock, guildId, fixtures: {thread: fixtures.thread ?? {}}}),
+    ).toThrow(discordNeedsChannelPattern);
+  });
+
+  it('is the adapter of the discord provider', () => {
+    expect(CONTRACT_FAKE_ADAPTERS.discord).toBe(discordContractFake);
   });
 });

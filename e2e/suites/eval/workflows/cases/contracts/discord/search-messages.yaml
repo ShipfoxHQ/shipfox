@@ -1,0 +1,13 @@
+provider: discord
+modes: [real]
+steps:
+  - tool: search_messages
+    with:
+      query: Contract test read message
+      channel_id: $fixture.discord.read_channel.id
+    expect:
+      shape:
+        total_results: number
+        messages: [{id: string, content: string, url: string}]
+      includes:
+        messages: {id: $fixture.discord.message.id, content: $fixture.discord.message.content}

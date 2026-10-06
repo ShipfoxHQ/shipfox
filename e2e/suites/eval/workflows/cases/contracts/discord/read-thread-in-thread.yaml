@@ -1,0 +1,9 @@
+provider: discord
+modes: [real, fake]
+steps:
+  - tool: read_thread
+    with:
+      channel_id: $fixture.discord.thread.id
+    expect:
+      shape:
+        messages: list
