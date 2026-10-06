@@ -178,6 +178,23 @@ describe('ClickUp OAuth installation', () => {
     expect(params.disconnectClickUpInstallation).not.toHaveBeenCalled();
   });
 
+  it('registers the new webhook when ClickUp rejects deleting the previous one', async () => {
+    const params = createParams();
+    params.clickup.getAuthorizedWorkspaces.mockResolvedValue([{id: 'team-1', name: 'Acme'}]);
+    params.getExistingClickUpConnection.mockResolvedValue(params.activeConnection);
+    params.getClickUpInstallationByConnectionId.mockResolvedValue({webhookId: 'old-webhook'});
+    params.clickup.deleteWebhook.mockRejectedValue(new Error('not the webhook owner'));
+
+    const result = await handleClickUpCallback(params);
+
+    expect(result).toBe(params.activeConnection);
+    expect(params.updateClickUpInstallationWebhook).toHaveBeenCalledWith({
+      connectionId: 'connection-1',
+      webhookId: 'webhook-1',
+    });
+    expect(params.markConnectionError).not.toHaveBeenCalled();
+  });
+
   it('keeps the existing connection when a reconnect cannot store the token', async () => {
     const params = createParams();
     params.clickup.getAuthorizedWorkspaces.mockResolvedValue([{id: 'team-1', name: 'Acme'}]);
