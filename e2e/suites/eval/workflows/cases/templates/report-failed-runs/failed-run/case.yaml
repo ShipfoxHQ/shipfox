@@ -20,12 +20,14 @@ scenario:
   - await: {run: succeeded}
 
 expect:
-  # The diagnosis reply in the thread is not expected. The report's `ts` output is parsed as a JSON
-  # number, which the reply's `thread_ts` input rejects, and the diagnose job still succeeds. The
-  # reply would show up here as an unexpected write.
   writes:
     # The report names the failed step and shows the end of its log.
     - slack.chat.postMessage:
         target: C0FAILURES
         text: {contains: ['Failing build #1', 'Failed: build › Compile', 'eval-compile-error: unexpected token']}
+        count: 1
+    # The diagnose job replies in the report's thread.
+    - slack.chat.postMessage:
+        target: C0FAILURES
+        text: {contains: ['eval diagnosis: the compile step stops on an unexpected token']}
         count: 1

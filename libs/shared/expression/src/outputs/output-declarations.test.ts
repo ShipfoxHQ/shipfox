@@ -237,6 +237,16 @@ describe('coerceStepOutputs', () => {
     expect(result).toEqual({ok: true, output: {ts: '1791226001.009789'}});
   });
 
+  it('rejects a value that misses its JSON schema when text parsing is off', () => {
+    const result = coerceStepOutputs({
+      declarations: {ts: {type: 'json', schema: {type: 'object'}}},
+      output: {ts: '1791226001.009789'},
+      parseJsonText: false,
+    });
+
+    expect(result).toMatchObject({ok: false, error: {key: 'ts', reason: 'schema_invalid'}});
+  });
+
   it('coerces declared scalar output values', () => {
     const result = coerceStepOutputs({
       declarations: {
