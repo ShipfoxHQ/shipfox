@@ -10,8 +10,11 @@ Discord server. Faking Discord is on purpose: it is the external system under in
   `DISCORD_API_BASE_URL`, backed by memory. Add what Discord would already hold with `addChannel`
   and `addMessage`, and the members of a server with `addMember`. The fake answers channels,
   messages, thread starts, a server's channels and active threads, its message search, and its
-  members, and accepts bot messages. `writes()` lists the threads and messages it accepted, `messages(channelId)` reads a
-  channel or thread back, and `calls` records every request with its `authorization` header. A
+  members. It accepts bot messages, edits of them, and bot reactions, and a read shows each change:
+  the new `content` with an `edited_timestamp`, and a `reactions` entry with `me` set. A user's
+  message can't be edited, as in Discord. `writes()` lists the messages, edits, reactions, and
+  threads it accepted, `messages(channelId)` reads a channel or thread back, and `calls` records
+  every request with its `authorization` header. A
   thread started from a message takes that message's ID, as Discord does. One test at a time can
   hold the port, so keep the tests that use it in one serial file.
 - `injectDiscordMessageCreate(params)`: deliver a `MESSAGE_CREATE` dispatch that mentions the bot

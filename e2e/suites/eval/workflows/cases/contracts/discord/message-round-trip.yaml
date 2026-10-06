@@ -1,6 +1,6 @@
 provider: discord
 kind: round-trip
-modes: [real]
+modes: [real, fake]
 steps:
   - key: send
     tool: send_message
