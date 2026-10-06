@@ -1,3 +1,5 @@
+import type {EmailTemplateDefinition} from './renderer.js';
+
 export type TemplateName =
   | 'verification-code'
   | 'verify-email'
@@ -91,9 +93,17 @@ const builders: {[Name in TemplateName]: (data: TemplateVariables[Name]) => stri
     ].join('\n'),
 };
 
-export function renderText<Name extends TemplateName>(
-  name: Name,
-  data: TemplateVariables[Name],
-): string {
-  return builders[name](data);
-}
+export const builtInTemplates: {
+  [Name in TemplateName]: EmailTemplateDefinition<TemplateVariables[Name]>;
+} = {
+  'verification-code': {
+    subject: 'Your Shipfox verification code',
+    text: builders['verification-code'],
+  },
+  'verify-email': {subject: 'Verify your email', text: builders['verify-email']},
+  'reset-password': {subject: 'Reset your password', text: builders['reset-password']},
+  'workspace-invitation': {
+    subject: 'Join {{workspaceName}} on Shipfox',
+    text: builders['workspace-invitation'],
+  },
+};
