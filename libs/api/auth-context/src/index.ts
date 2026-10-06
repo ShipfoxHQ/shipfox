@@ -27,6 +27,7 @@ export type WorkspaceStatus = 'active' | 'suspended' | 'deleted';
 
 export interface UserContextMembership {
   workspaceId: string;
+  workspaceSlug?: string | undefined;
   role: WorkspaceRole;
   workspaceStatus: WorkspaceStatus;
 }

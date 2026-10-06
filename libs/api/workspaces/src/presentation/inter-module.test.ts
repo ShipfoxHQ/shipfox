@@ -18,11 +18,13 @@ function createClient() {
 describe('Workspaces inter-module presentation', () => {
   test('returns a minimal workspace summary through the transport', async () => {
     const client = createClient();
-    const workspace = await createWorkspace({name: 'Summary Workspace'});
+    const slug = `summary-${crypto.randomUUID().slice(0, 8)}`;
+    const workspace = await createWorkspace({name: 'Summary Workspace', slug});
 
     await expect(client.getWorkspaceSummary({workspaceId: workspace.id})).resolves.toEqual({
       id: workspace.id,
       name: 'Summary Workspace',
+      slug,
     });
   });
 
@@ -98,9 +100,24 @@ describe('Workspaces inter-module presentation', () => {
 
     expect(await client.listMembershipsForTokenClaims({userId})).toEqual({
       memberships: [
-        {workspaceId: active.id, role: 'admin', workspaceStatus: 'active'},
-        {workspaceId: deleted.id, role: 'admin', workspaceStatus: 'deleted'},
-        {workspaceId: suspended.id, role: 'admin', workspaceStatus: 'suspended'},
+        {
+          workspaceId: active.id,
+          workspaceSlug: active.slug,
+          role: 'admin',
+          workspaceStatus: 'active',
+        },
+        {
+          workspaceId: deleted.id,
+          workspaceSlug: deleted.slug,
+          role: 'admin',
+          workspaceStatus: 'deleted',
+        },
+        {
+          workspaceId: suspended.id,
+          workspaceSlug: suspended.slug,
+          role: 'admin',
+          workspaceStatus: 'suspended',
+        },
       ],
     });
 
@@ -108,9 +125,24 @@ describe('Workspaces inter-module presentation', () => {
 
     expect(await client.listMembershipsForTokenClaims({userId})).toEqual({
       memberships: [
-        {workspaceId: active.id, role: 'admin', workspaceStatus: 'active'},
-        {workspaceId: deleted.id, role: 'admin', workspaceStatus: 'deleted'},
-        {workspaceId: suspended.id, role: 'admin', workspaceStatus: 'active'},
+        {
+          workspaceId: active.id,
+          workspaceSlug: active.slug,
+          role: 'admin',
+          workspaceStatus: 'active',
+        },
+        {
+          workspaceId: deleted.id,
+          workspaceSlug: deleted.slug,
+          role: 'admin',
+          workspaceStatus: 'deleted',
+        },
+        {
+          workspaceId: suspended.id,
+          workspaceSlug: suspended.slug,
+          role: 'admin',
+          workspaceStatus: 'active',
+        },
       ],
     });
   });

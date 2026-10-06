@@ -5,6 +5,8 @@ import {recordTokenIssued, recordTokenVerified} from '#metrics/index.js';
 
 export const tokenMembershipSchema = z.object({
   workspaceId: z.string().uuid(),
+  // Absent in tokens issued before the slug claim existed; callers fall back to getWorkspaceSummary.
+  workspaceSlug: z.string().min(1).optional(),
   role: workspaceRoleSchema,
   workspaceStatus: workspaceStatusSchema.default('active'),
 });

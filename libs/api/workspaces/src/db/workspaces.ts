@@ -68,11 +68,11 @@ export async function getWorkspaceById(id: string): Promise<Workspace | undefine
   return toWorkspace(row);
 }
 
-export type WorkspaceSummary = Pick<Workspace, 'id' | 'name'>;
+export type WorkspaceSummary = Pick<Workspace, 'id' | 'name' | 'slug'>;
 
 export async function getWorkspaceSummaryById(id: string): Promise<WorkspaceSummary | undefined> {
   const rows = await db()
-    .select({id: workspaces.id, name: workspaces.name})
+    .select({id: workspaces.id, name: workspaces.name, slug: workspaces.slug})
     .from(workspaces)
     .where(eq(workspaces.id, id))
     .limit(1);

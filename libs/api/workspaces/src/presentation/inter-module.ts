@@ -29,8 +29,9 @@ export function createWorkspacesInterModulePresentation(): InterModulePresentati
   return defineInterModulePresentation(workspacesInterModuleContract, {
     listMembershipsForTokenClaims: async ({userId}) => ({
       memberships: (await listMembershipsByUser({userId})).map(
-        ({workspaceId, workspaceStatus}) => ({
+        ({workspaceId, workspaceSlug, workspaceStatus}) => ({
           workspaceId,
+          workspaceSlug,
           role: 'admin' as const,
           workspaceStatus,
         }),

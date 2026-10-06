@@ -12,7 +12,12 @@ describe('jwt', () => {
     const userId = crypto.randomUUID();
     const email = `jwt-${crypto.randomUUID()}@example.com`;
     const memberships: TokenMembership[] = [
-      {workspaceId: crypto.randomUUID(), role: 'admin', workspaceStatus: 'active'},
+      {
+        workspaceId: crypto.randomUUID(),
+        workspaceSlug: 'acme',
+        role: 'admin',
+        workspaceStatus: 'active',
+      },
       {workspaceId: crypto.randomUUID(), role: 'admin', workspaceStatus: 'suspended'},
     ];
 
@@ -257,6 +262,22 @@ describe('jwt', () => {
     await expect(verifyUserToken({token, secret: SECRET})).resolves.toMatchObject({
       memberships: [{workspaceId: expect.any(String), role: 'admin', workspaceStatus: 'active'}],
     });
+  });
+
+  test('accepts tokens issued before the workspace slug claim existed', async () => {
+    const token = await new SignJWT({
+      email: `jwt-${crypto.randomUUID()}@example.com`,
+      memberships: [{workspaceId: crypto.randomUUID(), role: 'admin', workspaceStatus: 'active'}],
+    })
+      .setProtectedHeader({alg: 'HS256'})
+      .setSubject(crypto.randomUUID())
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(encodeSecret(SECRET));
+
+    const claims = await verifyUserToken({token, secret: SECRET});
+
+    expect(claims.memberships[0]).not.toHaveProperty('workspaceSlug');
   });
 
   test('rejects a token with unknown role value', async () => {

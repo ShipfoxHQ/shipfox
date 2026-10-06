@@ -27,7 +27,12 @@ function createWorkspaces(params: {
         ? Promise.reject(new Error('workspaces unavailable'))
         : Promise.resolve({
             memberships: [
-              {workspaceId: params.workspaceId, role: 'admin', workspaceStatus: 'active'},
+              {
+                workspaceId: params.workspaceId,
+                workspaceSlug: 'acme',
+                role: 'admin',
+                workspaceStatus: 'active',
+              },
             ],
           }),
     requireActiveMembership: () =>

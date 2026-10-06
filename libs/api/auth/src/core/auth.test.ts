@@ -83,6 +83,7 @@ const listMembershipsByUserMock = vi.fn(() =>
   Promise.resolve({
     memberships: [] as Array<{
       workspaceId: string;
+      workspaceSlug: string;
       role: 'admin';
       workspaceStatus: 'active' | 'suspended' | 'deleted';
     }>,
@@ -586,6 +587,7 @@ describe('auth core', () => {
     const impersonatorId = crypto.randomUUID();
     const membership = {
       workspaceId: crypto.randomUUID(),
+      workspaceSlug: 'acme',
       role: 'admin' as const,
       workspaceStatus: 'active' as const,
     };
@@ -951,8 +953,13 @@ describe('auth core', () => {
     const workspaceB = crypto.randomUUID();
     listMembershipsByUserMock.mockResolvedValueOnce({
       memberships: [
-        {workspaceId: workspaceA, role: 'admin', workspaceStatus: 'active'},
-        {workspaceId: workspaceB, role: 'admin', workspaceStatus: 'suspended'},
+        {workspaceId: workspaceA, workspaceSlug: 'alpha', role: 'admin', workspaceStatus: 'active'},
+        {
+          workspaceId: workspaceB,
+          workspaceSlug: 'beta',
+          role: 'admin',
+          workspaceStatus: 'suspended',
+        },
       ],
     });
 
@@ -961,8 +968,8 @@ describe('auth core', () => {
     const claims = await verifyUserToken({token: result.token, secret: userAccessTokenKey()});
     expect(claims.name).toBe(user.name);
     expect(claims.memberships).toEqual([
-      {workspaceId: workspaceA, role: 'admin', workspaceStatus: 'active'},
-      {workspaceId: workspaceB, role: 'admin', workspaceStatus: 'suspended'},
+      {workspaceId: workspaceA, workspaceSlug: 'alpha', role: 'admin', workspaceStatus: 'active'},
+      {workspaceId: workspaceB, workspaceSlug: 'beta', role: 'admin', workspaceStatus: 'suspended'},
     ]);
   });
 
@@ -973,7 +980,14 @@ describe('auth core', () => {
 
     const newWorkspaceId = crypto.randomUUID();
     listMembershipsByUserMock.mockResolvedValueOnce({
-      memberships: [{workspaceId: newWorkspaceId, role: 'admin', workspaceStatus: 'active'}],
+      memberships: [
+        {
+          workspaceId: newWorkspaceId,
+          workspaceSlug: 'gamma',
+          role: 'admin',
+          workspaceStatus: 'active',
+        },
+      ],
     });
     const refreshed = await refreshAccessToken({refreshToken: loginResult.refreshToken});
 
@@ -982,7 +996,12 @@ describe('auth core', () => {
       secret: userAccessTokenKey(),
     });
     expect(refreshedClaims.memberships).toEqual([
-      {workspaceId: newWorkspaceId, role: 'admin', workspaceStatus: 'active'},
+      {
+        workspaceId: newWorkspaceId,
+        workspaceSlug: 'gamma',
+        role: 'admin',
+        workspaceStatus: 'active',
+      },
     ]);
   });
 
