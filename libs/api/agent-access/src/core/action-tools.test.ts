@@ -802,6 +802,36 @@ describe('agent-access action tools', () => {
     });
   });
 
+  test('explains how to fix a ref-invalid error', async () => {
+    const {triggers, tools} = clients();
+    const ref = 'a'.repeat(40);
+    vi.mocked(triggers.createDevRun).mockRejectedValue(
+      createInterModuleKnownError(triggersInterModuleContract.methods.createDevRun, 'ref-invalid', {
+        ref,
+      }),
+    );
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        ref,
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+      },
+    });
+
+    expect(response).toMatchObject({
+      ok: false,
+      error: {
+        code: 'ref-invalid',
+        message: expect.stringContaining('refs/heads/main'),
+        details: {ref},
+      },
+    });
+    expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
+  });
+
   test('forwards invalid-definition errors within the details byte budget', async () => {
     const {triggers, tools} = clients();
     const errors = Array.from({length: 200}, (_, index) => ({

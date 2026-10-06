@@ -335,6 +335,12 @@ function mapProducerError(
       ),
     });
   }
+  if (code === 'ref-invalid' && typeof details.ref === 'string') {
+    return agentAccessError(code, {
+      message: `Ref ${quote(details.ref)} is not a branch or tag in the project repository. Use a branch name such as main, or a full ref such as refs/heads/main or refs/tags/v1.0.0. A commit SHA is not a ref: pass it as commit together with the ref it belongs to. Pull-request refs are not accepted.`,
+      details: {ref: boundErrorDetail(details.ref)},
+    });
+  }
   const devRunDetails = mapDevRunErrorDetails(code, details);
   if (devRunDetails !== undefined) return agentAccessError(code, {details: devRunDetails});
   if (code === 'admission-denied' && typeof details.reason === 'string') {

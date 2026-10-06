@@ -323,7 +323,7 @@ describe('resolveDefinitionAtRef', () => {
     expect(result.ref).toBe('fix-branch');
     expect(clients.integrations.resolveSourceRepository).toHaveBeenCalledOnce();
     expect(clients.integrations.resolveSourceRef).toHaveBeenCalledWith(
-      expect.objectContaining({ref: 'trunk'}),
+      expect.objectContaining({ref: 'refs/heads/trunk'}),
     );
     expect(clients.integrations.fetchSourceFile).not.toHaveBeenCalled();
   });
@@ -458,6 +458,26 @@ describe('resolveDefinitionAtRef', () => {
       'ref-not-found',
     );
     expect(error.details).toEqual({ref: 'missing-branch'});
+  });
+
+  test.each([
+    ['main', 'refs/heads/main'],
+    ['feature/login', 'feature/login'],
+    ['refs/tags/v1.0.0', 'refs/tags/v1.0.0'],
+    ['a'.repeat(40), 'a'.repeat(40)],
+  ])('resolves ref %s as %s', async (ref, resolvedAs) => {
+    const clients = makeClients();
+
+    await resolveDefinitionAtRef({
+      projectId: crypto.randomUUID(),
+      ref,
+      configPath: CONFIG_PATH,
+      ...clients,
+    });
+
+    expect(clients.integrations.resolveSourceRef).toHaveBeenCalledWith(
+      expect.objectContaining({ref: resolvedAs}),
+    );
   });
 
   test('answers ref-invalid for a raw commit sha or pull-request ref', async () => {
