@@ -1,0 +1,10 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: list_cycles
+    with:
+      teamId: $fixture.linear.team.id
+    # The result is a bare list, so only its first item is checked. Cycles roll forward, so their
+    # ids are not pinned.
+    expect:
+      shape: [{id: string, number: number, startsAt: string, endsAt: string, isCurrent: boolean}]

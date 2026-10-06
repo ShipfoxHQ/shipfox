@@ -1,0 +1,11 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: get_document
+    with:
+      id: $fixture.linear.document.id
+    expect:
+      shape: {id: string, title: string, content: string, url: string}
+      values:
+        id: $fixture.linear.document.id
+        title: $fixture.linear.document.title

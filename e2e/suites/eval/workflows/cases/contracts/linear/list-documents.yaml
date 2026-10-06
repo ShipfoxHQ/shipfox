@@ -1,0 +1,15 @@
+provider: linear
+modes: [real]
+steps:
+  - tool: list_documents
+    with:
+      query: $fixture.linear.document.title
+      limit: 1
+    # The query also matches "Contract fixture document 2", so the first page has a next one and
+    # which document comes first is not part of the contract.
+    expect:
+      shape:
+        documents: [{id: string, title: string, url: string}]
+        hasNextPage: boolean
+      values:
+        hasNextPage: true
