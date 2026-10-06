@@ -5,10 +5,12 @@ A fake Notion API and event sender for E2E suites. The fake stands in for `api.n
 ## Public API
 
 - `startNotionApiMock(options?)`: start the fake and return a `NotionApiMock`. It serves page
-  reads. `options.accessToken` is the token of the connection the spec creates: the stack router
+  reads, page content as Markdown, page comments, and title search. `options.accessToken` is the token of the connection the spec creates: the stack router
   sends the fake the requests that carry it, so specs in other workers share the address.
   The token is required unless `options.endpoint` is set, which listens directly instead.
-- `NotionApiMock.calls`: every page read the fake served, as `NotionApiMockCall` entries.
+- `NotionApiMock.pages`: the pages the fake serves, by ID, with their title, Markdown, and
+  comments. Add to it to seed the fake. A page that was not seeded gets a placeholder.
+- `NotionApiMock.calls`: every request the fake served, as `NotionApiMockCall` entries.
 - `NotionApiMock.writes()`: always empty, because the fake accepts no writes.
 - `signNotionHeaders`, `buildPagePropertiesUpdatedEnvelope`, and `postNotionDelivery`: sign and
   send a page webhook delivery.

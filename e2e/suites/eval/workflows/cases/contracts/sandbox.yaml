@@ -293,11 +293,13 @@ clickup:
   connection: clickup_shipfox
   fixtures:
     workspace: {id: '90122048821', name: Shipfox Sandbox}
-    list: {id: '901222980414', name: Contracts read}
+    # The fake pads the list to `task_count`, the size of the sandbox list.
+    list: {id: '901222980414', name: Contracts read, task_count: 104}
     # Task 869fca5cw has a long markdown and unicode description, 32 comments, a priority, a due
     # date, and a tag. The list holds 104 tasks, so `search_tasks` has a second page.
     task:
       id: 869fca5cw
+      comment_count: 32
       name: 'Fixture task: markdown, unicode, long description'
       read:
         tool: get_task
@@ -337,6 +339,7 @@ notion:
     # The page has 65 blocks (markdown, unicode, a table, and a code block) and 32 comments.
     page:
       id: 3f0c6baa-a59e-8196-b7be-c029ce003cdb
+      comment_count: 32
       title: 'Fixture page: markdown, unicode, long content'
       read:
         tool: get_page

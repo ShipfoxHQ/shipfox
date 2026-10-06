@@ -3,6 +3,7 @@ export {
   CLICKUP_TASK_RESULT_MARKER,
   type ClickUpApiMock,
   type ClickUpApiMockCall,
+  type ClickUpCommentFixture,
   type ClickUpTaskFixture,
   type StartClickUpApiMockOptions,
   startClickUpApiMock,

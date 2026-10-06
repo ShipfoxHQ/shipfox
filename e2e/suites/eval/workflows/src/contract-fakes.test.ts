@@ -3,14 +3,54 @@ import {type GithubApiMock, startGithubApiMock} from '@shipfox/e2e-driver-github
 import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {
   CONTRACT_FAKE_ADAPTERS,
+  type ContractFakeContext,
+  clickupContractFake,
   githubContractFake,
+  notionContractFake,
   type SandboxFixtures,
 } from './contract-fakes.js';
+
+// The fakes listen behind the stack's router in a run. The tests bind them to a free port, and
+// keep them to read what the adapters seeded.
+const started: {clickup?: {endpoint: URL}; notion?: {endpoint: URL}} = {};
+vi.mock('@shipfox/e2e-driver-clickup', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@shipfox/e2e-driver-clickup')>();
+  return {
+    ...original,
+    startClickUpApiMock: async (options: Parameters<typeof original.startClickUpApiMock>[0]) => {
+      const mock = await original.startClickUpApiMock({
+        ...options,
+        endpoint: new URL('http://127.0.0.1:0'),
+      });
+      started.clickup = mock;
+      return mock;
+    },
+  };
+});
+vi.mock('@shipfox/e2e-driver-notion', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@shipfox/e2e-driver-notion')>();
+  return {
+    ...original,
+    startNotionApiMock: async (options: Parameters<typeof original.startNotionApiMock>[0]) => {
+      const mock = await original.startNotionApiMock({
+        ...options,
+        endpoint: new URL('http://127.0.0.1:0'),
+      });
+      started.notion = mock;
+      return mock;
+    },
+  };
+});
+vi.mock('@shipfox/e2e-setup-integrations', () => ({
+  createClickUpConnection: vi.fn(() => Promise.resolve({id: 'connection-2', slug: 'clickup_fake'})),
+  createNotionConnection: vi.fn(() => Promise.resolve({id: 'connection-3', slug: 'notion_fake'})),
+}));
 
 type ApiClient = ReturnType<typeof createApiClient>;
 
 const token = `ghs_${'a'.repeat(40)}`;
 const missingRepositoryPattern = /issue fixture needs a repository fixture/u;
+const missingTitlePattern = /fixture "page" has no "title"/u;
 const missingOwnerPattern = /fixture "repository" has no "owner"/u;
 
 describe('githubContractFake', () => {
@@ -101,5 +141,94 @@ describe('githubContractFake', () => {
 
   it('is the adapter of the github provider', () => {
     expect(CONTRACT_FAKE_ADAPTERS.github).toBe(githubContractFake);
+  });
+});
+
+describe('clickupContractFake and notionContractFake', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+
+  afterEach(async () => {
+    for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+  });
+
+  const context = (): ContractFakeContext =>
+    ({workspaceId: 'workspace', uniqueId: 'unique', cleanups}) as unknown as ContractFakeContext;
+
+  const clickupFixtures: SandboxFixtures = {
+    list: {id: 'list-1', name: 'Contracts read', task_count: 104},
+    task: {id: 'task-1', name: 'Fixture task', comment_count: 32},
+    parent_task: {id: 'task-2', name: 'Parent'},
+    subtask: {id: 'task-3', name: 'Subtask'},
+    closed_task: {id: 'task-4', name: 'Closed'},
+  };
+
+  async function getJson({endpoint, path}: {endpoint: URL | undefined; path: string}) {
+    return (await (await fetch(new URL(path, endpoint))).json()) as Record<string, unknown>;
+  }
+
+  it('seeds ClickUp with the tasks of the fixtures and a list of 104 tasks', async () => {
+    const fake = await clickupContractFake(context());
+
+    await fake.seed(clickupFixtures);
+
+    const endpoint = started.clickup?.endpoint;
+    const task = await getJson({endpoint, path: '/api/v2/task/task-1'});
+    const comments = (await getJson({endpoint, path: '/api/v2/task/task-1/comment'})) as {
+      comments: unknown[];
+    };
+    const first = (await getJson({
+      endpoint,
+      path: '/api/v2/team/team/task?list_ids[]=list-1&page=0&include_closed=true&subtasks=true',
+    })) as {tasks: unknown[]; last_page: boolean};
+    const last = (await getJson({
+      endpoint,
+      path: '/api/v2/team/team/task?list_ids[]=list-1&page=1&include_closed=true&subtasks=true',
+    })) as {tasks: unknown[]; last_page: boolean};
+    const open = (await getJson({
+      endpoint,
+      path: '/api/v2/team/team/task?list_ids[]=list-1&page=1',
+    })) as {tasks: unknown[]};
+    expect(fake.connectionSlug).toBe('clickup_fake');
+    expect(task).toMatchObject({id: 'task-1', name: 'Fixture task', list: {id: 'list-1'}});
+    expect(comments.comments).toHaveLength(25);
+    expect(first.tasks).toHaveLength(100);
+    expect(first.last_page).toBe(false);
+    expect(last).toMatchObject({last_page: true});
+    expect(last.tasks).toHaveLength(4);
+    // Without the closed task and the subtask, 102 tasks leave two on the second page.
+    expect(open.tasks).toHaveLength(2);
+  });
+
+  it('seeds Notion with the page fixtures, their title, content, and comments', async () => {
+    const fake = await notionContractFake(context());
+
+    await fake.seed({page: {id: 'page-1', title: 'Fixture page', comment_count: 32}});
+
+    const endpoint = started.notion?.endpoint;
+    const page = await getJson({endpoint, path: '/v1/pages/page-1'});
+    const content = await getJson({endpoint, path: '/v1/pages/page-1/markdown'});
+    const comments = (await getJson({endpoint, path: '/v1/comments?block_id=page-1'})) as {
+      results: unknown[];
+      has_more: boolean;
+    };
+    expect(fake.connectionSlug).toBe('notion_fake');
+    expect(page).toMatchObject({
+      id: 'page-1',
+      properties: {title: {title: [{plain_text: 'Fixture page'}]}},
+    });
+    expect(content).toMatchObject({markdown: '# Fixture page\n', truncated: false});
+    expect(comments.results).toHaveLength(32);
+    expect(comments.has_more).toBe(false);
+  });
+
+  it('rejects a page fixture without a title', async () => {
+    const fake = await notionContractFake(context());
+
+    await expect(fake.seed({page: {id: 'page-1'}})).rejects.toThrow(missingTitlePattern);
+  });
+
+  it('is the adapter of the clickup and notion providers', () => {
+    expect(CONTRACT_FAKE_ADAPTERS.clickup).toBe(clickupContractFake);
+    expect(CONTRACT_FAKE_ADAPTERS.notion).toBe(notionContractFake);
   });
 });
