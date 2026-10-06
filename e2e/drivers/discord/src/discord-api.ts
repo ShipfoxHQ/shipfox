@@ -5,10 +5,17 @@ const DEFAULT_APPLICATION_ID = 'e2e-discord-application-id';
 const PUBLIC_THREAD = 11;
 const FIRST_MESSAGE_ID = 1_000_000_000_000_000_000n;
 const DEFAULT_MESSAGE_LIMIT = 50;
+const DEFAULT_SEARCH_LIMIT = 25;
+const THREAD_TYPES = new Set([10, 11, 12]);
+const MEMBER_JOINED_AT = '2026-01-01T00:00:00.000000+00:00';
 const CHANNEL_PATH = /^\/channels\/([^/]+)$/u;
 const MESSAGES_PATH = /^\/channels\/([^/]+)\/messages$/u;
 const MESSAGE_PATH = /^\/channels\/([^/]+)\/messages\/([^/]+)$/u;
 const THREADS_PATH = /^\/channels\/([^/]+)\/messages\/([^/]+)\/threads$/u;
+const GUILD_CHANNELS_PATH = /^\/guilds\/([^/]+)\/channels$/u;
+const GUILD_ACTIVE_THREADS_PATH = /^\/guilds\/([^/]+)\/threads\/active$/u;
+const GUILD_SEARCH_PATH = /^\/guilds\/([^/]+)\/messages\/search$/u;
+const GUILD_MEMBER_PATH = /^\/guilds\/([^/]+)\/members\/([^/]+)$/u;
 
 export interface DiscordApiMockChannel {
   id: string;
@@ -29,6 +36,13 @@ export interface DiscordApiMockMessage {
   thread?: DiscordApiMockChannel | undefined;
 }
 
+export interface DiscordApiMockMember {
+  user: {id: string; username: string; global_name?: string | null | undefined; bot?: boolean};
+  nick?: string | null | undefined;
+  roles?: string[] | undefined;
+  joined_at?: string | undefined;
+}
+
 export interface DiscordApiMockCall {
   method: string;
   path: string;
@@ -45,6 +59,8 @@ export interface DiscordApiMock {
   calls: DiscordApiMockCall[];
   endpoint: URL;
   addChannel(channel: DiscordApiMockChannel): void;
+  /** Adds a member of a server, which the member lookup answers for. */
+  addMember(input: {guildId: string; member: DiscordApiMockMember}): void;
   /** Stores a message a user posted, so the API can read it back. */
   addMessage(message: Omit<DiscordApiMockMessage, 'timestamp'>): DiscordApiMockMessage;
   /** The messages of a channel or thread, oldest first. */
@@ -62,6 +78,7 @@ export async function startDiscordApiMock(
   const state: MockState = {
     botUserId: options.botUserId ?? process.env.DISCORD_APPLICATION_ID ?? DEFAULT_APPLICATION_ID,
     channels: new Map(),
+    members: new Map(),
     messages: new Map(),
     nextMessageId: FIRST_MESSAGE_ID,
     calls: [],
@@ -90,6 +107,9 @@ export async function startDiscordApiMock(
     addChannel: (channel) => {
       state.channels.set(channel.id, channel);
     },
+    addMember: ({guildId, member}) => {
+      state.members.set(`${guildId}/${member.user.id}`, member);
+    },
     addMessage: (message) => storeMessage(state, message),
     messages: (channelId) => [...(state.messages.get(channelId) ?? [])],
     writes: () => [...state.writes],
@@ -106,6 +126,8 @@ export async function startDiscordApiMock(
 interface MockState {
   botUserId: string;
   channels: Map<string, DiscordApiMockChannel>;
+  /** Keyed by `<guild id>/<user id>`. */
+  members: Map<string, DiscordApiMockMember>;
   messages: Map<string, DiscordApiMockMessage[]>;
   nextMessageId: bigint;
   calls: DiscordApiMockCall[];
@@ -126,6 +148,10 @@ interface Route {
 }
 
 const ROUTES: Route[] = [
+  {method: 'GET', pattern: GUILD_CHANNELS_PATH, handle: handleListGuildChannels},
+  {method: 'GET', pattern: GUILD_ACTIVE_THREADS_PATH, handle: handleListActiveThreads},
+  {method: 'GET', pattern: GUILD_SEARCH_PATH, handle: handleSearchMessages},
+  {method: 'GET', pattern: GUILD_MEMBER_PATH, handle: handleGetMember},
   {method: 'GET', pattern: CHANNEL_PATH, handle: handleGetChannel},
   {method: 'GET', pattern: MESSAGES_PATH, handle: handleListMessages},
   {method: 'GET', pattern: MESSAGE_PATH, handle: handleGetMessage},
@@ -177,6 +203,69 @@ function handleGetMessage(
   const message = state.messages.get(channelId)?.find((entry) => entry.id === messageId);
   if (message) sendJson(response, 200, message);
   else sendDiscordError(response, 404, 'Unknown Message', 10_008);
+}
+
+/** Discord's channel list of a server holds no threads. */
+function handleListGuildChannels({state, response}: RouteContext, [guildId = '']: string[]): void {
+  sendJson(
+    response,
+    200,
+    guildChannels(state, guildId).filter((channel) => !THREAD_TYPES.has(channel.type)),
+  );
+}
+
+function handleListActiveThreads({state, response}: RouteContext, [guildId = '']: string[]): void {
+  const threads = guildChannels(state, guildId).filter((channel) => THREAD_TYPES.has(channel.type));
+  sendJson(response, 200, {threads, members: []});
+}
+
+/** Each match is a group of the message, flagged `hit`, and its neighbors, which the fake leaves out. */
+function handleSearchMessages(
+  {state, url, response}: RouteContext,
+  [guildId = '']: string[],
+): void {
+  const content = (url.searchParams.get('content') ?? '').toLowerCase();
+  const channelId = url.searchParams.get('channel_id');
+  const authorId = url.searchParams.get('author_id');
+  const limit = Number(url.searchParams.get('limit') ?? DEFAULT_SEARCH_LIMIT);
+  const offset = Number(url.searchParams.get('offset') ?? 0);
+  const matches = guildChannels(state, guildId)
+    .filter((channel) => channelId === null || channel.id === channelId)
+    .flatMap((channel) => state.messages.get(channel.id) ?? [])
+    .filter((message) => message.content.toLowerCase().includes(content))
+    .filter((message) => authorId === null || message.author.id === authorId)
+    // Newest first, like Discord.
+    .reverse();
+  sendJson(response, 200, {
+    total_results: matches.length,
+    messages: matches.slice(offset, offset + limit).map((message) => [{...message, hit: true}]),
+  });
+}
+
+function handleGetMember(
+  {state, response}: RouteContext,
+  [guildId = '', userId = '']: string[],
+): void {
+  const member = state.members.get(`${guildId}/${userId}`);
+  if (!member) {
+    sendDiscordError(response, 404, 'Unknown Member', 10_007);
+    return;
+  }
+  sendJson(response, 200, {
+    nick: null,
+    roles: [],
+    joined_at: MEMBER_JOINED_AT,
+    flags: 0,
+    pending: false,
+    deaf: false,
+    mute: false,
+    ...member,
+    user: {global_name: null, ...member.user},
+  });
+}
+
+function guildChannels(state: MockState, guildId: string): DiscordApiMockChannel[] {
+  return [...state.channels.values()].filter((channel) => channel.guild_id === guildId);
 }
 
 async function handleStartThread(

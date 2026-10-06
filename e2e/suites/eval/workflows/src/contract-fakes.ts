@@ -344,13 +344,36 @@ export function seedDiscord({
   guildId: string;
   fixtures: SandboxFixtures;
 }): void {
-  const {read_channel: channel, thread, message, user} = fixtures;
-  if (channel === undefined) {
-    if (message !== undefined || thread !== undefined) {
-      throw new Error('The discord message and thread fixtures need a read_channel fixture.');
-    }
-    return;
+  const {read_channel: channel, write_channel: writeChannel, thread, message, user} = fixtures;
+  if (channel === undefined && (message !== undefined || thread !== undefined)) {
+    throw new Error('The discord message and thread fixtures need a read_channel fixture.');
   }
+  if (writeChannel !== undefined) {
+    discord.addChannel({
+      id: String(
+        requiredField({
+          provider: 'discord',
+          fixture: writeChannel,
+          fixtureName: 'write_channel',
+          name: 'id',
+        }),
+      ),
+      type: TEXT_CHANNEL,
+      guild_id: guildId,
+      name: String(field({fixture: writeChannel, name: 'name'}) ?? 'contract-test-write'),
+    });
+  }
+  const author =
+    user === undefined
+      ? {id: '1', username: 'user'}
+      : {
+          id: String(
+            requiredField({provider: 'discord', fixture: user, fixtureName: 'user', name: 'id'}),
+          ),
+          username: String(field({fixture: user, name: 'username'}) ?? 'user'),
+        };
+  if (user !== undefined) discord.addMember({guildId, member: {user: author}});
+  if (channel === undefined) return;
   const channelId = String(
     requiredField({provider: 'discord', fixture: channel, fixtureName: 'read_channel', name: 'id'}),
   );
@@ -378,18 +401,16 @@ export function seedDiscord({
       ),
       channel_id: channelId,
       content: String(field({fixture: message, name: 'content'}) ?? ''),
-      author: {
-        id: String((user && field({fixture: user, name: 'id'})) ?? '1'),
-        username: String((user && field({fixture: user, name: 'username'})) ?? 'user'),
-      },
+      author,
     });
   }
 }
 
 /**
  * Discord. The suite starts its fake here and connects it to the workspace. It seeds the
- * `read_channel` fixture as a text channel, the `thread` fixture as a thread in it, and the
- * `message` fixture as a message of the channel.
+ * `read_channel` and `write_channel` fixtures as text channels, the `thread` fixture as a thread in
+ * the read channel, the `message` fixture as a message of the read channel, and the `user` fixture
+ * as a member of the server.
  *
  * The connection takes a server ID of its own. The sandbox server's ID can connect to one
  * workspace per Shipfox instance, so a second run against the same API would fail with a conflict.
