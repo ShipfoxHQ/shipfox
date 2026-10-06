@@ -4,6 +4,7 @@ export {
   type SlackApiMock,
   type SlackApiMockCall,
   type SlackApiMockOptions,
+  type SlackChannelSeed,
   type SlackThreadPage,
   startSlackApiMock,
 } from './slack-api.js';

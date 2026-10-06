@@ -12,6 +12,32 @@ export type SlackApiMockCall =
       ts: string | undefined;
       cursor?: string | undefined;
     }
+  | {
+      kind: 'conversations.history';
+      authorization: string | undefined;
+      channel: string | undefined;
+      limit: string | undefined;
+      cursor: string | undefined;
+    }
+  | {
+      kind: 'conversations.info';
+      authorization: string | undefined;
+      channel: string | undefined;
+    }
+  | {
+      kind: 'conversations.members';
+      authorization: string | undefined;
+      channel: string | undefined;
+      limit: string | undefined;
+      cursor: string | undefined;
+    }
+  | {
+      kind: 'conversations.list';
+      authorization: string | undefined;
+      types: string | undefined;
+      limit: string | undefined;
+      cursor: string | undefined;
+    }
   | {kind: 'users.info'; authorization: string | undefined; user: string | undefined}
   | {
       kind: 'chat.getPermalink';
@@ -30,6 +56,20 @@ export type SlackApiMockCall =
 export interface SlackThreadPage {
   messages: Record<string, unknown>[];
   nextCursor?: string | undefined;
+}
+
+/** A channel the fake serves through `conversations.info`, `.list`, `.members`, and `.history`. */
+export interface SlackChannelSeed {
+  id: string;
+  name: string;
+  topic?: string | undefined;
+  purpose?: string | undefined;
+  isPrivate?: boolean | undefined;
+  isArchived?: boolean | undefined;
+  /** User IDs, in the order `conversations.members` lists them. */
+  members?: readonly string[] | undefined;
+  /** Channel messages in any order. `conversations.history` serves them newest first. */
+  messages?: readonly Record<string, unknown>[] | undefined;
 }
 
 export interface SlackApiMockOptions {
@@ -53,19 +93,37 @@ export interface SlackApiMock {
   writes(): RecordedWrite[];
   /** Makes later chat.postMessage calls fail with this Slack error, or succeed again with null. */
   setPostMessageError(error: string | null): void;
+  /** Makes `conversations.info`, `.list`, `.members`, and `.history` serve this channel. */
+  seedChannel(channel: SlackChannelSeed): void;
+  /** Makes `users.info` know this user, by its `id`. */
+  seedUser(user: Record<string, unknown> & {id: string}): void;
+  /** Makes `conversations.replies` serve these messages, the parent first, for this thread. */
+  seedThread(input: {channel: string; ts: string; messages: Record<string, unknown>[]}): void;
   stop(): Promise<void>;
+}
+
+interface SlackState {
+  channels: Map<string, SlackChannelSeed>;
+  users: Map<string, Record<string, unknown>>;
+  threads: Map<string, Record<string, unknown>[]>;
 }
 
 export async function startSlackApiMock(options: SlackApiMockOptions = {}): Promise<SlackApiMock> {
   const calls: SlackApiMockCall[] = [];
   const writes: RecordedWrite[] = [];
   const failures: {postMessage: string | null} = {postMessage: null};
+  const state: SlackState = {
+    channels: new Map(),
+    users: new Map(Object.entries(options.users ?? {})),
+    threads: new Map(),
+  };
   let boundEndpoint = new URL('http://127.0.0.1');
   const server = createServer((request, response) => {
     void handleSlackRequest({
       calls,
       writes,
       failures,
+      state,
       options,
       endpoint: boundEndpoint,
       request,
@@ -90,6 +148,15 @@ export async function startSlackApiMock(options: SlackApiMockOptions = {}): Prom
     calls,
     endpoint: boundEndpoint,
     writes: () => [...writes],
+    seedChannel: (channel) => {
+      state.channels.set(channel.id, channel);
+    },
+    seedUser: (user) => {
+      state.users.set(user.id, user);
+    },
+    seedThread: ({channel, ts, messages}) => {
+      state.threads.set(threadKey({channel, ts}), messages);
+    },
     setPostMessageError: (error) => {
       failures.postMessage = error;
     },
@@ -107,6 +174,7 @@ interface SlackRequestContext {
   calls: SlackApiMockCall[];
   writes: RecordedWrite[];
   failures: {postMessage: string | null};
+  state: SlackState;
   options: SlackApiMockOptions;
   response: ServerResponse;
   authorization: string | undefined;
@@ -117,6 +185,10 @@ const SLACK_METHOD_PATH = /^\/(?:api\/)?/u;
 
 const SLACK_METHOD_HANDLERS: Readonly<Record<string, (context: SlackRequestContext) => void>> = {
   'conversations.replies': handleConversationsReplies,
+  'conversations.history': handleConversationsHistory,
+  'conversations.info': handleConversationsInfo,
+  'conversations.members': handleConversationsMembers,
+  'conversations.list': handleConversationsList,
   'users.info': handleUsersInfo,
   'chat.getPermalink': handleGetPermalink,
   'chat.postMessage': handlePostMessage,
@@ -126,6 +198,7 @@ async function handleSlackRequest(params: {
   calls: SlackApiMockCall[];
   writes: RecordedWrite[];
   failures: {postMessage: string | null};
+  state: SlackState;
   options: SlackApiMockOptions;
   endpoint: URL;
   request: IncomingMessage;
@@ -144,24 +217,136 @@ async function handleSlackRequest(params: {
 
 function handleConversationsReplies(context: SlackRequestContext): void {
   const cursor = context.body.get('cursor') ?? undefined;
+  const channel = context.body.get('channel') ?? undefined;
+  const ts = context.body.get('ts') ?? undefined;
   context.calls.push({
     kind: 'conversations.replies',
     authorization: context.authorization,
-    channel: context.body.get('channel') ?? undefined,
-    ts: context.body.get('ts') ?? undefined,
+    channel,
+    ts,
     cursor,
   });
+  const seeded = context.state.threads.get(threadKey({channel, ts}));
   sendJson(
     context.response,
     200,
-    threadRepliesBody(context.options, context.body.get('ts'), cursor),
+    seeded === undefined
+      ? threadRepliesBody(context.options, ts ?? null, cursor)
+      : {ok: true, messages: seeded, has_more: false},
   );
+}
+
+function handleConversationsHistory(context: SlackRequestContext): void {
+  const channelId = context.body.get('channel') ?? undefined;
+  const cursor = context.body.get('cursor') ?? undefined;
+  const limit = context.body.get('limit') ?? undefined;
+  context.calls.push({
+    kind: 'conversations.history',
+    authorization: context.authorization,
+    channel: channelId,
+    limit,
+    cursor,
+  });
+  const channel = knownChannel(context, channelId);
+  if (channel === undefined) return;
+  const oldest = Number(context.body.get('oldest') ?? 0);
+  const latest = Number(context.body.get('latest') ?? Number.POSITIVE_INFINITY);
+  const messages = [...(channel.messages ?? [])]
+    .filter((message) => Number(message.ts) > oldest && Number(message.ts) < latest)
+    .sort((a, b) => Number(b.ts) - Number(a.ts));
+  const page = pageOf({items: messages, limit, cursor});
+  if (page === undefined) {
+    sendJson(context.response, 200, {ok: false, error: 'invalid_cursor'});
+    return;
+  }
+  sendJson(context.response, 200, {
+    ok: true,
+    messages: page.items,
+    has_more: page.nextCursor !== '',
+    pin_count: 0,
+    ...(page.nextCursor === '' ? {} : {response_metadata: {next_cursor: page.nextCursor}}),
+  });
+}
+
+function handleConversationsInfo(context: SlackRequestContext): void {
+  const channelId = context.body.get('channel') ?? undefined;
+  context.calls.push({
+    kind: 'conversations.info',
+    authorization: context.authorization,
+    channel: channelId,
+  });
+  const channel = knownChannel(context, channelId);
+  if (channel === undefined) return;
+  sendJson(context.response, 200, {
+    ok: true,
+    channel: channelBody({
+      channel,
+      includeNumMembers: context.body.get('include_num_members') === 'true',
+    }),
+  });
+}
+
+function handleConversationsMembers(context: SlackRequestContext): void {
+  const channelId = context.body.get('channel') ?? undefined;
+  const cursor = context.body.get('cursor') ?? undefined;
+  const limit = context.body.get('limit') ?? undefined;
+  context.calls.push({
+    kind: 'conversations.members',
+    authorization: context.authorization,
+    channel: channelId,
+    limit,
+    cursor,
+  });
+  const channel = knownChannel(context, channelId);
+  if (channel === undefined) return;
+  const page = pageOf({items: [...(channel.members ?? [])], limit, cursor});
+  if (page === undefined) {
+    sendJson(context.response, 200, {ok: false, error: 'invalid_cursor'});
+    return;
+  }
+  sendJson(context.response, 200, {
+    ok: true,
+    members: page.items,
+    response_metadata: {next_cursor: page.nextCursor},
+  });
+}
+
+function handleConversationsList(context: SlackRequestContext): void {
+  const cursor = context.body.get('cursor') ?? undefined;
+  const limit = context.body.get('limit') ?? undefined;
+  const types = context.body.get('types') ?? undefined;
+  context.calls.push({
+    kind: 'conversations.list',
+    authorization: context.authorization,
+    types,
+    limit,
+    cursor,
+  });
+  // Slack lists public channels unless the request asks for more.
+  const wanted = new Set((types ?? 'public_channel').split(','));
+  const excludeArchived = context.body.get('exclude_archived') === 'true';
+  const channels = [...context.state.channels.values()]
+    .filter((channel) =>
+      wanted.has(channel.isPrivate === true ? 'private_channel' : 'public_channel'),
+    )
+    .filter((channel) => !(excludeArchived && channel.isArchived === true))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const page = pageOf({items: channels, limit, cursor});
+  if (page === undefined) {
+    sendJson(context.response, 200, {ok: false, error: 'invalid_cursor'});
+    return;
+  }
+  sendJson(context.response, 200, {
+    ok: true,
+    channels: page.items.map((channel) => channelBody({channel, includeNumMembers: true})),
+    response_metadata: {next_cursor: page.nextCursor},
+  });
 }
 
 function handleUsersInfo(context: SlackRequestContext): void {
   const userId = context.body.get('user') ?? undefined;
   context.calls.push({kind: 'users.info', authorization: context.authorization, user: userId});
-  const user = userId === undefined ? undefined : context.options.users?.[userId];
+  const user = userId === undefined ? undefined : context.state.users.get(userId);
   sendJson(
     context.response,
     200,
@@ -222,6 +407,90 @@ function threadRepliesBody(
     messages: page.messages,
     has_more: page.nextCursor !== undefined,
     response_metadata: {next_cursor: page.nextCursor ?? ''},
+  };
+}
+
+function threadKey({channel, ts}: {channel: string | undefined; ts: string | undefined}): string {
+  return `${channel}:${ts}`;
+}
+
+function knownChannel(
+  context: SlackRequestContext,
+  channelId: string | undefined,
+): SlackChannelSeed | undefined {
+  const channel = channelId === undefined ? undefined : context.state.channels.get(channelId);
+  if (channel === undefined) {
+    sendJson(context.response, 200, {ok: false, error: 'channel_not_found'});
+  }
+  return channel;
+}
+
+const DEFAULT_PAGE_SIZE = 100;
+const CURSOR_PREFIX = 'offset:';
+
+/**
+ * One page of `items`. The cursor is the offset of the next page, and `nextCursor` is `''` on the
+ * last page, as Slack answers. An unreadable cursor has no page.
+ */
+function pageOf<T>({
+  items,
+  limit,
+  cursor,
+}: {
+  items: T[];
+  limit: string | undefined;
+  cursor: string | undefined;
+}): {items: T[]; nextCursor: string} | undefined {
+  const size = Number(limit) > 0 ? Number(limit) : DEFAULT_PAGE_SIZE;
+  const offset = cursor === undefined ? 0 : Number(cursor.slice(CURSOR_PREFIX.length));
+  if (
+    cursor !== undefined &&
+    (!cursor.startsWith(CURSOR_PREFIX) || !Number.isInteger(offset) || offset < 0)
+  ) {
+    return undefined;
+  }
+  const end = offset + size;
+  return {
+    items: items.slice(offset, end),
+    nextCursor: end < items.length ? `${CURSOR_PREFIX}${end}` : '',
+  };
+}
+
+const CHANNEL_CREATED_AT = 1_700_000_000;
+
+function channelBody({
+  channel,
+  includeNumMembers,
+}: {
+  channel: SlackChannelSeed;
+  includeNumMembers: boolean;
+}): Record<string, unknown> {
+  const isPrivate = channel.isPrivate === true;
+  return {
+    id: channel.id,
+    name: channel.name,
+    is_channel: !isPrivate,
+    is_group: isPrivate,
+    is_im: false,
+    is_mpim: false,
+    is_private: isPrivate,
+    created: CHANNEL_CREATED_AT,
+    is_archived: channel.isArchived === true,
+    is_general: false,
+    unlinked: 0,
+    name_normalized: channel.name,
+    is_shared: false,
+    is_org_shared: false,
+    is_pending_ext_shared: false,
+    pending_shared: [],
+    is_ext_shared: false,
+    shared_team_ids: [],
+    is_member: true,
+    creator: channel.members?.[0] ?? '',
+    topic: {value: channel.topic ?? '', creator: '', last_set: 0},
+    purpose: {value: channel.purpose ?? '', creator: '', last_set: 0},
+    previous_names: [],
+    ...(includeNumMembers ? {num_members: channel.members?.length ?? 0} : {}),
   };
 }
 
