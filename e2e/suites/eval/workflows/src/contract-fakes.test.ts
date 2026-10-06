@@ -461,7 +461,7 @@ describe('jiraContractFake', () => {
   it('rejects a comment without an issue, and a project without a key', async () => {
     const fake = await arrange();
 
-    await expect(fake.seed({comment: fixtures.comment ?? {}})).rejects.toThrow(
+    await expect(fake.seed({comment: {id: '10000', body: 'A fixture comment'}})).rejects.toThrow(
       'comment fixture needs an issue fixture',
     );
     await expect(fake.seed({read_project: {id: '1', name: 'Read'}})).rejects.toThrow(
