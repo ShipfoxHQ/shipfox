@@ -170,6 +170,9 @@ function completeToolConfig(params: {
     method === undefined ? input : {...(input as Record<string, unknown>), method};
   const ajv = new Ajv({
     strict: true,
+    // Provider schemas carry `format` keywords such as `date-time`. Strict mode rejects a format
+    // it has no plugin for, and the provider checks the value itself.
+    validateFormats: false,
     strictRequired: false,
     coerceTypes: false,
     useDefaults: false,

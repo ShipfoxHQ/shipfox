@@ -1086,6 +1086,32 @@ describe('completeStepDispatchConfig', () => {
     await expect(act()).rejects.toBeInstanceOf(ToolConfigInvalidError);
   });
 
+  it('accepts provider input schemas that carry format keywords', async () => {
+    const pending = step({
+      type: 'tool',
+      config: {
+        tool: {
+          input_schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {end: {type: 'string', format: 'date-time'}},
+          },
+          with: {end: '2026-10-05T00:00:00Z'},
+        },
+      },
+      configPlan: null,
+    });
+
+    const result = await completeStepDispatchConfig({
+      step: pending,
+      context,
+      resolveAgentDefaults,
+      definitionId: 'def-1',
+    });
+
+    expect(result.config.tool).toMatchObject({with: {end: '2026-10-05T00:00:00Z'}});
+  });
+
   it('wraps provider input schema compilation failures', async () => {
     const pending = step({
       type: 'tool',

@@ -415,10 +415,26 @@ sentry:
   connection: sentry_shipfox
   fixtures:
     organization: {slug: shipfox, name: Shipfox}
-    project: {id: '4512204696977488', slug: sandbox}
+    project:
+      id: '4512204696977488'
+      slug: sandbox
+      read:
+        tool: list-projects
+        with: {query: $fixture.sentry.project.slug}
+        expect:
+          includes:
+            data: {id: $fixture.sentry.project.id, slug: $fixture.sentry.project.slug}
     # The issue that `sentry-fixture-seed.yaml` keeps alive with one event a day. Its events change,
     # so no event id is pinned. Sentry ids are numeric strings.
-    issue: {id: '151508352', short_id: SANDBOX-1, title: Contract fixture event}
+    issue:
+      id: '151508352'
+      short_id: SANDBOX-1
+      title: Contract fixture event
+      read:
+        tool: get-issue
+        with: {issueId: $fixture.sentry.issue.id}
+        expect:
+          values: {data.id: $fixture.sentry.issue.id, data.title: $fixture.sentry.issue.title}
   targets:
     missing_issue: {kind: absent, id: '999999999999'}
 discord:

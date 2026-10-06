@@ -1,4 +1,4 @@
-ceiling: 126
+ceiling: 124
 entries:
   - {tool: clickup.add_comment, kind: write, issue: ENG-2815}
   - {tool: clickup.create_task, kind: write, issue: ENG-2815}
@@ -118,8 +118,6 @@ entries:
   - {tool: posthog.survey-get, kind: read, issue: ENG-2813}
   - {tool: posthog.survey-stats, kind: read, issue: ENG-2813}
   - {tool: posthog.surveys-get-all, kind: read, issue: ENG-2813}
-  - {tool: sentry.get-issue-event, kind: read, issue: ENG-2809}
-  - {tool: sentry.search-issues, kind: read, issue: ENG-2809}
   - {tool: slack.add_reaction, kind: write, issue: ENG-2814}
   - {tool: slack.create_canvas, kind: write, issue: ENG-2814}
   - {tool: slack.get_permalink, kind: read, issue: ENG-2822}

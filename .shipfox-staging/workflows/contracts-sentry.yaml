@@ -6,6 +6,70 @@ triggers:
   manual:
     source: manual
 jobs:
+  fixtures:
+    checkout: false
+    steps:
+      - key: project
+        tool: list-projects
+        connection: sentry_shipfox
+        with:
+          query: sandbox
+        outputs:
+          includes_data: ${{ has(result.data) && type(result.data) == type([]) && result.data.exists(item, has(item.id) && type(item.id) == type("") && item.id == "4512204696977488" && has(item.slug) && type(item.slug) == type("") && item.slug == "sandbox") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_data
+      - key: issue
+        tool: get-issue
+        connection: sentry_shipfox
+        with:
+          issueId: "151508352"
+        outputs:
+          value_data_id: '${{ has(result.data) && has(result.data.id) && type(result.data.id) == type("") ? string(result.data.id) : "" }}'
+          value_data_title: '${{ has(result.data) && has(result.data.title) ? result.data.title : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_data_id) == type("") && step.outputs.value_data_id == "151508352" && type(step.outputs.value_data_title) == type("") && step.outputs.value_data_title == "Contract fixture event"
+  get_issue:
+    checkout: false
+    steps:
+      - key: get_issue
+        tool: get-issue
+        connection: sentry_shipfox
+        with:
+          issueId: "151508352"
+        outputs:
+          shape_data_id: ${{ has(result.data) && has(result.data.id) && type(result.data.id) == type("") }}
+          shape_data_shortId: ${{ has(result.data) && has(result.data.shortId) && type(result.data.shortId) == type("") }}
+          shape_data_title: ${{ has(result.data) && has(result.data.title) && type(result.data.title) == type("") }}
+          shape_data_status: ${{ has(result.data) && has(result.data.status) && type(result.data.status) == type("") }}
+          shape_data_project_id: ${{ has(result.data) && has(result.data.project) && has(result.data.project.id) && type(result.data.project.id) == type("") }}
+          shape_data_project_slug: ${{ has(result.data) && has(result.data.project) && has(result.data.project.slug) && type(result.data.project.slug) == type("") }}
+          shape_truncated: ${{ has(result.truncated) && type(result.truncated) == type(true) }}
+          shape_sourceUrl: ${{ has(result.sourceUrl) && type(result.sourceUrl) == type("") }}
+          value_data_id: '${{ has(result.data) && has(result.data.id) && type(result.data.id) == type("") ? string(result.data.id) : "" }}'
+          value_data_shortId: '${{ has(result.data) && has(result.data.shortId) ? result.data.shortId : "" }}'
+          value_data_title: '${{ has(result.data) && has(result.data.title) ? result.data.title : "" }}'
+          value_data_project_id: '${{ has(result.data) && has(result.data.project) && has(result.data.project.id) && type(result.data.project.id) == type("") ? string(result.data.project.id) : "" }}'
+          matches_sourceUrl: ${{ has(result.sourceUrl) && type(result.sourceUrl) == type("") && result.sourceUrl.matches("/issues/151508352/$") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_data_id && step.outputs.shape_data_shortId && step.outputs.shape_data_title && step.outputs.shape_data_status && step.outputs.shape_data_project_id && step.outputs.shape_data_project_slug && step.outputs.shape_truncated && step.outputs.shape_sourceUrl && type(step.outputs.value_data_id) == type("") && step.outputs.value_data_id == "151508352" && type(step.outputs.value_data_shortId) == type("") && step.outputs.value_data_shortId == "SANDBOX-1" && type(step.outputs.value_data_title) == type("") && step.outputs.value_data_title == "Contract fixture event" && type(step.outputs.value_data_project_id) == type("") && step.outputs.value_data_project_id == "4512204696977488" && step.outputs.matches_sourceUrl
+  get_issue_event:
+    checkout: false
+    steps:
+      - key: get_issue_event
+        tool: get-issue-event
+        connection: sentry_shipfox
+        with:
+          issueId: "151508352"
+        outputs:
+          shape_data_id: ${{ has(result.data) && has(result.data.id) && type(result.data.id) == type("") }}
+          shape_data_issueId: ${{ has(result.data) && has(result.data.issueId) && type(result.data.issueId) == type("") }}
+          shape_data_timestamp: ${{ has(result.data) && has(result.data.timestamp) && type(result.data.timestamp) == type("") }}
+          shape_truncated: ${{ has(result.truncated) && type(result.truncated) == type(true) }}
+          shape_sourceUrl: ${{ has(result.sourceUrl) && type(result.sourceUrl) == type("") }}
+          value_data_issueId: '${{ has(result.data) && has(result.data.issueId) && type(result.data.issueId) == type("") ? string(result.data.issueId) : "" }}'
+          matches_sourceUrl: ${{ has(result.sourceUrl) && type(result.sourceUrl) == type("") && result.sourceUrl.matches("/issues/151508352/$") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_data_id && step.outputs.shape_data_issueId && step.outputs.shape_data_timestamp && step.outputs.shape_truncated && step.outputs.shape_sourceUrl && type(step.outputs.value_data_issueId) == type("") && step.outputs.value_data_issueId == "151508352" && step.outputs.matches_sourceUrl
   get_issue_missing_issue:
     checkout: false
     steps:
@@ -16,6 +80,24 @@ jobs:
           issueId: "999999999999"
         gate:
           success: step.status == "failed" && step.error.code == "provider-rejected"
+  list_projects:
+    checkout: false
+    steps:
+      - key: list_projects
+        tool: list-projects
+        connection: sentry_shipfox
+        with:
+          query: sandbox
+          limit: 100
+        outputs:
+          shape_data_0_id: ${{ has(result.data) && type(result.data) == type([]) && size(result.data) > 0 && [result.data[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_data_0_slug: ${{ has(result.data) && type(result.data) == type([]) && size(result.data) > 0 && [result.data[0]].all(i0, has(i0.slug) && type(i0.slug) == type("")) }}
+          shape_data_0_name: ${{ has(result.data) && type(result.data) == type([]) && size(result.data) > 0 && [result.data[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          shape_truncated: ${{ has(result.truncated) && type(result.truncated) == type(true) }}
+          shape_sourceUrl: ${{ has(result.sourceUrl) && type(result.sourceUrl) == type("") }}
+          includes_data: ${{ has(result.data) && type(result.data) == type([]) && result.data.exists(item, has(item.id) && type(item.id) == type("") && item.id == "4512204696977488" && has(item.slug) && type(item.slug) == type("") && item.slug == "sandbox") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_data_0_id && step.outputs.shape_data_0_slug && step.outputs.shape_data_0_name && step.outputs.shape_truncated && step.outputs.shape_sourceUrl && step.outputs.includes_data
   list_projects_invalid_cursor:
     checkout: false
     steps:
@@ -26,3 +108,24 @@ jobs:
           cursor: not-a-cursor
         gate:
           success: step.status == "failed" && step.error.code == "provider-rejected"
+  search_issues:
+    checkout: false
+    steps:
+      - key: search_issues
+        tool: search-issues
+        connection: sentry_shipfox
+        with:
+          query: issue:SANDBOX-1
+          projectIds:
+            - "4512204696977488"
+          statsPeriod: 14d
+          limit: 100
+        outputs:
+          shape_data_0_id: ${{ has(result.data) && type(result.data) == type([]) && size(result.data) > 0 && [result.data[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_data_0_shortId: ${{ has(result.data) && type(result.data) == type([]) && size(result.data) > 0 && [result.data[0]].all(i0, has(i0.shortId) && type(i0.shortId) == type("")) }}
+          shape_data_0_title: ${{ has(result.data) && type(result.data) == type([]) && size(result.data) > 0 && [result.data[0]].all(i0, has(i0.title) && type(i0.title) == type("")) }}
+          shape_truncated: ${{ has(result.truncated) && type(result.truncated) == type(true) }}
+          shape_sourceUrl: ${{ has(result.sourceUrl) && type(result.sourceUrl) == type("") }}
+          includes_data: ${{ has(result.data) && type(result.data) == type([]) && result.data.exists(item, has(item.id) && type(item.id) == type("") && item.id == "151508352" && has(item.shortId) && type(item.shortId) == type("") && item.shortId == "SANDBOX-1") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_data_0_id && step.outputs.shape_data_0_shortId && step.outputs.shape_data_0_title && step.outputs.shape_truncated && step.outputs.shape_sourceUrl && step.outputs.includes_data
