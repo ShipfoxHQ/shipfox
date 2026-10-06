@@ -1,5 +1,5 @@
 provider: discord
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: list_channels
     with:

@@ -2,6 +2,7 @@ export {
   type DiscordApiMock,
   type DiscordApiMockCall,
   type DiscordApiMockChannel,
+  type DiscordApiMockMember,
   type DiscordApiMockMessage,
   type DiscordApiMockOptions,
   startDiscordApiMock,

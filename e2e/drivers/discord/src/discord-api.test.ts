@@ -104,4 +104,98 @@ describe('Discord API mock', () => {
       await mock.stop();
     }
   });
+
+  it('lists the channels of a server without threads, and its active threads apart', async () => {
+    const {mock, call} = await arrange();
+    mock.addChannel({id: '201', type: 11, guild_id: GUILD_ID, parent_id: CHANNEL_ID, name: 'talk'});
+    mock.addChannel({id: '900', type: 0, guild_id: 'other-guild', name: 'elsewhere'});
+
+    try {
+      const channels = await call('GET', `/guilds/${GUILD_ID}/channels`);
+      const threads = await call('GET', `/guilds/${GUILD_ID}/threads/active`);
+
+      expect(channels.body).toEqual([{id: CHANNEL_ID, type: 0, guild_id: GUILD_ID}]);
+      expect(threads.body).toMatchObject({threads: [{id: '201', type: 11}], members: []});
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('searches the messages of a server, newest first, flagging each hit', async () => {
+    const {mock, call} = await arrange();
+    mock.addMessage({
+      id: '301',
+      channel_id: CHANNEL_ID,
+      content: 'Hello again',
+      author: {id: 'user-2', username: 'other'},
+    });
+    mock.addChannel({id: '900', type: 0, guild_id: 'other-guild'});
+    mock.addMessage({
+      id: '901',
+      channel_id: '900',
+      content: 'hello elsewhere',
+      author: {id: 'user-1', username: 'user'},
+    });
+
+    try {
+      const all = await call('GET', `/guilds/${GUILD_ID}/messages/search?content=HELLO`);
+      const paged = await call(
+        'GET',
+        `/guilds/${GUILD_ID}/messages/search?content=hello&limit=1&offset=1`,
+      );
+      const byAuthor = await call(
+        'GET',
+        `/guilds/${GUILD_ID}/messages/search?content=hello&channel_id=${CHANNEL_ID}&author_id=user-2`,
+      );
+
+      expect(all.body).toMatchObject({
+        total_results: 2,
+        messages: [[{id: '301', hit: true}], [{id: MESSAGE_ID, hit: true}]],
+      });
+      expect(paged.body).toMatchObject({total_results: 2, messages: [[{id: MESSAGE_ID}]]});
+      expect(byAuthor.body).toMatchObject({total_results: 1, messages: [[{id: '301'}]]});
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('orders search matches by time across channels', async () => {
+    const {mock, call} = await arrange();
+    mock.addChannel({id: '202', type: 0, guild_id: GUILD_ID});
+    const author = {id: 'user-1', username: 'user'};
+    // The older message is in the channel the fake lists last, so grouping by channel gets it wrong.
+    mock.addMessage({id: '401', channel_id: '202', content: 'match', author});
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    mock.addMessage({id: '400', channel_id: CHANNEL_ID, content: 'match', author});
+
+    try {
+      const result = await call('GET', `/guilds/${GUILD_ID}/messages/search?content=match`);
+
+      expect(
+        (result.body as {messages: {id: string}[][]}).messages.map(([hit]) => hit?.id),
+      ).toEqual(['400', '401']);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('answers a member of the server, and 404 for one it does not know', async () => {
+    const {mock, call} = await arrange();
+    mock.addMember({guildId: GUILD_ID, member: {user: {id: 'user-1', username: 'user'}}});
+
+    try {
+      const member = await call('GET', `/guilds/${GUILD_ID}/members/user-1`);
+      const otherGuild = await call('GET', '/guilds/other-guild/members/user-1');
+
+      expect(member.body).toMatchObject({
+        user: {id: 'user-1', username: 'user', global_name: null},
+        nick: null,
+        roles: [],
+        joined_at: expect.any(String),
+      });
+      expect(otherGuild).toEqual({status: 404, body: {message: 'Unknown Member', code: 10_007}});
+    } finally {
+      await mock.stop();
+    }
+  });
 });

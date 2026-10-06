@@ -276,6 +276,7 @@ describe('seedDiscord', () => {
     read_channel: {id: '1000000000000000001', name: 'contract-test-read'},
     message: {id: '1000000000000000002', content: 'Contract test read message'},
     thread: {id: '1000000000000000003', name: 'Contract test thread'},
+    write_channel: {id: '1000000000000000005', name: 'contract-test-write'},
     user: {id: '1000000000000000004', username: 'sandbox_user'},
   };
 
@@ -315,6 +316,29 @@ describe('seedDiscord', () => {
     ).toMatchObject({
       content: 'Contract test read message',
       author: {id: '1000000000000000004', username: 'sandbox_user'},
+    });
+  });
+
+  it('serves the channels, the message search, and the member of the sandbox server', async () => {
+    const mock = await arrange();
+
+    seedDiscord({discord: mock, guildId, fixtures});
+
+    const channels = await get(`/guilds/${guildId}/channels`);
+    const search = await get(
+      `/guilds/${guildId}/messages/search?content=read%20message&channel_id=1000000000000000001`,
+    );
+    const member = await get(`/guilds/${guildId}/members/1000000000000000004`);
+    expect(channels.body).toMatchObject([
+      {id: '1000000000000000005', name: 'contract-test-write'},
+      {id: '1000000000000000001', name: 'contract-test-read'},
+    ]);
+    expect(search.body).toMatchObject({
+      total_results: 1,
+      messages: [[{id: '1000000000000000002', hit: true}]],
+    });
+    expect(member.body).toMatchObject({
+      user: {id: '1000000000000000004', username: 'sandbox_user'},
     });
   });
 

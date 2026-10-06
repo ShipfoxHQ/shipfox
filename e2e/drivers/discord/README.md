@@ -8,8 +8,9 @@ Discord server. Faking Discord is on purpose: it is the external system under in
 
 - `startDiscordApiMock(options?)`: serve the part of Discord's REST API the Discord tools use, on
   `DISCORD_API_BASE_URL`, backed by memory. Add what Discord would already hold with `addChannel`
-  and `addMessage`. The fake answers channels, messages, and thread starts, and accepts bot
-  messages. `writes()` lists the threads and messages it accepted, `messages(channelId)` reads a
+  and `addMessage`, and the members of a server with `addMember`. The fake answers channels,
+  messages, thread starts, a server's channels and active threads, its message search, and its
+  members, and accepts bot messages. `writes()` lists the threads and messages it accepted, `messages(channelId)` reads a
   channel or thread back, and `calls` records every request with its `authorization` header. A
   thread started from a message takes that message's ID, as Discord does. One test at a time can
   hold the port, so keep the tests that use it in one serial file.
