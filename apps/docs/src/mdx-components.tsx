@@ -15,6 +15,7 @@ import {DocsVideo} from '@/app/components/docs-video';
 import {IntegrationCatalog as IntegrationCatalogClient} from '@/app/components/integration-catalog';
 import {ModelCatalogTable} from '@/app/components/model-catalog';
 import {QuickStartComic} from '@/app/components/quick-start-comic';
+import {Shippy} from '@/app/components/shippy';
 import {TemplateDetail} from '@/app/components/template-catalog/template-detail';
 import {TemplateGallery as TemplateGalleryClient} from '@/app/components/template-catalog/template-gallery';
 import {getIntegrationCatalogEntries} from '@/lib/integration-catalog-source';
@@ -35,6 +36,7 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     IntegrationCatalog,
     ModelCatalog,
     QuickStartComic,
+    Shippy,
     TemplateGallery,
     TemplateDetail,
     ToolReference: ToolReferencePlaceholder,

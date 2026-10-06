@@ -6,6 +6,8 @@ description: "Shipfox runs your recurring engineering work with coding agents an
 
 import {WorkflowOverview} from '@/app/components/workflow-overview';
 
+<Shippy pose="foreman" className="float-right mb-2 ml-4 w-24 sm:mb-4 sm:ml-6 sm:w-32 lg:w-40" />
+
 A big part of your team's week goes to recurring work: small tickets,
 dependency updates, failing checks, alerts, release chores. Coding agents made
 each engineer faster, but the work is still manual, one task at a time. And the
@@ -23,7 +25,11 @@ what is slow or failing, and suggest changes.
 
 ## Run coding agents like CI pipelines
 
+<Shippy pose="machine" className="relative z-10 -mb-8 ml-auto w-36 lg:-mt-24 lg:-mb-10 lg:w-48" />
+
 <WorkflowOverview />
+
+<Shippy pose="delivery" className="relative z-10 float-right -mt-12 mb-2 ml-4 w-28 sm:-mt-16 sm:ml-6 sm:w-40" />
 
 1. An event starts a workflow. A ticket, a new pull request, an alert, a failed
    check, or a schedule.
@@ -39,6 +45,12 @@ Any model per step, any stack. Open source.
 Coding agents make each engineer faster. Shipfox gives your whole team a
 software factory that builds, checks, and improves itself.
 
+<div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-6">
+
+<Shippy pose="door" className="w-28 shrink-0 lg:w-40" />
+
+<div className="min-w-0 flex-1">
+
 <Cards>
   <Card title="Get started with Shipfox" href="https://app.shipfox.io">
     Complete onboarding in Shipfox and start building workflows.
@@ -53,3 +65,7 @@ software factory that builds, checks, and improves itself.
     See how Shipfox differs from local coding agents, agent automations, and CI platforms.
   </Card>
 </Cards>
+
+</div>
+
+</div>
