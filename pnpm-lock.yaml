@@ -2514,6 +2514,9 @@ importers:
       '@shipfox/e2e-driver-clickup':
         specifier: workspace:*
         version: link:../../../drivers/clickup
+      '@shipfox/e2e-driver-discord':
+        specifier: workspace:*
+        version: link:../../../drivers/discord
       '@shipfox/e2e-driver-github':
         specifier: workspace:*
         version: link:../../../drivers/github

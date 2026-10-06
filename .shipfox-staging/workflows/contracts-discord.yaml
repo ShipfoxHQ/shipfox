@@ -6,6 +6,88 @@ triggers:
   manual:
     source: manual
 jobs:
+  fixtures:
+    checkout: false
+    steps:
+      - key: read_channel
+        tool: list_channels
+        connection: discord_shipfox_sandbox
+        with:
+          name_contains: contract-test-read
+        outputs:
+          includes_channels: ${{ has(result.channels) && type(result.channels) == type([]) && result.channels.exists(item, has(item.id) && type(item.id) == type("") && item.id == "1556715356926517279" && has(item.name) && type(item.name) == type("") && item.name == "contract-test-read") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_channels
+      - key: message
+        tool: read_thread
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556715356926517279"
+          message_id: "1556715416456273941"
+        outputs:
+          value_messages_0_id: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.id) && type(i0.id) == type("")) ? string(result.messages[0].id) : "" }}'
+          value_messages_0_content: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.content)) ? result.messages[0].content : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_messages_0_id) == type("") && step.outputs.value_messages_0_id == "1556715416456273941" && type(step.outputs.value_messages_0_content) == type("") && step.outputs.value_messages_0_content == "Contract test read message, do not modify"
+      - key: thread
+        tool: read_thread
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556728176573681897"
+        outputs:
+          shape_messages: ${{ has(result.messages) && type(result.messages) == type([]) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_messages
+      - key: write_channel
+        tool: list_channels
+        connection: discord_shipfox_sandbox
+        with:
+          name_contains: contract-test-write
+        outputs:
+          includes_channels: ${{ has(result.channels) && type(result.channels) == type([]) && result.channels.exists(item, has(item.id) && type(item.id) == type("") && item.id == "1556728776744898701" && has(item.name) && type(item.name) == type("") && item.name == "contract-test-write") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_channels
+      - key: user
+        tool: read_user_profile
+        connection: discord_shipfox_sandbox
+        with:
+          user_id: "1223593063809548341"
+        outputs:
+          value_id: '${{ has(result.id) && type(result.id) == type("") ? string(result.id) : "" }}'
+          value_username: '${{ has(result.username) ? result.username : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "1223593063809548341" && type(step.outputs.value_username) == type("") && step.outputs.value_username == "noe_charmet_shipfox"
+  list_channels:
+    checkout: false
+    steps:
+      - key: list_channels
+        tool: list_channels
+        connection: discord_shipfox_sandbox
+        with:
+          name_contains: contract-test
+        outputs:
+          shape_channels_0_id: ${{ has(result.channels) && type(result.channels) == type([]) && size(result.channels) > 0 && [result.channels[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_channels_0_name: ${{ has(result.channels) && type(result.channels) == type([]) && size(result.channels) > 0 && [result.channels[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          shape_channels_0_type: ${{ has(result.channels) && type(result.channels) == type([]) && size(result.channels) > 0 && [result.channels[0]].all(i0, has(i0.type) && (type(i0.type) == type(1) || type(i0.type) == type(1.0))) }}
+          includes_channels: ${{ has(result.channels) && type(result.channels) == type([]) && result.channels.exists(item, has(item.id) && type(item.id) == type("") && item.id == "1556715356926517279" && has(item.name) && type(item.name) == type("") && item.name == "contract-test-read") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_channels_0_id && step.outputs.shape_channels_0_name && step.outputs.shape_channels_0_type && step.outputs.includes_channels
+  read_channel:
+    checkout: false
+    steps:
+      - key: read_channel
+        tool: read_channel
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556715356926517279"
+        outputs:
+          shape_messages_0_id: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_messages_0_channel_id: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.channel_id) && type(i0.channel_id) == type("")) }}
+          shape_messages_0_content: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.content) && type(i0.content) == type("")) }}
+          shape_messages_0_url: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.url) && type(i0.url) == type("")) }}
+          includes_messages: ${{ has(result.messages) && type(result.messages) == type([]) && result.messages.exists(item, has(item.id) && type(item.id) == type("") && item.id == "1556715416456273941" && has(item.content) && type(item.content) == type("") && item.content == "Contract test read message, do not modify") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_messages_0_id && step.outputs.shape_messages_0_channel_id && step.outputs.shape_messages_0_content && step.outputs.shape_messages_0_url && step.outputs.includes_messages
   read_channel_invalid_before:
     checkout: false
     steps:
@@ -27,3 +109,68 @@ jobs:
           channel_id: "9000000000000000000"
         gate:
           success: step.status == "failed" && step.error.code == "not-found"
+  read_thread:
+    checkout: false
+    steps:
+      - key: read_thread
+        tool: read_thread
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556715356926517279"
+          message_id: "1556715416456273941"
+        outputs:
+          shape_messages_0_id: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_messages_0_channel_id: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.channel_id) && type(i0.channel_id) == type("")) }}
+          shape_messages_0_content: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.content) && type(i0.content) == type("")) }}
+          shape_messages_0_url: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.url) && type(i0.url) == type("")) }}
+          value_messages_0_id: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.id) && type(i0.id) == type("")) ? string(result.messages[0].id) : "" }}'
+          value_messages_0_content: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.content)) ? result.messages[0].content : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_messages_0_id && step.outputs.shape_messages_0_channel_id && step.outputs.shape_messages_0_content && step.outputs.shape_messages_0_url && type(step.outputs.value_messages_0_id) == type("") && step.outputs.value_messages_0_id == "1556715416456273941" && type(step.outputs.value_messages_0_content) == type("") && step.outputs.value_messages_0_content == "Contract test read message, do not modify"
+  read_thread_in_thread:
+    checkout: false
+    steps:
+      - key: read_thread_in_thread
+        tool: read_thread
+        connection: discord_shipfox_sandbox
+        with:
+          channel_id: "1556728176573681897"
+        outputs:
+          shape_messages: ${{ has(result.messages) && type(result.messages) == type([]) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_messages
+  read_user_profile:
+    checkout: false
+    steps:
+      - key: read_user_profile
+        tool: read_user_profile
+        connection: discord_shipfox_sandbox
+        with:
+          user_id: "1223593063809548341"
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_username: ${{ has(result.username) && type(result.username) == type("") }}
+          shape_bot: ${{ has(result.bot) && type(result.bot) == type(true) }}
+          shape_roles: ${{ has(result.roles) && type(result.roles) == type([]) }}
+          shape_joined_at: ${{ has(result.joined_at) && type(result.joined_at) == type("") }}
+          value_id: '${{ has(result.id) && type(result.id) == type("") ? string(result.id) : "" }}'
+          value_username: '${{ has(result.username) ? result.username : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_username && step.outputs.shape_bot && step.outputs.shape_roles && step.outputs.shape_joined_at && type(step.outputs.value_id) == type("") && step.outputs.value_id == "1223593063809548341" && type(step.outputs.value_username) == type("") && step.outputs.value_username == "noe_charmet_shipfox"
+  search_messages:
+    checkout: false
+    steps:
+      - key: search_messages
+        tool: search_messages
+        connection: discord_shipfox_sandbox
+        with:
+          query: Contract test read message
+          channel_id: "1556715356926517279"
+        outputs:
+          shape_total_results: ${{ has(result.total_results) && (type(result.total_results) == type(1) || type(result.total_results) == type(1.0)) }}
+          shape_messages_0_id: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_messages_0_content: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.content) && type(i0.content) == type("")) }}
+          shape_messages_0_url: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.url) && type(i0.url) == type("")) }}
+          includes_messages: ${{ has(result.messages) && type(result.messages) == type([]) && result.messages.exists(item, has(item.id) && type(item.id) == type("") && item.id == "1556715416456273941" && has(item.content) && type(item.content) == type("") && item.content == "Contract test read message, do not modify") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_total_results && step.outputs.shape_messages_0_id && step.outputs.shape_messages_0_content && step.outputs.shape_messages_0_url && step.outputs.includes_messages

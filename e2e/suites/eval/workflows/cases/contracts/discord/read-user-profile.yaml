@@ -1,0 +1,16 @@
+provider: discord
+modes: [real]
+steps:
+  - tool: read_user_profile
+    with:
+      user_id: $fixture.discord.user.id
+    expect:
+      shape:
+        id: string
+        username: string
+        bot: boolean
+        roles: list
+        joined_at: string
+      values:
+        id: $fixture.discord.user.id
+        username: $fixture.discord.user.username

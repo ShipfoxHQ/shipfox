@@ -1,0 +1,11 @@
+provider: discord
+modes: [real, fake]
+steps:
+  - tool: read_channel
+    with:
+      channel_id: $fixture.discord.read_channel.id
+    expect:
+      shape:
+        messages: [{id: string, channel_id: string, content: string, url: string}]
+      includes:
+        messages: {id: $fixture.discord.message.id, content: $fixture.discord.message.content}

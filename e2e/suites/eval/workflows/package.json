@@ -94,6 +94,7 @@
     "@shipfox/api-usage-dto": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
     "@shipfox/e2e-driver-clickup": "workspace:*",
+    "@shipfox/e2e-driver-discord": "workspace:*",
     "@shipfox/e2e-driver-github": "workspace:*",
     "@shipfox/e2e-driver-jira": "workspace:*",
     "@shipfox/e2e-driver-linear": "workspace:*",
