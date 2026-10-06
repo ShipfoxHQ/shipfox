@@ -87,10 +87,10 @@ describe('Discord API mock', () => {
 
   it('edits a message the bot posted, and refuses one a user posted', async () => {
     const {mock, call} = await arrange();
-    const posted = await call('POST', `/channels/${CHANNEL_ID}/messages`, {content: 'draft'});
-    const botMessageId = (posted.body as {id: string}).id;
 
     try {
+      const posted = await call('POST', `/channels/${CHANNEL_ID}/messages`, {content: 'draft'});
+      const botMessageId = (posted.body as {id: string}).id;
       const edited = await call('PATCH', `/channels/${CHANNEL_ID}/messages/${botMessageId}`, {
         content: 'final',
       });
