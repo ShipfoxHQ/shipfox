@@ -57,6 +57,8 @@ const outputExpectSchema = z
     includes: nonEmpty(
       z.record(pathSchema, nonEmpty(z.record(pathSchema, scalarSchema))),
     ).optional(),
+    // A regular expression per path, for a text value whose layout a case shouldn't pin.
+    matches: nonEmpty(z.record(pathSchema, z.string().min(1))).optional(),
   })
   .strict();
 
@@ -68,7 +70,8 @@ const stepExpectSchema = outputExpectSchema
       expected.error === undefined ||
       (expected.shape === undefined &&
         expected.values === undefined &&
-        expected.includes === undefined),
+        expected.includes === undefined &&
+        expected.matches === undefined),
     {message: 'a step that expects an error has no output to check', path: ['error']},
   );
 

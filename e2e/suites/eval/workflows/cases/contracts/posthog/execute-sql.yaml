@@ -7,7 +7,8 @@ steps:
         SELECT count() FROM events WHERE event = 'contract_event'
         AND timestamp >= toDateTime('2026-09-01') AND timestamp < toDateTime('2026-10-01')
     expect:
+      # PostHog formats SQL rows as text, even in a JSON result. The count is the last line.
       shape:
-        results: list
-      values:
-        results[0][0]: $fixture.posthog.event.count
+        results: string
+      matches:
+        results: '(^|\n)$fixture.posthog.event.count$'

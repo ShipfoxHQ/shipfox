@@ -255,6 +255,17 @@ describe('generateContractFiles', () => {
       expect(content).toContain('[item.tags[0]].all(i1, has(i1.id)');
     });
 
+    it('compiles expect.matches to matches() over a text value', async () => {
+      await writeCase(
+        'linear/matches.yaml',
+        `provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n    expect:\n      matches:\n        title: '^Contract'\n`,
+      );
+
+      expect(await generatedLinear()).toContain(
+        `matches_title: \${{ has(result.title) && type(result.title) == type("") && result.title.matches("^Contract") }}`,
+      );
+    });
+
     it('generates round-trip cases in fake mode', async () => {
       await writeCase(
         'linear/fake-trip.yaml',
