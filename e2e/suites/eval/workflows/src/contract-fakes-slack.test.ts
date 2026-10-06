@@ -22,6 +22,8 @@ const fixtures: SandboxFixtures = {
   unicode_message: {ts: '1791226138.522499'},
 };
 
+const missingTextPattern = /The slack fixture "thread" has no "text"/u;
+
 describe('slackContractFake', () => {
   const cleanups: Array<() => Promise<void>> = [];
   const seeded = {seedChannel: vi.fn(), seedUser: vi.fn(), seedThread: vi.fn()};
@@ -65,7 +67,7 @@ describe('slackContractFake', () => {
         botUserId: 'Ubotabc',
       }),
     );
-    await cleanups.at(-1)?.();
+    await cleanups.pop()?.();
     expect(stop).toHaveBeenCalledOnce();
   });
 
@@ -113,6 +115,14 @@ describe('slackContractFake', () => {
     expect(seeded.seedChannel).not.toHaveBeenCalled();
     expect(seeded.seedUser).not.toHaveBeenCalled();
     expect(seeded.seedThread).not.toHaveBeenCalled();
+  });
+
+  it('names Slack when a fixture lacks a field', async () => {
+    const fake = await arrange();
+
+    await expect(
+      fake.seed({read_channel: {id: 'C1', name: 'contracts-read'}, thread: {ts: '1.000100'}}),
+    ).rejects.toThrow(missingTextPattern);
   });
 
   it('is the adapter of the slack provider', () => {
