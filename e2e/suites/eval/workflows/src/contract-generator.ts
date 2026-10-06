@@ -383,6 +383,20 @@ function compileStep({
     });
   }
 
+  for (const [path, pattern] of Object.entries(expect.matches ?? {})) {
+    const segments = parsePath({path, origin});
+    const name = `matches_${segmentName(segments)}`;
+    addCheck({
+      name,
+      mapping: presence({
+        segments,
+        check: (accessor) =>
+          `type(${accessor}) == type("") && ${accessor}.matches(${JSON.stringify(pattern)})`,
+      }),
+      check: `step.outputs.${name}`,
+    });
+  }
+
   return {
     ...call,
     ...(checks.length === 0

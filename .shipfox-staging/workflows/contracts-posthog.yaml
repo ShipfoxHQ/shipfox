@@ -15,9 +15,9 @@ jobs:
         with:
           query: SELECT count() FROM events WHERE event = 'contract_event' AND timestamp >= toDateTime('2026-09-01') AND timestamp < toDateTime('2026-10-01')
         outputs:
-          value_results_0_0: '${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, type(i0) == type([]) && size(i0) > 0) ? result.results[0][0] : "" }}'
+          matches_results: ${{ has(result.results) && type(result.results) == type("") && result.results.matches("(^|\\n)40$") }}
         gate:
-          success: step.status == "succeeded" && (type(step.outputs.value_results_0_0) == type(1) || type(step.outputs.value_results_0_0) == type(1.0)) && step.outputs.value_results_0_0 == 40
+          success: step.status == "succeeded" && step.outputs.matches_results
       - key: feature_flag
         tool: feature-flag-get-all
         connection: posthog_sandbox
@@ -37,10 +37,10 @@ jobs:
         with:
           query: SELECT count() FROM events WHERE event = 'contract_event' AND timestamp >= toDateTime('2026-09-01') AND timestamp < toDateTime('2026-10-01')
         outputs:
-          shape_results: ${{ has(result.results) && type(result.results) == type([]) }}
-          value_results_0_0: '${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, type(i0) == type([]) && size(i0) > 0) ? result.results[0][0] : "" }}'
+          shape_results: ${{ has(result.results) && type(result.results) == type("") }}
+          matches_results: ${{ has(result.results) && type(result.results) == type("") && result.results.matches("(^|\\n)40$") }}
         gate:
-          success: step.status == "succeeded" && step.outputs.shape_results && (type(step.outputs.value_results_0_0) == type(1) || type(step.outputs.value_results_0_0) == type(1.0)) && step.outputs.value_results_0_0 == 40
+          success: step.status == "succeeded" && step.outputs.shape_results && step.outputs.matches_results
   feature_flag_get_all:
     checkout: false
     steps:

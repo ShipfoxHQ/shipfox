@@ -375,8 +375,8 @@ posthog:
             SELECT count() FROM events WHERE event = 'contract_event'
             AND timestamp >= toDateTime('2026-09-01') AND timestamp < toDateTime('2026-10-01')
         expect:
-          values:
-            results[0][0]: $fixture.posthog.event.count
+          matches:
+            results: '(^|\n)$fixture.posthog.event.count$'
     purchase_event: {name: contract_purchase, count: 10}
     feature_flag:
       id: 301243
