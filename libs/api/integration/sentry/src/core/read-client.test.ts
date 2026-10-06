@@ -55,15 +55,17 @@ function setup() {
       locked = false;
     }
   };
+  const wait = vi.fn(() => Promise.resolve());
   const createClient = () =>
     createSentryReadClient({
       api,
       secrets,
       withRefreshLock,
+      wait,
       resolveConnection: async () => ({workspaceId}),
       getInstallation: async () => installation,
     });
-  return {api, values, createClient, installation};
+  return {api, values, createClient, installation, wait};
 }
 
 describe('createSentryReadClient', () => {
@@ -152,6 +154,33 @@ describe('createSentryReadClient', () => {
     await expect(createClient().listProjects({connectionId})).rejects.toMatchObject({
       reason: 'access-denied',
     });
+    expect(values.size).toBe(0);
+  });
+
+  it('mints again after Sentry reports a mint in progress', async () => {
+    const {api, values, createClient, wait} = setup();
+    vi.mocked(api.mintInstallationToken).mockRejectedValueOnce(
+      new SentryIntegrationProviderError('provider-unavailable', 'renewing', undefined, 409),
+    );
+
+    const result = await createClient().listProjects({connectionId});
+
+    expect(result.data).toHaveLength(1);
+    expect(api.mintInstallationToken).toHaveBeenCalledTimes(2);
+    expect(wait).toHaveBeenCalledWith(1_000);
+    expect(values.get(`${sentrySecretsNamespace(connectionId)}/ACCESS_TOKEN`)).toBe('new-token');
+  });
+
+  it('reports the provider as unavailable when the mint conflict persists', async () => {
+    const {api, values, createClient} = setup();
+    vi.mocked(api.mintInstallationToken).mockRejectedValue(
+      new SentryIntegrationProviderError('provider-unavailable', 'renewing', undefined, 409),
+    );
+
+    await expect(createClient().listProjects({connectionId})).rejects.toMatchObject({
+      reason: 'provider-unavailable',
+    });
+    expect(api.mintInstallationToken).toHaveBeenCalledTimes(5);
     expect(values.size).toBe(0);
   });
 

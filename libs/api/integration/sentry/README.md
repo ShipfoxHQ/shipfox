@@ -94,7 +94,10 @@ Tools mint an installation token with an app-signed JWT
 (`SENTRY_APP_CLIENT_ID` and `SENTRY_APP_CLIENT_SECRET`). The token is stored in
 the connection's `system/integrations/sentry/<connectionId>` secrets namespace.
 Minting a new token invalidates the previous one, so renewal runs under a
-per-connection database lock. Deleting the connection deletes the namespace.
+per-connection database lock. Sentry answers `409 Conflict` while an earlier
+mint for the same installation is still in progress. The mint waits and repeats
+under the same lock, and reports `provider-unavailable` if the conflict
+persists. Deleting the connection deletes the namespace.
 The composition root must pass the `sentry` scoped secrets store to the
 integrations module.
 
