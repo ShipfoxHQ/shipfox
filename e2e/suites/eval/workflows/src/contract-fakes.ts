@@ -7,6 +7,7 @@ import {type ClickUpTaskFixture, startClickUpApiMock} from '@shipfox/e2e-driver-
 import {type DiscordApiMock, startDiscordApiMock} from '@shipfox/e2e-driver-discord';
 import type {GithubApiMock} from '@shipfox/e2e-driver-github';
 import {startNotionApiMock} from '@shipfox/e2e-driver-notion';
+import {seedPosthogMock} from '@shipfox/e2e-driver-posthog';
 import {
   type SlackApiMock,
   type SlackChannelSeed,
@@ -16,6 +17,7 @@ import {
   createClickUpConnection,
   createDiscordConnection,
   createNotionConnection,
+  createPosthogConnection,
   createSlackConnection,
 } from '@shipfox/e2e-setup-integrations';
 import type {SandboxManifest} from './contract-schema.js';
@@ -572,6 +574,52 @@ export const slackContractFake = createSlackContractFake({
 });
 
 /**
+ * PostHog, whose fake the harness runs for the whole stack and answers by API key. The adapter
+ * connects the workspace to it with a key of its own, then seeds that key with the `event` and
+ * `purchase_event` counts, and the `feature_flag` and `disabled_feature_flag` flags. It reads no
+ * other fixture, so a case that reads one fails on the fake.
+ */
+export const posthogContractFake: ContractFakeAdapter = async ({workspaceId, uniqueId}) => {
+  const apiKey = `phx_contracts_${uniqueId}`;
+  const connection = await createPosthogConnection({
+    workspaceId,
+    region: 'us',
+    apiKey,
+    projectId: `contracts-project-${uniqueId}`,
+    projectName: `Contracts PostHog ${uniqueId}`,
+    organizationId: `contracts-organization-${uniqueId}`,
+  });
+  return {
+    connectionSlug: connection.slug,
+    seed: async (fixtures) => {
+      const events = ['event', 'purchase_event'].flatMap((fixtureName) => {
+        const fixture = fixtures[fixtureName];
+        if (fixture === undefined) return [];
+        const required = (name: string) =>
+          requiredField({provider: 'posthog', fixture, fixtureName, name});
+        return [{name: String(required('name')), count: Number(required('count'))}];
+      });
+      const featureFlags = ['feature_flag', 'disabled_feature_flag'].flatMap((fixtureName) => {
+        const fixture = fixtures[fixtureName];
+        if (fixture === undefined) return [];
+        const required = (name: string) =>
+          requiredField({provider: 'posthog', fixture, fixtureName, name});
+        return [
+          {
+            id: Number(required('id')),
+            key: String(required('key')),
+            ...(fixtureName === 'disabled_feature_flag' ? {active: false} : {}),
+          },
+        ];
+      });
+      await seedPosthogMock({apiKey, seed: {events, feature_flags: featureFlags}});
+    },
+    // PostHog is read-only for Shipfox.
+    writes: () => [],
+  };
+};
+
+/**
  * The adapter of each provider the suite can run in fake mode. A provider joins when its fake
  * parity unit adds its adapter, and its cases gain `fake` in `modes` in the same change.
  */
@@ -580,5 +628,6 @@ export const CONTRACT_FAKE_ADAPTERS: Readonly<Record<string, ContractFakeAdapter
   discord: discordContractFake,
   clickup: clickupContractFake,
   notion: notionContractFake,
+  posthog: posthogContractFake,
   slack: slackContractFake,
 };

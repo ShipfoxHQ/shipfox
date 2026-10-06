@@ -44,6 +44,27 @@ export async function waitForPosthogMockCall(apiKey: string): Promise<PosthogMoc
   );
 }
 
+/** What a key's seed makes the fake answer with, as the sandbox fixtures describe it. */
+export interface PosthogMockSeed {
+  /** Events the SQL tool can count, by `event` name. */
+  events: Array<{name: string; count: number}>;
+  feature_flags: Array<{id: number; key: string; name?: string; active?: boolean}>;
+}
+
+/**
+ * Makes the fake answer `execute-sql` and `feature-flag-get-all` for a key with the results of
+ * the seed. A key without a seed keeps the marker answers.
+ */
+export async function seedPosthogMock({
+  apiKey,
+  seed,
+}: {
+  apiKey: string;
+  seed: PosthogMockSeed;
+}): Promise<void> {
+  await posthogMockControl({api_key: apiKey, ...seed}, '/__e2e/seed');
+}
+
 export async function setPosthogProbeStatus(apiKey: string, status: number): Promise<void> {
   await posthogMockControl({api_key: apiKey, probe_status: status});
 }
@@ -52,11 +73,14 @@ export async function releasePosthogCall(apiKey: string): Promise<void> {
   await posthogMockControl({release_api_key: apiKey});
 }
 
-async function posthogMockControl(body: Record<string, unknown>): Promise<void> {
-  const response = await fetch(posthogMockUrl('/__e2e/control'), {
+async function posthogMockControl(
+  body: Record<string, unknown>,
+  path = '/__e2e/control',
+): Promise<void> {
+  const response = await fetch(posthogMockUrl(path), {
     method: 'POST',
     headers: {'content-type': 'application/json'},
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`PostHog mock control failed with ${response.status}`);
+  if (!response.ok) throw new Error(`PostHog mock ${path} failed with ${response.status}`);
 }

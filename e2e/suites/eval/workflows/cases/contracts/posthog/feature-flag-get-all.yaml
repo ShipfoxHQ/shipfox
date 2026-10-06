@@ -1,5 +1,5 @@
 provider: posthog
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: feature-flag-get-all
     with:

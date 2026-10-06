@@ -24,7 +24,8 @@ const REQUIRED_SCOPES = [
   'survey:read',
 ];
 const QUERY_PATH_RE = /^\/api\/projects\/([^/]+)\/query\/$/u;
-const EXEC_JSON_CALL_RE = /^call --json (\S+)/u;
+const EXEC_JSON_CALL_RE = /^call --json (\S+)(?: (.*))?$/su;
+const SQL_EVENT_COUNT_RE = /^\s*select\s+count\(\)\s+from\s+events\s+where\s+event\s*=\s*'([^']*)'/iu;
 
 /** The E2E deployment's PostHog double serves both REST and MCP traffic. */
 export async function startPosthogMock(endpoint) {
@@ -32,12 +33,14 @@ export async function startPosthogMock(endpoint) {
   const mcpRequestCounts = new Map();
   const states = new Map();
   const pending = new Map();
+  const seeds = new Map();
   const server = createServer((request, response) => {
     void handleRequest({
       calls,
       mcpRequestCounts,
       states,
       pending,
+      seeds,
       endpoint,
       request,
       response,
@@ -76,6 +79,7 @@ async function handleRequest({
   mcpRequestCounts,
   states,
   pending,
+  seeds,
   endpoint,
   request,
   response,
@@ -93,8 +97,12 @@ async function handleRequest({
     await handleControl({states, pending, request, response});
     return;
   }
+  if (url.pathname === '/__e2e/seed' && request.method === 'POST') {
+    await handleSeed({seeds, request, response});
+    return;
+  }
   if (url.pathname === '/mcp') {
-    await handleMcp({calls, mcpRequestCounts, pending, request, response});
+    await handleMcp({calls, mcpRequestCounts, pending, seeds, request, response});
     return;
   }
   await handleRest({states, request, response, url});
@@ -108,6 +116,21 @@ function handleCalls({calls, url, response}) {
 function handleMcpRequestCount({mcpRequestCounts, url, response}) {
   const apiKey = url.searchParams.get('api_key');
   sendJson(response, 200, {count: apiKey ? (mcpRequestCounts.get(apiKey) ?? 0) : 0});
+}
+
+// A key with a seed answers the seeded tools with the results PostHog returns. Every other key
+// keeps the marker answer.
+async function handleSeed({seeds, request, response}) {
+  const body = await readJsonBody(request);
+  if (typeof body?.api_key !== 'string') {
+    sendJson(response, 400, {error: 'api_key is required'});
+    return;
+  }
+  seeds.set(body.api_key, {
+    events: Array.isArray(body.events) ? body.events : [],
+    featureFlags: Array.isArray(body.feature_flags) ? body.feature_flags : [],
+  });
+  sendJson(response, 200, {ok: true});
 }
 
 async function handleControl({states, pending, request, response}) {
@@ -181,7 +204,7 @@ function handleCredential({states, request, response}) {
   });
 }
 
-async function handleMcp({calls, mcpRequestCounts, pending, request, response}) {
+async function handleMcp({calls, mcpRequestCounts, pending, seeds, request, response}) {
   const apiKey = bearer(request);
   mcpRequestCounts.set(apiKey, (mcpRequestCounts.get(apiKey) ?? 0) + 1);
   if (request.method === 'DELETE') {
@@ -242,17 +265,67 @@ async function handleMcp({calls, mcpRequestCounts, pending, request, response}) 
     });
     return;
   }
-  sendMcpResult(response, body.id, {
-    content: [{type: 'text', text: mcpResultText(body.params)}],
-  });
+  sendMcpResult(response, body.id, mcpToolResult({params: body.params, seed: seeds.get(apiKey)}));
 }
 
 // PostHog's `exec` tool answers `call --json <tool>` with the result of that tool as JSON.
-function mcpResultText(params) {
+function mcpToolResult({params, seed}) {
   const command = params?.name === 'exec' ? params.arguments?.command : undefined;
-  const called = typeof command === 'string' ? EXEC_JSON_CALL_RE.exec(command)?.[1] : undefined;
-  if (called === undefined) return `posthog-e2e-result:${params?.name}`;
-  return JSON.stringify({results: `posthog-e2e-result:${called}`});
+  const match = typeof command === 'string' ? EXEC_JSON_CALL_RE.exec(command) : null;
+  if (match === null) return {content: [{type: 'text', text: `posthog-e2e-result:${params?.name}`}]};
+  const [, called, rawArguments] = match;
+  const seeded = seed === undefined ? undefined : seededResult({tool: called, rawArguments, seed});
+  if (seeded === undefined) {
+    return {
+      content: [{type: 'text', text: JSON.stringify({results: `posthog-e2e-result:${called}`})}],
+    };
+  }
+  return seeded;
+}
+
+// A seeded tool answers in the shape PostHog returned in the nightly contract runs. `execute-sql`
+// formats its rows as text, and `feature-flag-get-all` returns the flags as a list.
+function seededResult({tool, rawArguments, seed}) {
+  let args;
+  try {
+    args = rawArguments === undefined ? {} : JSON.parse(rawArguments);
+  } catch {
+    return toolError(`Error: [${tool}]: arguments are not JSON`);
+  }
+  if (tool === 'execute-sql') return seededSql({query: args.query, seed});
+  if (tool === 'feature-flag-get-all') return seededFeatureFlags({key: args.key, seed});
+  return undefined;
+}
+
+function seededSql({query, seed}) {
+  const name = typeof query === 'string' ? SQL_EVENT_COUNT_RE.exec(query)?.[1] : undefined;
+  const event = seed.events.find((candidate) => candidate.name === name);
+  if (event === undefined) {
+    return toolError('Error: [execute-sql]: the PostHog fake only counts seeded events.');
+  }
+  return jsonResult({results: `count()\n${event.count}`});
+}
+
+function seededFeatureFlags({key, seed}) {
+  const flags = seed.featureFlags.filter(
+    (flag) => typeof key !== 'string' || flag.key.toLowerCase() === key.toLowerCase(),
+  );
+  return jsonResult({
+    results: flags.map((flag) => ({
+      name: '',
+      active: true,
+      deleted: false,
+      ...flag,
+    })),
+  });
+}
+
+function jsonResult(body) {
+  return {content: [{type: 'text', text: JSON.stringify(body)}]};
+}
+
+function toolError(text) {
+  return {isError: true, content: [{type: 'text', text}]};
 }
 
 function sendMcpInitialize(response, id, protocolVersion) {

@@ -1,5 +1,5 @@
 provider: posthog
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: execute-sql
     with:

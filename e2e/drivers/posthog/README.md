@@ -7,6 +7,9 @@ Helpers for the PostHog MCP fake that the E2E harness starts (`e2e/harness/src/p
 - `posthogMockCalls(apiKey)` and `posthogMockMcpRequestCount(apiKey)`: read the calls the
   fake recorded for a key.
 - `waitForPosthogMockCall(apiKey)`: poll until the first call for a key arrives.
+- `seedPosthogMock({apiKey, seed})`: make the fake answer `execute-sql` (event counts) and
+  `feature-flag-get-all` for a key with PostHog-shaped results. A key without a seed keeps the
+  marker answers.
 - `setPosthogProbeStatus(apiKey, status)` and `releasePosthogCall(apiKey)`: steer the fake's
   probe answer and release a held call.
 
