@@ -1,0 +1,12 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: dashboards-get-all
+    with:
+      search: $fixture.posthog.dashboard.name
+    expect:
+      shape:
+        count: number
+        results: [{id: number, name: string}]
+      includes:
+        results: {id: $fixture.posthog.dashboard.id, name: $fixture.posthog.dashboard.name}

@@ -1,0 +1,15 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: insights-list
+    with:
+      search: $fixture.posthog.insight.name
+    expect:
+      shape:
+        count: number
+        results: [{id: number, short_id: string, name: string}]
+      includes:
+        results:
+          id: $fixture.posthog.insight.id
+          short_id: $fixture.posthog.insight.short_id
+          name: $fixture.posthog.insight.name

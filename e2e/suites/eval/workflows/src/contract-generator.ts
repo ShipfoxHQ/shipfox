@@ -62,8 +62,9 @@ function providerWorkflowName(provider: string): string {
 }
 
 function render(document: unknown): string {
-  // A long gate stays on one line, so a change shows as one changed line.
-  return `${HEADER}${stringify(document, {lineWidth: 0})}`;
+  // A long gate stays on one line, so a change shows as one changed line. YAML 1.1 quoting keeps a
+  // string such as `2026-09-01` from reading back as a date, which the server's parser does.
+  return `${HEADER}${stringify(document, {lineWidth: 0, version: '1.1'})}`;
 }
 
 export type ContractGenerationMode = 'real' | 'fake';
@@ -383,19 +384,7 @@ function compileStep({
     });
   }
 
-  for (const [path, pattern] of Object.entries(expect.matches ?? {})) {
-    const segments = parsePath({path, origin});
-    const name = `matches_${segmentName(segments)}`;
-    addCheck({
-      name,
-      mapping: presence({
-        segments,
-        check: (accessor) =>
-          `type(${accessor}) == type("") && ${accessor}.matches(${JSON.stringify(pattern)})`,
-      }),
-      check: `step.outputs.${name}`,
-    });
-  }
+  for (const check of patternChecks({expect, origin})) addCheck(check);
 
   return {
     ...call,
@@ -404,6 +393,32 @@ function compileStep({
       : // The gate decides the step's result even when the call failed, so it has to see the status.
         {outputs, gate: {success: ['step.status == "succeeded"', ...checks].join(' && ')}}),
   };
+}
+
+/** The regular-expression checks: `matches` on a text value at a path, and `text` on the result. */
+function patternChecks({
+  expect,
+  origin,
+}: {
+  expect: ContractRead['expect'];
+  origin: string;
+}): {name: string; mapping: string; check: string}[] {
+  const checks = Object.entries(expect.matches ?? {}).map(([path, pattern]) => {
+    const segments = parsePath({path, origin});
+    const name = `matches_${segmentName(segments)}`;
+    const mapping = presence({
+      segments,
+      check: (accessor) =>
+        `type(${accessor}) == type("") && ${accessor}.matches(${JSON.stringify(pattern)})`,
+    });
+    return {name, mapping, check: `step.outputs.${name}`};
+  });
+  const text = (expect.text ?? []).map((pattern, index) => ({
+    name: `text_${index}`,
+    mapping: `type(result) == type("") && result.matches(${JSON.stringify(pattern)})`,
+    check: `step.outputs.text_${index}`,
+  }));
+  return [...checks, ...text];
 }
 
 function generationResolver({

@@ -28,6 +28,106 @@ jobs:
           value_results_0_key: '${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.key)) ? result.results[0].key : "" }}'
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_results_0_id) == type(1) || type(step.outputs.value_results_0_id) == type(1.0)) && step.outputs.value_results_0_id == 301243 && type(step.outputs.value_results_0_key) == type("") && step.outputs.value_results_0_key == "contract-flag"
+      - key: insight
+        tool: insight-get
+        connection: posthog_sandbox
+        with:
+          id: 6355500
+        outputs:
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 6355500
+      - key: dashboard
+        tool: dashboard-get
+        connection: posthog_sandbox
+        with:
+          id: 999696
+        outputs:
+          matches_content: ${{ has(result.content) && type(result.content) == type("") && result.content.matches("\"id\":999696,") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.matches_content
+      - key: experiment
+        tool: experiment-get
+        connection: posthog_sandbox
+        with:
+          id: 99531
+        outputs:
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 99531
+      - key: survey
+        tool: survey-get
+        connection: posthog_sandbox
+        with:
+          id: 01a10dad-d398-0000-5b35-0c6a08cd8ee8
+        outputs:
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "01a10dad-d398-0000-5b35-0c6a08cd8ee8"
+      - key: error_issue
+        tool: query-error-tracking-issue
+        connection: posthog_sandbox
+        with:
+          issueId: 01a10dad-c7e2-7443-80df-5aed63a6eb5d
+        outputs:
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "01a10dad-c7e2-7443-80df-5aed63a6eb5d"
+  dashboard_get:
+    checkout: false
+    steps:
+      - key: dashboard_get
+        tool: dashboard-get
+        connection: posthog_sandbox
+        with:
+          id: 999696
+        outputs:
+          shape_content: ${{ has(result.content) && type(result.content) == type("") }}
+          matches_content: ${{ has(result.content) && type(result.content) == type("") && result.content.matches("\"id\":999696,\"name\":\"Contract fixture dashboard\"") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_content && step.outputs.matches_content
+  dashboard_insights_run:
+    checkout: false
+    steps:
+      - key: dashboard_insights_run
+        tool: dashboard-insights-run
+        connection: posthog_sandbox
+        with:
+          id: 999696
+          output_format: json
+        outputs:
+          shape_results: ${{ has(result.results) && type(result.results) == type([]) }}
+          shape__posthogUrl: ${{ has(result._posthogUrl) && type(result._posthogUrl) == type("") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_results && step.outputs.shape__posthogUrl
+  dashboards_get_all:
+    checkout: false
+    steps:
+      - key: dashboards_get_all
+        tool: dashboards-get-all
+        connection: posthog_sandbox
+        with:
+          search: Contract fixture dashboard
+        outputs:
+          shape_count: ${{ has(result.count) && (type(result.count) == type(1) || type(result.count) == type(1.0)) }}
+          shape_results_0_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          shape_results_0_name: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          includes_results: ${{ has(result.results) && type(result.results) == type([]) && result.results.exists(item, has(item.id) && (type(item.id) == type(1) || type(item.id) == type(1.0)) && item.id == 999696 && has(item.name) && type(item.name) == type("") && item.name == "Contract fixture dashboard") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_count && step.outputs.shape_results_0_id && step.outputs.shape_results_0_name && step.outputs.includes_results
+  docs_search:
+    checkout: false
+    steps:
+      - key: docs_search
+        tool: docs-search
+        connection: posthog_sandbox
+        with:
+          query: feature flags
+        outputs:
+          shape_content: ${{ has(result.content) && type(result.content) == type("") }}
+          matches_content: ${{ has(result.content) && type(result.content) == type("") && result.content.matches("^Found [0-9]+ relevant documentation page") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_content && step.outputs.matches_content
   execute_sql:
     checkout: false
     steps:
@@ -51,6 +151,39 @@ jobs:
           query: SELEC nonsense FROM
         gate:
           success: step.status == "failed" && step.error.code == "unknown"
+  experiment_get:
+    checkout: false
+    steps:
+      - key: experiment_get
+        tool: experiment-get
+        connection: posthog_sandbox
+        with:
+          id: 99531
+        outputs:
+          shape_id: ${{ has(result.id) && (type(result.id) == type(1) || type(result.id) == type(1.0)) }}
+          shape_name: ${{ has(result.name) && type(result.name) == type("") }}
+          shape_status: ${{ has(result.status) && type(result.status) == type("") }}
+          shape_feature_flag_key: ${{ has(result.feature_flag_key) && type(result.feature_flag_key) == type("") }}
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_status && step.outputs.shape_feature_flag_key && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 99531 && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Contract fixture experiment"
+  experiment_list:
+    checkout: false
+    steps:
+      - key: experiment_list
+        tool: experiment-list
+        connection: posthog_sandbox
+        with:
+          search: Contract fixture experiment
+        outputs:
+          shape_count: ${{ has(result.count) && (type(result.count) == type(1) || type(result.count) == type(1.0)) }}
+          shape_results_0_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          shape_results_0_name: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          shape_results_0_status: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.status) && type(i0.status) == type("")) }}
+          includes_results: ${{ has(result.results) && type(result.results) == type([]) && result.results.exists(item, has(item.id) && (type(item.id) == type(1) || type(item.id) == type(1.0)) && item.id == 99531 && has(item.name) && type(item.name) == type("") && item.name == "Contract fixture experiment") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_count && step.outputs.shape_results_0_id && step.outputs.shape_results_0_name && step.outputs.shape_results_0_status && step.outputs.includes_results
   feature_flag_get_all:
     checkout: false
     steps:
@@ -66,6 +199,23 @@ jobs:
           value_results_0_key: '${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.key)) ? result.results[0].key : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_results_0_id && step.outputs.shape_results_0_key && (type(step.outputs.value_results_0_id) == type(1) || type(step.outputs.value_results_0_id) == type(1.0)) && step.outputs.value_results_0_id == 301243 && type(step.outputs.value_results_0_key) == type("") && step.outputs.value_results_0_key == "contract-flag"
+  feature_flag_get_definition:
+    checkout: false
+    steps:
+      - key: feature_flag_get_definition
+        tool: feature-flag-get-definition
+        connection: posthog_sandbox
+        with:
+          id: 301243
+        outputs:
+          shape_id: ${{ has(result.id) && (type(result.id) == type(1) || type(result.id) == type(1.0)) }}
+          shape_key: ${{ has(result.key) && type(result.key) == type("") }}
+          shape_active: ${{ has(result.active) && type(result.active) == type(true) }}
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_key: '${{ has(result.key) ? result.key : "" }}'
+          value_active: '${{ has(result.active) ? result.active : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_key && step.outputs.shape_active && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 301243 && type(step.outputs.value_key) == type("") && step.outputs.value_key == "contract-flag" && type(step.outputs.value_active) == type(true) && step.outputs.value_active == true
   feature_flag_get_definition_missing_flag:
     checkout: false
     steps:
@@ -76,3 +226,138 @@ jobs:
           id: 999999999
         gate:
           success: step.status == "failed" && step.error.code == "unknown"
+  insight_get:
+    checkout: false
+    steps:
+      - key: insight_get
+        tool: insight-get
+        connection: posthog_sandbox
+        with:
+          id: 6355500
+        outputs:
+          shape_id: ${{ has(result.id) && (type(result.id) == type(1) || type(result.id) == type(1.0)) }}
+          shape_short_id: ${{ has(result.short_id) && type(result.short_id) == type("") }}
+          shape_name: ${{ has(result.name) && type(result.name) == type("") }}
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_short_id: '${{ has(result.short_id) ? result.short_id : "" }}'
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_short_id && step.outputs.shape_name && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 6355500 && type(step.outputs.value_short_id) == type("") && step.outputs.value_short_id == "wTSHwcPR" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Contract fixture insight"
+  insight_query:
+    checkout: false
+    steps:
+      - key: insight_query
+        tool: insight-query
+        connection: posthog_sandbox
+        with:
+          insightId: 6355500
+        outputs:
+          shape_insight_id: ${{ has(result.insight) && has(result.insight.id) && (type(result.insight.id) == type(1) || type(result.insight.id) == type(1.0)) }}
+          shape_insight_short_id: ${{ has(result.insight) && has(result.insight.short_id) && type(result.insight.short_id) == type("") }}
+          shape_insight_name: ${{ has(result.insight) && has(result.insight.name) && type(result.insight.name) == type("") }}
+          shape_results_0_count: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.count) && (type(i0.count) == type(1) || type(i0.count) == type(1.0))) }}
+          shape_results_0_label: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.label) && type(i0.label) == type("")) }}
+          value_insight_id: '${{ has(result.insight) && has(result.insight.id) ? result.insight.id : "" }}'
+          value_insight_short_id: '${{ has(result.insight) && has(result.insight.short_id) ? result.insight.short_id : "" }}'
+          value_results_0_label: '${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.label)) ? result.results[0].label : "" }}'
+          value_results_0_count: '${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.count)) ? result.results[0].count : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_insight_id && step.outputs.shape_insight_short_id && step.outputs.shape_insight_name && step.outputs.shape_results_0_count && step.outputs.shape_results_0_label && (type(step.outputs.value_insight_id) == type(1) || type(step.outputs.value_insight_id) == type(1.0)) && step.outputs.value_insight_id == 6355500 && type(step.outputs.value_insight_short_id) == type("") && step.outputs.value_insight_short_id == "wTSHwcPR" && type(step.outputs.value_results_0_label) == type("") && step.outputs.value_results_0_label == "contract_event" && (type(step.outputs.value_results_0_count) == type(1) || type(step.outputs.value_results_0_count) == type(1.0)) && step.outputs.value_results_0_count == 40
+  insights_list:
+    checkout: false
+    steps:
+      - key: insights_list
+        tool: insights-list
+        connection: posthog_sandbox
+        with:
+          search: Contract fixture insight
+        outputs:
+          shape_count: ${{ has(result.count) && (type(result.count) == type(1) || type(result.count) == type(1.0)) }}
+          shape_results_0_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          shape_results_0_short_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.short_id) && type(i0.short_id) == type("")) }}
+          shape_results_0_name: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          includes_results: ${{ has(result.results) && type(result.results) == type([]) && result.results.exists(item, has(item.id) && (type(item.id) == type(1) || type(item.id) == type(1.0)) && item.id == 6355500 && has(item.short_id) && type(item.short_id) == type("") && item.short_id == "wTSHwcPR" && has(item.name) && type(item.name) == type("") && item.name == "Contract fixture insight") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_count && step.outputs.shape_results_0_id && step.outputs.shape_results_0_short_id && step.outputs.shape_results_0_name && step.outputs.includes_results
+  query_error_tracking_issue:
+    checkout: false
+    steps:
+      - key: query_error_tracking_issue
+        tool: query-error-tracking-issue
+        connection: posthog_sandbox
+        with:
+          issueId: 01a10dad-c7e2-7443-80df-5aed63a6eb5d
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_name: ${{ has(result.name) && type(result.name) == type("") }}
+          shape_status: ${{ has(result.status) && type(result.status) == type("") }}
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_status && type(step.outputs.value_id) == type("") && step.outputs.value_id == "01a10dad-c7e2-7443-80df-5aed63a6eb5d" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "ContractError"
+  query_error_tracking_issues_list:
+    checkout: false
+    steps:
+      - key: query_error_tracking_issues_list
+        tool: query-error-tracking-issues-list
+        connection: posthog_sandbox
+        with:
+          dateRange:
+            date_from: "2026-09-01"
+            date_to: "2026-10-01"
+        outputs:
+          shape_hasMore: ${{ has(result.hasMore) && type(result.hasMore) == type(true) }}
+          shape_results_0_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_results_0_name: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          shape_results_0_status: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.status) && type(i0.status) == type("")) }}
+          includes_results: ${{ has(result.results) && type(result.results) == type([]) && result.results.exists(item, has(item.id) && type(item.id) == type("") && item.id == "01a10dad-c7e2-7443-80df-5aed63a6eb5d" && has(item.name) && type(item.name) == type("") && item.name == "ContractError") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_hasMore && step.outputs.shape_results_0_id && step.outputs.shape_results_0_name && step.outputs.shape_results_0_status && step.outputs.includes_results
+  read_data_schema:
+    checkout: false
+    steps:
+      - key: read_data_schema
+        tool: read-data-schema
+        connection: posthog_sandbox
+        with:
+          query:
+            kind: events
+        outputs:
+          text_0: ${{ type(result) == type("") && result.matches("(^|\\n)- `contract_event`") }}
+          text_1: ${{ type(result) == type("") && result.matches("(^|\\n)- `contract_purchase`") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.text_0 && step.outputs.text_1
+  survey_get:
+    checkout: false
+    steps:
+      - key: survey_get
+        tool: survey-get
+        connection: posthog_sandbox
+        with:
+          id: 01a10dad-d398-0000-5b35-0c6a08cd8ee8
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_name: ${{ has(result.name) && type(result.name) == type("") }}
+          shape_type: ${{ has(result.type) && type(result.type) == type("") }}
+          shape_questions_0_id: ${{ has(result.questions) && type(result.questions) == type([]) && size(result.questions) > 0 && [result.questions[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_questions_0_question: ${{ has(result.questions) && type(result.questions) == type([]) && size(result.questions) > 0 && [result.questions[0]].all(i0, has(i0.question) && type(i0.question) == type("")) }}
+          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_type && step.outputs.shape_questions_0_id && step.outputs.shape_questions_0_question && type(step.outputs.value_id) == type("") && step.outputs.value_id == "01a10dad-d398-0000-5b35-0c6a08cd8ee8" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Contract fixture survey"
+  surveys_get_all:
+    checkout: false
+    steps:
+      - key: surveys_get_all
+        tool: surveys-get-all
+        connection: posthog_sandbox
+        with:
+          search: Contract fixture survey
+        outputs:
+          shape_count: ${{ has(result.count) && (type(result.count) == type(1) || type(result.count) == type(1.0)) }}
+          shape_results_0_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_results_0_name: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          shape_results_0_type: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.type) && type(i0.type) == type("")) }}
+          includes_results: ${{ has(result.results) && type(result.results) == type([]) && result.results.exists(item, has(item.id) && type(item.id) == type("") && item.id == "01a10dad-d398-0000-5b35-0c6a08cd8ee8" && has(item.name) && type(item.name) == type("") && item.name == "Contract fixture survey") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_count && step.outputs.shape_results_0_id && step.outputs.shape_results_0_name && step.outputs.shape_results_0_type && step.outputs.includes_results

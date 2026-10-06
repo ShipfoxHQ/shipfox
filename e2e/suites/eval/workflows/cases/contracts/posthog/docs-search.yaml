@@ -1,0 +1,12 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: docs-search
+    with:
+      query: feature flags
+    expect:
+      shape:
+        content: string
+      # The pages change with PostHog's documentation, so only the layout of the answer is pinned.
+      matches:
+        content: '^Found [0-9]+ relevant documentation page'

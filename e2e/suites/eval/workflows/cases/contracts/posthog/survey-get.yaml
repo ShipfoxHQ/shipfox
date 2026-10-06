@@ -1,0 +1,15 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: survey-get
+    with:
+      id: $fixture.posthog.survey.id
+    expect:
+      shape:
+        id: string
+        name: string
+        type: string
+        questions: [{id: string, question: string}]
+      values:
+        id: $fixture.posthog.survey.id
+        name: $fixture.posthog.survey.name

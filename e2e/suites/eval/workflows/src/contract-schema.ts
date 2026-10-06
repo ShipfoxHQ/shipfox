@@ -59,6 +59,9 @@ const outputExpectSchema = z
     ).optional(),
     // A regular expression per path, for a text value whose layout a case shouldn't pin.
     matches: nonEmpty(z.record(pathSchema, z.string().min(1))).optional(),
+    // Regular expressions for a result that is itself text, such as the TOON text PostHog returns
+    // for most reads. Each one must match somewhere in it.
+    text: z.array(z.string().min(1)).min(1).optional(),
   })
   .strict();
 
@@ -71,7 +74,8 @@ const stepExpectSchema = outputExpectSchema
       (expected.shape === undefined &&
         expected.values === undefined &&
         expected.includes === undefined &&
-        expected.matches === undefined),
+        expected.matches === undefined &&
+        expected.text === undefined),
     {message: 'a step that expects an error has no output to check', path: ['error']},
   );
 

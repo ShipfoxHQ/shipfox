@@ -1,0 +1,15 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: experiment-get
+    with:
+      id: $fixture.posthog.experiment.id
+    expect:
+      shape:
+        id: number
+        name: string
+        status: string
+        feature_flag_key: string
+      values:
+        id: $fixture.posthog.experiment.id
+        name: $fixture.posthog.experiment.name

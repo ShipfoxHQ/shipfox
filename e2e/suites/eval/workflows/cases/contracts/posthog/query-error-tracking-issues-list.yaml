@@ -1,0 +1,13 @@
+provider: posthog
+modes: [real]
+steps:
+  - tool: query-error-tracking-issues-list
+    with:
+      # The fixture exception is dated 2026-09-03. A relative range would age out of it.
+      dateRange: {date_from: '2026-09-01', date_to: '2026-10-01'}
+    expect:
+      shape:
+        hasMore: boolean
+        results: [{id: string, name: string, status: string}]
+      includes:
+        results: {id: $fixture.posthog.error_issue.id, name: $fixture.posthog.error_issue.name}
