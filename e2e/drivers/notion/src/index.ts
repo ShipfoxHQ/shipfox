@@ -3,6 +3,7 @@ export {
   type NotionApiMock,
   type NotionApiMockCall,
   type NotionApiMockOptions,
+  type NotionDataSourceFixture,
   type NotionPageFixture,
   startNotionApiMock,
 } from './notion-api.js';
