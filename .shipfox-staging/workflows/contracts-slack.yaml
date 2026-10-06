@@ -26,8 +26,8 @@ jobs:
           channel_id: C0C7QHHBNNL
           message_ts: "1791226001.009789"
         outputs:
-          value_messages_0_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.ts)) ? toJson(result.messages[0].ts) : "" }}'
-          value_messages_2_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 2 && [result.messages[2]].all(i0, has(i0.ts)) ? toJson(result.messages[2].ts) : "" }}'
+          value_messages_0_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.ts) && type(i0.ts) == type("")) ? string(result.messages[0].ts) : "" }}'
+          value_messages_2_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 2 && [result.messages[2]].all(i0, has(i0.ts) && type(i0.ts) == type("")) ? string(result.messages[2].ts) : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_messages_0_ts) == type("") && step.outputs.value_messages_0_ts == "1791226001.009789" && type(step.outputs.value_messages_2_ts) == type("") && step.outputs.value_messages_2_ts == "1791226036.117099"
       - key: reaction_message
@@ -37,7 +37,7 @@ jobs:
           channel_id: C0C7QHHBNNL
           message_ts: "1791226072.112799"
         outputs:
-          value_messages_0_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.ts)) ? toJson(result.messages[0].ts) : "" }}'
+          value_messages_0_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.ts) && type(i0.ts) == type("")) ? string(result.messages[0].ts) : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_messages_0_ts) == type("") && step.outputs.value_messages_0_ts == "1791226072.112799"
       - key: unicode_message
@@ -47,7 +47,7 @@ jobs:
           channel_id: C0C7QHHBNNL
           message_ts: "1791226138.522499"
         outputs:
-          value_messages_0_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.ts)) ? toJson(result.messages[0].ts) : "" }}'
+          value_messages_0_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.ts) && type(i0.ts) == type("")) ? string(result.messages[0].ts) : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_messages_0_ts) == type("") && step.outputs.value_messages_0_ts == "1791226138.522499"
       - key: user
@@ -127,10 +127,10 @@ jobs:
         outputs:
           shape_messages_0_ts: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.ts) && type(i0.ts) == type("")) }}
           shape_messages_0_text: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.text) && type(i0.text) == type("")) }}
-          value_messages_0_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.ts)) ? toJson(result.messages[0].ts) : "" }}'
+          value_messages_0_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.ts) && type(i0.ts) == type("")) ? string(result.messages[0].ts) : "" }}'
           value_messages_0_text: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.text)) ? result.messages[0].text : "" }}'
-          value_messages_1_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 1 && [result.messages[1]].all(i0, has(i0.ts)) ? toJson(result.messages[1].ts) : "" }}'
-          value_messages_2_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 2 && [result.messages[2]].all(i0, has(i0.ts)) ? toJson(result.messages[2].ts) : "" }}'
+          value_messages_1_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 1 && [result.messages[1]].all(i0, has(i0.ts) && type(i0.ts) == type("")) ? string(result.messages[1].ts) : "" }}'
+          value_messages_2_ts: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 2 && [result.messages[2]].all(i0, has(i0.ts) && type(i0.ts) == type("")) ? string(result.messages[2].ts) : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_messages_0_ts && step.outputs.shape_messages_0_text && type(step.outputs.value_messages_0_ts) == type("") && step.outputs.value_messages_0_ts == "1791226001.009789" && type(step.outputs.value_messages_0_text) == type("") && step.outputs.value_messages_0_text == "This is a contract test, do not modify" && type(step.outputs.value_messages_1_ts) == type("") && step.outputs.value_messages_1_ts == "1791226033.072769" && type(step.outputs.value_messages_2_ts) == type("") && step.outputs.value_messages_2_ts == "1791226036.117099"
   read_user_profile:

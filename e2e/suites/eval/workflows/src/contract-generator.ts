@@ -352,10 +352,9 @@ function compileStep({
   for (const [path, value] of Object.entries(expect.values ?? {})) {
     const segments = parsePath({path, origin});
     const name = `value_${segmentName(segments)}`;
-    const accessor = accessorOf(segments);
     addCheck({
       name,
-      mapping: `${presence({segments})} ? ${isReparsedAsNonString(value) ? `toJson(${accessor})` : accessor} : ""`,
+      mapping: stringValueMapping({segments, value}),
       check: valueCheck({accessor: `step.outputs.${name}`, value}),
     });
   }
@@ -543,12 +542,25 @@ function typeCheck({accessor, type}: {accessor: string; type: ShapeLeaf['type']}
   }
 }
 
-// A step output declared as json parses a string value, so an id like "901222980414" would come
-// back as a number. Encoding the value as JSON text first makes the parse return the string.
-function isReparsedAsNonString(value: ContractScalar): boolean {
+// A dyn mapping is declared as a json output, and the declaration parses string values, so an id
+// like "901222980414" would come back as a number. A string-typed mapping skips the parse. A
+// result of another type maps to "" and fails the check.
+function stringValueMapping({
+  segments,
+  value,
+}: {
+  segments: Segment[];
+  value: ContractScalar;
+}): string {
+  if (!changedByJsonParse(value)) return `${presence({segments})} ? ${accessorOf(segments)} : ""`;
+  const check = (accessor: string) => typeCheck({accessor, type: 'string'});
+  return `${presence({segments, check})} ? string(${accessorOf(segments)}) : ""`;
+}
+
+function changedByJsonParse(value: ContractScalar): boolean {
   if (typeof value !== 'string') return false;
   try {
-    return typeof JSON.parse(value) !== 'string';
+    return JSON.parse(value) !== value;
   } catch {
     return false;
   }
