@@ -1,14 +1,17 @@
 import type {createApiClient} from '@shipfox/e2e-core';
 import {type DiscordApiMock, startDiscordApiMock} from '@shipfox/e2e-driver-discord';
 import {type GithubApiMock, startGithubApiMock} from '@shipfox/e2e-driver-github';
+import {type JiraApiMock, startJiraApiMock} from '@shipfox/e2e-driver-jira';
 import {createPosthogConnection} from '@shipfox/e2e-setup-integrations';
 import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {
   CONTRACT_FAKE_ADAPTERS,
   type ContractFakeContext,
   clickupContractFake,
+  createJiraContractFake,
   discordContractFake,
   githubContractFake,
+  jiraContractFake,
   notionContractFake,
   posthogContractFake,
   type SandboxFixtures,
@@ -380,5 +383,93 @@ describe('posthogContractFake', () => {
 
   it('is the adapter of the posthog provider', () => {
     expect(CONTRACT_FAKE_ADAPTERS.posthog).toBe(posthogContractFake);
+  });
+});
+
+describe('jiraContractFake', () => {
+  let mock: JiraApiMock | undefined;
+
+  afterEach(async () => {
+    await mock?.stop();
+    mock = undefined;
+  });
+
+  async function arrange() {
+    const started = await startJiraApiMock({endpoint: new URL('http://127.0.0.1:0')});
+    mock = started;
+    const adapter = createJiraContractFake({
+      arrange: () =>
+        Promise.resolve({
+          connectionSlug: 'jira_fake',
+          mock: started,
+          sender: () => Promise.reject(new Error('The contracts suite sends no events.')),
+          writes: () => [],
+        }),
+    });
+    return await adapter({
+      workspaceId: 'workspace',
+      uniqueId: 'unique',
+      github: {mock: {} as GithubApiMock, connectionId: 'connection-1', connectionSlug: 'github'},
+      client: {} as ApiClient,
+      cleanups: [],
+    });
+  }
+
+  async function get(path: string) {
+    const response = await fetch(new URL(`/ex/jira/cloud/rest/api/3${path}`, mock?.endpoint));
+    return (await response.json()) as Record<string, unknown>;
+  }
+
+  const fixtures: SandboxFixtures = {
+    read_project: {key: 'READ', id: '10001', name: 'Read project'},
+    write_project: {key: 'WRITE', id: '10002', name: 'Write project'},
+    issue: {key: 'READ-1', id: '10010', summary: 'Example issue'},
+    comment: {id: '10000', body: 'A fixture comment'},
+    user: {account_id: 'account-1', display_name: 'Fixture User'},
+  };
+
+  it('seeds the projects, the issue, its comment, and the user with the ids of the fixtures', async () => {
+    const fake = await arrange();
+
+    await fake.seed(fixtures);
+
+    expect(fake.connectionSlug).toBe('jira_fake');
+    expect(await get('/project/WRITE')).toEqual({id: '10002', key: 'WRITE', name: 'Write project'});
+    expect(await get('/issue/READ-1')).toMatchObject({
+      id: '10010',
+      key: 'READ-1',
+      fields: {summary: 'Example issue'},
+    });
+    expect(await get('/issue/READ-1/comment')).toMatchObject({
+      total: 1,
+      comments: [{id: '10000'}],
+    });
+    expect(await get('/user?accountId=account-1')).toEqual({
+      accountId: 'account-1',
+      displayName: 'Fixture User',
+    });
+  });
+
+  it('seeds nothing for a manifest without Jira fixtures', async () => {
+    const fake = await arrange();
+
+    await fake.seed({});
+
+    expect(await get('/issue/READ-1')).toMatchObject({id: '10000', key: 'READ-1'});
+  });
+
+  it('rejects a comment without an issue, and a project without a key', async () => {
+    const fake = await arrange();
+
+    await expect(fake.seed({comment: {id: '10000', body: 'A fixture comment'}})).rejects.toThrow(
+      'comment fixture needs an issue fixture',
+    );
+    await expect(fake.seed({read_project: {id: '1', name: 'Read'}})).rejects.toThrow(
+      'jira fixture "read_project" has no "key"',
+    );
+  });
+
+  it('is the adapter of the jira provider', () => {
+    expect(CONTRACT_FAKE_ADAPTERS.jira).toBe(jiraContractFake);
   });
 });

@@ -1,0 +1,15 @@
+provider: jira
+modes: [real, fake]
+steps:
+  - tool: get_issue
+    with:
+      idOrKey: $fixture.jira.issue.key
+    expect:
+      shape:
+        id: string
+        key: string
+        fields: {summary: string, status: {name: string}}
+      values:
+        id: $fixture.jira.issue.id
+        key: $fixture.jira.issue.key
+        fields.summary: $fixture.jira.issue.summary

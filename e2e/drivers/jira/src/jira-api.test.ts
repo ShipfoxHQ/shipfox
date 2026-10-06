@@ -170,4 +170,97 @@ describe('Jira API mock', () => {
       await mock.stop();
     }
   });
+  describe('seeded objects', () => {
+    async function arrangeSeeded() {
+      const mock = await startJiraApiMock({endpoint: new URL('http://127.0.0.1:0')});
+      mock.seed({
+        projects: [{key: 'SEED', id: '10001', name: 'Seeded project'}],
+        issues: [{key: 'SEED-1', id: '10010', summary: 'Seeded issue'}],
+        comments: [{issueKey: 'SEED-1', id: '10000', body: 'Seeded comment'}],
+        users: [{accountId: 'acct-1', displayName: 'Seeded User'}],
+      });
+      const get = async (path: string, init?: RequestInit) =>
+        (await (await fetch(new URL(`${REST}${path}`, mock.endpoint), init)).json()) as Record<
+          string,
+          unknown
+        >;
+      return {mock, get};
+    }
+
+    it('serves a seeded issue by its key or its ID', async () => {
+      const {mock, get} = await arrangeSeeded();
+
+      try {
+        const expected = {
+          id: '10010',
+          key: 'SEED-1',
+          fields: {summary: 'Seeded issue', project: {key: 'SEED'}},
+        };
+        expect(await get('/issue/SEED-1')).toMatchObject(expected);
+        expect(await get('/issue/10010')).toMatchObject(expected);
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('searches the seeded issues, and keeps the generic one when nothing is seeded', async () => {
+      const {mock} = await arrangeSeeded();
+      const bare = await startJiraApiMock({endpoint: new URL('http://127.0.0.1:0')});
+      const search = (url: URL) =>
+        fetch(new URL(`${REST}/search/jql`, url), {
+          method: 'POST',
+          headers: {'content-type': 'application/json'},
+          body: JSON.stringify({jql: 'project = SEED'}),
+        }).then((response) => response.json() as Promise<{issues: Array<{key: string}>}>);
+
+      try {
+        expect((await search(mock.endpoint)).issues.map(({key}) => key)).toEqual(['SEED-1']);
+        expect((await search(bare.endpoint)).issues.map(({key}) => key)).toEqual(['E2E-1']);
+      } finally {
+        await mock.stop();
+        await bare.stop();
+      }
+    });
+
+    it('serves the seeded comments of an issue as ADF documents', async () => {
+      const {mock, get} = await arrangeSeeded();
+
+      try {
+        expect(await get('/issue/SEED-1/comment')).toEqual({
+          startAt: 0,
+          maxResults: 50,
+          total: 1,
+          comments: [
+            {
+              id: '10000',
+              body: {
+                type: 'doc',
+                version: 1,
+                content: [{type: 'paragraph', content: [{type: 'text', text: 'Seeded comment'}]}],
+              },
+            },
+          ],
+        });
+        expect(await get('/issue/OTHER-1/comment')).toMatchObject({total: 0, comments: []});
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('serves a seeded project by its key or its ID, and a seeded user by account ID', async () => {
+      const {mock, get} = await arrangeSeeded();
+
+      try {
+        const project = {id: '10001', key: 'SEED', name: 'Seeded project'};
+        expect(await get('/project/SEED')).toEqual(project);
+        expect(await get('/project/10001')).toEqual(project);
+        expect(await get('/user?accountId=acct-1')).toEqual({
+          accountId: 'acct-1',
+          displayName: 'Seeded User',
+        });
+      } finally {
+        await mock.stop();
+      }
+    });
+  });
 });

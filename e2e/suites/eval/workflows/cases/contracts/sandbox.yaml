@@ -447,12 +447,57 @@ jira:
   connection: jira_shipfox_sandbox
   fixtures:
     # The Jira Cloud site is the one the connection authorizes, so no site field is needed.
-    read_project: {key: E2ER, id: '10001', name: 'E2E - Read'}
-    write_project: {key: E2EW, id: '10002', name: 'E2E - Write'}
+    read_project:
+      key: E2ER
+      id: '10001'
+      name: 'E2E - Read'
+      read:
+        tool: get_project
+        with: {idOrKey: $fixture.jira.read_project.key}
+        expect:
+          values: {id: $fixture.jira.read_project.id, name: $fixture.jira.read_project.name}
+    write_project:
+      key: E2EW
+      id: '10002'
+      name: 'E2E - Write'
+      read:
+        tool: get_project
+        with: {idOrKey: $fixture.jira.write_project.key}
+        expect:
+          values: {id: $fixture.jira.write_project.id, name: $fixture.jira.write_project.name}
     # An issue in `read_project` with comments and workflow transitions.
-    issue: {key: E2ER-1, id: '10010', summary: 'E2E - Example issue'}
-    comment: {id: '10000', body: 'This is a test comment used by contract tests, do not modify it.'}
-    user: {account_id: '712020:f852ec40-ff63-415f-9dd3-1a681b8c9037', display_name: 'Noé Charmet'}
+    issue:
+      key: E2ER-1
+      id: '10010'
+      summary: 'E2E - Example issue'
+      read:
+        tool: get_issue
+        with: {idOrKey: $fixture.jira.issue.key}
+        expect:
+          values:
+            id: $fixture.jira.issue.id
+            key: $fixture.jira.issue.key
+            fields.summary: $fixture.jira.issue.summary
+    # The first comment of `issue`. Jira answers its body as an ADF document.
+    comment:
+      id: '10000'
+      body: 'This is a test comment used by contract tests, do not modify it.'
+      read:
+        tool: get_issue_comments
+        with: {idOrKey: $fixture.jira.issue.key}
+        expect:
+          values:
+            comments[0].id: $fixture.jira.comment.id
+    user:
+      account_id: '712020:f852ec40-ff63-415f-9dd3-1a681b8c9037'
+      display_name: 'Noé Charmet'
+      read:
+        tool: get_user
+        with: {accountId: $fixture.jira.user.account_id}
+        expect:
+          values:
+            accountId: $fixture.jira.user.account_id
+            displayName: $fixture.jira.user.display_name
   targets:
     missing_issue: {kind: absent, key: E2ER-999999}
 sentry:

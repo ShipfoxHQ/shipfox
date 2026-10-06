@@ -1,0 +1,9 @@
+provider: jira
+modes: [real, fake]
+steps:
+  - tool: get_issue_transitions
+    with:
+      idOrKey: $fixture.jira.issue.key
+    expect:
+      shape:
+        transitions: [{id: string, name: string, to: {name: string}}]

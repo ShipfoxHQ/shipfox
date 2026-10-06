@@ -1,0 +1,11 @@
+provider: jira
+modes: [real, fake]
+steps:
+  - tool: get_user
+    with:
+      accountId: $fixture.jira.user.account_id
+    expect:
+      shape: {accountId: string, displayName: string}
+      values:
+        accountId: $fixture.jira.user.account_id
+        displayName: $fixture.jira.user.display_name

@@ -10,6 +10,10 @@ A fake Jira REST API and signed webhook sender for E2E suites. The fake stands i
   token of the connection the spec creates: the stack router sends the fake the requests that
   carry it, so specs in other workers share the address. The token is required unless
   `options.endpoint` is set, which listens directly instead.
+- `JiraApiMock.seed(seed)`: make the fake answer for given projects, issues, comments, and users with
+  their ids and fields, as `JiraSeed` entries. An issue is served by its key or ID, its comments as
+  ADF documents, and search returns the seeded issues. Anything not seeded keeps the generic
+  answer.
 - `JiraApiMock.calls`: every recognized request the fake handled, as `JiraApiMockCall` entries. Unknown paths and
   methods get a 404 or 405 and are not recorded.
 - `JiraApiMock.writes()`: the writes the fake accepted, as `RecordedWrite` entries targeted at

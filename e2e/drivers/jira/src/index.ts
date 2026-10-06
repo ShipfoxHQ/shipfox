@@ -5,6 +5,7 @@ export {
   type JiraApiMock,
   type JiraApiMockCall,
   type JiraApiMockOptions,
+  type JiraSeed,
   startJiraApiMock,
 } from './jira-api.js';
 export {

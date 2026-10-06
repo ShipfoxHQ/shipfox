@@ -6,6 +6,94 @@ triggers:
   manual:
     source: manual
 jobs:
+  fixtures:
+    checkout: false
+    steps:
+      - key: read_project
+        tool: get_project
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: E2ER
+        outputs:
+          value_id: '${{ has(result.id) && type(result.id) == type("") ? string(result.id) : "" }}'
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "10001" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "E2E - Read"
+      - key: write_project
+        tool: get_project
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: E2EW
+        outputs:
+          value_id: '${{ has(result.id) && type(result.id) == type("") ? string(result.id) : "" }}'
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "10002" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "E2E - Write"
+      - key: issue
+        tool: get_issue
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: E2ER-1
+        outputs:
+          value_id: '${{ has(result.id) && type(result.id) == type("") ? string(result.id) : "" }}'
+          value_key: '${{ has(result.key) ? result.key : "" }}'
+          value_fields_summary: '${{ has(result.fields) && has(result.fields.summary) ? result.fields.summary : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "10010" && type(step.outputs.value_key) == type("") && step.outputs.value_key == "E2ER-1" && type(step.outputs.value_fields_summary) == type("") && step.outputs.value_fields_summary == "E2E - Example issue"
+      - key: comment
+        tool: get_issue_comments
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: E2ER-1
+        outputs:
+          value_comments_0_id: '${{ has(result.comments) && type(result.comments) == type([]) && size(result.comments) > 0 && [result.comments[0]].all(i0, has(i0.id) && type(i0.id) == type("")) ? string(result.comments[0].id) : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_comments_0_id) == type("") && step.outputs.value_comments_0_id == "10000"
+      - key: user
+        tool: get_user
+        connection: jira_shipfox_sandbox
+        with:
+          accountId: 712020:f852ec40-ff63-415f-9dd3-1a681b8c9037
+        outputs:
+          value_accountId: '${{ has(result.accountId) ? result.accountId : "" }}'
+          value_displayName: '${{ has(result.displayName) ? result.displayName : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_accountId) == type("") && step.outputs.value_accountId == "712020:f852ec40-ff63-415f-9dd3-1a681b8c9037" && type(step.outputs.value_displayName) == type("") && step.outputs.value_displayName == "Noé Charmet"
+  get_issue:
+    checkout: false
+    steps:
+      - key: get_issue
+        tool: get_issue
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: E2ER-1
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_key: ${{ has(result.key) && type(result.key) == type("") }}
+          shape_fields_summary: ${{ has(result.fields) && has(result.fields.summary) && type(result.fields.summary) == type("") }}
+          shape_fields_status_name: ${{ has(result.fields) && has(result.fields.status) && has(result.fields.status.name) && type(result.fields.status.name) == type("") }}
+          value_id: '${{ has(result.id) && type(result.id) == type("") ? string(result.id) : "" }}'
+          value_key: '${{ has(result.key) ? result.key : "" }}'
+          value_fields_summary: '${{ has(result.fields) && has(result.fields.summary) ? result.fields.summary : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_key && step.outputs.shape_fields_summary && step.outputs.shape_fields_status_name && type(step.outputs.value_id) == type("") && step.outputs.value_id == "10010" && type(step.outputs.value_key) == type("") && step.outputs.value_key == "E2ER-1" && type(step.outputs.value_fields_summary) == type("") && step.outputs.value_fields_summary == "E2E - Example issue"
+  get_issue_comments:
+    checkout: false
+    steps:
+      - key: get_issue_comments
+        tool: get_issue_comments
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: E2ER-1
+        outputs:
+          shape_total: ${{ has(result.total) && (type(result.total) == type(1) || type(result.total) == type(1.0)) }}
+          shape_comments_0_id: ${{ has(result.comments) && type(result.comments) == type([]) && size(result.comments) > 0 && [result.comments[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_comments_0_body_type: ${{ has(result.comments) && type(result.comments) == type([]) && size(result.comments) > 0 && [result.comments[0]].all(i0, has(i0.body) && has(i0.body.type) && type(i0.body.type) == type("")) }}
+          shape_comments_0_body_content: ${{ has(result.comments) && type(result.comments) == type([]) && size(result.comments) > 0 && [result.comments[0]].all(i0, has(i0.body) && has(i0.body.content) && type(i0.body.content) == type([])) }}
+          value_comments_0_id: '${{ has(result.comments) && type(result.comments) == type([]) && size(result.comments) > 0 && [result.comments[0]].all(i0, has(i0.id) && type(i0.id) == type("")) ? string(result.comments[0].id) : "" }}'
+          value_comments_0_body_content_0_content_0_text: '${{ has(result.comments) && type(result.comments) == type([]) && size(result.comments) > 0 && [result.comments[0]].all(i0, has(i0.body) && has(i0.body.content) && type(i0.body.content) == type([]) && size(i0.body.content) > 0 && [i0.body.content[0]].all(i1, has(i1.content) && type(i1.content) == type([]) && size(i1.content) > 0 && [i1.content[0]].all(i2, has(i2.text)))) ? result.comments[0].body.content[0].content[0].text : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_total && step.outputs.shape_comments_0_id && step.outputs.shape_comments_0_body_type && step.outputs.shape_comments_0_body_content && type(step.outputs.value_comments_0_id) == type("") && step.outputs.value_comments_0_id == "10000" && type(step.outputs.value_comments_0_body_content_0_content_0_text) == type("") && step.outputs.value_comments_0_body_content_0_content_0_text == "This is a test comment used by contract tests, do not modify it."
   get_issue_missing_issue:
     checkout: false
     steps:
@@ -16,6 +104,72 @@ jobs:
           idOrKey: E2ER-999999
         gate:
           success: step.status == "failed" && step.error.code == "provider-unavailable"
+  get_issue_transitions:
+    checkout: false
+    steps:
+      - key: get_issue_transitions
+        tool: get_issue_transitions
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: E2ER-1
+        outputs:
+          shape_transitions_0_id: ${{ has(result.transitions) && type(result.transitions) == type([]) && size(result.transitions) > 0 && [result.transitions[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_transitions_0_name: ${{ has(result.transitions) && type(result.transitions) == type([]) && size(result.transitions) > 0 && [result.transitions[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          shape_transitions_0_to_name: ${{ has(result.transitions) && type(result.transitions) == type([]) && size(result.transitions) > 0 && [result.transitions[0]].all(i0, has(i0.to) && has(i0.to.name) && type(i0.to.name) == type("")) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_transitions_0_id && step.outputs.shape_transitions_0_name && step.outputs.shape_transitions_0_to_name
+  get_project:
+    checkout: false
+    steps:
+      - key: get_project
+        tool: get_project
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: E2ER
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_key: ${{ has(result.key) && type(result.key) == type("") }}
+          shape_name: ${{ has(result.name) && type(result.name) == type("") }}
+          value_id: '${{ has(result.id) && type(result.id) == type("") ? string(result.id) : "" }}'
+          value_key: '${{ has(result.key) ? result.key : "" }}'
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_key && step.outputs.shape_name && type(step.outputs.value_id) == type("") && step.outputs.value_id == "10001" && type(step.outputs.value_key) == type("") && step.outputs.value_key == "E2ER" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "E2E - Read"
+  get_user:
+    checkout: false
+    steps:
+      - key: get_user
+        tool: get_user
+        connection: jira_shipfox_sandbox
+        with:
+          accountId: 712020:f852ec40-ff63-415f-9dd3-1a681b8c9037
+        outputs:
+          shape_accountId: ${{ has(result.accountId) && type(result.accountId) == type("") }}
+          shape_displayName: ${{ has(result.displayName) && type(result.displayName) == type("") }}
+          value_accountId: '${{ has(result.accountId) ? result.accountId : "" }}'
+          value_displayName: '${{ has(result.displayName) ? result.displayName : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_accountId && step.outputs.shape_displayName && type(step.outputs.value_accountId) == type("") && step.outputs.value_accountId == "712020:f852ec40-ff63-415f-9dd3-1a681b8c9037" && type(step.outputs.value_displayName) == type("") && step.outputs.value_displayName == "Noé Charmet"
+  search_issues:
+    checkout: false
+    steps:
+      - key: search_issues
+        tool: search_issues
+        connection: jira_shipfox_sandbox
+        with:
+          jql: project = E2ER ORDER BY created ASC
+          maxResults: 5
+          fields:
+            - summary
+        outputs:
+          shape_issues_0_id: ${{ has(result.issues) && type(result.issues) == type([]) && size(result.issues) > 0 && [result.issues[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_issues_0_key: ${{ has(result.issues) && type(result.issues) == type([]) && size(result.issues) > 0 && [result.issues[0]].all(i0, has(i0.key) && type(i0.key) == type("")) }}
+          shape_issues_0_fields_summary: ${{ has(result.issues) && type(result.issues) == type([]) && size(result.issues) > 0 && [result.issues[0]].all(i0, has(i0.fields) && has(i0.fields.summary) && type(i0.fields.summary) == type("")) }}
+          value_issues_0_id: '${{ has(result.issues) && type(result.issues) == type([]) && size(result.issues) > 0 && [result.issues[0]].all(i0, has(i0.id) && type(i0.id) == type("")) ? string(result.issues[0].id) : "" }}'
+          value_issues_0_key: '${{ has(result.issues) && type(result.issues) == type([]) && size(result.issues) > 0 && [result.issues[0]].all(i0, has(i0.key)) ? result.issues[0].key : "" }}'
+          value_issues_0_fields_summary: '${{ has(result.issues) && type(result.issues) == type([]) && size(result.issues) > 0 && [result.issues[0]].all(i0, has(i0.fields) && has(i0.fields.summary)) ? result.issues[0].fields.summary : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_issues_0_id && step.outputs.shape_issues_0_key && step.outputs.shape_issues_0_fields_summary && type(step.outputs.value_issues_0_id) == type("") && step.outputs.value_issues_0_id == "10010" && type(step.outputs.value_issues_0_key) == type("") && step.outputs.value_issues_0_key == "E2ER-1" && type(step.outputs.value_issues_0_fields_summary) == type("") && step.outputs.value_issues_0_fields_summary == "E2E - Example issue"
   search_issues_invalid_jql:
     checkout: false
     steps:

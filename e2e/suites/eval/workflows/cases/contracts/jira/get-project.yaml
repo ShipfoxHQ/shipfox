@@ -1,0 +1,12 @@
+provider: jira
+modes: [real, fake]
+steps:
+  - tool: get_project
+    with:
+      idOrKey: $fixture.jira.read_project.key
+    expect:
+      shape: {id: string, key: string, name: string}
+      values:
+        id: $fixture.jira.read_project.id
+        key: $fixture.jira.read_project.key
+        name: $fixture.jira.read_project.name
