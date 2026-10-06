@@ -24,7 +24,7 @@ export interface CreateWorkerOptions {
 function resolveWorkflowSource(
   workflowsPath: string,
 ): Pick<WorkerOptions, 'workflowsPath' | 'workflowBundle' | 'interceptors'> {
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' || config.TEMPORAL_PREBUILT_WORKFLOW_BUNDLES) {
     return {workflowBundle: loadProductionWorkflowBundle(workflowsPath)};
   }
 

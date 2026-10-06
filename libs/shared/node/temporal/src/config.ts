@@ -19,6 +19,10 @@ export const temporalConfigSchema = {
     desc: 'API key used to authenticate with Temporal Cloud. Store it as a secret. It is required for tmprl.cloud endpoints and must be unset for other endpoints.',
     default: undefined,
   }),
+  TEMPORAL_PREBUILT_WORKFLOW_BUNDLES: bool({
+    desc: 'Loads the workflow bundles written at build time instead of compiling workflows at worker startup. Production always loads them. Set to true elsewhere to start workers from a completed build.',
+    default: false,
+  }),
   OTEL_TEMPORAL_METRICS_PORT: port({
     desc: 'Port that exposes Temporal worker Prometheus metrics.',
     default: 9465,

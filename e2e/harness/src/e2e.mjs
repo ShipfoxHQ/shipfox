@@ -343,6 +343,12 @@ export function e2eEnv(sourceEnv) {
     // Workflow actions stay dark in production until launch. Its `devDefault` does not
     // apply here, because the E2E API runs without NODE_ENV.
     DEFINITION_ACTIONS_ENABLED: valueOr(sourceEnv.DEFINITION_ACTIONS_ENABLED, 'true'),
+    // The harness builds the API before it starts it, so the workflow bundles
+    // already exist. Compiling them again at worker startup takes most of the boot.
+    TEMPORAL_PREBUILT_WORKFLOW_BUNDLES: valueOr(
+      sourceEnv.TEMPORAL_PREBUILT_WORKFLOW_BUNDLES,
+      'true',
+    ),
     // The harness starts this registry, which signs with a key generated for the run.
     REGISTRY_URL: e2eRegistryUrl(apiUrl),
     REGISTRY_TRUSTED_KEYS: e2eRegistryTrustedKeys(),

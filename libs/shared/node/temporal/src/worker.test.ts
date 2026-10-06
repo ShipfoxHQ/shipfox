@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   temporalConfig: {
     TEMPORAL_NAMESPACE: 'test-namespace',
     TEMPORAL_TASK_QUEUE: 'test-queue',
+    TEMPORAL_PREBUILT_WORKFLOW_BUNDLES: false,
   },
 }));
 
@@ -148,6 +149,7 @@ describe('createTemporalWorker', () => {
     mocks.getWorkflowSinks.mockReset();
     mocks.installTemporalRuntime.mockReset();
     mocks.loadProductionWorkflowBundle.mockReset();
+    mocks.temporalConfig.TEMPORAL_PREBUILT_WORKFLOW_BUNDLES = false;
     mocks.reportError.mockReset();
     mocks.nativeConnectionConnect.mockResolvedValue({});
     mocks.workerCreate.mockResolvedValue({});
@@ -215,6 +217,20 @@ describe('createTemporalWorker', () => {
     expect(createdWorkerOptions).not.toHaveProperty('workflowsPath');
     expect(createdWorkerOptions).not.toHaveProperty('bundlerOptions');
     expect(createdWorkerOptions?.interceptors).not.toHaveProperty('workflowModules');
+    expect(mocks.loadProductionWorkflowBundle).toHaveBeenCalledWith('/tmp/workflows.js');
+  });
+
+  it('uses a prebuilt workflow bundle outside production when configured', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    mocks.temporalConfig.TEMPORAL_PREBUILT_WORKFLOW_BUNDLES = true;
+
+    await createTemporalWorker(workerOptions());
+
+    const createdWorkerOptions = mocks.workerCreate.mock.calls[0]?.[0];
+    expect(createdWorkerOptions).toMatchObject({
+      workflowBundle: {codePath: '/tmp/workflows.bundle.js'},
+    });
+    expect(createdWorkerOptions).not.toHaveProperty('workflowsPath');
     expect(mocks.loadProductionWorkflowBundle).toHaveBeenCalledWith('/tmp/workflows.js');
   });
 
