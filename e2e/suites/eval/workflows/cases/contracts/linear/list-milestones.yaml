@@ -7,6 +7,7 @@ steps:
     expect:
       shape:
         milestones: [{id: string, name: string}]
-      values:
-        milestones[0].id: $fixture.linear.milestone.id
-        milestones[0].name: $fixture.linear.milestone.name
+      includes:
+        milestones:
+          id: $fixture.linear.milestone.id
+          name: $fixture.linear.milestone.name

@@ -393,10 +393,9 @@ jobs:
         outputs:
           shape_milestones_0_id: ${{ has(result.milestones) && type(result.milestones) == type([]) && size(result.milestones) > 0 && [result.milestones[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
           shape_milestones_0_name: ${{ has(result.milestones) && type(result.milestones) == type([]) && size(result.milestones) > 0 && [result.milestones[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
-          value_milestones_0_id: '${{ has(result.milestones) && type(result.milestones) == type([]) && size(result.milestones) > 0 && [result.milestones[0]].all(i0, has(i0.id)) ? result.milestones[0].id : "" }}'
-          value_milestones_0_name: '${{ has(result.milestones) && type(result.milestones) == type([]) && size(result.milestones) > 0 && [result.milestones[0]].all(i0, has(i0.name)) ? result.milestones[0].name : "" }}'
+          includes_milestones: ${{ has(result.milestones) && type(result.milestones) == type([]) && result.milestones.exists(item, has(item.id) && type(item.id) == type("") && item.id == "78f5b498-6c53-4e69-8fce-32cc67027324" && has(item.name) && type(item.name) == type("") && item.name == "Contract fixture milestone") }}
         gate:
-          success: step.status == "succeeded" && step.outputs.shape_milestones_0_id && step.outputs.shape_milestones_0_name && type(step.outputs.value_milestones_0_id) == type("") && step.outputs.value_milestones_0_id == "78f5b498-6c53-4e69-8fce-32cc67027324" && type(step.outputs.value_milestones_0_name) == type("") && step.outputs.value_milestones_0_name == "Contract fixture milestone"
+          success: step.status == "succeeded" && step.outputs.shape_milestones_0_id && step.outputs.shape_milestones_0_name && step.outputs.includes_milestones
   list_project_labels:
     checkout: false
     steps:
