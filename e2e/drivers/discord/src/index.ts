@@ -5,6 +5,7 @@ export {
   type DiscordApiMockMember,
   type DiscordApiMockMessage,
   type DiscordApiMockOptions,
+  type DiscordApiMockReaction,
   startDiscordApiMock,
 } from './discord-api.js';
 export {

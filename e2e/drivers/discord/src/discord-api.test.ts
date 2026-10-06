@@ -23,7 +23,8 @@ describe('Discord API mock', () => {
         headers: {authorization: 'Bot test', 'content-type': 'application/json'},
         ...(json === undefined ? {} : {body: JSON.stringify(json)}),
       });
-      return {status: response.status, body: await response.json()};
+      const text = await response.text();
+      return {status: response.status, body: text === '' ? undefined : JSON.parse(text)};
     };
     return {mock, call};
   }
@@ -78,6 +79,92 @@ describe('Discord API mock', () => {
       expect(mock.writes()).toEqual([
         {kind: 'create_thread', target: `${CHANNEL_ID}/${MESSAGE_ID}`, payload: {name: 'hello'}},
         {kind: 'create_message', target: MESSAGE_ID, payload: {content: 'hi'}},
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('edits a message the bot posted, and refuses one a user posted', async () => {
+    const {mock, call} = await arrange();
+
+    try {
+      const posted = await call('POST', `/channels/${CHANNEL_ID}/messages`, {content: 'draft'});
+      const botMessageId = (posted.body as {id: string}).id;
+      const edited = await call('PATCH', `/channels/${CHANNEL_ID}/messages/${botMessageId}`, {
+        content: 'final',
+      });
+      const read = await call('GET', `/channels/${CHANNEL_ID}/messages/${botMessageId}`);
+      const foreign = await call('PATCH', `/channels/${CHANNEL_ID}/messages/${MESSAGE_ID}`, {
+        content: 'nope',
+      });
+      const missing = await call('PATCH', `/channels/${CHANNEL_ID}/messages/999`, {content: 'x'});
+
+      expect(edited.body).toMatchObject({
+        id: botMessageId,
+        content: 'final',
+        edited_timestamp: expect.any(String),
+      });
+      expect(read.body).toMatchObject({content: 'final'});
+      expect(foreign).toEqual({
+        status: 403,
+        body: {message: 'Cannot edit a message authored by another user', code: 50_005},
+      });
+      expect(mock.messages(CHANNEL_ID)[0]?.content).toBe('hello');
+      expect(missing).toEqual({status: 404, body: {message: 'Unknown Message', code: 10_008}});
+      expect(mock.writes()).toEqual([
+        {kind: 'create_message', target: CHANNEL_ID, payload: {content: 'draft'}},
+        {
+          kind: 'edit_message',
+          target: `${CHANNEL_ID}/${botMessageId}`,
+          payload: {content: 'final'},
+        },
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('adds the bot reaction once per emoji and shows it on the message', async () => {
+    const {mock, call} = await arrange();
+    const reactionPath = (emoji: string) =>
+      `/channels/${CHANNEL_ID}/messages/${MESSAGE_ID}/reactions/${encodeURIComponent(emoji)}/@me`;
+
+    try {
+      const first = await call('PUT', reactionPath('✅'));
+      const again = await call('PUT', reactionPath('✅'));
+      const custom = await call('PUT', reactionPath('party:123'));
+      const missing = await call(
+        'PUT',
+        `/channels/${CHANNEL_ID}/messages/999/reactions/${encodeURIComponent('✅')}/@me`,
+      );
+      const read = await call('GET', `/channels/${CHANNEL_ID}/messages/${MESSAGE_ID}`);
+
+      expect([first.status, again.status, custom.status]).toEqual([204, 204, 204]);
+      expect(missing.status).toBe(404);
+      expect((read.body as {reactions: unknown[]}).reactions).toEqual([
+        {
+          count: 1,
+          count_details: {burst: 0, normal: 1},
+          me: true,
+          me_burst: false,
+          emoji: {id: null, name: '✅'},
+        },
+        {
+          count: 1,
+          count_details: {burst: 0, normal: 1},
+          me: true,
+          me_burst: false,
+          emoji: {id: '123', name: 'party'},
+        },
+      ]);
+      expect(mock.writes()).toEqual([
+        {kind: 'add_reaction', target: `${CHANNEL_ID}/${MESSAGE_ID}`, payload: {emoji: '✅'}},
+        {
+          kind: 'add_reaction',
+          target: `${CHANNEL_ID}/${MESSAGE_ID}`,
+          payload: {emoji: 'party:123'},
+        },
       ]);
     } finally {
       await mock.stop();

@@ -11,6 +11,7 @@ const MEMBER_JOINED_AT = '2026-01-01T00:00:00.000000+00:00';
 const CHANNEL_PATH = /^\/channels\/([^/]+)$/u;
 const MESSAGES_PATH = /^\/channels\/([^/]+)\/messages$/u;
 const MESSAGE_PATH = /^\/channels\/([^/]+)\/messages\/([^/]+)$/u;
+const REACTION_PATH = /^\/channels\/([^/]+)\/messages\/([^/]+)\/reactions\/([^/]+)\/@me$/u;
 const THREADS_PATH = /^\/channels\/([^/]+)\/messages\/([^/]+)\/threads$/u;
 const GUILD_CHANNELS_PATH = /^\/guilds\/([^/]+)\/channels$/u;
 const GUILD_ACTIVE_THREADS_PATH = /^\/guilds\/([^/]+)\/threads\/active$/u;
@@ -26,12 +27,26 @@ export interface DiscordApiMockChannel {
   name?: string | undefined;
 }
 
+export interface DiscordApiMockReaction {
+  count: number;
+  count_details: {burst: number; normal: number};
+  /** Whether the bot reacted. The fake only takes reactions from the bot. */
+  me: boolean;
+  me_burst: boolean;
+  /** `id` is null for a Unicode emoji, and the emoji itself is the `name`. */
+  emoji: {id: string | null; name: string};
+}
+
 export interface DiscordApiMockMessage {
   id: string;
   channel_id: string;
   content: string;
   author: {id: string; username: string; bot?: boolean};
   timestamp: string;
+  /** Set once the message is edited. */
+  edited_timestamp?: string | undefined;
+  /** Discord leaves the field out until the first reaction. */
+  reactions?: DiscordApiMockReaction[] | undefined;
   /** The thread started from this message, which Discord adds once there is one. */
   thread?: DiscordApiMockChannel | undefined;
 }
@@ -65,7 +80,7 @@ export interface DiscordApiMock {
   addMessage(message: Omit<DiscordApiMockMessage, 'timestamp'>): DiscordApiMockMessage;
   /** The messages of a channel or thread, oldest first. */
   messages(channelId: string): DiscordApiMockMessage[];
-  /** Messages and threads the fake accepted from the bot, in arrival order. */
+  /** Messages, edits, reactions, and threads the fake accepted from the bot, in arrival order. */
   writes(): RecordedWrite[];
   stop(): Promise<void>;
 }
@@ -155,6 +170,8 @@ const ROUTES: Route[] = [
   {method: 'GET', pattern: CHANNEL_PATH, handle: handleGetChannel},
   {method: 'GET', pattern: MESSAGES_PATH, handle: handleListMessages},
   {method: 'GET', pattern: MESSAGE_PATH, handle: handleGetMessage},
+  {method: 'PATCH', pattern: MESSAGE_PATH, handle: handleEditMessage},
+  {method: 'PUT', pattern: REACTION_PATH, handle: handleAddReaction},
   {method: 'POST', pattern: THREADS_PATH, handle: handleStartThread},
   {method: 'POST', pattern: MESSAGES_PATH, handle: handlePostMessage},
 ];
@@ -200,7 +217,7 @@ function handleGetMessage(
   {state, response}: RouteContext,
   [channelId = '', messageId = '']: string[],
 ): void {
-  const message = state.messages.get(channelId)?.find((entry) => entry.id === messageId);
+  const message = findMessage(state, {channelId, messageId});
   if (message) sendJson(response, 200, message);
   else sendDiscordError(response, 404, 'Unknown Message', 10_008);
 }
@@ -289,15 +306,75 @@ async function handlePostMessage(
   postMessage(state, response, {channelId, body: await readJsonBody(request)});
 }
 
+async function handleEditMessage(
+  {state, request, response}: RouteContext,
+  [channelId = '', messageId = '']: string[],
+): Promise<void> {
+  const body = await readJsonBody(request);
+  const message = findMessage(state, {channelId, messageId});
+  if (!message) {
+    sendDiscordError(response, 404, 'Unknown Message', 10_008);
+    return;
+  }
+  if (message.author.id !== state.botUserId) {
+    sendDiscordError(response, 403, 'Cannot edit a message authored by another user', 50_005);
+    return;
+  }
+  if (typeof body.content === 'string') message.content = body.content;
+  message.edited_timestamp = new Date().toISOString();
+  state.writes.push({
+    kind: 'edit_message',
+    target: `${channelId}/${messageId}`,
+    payload: {content: message.content},
+  });
+  sendJson(response, 200, message);
+}
+
+function handleAddReaction(
+  {state, response}: RouteContext,
+  [channelId = '', messageId = '', emoji = '']: string[],
+): void {
+  const message = findMessage(state, {channelId, messageId});
+  if (!message) {
+    sendDiscordError(response, 404, 'Unknown Message', 10_008);
+    return;
+  }
+  // A custom emoji is `name:id`, and a Unicode emoji is its own name.
+  const [name = emoji, id = null] = emoji.split(':');
+  const reactions = message.reactions ?? [];
+  // Reacting again with the same emoji changes nothing, as in Discord.
+  if (!reactions.some((reaction) => reaction.emoji.name === name && reaction.emoji.id === id)) {
+    reactions.push({
+      count: 1,
+      count_details: {burst: 0, normal: 1},
+      me: true,
+      me_burst: false,
+      emoji: {id, name},
+    });
+    state.writes.push({
+      kind: 'add_reaction',
+      target: `${channelId}/${messageId}`,
+      payload: {emoji},
+    });
+  }
+  message.reactions = reactions;
+  response.writeHead(204).end();
+}
+
+function findMessage(
+  state: MockState,
+  input: {channelId: string; messageId: string},
+): DiscordApiMockMessage | undefined {
+  return state.messages.get(input.channelId)?.find((entry) => entry.id === input.messageId);
+}
+
 function startThread(
   state: MockState,
   response: ServerResponse,
   input: {channelId: string; messageId: string; name: string},
 ): void {
   const parent = state.channels.get(input.channelId);
-  const message = state.messages
-    .get(input.channelId)
-    ?.find((entry) => entry.id === input.messageId);
+  const message = findMessage(state, input);
   if (!parent || !message) {
     sendDiscordError(response, 404, 'Unknown Message', 10_008);
     return;
