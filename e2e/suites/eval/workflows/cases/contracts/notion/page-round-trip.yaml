@@ -1,0 +1,83 @@
+provider: notion
+kind: round-trip
+modes: [real]
+steps:
+  - key: create
+    tool: create_page
+    with:
+      parent: {page_id: $fixture.notion.write_parent_page.id}
+      properties:
+        title:
+          title:
+            - text: {content: 'Contract $marker'}
+      markdown: Created by a contract.
+    expect:
+      shape:
+        id: string
+        url: string
+    # The marker is in the title, so a pattern checks it. The page is this run's, so the values
+    # below can't come from an earlier run.
+    effect:
+      tool: get_page
+      with:
+        page_id: $steps.create.id
+      expect:
+        values:
+          parent.page_id: $fixture.notion.write_parent_page.id
+        matches:
+          title: '^Contract contract-[0-9a-f-]+$'
+  - key: rename
+    tool: update_page
+    with:
+      page_id: $steps.create.id
+      properties:
+        title:
+          title:
+            - text: {content: Contract page updated}
+    expect:
+      values:
+        properties_updated: true
+        content_updated: false
+    effect:
+      tool: get_page
+      with:
+        page_id: $steps.create.id
+      expect:
+        values:
+          title: Contract page updated
+  - key: rewrite
+    tool: update_page
+    with:
+      page_id: $steps.create.id
+      markdown: Updated by a contract.
+      mode: replace
+    expect:
+      values:
+        properties_updated: false
+        content_updated: true
+    effect:
+      tool: get_page_content
+      with:
+        page_id: $steps.create.id
+      expect:
+        values:
+          truncated: false
+        matches:
+          markdown: 'Updated by a contract\.'
+  # The tools cannot archive a page, so the page stays under the write parent.
+  - key: comment
+    tool: add_comment
+    with:
+      page_id: $steps.create.id
+      text: Contract comment
+    expect:
+      shape:
+        id: string
+    effect:
+      tool: get_comments
+      with:
+        block_id: $steps.create.id
+      expect:
+        includes:
+          results:
+            rich_text[0].plain_text: Contract comment
