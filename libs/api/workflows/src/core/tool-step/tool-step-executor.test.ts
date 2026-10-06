@@ -1032,8 +1032,8 @@ describe('tool step executor', () => {
     const span = {setAttribute: vi.fn(), setStatus: vi.fn()};
     const getActiveSpan = vi.spyOn(trace, 'getActiveSpan').mockReturnValue(span as never);
 
-    await nextStepForJob(jobId);
     try {
+      await nextStepForJob(jobId);
       await runToolStepExecutorCycle({
         integrations: {callTool} as unknown as IntegrationsModuleClient,
         logs: {appendServerRecords} as unknown as LogsModuleClient,
