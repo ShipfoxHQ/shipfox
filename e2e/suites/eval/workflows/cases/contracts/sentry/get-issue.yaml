@@ -1,0 +1,18 @@
+provider: sentry
+modes: [real]
+steps:
+  - tool: get-issue
+    with:
+      issueId: $fixture.sentry.issue.id
+    expect:
+      shape:
+        data: {id: string, shortId: string, title: string, status: string, project: {id: string, slug: string}}
+        truncated: boolean
+        sourceUrl: string
+      values:
+        data.id: $fixture.sentry.issue.id
+        data.shortId: $fixture.sentry.issue.short_id
+        data.title: $fixture.sentry.issue.title
+        data.project.id: $fixture.sentry.project.id
+      matches:
+        sourceUrl: '/issues/$fixture.sentry.issue.id/$'

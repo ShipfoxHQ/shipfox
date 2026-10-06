@@ -1,0 +1,17 @@
+provider: sentry
+modes: [real]
+steps:
+  - tool: get-issue-event
+    with:
+      issueId: $fixture.sentry.issue.id
+    # Without an `eventId` the tool reads the latest event. The seed sends a new one every day, so
+    # the case pins the issue and no event id.
+    expect:
+      shape:
+        data: {id: string, issueId: string, timestamp: string}
+        truncated: boolean
+        sourceUrl: string
+      values:
+        data.issueId: $fixture.sentry.issue.id
+      matches:
+        sourceUrl: '/issues/$fixture.sentry.issue.id/$'

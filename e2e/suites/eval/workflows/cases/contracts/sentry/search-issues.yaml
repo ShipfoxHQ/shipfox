@@ -1,0 +1,17 @@
+provider: sentry
+modes: [real]
+steps:
+  - tool: search-issues
+    with:
+      query: issue:$fixture.sentry.issue.short_id
+      projectIds: [$fixture.sentry.project.id]
+      # The seed sends one event a day, and an empty status filter keeps a resolved issue in.
+      statsPeriod: 14d
+      limit: 100
+    expect:
+      shape:
+        data: [{id: string, shortId: string, title: string}]
+        truncated: boolean
+        sourceUrl: string
+      includes:
+        data: {id: $fixture.sentry.issue.id, shortId: $fixture.sentry.issue.short_id}

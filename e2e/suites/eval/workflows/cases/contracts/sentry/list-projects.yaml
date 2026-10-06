@@ -1,0 +1,14 @@
+provider: sentry
+modes: [real]
+steps:
+  - tool: list-projects
+    with:
+      query: $fixture.sentry.project.slug
+      limit: 100
+    expect:
+      shape:
+        data: [{id: string, slug: string, name: string}]
+        truncated: boolean
+        sourceUrl: string
+      includes:
+        data: {id: $fixture.sentry.project.id, slug: $fixture.sentry.project.slug}
