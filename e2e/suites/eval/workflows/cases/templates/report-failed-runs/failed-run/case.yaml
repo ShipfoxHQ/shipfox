@@ -26,8 +26,9 @@ expect:
         target: C0FAILURES
         text: {contains: ['Failing build #1', 'Failed: build › Compile', 'eval-compile-error: unexpected token']}
         count: 1
-    # The diagnose job replies in the report's thread.
+    # The diagnose job replies in the report's thread. The Slack fake gives every post this `ts`.
     - slack.chat.postMessage:
         target: C0FAILURES
+        thread_ts: '1721300000.000002'
         text: {contains: ['eval diagnosis: the compile step stops on an unexpected token']}
         count: 1

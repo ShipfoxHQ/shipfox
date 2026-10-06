@@ -29,5 +29,6 @@ expect:
         count: 1
     - slack.chat.postMessage:
         target: C0FAILURES
+        thread_ts: '1721300000.000002'
         text: {contains: ['eval diagnosis']}
         count: 1
