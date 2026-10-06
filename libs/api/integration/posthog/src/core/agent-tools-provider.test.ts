@@ -52,12 +52,28 @@ function providerOptions(overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function openSession(options: ReturnType<typeof providerOptions>) {
+async function openSession(
+  options: ReturnType<typeof providerOptions>,
+  callerKind?: 'agent' | 'tool_step',
+) {
   const provider = new PosthogAgentToolsProvider(options);
   return await provider.openSession({
     connection: posthogConnection(),
     tools: [],
     scope: {provider: 'posthog'},
+    ...(callerKind === undefined
+      ? {}
+      : {
+          caller: {
+            callerKind,
+            workspaceId: posthogConnection().workspaceId,
+            projectId: '00000000-0000-4000-8000-000000000003',
+            runId: '00000000-0000-4000-8000-000000000004',
+            jobExecutionId: '00000000-0000-4000-8000-000000000005',
+            stepId: '00000000-0000-4000-8000-000000000006',
+            stepAttempt: 1,
+          },
+        }),
   });
 }
 
@@ -87,6 +103,54 @@ describe('PosthogAgentToolsProvider', () => {
         'x-posthog-organization-id': 'organization-1',
       },
     });
+  });
+
+  it('calls the tool directly for an agent, so the agent reads the compact text', async () => {
+    const callTool = vi.fn().mockResolvedValue({content: []});
+    const options = providerOptions({
+      createClient: vi.fn().mockResolvedValue({callTool, close: vi.fn()}),
+    });
+    const session = await openSession(options, 'agent');
+
+    await session.call({toolId: 'execute-sql', arguments: {query: 'SELECT 1'}});
+
+    expect(options.createClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({'x-posthog-mcp-mode': 'tools'}),
+      }),
+    );
+    expect(callTool).toHaveBeenCalledWith(
+      {toolId: 'execute-sql', arguments: {query: 'SELECT 1'}},
+      30_000,
+    );
+  });
+
+  it('asks for JSON through the exec tool for a tool step', async () => {
+    const callTool = vi.fn().mockResolvedValue({content: []});
+    const options = providerOptions({
+      createClient: vi.fn().mockResolvedValue({callTool, close: vi.fn()}),
+    });
+    const session = await openSession(options, 'tool_step');
+
+    await session.call({toolId: 'feature-flag-get-all', arguments: {key: 'a "quoted" flag'}});
+
+    expect(options.createClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: {
+          'x-posthog-mcp-mode': 'cli',
+          'x-posthog-read-only': 'true',
+          'x-posthog-project-id': 'project-1',
+          'x-posthog-organization-id': 'organization-1',
+        },
+      }),
+    );
+    expect(callTool).toHaveBeenCalledWith(
+      {
+        toolId: 'exec',
+        arguments: {command: 'call --json feature-flag-get-all {"key":"a \\"quoted\\" flag"}'},
+      },
+      30_000,
+    );
   });
 
   it('selects the US MCP endpoint for US installations', async () => {

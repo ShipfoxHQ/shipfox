@@ -48,6 +48,8 @@ The package owns the `integrations_posthog_installations` migration unit. It sto
 
 Credential version checks lock the installation row and run the caller callback in the same transaction. A stale callback cannot update a connection after its key has been replaced.
 
+A tool step gets each PostHog tool result as JSON, so the step can map its fields. The provider asks for it through PostHog's `exec` tool in CLI mode. An agent step gets the compact text that PostHog returns by default.
+
 ## Development
 
 ```sh

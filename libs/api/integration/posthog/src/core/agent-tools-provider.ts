@@ -32,6 +32,9 @@ const POSTHOG_MCP_ENDPOINTS = {
   eu: 'https://mcp-eu.posthog.com/mcp',
 } as const;
 const POSTHOG_MCP_CALL_TIMEOUT_MS = 30_000;
+// In CLI mode PostHog registers this one tool. It takes a command line, and its `call --json`
+// command returns the result of a tool as JSON, not as the compact text an agent reads.
+const POSTHOG_EXEC_TOOL_ID = 'exec';
 const timeoutNamePattern = /timed?\s*out|timeout/i;
 const networkFailureMessagePattern = /^(fetch failed|failed to fetch|network error)$/i;
 const networkFailureCodes = new Set(['ECONNRESET', 'ECONNREFUSED', 'EPIPE', 'UND_ERR_SOCKET']);
@@ -95,12 +98,15 @@ export class PosthogAgentToolsProvider
     const apiKey = await this.options.credentialStore.getApiKey(input.connection.id);
     if (!apiKey) throw new PosthogApiKeyMissingError(input.connection.id);
 
+    // A tool step maps fields of the result, so it needs JSON. An agent keeps the compact text.
+    const jsonResults = input.caller?.callerKind === 'tool_step';
+
     let client: PosthogMcpClient;
     try {
       client = await this.createClient({
         endpoint: this.endpoint ?? new URL(POSTHOG_MCP_ENDPOINTS[installation.region]),
         accessToken: apiKey,
-        headers: posthogHeaders(installation),
+        headers: posthogHeaders({installation, mode: jsonResults ? 'cli' : 'tools'}),
       });
     } catch (error) {
       const mapped = mapPosthogMcpError(error);
@@ -116,7 +122,10 @@ export class PosthogAgentToolsProvider
     return {
       call: async (call) => {
         try {
-          const result = await client.callTool(call, this.callTimeoutMs);
+          const result = await client.callTool(
+            jsonResults ? jsonCall(call) : call,
+            this.callTimeoutMs,
+          );
           if (result.isError === true) {
             await this.confirmCredentialFailure({
               connectionId: input.connection.id,
@@ -166,9 +175,22 @@ export class PosthogAgentToolsProvider
   }
 }
 
-function posthogHeaders(installation: PosthogInstallation): Record<string, string> {
+function jsonCall(call: AgentToolCallInput): AgentToolCallInput {
   return {
-    'x-posthog-mcp-mode': 'tools',
+    toolId: POSTHOG_EXEC_TOOL_ID,
+    arguments: {command: `call --json ${call.toolId} ${JSON.stringify(call.arguments)}`},
+  };
+}
+
+function posthogHeaders({
+  installation,
+  mode,
+}: {
+  installation: PosthogInstallation;
+  mode: 'tools' | 'cli';
+}): Record<string, string> {
+  return {
+    'x-posthog-mcp-mode': mode,
     'x-posthog-read-only': 'true',
     'x-posthog-project-id': installation.projectId,
     'x-posthog-organization-id': installation.organizationId,
