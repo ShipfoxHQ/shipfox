@@ -236,6 +236,7 @@ async function executeToolInvocation(params: ExecuteToolInvocationParams): Promi
 
   const startedAt = new Date();
   const execution = claim.interrupted ? interruptedExecution() : await callToolInvocation(params);
+  markToolExecutionFailure(execution);
   if (params.serviceSignal.aborted) return;
   const finishedAt = Date.now();
 
@@ -282,6 +283,16 @@ async function executeToolInvocation(params: ExecuteToolInvocationParams): Promi
   });
   if (!settled || params.serviceSignal.aborted) return;
   await appendToolInvocationLog(params.logs, claim, execution, startedAt.getTime(), finishedAt);
+}
+
+// A failed call is a returned outcome, not a thrown error, so the span would otherwise end unset
+// and tail sampling would drop the trace. Every failure code is marked for now. Exclude a code
+// here once it is known to be an expected outcome.
+function markToolExecutionFailure(execution: ToolExecution): void {
+  if (execution.outcome === 'success') return;
+  const span = trace.getActiveSpan();
+  span?.setAttribute('error.type', execution.error.code);
+  span?.setStatus({code: SpanStatusCode.ERROR, message: execution.error.code});
 }
 
 function claimOwnerFromInvocation(claim: ToolInvocationClaim): string {

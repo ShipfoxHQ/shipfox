@@ -8,5 +8,14 @@ const {version} = createRequire(import.meta.url)('../package.json') as {version:
 await startInstanceInstrumentation({
   serviceName: 'api',
   serviceVersion: version,
-  instrumentations: {fastify: true, http: true, pg: true, awsSdk: true, pino: true},
+  // `fetch` goes through undici, which the http instrumentation does not cover. Without it,
+  // provider calls made with ky leave no client span.
+  instrumentations: {
+    fastify: true,
+    http: true,
+    undici: true,
+    pg: true,
+    awsSdk: true,
+    pino: true,
+  },
 });
