@@ -32,5 +32,3 @@ linear:
           values: {id: $fixture.linear.team.id}
   targets:
     missing_issue: {kind: absent, identifier: CON-999999}
-  agent:
-    reads: [issue, team]

@@ -227,24 +227,9 @@ function referenceProblem({
   return undefined;
 }
 
-/** Reports what the manifest can't resolve: fixture read references and agent reads. */
+/** Reports what the manifest can't resolve: fixture read references. */
 export function checkManifestReferences(manifest: SandboxManifest): string[] {
-  return [...checkFixtureReads(manifest), ...checkAgentReads(manifest)];
-}
-
-/** Reports an agent read that names a fixture without a `read` that checks values. */
-function checkAgentReads(manifest: SandboxManifest): string[] {
-  return Object.entries(manifest).flatMap(([provider, sandbox]) =>
-    (sandbox.agent?.reads ?? []).flatMap((name) => {
-      const where = `${provider}.agent.reads`;
-      const read = sandbox.fixtures[name]?.read;
-      if (read === undefined) return [`${where}: "${name}" is not a fixture with a read`];
-      if (Object.keys(read.expect.values ?? {}).length === 0) {
-        return [`${where}: the read of fixture "${name}" has no expect.values to compare`];
-      }
-      return [];
-    }),
-  );
+  return checkFixtureReads(manifest);
 }
 
 /** A fixture read runs before any case, so it may use `$fixture` and nothing else. */

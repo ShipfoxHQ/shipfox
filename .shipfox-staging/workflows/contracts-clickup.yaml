@@ -11,7 +11,7 @@ jobs:
     steps:
       - key: task
         tool: get_task
-        connection: clickup_sandbox
+        connection: clickup_shipfox
         with:
           task_id: 869fca5cw
         outputs:
@@ -21,7 +21,7 @@ jobs:
           success: 'step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "869fca5cw" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Fixture task: markdown, unicode, long description"'
       - key: parent_task
         tool: get_task
-        connection: clickup_sandbox
+        connection: clickup_shipfox
         with:
           task_id: 869fca5eg
         outputs:
@@ -31,7 +31,7 @@ jobs:
           success: 'step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "869fca5eg" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Fixture task: parent with subtask"'
       - key: subtask
         tool: get_task
-        connection: clickup_sandbox
+        connection: clickup_shipfox
         with:
           task_id: 869fca5ek
         outputs:
@@ -41,7 +41,7 @@ jobs:
           success: 'step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "869fca5ek" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Fixture task: subtask"'
       - key: closed_task
         tool: get_task
-        connection: clickup_sandbox
+        connection: clickup_shipfox
         with:
           task_id: 869fca5ep
         outputs:
@@ -54,7 +54,7 @@ jobs:
     steps:
       - key: get_task
         tool: get_task
-        connection: clickup_sandbox
+        connection: clickup_shipfox
         with:
           task_id: 869fca5cw
         outputs:
@@ -71,7 +71,7 @@ jobs:
     steps:
       - key: get_task_comments
         tool: get_task_comments
-        connection: clickup_sandbox
+        connection: clickup_shipfox
         with:
           task_id: 869fca5cw
         outputs:
@@ -84,7 +84,7 @@ jobs:
     steps:
       - key: search_tasks
         tool: search_tasks
-        connection: clickup_sandbox
+        connection: clickup_shipfox
         with:
           list_ids:
             - "901222980414"
@@ -98,74 +98,3 @@ jobs:
           value_last_page: '${{ has(result.last_page) ? result.last_page : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_tasks_0_id && step.outputs.shape_tasks_0_name && step.outputs.shape_last_page && type(step.outputs.value_last_page) == type(true) && step.outputs.value_last_page == false
-  agent_anthropic:
-    checkout: false
-    steps:
-      - key: agent
-        harness: claude
-        provider: anthropic
-        model: claude-haiku-4-5
-        thinking: low
-        prompt: |
-          Call each tool below once, with exactly the input shown, then report the fields asked for.
-          Call no other tool.
-
-          1. Call `get_task` with {"task_id":"869fca5cw"}.
-             Report the field `id` of its result as `task_id`.
-             Report the field `name` of its result as `task_name`.
-          2. Call `get_task` with {"task_id":"869fca5ep"}.
-             Report the field `id` of its result as `closed_task_id`.
-             Report the field `name` of its result as `closed_task_name`.
-        integrations:
-          - connection: clickup_sandbox
-            include:
-              - get_task
-              - get_task_comments
-              - search_tasks
-            allow_write: false
-        outputs:
-          task_id:
-            type: string
-          task_name:
-            type: string
-          closed_task_id:
-            type: string
-          closed_task_name:
-            type: string
-        gate:
-          success: 'step.status == "succeeded" && type(step.outputs.task_id) == type("") && step.outputs.task_id == "869fca5cw" && type(step.outputs.task_name) == type("") && step.outputs.task_name == "Fixture task: markdown, unicode, long description" && type(step.outputs.closed_task_id) == type("") && step.outputs.closed_task_id == "869fca5ep" && type(step.outputs.closed_task_name) == type("") && step.outputs.closed_task_name == "Fixture task: closed"'
-  agent_deepseek:
-    checkout: false
-    steps:
-      - key: agent
-        harness: pi
-        model: deepseek-v4-flash-0731
-        thinking: low
-        prompt: |
-          Call each tool below once, with exactly the input shown, then report the fields asked for.
-          Call no other tool.
-
-          1. Call `get_task` with {"task_id":"869fca5cw"}.
-             Report the field `id` of its result as `task_id`.
-             Report the field `name` of its result as `task_name`.
-          2. Call `get_task` with {"task_id":"869fca5ep"}.
-             Report the field `id` of its result as `closed_task_id`.
-             Report the field `name` of its result as `closed_task_name`.
-        integrations:
-          - connection: clickup_sandbox
-            include:
-              - get_task
-              - get_task_comments
-              - search_tasks
-            allow_write: false
-        outputs:
-          task_id:
-            type: string
-          task_name:
-            type: string
-          closed_task_id:
-            type: string
-          closed_task_name:
-            type: string
-        gate:
-          success: 'step.status == "succeeded" && type(step.outputs.task_id) == type("") && step.outputs.task_id == "869fca5cw" && type(step.outputs.task_name) == type("") && step.outputs.task_name == "Fixture task: markdown, unicode, long description" && type(step.outputs.closed_task_id) == type("") && step.outputs.closed_task_id == "869fca5ep" && type(step.outputs.closed_task_name) == type("") && step.outputs.closed_task_name == "Fixture task: closed"'

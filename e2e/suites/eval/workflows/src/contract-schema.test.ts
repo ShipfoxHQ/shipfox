@@ -228,22 +228,6 @@ describe('sandbox manifest schema', () => {
     expect(parsed.linear?.fixtures.issue?.read).toEqual({...read, expect: {}});
   });
 
-  it('loads the two fixtures an agent job reads', () => {
-    const parsed = parseSandboxManifest({
-      linear: {connection: 'linear_sandbox', agent: {reads: ['issue', 'team']}},
-    });
-
-    expect(parsed.linear?.agent).toEqual({reads: ['issue', 'team']});
-  });
-
-  it('rejects agent reads that are not two different fixtures', () => {
-    for (const reads of [['issue'], ['issue', 'issue'], ['issue', 'team', 'label']]) {
-      const invalid = {linear: {connection: 'linear_sandbox', agent: {reads}}};
-
-      expect(() => parseSandboxManifest(invalid)).toThrow();
-    }
-  });
-
   it('rejects a fixture read with an unknown key', () => {
     const invalid = {
       linear: {
