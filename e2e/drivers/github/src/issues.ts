@@ -1,18 +1,31 @@
 import type {IncomingMessage, ServerResponse} from 'node:http';
 import type {RecordedWrite} from '@shipfox/e2e-core';
-import {isRecord, readJsonBodyOrReject, sendJson} from './http.js';
-import {sameRepository} from './pull-requests.js';
+import {isRecord, paginate, readJsonBodyOrReject, sendJson} from './http.js';
+import {
+  effectiveState,
+  type GithubPullRequestFixture,
+  pullRequestIssuePayload,
+  sameRepository,
+} from './pull-requests.js';
 
+export const ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues$/u;
 export const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/u;
 const ISSUE_COMMENTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/comments$/u;
 const ISSUE_LABELS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/labels$/u;
 const ISSUE_LABEL_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/labels\/([^/]+)$/u;
+const ISSUE_TYPES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issue-types$/u;
 
 const BOT_LOGIN = 'shipfox-e2e[bot]';
 const DEFAULT_AUTHOR = 'e2e-author';
 const FIXTURE_TIMESTAMP = '2026-01-01T00:00:00Z';
 const FIXTURE_LABEL_ID = 208_045_946;
 const FIXTURE_USER_ID = 5_000_001;
+// The types a GitHub organization starts with.
+const DEFAULT_ISSUE_TYPES = [
+  {id: 1, name: 'Task', description: 'A specific piece of work', color: 'yellow'},
+  {id: 2, name: 'Bug', description: 'An unexpected problem or behavior', color: 'red'},
+  {id: 3, name: 'Feature', description: 'A request, idea, or new functionality', color: 'blue'},
+];
 
 export interface GithubIssueCommentFixture {
   id: number;
@@ -40,6 +53,8 @@ export interface GithubIssueFixture {
 export interface IssueRoutesOptions {
   /** Issues by number. Pull requests share the numbering, so tests pick numbers they don't use. */
   issues: Map<number, GithubIssueFixture>;
+  /** The issue list includes pull requests, as GitHub's does. */
+  pullRequests: ReadonlyMap<number, GithubPullRequestFixture>;
   /** Called for every accepted write, with the request's authorization header. */
   recordWrite: (write: RecordedWrite, authorization: string | undefined) => void;
 }
@@ -53,6 +68,7 @@ interface RouteContext extends Omit<IssueRoutesOptions, 'recordWrite'> {
   recordWrite: (write: RecordedWrite) => void;
   request: IncomingMessage;
   response: ServerResponse;
+  requestUrl: URL;
   match: RegExpMatchArray;
   repository: string;
   number: number;
@@ -66,6 +82,8 @@ interface Route {
 }
 
 const ROUTES: Route[] = [
+  {method: 'GET', path: ISSUES_PATH, handle: listIssues},
+  {method: 'GET', path: ISSUE_TYPES_PATH, handle: listIssueTypes},
   {method: 'PATCH', path: ISSUE_PATH, handle: updateIssue},
   {method: 'GET', path: ISSUE_COMMENTS_PATH, handle: listIssueComments},
   {method: 'POST', path: ISSUE_COMMENTS_PATH, handle: createIssueComment},
@@ -89,6 +107,7 @@ export function createIssueRoutes(options: IssueRoutesOptions): IssueRoutes {
           recordWrite: (write) => options.recordWrite(write, request.headers.authorization),
           request,
           response,
+          requestUrl,
           match,
           repository: `${decodeURIComponent(match[1] ?? '')}/${decodeURIComponent(match[2] ?? '')}`,
           number: Number(match[3]),
@@ -146,6 +165,45 @@ export function actorPayload(login: string): Record<string, unknown> {
     site_admin: false,
     html_url: `https://github.com/${login}`,
   };
+}
+
+function listIssues(context: RouteContext): void {
+  const {searchParams} = context.requestUrl;
+  const state = searchParams.get('state') ?? 'open';
+  const labels = (searchParams.get('labels') ?? '').split(',').filter((label) => label !== '');
+  const issues = [...context.issues.entries()]
+    .filter(([, issue]) => sameRepository(issue.repository, context.repository))
+    .filter(([, issue]) => state === 'all' || (issue.state ?? 'open') === state)
+    .filter(([, issue]) => labels.every((label) => (issue.labels ?? []).includes(label)))
+    .map(([number, issue]) => ({number, payload: issuePayload(number, issue)}));
+  const pullRequests =
+    labels.length > 0
+      ? []
+      : [...context.pullRequests.entries()]
+          .filter(([, pullRequest]) => sameRepository(pullRequest.repository, context.repository))
+          .filter(([, pullRequest]) => state === 'all' || effectiveState(pullRequest) === state)
+          .map(([number, pullRequest]) => ({
+            number,
+            payload: pullRequestIssuePayload(number, pullRequest),
+          }));
+  const items = [...issues, ...pullRequests]
+    .sort((left, right) => right.number - left.number)
+    .map((item) => item.payload);
+  sendJson(context.response, 200, paginate(items, searchParams));
+}
+
+function listIssueTypes(context: RouteContext): void {
+  sendJson(
+    context.response,
+    200,
+    DEFAULT_ISSUE_TYPES.map((type) => ({
+      ...type,
+      node_id: `IT_${type.id}`,
+      created_at: FIXTURE_TIMESTAMP,
+      updated_at: FIXTURE_TIMESTAMP,
+      is_enabled: true,
+    })),
+  );
 }
 
 async function updateIssue(context: RouteContext): Promise<void> {

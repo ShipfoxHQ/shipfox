@@ -193,4 +193,48 @@ describe('GitHub API mock issues', () => {
       await mock.stop();
     }
   });
+
+  it('lists the open issues of a repository with its pull requests, newest first', async () => {
+    const {mock, request} = await startMock();
+
+    try {
+      mock.issues.set(1, {repository: 'acme/app', title: 'Open', labels: ['bug']});
+      mock.issues.set(2, {repository: 'acme/app', title: 'Closed', state: 'closed'});
+      mock.issues.set(3, {repository: 'acme/other', title: 'Elsewhere'});
+      mock.pullRequests.set(4, {
+        repository: 'acme/app',
+        ref: 'feature',
+        sha: 'a'.repeat(40),
+        title: 'A pull request',
+      });
+      const open = await request('GET', '/repos/acme/app/issues');
+      const all = await request('GET', '/repos/acme/app/issues?state=all&per_page=2');
+      const labelled = await request('GET', '/repos/acme/app/issues?labels=bug');
+
+      await expect(open.json()).resolves.toMatchObject([
+        {number: 4, title: 'A pull request', pull_request: {}},
+        {number: 1, title: 'Open', state: 'open'},
+      ]);
+      await expect(all.json()).resolves.toMatchObject([{number: 4}, {number: 2, state: 'closed'}]);
+      await expect(labelled.json()).resolves.toMatchObject([{number: 1}]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('lists the issue types an organization starts with', async () => {
+    const {mock, request} = await startMock();
+
+    try {
+      const response = await request('GET', '/repos/acme/app/issue-types');
+
+      await expect(response.json()).resolves.toMatchObject([
+        {name: 'Task'},
+        {name: 'Bug'},
+        {name: 'Feature'},
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
 });

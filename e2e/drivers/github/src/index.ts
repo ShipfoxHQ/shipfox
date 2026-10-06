@@ -1,4 +1,5 @@
 export type {RecordedWrite} from '@shipfox/e2e-core';
+export type {GithubWorkflowFixture, GithubWorkflowRunFixture} from './actions.js';
 export type {
   AddGithubBranchParams,
   AddGithubRepositoryParams,

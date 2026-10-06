@@ -1,4 +1,4 @@
-import {randomUUID} from 'node:crypto';
+import {createHash, randomUUID} from 'node:crypto';
 import {mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -101,9 +101,98 @@ function fixtureComments(fixture: SandboxFixtures[string]): Array<{id: string; t
   }));
 }
 
+// What the sandbox's GitHub issues and pull requests are, among its fixtures. An issue fixture
+// holds an `open` issue unless its name says it is closed, and a pull request fixture holds an
+// open pull request unless its name says closed or merged.
+const GITHUB_ISSUE_FIXTURES = ['issue', 'closed_issue', 'parent_issue', 'sub_issue'] as const;
+const GITHUB_PULL_REQUEST_FIXTURES = [
+  'pull_request',
+  'closed_pull_request',
+  'merged_pull_request',
+] as const;
+
+function gitSha(seed: string): string {
+  return createHash('sha1').update(seed).digest('hex');
+}
+
+function seedGithubIssues({
+  mock,
+  repository,
+  fixtures,
+}: {
+  mock: GithubApiMock;
+  repository: string;
+  fixtures: SandboxFixtures;
+}): void {
+  const label = field({fixture: fixtures.label ?? {}, name: 'name'});
+  for (const fixtureName of GITHUB_ISSUE_FIXTURES) {
+    const fixture = fixtures[fixtureName];
+    if (fixture === undefined) continue;
+    const number = Number(requiredField({fixture, fixtureName, name: 'number'}));
+    const title = field({fixture, name: 'title'});
+    const body = field({fixture, name: 'body'});
+    const state = field({fixture, name: 'state'});
+    mock.issues.set(number, {
+      repository,
+      title: title === undefined ? `Contract fixture issue ${number}` : String(title),
+      ...(body === undefined ? {} : {body: String(body)}),
+      ...(fixtureName === 'closed_issue' || state === 'closed' ? {state: 'closed'} : {}),
+      // The sandbox puts its label on the first fixture issue.
+      ...(fixtureName === 'issue' && label !== undefined ? {labels: [String(label)]} : {}),
+    });
+  }
+}
+
+function seedGithubPullRequests({
+  mock,
+  repository,
+  fixtures,
+}: {
+  mock: GithubApiMock;
+  repository: string;
+  fixtures: SandboxFixtures;
+}): void {
+  for (const fixtureName of GITHUB_PULL_REQUEST_FIXTURES) {
+    const fixture = fixtures[fixtureName];
+    if (fixture === undefined) continue;
+    const number = Number(requiredField({fixture, fixtureName, name: 'number'}));
+    mock.pullRequests.set(number, {
+      repository,
+      ref: `contract/pull-request-${number}`,
+      sha: gitSha(`${repository}#${number}`),
+      title: String(requiredField({fixture, fixtureName, name: 'title'})),
+      state: fixtureName === 'pull_request' ? 'open' : 'closed',
+      merged: fixtureName === 'merged_pull_request',
+    });
+  }
+}
+
+function seedGithubWorkflow({
+  mock,
+  repository,
+  workflow,
+}: {
+  mock: GithubApiMock;
+  repository: string;
+  workflow: SandboxFixtures[string];
+}): void {
+  const required = (name: string) =>
+    requiredField({fixture: workflow, fixtureName: 'workflow', name});
+  const id = Number(required('id'));
+  mock.workflows.set(id, {
+    repository,
+    name: String(required('name')),
+    file: String(required('file')),
+  });
+  // Runs expire in the sandbox, and the cases read the latest completed one.
+  mock.workflowRuns.set(id, {workflowId: id, sha: gitSha(`${repository}@${id}`)});
+}
+
 /**
  * GitHub, whose fake the run already started for the project. It seeds the `repository` fixture as
- * a repository of the fake, and the `issue` fixture as one of its issues.
+ * a repository of the fake, the issue fixtures as its issues, the pull request fixtures as its pull
+ * requests, and the `workflow` fixture as a workflow with one completed run. The `label` fixture
+ * goes on the `issue` fixture.
  *
  * The sandbox repository is not the project's repository, and a connection only reaches the
  * repositories of its projects until it is set to reach all of them. The sandbox connection is
@@ -116,8 +205,11 @@ export const githubContractFake: ContractFakeAdapter = ({github, client, cleanup
     seed: async (fixtures) => {
       const repository = fixtures.repository;
       if (repository === undefined) {
-        if (fixtures.issue !== undefined) {
-          throw new Error('The github issue fixture needs a repository fixture.');
+        const orphan = [...GITHUB_ISSUE_FIXTURES, ...GITHUB_PULL_REQUEST_FIXTURES, 'workflow'].find(
+          (fixtureName) => fixtures[fixtureName] !== undefined,
+        );
+        if (orphan !== undefined) {
+          throw new Error(`The github ${orphan} fixture needs a repository fixture.`);
         }
         return;
       }
@@ -138,19 +230,11 @@ export const githubContractFake: ContractFakeAdapter = ({github, client, cleanup
           json: {mode: 'all'},
         },
       );
-
-      const issue = fixtures.issue;
-      if (issue === undefined) return;
-      const number = Number(requiredField({fixture: issue, fixtureName: 'issue', name: 'number'}));
-      const title = field({fixture: issue, name: 'title'});
-      const body = field({fixture: issue, name: 'body'});
-      const state = field({fixture: issue, name: 'state'});
-      mock.issues.set(number, {
-        repository: added.fullName,
-        title: title === undefined ? `Contract fixture issue ${number}` : String(title),
-        ...(body === undefined ? {} : {body: String(body)}),
-        ...(state === 'open' || state === 'closed' ? {state} : {}),
-      });
+      seedGithubIssues({mock, repository: added.fullName, fixtures});
+      seedGithubPullRequests({mock, repository: added.fullName, fixtures});
+      if (fixtures.workflow !== undefined) {
+        seedGithubWorkflow({mock, repository: added.fullName, workflow: fixtures.workflow});
+      }
     },
     writes: () => mock.writes(),
   });

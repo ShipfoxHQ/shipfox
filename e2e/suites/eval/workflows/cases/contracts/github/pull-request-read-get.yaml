@@ -1,5 +1,5 @@
 provider: github
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: pull_request_read
     method: get

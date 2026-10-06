@@ -62,6 +62,7 @@ type ApiClient = ReturnType<typeof createApiClient>;
 
 const token = `ghs_${'a'.repeat(40)}`;
 const missingRepositoryPattern = /issue fixture needs a repository fixture/u;
+const workflowNeedsRepositoryPattern = /workflow fixture needs a repository fixture/u;
 const missingTitlePattern = /fixture "page" has no "title"/u;
 const discordNeedsChannelPattern = /need a read_channel fixture/u;
 const missingCountPattern = /posthog fixture "event" has no "count"/u;
@@ -130,6 +131,60 @@ describe('githubContractFake', () => {
     });
   });
 
+  it('seeds the issues, pull requests, label, and workflow the C7 cases read', async () => {
+    const fake = await arrange();
+    const read = async (path: string) =>
+      (await (
+        await fetch(new URL(path, mock?.endpoint), {headers: {authorization: `token ${token}`}})
+      ).json()) as Record<string, unknown>;
+
+    await fake.seed({
+      repository: {owner: 'contracts-sandbox', name: 'fixtures'},
+      issue: {number: 1, title: 'Fixture issue'},
+      closed_issue: {number: 2, title: 'Fixture closed'},
+      label: {name: 'contract-fixture'},
+      pull_request: {number: 35, title: 'Fixture PR: open'},
+      closed_pull_request: {number: 36, title: 'Fixture PR: closed'},
+      merged_pull_request: {number: 37, title: 'Fixture PR: merged'},
+      workflow: {id: 375_690_478, file: 'fixture.yml', name: 'Fixture'},
+    });
+
+    expect(await read('/repos/contracts-sandbox/fixtures/issues/1')).toMatchObject({
+      state: 'open',
+      labels: [{name: 'contract-fixture'}],
+    });
+    expect(await read('/repos/contracts-sandbox/fixtures/issues/2')).toMatchObject({
+      state: 'closed',
+    });
+    expect(await read('/repos/contracts-sandbox/fixtures/pulls/35')).toMatchObject({
+      number: 35,
+      state: 'open',
+      merged: false,
+      head: {ref: expect.any(String)},
+      base: {ref: 'main'},
+    });
+    expect(await read('/repos/contracts-sandbox/fixtures/pulls/36')).toMatchObject({
+      state: 'closed',
+      merged: false,
+    });
+    expect(await read('/repos/contracts-sandbox/fixtures/pulls/37')).toMatchObject({
+      state: 'closed',
+      merged: true,
+    });
+    expect(
+      await read('/repos/contracts-sandbox/fixtures/actions/workflows/fixture.yml'),
+    ).toMatchObject({
+      id: 375_690_478,
+      name: 'Fixture',
+    });
+    expect(
+      await read('/repos/contracts-sandbox/fixtures/actions/workflows/fixture.yml/runs'),
+    ).toMatchObject({
+      total_count: 1,
+      workflow_runs: [{status: 'completed', conclusion: 'success'}],
+    });
+  });
+
   it('seeds only the issues the sandbox has', async () => {
     const fake = await arrange();
 
@@ -150,6 +205,7 @@ describe('githubContractFake', () => {
     const fake = await arrange();
 
     await expect(fake.seed({issue: {number: 1}})).rejects.toThrow(missingRepositoryPattern);
+    await expect(fake.seed({workflow: {id: 1}})).rejects.toThrow(workflowNeedsRepositoryPattern);
     await expect(fake.seed({repository: {name: 'fixtures'}})).rejects.toThrow(missingOwnerPattern);
   });
 

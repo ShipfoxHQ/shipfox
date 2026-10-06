@@ -31,3 +31,21 @@ export async function readJsonBodyOrReject(
 export function sendJson(response: ServerResponse, statusCode: number, body: unknown): void {
   response.writeHead(statusCode, {'content-type': 'application/json'}).end(JSON.stringify(body));
 }
+
+const DEFAULT_PAGE_SIZE = 30;
+const MAX_PAGE_SIZE = 100;
+
+/** One page of a list, chosen by the `per_page` and `page` query parameters, as GitHub does. */
+export function paginate<T>(items: T[], searchParams: URLSearchParams): T[] {
+  const perPage = Math.min(
+    MAX_PAGE_SIZE,
+    positiveInteger(searchParams.get('per_page')) ?? DEFAULT_PAGE_SIZE,
+  );
+  const page = positiveInteger(searchParams.get('page')) ?? 1;
+  return items.slice((page - 1) * perPage, page * perPage);
+}
+
+function positiveInteger(value: string | null): number | undefined {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}

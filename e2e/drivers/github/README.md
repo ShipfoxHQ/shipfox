@@ -10,8 +10,8 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
 - `startGithubApiMock(options?)`: start the fake and return a `GithubApiMock`. It
   serves installation tokens, repository and issue reads, pull request create,
   list, read, update, and merge, review comment replies, issue comments, issue
-  search, GraphQL review threads and `createCommitOnBranch`, issue creation, check
-  runs, and an empty workflow run history. The stack router sends the fake the token mints for
+  list and search, issue types, GraphQL review threads and `createCommitOnBranch`, issue
+  creation, check runs, and the workflow and workflow run reads. The stack router sends the fake the token mints for
   its `installationId` and the requests that carry its `installationToken`, so specs in other
   workers share the address; make both unique to the spec. Behind the router, `installationId` is
   required. `options.endpoint` listens directly instead, but the webhook senders below still need
@@ -26,7 +26,17 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   and comments. `GET /repos/:owner/:repo/issues/:number` and its `/comments` and
   `/labels` routes read them. An issue read for a number not listed answers a synthetic
   issue with `GITHUB_READ_RESULT_MARKER`. Issues and pull requests share the numbering,
-  so a created pull request skips the numbers issues use.
+  so a created pull request skips the numbers issues use. `GET /repos/:owner/:repo/issues`
+  lists them, with the pull requests of `pullRequests` as GitHub does, filtered by `state` and
+  `labels` and paged by `per_page` and `page`. `GET /search/issues` matches the issues and pull
+  requests of the `repo:` repository on `is:issue`, `is:pr`, `is:open`, `is:closed`, and the
+  words of its title or body. A query for a repository nothing is seeded for answers one item
+  with `GITHUB_SEARCH_RESULT_MARKER`. `GET /repos/:owner/:repo/issue-types` lists the types an
+  organization starts with: Task, Bug, and Feature.
+- `GithubApiMock.workflows` and `workflowRuns`: workflows by id and their runs by id, read
+  through `GET /repos/:owner/:repo/actions/workflows`, the same path with an id or file name,
+  and its `/runs`, newest run first. A workflow without runs, or one nobody seeded, has an
+  empty run list, as before the event that starts a case.
 - `GithubApiMock.addRepository(params)`: creates a bare repository, seeded from a
   directory, and serves it over git smart HTTP at
   `<endpoint>/github.com/<owner>/<repo>.git`. The repository API returns that URL as
