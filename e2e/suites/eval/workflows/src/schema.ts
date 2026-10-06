@@ -98,7 +98,7 @@ const discordMessageSeedSchema = z
   .object({
     // A numeric ID, as Discord's are.
     id: z.string().regex(/^\d{1,20}$/u),
-    user: z.string().min(1),
+    user: z.string().regex(/^\d{1,20}$/u),
     content: z.string(),
   })
   .strict();

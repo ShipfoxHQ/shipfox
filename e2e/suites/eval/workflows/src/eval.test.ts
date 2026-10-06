@@ -399,9 +399,11 @@ describe('case seed schema', () => {
   it('rejects a seeded Discord channel with no messages or a non-numeric ID', () => {
     const empty = {discord: {channel: '1', messages: []}};
     const named = {discord: {channel: 'general', messages: [discordMessage]}};
+    const author = {discord: {channel: '1', messages: [{...discordMessage, user: 'alice'}]}};
 
     expect(() => parseTemplateCase({...base, seed: empty})).toThrow(discordSeedPattern);
     expect(() => parseTemplateCase({...base, seed: named})).toThrow(discordSeedPattern);
+    expect(() => parseTemplateCase({...base, seed: author})).toThrow(discordSeedPattern);
   });
 
   it('accepts a replace-with placeholder and rejects any other name', () => {

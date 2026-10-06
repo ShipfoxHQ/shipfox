@@ -2,7 +2,7 @@ import type {RecordedWrite} from '@shipfox/e2e-core';
 import {startDiscordApiMock} from '@shipfox/e2e-driver-discord';
 import {createDiscordConnection} from '@shipfox/e2e-setup-integrations';
 import {createDiscordEventSender} from './discord-events.js';
-import type {DiscordSeed} from './schema.js';
+import type {DiscordSeed, TemplateCase} from './schema.js';
 import type {EventSender} from './senders.js';
 
 // Discord's channel type for a text channel.
@@ -13,6 +13,19 @@ export function discordSnowflake(): string {
   return `${Date.now()}${Math.floor(Math.random() * 1_000_000)
     .toString()
     .padStart(6, '0')}`;
+}
+
+/**
+ * The case with a fresh ID for each seeded message, replaced wherever the case names it. The API
+ * dedupes a Discord event by its message ID across connections, so a case that kept its IDs would
+ * start a run only once per database.
+ */
+export function withFreshDiscordMessageIds(templateCase: TemplateCase): TemplateCase {
+  const messages = templateCase.seed.discord?.messages ?? [];
+  if (messages.length === 0) return templateCase;
+  let json = JSON.stringify(templateCase);
+  for (const {id} of messages) json = json.replaceAll(id, discordSnowflake());
+  return JSON.parse(json) as TemplateCase;
 }
 
 export interface DiscordWorkspace {

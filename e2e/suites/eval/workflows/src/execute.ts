@@ -18,7 +18,7 @@ import {arrangeClickUpWorkspace} from './clickup-workspace.js';
 import {bindConnectionSlugs} from './compile.js';
 import {composeCaseWorkflow, setRunnerLabel, templateLoaderFor} from './compose.js';
 import {createDefinition, fireManual, START_TIMEOUT_MS} from './definitions.js';
-import {arrangeDiscordWorkspace} from './discord-workspace.js';
+import {arrangeDiscordWorkspace, withFreshDiscordMessageIds} from './discord-workspace.js';
 import type {DiscoveredCase} from './discovery.js';
 import {createGithubEventSender} from './github-events.js';
 import {arrangeGithubProject} from './github-project.js';
@@ -75,7 +75,14 @@ interface Arrangement {
  * the fake repository, the composed definition, a runner of its own, and then the scenario.
  * It never throws. A case that can't finish is an `error` result with the reason.
  */
-export async function executeTemplateCase(options: ExecuteCaseOptions): Promise<CaseResult> {
+export async function executeTemplateCase(caseOptions: ExecuteCaseOptions): Promise<CaseResult> {
+  const options = {
+    ...caseOptions,
+    discovered: {
+      ...caseOptions.discovered,
+      definition: withFreshDiscordMessageIds(caseOptions.discovered.definition),
+    },
+  };
   const {discovered, mode, repeat} = options;
   const templateCase = discovered.definition;
   const startedAt = Date.now();

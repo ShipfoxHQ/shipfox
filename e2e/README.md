@@ -377,7 +377,9 @@ way. The fake serves the text channel under `seed.discord.channel` with its
 `messages`, and records the threads and messages the workflow creates as
 `discord.create_thread` and `discord.create_message`. A `start` step sends
 `discord: {message_create: {channel_id, id, user, content}}` through the handler
-the Gateway service uses, and the message `id` is the delivery ID. The
+the Gateway service uses, and the message `id` is the delivery ID. Each run
+replaces the seeded message IDs with fresh ones, because the API dedupes a
+Discord event by message ID and a repeated ID would start a run only once. The
 API reaches the fake through `DISCORD_API_BASE_URL`, so one Discord case repeat
 at a time can hold it. Pass `--workers 1` with a `--repeat` above 1.
 
@@ -433,7 +435,8 @@ A scenario step is one of:
   as in `Opened pull request: $pr.url`, a reference becomes its text. The
   case's GitHub fake sends `pull_request_review_comment.created`,
   `pull_request.closed`, `workflow_run.completed`, and `issues.labeled`. The case's Slack connection sends a signed `app_mention`,
-  with `thread_ts` for a mention inside a thread. The Jira sender sends signed `jira:issue_created` and
+  with `thread_ts` for a mention inside a thread. The case's Discord connection sends `message_create`, with
+  `channel_id`, `id`, `user`, and `content`, as a mention of the bot. The Jira sender sends signed `jira:issue_created` and
   `jira:issue_updated` events, with an `issue` (`key`, `summary`, and
   optionally `id`, `status`, `project`, `labels`, and `description`) and
   optionally `previous_status` or `previous_labels` on `jira:issue_updated`,

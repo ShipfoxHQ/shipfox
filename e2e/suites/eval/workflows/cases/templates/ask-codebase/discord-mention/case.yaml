@@ -17,7 +17,7 @@ seed:
     messages:
       - id: '1721300000000000100'
         user: '1721300000000000200'
-        content: <@1721300000000000300> Where does the report command read the --json flag?
+        content: '@Shipfox Where does the report command read the --json flag?'
 
 scenario:
   - start:
@@ -27,7 +27,7 @@ scenario:
             channel_id: '1721300000000000001'
             id: '1721300000000000100'
             user: '1721300000000000200'
-            content: <@1721300000000000300> Where does the report command read the --json flag?
+            content: '@Shipfox Where does the report command read the --json flag?'
   - await: {run: succeeded}
     timeout_seconds: 300
 
