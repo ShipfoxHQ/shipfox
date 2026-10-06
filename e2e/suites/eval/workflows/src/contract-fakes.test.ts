@@ -1,6 +1,7 @@
 import type {createApiClient} from '@shipfox/e2e-core';
 import {type DiscordApiMock, startDiscordApiMock} from '@shipfox/e2e-driver-discord';
 import {type GithubApiMock, startGithubApiMock} from '@shipfox/e2e-driver-github';
+import {createPosthogConnection} from '@shipfox/e2e-setup-integrations';
 import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {
   CONTRACT_FAKE_ADAPTERS,
@@ -9,6 +10,7 @@ import {
   discordContractFake,
   githubContractFake,
   notionContractFake,
+  posthogContractFake,
   type SandboxFixtures,
   seedDiscord,
 } from './contract-fakes.js';
@@ -44,7 +46,10 @@ vi.mock('@shipfox/e2e-driver-notion', async (importOriginal) => {
     },
   };
 });
+const {seedPosthogMock} = vi.hoisted(() => ({seedPosthogMock: vi.fn()}));
+vi.mock('@shipfox/e2e-driver-posthog', () => ({seedPosthogMock}));
 vi.mock('@shipfox/e2e-setup-integrations', () => ({
+  createPosthogConnection: vi.fn(() => Promise.resolve({id: 'connection-5', slug: 'posthog_fake'})),
   createClickUpConnection: vi.fn(() => Promise.resolve({id: 'connection-2', slug: 'clickup_fake'})),
   createNotionConnection: vi.fn(() => Promise.resolve({id: 'connection-3', slug: 'notion_fake'})),
   createSlackConnection: vi.fn(() => Promise.resolve({id: 'connection-4', slug: 'slack_fake'})),
@@ -56,6 +61,7 @@ const token = `ghs_${'a'.repeat(40)}`;
 const missingRepositoryPattern = /issue fixture needs a repository fixture/u;
 const missingTitlePattern = /fixture "page" has no "title"/u;
 const discordNeedsChannelPattern = /need a read_channel fixture/u;
+const missingCountPattern = /posthog fixture "event" has no "count"/u;
 const missingOwnerPattern = /fixture "repository" has no "owner"/u;
 
 describe('githubContractFake', () => {
@@ -308,5 +314,70 @@ describe('seedDiscord', () => {
 
   it('is the adapter of the discord provider', () => {
     expect(CONTRACT_FAKE_ADAPTERS.discord).toBe(discordContractFake);
+  });
+});
+
+describe('posthogContractFake', () => {
+  async function arrange() {
+    vi.clearAllMocks();
+    return await posthogContractFake({
+      workspaceId: 'workspace',
+      uniqueId: 'unique',
+      github: {
+        mock: {} as GithubApiMock,
+        connectionId: 'connection-1',
+        connectionSlug: 'github_fake',
+      },
+      client: {} as ApiClient,
+      cleanups: [],
+    });
+  }
+
+  it('connects the workspace with a key of its own, and seeds that key', async () => {
+    const fake = await arrange();
+
+    await fake.seed({
+      project: {id: 295166, region: 'eu'},
+      event: {name: 'contract_event', count: 40},
+      purchase_event: {name: 'contract_purchase', count: 10},
+      feature_flag: {id: 301243, key: 'contract-flag'},
+      disabled_feature_flag: {id: 301244, key: 'contract-flag-disabled'},
+      insight: {id: 6355500},
+    });
+
+    expect(fake.connectionSlug).toBe('posthog_fake');
+    expect(createPosthogConnection).toHaveBeenCalledWith(
+      expect.objectContaining({workspaceId: 'workspace', apiKey: 'phx_contracts_unique'}),
+    );
+    expect(seedPosthogMock).toHaveBeenCalledWith({
+      apiKey: 'phx_contracts_unique',
+      seed: {
+        events: [
+          {name: 'contract_event', count: 40},
+          {name: 'contract_purchase', count: 10},
+        ],
+        feature_flags: [
+          {id: 301243, key: 'contract-flag'},
+          {id: 301244, key: 'contract-flag-disabled', active: false},
+        ],
+      },
+    });
+    expect(fake.writes()).toEqual([]);
+  });
+
+  it('seeds only the fixtures the sandbox has, and rejects one without its fields', async () => {
+    const fake = await arrange();
+
+    await fake.seed({});
+    await expect(fake.seed({event: {name: 'contract_event'}})).rejects.toThrow(missingCountPattern);
+
+    expect(seedPosthogMock).toHaveBeenCalledWith({
+      apiKey: 'phx_contracts_unique',
+      seed: {events: [], feature_flags: []},
+    });
+  });
+
+  it('is the adapter of the posthog provider', () => {
+    expect(CONTRACT_FAKE_ADAPTERS.posthog).toBe(posthogContractFake);
   });
 });

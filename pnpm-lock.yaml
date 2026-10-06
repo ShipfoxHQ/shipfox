@@ -2529,6 +2529,9 @@ importers:
       '@shipfox/e2e-driver-notion':
         specifier: workspace:*
         version: link:../../../drivers/notion
+      '@shipfox/e2e-driver-posthog':
+        specifier: workspace:*
+        version: link:../../../drivers/posthog
       '@shipfox/e2e-driver-runner-process':
         specifier: workspace:*
         version: link:../../../drivers/runner-process
