@@ -30,8 +30,7 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   lists them, with the pull requests of `pullRequests` as GitHub does, filtered by `state` and
   `labels` and paged by `per_page` and `page`. `GET /search/issues` matches the issues and pull
   requests of the `repo:` repository on `is:issue`, `is:pr`, `is:open`, `is:closed`, and the
-  words of its title or body. A query for a repository nothing is seeded for answers one item
-  with `GITHUB_SEARCH_RESULT_MARKER`. `GET /repos/:owner/:repo/issue-types` lists the types an
+  words of its title or body, and answers an empty result when nothing matches. `GET /repos/:owner/:repo/issue-types` lists the types an
   organization starts with: Task, Bug, and Feature.
 - `GithubApiMock.workflows` and `workflowRuns`: workflows by id and their runs by id, read
   through `GET /repos/:owner/:repo/actions/workflows`, the same path with an id or file name,

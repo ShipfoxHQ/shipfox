@@ -46,7 +46,6 @@ export const GITHUB_STATELESS_INSTALLATION_TOKEN =
 export const GITHUB_STATEFUL_INSTALLATION_TOKEN = `ghs_${'d'.repeat(36)}`;
 export const GITHUB_READ_RESULT_MARKER = 'github-read-result-marker';
 export const GITHUB_WRITE_RESULT_MARKER = 'github-write-result-marker';
-export const GITHUB_SEARCH_RESULT_MARKER = 'github-search-result-marker';
 export const GITHUB_GRAPHQL_RESULT_MARKER = 'github-graphql-result-marker';
 
 const INSTALLATION_TOKEN_PATH = /^\/app\/installations\/(\d+)\/access_tokens$/u;
@@ -657,20 +656,14 @@ function handleSearchIssuesRequest(params: GithubRequestContext): void {
       query: params.requestUrl.searchParams.get('q'),
     });
   }
-  const results = searchIssues({
-    issues: params.issues,
-    pullRequests: params.pullRequests,
-    query: params.requestUrl.searchParams.get('q') ?? '',
-  });
-  // A query for a repository no test seeded answers one marker item.
   sendJson(
     params.response,
     200,
-    results ?? {
-      total_count: 1,
-      incomplete_results: false,
-      items: [{marker: GITHUB_SEARCH_RESULT_MARKER}],
-    },
+    searchIssues({
+      issues: params.issues,
+      pullRequests: params.pullRequests,
+      query: params.requestUrl.searchParams.get('q') ?? '',
+    }),
   );
 }
 

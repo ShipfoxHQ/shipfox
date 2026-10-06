@@ -1,7 +1,6 @@
 import {
   GITHUB_GRAPHQL_RESULT_MARKER,
   GITHUB_READ_RESULT_MARKER,
-  GITHUB_SEARCH_RESULT_MARKER,
   GITHUB_STATEFUL_INSTALLATION_TOKEN,
   GITHUB_STATELESS_INSTALLATION_TOKEN,
   GITHUB_WRITE_RESULT_MARKER,
@@ -335,9 +334,7 @@ describe('GitHub API mock', () => {
         id: 43,
         full_name: 'shipfox/outside',
       });
-      await expect(search.json()).resolves.toMatchObject({
-        items: [{marker: GITHUB_SEARCH_RESULT_MARKER}],
-      });
+      await expect(search.json()).resolves.toMatchObject({total_count: 0, items: []});
       await expect(graphql.json()).resolves.toMatchObject({
         data: {
           resolveReviewThread: {

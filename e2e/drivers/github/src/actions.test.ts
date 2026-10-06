@@ -97,6 +97,25 @@ describe('GitHub API mock actions', () => {
     }
   });
 
+  it('orders runs by id, whatever order they were seeded in', async () => {
+    const {mock, get} = await startMock();
+
+    try {
+      mock.workflowRuns.set(12, {workflowId: 375_690_478, sha: 'a'.repeat(40)});
+      mock.workflowRuns.set(10, {workflowId: 375_690_478, sha: 'b'.repeat(40)});
+      const response = await get('/repos/acme/app/actions/workflows/fixture.yml/runs');
+
+      await expect(response.json()).resolves.toMatchObject({
+        workflow_runs: [
+          {id: 12, run_number: 2},
+          {id: 10, run_number: 1},
+        ],
+      });
+    } finally {
+      await mock.stop();
+    }
+  });
+
   it('answers an empty run list for a workflow with no runs, seeded or not', async () => {
     const {mock, get} = await startMock();
 

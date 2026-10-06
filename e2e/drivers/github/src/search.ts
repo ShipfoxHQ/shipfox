@@ -37,8 +37,8 @@ function parseQuery(query: string): SearchTerms {
 /**
  * The issues and pull requests a `GET /search/issues` query matches, as the API answers them: the
  * `repo:` repository, `is:issue`, `is:pr`, `is:open`, and `is:closed`, and every other word as a
- * case-insensitive match on the title or body. Without `is:issue` or `is:pr`, both kinds match.
- * Returns undefined when the query names no repository that holds a seeded issue or pull request.
+ * case-insensitive match on the title or body. Without `is:issue` or `is:pr`, both kinds match,
+ * and without `repo:`, every repository does.
  */
 export function searchIssues({
   issues,
@@ -48,17 +48,17 @@ export function searchIssues({
   issues: ReadonlyMap<number, GithubIssueFixture>;
   pullRequests: ReadonlyMap<number, GithubPullRequestFixture>;
   query: string;
-}): {total_count: number; incomplete_results: false; items: Record<string, unknown>[]} | undefined {
+}): {total_count: number; incomplete_results: false; items: Record<string, unknown>[]} {
   const terms = parseQuery(query);
   const {repository} = terms;
-  if (repository === undefined) return undefined;
+  const inRepository = (name: string) =>
+    repository === undefined || sameRepository(name, repository);
   const repositoryIssues = [...issues.entries()].filter(([, issue]) =>
-    sameRepository(issue.repository, repository),
+    inRepository(issue.repository),
   );
   const repositoryPullRequests = [...pullRequests.entries()].filter(([, pullRequest]) =>
-    sameRepository(pullRequest.repository, repository),
+    inRepository(pullRequest.repository),
   );
-  if (repositoryIssues.length === 0 && repositoryPullRequests.length === 0) return undefined;
 
   const candidates = [
     ...(terms.kind === 'pull_request'

@@ -156,6 +156,7 @@ export function createActionsRoutes({
         ? []
         : [...workflowRuns.entries()]
             .filter(([, run]) => run.workflowId === found[0])
+            .sort(([left], [right]) => left - right)
             .map(([id, run], index) =>
               workflowRunPayload({
                 id,

@@ -1,8 +1,4 @@
-import {
-  GITHUB_SEARCH_RESULT_MARKER,
-  GITHUB_STATELESS_INSTALLATION_TOKEN,
-  startGithubApiMock,
-} from './github-api.js';
+import {GITHUB_STATELESS_INSTALLATION_TOKEN, startGithubApiMock} from './github-api.js';
 
 async function startMock() {
   const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
@@ -82,15 +78,25 @@ describe('GitHub API mock issue search', () => {
     }
   });
 
-  it('answers the marker item for a repository nothing is seeded for', async () => {
+  it('answers an empty result for a repository nothing is seeded for', async () => {
     const {mock, search} = await startMock();
 
     try {
-      const unseeded = await search('Fixture repo:acme/empty');
-      const unscoped = await search('Fixture');
+      const result = await search('Fixture repo:acme/empty');
 
-      expect(unseeded).toMatchObject({items: [{marker: GITHUB_SEARCH_RESULT_MARKER}]});
-      expect(unscoped).toMatchObject({items: [{marker: GITHUB_SEARCH_RESULT_MARKER}]});
+      expect(result).toMatchObject({total_count: 0, items: []});
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('searches every repository when the query names none', async () => {
+    const {mock, search} = await startMock();
+
+    try {
+      const result = await search('Fixture is:issue');
+
+      expect(result.items.map((item) => item.number)).toEqual([4, 3, 2, 1]);
     } finally {
       await mock.stop();
     }
