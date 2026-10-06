@@ -1,0 +1,24 @@
+<mjml lang="en">
+  <mj-head>
+    <mj-title>Order shipped</mj-title>
+    <mj-include path="@shipfox/node-email/partials/head-styles.mjml" />
+  </mj-head>
+  <mj-body background-color="#ffffff" width="600px">
+    <mj-section padding="40px 24px 0 24px">
+      <mj-column>
+        <mj-include path="@shipfox/node-email/partials/header.mjml" />
+        <mj-text>Hello {{customerName}}</mj-text>
+        <mj-table>
+          {{#each items}}
+          <tr><td>{{this.name}}</td></tr>
+          {{/each}}
+        </mj-table>
+        <mj-raw>{{#if urgent}}</mj-raw>
+        <mj-text>URGENT-BRANCH</mj-text>
+        <mj-raw>{{else}}</mj-raw>
+        <mj-text>CALM-BRANCH</mj-text>
+        <mj-raw>{{/if}}</mj-raw>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

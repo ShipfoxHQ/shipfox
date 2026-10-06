@@ -1,0 +1,11 @@
+<mjml>
+  <mj-body>
+    <mj-section>
+      <mj-column>
+        {{#if urgent}}
+        <mj-text>Urgent</mj-text>
+        {{/if}}
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

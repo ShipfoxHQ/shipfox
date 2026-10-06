@@ -8,9 +8,12 @@ sends.
 
 - **`renderEmail(name, data)`**: Renders a template into `{subject, html, text}`. The
   HTML is responsive, branded MJML; the `text` is a hand-written plain-text fallback.
+- **`createEmailRenderer(options)`**: Builds a `renderEmail`-style function for templates
+  owned by another package, with the shared Shipfox chrome. See
+  [Extending the package](#extending-the-package).
 - **`RenderedEmail`**: The `{subject, html, text}` result shape.
 - **`EmailTemplateError`**: Thrown (naming the template) when a `.mjml` file or partial
-  is missing or invalid.
+  is missing or invalid, a shared partial is unknown, or a template name is not registered.
 
 ## Templates
 
@@ -32,6 +35,46 @@ const email = await renderEmail('verify-email', {
 });
 await mailer.send({to: user.email, ...email});
 ```
+
+## Extending the package
+
+A package outside `@shipfox/node-email` can render its own branded emails. It keeps one
+`<name>.mjml` file per template in a directory it owns, and declares each template's
+subject and plain-text body:
+
+```ts
+import {createEmailRenderer} from '@shipfox/node-email';
+
+interface BillingTemplates {
+  'balance-low': {workspaceName: string; billingUrl: string};
+}
+
+const render = createEmailRenderer<BillingTemplates>({
+  templatesDir, // directory holding balance-low.mjml
+  templates: {
+    'balance-low': {
+      subject: '{{workspaceName}} is running low on credits',
+      text: ({workspaceName, billingUrl}) => `${workspaceName} is low on credits.\n${billingUrl}`,
+    },
+  },
+});
+
+const {subject, html, text} = await render('balance-low', data);
+```
+
+- **Shared chrome.** Include the shared partials by package specifier, for example
+  `<mj-include path="@shipfox/node-email/partials/header.mjml" />`. The renderer inlines
+  them before MJML parses the template, because MJML denies includes that leave the
+  template's directory. `partials/head-styles.mjml`, `partials/header.mjml` and
+  `partials/footer.mjml` exist. An unknown partial throws `EmailTemplateError`.
+- **Logo.** `{{logoUrl}}` is injected by the renderer. Do not pass it in `data`.
+- **Block helpers.** Handlebars runs after MJML, so a `{{#if}}` between MJML components is
+  silently dropped and both branches render. Wrap it in `<mj-raw>`, for example
+  `<mj-raw>{{#if x}}</mj-raw>`. The renderer throws `EmailTemplateError` for a bare block
+  helper. `{{#each}}` inside `mj-table` or `mj-text` works as written.
+- **Sanitising.** String values, including those nested in arrays and plain objects, are stripped
+  of control characters before rendering. `{{var}}` HTML-escapes them.
+- **Shipping.** The `templatesDir` must ship in your deployment image.
 
 ## Design notes
 
