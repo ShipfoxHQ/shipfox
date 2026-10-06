@@ -196,10 +196,13 @@ async function requestPageContent(
         method: 'PATCH',
         path: (contentArgs) =>
           `/v1/pages/${encodeURIComponent(normalizeNotionId(stringArgument(contentArgs, 'page_id')))}/markdown`,
-        body: (contentArgs) => ({
-          markdown: contentArgs.markdown,
-          mode: contentArgs.mode,
-        }),
+        body: (contentArgs) =>
+          contentArgs.mode === 'replace'
+            ? {type: 'replace_content', replace_content: {new_str: contentArgs.markdown}}
+            : {
+                type: 'insert_content',
+                insert_content: {content: contentArgs.markdown, position: {type: 'end'}},
+              },
       }),
     };
   } catch (error) {

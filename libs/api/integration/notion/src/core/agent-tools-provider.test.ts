@@ -314,7 +314,10 @@ describe('NotionAgentToolsProvider', () => {
       accessToken: 'notion-token',
       method: 'PATCH',
       path: '/v1/pages/page-1/markdown',
-      body: {markdown: 'More', mode: 'append'},
+      body: {
+        type: 'insert_content',
+        insert_content: {content: 'More', position: {type: 'end'}},
+      },
       operation: 'update_page',
     });
     expect(options.notion.request).toHaveBeenNthCalledWith(4, {
@@ -329,6 +332,34 @@ describe('NotionAgentToolsProvider', () => {
         ],
       },
       operation: 'add_comment',
+    });
+  });
+
+  it('replaces page content with a replace_content request', async () => {
+    const options = providerOptions(async () => ({status: 200, body: {object: 'page_markdown'}}));
+    const provider = new NotionAgentToolsProvider(options);
+    const session = await provider.openSession({
+      connection: notionConnection(),
+      tools: notionAgentToolCatalog,
+      scope: {},
+    });
+
+    const result = await session.call({
+      toolId: 'update_page',
+      arguments: {page_id: 'page-1', markdown: 'New body', mode: 'replace'},
+    });
+
+    expect(options.notion.request).toHaveBeenCalledTimes(1);
+    expect(options.notion.request).toHaveBeenCalledWith({
+      accessToken: 'notion-token',
+      method: 'PATCH',
+      path: '/v1/pages/page-1/markdown',
+      body: {type: 'replace_content', replace_content: {new_str: 'New body'}},
+      operation: 'update_page',
+    });
+    expect(result.structuredContent).toMatchObject({
+      properties_updated: false,
+      content_updated: true,
     });
   });
 

@@ -48,7 +48,10 @@ describe('Notion REST client', () => {
         expect(input.method).toBe('PATCH');
         expect(input.url).toBe('https://api.notion.com/v1/pages/page-1/markdown');
         expect(input.headers.get('Notion-Version')).toBe(NOTION_API_VERSION);
-        expect(await input.clone().json()).toEqual({markdown: '# Body', mode: 'replace'});
+        expect(await input.clone().json()).toEqual({
+          type: 'replace_content',
+          replace_content: {new_str: '# Body'},
+        });
         return response({ok: true}, 200);
       },
     );
@@ -60,7 +63,7 @@ describe('Notion REST client', () => {
         accessToken: 'notion-token',
         method: 'PATCH',
         path: '/v1/pages/page-1/markdown',
-        body: {markdown: '# Body', mode: 'replace'},
+        body: {type: 'replace_content', replace_content: {new_str: '# Body'}},
         operation: 'update_page',
       }),
     ).resolves.toEqual({status: 200, body: {ok: true}});
