@@ -369,8 +369,17 @@ notion:
         with: {page_id: $fixture.notion.page.id}
         expect:
           values: {id: $fixture.notion.page.id, title: $fixture.notion.page.title}
-    # 105 rows, so a query has a second page.
-    data_source: {id: 5b1fefb2-b903-4a0b-a9c5-545f17fcf955, name: Fixture data source}
+    # 105 rows, so a query has a second page. The fake pads the data source to `row_count`.
+    data_source:
+      id: 5b1fefb2-b903-4a0b-a9c5-545f17fcf955
+      name: Fixture data source
+      row_count: 105
+      read:
+        tool: query_data_source
+        with: {data_source_id: $fixture.notion.data_source.id, page_size: 1}
+        expect:
+          shape:
+            results: [{id: string}]
     archived_page: {id: 3f0c6baa-a59e-81b1-8f36-e6e5e19c3f84, title: 'Fixture page: archived'}
     write_parent_page:
       id: 3f0c6baa-a59e-81a7-a48b-f0546bed3e65

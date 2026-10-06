@@ -119,6 +119,83 @@ describe('Notion API mock', () => {
     });
   });
 
+  describe('with a seeded data source', () => {
+    async function arrange() {
+      const mock = await startNotionApiMock({endpoint: new URL('http://127.0.0.1:0')});
+      mock.dataSources.set('source-1', {
+        id: 'source-1',
+        rows: Array.from({length: 5}, (_, index) => ({
+          id: `row-${index + 1}`,
+          title: `Row ${index + 1}`,
+        })),
+      });
+      const query = async (id: string, body: unknown) =>
+        fetch(new URL(`/v1/data_sources/${id}/query`, mock.endpoint), {
+          method: 'POST',
+          headers: {'content-type': 'application/json'},
+          body: JSON.stringify(body),
+        });
+      return {mock, query};
+    }
+
+    it('pages the rows by cursor and ends with no cursor', async () => {
+      const {mock, query} = await arrange();
+
+      try {
+        const first = (await (await query('source-1', {page_size: 3})).json()) as {
+          next_cursor: string;
+        };
+        const second = await (await query('source-1', {start_cursor: first.next_cursor})).json();
+
+        expect(first).toMatchObject({
+          results: [{id: 'row-1'}, {id: 'row-2'}, {id: 'row-3'}],
+          has_more: true,
+          next_cursor: '3',
+          type: 'page_or_data_source',
+          page_or_data_source: {},
+        });
+        expect(second).toMatchObject({
+          results: [{id: 'row-4'}, {id: 'row-5'}],
+          has_more: false,
+          next_cursor: null,
+        });
+        expect(mock.calls.map((call) => call.kind)).toEqual([
+          'query_data_source',
+          'query_data_source',
+        ]);
+        expect(mock.writes()).toEqual([]);
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('answers not found for a data source that was not seeded', async () => {
+      const {mock, query} = await arrange();
+
+      try {
+        const response = await query('absent', {});
+
+        expect(response.status).toBe(404);
+        expect(await response.json()).toMatchObject({code: 'object_not_found'});
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('rejects a cursor it did not issue', async () => {
+      const {mock, query} = await arrange();
+
+      try {
+        const response = await query('source-1', {start_cursor: 'garbage'});
+
+        expect(response.status).toBe(400);
+        expect(await response.json()).toMatchObject({code: 'validation_error'});
+      } finally {
+        await mock.stop();
+      }
+    });
+  });
+
   it('fails fast when the endpoint includes a path prefix', async () => {
     await expect(
       startNotionApiMock({endpoint: new URL('http://127.0.0.1:9000/notion')}),

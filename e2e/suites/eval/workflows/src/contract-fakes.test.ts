@@ -235,6 +235,28 @@ describe('clickupContractFake and notionContractFake', () => {
     expect(comments.has_more).toBe(false);
   });
 
+  it('seeds Notion with a data source of the rows the fixture holds', async () => {
+    const fake = await notionContractFake(context());
+
+    await fake.seed({data_source: {id: 'source-1', name: 'Fixture data source', row_count: 105}});
+
+    const endpoint = started.notion?.endpoint;
+    const query = async (body: unknown) =>
+      (await (
+        await fetch(new URL('/v1/data_sources/source-1/query', endpoint), {
+          method: 'POST',
+          headers: {'content-type': 'application/json'},
+          body: JSON.stringify(body),
+        })
+      ).json()) as {results: unknown[]; has_more: boolean; next_cursor: string | null};
+    const first = await query({page_size: 100});
+    const last = await query({start_cursor: first.next_cursor});
+    expect(first.results).toHaveLength(100);
+    expect(first.has_more).toBe(true);
+    expect(last.results).toHaveLength(5);
+    expect(last).toMatchObject({has_more: false, next_cursor: null});
+  });
+
   it('rejects a page fixture without a title', async () => {
     const fake = await notionContractFake(context());
 

@@ -5,6 +5,7 @@ export const NOTION_PAGE_RESULT_MARKER = 'notion-page-result-marker';
 
 const NOTION_PAGE_PATH_RE = /^\/v1\/pages\/([^/]+)$/;
 const NOTION_PAGE_MARKDOWN_PATH_RE = /^\/v1\/pages\/([^/]+)\/markdown$/;
+const NOTION_DATA_SOURCE_QUERY_PATH_RE = /^\/v1\/data_sources\/([^/]+)\/query$/;
 const NOTION_SEARCH_PATH = '/v1/search';
 const NOTION_COMMENTS_PATH = '/v1/comments';
 const NOTION_PAGE_SIZE = 100;
@@ -20,10 +21,22 @@ export interface NotionPageFixture {
   comments?: readonly {id: string; text: string}[] | undefined;
 }
 
+/** A data source the fake serves. A query returns its rows as pages, in order. */
+export interface NotionDataSourceFixture {
+  id: string;
+  rows: readonly NotionPageFixture[];
+}
+
 export type NotionApiMockCall =
   | {kind: 'get_page'; authorization: string | undefined; pageId: string}
   | {kind: 'get_page_content'; authorization: string | undefined; pageId: string}
   | {kind: 'get_comments'; authorization: string | undefined; blockId: string}
+  | {
+      kind: 'query_data_source';
+      authorization: string | undefined;
+      dataSourceId: string;
+      body: {page_size?: number; start_cursor?: string};
+    }
   | {
       kind: 'search';
       authorization: string | undefined;
@@ -34,6 +47,8 @@ export interface NotionApiMock {
   calls: NotionApiMockCall[];
   /** The pages the fake serves, by ID. Add to it to seed the fake after it started. */
   pages: Map<string, NotionPageFixture>;
+  /** The data sources the fake serves, by ID. A data source that was not seeded answers not found. */
+  dataSources: Map<string, NotionDataSourceFixture>;
   endpoint: URL;
   /** Writes the fake accepted. The fake serves reads only, so this stays empty. */
   writes(): RecordedWrite[];
@@ -57,11 +72,13 @@ export async function startNotionApiMock(
   validateEndpoint(configuredEndpoint);
   const calls: NotionApiMockCall[] = [];
   const pages = new Map<string, NotionPageFixture>();
+  const dataSources = new Map<string, NotionDataSourceFixture>();
   let boundEndpoint = configuredEndpoint;
   const server = createServer((request, response) => {
     void handleNotionRequest({
       calls,
       pages,
+      dataSources,
       endpoint: boundEndpoint,
       request,
       response,
@@ -93,6 +110,7 @@ export async function startNotionApiMock(
   return {
     calls,
     pages,
+    dataSources,
     endpoint: boundEndpoint,
     writes: () => [],
     stop: async () => {
@@ -105,24 +123,34 @@ export async function startNotionApiMock(
   };
 }
 
+/** The method the fake serves at `path`, or undefined for a path it does not serve. */
+function notionMethod(path: string): 'GET' | 'POST' | undefined {
+  if (path === NOTION_SEARCH_PATH || NOTION_DATA_SOURCE_QUERY_PATH_RE.test(path)) return 'POST';
+  const serveGet =
+    NOTION_PAGE_PATH_RE.test(path) ||
+    NOTION_PAGE_MARKDOWN_PATH_RE.test(path) ||
+    path === NOTION_COMMENTS_PATH;
+  return serveGet ? 'GET' : undefined;
+}
+
 async function handleNotionRequest(params: {
   calls: NotionApiMockCall[];
   pages: ReadonlyMap<string, NotionPageFixture>;
+  dataSources: ReadonlyMap<string, NotionDataSourceFixture>;
   endpoint: URL;
   request: IncomingMessage;
   response: ServerResponse;
 }): Promise<void> {
-  const {calls, pages, request, response} = params;
+  const {calls, pages, dataSources, request, response} = params;
   const requestUrl = new URL(request.url ?? '/', params.endpoint);
   const authorization = request.headers.authorization;
   const path = requestUrl.pathname;
 
   const pageMatch = path.match(NOTION_PAGE_PATH_RE);
   const markdownMatch = path.match(NOTION_PAGE_MARKDOWN_PATH_RE);
-  const expectedMethod = path === NOTION_SEARCH_PATH ? 'POST' : 'GET';
-  if (
-    !(pageMatch || markdownMatch || path === NOTION_SEARCH_PATH || path === NOTION_COMMENTS_PATH)
-  ) {
+  const queryMatch = path.match(NOTION_DATA_SOURCE_QUERY_PATH_RE);
+  const expectedMethod = notionMethod(path);
+  if (expectedMethod === undefined) {
     sendJson(response, 404, {code: 'E2E_NOT_FOUND', message: 'Unknown Notion endpoint'});
     return;
   }
@@ -133,6 +161,16 @@ async function handleNotionRequest(params: {
 
   if (path === NOTION_SEARCH_PATH) {
     return search({calls, pages, response, authorization, body: await readJsonBody(request)});
+  }
+  if (queryMatch) {
+    return queryDataSource({
+      calls,
+      dataSources,
+      response,
+      authorization,
+      dataSourceId: decodeURIComponent(queryMatch[1] ?? ''),
+      body: await readJsonBody(request),
+    });
   }
   if (path === NOTION_COMMENTS_PATH) {
     return getComments({
@@ -231,6 +269,68 @@ function search({
     next_cursor: null,
     has_more: false,
     type: 'page_or_data_source',
+  });
+}
+
+/** The cursor is the offset of the next row, which is all a client needs to hold. */
+function queryDataSource({
+  calls,
+  dataSources,
+  response,
+  authorization,
+  dataSourceId,
+  body,
+}: {
+  calls: NotionApiMockCall[];
+  dataSources: ReadonlyMap<string, NotionDataSourceFixture>;
+  response: ServerResponse;
+  authorization: string | undefined;
+  dataSourceId: string;
+  body: unknown;
+}): void {
+  const request = isJsonObject(body) ? body : {};
+  const pageSize =
+    typeof request.page_size === 'number'
+      ? Math.min(request.page_size, NOTION_PAGE_SIZE)
+      : NOTION_PAGE_SIZE;
+  const startCursor = typeof request.start_cursor === 'string' ? request.start_cursor : undefined;
+  calls.push({
+    kind: 'query_data_source',
+    authorization,
+    dataSourceId,
+    body: {
+      ...(typeof request.page_size === 'number' ? {page_size: request.page_size} : {}),
+      ...(startCursor === undefined ? {} : {start_cursor: startCursor}),
+    },
+  });
+  const dataSource = dataSources.get(dataSourceId);
+  if (dataSource === undefined) {
+    sendJson(response, 404, {
+      object: 'error',
+      status: 404,
+      code: 'object_not_found',
+      message: `Could not find data source with ID: ${dataSourceId}.`,
+    });
+    return;
+  }
+  const offset = startCursor === undefined ? 0 : Number(startCursor);
+  if (!Number.isInteger(offset) || offset < 0) {
+    sendJson(response, 400, {
+      object: 'error',
+      status: 400,
+      code: 'validation_error',
+      message: 'start_cursor provided is invalid.',
+    });
+    return;
+  }
+  const end = offset + pageSize;
+  sendJson(response, 200, {
+    object: 'list',
+    results: dataSource.rows.slice(offset, end).map(pageBody),
+    next_cursor: end < dataSource.rows.length ? String(end) : null,
+    has_more: end < dataSource.rows.length,
+    type: 'page_or_data_source',
+    page_or_data_source: {},
   });
 }
 
