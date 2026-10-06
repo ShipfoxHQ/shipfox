@@ -1,3 +1,4 @@
+import {slugSchema} from '@shipfox/api-common-dto';
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
 import {z} from 'zod';
 import {workspaceRoleSchema} from '#schemas/membership.js';
@@ -7,6 +8,7 @@ const idSchema = z.string().uuid();
 const workspaceSummaryInterModuleSchema = z.object({
   id: idSchema,
   name: z.string(),
+  slug: slugSchema,
 });
 
 export const workspacesInterModuleContract = defineInterModuleContract({
@@ -18,6 +20,7 @@ export const workspacesInterModuleContract = defineInterModuleContract({
         memberships: z.array(
           z.object({
             workspaceId: idSchema,
+            workspaceSlug: slugSchema,
             role: workspaceRoleSchema,
             workspaceStatus: workspaceStatusSchema.default('active'),
           }),
@@ -79,6 +82,7 @@ export const workspacesInterModuleContract = defineInterModuleContract({
         memberships: z.array(
           z.object({
             workspaceId: idSchema,
+            workspaceSlug: slugSchema.optional(),
             role: workspaceRoleSchema,
             workspaceStatus: workspaceStatusSchema.default('active'),
           }),

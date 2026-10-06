@@ -26,6 +26,7 @@ function workspaceClient(params: {
       : [
           {
             workspaceId: params.workspaceId,
+            workspaceSlug: 'acme',
             role: 'admin' as const,
             workspaceStatus: params.status ?? 'active',
           },

@@ -165,7 +165,7 @@ export async function getWorkspaceOperatingState(params: {
 
 export async function getWorkspaceSummary(params: {
   workspaceId: string;
-}): Promise<{id: string; name: string} | undefined> {
+}): Promise<{id: string; name: string; slug: string} | undefined> {
   return await getWorkspaceSummaryById(params.workspaceId);
 }
 
