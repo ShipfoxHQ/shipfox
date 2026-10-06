@@ -1650,6 +1650,39 @@ describe('recordStepResult', () => {
     expect(attempt?.output).toEqual({count: 42, ready: true, payload: {name: 'build'}});
   });
 
+  test('keeps JSON-looking strings from a tool step as strings', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const stepId = steps[0]?.id as string;
+    await db()
+      .update(stepsTable)
+      .set({
+        type: 'tool',
+        config: {
+          tool: {
+            connection_id: 'connection-1',
+            id: 'read_thread',
+            input_schema: {type: 'object', additionalProperties: false},
+            with: {},
+          },
+          outputs: {ts: {type: 'json'}},
+        },
+        configPlan: null,
+      })
+      .where(eq(stepsTable.id, stepId));
+    await nextStepForJob(jobId);
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId,
+      status: 'succeeded',
+      output: {ts: '1791226001.009789'},
+    });
+
+    expect(outcome).toEqual({jobFinished: true, status: 'succeeded'});
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt?.output).toEqual({ts: '1791226001.009789'});
+  });
+
   it.each([
     ['missing declared key', {}, 'outputs.count'],
     ['undeclared emitted key', {count: '1', extra: 'nope'}, 'outputs.extra'],

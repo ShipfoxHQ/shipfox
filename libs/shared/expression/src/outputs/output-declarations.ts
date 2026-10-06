@@ -121,10 +121,21 @@ export function validateJsonSchema(schema: unknown): JsonSchemaValidationResult 
   };
 }
 
-export function coerceStepOutputs(params: {
-  readonly declarations: OutputDeclarations;
-  readonly output: Record<string, unknown> | null | undefined;
-}): CoerceStepOutputsResult {
+export interface CoerceStepOutputOptions {
+  /**
+   * Parse string values of `json` outputs as JSON text. Runner steps report every
+   * output as text, so this defaults to true. Pass false when the reporter already
+   * produced typed values, or a string like "1791226001.009789" becomes a number.
+   */
+  readonly parseJsonText?: boolean;
+}
+
+export function coerceStepOutputs(
+  params: {
+    readonly declarations: OutputDeclarations;
+    readonly output: Record<string, unknown> | null | undefined;
+  } & CoerceStepOutputOptions,
+): CoerceStepOutputsResult {
   const output = params.output ?? {};
 
   const missing = missingRequiredOutputError(params.declarations, output);
@@ -146,7 +157,7 @@ export function coerceStepOutputs(params: {
   for (const [key, declaration] of Object.entries(params.declarations)) {
     if (!Object.hasOwn(output, key)) continue;
     const value = output[key];
-    const result = coerceStepOutputValue(key, declaration, value);
+    const result = coerceStepOutputValue(key, declaration, value, params.parseJsonText ?? true);
     if (!result.ok) return result;
     coerced[key] = result.value;
   }
@@ -156,14 +167,21 @@ export function coerceStepOutputs(params: {
 
 // A failed step keeps the outputs it set before failing. Type what matches its
 // declaration and drop the rest, so no output error masks the step's own failure.
-export function coerceKeptStepOutputs(params: {
-  readonly declarations: OutputDeclarations;
-  readonly output: Record<string, unknown>;
-}): Record<string, unknown> {
+export function coerceKeptStepOutputs(
+  params: {
+    readonly declarations: OutputDeclarations;
+    readonly output: Record<string, unknown>;
+  } & CoerceStepOutputOptions,
+): Record<string, unknown> {
   const coerced: Record<string, unknown> = {};
   for (const [key, declaration] of Object.entries(params.declarations)) {
     if (!Object.hasOwn(params.output, key)) continue;
-    const result = coerceStepOutputValue(key, declaration, params.output[key]);
+    const result = coerceStepOutputValue(
+      key,
+      declaration,
+      params.output[key],
+      params.parseJsonText ?? true,
+    );
     if (result.ok) coerced[key] = result.value;
   }
   return coerced;
@@ -193,6 +211,7 @@ function coerceStepOutputValue(
   key: string,
   declaration: OutputTypeDeclaration,
   value: unknown,
+  parseJsonText: boolean,
 ): CoerceStepOutputValueResult {
   switch (declaration.type) {
     case 'string':
@@ -202,7 +221,7 @@ function coerceStepOutputValue(
     case 'boolean':
       return coerceBooleanOutput(key, value);
     case 'json':
-      return coerceJsonOutput(key, declaration, value);
+      return coerceJsonOutput(key, declaration, value, parseJsonText);
   }
 }
 
@@ -236,8 +255,9 @@ function coerceJsonOutput(
   key: string,
   declaration: OutputTypeDeclaration,
   value: unknown,
+  parseJsonText: boolean,
 ): CoerceStepOutputValueResult {
-  const parsed = parseJsonOutputValue(key, value);
+  const parsed = parseJsonText ? parseJsonOutputValue(key, value) : {ok: true as const, value};
   if (!parsed.ok) return parsed;
 
   if (declaration.schema === undefined) return {ok: true, value: parsed.value};
