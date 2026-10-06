@@ -42,7 +42,8 @@ vi.mock('ky', () => {
   };
 });
 
-function rejectedRequest(status: number, body?: {error: string}): () => Promise<never> {
+// Mirrors ky: the body is consumed into `error.data`, so a second body read on `response` throws.
+function rejectedRequest(status: number, body?: object): () => Promise<never> {
   return async () => {
     const response = new Response(body ? JSON.stringify(body) : null, {
       status,
@@ -459,12 +460,8 @@ describe('Jira agent-tools REST API', () => {
   });
 
   it('preserves Jira validation details from HTTP 400 responses', async () => {
-    mocks.request.mockRejectedValue(
-      new HTTPError(
-        new Response(JSON.stringify({errorMessages: ['The JQL query is invalid']}), {status: 400}),
-        new Request('https://jira.example.test'),
-        {} as never,
-      ),
+    mocks.request.mockImplementation(
+      rejectedRequest(400, {errorMessages: ['The JQL query is invalid']}),
     );
     const {createJiraAgentToolsClient} = await import('./client.js');
 
@@ -481,6 +478,41 @@ describe('Jira agent-tools REST API', () => {
       status: 400,
       body: {errorMessages: ['The JQL query is invalid']},
     });
+  });
+
+  it('returns the Jira body from HTTP 404 responses', async () => {
+    mocks.request.mockImplementation(
+      rejectedRequest(404, {errorMessages: ['Issue does not exist or you do not have permission']}),
+    );
+    const {createJiraAgentToolsClient} = await import('./client.js');
+
+    await expect(
+      createJiraAgentToolsClient().request({
+        accessToken: 'access-token',
+        cloudId: 'cloud-1',
+        method: 'GET',
+        path: '/issue/ENG-404',
+        operation: 'get_issue',
+      }),
+    ).resolves.toEqual({
+      status: 404,
+      body: {errorMessages: ['Issue does not exist or you do not have permission']},
+    });
+  });
+
+  it('returns an undefined body for an empty HTTP 404 response', async () => {
+    mocks.request.mockImplementation(rejectedRequest(404));
+    const {createJiraAgentToolsClient} = await import('./client.js');
+
+    await expect(
+      createJiraAgentToolsClient().request({
+        accessToken: 'access-token',
+        cloudId: 'cloud-1',
+        method: 'GET',
+        path: '/issue/ENG-404',
+        operation: 'get_issue',
+      }),
+    ).resolves.toEqual({status: 404, body: undefined});
   });
 
   it('maps HTTP 401 responses to an access-denied provider error', async () => {
