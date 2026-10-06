@@ -1,0 +1,66 @@
+provider: clickup
+kind: round-trip
+modes: [real]
+steps:
+  - key: create
+    tool: create_task
+    with:
+      list_id: $fixture.clickup.write_list.id
+      name: Contract $marker
+      markdown_content: Created by a contract.
+    expect:
+      shape:
+        id: string
+        name: string
+    # The marker is in the name, so a pattern checks it. The task is this run's, so the values below
+    # can't come from an earlier run.
+    effect:
+      tool: get_task
+      with:
+        task_id: $steps.create.id
+      expect:
+        values:
+          list.id: $fixture.clickup.write_list.id
+          markdown_description: Created by a contract.
+        matches:
+          name: '^Contract contract-[0-9a-f-]+$'
+  - key: update
+    tool: update_task
+    with:
+      task_id: $steps.create.id
+      name: Contract task updated
+      markdown_content: Updated by a contract.
+    effect:
+      tool: get_task
+      with:
+        task_id: $steps.create.id
+      expect:
+        values:
+          name: Contract task updated
+          markdown_description: Updated by a contract.
+  - key: comment
+    tool: add_comment
+    with:
+      task_id: $steps.create.id
+      body: Contract comment
+    effect:
+      tool: get_task_comments
+      with:
+        task_id: $steps.create.id
+      expect:
+        includes:
+          comments: {comment_text: Contract comment}
+  # The sandbox has no delete tool, so the task ends closed.
+  - key: close
+    tool: update_task
+    with:
+      task_id: $steps.create.id
+      status: complete
+    effect:
+      tool: get_task
+      with:
+        task_id: $steps.create.id
+      expect:
+        values:
+          status.status: complete
+          status.type: closed

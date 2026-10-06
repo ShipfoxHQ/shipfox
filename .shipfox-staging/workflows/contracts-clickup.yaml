@@ -120,3 +120,78 @@ jobs:
           page: -1
         gate:
           success: step.status == "failed" && step.error.code == "provider-unavailable"
+  task_round_trip:
+    checkout: false
+    steps:
+      - key: create
+        tool: create_task
+        connection: clickup_shipfox
+        with:
+          list_id: "901222980415"
+          name: Contract contract-${{ run.id }}
+          markdown_content: Created by a contract.
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_name: ${{ has(result.name) && type(result.name) == type("") }}
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name
+      - key: create_effect
+        tool: get_task
+        connection: clickup_shipfox
+        with:
+          task_id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_list_id: '${{ has(result.list) && has(result.list.id) && type(result.list.id) == type("") ? string(result.list.id) : "" }}'
+          value_markdown_description: '${{ has(result.markdown_description) ? result.markdown_description : "" }}'
+          matches_name: ${{ has(result.name) && type(result.name) == type("") && result.name.matches("^Contract contract-[0-9a-f-]+$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_list_id) == type("") && step.outputs.value_list_id == "901222980415" && type(step.outputs.value_markdown_description) == type("") && step.outputs.value_markdown_description == "Created by a contract." && step.outputs.matches_name
+      - key: update
+        tool: update_task
+        connection: clickup_shipfox
+        with:
+          task_id: ${{ steps.create.outputs.ref_id }}
+          name: Contract task updated
+          markdown_content: Updated by a contract.
+      - key: update_effect
+        tool: get_task
+        connection: clickup_shipfox
+        with:
+          task_id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+          value_markdown_description: '${{ has(result.markdown_description) ? result.markdown_description : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Contract task updated" && type(step.outputs.value_markdown_description) == type("") && step.outputs.value_markdown_description == "Updated by a contract."
+      - key: comment
+        tool: add_comment
+        connection: clickup_shipfox
+        with:
+          task_id: ${{ steps.create.outputs.ref_id }}
+          body: Contract comment
+      - key: comment_effect
+        tool: get_task_comments
+        connection: clickup_shipfox
+        with:
+          task_id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          includes_comments: ${{ has(result.comments) && type(result.comments) == type([]) && result.comments.exists(item, has(item.comment_text) && type(item.comment_text) == type("") && item.comment_text == "Contract comment") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_comments
+      - key: close
+        tool: update_task
+        connection: clickup_shipfox
+        with:
+          task_id: ${{ steps.create.outputs.ref_id }}
+          status: complete
+      - key: close_effect
+        tool: get_task
+        connection: clickup_shipfox
+        with:
+          task_id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_status_status: '${{ has(result.status) && has(result.status.status) ? result.status.status : "" }}'
+          value_status_type: '${{ has(result.status) && has(result.status.type) ? result.status.type : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_status_status) == type("") && step.outputs.value_status_status == "complete" && type(step.outputs.value_status_type) == type("") && step.outputs.value_status_type == "closed"

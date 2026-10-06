@@ -1,8 +1,5 @@
-ceiling: 124
+ceiling: 118
 entries:
-  - {tool: clickup.add_comment, kind: write, issue: ENG-2815}
-  - {tool: clickup.create_task, kind: write, issue: ENG-2815}
-  - {tool: clickup.update_task, kind: write, issue: ENG-2815}
   - {tool: discord.add_reaction, kind: write, issue: ENG-2827}
   - {tool: discord.create_thread, kind: write, issue: ENG-2827}
   - {tool: discord.send_message, kind: write, issue: ENG-2827}
@@ -98,10 +95,7 @@ entries:
   - {tool: linear.save_release, kind: write, issue: ENG-2830}
   - {tool: linear.save_release_note, kind: write, issue: ENG-2830}
   - {tool: linear.save_status_update, kind: write, issue: ENG-2830}
-  - {tool: notion.add_comment, kind: write, issue: ENG-2815}
-  - {tool: notion.create_page, kind: write, issue: ENG-2815}
   - {tool: notion.query_data_source, kind: read, issue: ENG-2822}
-  - {tool: notion.update_page, kind: write, issue: ENG-2815}
   - {tool: posthog.dashboard-get, kind: read, issue: ENG-2813}
   - {tool: posthog.dashboard-insights-run, kind: read, issue: ENG-2813}
   - {tool: posthog.dashboards-get-all, kind: read, issue: ENG-2813}

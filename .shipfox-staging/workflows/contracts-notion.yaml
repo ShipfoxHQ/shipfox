@@ -93,6 +93,102 @@ jobs:
           page_id: 00000000-0000-4000-8000-000000000000
         gate:
           success: step.status == "failed" && step.error.code == "access-denied"
+  page_round_trip:
+    checkout: false
+    steps:
+      - key: create
+        tool: create_page
+        connection: notion_shipfox
+        with:
+          parent:
+            page_id: 3f0c6baa-a59e-81a7-a48b-f0546bed3e65
+          properties:
+            title:
+              title:
+                - text:
+                    content: Contract contract-${{ run.id }}
+          markdown: Created by a contract.
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_url: ${{ has(result.url) && type(result.url) == type("") }}
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_url
+      - key: create_effect
+        tool: get_page
+        connection: notion_shipfox
+        with:
+          page_id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_parent_page_id: '${{ has(result.parent) && has(result.parent.page_id) ? result.parent.page_id : "" }}'
+          matches_title: ${{ has(result.title) && type(result.title) == type("") && result.title.matches("^Contract contract-[0-9a-f-]+$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_parent_page_id) == type("") && step.outputs.value_parent_page_id == "3f0c6baa-a59e-81a7-a48b-f0546bed3e65" && step.outputs.matches_title
+      - key: rename
+        tool: update_page
+        connection: notion_shipfox
+        with:
+          page_id: ${{ steps.create.outputs.ref_id }}
+          properties:
+            title:
+              title:
+                - text:
+                    content: Contract page updated
+        outputs:
+          value_properties_updated: '${{ has(result.properties_updated) ? result.properties_updated : "" }}'
+          value_content_updated: '${{ has(result.content_updated) ? result.content_updated : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_properties_updated) == type(true) && step.outputs.value_properties_updated == true && type(step.outputs.value_content_updated) == type(true) && step.outputs.value_content_updated == false
+      - key: rename_effect
+        tool: get_page
+        connection: notion_shipfox
+        with:
+          page_id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_title: '${{ has(result.title) ? result.title : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Contract page updated"
+      - key: rewrite
+        tool: update_page
+        connection: notion_shipfox
+        with:
+          page_id: ${{ steps.create.outputs.ref_id }}
+          markdown: Updated by a contract.
+          mode: replace
+        outputs:
+          value_properties_updated: '${{ has(result.properties_updated) ? result.properties_updated : "" }}'
+          value_content_updated: '${{ has(result.content_updated) ? result.content_updated : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_properties_updated) == type(true) && step.outputs.value_properties_updated == false && type(step.outputs.value_content_updated) == type(true) && step.outputs.value_content_updated == true
+      - key: rewrite_effect
+        tool: get_page_content
+        connection: notion_shipfox
+        with:
+          page_id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_truncated: '${{ has(result.truncated) ? result.truncated : "" }}'
+          matches_markdown: ${{ has(result.markdown) && type(result.markdown) == type("") && result.markdown.matches("Updated by a contract\\.") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_truncated) == type(true) && step.outputs.value_truncated == false && step.outputs.matches_markdown
+      - key: comment
+        tool: add_comment
+        connection: notion_shipfox
+        with:
+          page_id: ${{ steps.create.outputs.ref_id }}
+          text: Contract comment
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id
+      - key: comment_effect
+        tool: get_comments
+        connection: notion_shipfox
+        with:
+          block_id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          includes_results: ${{ has(result.results) && type(result.results) == type([]) && result.results.exists(item, has(item.rich_text) && type(item.rich_text) == type([]) && size(item.rich_text) > 0 && [item.rich_text[0]].all(i0, has(i0.plain_text) && type(i0.plain_text) == type("") && i0.plain_text == "Contract comment")) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_results
   search:
     checkout: false
     steps:
