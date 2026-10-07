@@ -3,14 +3,16 @@ import {
   MAX_RESOLVED_STEP_CONFIG_BYTES,
   RUNNER_NEXT_STEP_RESPONSE_BUDGET_BYTES,
 } from '@shipfox/api-workflows-dto';
+import {createWorkflowExpression} from '@shipfox/expression';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {eq} from 'drizzle-orm';
+import type {Step} from '#core/entities/step.js';
 import {JobNotFoundError} from '#core/errors.js';
 import {
   nextStepForJob,
   recordStepResult as recordJobExecutionStepResult,
 } from '#core/job-execution.js';
-import {db} from '#db/db.js';
+import {db, withTransaction} from '#db/db.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
 import {
   getFirstJobExecutionByJobId,
@@ -18,6 +20,7 @@ import {
   getStepsByJobId,
   getToolInvocationsByJobExecutionId,
   getWorkflowRunByAttemptId,
+  insertRunningStepAttempt,
 } from '#db/workflow-runs.js';
 import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
 import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
@@ -558,5 +561,176 @@ describe('POST /runs/jobs/current/steps/next', () => {
     const scopedLease = getLeaseTokenClaims(body.lease_token);
     expect(scopedLease?.currentStepId).toBe(steps[0]?.id);
     expect(scopedLease?.currentStepAttempt).toBe(body.attempt);
+  });
+
+  describe('env_sources', () => {
+    async function pull(token: string) {
+      const res = await app.inject({
+        method: 'POST',
+        url: URL,
+        headers: {authorization: `Bearer ${token}`},
+      });
+      expect(res.statusCode).toBe(200);
+      return res.json();
+    }
+
+    async function pullAndSucceed(token: string, jobId: string, step: Step) {
+      await pull(token);
+      await recordStepResult({jobId, stepId: step.id, status: 'succeeded', exitCode: 0});
+    }
+
+    function skipWhen(step: Step, source: string) {
+      return db()
+        .update(stepsTable)
+        .set({condition: createWorkflowExpression({source, check: {mode: 'syntax'}})})
+        .where(eq(stepsTable.id, step.id));
+    }
+
+    // `lead` is never rewound. `reviewer` fails its gate and restarts from `producer`.
+    async function arrangeRestartingJob() {
+      const {jobId, steps} = await arrangeJobWithSteps(3);
+      const [lead, producer, reviewer] = steps as [Step, Step, Step];
+      await db()
+        .update(stepsTable)
+        .set({
+          config: {
+            run: 'review',
+            gate: {
+              success: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
+              on_failure: {restart_from: 'producer'},
+            },
+          },
+        })
+        .where(eq(stepsTable.id, reviewer.id));
+      await db().update(stepsTable).set({key: 'producer'}).where(eq(stepsTable.id, producer.id));
+      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      await pullAndSucceed(token, jobId, lead);
+      await pullAndSucceed(token, jobId, producer);
+      await pull(token);
+      await recordStepResult({
+        jobId,
+        stepId: reviewer.id,
+        status: 'failed',
+        error: {message: 'exit 1'},
+        exitCode: 1,
+      });
+      return {jobId, token, lead, producer, reviewer};
+    }
+
+    test('is empty for the first step of a job', async () => {
+      const {jobId} = await arrangeJobWithSteps(2);
+      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+
+      expect((await pull(token)).env_sources).toEqual([]);
+    });
+
+    test('lists the earlier executed steps in position order', async () => {
+      const {jobId, steps} = await arrangeJobWithSteps(3);
+      const [first, second] = steps as [Step, Step, Step];
+      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      await pullAndSucceed(token, jobId, first);
+      await pullAndSucceed(token, jobId, second);
+
+      expect((await pull(token)).env_sources).toEqual([
+        {position: first.position, attempt: 1},
+        {position: second.position, attempt: 1},
+      ]);
+    });
+
+    test('lists the same sources when the running step is re-delivered', async () => {
+      const {jobId, steps} = await arrangeJobWithSteps(2);
+      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      await pullAndSucceed(token, jobId, steps[0] as Step);
+
+      const first = await pull(token);
+      const second = await pull(token);
+
+      expect(second.step.id).toBe(first.step.id);
+      expect(second.env_sources).toEqual([{position: steps[0]?.position, attempt: 1}]);
+      expect(second.env_sources).toEqual(first.env_sources);
+    });
+
+    test('never lists a skipped step', async () => {
+      const {jobId, steps} = await arrangeJobWithSteps(3);
+      const [first, skipped, last] = steps as [Step, Step, Step];
+      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      await pullAndSucceed(token, jobId, first);
+      await skipWhen(skipped, 'false');
+
+      const body = await pull(token);
+
+      expect(body.step.id).toBe(last.id);
+      expect(body.env_sources).toEqual([{position: first.position, attempt: 1}]);
+    });
+
+    test('never lists a tool step', async () => {
+      const {jobId, steps} = await arrangeJobWithSteps(3);
+      const [first, tool, last] = steps as [Step, Step, Step];
+      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      await pullAndSucceed(token, jobId, first);
+      // A server-run step settles with an attempt row, like an executed step.
+      await db().update(stepsTable).set({type: 'tool'}).where(eq(stepsTable.id, tool.id));
+      await withTransaction((tx) =>
+        insertRunningStepAttempt(
+          {jobExecutionId: tool.jobExecutionId, stepId: tool.id, attempt: 1},
+          tx,
+        ),
+      );
+      await db().update(stepsTable).set({status: 'succeeded'}).where(eq(stepsTable.id, tool.id));
+
+      const body = await pull(token);
+
+      expect(body.step.id).toBe(last.id);
+      expect(body.env_sources).toEqual([{position: first.position, attempt: 1}]);
+    });
+
+    test('never lists a pending step', async () => {
+      const {jobId, steps} = await arrangeJobWithSteps(3);
+      const [first, pending, last] = steps as [Step, Step, Step];
+      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      await pullAndSucceed(token, jobId, first);
+      await db().update(stepsTable).set({status: 'pending'}).where(eq(stepsTable.id, pending.id));
+      // Dispatch the step behind the pending one, as if the runner were ahead of the server.
+      await db().update(stepsTable).set({status: 'running'}).where(eq(stepsTable.id, last.id));
+
+      const body = await pull(token);
+
+      expect(body.step.id).toBe(last.id);
+      expect(body.env_sources).toEqual([{position: first.position, attempt: 1}]);
+    });
+
+    test('lists a restart target that runs again at its new attempt only', async () => {
+      const {jobId, token, lead, producer, reviewer} = await arrangeRestartingJob();
+
+      // The rewound producer is dispatched again: only `lead` still applies.
+      const rerun = await pull(token);
+      expect(rerun.step.id).toBe(producer.id);
+      expect(rerun.attempt).toBe(2);
+      expect(rerun.env_sources).toEqual([{position: lead.position, attempt: 1}]);
+
+      await recordStepResult({jobId, stepId: producer.id, status: 'succeeded', exitCode: 0});
+
+      const next = await pull(token);
+      expect(next.step.id).toBe(reviewer.id);
+      expect(next.env_sources).toEqual([
+        {position: lead.position, attempt: 1},
+        {position: producer.position, attempt: 2},
+      ]);
+    });
+
+    test('omits a restart target that the rerun skips', async () => {
+      const {jobId, token, lead, producer, reviewer} = await arrangeRestartingJob();
+      await skipWhen(producer, 'false');
+
+      const body = await pull(token);
+
+      expect(body.step.id).toBe(reviewer.id);
+      expect(body.env_sources).toEqual([{position: lead.position, attempt: 1}]);
+      expect((await getStepsByJobId(jobId)).map((step) => step.status)).toEqual([
+        'succeeded',
+        'skipped',
+        'running',
+      ]);
+    });
   });
 });

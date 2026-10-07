@@ -29,6 +29,17 @@ const stepLogPathSchema = z
     `log_path must be at most ${STEP_LOG_PATH_MAX_BYTES} bytes`,
   );
 
+export const stepEnvSourceSchema = z.object({
+  position: z.number().int().nonnegative().describe('Position of an earlier step in the job.'),
+  attempt: z
+    .number()
+    .int()
+    .positive()
+    .describe('Attempt of that step that the runner executed and that still applies.'),
+});
+
+export type StepEnvSourceDto = z.infer<typeof stepEnvSourceSchema>;
+
 /**
  * The job to progress is identified by the caller's lease-token claims, never by
  * the request. An unknown job is a 404, not a `done`.
@@ -49,6 +60,12 @@ export const nextStepResponseSchema = z.discriminatedUnion('kind', [
       .min(1)
       .describe(
         'Job-lease token re-scoped to this dispatched step attempt. The runner presents it as its lease for log-append authorization and carries it on later step requests.',
+      ),
+    env_sources: z
+      .array(stepEnvSourceSchema)
+      .optional()
+      .describe(
+        'Earlier steps, in position order, whose current attempt the runner executed. The runner applies the environment those attempts carried and drops the rest. Present on run, action and agent steps; skipped, pending, rewound and server-run steps are never listed.',
       ),
   }),
   z.object({

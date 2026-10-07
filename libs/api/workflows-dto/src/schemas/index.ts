@@ -44,6 +44,8 @@ export {
   reportStepResponseSchema,
   STEP_LOG_PATH_MAX_BYTES,
   STEP_RESPONSE_MAX_LENGTH,
+  type StepEnvSourceDto,
+  stepEnvSourceSchema,
 } from './job-execution.js';
 export {
   type JobListeningDto,

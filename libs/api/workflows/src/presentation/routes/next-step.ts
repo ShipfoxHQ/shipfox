@@ -7,13 +7,16 @@ import {
   type NextStepResponseDto,
   nextStepResponseSchema,
   RUNNER_NEXT_STEP_RESPONSE_BUDGET_BYTES,
+  type StepEnvSourceDto,
 } from '@shipfox/api-workflows-dto';
 import {captureException} from '@shipfox/node-error-monitoring';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import {warnAgentToolCapabilityMismatchOnDispatch} from '#core/agent-tool-capability-warning.js';
+import type {Step} from '#core/entities/step.js';
 import {JobNotFoundError} from '#core/errors.js';
 import {nextStepForLeasedJobExecution} from '#core/job-execution.js';
+import {listStepEnvSources} from '#db/workflow-runs.js';
 import {
   recordWorkflowNextStepResponseOverflow,
   recordWorkflowNextStepResponseSize,
@@ -40,6 +43,16 @@ function shouldReportNextStepOverflow(key: string): boolean {
 function nextStepOverflowKey(jobExecutionId: string, response: NextStepRouteResponse): string {
   if (response.kind !== 'step') return `${jobExecutionId}:${response.kind}`;
   return `${jobExecutionId}:${response.step.id}:${response.attempt}`;
+}
+
+const ENV_SOURCE_STEP_TYPES: readonly Step['type'][] = ['run', 'action', 'agent'];
+
+// The server skips steps before dispatch and rewinds them on a gate restart, so
+// only it knows which earlier attempts the runner executed and still count.
+// Read on every delivery, so a re-delivered step gets the same list.
+function envSourcesForStep(step: Step): Promise<StepEnvSourceDto[] | undefined> {
+  if (!ENV_SOURCE_STEP_TYPES.includes(step.type)) return Promise.resolve(undefined);
+  return listStepEnvSources({jobExecutionId: step.jobExecutionId, beforePosition: step.position});
 }
 
 type LeasedJobContext = ReturnType<typeof requireLeasedJobContext>;
@@ -75,6 +88,7 @@ async function buildNextStepResponse(params: {
         step: params.next.step,
       });
     }
+    const envSources = await envSourcesForStep(params.next.step);
     // The runner echoes this back on report so a stale report from a superseded
     // attempt is ignored.
     return {
@@ -82,6 +96,7 @@ async function buildNextStepResponse(params: {
       step: toStepDto(params.next.step),
       attempt: params.next.step.currentAttempt,
       lease_token: leaseToken,
+      ...(envSources === undefined ? {} : {env_sources: envSources}),
     };
   }
 

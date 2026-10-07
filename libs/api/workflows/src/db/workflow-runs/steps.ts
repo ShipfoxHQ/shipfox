@@ -2,13 +2,14 @@ import {readPersistedWorkflowModel, type WorkflowModel} from '@shipfox/api-defin
 import {
   type LogOutcomeDto,
   type StepAttemptTerminalCauseDto,
+  type StepEnvSourceDto,
   WORKFLOW_DIAGNOSTIC_ERROR_MAX_BYTES,
   WORKFLOW_DIAGNOSTIC_EVALUATION_TRACE_MAX_BYTES,
   WORKFLOW_STEP_CONFIG_INLINE_MAX_BYTES,
 } from '@shipfox/api-workflows-dto';
 import {captureException} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
-import {and, asc, count, desc, eq, getTableColumns, gte, inArray, sql} from 'drizzle-orm';
+import {and, asc, count, desc, eq, getTableColumns, gte, inArray, lt, ne, sql} from 'drizzle-orm';
 import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
 import {
   assertWorkflowExecutionPayloadSize,
@@ -497,6 +498,36 @@ export async function getStepAttemptsByJobExecutionId(
     .where(eq(stepAttempts.jobExecutionId, jobExecutionId))
     .orderBy(asc(stepAttempts.executionOrder), asc(stepAttempts.id));
   return rows.map(toStepAttempt);
+}
+
+export interface ListStepEnvSourcesParams {
+  jobExecutionId: string;
+  beforePosition: number;
+}
+
+// The earlier steps whose CURRENT attempt the runner executed. A skipped step
+// has no attempt row; a pending or rewound step's current attempt has none yet.
+// Tool steps run on the server, so a runner never carried env from them.
+export async function listStepEnvSources(
+  params: ListStepEnvSourcesParams,
+): Promise<StepEnvSourceDto[]> {
+  const rows = await db()
+    .select({position: steps.position, attempt: stepAttempts.attempt})
+    .from(steps)
+    .innerJoin(
+      stepAttempts,
+      and(eq(stepAttempts.stepId, steps.id), eq(stepAttempts.attempt, steps.currentAttempt)),
+    )
+    .where(
+      and(
+        eq(steps.jobExecutionId, params.jobExecutionId),
+        lt(steps.position, params.beforePosition),
+        ne(steps.type, 'tool'),
+        inArray(steps.status, ['succeeded', 'failed', 'cancelled']),
+      ),
+    )
+    .orderBy(asc(steps.position));
+  return rows;
 }
 
 export interface MarkStepRunningParams {
