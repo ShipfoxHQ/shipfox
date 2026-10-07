@@ -28,7 +28,8 @@ steps:
     with:
       channel_id: $fixture.slack.write_channel.id
       message_ts: $steps.send.ts
-      message: Contract message updated
+      message: Contract $marker updated
+    # The marker stays in the updated text, so the message is still traceable to its run.
     effect:
       tool: read_thread
       with:
@@ -36,7 +37,9 @@ steps:
         message_ts: $steps.send.ts
       expect:
         values:
-          messages[0].text: Contract message updated
+          messages[0].type: message
+        matches:
+          messages[0].text: '^Contract contract-[0-9a-f-]+ updated$'
   # The tools cannot delete a message, so the message stays in the write channel.
   - key: react
     tool: add_reaction

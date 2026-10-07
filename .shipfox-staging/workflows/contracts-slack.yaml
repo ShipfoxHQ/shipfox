@@ -118,7 +118,7 @@ jobs:
         with:
           channel_id: C0C6ZSXHEJ0
           message_ts: ${{ steps.send.outputs.ref_ts }}
-          message: Contract message updated
+          message: Contract contract-${{ run.id }} updated
       - key: update_effect
         tool: read_thread
         connection: slack_shipfox
@@ -126,9 +126,10 @@ jobs:
           channel_id: C0C6ZSXHEJ0
           message_ts: ${{ steps.send.outputs.ref_ts }}
         outputs:
-          value_messages_0_text: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.text)) ? result.messages[0].text : "" }}'
+          value_messages_0_type: '${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.type)) ? result.messages[0].type : "" }}'
+          matches_messages_0_text: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.text) && type(i0.text) == type("") && i0.text.matches("^Contract contract-[0-9a-f-]+ updated$")) }}
         gate:
-          success: step.status == "succeeded" && type(step.outputs.value_messages_0_text) == type("") && step.outputs.value_messages_0_text == "Contract message updated"
+          success: step.status == "succeeded" && type(step.outputs.value_messages_0_type) == type("") && step.outputs.value_messages_0_type == "message" && step.outputs.matches_messages_0_text
       - key: react
         tool: add_reaction
         connection: slack_shipfox
