@@ -4058,6 +4058,66 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('keeps valid defaults on run and agent step outputs', () => {
+    const document: WorkflowDocument = {
+      name: 'defaulted outputs',
+      jobs: {
+        build: {
+          steps: [
+            {
+              key: 'package',
+              run: 'npm run package',
+              outputs: {
+                outcome: {type: 'string', default: 'none'},
+                meta: {type: 'json', schema: {type: 'object'}, default: {}},
+              },
+            },
+            {
+              key: 'review',
+              prompt: 'Review it',
+              outputs: {approved: {type: 'boolean', default: false}},
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]?.outputs).toEqual({
+      outcome: {type: 'string', default: 'none'},
+      meta: {type: 'json', schema: {type: 'object'}, default: {}},
+    });
+    expect(model.jobs[0]?.steps[1]?.outputs).toEqual({
+      approved: {type: 'boolean', default: false},
+    });
+  });
+
+  it.each([
+    {type: 'string', default: 3},
+    {type: 'number', default: '3'},
+    {type: 'boolean', default: 'true'},
+    {type: 'json', schema: {type: 'array'}, default: {}},
+  ] as const)('rejects a $type default that does not match its declaration', (declaration) => {
+    const document: WorkflowDocument = {
+      name: 'bad output default',
+      jobs: {
+        build: {
+          steps: [{key: 'build', run: 'npm run build', outputs: {value: declaration}}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-output-default',
+        path: ['jobs', 'build', 'steps', 0, 'outputs', 'value', 'default'],
+      }),
+    ]);
+  });
+
   it('type-checks declared step outputs in later step config', () => {
     const document: WorkflowDocument = {
       name: 'typed step output config',

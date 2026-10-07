@@ -291,9 +291,9 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
     example: 'step-outputs.yml',
     select: () => ({
       '<output_name>': {
-        type: 'string | number | boolean | json | {type: string | number | boolean} | {type: json; schema?: value}',
+        type: 'string | number | boolean | json | {type: string | number | boolean; default?: value} | {type: json; schema?: value; default?: value}',
         description:
-          'Defines an output from the step. Set its type directly, for example `sha: string`, or use an object with `type`. Only `json` outputs can include `schema`. Without `schema`, a `json` output can contain any JSON value.',
+          'Defines an output from the step. Set its type directly, for example `sha: string`, or use an object with `type`. Only `json` outputs can include `schema`. Without `schema`, a `json` output can contain any JSON value. Run and agent steps can add `default`, which later steps read when the step has no value for the output, for example when it is skipped. The default must match the type and `schema`.',
       },
     }),
   },

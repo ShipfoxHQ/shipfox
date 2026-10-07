@@ -12,6 +12,8 @@ export interface OutputTypeDeclaration {
   readonly schema?: unknown;
   // Absent means required, so declarations written before this flag keep failing on a missing key.
   readonly required?: boolean;
+  /** Stands in for the output when its step has no value for it. `null` is a value; `undefined` is no default. */
+  readonly default?: unknown;
 }
 
 export type OutputDeclarations = Readonly<Record<string, OutputTypeDeclaration>>;
@@ -121,6 +123,75 @@ export function validateJsonSchema(schema: unknown): JsonSchemaValidationResult 
   };
 }
 
+export function hasOutputDefault(declaration: OutputTypeDeclaration): boolean {
+  return declaration.default !== undefined;
+}
+
+/**
+ * The declared defaults, keyed by output. Defaults are checked when the workflow
+ * syncs, so they are returned as written.
+ */
+export function outputDefaults(
+  declarations: OutputDeclarations | undefined,
+): Record<string, unknown> {
+  const defaults: Record<string, unknown> = {};
+  if (declarations === undefined) return defaults;
+  for (const [key, declaration] of Object.entries(declarations)) {
+    if (hasOutputDefault(declaration)) defaults[key] = cloneJsonValue(declaration.default);
+  }
+  return defaults;
+}
+
+export type OutputDefaultValidationResult =
+  | {readonly ok: true}
+  | {readonly ok: false; readonly reason: string};
+
+/**
+ * A default is authored as a typed value, so a string default on a `number`
+ * output is rejected even though a runner-reported "3" would coerce.
+ */
+export function validateOutputDefault(
+  declaration: OutputTypeDeclaration,
+): OutputDefaultValidationResult {
+  if (!hasOutputDefault(declaration)) return {ok: true};
+  const value = declaration.default;
+
+  switch (declaration.type) {
+    case 'string':
+      return typeof value === 'string'
+        ? {ok: true}
+        : {ok: false, reason: 'A string output needs a string default.'};
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value)
+        ? {ok: true}
+        : {ok: false, reason: 'A number output needs a finite number default.'};
+    case 'boolean':
+      return typeof value === 'boolean'
+        ? {ok: true}
+        : {ok: false, reason: 'A boolean output needs a boolean default.'};
+    case 'json':
+      return validateJsonOutputDefault(declaration);
+  }
+}
+
+function validateJsonOutputDefault(
+  declaration: OutputTypeDeclaration,
+): OutputDefaultValidationResult {
+  if (!isJsonValue(declaration.default)) {
+    return {ok: false, reason: 'A json output needs a JSON default.'};
+  }
+
+  const result = coerceJsonOutput('default', declaration, declaration.default, false);
+  if (result.ok) return {ok: true};
+  return {
+    ok: false,
+    reason:
+      result.error.schemaError === undefined
+        ? result.error.message
+        : `The default does not match the output schema: ${result.error.schemaError}`,
+  };
+}
+
 export interface CoerceStepOutputOptions {
   /**
    * Parse string values of `json` outputs as JSON text. Runner steps report every
@@ -155,7 +226,10 @@ export function coerceStepOutputs(
 
   const coerced: Record<string, unknown> = {};
   for (const [key, declaration] of Object.entries(params.declarations)) {
-    if (!Object.hasOwn(output, key)) continue;
+    if (!Object.hasOwn(output, key)) {
+      if (hasOutputDefault(declaration)) coerced[key] = cloneJsonValue(declaration.default);
+      continue;
+    }
     const value = output[key];
     const result = coerceStepOutputValue(key, declaration, value, params.parseJsonText ?? true);
     if (!result.ok) return result;
@@ -193,6 +267,7 @@ function missingRequiredOutputError(
 ): StepOutputCoercionError | undefined {
   for (const [key, declaration] of Object.entries(declarations)) {
     if (Object.hasOwn(output, key) || declaration.required === false) continue;
+    if (hasOutputDefault(declaration)) continue;
     return {
       key,
       reason: 'missing',
@@ -368,6 +443,23 @@ function hasDynamicSchemaShape(schema: Readonly<Record<string, unknown>>): boole
     schema.not !== undefined ||
     schema.nullable === true
   );
+}
+
+function isJsonValue(value: unknown): boolean {
+  if (value === null) return true;
+  switch (typeof value) {
+    case 'string':
+    case 'boolean':
+      return true;
+    case 'number':
+      return Number.isFinite(value);
+    case 'object':
+      return Array.isArray(value)
+        ? value.every(isJsonValue)
+        : isPlainRecord(value) && Object.values(value).every(isJsonValue);
+    default:
+      return false;
+  }
 }
 
 function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {

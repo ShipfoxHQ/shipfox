@@ -11,3 +11,6 @@ jobs:
             type: json
             schema:
               type: object
+          outcome:
+            type: string
+            default: none
