@@ -6,12 +6,12 @@ describe('createReadyWorkspace fixture', () => {
     vi.restoreAllMocks();
   });
 
-  it('creates a user, workspace, project, session, and browser login', async () => {
+  it('creates a user, workspace, project, session, and browser login with the setup checklist dismissed', async () => {
     const user = {user: {id: 'user-1'}};
     const workspace = {id: 'workspace-1', slug: 'ready-workspace'};
     const project = {id: 'project-1'};
     const session = {token: 'session-token'};
-    const page = {};
+    const page = {addInitScript: vi.fn().mockResolvedValue(undefined)};
     const auth = {
       createUser: vi.fn().mockResolvedValue(user),
       createSession: vi.fn().mockResolvedValue(session),
@@ -42,6 +42,10 @@ describe('createReadyWorkspace fixture', () => {
     expect(projects.createProject).toHaveBeenCalledWith({workspaceId: 'workspace-1'});
     expect(auth.createSession).toHaveBeenCalledWith({user_id: 'user-1'});
     expect(auth.loginAs).toHaveBeenCalledWith(page, user);
+    expect(page.addInitScript).toHaveBeenCalledWith(
+      expect.any(Function),
+      'shipfox.workspaceSetupChecklist.dismissed.workspace.workspace-1',
+    );
     expect(result).toEqual({
       userId: 'user-1',
       workspaceId: 'workspace-1',
