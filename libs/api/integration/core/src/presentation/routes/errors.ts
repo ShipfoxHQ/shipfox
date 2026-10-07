@@ -25,6 +25,7 @@ function isProviderError(error: unknown): error is IntegrationProviderError {
       typeof error.reason === 'string' &&
       (error.reason === 'repository-not-found' ||
         error.reason === 'installation-not-found' ||
+        error.reason === 'installation-inactive' ||
         error.reason === 'file-not-found' ||
         error.reason === 'ref-not-found' ||
         error.reason === 'ref-invalid' ||

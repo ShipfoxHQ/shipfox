@@ -10,6 +10,7 @@ import {recordGithubCheckoutTokenLookup, recordGithubCheckoutTokenMint} from '#m
 import type {GithubInstallationAccessToken} from './client.js';
 import {
   backoffMs,
+  CHECKOUT_TERMINAL_BACKOFF_MS,
   classifyMintError,
   mintErrorClassForReason,
   providerErrorFromBackoff,
@@ -592,7 +593,12 @@ export class GithubCheckoutTokenCache implements GithubCheckoutTokenCachePort {
         ...(current?.generation === undefined ? {} : {generation: current.generation}),
         ...(current?.token === undefined ? {} : {token: current.token}),
         ...(current?.expiresAt === undefined ? {} : {expiresAt: current.expiresAt}),
-        backoffUntil: new Date(now.getTime() + backoffMs(classified)),
+        backoffUntil: new Date(
+          now.getTime() +
+            (classified.class === 'terminal'
+              ? CHECKOUT_TERMINAL_BACKOFF_MS
+              : backoffMs(classified)),
+        ),
         backoffReason: classified.reason,
         backoffError: {
           message: providerError.message,

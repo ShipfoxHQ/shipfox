@@ -11,6 +11,7 @@ export const TOKEN_VALIDITY_BUFFER_MS = 60 * 1000;
 export const TRANSIENT_BACKOFF_MIN_MS = 30 * 1000;
 export const TRANSIENT_BACKOFF_MAX_MS = 5 * 60 * 1000;
 export const TERMINAL_BACKOFF_MS = 15 * 60 * 1000;
+export const CHECKOUT_TERMINAL_BACKOFF_MS = 60 * 1000;
 export const GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT = 'compatibility';
 export const GITHUB_INSTALLATION_TOKEN_BACKOFF_KEY = 'BACKOFF';
 
@@ -46,6 +47,7 @@ type MissingProviderErrorReason = Exclude<
   IntegrationProviderErrorReason,
   | (typeof providerErrorReasons)[number]
   | 'ref-not-found'
+  | 'installation-inactive'
   | 'not-found'
   | 'ref-invalid'
   | 'credentials-unavailable'

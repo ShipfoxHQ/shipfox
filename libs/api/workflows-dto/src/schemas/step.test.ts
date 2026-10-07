@@ -128,6 +128,29 @@ describe('stepErrorDtoSchema', () => {
     });
   });
 
+  it('accepts the provider explanation of a refused request', () => {
+    const result = stepErrorDtoSchema.parse({
+      message: 'Checkout failed.',
+      code: 'access-denied',
+      provider_message: 'Resource not accessible by integration',
+      provider_status: 403,
+    });
+
+    expect(result).toMatchObject({
+      provider_message: 'Resource not accessible by integration',
+      provider_status: 403,
+    });
+  });
+
+  it('rejects a provider explanation longer than 500 characters', () => {
+    const result = stepErrorDtoSchema.safeParse({
+      message: 'Checkout failed.',
+      provider_message: 'x'.repeat(501),
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it.each([
     'checkout_path_invalid',
     'checkout_destination_occupied',

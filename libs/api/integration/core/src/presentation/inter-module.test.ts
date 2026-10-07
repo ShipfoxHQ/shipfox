@@ -187,7 +187,7 @@ describe('integrations inter-module presentation', () => {
       )
     ) {
       expect(error.code).toBe('provider-failure');
-      expect(error.details).toEqual({reason: 'provider-rejected'});
+      expect(error.details).toMatchObject({reason: 'provider-rejected'});
     } else {
       throw error;
     }
@@ -405,7 +405,35 @@ describe('integrations inter-module presentation', () => {
 
     if (isInterModuleKnownError(integrationsInterModuleContract.methods.resolveSourceRef, error)) {
       expect(error.code).toBe('provider-failure');
-      expect(error.details).toEqual({reason: 'rate-limited', retryAfterSeconds: 60});
+      expect(error.details).toEqual({
+        reason: 'rate-limited',
+        retryAfterSeconds: 60,
+        providerMessage: 'Rate limited',
+      });
+    } else {
+      throw error;
+    }
+  });
+
+  it('passes the provider explanation and status through, redacted and capped', async () => {
+    const client = createClient(() => {
+      throw new IntegrationProviderError(
+        'access-denied',
+        `Bearer ghs_secretvalue1234567890 was refused. ${'x'.repeat(600)}`,
+        undefined,
+        403,
+      );
+    });
+
+    const error = await client
+      .resolveSourceRef({...input, ref: 'refs/heads/main'})
+      .catch((caught: unknown) => caught);
+
+    if (isInterModuleKnownError(integrationsInterModuleContract.methods.resolveSourceRef, error)) {
+      const details = error.details as {providerMessage: string; providerStatus: number};
+      expect(details.providerStatus).toBe(403);
+      expect(details.providerMessage).toHaveLength(500);
+      expect(details.providerMessage).not.toContain('ghs_secretvalue1234567890');
     } else {
       throw error;
     }
@@ -428,7 +456,7 @@ describe('integrations inter-module presentation', () => {
       )
     ) {
       expect(error.code).toBe('provider-failure');
-      expect(error.details).toEqual({reason: 'ref-not-found'});
+      expect(error.details).toMatchObject({reason: 'ref-not-found'});
     } else {
       throw error;
     }

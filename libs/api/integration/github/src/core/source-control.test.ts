@@ -269,7 +269,7 @@ describe('GithubSourceControlProvider', () => {
 
     await expect(
       provider.listRepositories({connection: connection(), limit: 50}),
-    ).rejects.toMatchObject({reason: 'access-denied'});
+    ).rejects.toMatchObject({reason: 'installation-inactive'});
     expect(github.listInstallationRepositories).not.toHaveBeenCalled();
   });
 

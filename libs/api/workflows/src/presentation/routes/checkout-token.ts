@@ -22,12 +22,14 @@ import {
   createStepCheckoutSpec,
   getCheckoutPolicy,
   renewStepCheckoutCredentials,
+  repositoryNameFromUrl,
 } from '#core/checkout.js';
 import {warnRenewableGitCapabilityMismatchOnDispatch} from '#core/checkout-capability-warning.js';
 import type {CheckoutRenewalSubject} from '#core/entities/checkout-renewal-subject.js';
 import type {StepStatus} from '#core/entities/step.js';
 import {
   CheckoutConfigInvalidError,
+  type CheckoutFailureTarget,
   CheckoutIntentUnresolvedError,
   CheckoutRepositoryUrlInvalidError,
 } from '#core/errors.js';
@@ -60,6 +62,7 @@ export function createCheckoutTokenRoute(clients: {
     errorHandler: handleCheckoutTokenError,
     handler: async (request, reply) => {
       const hasRejectedGeneration = request.body?.rejected_generation !== undefined;
+      const failure: CheckoutFailureTarget = {};
       let mode: 'initial' | 'initial-replacement' | 'renewal' = 'initial';
       try {
         const {stepId} = request.params;
@@ -96,6 +99,7 @@ export function createCheckoutTokenRoute(clients: {
           stepId,
           attempt,
           rejectedGeneration: request.body?.rejected_generation,
+          failure,
           warn: (context, message) => request.log.warn(context, message),
           error: (context, message) => request.log.error(context, message),
         });
@@ -112,7 +116,7 @@ export function createCheckoutTokenRoute(clients: {
         return response;
       } catch (error) {
         recordWorkflowCheckoutTokenRequest(mode, 'failure');
-        throw error;
+        throw await translateCheckoutTokenError(error, failure, clients.integrations);
       }
     },
   });
@@ -124,12 +128,17 @@ async function createCheckoutTokenResponse(params: {
   stepId: string;
   attempt: number;
   rejectedGeneration?: string | undefined;
+  failure: CheckoutFailureTarget;
   warn: (context: {outcome: string}, message: string) => void;
   error: (context: {outcome: string}, message: string) => void;
 }): Promise<ReturnType<typeof toCheckoutTokenDto>> {
   await assertLeasedJobActive(params.clients.runners, params.loaded.leasedJob);
 
   if (params.loaded.checkoutRenewalSubject !== undefined) {
+    params.failure.connectionId = params.loaded.checkoutRenewalSubject.connectionId;
+    params.failure.repository = repositoryNameFromUrl(
+      params.loaded.checkoutRenewalSubject.repositoryUrl,
+    );
     const credentials = await renewStepCheckoutCredentials({
       integrations: params.clients.integrations,
       workspaceId: params.loaded.workspaceId,
@@ -154,6 +163,7 @@ async function createCheckoutTokenResponse(params: {
     run: params.loaded.run,
     integrations: params.clients.integrations,
     projects: params.clients.projects,
+    failure: params.failure,
   });
   await assertLeasedJobActive(params.clients.runners, params.loaded.leasedJob);
   const response = toCheckoutTokenDto(checkout.spec, {
@@ -220,17 +230,66 @@ function checkoutTokenRequestMode(params: {
 }
 
 function handleCheckoutTokenError(error: unknown): never {
-  if (error instanceof CheckoutIntentUnresolvedError) {
-    throw new ClientError(error.message, 'checkout-unavailable', {status: 404});
+  throw mapCheckoutTokenError(error, {});
+}
+
+async function translateCheckoutTokenError(
+  error: unknown,
+  failure: CheckoutFailureTarget,
+  integrations: Pick<IntegrationsModuleClient, 'resolveConnectionById'>,
+): Promise<unknown> {
+  const target = isIntegrationCheckoutFailure(error)
+    ? await withConnectionSlug(failure, integrations)
+    : failure;
+  return mapCheckoutTokenError(error, target);
+}
+
+// Only these failures name the connection, so only they pay for the slug lookup.
+function isIntegrationCheckoutFailure(error: unknown): boolean {
+  return (
+    isInterModuleKnownError(integrationsInterModuleContract.methods.createCheckoutSpec, error) ||
+    isInterModuleKnownError(
+      integrationsInterModuleContract.methods.createCheckoutCredentials,
+      error,
+    )
+  );
+}
+
+async function withConnectionSlug(
+  target: CheckoutFailureTarget,
+  integrations: Pick<IntegrationsModuleClient, 'resolveConnectionById'>,
+): Promise<CheckoutFailureTarget> {
+  if (target.connection !== undefined || target.connectionId === undefined) return target;
+  try {
+    const connection = await integrations.resolveConnectionById({
+      connectionId: target.connectionId,
+    });
+    return connection === null ? target : {...target, connection: connection.slug};
+  } catch {
+    // The slug only improves the message; the original failure is what matters.
+    return target;
   }
-  if (error instanceof CheckoutRepositoryUrlInvalidError) {
-    throw new ClientError('Checkout repository URL is invalid', 'checkout-repository-url-invalid', {
-      status: 422,
-      cause: error,
+}
+
+function mapCheckoutTokenError(error: unknown, target: CheckoutFailureTarget): unknown {
+  if (error instanceof CheckoutIntentUnresolvedError) {
+    return new ClientError(unresolvedCheckoutMessage(error), 'checkout-unavailable', {
+      details: {[error.kind]: error.value},
+      status: 404,
     });
   }
+  if (error instanceof CheckoutRepositoryUrlInvalidError) {
+    return new ClientError(
+      'Checkout repository URL is invalid',
+      'checkout-repository-url-invalid',
+      {
+        status: 422,
+        cause: error,
+      },
+    );
+  }
   if (error instanceof CheckoutConfigInvalidError) {
-    throw new ClientError('Checkout configuration is invalid', 'checkout-config-invalid', {
+    return new ClientError('Checkout configuration is invalid', 'checkout-config-invalid', {
       status: 409,
     });
   }
@@ -238,10 +297,10 @@ function handleCheckoutTokenError(error: unknown): never {
     isInterModuleKnownError(projectsInterModuleContract.methods.resolveCheckoutTarget, error) &&
     error.code === 'checkout-repository-not-authorized'
   ) {
-    throw new ClientError(
-      'Checkout repository is not authorized for this workspace',
+    return new ClientError(
+      `Shipfox isn't allowed to check out the repository of project \`${target.project ?? 'unknown'}\`: the project doesn't belong to this workspace`,
       'checkout-repository-not-authorized',
-      {status: 404},
+      {details: {project: target.project}, status: 404},
     );
   }
   if (
@@ -251,89 +310,134 @@ function handleCheckoutTokenError(error: unknown): never {
       error,
     )
   ) {
-    throwIntegrationCheckoutError(error as {code: string});
+    return integrationCheckoutError(error as unknown as IntegrationCheckoutKnownError, target);
   }
-  throw error;
+  return error;
 }
 
-function throwIntegrationCheckoutError(
-  error: Parameters<typeof handleCheckoutTokenError>[0] & {code: string},
-): never {
+function unresolvedCheckoutMessage(error: CheckoutIntentUnresolvedError): string {
+  return error.kind === 'connection'
+    ? `Checkout connection \`${error.value}\` doesn't exist in this workspace`
+    : `Checkout project \`${error.value}\` no longer exists`;
+}
+
+interface IntegrationCheckoutKnownError {
+  code: string;
+  details?: unknown;
+}
+
+interface ProviderFailureDetails {
+  reason: string;
+  retryAfterSeconds?: number;
+  providerMessage?: string;
+  providerStatus?: number;
+}
+
+function integrationCheckoutError(
+  error: IntegrationCheckoutKnownError,
+  target: CheckoutFailureTarget,
+): unknown {
+  const targetDetails = {repository: target.repository, connection: target.connection};
+  const repository =
+    target.repository === undefined ? 'the repository' : `\`${target.repository}\``;
+  const connection =
+    target.connection === undefined ? 'the connection' : `connection \`${target.connection}\``;
   switch (error.code) {
     case 'connection-not-found':
-      throw new ClientError(
+      return new ClientError(
         'Integration connection not found',
         'integration-connection-not-found',
         {status: 404},
       );
     case 'connection-inactive':
-      throw new ClientError(
+      return new ClientError(
         'Integration connection is not active',
         'integration-connection-inactive',
         {status: 422},
       );
     case 'connection-workspace-mismatch':
-      throw new ClientError(
+      return new ClientError(
         'Integration connection does not belong to this workspace',
         'forbidden',
         {status: 403},
       );
     case 'provider-unavailable':
-      throw new ClientError(
+      return new ClientError(
         'Integration provider is unavailable',
         'integration-provider-unavailable',
         {status: 422},
       );
     case 'capability-unavailable':
-      throw new ClientError(
+      return new ClientError(
         'Integration capability is unavailable',
         'integration-capability-unavailable',
         {status: 422},
       );
     case 'checkout-unsupported':
-      throw new ClientError(
+      return new ClientError(
         'Integration checkout is unsupported',
         'integration-checkout-unsupported',
         {status: 422},
       );
-    case 'provider-failure': {
-      const details = (
-        error as unknown as {
-          details: {reason: string; retryAfterSeconds?: number};
-        }
-      ).details;
-      throw new ClientError('Integration provider request failed', details.reason, {
-        details: {retry_after_seconds: details.retryAfterSeconds},
-        status: providerFailureStatus(details.reason),
-      });
-    }
+    case 'provider-failure':
+      return providerFailureError(
+        error.details as ProviderFailureDetails,
+        connection,
+        targetDetails,
+      );
+    case repositoryAuthorizationErrorCodes.required:
+      return new ClientError(
+        `Checkout on ${connection} needs a repository, written as owner/name`,
+        repositoryAuthorizationErrorCodes.required,
+        {details: targetDetails, status: 422},
+      );
     case repositoryAuthorizationErrorCodes.notGranted:
-      throw new ClientError(
-        'Checkout repository is not authorized for this workspace',
+      return new ClientError(
+        `Shipfox isn't allowed to check out ${repository}: no project in this workspace is linked to it, and ${connection} doesn't allow all repositories`,
         repositoryAuthorizationErrorCodes.notGranted,
-        {status: 404},
+        {details: targetDetails, status: 404},
       );
     case repositoryAuthorizationErrorCodes.ambiguous:
-      throw new ClientError(
-        'Checkout repository target is ambiguous',
+      return new ClientError(
+        `More than one project is linked to ${repository} on ${connection}, so Shipfox can't tell which one authorizes the checkout`,
         repositoryAuthorizationErrorCodes.ambiguous,
-        {status: 409},
+        {details: targetDetails, status: 409},
       );
     case repositoryAuthorizationErrorCodes.storeUnavailable:
-      throw new ClientError(
+      return new ClientError(
         'Repository authorization is unavailable',
         repositoryAuthorizationErrorCodes.storeUnavailable,
         {status: 503},
       );
     case repositoryAuthorizationErrorCodes.targetInvalid:
-      throw new ClientError(
+      return new ClientError(
         'Checkout repository target is invalid',
         repositoryAuthorizationErrorCodes.targetInvalid,
         {status: 409},
       );
     default:
-      throw error;
+      return error;
   }
+}
+
+function providerFailureError(
+  details: ProviderFailureDetails,
+  connection: string,
+  targetDetails: {repository: string | undefined; connection: string | undefined},
+): ClientError {
+  const message =
+    details.reason === 'installation-inactive'
+      ? `The GitHub App installation for ${connection} is suspended or removed`
+      : 'Integration provider request failed';
+  return new ClientError(message, details.reason, {
+    details: {
+      ...targetDetails,
+      retry_after_seconds: details.retryAfterSeconds,
+      provider_message: details.providerMessage,
+      provider_status: details.providerStatus,
+    },
+    status: providerFailureStatus(details.reason),
+  });
 }
 
 function providerFailureStatus(reason: string): 422 | 429 | 503 {

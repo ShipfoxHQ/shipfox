@@ -540,10 +540,27 @@ export class NoFailedJobsError extends Error {
 
 // The checkout target cannot be resolved, so there is nothing to check out.
 export class CheckoutIntentUnresolvedError extends Error {
+  readonly kind: 'project' | 'connection';
+  readonly value: string;
+
   constructor(target: {kind: 'project' | 'connection'; value: string}) {
     super(`Checkout intent unresolved: ${target.kind} ${target.value} not found`);
     this.name = 'CheckoutIntentUnresolvedError';
+    this.kind = target.kind;
+    this.value = target.value;
   }
+}
+
+/** What a checkout failure was about, so the client message can name it. */
+export interface CheckoutFailureTarget {
+  /** `owner/name` of the repository, when known. */
+  repository?: string | undefined;
+  /** Slug of the integration connection, when known. */
+  connection?: string | undefined;
+  /** Used to look up the slug when the step does not name the connection. */
+  connectionId?: string | undefined;
+  /** The `checkout.project` the step asked for. */
+  project?: string | undefined;
 }
 
 export class CheckoutConfigInvalidError extends Error {

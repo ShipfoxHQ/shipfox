@@ -4,6 +4,7 @@ import {
   deriveStepErrorCategory,
   type OversizedFieldDto,
   STEP_ERROR_MESSAGE_MAX_LENGTH,
+  STEP_ERROR_PROVIDER_MESSAGE_MAX_LENGTH,
   type StepAttemptDetailResponseDto,
   type StepDto,
   type StepErrorDto,
@@ -67,7 +68,28 @@ export function toStepErrorDto(
     ...(typeof error.limitBytes === 'number' ? {limit_bytes: error.limitBytes} : {}),
     ...(typeof error.measuredBytes === 'number' ? {measured_bytes: error.measuredBytes} : {}),
     ...(typeof error.overshootBytes === 'number' ? {overshoot_bytes: error.overshootBytes} : {}),
+    ...toStepErrorProviderFields(error),
     category,
+  };
+}
+
+function toStepErrorProviderFields(error: Record<string, unknown>): Partial<StepErrorDto> {
+  const {providerStatus} = error;
+  return {
+    ...(typeof error.providerMessage === 'string'
+      ? {
+          provider_message: truncateStepText(
+            error.providerMessage,
+            STEP_ERROR_PROVIDER_MESSAGE_MAX_LENGTH,
+          ),
+        }
+      : {}),
+    ...(typeof providerStatus === 'number' &&
+    Number.isInteger(providerStatus) &&
+    providerStatus >= 100 &&
+    providerStatus <= 599
+      ? {provider_status: providerStatus}
+      : {}),
   };
 }
 
@@ -151,6 +173,16 @@ export function fromStepErrorDto(error: StepErrorDto | undefined): Record<string
     ...(error.limit_bytes === undefined ? {} : {limitBytes: error.limit_bytes}),
     ...(error.measured_bytes === undefined ? {} : {measuredBytes: error.measured_bytes}),
     ...(error.overshoot_bytes === undefined ? {} : {overshootBytes: error.overshoot_bytes}),
+    ...fromStepErrorProviderFields(error),
+  };
+}
+
+function fromStepErrorProviderFields(
+  error: NonNullable<StepErrorDto>,
+): Partial<Record<'providerMessage' | 'providerStatus', unknown>> {
+  return {
+    ...(error.provider_message === undefined ? {} : {providerMessage: error.provider_message}),
+    ...(error.provider_status === undefined ? {} : {providerStatus: error.provider_status}),
   };
 }
 

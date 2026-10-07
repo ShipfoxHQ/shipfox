@@ -440,6 +440,7 @@ export interface RegisteredIntegrationProvider<
 export type IntegrationProviderErrorReason =
   | 'repository-not-found'
   | 'installation-not-found'
+  | 'installation-inactive'
   | 'file-not-found'
   | 'ref-not-found'
   | 'not-found'

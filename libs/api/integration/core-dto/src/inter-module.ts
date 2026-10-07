@@ -179,9 +179,13 @@ const toolCallErrors = {
   'capability-unavailable': z.object({provider, capability}),
   ...repositoryAuthorizationErrors,
 };
+// Longest provider explanation that crosses the module boundary.
+export const PROVIDER_MESSAGE_MAX_LENGTH = 500;
 const providerError = z.object({
   reason: z.string(),
   retryAfterSeconds: z.number().int().positive().optional(),
+  providerMessage: z.string().max(PROVIDER_MESSAGE_MAX_LENGTH).optional(),
+  providerStatus: z.number().int().min(100).max(599).optional(),
 });
 const sourceErrors = {
   'connection-not-found': z.object({connectionId: id}),

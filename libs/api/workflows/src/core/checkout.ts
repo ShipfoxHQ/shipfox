@@ -11,7 +11,11 @@ import type {
   WorkflowRunOriginState,
   WorkflowRunTriggerReference,
 } from '#core/entities/workflow-run.js';
-import {CheckoutConfigInvalidError, CheckoutIntentUnresolvedError} from './errors.js';
+import {
+  CheckoutConfigInvalidError,
+  type CheckoutFailureTarget,
+  CheckoutIntentUnresolvedError,
+} from './errors.js';
 
 const checkoutConfigSchema = z
   .object({
@@ -66,6 +70,7 @@ export async function createStepCheckoutSpec({
   run,
   integrations,
   projects,
+  failure = {},
 }: {
   step: Step;
   workspaceId: string;
@@ -75,6 +80,8 @@ export async function createStepCheckoutSpec({
   run: WorkflowRunOriginState;
   integrations: IntegrationsModuleClient;
   projects: ProjectsModuleClient;
+  /** Filled in as the target resolves, so a caller can name it when the checkout fails. */
+  failure?: CheckoutFailureTarget;
 }): Promise<{
   spec: {
     repositoryUrl: string;
@@ -93,6 +100,9 @@ export async function createStepCheckoutSpec({
   renewalSubject?: Omit<CheckoutRenewalSubject, 'stepId' | 'attempt'>;
 }> {
   const checkout = parseCheckoutConfig(step);
+  failure.connection = checkout.connection;
+  failure.project = checkout.project;
+  failure.repository = checkout.repository;
   const {project: defaultProject} = await projects.getProjectById({projectId});
   if (defaultProject === null || defaultProject === undefined) {
     throw new CheckoutIntentUnresolvedError({kind: 'project', value: projectId});
@@ -126,6 +136,8 @@ export async function createStepCheckoutSpec({
       value: 'project' in target ? target.project : projectId,
     });
   }
+  failure.connectionId = resolvedTarget.connectionId;
+  failure.repository = resolvedRepositoryName(resolvedTarget, defaultProject) ?? failure.repository;
   const ref = resolveCheckoutRef({checkout, triggerReference, run, resolvedTarget, projectId});
   const permissions = checkout.permissions ?? {contents: 'read'};
   const response = await integrations.createCheckoutSpec({
@@ -162,6 +174,40 @@ export function renewStepCheckoutCredentials({
     permissions: subject.permissions,
     ...(rejectedGeneration === undefined ? {} : {rejectedGeneration}),
   });
+}
+
+const EDGE_SLASHES_RE = /^\/+|\/+$/gu;
+const GIT_SUFFIX_RE = /\.git$/u;
+
+/** The `owner/name` path of a normalized repository URL. */
+export function repositoryNameFromUrl(repositoryUrl: string): string | undefined {
+  try {
+    const path = new URL(repositoryUrl).pathname
+      .replace(EDGE_SLASHES_RE, '')
+      .replace(GIT_SUFFIX_RE, '');
+    return path.includes('/') ? path : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function resolvedRepositoryName(
+  resolved: {
+    projectId?: string | undefined;
+    target:
+      | {kind: 'external-id'; externalRepositoryId: string}
+      | {kind: 'name'; owner: string; name: string};
+  },
+  defaultProject: {
+    id: string;
+    sourceRepositoryOwner?: string | null | undefined;
+    sourceRepositoryName?: string | null | undefined;
+  },
+): string | undefined {
+  if (resolved.target.kind === 'name') return `${resolved.target.owner}/${resolved.target.name}`;
+  const {sourceRepositoryOwner: owner, sourceRepositoryName: name} = defaultProject;
+  if (resolved.projectId === defaultProject.id && owner && name) return `${owner}/${name}`;
+  return undefined;
 }
 
 function resolveCheckoutRef(params: {

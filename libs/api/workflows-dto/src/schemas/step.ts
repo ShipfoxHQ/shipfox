@@ -125,6 +125,7 @@ export const stepErrorCategorySchema = z.enum(['setup', 'provider', 'user']);
 export type StepErrorCategoryDto = z.infer<typeof stepErrorCategorySchema>;
 
 export const STEP_ERROR_MESSAGE_MAX_LENGTH = 2048;
+export const STEP_ERROR_PROVIDER_MESSAGE_MAX_LENGTH = 500;
 
 export const stepErrorDtoSchema = z
   .object({
@@ -147,6 +148,9 @@ export const stepErrorDtoSchema = z
     limit_bytes: z.number().int().positive().optional(),
     measured_bytes: z.number().int().positive().optional(),
     overshoot_bytes: z.number().int().positive().optional(),
+    /** The provider's own explanation of a refused request, redacted and capped. */
+    provider_message: z.string().max(STEP_ERROR_PROVIDER_MESSAGE_MAX_LENGTH).optional(),
+    provider_status: z.number().int().min(100).max(599).optional(),
   })
   .refine(
     (error) => error.agent_config_issue === undefined || error.reason === 'agent_config_invalid',

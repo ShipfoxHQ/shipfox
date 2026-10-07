@@ -250,6 +250,35 @@ describe('fromStepErrorDto', () => {
     });
   });
 
+  it('round-trips the provider explanation of a refused request', () => {
+    const persisted = fromStepErrorDto({
+      message: 'Checkout failed.',
+      code: 'access-denied',
+      provider_message: 'Resource not accessible by integration',
+      provider_status: 403,
+    });
+
+    expect(persisted).toMatchObject({
+      providerMessage: 'Resource not accessible by integration',
+      providerStatus: 403,
+    });
+    expect(toStepDto(step({type: 'checkout', error: persisted})).error).toMatchObject({
+      provider_message: 'Resource not accessible by integration',
+      provider_status: 403,
+    });
+  });
+
+  it('caps a stored provider explanation at 500 characters on read', () => {
+    const dto = toStepDto(
+      step({
+        type: 'checkout',
+        error: {message: 'Checkout failed.', providerMessage: 'x'.repeat(900)},
+      }),
+    );
+
+    expect(dto.error?.provider_message).toHaveLength(500);
+  });
+
   it('ignores a runner-supplied category (the server derives it on read)', () => {
     const persisted = fromStepErrorDto({
       message: 'mkdir denied',

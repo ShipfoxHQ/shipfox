@@ -49,6 +49,8 @@ vi.mock('#db/checkout-renewal-subjects.js', async () => {
   return {...actual, savePendingCheckoutRenewalSubject: savePendingCheckoutRenewalSubjectMock};
 });
 
+const DELETED_PROJECT_MESSAGE_RE = /Checkout project `[0-9a-f-]+` no longer exists/u;
+
 const getProjectById = vi.fn();
 const resolveCheckoutTarget = vi.fn();
 const projects = {
@@ -58,10 +60,17 @@ const projects = {
 
 const createCheckoutSpec = vi.fn();
 const createCheckoutCredentials = vi.fn();
+const resolveConnection = vi.fn();
+const resolveConnectionById = vi.fn();
 const integrations = {
   createCheckoutSpec,
   createCheckoutCredentials,
-} as Pick<IntegrationsModuleClient, 'createCheckoutSpec' | 'createCheckoutCredentials'>;
+  resolveConnection,
+  resolveConnectionById,
+} as Pick<
+  IntegrationsModuleClient,
+  'createCheckoutSpec' | 'createCheckoutCredentials' | 'resolveConnection' | 'resolveConnectionById'
+>;
 
 const annotationWrites = vi.fn<AnnotationsInterModuleClient['replaceOrRemoveAnnotation']>();
 const annotations = {
@@ -104,6 +113,8 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
   beforeEach(() => {
     createCheckoutSpec.mockReset();
     createCheckoutCredentials.mockReset();
+    resolveConnection.mockReset();
+    resolveConnectionById.mockReset();
     getProjectById.mockReset();
     resolveCheckoutTarget.mockReset();
     savePendingCheckoutRenewalSubjectMock.mockClear();
@@ -1107,8 +1118,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
   });
 
   test.each([
-    ['repository-not-granted', 404],
-    ['repository-ambiguous', 409],
     ['repository-authorization-unavailable', 503],
     ['repository-authorization-target-invalid', 409],
   ] as const)('maps the %s integration checkout failure', async (code, status) => {
@@ -1139,6 +1148,270 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
 
     expect(res.statusCode).toBe(status);
     expect(res.json().code).toBe(code);
+  });
+
+  describe('naming the cause of a checkout failure', () => {
+    async function requestCheckout(options: {checkout?: CheckoutConfig} = {}) {
+      const {project, job, step} = await createRunningCheckoutStep({
+        kind: 'checkout',
+        ...(options.checkout === undefined ? {} : {checkout: options.checkout}),
+      });
+      getProjectById.mockResolvedValue({project});
+      const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+      const send = () =>
+        app.inject({
+          method: 'POST',
+          url: checkoutUrl(step.id, step.currentAttempt),
+          headers: {authorization: `Bearer ${token}`},
+        });
+      return {project, send};
+    }
+
+    const loggedMessages = () => logLines.join('\n');
+
+    function rejectCheckoutSpec(
+      code: 'repository-required' | 'repository-not-granted' | 'repository-ambiguous',
+    ) {
+      createCheckoutSpec.mockRejectedValue(
+        createInterModuleKnownError(
+          integrationsInterModuleContract.methods.createCheckoutSpec,
+          code,
+          {},
+        ),
+      );
+    }
+
+    test('names the repository and connection a project does not grant', async () => {
+      const {project, send} = await requestCheckout();
+      resolveCheckoutTarget.mockResolvedValue({
+        projectId: project.id,
+        connectionId: project.sourceConnectionId,
+        target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
+      });
+      resolveConnectionById.mockResolvedValue({id: project.sourceConnectionId, slug: 'acme-gh'});
+      rejectCheckoutSpec('repository-not-granted');
+
+      const res = await send();
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json()).toMatchObject({
+        code: 'repository-not-granted',
+        details: {repository: `acme/${project.sourceRepositoryName}`, connection: 'acme-gh'},
+      });
+      expect(loggedMessages()).toContain(
+        `Shipfox isn't allowed to check out \`acme/${project.sourceRepositoryName}\`: no project in this workspace is linked to it, and connection \`acme-gh\` doesn't allow all repositories`,
+      );
+    });
+
+    test('names the repository and connection written in the step', async () => {
+      const {project, send} = await requestCheckout({
+        checkout: {connection: 'partner-gh', repository: 'partner/widgets'},
+      });
+      const connectionId = crypto.randomUUID();
+      resolveConnection.mockResolvedValue({
+        id: connectionId,
+        provider: 'github',
+        slug: 'partner-gh',
+      });
+      createCheckoutSpec.mockRejectedValue(
+        createInterModuleKnownError(
+          integrationsInterModuleContract.methods.createCheckoutSpec,
+          'repository-not-granted',
+          {},
+        ),
+      );
+
+      const res = await send();
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json().details).toEqual({repository: 'partner/widgets', connection: 'partner-gh'});
+      expect(loggedMessages()).toContain('`partner/widgets`');
+      expect(loggedMessages()).toContain('connection `partner-gh`');
+      expect(resolveConnectionById).not.toHaveBeenCalled();
+      expect(project.id).toBeDefined();
+    });
+
+    test('names the repository and connection that are ambiguous', async () => {
+      const {project, send} = await requestCheckout({
+        checkout: {connection: 'partner-gh', repository: 'partner/widgets'},
+      });
+      resolveConnection.mockResolvedValue({
+        id: crypto.randomUUID(),
+        provider: 'github',
+        slug: 'partner-gh',
+      });
+      rejectCheckoutSpec('repository-ambiguous');
+
+      const res = await send();
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json()).toMatchObject({
+        code: 'repository-ambiguous',
+        details: {repository: 'partner/widgets', connection: 'partner-gh'},
+      });
+      expect(loggedMessages()).toContain(
+        "More than one project is linked to `partner/widgets` on connection `partner-gh`, so Shipfox can't tell which one authorizes the checkout",
+      );
+      expect(project.id).toBeDefined();
+    });
+
+    test('returns 422 when the checkout needs a repository', async () => {
+      const {send} = await requestCheckout({
+        checkout: {connection: 'partner-gh', repository: 'widgets'},
+      });
+      resolveConnection.mockResolvedValue({
+        id: crypto.randomUUID(),
+        provider: 'github',
+        slug: 'partner-gh',
+      });
+      rejectCheckoutSpec('repository-required');
+
+      const res = await send();
+
+      expect(res.statusCode).toBe(422);
+      expect(res.json()).toMatchObject({
+        code: 'repository-required',
+        details: {connection: 'partner-gh'},
+      });
+      expect(loggedMessages()).toContain(
+        'Checkout on connection `partner-gh` needs a repository, written as owner/name',
+      );
+    });
+
+    test('still answers when the connection slug cannot be looked up', async () => {
+      const {project, send} = await requestCheckout();
+      resolveCheckoutTarget.mockResolvedValue({
+        projectId: project.id,
+        connectionId: project.sourceConnectionId,
+        target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
+      });
+      resolveConnectionById.mockRejectedValue(new Error('connection lookup failed'));
+      rejectCheckoutSpec('repository-not-granted');
+
+      const res = await send();
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json().details.connection).toBeUndefined();
+      expect(loggedMessages()).toContain('and the connection doesn');
+    });
+
+    test('names the project that does not belong to the workspace', async () => {
+      const targetProjectId = crypto.randomUUID();
+      const {send} = await requestCheckout({checkout: {project: targetProjectId}});
+      resolveCheckoutTarget.mockRejectedValue(
+        createInterModuleKnownError(
+          projectsInterModuleContract.methods.resolveCheckoutTarget,
+          'checkout-repository-not-authorized',
+          {},
+        ),
+      );
+
+      const res = await send();
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json()).toMatchObject({
+        code: 'checkout-repository-not-authorized',
+        details: {project: targetProjectId},
+      });
+      expect(loggedMessages()).toContain(
+        `Shipfox isn't allowed to check out the repository of project \`${targetProjectId}\`: the project doesn't belong to this workspace`,
+      );
+    });
+
+    test('names the connection slug that does not exist', async () => {
+      const {send} = await requestCheckout({
+        checkout: {connection: 'missing-gh', repository: 'acme/widgets'},
+      });
+      resolveConnection.mockResolvedValue(null);
+
+      const res = await send();
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json()).toMatchObject({
+        code: 'checkout-unavailable',
+        details: {connection: 'missing-gh'},
+      });
+      expect(loggedMessages()).toContain(
+        "Checkout connection `missing-gh` doesn't exist in this workspace",
+      );
+    });
+
+    test('names the project that was deleted', async () => {
+      const {job, step} = await createRunningCheckoutStep({kind: 'checkout'});
+      getProjectById.mockResolvedValue({project: null});
+      const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+
+      const res = await app.inject({
+        method: 'POST',
+        url: checkoutUrl(step.id, step.currentAttempt),
+        headers: {authorization: `Bearer ${token}`},
+      });
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json().code).toBe('checkout-unavailable');
+      expect(res.json().details.project).toEqual(expect.any(String));
+      expect(loggedMessages()).toMatch(DELETED_PROJECT_MESSAGE_RE);
+    });
+
+    test('reports an inactive installation with its own code', async () => {
+      const {project, send} = await requestCheckout();
+      resolveCheckoutTarget.mockResolvedValue({
+        projectId: project.id,
+        connectionId: project.sourceConnectionId,
+        target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
+      });
+      resolveConnectionById.mockResolvedValue({id: project.sourceConnectionId, slug: 'acme-gh'});
+      createCheckoutSpec.mockRejectedValue(
+        createInterModuleKnownError(
+          integrationsInterModuleContract.methods.createCheckoutSpec,
+          'provider-failure',
+          {
+            reason: 'installation-inactive',
+            providerMessage: 'GitHub installation is not active for the connection',
+          },
+        ),
+      );
+
+      const res = await send();
+
+      expect(res.statusCode).toBe(422);
+      expect(res.json()).toMatchObject({
+        code: 'installation-inactive',
+        details: {
+          connection: 'acme-gh',
+          provider_message: 'GitHub installation is not active for the connection',
+        },
+      });
+      expect(loggedMessages()).toContain(
+        'The GitHub App installation for connection `acme-gh` is suspended or removed',
+      );
+    });
+
+    test("returns the provider's explanation and status for a denied request", async () => {
+      const {project, send} = await requestCheckout();
+      resolveCheckoutTarget.mockResolvedValue({
+        projectId: project.id,
+        connectionId: project.sourceConnectionId,
+        target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
+      });
+      const providerMessage =
+        'Resource not accessible by integration (GitHub accepts permissions: contents=read)';
+      createCheckoutSpec.mockRejectedValue(
+        createInterModuleKnownError(
+          integrationsInterModuleContract.methods.createCheckoutSpec,
+          'provider-failure',
+          {reason: 'access-denied', providerMessage, providerStatus: 403},
+        ),
+      );
+
+      const res = await send();
+
+      expect(res.statusCode).toBe(422);
+      expect(res.json()).toMatchObject({
+        code: 'access-denied',
+        details: {provider_message: providerMessage, provider_status: 403},
+      });
+    });
   });
 
   test('maps provider rate limiting to 429 without leaking credentials', async () => {
