@@ -1,5 +1,5 @@
 import {readFileSync} from 'node:fs';
-import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
+import {mkdir, mkdtemp, readFile, realpath, rm} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
 import {
   ACTION_ENV,
@@ -10,6 +10,7 @@ import {
 } from '@shipfox/actions/contract';
 import {ACTION_BOOTSTRAP_PATH, ACTION_LOADER_PATH} from '@shipfox/actions/runtime-files';
 import type {StepDto} from '@shipfox/api-workflows-dto';
+import {type ExecutionHost, localExecutionHost} from '@shipfox/runner-container';
 import {actionBundleDigestSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {prepareActionBundle} from '#core/action-bundle.js';
@@ -94,7 +95,12 @@ export interface ActionStepOptions
   /** The step working directory, used as the action process `cwd`. */
   cwd: string;
   workspace: string;
-  /** Runner-owned job directory outside the workspace, for extracted bundles and step files. */
+  /** Where the action process runs and where its files are written. Defaults to the runner. */
+  host?: ExecutionHost;
+  /**
+   * Runner-owned job directory outside the workspace, for extracted bundles, step files, and
+   * the scripts and output files of the process.
+   */
   jobTempDir: string;
   runId: string;
   jobId: string;
@@ -125,12 +131,15 @@ export async function executeActionStep(
   const parsed = actionStepConfigSchema.safeParse(step.config);
   if (!parsed.success) return failure({message: 'The action step config is invalid.'});
   const config = parsed.data;
+  const host = options.host ?? localExecutionHost;
   options.onLogLine?.(runtimeLine(config.action));
 
+  // The action loader compares its importers after realpath, so the bundle must live under one.
+  const jobTempDir = await realpath(options.jobTempDir);
   let actionPath: string;
   try {
     actionPath = await prepareActionBundle({
-      jobTempDir: options.jobTempDir,
+      jobTempDir,
       digest: config.action.digest,
       load: options.loadBundle,
     });
@@ -141,9 +150,10 @@ export async function executeActionStep(
     });
   }
 
-  await mkdir(join(options.jobTempDir, 'steps'), {recursive: true});
-  const stepTemp = await mkdtemp(join(options.jobTempDir, 'steps', 'step-'));
+  await mkdir(join(jobTempDir, 'steps'), {recursive: true});
+  const stepTemp = await mkdtemp(join(jobTempDir, 'steps', 'step-'));
   const endpoint = await startActionEndpoint({
+    host,
     integrations: integrationGrants(config.integrations),
     cwd: options.cwd,
     workspace: options.workspace,
@@ -158,12 +168,16 @@ export async function executeActionStep(
       context: join(stepTemp, 'context.json'),
       result: join(stepTemp, 'result.json'),
     };
-    await writeFile(paths.inputs, JSON.stringify({...config.inputs, ...options.secretInputs}), {
-      mode: PRIVATE_FILE_MODE,
-    });
-    await writeFile(paths.context, JSON.stringify(contextFile(step, config, options)), {
-      mode: PRIVATE_FILE_MODE,
-    });
+    await host.writeFile(
+      paths.inputs,
+      Buffer.from(JSON.stringify({...config.inputs, ...options.secretInputs})),
+      {mode: PRIVATE_FILE_MODE},
+    );
+    await host.writeFile(
+      paths.context,
+      Buffer.from(JSON.stringify(contextFile(step, config, options))),
+      {mode: PRIVATE_FILE_MODE},
+    );
 
     const result = await executeStepProcess(
       {
@@ -176,6 +190,8 @@ export async function executeActionStep(
         ],
       },
       {
+        host,
+        tempDir: jobTempDir,
         cwd: options.cwd,
         workspace: options.workspace,
         env: {

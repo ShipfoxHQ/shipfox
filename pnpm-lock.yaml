@@ -8796,6 +8796,24 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/vitest
 
+  libs/runner/container:
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
+
   libs/runner/execution:
     dependencies:
       '@shipfox/actions':
@@ -8813,6 +8831,9 @@ importers:
       '@shipfox/redact':
         specifier: workspace:*
         version: link:../../shared/common/redact
+      '@shipfox/runner-container':
+        specifier: workspace:*
+        version: link:../container
       '@shipfox/runner-protocol':
         specifier: workspace:*
         version: link:../protocol

@@ -2,7 +2,7 @@ import {createHash, randomBytes} from 'node:crypto';
 import {createWriteStream} from 'node:fs';
 import {link, lstat, mkdir, realpath, rename, rm, stat, unlink} from 'node:fs/promises';
 import {basename, dirname, extname, isAbsolute, join, relative, resolve, sep} from 'node:path';
-import {Readable, Transform} from 'node:stream';
+import {Readable} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
 
 /**
@@ -32,6 +32,16 @@ export interface DownloadTarget {
   /** Set when the destination names a file. Otherwise the provider's filename is used. */
   readonly fileName: string | undefined;
 }
+
+/**
+ * Writes the partial file from `source`. It must fail, rather than replace a file, when `path`
+ * already exists. The default writes with Node `fs`; the runner passes its execution host's.
+ */
+export type PartialFileWriter = (params: {
+  path: string;
+  source: Readable;
+  signal?: AbortSignal | undefined;
+}) => Promise<void>;
 
 export interface DownloadBudget {
   /** Counts arriving bytes. Returns false once the total would pass the limit. */
@@ -151,6 +161,8 @@ export async function writeDownloadedFile(params: {
   maxBytes: number;
   budget?: DownloadBudget | undefined;
   signal?: AbortSignal | undefined;
+  /** Where the partial file goes. Defaults to the local file system. */
+  writePartial?: PartialFileWriter | undefined;
 }): Promise<WrittenDownload> {
   const {target} = params;
   const name = target.fileName ?? sanitizeDownloadFilename(params.filename) ?? params.fallbackName;
@@ -160,36 +172,32 @@ export async function writeDownloadedFile(params: {
   let bytes = 0;
 
   try {
-    await pipeline(
-      Readable.from(params.body),
-      new Transform({
-        transform(chunk: Uint8Array, _encoding, callback) {
+    const counted = Readable.from(
+      (async function* () {
+        for await (const chunk of params.body) {
           if (bytes + chunk.byteLength > params.maxBytes) {
-            callback(
-              new DownloadWriteError(
-                'file-too-large',
-                `The file is larger than the ${params.maxBytes} byte download limit.`,
-              ),
+            throw new DownloadWriteError(
+              'file-too-large',
+              `The file is larger than the ${params.maxBytes} byte download limit.`,
             );
-            return;
           }
           if (params.budget !== undefined && !params.budget.take(chunk.byteLength)) {
-            callback(
-              new DownloadWriteError(
-                'download-limit-exceeded',
-                'The step reached its total download limit.',
-              ),
+            throw new DownloadWriteError(
+              'download-limit-exceeded',
+              'The step reached its total download limit.',
             );
-            return;
           }
           bytes += chunk.byteLength;
           hash.update(chunk);
-          callback(null, chunk);
-        },
-      }),
-      createWriteStream(partial, {flags: 'wx'}),
-      params.signal === undefined ? {} : {signal: params.signal},
+          yield chunk;
+        }
+      })(),
     );
+    await (params.writePartial ?? writePartialToDisk)({
+      path: partial,
+      source: counted,
+      signal: params.signal,
+    });
     // Resolved before the file is placed, so a failure here never hides a placed file.
     const cwd = await realpath(params.cwd);
     let filename = name;
@@ -207,6 +215,14 @@ export async function writeDownloadedFile(params: {
   } finally {
     await rm(partial, {force: true});
   }
+}
+
+async function writePartialToDisk(params: Parameters<PartialFileWriter>[0]): Promise<void> {
+  await pipeline(
+    params.source,
+    createWriteStream(params.path, {flags: 'wx'}),
+    params.signal === undefined ? {} : {signal: params.signal},
+  );
 }
 
 // `link` fails when the name is taken, so two downloads can never claim the same name.

@@ -29,9 +29,13 @@ interface BoundedFileRead {
   accountedBytes: number;
 }
 
-export async function createAnnotationSpool(): Promise<AnnotationSpool> {
-  const summaryPath = join(tmpdir(), `shipfox-step-summary-${randomUUID()}`);
-  const annotationsDir = join(tmpdir(), `shipfox-annotations-${randomUUID()}`);
+/** Creates the spool files in `tempDir`, the runner-owned job directory. */
+export async function createAnnotationSpool(
+  options: {tempDir?: string} = {},
+): Promise<AnnotationSpool> {
+  const tempDir = options.tempDir ?? tmpdir();
+  const summaryPath = join(tempDir, `shipfox-step-summary-${randomUUID()}`);
+  const annotationsDir = join(tempDir, `shipfox-annotations-${randomUUID()}`);
 
   await writeFile(summaryPath, '', {mode: 0o600});
   await mkdir(annotationsDir, {mode: 0o700});

@@ -1,6 +1,5 @@
 import {createHash} from 'node:crypto';
-import {mkdir, mkdtemp, readFile, realpath, rm, writeFile} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
+import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {isAbsolute, join, relative, sep} from 'node:path';
 import {promisify} from 'node:util';
 import {gunzip, gzip} from 'node:zlib';
@@ -131,6 +130,9 @@ export async function runJobSteps(params: {
   logsDir: string;
   agentStateDir: string;
   prepareAgentState?: () => Promise<void>;
+  /** Runner-owned scratch directory of the job, outside the workspace. */
+  tempDir: string;
+  prepareTempDir?: () => Promise<void>;
   jobContext: SetupJobContext;
   onLeaseTokenAdopted?: (leaseToken: string) => void;
 }): Promise<void> {
@@ -143,13 +145,13 @@ export async function runJobSteps(params: {
     workspacePrepared: false,
     logsPrepared: false,
     agentStatePrepared: false,
+    tempDirPrepared: false,
     ambientGitConfigPath: undefined,
     ambientGitConfigSecrets: [],
     checkoutDestinations: new Map(),
     annotationContexts: createAnnotationContextRegistry(),
     activeStream: undefined,
     checkoutRef: undefined,
-    actionTempDir: undefined,
   };
 
   try {
@@ -161,10 +163,6 @@ export async function runJobSteps(params: {
     // Drain the last stream (bounded) before runJob deletes the log spool; an abort
     // cuts the wait short. Whatever did not drain is timeout-closed server-side.
     await settleStream({stream: state.activeStream, signal});
-    if (state.actionTempDir !== undefined) {
-      const dir = await state.actionTempDir.catch(() => undefined);
-      if (dir !== undefined) await rm(dir, {recursive: true, force: true}).catch(() => undefined);
-    }
   }
 }
 
@@ -172,14 +170,13 @@ interface JobStepLoopState {
   workspacePrepared: boolean;
   logsPrepared: boolean;
   agentStatePrepared: boolean;
+  tempDirPrepared: boolean;
   ambientGitConfigPath: string | undefined;
   ambientGitConfigSecrets: string[];
   checkoutDestinations: TrackedCheckoutDestinations;
   annotationContexts: AnnotationContextRegistry;
   activeStream: LogStreamLifecycle | undefined;
   checkoutRef: string | undefined;
-  /** Created on the first action step and removed when the job ends. */
-  actionTempDir: Promise<string> | undefined;
 }
 
 async function runJobStepIteration(
@@ -243,11 +240,7 @@ async function runJobStepIteration(
     logsDir: params.logsDir,
     jobContext: params.jobContext,
     gitConfigPath: params.gitConfigPath,
-    actionTempDir: () => {
-      // Real path, because the action loader compares its importers after realpath.
-      state.actionTempDir ??= mkdtemp(join(tmpdir(), 'shipfox-job-')).then((dir) => realpath(dir));
-      return state.actionTempDir;
-    },
+    jobTempDir: params.tempDir,
     ...(params.credentialHelper ? {credentialHelper: params.credentialHelper} : {}),
     ...preparation,
   };
@@ -283,12 +276,19 @@ function stepPreparation(
   params: Parameters<typeof runJobSteps>[0],
   state: JobStepLoopState,
   step: StepDto,
-): Pick<Parameters<typeof executeStep>[0], 'prepareLogs' | 'prepareAgentState'> {
+): Pick<Parameters<typeof executeStep>[0], 'prepareLogs' | 'prepareTempDir' | 'prepareAgentState'> {
   const prepareLogs =
     step.type === 'setup' && !state.logsPrepared
       ? async () => {
           await createJobLogsDir(params.logsDir);
           state.logsPrepared = true;
+        }
+      : undefined;
+  const prepareTempDir =
+    step.type === 'setup' && !state.tempDirPrepared && params.prepareTempDir !== undefined
+      ? async () => {
+          await params.prepareTempDir?.();
+          state.tempDirPrepared = true;
         }
       : undefined;
   const prepareAgentState =
@@ -300,6 +300,7 @@ function stepPreparation(
       : undefined;
   return {
     ...(prepareLogs ? {prepareLogs} : {}),
+    ...(prepareTempDir ? {prepareTempDir} : {}),
     ...(prepareAgentState ? {prepareAgentState} : {}),
   };
 }
@@ -686,11 +687,15 @@ export async function executeStep(params: {
   checkoutRef?: string | undefined;
   consumeCheckoutRef?: (() => void) | undefined;
   gitConfigPath: string;
-  /** Runner-owned job directory outside the workspace, for extracted actions and step files. */
-  actionTempDir: () => Promise<string>;
+  /**
+   * Runner-owned job directory outside the workspace, for the scratch files of steps and for
+   * extracted actions.
+   */
+  jobTempDir: string;
   jobId: string;
   stepLabel: string;
   prepareLogs?: (() => Promise<void>) | undefined;
+  prepareTempDir?: (() => Promise<void>) | undefined;
   prepareAgentState?: (() => Promise<void>) | undefined;
   credentialHelper?: GitCredentialHelperConfig | undefined;
 }): Promise<StepExecution> {
@@ -1583,6 +1588,7 @@ async function executeRunStepBranch(params: ProcessStepBranchParams): Promise<St
   const {secretMaterial, stepSecrets, stepStream} = opening.opened;
   const result = await executeRunStep(input.step, {
     signal: input.signal,
+    tempDir: input.jobTempDir,
     cwd: params.stepCwd,
     workspace: input.cwd,
     ...(input.ambientGitConfigPath ? {gitConfigGlobal: input.ambientGitConfigPath} : {}),
@@ -1618,7 +1624,7 @@ async function executeActionStepBranch(params: ProcessStepBranchParams): Promise
     signal: input.signal,
     cwd: params.stepCwd,
     workspace: input.cwd,
-    jobTempDir: await input.actionTempDir(),
+    jobTempDir: input.jobTempDir,
     runId: input.jobContext.workflowRunId,
     jobId: input.jobContext.jobId,
     loadBundle: () =>
@@ -1673,6 +1679,12 @@ async function runSetupPreparations(
     'workspace_prep_failed',
   );
   if (logsFailure) return logsFailure;
+  const tempFailure = await runSetupPreparation(
+    params,
+    params.prepareTempDir,
+    'workspace_prep_failed',
+  );
+  if (tempFailure) return tempFailure;
   return runSetupPreparation(params, params.prepareAgentState, 'agent_harness_unavailable');
 }
 

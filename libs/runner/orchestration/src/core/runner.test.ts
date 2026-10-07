@@ -39,15 +39,19 @@ vi.mock('@shipfox/runner-workspace', async (importActual) => ({
   cleanupJobAgentState: vi.fn(),
   cleanupJobCredentials: vi.fn(),
   cleanupJobLogs: vi.fn(),
+  cleanupJobTemp: vi.fn(),
   cleanupOrphanedJobAgentState: vi.fn(),
   cleanupOrphanedJobCredentials: vi.fn(),
   cleanupOrphanedJobLogs: vi.fn(),
+  cleanupOrphanedJobTemp: vi.fn(),
   createJobAgentStateDir: vi.fn(),
   createJobCredentialsDir: vi.fn(),
+  createJobTempDir: vi.fn(),
   jobAgentStatePath: vi.fn(),
   jobCredentialsPath: vi.fn(),
   jobWorkspacePath: vi.fn(),
   jobLogsPath: vi.fn(),
+  jobTempPath: vi.fn(),
   cleanupWorkspace: vi.fn(),
   resolveWorkspaceRootFromEnv: vi.fn(),
 }));
@@ -136,16 +140,20 @@ import {
   cleanupJobAgentState,
   cleanupJobCredentials,
   cleanupJobLogs,
+  cleanupJobTemp,
   cleanupOrphanedJobAgentState,
   cleanupOrphanedJobCredentials,
   cleanupOrphanedJobLogs,
+  cleanupOrphanedJobTemp,
   cleanupWorkspace,
   createJobAgentStateDir,
   createJobCredentialsDir,
+  createJobTempDir,
   InvalidJobIdError,
   jobAgentStatePath,
   jobCredentialsPath,
   jobLogsPath,
+  jobTempPath,
   jobWorkspacePath,
   resolveWorkspaceRootFromEnv,
   UnsafeWorkspaceRootError,
@@ -159,15 +167,19 @@ import {runJobSteps} from '#core/step-loop.js';
 const mockJobWorkspacePath = vi.mocked(jobWorkspacePath);
 const mockJobLogsPath = vi.mocked(jobLogsPath);
 const mockJobAgentStatePath = vi.mocked(jobAgentStatePath);
+const mockJobTempPath = vi.mocked(jobTempPath);
 const mockJobCredentialsPath = vi.mocked(jobCredentialsPath);
 const mockCreateJobAgentStateDir = vi.mocked(createJobAgentStateDir);
 const mockCreateJobCredentialsDir = vi.mocked(createJobCredentialsDir);
+const mockCreateJobTempDir = vi.mocked(createJobTempDir);
 const mockCleanupJobAgentState = vi.mocked(cleanupJobAgentState);
 const mockCleanupWorkspace = vi.mocked(cleanupWorkspace);
 const mockCleanupJobLogs = vi.mocked(cleanupJobLogs);
+const mockCleanupJobTemp = vi.mocked(cleanupJobTemp);
 const mockCleanupOrphanedJobAgentState = vi.mocked(cleanupOrphanedJobAgentState);
 const mockCleanupOrphanedJobCredentials = vi.mocked(cleanupOrphanedJobCredentials);
 const mockCleanupOrphanedJobLogs = vi.mocked(cleanupOrphanedJobLogs);
+const mockCleanupOrphanedJobTemp = vi.mocked(cleanupOrphanedJobTemp);
 const mockCleanupJobCredentials = vi.mocked(cleanupJobCredentials);
 const mockResolveWorkspaceRoot = vi.mocked(resolveWorkspaceRootFromEnv);
 const mockRunJobSteps = vi.mocked(runJobSteps);
@@ -185,6 +197,7 @@ const mockStartHeartbeatLoop = vi.mocked(startHeartbeatLoop);
 const mockRunnerToolCapabilities = vi.mocked(runnerToolCapabilities);
 const mockInterruptibleSleep = vi.mocked(interruptibleSleep);
 const mockReleaseAgentStateLock = vi.fn(async () => undefined);
+const mockReleaseTempLock = vi.fn(async () => undefined);
 const mockReleaseCredentialLock = vi.fn(async () => undefined);
 
 const JOB = {
@@ -202,6 +215,7 @@ const WORKSPACE_ROOT = '/tmp/shipfox-test-root';
 const JOB_CWD = '/tmp/shipfox-test-root/job-1';
 const JOB_LOGS_DIR = '/tmp/shipfox-test-root/.shipfox-runner-logs/job-1';
 const JOB_AGENT_STATE_DIR = '/tmp/shipfox-test-root/.shipfox-runner-agent/job-1';
+const JOB_TEMP_DIR = '/tmp/shipfox-test-root/.shipfox-runner-tmp/job-1';
 const JOB_CREDENTIALS_DIR = '/tmp/shipfox-test-root/.shipfox-runner-cred/job-1';
 const JOB_GIT_CONFIG_PATH = `${JOB_CREDENTIALS_DIR}/git-cred.config`;
 const mockCredentialLifecycle = {
@@ -240,19 +254,24 @@ beforeEach(() => {
   mockJobWorkspacePath.mockReturnValue(JOB_CWD);
   mockJobLogsPath.mockReturnValue(JOB_LOGS_DIR);
   mockJobAgentStatePath.mockReturnValue(JOB_AGENT_STATE_DIR);
+  mockJobTempPath.mockReturnValue(JOB_TEMP_DIR);
   mockJobCredentialsPath.mockReturnValue(JOB_CREDENTIALS_DIR);
   mockReleaseAgentStateLock.mockClear();
+  mockReleaseTempLock.mockClear();
   mockReleaseCredentialLock.mockClear();
   createJobCredentialLifecycleMock.mockReturnValue(mockCredentialLifecycle);
   mockCredentialLifecycle.start.mockResolvedValue(undefined);
   mockCredentialLifecycle.register.mockReset();
   mockCredentialLifecycle.close.mockResolvedValue(undefined);
   mockCreateJobAgentStateDir.mockResolvedValue(mockReleaseAgentStateLock);
+  mockCreateJobTempDir.mockResolvedValue(mockReleaseTempLock);
   mockCreateJobCredentialsDir.mockResolvedValue(mockReleaseCredentialLock);
   mockCleanupJobAgentState.mockResolvedValue(undefined);
+  mockCleanupJobTemp.mockResolvedValue(undefined);
   mockCleanupOrphanedJobAgentState.mockResolvedValue(undefined);
   mockCleanupOrphanedJobCredentials.mockResolvedValue(undefined);
   mockCleanupOrphanedJobLogs.mockResolvedValue(undefined);
+  mockCleanupOrphanedJobTemp.mockResolvedValue(undefined);
   mockRunJobSteps.mockResolvedValue();
 });
 
@@ -268,8 +287,9 @@ describe('runJob', () => {
     mockJobAgentStatePath.mockReturnValue(JOB_AGENT_STATE_DIR);
     mockJobCredentialsPath.mockReturnValue(JOB_CREDENTIALS_DIR);
     const harnessStarted = vi.fn();
-    mockRunJobSteps.mockImplementation(async ({prepareAgentState}) => {
+    mockRunJobSteps.mockImplementation(async ({prepareAgentState, prepareTempDir}) => {
       await prepareAgentState?.();
+      await prepareTempDir?.();
       harnessStarted();
     });
 
@@ -295,6 +315,7 @@ describe('runJob', () => {
         gitConfigPath: JOB_GIT_CONFIG_PATH,
         logsDir: JOB_LOGS_DIR,
         agentStateDir: JOB_AGENT_STATE_DIR,
+        tempDir: JOB_TEMP_DIR,
         jobContext: {
           workflowRunId: JOB.workflow_run_id,
           workflowRunAttemptId: JOB.workflow_run_attempt_id,
@@ -302,7 +323,14 @@ describe('runJob', () => {
           jobExecutionId: JOB.job_execution_id,
         },
         prepareAgentState: expect.any(Function),
+        prepareTempDir: expect.any(Function),
       }),
+    );
+    expect(mockCreateJobTempDir).toHaveBeenCalledWith(JOB_TEMP_DIR);
+    expect(mockCleanupJobTemp).toHaveBeenCalledWith(JOB_TEMP_DIR);
+    expect(mockReleaseTempLock).toHaveBeenCalledOnce();
+    expect(mockCleanupJobTemp.mock.invocationCallOrder[0]).toBeLessThan(
+      mockReleaseTempLock.mock.invocationCallOrder[0] ?? Infinity,
     );
     expect(mockCreateJobAgentStateDir).toHaveBeenCalledWith(JOB_AGENT_STATE_DIR);
     expect(mockCreateJobAgentStateDir.mock.invocationCallOrder[0]).toBeLessThan(
@@ -677,6 +705,8 @@ describe('runJob', () => {
 
     expect(mockRunJobSteps).not.toHaveBeenCalled();
     expect(mockCreateJobAgentStateDir).not.toHaveBeenCalled();
+    expect(mockCreateJobTempDir).not.toHaveBeenCalled();
+    expect(mockCleanupJobTemp).not.toHaveBeenCalled();
     expect(mockCleanupWorkspace).not.toHaveBeenCalled();
     expect(mockCleanupJobLogs).not.toHaveBeenCalled();
     expect(mockCleanupJobAgentState).not.toHaveBeenCalled();
@@ -693,6 +723,7 @@ describe('startRunner', () => {
     expect(mockCleanupOrphanedJobLogs).toHaveBeenCalledWith(WORKSPACE_ROOT);
     expect(mockCleanupOrphanedJobAgentState).toHaveBeenCalledWith(WORKSPACE_ROOT);
     expect(mockCleanupOrphanedJobCredentials).toHaveBeenCalledWith(WORKSPACE_ROOT);
+    expect(mockCleanupOrphanedJobTemp).toHaveBeenCalledWith(WORKSPACE_ROOT);
     expect(mockCleanupOrphanedJobLogs.mock.invocationCallOrder[0]).toBeLessThan(
       mockRegisterRunnerSession.mock.invocationCallOrder[0] ?? Infinity,
     );

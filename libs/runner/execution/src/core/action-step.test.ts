@@ -161,6 +161,14 @@ describe('executeActionStep', () => {
     expect(await readdir(join(sandbox.jobTempDir, 'steps'))).toEqual([]);
   });
 
+  it('keeps every scratch file in the job temp directory', async () => {
+    const step = await actionStep(action('async () => {}'));
+
+    await run(step);
+
+    expect((await readdir(sandbox.jobTempDir)).sort()).toEqual(['actions', 'steps']);
+  });
+
   it('fails with action_unavailable when the bundle does not match its digest', async () => {
     const step = await actionStep(action('async () => {}'));
     const other = await encodeActionBundle({files: [{path: 'index.js', content: ''}]});
