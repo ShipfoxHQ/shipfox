@@ -2820,10 +2820,7 @@ describe('normalizeWorkflowDocument', () => {
         jobs: {
           build: {
             checkout: false,
-            steps: [
-              {checkout: {repository: 'acme/api'}},
-              {checkout: {repository: 'acme/helm'}},
-            ],
+            steps: [{checkout: {repository: 'acme/api'}}, {checkout: {repository: 'acme/helm'}}],
           },
         },
       });
