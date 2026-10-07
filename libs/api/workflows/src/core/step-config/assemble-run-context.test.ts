@@ -2098,6 +2098,60 @@ describe('assembleStepDispatchContext', () => {
     );
   });
 
+  it('gives later steps the declared defaults for a step with no value for the output', () => {
+    const declarations = {
+      outcome: {type: 'string', default: 'none'},
+      patch: {type: 'string', default: ''},
+      count: {type: 'number'},
+    };
+    const targetStep = step({id: 'step-4', key: 'report'});
+    const steps = [
+      step({id: 'step-1', key: 'skipped', status: 'skipped', config: {outputs: declarations}}),
+      step({id: 'step-2', key: 'failed', status: 'failed', config: {outputs: declarations}}),
+      step({id: 'step-3', key: 'wrote', status: 'succeeded', config: {outputs: declarations}}),
+      targetStep,
+    ];
+    const attempts = [
+      attempt({stepId: 'step-2', status: 'failed', output: {patch: 'partial'}}),
+      attempt({stepId: 'step-3', output: {outcome: 'packaged', count: 2}}),
+    ];
+
+    const context = assembleStepDispatchContext({steps, attempts, targetStepId: targetStep.id});
+
+    expect(context.values.steps).toMatchObject({
+      skipped: {outputs: {outcome: 'none', patch: ''}},
+      failed: {outputs: {outcome: 'none', patch: 'partial'}},
+      wrote: {outputs: {outcome: 'packaged', patch: '', count: 2}},
+    });
+    const expression = createWorkflowExpression({
+      source: 'steps.skipped.outputs.outcome == "none" && !has(steps.skipped.outputs.count)',
+      check: {mode: 'syntax'},
+    });
+    expect(evaluateWorkflowExpression(expression, context.values)).toBe(true);
+  });
+
+  it('reads outputs from the current attempt, not the last one before a rewind', () => {
+    const declarations = {commit: {type: 'string', default: 'unknown'}};
+    const targetStep = step({id: 'step-2', key: 'verify'});
+    const rewound = step({
+      id: 'step-1',
+      key: 'build',
+      status: 'skipped',
+      currentAttempt: 2,
+      config: {outputs: declarations},
+    });
+
+    const context = assembleStepDispatchContext({
+      steps: [rewound, targetStep],
+      attempts: [attempt({stepId: rewound.id, attempt: 1, output: {commit: 'abc123'}})],
+      targetStepId: targetStep.id,
+    });
+
+    expect(context.values.steps).toMatchObject({
+      build: {outputs: {commit: 'unknown'}, attempts: [{outputs: {commit: 'abc123'}}]},
+    });
+  });
+
   it('includes reported log paths and omits missing paths from the dispatch context', () => {
     const targetStep = step({id: 'step-2', key: 'deploy'});
     const buildStep = step({id: 'step-1', key: 'build', status: 'succeeded'});
@@ -2172,7 +2226,10 @@ describe('assembleStepDispatchContext', () => {
 
   it('uses the latest terminal attempt by execution order and keeps history ordered', () => {
     const targetStep = step({id: 'step-2', key: 'deploy'});
-    const steps = [step({id: 'step-1', key: 'build', status: 'succeeded'}), targetStep];
+    const steps = [
+      step({id: 'step-1', key: 'build', status: 'succeeded', currentAttempt: 2}),
+      targetStep,
+    ];
     const attempts = [
       attempt({
         id: 'attempt-2',
@@ -2257,7 +2314,7 @@ describe('assembleStepDispatchContext', () => {
       build: {
         status: 'running',
         exit_code: 1n,
-        outputs: {sha: 'failed'},
+        outputs: {},
         attempts: [
           {status: 'succeeded', exit_code: 0n, outputs: {sha: 'old'}},
           {status: 'failed', exit_code: 1n, outputs: {sha: 'failed'}},

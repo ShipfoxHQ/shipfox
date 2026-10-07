@@ -44,6 +44,7 @@ export type WorkflowModelValidationIssueCode =
   | 'invalid-model'
   | 'invalid-job-if'
   | 'invalid-job-success'
+  | 'invalid-output-default'
   | 'invalid-output-schema'
   | 'invalid-step-export'
   | 'invalid-runner-label'

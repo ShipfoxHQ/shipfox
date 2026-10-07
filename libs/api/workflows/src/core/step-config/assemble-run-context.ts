@@ -7,6 +7,7 @@ import {
   type ExpressionType,
   extractExactContextRoots,
   getWorkflowPredicateContextRoots,
+  outputDefaults,
   rehydrateJsonExpressionRecord,
   type WorkflowExpressionEvaluationContext,
   type WorkflowPredicateContextRoot,
@@ -24,6 +25,7 @@ import type {
   WorkflowRun,
   WorkflowRunTriggerReference,
 } from '#core/entities/workflow-run.js';
+import {readStepOutputs} from '#core/step-transition/read-step-outputs.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 export interface JobContextInput {
@@ -980,10 +982,17 @@ function buildStepAttemptContext(params: {
     if (step.key === null) continue;
     const attempts = terminalAttemptsByStepId.get(step.id) ?? [];
     const latestAttempt = attempts.at(-1);
+    // A rewound step that the rerun skips has no attempt for its current pass, so
+    // it must not show the previous pass's outputs.
+    const currentAttempt = attempts.find((attempt) => attempt.attempt === step.currentAttempt);
     stepsContext[step.key] = {
       status: step.status,
+      ...(latestAttempt === undefined ? {} : latestAttemptFields(latestAttempt)),
       // A step that never ran has no attempt, so `has(steps.x.outputs.y)` must read an empty map.
-      ...(latestAttempt === undefined ? {outputs: {}} : latestAttemptFields(latestAttempt)),
+      outputs: {
+        ...outputDefaults(readStepOutputs(step.config)),
+        ...(currentAttempt?.output ?? {}),
+      },
       attempts: attempts.map(attemptFields),
     };
   }
@@ -1122,6 +1131,7 @@ function attemptFields(attempt: StepAttempt): Record<string, unknown> {
 function latestAttemptFields(attempt: StepAttempt): Record<string, unknown> {
   const fields = attemptFields(attempt);
   delete fields.status;
+  delete fields.outputs;
   return fields;
 }
 

@@ -389,6 +389,10 @@ export const workflowDocumentStepOutputDeclarationSchema = z
             WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH +
             ' nesting levels.',
         }),
+      default: z.unknown().optional().meta({
+        description:
+          'Value that later steps read when the step has no value for this output, for example when it is skipped. It must match the declared type and `schema`. Run and agent steps only.',
+      }),
     }),
   ])
   .superRefine((declaration, ctx) =>

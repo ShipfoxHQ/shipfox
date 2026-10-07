@@ -12,6 +12,8 @@ export interface OutputTypeDeclaration {
   readonly schema?: unknown;
   // Absent means required, so declarations written before this flag keep failing on a missing key.
   readonly required?: boolean;
+  /** Stands in for the output when its step has no value for it. `null` is a value; `undefined` is no default. */
+  readonly default?: unknown;
 }
 
 export type OutputDeclarations = Readonly<Record<string, OutputTypeDeclaration>>;
@@ -46,7 +48,10 @@ const coercingAjv = new Ajv({
   allErrors: true,
   addUsedSchema: false,
 });
+// A default is stored as written, so it is checked without type coercion.
+const defaultAjv = new Ajv({strict: false, allErrors: true, addUsedSchema: false});
 const jsonOutputValidatorCache = new Map<string, ValidateFunction>();
+const jsonDefaultValidatorCache = new Map<string, ValidateFunction>();
 const fallbackJsonType = {kind: 'dyn'} as const satisfies ExpressionType;
 const openObjectJsonType = {kind: 'map'} as const satisfies ExpressionType;
 
@@ -121,6 +126,74 @@ export function validateJsonSchema(schema: unknown): JsonSchemaValidationResult 
   };
 }
 
+export function hasOutputDefault(declaration: OutputTypeDeclaration): boolean {
+  return declaration.default !== undefined;
+}
+
+/**
+ * The declared defaults, keyed by output. Defaults are checked when the workflow
+ * syncs, so they are returned as written.
+ */
+export function outputDefaults(
+  declarations: OutputDeclarations | undefined,
+): Record<string, unknown> {
+  // fromEntries defines own properties, so a `__proto__` output key stays a key.
+  return Object.fromEntries(
+    Object.entries(declarations ?? {})
+      .filter(([, declaration]) => hasOutputDefault(declaration))
+      .map(([key, declaration]) => [key, cloneJsonValue(declaration.default)]),
+  );
+}
+
+export type OutputDefaultValidationResult =
+  | {readonly ok: true}
+  | {readonly ok: false; readonly reason: string};
+
+/**
+ * A default is authored as a typed value, so a string default on a `number`
+ * output is rejected even though a runner-reported "3" would coerce.
+ */
+export function validateOutputDefault(
+  declaration: OutputTypeDeclaration,
+): OutputDefaultValidationResult {
+  if (!hasOutputDefault(declaration)) return {ok: true};
+  const value = declaration.default;
+
+  switch (declaration.type) {
+    case 'string':
+      return typeof value === 'string'
+        ? {ok: true}
+        : {ok: false, reason: 'A string output needs a string default.'};
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value)
+        ? {ok: true}
+        : {ok: false, reason: 'A number output needs a finite number default.'};
+    case 'boolean':
+      return typeof value === 'boolean'
+        ? {ok: true}
+        : {ok: false, reason: 'A boolean output needs a boolean default.'};
+    case 'json':
+      return validateJsonOutputDefault(declaration);
+  }
+}
+
+function validateJsonOutputDefault(
+  declaration: OutputTypeDeclaration,
+): OutputDefaultValidationResult {
+  if (!isJsonValue(declaration.default)) {
+    return {ok: false, reason: 'A json output needs a JSON default.'};
+  }
+
+  if (declaration.schema === undefined) return {ok: true};
+
+  const validate = validatorForJsonOutputSchema(declaration.schema, {coerce: false});
+  if (validate({value: declaration.default})) return {ok: true};
+  return {
+    ok: false,
+    reason: `The default does not match the output schema: ${defaultAjv.errorsText(validate.errors, {separator: '; '})}`,
+  };
+}
+
 export interface CoerceStepOutputOptions {
   /**
    * Parse string values of `json` outputs as JSON text. Runner steps report every
@@ -155,7 +228,10 @@ export function coerceStepOutputs(
 
   const coerced: Record<string, unknown> = {};
   for (const [key, declaration] of Object.entries(params.declarations)) {
-    if (!Object.hasOwn(output, key)) continue;
+    if (!Object.hasOwn(output, key)) {
+      if (hasOutputDefault(declaration)) coerced[key] = cloneJsonValue(declaration.default);
+      continue;
+    }
     const value = output[key];
     const result = coerceStepOutputValue(key, declaration, value, params.parseJsonText ?? true);
     if (!result.ok) return result;
@@ -193,6 +269,7 @@ function missingRequiredOutputError(
 ): StepOutputCoercionError | undefined {
   for (const [key, declaration] of Object.entries(declarations)) {
     if (Object.hasOwn(output, key) || declaration.required === false) continue;
+    if (hasOutputDefault(declaration)) continue;
     return {
       key,
       reason: 'missing',
@@ -315,18 +392,24 @@ function invalidTypeError(
   };
 }
 
-function validatorForJsonOutputSchema(schema: unknown): ValidateFunction {
+// Ajv keeps every compiled schema object it sees, so reuse validators by schema content.
+function validatorForJsonOutputSchema(
+  schema: unknown,
+  options: {readonly coerce: boolean} = {coerce: true},
+): ValidateFunction {
+  const instance = options.coerce ? coercingAjv : defaultAjv;
+  const cache = options.coerce ? jsonOutputValidatorCache : jsonDefaultValidatorCache;
   const key = stableJsonStringify(schema);
-  const cached = jsonOutputValidatorCache.get(key);
+  const cached = cache.get(key);
   if (cached !== undefined) return cached;
 
-  const validate = coercingAjv.compile({
+  const validate = instance.compile({
     type: 'object',
     properties: {value: schema},
     required: ['value'],
     additionalProperties: false,
   });
-  jsonOutputValidatorCache.set(key, validate);
+  cache.set(key, validate);
   return validate;
 }
 
@@ -368,6 +451,33 @@ function hasDynamicSchemaShape(schema: Readonly<Record<string, unknown>>): boole
     schema.not !== undefined ||
     schema.nullable === true
   );
+}
+
+// js-yaml can produce Date instances and cyclic aliases, neither of which is JSON.
+function isJsonValue(value: unknown, active: Set<object> = new Set()): boolean {
+  if (value === null) return true;
+  switch (typeof value) {
+    case 'string':
+    case 'boolean':
+      return true;
+    case 'number':
+      return Number.isFinite(value);
+    case 'object':
+      return isJsonContainer(value, active);
+    default:
+      return false;
+  }
+}
+
+function isJsonContainer(value: object, active: Set<object>): boolean {
+  const prototype = Object.getPrototypeOf(value);
+  if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) return false;
+  if (active.has(value)) return false;
+
+  active.add(value);
+  const valid = Object.values(value).every((child) => isJsonValue(child, active));
+  active.delete(value);
+  return valid;
 }
 
 function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {

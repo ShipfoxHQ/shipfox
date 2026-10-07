@@ -324,6 +324,31 @@ describe('workflowDocumentSchema', () => {
     });
   });
 
+  it('keeps the default on an object-form step output', () => {
+    const result = workflowDocumentSchema.parse({
+      name: 'defaulted outputs',
+      jobs: {
+        build: {
+          steps: [
+            {
+              key: 'package',
+              run: 'npm run package',
+              outputs: {
+                outcome: {type: 'string', default: 'none'},
+                meta: {type: 'json', default: null},
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.jobs.build?.steps[0]?.outputs).toEqual({
+      outcome: {type: 'string', default: 'none'},
+      meta: {type: 'json', default: null},
+    });
+  });
+
   it('accepts tool output mappings without transforming their expressions', () => {
     const result = workflowDocumentSchema.parse({
       name: 'tool outputs',

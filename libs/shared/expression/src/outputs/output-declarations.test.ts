@@ -4,7 +4,9 @@ import {
   coerceStepOutputs,
   jsonSchemaToExpressionType,
   outputDeclarationToExpressionType,
+  outputDefaults,
   validateJsonSchema,
+  validateOutputDefault,
 } from './output-declarations.js';
 
 describe('outputDeclarationToExpressionType', () => {
@@ -361,6 +363,40 @@ describe('coerceStepOutputs', () => {
     expect(result).toMatchObject({ok: false, error: {key: 'count', reason: 'missing'}});
   });
 
+  it('fills a missing output from its default instead of failing', () => {
+    const result = coerceStepOutputs({
+      declarations: {
+        sha: {type: 'string'},
+        outcome: {type: 'string', default: 'none'},
+        retries: {type: 'number', default: 0},
+        ready: {type: 'boolean', default: false},
+        meta: {type: 'json', default: {tags: []}},
+      },
+      output: {sha: 'abc123'},
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      output: {sha: 'abc123', outcome: 'none', retries: 0, ready: false, meta: {tags: []}},
+    });
+  });
+
+  it('keeps a reported value over the default and still fails a missing output without one', () => {
+    const declarations = {
+      outcome: {type: 'string', default: 'none'},
+      sha: {type: 'string'},
+    } as const;
+
+    expect(coerceStepOutputs({declarations, output: {sha: 'a', outcome: 'ok'}})).toEqual({
+      ok: true,
+      output: {sha: 'a', outcome: 'ok'},
+    });
+    expect(coerceStepOutputs({declarations, output: {outcome: 'ok'}})).toMatchObject({
+      ok: false,
+      error: {key: 'sha', reason: 'missing'},
+    });
+  });
+
   it('accepts a missing optional output without adding the key', () => {
     const result = coerceStepOutputs({
       declarations: {
@@ -485,5 +521,72 @@ describe('coerceKeptStepOutputs', () => {
     });
 
     expect(result).toEqual({path: 'export.md', complete: false});
+  });
+});
+
+describe('validateOutputDefault', () => {
+  it.each([
+    {type: 'string', default: 'none'},
+    {type: 'string', default: ''},
+    {type: 'number', default: 0},
+    {type: 'boolean', default: false},
+    {type: 'json', default: null},
+    {type: 'json', default: {tags: ['a']}},
+    {type: 'json', schema: {type: 'array', items: {type: 'string'}}, default: []},
+    {type: 'json', schema: {type: 'string'}, default: '3'},
+    {type: 'string'},
+  ] as const)('accepts $type default $default', (declaration) => {
+    expect(validateOutputDefault(declaration)).toEqual({ok: true});
+  });
+
+  it.each([
+    {type: 'string', default: 1},
+    {type: 'number', default: '3'},
+    {type: 'number', default: Number.NaN},
+    {type: 'boolean', default: 'false'},
+    {type: 'json', default: () => 1},
+    {type: 'json', schema: {type: 'array'}, default: 'x'},
+    {type: 'json', schema: {type: 'number'}, default: '3'},
+    {type: 'json', schema: {type: 'string'}, default: 3},
+    {type: 'json', default: new Date('2026-10-07')},
+  ] as const)('rejects $type default $default', (declaration) => {
+    expect(validateOutputDefault(declaration)).toMatchObject({ok: false});
+  });
+});
+
+describe('validateOutputDefault with cyclic values', () => {
+  it('rejects a cyclic json default instead of overflowing the stack', () => {
+    const cyclic: unknown[] = [];
+    cyclic.push(cyclic);
+
+    expect(validateOutputDefault({type: 'json', default: cyclic})).toMatchObject({ok: false});
+  });
+
+  it('accepts a value that appears twice without a cycle', () => {
+    const shared = {a: 1};
+
+    expect(validateOutputDefault({type: 'json', default: [shared, shared]})).toEqual({ok: true});
+  });
+});
+
+describe('outputDefaults', () => {
+  it('returns only the declared defaults', () => {
+    expect(
+      outputDefaults({
+        sha: {type: 'string'},
+        outcome: {type: 'string', default: 'none'},
+        meta: {type: 'json', default: null},
+      }),
+    ).toEqual({outcome: 'none', meta: null});
+    expect(outputDefaults(undefined)).toEqual({});
+  });
+
+  it('keeps a __proto__ output key as an own property', () => {
+    const declarations = JSON.parse('{"__proto__": {"type": "string", "default": "x"}}');
+
+    const defaults = outputDefaults(declarations);
+
+    expect(Object.hasOwn(defaults, '__proto__')).toBe(true);
+    expect(Object.getPrototypeOf(defaults)).toBe(Object.prototype);
   });
 });

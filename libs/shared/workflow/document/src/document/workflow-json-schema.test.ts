@@ -42,6 +42,19 @@ describe('buildWorkflowJsonSchema', () => {
     );
   });
 
+  it('publishes default on the object form of a step output', () => {
+    const schema = buildWorkflowJsonSchema();
+    const step = stepSchemaFor(schema);
+    const declarationCondition = objects(step.allOf).find(
+      (candidate) => JSON.stringify(candidate.if) === JSON.stringify({not: {required: ['tool']}}),
+    );
+    const declaration = object(
+      object(object(object(declarationCondition?.then).properties).outputs).additionalProperties,
+    );
+
+    expect(JSON.stringify(declaration)).toContain('"default"');
+  });
+
   it('switches step output values to mappings when a tool is present', () => {
     const schema = buildWorkflowJsonSchema();
     const step = stepSchemaFor(schema);
