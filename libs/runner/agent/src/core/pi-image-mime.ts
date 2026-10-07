@@ -5,7 +5,8 @@ const BMP_BITS_PER_PIXEL = [1, 4, 8, 16, 24, 32];
 /**
  * Mirrors the image detection of pi's default `read` operations, which its package does not
  * export. Pi only treats a file as an image when this accepts it, so a looser check would send
- * text files that start with `BM` or `GIF` to the model as images.
+ * text files that start with `BM` to the model as images. A GIF needs its full signature, which
+ * is stricter than pi, for the same reason.
  */
 export function detectSupportedImageMimeType(file: Uint8Array): string | null {
   const buffer = Buffer.from(file.buffer, file.byteOffset, Math.min(file.length, SNIFF_BYTES));
@@ -13,7 +14,9 @@ export function detectSupportedImageMimeType(file: Uint8Array): string | null {
   if (startsWith(buffer, PNG_SIGNATURE)) {
     return isPng(buffer) && !isAnimatedPng(buffer) ? 'image/png' : null;
   }
-  if (startsWithAscii(buffer, 0, 'GIF')) return 'image/gif';
+  if (startsWithAscii(buffer, 0, 'GIF87a') || startsWithAscii(buffer, 0, 'GIF89a')) {
+    return 'image/gif';
+  }
   if (startsWithAscii(buffer, 0, 'RIFF') && startsWithAscii(buffer, 8, 'WEBP')) return 'image/webp';
   if (startsWithAscii(buffer, 0, 'BM') && isBmp(buffer)) return 'image/bmp';
   return null;

@@ -275,8 +275,8 @@ async function createPiSession(params: {
 }): Promise<{session: PiSession; forkedFromExistingSession: boolean}> {
   const sessionManagerSetup = createPiSessionManager(params);
   const sessionManager = sessionManagerSetup.manager;
-  // They replace pi's built-in tools of the same name, so they stay out of `customTools`, which
-  // decides the tool selection and the order of the active tools below.
+  // They replace pi's built-in tools of the same name, so they stay out of `params.customTools`,
+  // which decides the tool selection and the order of the active tools below.
   const hostTools = createPiHostToolDefinitions({
     host: params.host,
     cwd: params.cwd,

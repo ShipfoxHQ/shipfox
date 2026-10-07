@@ -32,6 +32,7 @@ describe('detectSupportedImageMimeType', () => {
     ['a JPEG', Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00]), 'image/jpeg'],
     ['a PNG', png('IDAT'), 'image/png'],
     ['a GIF', Buffer.from('GIF89a'), 'image/gif'],
+    ['an old GIF', Buffer.from('GIF87a'), 'image/gif'],
     ['a WebP', Buffer.from('RIFF\0\0\0\0WEBPVP8 '), 'image/webp'],
     ['a BMP', bmp(), 'image/bmp'],
   ])('recognizes %s', (_name, file, mimeType) => {
@@ -52,6 +53,10 @@ describe('detectSupportedImageMimeType', () => {
     expect(
       detectSupportedImageMimeType(Buffer.from('BM25 ranking is a retrieval function.')),
     ).toBeNull();
+  });
+
+  it('rejects a text file that only starts like a GIF', () => {
+    expect(detectSupportedImageMimeType(Buffer.from('GIFs are animated images.'))).toBeNull();
   });
 
   it('rejects a file that is not an image', () => {

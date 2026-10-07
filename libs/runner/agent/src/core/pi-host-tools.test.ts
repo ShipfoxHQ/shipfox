@@ -229,6 +229,6 @@ describe('Pi host tools', () => {
     await mkdir(join(root, 'real'));
     await symlink(join(root, 'real'), join(root, 'link'));
 
-    expect(await call('ls', {path: root})).toContain('link');
+    expect(await call('ls', {path: root})).toBe('link/\nreal/');
   });
 });

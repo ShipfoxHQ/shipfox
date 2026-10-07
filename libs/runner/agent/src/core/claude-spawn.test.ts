@@ -97,13 +97,29 @@ describe('createClaudeProcessSpawner', () => {
   });
 
   it('reports a process that could not start', async () => {
-    const {spawn} = createClaudeProcessSpawner(new LocalExecutionHost());
-    const child = spawn({...spawnOptions(''), command: '/nonexistent/claude', args: []});
-    const failure = new Promise<Error>((resolve) => {
+    const host = new LocalExecutionHost();
+    const real = host.spawn.bind(host);
+    const failure = new Error('spawn failed');
+    vi.spyOn(host, 'spawn').mockImplementation((request) => ({
+      ...real(request),
+      exited: Promise.reject(failure),
+    }));
+    const child = createClaudeProcessSpawner(host).spawn(spawnOptions('true'));
+    const reported = new Promise<Error>((resolve) => {
       (child as unknown as NodeJS.EventEmitter).once('error', resolve);
     });
 
-    expect(await failure).toMatchObject({code: 'ENOENT'});
+    expect(await reported).toBe(failure);
+  });
+
+  it('kills background processes once Claude Code exits', async () => {
+    const host = new LocalExecutionHost();
+    const spawn = vi.spyOn(host, 'spawn');
+
+    const child = createClaudeProcessSpawner(host).spawn(spawnOptions('true'));
+    await exitOf(child);
+
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({killTreeOnExit: true}));
   });
 });
 

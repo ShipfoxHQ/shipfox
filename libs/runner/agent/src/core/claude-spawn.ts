@@ -29,6 +29,8 @@ export function createClaudeProcessSpawner(
         ...(options.cwd === undefined ? {} : {cwd: options.cwd}),
         env: definedEntries(options.env),
         stdin: 'pipe',
+        // A descendant left holding the pipes would keep the SDK from seeing the exit.
+        killTreeOnExit: true,
       });
       if (!child.stdin) {
         child.killTree().catch(() => undefined);
