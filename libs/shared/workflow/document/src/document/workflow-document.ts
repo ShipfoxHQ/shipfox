@@ -37,6 +37,48 @@ export const agentThinkingFieldSchema = z
       'Sets agent reasoning. `default` requests the provider default without workspace or deployment overrides. Omitting this field uses configured defaults or `xhigh`. Available values depend on the harness. Supports workflow expressions. See [Model providers](/reference/model-providers).',
   });
 
+const WORKFLOW_PROMPT_PARTS_MAX_ITEMS = 64;
+
+/**
+ * Validates the path of a prompt `file` part. It follows the local `uses:`
+ * rule: literal, starts with `./`, and stays inside the repository.
+ */
+function promptFilePathIssue(path: string): string | undefined {
+  if (!WORKFLOW_LITERAL_NAME_PATTERN.test(path)) {
+    return 'Prompt file paths must be literal. Interpolation is rejected.';
+  }
+  const result = parseWorkflowActionRef(path);
+  if (result.ok && result.ref.kind === 'local') return undefined;
+  if (!(result.ok || result.registry)) {
+    return result.message.replace('Action paths', 'Prompt file paths');
+  }
+  return 'Prompt file paths must start with `./`.';
+}
+
+const workflowDocumentPromptFilePartSchema = z.strictObject({
+  file: z
+    .string()
+    .min(1)
+    .superRefine((path, ctx) => {
+      const message = promptFilePathIssue(path);
+      if (message !== undefined) ctx.addIssue({code: 'custom', message});
+    })
+    .meta({
+      description:
+        'Reads the part from this repository file. The path starts with `./` and stays inside the repository.',
+    }),
+});
+
+// Lists do not nest: a part is a string or a file reference, so a YAML anchor
+// that holds a list (or a cyclic alias) is an invalid item, with no recursion.
+const workflowDocumentPromptSchema = z.union([
+  z.string().min(1),
+  z
+    .array(z.union([z.string().min(1), workflowDocumentPromptFilePartSchema]))
+    .min(1)
+    .max(WORKFLOW_PROMPT_PARTS_MAX_ITEMS),
+]);
+
 const workflowNameSchema = literalNameSchema(
   'Workflow name must be literal. Move runtime interpolation to run_name.',
 ).meta({description: 'Names the workflow.'});
@@ -946,8 +988,9 @@ const workflowDocumentStepBaseSchema = z.strictObject({
   model: z.string().min(1).optional().meta({
     description: 'Selects the model that the agent uses.',
   }),
-  prompt: z.string().min(1).optional().meta({
-    description: 'Gives the agent its instructions.',
+  prompt: workflowDocumentPromptSchema.optional().meta({
+    description:
+      'Gives the agent its instructions. Use a string, or a list of parts that Shipfox joins with a blank line. A part is a string or a `file` reference.',
   }),
   harness: harnessSchema.optional().meta({
     description:

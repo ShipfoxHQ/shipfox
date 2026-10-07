@@ -68,4 +68,51 @@ describe('parseWorkflowYaml', () => {
       });
     }
   });
+
+  describe('prompt parts', () => {
+    const prompt = (lines: string) =>
+      `name: parts\nenv:\n  RULES: &rules Be brief.\njobs:\n  review:\n    runner: ubuntu-latest\n    steps:\n      - prompt:\n${lines}\n`;
+
+    it('splices an anchored string into a prompt list', () => {
+      const document = parseWorkflowYaml(
+        prompt('          - Review the change.\n          - *rules\n          - Done.'),
+      );
+
+      expect(document.jobs.review?.steps[0]?.prompt).toEqual([
+        'Review the change.',
+        'Be brief.',
+        'Done.',
+      ]);
+    });
+
+    it('rejects an anchored list spliced into a prompt list as an invalid item', () => {
+      const source = [
+        'name: parts',
+        'env:',
+        '  RULES: &list',
+        '    - One.',
+        'jobs:',
+        '  review:',
+        '    runner: ubuntu-latest',
+        '    steps:',
+        '      - prompt:',
+        '          - *list',
+      ].join('\n');
+
+      expect(() => parseWorkflowYaml(source)).toThrow(InvalidWorkflowDocumentError);
+    });
+
+    it('rejects a list that contains its own anchor', () => {
+      const source = [
+        'name: parts',
+        'jobs:',
+        '  review:',
+        '    runner: ubuntu-latest',
+        '    steps:',
+        '      - prompt: &p [*p]',
+      ].join('\n');
+
+      expect(() => parseWorkflowYaml(source)).toThrow(Error);
+    });
+  });
 });
