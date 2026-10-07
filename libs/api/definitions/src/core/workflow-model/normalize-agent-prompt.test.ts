@@ -164,6 +164,7 @@ describe('normalizeAgentPrompt', () => {
 
     const step = agentStep(normalizePrompt([{file: './prompts/review.md'}], files));
 
+    expect(step.prompt).toBe(`Write $${interpolation('inputs.number')} as is.`);
     expect(step.templates).toBeUndefined();
   });
 
