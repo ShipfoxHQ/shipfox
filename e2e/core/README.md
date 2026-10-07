@@ -25,21 +25,40 @@ Set the variables listed in [Environment](#environment) before running the suite
 
 ## Usage
 
-Create a client and poll a public E2E read until it returns a result:
+Create a client and poll an E2E observation route until it returns a result:
 
 ```ts
 import {config, createApiClient, pollUntil} from '@shipfox/e2e-core';
 
+type TestVcsStats = {
+  mint_count: number;
+  request_count: number;
+  accepted_request_count: number;
+  rejected_request_count: number;
+  generations: string[];
+  invalidations: Array<{
+    key: string;
+    repository: string;
+    generation: string;
+  }>;
+  requests: Array<{
+    method: string;
+    path: string;
+    status: 'accepted' | 'rejected';
+    generation?: string;
+  }>;
+};
+
 const api = createApiClient({token: config.E2E_ADMIN_API_KEY});
-const workspace = await pollUntil(
+const stats = await pollUntil(
   {
     timeoutMs: 30_000,
-    describe: () => 'the workspace to become available',
+    describe: () => 'the Test VCS fixture stats to become available',
   },
-  () => api.requestJson<{id: string}>('get', '/workspaces/current'),
+  () => api.requestJson<TestVcsStats>('get', '/__e2e/integrations/test-vcs/stats'),
 );
 
-console.log(`Workspace: ${workspace.id}`);
+console.log(`Observed ${stats.request_count} Test VCS requests`);
 ```
 
 ## Environment
