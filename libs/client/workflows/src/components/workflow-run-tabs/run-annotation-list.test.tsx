@@ -323,7 +323,7 @@ function derived(overrides: Partial<DerivedRunAnnotation> & {id: string}): Deriv
     style: 'default',
     statusLabel: 'Skipped',
     jobName: 'deploy production',
-    body: 'A required job did not succeed, so this job did not run.',
+    body: '`run_after` did not let this run.',
     ...overrides,
   };
 }

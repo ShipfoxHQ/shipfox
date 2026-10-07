@@ -155,6 +155,12 @@ describe('skippedJobDescription', () => {
     );
   });
 
+  test('does not blame a needed job when run_after skipped the job', () => {
+    expect(skippedJobDescription('default_gate_rejected')).toBe(
+      '`run_after` did not let this run.',
+    );
+  });
+
   test('explains when materialized output exceeds the configured size limit', () => {
     expect(skippedJobDescription('output_too_large')).toBe('The job output is too large.');
   });
