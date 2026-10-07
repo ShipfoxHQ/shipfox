@@ -1,11 +1,40 @@
 {
   "name": "@shipfox/e2e-harness",
+  "version": "0.1.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "e2e/harness"
+  },
   "license": "MIT",
-  "private": true,
+  "private": false,
   "type": "module",
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "workspace-source": {
+        "types": "./src/index.d.ts",
+        "default": "./src/index.mjs"
+      },
+      "default": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.mjs"
+      }
+    }
+  },
   "scripts": {
-    "e2e": "node src/e2e.mjs run",
-    "test": "node --test test/*.test.mjs"
+    "build": "node scripts/package.mjs build",
+    "check": "node scripts/package.mjs type",
+    "e2e": "node scripts/package.mjs build && node dist/e2e.mjs run",
+    "prepack": "node scripts/package.mjs build",
+    "test": "node --test test/*.test.mjs",
+    "type": "node scripts/package.mjs type",
+    "type:emit": "node scripts/package.mjs type:emit"
   },
   "dependencies": {
     "pg": "catalog:"
