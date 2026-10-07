@@ -51,6 +51,7 @@ const coercingAjv = new Ajv({
 // A default is stored as written, so it is checked without type coercion.
 const defaultAjv = new Ajv({strict: false, allErrors: true, addUsedSchema: false});
 const jsonOutputValidatorCache = new Map<string, ValidateFunction>();
+const jsonDefaultValidatorCache = new Map<string, ValidateFunction>();
 const fallbackJsonType = {kind: 'dyn'} as const satisfies ExpressionType;
 const openObjectJsonType = {kind: 'map'} as const satisfies ExpressionType;
 
@@ -185,12 +186,7 @@ function validateJsonOutputDefault(
 
   if (declaration.schema === undefined) return {ok: true};
 
-  const validate = defaultAjv.compile({
-    type: 'object',
-    properties: {value: declaration.schema},
-    required: ['value'],
-    additionalProperties: false,
-  });
+  const validate = validatorForJsonOutputSchema(declaration.schema, {coerce: false});
   if (validate({value: declaration.default})) return {ok: true};
   return {
     ok: false,
@@ -396,18 +392,24 @@ function invalidTypeError(
   };
 }
 
-function validatorForJsonOutputSchema(schema: unknown): ValidateFunction {
+// Ajv keeps every compiled schema object it sees, so reuse validators by schema content.
+function validatorForJsonOutputSchema(
+  schema: unknown,
+  options: {readonly coerce: boolean} = {coerce: true},
+): ValidateFunction {
+  const instance = options.coerce ? coercingAjv : defaultAjv;
+  const cache = options.coerce ? jsonOutputValidatorCache : jsonDefaultValidatorCache;
   const key = stableJsonStringify(schema);
-  const cached = jsonOutputValidatorCache.get(key);
+  const cached = cache.get(key);
   if (cached !== undefined) return cached;
 
-  const validate = coercingAjv.compile({
+  const validate = instance.compile({
     type: 'object',
     properties: {value: schema},
     required: ['value'],
     additionalProperties: false,
   });
-  jsonOutputValidatorCache.set(key, validate);
+  cache.set(key, validate);
   return validate;
 }
 
