@@ -1,0 +1,14 @@
+provider: github
+modes: [real]
+steps:
+  - tool: pull_request_read
+    method: get_review_comments
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $fixture.github.pull_request.number
+    expect:
+      shape:
+        result: [{id: number, path: string, body: string}]
+      includes:
+        result: {path: fixtures/notes.md, body: "First thread: why four?"}

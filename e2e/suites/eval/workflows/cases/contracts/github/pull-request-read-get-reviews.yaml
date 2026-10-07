@@ -1,0 +1,14 @@
+provider: github
+modes: [real]
+steps:
+  - tool: pull_request_read
+    method: get_reviews
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $fixture.github.pull_request.number
+    expect:
+      shape:
+        result: [{id: number, state: string, user: {login: string}}]
+      includes:
+        result: {state: COMMENTED, body: Review with threads.}

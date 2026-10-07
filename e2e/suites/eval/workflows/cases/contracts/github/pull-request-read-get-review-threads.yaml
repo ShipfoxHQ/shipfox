@@ -1,0 +1,18 @@
+provider: github
+modes: [real]
+steps:
+  - tool: pull_request_read
+    method: get_review_threads
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $fixture.github.pull_request.number
+    expect:
+      shape:
+        repository:
+          pullRequest:
+            reviewThreads:
+              nodes: [{id: string, isResolved: boolean, path: string}]
+              pageInfo: {hasNextPage: boolean}
+      includes:
+        repository.pullRequest.reviewThreads.nodes: {isResolved: true, path: fixtures/notes.md}

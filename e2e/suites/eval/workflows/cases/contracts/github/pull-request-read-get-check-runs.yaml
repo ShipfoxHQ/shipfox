@@ -1,0 +1,17 @@
+provider: github
+modes: [real]
+steps:
+  - tool: pull_request_read
+    method: get_check_runs
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $fixture.github.pull_request.number
+      ref: $fixture.github.pull_request.head_ref
+    expect:
+      shape:
+        total_count: number
+        check_runs: [{name: string, status: string, conclusion: string}]
+      values: {total_count: 2}
+      includes:
+        check_runs: {name: verify, status: completed, conclusion: success}

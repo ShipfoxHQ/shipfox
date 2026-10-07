@@ -1,0 +1,14 @@
+provider: github
+modes: [real]
+steps:
+  - tool: issue_read
+    method: get_labels
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $fixture.github.issue.number
+    expect:
+      shape:
+        result: [{name: string}]
+      includes:
+        result: {name: $fixture.github.label.name}

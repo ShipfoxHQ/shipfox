@@ -1,0 +1,14 @@
+provider: github
+modes: [real]
+steps:
+  - tool: pull_request_read
+    method: get_comments
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $fixture.github.pull_request.number
+    expect:
+      shape:
+        result: [{id: number, body: string, user: {login: string}}]
+      includes:
+        result: {body: A plain pull request comment.}

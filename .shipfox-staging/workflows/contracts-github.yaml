@@ -177,6 +177,39 @@ jobs:
           value_state: '${{ has(result.state) ? result.state : "" }}'
         gate:
           success: 'step.status == "succeeded" && step.outputs.shape_number && step.outputs.shape_title && step.outputs.shape_state && step.outputs.shape_labels && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 1 && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Fixture issue: markdown, unicode, long body" && type(step.outputs.value_state) == type("") && step.outputs.value_state == "open"'
+  issue_read_get_comments:
+    checkout: false
+    steps:
+      - key: issue_read_get_comments
+        tool: issue_read.get_comments
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          issue_number: 1
+          per_page: 5
+        outputs:
+          shape_result_0_id: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          shape_result_0_body: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.body) && type(i0.body) == type("")) }}
+          shape_result_0_user_login: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.user) && has(i0.user.login) && type(i0.user.login) == type("")) }}
+          matches_result_0_body: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.body) && type(i0.body) == type("") && i0.body.matches("^Comment 1: café 日本語")) }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_result_0_id && step.outputs.shape_result_0_body && step.outputs.shape_result_0_user_login && step.outputs.matches_result_0_body
+  issue_read_get_labels:
+    checkout: false
+    steps:
+      - key: issue_read_get_labels
+        tool: issue_read.get_labels
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          issue_number: 1
+        outputs:
+          shape_result_0_name: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          includes_result: ${{ has(result.result) && type(result.result) == type([]) && result.result.exists(item, has(item.name) && type(item.name) == type("") && item.name == "contract-fixture") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_result_0_name && step.outputs.includes_result
   issue_read_get_missing_repository:
     checkout: false
     steps:
@@ -189,6 +222,24 @@ jobs:
           issue_number: 1
         gate:
           success: step.status == "failed" && step.error.code == "provider-rejected"
+  issue_read_get_parent:
+    checkout: false
+    steps:
+      - key: issue_read_get_parent
+        tool: issue_read.get_parent
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          issue_number: 4
+        outputs:
+          shape_number: ${{ has(result.number) && (type(result.number) == type(1) || type(result.number) == type(1.0)) }}
+          shape_title: ${{ has(result.title) && type(result.title) == type("") }}
+          shape_state: ${{ has(result.state) && type(result.state) == type("") }}
+          value_number: '${{ has(result.number) ? result.number : "" }}'
+          value_title: '${{ has(result.title) ? result.title : "" }}'
+        gate:
+          success: 'step.status == "succeeded" && step.outputs.shape_number && step.outputs.shape_title && step.outputs.shape_state && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 3 && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Fixture issue: parent with sub-issue"'
   issue_read_get_private_repository:
     checkout: false
     steps:
@@ -201,6 +252,22 @@ jobs:
           issue_number: 1
         gate:
           success: step.status == "failed" && step.error.code == "provider-rejected"
+  issue_read_get_sub_issues:
+    checkout: false
+    steps:
+      - key: issue_read_get_sub_issues
+        tool: issue_read.get_sub_issues
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          issue_number: 3
+        outputs:
+          shape_result_0_number: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.number) && (type(i0.number) == type(1) || type(i0.number) == type(1.0))) }}
+          shape_result_0_title: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.title) && type(i0.title) == type("")) }}
+          includes_result: '${{ has(result.result) && type(result.result) == type([]) && result.result.exists(item, has(item.number) && (type(item.number) == type(1) || type(item.number) == type(1.0)) && item.number == 4 && has(item.title) && type(item.title) == type("") && item.title == "Fixture issue: sub-issue") }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_result_0_number && step.outputs.shape_result_0_title && step.outputs.includes_result
   list_issue_types:
     checkout: false
     steps:
@@ -267,6 +334,160 @@ jobs:
           value_state: '${{ has(result.state) ? result.state : "" }}'
         gate:
           success: 'step.status == "succeeded" && step.outputs.shape_number && step.outputs.shape_title && step.outputs.shape_state && step.outputs.shape_head_ref && step.outputs.shape_base_ref && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 35 && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Fixture PR: open, with review threads" && type(step.outputs.value_state) == type("") && step.outputs.value_state == "open"'
+  pull_request_read_get_check_runs:
+    checkout: false
+    steps:
+      - key: pull_request_read_get_check_runs
+        tool: pull_request_read.get_check_runs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: 35
+          ref: fixture/open-pr
+        outputs:
+          shape_total_count: ${{ has(result.total_count) && (type(result.total_count) == type(1) || type(result.total_count) == type(1.0)) }}
+          shape_check_runs_0_name: ${{ has(result.check_runs) && type(result.check_runs) == type([]) && size(result.check_runs) > 0 && [result.check_runs[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          shape_check_runs_0_status: ${{ has(result.check_runs) && type(result.check_runs) == type([]) && size(result.check_runs) > 0 && [result.check_runs[0]].all(i0, has(i0.status) && type(i0.status) == type("")) }}
+          shape_check_runs_0_conclusion: ${{ has(result.check_runs) && type(result.check_runs) == type([]) && size(result.check_runs) > 0 && [result.check_runs[0]].all(i0, has(i0.conclusion) && type(i0.conclusion) == type("")) }}
+          value_total_count: '${{ has(result.total_count) ? result.total_count : "" }}'
+          includes_check_runs: ${{ has(result.check_runs) && type(result.check_runs) == type([]) && result.check_runs.exists(item, has(item.name) && type(item.name) == type("") && item.name == "verify" && has(item.status) && type(item.status) == type("") && item.status == "completed" && has(item.conclusion) && type(item.conclusion) == type("") && item.conclusion == "success") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_total_count && step.outputs.shape_check_runs_0_name && step.outputs.shape_check_runs_0_status && step.outputs.shape_check_runs_0_conclusion && (type(step.outputs.value_total_count) == type(1) || type(step.outputs.value_total_count) == type(1.0)) && step.outputs.value_total_count == 2 && step.outputs.includes_check_runs
+  pull_request_read_get_comments:
+    checkout: false
+    steps:
+      - key: pull_request_read_get_comments
+        tool: pull_request_read.get_comments
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: 35
+        outputs:
+          shape_result_0_id: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          shape_result_0_body: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.body) && type(i0.body) == type("")) }}
+          shape_result_0_user_login: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.user) && has(i0.user.login) && type(i0.user.login) == type("")) }}
+          includes_result: ${{ has(result.result) && type(result.result) == type([]) && result.result.exists(item, has(item.body) && type(item.body) == type("") && item.body == "A plain pull request comment.") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_result_0_id && step.outputs.shape_result_0_body && step.outputs.shape_result_0_user_login && step.outputs.includes_result
+  pull_request_read_get_commits:
+    checkout: false
+    steps:
+      - key: pull_request_read_get_commits
+        tool: pull_request_read.get_commits
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: 35
+        outputs:
+          shape_result_0_sha: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.sha) && type(i0.sha) == type("")) }}
+          shape_result_0_commit_message: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.commit) && has(i0.commit.message) && type(i0.commit.message) == type("")) }}
+          value_result_0_commit_message: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.commit) && has(i0.commit.message)) ? result.result[0].commit.message : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_result_0_sha && step.outputs.shape_result_0_commit_message && type(step.outputs.value_result_0_commit_message) == type("") && step.outputs.value_result_0_commit_message == "Extend the notes"
+  pull_request_read_get_diff:
+    checkout: false
+    steps:
+      - key: pull_request_read_get_diff
+        tool: pull_request_read.get_diff
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: 35
+        outputs:
+          shape_result: ${{ has(result.result) && type(result.result) == type("") }}
+          matches_result: ${{ has(result.result) && type(result.result) == type("") && result.result.matches("diff --git a/fixtures/extra\\.txt b/fixtures/extra\\.txt") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_result && step.outputs.matches_result
+  pull_request_read_get_files:
+    checkout: false
+    steps:
+      - key: pull_request_read_get_files
+        tool: pull_request_read.get_files
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: 35
+        outputs:
+          shape_result_0_filename: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.filename) && type(i0.filename) == type("")) }}
+          shape_result_0_status: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.status) && type(i0.status) == type("")) }}
+          includes_result: ${{ has(result.result) && type(result.result) == type([]) && result.result.exists(item, has(item.filename) && type(item.filename) == type("") && item.filename == "fixtures/notes.md" && has(item.status) && type(item.status) == type("") && item.status == "modified") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_result_0_filename && step.outputs.shape_result_0_status && step.outputs.includes_result
+  pull_request_read_get_review_comments:
+    checkout: false
+    steps:
+      - key: pull_request_read_get_review_comments
+        tool: pull_request_read.get_review_comments
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: 35
+        outputs:
+          shape_result_0_id: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          shape_result_0_path: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.path) && type(i0.path) == type("")) }}
+          shape_result_0_body: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.body) && type(i0.body) == type("")) }}
+          includes_result: '${{ has(result.result) && type(result.result) == type([]) && result.result.exists(item, has(item.path) && type(item.path) == type("") && item.path == "fixtures/notes.md" && has(item.body) && type(item.body) == type("") && item.body == "First thread: why four?") }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_result_0_id && step.outputs.shape_result_0_path && step.outputs.shape_result_0_body && step.outputs.includes_result
+  pull_request_read_get_review_threads:
+    checkout: false
+    steps:
+      - key: pull_request_read_get_review_threads
+        tool: pull_request_read.get_review_threads
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: 35
+        outputs:
+          shape_repository_pullRequest_reviewThreads_nodes_0_id: ${{ has(result.repository) && has(result.repository.pullRequest) && has(result.repository.pullRequest.reviewThreads) && has(result.repository.pullRequest.reviewThreads.nodes) && type(result.repository.pullRequest.reviewThreads.nodes) == type([]) && size(result.repository.pullRequest.reviewThreads.nodes) > 0 && [result.repository.pullRequest.reviewThreads.nodes[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_repository_pullRequest_reviewThreads_nodes_0_isResolved: ${{ has(result.repository) && has(result.repository.pullRequest) && has(result.repository.pullRequest.reviewThreads) && has(result.repository.pullRequest.reviewThreads.nodes) && type(result.repository.pullRequest.reviewThreads.nodes) == type([]) && size(result.repository.pullRequest.reviewThreads.nodes) > 0 && [result.repository.pullRequest.reviewThreads.nodes[0]].all(i0, has(i0.isResolved) && type(i0.isResolved) == type(true)) }}
+          shape_repository_pullRequest_reviewThreads_nodes_0_path: ${{ has(result.repository) && has(result.repository.pullRequest) && has(result.repository.pullRequest.reviewThreads) && has(result.repository.pullRequest.reviewThreads.nodes) && type(result.repository.pullRequest.reviewThreads.nodes) == type([]) && size(result.repository.pullRequest.reviewThreads.nodes) > 0 && [result.repository.pullRequest.reviewThreads.nodes[0]].all(i0, has(i0.path) && type(i0.path) == type("")) }}
+          shape_repository_pullRequest_reviewThreads_pageInfo_hasNextPage: ${{ has(result.repository) && has(result.repository.pullRequest) && has(result.repository.pullRequest.reviewThreads) && has(result.repository.pullRequest.reviewThreads.pageInfo) && has(result.repository.pullRequest.reviewThreads.pageInfo.hasNextPage) && type(result.repository.pullRequest.reviewThreads.pageInfo.hasNextPage) == type(true) }}
+          includes_repository_pullRequest_reviewThreads_nodes: ${{ has(result.repository) && has(result.repository.pullRequest) && has(result.repository.pullRequest.reviewThreads) && has(result.repository.pullRequest.reviewThreads.nodes) && type(result.repository.pullRequest.reviewThreads.nodes) == type([]) && result.repository.pullRequest.reviewThreads.nodes.exists(item, has(item.isResolved) && type(item.isResolved) == type(true) && item.isResolved == true && has(item.path) && type(item.path) == type("") && item.path == "fixtures/notes.md") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_repository_pullRequest_reviewThreads_nodes_0_id && step.outputs.shape_repository_pullRequest_reviewThreads_nodes_0_isResolved && step.outputs.shape_repository_pullRequest_reviewThreads_nodes_0_path && step.outputs.shape_repository_pullRequest_reviewThreads_pageInfo_hasNextPage && step.outputs.includes_repository_pullRequest_reviewThreads_nodes
+  pull_request_read_get_reviews:
+    checkout: false
+    steps:
+      - key: pull_request_read_get_reviews
+        tool: pull_request_read.get_reviews
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: 35
+        outputs:
+          shape_result_0_id: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          shape_result_0_state: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.state) && type(i0.state) == type("")) }}
+          shape_result_0_user_login: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.user) && has(i0.user.login) && type(i0.user.login) == type("")) }}
+          includes_result: ${{ has(result.result) && type(result.result) == type([]) && result.result.exists(item, has(item.state) && type(item.state) == type("") && item.state == "COMMENTED" && has(item.body) && type(item.body) == type("") && item.body == "Review with threads.") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_result_0_id && step.outputs.shape_result_0_state && step.outputs.shape_result_0_user_login && step.outputs.includes_result
+  pull_request_read_get_status:
+    checkout: false
+    steps:
+      - key: pull_request_read_get_status
+        tool: pull_request_read.get_status
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: 35
+          ref: fixture/open-pr
+        outputs:
+          shape_state: ${{ has(result.state) && type(result.state) == type("") }}
+          shape_sha: ${{ has(result.sha) && type(result.sha) == type("") }}
+          shape_total_count: ${{ has(result.total_count) && (type(result.total_count) == type(1) || type(result.total_count) == type(1.0)) }}
+          value_total_count: '${{ has(result.total_count) ? result.total_count : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_state && step.outputs.shape_sha && step.outputs.shape_total_count && (type(step.outputs.value_total_count) == type(1) || type(step.outputs.value_total_count) == type(1.0)) && step.outputs.value_total_count == 0
   search_issues:
     checkout: false
     steps:

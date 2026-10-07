@@ -1,0 +1,14 @@
+provider: github
+modes: [real]
+steps:
+  - tool: issue_read
+    method: get_parent
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $fixture.github.sub_issue.number
+    expect:
+      shape: {number: number, title: string, state: string}
+      values:
+        number: $fixture.github.parent_issue.number
+        title: $fixture.github.parent_issue.title

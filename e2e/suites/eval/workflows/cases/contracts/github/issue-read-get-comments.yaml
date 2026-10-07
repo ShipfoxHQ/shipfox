@@ -1,0 +1,16 @@
+provider: github
+modes: [real]
+steps:
+  - tool: issue_read
+    method: get_comments
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $fixture.github.issue.number
+      per_page: 5
+    expect:
+      shape:
+        result: [{id: number, body: string, user: {login: string}}]
+      # The first comment holds non-ASCII text, so it proves the encoding survives the tool.
+      matches:
+        result[0].body: '^Comment 1: café 日本語'
