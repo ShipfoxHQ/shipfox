@@ -56,6 +56,14 @@ vi.mock('@shipfox/runner-workspace', async (importActual) => ({
   resolveWorkspaceRootFromEnv: vi.fn(),
 }));
 
+const {removeJobContainerMock} = vi.hoisted(() => ({
+  removeJobContainerMock: vi.fn(async (_name: string) => undefined),
+}));
+vi.mock('@shipfox/runner-container', async (importActual) => ({
+  ...(await importActual<typeof import('@shipfox/runner-container')>()),
+  removeJobContainer: removeJobContainerMock,
+}));
+
 vi.mock('#core/step-loop.js', () => ({
   runJobSteps: vi.fn(),
 }));
@@ -632,6 +640,47 @@ describe('runJob', () => {
     );
     expect(mockCleanupJobCredentials).toHaveBeenCalledOnce();
     expect(mockCleanupJobCredentials).toHaveBeenCalledWith(JOB_CREDENTIALS_DIR);
+  });
+
+  it('passes the credential directory to the step loop', async () => {
+    await runJob(JOB, WORKSPACE_ROOT);
+
+    expect(mockRunJobSteps).toHaveBeenCalledWith(
+      expect.objectContaining({credentialsDir: JOB_CREDENTIALS_DIR}),
+    );
+  });
+
+  it('removes the job container before the job directories once the setup step requested it', async () => {
+    mockRunJobSteps.mockImplementationOnce(({onJobContainerRequested}) => {
+      onJobContainerRequested?.();
+      return Promise.resolve();
+    });
+
+    await runJob(JOB, WORKSPACE_ROOT);
+
+    expect(removeJobContainerMock).toHaveBeenCalledOnce();
+    expect(removeJobContainerMock).toHaveBeenCalledWith(`shipfox-job-${JOB.job_id}`);
+    expect(removeJobContainerMock.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCleanupWorkspace.mock.invocationCallOrder[0] ?? Infinity,
+    );
+  });
+
+  it('removes the job container when the step loop throws after requesting it', async () => {
+    mockRunJobSteps.mockImplementationOnce(({onJobContainerRequested}) => {
+      onJobContainerRequested?.();
+      return Promise.reject(new Error('aborted during pull'));
+    });
+
+    await runJob(JOB, WORKSPACE_ROOT);
+
+    expect(removeJobContainerMock).toHaveBeenCalledWith(`shipfox-job-${JOB.job_id}`);
+    expect(mockCleanupWorkspace).toHaveBeenCalledWith(JOB_CWD);
+  });
+
+  it('never calls Docker for a job without a container', async () => {
+    await runJob(JOB, WORKSPACE_ROOT);
+
+    expect(removeJobContainerMock).not.toHaveBeenCalled();
   });
 
   it('releases the credential lock when agent-state lock release fails', async () => {

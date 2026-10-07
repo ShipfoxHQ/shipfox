@@ -12,6 +12,7 @@ import {
   PI_HARNESS_EXTENSION_PACKAGE_NAMES,
 } from '@shipfox/runner-agent/pi-extensions';
 import {runnerToolCapabilities} from '@shipfox/runner-agent/tool-capabilities';
+import {jobContainerName, removeJobContainer} from '@shipfox/runner-container';
 import {
   consumeManagedRunnerBootstrapToken,
   createLeaseClient,
@@ -470,6 +471,7 @@ export async function runJob(
   let releaseAgentStateLock: (() => Promise<void>) | undefined;
   let releaseTempLock: (() => Promise<void>) | undefined;
   let releaseCredentialLock: (() => Promise<void>) | undefined;
+  let jobContainerRequested = false;
   let credentialLifecycle: ReturnType<typeof createJobCredentialLifecycle> | undefined;
 
   try {
@@ -534,6 +536,10 @@ export async function runJob(
       prepareTempDir: async () => {
         releaseTempLock = await createJobTempDir(tempDir);
       },
+      credentialsDir,
+      onJobContainerRequested: () => {
+        jobContainerRequested = true;
+      },
       jobContext: {
         workflowRunId: job.workflow_run_id,
         workflowRunAttemptId: job.workflow_run_attempt_id,
@@ -556,6 +562,9 @@ export async function runJob(
     heartbeatLoop.stop();
     if (currentJobAbortController === ac) currentJobAbortController = undefined;
     replaceInferenceSecrets([]);
+    // First, so nothing in the container still uses the directories removed below. An abort
+    // reaches here through the same path.
+    if (jobContainerRequested) await removeJobContainer(jobContainerName(job.job_id));
     await credentialLifecycle?.close().catch((error) => {
       logger().warn({err: error, jobId: job.job_id}, 'Failed to close job credential broker');
     });

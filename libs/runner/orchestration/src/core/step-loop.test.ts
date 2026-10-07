@@ -185,6 +185,7 @@ const LOGS_DIR = '/runner-logs/job-1';
 const AGENT_STATE_DIR = '/runner-agent/job-1';
 const GIT_CONFIG_PATH = '/runner-cred/job-1/git-cred.config';
 const JOB_TEMP_DIR = '/runner-tmp/job-1';
+const CREDENTIALS_DIR = '/runner-cred/job-1';
 const JOB_CONTEXT = {
   workflowRunId: '00000000-0000-0000-0000-000000000004',
   workflowRunAttemptId: RUN_ID,
@@ -305,6 +306,7 @@ function runLoop(params: {
   };
   prepareAgentState?: () => Promise<void>;
   prepareTempDir?: () => Promise<void>;
+  onJobContainerRequested?: () => void;
   onLeaseTokenAdopted?: (leaseToken: string) => void;
 }): Promise<void> {
   return runJobSteps({
@@ -330,9 +332,13 @@ function runLoop(params: {
     logsDir: params.logsDir ?? LOGS_DIR,
     agentStateDir: params.agentStateDir ?? AGENT_STATE_DIR,
     tempDir: JOB_TEMP_DIR,
+    credentialsDir: CREDENTIALS_DIR,
     jobContext: JOB_CONTEXT,
     ...(params.prepareAgentState ? {prepareAgentState: params.prepareAgentState} : {}),
     ...(params.prepareTempDir ? {prepareTempDir: params.prepareTempDir} : {}),
+    ...(params.onJobContainerRequested
+      ? {onJobContainerRequested: params.onJobContainerRequested}
+      : {}),
     ...(params.onLeaseTokenAdopted ? {onLeaseTokenAdopted: params.onLeaseTokenAdopted} : {}),
   });
 }
@@ -492,6 +498,206 @@ describe('runJobSteps', () => {
       signal: ac.signal,
     });
     expect(requestNextStepMock).toHaveBeenCalledTimes(3);
+  });
+
+  describe('job container setup', () => {
+    const containerConfig = {image: 'ghcr.io/acme/toolbox:1', options: '', docker_socket: true};
+
+    function containerSetup(secretBindings?: unknown[]) {
+      return buildSetupStep({
+        config: {
+          container: containerConfig,
+          ...(secretBindings ? {secret_bindings: secretBindings} : {}),
+        },
+      });
+    }
+
+    const passwordBinding = {
+      target: {kind: 'container_credential', field: 'password'},
+      segments: [{kind: 'secret', store: 'local', key: 'REGISTRY_TOKEN'}],
+    };
+    const envBinding = {
+      target: {kind: 'container_env', name: 'LICENSE'},
+      segments: [
+        {kind: 'literal', value: 'key-'},
+        {kind: 'secret', store: 'local', key: 'LICENSE_KEY'},
+      ],
+    };
+
+    it('pulls the setup secrets and hands the container context to the setup step', async () => {
+      const setup = containerSetup([passwordBinding, envBinding]);
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      requestStepSecretsMock.mockResolvedValueOnce({
+        secrets: [
+          {store: 'local', key: 'REGISTRY_TOKEN', value: 'registry-secret'},
+          {store: 'local', key: 'LICENSE_KEY', value: 'license-secret'},
+        ],
+      });
+      const registerSecrets = vi.fn();
+      const onJobContainerRequested = vi.fn();
+      executeSetupStepMock.mockImplementationOnce(() => {
+        expect(onJobContainerRequested).toHaveBeenCalledOnce();
+        return Promise.resolve({
+          result: {success: true, error: null, exit_code: 0},
+        });
+      });
+      const ac = new AbortController();
+
+      await runLoop({signal: ac.signal, registerSecrets, onJobContainerRequested});
+
+      expect(requestStepSecretsMock).toHaveBeenCalledWith(leaseClient, {
+        stepId: setup.id,
+        attempt: 1,
+        signal: ac.signal,
+      });
+      expect(executeSetupStepMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          container: {
+            jobId: JOB_ID,
+            tempDir: JOB_TEMP_DIR,
+            agentStateDir: AGENT_STATE_DIR,
+            logsDir: LOGS_DIR,
+            credentialsDir: CREDENTIALS_DIR,
+            secrets: {password: 'registry-secret', env: {LICENSE: 'key-license-secret'}},
+          },
+        }),
+      );
+      expect(registerSecrets).toHaveBeenCalledWith(['registry-secret', 'license-secret']);
+      expect(createStepLogStreamMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stepId: setup.id,
+          secrets: ['registry-secret', 'license-secret'],
+        }),
+      );
+    });
+
+    it('takes a secret username as a credential', async () => {
+      const setup = containerSetup([
+        {
+          target: {kind: 'container_credential', field: 'username'},
+          segments: [{kind: 'secret', store: 'local', key: 'REGISTRY_USER'}],
+        },
+      ]);
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      requestStepSecretsMock.mockResolvedValueOnce({
+        secrets: [{store: 'local', key: 'REGISTRY_USER', value: 'acme-bot'}],
+      });
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(executeSetupStepMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          container: expect.objectContaining({secrets: {username: 'acme-bot', env: {}}}),
+        }),
+      );
+    });
+
+    it('skips the secrets route when the container has no secrets', async () => {
+      const setup = containerSetup();
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      const onJobContainerRequested = vi.fn();
+
+      await runLoop({signal: new AbortController().signal, onJobContainerRequested});
+
+      expect(requestStepSecretsMock).not.toHaveBeenCalled();
+      expect(onJobContainerRequested).toHaveBeenCalledOnce();
+      expect(executeSetupStepMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          container: expect.objectContaining({secrets: {env: {}}}),
+        }),
+      );
+    });
+
+    it('does not ask for a container or secrets when the job has none', async () => {
+      const setup = buildSetupStep();
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      const onJobContainerRequested = vi.fn();
+
+      await runLoop({signal: new AbortController().signal, onJobContainerRequested});
+
+      expect(onJobContainerRequested).not.toHaveBeenCalled();
+      expect(requestStepSecretsMock).not.toHaveBeenCalled();
+      expect(executeSetupStepMock.mock.calls[0]?.[0]).not.toHaveProperty('container');
+    });
+
+    it('fails setup without starting anything when a secret cannot be resolved', async () => {
+      const setup = containerSetup([passwordBinding]);
+      requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 1));
+      requestStepSecretsMock.mockRejectedValueOnce(
+        new StepSecretsRequestError(422, 'secret-not-found'),
+      );
+      reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
+      const onJobContainerRequested = vi.fn();
+
+      await runLoop({signal: new AbortController().signal, onJobContainerRequested});
+
+      expect(executeSetupStepMock).not.toHaveBeenCalled();
+      expect(onJobContainerRequested).not.toHaveBeenCalled();
+      expect(reportStepMock).toHaveBeenCalledWith(
+        leaseClient,
+        expect.objectContaining({
+          stepId: setup.id,
+          status: 'failed',
+          error: expect.objectContaining({reason: 'config_unresolvable'}),
+        }),
+      );
+    });
+
+    it('rejects bindings that are not container targets', async () => {
+      const setup = containerSetup([
+        {target: 'TOKEN', segments: [{kind: 'secret', store: 'local', key: 'API_TOKEN'}]},
+      ]);
+      requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 1));
+      reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(requestStepSecretsMock).not.toHaveBeenCalled();
+      expect(executeSetupStepMock).not.toHaveBeenCalled();
+      expect(reportStepMock).toHaveBeenCalledWith(
+        leaseClient,
+        expect.objectContaining({
+          error: expect.objectContaining({
+            message: 'Job container secret bindings are invalid.',
+            reason: 'config_unresolvable',
+          }),
+        }),
+      );
+    });
+
+    it('masks secrets in the reported container failure', async () => {
+      const setup = containerSetup([passwordBinding]);
+      requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 1));
+      requestStepSecretsMock.mockResolvedValueOnce({
+        secrets: [{store: 'local', key: 'REGISTRY_TOKEN', value: 'registry-secret'}],
+      });
+      executeSetupStepMock.mockResolvedValueOnce({
+        result: {
+          success: false,
+          error: {
+            message: 'unauthorized: bad password registry-secret',
+            reason: 'container_setup_failed',
+          },
+          exit_code: null,
+        },
+      });
+      reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
+
+      await runLoop({signal: new AbortController().signal});
+
+      const reported = reportStepMock.mock.calls[0]?.[1];
+      expect(reported.error.reason).toBe('container_setup_failed');
+      expect(reported.error.message).not.toContain('registry-secret');
+      expect(reported.error.message).toContain('unauthorized: bad password');
+    });
   });
 
   it('passes the live credential helper through checkout lifecycle and registers the result', async () => {
@@ -3943,6 +4149,7 @@ describe('runJobSteps', () => {
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
       jobTempDir: JOB_TEMP_DIR,
+      credentialsDir: CREDENTIALS_DIR,
       jobId: JOB_ID,
       stepLabel: 'run',
     });
@@ -3992,6 +4199,7 @@ describe('runJobSteps', () => {
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
       jobTempDir: JOB_TEMP_DIR,
+      credentialsDir: CREDENTIALS_DIR,
       jobId: JOB_ID,
       stepLabel: 'run',
     });
@@ -4045,6 +4253,7 @@ describe('runJobSteps', () => {
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
       jobTempDir: JOB_TEMP_DIR,
+      credentialsDir: CREDENTIALS_DIR,
       jobId: JOB_ID,
       stepLabel: 'run',
     });
@@ -4088,6 +4297,7 @@ describe('runJobSteps', () => {
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
       jobTempDir: JOB_TEMP_DIR,
+      credentialsDir: CREDENTIALS_DIR,
       jobId: JOB_ID,
       stepLabel: 'run',
     });
@@ -4163,6 +4373,7 @@ describe('runJobSteps', () => {
         workspacePrepared: true,
         gitConfigPath: GIT_CONFIG_PATH,
         jobTempDir: JOB_TEMP_DIR,
+        credentialsDir: CREDENTIALS_DIR,
         jobId: JOB_ID,
         stepLabel: 'implement',
       });
@@ -4211,6 +4422,7 @@ describe('runJobSteps', () => {
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
       jobTempDir: JOB_TEMP_DIR,
+      credentialsDir: CREDENTIALS_DIR,
       jobId: JOB_ID,
       stepLabel: 'implement',
     });
@@ -4266,6 +4478,7 @@ describe('runJobSteps', () => {
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
       jobTempDir: JOB_TEMP_DIR,
+      credentialsDir: CREDENTIALS_DIR,
       jobId: JOB_ID,
       stepLabel: 'implement',
     });
@@ -4300,6 +4513,7 @@ describe('runJobSteps', () => {
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
       jobTempDir: JOB_TEMP_DIR,
+      credentialsDir: CREDENTIALS_DIR,
       jobId: JOB_ID,
       stepLabel: 'implement',
     });

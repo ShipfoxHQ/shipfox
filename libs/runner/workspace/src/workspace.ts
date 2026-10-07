@@ -1,3 +1,4 @@
+import {execFile} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import type {Dirent} from 'node:fs';
 import {
@@ -13,9 +14,12 @@ import {
 } from 'node:fs/promises';
 import {homedir, tmpdir} from 'node:os';
 import {dirname, join, parse, resolve} from 'node:path';
+import {promisify} from 'node:util';
 import {logger} from '@shipfox/node-opentelemetry';
 import {isUuid} from '@shipfox/regex';
 import {config} from '#config.js';
+
+const execFileAsync = promisify(execFile);
 
 const RUNNER_LOGS_DIR = '.shipfox-runner-logs';
 const RUNNER_AGENT_STATE_DIR = '.shipfox-runner-agent';
@@ -529,13 +533,25 @@ async function isStaleReclaimer(reclaimPath: string): Promise<boolean> {
   return isProcessDead(Number(target.split(':', 1)[0]));
 }
 
+// A job container can leave files owned by another user in the directories it shares with the
+// runner. Passwordless sudo, which the runner images grant, removes them.
+async function removeSharedDirectory(dir: string): Promise<void> {
+  try {
+    await rm(dir, {recursive: true, force: true});
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== 'EACCES' && code !== 'EPERM') throw error;
+    await execFileAsync('sudo', ['-n', 'rm', '-rf', '--', dir]);
+  }
+}
+
 /**
  * Never throws: failures are logged and swallowed so a dirty directory can't
  * mask the job result; the next createJobDir pre-clean reclaims it.
  */
 export async function cleanupWorkspace(cwd: string): Promise<void> {
   try {
-    await rm(cwd, {recursive: true, force: true});
+    await removeSharedDirectory(cwd);
   } catch (err) {
     logger().warn({err, cwd}, 'Failed to clean up job workspace');
   }
@@ -551,7 +567,7 @@ export async function cleanupJobLogs(logsDir: string): Promise<void> {
 
 export async function cleanupJobAgentState(agentStateDir: string): Promise<void> {
   try {
-    await rm(agentStateDir, {recursive: true, force: true});
+    await removeSharedDirectory(agentStateDir);
   } catch (err) {
     logger().warn({err, agentStateDir}, 'Failed to clean up job agent state');
   }
@@ -559,7 +575,7 @@ export async function cleanupJobAgentState(agentStateDir: string): Promise<void>
 
 export async function cleanupJobTemp(tempDir: string): Promise<void> {
   try {
-    await rm(tempDir, {recursive: true, force: true});
+    await removeSharedDirectory(tempDir);
   } catch (err) {
     logger().warn({err, tempDir}, 'Failed to clean up job temp directory');
   }
