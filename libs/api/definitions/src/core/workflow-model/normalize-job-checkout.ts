@@ -60,6 +60,40 @@ export function normalizeJobCheckout(params: {
   };
 }
 
+function isRootPath(path: string | undefined): boolean {
+  return path === undefined || path === '.' || path === './';
+}
+
+// Exactly one checkout owns the job root: the project, a step-1 root-path checkout that replaces
+// it, or, when the job skips the project checkout, the first root-path checkout. Any later
+// checkout without its own `path` would land on the same root.
+export function validateCheckoutPathsRequired(params: {
+  job: WorkflowDocumentJob;
+  sourceName: string;
+  issues: WorkflowModelValidationIssue[];
+}): void {
+  const {job, sourceName, issues} = params;
+  const first = job.steps[0];
+  const projectOwnsRoot =
+    job.checkout !== false && !(first?.checkout !== undefined && isRootPath(first.checkout.path));
+  let owner = projectOwnsRoot ? 'the project checkout' : undefined;
+
+  job.steps.forEach((step, index) => {
+    if (step.checkout === undefined || !isRootPath(step.checkout.path)) return;
+    if (owner === undefined) {
+      owner = `step ${index + 1}`;
+      return;
+    }
+    issues.push(
+      issue({
+        code: 'checkout-path-required',
+        message: `This checkout needs a "path". The job root already holds ${owner}. Set "path" to a folder name, or set "checkout: false" on the job.`,
+        path: ['jobs', sourceName, 'steps', index, 'checkout'],
+      }),
+    );
+  });
+}
+
 export function normalizeCheckout(params: {
   checkout: WorkflowDocumentCheckout;
   issues: WorkflowModelValidationIssue[];

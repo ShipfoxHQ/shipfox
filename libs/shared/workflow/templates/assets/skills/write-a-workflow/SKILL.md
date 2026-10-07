@@ -67,7 +67,7 @@ Ask one question per message and wait for the answer. With each question, restat
 
 ## 5. Write the file
 
-Create a descriptive `.yml` file under `.shipfox/workflows/`. Put the editor schema header from `docs://shipfox/reference/workflow-schema` on the first line. Bind only the integration connections and tool IDs the workflow uses. Keep each `integrations.include` list narrow. Reference secrets by name, never by value. Grant checkout write permission only to a job or step that pushes repository changes.
+Create a descriptive `.yml` file under `.shipfox/workflows/`. Put the editor schema header from `docs://shipfox/reference/workflow-schema` on the first line. Bind only the integration connections and tool IDs the workflow uses. Keep each `integrations.include` list narrow. Reference secrets by name, never by value. Grant checkout write permission only to a job or step that pushes repository changes. Set `path` on every checkout that doesn't own the job root.
 
 ## 6. Verify and deliver
 

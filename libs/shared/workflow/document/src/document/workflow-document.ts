@@ -731,7 +731,7 @@ export const workflowDocumentCheckoutSchema = z
     }),
     path: z.string().min(1).optional().meta({
       description:
-        'Sets the destination folder under the job root. A first step with no `path`, `.`, or `./` replaces the project checkout at the root. Any other `path` keeps the project checkout at the root.',
+        'Sets the destination folder under the job root. Required unless this checkout owns the job root.',
     }),
     permissions: workflowDocumentCheckoutPermissionsSchema,
     'persist-credentials': workflowDocumentPersistCredentialsSchema,
