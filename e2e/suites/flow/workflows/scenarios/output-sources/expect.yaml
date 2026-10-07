@@ -1,0 +1,15 @@
+trigger: push
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+    steps:
+      produce:
+        status: succeeded
+        exit_code: 0
+      consume:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["commit=abc123", "line one", "line two"]

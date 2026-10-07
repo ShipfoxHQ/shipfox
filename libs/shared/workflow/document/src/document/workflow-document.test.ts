@@ -1701,6 +1701,113 @@ describe('workflowDocumentSchema', () => {
     );
   });
 
+  it('accepts from_file and from_stdout on run step outputs', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'output sources',
+      jobs: {
+        build: {
+          steps: [
+            {
+              run: 'git rev-parse HEAD',
+              outputs: {
+                commit: {type: 'string', from_stdout: true},
+                patch: {type: 'string', from_file: '.git/shipfox-repair.patch'},
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an output that uses from_file and from_stdout', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'output sources',
+      jobs: {
+        build: {
+          steps: [
+            {
+              run: 'git rev-parse HEAD',
+              outputs: {commit: {type: 'string', from_file: 'commit.txt', from_stdout: true}},
+            },
+          ],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) =>
+            candidate.path.join('.') === 'jobs.build.steps.0.outputs.commit.from_stdout',
+        );
+    expect(issue?.message).toBe('An output can use `from_file` or `from_stdout`, not both.');
+  });
+
+  it('rejects two outputs of a step that use from_stdout', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'output sources',
+      jobs: {
+        build: {
+          steps: [
+            {
+              run: 'git rev-parse HEAD',
+              outputs: {
+                first: {type: 'string', from_stdout: true},
+                second: {type: 'string', from_stdout: true},
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) =>
+            candidate.path.join('.') === 'jobs.build.steps.0.outputs.second.from_stdout',
+        );
+    expect(issue?.message).toBe(
+      'Only one output of a step can use `from_stdout`. "first" already does.',
+    );
+  });
+
+  it.each([
+    ['from_file', {type: 'string', from_file: 'out.txt'}],
+    ['from_stdout', {type: 'string', from_stdout: true}],
+  ] as const)('rejects %s on a non-run step output', (field, declaration) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'output sources',
+      jobs: {
+        build: {
+          steps: [{prompt: 'Summarize the build.', outputs: {summary: declaration}}],
+        },
+      },
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find(
+          (candidate) => candidate.path.join('.') === `jobs.build.steps.0.outputs.summary.${field}`,
+        );
+    expect(issue?.message).toBe(`\`${field}\` is only supported on run steps.`);
+  });
+
+  it.each([
+    ['from_stdout set to false', {type: 'string', from_stdout: false}],
+    ['an empty from_file', {type: 'string', from_file: ''}],
+  ] as const)('rejects %s', (_label, declaration) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'output sources',
+      jobs: {build: {steps: [{run: 'echo hi', outputs: {value: declaration}}]}},
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it('rejects the expression-mapped outputs form on non-tool steps', () => {
     const result = workflowDocumentSchema.safeParse({
       name: 'typed outputs',

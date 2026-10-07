@@ -1,0 +1,28 @@
+name: Output sources
+runner: __RUNNER_LABEL__
+triggers:
+  on_push:
+    source: __GITEA_SOURCE__
+    event: push
+    filter: 'event.ref == "refs/heads/main" && event.repository.full_name == "__GITEA_REPOSITORY__"'
+jobs:
+  build:
+    steps:
+      - key: produce
+        run: |
+          printf 'line one\nline two\n' > notes.txt
+          echo "abc123"
+        outputs:
+          commit:
+            type: string
+            from_stdout: true
+          notes:
+            type: string
+            from_file: notes.txt
+      - key: consume
+        env:
+          COMMIT: ${{ steps.produce.outputs.commit }}
+          NOTES: ${{ steps.produce.outputs.notes }}
+        run: |
+          echo "commit=$COMMIT"
+          printf "%s\n" "$NOTES"

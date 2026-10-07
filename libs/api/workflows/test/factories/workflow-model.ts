@@ -34,6 +34,7 @@ interface TestWorkflowStepBase {
 interface TestRunStep extends TestWorkflowStepBase {
   readonly run: string;
   readonly env?: WorkflowModel['env'] | undefined;
+  readonly outputs?: OutputDeclarations | undefined;
 }
 
 interface TestAgentStep extends TestWorkflowStepBase {
@@ -228,6 +229,7 @@ function normalizeRunStep(step: TestRunStep, base: ReturnType<typeof stepBase>):
     command: {kind: 'shell', value: step.run},
     ...optionalRunTemplates(step),
     ...optionalStepEnv(step.env),
+    ...(step.outputs === undefined ? {} : {outputs: step.outputs}),
   };
 }
 

@@ -1,4 +1,4 @@
-import {access, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises';
+import {access, mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, isAbsolute, join} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
@@ -1118,6 +1118,213 @@ describe('the execution host and the job temp directory', () => {
 
     expect(killTree).toHaveBeenCalledOnce();
     expect(result).toMatchObject({success: false, error: {signal: 'SIGKILL'}});
+  });
+});
+
+describe('executeRunStep output sources', () => {
+  let workspace: string;
+  let outside: string;
+
+  beforeEach(async () => {
+    workspace = await mkdtemp(join(tmpdir(), 'shipfox-sources-workspace-'));
+    outside = await mkdtemp(join(tmpdir(), 'shipfox-sources-outside-'));
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await rm(workspace, {recursive: true, force: true});
+    await rm(outside, {recursive: true, force: true});
+  });
+
+  // The runner tees step stdout to its own stdout; keep cap-sized output out of the test log.
+  function silenceTee(): void {
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  }
+
+  function sourceStep(run: string, outputSources: Record<string, unknown>): StepDto {
+    return buildStep({config: {run, output_sources: outputSources}});
+  }
+
+  it('reads a file relative to the step working directory and strips one trailing newline', async () => {
+    const cwd = join(workspace, 'packages', 'app');
+    await mkdir(cwd, {recursive: true});
+    const step = sourceStep("printf 'abc123\\n\\n' > out.txt", {
+      commit: {from_file: 'out.txt'},
+    });
+
+    const result = await executeRunStep(step, {cwd, workspace});
+
+    expect(result.success).toBe(true);
+    expect(result.outputs).toEqual({commit: 'abc123\n'});
+  });
+
+  it('reads a file by absolute path inside the workspace', async () => {
+    const file = join(workspace, 'report.txt');
+    const step = sourceStep(`printf 'done' > "${file}"`, {report: {from_file: file}});
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.outputs).toEqual({report: 'done'});
+  });
+
+  it('merges file outputs with the SHIPFOX_OUTPUT file', async () => {
+    const step = sourceStep('echo "kept=yes" >> "$SHIPFOX_OUTPUT"; printf 1 > n.txt', {
+      n: {from_file: 'n.txt'},
+    });
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.outputs).toEqual({kept: 'yes', n: '1'});
+  });
+
+  it('treats a missing file as a missing output', async () => {
+    const step = sourceStep('true', {patch: {from_file: 'absent.patch'}});
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.success).toBe(true);
+    expect(result.outputs).toBeUndefined();
+  });
+
+  it('fails a succeeded step whose file is outside the workspace', async () => {
+    await writeFile(join(outside, 'secret.txt'), 'secret');
+    const step = sourceStep('true', {leak: {from_file: join(outside, 'secret.txt')}});
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.success).toBe(false);
+    expect(result.outputs).toBeUndefined();
+    expect(result.error?.message).toBe(
+      `Output "leak" reads "${join(outside, 'secret.txt')}", which is outside the job workspace.`,
+    );
+  });
+
+  it('fails a path that climbs out of the workspace even when the file is missing', async () => {
+    const step = sourceStep('true', {leak: {from_file: '../nowhere.txt'}});
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toContain('outside the job workspace');
+  });
+
+  it('keeps the exit failure when a failed step also names a path outside the workspace', async () => {
+    const step = sourceStep('exit 3', {leak: {from_file: '../nowhere.txt'}});
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.success).toBe(false);
+    expect(result.exit_code).toBe(3);
+    expect(result.error?.message).toBe('Command exited with code 3');
+  });
+
+  it('fails a succeeded step whose file exceeds the per-value cap', async () => {
+    const step = sourceStep(
+      `node -e "require('node:fs').writeFileSync('big.txt', 'x'.repeat(${MAX_OUTPUT_VALUE_BYTES + 10}))"`,
+      {big: {from_file: 'big.txt'}},
+    );
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toContain('Output "big" exceeds the per-value size limit');
+  });
+
+  it('fails a succeeded step whose file and SHIPFOX_OUTPUT outputs exceed the total cap together', async () => {
+    const script = [
+      "const fs = require('node:fs');",
+      `const value = 'x'.repeat(${MAX_OUTPUT_VALUE_BYTES});`,
+      "fs.writeFileSync(process.env.SHIPFOX_OUTPUT, ['a', 'b', 'c'].map((key) => key + '=' + value + '\\n').join(''));",
+      "fs.writeFileSync('d.txt', value);",
+      "fs.writeFileSync('e.txt', value);",
+    ].join(' ');
+    const step = sourceStep(`node -e ${JSON.stringify(script)}`, {
+      d: {from_file: 'd.txt'},
+      e: {from_file: 'e.txt'},
+    });
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.success).toBe(false);
+    expect(result.outputs).toBeUndefined();
+    expect(result.error?.message).toContain('Step outputs exceed the total size limit');
+  });
+
+  it('fails a file that is not a regular file', async () => {
+    await mkdir(join(workspace, 'dir'));
+    const step = sourceStep('true', {dir: {from_file: 'dir'}});
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toBe('Output "dir" file is not a regular file.');
+  });
+
+  it('reads stdout and strips one trailing newline', async () => {
+    const step = sourceStep("printf 'line one\\nline two\\n\\n'", {text: {from_stdout: true}});
+    const output = collectOutput();
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace, onOutput: output.sink});
+
+    expect(result.outputs).toEqual({text: 'line one\nline two\n'});
+    expect(output.text()).toBe('line one\nline two\n\n');
+  });
+
+  it('does not read stderr as stdout', async () => {
+    const step = sourceStep('echo out; echo err >&2', {text: {from_stdout: true}});
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.outputs).toEqual({text: 'out'});
+  });
+
+  it('accepts stdout at the per-value cap', async () => {
+    silenceTee();
+    const step = sourceStep(
+      `node -e "process.stdout.write('x'.repeat(${MAX_OUTPUT_VALUE_BYTES}) + '\\n')"`,
+      {text: {from_stdout: true}},
+    );
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.success).toBe(true);
+    expect(result.outputs?.text).toHaveLength(MAX_OUTPUT_VALUE_BYTES);
+  });
+
+  it('fails a succeeded step whose stdout exceeds the per-value cap', async () => {
+    silenceTee();
+    const step = sourceStep(
+      `node -e "process.stdout.write('x'.repeat(${MAX_OUTPUT_VALUE_BYTES * 2}))"`,
+      {text: {from_stdout: true}},
+    );
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.success).toBe(false);
+    expect(result.outputs).toBeUndefined();
+    expect(result.error?.message).toContain('Output "text" exceeds the per-value size limit');
+  });
+
+  it('keeps the exit failure when a failed step overflows stdout', async () => {
+    silenceTee();
+    const step = sourceStep(
+      `node -e "process.stdout.write('x'.repeat(${MAX_OUTPUT_VALUE_BYTES * 2}))"; exit 2`,
+      {text: {from_stdout: true}},
+    );
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.exit_code).toBe(2);
+    expect(result.error?.message).toBe('Command exited with code 2');
+  });
+
+  it('ignores malformed output sources', async () => {
+    const step = buildStep({config: {run: 'echo hi', output_sources: {a: 'x', b: {}, c: null}}});
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.success).toBe(true);
+    expect(result.outputs).toBeUndefined();
   });
 });
 

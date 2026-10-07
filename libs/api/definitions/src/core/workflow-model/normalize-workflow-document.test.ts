@@ -1,6 +1,7 @@
 import type {AgentValidationCatalogV2} from '@shipfox/api-agent-dto/inter-module';
 import type {WorkflowDocument} from '@shipfox/workflow-document';
 import {
+  InvalidWorkflowDocumentError,
   parseWorkflowDocument,
   WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS,
 } from '@shipfox/workflow-document';
@@ -4063,6 +4064,61 @@ describe('normalizeWorkflowDocument', () => {
         metadata: {type: 'json', schema},
       },
     });
+  });
+
+  it('keeps from_file and from_stdout on the run step outputs of the model', () => {
+    const document = parseWorkflowDocument({
+      name: 'output sources',
+      jobs: {
+        build: {
+          steps: [
+            {
+              key: 'revision',
+              run: 'git rev-parse HEAD',
+              outputs: {
+                commit: {type: 'string', from_stdout: true},
+                patch: {type: 'string', from_file: '.git/shipfox-repair.patch'},
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      outputs: {
+        commit: {type: 'string', from_stdout: true},
+        patch: {type: 'string', from_file: '.git/shipfox-repair.patch'},
+      },
+    });
+  });
+
+  it.each([
+    ['agent', {prompt: 'Summarize.'}],
+    ['checkout', {checkout: {}}],
+  ])('rejects output sources on a %s step', (_kind, step) => {
+    const parse = () =>
+      parseWorkflowDocument({
+        name: 'output sources',
+        jobs: {
+          build: {steps: [{...step, outputs: {summary: {type: 'string', from_stdout: true}}}]},
+        },
+      });
+
+    expect(parse).toThrow(InvalidWorkflowDocumentError);
+    try {
+      parse();
+    } catch (error) {
+      if (!(error instanceof InvalidWorkflowDocumentError)) throw error;
+      expect(error.validationError.issues).toEqual([
+        expect.objectContaining({
+          path: ['jobs', 'build', 'steps', 0, 'outputs', 'summary', 'from_stdout'],
+          message: '`from_stdout` is only supported on run steps.',
+        }),
+      ]);
+    }
   });
 
   it('reports invalid JSON schemas on typed step outputs', () => {
