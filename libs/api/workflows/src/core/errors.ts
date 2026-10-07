@@ -3,6 +3,11 @@ import type {
   AgentIntegrationMaterializationReason,
   WorkflowExecutionPayloadFieldDto,
 } from '@shipfox/api-workflows-dto';
+import {
+  UnsafeRunInterpolationError,
+  WorkflowExpressionEvaluationError,
+  WorkflowTemplateResolutionError,
+} from '@shipfox/expression';
 import type {JobStatus} from './entities/job.js';
 import type {WorkflowRunStatus} from './entities/workflow-run.js';
 import type {RequiredAction} from './workspace-admission.js';
@@ -219,6 +224,8 @@ export interface InterpolationUnresolvableStep {
   readonly name?: string | undefined;
   /** 1-based position among the job's authored steps. */
   readonly index: number;
+  /** 1-based line where the step starts in the workflow file. */
+  readonly line?: number | undefined;
 }
 
 interface InterpolationUnresolvableParams {
@@ -238,16 +245,19 @@ export class InterpolationUnresolvableError extends Error {
   readonly variableKey?: string;
   readonly jobKey?: string;
   readonly step?: InterpolationUnresolvableStep;
+  /** Why the value could not be resolved, with runtime values removed. */
+  readonly summary?: string;
 
   constructor(
     readonly definitionId: string,
-    params: InterpolationUnresolvableParams & {
+    private readonly params: InterpolationUnresolvableParams & {
       /** The expression reads a context this fill site does not carry, not a missing value. */
       readonly contextUnavailable?: boolean;
       readonly cause?: unknown;
     },
   ) {
-    super(interpolationUnresolvableMessage(definitionId, params), {cause: params.cause});
+    const summary = interpolationUnresolvableSummary(params);
+    super(interpolationUnresolvableMessage(params, summary), {cause: params.cause});
     this.name = 'InterpolationUnresolvableError';
     this.field = params.field;
     this.source = params.source;
@@ -255,22 +265,57 @@ export class InterpolationUnresolvableError extends Error {
     if (params.variableKey !== undefined) this.variableKey = params.variableKey;
     if (params.jobKey !== undefined) this.jobKey = params.jobKey;
     if (params.step !== undefined) this.step = params.step;
+    if (summary !== undefined) this.summary = summary;
+  }
+
+  /** The same failure, placed at the job and step whose field it came from. */
+  at(location: {
+    readonly jobKey: string;
+    readonly step: InterpolationUnresolvableStep;
+  }): InterpolationUnresolvableError {
+    return new InterpolationUnresolvableError(this.definitionId, {...this.params, ...location});
   }
 }
 
+function interpolationUnresolvableSummary(
+  params: InterpolationUnresolvableParams & {
+    readonly contextUnavailable?: boolean;
+    readonly cause?: unknown;
+  },
+): string | undefined {
+  if (params.variableKey !== undefined) return `Variable \`${params.variableKey}\` is not set`;
+  if (params.contextUnavailable === true) {
+    return 'It reads a context that is not available where this field is filled';
+  }
+  const cause =
+    params.cause instanceof WorkflowTemplateResolutionError ? params.cause.cause : params.cause;
+  if (cause instanceof WorkflowExpressionEvaluationError) return cause.summary;
+  if (cause instanceof UnsafeRunInterpolationError) return cause.message;
+  return undefined;
+}
+
 function interpolationUnresolvableMessage(
-  definitionId: string,
-  params: InterpolationUnresolvableParams & {readonly contextUnavailable?: boolean},
+  params: InterpolationUnresolvableParams,
+  summary: string | undefined,
 ): string {
-  const envSuffix = params.envKey === undefined ? '' : ` (${params.envKey})`;
-  const prefix = `Workflow interpolation cannot be resolved for definition ${definitionId}: ${params.field}${envSuffix} uses \`${params.source}\`.`;
-  if (params.variableKey !== undefined)
-    return `${prefix} Variable ${params.variableKey} is not set.`;
-  const hint =
-    params.contextUnavailable === true
-      ? 'It reads a context that is not available where this field is filled.'
-      : "Use has(x) ? x : '' for optional references.";
-  return `${prefix} ${hint}`;
+  const field = params.envKey === undefined ? params.field : `${params.field}.${params.envKey}`;
+  const reason = summary === undefined ? '' : `: ${summary}`;
+  return `${interpolationLocationPrefix(params)}\`${field}\` could not be resolved: \`${params.source}\`${reason}`;
+}
+
+// A run step is named after its first command line, which can be arbitrarily long.
+const STEP_NAME_MAX_LENGTH = 80;
+
+function interpolationLocationPrefix(params: InterpolationUnresolvableParams): string {
+  if (params.jobKey === undefined) return '';
+  if (params.step === undefined) return `Job \`${params.jobKey}\`: `;
+  const name = params.step.name ?? params.step.key;
+  const step =
+    name === undefined
+      ? `step ${params.step.index}`
+      : `step \`${name.length > STEP_NAME_MAX_LENGTH ? `${name.slice(0, STEP_NAME_MAX_LENGTH)}…` : name}\``;
+  const line = params.step.line === undefined ? '' : ` (line ${params.step.line})`;
+  return `Job \`${params.jobKey}\`, ${step}${line}: `;
 }
 
 /**

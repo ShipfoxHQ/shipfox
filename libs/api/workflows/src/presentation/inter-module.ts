@@ -51,6 +51,7 @@ import {findFrozenActionIntegrations, flattenActionIntegrations} from '#core/age
 import type {Step, StepType} from '#core/entities/step.js';
 import type {WorkflowRunTriggerReference} from '#core/entities/workflow-run.js';
 import {
+  type InterpolationUnresolvableStep,
   InvalidJobRunnerLabelsError,
   NoFailedJobsError,
   RunNotTerminalError,
@@ -1271,7 +1272,7 @@ function toRunCreationKnownError(
       ...(error.envKey === undefined ? {} : {envKey: error.envKey}),
       ...(error.variableKey === undefined ? {} : {variableKey: error.variableKey}),
       ...(error.jobKey === undefined ? {} : {jobKey: error.jobKey}),
-      ...(error.step === undefined ? {} : {step: error.step}),
+      ...(error.step === undefined ? {} : {step: stepLocationDetails(error.step)}),
     });
   }
   if (error instanceof InvalidJobRunnerLabelsError) {
@@ -1340,6 +1341,15 @@ function toWorkspaceAdmissionKnownError(
   return undefined;
 }
 
+// The line only feeds the error message; the contract carries job and step identity.
+function stepLocationDetails(step: InterpolationUnresolvableStep) {
+  return {
+    ...(step.key === undefined ? {} : {key: step.key}),
+    ...(step.name === undefined ? {} : {name: step.name}),
+    index: step.index,
+  };
+}
+
 function agentConfigUnresolvableDetails(error: AgentConfigUnresolvableError) {
   return {
     definitionId: error.definitionId,
@@ -1347,7 +1357,7 @@ function agentConfigUnresolvableDetails(error: AgentConfigUnresolvableError) {
     ...(error.model === undefined ? {} : {model: error.model}),
     ...(error.provider === undefined ? {} : {provider: error.provider}),
     ...(error.jobKey === undefined ? {} : {jobKey: error.jobKey}),
-    ...(error.step === undefined ? {} : {step: error.step}),
+    ...(error.step === undefined ? {} : {step: stepLocationDetails(error.step)}),
   };
 }
 
@@ -1357,6 +1367,6 @@ function agentIntegrationMaterializationDetails(error: AgentIntegrationMateriali
     ...(error.connection === undefined ? {} : {connection: error.connection}),
     ...(error.tool === undefined ? {} : {tool: error.tool}),
     ...(error.jobKey === undefined ? {} : {jobKey: error.jobKey}),
-    ...(error.step === undefined ? {} : {step: error.step}),
+    ...(error.step === undefined ? {} : {step: stepLocationDetails(error.step)}),
   };
 }

@@ -966,9 +966,8 @@ describe('workflow run job executions', () => {
     expect(resolved).toMatchObject({
       status: 'failed',
       statusReason: 'output_invalid',
-      statusReasonMessage: expect.stringContaining(
-        'job.outputs uses `steps.collect.outputs.missing`',
-      ),
+      statusReasonMessage:
+        '`job.outputs` could not be resolved: `steps.collect.outputs.missing`: No such key: missing',
       outputs: null,
     });
   });

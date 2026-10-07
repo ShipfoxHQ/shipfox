@@ -139,6 +139,11 @@ export const stepErrorDtoSchema = z
     reason: stepErrorReasonSchema.optional(),
     field: z.string().optional(),
     source: z.string().optional(),
+    /** Why the value could not be resolved, for a `config_unresolvable` failure. */
+    summary: z.string().max(STEP_ERROR_MESSAGE_MAX_LENGTH).optional(),
+    job_key: z.string().min(1).optional(),
+    /** 1-based position among the job's authored steps. */
+    step_index: z.number().int().positive().optional(),
     attempt_count: z.number().int().positive().optional(),
     max_attempts: z.number().int().positive().optional(),
     restart_from: z.string().min(1).optional(),

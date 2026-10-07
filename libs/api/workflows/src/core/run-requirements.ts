@@ -18,6 +18,7 @@ export interface RunRequirementStepLocation {
   readonly name?: string | undefined;
   /** 1-based position among the job's authored steps. */
   readonly index: number;
+  readonly line?: number | undefined;
 }
 
 export interface RunRequirementLocation {
@@ -129,7 +130,12 @@ function stepScopeFor(jobScope: Scope, step: WorkflowModelStep, index: number): 
     out: jobScope.out,
     location: {
       ...jobScope.location,
-      step: {key: step.key, name: step.name, index: index + 1},
+      step: {
+        key: step.key,
+        name: step.name,
+        index: index + 1,
+        line: step.sourceLocation?.startLine,
+      },
     },
   };
 }

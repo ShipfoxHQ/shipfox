@@ -279,6 +279,27 @@ describe('fromStepErrorDto', () => {
     expect(dto.error?.provider_message).toHaveLength(500);
   });
 
+  it('round-trips the job, step and reason of an interpolation failure', () => {
+    const persisted = {
+      message: 'Job `build`, step `Deploy`: `env.SHA` could not be resolved',
+      reason: 'config_unresolvable',
+      field: 'env.SHA',
+      source: 'steps.build.outputs.sha',
+      summary: 'No such key: sha',
+      jobKey: 'build',
+      stepIndex: 2,
+    };
+
+    const dto = toStepDto(step({type: 'run', error: persisted})).error;
+
+    expect(dto).toMatchObject({
+      summary: 'No such key: sha',
+      job_key: 'build',
+      step_index: 2,
+    });
+    expect(fromStepErrorDto(dto)).toMatchObject(persisted);
+  });
+
   it('ignores a runner-supplied category (the server derives it on read)', () => {
     const persisted = fromStepErrorDto({
       message: 'mkdir denied',

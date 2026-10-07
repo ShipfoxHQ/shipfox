@@ -458,7 +458,19 @@ async function dispatchPendingStepWithConfigPlan({
     const isConfigError = configError !== null;
     if (!isConfigError) throw error;
 
-    const failureError = dispatchConfigError(configError);
+    const failureError = dispatchConfigError(
+      configError instanceof InterpolationUnresolvableError
+        ? configError.at({
+            jobKey: workflowContext.jobKey,
+            step: {
+              key: pending.key ?? undefined,
+              name: pending.name,
+              index: pending.position,
+              line: pending.sourceLocation?.startLine,
+            },
+          })
+        : configError,
+    );
     await insertRunningStepAttempt(
       {
         jobExecutionId,
@@ -935,15 +947,20 @@ function toDispatchConfigError(error: unknown): DispatchConfigError | null {
   return null;
 }
 
+function interpolationConfigError(error: InterpolationUnresolvableError): Record<string, unknown> {
+  return {
+    message: error.message,
+    reason: 'config_unresolvable',
+    field: error.envKey === undefined ? error.field : `${error.field}.${error.envKey}`,
+    source: error.source,
+    ...(error.summary === undefined ? {} : {summary: error.summary}),
+    ...(error.jobKey === undefined ? {} : {jobKey: error.jobKey}),
+    ...(error.step === undefined ? {} : {stepIndex: error.step.index}),
+  };
+}
+
 function dispatchConfigError(error: DispatchConfigError): Record<string, unknown> {
-  if (error instanceof InterpolationUnresolvableError) {
-    return {
-      message: error.message,
-      reason: 'config_unresolvable',
-      field: error.envKey === undefined ? error.field : `${error.field}.${error.envKey}`,
-      source: error.source,
-    };
-  }
+  if (error instanceof InterpolationUnresolvableError) return interpolationConfigError(error);
 
   if (error instanceof ToolConfigInvalidError) {
     return {
