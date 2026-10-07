@@ -35,6 +35,12 @@ const exitCode = await runE2e({
       args: ['--filter=@shipfox/api', 'dev:e2e'],
       ready: '/readyz',
     },
+    {
+      name: 'client',
+      command: 'pnpm',
+      args: ['--filter=@shipfox/client', 'dev'],
+      ready: (env) => env.CLIENT_URL,
+    },
   ],
   diagnostics: [],
 });

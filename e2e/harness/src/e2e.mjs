@@ -49,6 +49,8 @@ if (isCliEntryPoint()) {
 
 export async function main(argv) {
   const options = parseArgs(argv);
+  if (options.help) return runE2e({argv});
+
   const env = e2eEnv(process.env);
   const logDir = resolve(options.logDir ?? defaultLogDir(process.env));
   const registryEnv = {};

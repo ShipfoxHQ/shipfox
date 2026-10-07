@@ -43,7 +43,7 @@ test('starts servers in order and shuts down earlier servers when readiness fail
   try {
     await assert.rejects(
       runE2e({
-        argv: ['run', '--task', 'harness-test', '--timeout-ms', '100', '--log-dir', directory],
+        argv: ['run', '--task', 'harness-test', '--timeout-ms', '5000', '--log-dir', directory],
         env: {
           API_URL: `http://127.0.0.1:${firstPort}`,
           CLIENT_URL: `http://127.0.0.1:${secondPort}`,
