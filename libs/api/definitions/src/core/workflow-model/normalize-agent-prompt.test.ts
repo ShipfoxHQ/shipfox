@@ -9,6 +9,7 @@ function interpolation(source: string): string {
 
 function normalizePrompt(
   prompt: NonNullable<WorkflowDocument['jobs'][string]['steps'][number]['prompt']>,
+  promptFiles?: ReadonlyMap<string, string>,
 ) {
   return normalizeWorkflowDocument(
     {
@@ -16,7 +17,7 @@ function normalizePrompt(
       runner: 'ubuntu-latest',
       jobs: {review: {steps: [{run: 'true'}, {key: 'agent', prompt}]}},
     },
-    {agentValidationCatalog},
+    {agentValidationCatalog, promptFiles},
   );
 }
 
@@ -26,9 +27,12 @@ function agentStep(model: ReturnType<typeof normalizePrompt>) {
   return step;
 }
 
-function expectInvalid(prompt: Parameters<typeof normalizePrompt>[0]) {
+function expectInvalid(
+  prompt: Parameters<typeof normalizePrompt>[0],
+  promptFiles?: ReadonlyMap<string, string>,
+) {
   try {
-    normalizePrompt(prompt);
+    normalizePrompt(prompt, promptFiles);
   } catch (error) {
     expect(error).toBeInstanceOf(InvalidWorkflowModelError);
     return (error as InvalidWorkflowModelError).issues;
@@ -111,7 +115,7 @@ describe('normalizeAgentPrompt', () => {
     ]);
   });
 
-  it('refuses a file part until prompt files are supported', () => {
+  it('refuses a file part when no prompt files were read', () => {
     const issues = expectInvalid(['Intro.', {file: './prompts/review.md'}]);
 
     expect(issues).toEqual([
@@ -119,6 +123,74 @@ describe('normalizeAgentPrompt', () => {
         code: 'prompt-file-invalid',
         path: ['jobs', 'review', 'steps', 1, 'prompt', 1],
         details: {file: './prompts/review.md'},
+      }),
+    ]);
+  });
+
+  it('inlines the file text between the other parts', () => {
+    const files = new Map([['./prompts/review.md', 'Check the diff.\n\n']]);
+
+    const step = agentStep(
+      normalizePrompt(['Intro.', {file: './prompts/review.md'}, 'Outro.'], files),
+    );
+
+    expect(step.prompt).toBe('Intro.\n\nCheck the diff.\n\nOutro.');
+    expect(step.templates).toBeUndefined();
+  });
+
+  it('accepts a prompt made of one file', () => {
+    const files = new Map([['./prompts/review.md', 'Check the diff.\n']]);
+
+    const step = agentStep(normalizePrompt([{file: './prompts/review.md'}], files));
+
+    expect(step.prompt).toBe('Check the diff.');
+  });
+
+  it('evaluates an expression in a file like inline text', () => {
+    const files = new Map([['./prompts/review.md', `PR: ${interpolation('inputs.number')}\n`]]);
+
+    const step = agentStep(normalizePrompt(['Review', {file: './prompts/review.md'}], files));
+
+    expect(step.templates?.prompt).toEqual([
+      {kind: 'literal', value: 'Review\n\nPR: '},
+      expect.objectContaining({kind: 'deferred', roots: ['inputs']}),
+    ]);
+  });
+
+  it('keeps an escaped expression in a file literal', () => {
+    const files = new Map([
+      ['./prompts/review.md', `Write $${interpolation('inputs.number')} as is.`],
+    ]);
+
+    const step = agentStep(normalizePrompt([{file: './prompts/review.md'}], files));
+
+    expect(step.templates).toBeUndefined();
+  });
+
+  it('names the file when an expression in it is invalid', () => {
+    const files = new Map([['./prompts/review.md', interpolation('nope.value')]]);
+
+    const issues = expectInvalid(['Intro.', {file: './prompts/review.md'}], files);
+
+    expect(issues).toEqual([
+      expect.objectContaining({
+        code: 'unknown-interpolation-context',
+        message: expect.stringContaining('Prompt file "./prompts/review.md"'),
+        path: ['jobs', 'review', 'steps', 1, 'prompt', 1],
+        details: expect.objectContaining({file: './prompts/review.md'}),
+      }),
+    ]);
+  });
+
+  it('does not let an expression span a file and the next part', () => {
+    const files = new Map([['./prompts/review.md', 'Value ' + '$' + '{{ inputs.a +']]);
+
+    const issues = expectInvalid([{file: './prompts/review.md'}, 'inputs.b }}'], files);
+
+    expect(issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-interpolation-template',
+        path: ['jobs', 'review', 'steps', 1, 'prompt', 0],
       }),
     ]);
   });

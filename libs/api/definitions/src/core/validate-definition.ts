@@ -35,6 +35,8 @@ export interface DefinitionValidationOptions {
   registryActionsEnabled?: boolean;
   /** Manifests of the actions the document references, keyed by `uses` path. */
   actionManifests?: ResolvedActions;
+  /** Text of the prompt files the document names, keyed by the `file` path in the YAML. */
+  promptFiles?: ReadonlyMap<string, string>;
   agentValidationCatalog: AgentValidationCatalogV2;
   integrationValidationContext?: IntegrationValidationContext;
 }
@@ -63,6 +65,7 @@ export function validateDefinition(
       agentValidationCatalog: options.agentValidationCatalog,
       integrationValidationContext: options.integrationValidationContext,
       actionManifests: options.actionManifests,
+      promptFiles: options.promptFiles,
       stepSourceLocations,
       diagnostics,
     });

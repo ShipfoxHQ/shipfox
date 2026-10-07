@@ -62,6 +62,7 @@ export const DEFINITION_SYNC_ERROR_CODES = [
   'action-invalid',
   'action-too-large',
   'action-unsupported-file',
+  'prompt-file-invalid',
   'unknown',
 ] as const;
 

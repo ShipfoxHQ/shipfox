@@ -263,6 +263,7 @@ const definitionSyncErrorCodes = [
   'action-invalid',
   'action-too-large',
   'action-unsupported-file',
+  'prompt-file-invalid',
   'unknown',
 ] as const;
 const definitionSyncErrorCodeSchema = z.enum(definitionSyncErrorCodes);
