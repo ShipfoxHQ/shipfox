@@ -170,7 +170,9 @@ export const test = base.extend<WorkspaceFixtures & SecretsScreenFixtures>({
 
 Use `createReadyWorkspace` from `@shipfox/e2e-kit/fixtures` for the standard
 user, workspace, and project arrangement. Specs should add only the
-domain-specific fixtures and setup their behavior needs.
+domain-specific fixtures and setup their behavior needs. The fixture dismisses
+the setup checklist, which loads asynchronously and would otherwise race
+screenshots. A spec that covers the checklist arranges its own workspace.
 
 ## Screens And App Shell
 

@@ -19,6 +19,11 @@ export interface ReadyWorkspaceFixtures {
   createReadyWorkspace: CreateReadyWorkspace;
 }
 
+// Mirrors the client's workspace-scoped dismissal key for the setup checklist.
+function setupChecklistDismissalKey(workspaceId: string): string {
+  return `shipfox.workspaceSetupChecklist.dismissed.workspace.${encodeURIComponent(workspaceId)}`;
+}
+
 async function createReadyWorkspace(params: {
   auth: WorkspaceFixtures['auth'];
   workspaces: WorkspaceFixtures['workspaces'];
@@ -34,6 +39,11 @@ async function createReadyWorkspace(params: {
   const project = await params.projects.createProject({workspaceId: workspace.id});
   const session = await params.auth.createSession({user_id: user.user.id});
   await params.auth.loginAs(params.page, user);
+  // The setup checklist renders once its queries settle, so it would race every
+  // screenshot of a ready workspace. Suites that cover it arrange their own.
+  await params.page.addInitScript((key) => {
+    window.localStorage.setItem(key, 'true');
+  }, setupChecklistDismissalKey(workspace.id));
 
   return {
     userId: user.user.id,
