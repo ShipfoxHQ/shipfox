@@ -26,6 +26,9 @@ async function fetchAndParseWorkflows(
   return result.workflows;
 }
 
+const PINNED_YAML_ONLY_HASH = 'f9bc7600f32db788ea08a89958932ee8ce93423f019c8e53a3eb60582036b899';
+const PINNED_ACTION_ONLY_HASH = '0815441ab2773e710011cbab582b9752baec55ba677fff9d768bb81e03a4fc19';
+
 const validYaml = `
 name: CI
 runner: ubuntu-latest
@@ -1190,6 +1193,284 @@ jobs:
         diagnostics: [{filePath: workflowPath}],
       });
       expect(registry.resolveVersion).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('fetchAndParseWorkflows with prompt files', () => {
+  const workflowPath = '.shipfox/workflows/review.yml';
+  const reviewYaml = `
+name: Review
+runner: ubuntu-latest
+jobs:
+  review:
+    steps:
+      - prompt:
+          - Review the change.
+          - file: ./.shipfox/prompts/rules.md
+`;
+
+  function promptRepository(overrides: Record<string, string> = {}): Record<string, string> {
+    return {
+      [workflowPath]: reviewYaml,
+      '.shipfox/prompts/rules.md': 'Report only real bugs.\n',
+      ...overrides,
+    };
+  }
+
+  function repositorySourceControl(repository: Record<string, string>) {
+    return sourceControl({
+      fetchFile: vi.fn(({path, ref}: {path: string; ref: string}) => {
+        const content = repository[path];
+        if (content === undefined) {
+          return Promise.reject(
+            createInterModuleKnownError(
+              integrationsInterModuleContract.methods.fetchSourceFile,
+              'provider-failure',
+              {reason: 'file-not-found'},
+            ),
+          );
+        }
+        return Promise.resolve({path, ref, content});
+      }),
+    });
+  }
+
+  function sync(params: {
+    repository: Record<string, string>;
+    paths?: string[];
+    source?: DefinitionsSourceControl;
+  }) {
+    return fetchAndParseWorkflowsBase({
+      ...baseContext,
+      ref: 'abc123',
+      paths: params.paths ?? [workflowPath],
+      sourceControl: params.source ?? repositorySourceControl(params.repository),
+      agentValidationCatalog,
+    });
+  }
+
+  function promptOf(result: Awaited<ReturnType<typeof sync>>): string | undefined {
+    const step = result.workflows[0]?.definition.model.jobs[0]?.steps[0];
+    return step?.kind === 'agent' ? step.prompt : undefined;
+  }
+
+  it('renders a file part with the text read at the sync ref', async () => {
+    const source = repositorySourceControl(promptRepository());
+
+    const result = await sync({repository: {}, source});
+
+    expect(promptOf(result)).toBe('Review the change.\n\nReport only real bugs.');
+    expect(source.fetchFile).toHaveBeenCalledWith(
+      expect.objectContaining({path: '.shipfox/prompts/rules.md', ref: 'abc123'}),
+    );
+  });
+
+  it('evaluates an expression in a file', async () => {
+    const result = await sync({
+      repository: promptRepository({
+        '.shipfox/prompts/rules.md': `Review PR ${'$'}{{ event.number }}.\n`,
+      }),
+    });
+
+    const step = result.workflows[0]?.definition.model.jobs[0]?.steps[0];
+    expect(step?.kind === 'agent' ? step.templates?.prompt : undefined).toEqual([
+      {kind: 'literal', value: 'Review the change.\n\nReview PR '},
+      expect.objectContaining({kind: 'deferred'}),
+      {kind: 'literal', value: '.'},
+    ]);
+  });
+
+  it('reads a file shared by several workflows once', async () => {
+    const otherPath = '.shipfox/workflows/other.yml';
+    const source = repositorySourceControl(promptRepository({[otherPath]: reviewYaml}));
+
+    const result = await sync({repository: {}, source, paths: [workflowPath, otherPath]});
+
+    expect(result.workflows).toHaveLength(2);
+    const promptReads = vi
+      .mocked(source.fetchFile)
+      .mock.calls.filter(([input]) => input.path === '.shipfox/prompts/rules.md');
+    expect(promptReads).toHaveLength(1);
+  });
+
+  it('produces a new content hash when only the prompt file changes', async () => {
+    const before = await sync({repository: promptRepository()});
+    const unchanged = await sync({repository: promptRepository()});
+    const after = await sync({
+      repository: promptRepository({'.shipfox/prompts/rules.md': 'Report everything.\n'}),
+    });
+
+    expect(unchanged.workflows[0]?.contentHash).toBe(before.workflows[0]?.contentHash);
+    expect(after.workflows[0]?.contentHash).not.toBe(before.workflows[0]?.contentHash);
+  });
+
+  it('hashes the YAML, the actions, and the sorted prompt file digests', async () => {
+    const result = await sync({
+      repository: promptRepository({
+        [workflowPath]: `${reviewYaml}          - file: ./.shipfox/prompts/another.md
+`,
+        '.shipfox/prompts/another.md': 'Another.',
+      }),
+    });
+
+    const digest = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+    expect(result.workflows[0]?.contentHash).toBe(
+      digest(
+        JSON.stringify({
+          content: `${reviewYaml}          - file: ./.shipfox/prompts/another.md\n`,
+          actions: [],
+          promptFiles: [
+            ['./.shipfox/prompts/another.md', digest('Another.')],
+            ['./.shipfox/prompts/rules.md', digest('Report only real bugs.\n')],
+          ],
+        }),
+      ),
+    );
+  });
+
+  it('keeps the exact hash of a workflow without prompt files', async () => {
+    const result = await sync({repository: {[workflowPath]: validYaml}});
+
+    expect(result.workflows[0]?.contentHash).toBe(PINNED_YAML_ONLY_HASH);
+  });
+
+  it('keeps the exact hash of a workflow with an action and no prompt file', async () => {
+    const actionYaml = `
+name: Actions
+runner: ubuntu-latest
+jobs:
+  build:
+    steps:
+      - uses: ./.shipfox/actions/notify
+`;
+    const repository = {
+      [workflowPath]: actionYaml,
+      '.shipfox/actions/notify/action.yml': 'name: Notify\nmain: index.ts\n',
+      '.shipfox/actions/notify/index.ts': 'export const run = 1;\n',
+    };
+    const source = sourceControl({
+      listFiles: vi.fn(({prefix}: {prefix: string}) =>
+        Promise.resolve({
+          files: Object.entries(repository)
+            .filter(([path]) => path.startsWith(prefix))
+            .map(([path, content]) => ({
+              path,
+              type: 'file' as const,
+              size: Buffer.byteLength(content, 'utf8'),
+            })),
+          nextCursor: null,
+        }),
+      ),
+      fetchFile: vi.fn(({path, ref}: {path: string; ref: string}) =>
+        Promise.resolve({path, ref, content: repository[path as keyof typeof repository] ?? ''}),
+      ),
+    });
+
+    const result = await fetchAndParseWorkflowsBase({
+      ...baseContext,
+      ref: 'abc123',
+      paths: [workflowPath],
+      sourceControl: source,
+      agentValidationCatalog,
+      actionsEnabled: true,
+    });
+
+    expect(result.workflows[0]?.contentHash).toBe(PINNED_ACTION_ONLY_HASH);
+  });
+
+  it('fails with prompt-file-invalid and names the step and the file when a file is missing', async () => {
+    const error = await sync({
+      repository: {[workflowPath]: reviewYaml},
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(DefinitionSyncPermanentError);
+    expect(classifySyncFailure(error)).toMatchObject({
+      code: 'prompt-file-invalid',
+      retryable: false,
+      message: expect.stringContaining('./.shipfox/prompts/rules.md'),
+      diagnostics: [
+        {
+          code: 'prompt-file-invalid',
+          filePath: workflowPath,
+          path: 'jobs.review.steps.0.prompt.1',
+          severity: 'error',
+          message: expect.stringContaining('was not found'),
+        },
+      ],
+    });
+  });
+
+  it('fails with prompt-file-invalid when a file is empty', async () => {
+    const error = await sync({
+      repository: promptRepository({'.shipfox/prompts/rules.md': ' \n\n'}),
+    }).catch((caught: unknown) => caught);
+
+    expect(classifySyncFailure(error)).toMatchObject({
+      code: 'prompt-file-invalid',
+      message: expect.stringContaining('is empty'),
+    });
+  });
+
+  it('fails with prompt-file-invalid when a file is not UTF-8 text', async () => {
+    const source = sourceControl({
+      fetchFile: vi.fn(({path}: {path: string}) =>
+        path === workflowPath
+          ? Promise.resolve({path, ref: 'abc123', content: reviewYaml})
+          : Promise.reject(
+              createInterModuleKnownError(
+                integrationsInterModuleContract.methods.fetchSourceFile,
+                'provider-failure',
+                {reason: 'binary-file-unsupported'},
+              ),
+            ),
+      ),
+    });
+
+    const error = await sync({repository: {}, source}).catch((caught: unknown) => caught);
+
+    expect(classifySyncFailure(error)).toMatchObject({
+      code: 'prompt-file-invalid',
+      message: expect.stringContaining('is not UTF-8 text'),
+    });
+  });
+
+  it('keeps a provider outage retryable', async () => {
+    const source = sourceControl({
+      fetchFile: vi.fn(({path}: {path: string}) =>
+        path === workflowPath
+          ? Promise.resolve({path, ref: 'abc123', content: reviewYaml})
+          : Promise.reject(
+              createInterModuleKnownError(
+                integrationsInterModuleContract.methods.fetchSourceFile,
+                'provider-failure',
+                {reason: 'provider-unavailable'},
+              ),
+            ),
+      ),
+    });
+
+    const error = await sync({repository: {}, source}).catch((caught: unknown) => caught);
+
+    expect(classifySyncFailure(error)).toMatchObject({
+      code: 'provider-unavailable',
+      retryable: true,
+    });
+  });
+
+  it('reports an invalid expression in a file against the step that uses it', async () => {
+    const error = await sync({
+      repository: promptRepository({'.shipfox/prompts/rules.md': `${'$'}{{ nope.value }}`}),
+    }).catch((caught: unknown) => caught);
+
+    expect(classifySyncFailure(error)).toMatchObject({
+      code: 'invalid-definition',
+      diagnostics: [
+        expect.objectContaining({
+          path: 'jobs.review.steps.0.prompt.1',
+          message: expect.stringContaining('Prompt file "./.shipfox/prompts/rules.md"'),
+        }),
+      ],
     });
   });
 });

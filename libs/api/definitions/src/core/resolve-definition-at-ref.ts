@@ -32,6 +32,7 @@ import {recordDefinitionRefResolution} from '#metrics/index.js';
 import {definitionActionsEnabled, definitionRegistryActionsEnabled} from '../config.js';
 import {checkActionImports} from './check-action-imports.js';
 import {collectActionReferences} from './collect-action-references.js';
+import {collectPromptFilePaths} from './collect-prompt-file-references.js';
 import type {ActionSnapshotSource} from './entities/action-snapshot.js';
 import type {ValidationDiagnostic} from './entities/validation-diagnostic.js';
 import {
@@ -39,6 +40,7 @@ import {
   DefinitionAtRefError,
   type DefinitionAtRefErrorCode,
   DefinitionParseError,
+  PromptFileResolutionError,
 } from './errors.js';
 import {
   FILE_FETCH_CONCURRENCY,
@@ -53,6 +55,7 @@ import {
   resolveWorkflowActions,
   summarizeResolvedActions,
 } from './resolve-actions.js';
+import {resolvePromptFiles} from './resolve-prompt-files.js';
 import {
   DEFAULT_WORKFLOW_PATH,
   isWorkflowFile,
@@ -239,11 +242,25 @@ async function resolveDefinitionAtRefUnsafe(
     signal: params.signal,
   });
   const actionManifests = summarizeResolvedActions(actions);
+  const promptFiles = await resolveDevRunPromptFiles({
+    integrations: params.integrations,
+    source,
+    commit: resolved.commit,
+    configPath: params.configPath,
+    document,
+    signal: params.signal,
+  });
 
   const parsed = await parseDefinitionAtRef({
     content: snapshot.content,
     document,
-    options: {agentValidationCatalog, actionsEnabled, registryActionsEnabled, actionManifests},
+    options: {
+      agentValidationCatalog,
+      actionsEnabled,
+      registryActionsEnabled,
+      actionManifests,
+      promptFiles,
+    },
     integrations: params.integrations,
     source,
     signal: params.signal,
@@ -681,6 +698,45 @@ async function resolveDevRunActions(params: {
     );
   }
   return actions;
+}
+
+/** Reads the prompt files at the pinned commit, also for a local-file dev run. */
+async function resolveDevRunPromptFiles(params: {
+  integrations: IntegrationsModuleClient;
+  source: ResolvedProjectSource;
+  commit: string;
+  configPath: string;
+  document: WorkflowDocument;
+  signal: AbortSignal | undefined;
+}): Promise<Map<string, string>> {
+  if (collectPromptFilePaths(params.document).length === 0) return new Map();
+
+  try {
+    return await resolvePromptFiles({
+      workspaceId: params.source.workspaceId,
+      sourceConnectionId: params.source.connectionId,
+      sourceExternalRepositoryId: params.source.externalRepositoryId,
+      ref: params.commit,
+      sourceControl: {
+        fetchFile: (input) =>
+          callWithSignal(params.integrations.fetchSourceFile, input, params.signal),
+      },
+      workflows: [{path: params.configPath, document: params.document}],
+    });
+  } catch (error) {
+    throwIfAborted(params.signal);
+    if (error instanceof PromptFileResolutionError) {
+      throw new DefinitionAtRefError(
+        'invalid-definition',
+        `Invalid workflow definition: ${error.message}`,
+        {errors: boundedValidationErrors([{message: error.message, path: error.path}])},
+      );
+    }
+    if (isInterModuleKnownError(integrationsInterModuleContract.methods.fetchSourceFile, error)) {
+      throw sourceUnavailable(error, 'The prompt files at the ref could not be read');
+    }
+    throw error;
+  }
 }
 
 function snapshotSourceOf(

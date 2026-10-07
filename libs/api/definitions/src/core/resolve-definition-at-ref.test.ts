@@ -1552,3 +1552,139 @@ jobs:
     });
   });
 });
+
+describe('resolveDefinitionAtRef with prompt files', () => {
+  const RULES = './.shipfox/prompts/rules.md';
+
+  const promptWorkflowYaml = `
+name: Review
+runner: ubuntu-latest
+triggers:
+  on_demand:
+    source: manual
+    event: fire
+jobs:
+  review:
+    steps:
+      - prompt:
+          - Review the change.
+          - file: ${RULES}
+`;
+
+  function clientsFor(repository: Record<string, string>) {
+    const projectId = crypto.randomUUID();
+    const clients = makeClients(projectId);
+    vi.mocked(clients.integrations.fetchSourceFile).mockImplementation(({path, ref}) => {
+      const content = repository[path];
+      if (content === undefined) {
+        return Promise.reject(
+          createInterModuleKnownError(
+            integrationsInterModuleContract.methods.fetchSourceFile,
+            'provider-failure',
+            {reason: 'file-not-found'},
+          ),
+        );
+      }
+      return Promise.resolve({path, ref, content});
+    });
+    return {projectId, clients};
+  }
+
+  function promptOf(result: Awaited<ReturnType<typeof resolveDefinitionAtRef>>) {
+    const step = result.model.model.jobs[0]?.steps[0];
+    return step?.kind === 'agent' ? step.prompt : undefined;
+  }
+
+  test('reads the prompt files of a workflow at the pinned commit', async () => {
+    const {projectId, clients} = clientsFor({
+      [CONFIG_PATH]: promptWorkflowYaml,
+      '.shipfox/prompts/rules.md': 'Report only real bugs.\n',
+    });
+
+    const result = await resolveDefinitionAtRef({
+      projectId,
+      ref: 'fix-branch',
+      configPath: CONFIG_PATH,
+      ...clients,
+    });
+
+    expect(promptOf(result)).toBe('Review the change.\n\nReport only real bugs.');
+    expect(clients.integrations.fetchSourceFile).toHaveBeenCalledWith(
+      expect.objectContaining({path: '.shipfox/prompts/rules.md', ref: COMMIT}),
+    );
+  });
+
+  test('reads the prompt files of a local-file dev run at the ref commit', async () => {
+    const {projectId, clients} = clientsFor({
+      '.shipfox/prompts/rules.md': 'Report only real bugs.\n',
+    });
+
+    const result = await resolveDefinitionAtRef({
+      projectId,
+      ref: 'fix-branch',
+      configPath: CONFIG_PATH,
+      content: promptWorkflowYaml,
+      ...clients,
+    });
+
+    expect(promptOf(result)).toBe('Review the change.\n\nReport only real bugs.');
+    expect(clients.integrations.fetchSourceFile).toHaveBeenCalledWith(
+      expect.objectContaining({path: '.shipfox/prompts/rules.md', ref: COMMIT}),
+    );
+  });
+
+  test('evaluates an expression in a prompt file', async () => {
+    const {projectId, clients} = clientsFor({
+      [CONFIG_PATH]: promptWorkflowYaml,
+      '.shipfox/prompts/rules.md': `Review PR ${'$'}{{ event.number }}.\n`,
+    });
+
+    const result = await resolveDefinitionAtRef({
+      projectId,
+      ref: 'fix-branch',
+      configPath: CONFIG_PATH,
+      ...clients,
+    });
+
+    expect(JSON.stringify(result.model)).toContain('"kind":"deferred"');
+  });
+
+  test('rejects a missing prompt file with the step and the file', async () => {
+    const {projectId, clients} = clientsFor({[CONFIG_PATH]: promptWorkflowYaml});
+
+    const error = await expectRefError(
+      resolveDefinitionAtRef({projectId, ref: 'fix-branch', configPath: CONFIG_PATH, ...clients}),
+      'invalid-definition',
+    );
+
+    expect(error.details).toEqual({
+      errors: [
+        {
+          message: expect.stringContaining(RULES),
+          path: 'jobs.review.steps.0.prompt.1',
+        },
+      ],
+    });
+    expect(await countLineageRows(projectId)).toHaveLength(0);
+  });
+
+  test('reports an unreachable provider as source-unavailable', async () => {
+    const {projectId, clients} = clientsFor({[CONFIG_PATH]: promptWorkflowYaml});
+    vi.mocked(clients.integrations.fetchSourceFile).mockImplementation(({path, ref}) =>
+      path === CONFIG_PATH
+        ? Promise.resolve({path, ref, content: promptWorkflowYaml})
+        : Promise.reject(
+            createInterModuleKnownError(
+              integrationsInterModuleContract.methods.fetchSourceFile,
+              'provider-failure',
+              {reason: 'provider-unavailable'},
+            ),
+          ),
+    );
+
+    await expectRefError(
+      resolveDefinitionAtRef({projectId, ref: 'fix-branch', configPath: CONFIG_PATH, ...clients}),
+      'source-unavailable',
+    );
+  });
+});

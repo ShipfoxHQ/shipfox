@@ -45,6 +45,7 @@ const definitionSyncSummarySchema = z.object({
       'action-invalid',
       'action-too-large',
       'action-unsupported-file',
+      'prompt-file-invalid',
       'unknown',
     ])
     .nullable(),

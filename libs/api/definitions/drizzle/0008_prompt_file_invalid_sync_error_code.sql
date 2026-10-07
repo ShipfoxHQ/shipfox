@@ -1,0 +1,1 @@
+ALTER TYPE "public"."definitions_sync_error_code" ADD VALUE 'prompt-file-invalid' BEFORE 'unknown';

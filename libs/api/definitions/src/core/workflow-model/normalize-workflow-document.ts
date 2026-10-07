@@ -26,6 +26,8 @@ export function normalizeWorkflowDocument(
     agentValidationCatalog: AgentValidationCatalogV2;
     integrationValidationContext?: IntegrationValidationContext | undefined;
     actionManifests?: ResolvedActions | undefined;
+    /** Text of the prompt files the document names, keyed by the `file` path in the YAML. */
+    promptFiles?: ReadonlyMap<string, string> | undefined;
     stepSourceLocations?: WorkflowStepSourceLocationMap | undefined;
     /** Provide a fresh array for each call to collect non-fatal validation issues. */
     diagnostics?: WorkflowModelValidationIssue[] | undefined;
@@ -38,6 +40,7 @@ export function normalizeWorkflowDocument(
     agentValidationCatalog: options.agentValidationCatalog,
     integrationValidationContext: options.integrationValidationContext,
     actionManifests: options.actionManifests,
+    promptFiles: options.promptFiles,
   };
   validateLiteralName({
     field: 'workflow.name',

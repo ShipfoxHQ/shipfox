@@ -65,6 +65,21 @@ export class ActionResolutionError extends Error {
   }
 }
 
+/**
+ * Rejects a prompt file that a `file` prompt part names. `path` is the part's
+ * place in the document, and `filePath` is the workflow file that holds it.
+ */
+export class PromptFileResolutionError extends Error {
+  constructor(
+    message: string,
+    public readonly path: string,
+    public readonly filePath: string,
+  ) {
+    super(message);
+    this.name = 'PromptFileResolutionError';
+  }
+}
+
 export type DefinitionAtRefErrorCode =
   | 'project-not-found'
   | 'ref-not-found'

@@ -12,6 +12,7 @@ import type {WorkflowDocument} from '@shipfox/workflow-document';
 import {definitionActionsEnabled, definitionRegistryActionsEnabled} from '../config.js';
 import {checkActionImports} from './check-action-imports.js';
 import {collectActionReferences} from './collect-action-references.js';
+import {collectPromptFilePaths} from './collect-prompt-file-references.js';
 import {collectRegistryRefs} from './collect-registry-refs.js';
 import type {ResolvedActions} from './entities/action-snapshot.js';
 import type {IntegrationValidationContext} from './entities/integration-context.js';
@@ -27,6 +28,7 @@ import {
   ActionResolutionError,
   DefinitionParseError,
   DefinitionSyncPermanentError,
+  PromptFileResolutionError,
 } from './errors.js';
 import {
   type DefinitionsSourceControl,
@@ -40,6 +42,7 @@ import {
   resolveWorkflowActions,
   summarizeResolvedActions,
 } from './resolve-actions.js';
+import {resolvePromptFiles} from './resolve-prompt-files.js';
 import type {ValidationError} from './validate-definition.js';
 import {parseWorkflowYaml} from './workflow-yaml/index.js';
 
@@ -145,8 +148,9 @@ export interface ParsedWorkflows {
 }
 
 /**
- * Reads the workflows and the actions they reference at `ref`, which is a
- * commit SHA when sync runs for a push, so code and workflow come from one tree.
+ * Reads the workflows, the actions they reference, and their prompt files at
+ * `ref`, which is a commit SHA when sync runs for a push, so code, prompts, and
+ * workflow come from one tree.
  */
 export async function fetchAndParseWorkflows(
   params: FetchAndParseWorkflowsParams,
@@ -187,6 +191,7 @@ export async function fetchAndParseWorkflows(
 
   const resolvedActions = await resolveSyncActions(params, documents);
   const actionManifests = summarizeResolvedActions(resolvedActions);
+  const promptFiles = await resolveSyncPromptFiles(params, documents);
 
   const integrationValidationContext =
     params.loadIntegrationValidationContext !== undefined &&
@@ -203,6 +208,7 @@ export async function fetchAndParseWorkflows(
       actionsEnabled,
       registryActionsEnabled,
       actionManifests,
+      promptFiles,
     });
     return {
       ...parsed,
@@ -210,6 +216,7 @@ export async function fetchAndParseWorkflows(
         content: entry.content,
         document: entry.document,
         actionManifests,
+        promptFiles,
       }),
       registryRefs: collectRegistryRefs({content: entry.content, document: entry.document}),
     };
@@ -261,23 +268,46 @@ async function resolveSyncActions(
   }
 }
 
+async function resolveSyncPromptFiles(
+  params: FetchAndParseWorkflowsParams,
+  workflows: readonly {path: string; document: WorkflowDocument}[],
+): Promise<Map<string, string>> {
+  try {
+    return await resolvePromptFiles({...params, workflows});
+  } catch (error) {
+    if (!(error instanceof PromptFileResolutionError)) throw error;
+    throw new DefinitionSyncPermanentError(
+      'prompt-file-invalid',
+      error.message,
+      [{message: error.message, path: error.path}],
+      error.filePath,
+    );
+  }
+}
+
 /**
- * Hashes the YAML alone when the workflow uses no action, so existing rows keep
- * their hash. Otherwise the action digests join the hash, so a commit that
- * changes only action code still produces a new definition.
+ * Hashes the YAML alone when the workflow uses no action and no prompt file, so
+ * existing rows keep their hash. Otherwise the action digests and the prompt
+ * file digests join the hash, so a commit that changes only action code or only
+ * a prompt file still produces a new definition.
  */
 function workflowContentHash(params: {
   content: string;
   document: WorkflowDocument;
   actionManifests: ResolvedActions;
+  promptFiles: ReadonlyMap<string, string>;
 }): string {
   const uses = collectActionReferences(params.document);
-  if (uses.length === 0) return sha256Hex(params.content);
+  const files = collectPromptFilePaths(params.document);
+  if (uses.length === 0 && files.length === 0) return sha256Hex(params.content);
 
   const actions = uses
     .sort()
     .map((path) => [path, params.actionManifests.get(path)?.digest ?? null]);
-  return sha256Hex(JSON.stringify({content: params.content, actions}));
+  if (files.length === 0) return sha256Hex(JSON.stringify({content: params.content, actions}));
+
+  const promptFiles = files.map((path) => [path, sha256Hex(params.promptFiles.get(path) ?? '')]);
+  return sha256Hex(JSON.stringify({content: params.content, actions, promptFiles}));
 }
 
 async function actionImportDiagnostics(
@@ -326,6 +356,7 @@ function parseWorkflowSnapshot(params: {
   actionsEnabled: boolean;
   registryActionsEnabled: boolean;
   actionManifests: ResolvedActions;
+  promptFiles?: ReadonlyMap<string, string> | undefined;
 }): Omit<ParsedWorkflow, 'contentHash' | 'registryRefs'> {
   try {
     const definition = parseDefinitionWithDiagnostics(params.content, {
@@ -333,6 +364,7 @@ function parseWorkflowSnapshot(params: {
       actionsEnabled: params.actionsEnabled,
       registryActionsEnabled: params.registryActionsEnabled,
       actionManifests: params.actionManifests,
+      ...(params.promptFiles === undefined ? {} : {promptFiles: params.promptFiles}),
       ...(params.integrationValidationContext === undefined
         ? {}
         : {integrationValidationContext: params.integrationValidationContext}),

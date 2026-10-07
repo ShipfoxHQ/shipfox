@@ -72,6 +72,7 @@ export interface NormalizeContext {
   readonly agentValidationCatalog: AgentValidationCatalogV2;
   readonly integrationValidationContext?: IntegrationValidationContext | undefined;
   readonly actionManifests?: ResolvedActions | undefined;
+  readonly promptFiles?: ReadonlyMap<string, string> | undefined;
 }
 
 interface NormalizeJobsState {
@@ -1223,6 +1224,7 @@ function normalizeAgentStep(params: {
     fillSite: params.fillSite,
     allowedJobReferences: params.allowedJobReferences,
     typeOverlay: params.typeOverlay,
+    promptFiles: params.context.promptFiles,
   });
   const modelTemplate =
     params.step.model === undefined
