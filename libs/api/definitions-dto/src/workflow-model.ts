@@ -61,6 +61,12 @@ export type WorkflowFieldTemplate = readonly ResolvedFieldSegment[];
 export type WorkflowEnvTemplates = Readonly<Record<string, WorkflowFieldTemplate>>;
 export type WorkflowOutputTemplates = Readonly<Record<string, WorkflowFieldTemplate>>;
 
+/** The step output that a job output promotes through a step `export`. */
+export interface WorkflowExportedOutput {
+  readonly stepKey: string;
+  readonly output: string;
+}
+
 export interface WorkflowModelConcurrency {
   readonly group: WorkflowFieldTemplate;
   readonly scope: 'workflow' | 'project';
@@ -123,6 +129,8 @@ export interface WorkflowModelJob {
   readonly success?: string;
   readonly outputs?: WorkflowOutputTemplates;
   readonly outputTypes?: Readonly<Record<string, ExpressionType>>;
+  /** Job outputs that come from a step `export`, by job output name. A missing source omits the output. */
+  readonly exportedOutputs?: Readonly<Record<string, WorkflowExportedOutput>>;
   readonly executionTimeoutMs?: number;
   readonly listening?: WorkflowModelJobListening;
   readonly name?: string;

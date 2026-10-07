@@ -86,6 +86,7 @@ interface TestWorkflowJob {
   readonly success?: string | undefined;
   readonly outputs?: Readonly<Record<string, string>> | undefined;
   readonly outputTypes?: WorkflowModel['jobs'][number]['outputTypes'] | undefined;
+  readonly exportedOutputs?: WorkflowModel['jobs'][number]['exportedOutputs'] | undefined;
   readonly env?: WorkflowModel['env'] | undefined;
   readonly listening?: WorkflowModel['jobs'][number]['listening'] | undefined;
   readonly steps: readonly TestWorkflowStep[];
@@ -173,6 +174,7 @@ function normalizeJob(
     ...(job.success === undefined ? {} : {success: job.success}),
     ...(job.outputs === undefined ? {} : {outputs: outputTemplates(job.outputs, 'job.outputs')}),
     ...(job.outputTypes === undefined ? {} : {outputTypes: job.outputTypes}),
+    ...(job.exportedOutputs === undefined ? {} : {exportedOutputs: job.exportedOutputs}),
     ...(job.name === undefined ? {} : {name: job.name}),
     ...(job.executionName === undefined
       ? {}

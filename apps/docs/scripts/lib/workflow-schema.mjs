@@ -148,9 +148,9 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
     path: 'jobs.<job_id>.steps[*]',
     example: 'steps.yml',
     select: (schema) => stepProperties(schema),
-    fields: ['key', 'name', 'if', 'gate', 'outputs'],
+    fields: ['key', 'name', 'if', 'gate', 'outputs', 'export'],
     nested: {gate: '#gate-fields', outputs: '#step-outputs'},
-    types: {gate: 'Gate', outputs: 'Record<string, Output>'},
+    types: {gate: 'Gate', outputs: 'Record<string, Output>', export: 'true | string[]'},
   },
   {
     id: 'run-step-fields',

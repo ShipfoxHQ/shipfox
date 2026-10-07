@@ -465,6 +465,11 @@ export const workflowDocumentToolStepOutputsSchema = z
 // the expression mapping form on tool steps. One value union accepts both so
 // the step `superRefine` can report the form expected by the selected kind;
 // zod reports the declaration branch's own issues for malformed declarations.
+export const workflowDocumentStepExportSchema = z.union([
+  z.literal(true),
+  z.array(z.string().min(1)).min(1),
+]);
+
 const workflowDocumentStepOutputValueSchema = z.union([
   workflowDocumentStepOutputDeclarationSchema,
   workflowDocumentToolStepOutputMappingValueSchema,
@@ -1007,6 +1012,10 @@ const workflowDocumentStepBaseSchema = z.strictObject({
   outputs: workflowDocumentStepOutputsFieldSchema.optional().meta({
     description: 'Defines values that later steps can use.',
   }),
+  export: workflowDocumentStepExportSchema.optional().meta({
+    description:
+      'Promotes outputs of this step to job outputs of the same name. Use `true` for every declared output, or list the output names. The step needs a `key`.',
+  }),
 });
 
 type WorkflowDocumentStepSchemaFields = Omit<
@@ -1041,6 +1050,7 @@ export const workflowDocumentStepKindInvalidFields = {
     ...workflowDocumentAgentStepFields,
     ...workflowDocumentActionStepFields,
     'env',
+    'export',
     'tool',
     'connection',
     'with',
@@ -1076,6 +1086,7 @@ export const workflowDocumentStepSchema = workflowDocumentStepBaseSchema
   );
 
 function validateWorkflowDocumentStep(step: WorkflowDocumentStepInput, ctx: z.RefinementCtx): void {
+  validateWorkflowDocumentStepExport(step, ctx);
   if (step.agent !== undefined) {
     ctx.addIssue({
       code: 'custom',
@@ -1105,6 +1116,32 @@ function validateWorkflowDocumentStep(step: WorkflowDocumentStepInput, ctx: z.Re
   }
   validateWorkflowDocumentStepOutputs(step, ctx, 'agent');
   validateWorkflowDocumentAgentStep(step, ctx);
+}
+
+function validateWorkflowDocumentStepExport(
+  step: WorkflowDocumentStepInput,
+  ctx: z.RefinementCtx,
+): void {
+  if (step.export === undefined) return;
+  if (step.key === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['export'],
+      message: 'A step that sets "export" requires a "key".',
+    });
+  }
+  if (step.export === true) return;
+  const seen = new Set<string>();
+  for (const [index, name] of step.export.entries()) {
+    if (seen.has(name)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['export', index],
+        message: `Output "${name}" is listed more than once in "export".`,
+      });
+    }
+    seen.add(name);
+  }
 }
 
 function validateWorkflowDocumentStepOutputs(

@@ -8,3 +8,6 @@ jobs:
         run: pnpm test
         gate:
           success: step.exit_code == 0
+        outputs:
+          coverage: number
+        export: true

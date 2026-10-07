@@ -24,6 +24,10 @@ Code that turns a checked workflow document into the model used by definitions.
   optional integration context, it also checks that each connection exists,
   matches the alias provider, and serves agent tools. The step's outputs come
   from the manifest, with `required` always written.
+- **Step exports**: Expand each step `export` into a job output
+  `steps.<key>.outputs.<name>`, typed through the single-expression path and
+  recorded in the job's `exportedOutputs`. An unknown name, a clash with the job
+  `outputs` map, or two steps exporting one name is an error naming both sources.
 - **Workflow outputs**: Parse top-level `outputs` as `workflow.outputs`
   templates, typed against every job's declared outputs. A job without
   `outputs` exposes none, so any reference to one of its outputs is an error.

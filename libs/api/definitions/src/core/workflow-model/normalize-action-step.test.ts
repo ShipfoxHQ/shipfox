@@ -211,6 +211,27 @@ describe('normalizeWorkflowDocument action steps', () => {
     expect(model.jobs[0]?.steps[0]?.outputs).toEqual({});
   });
 
+  test('exports every manifest output as a typed job output', () => {
+    const model = normalize(document(actionStep({export: true})));
+
+    expect(model.jobs[0]?.exportedOutputs).toEqual({
+      path: {stepKey: 'thread', output: 'path'},
+      message_count: {stepKey: 'thread', output: 'message_count'},
+      complete: {stepKey: 'thread', output: 'complete'},
+    });
+    expect(model.jobs[0]?.outputTypes).toEqual({
+      path: 'string',
+      message_count: 'double',
+      complete: 'bool',
+    });
+  });
+
+  test('rejects exporting an output the manifest does not declare', () => {
+    expect(issuesFor(document(actionStep({export: ['missing']})))).toEqual([
+      {code: 'invalid-step-export', path: 'jobs.investigate.steps.0.export'},
+    ]);
+  });
+
   test('types later references from the manifest outputs', () => {
     const valid = document(
       actionStep(),

@@ -172,6 +172,48 @@ describe('workflowDocumentSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts export on run, agent, action and tool steps', () => {
+    const workflowDocument = {
+      name: 'exports',
+      jobs: {
+        build: {
+          steps: [
+            {key: 'build', run: 'npm run build', outputs: {sha: 'string'}, export: true},
+            {key: 'triage', prompt: 'Triage', outputs: {status: 'string'}, export: ['status']},
+            {key: 'setup', uses: './actions/setup', export: true},
+            {
+              key: 'notify',
+              tool: 'slack.post',
+              outputs: {ts: interpolation('result.ts')},
+              export: true,
+            },
+          ],
+        },
+      },
+    };
+
+    const result = workflowDocumentSchema.safeParse(workflowDocument);
+
+    expect(result.success).toBe(true);
+  });
+
+  it.each([
+    ['without a key', {run: 'echo', outputs: {sha: 'string'}, export: true}, ['export']],
+    ['on a checkout step', {key: 'co', checkout: {}, export: true}, ['export']],
+    ['as false', {key: 'a', run: 'echo', export: false}, ['export']],
+    ['as an empty list', {key: 'a', run: 'echo', export: []}, ['export']],
+    ['with a repeated name', {key: 'a', run: 'echo', export: ['sha', 'sha']}, ['export', 1]],
+  ])('rejects export %s', (_name, step, path) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'bad export',
+      jobs: {build: {steps: [step]}},
+    });
+
+    expect(result.success).toBe(false);
+    const paths = result.success ? [] : result.error.issues.map((issue) => issue.path.slice(4));
+    expect(paths).toContainEqual(path);
+  });
+
   it('rejects too many job output declarations', () => {
     const outputs = Object.fromEntries(
       Array.from({length: WORKFLOW_DOCUMENT_JOB_OUTPUTS_MAX_ENTRIES + 1}, (_, index) => [
