@@ -1,4 +1,4 @@
-import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {gzipSync} from 'node:zlib';
@@ -184,7 +184,7 @@ const RUN_ID = '00000000-0000-0000-0000-0000000000ab';
 const LOGS_DIR = '/runner-logs/job-1';
 const AGENT_STATE_DIR = '/runner-agent/job-1';
 const GIT_CONFIG_PATH = '/runner-cred/job-1/git-cred.config';
-const ACTION_TEMP_DIR = '/runner-tmp/job-1';
+const JOB_TEMP_DIR = '/runner-tmp/job-1';
 const JOB_CONTEXT = {
   workflowRunId: '00000000-0000-0000-0000-000000000004',
   workflowRunAttemptId: RUN_ID,
@@ -304,6 +304,7 @@ function runLoop(params: {
     capability: string;
   };
   prepareAgentState?: () => Promise<void>;
+  prepareTempDir?: () => Promise<void>;
   onLeaseTokenAdopted?: (leaseToken: string) => void;
 }): Promise<void> {
   return runJobSteps({
@@ -328,8 +329,10 @@ function runLoop(params: {
     gitConfigPath: GIT_CONFIG_PATH,
     logsDir: params.logsDir ?? LOGS_DIR,
     agentStateDir: params.agentStateDir ?? AGENT_STATE_DIR,
+    tempDir: JOB_TEMP_DIR,
     jobContext: JOB_CONTEXT,
     ...(params.prepareAgentState ? {prepareAgentState: params.prepareAgentState} : {}),
+    ...(params.prepareTempDir ? {prepareTempDir: params.prepareTempDir} : {}),
     ...(params.onLeaseTokenAdopted ? {onLeaseTokenAdopted: params.onLeaseTokenAdopted} : {}),
   });
 }
@@ -473,6 +476,7 @@ describe('runJobSteps', () => {
     });
     expect(executeRunStepMock).toHaveBeenCalledWith(run, {
       signal: ac.signal,
+      tempDir: JOB_TEMP_DIR,
       cwd: '/work',
       workspace: '/work',
       onCommandStart: expect.any(Function),
@@ -1238,7 +1242,6 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce(stepResponse(setup, 1))
       .mockResolvedValueOnce(stepResponse(actionStep, 1))
       .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
-    let jobTempDir: string | undefined;
     executeActionStepMock.mockImplementation(
       async (
         _step: StepDto,
@@ -1250,9 +1253,7 @@ describe('runJobSteps', () => {
           onToolRow: (row: unknown) => void;
         },
       ) => {
-        jobTempDir = options.jobTempDir;
         options.onToolRow({kind: 'tool-call', timestamp: 1, id: 'call-1', name: 'x', input: '{}'});
-        expect(existsSync(jobTempDir)).toBe(true);
         await options.loadBundle();
         options.onLogLine('Shipfox action Slack thread sha256:abc');
         options.onSecret('endpoint-token');
@@ -1270,6 +1271,7 @@ describe('runJobSteps', () => {
       expect.objectContaining({
         cwd: '/work/app',
         workspace: '/work',
+        jobTempDir: JOB_TEMP_DIR,
         runId: JOB_CONTEXT.workflowRunId,
         jobId: JOB_ID,
         secretEnv: {REGION: 'eu'},
@@ -1305,8 +1307,6 @@ describe('runJobSteps', () => {
         outputs: {path: 'thread.md'},
       }),
     );
-    expect(jobTempDir).toBeDefined();
-    expect(existsSync(jobTempDir as string)).toBe(false);
   });
 
   it('fails a run step whose secret binding targets an action input', async () => {
@@ -1992,6 +1992,43 @@ describe('runJobSteps', () => {
       signal: ac.signal,
     });
     expect(executeSetupStepMock).not.toHaveBeenCalled();
+  });
+
+  it('reports scratch directory preparation failures through the setup step', async () => {
+    const setup = buildSetupStep();
+    const error = {message: 'temp denied', reason: 'workspace_prep_failed' as const};
+    const prepareTempDir = vi.fn().mockRejectedValueOnce(new Error(error.message));
+    requestNextStepMock.mockResolvedValueOnce(stepResponse(setup, 1));
+    reportStepMock.mockResolvedValueOnce({ok: true, cancel: true});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal, prepareTempDir});
+
+    expect(prepareTempDir).toHaveBeenCalledOnce();
+    expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: setup.id,
+      attempt: 1,
+      status: 'failed',
+      error,
+      exitCode: null,
+      logOutcome: 'abandoned',
+      signal: ac.signal,
+    });
+    expect(executeSetupStepMock).not.toHaveBeenCalled();
+  });
+
+  it('prepares the scratch directory once across setup retries', async () => {
+    const setup = buildSetupStep();
+    const prepareTempDir = vi.fn().mockResolvedValue(undefined);
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(setup, 2))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+
+    await runLoop({signal: new AbortController().signal, prepareTempDir});
+
+    expect(prepareTempDir).toHaveBeenCalledOnce();
+    expect(executeSetupStepMock).toHaveBeenCalledTimes(2);
   });
 
   it('prepares the log directory once across setup retries', async () => {
@@ -3905,7 +3942,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
-      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
+      jobTempDir: JOB_TEMP_DIR,
       jobId: JOB_ID,
       stepLabel: 'run',
     });
@@ -3954,7 +3991,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
-      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
+      jobTempDir: JOB_TEMP_DIR,
       jobId: JOB_ID,
       stepLabel: 'run',
     });
@@ -4007,7 +4044,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
-      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
+      jobTempDir: JOB_TEMP_DIR,
       jobId: JOB_ID,
       stepLabel: 'run',
     });
@@ -4050,7 +4087,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
-      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
+      jobTempDir: JOB_TEMP_DIR,
       jobId: JOB_ID,
       stepLabel: 'run',
     });
@@ -4125,7 +4162,7 @@ describe('runJobSteps', () => {
         signal: ac.signal,
         workspacePrepared: true,
         gitConfigPath: GIT_CONFIG_PATH,
-        actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
+        jobTempDir: JOB_TEMP_DIR,
         jobId: JOB_ID,
         stepLabel: 'implement',
       });
@@ -4173,7 +4210,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
-      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
+      jobTempDir: JOB_TEMP_DIR,
       jobId: JOB_ID,
       stepLabel: 'implement',
     });
@@ -4228,7 +4265,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
-      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
+      jobTempDir: JOB_TEMP_DIR,
       jobId: JOB_ID,
       stepLabel: 'implement',
     });
@@ -4262,7 +4299,7 @@ describe('runJobSteps', () => {
       signal: ac.signal,
       workspacePrepared: true,
       gitConfigPath: GIT_CONFIG_PATH,
-      actionTempDir: () => Promise.resolve(ACTION_TEMP_DIR),
+      jobTempDir: JOB_TEMP_DIR,
       jobId: JOB_ID,
       stepLabel: 'implement',
     });

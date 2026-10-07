@@ -7,6 +7,7 @@ import type {
   ToolDownloadResponseV1,
   ToolListResponseV1,
 } from '@shipfox/actions/contract';
+import {LocalExecutionHost} from '@shipfox/runner-container';
 import {
   ACTION_TOOL_DOWNLOAD_TIMEOUT_MS,
   type ActionEndpoint,
@@ -19,6 +20,7 @@ import {
 } from '#core/action-endpoint.js';
 
 const UUID_REGEX = /^[0-9a-f-]{36}$/;
+const HOSTED_PARTIAL_REGEX = /\.hosted\.txt\.[0-9a-f]{8}\.partial$/;
 
 const INTEGRATIONS: ActionIntegrationGrant[] = [
   {
@@ -527,6 +529,27 @@ describe('startActionEndpoint', () => {
         'x-shipfox-call-id': response.call_id,
         'x-shipfox-deadline': String(ACTION_TOOL_DOWNLOAD_TIMEOUT_MS),
       });
+    });
+
+    it('writes the file through the given host', async () => {
+      const host = new LocalExecutionHost();
+      const writeFile = vi.spyOn(host, 'writeFile');
+      const {upstream, downloads} = fakeDownloadUpstream();
+      const target = await start({upstream, host});
+
+      const pending = download(target, {destination: 'hosted.txt'});
+      await vi.waitFor(() => expect(downloads).toHaveLength(1));
+      downloads[0]?.send('hosted bytes');
+      downloads[0]?.finish();
+      const response = await pending;
+
+      expect(response.ok).toBe(true);
+      expect(writeFile).toHaveBeenCalledWith(
+        expect.stringMatching(HOSTED_PARTIAL_REGEX),
+        expect.anything(),
+        expect.objectContaining({exclusive: true}),
+      );
+      expect(await readFile(join(workspace, 'hosted.txt'), 'utf8')).toBe('hosted bytes');
     });
 
     it('writes rows with the file metadata only', async () => {

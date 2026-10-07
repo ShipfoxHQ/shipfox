@@ -32,15 +32,19 @@ import {
   cleanupJobAgentState,
   cleanupJobCredentials,
   cleanupJobLogs,
+  cleanupJobTemp,
   cleanupOrphanedJobAgentState,
   cleanupOrphanedJobCredentials,
   cleanupOrphanedJobLogs,
+  cleanupOrphanedJobTemp,
   cleanupWorkspace,
   createJobAgentStateDir,
   createJobCredentialsDir,
+  createJobTempDir,
   jobAgentStatePath,
   jobCredentialsPath,
   jobLogsPath,
+  jobTempPath,
   jobWorkspacePath,
   resolveWorkspaceRootFromEnv,
 } from '@shipfox/runner-workspace';
@@ -136,6 +140,9 @@ export async function startRunner(
     });
     void cleanupOrphanedJobAgentState(workspaceRoot).catch((error) => {
       logger().warn({err: error, workspaceRoot}, 'Failed to sweep orphaned job agent state');
+    });
+    void cleanupOrphanedJobTemp(workspaceRoot).catch((error) => {
+      logger().warn({err: error, workspaceRoot}, 'Failed to sweep orphaned job temp directories');
     });
     void cleanupOrphanedJobCredentials(workspaceRoot).catch((error) => {
       logger().warn({err: error, workspaceRoot}, 'Failed to sweep orphaned job credentials');
@@ -336,11 +343,13 @@ export async function runJob(
   let logsDir: string;
   let agentStateDir: string;
   let credentialsDir: string;
+  let tempDir: string;
   try {
     cwd = jobWorkspacePath(job.job_id, workspaceRoot);
     logsDir = jobLogsPath(job.job_id, workspaceRoot);
     agentStateDir = jobAgentStatePath(job.job_id, workspaceRoot);
     credentialsDir = jobCredentialsPath(job.job_id, workspaceRoot);
+    tempDir = jobTempPath(job.job_id, workspaceRoot);
   } catch (error) {
     logger().error({err: error, jobId: job.job_id}, 'Invalid job id; skipping job');
     return;
@@ -459,6 +468,7 @@ export async function runJob(
     onLeaseTokenRenewed: rememberLeaseToken,
   });
   let releaseAgentStateLock: (() => Promise<void>) | undefined;
+  let releaseTempLock: (() => Promise<void>) | undefined;
   let releaseCredentialLock: (() => Promise<void>) | undefined;
   let credentialLifecycle: ReturnType<typeof createJobCredentialLifecycle> | undefined;
 
@@ -520,6 +530,10 @@ export async function runJob(
       prepareAgentState: async () => {
         releaseAgentStateLock = await createJobAgentStateDir(agentStateDir);
       },
+      tempDir,
+      prepareTempDir: async () => {
+        releaseTempLock = await createJobTempDir(tempDir);
+      },
       jobContext: {
         workflowRunId: job.workflow_run_id,
         workflowRunAttemptId: job.workflow_run_attempt_id,
@@ -549,10 +563,15 @@ export async function runJob(
     await cleanupWorkspace(cwd);
     await cleanupJobLogs(logsDir);
     await cleanupJobAgentState(agentStateDir);
+    await cleanupJobTemp(tempDir);
     try {
       await releaseAgentStateLock?.();
     } finally {
-      await releaseCredentialLock?.();
+      try {
+        await releaseTempLock?.();
+      } finally {
+        await releaseCredentialLock?.();
+      }
     }
   }
 }

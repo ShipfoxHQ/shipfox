@@ -24,6 +24,7 @@ import {
   resolveDownloadTarget,
   writeDownloadedFile,
 } from '@shipfox/actions/download-writer';
+import {type ExecutionHost, localExecutionHost} from '@shipfox/runner-container';
 
 export const ACTION_TOOL_CALL_TIMEOUT_MS = 120_000;
 // Under the 300 s response header timeout of the SDK's fetch, so the action gets `timeout`.
@@ -105,6 +106,8 @@ export type ActionToolRow =
     };
 
 export interface StartActionEndpointParams {
+  /** Where downloaded files are written. Defaults to the runner's own machine. */
+  host?: ExecutionHost | undefined;
   integrations: readonly ActionIntegrationGrant[];
   /** The step working directory. Download destinations resolve against it. */
   cwd: string;
@@ -160,6 +163,7 @@ export async function startActionEndpoint(
   const callTimeoutMs = params.callTimeoutMs ?? ACTION_TOOL_CALL_TIMEOUT_MS;
   const downloadTimeoutMs = params.downloadTimeoutMs ?? ACTION_TOOL_DOWNLOAD_TIMEOUT_MS;
   const downloadBudget = createDownloadBudget(MAX_STEP_DOWNLOAD_BYTES);
+  const host = params.host ?? localExecutionHost;
   const now = params.now ?? Date.now;
   const toolList = listTools(params.integrations);
   const limiter = createLimiter(MAX_CONCURRENT_ACTION_TOOL_CALLS);
@@ -273,6 +277,7 @@ export async function startActionEndpoint(
         >,
         tool: admitted.tool,
         target,
+        host,
         cwd: params.cwd,
         budget: downloadBudget,
         controller,
@@ -413,6 +418,7 @@ async function forwardDownload(params: {
   download: NonNullable<ActionToolsUpstream['downloadFile']>;
   tool: ResolvedTool;
   target: DownloadTarget;
+  host: ExecutionHost;
   cwd: string;
   budget: DownloadBudget;
   controller: AbortController;
@@ -461,6 +467,8 @@ async function forwardDownload(params: {
         maxBytes: MAX_DOWNLOAD_FILE_BYTES,
         budget: params.budget,
         signal: controller.signal,
+        writePartial: ({path, source, signal}) =>
+          params.host.writeFile(path, source, {exclusive: true, signal}),
       });
       response = {
         ok: true,

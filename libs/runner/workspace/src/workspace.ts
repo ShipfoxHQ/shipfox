@@ -20,6 +20,7 @@ import {config} from '#config.js';
 const RUNNER_LOGS_DIR = '.shipfox-runner-logs';
 const RUNNER_AGENT_STATE_DIR = '.shipfox-runner-agent';
 const RUNNER_CRED_DIR = '.shipfox-runner-cred';
+const RUNNER_TEMP_DIR = '.shipfox-runner-tmp';
 const JOB_DIRECTORY_LOCK_SUFFIX = '.lock';
 const JOB_DIRECTORY_LOCK_RETRY_MS = 10;
 export const RUNNER_FALLBACK_CREDENTIAL_SOCKET_DIR = '/tmp/shipfox-runner-credentials';
@@ -134,6 +135,18 @@ export function jobCredentialsPath(jobId: string, root: string): string {
 }
 
 /**
+ * The runner-owned scratch directory of a job: run scripts, output and summary files, the
+ * annotation spool, Git config copies, and extracted actions. It sits under the workspace root
+ * rather than the OS temp directory, because a job container does not share the host's `/tmp`.
+ */
+export function jobTempPath(jobId: string, root: string): string {
+  if (!isUuid(jobId)) {
+    throw new InvalidJobIdError(jobId);
+  }
+  return join(root, RUNNER_TEMP_DIR, `job-${jobId}`);
+}
+
+/**
  * Pre-cleans a per-job directory before recreating it, so a directory left by a
  * previous crash is never reused.
  */
@@ -172,6 +185,26 @@ export async function createJobAgentStateDir(agentStateDir: string): Promise<() 
 
   try {
     await resetDir(agentStateDir);
+    return release;
+  } catch (error) {
+    await release();
+    throw error;
+  }
+}
+
+/**
+ * Pre-cleans the runner-owned scratch directory and keeps its lock held for the lifetime of the
+ * job, so the startup sweep cannot remove files of a live job. The caller releases the lock
+ * after the job's final cleanup.
+ */
+export async function createJobTempDir(tempDir: string): Promise<() => Promise<void>> {
+  const release = await acquireJobDirectoryLock(tempDir, true);
+  if (release === undefined) {
+    throw new Error('Failed to acquire the job temp lock');
+  }
+
+  try {
+    await resetDir(tempDir);
     return release;
   } catch (error) {
     await release();
@@ -220,6 +253,15 @@ export async function cleanupOrphanedJobAgentState(root: string): Promise<void> 
     RUNNER_AGENT_STATE_DIR,
     cleanupJobAgentState,
     'Failed to sweep orphaned job agent state',
+  );
+}
+
+export async function cleanupOrphanedJobTemp(root: string): Promise<void> {
+  await cleanupOrphanedJobDirectories(
+    root,
+    RUNNER_TEMP_DIR,
+    cleanupJobTemp,
+    'Failed to sweep orphaned job temp directories',
   );
 }
 
@@ -512,6 +554,14 @@ export async function cleanupJobAgentState(agentStateDir: string): Promise<void>
     await rm(agentStateDir, {recursive: true, force: true});
   } catch (err) {
     logger().warn({err, agentStateDir}, 'Failed to clean up job agent state');
+  }
+}
+
+export async function cleanupJobTemp(tempDir: string): Promise<void> {
+  try {
+    await rm(tempDir, {recursive: true, force: true});
+  } catch (err) {
+    logger().warn({err, tempDir}, 'Failed to clean up job temp directory');
   }
 }
 

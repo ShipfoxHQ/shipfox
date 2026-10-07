@@ -1,4 +1,3 @@
-import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {accessSync, constants, statSync} from 'node:fs';
 import {chmod, copyFile, open, unlink, writeFile} from 'node:fs/promises';
@@ -8,6 +7,7 @@ import {TextDecoder} from 'node:util';
 import type {StepDto, StepErrorDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {redactSecrets, safeRedactionPrefixLength, secretWireForms} from '@shipfox/redact';
+import {type ExecutionHost, type HostProcess, localExecutionHost} from '@shipfox/runner-container';
 import {
   type AnnotationSpool,
   collectAnnotationOperations,
@@ -58,6 +58,13 @@ export interface StepProcessOptions {
    * repository-scoped credential, matching what agent steps already get.
    */
   gitConfigGlobal?: string;
+  /** Where the process runs. Defaults to the runner's own machine. */
+  host?: ExecutionHost;
+  /**
+   * The runner-owned job directory for the scripts, output files, annotation spool, and Git
+   * config copies of the step. Defaults to the OS temp directory.
+   */
+  tempDir?: string;
   /** Base environment of the process. Replaces the inherited `process.env` when given. */
   env?: Readonly<Record<string, string>>;
   secretEnv?: Readonly<Record<string, string>>;
@@ -65,7 +72,7 @@ export interface StepProcessOptions {
   /** Updates the tee redactors when a job registers another secret. */
   subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
   /**
-   * Kills the process group as soon as the process exits, so background processes it
+   * Kills the process tree as soon as the process exits, so background processes it
    * left behind cannot outlive the step.
    */
   killGroupAfterExit?: boolean;
@@ -130,8 +137,10 @@ async function runStepProcess(
   stepEnv: Readonly<Record<string, string>>,
   options: StepProcessOptions,
 ): Promise<StepResult> {
-  const launch = processLaunch(command, options.cwd);
-  const outputPath = join(tmpdir(), `shipfox-output-${randomUUID()}`);
+  const host = options.host ?? localExecutionHost;
+  const tempDir = options.tempDir ?? tmpdir();
+  const launch = processLaunch(command, options.cwd, tempDir);
+  const outputPath = join(tempDir, `shipfox-output-${randomUUID()}`);
   if (launch.metadata) {
     notifyCommandStart(options.onCommandStart, cloneCommandStartMetadata(launch.metadata));
   }
@@ -140,11 +149,13 @@ async function runStepProcess(
 
   try {
     if (launch.scriptFile) {
-      await writeFile(launch.scriptFile.path, launch.scriptFile.content, {mode: 0o700});
+      await host.writeFile(launch.scriptFile.path, Buffer.from(launch.scriptFile.content), {
+        mode: 0o700,
+      });
     }
     await writeFile(outputPath, '', {mode: 0o600});
     try {
-      annotationSpool = await createAnnotationSpool();
+      annotationSpool = await createAnnotationSpool({tempDir});
     } catch (error) {
       logger().warn(
         {err: error},
@@ -152,12 +163,13 @@ async function runStepProcess(
       );
     }
 
-    isolatedGitConfigGlobal = await isolateGitConfigGlobal(options.gitConfigGlobal);
+    isolatedGitConfigGlobal = await isolateGitConfigGlobal(options.gitConfigGlobal, tempDir);
     const oomKillsBefore =
       options.memoryEventsPath === undefined
         ? undefined
         : await readOomKillCount(options.memoryEventsPath);
     let result = await spawnAndCapture(
+      host,
       launch,
       stepEnv,
       outputPath,
@@ -183,12 +195,16 @@ async function runStepProcess(
   }
 }
 
-function processLaunch(command: StepCommand, cwd: string | undefined): ProcessLaunch {
+function processLaunch(
+  command: StepCommand,
+  cwd: string | undefined,
+  tempDir: string,
+): ProcessLaunch {
   if ('argv' in command) {
     const [executable, ...args] = command.argv;
     return {executable, args};
   }
-  const scriptPath = join(tmpdir(), `shipfox-runner-${randomUUID()}.sh`);
+  const scriptPath = join(tempDir, `shipfox-runner-${randomUUID()}.sh`);
   const metadata = commandStartMetadata({command: command.script, scriptPath, cwd});
   return {
     executable: metadata.shell.executable,
@@ -218,9 +234,12 @@ async function reportOutOfMemory(
   };
 }
 
-async function isolateGitConfigGlobal(configPath: string | undefined): Promise<string | undefined> {
+async function isolateGitConfigGlobal(
+  configPath: string | undefined,
+  tempDir: string,
+): Promise<string | undefined> {
   if (configPath === undefined) return undefined;
-  const isolatedPath = join(tmpdir(), `shipfox-gitconfig-${randomUUID()}`);
+  const isolatedPath = join(tempDir, `shipfox-gitconfig-${randomUUID()}`);
   try {
     await copyFile(configPath, isolatedPath);
     await chmod(isolatedPath, 0o600);
@@ -239,6 +258,7 @@ function isFileSystemError(error: unknown, code: string): error is NodeJS.ErrnoE
 }
 
 function spawnAndCapture(
+  host: ExecutionHost,
   launch: ProcessLaunch,
   stepEnv: Readonly<Record<string, string>>,
   outputPath: string,
@@ -261,10 +281,14 @@ function spawnAndCapture(
       stderrTeeRedactor?.setSecrets(buildSecretVariants(teeSecrets));
     });
 
-    // detached:true makes the process a process-group leader so killProcessGroup()
-    // can SIGKILL its grandchildren too (Linux does not propagate signals down the
-    // parent chain). We don't unref(): output capture still needs `close`.
-    const spawned = spawnRunStepProcess(launch, stepEnv, outputPath, annotationSpool, options);
+    const spawned = spawnRunStepProcess(
+      host,
+      launch,
+      stepEnv,
+      outputPath,
+      annotationSpool,
+      options,
+    );
     if (!spawned.ok) {
       unsubscribeSecrets?.();
       logger().error({err: spawned.error}, 'Failed to spawn process');
@@ -292,45 +316,35 @@ function spawnAndCapture(
     });
 
     const abort = observeProcessAbort(child, options.signal);
-    child.on('exit', () => {
-      abort.markExited();
-      // A background process holding the output pipes would otherwise delay `close`
-      // until it exits on its own.
-      if (options.killGroupAfterExit) killProcessGroup(child);
-    });
-
-    child.on('close', (code, signal) => {
-      abort.cleanup();
-      unsubscribeSecrets?.();
-      resolve(runStepCloseResult(code, signal, abort.killSignal()));
-    });
-
-    child.on('error', (err) => {
-      abort.cleanup();
-      unsubscribeSecrets?.();
-      logger().error({err}, 'Failed to spawn process');
-      resolve({
-        success: false,
-        error: {message: `Failed to spawn process: ${err.message}`},
-        exit_code: null,
-      });
-    });
+    child.exited.then(
+      ({exitCode, signal}) => {
+        abort.cleanup();
+        unsubscribeSecrets?.();
+        resolve(runStepCloseResult(exitCode, signal, abort.killSignal()));
+      },
+      (err: Error) => {
+        abort.cleanup();
+        unsubscribeSecrets?.();
+        logger().error({err}, 'Failed to spawn process');
+        resolve({
+          success: false,
+          error: {message: `Failed to spawn process: ${err.message}`},
+          exit_code: null,
+        });
+      },
+    );
   });
 }
-
-type SpawnedRunStepChild = ReturnType<typeof spawn> & {
-  stdout: NonNullable<ReturnType<typeof spawn>['stdout']>;
-  stderr: NonNullable<ReturnType<typeof spawn>['stderr']>;
-};
 
 type SpawnRunStepResult =
   | {
       ok: true;
-      child: SpawnedRunStepChild;
+      child: HostProcess;
     }
   | {ok: false; error: unknown; result: StepResult};
 
 function spawnRunStepProcess(
+  host: ExecutionHost,
   launch: ProcessLaunch,
   stepEnv: Readonly<Record<string, string>>,
   outputPath: string,
@@ -338,13 +352,11 @@ function spawnRunStepProcess(
   options: StepProcessOptions,
 ): SpawnRunStepResult {
   try {
-    const command = withDefaultOomScore(launch);
-    const child = spawn(command.executable, command.args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      detached: true,
+    const child = host.spawn({
+      argv: [launch.executable, ...launch.args],
       cwd: options.cwd,
       env: {
-        ...(options.env ?? process.env),
+        ...(options.env ?? definedEnv(process.env)),
         ...stepEnv,
         ...((options.workspace ?? options.cwd)
           ? {SHIPFOX_WORKSPACE: options.workspace ?? options.cwd}
@@ -353,19 +365,10 @@ function spawnRunStepProcess(
         SHIPFOX_OUTPUT: outputPath,
         ...(annotationSpool?.env ?? {}),
       },
+      stdin: 'ignore',
+      killTreeOnExit: options.killGroupAfterExit === true,
     });
-    if (!child.stdout || !child.stderr) {
-      return {
-        ok: false,
-        error: new Error('Failed to spawn process without output pipes'),
-        result: {
-          success: false,
-          error: {message: 'Failed to spawn process without output pipes'},
-          exit_code: null,
-        },
-      };
-    }
-    return {ok: true, child: child as SpawnedRunStepChild};
+    return {ok: true, child};
   } catch (error) {
     return {
       ok: false,
@@ -381,21 +384,12 @@ function spawnRunStepProcess(
   }
 }
 
-// Runner images lower the runner's OOM score, and children inherit it. The process resets its
-// own score before it execs, so the kernel kills a runaway step before the runner or the host's
-// daemons. Resetting from the runner after spawn would race the process's first fork.
-function withDefaultOomScore(launch: ProcessLaunch): Pick<ProcessLaunch, 'executable' | 'args'> {
-  if (process.platform !== 'linux') return launch;
-  return {
-    executable: '/bin/sh',
-    args: [
-      '-c',
-      '{ echo 0 > /proc/self/oom_score_adj; } 2>/dev/null; exec "$@"',
-      'sh',
-      launch.executable,
-      ...launch.args,
-    ],
-  };
+function definedEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const defined: Record<string, string> = {};
+  for (const [name, value] of Object.entries(env)) {
+    if (value !== undefined) defined[name] = value;
+  }
+  return defined;
 }
 
 function runStepCloseResult(
@@ -429,24 +423,21 @@ function runStepCloseResult(
 }
 
 function observeProcessAbort(
-  child: ReturnType<typeof spawn>,
+  child: HostProcess,
   signal: AbortSignal | undefined,
-): {markExited(): void; cleanup(): void; killSignal(): NodeJS.Signals | undefined} {
-  let childExited = false;
+): {cleanup(): void; killSignal(): NodeJS.Signals | undefined} {
   let abortKillSignal: NodeJS.Signals | undefined;
-  const killGroup = () => killProcessGroup(child);
+  const killTree = () => {
+    abortKillSignal = 'SIGKILL';
+    child.killTree().catch(() => undefined);
+  };
   let onAbort: (() => void) | undefined;
-  if (signal?.aborted) abortKillSignal = killGroup();
+  if (signal?.aborted) killTree();
   if (signal && !signal.aborted) {
-    onAbort = () => {
-      if (!childExited) abortKillSignal = killGroup();
-    };
+    onAbort = killTree;
     signal.addEventListener('abort', onAbort, {once: true});
   }
   return {
-    markExited: () => {
-      childExited = true;
-    },
     cleanup: () => {
       if (!onAbort || !signal) return;
       signal.removeEventListener('abort', onAbort);
@@ -454,18 +445,6 @@ function observeProcessAbort(
     },
     killSignal: () => abortKillSignal,
   };
-}
-
-function killProcessGroup(child: ReturnType<typeof spawn>): NodeJS.Signals | undefined {
-  if (child.pid === undefined) return undefined;
-  try {
-    // Negative pid signals the entire process group.
-    const killSignal: NodeJS.Signals = 'SIGKILL';
-    process.kill(-child.pid, killSignal);
-    return killSignal;
-  } catch {
-    return undefined;
-  }
 }
 
 async function finalizeStepOutput(result: StepResult, outputPath: string): Promise<StepResult> {

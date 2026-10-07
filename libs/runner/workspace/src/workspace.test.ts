@@ -6,18 +6,22 @@ import {
   cleanupJobAgentState,
   cleanupJobCredentials,
   cleanupJobLogs,
+  cleanupJobTemp,
   cleanupOrphanedJobAgentState,
   cleanupOrphanedJobCredentials,
   cleanupOrphanedJobLogs,
+  cleanupOrphanedJobTemp,
   cleanupWorkspace,
   createJobAgentStateDir,
   createJobCredentialsDir,
   createJobDir,
   createJobLogsDir,
+  createJobTempDir,
   InvalidJobIdError,
   jobAgentStatePath,
   jobCredentialsPath,
   jobLogsPath,
+  jobTempPath,
   jobWorkspacePath,
   RUNNER_FALLBACK_CREDENTIAL_SOCKET_DIR,
   resolveWorkspaceRoot,
@@ -107,6 +111,24 @@ describe('jobAgentStatePath', () => {
 
   it('rejects a job id that is not a UUID', () => {
     const resolve = () => jobAgentStatePath('../../etc/passwd', root);
+
+    expect(resolve).toThrow(InvalidJobIdError);
+  });
+});
+
+describe('jobTempPath', () => {
+  const root = '/var/shipfox/work';
+
+  it('names the runner-owned scratch directory after the job id under the root', () => {
+    const jobId = '55555555-5555-4555-8555-555555555555';
+
+    const tempDir = jobTempPath(jobId, root);
+
+    expect(tempDir).toBe(join(root, '.shipfox-runner-tmp', `job-${jobId}`));
+  });
+
+  it('rejects a job id that is not a UUID', () => {
+    const resolve = () => jobTempPath('../../etc/passwd', root);
 
     expect(resolve).toThrow(InvalidJobIdError);
   });
@@ -223,6 +245,39 @@ describe('createJobAgentStateDir', () => {
 
     const readStale = () => stat(join(agentStateDir, 'stale.jsonl'));
     await expect(readStale()).rejects.toThrow();
+  });
+});
+
+describe('createJobTempDir', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'shipfox-job-temp-create-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(root, {recursive: true, force: true});
+  });
+
+  it('creates the per-job scratch directory and its parent', async () => {
+    const tempDir = join(root, '.shipfox-runner-tmp', 'job-11111111-1111-4111-8111-111111111111');
+
+    const release = await createJobTempDir(tempDir);
+    await release();
+
+    expect((await stat(tempDir)).isDirectory()).toBe(true);
+  });
+
+  it('pre-cleans a dirty directory left from a previous run', async () => {
+    const tempDir = join(root, 'job-22222222-2222-4222-8222-222222222222');
+    const releaseFirst = await createJobTempDir(tempDir);
+    await releaseFirst();
+    await writeFile(join(tempDir, 'stale.sh'), 'echo stale');
+
+    const releaseSecond = await createJobTempDir(tempDir);
+    await releaseSecond();
+
+    await expect(stat(join(tempDir, 'stale.sh'))).rejects.toThrow();
   });
 });
 
@@ -372,6 +427,76 @@ describe('cleanupOrphanedJobAgentState', () => {
 
   it('does not throw when the runner agent-state root is missing', async () => {
     await expect(cleanupOrphanedJobAgentState(root)).resolves.toBeUndefined();
+  });
+});
+
+describe('cleanupOrphanedJobTemp', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'shipfox-job-temp-sweep-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(root, {recursive: true, force: true});
+  });
+
+  it('removes UUID-named job directories and preserves unrelated entries', async () => {
+    const tempRoot = join(root, '.shipfox-runner-tmp');
+    const orphan = join(tempRoot, 'job-33333333-3333-4333-8333-333333333333');
+    const otherJob = join(tempRoot, 'job-not-a-uuid');
+    await mkdir(orphan, {recursive: true});
+    await writeFile(join(orphan, 'shipfox-runner-x.sh'), 'echo stale');
+    await mkdir(otherJob, {recursive: true});
+
+    await cleanupOrphanedJobTemp(root);
+
+    await expect(stat(orphan)).rejects.toThrow();
+    expect((await stat(otherJob)).isDirectory()).toBe(true);
+    expect((await stat(tempRoot)).isDirectory()).toBe(true);
+  });
+
+  it('preserves a job directory while the job owns its lock', async () => {
+    const orphan = join(root, '.shipfox-runner-tmp', 'job-44444444-4444-4444-8444-444444444444');
+    const release = await createJobTempDir(orphan);
+
+    await cleanupOrphanedJobTemp(root);
+
+    expect((await stat(orphan)).isDirectory()).toBe(true);
+    await release();
+    await cleanupOrphanedJobTemp(root);
+    await expect(stat(orphan)).rejects.toThrow();
+  });
+
+  it('does not throw when the scratch root is missing', async () => {
+    await expect(cleanupOrphanedJobTemp(root)).resolves.toBeUndefined();
+  });
+});
+
+describe('cleanupJobTemp', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'shipfox-job-temp-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(root, {recursive: true, force: true});
+  });
+
+  it('removes the job scratch directory without touching the root', async () => {
+    const tempDir = join(root, 'job-33333333-3333-4333-8333-333333333333');
+    await mkdir(tempDir, {recursive: true});
+    await writeFile(join(tempDir, 'shipfox-output-x'), '');
+
+    await cleanupJobTemp(tempDir);
+
+    await expect(stat(tempDir)).rejects.toThrow();
+    expect((await stat(root)).isDirectory()).toBe(true);
+  });
+
+  it('does not throw when the directory is missing', async () => {
+    await expect(cleanupJobTemp(join(root, 'missing'))).resolves.toBeUndefined();
   });
 });
 

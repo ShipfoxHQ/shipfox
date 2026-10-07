@@ -1,8 +1,9 @@
-import {access, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
+import {access, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {basename, isAbsolute, join} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {LocalExecutionHost} from '@shipfox/runner-container';
 import {
   type CommandStartMetadata,
   executeRunStep,
@@ -1034,6 +1035,89 @@ describe('executeStepProcess', () => {
     } finally {
       await rm(dir, {recursive: true, force: true});
     }
+  });
+});
+
+describe('the execution host and the job temp directory', () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'shipfox-job-temp-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, {recursive: true, force: true});
+  });
+
+  it('keeps the scratch files of a step in the job temp directory and removes them', async () => {
+    const output = collectOutput();
+    const step = buildStep({
+      config: {
+        run: 'echo "$SHIPFOX_OUTPUT $SHIPFOX_STEP_SUMMARY $SHIPFOX_ANNOTATIONS_DIR"',
+      },
+    });
+
+    const result = await executeRunStep(step, {tempDir, onOutput: output.sink});
+
+    expect(result.success).toBe(true);
+    const paths = output.text().trim().split(' ');
+    expect(paths).toHaveLength(3);
+    for (const path of paths) expect(path.startsWith(`${tempDir}/`)).toBe(true);
+    expect(await readdir(tempDir)).toEqual([]);
+  });
+
+  it('runs the script through the given host', async () => {
+    const host = new LocalExecutionHost();
+    const spawn = vi.spyOn(host, 'spawn');
+    const writeFile = vi.spyOn(host, 'writeFile');
+    const output = collectOutput();
+
+    const result = await executeRunStep(buildStep({config: {run: 'echo hosted'}}), {
+      host,
+      tempDir,
+      cwd: tempDir,
+      env: {PATH: process.env.PATH ?? ''},
+      onOutput: output.sink,
+    });
+
+    expect(result.success).toBe(true);
+    expect(output.text()).toBe('hosted\n');
+    expect(writeFile).toHaveBeenCalledWith(
+      expect.stringMatching(SCRIPT_PATH_REGEX),
+      Buffer.from('echo hosted'),
+      {mode: 0o700},
+    );
+    expect(spawn).toHaveBeenCalledWith(
+      expect.objectContaining({cwd: tempDir, stdin: 'ignore', killTreeOnExit: false}),
+    );
+  });
+
+  it('kills the process tree of the host when the signal aborts', async () => {
+    const host = new LocalExecutionHost();
+    const killTree = vi.fn(() => Promise.resolve());
+    vi.spyOn(host, 'spawn').mockImplementationOnce((request) => {
+      const child = new LocalExecutionHost().spawn(request);
+      return {
+        ...child,
+        killTree: () => {
+          killTree();
+          return child.killTree();
+        },
+      };
+    });
+    const controller = new AbortController();
+
+    const pending = executeRunStep(buildStep({config: {run: 'sleep 30'}}), {
+      host,
+      tempDir,
+      signal: controller.signal,
+    });
+    await vi.waitFor(() => expect(host.spawn).toHaveBeenCalled());
+    controller.abort();
+    const result = await pending;
+
+    expect(killTree).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({success: false, error: {signal: 'SIGKILL'}});
   });
 });
 
