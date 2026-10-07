@@ -129,7 +129,7 @@ export async function materializeJobExecutionSteps(
 }
 
 function setupStepForJob(job: WorkflowModelJob): MaterializedWorkflowStep {
-  if (job.checkout === false || job.steps[0]?.kind === 'checkout') {
+  if (job.checkout === false || firstStepOwnsJobRoot(job)) {
     return {...SETUP_STEP, config: {}};
   }
 
@@ -144,6 +144,17 @@ function setupStepForJob(job: WorkflowModelJob): MaterializedWorkflowStep {
       },
     },
   };
+}
+
+// A leading checkout replaces the project checkout only when it lands at the job root.
+// With its own `path` the project keeps the root, so later steps still find the repository.
+function firstStepOwnsJobRoot(job: WorkflowModelJob): boolean {
+  const first = job.steps[0];
+  return first?.kind === 'checkout' && isRootPath(first.checkout.path);
+}
+
+function isRootPath(path: string | undefined): boolean {
+  return path === undefined || path === '.' || path === './';
 }
 
 function materializedStepConfig(params: {
