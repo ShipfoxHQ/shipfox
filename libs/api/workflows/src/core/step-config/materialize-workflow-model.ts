@@ -137,6 +137,7 @@ export function materializeJobOutputs(params: {
     owner: 'job',
     outputs: params.job.outputs,
     outputTypes: params.job.outputTypes,
+    exportedOutputs: params.job.exportedOutputs,
     context: params.context,
     definitionId: params.definitionId,
   });
@@ -160,13 +161,16 @@ function materializeOutputs(params: {
   readonly owner: OutputOwner;
   readonly outputs: WorkflowOutputTemplates | undefined;
   readonly outputTypes: Readonly<Record<string, ExpressionType>> | undefined;
+  readonly exportedOutputs?: WorkflowModelJob['exportedOutputs'];
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
 }): Record<string, unknown> | null {
   const {owner, outputs} = params;
   if (outputs === undefined) return null;
 
-  const outputEntries = Object.entries(outputs);
+  const outputEntries = Object.entries(outputs).filter(
+    ([key]) => !isAbsentExportedOutput(params.exportedOutputs, key, params.context),
+  );
   if (outputEntries.length > MAX_JOB_OUTPUT_ENTRIES) {
     throw new JobOutputTooManyEntriesError(outputEntries.length, MAX_JOB_OUTPUT_ENTRIES, owner);
   }
@@ -203,6 +207,27 @@ function materializeOutputs(params: {
   }
 
   return materialized;
+}
+
+// An exported output is optional: a step that was skipped or did not produce the
+// value leaves it out instead of failing the job. Explicit entries keep failing.
+function isAbsentExportedOutput(
+  exportedOutputs: WorkflowModelJob['exportedOutputs'],
+  key: string,
+  context: WorkflowEvaluationContext,
+): boolean {
+  const exported =
+    exportedOutputs !== undefined && Object.hasOwn(exportedOutputs, key)
+      ? exportedOutputs[key]
+      : undefined;
+  if (exported === undefined) return false;
+  const steps = context.values.steps as Record<string, {outputs?: unknown} | undefined> | undefined;
+  const stepOutputs = steps === undefined ? undefined : steps[exported.stepKey]?.outputs;
+  return (
+    typeof stepOutputs !== 'object' ||
+    stepOutputs === null ||
+    !Object.hasOwn(stepOutputs, exported.output)
+  );
 }
 
 function completeOutputTemplate(params: {

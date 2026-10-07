@@ -32,6 +32,7 @@ import type {ResolvedActions} from '../entities/action-snapshot.js';
 import type {IntegrationValidationContext} from '../entities/integration-context.js';
 import type {
   WorkflowEnvTemplates,
+  WorkflowExportedOutput,
   WorkflowFieldTemplate,
   WorkflowModelAgentStep,
   WorkflowModelAgentStepSession,
@@ -377,6 +378,7 @@ function buildNormalizedJob(params: {
     ...(params.success === undefined ? {} : {success: params.success}),
     ...(params.outputs === undefined ? {} : {outputs: params.outputs.templates}),
     ...(params.outputs?.types === undefined ? {} : {outputTypes: params.outputs.types}),
+    ...(params.outputs?.exported === undefined ? {} : {exportedOutputs: params.outputs.exported}),
     ...(params.executionTimeoutMs === undefined
       ? {}
       : {executionTimeoutMs: params.executionTimeoutMs}),
@@ -466,9 +468,14 @@ function normalizeJobOutputs(params: {
   toolOverlayByKey: ReadonlyMap<string, WorkflowStepTypeOverlay>;
   upstreamJobs: readonly WorkflowJobTypeOverlay[];
 }):
-  | {templates: WorkflowOutputTemplates; types: Readonly<Record<string, ExpressionType>>}
+  | {
+      templates: WorkflowOutputTemplates;
+      types: Readonly<Record<string, ExpressionType>>;
+      exported: Readonly<Record<string, WorkflowExportedOutput>> | undefined;
+    }
   | undefined {
-  if (params.outputs === undefined) return undefined;
+  const exports = collectExportedOutputs(params);
+  if (params.outputs === undefined && exports.length === 0) return undefined;
 
   const templates: Record<string, WorkflowFieldTemplate> = Object.create(null) as Record<
     string,
@@ -490,7 +497,7 @@ function normalizeJobOutputs(params: {
         })
       : undefined;
 
-  for (const [key, source] of Object.entries(params.outputs)) {
+  for (const [key, source] of Object.entries(params.outputs ?? {})) {
     const template = parseInterpolationField({
       field: 'job.outputs',
       source,
@@ -504,7 +511,113 @@ function normalizeJobOutputs(params: {
     types[key] = inferJobOutputType(template);
   }
 
-  return {templates, types};
+  const exported: Record<string, WorkflowExportedOutput> = Object.create(null) as Record<
+    string,
+    WorkflowExportedOutput
+  >;
+  for (const entry of exports) {
+    const source = '$'.concat('{{ steps.', entry.stepKey, '.outputs.', entry.output, ' }}');
+    const template = parseInterpolationField({
+      field: 'job.outputs',
+      source,
+      path: ['jobs', params.sourceName, 'steps', entry.stepIndex, 'export'],
+      issues: params.issues,
+      fillSite: 'execution-resolution',
+      allowedJobReferences: params.allowedJobReferences,
+      typeOverlay,
+    }) ?? [{kind: 'literal' as const, value: source}];
+    templates[entry.output] = template;
+    types[entry.output] = inferJobOutputType(template);
+    exported[entry.output] = {stepKey: entry.stepKey, output: entry.output};
+  }
+
+  return {templates, types, exported: exports.length === 0 ? undefined : exported};
+}
+
+interface ExportedOutputSource {
+  readonly stepKey: string;
+  readonly stepIndex: number;
+  readonly output: string;
+}
+
+/**
+ * Expands every step `export` into the job output it promotes. An export that
+ * names an unknown output, or an output name another source already owns, is
+ * reported with both sources and left out.
+ */
+function collectExportedOutputs(params: {
+  sourceName: string;
+  outputs: WorkflowDocumentJob['outputs'];
+  issues: WorkflowModelValidationIssue[];
+  steps: readonly WorkflowDocumentStep[];
+  toolOverlayByKey: ReadonlyMap<string, WorkflowStepTypeOverlay>;
+}): readonly ExportedOutputSource[] {
+  const claimed = new Map<string, ExportedOutputSource>();
+  for (const [stepIndex, step] of params.steps.entries()) {
+    if (step.export === undefined || step.key === undefined) continue;
+    claimStepExports({...params, claimed, step, stepKey: step.key, stepIndex});
+  }
+  return [...claimed.values()];
+}
+
+function claimStepExports(params: {
+  sourceName: string;
+  outputs: WorkflowDocumentJob['outputs'];
+  issues: WorkflowModelValidationIssue[];
+  toolOverlayByKey: ReadonlyMap<string, WorkflowStepTypeOverlay>;
+  claimed: Map<string, ExportedOutputSource>;
+  step: WorkflowDocumentStep;
+  stepKey: string;
+  stepIndex: number;
+}): void {
+  const {stepKey, stepIndex, claimed} = params;
+  const declared = Object.keys(
+    params.toolOverlayByKey.get(stepKey)?.outputs ?? params.step.outputs ?? {},
+  );
+  const reject = (message: string, details: Record<string, unknown>) =>
+    params.issues.push(
+      issue({
+        code: 'invalid-step-export',
+        message,
+        path: ['jobs', params.sourceName, 'steps', stepIndex, 'export'],
+        details,
+      }),
+    );
+  const requested = params.step.export === true ? declared : (params.step.export ?? []);
+  if (requested.length === 0) {
+    reject(`Step "${stepKey}" exports all its outputs but declares none.`, {step: stepKey});
+  }
+  for (const output of requested) {
+    const owner = exportOwner({...params, output});
+    if (!declared.includes(output)) {
+      reject(`Step "${stepKey}" exports "${output}", which it does not declare as an output.`, {
+        step: stepKey,
+        output,
+        declared,
+      });
+    } else if (owner !== undefined) {
+      reject(`Job output "${output}" is exported by step "${stepKey}" and also set by ${owner}.`, {
+        output,
+        sources: [`step "${stepKey}"`, owner],
+      });
+    } else {
+      claimed.set(output, {stepKey, stepIndex, output});
+    }
+  }
+}
+
+/** Names the explicit job output or the earlier step export that already owns a job output name. */
+function exportOwner(params: {
+  sourceName: string;
+  outputs: WorkflowDocumentJob['outputs'];
+  claimed: ReadonlyMap<string, ExportedOutputSource>;
+  output: string;
+}): string | undefined {
+  if (params.outputs !== undefined && Object.hasOwn(params.outputs, params.output)) {
+    return `jobs.${params.sourceName}.outputs.${params.output}`;
+  }
+  const previous = params.claimed.get(params.output);
+  return previous === undefined ? undefined : `step "${previous.stepKey}"`;
 }
 
 export function inferJobOutputType(template: WorkflowFieldTemplate): ExpressionType {

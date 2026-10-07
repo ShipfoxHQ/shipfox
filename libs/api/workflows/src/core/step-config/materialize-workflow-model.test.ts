@@ -1834,6 +1834,70 @@ describe('materializeJobOutputs', () => {
     );
   });
 
+  it('materializes an exported output and omits one whose step output is absent', () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [{key: 'collect', run: 'echo collect'}],
+          outputs: {
+            count: template('steps.collect.outputs.count'),
+            label: template('steps.collect.outputs.label'),
+          },
+          outputTypes: {count: 'double', label: 'string'},
+          exportedOutputs: {
+            count: {stepKey: 'collect', output: 'count'},
+            label: {stepKey: 'collect', output: 'label'},
+          },
+        },
+      },
+    });
+
+    const result = materializeJobOutputs({
+      job: model.jobs[0] as WorkflowModel['jobs'][number],
+      context: outputContext({count: 3}),
+      definitionId: 'definition-1',
+    });
+
+    expect(result).toEqual({count: 3});
+  });
+
+  it('omits an exported output whose step has no outputs', () => {
+    const job = {
+      ...outputJob({count: template('steps.collect.outputs.count')}, {count: 'double'}),
+      exportedOutputs: {count: {stepKey: 'collect', output: 'count'}},
+    };
+
+    const result = materializeJobOutputs({
+      job,
+      context: {site: 'execution-resolution', values: {steps: {collect: {status: 'skipped'}}}},
+      definitionId: 'definition-1',
+    });
+
+    expect(result).toEqual({});
+  });
+
+  it('keeps failing when an explicit output is absent next to an exported one', () => {
+    const job = {
+      ...outputJob(
+        {
+          count: template('steps.collect.outputs.count'),
+          other: template('steps.collect.outputs.other'),
+        },
+        {count: 'double', other: 'double'},
+      ),
+      exportedOutputs: {count: {stepKey: 'collect', output: 'count'}},
+    };
+
+    const materialize = () =>
+      materializeJobOutputs({
+        job,
+        context: outputContext({}),
+        definitionId: 'definition-1',
+      });
+
+    expect(materialize).toThrow(InterpolationUnresolvableError);
+  });
+
   it('fails when a typed output path is missing', () => {
     const job = outputJob(
       {findings: template('steps.collect.outputs.findings')},

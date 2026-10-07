@@ -4400,6 +4400,149 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
+  describe('step export', () => {
+    it('expands exports into typed job outputs that a later job can read', () => {
+      const document: WorkflowDocument = {
+        name: 'exports',
+        jobs: {
+          build: {
+            steps: [
+              {
+                key: 'collect',
+                run: 'npm run collect',
+                outputs: {
+                  count: {type: 'number'},
+                  label: {type: 'string'},
+                  skipped: {type: 'string'},
+                },
+                export: ['count', 'label'],
+              },
+              {key: 'second', run: 'echo', outputs: {ready: {type: 'boolean'}}, export: true},
+            ],
+            outputs: {commit: 'abc'},
+          },
+          deploy: {
+            needs: 'build',
+            success: 'jobs.build.outputs.count > 5',
+            steps: [{prompt: `Deploy ${interpolation('jobs.build.outputs.ready')}`}],
+          },
+        },
+      };
+
+      const model = normalizeWorkflowDocument(document);
+
+      expect(Object.keys(model.jobs[0]?.outputs ?? {})).toEqual([
+        'commit',
+        'count',
+        'label',
+        'ready',
+      ]);
+      expect(model.jobs[0]?.outputTypes).toEqual({
+        commit: 'string',
+        count: 'double',
+        label: 'string',
+        ready: 'bool',
+      });
+      expect(model.jobs[1]?.steps[0]).toMatchObject({
+        kind: 'agent',
+        templates: {
+          prompt: [
+            {kind: 'literal', value: 'Deploy '},
+            {
+              kind: 'deferred',
+              expression: {source: 'jobs.build.outputs.ready', check: 'typed', resultType: 'bool'},
+              roots: ['jobs'],
+            },
+          ],
+        },
+      });
+      expect(model.jobs[0]?.exportedOutputs).toEqual({
+        count: {stepKey: 'collect', output: 'count'},
+        label: {stepKey: 'collect', output: 'label'},
+        ready: {stepKey: 'second', output: 'ready'},
+      });
+    });
+
+    it('rejects an export of an undeclared output', () => {
+      const error = expectInvalid({
+        name: 'unknown export',
+        jobs: {
+          build: {
+            steps: [
+              {key: 'collect', run: 'echo', outputs: {count: {type: 'number'}}, export: ['nope']},
+            ],
+          },
+        },
+      });
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-step-export',
+          path: ['jobs', 'build', 'steps', 0, 'export'],
+          message: expect.stringContaining('"collect" exports "nope"'),
+        }),
+      ]);
+    });
+
+    it('rejects export: true on a step without declared outputs', () => {
+      const error = expectInvalid({
+        name: 'empty export',
+        jobs: {build: {steps: [{key: 'collect', run: 'echo', export: true}]}},
+      });
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-step-export',
+          path: ['jobs', 'build', 'steps', 0, 'export'],
+        }),
+      ]);
+    });
+
+    it('rejects an export that clashes with the job outputs map and names both sources', () => {
+      const error = expectInvalid({
+        name: 'clash',
+        jobs: {
+          build: {
+            steps: [
+              {key: 'collect', run: 'echo', outputs: {count: {type: 'number'}}, export: true},
+            ],
+            outputs: {count: '1'},
+          },
+        },
+      });
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-step-export',
+          message:
+            'Job output "count" is exported by step "collect" and also set by jobs.build.outputs.count.',
+        }),
+      ]);
+    });
+
+    it('rejects two steps exporting the same name and names both steps', () => {
+      const error = expectInvalid({
+        name: 'duplicate',
+        jobs: {
+          build: {
+            steps: [
+              {key: 'one', run: 'echo', outputs: {count: {type: 'number'}}, export: true},
+              {key: 'two', run: 'echo', outputs: {count: {type: 'number'}}, export: true},
+            ],
+          },
+        },
+      });
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-step-export',
+          path: ['jobs', 'build', 'steps', 1, 'export'],
+          message: 'Job output "count" is exported by step "two" and also set by step "one".',
+        }),
+      ]);
+    });
+  });
+
   it('rejects downstream references to undeclared typed job outputs', () => {
     const document: WorkflowDocument = {
       name: 'bad typed job output',

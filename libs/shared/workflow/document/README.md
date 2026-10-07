@@ -304,6 +304,10 @@ const files = await decodeActionBundle({gzip: bundle.gzip, digest: bundle.digest
 - Job `outputs` and top-level workflow `outputs` map names to template strings
   and allow up to 128 entries each. Expression and job reference checks belong
   to the model layer.
+- A run, agent, action, or tool step can set `export: true` or
+  `export: [names]` to promote its outputs to job outputs of the same name. The
+  step needs a `key`, and a checkout step rejects `export`. The model layer
+  checks the names against the step's declared outputs.
 - `env` can be declared on the workflow, a job, or a run step. Values may be
   strings, numbers, or booleans; the model layer stringifies numbers and
   booleans before a run is saved. Values are literal. Expression interpolation
