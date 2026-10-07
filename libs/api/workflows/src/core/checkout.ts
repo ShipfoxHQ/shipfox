@@ -194,6 +194,8 @@ export function repositoryNameFromUrl(repositoryUrl: string): string | undefined
 function resolvedRepositoryName(
   resolved: {
     projectId?: string | undefined;
+    sourceRepositoryOwner?: string | null | undefined;
+    sourceRepositoryName?: string | null | undefined;
     target:
       | {kind: 'external-id'; externalRepositoryId: string}
       | {kind: 'name'; owner: string; name: string};
@@ -205,6 +207,9 @@ function resolvedRepositoryName(
   },
 ): string | undefined {
   if (resolved.target.kind === 'name') return `${resolved.target.owner}/${resolved.target.name}`;
+  if (resolved.sourceRepositoryOwner && resolved.sourceRepositoryName) {
+    return `${resolved.sourceRepositoryOwner}/${resolved.sourceRepositoryName}`;
+  }
   const {sourceRepositoryOwner: owner, sourceRepositoryName: name} = defaultProject;
   if (resolved.projectId === defaultProject.id && owner && name) return `${owner}/${name}`;
   return undefined;

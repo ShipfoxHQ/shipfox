@@ -47,6 +47,8 @@ const resolvedCheckoutTargetValue = z.strictObject({
 const resolvedCheckoutTargetSchema = z.object({
   projectId: idSchema,
   connectionId: idSchema,
+  sourceRepositoryOwner: z.string().nullable(),
+  sourceRepositoryName: z.string().nullable(),
   target: resolvedCheckoutTargetValue,
 });
 
