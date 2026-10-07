@@ -717,6 +717,9 @@ function projectStepError(error: unknown): Record<string, unknown> | null {
   assignKnownValue(projected, 'reason', error.reason, stepErrorReasonSchema);
   assignCappedString(projected, 'field', error.field);
   assignCappedString(projected, 'source', error.source);
+  assignCappedString(projected, 'summary', error.summary);
+  assignCappedString(projected, 'job_key', error.job_key);
+  assignNumber(projected, 'step_index', error.step_index);
   assignNumber(projected, 'attempt_count', error.attempt_count);
   assignNumber(projected, 'max_attempts', error.max_attempts);
   assignCappedString(projected, 'restart_from', error.restart_from);

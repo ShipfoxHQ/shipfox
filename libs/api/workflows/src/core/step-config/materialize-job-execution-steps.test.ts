@@ -1039,8 +1039,13 @@ describe('materializeJobExecutionSteps', () => {
         },
       },
     });
-    const job = model.jobs[0];
-    if (!job) throw new Error('Expected workflow job');
+    const modelJob = model.jobs[0];
+    const modelStep = modelJob?.steps[0];
+    if (!modelJob || !modelStep) throw new Error('Expected workflow job');
+    const job = {
+      ...modelJob,
+      steps: [{...modelStep, name: 'Deploy', sourceLocation: {startLine: 42, endLine: 44}}],
+    };
     const baseContext = jobExecutionContext();
 
     let error: unknown;
@@ -1060,6 +1065,11 @@ describe('materializeJobExecutionSteps', () => {
       field: 'env',
       source: 'inputs.ticket',
       envKey: 'TICKET',
+      jobKey: 'review',
+      step: {name: 'Deploy', index: 1, line: 42},
+      summary: 'No such key: ticket',
+      message:
+        'Job `review`, step `Deploy` (line 42): `env.TICKET` could not be resolved: `inputs.ticket`: No such key: ticket',
     });
   });
 

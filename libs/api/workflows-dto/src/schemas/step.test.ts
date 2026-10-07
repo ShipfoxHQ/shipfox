@@ -37,6 +37,24 @@ describe('stepErrorDtoSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts the job, step and reason of an interpolation failure', () => {
+    const result = stepErrorDtoSchema.safeParse({
+      message: 'Job `build`, step `Deploy`: `env.SHA` could not be resolved',
+      reason: 'config_unresolvable',
+      summary: 'No such key: sha',
+      job_key: 'build',
+      step_index: 2,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a step index below one', () => {
+    const result = stepErrorDtoSchema.safeParse({message: 'failed', step_index: 0});
+
+    expect(result.success).toBe(false);
+  });
+
   it('rejects a message beyond the maximum length', () => {
     const result = stepErrorDtoSchema.safeParse({
       message: 'x'.repeat(STEP_ERROR_MESSAGE_MAX_LENGTH + 1),

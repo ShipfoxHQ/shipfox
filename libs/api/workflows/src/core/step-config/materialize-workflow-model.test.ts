@@ -939,7 +939,9 @@ describe('materializeWorkflowModel', () => {
       source: 'event.ref',
       envKey: 'REF',
     });
-    expect((error as Error).message).toContain("Use has(x) ? x : ''");
+    expect((error as Error).message).toBe(
+      'Job `build`, step 1: `env.REF` could not be resolved: `event.ref`: No such key: ref',
+    );
   });
 
   it('preserves dispatch-time execution paths in the config plan at creation', async () => {

@@ -6,7 +6,11 @@ import type {
   AgentToolMaterializationSnapshot,
 } from '#core/agent-tools.js';
 import type {StepConfigDispatchPlan} from '#core/entities/step.js';
-import {AgentConfigUnresolvableError, AgentIntegrationMaterializationError} from '#core/errors.js';
+import {
+  AgentConfigUnresolvableError,
+  AgentIntegrationMaterializationError,
+  InterpolationUnresolvableError,
+} from '#core/errors.js';
 import {resolveStepConfig, type WorkflowStepTemplateDiagnostic} from './resolve-step-config.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
@@ -96,14 +100,20 @@ export async function materializeJobExecutionSteps(
           if (
             !(
               error instanceof AgentConfigUnresolvableError ||
-              error instanceof AgentIntegrationMaterializationError
+              error instanceof AgentIntegrationMaterializationError ||
+              error instanceof InterpolationUnresolvableError
             )
           ) {
             throw error;
           }
           throw error.at({
             jobKey: job.key,
-            step: {key: step.key, name: step.name, index: stepPosition + 1},
+            step: {
+              key: step.key,
+              name: step.name,
+              index: stepPosition + 1,
+              line: step.sourceLocation?.startLine,
+            },
           });
         });
         return {

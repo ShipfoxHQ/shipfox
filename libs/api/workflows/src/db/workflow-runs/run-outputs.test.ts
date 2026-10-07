@@ -122,9 +122,8 @@ describe('workflow run outputs', () => {
     expect(await currentAttempt(run.id)).toMatchObject({
       status: 'failed',
       statusReason: 'output_invalid',
-      statusReasonMessage: expect.stringContaining(
-        'workflow.outputs (version) uses `jobs.build.outputs.missing`',
-      ),
+      statusReasonMessage:
+        '`workflow.outputs.version` could not be resolved: `jobs.build.outputs.missing`: No such key: missing',
       outputs: null,
     });
     expect(await runTerminatedEvents(run.id)).toEqual([
@@ -171,7 +170,8 @@ describe('workflow run outputs', () => {
     expect(await currentAttempt(run.id)).toMatchObject({
       status: 'failed',
       statusReason: 'output_invalid',
-      statusReasonMessage: expect.stringContaining('workflow.outputs (published)'),
+      statusReasonMessage:
+        '`workflow.outputs.published` could not be resolved: `jobs.publish.outputs.version`: No such key: version',
     });
   });
 

@@ -528,6 +528,9 @@ describe('nextStepForJob', () => {
       .update(stepsTable)
       .set({
         key: 'deploy',
+        name: 'Deploy',
+        position: 2,
+        sourceLocation: {startLine: 42, endLine: 44},
         config: {run: 'echo ok'},
         configPlan: {env: {SHA: stepOutputField('build', 'sha')}},
       })
@@ -545,6 +548,11 @@ describe('nextStepForJob', () => {
         reason: 'config_unresolvable',
         field: 'env.SHA',
         source: 'steps.build.outputs.sha',
+        message:
+          'Job `build`, step `Deploy` (line 42): `env.SHA` could not be resolved: `steps.build.outputs.sha`: No such key: sha',
+        summary: 'No such key: sha',
+        jobKey: 'build',
+        stepIndex: 2,
       },
     });
     const attempts = await getStepAttempts(jobId);

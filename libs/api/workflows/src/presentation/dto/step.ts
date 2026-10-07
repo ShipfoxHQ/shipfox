@@ -62,6 +62,7 @@ export function toStepErrorDto(
     ...(notice.success ? {notice: notice.data} : {}),
     ...(reason.success ? {reason: reason.data} : {}),
     ...toStepErrorSourceFields(field, source),
+    ...toStepErrorLocationFields(error),
     ...toStepErrorGateFields(error),
     ...(agentConfigIssue.success ? {agent_config_issue: agentConfigIssue.data} : {}),
     ...(typeof error.retryable === 'boolean' ? {retryable: error.retryable} : {}),
@@ -121,6 +122,17 @@ function toStepErrorSourceFields(
   };
 }
 
+function toStepErrorLocationFields(error: Record<string, unknown>): Partial<StepErrorDto> {
+  const stepIndex = positiveInteger(error.stepIndex);
+  return {
+    ...(typeof error.summary === 'string'
+      ? {summary: truncateStepText(error.summary, STEP_ERROR_MESSAGE_MAX_LENGTH)}
+      : {}),
+    ...(typeof error.jobKey === 'string' && error.jobKey !== '' ? {job_key: error.jobKey} : {}),
+    ...(stepIndex === undefined ? {} : {step_index: stepIndex}),
+  };
+}
+
 function stepErrorReason(error: Record<string, unknown>) {
   const reason = stepErrorReasonSchema.safeParse(error.reason);
   return reason.success ? reason : stepErrorReasonSchema.safeParse(error.kind);
@@ -167,6 +179,7 @@ export function fromStepErrorDto(error: StepErrorDto | undefined): Record<string
     ...(error.reason === undefined ? {} : {reason: error.reason}),
     ...(error.field === undefined ? {} : {field: error.field}),
     ...(error.source === undefined ? {} : {source: error.source}),
+    ...fromStepErrorLocationFields(error),
     ...fromStepErrorGateFields(error),
     ...(error.agent_config_issue === undefined ? {} : {agentConfigIssue: error.agent_config_issue}),
     ...(error.retryable === undefined ? {} : {retryable: error.retryable}),
@@ -183,6 +196,16 @@ function fromStepErrorProviderFields(
   return {
     ...(error.provider_message === undefined ? {} : {providerMessage: error.provider_message}),
     ...(error.provider_status === undefined ? {} : {providerStatus: error.provider_status}),
+  };
+}
+
+function fromStepErrorLocationFields(
+  error: NonNullable<StepErrorDto>,
+): Partial<Record<'summary' | 'jobKey' | 'stepIndex', unknown>> {
+  return {
+    ...(error.summary === undefined ? {} : {summary: error.summary}),
+    ...(error.job_key === undefined ? {} : {jobKey: error.job_key}),
+    ...(error.step_index === undefined ? {} : {stepIndex: error.step_index}),
   };
 }
 
