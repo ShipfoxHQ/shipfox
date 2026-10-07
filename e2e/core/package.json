@@ -6,13 +6,21 @@
     "directory": "e2e/core"
   },
   "license": "MIT",
-  "private": true,
+  "version": "33.0.0",
+  "private": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
     "#test/*": "./test/*",
-    "#*": "./src/*"
+    "#*": {
+      "workspace-source": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "exports": {
     ".": {

@@ -31,7 +31,7 @@ export interface PublicationClosureConfig {
 
 export function findClosureManifests(root: string, packageNames: string[]): string[] {
   const manifestsByName = new Map<string, string>();
-  for (const manifestPath of globSync(join(root, 'libs/**/package.json'))) {
+  for (const manifestPath of globSync(join(root, '{e2e,libs,tools}/**/package.json'))) {
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as JsonRecord;
     if (typeof manifest.name !== 'string') continue;
     if (manifestsByName.has(manifest.name)) {
@@ -69,9 +69,18 @@ export function loadPublicationClosure(root: string): PublicationClosureConfig {
 }
 
 export function resolvePublicationManifests(root: string, packageNames: string[]): string[] {
+  const closureManifests = findClosureManifests(root, packageNames);
+  const closureNames = new Set(
+    closureManifests.map(
+      (manifestPath) => (JSON.parse(readFileSync(manifestPath, 'utf8')) as JsonRecord).name,
+    ),
+  );
   const manifestPaths = [
-    ...findClosureManifests(root, packageNames),
-    ...findPublishableToolManifests(root),
+    ...closureManifests,
+    ...findPublishableToolManifests(root).filter((manifestPath) => {
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as JsonRecord;
+      return typeof manifest.name !== 'string' || !closureNames.has(manifest.name);
+    }),
   ];
   const names = new Set<string>();
   for (const manifestPath of manifestPaths) {
