@@ -1,4 +1,5 @@
 import {execFileSync} from 'node:child_process';
+import {randomUUID} from 'node:crypto';
 import {chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -8,7 +9,7 @@ import {runCommand, runCommandChecked} from '#run-command.js';
 // Exercises the container lifecycle against a real daemon: the argument list is only correct if
 // Docker accepts it, and a fake docker would accept anything.
 const IMAGE = 'busybox:1.37';
-const JOB_ID = '00000000-0000-0000-0000-0000000000bb';
+const JOB_ID = randomUUID();
 
 function dockerAvailable(): boolean {
   try {

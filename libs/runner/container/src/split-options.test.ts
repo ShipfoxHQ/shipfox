@@ -39,6 +39,11 @@ describe('splitOptions', () => {
     ]);
   });
 
+  it('treats a backslash before a newline as a line continuation', () => {
+    expect(splitOptions('--cpus 2 \\\n--memory 4g')).toEqual(['--cpus', '2', '--memory', '4g']);
+    expect(splitOptions('-e "A=x\\\ny"')).toEqual(['-e', 'A=xy']);
+  });
+
   it('does not expand variables or commands', () => {
     expect(splitOptions('-e A=$HOME -e B=$(id)')).toEqual(['-e', 'A=$HOME', '-e', 'B=$(id)']);
   });

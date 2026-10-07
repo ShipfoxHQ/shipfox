@@ -31,7 +31,8 @@ function readWord(options: string, start: number): {value: string; end: number} 
       value += quoted.value;
       index = quoted.end;
     } else if (char === '\\' && index + 1 < options.length) {
-      value += options.charAt(index + 1);
+      // A backslash before a newline continues the line, so it adds nothing.
+      if (options.charAt(index + 1) !== '\n') value += options.charAt(index + 1);
       index += 2;
     } else {
       value += char;
@@ -51,7 +52,9 @@ function readQuoted(options: string, start: number): {value: string; end: number
     const char = options.charAt(index);
     if (char === quote) return {value, end: index + 1};
     const next = options.charAt(index + 1);
-    if (quote === '"' && char === '\\' && DOUBLE_QUOTE_ESCAPABLE.has(next)) {
+    if (quote === '"' && char === '\\' && next === '\n') {
+      index += 2;
+    } else if (quote === '"' && char === '\\' && DOUBLE_QUOTE_ESCAPABLE.has(next)) {
       value += next;
       index += 2;
     } else {

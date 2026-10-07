@@ -203,6 +203,12 @@ describe('with a fake docker', () => {
     expect(calls[0]).toContain(`${dockerPlatform()} ghcr.io/acme/toolbox:1 `);
     expect(calls[1]).toContain(`--platform ${dockerPlatform()} --entrypoint tail`);
     expect(calls[1]).toContain('--cpus 2 ghcr.io/acme/toolbox:1 -f /dev/null');
+    for (const dir of [dirs.workspaceDir, dirs.tempDir, dirs.agentStateDir]) {
+      expect(calls[1]).toContain(`--mount type=bind,source=${dir},target=${dir} `);
+    }
+    for (const dir of [dirs.credentialsDir, dirs.logsDir]) {
+      expect(calls[1]).toContain(`--mount type=bind,source=${dir},target=${dir},readonly `);
+    }
     expect(calls[3]).toContain('sh -c true');
   });
 
