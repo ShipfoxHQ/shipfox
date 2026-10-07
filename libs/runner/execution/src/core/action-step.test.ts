@@ -330,8 +330,13 @@ export default defineAction(() => ({value: help()}));
       action("async () => { console.log('ENV=' + JSON.stringify(process.env)); }"),
       {
         config: {
-          env: {SHIPFOX_RUN_ID: 'user-run-id'},
-          shipfox_env: {SHIPFOX_RUN_ID: 'run-1', SHIPFOX_RUN_NUMBER: '7'},
+          env: {SHIPFOX_RUN_ID: 'user-run-id', SHIPFOX_RUN_ATTEMPT: '99'},
+          shipfox_env: {
+            SHIPFOX_RUN_ID: 'run-1',
+            SHIPFOX_RUN_NUMBER: '7',
+            SHIPFOX_RUN_ATTEMPT: '2',
+            SHIPFOX_RUN_URL: 'https://app.example/runs/run-1',
+          },
         },
       },
     );
@@ -340,7 +345,12 @@ export default defineAction(() => ({value: help()}));
     await pending;
 
     const env = JSON.parse(ENV_REGEX.exec(pending.output())?.[1] ?? '{}') as Record<string, string>;
-    expect(env).toMatchObject({SHIPFOX_RUN_ID: 'run-1', SHIPFOX_RUN_NUMBER: '7'});
+    expect(env).toMatchObject({
+      SHIPFOX_RUN_ID: 'run-1',
+      SHIPFOX_RUN_NUMBER: '7',
+      SHIPFOX_RUN_ATTEMPT: '2',
+      SHIPFOX_RUN_URL: 'https://app.example/runs/run-1',
+    });
   });
 
   it('serves the action tool calls through the gateway and hands the token out for masking', async () => {
