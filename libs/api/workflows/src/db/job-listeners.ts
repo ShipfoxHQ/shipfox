@@ -1007,6 +1007,7 @@ async function persistMaterializedListenerExecution(
         configPlan: step.configPlan ?? null,
         authoredConfig: step.authoredConfig,
         condition: step.condition ?? null,
+        runAfter: step.runAfter,
         position: step.position,
       })),
     );

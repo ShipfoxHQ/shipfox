@@ -968,6 +968,8 @@ export const workflowDocumentAgentStepFields = [
   'session',
 ] as const;
 
+const runAfterSchema = z.enum(['success', 'failure', 'always']);
+
 // A step is a run step (`run`), an inline agent step (`prompt`), a checkout step
 // (`checkout`), a tool step (`tool`), or an action step (`uses`), never two
 // kinds at once. They share one strict object so an unknown key is still
@@ -984,6 +986,10 @@ const workflowDocumentStepBaseSchema = z.strictObject({
   if: z.string().min(1).optional().meta({
     description:
       'Runs this step only when the condition is true. See [Conditionals](/reference/expressions#syntax).',
+  }),
+  run_after: runAfterSchema.optional().meta({
+    description:
+      'Picks when this step runs relative to earlier steps in the job: `success` (default) skips it after a failed step, `failure` runs it only after a failed step, `always` runs it either way. The `if` is checked after `run_after` passes.',
   }),
   name: z.string().min(1).optional().meta({description: 'Sets the name shown for the step.'}),
   working_directory: z.string().min(1).optional().meta({
@@ -1465,6 +1471,10 @@ export const workflowDocumentJobSchema = z.strictObject({
   if: z.string().min(1).optional().meta({
     description:
       'Runs this job only when the condition is true. See [Conditionals](/reference/expressions#syntax).',
+  }),
+  run_after: runAfterSchema.optional().meta({
+    description:
+      'Picks when this job runs relative to the jobs in `needs`: `success` (default) needs every job to succeed, `failure` needs at least one job to fail, `always` runs whatever their status. The `if` is checked after `run_after` passes.',
   }),
   runner: stringOrStringArraySchema.optional().meta({
     description:

@@ -184,6 +184,7 @@ describe('materializeWorkflowModel', () => {
           persist_credentials: true,
         },
       },
+      runAfter: 'success',
       authoredConfig: null,
       position: 0,
     };
@@ -205,6 +206,7 @@ describe('materializeWorkflowModel', () => {
             status: 'pending',
             type: 'run',
             config: {run: 'npm install'},
+            runAfter: 'success',
             authoredConfig: null,
             position: 1,
           },
@@ -221,6 +223,7 @@ describe('materializeWorkflowModel', () => {
                 on_failure: {restart_from: 'install', max_attempts: 3, feedback: 'Build failed'},
               },
             },
+            runAfter: 'success',
             authoredConfig: null,
             position: 2,
           },
@@ -242,6 +245,7 @@ describe('materializeWorkflowModel', () => {
             status: 'pending',
             type: 'run',
             config: {run: 'npm test'},
+            runAfter: 'success',
             authoredConfig: null,
             position: 1,
           },
@@ -316,6 +320,7 @@ describe('materializeWorkflowModel', () => {
         thinking: 'high',
         prompt: 'Fix the tests.',
       },
+      runAfter: 'success',
       authoredConfig: null,
       position: 2,
     });
@@ -336,6 +341,7 @@ describe('materializeWorkflowModel', () => {
           on_failure: {restart_from: 'implement', max_attempts: 3},
         },
       },
+      runAfter: 'success',
       authoredConfig: null,
       position: 3,
     });
@@ -393,6 +399,7 @@ describe('materializeWorkflowModel', () => {
         thinking: 'xhigh',
         prompt: 'Fix the failing tests.',
       },
+      runAfter: 'success',
       authoredConfig: null,
       position: 1,
     });
@@ -1393,6 +1400,7 @@ describe('materializeWorkflowModel', () => {
             persist_credentials: true,
           },
         },
+        runAfter: 'success',
         authoredConfig: null,
         position: 0,
       },

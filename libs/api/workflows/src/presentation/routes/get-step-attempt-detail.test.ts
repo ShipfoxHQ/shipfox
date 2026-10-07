@@ -131,6 +131,7 @@ function stepEntity(): Step {
     type: 'run',
     config: {run: 'pnpm test'},
     condition: null,
+    runAfter: 'success',
     configPlan: null,
     authoredConfig: {run: 'pnpm test'},
     error: {reason: 'command_failed', message: 'Command failed'},

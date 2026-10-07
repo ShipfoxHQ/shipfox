@@ -246,6 +246,27 @@ describe('materializeJobExecutionSteps', () => {
     });
   });
 
+  it.each([
+    ['an explicit value', {runAfter: 'failure' as const}, 'failure'],
+    [
+      'an explicit value next to an if',
+      {runAfter: 'success' as const, if: condition('true')},
+      'success',
+    ],
+    ['no value and no if', {}, 'success'],
+    ['no value and an if, as stored before run_after', {if: condition('true')}, 'always'],
+  ])('materializes run_after from %s', async (_case, fields, expected) => {
+    const model = workflowModel({
+      jobs: {build: {steps: [{run: 'echo build', ...fields}]}},
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = await materializeJobExecutionSteps({model, job, context: jobExecutionContext()});
+
+    expect(steps[1]?.runAfter).toBe(expected);
+  });
+
   it('materializes checkout steps with their resolved config and default name', async () => {
     const model = workflowModel({
       jobs: {
@@ -292,6 +313,7 @@ describe('materializeJobExecutionSteps', () => {
           force: true,
         },
       },
+      runAfter: 'success',
       authoredConfig: null,
       position: 1,
     });
@@ -551,6 +573,7 @@ describe('materializeJobExecutionSteps', () => {
             persist_credentials: true,
           },
         },
+        runAfter: 'success',
         authoredConfig: null,
         position: 0,
       },
@@ -567,6 +590,7 @@ describe('materializeJobExecutionSteps', () => {
             __sf_0: 'Review batch 1',
           },
         },
+        runAfter: 'success',
         authoredConfig: {
           run: `echo "${template('executions[0].name')}"`,
           env: {BODY: template('execution.events[0].data.body')},

@@ -1,0 +1,23 @@
+name: Run after always job
+runner: __RUNNER_LABEL__
+triggers:
+  on_push:
+    source: __GITEA_SOURCE__
+    event: push
+    filter: 'event.ref == "refs/heads/main" && event.repository.full_name == "__GITEA_REPOSITORY__"'
+jobs:
+  build:
+    steps:
+      - key: boom
+        run: exit 1
+  test:
+    needs: build
+    steps:
+      - key: test
+        run: echo "test ran"
+  report:
+    needs: test
+    run_after: always
+    steps:
+      - key: report
+        run: echo "report ran"

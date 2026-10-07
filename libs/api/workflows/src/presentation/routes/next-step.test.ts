@@ -676,6 +676,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
         exitCode: 1,
       });
       await skipWhen(cleanup, 'true');
+      await db().update(stepsTable).set({runAfter: 'always'}).where(eq(stepsTable.id, cleanup.id));
 
       const body = await pull(token);
 

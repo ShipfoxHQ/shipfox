@@ -27,6 +27,7 @@ interface TestWorkflowStepBase {
   readonly workingDirectory?: string | undefined;
   readonly sourceLocation?: WorkflowModel['jobs'][number]['steps'][number]['sourceLocation'];
   readonly if?: ModelStep['if'] | undefined;
+  readonly runAfter?: ModelStep['runAfter'] | undefined;
   readonly gate?: WorkflowModel['jobs'][number]['steps'][number]['gate'] | undefined;
 }
 
@@ -83,6 +84,7 @@ interface TestWorkflowJob {
   readonly runnerTemplates?: readonly string[] | undefined;
   readonly checkout?: WorkflowModel['jobs'][number]['checkout'] | undefined;
   readonly if?: string | undefined;
+  readonly runAfter?: WorkflowModel['jobs'][number]['runAfter'] | undefined;
   readonly success?: string | undefined;
   readonly outputs?: Readonly<Record<string, string>> | undefined;
   readonly outputTypes?: WorkflowModel['jobs'][number]['outputTypes'] | undefined;
@@ -171,6 +173,7 @@ function normalizeJob(
         }),
     checkout: job.checkout ?? DEFAULT_JOB_CHECKOUT,
     ...(job.if === undefined ? {} : {if: workflowExpression(job.if)}),
+    ...(job.runAfter === undefined ? {} : {runAfter: job.runAfter}),
     ...(job.success === undefined ? {} : {success: job.success}),
     ...(job.outputs === undefined ? {} : {outputs: outputTemplates(job.outputs, 'job.outputs')}),
     ...(job.outputTypes === undefined ? {} : {outputTypes: job.outputTypes}),
@@ -303,6 +306,7 @@ function stepBase(step: TestWorkflowStep, jobId: string, stepIndex: number) {
     ...(step.workingDirectory === undefined ? {} : {workingDirectory: step.workingDirectory}),
     ...(step.sourceLocation === undefined ? {} : {sourceLocation: step.sourceLocation}),
     ...(step.if === undefined ? {} : {if: step.if}),
+    ...(step.runAfter === undefined ? {} : {runAfter: step.runAfter}),
     ...(step.gate === undefined ? {} : {gate: step.gate}),
   };
 }

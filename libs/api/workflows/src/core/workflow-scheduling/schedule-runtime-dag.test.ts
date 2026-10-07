@@ -6,6 +6,7 @@ function job(
   dependencies: readonly string[] = [],
   mode: RuntimeDagNode['mode'] = 'one_shot',
   hasActivationCondition = false,
+  runAfter?: RuntimeDagNode['runAfter'],
 ): RuntimeDagNode {
   return {
     id: `job-${key}`,
@@ -13,6 +14,7 @@ function job(
     mode,
     dependencies,
     hasActivationCondition,
+    ...(runAfter === undefined ? {} : {runAfter}),
     version: 1,
   };
 }
@@ -193,5 +195,116 @@ describe('scheduleRuntimeDag', () => {
     const commands = scheduleRuntimeDag({jobs, completed: completed({})});
 
     expect(commands).toEqual([{kind: 'evaluate-job-activation', jobs}]);
+  });
+});
+
+describe('scheduleRuntimeDag run_after', () => {
+  const skip = (target: RuntimeDagNode) => ({
+    kind: 'skip-job',
+    job: target,
+    statusReason: 'default_gate_rejected',
+  });
+
+  describe.each([
+    {hasIf: false, label: 'a job without an if'},
+    {hasIf: true, label: 'a job with an if'},
+  ])('$label', ({hasIf}) => {
+    // A passing job with an if goes through activation, as before run_after.
+    const pass = (target: RuntimeDagNode) =>
+      hasIf ? {kind: 'evaluate-job-activation', jobs: [target]} : {kind: 'start-job', job: target};
+
+    it.each([
+      {status: 'succeeded', runAfter: 'success', passes: true},
+      {status: 'failed', runAfter: 'success', passes: false},
+      {status: 'skipped', runAfter: 'success', passes: false},
+      {status: 'cancelled', runAfter: 'success', passes: false},
+      {status: 'succeeded', runAfter: 'failure', passes: false},
+      {status: 'failed', runAfter: 'failure', passes: true},
+      {status: 'skipped', runAfter: 'failure', passes: false},
+      {status: 'cancelled', runAfter: 'failure', passes: false},
+      {status: 'succeeded', runAfter: 'always', passes: true},
+      {status: 'failed', runAfter: 'always', passes: true},
+      {status: 'skipped', runAfter: 'always', passes: true},
+      {status: 'cancelled', runAfter: 'always', passes: true},
+    ] as const)('run_after $runAfter after a need that $status passes: $passes', ({
+      status,
+      runAfter,
+      passes,
+    }) => {
+      const target = job('handler', ['build'], 'one_shot', hasIf, runAfter);
+
+      const commands = scheduleRuntimeDag({
+        jobs: [job('build'), target],
+        completed: completed({build: status}),
+      });
+
+      // A rejected job is skipped and never reaches activation, so its if is not evaluated.
+      expect(commands).toEqual(
+        passes
+          ? [pass(target)]
+          : [
+              skip(target),
+              {kind: 'complete-run', status: status === 'failed' ? 'failed' : 'succeeded'},
+            ],
+      );
+    });
+
+    it('waits for every need to finish before it decides', () => {
+      const target = job('handler', ['build', 'lint'], 'one_shot', hasIf, 'failure');
+
+      const commands = scheduleRuntimeDag({
+        jobs: [job('build'), job('lint'), target],
+        completed: completed({build: 'failed'}),
+        running: new Set(['lint']),
+      });
+
+      expect(commands).toEqual([]);
+    });
+  });
+
+  it('runs a failure handler when only one of several needs failed', () => {
+    const handler = job('handler', ['build', 'lint'], 'one_shot', false, 'failure');
+
+    const commands = scheduleRuntimeDag({
+      jobs: [job('build'), job('lint'), handler],
+      completed: completed({build: 'succeeded', lint: 'failed'}),
+    });
+
+    expect(commands).toEqual([{kind: 'start-job', job: handler}]);
+  });
+
+  it('lets an always job run after a need that was skipped by its own gate', () => {
+    const jobs = [
+      job('build'),
+      job('test', ['build']),
+      job('report', ['test'], 'one_shot', false, 'always'),
+    ];
+
+    const commands = scheduleRuntimeDag({jobs, completed: completed({build: 'failed'})});
+
+    expect(commands).toEqual([skip(jobs[1] as RuntimeDagNode), {kind: 'start-job', job: jobs[2]}]);
+  });
+
+  it('skips a failure handler in a run where nothing failed and completes it as succeeded', () => {
+    const handler = job('handler', ['build'], 'one_shot', false, 'failure');
+
+    const commands = scheduleRuntimeDag({
+      jobs: [job('build'), handler],
+      completed: completed({build: 'succeeded'}),
+    });
+
+    expect(commands).toEqual([skip(handler), {kind: 'complete-run', status: 'succeeded'}]);
+  });
+
+  it('uses the pre-run_after gate for a job without run_after: an if replaced it', () => {
+    const plain = job('plain', ['build']);
+    const conditional = job('conditional', ['build'], 'one_shot', true);
+
+    const commands = scheduleRuntimeDag({
+      jobs: [job('build'), plain, conditional],
+      completed: completed({build: 'failed'}),
+    });
+
+    expect(commands).toEqual([skip(plain), {kind: 'evaluate-job-activation', jobs: [conditional]}]);
   });
 });

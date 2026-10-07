@@ -1,0 +1,28 @@
+name: Run after failure handler
+runner: __RUNNER_LABEL__
+triggers:
+  on_push:
+    source: __GITEA_SOURCE__
+    event: push
+    filter: 'event.ref == "refs/heads/main" && event.repository.full_name == "__GITEA_REPOSITORY__"'
+jobs:
+  build:
+    steps:
+      - key: boom
+        run: exit 1
+      - key: after_success
+        run: echo "after success ran"
+      - key: handle_step
+        run_after: failure
+        run: echo "step handler ran"
+  handle_job:
+    needs: build
+    run_after: failure
+    steps:
+      - key: handle
+        run: echo "job handler ran"
+  deploy:
+    needs: build
+    steps:
+      - key: deploy
+        run: echo "deploy ran"

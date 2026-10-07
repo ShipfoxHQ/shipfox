@@ -315,6 +315,7 @@ function normalizeJob(params: {
     checkout,
     container,
     condition,
+    runAfter: params.job.run_after ?? 'success',
     dependencies,
     executionName,
     executionTimeoutMs,
@@ -365,6 +366,7 @@ function buildNormalizedJob(params: {
   checkout: ReturnType<typeof normalizeJobCheckout>;
   container: ReturnType<typeof normalizeJobContainer>;
   condition: ReturnType<typeof normalizeIfCondition>;
+  runAfter: NonNullable<WorkflowModelJob['runAfter']>;
   success: ReturnType<typeof normalizeJobSuccess>;
   outputs: ReturnType<typeof normalizeJobOutputs>;
   executionTimeoutMs: number | undefined;
@@ -384,6 +386,7 @@ function buildNormalizedJob(params: {
     checkout: params.checkout,
     ...(params.container === undefined ? {} : {container: params.container}),
     ...(params.condition === undefined ? {} : {if: params.condition}),
+    runAfter: params.runAfter,
     ...(params.success === undefined ? {} : {success: params.success}),
     ...(params.outputs === undefined ? {} : {outputs: params.outputs.templates}),
     ...(params.outputs?.types === undefined ? {} : {outputTypes: params.outputs.types}),
@@ -921,6 +924,7 @@ function normalizeStep(params: {
   const sourceLocation = params.stepSourceLocations?.get(params.sourceName)?.get(params.index);
   const stepBase = {
     id: stepId,
+    runAfter: params.step.run_after ?? 'success',
     ...(stepKey === undefined ? {} : {key: stepKey}),
     ...(params.step.name === undefined ? {} : {name: params.step.name}),
     ...(params.step.working_directory === undefined
@@ -1998,7 +2002,7 @@ function validateRunnerLabels(params: {
 
 export type WorkflowModelStepBaseFields = Pick<
   WorkflowModelStep,
-  'id' | 'key' | 'name' | 'workingDirectory' | 'outputs' | 'sourceLocation' | 'gate'
+  'id' | 'key' | 'runAfter' | 'name' | 'workingDirectory' | 'outputs' | 'sourceLocation' | 'gate'
 >;
 
 function optionalRunStepTemplates(params: {

@@ -125,6 +125,7 @@ export async function loadRunAttemptDag(runAttemptId: string): Promise<RunDag> {
           batchMaxWaitMs: job.batchMaxWaitMs,
           dependencies: job.dependencies,
           hasActivationCondition: modelJob?.if !== undefined,
+          ...(modelJob?.runAfter === undefined ? {} : {runAfter: modelJob.runAfter}),
           runner: jobExecution?.runner ?? job.runner ?? [],
           version: job.version,
         },

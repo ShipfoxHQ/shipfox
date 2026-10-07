@@ -655,17 +655,20 @@ describe('normalizeWorkflowDocument', () => {
           key: 'build',
           runner: ['ubuntu-latest'],
           checkout: DEFAULT_JOB_CHECKOUT,
+          runAfter: 'success',
           dependencies: [],
           steps: [
             {
               id: 'build-step-1',
               kind: 'run',
+              runAfter: 'success',
               command: {kind: 'shell', value: 'npm install'},
             },
             {
               id: 'build-build',
               key: 'build',
               kind: 'run',
+              runAfter: 'success',
               command: {kind: 'shell', value: 'npm run build'},
             },
           ],
@@ -710,12 +713,14 @@ describe('normalizeWorkflowDocument', () => {
       id: 'fix-plan',
       key: 'plan',
       kind: 'agent',
+      runAfter: 'success',
       prompt: 'Plan the fix.',
     });
     expect(model.jobs[0]?.steps[1]).toEqual({
       id: 'fix-implement',
       key: 'implement',
       kind: 'agent',
+      runAfter: 'success',
       harness: 'claude',
       model: 'claude-opus-4-8',
       prompt: 'Fix the failing tests.',
@@ -732,6 +737,36 @@ describe('normalizeWorkflowDocument', () => {
         onFailure: {restartFrom: 'implement', maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS},
       },
     });
+  });
+
+  it('writes run_after on jobs and steps, defaulting to success', () => {
+    const model = normalizeWorkflowDocument({
+      name: 'handlers',
+      jobs: {
+        build: {steps: [{run: 'make'}]},
+        report: {
+          needs: 'build',
+          run_after: 'failure',
+          if: interpolation('needs.exists(n, n.key == "build" && n.status == "failed")'),
+          steps: [
+            {key: 'default', run: 'echo default'},
+            {key: 'handler', run: 'echo failed', run_after: 'failure'},
+            {
+              key: 'report',
+              run: 'echo report',
+              run_after: 'always',
+              if: interpolation('execution.failed == false'),
+            },
+          ],
+        },
+      },
+    });
+
+    const [build, report] = model.jobs;
+    expect(build?.runAfter).toBe('success');
+    expect(report?.runAfter).toBe('failure');
+    expect(build?.steps.map((step) => step.runAfter)).toEqual(['success']);
+    expect(report?.steps.map((step) => step.runAfter)).toEqual(['success', 'failure', 'always']);
   });
 
   it('normalizes agent step session shorthand into a resume session', () => {

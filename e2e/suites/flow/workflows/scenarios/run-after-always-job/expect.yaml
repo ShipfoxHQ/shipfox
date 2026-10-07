@@ -1,0 +1,16 @@
+trigger: push
+run:
+  status: failed
+jobs:
+  build:
+    status: failed
+  test:
+    status: skipped
+  report:
+    status: succeeded
+    steps:
+      report:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["report ran"]

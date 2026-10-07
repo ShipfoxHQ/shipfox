@@ -134,6 +134,7 @@ describe('normalizeWorkflowDocument action steps', () => {
       key: 'thread',
       name: 'Read thread',
       kind: 'action',
+      runAfter: 'success',
       action: {
         uses: USES,
         origin: 'local',

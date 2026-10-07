@@ -11,7 +11,8 @@ import {
 import type {PersistedEvaluationTraceEntry} from './entities/step.js';
 
 const DEFAULT_JOB_CONDITION_SOURCE = 'needs.all(n, n.status == "succeeded")';
-const DEFAULT_STEP_CONDITION_SOURCE = '!execution.failed';
+const SUCCESS_STEP_CONDITION_SOURCE = '!execution.failed';
+const FAILURE_STEP_CONDITION_SOURCE = 'execution.failed';
 const SOURCE_PATH = /^(steps|jobs|needs)\.([A-Za-z_][A-Za-z0-9_]*)(?:\.|$)/;
 
 export function explicitConditionTrace(params: {
@@ -57,11 +58,14 @@ export function defaultJobConditionTrace(): readonly PersistedEvaluationTraceEnt
   ]);
 }
 
-export function defaultStepConditionTrace(): readonly PersistedEvaluationTraceEntry[] {
+export function defaultStepConditionTrace(
+  runAfter: 'success' | 'failure',
+): readonly PersistedEvaluationTraceEntry[] {
   return capTraceEntries([
     {
       ...evaluationTraceEntry({
-        expression: DEFAULT_STEP_CONDITION_SOURCE,
+        expression:
+          runAfter === 'success' ? SUCCESS_STEP_CONDITION_SOURCE : FAILURE_STEP_CONDITION_SOURCE,
         roots: ['execution'],
         fillTarget: 'step-dispatch',
         evaluatedAt: 'step-dispatch',

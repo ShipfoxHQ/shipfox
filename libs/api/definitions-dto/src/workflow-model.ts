@@ -139,6 +139,8 @@ export interface WorkflowModelJobContainer {
   };
 }
 
+export type WorkflowModelRunAfter = 'success' | 'failure' | 'always';
+
 export interface WorkflowModelJob {
   readonly id: string;
   readonly key: string;
@@ -148,6 +150,8 @@ export interface WorkflowModelJob {
   readonly checkout: WorkflowModelJobCheckout | false;
   readonly container?: WorkflowModelJobContainer;
   readonly if?: WorkflowExpression;
+  /** Models stored before `run_after` omit it and mean `always` with an `if`, `success` without. */
+  readonly runAfter?: WorkflowModelRunAfter;
   readonly success?: string;
   readonly outputs?: WorkflowOutputTemplates;
   readonly outputTypes?: Readonly<Record<string, ExpressionType>>;
@@ -193,6 +197,8 @@ interface WorkflowModelStepBase {
   readonly id: string;
   readonly key?: string;
   readonly if?: WorkflowExpression;
+  /** Models stored before `run_after` omit it and mean `always` with an `if`, `success` without. */
+  readonly runAfter?: WorkflowModelRunAfter;
   readonly name?: string;
   readonly workingDirectory?: string;
   readonly outputs?: OutputDeclarations;
