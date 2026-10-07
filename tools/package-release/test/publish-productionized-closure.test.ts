@@ -77,6 +77,21 @@ function closureManifest(name: string) {
 }
 
 describe('findClosureManifests', () => {
+  test('finds E2E toolkit package manifests', () => {
+    const root = mkdtempSync(join(tmpdir(), 'shipfox-publish-'));
+    roots.push(root);
+    const packageDirectory = join(root, 'e2e', 'harness');
+    mkdirSync(packageDirectory, {recursive: true});
+    writeFileSync(
+      join(packageDirectory, 'package.json'),
+      `${JSON.stringify(closureManifest('@shipfox/e2e-harness'), null, 2)}\n`,
+    );
+
+    const manifests = findClosureManifests(root, ['@shipfox/e2e-harness']);
+
+    assert.deepEqual(manifests, [join(root, 'e2e', 'harness', 'package.json')]);
+  });
+
   test('finds every requested package manifest', () => {
     const root = createFixture([['one', closureManifest('@shipfox/one')]]);
 
