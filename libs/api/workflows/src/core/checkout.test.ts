@@ -764,11 +764,8 @@ describe('createStepCheckoutSpec', () => {
   it('records the connection slug and repository the checkout was about', async () => {
     const project = projectFactory.build();
     getProjectById.mockResolvedValue({project});
-    resolveConnection.mockResolvedValue({
-      id: crypto.randomUUID(),
-      provider: 'github',
-      slug: 'partner-gh',
-    });
+    const connectionId = crypto.randomUUID();
+    resolveConnection.mockResolvedValue({id: connectionId, provider: 'github', slug: 'partner-gh'});
     createCheckoutSpec.mockRejectedValue(new Error('provider failed'));
     const failure: CheckoutFailureTarget = {};
 
@@ -785,7 +782,7 @@ describe('createStepCheckoutSpec', () => {
     await expect(act).rejects.toThrow('provider failed');
     expect(failure).toMatchObject({
       connection: 'partner-gh',
-      connectionId: expect.any(String),
+      connectionId,
       repository: 'partner/widgets',
     });
   });

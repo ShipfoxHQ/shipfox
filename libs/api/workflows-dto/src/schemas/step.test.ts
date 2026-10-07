@@ -2,6 +2,7 @@ import {
   agentStepSessionDescriptorSchema,
   agentStepSessionIntentSchema,
   STEP_ERROR_MESSAGE_MAX_LENGTH,
+  STEP_ERROR_PROVIDER_MESSAGE_MAX_LENGTH,
   STEP_STATUS_REASONS,
   stepAttemptDtoSchema,
   stepDtoSchema,
@@ -145,7 +146,7 @@ describe('stepErrorDtoSchema', () => {
   it('rejects a provider explanation longer than 500 characters', () => {
     const result = stepErrorDtoSchema.safeParse({
       message: 'Checkout failed.',
-      provider_message: 'x'.repeat(501),
+      provider_message: 'x'.repeat(STEP_ERROR_PROVIDER_MESSAGE_MAX_LENGTH + 1),
     });
 
     expect(result.success).toBe(false);
