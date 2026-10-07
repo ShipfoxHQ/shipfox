@@ -32,6 +32,7 @@ import {
   DEFAULT_CUSTOM_MODEL_REASONING,
 } from '@shipfox/api-agent-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {type ExecutionHost, localExecutionHost} from '@shipfox/runner-container';
 import {Type} from 'typebox';
 import {
   type AgentSessionCatalogFailure,
@@ -63,6 +64,7 @@ import {
   isPiExtensionAvailable,
   piExtensionDirectories,
 } from '#core/pi-extensions.js';
+import {createPiHostToolDefinitions} from '#core/pi-host-tools.js';
 import {createPiSessionDiagnosticsExtension} from '#core/pi-session-diagnostics.js';
 import {createPiToolErrorNormalizerExtension} from '#core/pi-tool-error-normalizer.js';
 import {createPiToolSvgNormalizerExtension} from '#core/pi-tool-svg-normalizer.js';
@@ -224,6 +226,8 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
       thinking,
       tools,
       customTools,
+      host: invocation.host ?? localExecutionHost,
+      gitConfigGlobal,
       mcpConfig,
       cwd,
       agentStateDir,
@@ -237,7 +241,6 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
       signal,
       mcpConfig,
       onSessionEntry,
-      gitConfigGlobal,
       hasDeclaredOutputs,
       prompt,
       collector,
@@ -263,6 +266,8 @@ async function createPiSession(params: {
   thinking: string;
   tools: readonly string[] | undefined;
   customTools: ToolDefinition[];
+  host: ExecutionHost;
+  gitConfigGlobal: string | undefined;
   mcpConfig: PiMcpConfig | undefined;
   cwd: string;
   agentStateDir: string;
@@ -270,6 +275,20 @@ async function createPiSession(params: {
 }): Promise<{session: PiSession; forkedFromExistingSession: boolean}> {
   const sessionManagerSetup = createPiSessionManager(params);
   const sessionManager = sessionManagerSetup.manager;
+  // They replace pi's built-in tools of the same name, so they stay out of `customTools`, which
+  // decides the tool selection and the order of the active tools below.
+  const hostTools = createPiHostToolDefinitions({
+    host: params.host,
+    cwd: params.cwd,
+    selectedTools: params.tools,
+    settings: {
+      autoResizeImages: params.services.settingsManager.getImageAutoResize(),
+      shellCommandPrefix: params.services.settingsManager.getShellCommandPrefix(),
+      shellPath: params.services.settingsManager.getShellPath(),
+    },
+    gitConfigGlobal: params.gitConfigGlobal,
+  });
+  const sessionTools = [...params.customTools, ...hostTools];
   try {
     const created = await createAgentSessionFromServices({
       services: params.services,
@@ -281,7 +300,7 @@ async function createPiSession(params: {
           ? []
           : [PI_MCP_TOOL_NAME, ...params.mcpConfig.directToolNames]),
       ]),
-      ...(params.customTools.length === 0 ? {} : {customTools: params.customTools}),
+      ...(sessionTools.length === 0 ? {} : {customTools: sessionTools}),
       sessionManager,
     });
     if (params.tools === undefined && params.customTools.length > 0) {
@@ -309,7 +328,6 @@ async function runPiSession(params: {
   signal: AbortSignal;
   mcpConfig: PiMcpConfig | undefined;
   onSessionEntry: HarnessInvocation['onSessionEntry'];
-  gitConfigGlobal: string | undefined;
   hasDeclaredOutputs: boolean;
   prompt: string;
   collector: OutputCollector;
@@ -368,19 +386,12 @@ async function runActivePiSession(
   );
   const stopForwarder = () => forwarder?.stop();
   params.signal.addEventListener('abort', stopForwarder, {once: true});
-  const restoreGitConfigGlobal = createGitConfigGlobalRestorer(params.gitConfigGlobal);
-  if (params.gitConfigGlobal) {
-    process.env.GIT_CONFIG_GLOBAL = params.gitConfigGlobal;
-    params.signal.addEventListener('abort', restoreGitConfigGlobal, {once: true});
-  }
   try {
     return await runPiOutputTurns({...params, retryTracker});
   } finally {
     unsubscribeRetryEvents?.();
     forwarder?.stop();
-    restoreGitConfigGlobal();
     params.signal.removeEventListener('abort', stopForwarder);
-    params.signal.removeEventListener('abort', restoreGitConfigGlobal);
   }
 }
 
@@ -1702,20 +1713,6 @@ function toPiCustomProviderModel(
     ...(model.compat === undefined ? {} : {compat: model.compat}),
   };
   return piModel;
-}
-
-function createGitConfigGlobalRestorer(gitConfigGlobal: string | undefined): () => void {
-  let restored = false;
-  const previous = process.env.GIT_CONFIG_GLOBAL;
-  return () => {
-    if (gitConfigGlobal === undefined || restored) return;
-    restored = true;
-    if (previous === undefined) {
-      delete process.env.GIT_CONFIG_GLOBAL;
-      return;
-    }
-    process.env.GIT_CONFIG_GLOBAL = previous;
-  };
 }
 
 function startForwarding(

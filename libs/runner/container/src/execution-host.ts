@@ -31,6 +31,12 @@ export interface HostProcess {
    * emitted. Rejects when the process could not be started.
    */
   readonly exited: Promise<HostProcessExit>;
+  /**
+   * Settles once the process itself ended, without waiting for its output pipes. A descendant that
+   * outlives it can hold the pipes open, so callers that must not wait for it read the pipes until
+   * they go quiet instead of waiting for `exited`. Rejects when the process could not be started.
+   */
+  readonly processExited: Promise<HostProcessExit>;
   /** SIGKILLs the process and every descendant. Does nothing once the tree is gone. */
   killTree(): Promise<void>;
 }

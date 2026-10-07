@@ -38,11 +38,18 @@ export class LocalExecutionHost implements ExecutionHost {
       child.on('error', reject);
       child.on('close', (exitCode, signal) => resolve({exitCode, signal}));
     });
+    const processExited = new Promise<HostProcessExit>((resolve, reject) => {
+      child.on('error', reject);
+      child.on('exit', (exitCode, signal) => resolve({exitCode, signal}));
+    });
+    // Most callers wait for `exited` only, and a failed start must not also be an unhandled rejection.
+    processExited.catch(() => undefined);
     return {
       stdout: child.stdout,
       stderr: child.stderr,
       ...(child.stdin ? {stdin: child.stdin} : {}),
       exited,
+      processExited,
       killTree,
     };
   }

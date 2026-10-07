@@ -34,6 +34,7 @@ import {
   claudeCredentialHelperEnvironment,
   createClaudeCredentialBroker,
 } from '#core/claude-credential-broker.js';
+import {createClaudeProcessSpawner, withProcessStderr} from '#core/claude-spawn.js';
 import {
   type ClaudeToolCatalogErrorClass,
   type ClaudeToolCatalogFailure,
@@ -50,7 +51,6 @@ import {
   AgentSessionUnavailableError,
 } from '#core/errors.js';
 import type {HarnessAdapter, HarnessInvocation, HarnessResult} from '#core/harness.js';
-import {withDefaultOomScore} from '#core/oom-score.js';
 import {
   OutputCollector,
   RequiredOutputsMissingError,
@@ -355,6 +355,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
   let toolContext: ClaudeToolContext | undefined;
   let turnsCompleted = false;
   let credentialBroker: ClaudeCredentialBroker | undefined;
+  const processSpawner = createClaudeProcessSpawner(invocation.host);
   const controller = new AbortController();
   const abortQuery = () => {
     controller.abort();
@@ -393,6 +394,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
         ...toolContext.selectedToolOptions,
         ...claudeSystemPromptOption(),
         ...claudeExecutableOptions(),
+        spawnClaudeCodeProcess: processSpawner.spawn,
         ...(credentialBroker === undefined
           ? {}
           : {settings: {apiKeyHelper: CLAUDE_AUTH_HELPER_PATH}}),
@@ -446,7 +448,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
       signal,
     );
     return await handleClaudeAgentFailure({
-      error,
+      error: withProcessStderr(error, processSpawner.stderrTail()),
       diagnostics,
       collector,
       response,
@@ -1400,15 +1402,10 @@ function userMessage(content: string): SDKUserMessage {
   };
 }
 
-// The SDK passes executableArgs before its own CLI arguments when the executable is native, so
-// /bin/sh resets the OOM score and then execs the bundled binary with the SDK's arguments.
-function claudeExecutableOptions(): {
-  readonly pathToClaudeCodeExecutable?: string;
-  readonly executableArgs?: string[];
-} {
+// The local execution host resets the OOM score of every process it starts, including this one.
+function claudeExecutableOptions(): {readonly pathToClaudeCodeExecutable?: string} {
   if (process.platform !== 'linux') return {};
-  const launch = withDefaultOomScore({executable: resolveBundledClaudeCodeExecutable(), args: []});
-  return {pathToClaudeCodeExecutable: launch.executable, executableArgs: launch.args};
+  return {pathToClaudeCodeExecutable: resolveBundledClaudeCodeExecutable()};
 }
 
 function claudeSystemPromptOption(): {readonly systemPrompt?: string} {
