@@ -21,6 +21,12 @@ export type StepAttemptDisplayDuration =
   | {state: 'fixed'; elapsed: Duration}
   | {state: 'live'; fromIso: string};
 
+export interface EvaluationTraceError {
+  message: string;
+  path?: string;
+  source?: {kind: 'step' | 'job'; key: string; status: string};
+}
+
 export interface EvaluationTraceValueEntry {
   expression: string;
   roots: string[];
@@ -32,6 +38,7 @@ export interface EvaluationTraceValueEntry {
   exprTruncated?: boolean;
   reference?: boolean;
   degraded?: boolean;
+  error?: EvaluationTraceError;
   envKey?: string;
 }
 

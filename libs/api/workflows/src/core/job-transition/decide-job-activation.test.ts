@@ -81,7 +81,39 @@ describe('decideJobActivation', () => {
           value: 'false',
           degraded: true,
           field: 'job.if',
+          error: {
+            message: 'No such key: sha',
+            path: 'jobs.build.outputs.sha',
+            source: {kind: 'job', key: 'build', status: 'succeeded'},
+          },
         }),
+      ],
+    });
+  });
+
+  test('names the skipped job whose output a condition reads', () => {
+    const run = workflowRun();
+    const write = workflowJob({key: 'write', status: 'skipped'});
+    const notify = workflowJob({key: 'notify', dependencies: ['write']});
+
+    const decision = decideJobActivation({
+      run,
+      job: notify,
+      condition: expression('jobs.write.outputs.created_branch != ""'),
+      dependencies: [{job: write, executions: []}],
+    });
+
+    expect(decision).toMatchObject({
+      kind: 'skip-job',
+      statusReason: 'condition_errored',
+      evaluationTrace: [
+        {
+          error: {
+            message: 'No such key: created_branch',
+            path: 'jobs.write.outputs.created_branch',
+            source: {kind: 'job', key: 'write', status: 'skipped'},
+          },
+        },
       ],
     });
   });

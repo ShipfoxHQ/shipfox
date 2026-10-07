@@ -2068,12 +2068,34 @@ describe('assembleStepDispatchContext', () => {
               },
             ],
           },
-          test: {status: 'pending', attempts: []},
-          running: {status: 'running', attempts: []},
+          test: {status: 'pending', outputs: {}, attempts: []},
+          running: {status: 'running', outputs: {}, attempts: []},
         },
         vars: {},
       },
     });
+  });
+
+  it('exposes empty outputs for a step without a finished attempt', () => {
+    const targetStep = step({id: 'step-2', key: 'push'});
+    const context = assembleStepDispatchContext({
+      steps: [step({id: 'step-1', key: 'fix', status: 'skipped'}), targetStep],
+      attempts: [],
+      targetStepId: targetStep.id,
+    });
+
+    const guarded = createWorkflowExpression({
+      source: 'has(steps.fix.outputs.status)',
+      check: {mode: 'syntax'},
+    });
+    const unguarded = createWorkflowExpression({
+      source: 'steps.fix.outputs.status == "implemented"',
+      check: {mode: 'syntax'},
+    });
+    expect(evaluateWorkflowExpression(guarded, context.values)).toBe(false);
+    expect(() => evaluateWorkflowExpression(unguarded, context.values)).toThrow(
+      'Workflow expression evaluation failed',
+    );
   });
 
   it('includes reported log paths and omits missing paths from the dispatch context', () => {
@@ -2194,7 +2216,7 @@ describe('assembleStepDispatchContext', () => {
           {status: 'succeeded', exit_code: 0n, outputs: {image: 'app:good'}},
         ],
       },
-      deploy: {status: 'pending', attempts: []},
+      deploy: {status: 'pending', outputs: {}, attempts: []},
     });
   });
 
@@ -2487,10 +2509,10 @@ describe('assembleStepDispatchContext', () => {
     expect(stepsContext).toEqual({
       conditional: {
         status: 'skipped',
+        outputs: {},
         attempts: [],
       },
     });
-    expect(stepsContext.conditional).not.toHaveProperty('outputs');
     expect(stepsContext.conditional).not.toHaveProperty('exit_code');
     expect(stepsContext.conditional).not.toHaveProperty('gate');
   });

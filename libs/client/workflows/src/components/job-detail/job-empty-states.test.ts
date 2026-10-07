@@ -127,6 +127,34 @@ describe('toSelectedAttemptError', () => {
 });
 
 describe('skippedJobDescription', () => {
+  test('names the missing value of an errored condition', () => {
+    const description = skippedJobDescription('condition_errored', [
+      {
+        expression: 'jobs.write.outputs.created_branch != ""',
+        roots: ['jobs'],
+        fillTarget: 'job-activation',
+        evaluatedAt: 'job-activation',
+        field: 'job.if',
+        degraded: true,
+        error: {
+          message: 'No such key: created_branch',
+          path: 'jobs.write.outputs.created_branch',
+          source: {kind: 'job', key: 'write', status: 'skipped'},
+        },
+      },
+    ]);
+
+    expect(description).toBe(
+      '`jobs.write.outputs.created_branch` has no value because job `write` was skipped.',
+    );
+  });
+
+  test('keeps the generic copy when the trace stored no error', () => {
+    expect(skippedJobDescription('condition_errored', null)).toBe(
+      'Shipfox cannot evaluate the if condition of this job. Fix it, then start a new run.',
+    );
+  });
+
   test('explains when materialized output exceeds the configured size limit', () => {
     expect(skippedJobDescription('output_too_large')).toBe('The job output is too large.');
   });

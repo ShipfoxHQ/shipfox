@@ -1,3 +1,4 @@
+import {conditionErrorDescription} from '#core/condition-error.js';
 import type {RunAnnotationStyle, RunJobExplanation} from '#core/run-annotation.js';
 
 export interface RunJobExplanationPresentation {
@@ -21,7 +22,7 @@ export function presentRunJobExplanation(
   const traceSummary = formatConditionEvaluation(explanation.evaluationTrace);
   const summary =
     explanation.status === 'skipped'
-      ? skippedJobSummary(explanation.statusReason)
+      ? skippedJobSummary(explanation.statusReason, explanation.evaluationTrace)
       : failedJobSummary(explanation);
 
   return {
@@ -36,7 +37,10 @@ function explanationStyle(explanation: RunJobExplanation): RunAnnotationStyle {
   return EXPECTED_SKIP_REASONS.has(explanation.statusReason) ? 'default' : 'warning';
 }
 
-function skippedJobSummary(reason: RunJobExplanation['statusReason']): string {
+function skippedJobSummary(
+  reason: RunJobExplanation['statusReason'],
+  trace: RunJobExplanation['evaluationTrace'],
+): string {
   switch (reason) {
     case 'dependency_not_completed':
       return 'A required job did not complete, so this job did not run.';
@@ -46,7 +50,10 @@ function skippedJobSummary(reason: RunJobExplanation['statusReason']): string {
     case 'condition_rejected':
       return 'Its condition evaluated to false, so this job did not run.';
     case 'condition_errored':
-      return "Shipfox could not evaluate this job's condition. Review the condition and the values it references.";
+      return (
+        conditionErrorDescription(trace) ??
+        "Shipfox could not evaluate this job's condition. Review the condition and the values it references."
+      );
     case 'user_cancelled':
       return 'This job did not run because it was cancelled.';
     case 'run_cancelled':

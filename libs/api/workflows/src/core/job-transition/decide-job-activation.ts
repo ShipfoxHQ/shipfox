@@ -76,6 +76,8 @@ export function decideJobActivation(input: DecideJobActivationInput): JobActivat
       site: context.site,
       value: outcome.value,
       degraded: outcome.evaluationFailed,
+      error: outcome.error,
+      values: context.values,
     }),
   };
 }

@@ -1,6 +1,7 @@
 import {deriveStepErrorCategory} from '@shipfox/api-workflows-dto';
 import {Callout, CalloutContent, CalloutDescription, CalloutTitle} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
+import {conditionErrorDescription} from '#core/condition-error.js';
 import type {Job, JobExecution, Step, StepError} from '#core/workflow-run.js';
 import {
   AGENT_CONFIG_ISSUES,
@@ -198,7 +199,7 @@ export function emptyStateForMissingExecution(job: Job): StepListEmptyState {
   if (job.status === 'skipped') {
     return {
       title: 'This job was skipped',
-      description: skippedJobDescription(job.statusReason),
+      description: skippedJobDescription(job.statusReason, job.evaluationTrace),
       status: 'skipped',
     };
   }
@@ -233,7 +234,10 @@ function missingExecutionFailureDescription(job: Job): string {
   return preStepFailureDescription(job.statusReason, job.runner);
 }
 
-export function skippedJobDescription(reason: Job['statusReason']): string {
+export function skippedJobDescription(
+  reason: Job['statusReason'],
+  evaluationTrace?: Job['evaluationTrace'],
+): string {
   switch (reason) {
     case 'dependency_not_completed':
       return 'This job needs another job that did not finish.';
@@ -243,7 +247,10 @@ export function skippedJobDescription(reason: Job['statusReason']): string {
     case 'condition_rejected':
       return 'The if condition of this job is false.';
     case 'condition_errored':
-      return 'Shipfox cannot evaluate the if condition of this job. Fix it, then start a new run.';
+      return (
+        conditionErrorDescription(evaluationTrace) ??
+        'Shipfox cannot evaluate the if condition of this job. Fix it, then start a new run.'
+      );
     case 'user_cancelled':
     case 'run_cancelled':
     case 'concurrency_superseded':

@@ -43,6 +43,7 @@ describe('evaluatePlannedPredicateAtSite', () => {
     expect(result).toEqual({
       value: false,
       evaluationFailed: true,
+      error: {message: 'No such key: missing', path: 'step.missing'},
       route: {roots: ['step'], runnerRoots: [], fillTarget: 'step-report'},
     });
   });
@@ -58,6 +59,7 @@ describe('evaluatePlannedPredicateAtSite', () => {
     expect(result).toEqual({
       value: false,
       evaluationFailed: true,
+      error: {message: 'CEL evaluation failed (unknown_variable)', path: 'jobs'},
       route: {roots: ['jobs'], runnerRoots: [], fillTarget: 'step-report'},
     });
   });

@@ -62,9 +62,17 @@ function evaluateWorkflowPredicateStrict(
   return value;
 }
 
+export interface PredicateEvaluationError {
+  readonly message: string;
+  /** The dotted path that had no value, when the failure was a missing path. */
+  readonly path?: string;
+}
+
 export interface FailClosedPredicateOutcome {
   readonly value: boolean;
   readonly evaluationFailed: boolean;
+  /** Set when `evaluationFailed` comes from an evaluation error, not from the fill site. */
+  readonly error?: PredicateEvaluationError;
 }
 
 export function evaluateWorkflowPredicateFailClosed(
@@ -75,8 +83,15 @@ export function evaluateWorkflowPredicateFailClosed(
     return {value: evaluateWorkflowPredicateStrict(expression, context), evaluationFailed: false};
   } catch (error) {
     if (error instanceof WorkflowExpressionEvaluationError) {
-      return {value: false, evaluationFailed: true};
+      return {value: false, evaluationFailed: true, error: predicateEvaluationError(error)};
     }
     throw error;
   }
+}
+
+function predicateEvaluationError(
+  error: WorkflowExpressionEvaluationError,
+): PredicateEvaluationError {
+  const path = error.detail.kind === 'missing-path' ? error.detail.path : undefined;
+  return {message: error.summary, ...(path === undefined ? {} : {path})};
 }

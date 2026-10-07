@@ -49,6 +49,7 @@ export {
 } from './entities/step.js';
 export type {
   EvaluationTraceEntry,
+  EvaluationTraceError,
   EvaluationTraceLimitEntry,
   EvaluationTraceValueEntry,
   StepAttemptDetail,

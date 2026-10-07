@@ -630,7 +630,26 @@ function projectEvaluationTraceEntry(entry: EvaluationTraceEntryDto): Evaluation
     evaluated_at: cap(entry.evaluated_at),
     field: cap(entry.field),
     ...(entry.value === undefined ? {} : {value: cap(entry.value)}),
+    ...(entry.error === undefined ? {} : {error: projectEvaluationTraceError(entry.error)}),
     ...(entry.env_key === undefined ? {} : {env_key: cap(entry.env_key)}),
+  };
+}
+
+function projectEvaluationTraceError(
+  error: NonNullable<Extract<EvaluationTraceEntryDto, {expression: string}>['error']>,
+): NonNullable<Extract<EvaluationTraceEntryDto, {expression: string}>['error']> {
+  return {
+    message: cap(error.message),
+    ...(error.path === undefined ? {} : {path: cap(error.path)}),
+    ...(error.source === undefined
+      ? {}
+      : {
+          source: {
+            kind: error.source.kind,
+            key: cap(error.source.key),
+            status: cap(error.source.status),
+          },
+        }),
   };
 }
 

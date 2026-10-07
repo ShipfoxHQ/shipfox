@@ -886,6 +886,8 @@ function evaluateStepCondition(params: {
     site: params.context.site,
     value: outcome.value,
     degraded: outcome.evaluationFailed,
+    error: outcome.error,
+    values: params.context.values,
   });
   if (outcome.evaluationFailed) {
     return {kind: 'skip', statusReason: 'condition_errored', evaluationTrace};

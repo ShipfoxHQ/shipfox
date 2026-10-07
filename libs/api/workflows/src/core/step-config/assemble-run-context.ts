@@ -982,7 +982,8 @@ function buildStepAttemptContext(params: {
     const latestAttempt = attempts.at(-1);
     stepsContext[step.key] = {
       status: step.status,
-      ...(latestAttempt === undefined ? {} : latestAttemptFields(latestAttempt)),
+      // A step that never ran has no attempt, so `has(steps.x.outputs.y)` must read an empty map.
+      ...(latestAttempt === undefined ? {outputs: {}} : latestAttemptFields(latestAttempt)),
       attempts: attempts.map(attemptFields),
     };
   }

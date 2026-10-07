@@ -116,7 +116,12 @@ describe('workflow diagnostic agent-access tools', () => {
           fill_target: 'job.condition',
           evaluated_at: isoDate,
           field: 'condition',
-          value: 'true',
+          value: 'false',
+          error: {
+            message: 'No such key: ok',
+            path: 'steps.build.outputs.ok',
+            source: {kind: 'step', key: 'build', status: 'succeeded'},
+          },
         },
       ],
       execution_evaluation_trace: null,
@@ -150,7 +155,12 @@ describe('workflow diagnostic agent-access tools', () => {
     });
     expect(result.job_evaluation_trace?.[0]).toMatchObject({
       expression: 'steps.build.outputs.ok',
-      value: 'true',
+      value: 'false',
+      error: {
+        message: 'No such key: ok',
+        path: 'steps.build.outputs.ok',
+        source: {kind: 'step', key: 'build', status: 'succeeded'},
+      },
     });
     expect(getWorkflowExecutionContextResultSchema.safeParse(result).success).toBe(true);
   });

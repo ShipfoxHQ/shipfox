@@ -8,6 +8,13 @@ export const EVALUATION_TRACE_MAX_BYTES = 64 * 1024;
 const TRACE_TRUNCATION_MARKER = '...[truncated]';
 const textEncoder = new TextEncoder();
 
+export interface EvaluationTraceError {
+  readonly message: string;
+  readonly path?: string;
+  /** The step or job the missing path reads, with its status when the trace was written. */
+  readonly source?: {readonly kind: 'step' | 'job'; readonly key: string; readonly status: string};
+}
+
 export interface EvaluationTraceEntry {
   readonly expression: string;
   readonly roots: readonly string[];
@@ -18,6 +25,7 @@ export interface EvaluationTraceEntry {
   readonly exprTruncated?: boolean;
   readonly reference?: boolean;
   readonly degraded?: boolean;
+  readonly error?: EvaluationTraceError;
 }
 
 export interface EvaluationTraceLimitEntry {
@@ -35,6 +43,7 @@ export interface EvaluationTraceEntryInput {
   readonly value?: string;
   readonly reference?: boolean;
   readonly degraded?: boolean;
+  readonly error?: EvaluationTraceError;
 }
 
 export interface PredicateTraceEntryInput {
@@ -43,6 +52,7 @@ export interface PredicateTraceEntryInput {
   readonly site: AvailabilitySite;
   readonly value: boolean;
   readonly degraded?: boolean;
+  readonly error?: EvaluationTraceError;
 }
 
 export function capTraceValue(value: string): {value: string; truncated: boolean} {
@@ -80,6 +90,7 @@ export function evaluationTraceEntry(input: EvaluationTraceEntryInput): Evaluati
     ...(expression.truncated ? {exprTruncated: true} : {}),
     ...(input.reference === true ? {reference: true} : {}),
     ...(input.degraded === true ? {degraded: true} : {}),
+    ...(input.error === undefined ? {} : {error: input.error}),
   };
 }
 
@@ -91,6 +102,7 @@ export function predicateTraceEntry(input: PredicateTraceEntryInput): Evaluation
     evaluatedAt: input.site,
     value: String(input.value),
     ...(input.degraded === true ? {degraded: true} : {}),
+    ...(input.error === undefined ? {} : {error: input.error}),
   });
 }
 

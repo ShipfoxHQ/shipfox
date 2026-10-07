@@ -5,9 +5,36 @@ import {
   EVALUATION_TRACE_MAX_ENTRIES,
   EVALUATION_TRACE_VALUE_CAP_BYTES,
   evaluationTraceEntry,
+  predicateTraceEntry,
 } from './evaluation-trace.js';
 
 describe('evaluation trace', () => {
+  it('keeps the evaluation error on a predicate entry and omits it when absent', () => {
+    const route = {roots: ['jobs'], runnerRoots: [], fillTarget: 'job-activation'} as const;
+    const error = {
+      message: 'No such key: created_branch',
+      path: 'jobs.write.outputs.created_branch',
+    };
+
+    const errored = predicateTraceEntry({
+      expression: 'jobs.write.outputs.created_branch != ""',
+      route,
+      site: 'job-activation',
+      value: false,
+      degraded: true,
+      error,
+    });
+    const clean = predicateTraceEntry({
+      expression: 'true',
+      route,
+      site: 'job-activation',
+      value: true,
+    });
+
+    expect(errored.error).toEqual(error);
+    expect(clean).not.toHaveProperty('error');
+  });
+
   const serializedByteLength = (value: unknown) =>
     new TextEncoder().encode(JSON.stringify(value)).byteLength;
 

@@ -8,6 +8,7 @@ import type {
 } from '@shipfox/api-workflows-dto';
 import type {
   EvaluationTraceEntry,
+  EvaluationTraceError,
   StepError,
   StepGateResult,
   WorkflowExecutionEvent,
@@ -122,7 +123,18 @@ function toEvaluationTraceEntry(entry: EvaluationTraceDto[number]): EvaluationTr
     ...(entry.expr_truncated === undefined ? {} : {exprTruncated: entry.expr_truncated}),
     ...(entry.reference === undefined ? {} : {reference: entry.reference}),
     ...(entry.degraded === undefined ? {} : {degraded: entry.degraded}),
+    ...(entry.error === undefined ? {} : {error: toEvaluationTraceError(entry.error)}),
     ...(entry.env_key === undefined ? {} : {envKey: entry.env_key}),
+  };
+}
+
+function toEvaluationTraceError(
+  error: NonNullable<Extract<EvaluationTraceDto[number], {expression: string}>['error']>,
+): EvaluationTraceError {
+  return {
+    message: error.message,
+    ...(error.path === undefined ? {} : {path: error.path}),
+    ...(error.source === undefined ? {} : {source: error.source}),
   };
 }
 

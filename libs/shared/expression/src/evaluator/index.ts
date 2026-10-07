@@ -11,6 +11,7 @@ export {
   evaluateWorkflowPredicate,
   evaluateWorkflowPredicateFailClosed,
   type FailClosedPredicateOutcome,
+  type PredicateEvaluationError,
   type WorkflowExpressionEnvironment,
   type WorkflowExpressionEvaluationContext,
   type WorkflowExpressionEvaluationValue,
