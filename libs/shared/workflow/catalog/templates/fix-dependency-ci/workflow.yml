@@ -27,7 +27,7 @@ jobs:
 
   fix:
     needs: inspect
-    if: ${{ needs.all(n, n.status == "succeeded") && jobs.inspect.outputs.eligible }}
+    if: ${{ jobs.inspect.outputs.eligible }}
     checkout: false
     steps:
       # part:source.checkout
@@ -77,14 +77,14 @@ jobs:
 
   report:
     needs: [inspect, fix]
-    if: ${{ needs.all(n, n.status == "succeeded") && jobs.fix.outputs.outcome != "superseded" }}
+    if: ${{ jobs.fix.outputs.outcome != "superseded" }}
     checkout: false
     steps:
       # part:source.report
 
   report_failure:
     needs: [inspect, fix]
-    if: ${{ needs.exists(n, n.status == "failed") }}
+    run_after: failure
     checkout: false
     steps:
       # part:source.failure_report

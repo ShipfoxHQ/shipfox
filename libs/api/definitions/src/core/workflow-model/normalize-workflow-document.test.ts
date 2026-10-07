@@ -2633,7 +2633,7 @@ describe('normalizeWorkflowDocument', () => {
           steps: [
             {key: 'compile', run: 'npm run build'},
             {
-              if: interpolation('steps.compile.status == "succeeded" && !execution.failed'),
+              if: interpolation('steps.compile.status == "succeeded"'),
               run: 'npm test',
             },
           ],
@@ -2650,7 +2650,7 @@ describe('normalizeWorkflowDocument', () => {
 
     expect(model.jobs[0]?.steps[1]?.if).toEqual({
       language: 'cel',
-      source: 'steps.compile.status == "succeeded" && !execution.failed',
+      source: 'steps.compile.status == "succeeded"',
       check: 'typed',
       resultType: 'bool',
     });
@@ -5256,6 +5256,57 @@ describe('normalizeWorkflowDocument', () => {
         }),
       }),
     ]);
+  });
+
+  it.each([
+    undefined,
+    'success',
+    'failure',
+  ] as const)('rejects a step if reading execution.failed with run_after %s', (runAfter) => {
+    const document: WorkflowDocument = {
+      name: 'step reads execution failed',
+      jobs: {
+        build: {
+          steps: [
+            {run: 'npm run build'},
+            {
+              run: 'npm run report',
+              ...(runAfter === undefined ? {} : {run_after: runAfter}),
+              if: interpolation('!execution.failed'),
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-step-if',
+        message:
+          'Step if reads execution.failed, which run_after already decides. Remove it, or set run_after: always.',
+        path: ['jobs', 'build', 'steps', 1, 'if'],
+      }),
+    ]);
+  });
+
+  it('accepts a step if reading execution.failed with run_after always', () => {
+    const document: WorkflowDocument = {
+      name: 'step reads execution failed',
+      jobs: {
+        build: {
+          steps: [
+            {run: 'npm run build'},
+            {run: 'npm run report', run_after: 'always', if: interpolation('execution.failed')},
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[1]?.runAfter).toBe('always');
   });
 
   it('reports invalid job success expressions', () => {

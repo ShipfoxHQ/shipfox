@@ -22,7 +22,7 @@ jobs:
 
   investigate:
     needs: inspect
-    if: ${{ needs.all(n, n.status == "succeeded") && jobs.inspect.outputs.open_repairs == 0 && jobs.inspect.outputs.previous_conclusion != "failure" }}
+    if: ${{ jobs.inspect.outputs.open_repairs == 0 && jobs.inspect.outputs.previous_conclusion != "failure" }}
     checkout: false
     steps:
       # part:source.checkout
@@ -111,7 +111,7 @@ jobs:
 
   deliver:
     needs: investigate
-    if: ${{ needs.all(n, n.status == "succeeded") && jobs.investigate.outputs.outcome == "ready" }}
+    if: ${{ jobs.investigate.outputs.outcome == "ready" }}
     checkout: false
     steps:
       # part:source.checkout_repair

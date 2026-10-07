@@ -14,7 +14,6 @@ jobs:
 
   draft:
     needs: thread
-    if: ${{ needs.all(n, n.status == "succeeded") }}
     # part:source.checkout
     steps:
       # part:source.revision
@@ -128,7 +127,7 @@ jobs:
 
   ticket:
     needs: [thread, draft]
-    if: ${{ needs.all(n, n.status == "succeeded") && jobs.draft.outputs.status == "ready" }}
+    if: ${{ jobs.draft.outputs.status == "ready" }}
     checkout: false
     outputs:
       ticket: ${{ steps.create_ticket.outputs.identifier }}
@@ -140,7 +139,8 @@ jobs:
 
   report_failure:
     needs: [thread, draft, ticket]
-    if: ${{ jobs.thread.status == "succeeded" && (jobs.draft.status == "failed" || jobs.ticket.status == "failed") }}
+    run_after: failure
+    if: ${{ jobs.thread.status == "succeeded" }}
     checkout: false
     steps:
       # part:chat.failure_reply

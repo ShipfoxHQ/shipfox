@@ -191,7 +191,7 @@ jobs:
   # option:feedback_loop=on begin
   respond_to_feedback:
     needs: implement
-    if: ${{ needs.all(n, n.status == "succeeded") && jobs.implement.outputs.pr_url != "" }}
+    if: ${{ jobs.implement.outputs.pr_url != "" }}
     checkout: false
     execution_name: Respond to pull request feedback ${{ execution.index }}
     listening:
