@@ -6,5 +6,6 @@ export interface RuntimeDagNode {
   readonly mode: 'one_shot' | 'listening';
   readonly dependencies: readonly string[];
   readonly hasActivationCondition?: boolean | undefined;
+  readonly runAfter?: 'success' | 'failure' | 'always' | undefined;
   readonly version: number;
 }

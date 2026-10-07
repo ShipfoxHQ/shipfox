@@ -13,6 +13,7 @@ function step(overrides: Partial<Step> & {id: string; position: number}): Step {
     type: 'run',
     config: {},
     condition: null,
+    runAfter: 'success',
     configPlan: null,
     authoredConfig: null,
     error: null,

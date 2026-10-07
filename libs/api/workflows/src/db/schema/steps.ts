@@ -18,6 +18,7 @@ import {
   STEP_STATUS_REASONS,
   type Step,
   type StepConfigDispatchPlan,
+  type StepRunAfter,
   type StepType,
   toStepStatusReason,
 } from '#core/entities/step.js';
@@ -49,6 +50,7 @@ export const steps = pgTable(
     type: text('type').notNull().$type<StepType>(),
     config: jsonb('config').notNull().$type<Record<string, unknown>>(),
     condition: jsonb('condition').$type<WorkflowExpression>(),
+    runAfter: text('run_after').notNull().default('success').$type<StepRunAfter>(),
     configPlan: jsonb('config_plan').$type<StepConfigDispatchPlan>(),
     authoredConfig: jsonb('authored_config').$type<Record<string, unknown>>(),
     error: jsonb('error').$type<Record<string, unknown>>(),
@@ -88,6 +90,7 @@ export function toStep(row: StepDb): Step {
     type: row.type,
     config: row.config as Record<string, unknown>,
     condition: (row.condition as WorkflowExpression) ?? null,
+    runAfter: row.runAfter,
     configPlan: row.configPlan ?? null,
     authoredConfig: (row.authoredConfig as Record<string, unknown>) ?? null,
     error: (row.error as Record<string, unknown>) ?? null,

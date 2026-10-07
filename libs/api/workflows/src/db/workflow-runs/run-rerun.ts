@@ -452,6 +452,7 @@ function materializedRerunStep(params: {
     type: params.step.type,
     config,
     condition: params.step.condition ?? null,
+    runAfter: params.step.runAfter,
     configPlan:
       params.rematerialized === undefined
         ? params.step.configPlan

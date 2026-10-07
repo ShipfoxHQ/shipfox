@@ -21,6 +21,7 @@ function step(overrides: Partial<Step> & {type: string}): Step {
     evaluationTrace: null,
     config: {},
     condition: null,
+    runAfter: 'success',
     configPlan: null,
     authoredConfig: null,
     error: null,

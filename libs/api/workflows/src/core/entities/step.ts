@@ -122,6 +122,8 @@ export interface StepConfigDispatchPlan {
   trace?: readonly (StepConfigEvaluationTraceEntry | EvaluationTraceLimitEntry)[];
 }
 
+export type StepRunAfter = 'success' | 'failure' | 'always';
+
 export interface Step {
   id: string;
   jobExecutionId: string;
@@ -134,6 +136,7 @@ export interface Step {
   type: StepType;
   config: Record<string, unknown>;
   condition: WorkflowExpression | null;
+  runAfter: StepRunAfter;
   configPlan: StepConfigDispatchPlan | null;
   authoredConfig: Record<string, unknown> | null;
   error: Record<string, unknown> | null;

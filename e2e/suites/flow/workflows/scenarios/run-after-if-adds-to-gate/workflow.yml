@@ -1,0 +1,16 @@
+name: Run after if adds to gate
+runner: __RUNNER_LABEL__
+triggers:
+  on_push:
+    source: __GITEA_SOURCE__
+    event: push
+    filter: 'event.ref == "refs/heads/main" && event.repository.full_name == "__GITEA_REPOSITORY__"'
+jobs:
+  build:
+    steps:
+      - key: boom
+        run: exit 1
+      # The if is true, but an earlier step failed: run_after defaults to success.
+      - key: guarded
+        if: '${{ steps.boom.status == "failed" }}'
+        run: echo "guarded ran"

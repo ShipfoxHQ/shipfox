@@ -5,7 +5,7 @@ import type {
   AgentToolMaterializationContext,
   AgentToolMaterializationSnapshot,
 } from '#core/agent-tools.js';
-import type {StepConfigDispatchPlan} from '#core/entities/step.js';
+import type {StepConfigDispatchPlan, StepRunAfter} from '#core/entities/step.js';
 import {
   AgentConfigUnresolvableError,
   AgentIntegrationMaterializationError,
@@ -28,6 +28,7 @@ export interface MaterializedWorkflowStep {
   readonly type: WorkflowModelStep['kind'] | 'setup';
   readonly config: Readonly<Record<string, unknown>>;
   readonly condition?: WorkflowExpression;
+  readonly runAfter: StepRunAfter;
   readonly configPlan?: StepConfigDispatchPlan;
   readonly authoredConfig: Readonly<Record<string, unknown>> | null;
   readonly diagnostics?: readonly WorkflowStepTemplateDiagnostic[];
@@ -57,6 +58,7 @@ const SETUP_STEP: Omit<MaterializedWorkflowStep, 'config'> = {
   sourceLocation: null,
   status: 'pending',
   type: 'setup',
+  runAfter: 'success',
   authoredConfig: null,
   position: 0,
 };
@@ -128,6 +130,8 @@ export async function materializeJobExecutionSteps(
             stepPosition,
           }),
           ...(step.if === undefined ? {} : {condition: step.if}),
+          // Models stored before `run_after` keep their old gate: an `if` replaced it.
+          runAfter: step.runAfter ?? (step.if === undefined ? 'success' : 'always'),
           authoredConfig: resolved.authoredConfig,
           ...materializedConfigPlan(resolved.configPlan, resolved.trace),
           ...(resolved.diagnostics.length === 0 ? {} : {diagnostics: resolved.diagnostics}),

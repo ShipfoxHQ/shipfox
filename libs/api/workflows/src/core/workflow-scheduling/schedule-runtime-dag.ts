@@ -73,7 +73,7 @@ function findReadyJobs<Job extends RuntimeDagNode>(
       !completed.has(job.key) &&
       !running.has(job.key) &&
       !hasActivationCondition(job) &&
-      job.dependencies.every((dependency) => completed.get(dependency) === 'succeeded'),
+      runAfterGate(job, completed) === 'pass',
   );
 }
 
@@ -84,11 +84,7 @@ function findDefaultSkippedJobs<Job extends RuntimeDagNode>(
 ): readonly Job[] {
   return jobs.filter(
     (job) =>
-      !completed.has(job.key) &&
-      !running.has(job.key) &&
-      !hasActivationCondition(job) &&
-      job.dependencies.every((dependency) => completed.has(dependency)) &&
-      job.dependencies.some((dependency) => completed.get(dependency) !== 'succeeded'),
+      !completed.has(job.key) && !running.has(job.key) && runAfterGate(job, completed) === 'reject',
   );
 }
 
@@ -102,7 +98,7 @@ function findActivationCandidates<Job extends RuntimeDagNode>(
       !completed.has(job.key) &&
       !running.has(job.key) &&
       hasActivationCondition(job) &&
-      job.dependencies.every((dependency) => completed.has(dependency)),
+      runAfterGate(job, completed) === 'pass',
   );
 }
 
@@ -112,4 +108,30 @@ function hasFailure(completed: ReadonlyMap<string, RuntimeCompletionStatus>): bo
 
 function hasActivationCondition(job: RuntimeDagNode): boolean {
   return job.hasActivationCondition === true;
+}
+
+// Jobs stored before `run_after` have no value: an `if` replaced the default gate.
+function effectiveRunAfter(job: RuntimeDagNode): 'success' | 'failure' | 'always' {
+  return job.runAfter ?? (hasActivationCondition(job) ? 'always' : 'success');
+}
+
+// A job waits for every need to finish, then `run_after` decides whether it may go on.
+function runAfterGate(
+  job: RuntimeDagNode,
+  completed: ReadonlyMap<string, RuntimeCompletionStatus>,
+): 'wait' | 'pass' | 'reject' {
+  if (!job.dependencies.every((dependency) => completed.has(dependency))) return 'wait';
+
+  switch (effectiveRunAfter(job)) {
+    case 'always':
+      return 'pass';
+    case 'failure':
+      return job.dependencies.some((dependency) => completed.get(dependency) === 'failed')
+        ? 'pass'
+        : 'reject';
+    case 'success':
+      return job.dependencies.every((dependency) => completed.get(dependency) === 'succeeded')
+        ? 'pass'
+        : 'reject';
+  }
 }

@@ -2746,6 +2746,7 @@ function step(overrides: Partial<Step> = {}): Step {
     type: 'run',
     config: {},
     condition: null,
+    runAfter: 'success',
     configPlan: null,
     authoredConfig: null,
     error: null,

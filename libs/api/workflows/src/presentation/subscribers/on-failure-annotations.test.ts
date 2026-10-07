@@ -1405,6 +1405,7 @@ function stepEntity(overrides: Partial<Step> = {}): Step {
     type: 'run',
     config: {run: 'pnpm test'},
     condition: null,
+    runAfter: 'success',
     configPlan: null,
     authoredConfig: {run: 'pnpm test'},
     error: {reason: 'agent_invocation_failed', message: 'Provider returned 500'},

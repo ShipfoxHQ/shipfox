@@ -112,6 +112,7 @@ function stepFrom(materialized: Awaited<ReturnType<typeof materializeActionStep>
     type: 'action',
     config: {...materialized.config},
     condition: null,
+    runAfter: 'success',
     configPlan: materialized.configPlan ?? null,
     authoredConfig: materialized.authoredConfig,
     error: null,

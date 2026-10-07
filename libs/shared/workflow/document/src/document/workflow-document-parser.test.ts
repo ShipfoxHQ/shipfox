@@ -32,6 +32,29 @@ describe('parseWorkflowDocument', () => {
     expect(result).toEqual(workflowDocument);
   });
 
+  it('accepts run_after on jobs and steps', () => {
+    const workflowDocument = {
+      name: 'handlers',
+      jobs: {
+        build: {steps: [{run: 'make'}]},
+        report: {
+          needs: 'build',
+          run_after: 'failure',
+          steps: [{run: 'echo failed', run_after: 'always'}],
+        },
+      },
+    };
+
+    expect(parseWorkflowDocument(workflowDocument)).toEqual(workflowDocument);
+  });
+
+  it.each([
+    ['job', {build: {run_after: 'sometimes', steps: [{run: 'make'}]}}],
+    ['step', {build: {steps: [{run: 'make', run_after: 'sometimes'}]}}],
+  ])('rejects an unknown run_after value on a %s', (_level, jobs) => {
+    expect(() => parseWorkflowDocument({name: 'bad', jobs})).toThrow(InvalidWorkflowDocumentError);
+  });
+
   it('preserves the top-level concurrency policy when parsing', () => {
     const result = parseWorkflowDocument({
       name: 'concurrent build',

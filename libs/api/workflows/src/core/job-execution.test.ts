@@ -150,6 +150,7 @@ function stepForClassification(params: Partial<Step> = {}): Step {
     type: 'run',
     config: {run: 'echo ok'},
     condition: null,
+    runAfter: 'success',
     configPlan: null,
     authoredConfig: null,
     error: null,
@@ -1421,7 +1422,7 @@ describe('recordStepResult', () => {
     if (!cleanup) throw new Error('Expected cleanup step');
     await db()
       .update(stepsTable)
-      .set({condition: conditionExpression('true')})
+      .set({condition: conditionExpression('true'), runAfter: 'always'})
       .where(eq(stepsTable.id, cleanup.id));
     await nextStepForJob(jobId);
     await recordStepResult({
@@ -1452,7 +1453,7 @@ describe('recordStepResult', () => {
     if (!upload) throw new Error('Expected upload step');
     await db()
       .update(stepsTable)
-      .set({condition: conditionExpression('execution.failed')})
+      .set({condition: conditionExpression('execution.failed'), runAfter: 'always'})
       .where(eq(stepsTable.id, upload.id));
     await nextStepForJob(jobId);
     await recordStepResult({
@@ -1471,6 +1472,93 @@ describe('recordStepResult', () => {
     });
     await recordStepResult({jobId, stepId: upload.id, status: 'succeeded'});
     expect(await nextStepForJob(jobId)).toEqual({kind: 'done', status: 'failed'});
+  });
+
+  describe('run_after on a step', () => {
+    async function arrangeGatedStep(params: {
+      readonly firstStep: 'succeeded' | 'failed';
+      readonly runAfter: 'success' | 'failure' | 'always';
+      readonly condition?: string;
+    }) {
+      const {jobId, steps} = await arrangeJobWithSteps(2);
+      const gated = steps[1];
+      if (!gated) throw new Error('Expected gated step');
+      await db()
+        .update(stepsTable)
+        .set({
+          runAfter: params.runAfter,
+          ...(params.condition === undefined
+            ? {}
+            : {condition: conditionExpression(params.condition)}),
+        })
+        .where(eq(stepsTable.id, gated.id));
+      await nextStepForJob(jobId);
+      await recordStepResult({
+        jobId,
+        stepId: steps[0]?.id as string,
+        status: params.firstStep,
+        ...(params.firstStep === 'failed' ? {error: {message: 'boom'}} : {}),
+      });
+      return {jobId, gatedId: gated.id, next: await nextStepForJob(jobId)};
+    }
+
+    test.each([
+      {firstStep: 'succeeded', runAfter: 'success', runs: true},
+      {firstStep: 'failed', runAfter: 'success', runs: false},
+      {firstStep: 'succeeded', runAfter: 'failure', runs: false},
+      {firstStep: 'failed', runAfter: 'failure', runs: true},
+      {firstStep: 'succeeded', runAfter: 'always', runs: true},
+      {firstStep: 'failed', runAfter: 'always', runs: true},
+    ] as const)('run_after $runAfter after a step that $firstStep runs: $runs', async ({
+      firstStep,
+      runAfter,
+      runs,
+    }) => {
+      const {jobId, gatedId, next} = await arrangeGatedStep({firstStep, runAfter});
+
+      if (runs) {
+        expect(next).toEqual({
+          kind: 'step',
+          step: expect.objectContaining({id: gatedId}),
+          dispatched: true,
+        });
+        return;
+      }
+      expect(next).toMatchObject({kind: 'done'});
+      const gated = (await getStepsByJobId(jobId)).find((step) => step.id === gatedId);
+      expect(gated?.status).toBe('skipped');
+      expect(gated?.statusReason).toBe('default_gate_rejected');
+      expect(gated?.evaluationTrace).toMatchObject([
+        {
+          field: 'step.default_gate',
+          expression: runAfter === 'success' ? '!execution.failed' : 'execution.failed',
+        },
+      ]);
+    });
+
+    test('an if adds to the default gate: a true if still skips after a failure', async () => {
+      const {jobId, gatedId, next} = await arrangeGatedStep({
+        firstStep: 'failed',
+        runAfter: 'success',
+        condition: 'true',
+      });
+
+      expect(next).toEqual({kind: 'done', status: 'failed'});
+      const gated = (await getStepsByJobId(jobId)).find((step) => step.id === gatedId);
+      expect(gated?.statusReason).toBe('default_gate_rejected');
+    });
+
+    test('the if is evaluated after run_after passes', async () => {
+      const {jobId, gatedId, next} = await arrangeGatedStep({
+        firstStep: 'failed',
+        runAfter: 'failure',
+        condition: 'false',
+      });
+
+      expect(next).toEqual({kind: 'done', status: 'failed'});
+      const gated = (await getStepsByJobId(jobId)).find((step) => step.id === gatedId);
+      expect(gated?.statusReason).toBe('condition_rejected');
+    });
   });
 
   test('never downgrades an already-terminal row', async () => {

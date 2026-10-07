@@ -198,6 +198,7 @@ function checkoutStep(params: Partial<Step> = {}): Step {
       },
     },
     condition: null,
+    runAfter: 'success',
     configPlan: null,
     authoredConfig: null,
     error: null,

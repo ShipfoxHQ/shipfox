@@ -74,6 +74,7 @@ function agentStep(params: Partial<Step> = {}): Step {
       prompt: 'Fix it.',
     },
     condition: null,
+    runAfter: 'success',
     configPlan: null,
     authoredConfig: null,
     error: null,

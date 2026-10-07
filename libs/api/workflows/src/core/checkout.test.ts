@@ -889,6 +889,7 @@ function checkoutStep(checkout: Record<string, unknown>): Step {
     type: 'checkout',
     config: {checkout},
     condition: null,
+    runAfter: 'success',
     configPlan: null,
     authoredConfig: null,
     error: null,

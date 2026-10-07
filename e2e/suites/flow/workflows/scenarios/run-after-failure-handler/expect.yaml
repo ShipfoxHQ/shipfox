@@ -1,0 +1,27 @@
+trigger: push
+run:
+  status: failed
+jobs:
+  build:
+    status: failed
+    steps:
+      boom:
+        status: failed
+        exit_code: 1
+      after_success:
+        status: skipped
+      handle_step:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["step handler ran"]
+  handle_job:
+    status: succeeded
+    steps:
+      handle:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["job handler ran"]
+  deploy:
+    status: skipped

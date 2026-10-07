@@ -873,17 +873,19 @@ function evaluateStepCondition(params: {
   readonly step: Step;
   readonly context: WorkflowEvaluationContext;
 }): StepConditionOutcome {
-  const condition = params.step.condition;
-  if (condition === null) {
-    const execution = params.context.values.execution as {failed?: unknown} | undefined;
-    return execution?.failed === true
-      ? {
-          kind: 'skip',
-          statusReason: 'default_gate_rejected',
-          evaluationTrace: defaultStepConditionTrace(),
-        }
-      : {kind: 'run'};
+  const execution = params.context.values.execution as {failed?: unknown} | undefined;
+  const failed = execution?.failed === true;
+  const {runAfter} = params.step;
+  if ((runAfter === 'success' && failed) || (runAfter === 'failure' && !failed)) {
+    return {
+      kind: 'skip',
+      statusReason: 'default_gate_rejected',
+      evaluationTrace: defaultStepConditionTrace(runAfter),
+    };
   }
+
+  const condition = params.step.condition;
+  if (condition === null) return {kind: 'run'};
 
   const outcome = evaluatePlannedPredicateAtSite({
     expression: condition,

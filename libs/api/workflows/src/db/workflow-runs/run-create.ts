@@ -708,6 +708,7 @@ function materializeRunGraphJobs(params: {
         type: step.type,
         config: step.config,
         condition: step.condition ?? null,
+        runAfter: step.runAfter,
         configPlan: step.configPlan ?? null,
         authoredConfig: step.authoredConfig,
         position: step.position,
