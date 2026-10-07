@@ -1,0 +1,13 @@
+provider: github
+modes: [real]
+steps:
+  - tool: pull_request_read
+    method: get_diff
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $fixture.github.pull_request.number
+    expect:
+      shape: {result: string}
+      matches:
+        result: diff --git a/fixtures/extra\.txt b/fixtures/extra\.txt

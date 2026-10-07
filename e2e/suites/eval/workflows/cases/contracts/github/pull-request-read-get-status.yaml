@@ -1,0 +1,14 @@
+provider: github
+modes: [real]
+steps:
+  - tool: pull_request_read
+    method: get_status
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $fixture.github.pull_request.number
+      ref: $fixture.github.pull_request.head_ref
+    # The fixture branch has check runs and no commit statuses.
+    expect:
+      shape: {state: string, sha: string, total_count: number}
+      values: {total_count: 0}

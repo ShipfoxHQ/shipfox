@@ -1,0 +1,14 @@
+provider: github
+modes: [real]
+steps:
+  - tool: pull_request_read
+    method: get_commits
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $fixture.github.pull_request.number
+    expect:
+      shape:
+        result: [{sha: string, commit: {message: string}}]
+      values:
+        result[0].commit.message: Extend the notes
