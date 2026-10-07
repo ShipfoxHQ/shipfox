@@ -20,6 +20,7 @@ jobs:
       workflow: ${{ steps.route.outputs.workflow }}
       run_id: '${{ steps.start.status == "succeeded" ? steps.start.outputs.run_id : "" }}'
       run_number: '${{ steps.start.status == "succeeded" ? int(steps.start.outputs.run_number) : 0 }}'
+      run_url: '${{ steps.start.status == "succeeded" ? steps.start.outputs.url : "" }}'
     steps:
       # The prompt lists the workflows this dispatcher can start. Replace each path with the file of
       # the matching workflow in this project, in the prompt and in the `workflow` output enum.
@@ -164,6 +165,7 @@ jobs:
         outputs:
           run_id: ${{ result.run_id }}
           run_number: ${{ result.run_number }}
+          url: ${{ result.url }}
           name: ${{ result.name }}
 
       # part:chat.started

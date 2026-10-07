@@ -366,4 +366,5 @@ export {
   workflowsWorkflowRunStartedSchema,
   workflowsWorkflowRunTerminatedSchema,
 } from './events.js';
+export {workflowRunUrl} from './run-url.js';
 export {assertWorkingDirectory, InvalidWorkingDirectoryError} from './working-directory.js';

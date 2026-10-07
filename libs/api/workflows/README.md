@@ -50,6 +50,7 @@ const run = await runWorkflow(definitions, {
 | `WORKFLOWS_CONCURRENCY_REPAIR_POLL_INTERVAL_MS` | `1000` | Delay between bounded workflow concurrency repair scans, in milliseconds. The value must be a safe whole number from `1` through `2147483647`. |
 | `WORKFLOWS_CONCURRENCY_REPAIR_BATCH_SIZE` | `100` | Maximum number of concurrency drift candidates processed in one scan. The value must be a safe whole number greater than `0`. |
 | `WORKFLOWS_JOB_QUEUE_TIMEOUT` | `1h` | Longest time a queued job waits for a runner before it fails. Set a duration from `1m` through `24h`. |
+| `CLIENT_BASE_URL` | `http://localhost:5173` | Base URL of the client app. Builds the run link that workflows read as `run.url`. |
 
 The catalog is loaded and validated once when the Workflows module is imported;
 restart the API after changing the file. An empty YAML document behaves like an

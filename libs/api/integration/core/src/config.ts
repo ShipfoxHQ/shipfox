@@ -1,6 +1,10 @@
-import {bool, createConfig, num, port, url} from '@shipfox/config';
+import {bool, createConfig, num, port, str, url} from '@shipfox/config';
 
 export const config = createConfig({
+  CLIENT_BASE_URL: str({
+    desc: 'Base URL of the client app. Used to build the run links that the Shipfox start_workflow_run tool returns.',
+    default: 'http://localhost:5173',
+  }),
   INTEGRATIONS_ENABLE_CRON_PROVIDER: bool({
     desc: 'Enables the cron integration provider so workflow schedules can use the built-in cron source. It is enabled by default because it does not require provider setup.',
     default: true,

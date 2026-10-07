@@ -2,6 +2,7 @@ import {
   SHIPFOX_BUILTIN_CONNECTION_ID,
   shipfoxEventCatalog,
 } from '@shipfox/api-integration-shipfox-dto';
+import {config} from '#config.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
 async function loadShipfoxModuleParts(
@@ -20,6 +21,7 @@ async function loadShipfoxModuleParts(
             adapters: {
               agent_tools: createShipfoxAgentToolsProvider({
                 annotations: interModule.annotations,
+                clientBaseUrl: config.CLIENT_BASE_URL,
                 definitions: interModule.definitions,
                 projects: interModule.projects,
                 logs: interModule.logs,

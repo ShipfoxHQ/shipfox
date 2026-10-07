@@ -56,12 +56,17 @@ exports[`Shipfox agent tools > keeps the tool catalog and selection catalog deli
           "minimum": 1,
           "type": "integer",
         },
+        "url": {
+          "description": "Link to the started run in the Shipfox app.",
+          "type": "string",
+        },
       },
       "required": [
         "run_id",
         "run_number",
         "name",
         "project_id",
+        "url",
         "deduplicated",
       ],
       "type": "object",

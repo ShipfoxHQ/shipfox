@@ -62,7 +62,7 @@ started: |
       channel_id: ${{ jobs.thread.outputs.channel_id }}
       thread_ts: ${{ jobs.thread.outputs.thread_ts }}
       message: |-
-        Shipfox started [${{ steps.start.outputs.name }} #${{ steps.start.outputs.run_number }}](https://app.shipfox.io/runs/${{ steps.start.outputs.run_id }}) for this request.
+        Shipfox started [${{ steps.start.outputs.name }} #${{ steps.start.outputs.run_number }}](${{ steps.start.outputs.url }}) for this request.
         ${{ steps.route.outputs.reply }}
     outputs:
       message_ts: ${{ result.ts }}
@@ -76,7 +76,7 @@ task_result: |
       channel_id: ${{ jobs.thread.outputs.channel_id }}
       thread_ts: ${{ jobs.thread.outputs.thread_ts }}
       message: |-
-        Run [#${{ jobs.route.outputs.run_number }}](https://app.shipfox.io/runs/${{ jobs.route.outputs.run_id }}) opened a pull request for this request: ${{ size(execution.events.filter(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.pr_url))) > 0 ? execution.events.filter(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.pr_url))[0].data.job.outputs.pr_url : "" }}
+        Run [#${{ jobs.route.outputs.run_number }}](${{ jobs.route.outputs.run_url }}) opened a pull request for this request: ${{ size(execution.events.filter(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.pr_url))) > 0 ? execution.events.filter(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.pr_url))[0].data.job.outputs.pr_url : "" }}
 
         _Review it before you merge it._
   - key: questions
@@ -87,7 +87,7 @@ task_result: |
       channel_id: ${{ jobs.thread.outputs.channel_id }}
       thread_ts: ${{ jobs.thread.outputs.thread_ts }}
       message: |-
-        Run [#${{ jobs.route.outputs.run_number }}](https://app.shipfox.io/runs/${{ jobs.route.outputs.run_id }}) needs more information before it changes code:
+        Run [#${{ jobs.route.outputs.run_number }}](${{ jobs.route.outputs.run_url }}) needs more information before it changes code:
 
         ${{ size(execution.events.filter(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.questions))) > 0 ? execution.events.filter(e, e.event == "job.completed" && e.data.job.status == "succeeded" && has(e.data.job.outputs.questions))[0].data.job.outputs.questions : "" }}
 
@@ -99,7 +99,7 @@ task_result: |
     with:
       channel_id: ${{ jobs.thread.outputs.channel_id }}
       thread_ts: ${{ jobs.thread.outputs.thread_ts }}
-      message: Run [#${{ jobs.route.outputs.run_number }}](https://app.shipfox.io/runs/${{ jobs.route.outputs.run_id }}) stopped before it opened a pull request. A project member can inspect the run in Shipfox.
+      message: Run [#${{ jobs.route.outputs.run_number }}](${{ jobs.route.outputs.run_url }}) stopped before it opened a pull request. A project member can inspect the run in Shipfox.
 failure_reply: |
   - key: report_failure
     tool: send_message

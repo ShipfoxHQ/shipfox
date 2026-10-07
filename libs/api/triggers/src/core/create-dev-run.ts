@@ -1,7 +1,10 @@
 import {createHash, randomUUID} from 'node:crypto';
 import type {ActionUploadDto, TriggerDto} from '@shipfox/api-definitions-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
+import {SHIPFOX_PROVIDER} from '@shipfox/api-integration-shipfox-dto';
+import {workflowRunUrl} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {config as triggersConfig} from '#config.js';
 import {getTriggerEventById} from '#db/event-queries.js';
 import {devRunsCount} from '#metrics/instance.js';
 import {evaluateTriggerFilter} from './config.js';
@@ -431,12 +434,13 @@ async function buildReplayTrigger(
     throw new DevRunReplayEventUnavailableError(params.replayEventId);
   }
 
+  const payload = withRunUrl(sourceEvent.provider, sourceEvent.payload);
   const replaySource = {
     provider: sourceEvent.provider,
     deliveryId: sourceEvent.deliveryId,
     connectionId: sourceEvent.connectionId,
     connectionName: sourceEvent.connectionName,
-    payload: sourceEvent.payload,
+    payload,
     replayOfEventId: sourceEvent.id,
   } satisfies ReplaySource;
 
@@ -448,7 +452,7 @@ async function buildReplayTrigger(
     subscription: {config: {filter: trigger.filter}},
     source: sourceEvent.source,
     event: sourceEvent.event,
-    payload: sourceEvent.payload,
+    payload,
   });
   if (filterResult.kind === 'filtered') {
     return {
@@ -481,7 +485,7 @@ async function buildReplayTrigger(
       source: sourceEvent.source,
       event: sourceEvent.event,
       deliveryId: sourceEvent.deliveryId,
-      data: sourceEvent.payload,
+      data: payload,
     },
     // The trigger `with` block supplies run inputs, as dispatch passes the
     // subscription's `with` through for integration events.
@@ -489,5 +493,18 @@ async function buildReplayTrigger(
     event: sourceEvent.event,
     replaySource,
     triggerConnectionId: sourceEvent.connectionId ?? undefined,
+  };
+}
+
+// Shipfox events stored before `run.url` existed replay with the link a new event would carry.
+function withRunUrl(provider: string, payload: Record<string, unknown>): Record<string, unknown> {
+  if (provider !== SHIPFOX_PROVIDER) return payload;
+  const run = payload.run;
+  if (typeof run !== 'object' || run === null || Array.isArray(run)) return payload;
+  const {id, url} = run as {id?: unknown; url?: unknown};
+  if (typeof id !== 'string' || url !== undefined) return payload;
+  return {
+    ...payload,
+    run: {...run, url: workflowRunUrl({clientBaseUrl: triggersConfig.CLIENT_BASE_URL, runId: id})},
   };
 }

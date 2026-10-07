@@ -5,4 +5,5 @@ process.env.POSTGRES_PASSWORD ??= 'password';
 process.env.POSTGRES_DATABASE = 'api_test';
 process.env.POSTGRES_MAX_CONNECTIONS ??= '5';
 process.env.SECRETS_ENCRYPTION_KEK = 'ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=';
+process.env.CLIENT_BASE_URL = 'https://app.example.test';
 process.env.TZ = 'UTC';

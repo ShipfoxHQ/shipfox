@@ -124,6 +124,7 @@ function createProvider() {
   };
   const provider = createShipfoxAgentToolsProvider({
     annotations,
+    clientBaseUrl: 'https://app.example.test',
     definitions,
     logs,
     projects,
@@ -154,7 +155,7 @@ describe('Shipfox agent tools', () => {
     expect(shipfoxAgentToolCatalog[0]?.inputSchema).not.toHaveProperty('properties.secrets');
     expect(shipfoxAgentToolCatalog[0]?.outputSchema).toMatchObject({
       additionalProperties: false,
-      required: ['run_id', 'run_number', 'name', 'project_id', 'deduplicated'],
+      required: ['run_id', 'run_number', 'name', 'project_id', 'url', 'deduplicated'],
     });
     expect(shipfoxAgentToolCatalog[1]?.sensitivity).toBe('read');
     expect(shipfoxAgentToolCatalog[1]?.outputSchema).toMatchObject({
@@ -252,6 +253,7 @@ describe('Shipfox agent tools', () => {
         run_number: 42,
         name: 'Deploy',
         project_id: projectId,
+        url: `https://app.example.test/runs/${childRunId}`,
         deduplicated: false,
       },
     });

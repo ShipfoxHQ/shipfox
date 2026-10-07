@@ -30,6 +30,7 @@ import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-modul
 import {SECRET_KEY_MAX_LENGTH, SECRET_KEY_PATTERN_SOURCE} from '@shipfox/api-secrets-dto';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
+import {workflowRunUrl} from '@shipfox/api-workflows-dto';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {
@@ -80,6 +81,7 @@ export type ShipfoxToolCallResult = {
 };
 
 export interface ShipfoxAgentToolsProviderOptions {
+  clientBaseUrl: string;
   annotations: Pick<AnnotationsInterModuleClient, 'listAnnotationsForRunAttempt'>;
   definitions: Pick<
     DefinitionsInterModuleClient,
@@ -172,9 +174,10 @@ const startWorkflowRunOutputSchema = objectSchema(
     run_number: {type: 'integer', minimum: 1},
     name: {type: 'string'},
     project_id: {type: 'string', description: 'Project UUID that owns the workflow.'},
+    url: {type: 'string', description: 'Link to the started run in the Shipfox app.'},
     deduplicated: {type: 'boolean'},
   },
-  ['run_id', 'run_number', 'name', 'project_id', 'deduplicated'],
+  ['run_id', 'run_number', 'name', 'project_id', 'url', 'deduplicated'],
 );
 
 const projectOutputSchema = objectSchema(
@@ -822,6 +825,7 @@ export class ShipfoxAgentToolsProvider
         run_number: overview.run.number,
         name: started.name,
         project_id: projectId,
+        url: workflowRunUrl({clientBaseUrl: this.options.clientBaseUrl, runId: started.id}),
         deduplicated: started.deduplicated,
       });
     } catch (error) {

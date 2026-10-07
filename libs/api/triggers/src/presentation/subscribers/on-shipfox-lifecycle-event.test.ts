@@ -149,6 +149,7 @@ describe('Shipfox lifecycle subscriber', () => {
           data: expect.objectContaining({
             run: expect.objectContaining({
               id: ids.run,
+              url: `https://app.example.test/runs/${ids.run}`,
               attempt: 1,
               status: 'succeeded',
               status_reason: null,
