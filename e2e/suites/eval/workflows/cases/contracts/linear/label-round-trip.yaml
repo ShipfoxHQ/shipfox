@@ -1,0 +1,30 @@
+provider: linear
+kind: round-trip
+modes: [real]
+steps:
+  # The connection cannot create a label in a team (403), so the label belongs to the sandbox
+  # workspace. The tools cannot delete or archive a label, so it stays there.
+  - key: label
+    tool: create_issue_label
+    with:
+      name: Contract $marker
+      color: '#4EA7FC'
+      description: Created by a contract.
+    expect:
+      shape: {id: string, name: string, color: string, isGroup: boolean}
+      values:
+        color: '#4EA7FC'
+        isGroup: false
+    # The marker is in the name, so the read filters on it and a pattern checks it. No label from
+    # an earlier run can match.
+    effect:
+      tool: list_issue_labels
+      with:
+        name: Contract $marker
+        limit: 1
+      expect:
+        values:
+          labels[0].color: '#4EA7FC'
+          labels[0].description: Created by a contract.
+        matches:
+          labels[0].name: '^Contract contract-[0-9a-f-]+$'

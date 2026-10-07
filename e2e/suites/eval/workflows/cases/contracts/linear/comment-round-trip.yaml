@@ -1,0 +1,76 @@
+provider: linear
+kind: round-trip
+modes: [real]
+steps:
+  - key: issue
+    tool: save_issue
+    with:
+      team: $fixture.linear.write_team.id
+      title: Contract $marker
+      description: Holds the comments of a contract.
+    expect:
+      shape: {id: string, uuid: string}
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.issue.id
+      expect:
+        values:
+          teamId: $fixture.linear.write_team.id
+        matches:
+          title: '^Contract contract-[0-9a-f-]+$'
+  - key: comment
+    tool: save_comment
+    with:
+      issueId: $steps.issue.id
+      body: Contract comment
+    expect:
+      shape: {id: string, body: string}
+      values:
+        body: Contract comment
+    # The issue is this run's, so its comments can't come from an earlier run.
+    effect:
+      tool: list_comments
+      with:
+        issueId: $steps.issue.id
+      expect:
+        includes:
+          comments: {body: Contract comment}
+  - key: update
+    tool: save_comment
+    with:
+      id: $steps.comment.id
+      issueId: $steps.issue.id
+      body: Contract comment updated
+    effect:
+      tool: list_comments
+      with:
+        issueId: $steps.issue.id
+      expect:
+        includes:
+          comments: {body: Contract comment updated}
+  - key: delete
+    tool: delete_comment
+    with:
+      id: $steps.comment.id
+    # The issue holds only this comment, so an empty first id means it is gone.
+    effect:
+      tool: list_comments
+      with:
+        issueId: $steps.issue.id
+      expect:
+        shape: {comments: list, hasNextPage: boolean}
+        values:
+          comments[0].id: ''
+  - key: cancel
+    tool: save_issue
+    with:
+      id: $steps.issue.id
+      state: Canceled
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.issue.id
+      expect:
+        values:
+          statusType: canceled

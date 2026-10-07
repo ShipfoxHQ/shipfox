@@ -1,0 +1,88 @@
+provider: linear
+kind: round-trip
+modes: [real]
+steps:
+  - key: issue
+    tool: save_issue
+    with:
+      team: $fixture.linear.write_team.id
+      title: Contract $marker
+      description: Holds the uploaded attachment of a contract.
+    expect:
+      shape: {id: string, uuid: string}
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.issue.id
+      expect:
+        values:
+          teamId: $fixture.linear.write_team.id
+        matches:
+          title: '^Contract contract-[0-9a-f-]+$'
+  # Preparing an upload only signs a URL. It links nothing to the issue until the finalize step.
+  - key: prepare
+    tool: prepare_attachment_upload
+    with:
+      issue: $steps.issue.id
+      title: Contract upload
+      filename: contract.txt
+      contentType: text/plain
+      size: 5
+    expect:
+      shape:
+        issueId: string
+        assetUrl: string
+        uploadRequest: {url: string, method: string}
+      values:
+        uploadRequest.method: PUT
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.issue.id
+      expect:
+        shape: {attachments: list}
+        values:
+          attachments[0].id: ''
+  # The case never sends the file to the signed URL: no step makes an HTTP call. Linking the
+  # asset URL is the contract, so the attachment exists, but its content cannot be downloaded.
+  - key: finalize
+    tool: create_attachment_from_upload
+    with:
+      issue: $steps.issue.id
+      assetUrl: $steps.prepare.assetUrl
+      title: Contract upload
+    expect:
+      shape: {id: string, url: string, title: string}
+      values:
+        title: Contract upload
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.issue.id
+      expect:
+        includes:
+          attachments: {title: Contract upload}
+  - key: delete
+    tool: delete_attachment
+    with:
+      id: $steps.finalize.id
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.issue.id
+      expect:
+        shape: {attachments: list}
+        values:
+          attachments[0].id: ''
+  - key: cancel
+    tool: save_issue
+    with:
+      id: $steps.issue.id
+      state: Canceled
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.issue.id
+      expect:
+        values:
+          statusType: canceled
