@@ -275,6 +275,53 @@ export default defineAction(() => ({value: help()}));
     expect(result).toMatchObject({success: false, outputs: {path: 'context/thread.md'}});
   });
 
+  it('returns what the action wrote to SHIPFOX_ENV and SHIPFOX_PATH, even when it fails', async () => {
+    const step = await actionStep(
+      action(
+        "async () => { const {appendFileSync} = await import('node:fs'); appendFileSync(process.env.SHIPFOX_ENV, 'TOOL_HOME=/opt/tool\\n'); appendFileSync(process.env.SHIPFOX_PATH, '/opt/tool/bin\\n'); throw new Error('boom'); }",
+      ),
+    );
+
+    const result = await run(step);
+
+    expect(result.success).toBe(false);
+    expect(result.carriedEnv).toEqual({env: {TOOL_HOME: '/opt/tool'}, path: ['/opt/tool/bin']});
+  });
+
+  it('fails a successful action that names a reserved variable', async () => {
+    const step = await actionStep(
+      action(
+        "async () => { const {appendFileSync} = await import('node:fs'); appendFileSync(process.env.SHIPFOX_ENV, 'SHIPFOX_OUTPUT=x\\n'); }",
+      ),
+    );
+
+    const result = await run(step);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toContain('"SHIPFOX_OUTPUT"');
+  });
+
+  it('layers the carried env above the allowlist and below the step env', async () => {
+    vi.stubEnv('LANG', 'C');
+    const step = await actionStep(
+      action("async () => { console.log('ENV=' + JSON.stringify(process.env)); }"),
+      {config: {env: {REGION: 'eu'}}},
+    );
+
+    const pending = run(step, {
+      carriedEnv: {
+        env: {REGION: 'us', LANG: 'carried', CARRIED_ONLY: 'yes'},
+        path: ['/opt/carried/bin'],
+      },
+    });
+    await pending;
+    vi.unstubAllEnvs();
+
+    const env = JSON.parse(ENV_REGEX.exec(pending.output())?.[1] ?? '{}') as Record<string, string>;
+    expect(env).toMatchObject({REGION: 'eu', LANG: 'carried', CARRIED_ONLY: 'yes'});
+    expect(env.PATH?.startsWith('/opt/carried/bin:')).toBe(true);
+  });
+
   it('kills a background process the action left running', async () => {
     const step = await actionStep(
       action(

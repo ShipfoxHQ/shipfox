@@ -2728,6 +2728,27 @@ describe('piHarnessAdapter', () => {
     expect(spawn).toHaveBeenCalledOnce();
   });
 
+  it('runs Pi shell commands with the carried env and PATH', async () => {
+    const host = new LocalExecutionHost();
+
+    await piHarnessAdapter.run(
+      invocation({
+        host,
+        cwd: tmpdir(),
+        carriedEnv: {env: {CARRIED_TEST_VAR: 'carried'}, path: ['/carried/bin']},
+      }),
+    );
+
+    const bashOptions = vi.mocked(createBashToolDefinition).mock.calls.at(-1)?.[1];
+    const chunks: Buffer[] = [];
+    await bashOptions?.operations?.exec('echo "$CARRIED_TEST_VAR $PATH"', tmpdir(), {
+      onData: (data) => chunks.push(data),
+      env: {PATH: '/usr/bin:/bin'},
+    });
+    expect(Buffer.concat(chunks).toString()).toBe('carried /carried/bin:/usr/bin:/bin\n');
+    expect(process.env.CARRIED_TEST_VAR).toBeUndefined();
+  });
+
   it('throws an AgentConfigError naming the provider when it is unknown', async () => {
     findMock.mockReturnValue(undefined);
     getAllMock.mockReturnValue([{provider: 'anthropic', id: 'claude-opus-4-8'}]);

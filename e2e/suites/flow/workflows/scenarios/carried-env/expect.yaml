@@ -1,0 +1,26 @@
+trigger: manual
+run:
+  status: failed
+jobs:
+  carry:
+    status: failed
+    steps:
+      seed:
+        status: succeeded
+        exit_code: 0
+      read_run:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["seed-tool ran", "run step saw the carried env"]
+      write_action:
+        type: action
+        status: failed
+        exit_code: 1
+        logs:
+          include: ["action saw the carried env"]
+      read_after_action:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["action-tool ran", "run step saw what the failed action carried"]

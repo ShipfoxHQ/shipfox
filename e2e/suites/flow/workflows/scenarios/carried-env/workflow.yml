@@ -1,0 +1,38 @@
+name: Carried env
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  carry:
+    steps:
+      - key: seed
+        run: |
+          mkdir -p seed-bin
+          printf '#!/bin/sh\necho "seed-tool ran"\n' > seed-bin/seed-tool
+          chmod +x seed-bin/seed-tool
+          echo "SEED=from-seed" >> "$SHIPFOX_ENV"
+          echo "OVERRIDDEN=from-seed" >> "$SHIPFOX_ENV"
+          printf 'MULTILINE<<EOF\nline one\nline two\nEOF\n' >> "$SHIPFOX_ENV"
+          echo "seed-bin" >> "$SHIPFOX_PATH"
+      - key: read_run
+        env:
+          OVERRIDDEN: from-step
+        run: |
+          test "$SEED" = from-seed
+          test "$OVERRIDDEN" = from-step
+          test "$(printf '%s\n' "$MULTILINE" | wc -l | tr -d ' ')" = 2
+          seed-tool
+          echo "run step saw the carried env"
+      - key: write_action
+        uses: ./.shipfox/actions/carry-env
+        env:
+          OVERRIDDEN: from-step
+      - key: read_after_action
+        run_after: always
+        run: |
+          test "$SEED" = from-seed
+          test "$ACTION_VAR" = from-action
+          seed-tool
+          action-tool
+          echo "run step saw what the failed action carried"

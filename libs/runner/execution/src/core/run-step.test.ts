@@ -19,6 +19,8 @@ const ESRCH_REGEX = /ESRCH/;
 const SHELL_EXECUTABLE_REGEX = /(?:^|\/)(bash|sh)$/;
 const SCRIPT_PATH_REGEX = /shipfox-runner-.*\.sh$/;
 const OUTPUT_PATH_REGEX = /shipfox-output-/;
+const ENV_PATH_REGEX = /shipfox-env-/;
+const PATH_PATH_REGEX = /shipfox-path-/;
 const SUMMARY_PATH_REGEX = /shipfox-step-summary-/;
 const ANNOTATIONS_DIR_REGEX = /shipfox-annotations-/;
 const PROCESS_TEST_WAIT_TIMEOUT_MS = 4_000;
@@ -1370,6 +1372,194 @@ describe('executeRunStep output sources', () => {
 
     expect(result.success).toBe(true);
     expect(result.outputs).toBeUndefined();
+  });
+});
+
+describe('executeRunStep carried env', () => {
+  it('returns what the step wrote to SHIPFOX_ENV and SHIPFOX_PATH', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'shipfox-carried-env-'));
+    try {
+      const step = buildStep({
+        config: {
+          run: [
+            'echo "TOOL_HOME=/opt/tool" >> "$SHIPFOX_ENV"',
+            'printf "MOTD<<EOF\\nhello\\nworld\\nEOF\\n" >> "$SHIPFOX_ENV"',
+            'echo "/opt/tool/bin" >> "$SHIPFOX_PATH"',
+            'echo "bin" >> "$SHIPFOX_PATH"',
+          ].join('\n'),
+        },
+      });
+
+      const result = await executeRunStep(step, {cwd});
+
+      expect(result.success).toBe(true);
+      expect(result.carriedEnv).toEqual({
+        env: {TOOL_HOME: '/opt/tool', MOTD: 'hello\nworld'},
+        path: ['/opt/tool/bin', join(cwd, 'bin')],
+      });
+    } finally {
+      await rm(cwd, {recursive: true, force: true});
+    }
+  });
+
+  it('returns what the step wrote even when it exits nonzero', async () => {
+    const step = buildStep({
+      config: {run: 'echo "FOO=1" >> "$SHIPFOX_ENV"\necho /opt/bin >> "$SHIPFOX_PATH"\nexit 3'},
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result).toMatchObject({success: false, exit_code: 3});
+    expect(result.carriedEnv).toEqual({env: {FOO: '1'}, path: ['/opt/bin']});
+  });
+
+  it('returns no carried env when the step wrote nothing', async () => {
+    const result = await executeRunStep(buildStep({config: {run: 'true'}}));
+
+    expect(result.carriedEnv).toBeUndefined();
+  });
+
+  it('fails a successful step that names PATH or a SHIPFOX_ variable', async () => {
+    for (const name of ['PATH', 'SHIPFOX_OUTPUT', 'SHIPFOX_CUSTOM']) {
+      const step = buildStep({config: {run: `echo "${name}=x" >> "$SHIPFOX_ENV"`}});
+
+      const result = await executeRunStep(step);
+
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain(`"${name}"`);
+      expect(result.carriedEnv).toBeUndefined();
+    }
+  });
+
+  it('fails a successful step with a malformed or oversized env file', async () => {
+    const malformed = await executeRunStep(
+      buildStep({config: {run: 'echo "not a pair" >> "$SHIPFOX_ENV"'}}),
+    );
+    const invalidName = await executeRunStep(
+      buildStep({config: {run: 'echo "MY-VAR=1" >> "$SHIPFOX_ENV"'}}),
+    );
+    const oversized = await executeRunStep(
+      buildStep({
+        config: {
+          run: `head -c ${MAX_OUTPUT_VALUE_BYTES + 1} /dev/zero | tr '\\0' a | sed 's/^/BIG=/' >> "$SHIPFOX_ENV"`,
+        },
+      }),
+    );
+
+    expect(malformed.error?.message).toBe('Env file contains a malformed line.');
+    expect(invalidName.error?.message).toBe('Env file contains an invalid key.');
+    expect(oversized.error?.message).toContain('Env "BIG" exceeds the per-value size limit');
+    for (const result of [malformed, invalidName, oversized]) {
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it('keeps the error of a step that already failed', async () => {
+    const step = buildStep({config: {run: 'echo "PATH=x" >> "$SHIPFOX_ENV"\nexit 2'}});
+
+    const result = await executeRunStep(step);
+
+    expect(result.error?.message).toBe('Command exited with code 2');
+  });
+
+  it('exposes both files to the child and overrides user env', async () => {
+    const step = buildStep({
+      config: {
+        run: 'echo "env=$SHIPFOX_ENV" >> "$SHIPFOX_OUTPUT"\necho "path=$SHIPFOX_PATH" >> "$SHIPFOX_OUTPUT"',
+        env: {SHIPFOX_ENV: '/tmp/user-env', SHIPFOX_PATH: '/tmp/user-path'},
+      },
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.outputs?.env).toMatch(ENV_PATH_REGEX);
+    expect(result.outputs?.path).toMatch(PATH_PATH_REGEX);
+  });
+
+  it('removes the files after the step', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'shipfox-carried-env-temp-'));
+    try {
+      await executeRunStep(
+        buildStep({config: {run: 'echo "A=1" >> "$SHIPFOX_ENV"\necho /x >> "$SHIPFOX_PATH"'}}),
+        {tempDir},
+      );
+
+      expect(await readdir(tempDir)).toEqual([]);
+    } finally {
+      await rm(tempDir, {recursive: true, force: true});
+    }
+  });
+
+  it('layers the carried env above the runner env and below the step env and secrets', async () => {
+    vi.stubEnv('CARRIED_TEST_RUNNER', 'runner');
+    vi.stubEnv('CARRIED_TEST_OVERRIDDEN', 'runner');
+    try {
+      const step = buildStep({
+        config: {
+          run: nodeEnvDumpCommand([
+            'CARRIED_TEST_RUNNER',
+            'CARRIED_TEST_OVERRIDDEN',
+            'CARRIED_TEST_SECRET',
+            'CARRIED_TEST_ONLY',
+          ]),
+          env: {CARRIED_TEST_OVERRIDDEN: 'step', CARRIED_TEST_SECRET: 'step'},
+        },
+      });
+      const output = collectOutput();
+
+      await executeRunStep(step, {
+        carriedEnv: {
+          env: {
+            CARRIED_TEST_RUNNER: 'carried',
+            CARRIED_TEST_OVERRIDDEN: 'carried',
+            CARRIED_TEST_SECRET: 'carried',
+            CARRIED_TEST_ONLY: 'carried',
+          },
+          path: [],
+        },
+        secretEnv: {CARRIED_TEST_SECRET: 'secret'},
+        onOutput: output.sink,
+      });
+
+      expect(JSON.parse(output.text())).toEqual({
+        CARRIED_TEST_RUNNER: 'carried',
+        CARRIED_TEST_OVERRIDDEN: 'step',
+        CARRIED_TEST_SECRET: 'secret',
+        CARRIED_TEST_ONLY: 'carried',
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('prepends the carried directories to PATH', async () => {
+    const step = buildStep({config: {run: 'echo "path=$PATH" >> "$SHIPFOX_OUTPUT"'}});
+
+    const result = await executeRunStep(step, {
+      env: {PATH: '/usr/bin'},
+      carriedEnv: {env: {}, path: ['/opt/new/bin', '/opt/old/bin']},
+    });
+
+    expect(result.outputs?.path).toBe('/opt/new/bin:/opt/old/bin:/usr/bin');
+  });
+
+  it('runs a program installed in a carried directory', async () => {
+    const bin = await mkdtemp(join(tmpdir(), 'shipfox-carried-bin-'));
+    try {
+      const tool = join(bin, 'carried-tool');
+      await writeFile(tool, '#!/bin/sh\necho "from $CARRIED_TOOL_NAME"\n', {mode: 0o755});
+      const output = collectOutput();
+
+      const result = await executeRunStep(buildStep({config: {run: 'carried-tool'}}), {
+        carriedEnv: {env: {CARRIED_TOOL_NAME: 'carried'}, path: [bin]},
+        onOutput: output.sink,
+      });
+
+      expect(result.success).toBe(true);
+      expect(output.text()).toContain('from carried');
+    } finally {
+      await rm(bin, {recursive: true, force: true});
+    }
   });
 });
 

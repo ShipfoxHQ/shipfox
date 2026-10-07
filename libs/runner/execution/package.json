@@ -26,6 +26,16 @@
         "default": "./dist/index.js"
       }
     },
+    "./carried-env": {
+      "workspace-source": {
+        "types": "./src/core/carried-env.ts",
+        "default": "./src/core/carried-env.ts"
+      },
+      "default": {
+        "types": "./dist/core/carried-env.d.ts",
+        "default": "./dist/core/carried-env.js"
+      }
+    },
     "./git-credential-helper": {
       "workspace-source": {
         "types": "./src/git-credential-helper.ts",

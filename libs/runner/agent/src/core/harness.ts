@@ -4,6 +4,7 @@ import type {
 } from '@shipfox/api-agent-dto';
 import type {OutputDeclarations} from '@shipfox/expression';
 import type {ExecutionHost} from '@shipfox/runner-container';
+import type {CarriedEnv} from '@shipfox/runner-execution/carried-env';
 import type {IntegrationToolsBridge} from '#core/integration-tools-bridge.js';
 import type {AgentPrerequisiteContract} from '#core/prerequisite-ledger.js';
 
@@ -72,6 +73,8 @@ export interface HarnessInvocation {
   readonly gitConfigGlobal?: string | undefined;
   /** Where the agent's tools and processes run. Defaults to the runner's own machine. */
   readonly host?: ExecutionHost | undefined;
+  /** What earlier steps carried. The agent's shell tools run with it. */
+  readonly carriedEnv?: CarriedEnv | undefined;
   readonly signal: AbortSignal;
   /** Forwards each verbatim session entry line as persisted, in order. Best-effort. */
   readonly onSessionEntry?: (line: string) => void;

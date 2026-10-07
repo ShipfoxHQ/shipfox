@@ -89,6 +89,7 @@ export interface ActionStepOptions
     | 'gitConfigGlobal'
     | 'secretValues'
     | 'subscribeSecrets'
+    | 'carriedEnv'
     | 'memoryEventsPath'
     | 'onOutput'
   > {
@@ -194,8 +195,8 @@ export async function executeActionStep(
         tempDir: jobTempDir,
         cwd: options.cwd,
         workspace: options.workspace,
-        env: {
-          ...inheritedActionEnv(process.env),
+        env: inheritedActionEnv(process.env),
+        stepEnv: {
           ...config.env,
           ...options.secretEnv,
           [ACTION_ENV.actionPath]: actionPath,
@@ -213,6 +214,7 @@ export async function executeActionStep(
         ...(options.signal ? {signal: options.signal} : {}),
         ...(options.gitConfigGlobal ? {gitConfigGlobal: options.gitConfigGlobal} : {}),
         ...(options.subscribeSecrets ? {subscribeSecrets: options.subscribeSecrets} : {}),
+        ...(options.carriedEnv ? {carriedEnv: options.carriedEnv} : {}),
         ...(options.memoryEventsPath ? {memoryEventsPath: options.memoryEventsPath} : {}),
         ...(options.onOutput ? {onOutput: options.onOutput} : {}),
       },

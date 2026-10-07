@@ -3,6 +3,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {ToolDefinition} from '@earendil-works/pi-coding-agent';
 import {LocalExecutionHost} from '@shipfox/runner-container';
+import type {CarriedEnv} from '@shipfox/runner-execution/carried-env';
 import {createBashOperations, createPiHostToolDefinitions} from '#core/pi-host-tools.js';
 
 const SETTINGS = {autoResizeImages: false, shellCommandPrefix: undefined, shellPath: undefined};
@@ -134,6 +135,7 @@ describe('Pi host tools', () => {
       command: string,
       options: {
         gitConfigGlobal?: string;
+        carriedEnv?: CarriedEnv;
         signal?: AbortSignal;
         timeout?: number;
         env?: NodeJS.ProcessEnv;
@@ -144,6 +146,7 @@ describe('Pi host tools', () => {
       const operations = createBashOperations(host, {
         shellPath: undefined,
         gitConfigGlobal: options.gitConfigGlobal,
+        carriedEnv: options.carriedEnv,
       });
       const result = operations.exec(command, options.cwd ?? root, {
         onData: (data) => chunks.push(data),
@@ -180,6 +183,23 @@ describe('Pi host tools', () => {
 
       expect(run.output()).toBe('/job/git.config\n');
       expect(process.env.GIT_CONFIG_GLOBAL).not.toBe('/job/git.config');
+    });
+
+    it('layers the carried env above the requested environment and below the job Git config', async () => {
+      const run = exec('echo "$SHARED/$CARRIED_ONLY/$GIT_CONFIG_GLOBAL"; echo "$PATH"', {
+        env: {...ENV, SHARED: 'runner', PATH: '/usr/bin:/bin'},
+        gitConfigGlobal: '/job/git.config',
+        carriedEnv: {
+          env: {SHARED: 'carried', CARRIED_ONLY: 'yes', GIT_CONFIG_GLOBAL: '/carried/git.config'},
+          path: ['/carried/a', '/carried/b'],
+        },
+      });
+
+      await run.result;
+
+      expect(run.output()).toBe(
+        'carried/yes//job/git.config\n/carried/a:/carried/b:/usr/bin:/bin\n',
+      );
     });
 
     it('returns when the shell exits although a background process holds the pipes', async () => {

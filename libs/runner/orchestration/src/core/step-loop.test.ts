@@ -897,6 +897,176 @@ describe('runJobSteps', () => {
     );
   });
 
+  describe('carried env', () => {
+    const FIRST = {env: {FIRST: '1'}, path: ['/first/bin']};
+    const SECOND = {env: {SECOND: '2'}, path: ['/second/bin']};
+
+    function withEnvSources(
+      step: StepDto,
+      attempt: number,
+      envSources: Array<{position: number; attempt: number}>,
+    ): NextStepResponseDto {
+      return {
+        kind: 'step',
+        step,
+        attempt,
+        lease_token: `lease-${step.id}-${attempt}`,
+        env_sources: envSources,
+      };
+    }
+
+    function carriedEnvOf(mock: ReturnType<typeof vi.fn>, call: number) {
+      return (mock.mock.calls[call]?.[1] as {carriedEnv?: unknown}).carriedEnv;
+    }
+
+    it('gives a step the carried env of the earlier steps the server lists', async () => {
+      const first = buildRunStep({id: '00000000-0000-0000-0000-0000000000e1', position: 1});
+      const second = buildRunStep({id: '00000000-0000-0000-0000-0000000000e2', position: 2});
+      const third = buildRunStep({id: '00000000-0000-0000-0000-0000000000e3', position: 3});
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(first, 1))
+        .mockResolvedValueOnce(withEnvSources(second, 1, [{position: 1, attempt: 1}]))
+        .mockResolvedValueOnce(
+          withEnvSources(third, 1, [
+            {position: 1, attempt: 1},
+            {position: 2, attempt: 1},
+          ]),
+        )
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeRunStepMock
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0, carriedEnv: FIRST})
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0, carriedEnv: SECOND})
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0});
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(carriedEnvOf(executeRunStepMock, 0)).toBeUndefined();
+      expect(carriedEnvOf(executeRunStepMock, 1)).toEqual(FIRST);
+      expect(carriedEnvOf(executeRunStepMock, 2)).toEqual({
+        env: {FIRST: '1', SECOND: '2'},
+        path: ['/second/bin', '/first/bin'],
+      });
+    });
+
+    it('leaves out a step the server does not list', async () => {
+      const first = buildRunStep({id: '00000000-0000-0000-0000-0000000000e1', position: 1});
+      const second = buildRunStep({id: '00000000-0000-0000-0000-0000000000e2', position: 2});
+      const third = buildRunStep({id: '00000000-0000-0000-0000-0000000000e3', position: 3});
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(first, 1))
+        .mockResolvedValueOnce(stepResponse(second, 1))
+        .mockResolvedValueOnce(withEnvSources(third, 1, [{position: 2, attempt: 1}]))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeRunStepMock
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0, carriedEnv: FIRST})
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0, carriedEnv: SECOND})
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0});
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(carriedEnvOf(executeRunStepMock, 2)).toEqual(SECOND);
+    });
+
+    it('applies only the attempt the server lists after a restart', async () => {
+      const target = buildRunStep({id: '00000000-0000-0000-0000-0000000000e1', position: 1});
+      const later = buildRunStep({id: '00000000-0000-0000-0000-0000000000e2', position: 2});
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(target, 1))
+        .mockResolvedValueOnce(stepResponse(target, 2))
+        .mockResolvedValueOnce(withEnvSources(later, 1, [{position: 1, attempt: 2}]))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeRunStepMock
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0, carriedEnv: FIRST})
+        .mockResolvedValueOnce({
+          success: true,
+          error: null,
+          exit_code: 0,
+          carriedEnv: {env: {FIRST: 'again'}, path: []},
+        })
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0});
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(carriedEnvOf(executeRunStepMock, 2)).toEqual({env: {FIRST: 'again'}, path: []});
+    });
+
+    it('ignores a rewound attempt, so a rerun that skips the target carries nothing', async () => {
+      const target = buildRunStep({id: '00000000-0000-0000-0000-0000000000e1', position: 1});
+      const later = buildRunStep({id: '00000000-0000-0000-0000-0000000000e2', position: 2});
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(target, 1))
+        .mockResolvedValueOnce(withEnvSources(later, 1, []))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeRunStepMock
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0, carriedEnv: FIRST})
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0});
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(carriedEnvOf(executeRunStepMock, 1)).toBeUndefined();
+    });
+
+    it('keeps what a failed step carried and does not report it', async () => {
+      const failing = buildRunStep({id: '00000000-0000-0000-0000-0000000000e1', position: 1});
+      const later = buildRunStep({id: '00000000-0000-0000-0000-0000000000e2', position: 2});
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(failing, 1))
+        .mockResolvedValueOnce(withEnvSources(later, 1, [{position: 1, attempt: 1}]))
+        .mockResolvedValueOnce({kind: 'done', status: 'failed'});
+      executeRunStepMock
+        .mockResolvedValueOnce({
+          success: false,
+          error: {message: 'Command exited with code 1', exit_code: 1},
+          exit_code: 1,
+          carriedEnv: FIRST,
+        })
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0});
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(carriedEnvOf(executeRunStepMock, 1)).toEqual(FIRST);
+      for (const [, report] of reportStepMock.mock.calls) {
+        expect(report).not.toHaveProperty('carriedEnv');
+      }
+    });
+
+    it('gives action and agent steps the carried env too', async () => {
+      const first = buildRunStep({id: '00000000-0000-0000-0000-0000000000e1', position: 1});
+      const action = buildStep({
+        id: '00000000-0000-0000-0000-0000000000e2',
+        type: 'action',
+        config: {},
+        position: 2,
+      });
+      const agent = buildAgentStep({position: 3});
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(first, 1))
+        .mockResolvedValueOnce(withEnvSources(action, 1, [{position: 1, attempt: 1}]))
+        .mockResolvedValueOnce(withEnvSources(agent, 1, [{position: 1, attempt: 1}]))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeRunStepMock.mockResolvedValueOnce({
+        success: true,
+        error: null,
+        exit_code: 0,
+        carriedEnv: FIRST,
+      });
+      executeActionStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+      requestActionBundleMock.mockResolvedValue(new Uint8Array());
+      executeAgentStepMock.mockResolvedValue({success: true, error: null, exit_code: null});
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(carriedEnvOf(executeActionStepMock, 0)).toEqual(FIRST);
+      expect(carriedEnvOf(executeAgentStepMock, 0)).toEqual(FIRST);
+    });
+  });
+
   describe('text log path', () => {
     let logsDir: string;
 

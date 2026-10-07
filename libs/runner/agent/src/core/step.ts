@@ -15,6 +15,7 @@ import type {
 import type {OutputDeclarations} from '@shipfox/expression';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {StepResult} from '@shipfox/runner-execution';
+import type {CarriedEnv} from '@shipfox/runner-execution/carried-env';
 import {createIntegrationToolsGatewayFetch, type LeaseTokenSource} from '@shipfox/runner-protocol';
 import {z} from 'zod';
 import {
@@ -64,6 +65,7 @@ export async function executeAgentStep(
       claude?: ClaudeRuntimeConfigDto | undefined;
     };
     gitConfigGlobal?: string | undefined;
+    carriedEnv?: CarriedEnv | undefined;
     onSessionEntry?: (line: string) => void;
     credentialSource?: InferenceCredentialSource | undefined;
     leaseToken?: LeaseTokenSource | undefined;
@@ -147,6 +149,7 @@ export async function executeAgentStep(
       ...(options.runtime.claude === undefined ? {} : {claude: options.runtime.claude}),
       signal: options.signal,
       gitConfigGlobal: options.gitConfigGlobal,
+      carriedEnv: options.carriedEnv,
       onSessionEntry: options.onSessionEntry,
     });
   } finally {
@@ -178,6 +181,7 @@ async function runSelectedHarness(params: {
   claude?: ClaudeRuntimeConfigDto | undefined;
   signal: AbortSignal | undefined;
   gitConfigGlobal: string | undefined;
+  carriedEnv: CarriedEnv | undefined;
   onSessionEntry: ((line: string) => void) | undefined;
 }): Promise<StepResult> {
   const {
@@ -203,6 +207,7 @@ async function runSelectedHarness(params: {
     customProvider,
     claude,
     gitConfigGlobal,
+    carriedEnv,
     onSessionEntry,
   } = params;
   const signal = params.signal ?? new AbortController().signal;
@@ -233,6 +238,7 @@ async function runSelectedHarness(params: {
         ...(claude === undefined ? {} : {claude}),
         signal,
         ...(gitConfigGlobal ? {gitConfigGlobal} : {}),
+        ...(carriedEnv ? {carriedEnv} : {}),
         ...(onSessionEntry ? {onSessionEntry} : {}),
       }),
       signal,
