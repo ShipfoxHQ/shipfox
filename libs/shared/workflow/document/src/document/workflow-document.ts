@@ -943,7 +943,7 @@ const workflowDocumentStepBaseSchema = z.strictObject({
   }),
   checkout: workflowDocumentCheckoutSchema.optional().meta({
     description:
-      'Checks out a repository for this step. Set `path` to keep the project checkout at the job root.',
+      'Checks out a repository for this step. Set a non-root `path` to keep the project checkout at the job root.',
   }),
   model: z.string().min(1).optional().meta({
     description: 'Selects the model that the agent uses.',

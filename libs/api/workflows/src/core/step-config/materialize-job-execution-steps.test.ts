@@ -339,6 +339,10 @@ describe('materializeJobExecutionSteps', () => {
     const steps = await materializeJobExecutionSteps({model, job, context: jobExecutionContext()});
 
     expect(steps[0]).toMatchObject({type: 'setup', config: {}});
+    expect(steps[1]).toMatchObject({
+      type: 'checkout',
+      config: {checkout: {repository: 'acme/api', path: path ?? '.'}},
+    });
   });
 
   it('keeps the project checkout when the leading checkout has its own path', async () => {
