@@ -75,7 +75,7 @@ ask_questions: |
 mark_in_progress: |
   # option:ticket_write_back=comment_and_transition begin
   - key: mark_in_progress
-    if: ${{ steps.task.outputs.ticket_id != "" }}
+    if: ${{ !execution.failed && steps.task.outputs.ticket_id != "" }}
     tool: update_task
     connection: clickup_tracker # bind:tracker
     with:

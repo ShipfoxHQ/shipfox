@@ -225,7 +225,7 @@ describe('ticket to PR template', () => {
       'respond_to_feedback',
     ]);
     expect(step(document, 'implement', 'mark_in_progress')).toMatchObject({
-      if: `\${{ steps.task.outputs.ticket_id != "" }}`,
+      if: `\${{ !execution.failed && steps.task.outputs.ticket_id != "" }}`,
       tool: 'save_issue',
       with: {
         id: `\${{ steps.task.outputs.ticket_id }}`,
@@ -453,7 +453,8 @@ describe('ticket to PR template', () => {
       });
     const transitionId = (transitions: YamlRecord[]) =>
       evaluate((find.outputs as YamlRecord).transition_id, {result: {transitions}});
-    const context = (isStarted: boolean, id: string) => ({
+    const context = (isStarted: boolean, id: string, failed = false) => ({
+      execution: {failed},
       steps: {
         task: {outputs: {ticket_id: '10042'}},
         read_status: {outputs: {started: isStarted}},
@@ -480,6 +481,7 @@ describe('ticket to PR template', () => {
     expect(evaluate(move.if, context(false, '21'))).toBe(true);
     expect(evaluate(move.if, context(true, '21'))).toBe(false);
     expect(evaluate(move.if, context(false, ''))).toBe(false);
+    expect(evaluate(move.if, context(false, '21', true))).toBe(false);
     expect(evaluate(find.if, context(true, ''))).toBe(false);
   });
 
@@ -752,6 +754,7 @@ describe('ticket to PR template', () => {
     const read = step(document, 'implement', 'read_labels');
     const issue = {labels: labels.map((name) => ({name}))};
     const context = {
+      execution: {failed: false},
       steps: {
         task: {outputs: {ticket_id: '42'}},
         prepare: {outputs: {owner: 'acme', repo: 'api'}},
@@ -760,6 +763,7 @@ describe('ticket to PR template', () => {
     };
 
     expect(evaluate(mark.if, context)).toBe(updates);
+    expect(evaluate(mark.if, {...context, execution: {failed: true}})).toBe(false);
     expect(evaluate(at(mark, 'with', 'issue_number'), context)).toBe(42n);
     expect(evaluate(at(mark, 'with', 'labels'), context)).toEqual([
       ...labels,
@@ -768,6 +772,26 @@ describe('ticket to PR template', () => {
     expect(steps.findIndex((entry) => entry.key === 'mark_in_progress')).toBeLessThan(
       steps.findIndex((entry) => entry.key === 'fix'),
     );
+  });
+
+  it.each([
+    {name: 'manual only', bindings: manualOnly, tracker: false},
+    {name: 'Linear', bindings: linear, tracker: true},
+    {name: 'Jira', bindings: jira, tracker: true},
+    {name: 'ClickUp', bindings: clickup, tracker: true},
+    {name: 'GitHub issues', bindings: githubIssues, tracker: true},
+  ])('skips the $name writes once a step has failed', ({bindings, tracker}) => {
+    const document = workflow(bindings);
+    const writes = [
+      step(document, 'implement', 'push'),
+      step(document, 'implement', 'open_pr'),
+      step(document, 'respond_to_feedback', 'push_feedback'),
+      ...(tracker ? [step(document, 'implement', 'mark_in_progress')] : []),
+    ];
+
+    for (const write of writes) {
+      expect(String(write.if).startsWith('${{ !execution.failed && ')).toBe(true);
+    }
   });
 
   it('publishes the task outcome for the workflow that started the run', () => {
