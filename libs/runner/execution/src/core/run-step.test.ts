@@ -190,6 +190,40 @@ describe('executeRunStep', () => {
     expect(result.outputs?.path).not.toBe('/tmp/user-output');
   });
 
+  it('exposes the shipfox_env variables and overrides user env', async () => {
+    const step = buildStep({
+      config: {
+        run: nodeEnvDumpCommand(['SHIPFOX_RUN_ID', 'SHIPFOX_RUN_NUMBER', 'SHIPFOX_RUN_URL']),
+        env: {SHIPFOX_RUN_ID: 'user-run-id', SHIPFOX_RUN_URL: 'https://user.example/run'},
+        shipfox_env: {
+          SHIPFOX_RUN_ID: 'run-1',
+          SHIPFOX_RUN_NUMBER: '7',
+          SHIPFOX_RUN_URL: 'https://app.example/runs/run-1',
+        },
+      },
+    });
+
+    const output = collectOutput();
+
+    const result = await executeRunStep(step, {onOutput: output.sink});
+
+    expect(result.success).toBe(true);
+    expect(JSON.parse(output.text())).toEqual({
+      SHIPFOX_RUN_ID: 'run-1',
+      SHIPFOX_RUN_NUMBER: '7',
+      SHIPFOX_RUN_URL: 'https://app.example/runs/run-1',
+    });
+  });
+
+  it('runs a step whose config has no shipfox_env', async () => {
+    const step = buildStep({config: {run: 'echo "ok=1" >> "$SHIPFOX_OUTPUT"'}});
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(true);
+    expect(result.outputs).toEqual({ok: '1'});
+  });
+
   it('exposes SHIPFOX_WORKSPACE and overrides user env', async () => {
     const step = buildStep({
       config: {

@@ -111,6 +111,17 @@ Model provider credentials are **workspace configuration**, delivered to the run
 | `AGENT_CUSTOM_PROVIDER_ALLOW_PRIVATE_NETWORKS` | `true` | Allows custom model providers to target private, loopback, and internal networks. Keep `true` for local and self-hosted private networks; set `false` on cloud instances. |
 | `AGENT_CUSTOM_PROVIDER_HOST_DENYLIST` | empty | Comma-separated hosts and IP ranges custom model providers may not call. Accepts exact hosts, suffix patterns, IP literals, and CIDR blocks. |
 
+## Step environment
+
+The runner sets these variables on run steps and action steps. A step `env` entry with the same name does not override them.
+
+| Variable | Value |
+| --- | --- |
+| `SHIPFOX_RUN_ID` | ID of the workflow run. |
+| `SHIPFOX_RUN_NUMBER` | Number of the workflow run. |
+| `SHIPFOX_RUN_ATTEMPT` | Attempt of the workflow run, starting at `1`. |
+| `SHIPFOX_RUN_URL` | Link to the run in the Shipfox dashboard. |
+
 ## Related pages
 
 <Cards>

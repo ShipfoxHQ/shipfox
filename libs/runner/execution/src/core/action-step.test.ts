@@ -325,6 +325,24 @@ export default defineAction(() => ({value: help()}));
     expect(env).not.toHaveProperty('SHIPFOX_ACTION_INPUTS');
   });
 
+  it('sets the shipfox_env variables over the step env', async () => {
+    const step = await actionStep(
+      action("async () => { console.log('ENV=' + JSON.stringify(process.env)); }"),
+      {
+        config: {
+          env: {SHIPFOX_RUN_ID: 'user-run-id'},
+          shipfox_env: {SHIPFOX_RUN_ID: 'run-1', SHIPFOX_RUN_NUMBER: '7'},
+        },
+      },
+    );
+
+    const pending = run(step);
+    await pending;
+
+    const env = JSON.parse(ENV_REGEX.exec(pending.output())?.[1] ?? '{}') as Record<string, string>;
+    expect(env).toMatchObject({SHIPFOX_RUN_ID: 'run-1', SHIPFOX_RUN_NUMBER: '7'});
+  });
+
   it('serves the action tool calls through the gateway and hands the token out for masking', async () => {
     const step = await actionStep(
       action(

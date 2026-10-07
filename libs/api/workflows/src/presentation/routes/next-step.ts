@@ -16,7 +16,8 @@ import {warnAgentToolCapabilityMismatchOnDispatch} from '#core/agent-tool-capabi
 import type {Step} from '#core/entities/step.js';
 import {JobNotFoundError} from '#core/errors.js';
 import {nextStepForLeasedJobExecution} from '#core/job-execution.js';
-import {listStepEnvSources} from '#db/workflow-runs.js';
+import {runIdentityEnv, stepReceivesShipfoxEnv} from '#core/step-config/shipfox-env.js';
+import {getWorkflowRunById, listStepEnvSources} from '#db/workflow-runs.js';
 import {
   recordWorkflowNextStepResponseOverflow,
   recordWorkflowNextStepResponseSize,
@@ -53,6 +54,17 @@ const ENV_SOURCE_STEP_TYPES: readonly Step['type'][] = ['run', 'action', 'agent'
 function envSourcesForStep(step: Step): Promise<StepEnvSourceDto[] | undefined> {
   if (!ENV_SOURCE_STEP_TYPES.includes(step.type)) return Promise.resolve(undefined);
   return listStepEnvSources({jobExecutionId: step.jobExecutionId, beforePosition: step.position});
+}
+
+// Added at delivery rather than persisted in the step config, so a step created before this
+// existed gets it too. The runner sets it after the step `env`, so a step cannot override it.
+async function stepDtoForRunner(step: Step, workflowRunId: string) {
+  const dto = toStepDto(step);
+  if (!stepReceivesShipfoxEnv(step)) return dto;
+
+  const run = await getWorkflowRunById(workflowRunId);
+  if (run === undefined) return dto;
+  return {...dto, config: {...dto.config, shipfox_env: runIdentityEnv(run)}};
 }
 
 type LeasedJobContext = ReturnType<typeof requireLeasedJobContext>;
@@ -93,7 +105,7 @@ async function buildNextStepResponse(params: {
     // attempt is ignored.
     return {
       kind: 'step',
-      step: toStepDto(params.next.step),
+      step: await stepDtoForRunner(params.next.step, params.leasedJob.workflowRunId),
       attempt: params.next.step.currentAttempt,
       lease_token: leaseToken,
       ...(envSources === undefined ? {} : {env_sources: envSources}),
