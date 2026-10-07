@@ -48,6 +48,8 @@ const coercingAjv = new Ajv({
   allErrors: true,
   addUsedSchema: false,
 });
+// A default is stored as written, so it is checked without type coercion.
+const defaultAjv = new Ajv({strict: false, allErrors: true, addUsedSchema: false});
 const jsonOutputValidatorCache = new Map<string, ValidateFunction>();
 const fallbackJsonType = {kind: 'dyn'} as const satisfies ExpressionType;
 const openObjectJsonType = {kind: 'map'} as const satisfies ExpressionType;
@@ -134,12 +136,12 @@ export function hasOutputDefault(declaration: OutputTypeDeclaration): boolean {
 export function outputDefaults(
   declarations: OutputDeclarations | undefined,
 ): Record<string, unknown> {
-  const defaults: Record<string, unknown> = {};
-  if (declarations === undefined) return defaults;
-  for (const [key, declaration] of Object.entries(declarations)) {
-    if (hasOutputDefault(declaration)) defaults[key] = cloneJsonValue(declaration.default);
-  }
-  return defaults;
+  // fromEntries defines own properties, so a `__proto__` output key stays a key.
+  return Object.fromEntries(
+    Object.entries(declarations ?? {})
+      .filter(([, declaration]) => hasOutputDefault(declaration))
+      .map(([key, declaration]) => [key, cloneJsonValue(declaration.default)]),
+  );
 }
 
 export type OutputDefaultValidationResult =
@@ -181,14 +183,18 @@ function validateJsonOutputDefault(
     return {ok: false, reason: 'A json output needs a JSON default.'};
   }
 
-  const result = coerceJsonOutput('default', declaration, declaration.default, false);
-  if (result.ok) return {ok: true};
+  if (declaration.schema === undefined) return {ok: true};
+
+  const validate = defaultAjv.compile({
+    type: 'object',
+    properties: {value: declaration.schema},
+    required: ['value'],
+    additionalProperties: false,
+  });
+  if (validate({value: declaration.default})) return {ok: true};
   return {
     ok: false,
-    reason:
-      result.error.schemaError === undefined
-        ? result.error.message
-        : `The default does not match the output schema: ${result.error.schemaError}`,
+    reason: `The default does not match the output schema: ${defaultAjv.errorsText(validate.errors, {separator: '; '})}`,
   };
 }
 
@@ -445,7 +451,8 @@ function hasDynamicSchemaShape(schema: Readonly<Record<string, unknown>>): boole
   );
 }
 
-function isJsonValue(value: unknown): boolean {
+// js-yaml can produce Date instances and cyclic aliases, neither of which is JSON.
+function isJsonValue(value: unknown, active: Set<object> = new Set()): boolean {
   if (value === null) return true;
   switch (typeof value) {
     case 'string':
@@ -454,12 +461,21 @@ function isJsonValue(value: unknown): boolean {
     case 'number':
       return Number.isFinite(value);
     case 'object':
-      return Array.isArray(value)
-        ? value.every(isJsonValue)
-        : isPlainRecord(value) && Object.values(value).every(isJsonValue);
+      return isJsonContainer(value, active);
     default:
       return false;
   }
+}
+
+function isJsonContainer(value: object, active: Set<object>): boolean {
+  const prototype = Object.getPrototypeOf(value);
+  if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) return false;
+  if (active.has(value)) return false;
+
+  active.add(value);
+  const valid = Object.values(value).every((child) => isJsonValue(child, active));
+  active.delete(value);
+  return valid;
 }
 
 function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {
