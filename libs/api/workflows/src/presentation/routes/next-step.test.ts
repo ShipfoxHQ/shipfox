@@ -663,6 +663,26 @@ describe('POST /runs/jobs/current/steps/next', () => {
       expect(body.env_sources).toEqual([{position: first.position, attempt: 1}]);
     });
 
+    test('lists an earlier step whose attempt failed', async () => {
+      const {jobId, steps} = await arrangeJobWithSteps(2);
+      const [failed, cleanup] = steps as [Step, Step];
+      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      await pull(token);
+      await recordStepResult({
+        jobId,
+        stepId: failed.id,
+        status: 'failed',
+        error: {message: 'exit 1'},
+        exitCode: 1,
+      });
+      await skipWhen(cleanup, 'true');
+
+      const body = await pull(token);
+
+      expect(body.step.id).toBe(cleanup.id);
+      expect(body.env_sources).toEqual([{position: failed.position, attempt: 1}]);
+    });
+
     test('never lists a tool step', async () => {
       const {jobId, steps} = await arrangeJobWithSteps(3);
       const [first, tool, last] = steps as [Step, Step, Step];
