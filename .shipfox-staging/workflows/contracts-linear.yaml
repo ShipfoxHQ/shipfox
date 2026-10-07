@@ -143,6 +143,296 @@ jobs:
           value_title: '${{ has(result.title) ? result.title : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "471c6da6-c647-4770-b6d3-27dc53189810" && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Contract fixture document"
+  attachment_round_trip:
+    checkout: false
+    steps:
+      - key: issue
+        tool: save_issue
+        connection: linear_shipfox_sandbox
+        with:
+          team: 9356e9c7-94d5-444d-83eb-d54b22c8082c
+          title: Contract contract-${{ run.id }}
+          description: Holds the attachment of a contract.
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_uuid: ${{ has(result.uuid) && type(result.uuid) == type("") }}
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_uuid
+      - key: issue_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          value_teamId: '${{ has(result.teamId) ? result.teamId : "" }}'
+          matches_title: ${{ has(result.title) && type(result.title) == type("") && result.title.matches("^Contract contract-[0-9a-f-]+$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_teamId) == type("") && step.outputs.value_teamId == "9356e9c7-94d5-444d-83eb-d54b22c8082c" && step.outputs.matches_title
+      - key: attach
+        tool: create_attachment
+        connection: linear_shipfox_sandbox
+        with:
+          issue: ${{ steps.issue.outputs.ref_id }}
+          title: Contract attachment
+          filename: contract.txt
+          contentType: text/plain
+          base64Content: aGVsbG8=
+          sha256: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_url: ${{ has(result.url) && type(result.url) == type("") }}
+          shape_title: ${{ has(result.title) && type(result.title) == type("") }}
+          value_title: '${{ has(result.title) ? result.title : "" }}'
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_url && step.outputs.shape_title && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Contract attachment"
+      - key: attach_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          includes_attachments: ${{ has(result.attachments) && type(result.attachments) == type([]) && result.attachments.exists(item, has(item.title) && type(item.title) == type("") && item.title == "Contract attachment") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_attachments
+      - key: delete
+        tool: delete_attachment
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.attach.outputs.ref_id }}
+        outputs:
+          value_deleted: '${{ has(result.deleted) ? result.deleted : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_deleted) == type(true) && step.outputs.value_deleted == true
+      - key: delete_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          shape_attachments: ${{ has(result.attachments) && type(result.attachments) == type([]) }}
+          value_attachments_0_id: '${{ has(result.attachments) && type(result.attachments) == type([]) && size(result.attachments) > 0 && [result.attachments[0]].all(i0, has(i0.id)) ? result.attachments[0].id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_attachments && type(step.outputs.value_attachments_0_id) == type("") && step.outputs.value_attachments_0_id == ""
+      - key: cancel
+        tool: save_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+          state: Canceled
+      - key: cancel_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          value_statusType: '${{ has(result.statusType) ? result.statusType : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_statusType) == type("") && step.outputs.value_statusType == "canceled"
+  attachment_upload_round_trip:
+    checkout: false
+    steps:
+      - key: issue
+        tool: save_issue
+        connection: linear_shipfox_sandbox
+        with:
+          team: 9356e9c7-94d5-444d-83eb-d54b22c8082c
+          title: Contract contract-${{ run.id }}
+          description: Holds the uploaded attachment of a contract.
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_uuid: ${{ has(result.uuid) && type(result.uuid) == type("") }}
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_uuid
+      - key: issue_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          value_teamId: '${{ has(result.teamId) ? result.teamId : "" }}'
+          matches_title: ${{ has(result.title) && type(result.title) == type("") && result.title.matches("^Contract contract-[0-9a-f-]+$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_teamId) == type("") && step.outputs.value_teamId == "9356e9c7-94d5-444d-83eb-d54b22c8082c" && step.outputs.matches_title
+      - key: prepare
+        tool: prepare_attachment_upload
+        connection: linear_shipfox_sandbox
+        with:
+          issue: ${{ steps.issue.outputs.ref_id }}
+          title: Contract upload
+          filename: contract.txt
+          contentType: text/plain
+          size: 5
+        outputs:
+          shape_issueId: ${{ has(result.issueId) && type(result.issueId) == type("") }}
+          shape_assetUrl: ${{ has(result.assetUrl) && type(result.assetUrl) == type("") }}
+          shape_uploadRequest_url: ${{ has(result.uploadRequest) && has(result.uploadRequest.url) && type(result.uploadRequest.url) == type("") }}
+          shape_uploadRequest_method: ${{ has(result.uploadRequest) && has(result.uploadRequest.method) && type(result.uploadRequest.method) == type("") }}
+          value_uploadRequest_method: '${{ has(result.uploadRequest) && has(result.uploadRequest.method) ? result.uploadRequest.method : "" }}'
+          ref_assetUrl: '${{ has(result.assetUrl) ? result.assetUrl : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_issueId && step.outputs.shape_assetUrl && step.outputs.shape_uploadRequest_url && step.outputs.shape_uploadRequest_method && type(step.outputs.value_uploadRequest_method) == type("") && step.outputs.value_uploadRequest_method == "PUT"
+      - key: prepare_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          shape_attachments: ${{ has(result.attachments) && type(result.attachments) == type([]) }}
+          value_attachments_0_id: '${{ has(result.attachments) && type(result.attachments) == type([]) && size(result.attachments) > 0 && [result.attachments[0]].all(i0, has(i0.id)) ? result.attachments[0].id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_attachments && type(step.outputs.value_attachments_0_id) == type("") && step.outputs.value_attachments_0_id == ""
+      - key: finalize
+        tool: create_attachment_from_upload
+        connection: linear_shipfox_sandbox
+        with:
+          issue: ${{ steps.issue.outputs.ref_id }}
+          assetUrl: ${{ steps.prepare.outputs.ref_assetUrl }}
+          title: Contract upload
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_url: ${{ has(result.url) && type(result.url) == type("") }}
+          shape_title: ${{ has(result.title) && type(result.title) == type("") }}
+          value_title: '${{ has(result.title) ? result.title : "" }}'
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_url && step.outputs.shape_title && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Contract upload"
+      - key: finalize_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          includes_attachments: ${{ has(result.attachments) && type(result.attachments) == type([]) && result.attachments.exists(item, has(item.title) && type(item.title) == type("") && item.title == "Contract upload") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_attachments
+      - key: delete
+        tool: delete_attachment
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.finalize.outputs.ref_id }}
+      - key: delete_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          shape_attachments: ${{ has(result.attachments) && type(result.attachments) == type([]) }}
+          value_attachments_0_id: '${{ has(result.attachments) && type(result.attachments) == type([]) && size(result.attachments) > 0 && [result.attachments[0]].all(i0, has(i0.id)) ? result.attachments[0].id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_attachments && type(step.outputs.value_attachments_0_id) == type("") && step.outputs.value_attachments_0_id == ""
+      - key: cancel
+        tool: save_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+          state: Canceled
+      - key: cancel_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          value_statusType: '${{ has(result.statusType) ? result.statusType : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_statusType) == type("") && step.outputs.value_statusType == "canceled"
+  comment_round_trip:
+    checkout: false
+    steps:
+      - key: issue
+        tool: save_issue
+        connection: linear_shipfox_sandbox
+        with:
+          team: 9356e9c7-94d5-444d-83eb-d54b22c8082c
+          title: Contract contract-${{ run.id }}
+          description: Holds the comments of a contract.
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_uuid: ${{ has(result.uuid) && type(result.uuid) == type("") }}
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_uuid
+      - key: issue_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          value_teamId: '${{ has(result.teamId) ? result.teamId : "" }}'
+          matches_title: ${{ has(result.title) && type(result.title) == type("") && result.title.matches("^Contract contract-[0-9a-f-]+$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_teamId) == type("") && step.outputs.value_teamId == "9356e9c7-94d5-444d-83eb-d54b22c8082c" && step.outputs.matches_title
+      - key: comment
+        tool: save_comment
+        connection: linear_shipfox_sandbox
+        with:
+          issueId: ${{ steps.issue.outputs.ref_id }}
+          body: Contract comment
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_body: ${{ has(result.body) && type(result.body) == type("") }}
+          value_body: '${{ has(result.body) ? result.body : "" }}'
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_body && type(step.outputs.value_body) == type("") && step.outputs.value_body == "Contract comment"
+      - key: comment_effect
+        tool: list_comments
+        connection: linear_shipfox_sandbox
+        with:
+          issueId: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          includes_comments: ${{ has(result.comments) && type(result.comments) == type([]) && result.comments.exists(item, has(item.body) && type(item.body) == type("") && item.body == "Contract comment") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_comments
+      - key: update
+        tool: save_comment
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.comment.outputs.ref_id }}
+          issueId: ${{ steps.issue.outputs.ref_id }}
+          body: Contract comment updated
+      - key: update_effect
+        tool: list_comments
+        connection: linear_shipfox_sandbox
+        with:
+          issueId: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          includes_comments: ${{ has(result.comments) && type(result.comments) == type([]) && result.comments.exists(item, has(item.body) && type(item.body) == type("") && item.body == "Contract comment updated") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_comments
+      - key: delete
+        tool: delete_comment
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.comment.outputs.ref_id }}
+      - key: delete_effect
+        tool: list_comments
+        connection: linear_shipfox_sandbox
+        with:
+          issueId: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          shape_comments: ${{ has(result.comments) && type(result.comments) == type([]) }}
+          shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
+          value_comments_0_id: '${{ has(result.comments) && type(result.comments) == type([]) && size(result.comments) > 0 && [result.comments[0]].all(i0, has(i0.id)) ? result.comments[0].id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_comments && step.outputs.shape_hasNextPage && type(step.outputs.value_comments_0_id) == type("") && step.outputs.value_comments_0_id == ""
+      - key: cancel
+        tool: save_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+          state: Canceled
+      - key: cancel_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.issue.outputs.ref_id }}
+        outputs:
+          value_statusType: '${{ has(result.statusType) ? result.statusType : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_statusType) == type("") && step.outputs.value_statusType == "canceled"
   get_document:
     checkout: false
     steps:
@@ -273,6 +563,100 @@ jobs:
           value_name: '${{ has(result.name) ? result.name : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && type(step.outputs.value_id) == type("") && step.outputs.value_id == "b2f39d6d-42c5-4111-b521-bbfa50b73b36" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Shipfox - Staging"
+  issue_round_trip:
+    checkout: false
+    steps:
+      - key: create
+        tool: save_issue
+        connection: linear_shipfox_sandbox
+        with:
+          team: 9356e9c7-94d5-444d-83eb-d54b22c8082c
+          title: Contract contract-${{ run.id }}
+          description: Created by a contract.
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_uuid: ${{ has(result.uuid) && type(result.uuid) == type("") }}
+          shape_title: ${{ has(result.title) && type(result.title) == type("") }}
+          shape_status: ${{ has(result.status) && type(result.status) == type("") }}
+          value_teamId: '${{ has(result.teamId) ? result.teamId : "" }}'
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_uuid && step.outputs.shape_title && step.outputs.shape_status && type(step.outputs.value_teamId) == type("") && step.outputs.value_teamId == "9356e9c7-94d5-444d-83eb-d54b22c8082c"
+      - key: create_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_teamId: '${{ has(result.teamId) ? result.teamId : "" }}'
+          value_description: '${{ has(result.description) ? result.description : "" }}'
+          matches_title: ${{ has(result.title) && type(result.title) == type("") && result.title.matches("^Contract contract-[0-9a-f-]+$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_teamId) == type("") && step.outputs.value_teamId == "9356e9c7-94d5-444d-83eb-d54b22c8082c" && type(step.outputs.value_description) == type("") && step.outputs.value_description == "Created by a contract." && step.outputs.matches_title
+      - key: update
+        tool: save_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.create.outputs.ref_id }}
+          title: Contract contract-${{ run.id }} updated
+          description: Updated by a contract.
+      - key: update_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_description: '${{ has(result.description) ? result.description : "" }}'
+          matches_title: ${{ has(result.title) && type(result.title) == type("") && result.title.matches("^Contract contract-[0-9a-f-]+ updated$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_description) == type("") && step.outputs.value_description == "Updated by a contract." && step.outputs.matches_title
+      - key: cancel
+        tool: save_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.create.outputs.ref_id }}
+          state: Canceled
+      - key: cancel_effect
+        tool: get_issue
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_status: '${{ has(result.status) ? result.status : "" }}'
+          value_statusType: '${{ has(result.statusType) ? result.statusType : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_status) == type("") && step.outputs.value_status == "Canceled" && type(step.outputs.value_statusType) == type("") && step.outputs.value_statusType == "canceled"
+  label_round_trip:
+    checkout: false
+    steps:
+      - key: label
+        tool: create_issue_label
+        connection: linear_shipfox_sandbox
+        with:
+          name: Contract contract-${{ run.id }}
+          color: "#4EA7FC"
+          description: Created by a contract.
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_name: ${{ has(result.name) && type(result.name) == type("") }}
+          shape_color: ${{ has(result.color) && type(result.color) == type("") }}
+          shape_isGroup: ${{ has(result.isGroup) && type(result.isGroup) == type(true) }}
+          value_color: '${{ has(result.color) ? result.color : "" }}'
+          value_isGroup: '${{ has(result.isGroup) ? result.isGroup : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_color && step.outputs.shape_isGroup && type(step.outputs.value_color) == type("") && step.outputs.value_color == "#4EA7FC" && type(step.outputs.value_isGroup) == type(true) && step.outputs.value_isGroup == false
+      - key: label_effect
+        tool: list_issue_labels
+        connection: linear_shipfox_sandbox
+        with:
+          name: Contract contract-${{ run.id }}
+          limit: 1
+        outputs:
+          value_labels_0_color: '${{ has(result.labels) && type(result.labels) == type([]) && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.color)) ? result.labels[0].color : "" }}'
+          value_labels_0_description: '${{ has(result.labels) && type(result.labels) == type([]) && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.description)) ? result.labels[0].description : "" }}'
+          matches_labels_0_name: ${{ has(result.labels) && type(result.labels) == type([]) && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.name) && type(i0.name) == type("") && i0.name.matches("^Contract contract-[0-9a-f-]+$")) }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_labels_0_color) == type("") && step.outputs.value_labels_0_color == "#4EA7FC" && type(step.outputs.value_labels_0_description) == type("") && step.outputs.value_labels_0_description == "Created by a contract." && step.outputs.matches_labels_0_name
   list_comments:
     checkout: false
     steps:

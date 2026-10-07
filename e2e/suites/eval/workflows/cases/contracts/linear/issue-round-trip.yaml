@@ -1,0 +1,59 @@
+provider: linear
+kind: round-trip
+modes: [real]
+steps:
+  - key: create
+    tool: save_issue
+    with:
+      team: $fixture.linear.write_team.id
+      title: Contract $marker
+      description: Created by a contract.
+    expect:
+      shape:
+        id: string
+        uuid: string
+        title: string
+        status: string
+      values:
+        teamId: $fixture.linear.write_team.id
+    # The marker is in the title, so a pattern checks it. The issue is this run's, so the values
+    # below can't come from an earlier run.
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.create.id
+      expect:
+        values:
+          teamId: $fixture.linear.write_team.id
+          description: Created by a contract.
+        matches:
+          title: '^Contract contract-[0-9a-f-]+$'
+  - key: update
+    tool: save_issue
+    with:
+      id: $steps.create.id
+      title: Contract $marker updated
+      description: Updated by a contract.
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.create.id
+      expect:
+        values:
+          description: Updated by a contract.
+        matches:
+          title: '^Contract contract-[0-9a-f-]+ updated$'
+  # The tools cannot delete an issue, so the issue ends canceled.
+  - key: cancel
+    tool: save_issue
+    with:
+      id: $steps.create.id
+      state: Canceled
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.create.id
+      expect:
+        values:
+          status: Canceled
+          statusType: canceled

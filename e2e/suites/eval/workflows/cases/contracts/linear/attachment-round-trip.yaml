@@ -1,0 +1,71 @@
+provider: linear
+kind: round-trip
+modes: [real]
+steps:
+  - key: issue
+    tool: save_issue
+    with:
+      team: $fixture.linear.write_team.id
+      title: Contract $marker
+      description: Holds the attachment of a contract.
+    expect:
+      shape: {id: string, uuid: string}
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.issue.id
+      expect:
+        values:
+          teamId: $fixture.linear.write_team.id
+        matches:
+          title: '^Contract contract-[0-9a-f-]+$'
+  # `hello` is five bytes, and its digest is the SHA-256 the tool checks.
+  - key: attach
+    tool: create_attachment
+    with:
+      issue: $steps.issue.id
+      title: Contract attachment
+      filename: contract.txt
+      contentType: text/plain
+      base64Content: aGVsbG8=
+      sha256: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+    expect:
+      shape: {id: string, url: string, title: string}
+      values:
+        title: Contract attachment
+    # The issue is this run's, so its attachments can't come from an earlier run.
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.issue.id
+      expect:
+        includes:
+          attachments: {title: Contract attachment}
+  - key: delete
+    tool: delete_attachment
+    with:
+      id: $steps.attach.id
+    expect:
+      values:
+        deleted: true
+    # The issue holds only this attachment, so an empty first id means it is gone.
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.issue.id
+      expect:
+        shape: {attachments: list}
+        values:
+          attachments[0].id: ''
+  - key: cancel
+    tool: save_issue
+    with:
+      id: $steps.issue.id
+      state: Canceled
+    effect:
+      tool: get_issue
+      with:
+        id: $steps.issue.id
+      expect:
+        values:
+          statusType: canceled
