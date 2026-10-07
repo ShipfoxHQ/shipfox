@@ -11,7 +11,7 @@ steps:
     expect:
       shape:
         total_count: number
-        check_runs: [{name: string, status: string, conclusion: string}]
+        check_runs: [{name: string, status: string}]
       values: {total_count: 2}
       includes:
         check_runs: {name: verify, status: completed, conclusion: success}

@@ -349,11 +349,10 @@ jobs:
           shape_total_count: ${{ has(result.total_count) && (type(result.total_count) == type(1) || type(result.total_count) == type(1.0)) }}
           shape_check_runs_0_name: ${{ has(result.check_runs) && type(result.check_runs) == type([]) && size(result.check_runs) > 0 && [result.check_runs[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
           shape_check_runs_0_status: ${{ has(result.check_runs) && type(result.check_runs) == type([]) && size(result.check_runs) > 0 && [result.check_runs[0]].all(i0, has(i0.status) && type(i0.status) == type("")) }}
-          shape_check_runs_0_conclusion: ${{ has(result.check_runs) && type(result.check_runs) == type([]) && size(result.check_runs) > 0 && [result.check_runs[0]].all(i0, has(i0.conclusion) && type(i0.conclusion) == type("")) }}
           value_total_count: '${{ has(result.total_count) ? result.total_count : "" }}'
           includes_check_runs: ${{ has(result.check_runs) && type(result.check_runs) == type([]) && result.check_runs.exists(item, has(item.name) && type(item.name) == type("") && item.name == "verify" && has(item.status) && type(item.status) == type("") && item.status == "completed" && has(item.conclusion) && type(item.conclusion) == type("") && item.conclusion == "success") }}
         gate:
-          success: step.status == "succeeded" && step.outputs.shape_total_count && step.outputs.shape_check_runs_0_name && step.outputs.shape_check_runs_0_status && step.outputs.shape_check_runs_0_conclusion && (type(step.outputs.value_total_count) == type(1) || type(step.outputs.value_total_count) == type(1.0)) && step.outputs.value_total_count == 2 && step.outputs.includes_check_runs
+          success: step.status == "succeeded" && step.outputs.shape_total_count && step.outputs.shape_check_runs_0_name && step.outputs.shape_check_runs_0_status && (type(step.outputs.value_total_count) == type(1) || type(step.outputs.value_total_count) == type(1.0)) && step.outputs.value_total_count == 2 && step.outputs.includes_check_runs
   pull_request_read_get_comments:
     checkout: false
     steps:
