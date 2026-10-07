@@ -194,7 +194,11 @@ describe('evaluateWorkflowExpression', () => {
     const failClosed = evaluateWorkflowPredicateFailClosed(expression, {event: {values}});
 
     expect(evaluateEmpty).toThrow(WorkflowExpressionEvaluationError);
-    expect(failClosed).toEqual({value: false, evaluationFailed: true});
+    expect(failClosed).toEqual({
+      value: false,
+      evaluationFailed: true,
+      error: {message: 'CEL evaluation failed'},
+    });
   });
 
   it('gives each default-environment evaluation a full range budget', () => {
@@ -275,7 +279,11 @@ describe('evaluateWorkflowExpression', () => {
 
     const result = evaluateWorkflowPredicateFailClosed(expression, {event: {payload}});
 
-    expect(result).toEqual({value: false, evaluationFailed: true});
+    expect(result).toEqual({
+      value: false,
+      evaluationFailed: true,
+      error: {message: 'CEL evaluation failed'},
+    });
   });
 
   it('enforces a context-sized range fan-out budget', () => {
@@ -295,7 +303,11 @@ describe('evaluateWorkflowExpression', () => {
       event: {payload},
     });
 
-    expect(result).toEqual({value: false, evaluationFailed: true});
+    expect(result).toEqual({
+      value: false,
+      evaluationFailed: true,
+      error: {message: 'CEL evaluation failed'},
+    });
   });
 
   it('evaluates against a caller-supplied environment', () => {
@@ -341,7 +353,7 @@ describe('evaluateWorkflowExpression', () => {
     expect(evaluateWorkflowPredicate(expression, {event: {conclusion: 'success'}})).toBe(false);
     expect(
       evaluateWorkflowPredicateFailClosed(expression, {event: {conclusion: 'success'}}),
-    ).toEqual({value: false, evaluationFailed: true});
+    ).toEqual({value: false, evaluationFailed: true, error: {message: 'CEL evaluation failed'}});
   });
 
   it.each([true, false])('keeps dynamic boolean predicate results checkable: %s', (value) => {
@@ -411,7 +423,11 @@ describe('evaluateWorkflowExpression', () => {
       event: {},
     });
 
-    expect(result).toEqual({value: false, evaluationFailed: true});
+    expect(result).toEqual({
+      value: false,
+      evaluationFailed: true,
+      error: {message: 'No such key: conclusion', path: 'event.conclusion'},
+    });
   });
 
   it('wraps evaluation errors when supplied values do not match the checked context', () => {

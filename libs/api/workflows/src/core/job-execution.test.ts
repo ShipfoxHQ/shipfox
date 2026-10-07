@@ -695,7 +695,12 @@ describe('nextStepForJob', () => {
     expect(after.find((step) => step.id === skippedStep.id)).toMatchObject({
       status: 'skipped',
       statusReason: 'condition_errored',
-      evaluationTrace: [conditionTrace('step.if', '1 / 0 == 0', [], false, true)],
+      evaluationTrace: [
+        {
+          ...conditionTrace('step.if', '1 / 0 == 0', [], false, true),
+          error: {message: 'CEL evaluation failed (division_by_zero)'},
+        },
+      ],
     });
     expect(await getStepAttempts(jobId)).toMatchObject([{stepId: runnableStep.id}]);
   });

@@ -113,6 +113,21 @@ const sourceUnavailableReasons = [
 ] as const;
 const explanationStatuses = ['failed', 'skipped'] as const;
 
+const evaluationTraceErrorSchema = z
+  .object({
+    message: textSchema,
+    path: textSchema.optional(),
+    source: z
+      .object({
+        kind: z.enum(['step', 'job']),
+        key: textSchema,
+        status: textSchema,
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
 const evaluationTraceValueSchema = z
   .object({
     expression: textSchema,
@@ -125,6 +140,7 @@ const evaluationTraceValueSchema = z
     expr_truncated: z.boolean().optional(),
     reference: z.boolean().optional(),
     degraded: z.boolean().optional(),
+    error: evaluationTraceErrorSchema.optional(),
     env_key: textSchema.optional(),
   })
   .strict();
@@ -410,6 +426,26 @@ const oversizedFieldJson = {
   additionalProperties: false,
 } as const;
 
+const evaluationTraceErrorJson = {
+  type: 'object',
+  properties: {
+    message: text,
+    path: text,
+    source: {
+      type: 'object',
+      properties: {
+        kind: {type: 'string', enum: ['step', 'job']},
+        key: text,
+        status: text,
+      },
+      required: ['kind', 'key', 'status'],
+      additionalProperties: false,
+    },
+  },
+  required: ['message'],
+  additionalProperties: false,
+} as const;
+
 const evaluationTraceValueJson = {
   type: 'object',
   properties: {
@@ -423,6 +459,7 @@ const evaluationTraceValueJson = {
     expr_truncated: {type: 'boolean'},
     reference: {type: 'boolean'},
     degraded: {type: 'boolean'},
+    error: evaluationTraceErrorJson,
     env_key: text,
   },
   required: ['expression', 'roots', 'fill_target', 'evaluated_at', 'field'],

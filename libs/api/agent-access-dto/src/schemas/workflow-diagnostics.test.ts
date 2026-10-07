@@ -40,6 +40,28 @@ describe('workflow diagnostic Agent Access schemas', () => {
     );
   });
 
+  test('accepts a condition error with its source and rejects unknown error fields', () => {
+    const base = contextResult();
+    const [entry] = base.job_evaluation_trace;
+    const error = {
+      message: 'No such key: status',
+      path: 'steps.fix.outputs.status',
+      source: {kind: 'step', key: 'fix', status: 'succeeded'},
+    };
+    const withTrace = (traceError: Record<string, unknown>) => ({
+      ...base,
+      job_evaluation_trace: [{...entry, error: traceError}],
+    });
+
+    expect(getWorkflowExecutionContextResultSchema.safeParse(withTrace(error)).success).toBe(true);
+    expect(
+      getWorkflowExecutionContextResultSchema.safeParse(withTrace({...error, extra: true})).success,
+    ).toBe(false);
+    expect(JSON.stringify(getWorkflowExecutionContextResultJsonSchema)).toContain(
+      '"source":{"type":"object"',
+    );
+  });
+
   test('accepts provider step errors', () => {
     const result = stepResult();
 

@@ -33,6 +33,28 @@ describe('presentRunJobExplanation', () => {
     expect(presentation.body).toContain('`job.if` evaluated `needs.build.result == "succeeded"`');
   });
 
+  test('names the missing value of an errored job condition', () => {
+    const presentation = presentRunJobExplanation(
+      explanation({
+        statusReason: 'condition_errored',
+        evaluationTrace: [
+          evaluationTrace({
+            degraded: true,
+            error: {
+              message: 'No such key: created_branch',
+              path: 'jobs.write.outputs.created_branch',
+              source: {kind: 'job', key: 'write', status: 'skipped'},
+            },
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.body).toContain(
+      '`jobs.write.outputs.created_branch` has no value because job `write` was skipped.',
+    );
+  });
+
   test.each([
     ['user_cancelled', 'This job did not run because it was cancelled.'],
     ['run_cancelled', 'This job did not run because the run was cancelled.'],

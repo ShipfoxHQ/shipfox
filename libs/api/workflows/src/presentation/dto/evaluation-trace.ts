@@ -22,6 +22,7 @@ function toEvaluationTraceEntryDto(entry: PersistedEvaluationTraceEntry): Evalua
     ...(entry.exprTruncated === undefined ? {} : {expr_truncated: entry.exprTruncated}),
     ...(entry.reference === undefined ? {} : {reference: entry.reference}),
     ...(entry.degraded === undefined ? {} : {degraded: entry.degraded}),
+    ...(entry.error === undefined ? {} : {error: entry.error}),
     ...(entry.envKey === undefined ? {} : {env_key: entry.envKey}),
   };
 }

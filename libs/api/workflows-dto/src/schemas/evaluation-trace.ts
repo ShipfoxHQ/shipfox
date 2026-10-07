@@ -1,5 +1,17 @@
 import {z} from 'zod';
 
+const evaluationTraceErrorSchema = z.object({
+  message: z.string(),
+  path: z.string().optional(),
+  source: z
+    .object({
+      kind: z.enum(['step', 'job']),
+      key: z.string(),
+      status: z.string(),
+    })
+    .optional(),
+});
+
 const evaluationTraceValueSchema = z.object({
   expression: z.string(),
   roots: z.array(z.string()),
@@ -11,6 +23,7 @@ const evaluationTraceValueSchema = z.object({
   expr_truncated: z.boolean().optional(),
   reference: z.boolean().optional(),
   degraded: z.boolean().optional(),
+  error: evaluationTraceErrorSchema.optional(),
   env_key: z.string().optional(),
 });
 

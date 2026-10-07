@@ -24,6 +24,30 @@ describe('evaluation trace schema', () => {
     });
   });
 
+  it('accepts a condition error with its source and rejects an unknown source kind', () => {
+    const entry = {
+      expression: 'jobs.write.outputs.created_branch != ""',
+      roots: ['jobs'],
+      fill_target: 'job-activation',
+      evaluated_at: 'job-activation',
+      field: 'job.if',
+      degraded: true,
+    };
+    const error = {
+      message: 'No such key: created_branch',
+      path: 'jobs.write.outputs.created_branch',
+      source: {kind: 'job', key: 'write', status: 'skipped'},
+    };
+
+    const parsed = evaluationTraceSchema.parse([{...entry, error}]);
+    const rejected = evaluationTraceSchema.safeParse([
+      {...entry, error: {...error, source: {...error.source, kind: 'run'}}},
+    ]);
+
+    expect(parsed[0]).toMatchObject({error});
+    expect(rejected.success).toBe(false);
+  });
+
   it('accepts an explicit trace budget marker', () => {
     expect(evaluationTraceSchema.parse([{truncated: true, dropped: 3}])).toEqual([
       {truncated: true, dropped: 3},

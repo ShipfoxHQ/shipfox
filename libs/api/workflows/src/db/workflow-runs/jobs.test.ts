@@ -237,7 +237,20 @@ describe('evaluateJobActivations', () => {
     const skipped = await jobByKey(run.id, 'notify');
     expect(skipped.statusReason).toBe('condition_errored');
     expect(skipped.evaluationTrace).toEqual([
-      conditionTrace('job.if', 'jobs.build.outputs.sha.missing == "abc123"', ['jobs'], false, true),
+      {
+        ...conditionTrace(
+          'job.if',
+          'jobs.build.outputs.sha.missing == "abc123"',
+          ['jobs'],
+          false,
+          true,
+        ),
+        error: {
+          message: 'No such key: sha',
+          path: 'jobs.build.outputs.sha',
+          source: {kind: 'job', key: 'build', status: 'succeeded'},
+        },
+      },
     ]);
   });
 });
