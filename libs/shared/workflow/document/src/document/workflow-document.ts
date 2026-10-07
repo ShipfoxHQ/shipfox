@@ -1355,7 +1355,8 @@ const workflowDocumentContainerObjectSchema = z.strictObject({
     description: 'Sets environment variables for every process in the container.',
   }),
   options: z.string().optional().meta({
-    description: 'Passes extra flags to `docker create`, as written.',
+    description:
+      'Passes extra flags to `docker create`, as written. Supports workflow expressions.',
   }),
   docker_socket: z.boolean().optional().meta({
     description: 'Mounts the host Docker socket into the container. Defaults to `true`.',

@@ -95,7 +95,7 @@ describe('historical event-payload definition analysis', () => {
           container: {
             image: interpolation(source),
             options: interpolation(source),
-            credentials: {username: interpolation(source), password: 'static'},
+            credentials: {username: interpolation(source), password: interpolation(source)},
             env: {TAG: interpolation(source)},
           },
           steps: [{run: 'echo ok'}],
@@ -108,6 +108,7 @@ describe('historical event-payload definition analysis', () => {
         ['jobs', 'build', 'container', 'image', 0],
         ['jobs', 'build', 'container', 'options', 0],
         ['jobs', 'build', 'container', 'credentials', 'username', 0],
+        ['jobs', 'build', 'container', 'credentials', 'password', 0],
         ['jobs', 'build', 'container', 'env', 'TAG', 0],
       ]),
     );
