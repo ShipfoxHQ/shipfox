@@ -9,21 +9,32 @@
   "license": "MIT",
   "private": false,
   "type": "module",
-  "main": "src/index.mjs",
-  "types": "src/index.d.ts",
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.ts",
   "files": [
-    "src",
+    "dist",
     "README.md"
   ],
   "exports": {
     ".": {
-      "types": "./src/index.d.ts",
-      "default": "./src/index.mjs"
+      "workspace-source": {
+        "types": "./src/index.d.ts",
+        "default": "./src/index.mjs"
+      },
+      "default": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.mjs"
+      }
     }
   },
   "scripts": {
-    "e2e": "node src/e2e.mjs run",
-    "test": "node --test test/*.test.mjs"
+    "build": "node scripts/package.mjs build",
+    "check": "node scripts/package.mjs type",
+    "e2e": "node dist/e2e.mjs run",
+    "prepack": "node scripts/package.mjs build",
+    "test": "node --test test/*.test.mjs",
+    "type": "node scripts/package.mjs type",
+    "type:emit": "node scripts/package.mjs type:emit"
   },
   "dependencies": {
     "pg": "catalog:"
