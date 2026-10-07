@@ -49,6 +49,7 @@ import type {
 } from './invalid-workflow-model-error.js';
 import {buildActionStep, normalizeActionFields} from './normalize-action-step.js';
 import {normalizeAgentIntegrations} from './normalize-agent-integrations.js';
+import {normalizeAgentPrompt} from './normalize-agent-prompt.js';
 import {normalizeEnv} from './normalize-env.js';
 import {normalizeIfCondition} from './normalize-if-condition.js';
 import {normalizeCheckout, normalizeJobCheckout} from './normalize-job-checkout.js';
@@ -1088,10 +1089,10 @@ function normalizeAgentStep(params: {
     throw new Error('Agent step normalization requires a prompt');
   }
 
-  const promptTemplate = parseInterpolationField({
-    field: 'agent.prompt',
-    source: params.step.prompt,
-    path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'prompt'],
+  const {prompt, template: promptTemplate} = normalizeAgentPrompt({
+    prompt: params.step.prompt,
+    sourceName: params.sourceName,
+    stepIndex: params.stepIndex,
     issues: params.issues,
     fillSite: params.fillSite,
     allowedJobReferences: params.allowedJobReferences,
@@ -1175,7 +1176,7 @@ function normalizeAgentStep(params: {
     ...(params.step.harness === undefined ? {} : {harness: params.step.harness}),
     ...(params.step.model === undefined ? {} : {model: params.step.model}),
     ...(params.step.provider === undefined ? {} : {provider: params.step.provider}),
-    prompt: params.step.prompt,
+    prompt,
     ...(params.step.thinking === undefined ? {} : {thinking: params.step.thinking}),
     ...(session === undefined ? {} : {session}),
     ...(params.step.tools === undefined ? {} : {tools: params.step.tools}),

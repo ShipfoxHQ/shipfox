@@ -187,7 +187,11 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
       integrations: '#agent-integration-fields',
       session: '#agent-session-fields',
     },
-    types: {integrations: 'Integration[]', session: 'string | Session'},
+    types: {
+      prompt: 'string | PromptPart[]',
+      integrations: 'Integration[]',
+      session: 'string | Session',
+    },
   },
   {
     id: 'agent-integration-fields',

@@ -62,6 +62,7 @@ export type WorkflowModelValidationIssueCode =
   | 'missing-runner-label'
   | 'model-locked'
   | 'multiple-manual-triggers'
+  | 'prompt-file-invalid'
   | 'runner-context-not-bare'
   | 'runner-path-in-field'
   | 'runner-context-in-field'
