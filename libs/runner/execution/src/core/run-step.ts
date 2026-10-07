@@ -232,15 +232,7 @@ async function runStepProcess(
         : await readOomKillCount(options.memoryEventsPath);
     let result = await spawnAndCapture(host, launch, stepEnv, files, annotationSpool, spawnOptions);
     result = await reportOutOfMemory(result, oomKillsBefore, options);
-    const outputResult = await finalizeCarriedEnv(
-      await applyOutputSources(
-        await finalizeStepOutput(result, files.output),
-        options,
-        stdoutCapture,
-      ),
-      files,
-      options.cwd ?? process.cwd(),
-    );
+    const outputResult = await finalizeFiles(result, files, options, stdoutCapture);
     if (!annotationSpool) return outputResult;
 
     const annotations = await collectAnnotationOperations(annotationSpool);
@@ -545,6 +537,21 @@ async function finalizeStepOutput(result: StepResult, outputPath: string): Promi
       exit_code: null,
     };
   }
+}
+
+// The step is done: read what it left in its files and output sources.
+async function finalizeFiles(
+  result: StepResult,
+  files: StepFiles,
+  options: StepProcessOptions,
+  stdoutCapture: StdoutCapture | undefined,
+): Promise<StepResult> {
+  const withOutputs = await applyOutputSources(
+    await finalizeStepOutput(result, files.output),
+    options,
+    stdoutCapture,
+  );
+  return finalizeCarriedEnv(withOutputs, files, options.cwd ?? process.cwd());
 }
 
 async function applyOutputSources(
