@@ -4443,6 +4443,19 @@ describe('normalizeWorkflowDocument', () => {
         label: 'string',
         ready: 'bool',
       });
+      expect(model.jobs[1]?.steps[0]).toMatchObject({
+        kind: 'agent',
+        templates: {
+          prompt: [
+            {kind: 'literal', value: 'Deploy '},
+            {
+              kind: 'deferred',
+              expression: {source: 'jobs.build.outputs.ready', check: 'typed', resultType: 'bool'},
+              roots: ['jobs'],
+            },
+          ],
+        },
+      });
       expect(model.jobs[0]?.exportedOutputs).toEqual({
         count: {stepKey: 'collect', output: 'count'},
         label: {stepKey: 'collect', output: 'label'},

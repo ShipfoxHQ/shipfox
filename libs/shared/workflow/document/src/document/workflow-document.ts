@@ -1014,7 +1014,7 @@ const workflowDocumentStepBaseSchema = z.strictObject({
   }),
   export: workflowDocumentStepExportSchema.optional().meta({
     description:
-      'Promotes outputs of this step to job outputs of the same name. Use `true` for every declared output, or list the output names. The step needs a `key`.',
+      'Promotes outputs of this step to job outputs of the same name. Use `true` for every declared output, or list the output names. The step needs a `key`. Checkout steps do not support it.',
   }),
 });
 
