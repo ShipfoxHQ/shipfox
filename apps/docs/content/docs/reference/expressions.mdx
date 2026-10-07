@@ -36,9 +36,11 @@ if: ${{ trigger.event == "push" }}
 
 An `if` does not decide whether a step or job runs after a failure. The
 `run_after` field decides that, and the `if` is evaluated only after `run_after`
-lets the step or job run. To handle a failure, set `run_after: failure` or
-`run_after: always` instead of reading a status in the `if`. See [When a step
-or job runs](/understand/jobs-and-steps#when-a-step-or-job-runs).
+lets the step or job run. To handle a failure, set `run_after: failure`
+instead of reading a status in the `if`. Use `run_after: always` for work that
+must run either way. Its `if` can still read a status to choose between the two
+cases. See [When a step or job
+runs](/understand/jobs-and-steps#when-a-step-or-job-runs).
 
 `vars` and `secrets` accept a literal key only. `vars["API_URL"]` is valid and a
 computed key such as `vars[inputs.name]` is not. `secrets.local.KEY` is the
