@@ -102,11 +102,11 @@ export function describeExecutionHostContract(
       });
 
       it('kills background processes when the process exits, if asked to', async () => {
-        const child = run('sleep 60 & echo started', {killTreeOnExit: true});
+        const child = run('sleep 60 & echo $!', {killTreeOnExit: true});
 
         const [stdout] = await Promise.all([readAll(child.stdout), child.exited]);
 
-        expect(stdout).toBe('started\n');
+        await waitFor(async () => !(await isAlive(stdout.trim())));
       });
 
       it('can kill a process that already exited', async () => {

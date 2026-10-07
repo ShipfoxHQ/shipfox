@@ -134,10 +134,10 @@ function withDefaultOomScore(argv: SpawnRequest['argv']): {executable: string; a
   };
 }
 
+// `stat` follows symlinks, so a symlink never shows up here. Only `readdir` reports one.
 function statsType(stats: Stats): HostFileType {
   if (stats.isFile()) return 'file';
   if (stats.isDirectory()) return 'directory';
-  if (stats.isSymbolicLink()) return 'symlink';
   return 'other';
 }
 

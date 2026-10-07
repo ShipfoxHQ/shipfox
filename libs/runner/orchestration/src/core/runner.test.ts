@@ -328,6 +328,7 @@ describe('runJob', () => {
     );
     expect(mockCreateJobTempDir).toHaveBeenCalledWith(JOB_TEMP_DIR);
     expect(mockCleanupJobTemp).toHaveBeenCalledWith(JOB_TEMP_DIR);
+    expect(mockReleaseTempLock).toHaveBeenCalledOnce();
     expect(mockCleanupJobTemp.mock.invocationCallOrder[0]).toBeLessThan(
       mockReleaseTempLock.mock.invocationCallOrder[0] ?? Infinity,
     );
