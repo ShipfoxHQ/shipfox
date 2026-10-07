@@ -20,7 +20,7 @@ import {
   type ActionToolsUpstream,
   startActionEndpoint,
 } from '#core/action-endpoint.js';
-import {executeStepProcess, type StepProcessOptions} from '#core/run-step.js';
+import {executeStepProcess, readShipfoxEnv, type StepProcessOptions} from '#core/run-step.js';
 import type {StepResult} from '#core/step-result.js';
 
 const PRIVATE_FILE_MODE = 0o600;
@@ -207,6 +207,7 @@ export async function executeActionStep(
           [ACTION_ENV.actionsUrl]: endpoint.url,
           [ACTION_ENV.actionsToken]: endpoint.token,
         },
+        shipfoxEnv: readShipfoxEnv(step.config.shipfox_env),
         secretValues: [...(options.secretValues ?? []), endpoint.token],
         killGroupAfterExit: true,
         ...(options.signal ? {signal: options.signal} : {}),

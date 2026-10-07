@@ -2,10 +2,12 @@ import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-
 import {
   MAX_RESOLVED_STEP_CONFIG_BYTES,
   RUNNER_NEXT_STEP_RESPONSE_BUDGET_BYTES,
+  workflowRunUrl,
 } from '@shipfox/api-workflows-dto';
 import {createWorkflowExpression} from '@shipfox/expression';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {eq} from 'drizzle-orm';
+import {config} from '#config.js';
 import type {Step} from '#core/entities/step.js';
 import {JobNotFoundError} from '#core/errors.js';
 import {
@@ -208,7 +210,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().step.config).toEqual(config);
+    expect(res.json().step.config).toEqual({...config, shipfox_env: expect.any(Object)});
     expect(serializedResponseByteLength(res.rawPayload)).toBeLessThanOrEqual(
       RUNNER_NEXT_STEP_RESPONSE_BUDGET_BYTES,
     );
@@ -237,7 +239,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
     expect(first.statusCode).toBe(200);
     expect(second.statusCode).toBe(200);
-    expect(first.json().step.config).toEqual(config);
+    expect(first.json().step.config).toEqual({...config, shipfox_env: expect.any(Object)});
     expect(second.json().step.id).toBe(first.json().step.id);
     expect(nextStepMetricMocks.recordWorkflowNextStepResponseSize).toHaveBeenCalledTimes(2);
     for (const [kind, bytes] of nextStepMetricMocks.recordWorkflowNextStepResponseSize.mock.calls) {
@@ -561,6 +563,52 @@ describe('POST /runs/jobs/current/steps/next', () => {
     const scopedLease = getLeaseTokenClaims(body.lease_token);
     expect(scopedLease?.currentStepId).toBe(steps[0]?.id);
     expect(scopedLease?.currentStepAttempt).toBe(body.attempt);
+  });
+
+  describe('shipfox_env', () => {
+    async function pullStep(jobId: string) {
+      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      const res = await app.inject({
+        method: 'POST',
+        url: URL,
+        headers: {authorization: `Bearer ${token}`},
+      });
+      expect(res.statusCode).toBe(200);
+      return res.json().step;
+    }
+
+    test.each(['run', 'action'] as const)('gives a %s step the run identity', async (type) => {
+      const {jobId, steps} = await arrangeJobWithSteps(1);
+      const job = await getJobById(jobId);
+      const run = await getWorkflowRunByAttemptId(job?.workflowRunAttemptId as string);
+      if (!run) throw new Error('Expected workflow run to exist');
+      await db()
+        .update(stepsTable)
+        .set({type, config: {run: 'echo hi', env: {SHIPFOX_RUN_ID: 'user'}}})
+        .where(eq(stepsTable.id, steps[0]?.id as string));
+
+      const step = await pullStep(jobId);
+
+      expect(step.config.shipfox_env).toEqual({
+        SHIPFOX_RUN_ID: run.id,
+        SHIPFOX_RUN_NUMBER: String(run.number),
+        SHIPFOX_RUN_ATTEMPT: String(run.currentAttempt),
+        SHIPFOX_RUN_URL: workflowRunUrl({clientBaseUrl: config.CLIENT_BASE_URL, runId: run.id}),
+      });
+      expect(step.config.env).toEqual({SHIPFOX_RUN_ID: 'user'});
+    });
+
+    test('does not give an agent step the run identity', async () => {
+      const {jobId, steps} = await arrangeJobWithSteps(1);
+      await db()
+        .update(stepsTable)
+        .set({type: 'agent', config: {prompt: 'hi'}})
+        .where(eq(stepsTable.id, steps[0]?.id as string));
+
+      const step = await pullStep(jobId);
+
+      expect(step.config).not.toHaveProperty('shipfox_env');
+    });
   });
 
   describe('env_sources', () => {

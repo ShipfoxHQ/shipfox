@@ -75,6 +75,11 @@ export interface StepProcessOptions {
   /** Base environment of the process. Replaces the inherited `process.env` when given. */
   env?: Readonly<Record<string, string>>;
   secretEnv?: Readonly<Record<string, string>>;
+  /**
+   * Variables the runner sets last, so neither the step `env` nor the base environment can
+   * override them.
+   */
+  shipfoxEnv?: Readonly<Record<string, string>>;
   secretValues?: readonly string[];
   /** Updates the tee redactors when a job registers another secret. */
   subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
@@ -121,10 +126,11 @@ export function executeRunStep(
   }
 
   const outputSources = readOutputSources(step);
+  const shipfoxEnv = {...readShipfoxEnv(step.config.shipfox_env), ...options.shipfoxEnv};
   return runStepProcess(
     {script: command},
     {...readStepEnv(step), ...options.secretEnv},
-    outputSources === undefined ? options : {...options, outputSources},
+    {...options, shipfoxEnv, ...(outputSources === undefined ? {} : {outputSources})},
   );
 }
 
@@ -394,6 +400,7 @@ function spawnRunStepProcess(
         ...(options.gitConfigGlobal ? {GIT_CONFIG_GLOBAL: options.gitConfigGlobal} : {}),
         SHIPFOX_OUTPUT: outputPath,
         ...(annotationSpool?.env ?? {}),
+        ...(options.shipfoxEnv ?? {}),
       },
       stdin: 'ignore',
       killTreeOnExit: options.killGroupAfterExit === true,
@@ -688,6 +695,18 @@ function isSignalKillResult(code: number | null, signal: NodeJS.Signals): boolea
 function signalExitCode(signal: NodeJS.Signals): number | undefined {
   if (signal === 'SIGKILL') return 137;
   return undefined;
+}
+
+/** Reads the `shipfox_env` of a step config. A config from an older server has none. */
+export function readShipfoxEnv(raw: unknown): Readonly<Record<string, string>> {
+  if (raw === undefined || raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {};
+  }
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === 'string') env[key] = value;
+  }
+  return env;
 }
 
 function readStepEnv(step: StepDto): Readonly<Record<string, string>> {
