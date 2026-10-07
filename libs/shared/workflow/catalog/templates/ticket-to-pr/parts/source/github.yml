@@ -56,7 +56,7 @@ prepare: |
       repo: string
 push: |
   - key: push
-    if: ${{ steps.fix.outputs.status == "implemented" }}
+    if: ${{ !execution.failed && steps.fix.outputs.status == "implemented" }}
     env:
       BRANCH_NAME: ${{ steps.prepare.outputs.branch }}
       COMMIT_TITLE: ${{ steps.fix.outputs.pr_title }}
@@ -71,7 +71,7 @@ push: |
       git push -u origin "$BRANCH_NAME"
 open_pr: |
   - key: open_pr
-    if: ${{ steps.fix.outputs.status == "implemented" }}
+    if: ${{ !execution.failed && steps.fix.outputs.status == "implemented" }}
     tool: create_pull_request
     connection: github_source # bind:source
     with:
@@ -203,7 +203,7 @@ respond: |
                 type: string
 push_feedback: |
   - key: push_feedback
-    if: ${{ steps.detect_changes.outputs.has_changes }}
+    if: ${{ !execution.failed && steps.detect_changes.outputs.has_changes }}
     env:
       PR_BRANCH: ${{ jobs.implement.outputs.branch }}
       CHECKED_OUT_HEAD: ${{ steps.confirm_clean.outputs.head_sha }}
