@@ -20,6 +20,14 @@ export function workflowFieldLabel(
       return 'Agent session key interpolation';
     case 'job.runner':
       return 'Job runner interpolation';
+    case 'job.container.image':
+      return 'Job container image interpolation';
+    case 'job.container.options':
+      return 'Job container options interpolation';
+    case 'job.container.credentials':
+      return 'Job container credentials interpolation';
+    case 'job.container.env.value':
+      return 'Job container env value interpolation';
     case 'job.outputs':
       return 'Job outputs mapping';
     case 'workflow.run_name':

@@ -112,6 +112,27 @@ export interface WorkflowModelTrigger {
   readonly config?: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * A job container. Each field keeps its authored text. A field with `${{ }}`
+ * interpolation also has a template under `templates`, filled when the field
+ * is needed: the image and options at execution creation, the credentials and
+ * env values on the runner.
+ */
+export interface WorkflowModelJobContainer {
+  readonly image: string;
+  readonly credentials?: {readonly username: string; readonly password: string};
+  readonly env?: Readonly<Record<string, string>>;
+  readonly options?: string;
+  readonly dockerSocket: boolean;
+  readonly templates?: {
+    readonly image?: WorkflowFieldTemplate;
+    readonly options?: WorkflowFieldTemplate;
+    readonly username?: WorkflowFieldTemplate;
+    readonly password?: WorkflowFieldTemplate;
+    readonly env?: WorkflowEnvTemplates;
+  };
+}
+
 export interface WorkflowModelJob {
   readonly id: string;
   readonly key: string;
@@ -119,6 +140,7 @@ export interface WorkflowModelJob {
   readonly runner: readonly string[];
   readonly runnerTemplates?: readonly WorkflowFieldTemplate[];
   readonly checkout: WorkflowModelJobCheckout | false;
+  readonly container?: WorkflowModelJobContainer;
   readonly if?: WorkflowExpression;
   readonly success?: string;
   readonly outputs?: WorkflowOutputTemplates;
@@ -310,14 +332,16 @@ const workflowModelSchema = z.custom<WorkflowModel>(
 );
 
 export const workflowModelSnapshotSchema = z.object({
-  // v2 snapshots predate tool steps, and v3 snapshots predate concurrency.
-  // Historical versions stay readable while snapshots containing concurrency use v4.
-  version: z.union([z.literal(4), z.literal(3), z.literal(2)]),
+  // v2 snapshots predate tool steps, v3 snapshots predate concurrency, and v4
+  // snapshots predate job containers. Historical versions stay readable while
+  // snapshots containing a job container use v5, then concurrency v4.
+  version: z.union([z.literal(5), z.literal(4), z.literal(3), z.literal(2)]),
   model: workflowModelSchema,
 });
 export type WorkflowModelSnapshot = z.infer<typeof workflowModelSnapshotSchema>;
 
 export function createWorkflowModelSnapshot(model: WorkflowModel): WorkflowModelSnapshot {
+  if (model.jobs.some((job) => job.container !== undefined)) return {version: 5, model};
   return {version: model.concurrency === undefined ? 3 : 4, model};
 }
 
@@ -328,6 +352,7 @@ export function workflowModelFromSnapshot(snapshot: WorkflowModelSnapshot): Work
     case 2:
     case 3:
     case 4:
+    case 5:
       return snapshot.model;
     default:
       // Callers that bypass the zod boundary (or a future version) get a
@@ -335,7 +360,7 @@ export function workflowModelFromSnapshot(snapshot: WorkflowModelSnapshot): Work
       throw new Error(
         `Unsupported workflow model snapshot version ${String(
           snapshot.version,
-        )}; supported versions are 2, 3, and 4.`,
+        )}; supported versions are 2, 3, 4, and 5.`,
       );
   }
 }

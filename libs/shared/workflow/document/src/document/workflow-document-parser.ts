@@ -27,11 +27,17 @@ export interface ParseWorkflowDocumentOptions {
    * to `false`. Only applies with `actions`.
    */
   registryActions?: boolean;
+  /** Accepts the job `container` field. Defaults to `false`. */
+  jobContainers?: boolean;
 }
 
 export function parseWorkflowDocument(
   input: unknown,
-  {actions = false, registryActions = false}: ParseWorkflowDocumentOptions = {},
+  {
+    actions = false,
+    registryActions = false,
+    jobContainers = false,
+  }: ParseWorkflowDocumentOptions = {},
 ): WorkflowDocument {
   try {
     // A disabled feature reports only that it is unavailable, not the rules of
@@ -40,6 +46,13 @@ export function parseWorkflowDocument(
     if (actionIssues.length > 0) {
       throw new InvalidWorkflowDocumentError(
         new z.ZodError(actionIssues) as z.ZodError<WorkflowDocument>,
+      );
+    }
+
+    const containerIssues = jobContainers ? [] : jobContainerIssues(input);
+    if (containerIssues.length > 0) {
+      throw new InvalidWorkflowDocumentError(
+        new z.ZodError(containerIssues) as z.ZodError<WorkflowDocument>,
       );
     }
 
@@ -63,7 +76,10 @@ export function parseWorkflowDocument(
 
 function actionStepIssues(
   input: unknown,
-  {actions, registryActions}: Required<ParseWorkflowDocumentOptions>,
+  {
+    actions,
+    registryActions,
+  }: Required<Pick<ParseWorkflowDocumentOptions, 'actions' | 'registryActions'>>,
 ): z.core.$ZodIssue[] {
   if (actions && registryActions) return [];
 
@@ -73,6 +89,22 @@ function actionStepIssues(
       ? registryReferenceIssue(uses)
       : 'Action steps (`uses`) are not supported yet.';
     if (message !== undefined) issues.push({code: 'custom', input: uses, path, message});
+  }
+  return issues;
+}
+
+function jobContainerIssues(input: unknown): z.core.$ZodIssue[] {
+  if (!isRecord(input) || !isRecord(input.jobs)) return [];
+
+  const issues: z.core.$ZodIssue[] = [];
+  for (const [jobName, job] of Object.entries(input.jobs)) {
+    if (!isRecord(job) || job.container === undefined) continue;
+    issues.push({
+      code: 'custom',
+      input: job.container,
+      path: ['jobs', jobName, 'container'],
+      message: 'Job containers (`container`) are not supported yet.',
+    });
   }
   return issues;
 }

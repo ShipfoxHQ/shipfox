@@ -85,6 +85,82 @@ describe('definitionsInterModuleContract', () => {
     expect(readPersistedWorkflowModel(snapshot)).toEqual(model);
   });
 
+  test('writes snapshots with a job container as version 5', () => {
+    const model = {
+      kind: 'workflow',
+      name: 'Deploy',
+      triggers: [],
+      jobs: [
+        {
+          id: 'build',
+          key: 'build',
+          mode: 'one_shot',
+          runner: ['ubuntu-latest'],
+          checkout: false,
+          container: {image: 'node:24-bookworm', dockerSocket: true},
+          dependencies: [],
+          steps: [],
+        },
+      ],
+      dependencies: [],
+    } satisfies WorkflowModel;
+
+    const snapshot = createWorkflowModelSnapshot(model);
+
+    expect(snapshot).toEqual({version: 5, model});
+    expect(readPersistedWorkflowModel(snapshot)).toEqual(model);
+  });
+
+  test('uses version 5 for a container even when the model has concurrency', () => {
+    const model = {
+      kind: 'workflow',
+      name: 'Deploy',
+      triggers: [],
+      jobs: [
+        {
+          id: 'build',
+          key: 'build',
+          mode: 'one_shot',
+          runner: ['ubuntu-latest'],
+          checkout: false,
+          container: {image: 'node', dockerSocket: false},
+          dependencies: [],
+          steps: [],
+        },
+      ],
+      dependencies: [],
+      concurrency: {
+        group: [{kind: 'literal', value: 'production'}],
+        scope: 'workflow',
+        cancelInProgress: false,
+      },
+    } satisfies WorkflowModel;
+
+    expect(createWorkflowModelSnapshot(model).version).toBe(5);
+  });
+
+  test('keeps snapshots without a container or concurrency off version 5', () => {
+    const model = {
+      kind: 'workflow',
+      name: 'Deploy',
+      triggers: [],
+      jobs: [
+        {
+          id: 'build',
+          key: 'build',
+          mode: 'one_shot',
+          runner: ['ubuntu-latest'],
+          checkout: false,
+          dependencies: [],
+          steps: [],
+        },
+      ],
+      dependencies: [],
+    } satisfies WorkflowModel;
+
+    expect(createWorkflowModelSnapshot(model).version).toBe(3);
+  });
+
   test('keeps snapshots without concurrency on version 3', () => {
     const model = {
       kind: 'workflow',
@@ -97,7 +173,7 @@ describe('definitionsInterModuleContract', () => {
     expect(createWorkflowModelSnapshot(model)).toEqual({version: 3, model});
   });
 
-  test.each([2, 3] as const)('keeps v%s persisted snapshots readable', (version) => {
+  test.each([2, 3, 4] as const)('keeps v%s persisted snapshots readable', (version) => {
     expect(readPersistedWorkflowModel({version, model: {kind: 'workflow'}} as never)).toEqual({
       kind: 'workflow',
     });

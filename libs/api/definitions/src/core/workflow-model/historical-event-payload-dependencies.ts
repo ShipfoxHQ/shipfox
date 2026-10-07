@@ -74,6 +74,27 @@ export function findHistoricalEventPayloadDependencies(
     for (const template of job.runnerTemplates ?? []) {
       scanTemplate(template, [...jobPath, 'runner'], dependencies);
     }
+    scanTemplate(job.container?.templates?.image, [...jobPath, 'container', 'image'], dependencies);
+    scanTemplate(
+      job.container?.templates?.options,
+      [...jobPath, 'container', 'options'],
+      dependencies,
+    );
+    scanTemplate(
+      job.container?.templates?.username,
+      [...jobPath, 'container', 'credentials', 'username'],
+      dependencies,
+    );
+    scanTemplate(
+      job.container?.templates?.password,
+      [...jobPath, 'container', 'credentials', 'password'],
+      dependencies,
+    );
+    scanTemplateRecord(
+      job.container?.templates?.env,
+      [...jobPath, 'container', 'env'],
+      dependencies,
+    );
 
     scanListeningExpressions(job, jobPath, dependencies);
 

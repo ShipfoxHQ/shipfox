@@ -508,6 +508,10 @@ export type WorkflowInterpolationField =
   | 'agent.thinking'
   | 'agent.session'
   | 'job.runner'
+  | 'job.container.image'
+  | 'job.container.options'
+  | 'job.container.credentials'
+  | 'job.container.env.value'
   | 'job.outputs'
   | 'workflow.run_name'
   | 'workflow.concurrency.group'
@@ -581,6 +585,25 @@ export const workflowInterpolationFieldPolicies: Readonly<
   },
   'job.runner': {
     acceptedHosts: serverOnlyHosts,
+    failurePolicy: 'fail',
+  },
+  // The image and options reach `docker pull` and `docker create` arguments, so
+  // they cannot carry secrets.
+  'job.container.image': {
+    acceptedHosts: serverOnlyHosts,
+    failurePolicy: 'fail',
+  },
+  'job.container.options': {
+    acceptedHosts: serverOnlyHosts,
+    failurePolicy: 'fail',
+  },
+  // The runner fills registry credentials and container env when it sets the job up.
+  'job.container.credentials': {
+    acceptedHosts: anyHost,
+    failurePolicy: 'fail',
+  },
+  'job.container.env.value': {
+    acceptedHosts: anyHost,
     failurePolicy: 'fail',
   },
   'job.outputs': {
