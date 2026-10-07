@@ -30,7 +30,7 @@
   "scripts": {
     "build": "node scripts/package.mjs build",
     "check": "node scripts/package.mjs type",
-    "e2e": "node dist/e2e.mjs run",
+    "e2e": "node scripts/package.mjs build && node dist/e2e.mjs run",
     "prepack": "node scripts/package.mjs build",
     "test": "node --test test/*.test.mjs",
     "type": "node scripts/package.mjs type",
