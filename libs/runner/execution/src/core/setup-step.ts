@@ -15,6 +15,12 @@ import {
   checkoutRepositoryAt,
   requestCheckoutCredentials,
 } from '#core/checkout-execution.js';
+import {
+  parseSetupContainerConfig,
+  type SetupContainerContext,
+  type StartedSetupContainer,
+  startSetupContainer,
+} from '#core/setup-container.js';
 import type {StepResult} from '#core/step-result.js';
 
 type SetupLogSink = CheckoutLogSink;
@@ -31,6 +37,8 @@ export interface SetupStepExecution {
   ambientGitConfigPath?: string | undefined;
   ambientGitConfigSecrets?: string[] | undefined;
   persistedCheckoutCredential?: PersistedCheckoutCredential | undefined;
+  /** Set when the job has a container and it started. */
+  container?: StartedSetupContainer | undefined;
 }
 
 // The synthetic "Set up job" step body. It owns per-job workspace preparation and the
@@ -50,6 +58,8 @@ export async function executeSetupStep(params: {
   log?: SetupLogSink | undefined;
   jobContext?: SetupJobContext | undefined;
   credentialHelper?: GitCredentialHelperConfig | undefined;
+  /** Required when the step config has a `container`. */
+  container?: SetupContainerContext | undefined;
 }): Promise<SetupStepExecution> {
   const {cwd, log, jobContext, step} = params;
 
@@ -64,34 +74,65 @@ export async function executeSetupStep(params: {
   const workspaceFailure = await prepareWorkspace({cwd, log});
   if (workspaceFailure) return logSetupFailure(workspaceFailure, jobContext);
 
-  if (step.config.checkout === undefined) {
-    log?.writeGroup({
-      name: 'Checkout skipped',
-      lines: [
-        'Project checkout skipped: the job sets "checkout: false", or its first step checks out a repository at the job root.',
-      ],
-    });
-    log?.writeOutputLine('Setup completed successfully. The job is ready to run.');
-    logger().info(setupLogFields(jobContext), 'Setup step completed');
-    return {result: {success: true, error: null, exit_code: 0}};
-  }
-
-  const checkout = await runCheckoutSetup({...params, stepId: step.id, log});
+  const checkout = await runCheckoutPhase({...params, stepId: step.id, log});
   if (!checkout.ok) return logSetupFailure(checkout.result, jobContext);
+
+  let container: StartedSetupContainer | undefined;
+  if (step.config.container !== undefined) {
+    const started = await runContainerSetup({...params, config: step.config.container, log});
+    if (!started.ok) return logSetupFailure(started.result, jobContext);
+    container = started.value;
+  }
 
   log?.writeOutputLine('Setup completed successfully. The job is ready to run.');
   logger().info(setupLogFields(jobContext), 'Setup step completed');
+  return setupSuccess(checkout.value, container);
+}
+
+// The checkout is skipped when the job sets "checkout: false", or when its first step checks out
+// a repository at the job root.
+function runCheckoutPhase(params: {
+  cwd: string;
+  gitConfigPath: string;
+  leaseClient: KyInstance;
+  signal: AbortSignal;
+  step: StepDto;
+  stepId: string;
+  attempt: number;
+  log?: SetupLogSink | undefined;
+  credentialHelper?: GitCredentialHelperConfig | undefined;
+}): Promise<CheckoutPhaseResult<CheckoutSetup | undefined>> {
+  if (params.step.config.checkout !== undefined) return runCheckoutSetup(params);
+  params.log?.writeGroup({
+    name: 'Checkout skipped',
+    lines: [
+      'Project checkout skipped: the job sets "checkout: false", or its first step checks out a repository at the job root.',
+    ],
+  });
+  return Promise.resolve({ok: true, value: undefined});
+}
+
+function setupSuccess(
+  checkout: CheckoutSetup | undefined,
+  container: StartedSetupContainer | undefined,
+): SetupStepExecution {
   return {
-    result: {success: true, error: null, exit_code: 0, checkout: checkout.value.checkout},
-    ...(checkout.value.ambientGitConfigPath
-      ? {ambientGitConfigPath: checkout.value.ambientGitConfigPath}
+    result: {
+      success: true,
+      error: null,
+      exit_code: 0,
+      ...(checkout ? {checkout: checkout.checkout} : {}),
+    },
+    ...(checkout?.ambientGitConfigPath
+      ? {ambientGitConfigPath: checkout.ambientGitConfigPath}
       : {}),
-    ...(checkout.value.ambientGitConfigSecrets
-      ? {ambientGitConfigSecrets: checkout.value.ambientGitConfigSecrets}
+    ...(checkout?.ambientGitConfigSecrets
+      ? {ambientGitConfigSecrets: checkout.ambientGitConfigSecrets}
       : {}),
-    ...(checkout.value.persistedCheckoutCredential
-      ? {persistedCheckoutCredential: checkout.value.persistedCheckoutCredential}
+    ...(checkout?.persistedCheckoutCredential
+      ? {persistedCheckoutCredential: checkout.persistedCheckoutCredential}
       : {}),
+    ...(container ? {container} : {}),
   };
 }
 
@@ -135,6 +176,13 @@ async function prepareWorkspace(params: {
   return null;
 }
 
+interface CheckoutSetup {
+  ambientGitConfigPath?: string | undefined;
+  ambientGitConfigSecrets?: string[] | undefined;
+  persistedCheckoutCredential?: PersistedCheckoutCredential | undefined;
+  checkout: NonNullable<StepResult['checkout']>;
+}
+
 async function runCheckoutSetup(params: {
   cwd: string;
   gitConfigPath: string;
@@ -144,14 +192,7 @@ async function runCheckoutSetup(params: {
   attempt: number;
   log?: SetupLogSink | undefined;
   credentialHelper?: GitCredentialHelperConfig | undefined;
-}): Promise<
-  CheckoutPhaseResult<{
-    ambientGitConfigPath?: string | undefined;
-    ambientGitConfigSecrets?: string[] | undefined;
-    persistedCheckoutCredential?: PersistedCheckoutCredential | undefined;
-    checkout: NonNullable<StepResult['checkout']>;
-  }>
-> {
+}): Promise<CheckoutPhaseResult<CheckoutSetup>> {
   const {log} = params;
   log?.writeGroupStart('Checkout');
   try {
@@ -171,6 +212,43 @@ async function runCheckoutSetup(params: {
       scope: 'setup',
       credentialHelper: params.credentialHelper,
     });
+  } finally {
+    log?.writeGroupEnd();
+  }
+}
+
+async function runContainerSetup(params: {
+  cwd: string;
+  config: unknown;
+  container?: SetupContainerContext | undefined;
+  signal: AbortSignal;
+  log?: SetupLogSink | undefined;
+}): Promise<CheckoutPhaseResult<StartedSetupContainer>> {
+  const {log} = params;
+  log?.writeGroupStart('Job container');
+  try {
+    if (params.container === undefined) {
+      throw new Error('The job container context is missing.');
+    }
+    const config = parseSetupContainerConfig(params.config);
+    log?.writeOutputLine(`Starting the job container from image ${config.image}.`);
+    const container = await startSetupContainer({
+      config,
+      context: params.container,
+      workspaceDir: params.cwd,
+      signal: params.signal,
+      log,
+    });
+    log?.writeOutputLine(`Job container ${container.name} is running.`);
+    return {ok: true, value: container};
+  } catch (error) {
+    writeFailure(
+      log,
+      'Setup failed because the runner could not start the job container.',
+      'Check the image name, the registry credentials, and the container options.',
+      error,
+    );
+    return {ok: false, result: fail(error, 'container_setup_failed')};
   } finally {
     log?.writeGroupEnd();
   }

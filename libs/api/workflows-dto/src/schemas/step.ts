@@ -19,7 +19,8 @@ export type StepStatusReasonDto = z.infer<typeof stepStatusReasonSchema>;
 
 // Machine-readable cause of a step failure, for DB troubleshooting. The runner
 // reports it and the server stores it as-is. The `checkout_*`, `git_unavailable`,
-// `workspace_prep_failed`, and `setup_aborted` values cover checkout/setup failures.
+// `workspace_prep_failed`, `container_setup_failed`, and `setup_aborted` values cover
+// checkout/setup failures.
 // For agent steps the cause is split into configuration, invocation, harness-startup, and
 // dispatch-time session-claim failures. `agent_config_invalid` is a user-fixable configuration
 // error and carries an `agent_config_issue`; the other reasons carry no issue code because

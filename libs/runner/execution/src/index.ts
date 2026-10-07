@@ -17,6 +17,7 @@ export {
   type StepCommand,
   type StepProcessOptions,
 } from '#core/run-step.js';
+export type {SetupContainerContext, SetupContainerSecrets} from '#core/setup-container.js';
 export {executeSetupStep, type SetupJobContext, type SetupStepExecution} from '#core/setup-step.js';
 export {
   MAX_OUTPUT_TOTAL_BYTES,

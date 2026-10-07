@@ -1,6 +1,7 @@
 import type {StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {HTTPError} from 'ky';
+import type {SetupContainerContext} from '#core/setup-container.js';
 
 vi.hoisted(() => {
   process.env.SHIPFOX_API_URL = 'https://api.test';
@@ -13,6 +14,14 @@ const createJobDirMock = vi.fn();
 const normalizeCheckoutDestinationMock = vi.fn();
 const checkoutRepositoryMock = vi.fn();
 const writeAmbientGitCredentialMock = vi.fn();
+const startJobContainerMock = vi.fn();
+
+vi.mock('@shipfox/runner-container', async () => {
+  const actual = await vi.importActual<typeof import('@shipfox/runner-container')>(
+    '@shipfox/runner-container',
+  );
+  return {...actual, startJobContainer: (...args: unknown[]) => startJobContainerMock(...args)};
+});
 
 vi.mock('@shipfox/runner-protocol', async () => {
   const actual = await vi.importActual<typeof import('@shipfox/runner-protocol')>(
@@ -71,7 +80,21 @@ function checkoutResponse(auth?: unknown, gitAuthor?: unknown) {
   };
 }
 
-function run(log?: ReturnType<typeof fakeLog>, step = buildSetupStep(), helper = false) {
+const containerContext: SetupContainerContext = {
+  jobId: jobContext.jobId,
+  tempDir: '/tmp/shipfox-test-root/.shipfox-runner-tmp/job-1',
+  agentStateDir: '/tmp/shipfox-test-root/.shipfox-runner-agent/job-1',
+  logsDir: '/tmp/shipfox-test-root/.shipfox-runner-logs/job-1',
+  credentialsDir: '/tmp/shipfox-test-root/.shipfox-runner-cred/job-1',
+  secrets: {env: {}},
+};
+
+function run(
+  log?: ReturnType<typeof fakeLog>,
+  step = buildSetupStep(),
+  helper = false,
+  container?: SetupContainerContext,
+) {
   return executeSetupStep({
     cwd: CWD,
     gitConfigPath: GIT_CONFIG_PATH,
@@ -82,6 +105,7 @@ function run(log?: ReturnType<typeof fakeLog>, step = buildSetupStep(), helper =
     ...(log ? {log} : {}),
     jobContext,
     ...(helper ? {credentialHelper} : {}),
+    ...(container ? {container} : {}),
   });
 }
 
@@ -752,5 +776,184 @@ describe('executeSetupStep', () => {
 
     expect(result.result.error).toEqual({message: 'weird', reason: 'checkout_failed'});
     expectSetupFailureWarning(warn, 'checkout_failed');
+  });
+
+  describe('job container', () => {
+    const containerConfig = {
+      image: 'ghcr.io/acme/toolbox:1',
+      options: '--cpus 2',
+      docker_socket: false,
+      env: {LICENSE: 'literal'},
+      username: 'acme-bot',
+    };
+
+    beforeEach(() => {
+      startJobContainerMock.mockResolvedValue({name: 'shipfox-job-1'});
+    });
+
+    it('starts the container after the checkout and returns it', async () => {
+      requestCheckoutTokenMock.mockResolvedValue(checkoutResponse());
+      const order: string[] = [];
+      checkoutRepositoryMock.mockImplementation(() => {
+        order.push('checkout');
+        return Promise.resolve({
+          sha: 'abc',
+          ref: 'main',
+          repository_url: 'https://github.com/acme/repo.git',
+        });
+      });
+      startJobContainerMock.mockImplementation(() => {
+        order.push('container');
+        return Promise.resolve({name: 'shipfox-job-1'});
+      });
+      const context = {
+        ...containerContext,
+        secrets: {password: 'registry-secret', env: {TOKEN: 'env-secret'}},
+      };
+
+      const result = await run(
+        undefined,
+        buildSetupStep({checkout: {}, container: containerConfig}),
+        false,
+        context,
+      );
+
+      expect(order).toEqual(['checkout', 'container']);
+      expect(startJobContainerMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobId: jobContext.jobId,
+          image: 'ghcr.io/acme/toolbox:1',
+          options: '--cpus 2',
+          dockerSocket: false,
+          registry: {username: 'acme-bot', password: 'registry-secret'},
+          workspaceDir: CWD,
+          tempDir: context.tempDir,
+          agentStateDir: context.agentStateDir,
+          logsDir: context.logsDir,
+          credentialsDir: context.credentialsDir,
+          signal,
+        }),
+      );
+      expect(result.result.success).toBe(true);
+      expect(result.container).toEqual({
+        name: 'shipfox-job-1',
+        env: {LICENSE: 'literal', TOKEN: 'env-secret'},
+      });
+    });
+
+    it('starts the container when the checkout is skipped', async () => {
+      const result = await run(undefined, buildSetupStep({container: containerConfig}), false, {
+        ...containerContext,
+        secrets: {env: {}},
+      });
+
+      expect(checkoutRepositoryMock).not.toHaveBeenCalled();
+      expect(startJobContainerMock).toHaveBeenCalledOnce();
+      expect(result.container?.name).toBe('shipfox-job-1');
+    });
+
+    it('takes a secret username and pulls anonymously without a password', async () => {
+      const step = buildSetupStep({container: {image: 'node:24'}});
+
+      await run(undefined, step, false, {
+        ...containerContext,
+        secrets: {username: 'secret-user', password: 'secret-pass', env: {}},
+      });
+      await run(undefined, step, false, containerContext);
+
+      expect(startJobContainerMock).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          options: '',
+          dockerSocket: true,
+          registry: {username: 'secret-user', password: 'secret-pass'},
+        }),
+      );
+      expect(startJobContainerMock).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({registry: undefined}),
+      );
+    });
+
+    it('does not start the container when the checkout fails', async () => {
+      requestCheckoutTokenMock.mockResolvedValue(checkoutResponse());
+      checkoutRepositoryMock.mockRejectedValue(new Error('weird'));
+
+      const result = await run(
+        undefined,
+        buildSetupStep({checkout: {}, container: containerConfig}),
+        false,
+        containerContext,
+      );
+
+      expect(result.result.error?.reason).toBe('checkout_failed');
+      expect(startJobContainerMock).not.toHaveBeenCalled();
+    });
+
+    it('reports container_setup_failed with the Docker message', async () => {
+      const warn = spySetupWarnings();
+      const log = fakeLog();
+      startJobContainerMock.mockRejectedValue(new Error('pull access denied for acme/toolbox'));
+
+      const result = await run(
+        log,
+        buildSetupStep({container: containerConfig}),
+        false,
+        containerContext,
+      );
+
+      expect(result.result).toEqual({
+        success: false,
+        error: {message: 'pull access denied for acme/toolbox', reason: 'container_setup_failed'},
+        exit_code: null,
+      });
+      expect(result.container).toBeUndefined();
+      expect(log.writeOutputLine).toHaveBeenCalledWith(
+        'Setup failed because the runner could not start the job container. Details: pull access denied for acme/toolbox',
+        'stderr',
+      );
+      expect(log.writeGroupEnd).toHaveBeenCalled();
+      expectSetupFailureWarning(warn, 'container_setup_failed');
+    });
+
+    it('streams Docker output to the setup log', async () => {
+      const log = fakeLog();
+      startJobContainerMock.mockImplementation(
+        (params: {onOutput: (line: string, source: 'stdout' | 'stderr') => void}) => {
+          params.onOutput('Pulling fs layer', 'stdout');
+          return Promise.resolve({name: 'shipfox-job-1'});
+        },
+      );
+
+      await run(log, buildSetupStep({container: containerConfig}), false, containerContext);
+
+      expect(log.writeOutputLine).toHaveBeenCalledWith('Pulling fs layer', 'stdout');
+    });
+
+    it('fails when the container configuration is invalid', async () => {
+      spySetupWarnings();
+
+      const result = await run(
+        undefined,
+        buildSetupStep({container: {image: ''}}),
+        false,
+        containerContext,
+      );
+
+      expect(result.result.error).toEqual({
+        message: 'The job container configuration is invalid.',
+        reason: 'container_setup_failed',
+      });
+      expect(startJobContainerMock).not.toHaveBeenCalled();
+    });
+
+    it('fails when the container context is missing', async () => {
+      spySetupWarnings();
+
+      const result = await run(undefined, buildSetupStep({container: containerConfig}));
+
+      expect(result.result.error?.reason).toBe('container_setup_failed');
+      expect(startJobContainerMock).not.toHaveBeenCalled();
+    });
   });
 });

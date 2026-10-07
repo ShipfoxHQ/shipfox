@@ -6,7 +6,9 @@ import {gunzip, gzip} from 'node:zlib';
 import {
   type MaterializedSecretBindingDto,
   materializedSecretBindingSchema,
+  type SecretBindingSegmentDto,
   type StepSecretDto,
+  secretBindingSegmentSchema,
 } from '@shipfox/api-secrets-dto';
 import type {
   LogOutcomeDto,
@@ -27,6 +29,7 @@ import {
   executeRunStep,
   executeSetupStep,
   resolveCgroupMemoryEventsPath,
+  type SetupContainerSecrets,
   type SetupJobContext,
   type StepResult,
 } from '@shipfox/runner-execution';
@@ -70,6 +73,7 @@ import {
   resolveWorkingDirectory,
 } from '@shipfox/runner-workspace';
 import {isTimeoutError, type KyInstance} from 'ky';
+import {z} from 'zod';
 import {config} from '#config.js';
 import {createInferenceCredentialSource} from '#core/inference-credential-source.js';
 
@@ -133,6 +137,10 @@ export async function runJobSteps(params: {
   /** Runner-owned scratch directory of the job, outside the workspace. */
   tempDir: string;
   prepareTempDir?: () => Promise<void>;
+  /** The Git credential directory of the job. */
+  credentialsDir: string;
+  /** Called before the setup step creates the job container, so a failed start is still cleaned up. */
+  onJobContainerRequested?: () => void;
   jobContext: SetupJobContext;
   onLeaseTokenAdopted?: (leaseToken: string) => void;
 }): Promise<void> {
@@ -241,6 +249,10 @@ async function runJobStepIteration(
     jobContext: params.jobContext,
     gitConfigPath: params.gitConfigPath,
     jobTempDir: params.tempDir,
+    credentialsDir: params.credentialsDir,
+    ...(params.onJobContainerRequested
+      ? {onJobContainerRequested: params.onJobContainerRequested}
+      : {}),
     ...(params.credentialHelper ? {credentialHelper: params.credentialHelper} : {}),
     ...preparation,
   };
@@ -692,6 +704,8 @@ export async function executeStep(params: {
    * extracted actions.
    */
   jobTempDir: string;
+  credentialsDir: string;
+  onJobContainerRequested?: (() => void) | undefined;
   jobId: string;
   stepLabel: string;
   prepareLogs?: (() => Promise<void>) | undefined;
@@ -984,13 +998,31 @@ async function executeSetupStepBranch(params: {
   const input = params.params;
   const logFailure = await runSetupPreparations(input);
   if (logFailure) return logFailure;
+  // Like run and action steps, setup pulls its secrets before the log stream opens, so the stream
+  // masks them from the first byte.
+  let containerSecrets: SetupContainerSecrets | undefined;
+  let containerSecretValues: string[] = [];
+  if (input.step.config.container !== undefined) {
+    try {
+      const material = await loadContainerSecretMaterial(input);
+      containerSecrets = material.secrets;
+      containerSecretValues = material.values;
+    } catch (error) {
+      return {
+        result: stepSecretsFailure(error),
+        logOutcome: 'drained',
+        preparedWorkspace: false,
+      };
+    }
+    input.registerSecrets?.(containerSecretValues);
+  }
   let setupStream: StepLogStream | undefined;
   try {
     setupStream = createStepLogStream({
       logsDir: input.logsDir,
       stepId: input.step.id,
       attempt: input.attempt,
-      secrets: input.secrets,
+      secrets: [...input.secrets, ...containerSecretValues],
       append: params.append,
     });
   } catch (error) {
@@ -1001,6 +1033,7 @@ async function executeSetupStepBranch(params: {
   }
   params.onStream(setupStream);
   params.registerStreamSecrets(setupStream);
+  if (containerSecrets !== undefined) input.onJobContainerRequested?.();
   const setup = await executeSetupStep({
     cwd: input.cwd,
     gitConfigPath: input.gitConfigPath,
@@ -1011,9 +1044,21 @@ async function executeSetupStepBranch(params: {
     ...(setupStream ? {log: setupStream} : {}),
     jobContext: input.jobContext,
     ...(input.credentialHelper ? {credentialHelper: input.credentialHelper} : {}),
+    ...(containerSecrets
+      ? {
+          container: {
+            jobId: input.jobId,
+            tempDir: input.jobTempDir,
+            agentStateDir: input.agentStateDir,
+            logsDir: input.logsDir,
+            credentialsDir: input.credentialsDir,
+            secrets: containerSecrets,
+          },
+        }
+      : {}),
   });
   return {
-    result: setup.result,
+    result: maskSetupFailure(setup.result, [...input.secrets, ...containerSecretValues]),
     stream: setupStream,
     logOutcome: setupStream ? undefined : 'abandoned',
     preparedWorkspace: setup.result.success,
@@ -1754,6 +1799,52 @@ async function loadStepSecretMaterial(params: {
   };
 }
 
+// The setup step of a container job has its own binding targets: the registry credentials and
+// the environment of the container.
+const containerSecretBindingSchema = z.object({
+  target: z.discriminatedUnion('kind', [
+    z.object({kind: z.literal('container_credential'), field: z.enum(['username', 'password'])}),
+    z.object({kind: z.literal('container_env'), name: z.string().min(1)}),
+  ]),
+  segments: z.array(secretBindingSegmentSchema),
+});
+
+async function loadContainerSecretMaterial(
+  input: Pick<Parameters<typeof executeStep>[0], 'step' | 'leaseClient' | 'attempt' | 'signal'>,
+): Promise<{secrets: SetupContainerSecrets; values: string[]}> {
+  const parsed = containerSecretBindingSchema
+    .array()
+    .safeParse(input.step.config.secret_bindings ?? []);
+  if (!parsed.success) throw new Error('Job container secret bindings are invalid.');
+  const secrets: SetupContainerSecrets = {env: {}};
+  if (parsed.data.length === 0) return {secrets, values: []};
+
+  const pulled = await requestStepSecrets(input.leaseClient, {
+    stepId: input.step.id,
+    attempt: input.attempt,
+    signal: input.signal,
+  });
+  const values = new Map(pulled.secrets.map((secret) => [secretReferenceId(secret), secret.value]));
+  for (const binding of parsed.data) {
+    const value = assembleSecretBinding(binding, values);
+    if (binding.target.kind === 'container_env') secrets.env[binding.target.name] = value;
+    else secrets[binding.target.field] = value;
+  }
+  return {secrets, values: pulled.secrets.map((secret) => secret.value)};
+}
+
+// Docker's message can quote the credentials it was given.
+function maskSetupFailure(result: StepResult, secrets: string[]): StepResult {
+  if (result.success || !result.error) return result;
+  return {
+    ...result,
+    error: {
+      ...result.error,
+      message: redactSecrets(result.error.message, buildSecretVariants(secrets)),
+    },
+  };
+}
+
 // Environment variables are the only target of run steps; input targets belong to action steps.
 // Container targets belong to the setup step, which this loader does not pull for yet.
 function parseStepSecretBindings(step: StepDto): MaterializedSecretBindingDto[] {
@@ -1776,7 +1867,7 @@ function bindingTargetAllowed(
 }
 
 function assembleSecretBinding(
-  binding: MaterializedSecretBindingDto,
+  binding: {segments: SecretBindingSegmentDto[]},
   values: ReadonlyMap<string, string>,
 ): string {
   return binding.segments

@@ -8800,6 +8800,10 @@ importers:
         version: link:../../../tools/vitest
 
   libs/runner/container:
+    dependencies:
+      '@shipfox/node-opentelemetry':
+        specifier: workspace:*
+        version: link:../../shared/node/opentelemetry
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -8929,6 +8933,9 @@ importers:
       '@shipfox/runner-agent':
         specifier: workspace:*
         version: link:../agent
+      '@shipfox/runner-container':
+        specifier: workspace:*
+        version: link:../container
       '@shipfox/runner-execution':
         specifier: workspace:*
         version: link:../execution
@@ -8944,6 +8951,9 @@ importers:
       ky:
         specifier: 'catalog:'
         version: 2.0.2
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*

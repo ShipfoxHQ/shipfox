@@ -44,11 +44,13 @@
     "@shipfox/node-resilient-loop": "workspace:*",
     "@shipfox/redact": "workspace:*",
     "@shipfox/runner-agent": "workspace:*",
+    "@shipfox/runner-container": "workspace:*",
     "@shipfox/runner-execution": "workspace:*",
     "@shipfox/runner-logs": "workspace:*",
     "@shipfox/runner-protocol": "workspace:*",
     "@shipfox/runner-workspace": "workspace:*",
-    "ky": "catalog:"
+    "ky": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
