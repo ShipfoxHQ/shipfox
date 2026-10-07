@@ -273,7 +273,7 @@ describe('materializeJobExecutionSteps', () => {
 
     expect(steps[0]).toMatchObject({
       type: 'setup',
-      config: {},
+      config: {checkout: {permissions: {contents: 'read'}, persist_credentials: true}},
     });
     expect(steps[1]).toEqual({
       key: null,
@@ -316,6 +316,69 @@ describe('materializeJobExecutionSteps', () => {
       config: {checkout: {repository: 'acme/api', path: '.'}},
     });
     expect(steps[2]).toMatchObject({type: 'run', config: {run: 'echo use checkout'}});
+  });
+
+  it.each([
+    {label: 'no path', path: undefined},
+    {label: 'path .', path: '.'},
+    {label: 'path ./', path: './'},
+  ])('skips the project checkout when the leading checkout has $label', async ({path}) => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [
+            {checkout: {...checkout('acme/api'), ...(path === undefined ? {} : {path})}},
+            {run: 'echo use checkout'},
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = await materializeJobExecutionSteps({model, job, context: jobExecutionContext()});
+
+    expect(steps[0]).toMatchObject({type: 'setup', config: {}});
+  });
+
+  it('keeps the project checkout when the leading checkout has its own path', async () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [{checkout: {...checkout('acme/base'), path: 'base'}}, {run: 'echo use root'}],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = await materializeJobExecutionSteps({model, job, context: jobExecutionContext()});
+
+    expect(steps[0]).toMatchObject({
+      type: 'setup',
+      config: {checkout: {permissions: {contents: 'read'}, persist_credentials: true}},
+    });
+    expect(steps[1]).toMatchObject({
+      type: 'checkout',
+      config: {checkout: {repository: 'acme/base', path: 'base'}},
+    });
+  });
+
+  it('skips the project checkout when the job opts out and the leading checkout has a path', async () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          checkout: false,
+          steps: [{checkout: {...checkout('acme/base'), path: 'base'}}],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = await materializeJobExecutionSteps({model, job, context: jobExecutionContext()});
+
+    expect(steps[0]).toMatchObject({type: 'setup', config: {}});
   });
 
   it('keeps the implicit checkout when an explicit checkout is not leading', async () => {

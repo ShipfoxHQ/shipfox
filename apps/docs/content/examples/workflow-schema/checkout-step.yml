@@ -6,4 +6,5 @@ jobs:
         checkout:
           ref: main
           path: base
-      - run: diff -rq base . || true
+      - run: |
+          diff -rq --exclude=.git base . | grep -vxF 'Only in .: base' || true

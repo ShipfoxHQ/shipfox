@@ -67,7 +67,9 @@ export async function executeSetupStep(params: {
   if (step.config.checkout === undefined) {
     log?.writeGroup({
       name: 'Checkout skipped',
-      lines: ['No repository checkout was requested for this job.'],
+      lines: [
+        'Project checkout skipped: the job sets "checkout: false", or its first step checks out a repository at the job root.',
+      ],
     });
     log?.writeOutputLine('Setup completed successfully. The job is ready to run.');
     logger().info(setupLogFields(jobContext), 'Setup step completed');

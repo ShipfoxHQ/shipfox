@@ -677,7 +677,8 @@ export const workflowDocumentCheckoutSchema = z
       description: 'Sets how many commits to fetch. Use `0` for the full history.',
     }),
     path: z.string().min(1).optional().meta({
-      description: 'Sets the destination folder under the job workspace.',
+      description:
+        'Sets the destination folder under the job root. A first step with no `path`, `.`, or `./` replaces the project checkout at the root. Any other `path` keeps the project checkout at the root.',
     }),
     permissions: workflowDocumentCheckoutPermissionsSchema,
     'persist-credentials': workflowDocumentPersistCredentialsSchema,
@@ -711,7 +712,7 @@ const workflowDocumentJobCheckoutSchema = z
   ])
   .meta({
     description:
-      'Configures repository permissions and saved credentials for this job. Set to `false` to skip checkout.',
+      'Configures repository permissions and saved credentials for the project checkout at the job root. Set to `false` to skip that checkout.',
   });
 
 export const workflowDocumentStepIntegrationSelectionSchema = z.array(z.string().min(1)).min(1);
@@ -941,7 +942,8 @@ const workflowDocumentStepBaseSchema = z.strictObject({
       'Runs a shell command. Pass workflow values as command arguments, such as `deploy "$TARGET"`. Do not send them to commands such as `eval` or `sh -c`.',
   }),
   checkout: workflowDocumentCheckoutSchema.optional().meta({
-    description: 'Checks out a repository for this step.',
+    description:
+      'Checks out a repository for this step. Set `path` to keep the project checkout at the job root.',
   }),
   model: z.string().min(1).optional().meta({
     description: 'Selects the model that the agent uses.',

@@ -32,6 +32,40 @@ tool steps still needs a runner. [Integrations, integration connections, and
 tools](/understand/integrations-connections-and-tools) explains when a tool
 step fits better than an agent with tools.
 
+## What lands at the job root
+
+Every step starts in the job root, shown as `.`. By default the root holds a
+checkout of the project that owns the workflow. Each job gets its own copy.
+
+A first step that is a checkout can replace it. When that step sets no `path`,
+or sets `.` or `./`, its repository lands at the root instead, and Shipfox skips
+the project checkout. When it sets any other `path`, such as `path: helm`, the
+repository goes into that folder and the project checkout stays at the root.
+
+Set `checkout: false` on the job to skip the project checkout and start with an
+empty root. A later checkout step with no `path`, or with `.` or `./`, can then
+fill it.
+
+```yaml title=".shipfox/workflows/release.yml"
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Release
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+
+jobs:
+  release:
+    steps:
+      - checkout:
+          repository: acme/helm
+          path: helm
+      - run: ls . helm
+```
+
+In this job, `.` holds the project and `helm` holds `acme/helm`.
+
 ## When to keep steps in one job
 
 Steps in one job run in order and use the same checkout. A later step can read

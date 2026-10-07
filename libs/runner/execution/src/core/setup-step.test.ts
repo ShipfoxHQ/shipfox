@@ -170,7 +170,9 @@ describe('executeSetupStep', () => {
     expect(result).toEqual({result: {success: true, error: null, exit_code: 0}});
     expect(log.writeGroup).toHaveBeenCalledWith({
       name: 'Checkout skipped',
-      lines: ['No repository checkout was requested for this job.'],
+      lines: [
+        'Project checkout skipped: the job sets "checkout: false", or its first step checks out a repository at the job root.',
+      ],
     });
   });
 
