@@ -1421,6 +1421,39 @@ function outputsMappingSchema(label: 'Job' | 'Workflow') {
 
 const workflowDocumentJobOutputsSchema = outputsMappingSchema('Job');
 
+// `volumes` and `ports` are not fields: volumes go through `options` and the
+// container shares the host network. `options` reaches `docker create` as
+// written, so it is not validated here.
+const workflowDocumentContainerObjectSchema = z.strictObject({
+  image: z.string().min(1).meta({
+    description: 'Names the Docker image the job runs in. Supports workflow expressions.',
+  }),
+  credentials: z
+    .strictObject({
+      username: z.string().min(1).meta({description: 'Sets the registry username.'}),
+      password: z.string().min(1).meta({description: 'Sets the registry password.'}),
+    })
+    .optional()
+    .meta({description: 'Signs in to a private registry before the runner pulls the image.'}),
+  env: workflowDocumentEnvSchema.optional().meta({
+    description: 'Sets environment variables for every process in the container.',
+  }),
+  options: z.string().optional().meta({
+    description:
+      'Passes extra flags to `docker create`, as written. Supports workflow expressions.',
+  }),
+  docker_socket: z.boolean().optional().meta({
+    description: 'Mounts the host Docker socket into the container. Defaults to `true`.',
+  }),
+});
+
+export const workflowDocumentContainerSchema = z
+  .union([z.string().min(1), workflowDocumentContainerObjectSchema])
+  .meta({
+    description:
+      'Runs this job in a Docker container. Set a string for the image, or an object for the image and its settings.',
+  });
+
 export const workflowDocumentJobSchema = z.strictObject({
   needs: stringOrStringArraySchema.optional().meta({
     description: 'Lists the jobs that must finish before this job starts.',
@@ -1445,6 +1478,7 @@ export const workflowDocumentJobSchema = z.strictObject({
     description: 'Stops one job execution after this duration.',
   }),
   checkout: workflowDocumentJobCheckoutSchema.optional(),
+  container: workflowDocumentContainerSchema.optional(),
   listening: workflowDocumentListeningSchema.optional().meta({
     description:
       'Keeps the job open for matching events. Set `until`, `timeout`, or `max_executions` to end it. See [Listening jobs](/understand/listening-jobs).',
@@ -1493,6 +1527,7 @@ export type WorkflowDocumentConcurrency = z.infer<typeof workflowDocumentConcurr
 export type WorkflowDocument = z.infer<typeof workflowDocumentSchema>;
 export type WorkflowDocumentCheckout = z.infer<typeof workflowDocumentCheckoutSchema>;
 export type WorkflowDocumentJobCheckout = z.infer<typeof workflowDocumentJobCheckoutSchema>;
+export type WorkflowDocumentContainer = z.infer<typeof workflowDocumentContainerSchema>;
 export type WorkflowDocumentEnv = z.infer<typeof workflowDocumentEnvSchema>;
 export type WorkflowDocumentJobListening = z.infer<typeof workflowDocumentListeningSchema>;
 export type WorkflowDocumentRunStepGate = z.infer<typeof workflowDocumentStepGateSchema>;

@@ -54,6 +54,7 @@ import {normalizeAgentPrompt} from './normalize-agent-prompt.js';
 import {normalizeEnv} from './normalize-env.js';
 import {normalizeIfCondition} from './normalize-if-condition.js';
 import {normalizeCheckout, normalizeJobCheckout} from './normalize-job-checkout.js';
+import {normalizeJobContainer} from './normalize-job-container.js';
 import {normalizeJobListening} from './normalize-job-listening.js';
 import {normalizeJobSuccess} from './normalize-job-success.js';
 import {normalizeNeeds} from './normalize-needs.js';
@@ -250,6 +251,11 @@ function normalizeJob(params: {
   const checkout = normalizeJobCheckout({
     checkout: params.job.checkout,
   });
+  const container = normalizeJobContainer({
+    container: params.job.container,
+    sourceName: params.sourceName,
+    issues: params.issues,
+  });
   const jobEnv = normalizeEnv({
     env: params.job.env,
     path: ['jobs', params.sourceName, 'env'],
@@ -307,6 +313,7 @@ function normalizeJob(params: {
   return buildNormalizedJob({
     id,
     checkout,
+    container,
     condition,
     dependencies,
     executionName,
@@ -356,6 +363,7 @@ function buildNormalizedJob(params: {
   key: string;
   runner: ReturnType<typeof normalizeRunner>;
   checkout: ReturnType<typeof normalizeJobCheckout>;
+  container: ReturnType<typeof normalizeJobContainer>;
   condition: ReturnType<typeof normalizeIfCondition>;
   success: ReturnType<typeof normalizeJobSuccess>;
   outputs: ReturnType<typeof normalizeJobOutputs>;
@@ -374,6 +382,7 @@ function buildNormalizedJob(params: {
     runner: params.runner.labels,
     ...(params.runner.templates.length === 0 ? {} : {runnerTemplates: params.runner.templates}),
     checkout: params.checkout,
+    ...(params.container === undefined ? {} : {container: params.container}),
     ...(params.condition === undefined ? {} : {if: params.condition}),
     ...(params.success === undefined ? {} : {success: params.success}),
     ...(params.outputs === undefined ? {} : {outputs: params.outputs.templates}),

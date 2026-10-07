@@ -1181,6 +1181,10 @@ describe('workflow interpolation field policies', () => {
       'agent.thinking',
       'agent.session',
       'job.runner',
+      'job.container.image',
+      'job.container.options',
+      'job.container.credentials',
+      'job.container.env.value',
       'job.outputs',
       'workflow.run_name',
       'workflow.concurrency.group',
@@ -1222,6 +1226,10 @@ describe('workflow interpolation field policies', () => {
     ['agent.thinking', ['server']],
     ['agent.session', ['server']],
     ['job.runner', ['server']],
+    ['job.container.image', ['server']],
+    ['job.container.options', ['server']],
+    ['job.container.credentials', ['server', 'runner']],
+    ['job.container.env.value', ['server', 'runner']],
     ['job.outputs', ['server']],
     ['workflow.run_name', ['server']],
     ['workflow.concurrency.group', ['server']],
@@ -1254,6 +1262,10 @@ describe('workflow interpolation field policies', () => {
     expect(workflowInterpolationFieldAcceptsHost('job.runner', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('job.outputs', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('job.runner', 'runner')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsHost('job.container.image', 'runner')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsHost('job.container.options', 'runner')).toBe(false);
+    expect(workflowInterpolationFieldAcceptsHost('job.container.credentials', 'runner')).toBe(true);
+    expect(workflowInterpolationFieldAcceptsHost('job.container.env.value', 'runner')).toBe(true);
     expect(workflowInterpolationFieldAcceptsHost('step.name', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('step.working_directory', 'runner')).toBe(false);
     expect(workflowInterpolationFieldAcceptsHost('step.feedback', 'runner')).toBe(false);

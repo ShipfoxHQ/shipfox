@@ -86,6 +86,34 @@ describe('historical event-payload definition analysis', () => {
     );
   });
 
+  it('audits normalized job container templates', () => {
+    const source = 'executions[0].events[0].data.image';
+    const {diagnostics} = normalize({
+      name: 'container history',
+      jobs: {
+        build: {
+          container: {
+            image: interpolation(source),
+            options: interpolation(source),
+            credentials: {username: interpolation(source), password: interpolation(source)},
+            env: {TAG: interpolation(source)},
+          },
+          steps: [{run: 'echo ok'}],
+        },
+      },
+    });
+
+    expect(diagnostics.map((diagnostic) => diagnostic.path)).toEqual(
+      expect.arrayContaining([
+        ['jobs', 'build', 'container', 'image', 0],
+        ['jobs', 'build', 'container', 'options', 0],
+        ['jobs', 'build', 'container', 'credentials', 'username', 0],
+        ['jobs', 'build', 'container', 'credentials', 'password', 0],
+        ['jobs', 'build', 'container', 'env', 'TAG', 0],
+      ]),
+    );
+  });
+
   it('warns for whole-element filter and map template results', () => {
     const filterSource = 'executions.filter(e, e.status == "succeeded")';
     const mapSource = 'executions.map(e, e)';
