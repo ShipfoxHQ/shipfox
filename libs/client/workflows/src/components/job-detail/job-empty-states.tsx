@@ -1,7 +1,7 @@
 import {deriveStepErrorCategory} from '@shipfox/api-workflows-dto';
 import {Callout, CalloutContent, CalloutDescription, CalloutTitle} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
-import {conditionErrorDescription} from '#core/condition-error.js';
+import {conditionErrorDescription, RUN_AFTER_SKIP_DESCRIPTION} from '#core/condition-error.js';
 import type {Job, JobExecution, Step, StepError} from '#core/workflow-run.js';
 import {
   AGENT_CONFIG_ISSUES,
@@ -245,7 +245,7 @@ export function skippedJobDescription(
     case 'dependency_not_completed':
       return 'This job needs another job that did not finish.';
     case 'default_gate_rejected':
-      return 'This job needs another job that did not succeed.';
+      return RUN_AFTER_SKIP_DESCRIPTION;
     case 'condition_false':
     case 'condition_rejected':
       return 'The if condition of this job is false.';
@@ -315,8 +315,9 @@ function preStepFailureDescription(
     case 'condition_errored':
       return 'Shipfox cannot evaluate the if condition of this job. Fix it, then start a new run.';
     case 'dependency_not_completed':
-    case 'default_gate_rejected':
       return 'This job needs another job that did not succeed. Fix that job first.';
+    case 'default_gate_rejected':
+      return RUN_AFTER_SKIP_DESCRIPTION;
     case 'condition_false':
     case 'condition_rejected':
       return 'The if condition of this job is false, so the job did not start.';

@@ -3,6 +3,9 @@ import type {EvaluationTraceEntry, EvaluationTraceError} from './entities/step-a
 const CONDITION_FIELDS = new Set(['job.if', 'step.if']);
 const OUTPUT_PATH = /^(?:steps|jobs)\.[^.]+\.outputs\.([^.]+)$/;
 
+/** One sentence for steps and jobs: `run_after` rejects on success as well as on failure. */
+export const RUN_AFTER_SKIP_DESCRIPTION = '`run_after` did not let this run.';
+
 /**
  * Names the value an errored `if` condition could not read, or returns null when the trace
  * carries no error, as for conditions that errored before the trace stored it.

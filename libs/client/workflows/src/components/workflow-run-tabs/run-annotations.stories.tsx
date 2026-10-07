@@ -108,7 +108,7 @@ export const Playground: Story = {
             style: 'default',
             statusLabel: 'Skipped',
             jobName: 'deploy production',
-            body: 'A required job did not succeed, so this job did not run.',
+            body: '`run_after` did not let this run.',
           },
         ]}
       />

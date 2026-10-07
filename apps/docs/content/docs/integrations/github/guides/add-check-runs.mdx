@@ -65,7 +65,6 @@ jobs:
           fi
 
       - key: pass_check
-        if: '${{ steps.check.status == "succeeded" }}'
         tool: check_run_write.update
         connection: github_acme
         with:
@@ -78,7 +77,8 @@ jobs:
             summary: The repository contains README.md.
 
       - key: fail_check
-        if: '${{ steps.start_check.status == "succeeded" && steps.check.status == "failed" }}'
+        run_after: failure
+        if: '${{ steps.start_check.status == "succeeded" }}'
         tool: check_run_write.update
         connection: github_acme
         with:
@@ -96,7 +96,13 @@ update steps use that output to update the same check run.
 
 Replace the Bash condition with the check that your repository needs.
 
-The passing path completes the check with `success`.
+`pass_check` needs no condition. A step runs only when no earlier step failed,
+so it completes the check with `success` only after `check` passes.
+
+`fail_check` sets `run_after: failure`, so it runs only after an earlier step
+failed. Its `if` keeps it from running when `start_check` created no check run
+to update. [When a step or job runs](/understand/jobs-and-steps#when-a-step-or-job-runs)
+explains both fields.
 
 Commit and push the workflow file to the project's default branch. Wait for
 **GitHub check runs** to sync before opening a test pull request.
