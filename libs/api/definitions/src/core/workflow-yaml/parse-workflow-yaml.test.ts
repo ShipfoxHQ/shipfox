@@ -112,7 +112,7 @@ describe('parseWorkflowYaml', () => {
         '      - prompt: &p [*p]',
       ].join('\n');
 
-      expect(() => parseWorkflowYaml(source)).toThrow(Error);
+      expect(() => parseWorkflowYaml(source)).toThrow(InvalidWorkflowDocumentError);
     });
   });
 });

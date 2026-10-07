@@ -38,6 +38,8 @@ export const agentThinkingFieldSchema = z
   });
 
 const WORKFLOW_PROMPT_PARTS_MAX_ITEMS = 64;
+// Action path messages start with "Action"; a prompt file path reuses them.
+const actionMessagePrefixPattern = /^Action/;
 
 /**
  * Validates the path of a prompt `file` part. It follows the local `uses:`
@@ -50,7 +52,7 @@ function promptFilePathIssue(path: string): string | undefined {
   const result = parseWorkflowActionRef(path);
   if (result.ok && result.ref.kind === 'local') return undefined;
   if (!(result.ok || result.registry)) {
-    return result.message.replace('Action paths', 'Prompt file paths');
+    return result.message.replace(actionMessagePrefixPattern, 'Prompt file');
   }
   return 'Prompt file paths must start with `./`.';
 }

@@ -50,7 +50,7 @@ describe('agent step prompt parts', () => {
     ['a path outside ./', 'prompts/a.md', 'must start with `./`'],
     ['a parent path', './../a.md', 'normalized'],
     ['an absolute path', '/etc/passwd', 'relative'],
-    ['a URL', 'https://example.com/a.md', 'URLs are not supported'],
+    ['a URL', 'https://example.com/a.md', 'Prompt file URLs are not supported'],
     ['a path ending in a slash', './prompts/', 'normalized'],
     ['an interpolated path', './prompts/$' + '{{ inputs.name }}.md', 'literal'],
   ])('rejects %s as a file path', (_name, file, message) => {
