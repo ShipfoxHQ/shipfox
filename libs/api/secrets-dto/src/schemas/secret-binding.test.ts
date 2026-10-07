@@ -62,8 +62,23 @@ describe('secret binding schema', () => {
   });
 
   it.each([
+    {kind: 'container_credential', field: 'username'},
+    {kind: 'container_credential', field: 'password'},
+    {kind: 'container_env', name: 'LICENSE_KEY'},
+  ])('validates bindings that target the job container %j', (target) => {
+    const result = materializedSecretBindingSchema.safeParse({
+      target,
+      segments: [{kind: 'secret', store: 'local', key: 'REGISTRY_TOKEN'}],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it.each([
     {kind: 'input', name: 'bad-name'},
     {kind: 'file', name: 'token'},
+    {kind: 'container_credential', field: 'token'},
+    {kind: 'container_env', name: 'bad-name'},
   ])('rejects binding target %j', (target) => {
     const result = materializedSecretBindingSchema.safeParse({target, segments: []});
 

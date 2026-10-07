@@ -1744,7 +1744,7 @@ async function loadStepSecretMaterial(params: {
   for (const binding of bindings) {
     const value = assembleSecretBinding(binding, values);
     if (typeof binding.target === 'string') secretEnv[binding.target] = value;
-    else secretInputs[binding.target.name] = value;
+    else if (binding.target.kind === 'input') secretInputs[binding.target.name] = value;
   }
 
   return {
@@ -1755,15 +1755,24 @@ async function loadStepSecretMaterial(params: {
 }
 
 // Environment variables are the only target of run steps; input targets belong to action steps.
+// Container targets belong to the setup step, which this loader does not pull for yet.
 function parseStepSecretBindings(step: StepDto): MaterializedSecretBindingDto[] {
   const parsed = stepSecretBindingsSchema.safeParse(step.config.secret_bindings ?? []);
   if (
     !parsed.success ||
-    (step.type !== 'action' && parsed.data.some((binding) => typeof binding.target !== 'string'))
+    parsed.data.some((binding) => !bindingTargetAllowed(binding.target, step.type === 'action'))
   ) {
     throw new Error('Step secret bindings are invalid.');
   }
   return parsed.data;
+}
+
+function bindingTargetAllowed(
+  target: MaterializedSecretBindingDto['target'],
+  allowsInputs: boolean,
+): boolean {
+  if (typeof target === 'string') return true;
+  return allowsInputs && target.kind === 'input';
 }
 
 function assembleSecretBinding(

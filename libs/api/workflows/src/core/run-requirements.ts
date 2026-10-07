@@ -118,11 +118,24 @@ function collectJobReferences(job: WorkflowModelJob, out: Collected): void {
   for (const template of job.runnerTemplates ?? []) {
     collectFieldReferences(template, scope, {field: 'job.runner'});
   }
+  collectContainerReferences(job.container, scope);
   collectTemplateReferences(job.outputs, scope, {field: 'job.outputs'});
   collectTemplateReferences(job.templates?.env, scope);
   job.steps.forEach((step, index) => {
     collectStepReferences(step, stepScopeFor(scope, step, index));
   });
+}
+
+function collectContainerReferences(container: WorkflowModelJob['container'], scope: Scope): void {
+  const templates = container?.templates;
+  if (templates === undefined) return;
+  collectFieldReferences(templates.image, scope, {field: 'job.container.image'});
+  collectFieldReferences(templates.options, scope, {field: 'job.container.options'});
+  collectFieldReferences(templates.username, scope, {field: 'job.container.credentials'});
+  collectFieldReferences(templates.password, scope, {field: 'job.container.credentials'});
+  for (const [envKey, template] of Object.entries(templates.env ?? {})) {
+    collectFieldReferences(template, scope, {field: 'job.container.env.value', envKey});
+  }
 }
 
 function stepScopeFor(jobScope: Scope, step: WorkflowModelStep, index: number): Scope {

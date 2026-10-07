@@ -77,6 +77,16 @@ export type TestWorkflowStep =
 
 const DEFAULT_RUNNER_LABELS = ['ubuntu-latest'] as const;
 
+export type TestJobContainer =
+  | string
+  | {
+      readonly image: string;
+      readonly credentials?: {readonly username: string; readonly password: string} | undefined;
+      readonly env?: Readonly<Record<string, string>> | undefined;
+      readonly options?: string | undefined;
+      readonly dockerSocket?: boolean | undefined;
+    };
+
 interface TestWorkflowJob {
   readonly needs?: string | readonly string[] | undefined;
   readonly name?: string | undefined;
@@ -84,6 +94,7 @@ interface TestWorkflowJob {
   readonly runner?: string | readonly string[] | undefined;
   readonly runnerTemplates?: readonly string[] | undefined;
   readonly checkout?: WorkflowModel['jobs'][number]['checkout'] | undefined;
+  readonly container?: TestJobContainer | undefined;
   readonly if?: string | undefined;
   readonly runAfter?: WorkflowModel['jobs'][number]['runAfter'] | undefined;
   readonly success?: string | undefined;
@@ -173,6 +184,7 @@ function normalizeJob(
           ),
         }),
     checkout: job.checkout ?? DEFAULT_JOB_CHECKOUT,
+    ...(job.container === undefined ? {} : {container: normalizeContainer(job.container)}),
     ...(job.if === undefined ? {} : {if: workflowExpression(job.if)}),
     ...(job.runAfter === undefined ? {} : {runAfter: job.runAfter}),
     ...(job.success === undefined ? {} : {success: job.success}),
@@ -192,6 +204,54 @@ function normalizeJob(
     dependencies: normalizeStringArray(job.needs).map(stableId),
     steps: job.steps.map((step, stepIndex) => normalizeStep(step, jobId, stepIndex)),
   };
+}
+
+function normalizeContainer(
+  container: TestJobContainer,
+): NonNullable<WorkflowModel['jobs'][number]['container']> {
+  const {image, credentials, env, options, dockerSocket} =
+    typeof container === 'string' ? {image: container} : container;
+  const envTemplate = Object.fromEntries(
+    Object.entries(env ?? {}).flatMap(([key, value]) => {
+      const template = fieldTemplate('job.container.env.value', value);
+      return template === undefined ? [] : [[key, template]];
+    }),
+  );
+  const templates = {
+    ...optionalTemplate('image', fieldTemplate('job.container.image', image)),
+    ...optionalTemplate(
+      'options',
+      options === undefined ? undefined : fieldTemplate('job.container.options', options),
+    ),
+    ...optionalTemplate(
+      'username',
+      credentials === undefined
+        ? undefined
+        : fieldTemplate('job.container.credentials', credentials.username),
+    ),
+    ...optionalTemplate(
+      'password',
+      credentials === undefined
+        ? undefined
+        : fieldTemplate('job.container.credentials', credentials.password),
+    ),
+    ...(Object.keys(envTemplate).length === 0 ? {} : {env: envTemplate}),
+  };
+  return {
+    image,
+    ...(credentials === undefined ? {} : {credentials}),
+    ...(env === undefined ? {} : {env}),
+    ...(options === undefined ? {} : {options}),
+    dockerSocket: dockerSocket ?? true,
+    ...(Object.keys(templates).length === 0 ? {} : {templates}),
+  };
+}
+
+function optionalTemplate<Key extends string>(
+  key: Key,
+  template: readonly ResolvedFieldSegment[] | undefined,
+): {[Name in Key]?: readonly ResolvedFieldSegment[]} {
+  return template === undefined ? {} : ({[key]: template} as {[Name in Key]: typeof template});
 }
 
 function workflowExpression(source: string) {

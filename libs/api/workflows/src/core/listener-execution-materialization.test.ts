@@ -51,4 +51,54 @@ describe('materializeListenerExecution', () => {
       steps: [],
     });
   });
+
+  it('carries the job container on the setup step of a listener execution', async () => {
+    const model = workflowModel({
+      jobs: {
+        review: {
+          container: {image: 'node:24-bookworm', dockerSocket: false},
+          steps: [{run: 'make review'}],
+        },
+      },
+    });
+
+    const result = await materializeListenerExecution({
+      model,
+      run: {
+        id: crypto.randomUUID(),
+        number: 1,
+        currentAttempt: 1,
+        name: 'Review run',
+        workflowName: 'Review run',
+        definitionId: crypto.randomUUID(),
+        projectId: crypto.randomUUID(),
+        workspaceId: crypto.randomUUID(),
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        triggerPayload: {
+          source: 'github',
+          event: 'pull_request',
+          deliveryId: crypto.randomUUID(),
+          data: {action: 'opened'},
+        },
+        inputs: null,
+      },
+      job: {id: crypto.randomUUID(), key: 'review'},
+      sequence: 1,
+      triggerEvents: [],
+      priorExecutions: [],
+      resolveAgentDefaults: resolveTestAgentDefaults,
+    });
+
+    expect(result.steps[0]).toMatchObject({
+      type: 'setup',
+      config: {
+        container: {
+          image: 'node:24-bookworm',
+          options: '',
+          docker_socket: false,
+          env: {},
+        },
+      },
+    });
+  });
 });

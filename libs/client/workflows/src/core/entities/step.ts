@@ -9,6 +9,7 @@ export type StepErrorReason =
   | 'checkout_destination_occupied'
   | 'git_unavailable'
   | 'workspace_prep_failed'
+  | 'container_setup_failed'
   | 'setup_aborted'
   | 'config_unresolvable'
   | 'output_invalid'
@@ -47,6 +48,7 @@ export const STEP_ERROR_REASONS = new Set<StepErrorReason>([
   'checkout_destination_occupied',
   'git_unavailable',
   'workspace_prep_failed',
+  'container_setup_failed',
   'setup_aborted',
   'config_unresolvable',
   'output_invalid',

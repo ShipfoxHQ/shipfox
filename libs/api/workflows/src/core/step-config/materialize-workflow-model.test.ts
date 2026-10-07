@@ -724,6 +724,36 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
+  it('carries the job container on the setup step at run creation', async () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          container: {image: template('vars.IMAGE'), env: {MODE: 'ci'}},
+          steps: [{run: 'make'}],
+        },
+        lint: {steps: [{run: 'make lint'}]},
+      },
+    });
+
+    const rows = await materializeWorkflowModel({
+      model,
+      context: creationContext({...runContext(), vars: {IMAGE: 'node:24-bookworm'}}),
+    });
+
+    expect(rows[0]?.steps[0]).toMatchObject({
+      type: 'setup',
+      config: {
+        container: {
+          image: 'node:24-bookworm',
+          options: '',
+          docker_socket: true,
+          env: {MODE: 'ci'},
+        },
+      },
+    });
+    expect(rows[1]?.steps[0]?.config).not.toHaveProperty('container');
+  });
+
   it('resolves working directories for run and agent steps', async () => {
     const model = workflowModel({
       jobs: {
