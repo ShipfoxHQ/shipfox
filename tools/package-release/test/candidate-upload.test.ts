@@ -3,7 +3,11 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
-import {type CandidateManifest, sha512Integrity} from '../src/candidate-bundle.js';
+import {
+  type CandidateManifest,
+  candidateImagesFile,
+  sha512Integrity,
+} from '../src/candidate-bundle.js';
 import {
   type CandidateObjectStore,
   candidatePointerKey,
@@ -70,6 +74,7 @@ function writeBundle({
     ],
   };
   writeFileSync(join(directory, 'manifest.json'), `${JSON.stringify(manifest)}\n`);
+  writeFileSync(join(directory, candidateImagesFile), '{"runner":{"digest":"sha256:runner"}}\n');
   writeFileSync(join(directory, 'overrides.yaml'), `overrides:\n  "@shipfox/api-server": x\n`);
   return directory;
 }
@@ -91,6 +96,7 @@ describe('uploadCandidateBundle', () => {
 
     assert.deepEqual(store.writes, [
       `${prefix}/shipfox-api-server-33.2.1.tgz`,
+      `${prefix}/${candidateImagesFile}`,
       `${prefix}/overrides.yaml`,
       `${prefix}/manifest.json`,
       candidatePointerKey,

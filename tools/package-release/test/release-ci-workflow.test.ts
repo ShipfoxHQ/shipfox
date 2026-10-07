@@ -131,6 +131,7 @@ describe('generated release CI path', () => {
       'publication-preflight',
       'tests',
       'e2e',
+      'publish-application-release',
     ]);
     assert.ok(candidate.if.includes("github.event_name == 'push'"));
     assert.match(candidate.if, mainRefConditionPattern);
@@ -138,9 +139,26 @@ describe('generated release CI path', () => {
     for (const job of candidate.needs.slice(1)) {
       assert.ok(candidate.if.includes(`needs.${job}.result == 'success'`), job);
     }
-    assert.deepEqual(candidate.permissions, {contents: 'read'});
+    assert.deepEqual(candidate.permissions, {contents: 'read', packages: 'read'});
+    assert.ok(stepIndex('Set up ORAS') >= 0);
+    assert.ok(stepIndex('Log in to GHCR') >= 0);
+    assert.ok(stepIndex('Pack candidate bundle') >= 0);
+    assert.ok(stepIndex('Set up ORAS') < stepIndex('Add application image references'));
+    assert.ok(stepIndex('Log in to GHCR') < stepIndex('Add application image references'));
+    assert.ok(stepIndex('Pack candidate bundle') < stepIndex('Add application image references'));
     assert.ok(
-      stepIndex('Pack candidate bundle') < stepIndex('Check packing restored the working tree'),
+      stepIndex('Add application image references') <
+        stepIndex('Check packing restored the working tree'),
+    );
+    assert.ok(
+      steps
+        .find((step) => step.name === 'Add application image references')
+        ?.run?.includes('.images.runner.repository'),
+    );
+    assert.ok(
+      steps
+        .find((step) => step.name === 'Add application image references')
+        ?.run?.includes('.images.provisioner.digest'),
     );
     assert.ok(
       stepIndex('Check packing restored the working tree') < stepIndex('Upload candidate bundle'),

@@ -7,6 +7,7 @@ import {GetObjectCommand, PutObjectCommand, S3Client} from '@aws-sdk/client-s3';
 
 import {
   type CandidateManifest,
+  candidateImagesFile,
   candidateManifestFile,
   candidateOverridesFile,
   candidatePrefix,
@@ -66,6 +67,12 @@ export async function uploadCandidateBundle({
       matches: sameBytes,
     }),
   );
+  await uploadImmutable(store, {
+    key: `${prefix}/${candidateImagesFile}`,
+    body: await readFile(join(directory, candidateImagesFile)),
+    contentType: 'application/json',
+    matches: sameBytes,
+  });
   await uploadImmutable(store, {
     key: `${prefix}/${candidateOverridesFile}`,
     body: await readFile(join(directory, candidateOverridesFile)),
