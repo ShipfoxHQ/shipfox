@@ -2792,6 +2792,100 @@ describe('normalizeWorkflowDocument', () => {
     );
   });
 
+  describe('checkout-path-required', () => {
+    const pathRequired = (path: readonly (string | number)[], owner: string) =>
+      expect.objectContaining({
+        code: 'checkout-path-required',
+        path,
+        message: `This checkout needs a "path". The job root already holds ${owner}. Set "path" to a folder name, or set "checkout: false" on the job.`,
+      });
+
+    it('fires for a pathless checkout after the project checkout', () => {
+      const error = expectInvalid({
+        name: 'pathless second checkout',
+        jobs: {
+          build: {
+            steps: [{run: 'echo hi'}, {checkout: {repository: 'acme/helm'}}],
+          },
+        },
+      });
+
+      expect(error.issues).toContainEqual(
+        pathRequired(['jobs', 'build', 'steps', 1, 'checkout'], 'the project checkout'),
+      );
+    });
+
+    it('fires for a pathless second checkout in a checkout: false job', () => {
+      const error = expectInvalid({
+        name: 'pathless second checkout without project',
+        jobs: {
+          build: {
+            checkout: false,
+            steps: [{checkout: {repository: 'acme/api'}}, {checkout: {repository: 'acme/helm'}}],
+          },
+        },
+      });
+
+      expect(error.issues).toContainEqual(
+        pathRequired(['jobs', 'build', 'steps', 1, 'checkout'], 'step 1'),
+      );
+    });
+
+    it('fires for a pathless checkout after a step-1 checkout at the job root', () => {
+      const error = expectInvalid({
+        name: 'pathless checkout after root owner',
+        jobs: {
+          build: {
+            steps: [
+              {checkout: {repository: 'acme/api', path: './'}},
+              {checkout: {repository: 'acme/helm'}},
+            ],
+          },
+        },
+      });
+
+      expect(error.issues).toContainEqual(
+        pathRequired(['jobs', 'build', 'steps', 1, 'checkout'], 'step 1'),
+      );
+    });
+
+    it('does not fire for the root owner or for a templated path', () => {
+      expect(() =>
+        normalizeWorkflowDocument({
+          name: 'root owners',
+          jobs: {
+            first: {steps: [{checkout: {repository: 'acme/api'}}, {run: 'ls'}]},
+            withPath: {
+              steps: [
+                {checkout: {repository: 'acme/api', path: 'api'}},
+                {checkout: {repository: 'acme/helm', path: 'helm'}},
+              ],
+            },
+            noProject: {
+              checkout: false,
+              steps: [{run: 'echo hi'}, {checkout: {repository: 'acme/api'}}],
+            },
+            templated: {
+              steps: [
+                {
+                  key: 'route',
+                  run: 'echo route',
+                  outputs: {path: {type: 'string'}},
+                },
+                {
+                  checkout: {
+                    repository: 'acme/helm',
+                    path: interpolation('steps.route.outputs.path'),
+                  },
+                },
+              ],
+            },
+          },
+        }),
+      ).not.toThrow();
+    });
+  });
+
   it('normalizes checkout steps and their static defaults', () => {
     const model = normalizeWorkflowDocument({
       name: 'checkout step',

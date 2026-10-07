@@ -53,7 +53,11 @@ import {normalizeAgentIntegrations} from './normalize-agent-integrations.js';
 import {normalizeAgentPrompt} from './normalize-agent-prompt.js';
 import {normalizeEnv} from './normalize-env.js';
 import {normalizeIfCondition} from './normalize-if-condition.js';
-import {normalizeCheckout, normalizeJobCheckout} from './normalize-job-checkout.js';
+import {
+  normalizeCheckout,
+  normalizeJobCheckout,
+  validateCheckoutPathsRequired,
+} from './normalize-job-checkout.js';
 import {normalizeJobContainer} from './normalize-job-container.js';
 import {normalizeJobListening} from './normalize-job-listening.js';
 import {normalizeJobSuccess} from './normalize-job-success.js';
@@ -241,6 +245,11 @@ function normalizeJob(params: {
     directNeedJobs,
     toolOverlayByKey,
     context: params.context,
+  });
+  validateCheckoutPathsRequired({
+    job: params.job,
+    sourceName: params.sourceName,
+    issues: params.issues,
   });
   const runner = normalizeRunner({
     document: params.document,

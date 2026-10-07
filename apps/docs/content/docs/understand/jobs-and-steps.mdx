@@ -46,6 +46,9 @@ Set `checkout: false` on the job to skip the project checkout and start with an
 empty root. A later checkout step with no `path`, or with `.` or `./`, can then
 fill it.
 
+Only one checkout owns the root. Every other checkout step must set `path`, and
+Shipfox rejects the workflow when one doesn't.
+
 ```yaml title=".shipfox/workflows/release.yml"
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
 name: Release

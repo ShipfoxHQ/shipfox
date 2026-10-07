@@ -1,7 +1,7 @@
 ---
 name: write-a-workflow
 description: Use when writing a Shipfox workflow from an idea or adapting an existing workflow without a template.
-revision: 3
+revision: 4
 catalog_title: Write a workflow
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to write a workflow for this repository.
@@ -67,7 +67,7 @@ Ask one question per message and wait for the answer. With each question, restat
 
 ## 5. Write the file
 
-Create a descriptive `.yml` file under `.shipfox/workflows/`. Put the editor schema header from `docs://shipfox/reference/workflow-schema` on the first line. Bind only the integration connections and tool IDs the workflow uses. Keep each `integrations.include` list narrow. Reference secrets by name, never by value. Grant checkout write permission only to a job or step that pushes repository changes.
+Create a descriptive `.yml` file under `.shipfox/workflows/`. Put the editor schema header from `docs://shipfox/reference/workflow-schema` on the first line. Bind only the integration connections and tool IDs the workflow uses. Keep each `integrations.include` list narrow. Reference secrets by name, never by value. Grant checkout write permission only to a job or step that pushes repository changes. Set `path` on every checkout that doesn't own the job root.
 
 ## 6. Verify and deliver
 
