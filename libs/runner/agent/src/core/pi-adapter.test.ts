@@ -1,3 +1,7 @@
+const hostToolDefinitionMock = vi.hoisted(
+  () => (name: string) => vi.fn((cwd: string, options: unknown) => ({name, cwd, options})),
+);
+
 const piExtensionTestState = vi.hoisted(() => ({
   resolver: undefined as ((specifier: string) => string) | undefined,
 }));
@@ -77,6 +81,12 @@ const {isPiExtensionAvailableMock} = vi.hoisted(() => ({
 }));
 
 vi.mock('@earendil-works/pi-coding-agent', () => ({
+  createBashToolDefinition: hostToolDefinitionMock('bash'),
+  createEditToolDefinition: hostToolDefinitionMock('edit'),
+  createLsToolDefinition: hostToolDefinitionMock('ls'),
+  createReadToolDefinition: hostToolDefinitionMock('read'),
+  createWriteToolDefinition: hostToolDefinitionMock('write'),
+  getShellConfig: () => ({shell: '/bin/bash', args: ['-c']}),
   createAgentSessionFromServices: createAgentSessionMock,
   createAgentSessionServices: createAgentSessionServicesMock,
   defineTool: defineToolMock,
@@ -125,7 +135,11 @@ import {
 } from 'node:fs';
 import {tmpdir} from 'node:os';
 import {basename, isAbsolute, join} from 'node:path';
-import type {AgentSessionEvent, ToolDefinition} from '@earendil-works/pi-coding-agent';
+import {
+  type AgentSessionEvent,
+  createBashToolDefinition,
+  type ToolDefinition,
+} from '@earendil-works/pi-coding-agent';
 import {
   type CustomModelProviderRuntimeConfigDto,
   DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
@@ -134,6 +148,7 @@ import {
   DEFAULT_CUSTOM_MODEL_REASONING,
 } from '@shipfox/api-agent-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {LocalExecutionHost} from '@shipfox/runner-container';
 import {
   AgentConfigError,
   AgentHarnessUnavailableError,
@@ -160,6 +175,12 @@ function extensionDirectory(packageName: string): string {
 const piWebAccessDirectory = extensionDirectory('pi-web-access');
 const piMcpAdapterDirectory = extensionDirectory('pi-mcp-adapter');
 
+// The tools that replace pi's built-ins, as the session receives them after the runner's own.
+function hostTools(...names: string[]) {
+  return names.map((name) => expect.objectContaining({name}));
+}
+const DEFAULT_HOST_TOOLS = hostTools('read', 'bash', 'edit', 'write');
+
 function piServices(
   cwd = '/work',
   diagnostics: Array<{type: string; message: string}> = [],
@@ -171,6 +192,8 @@ function piServices(
     diagnostics,
     settingsManager: {
       getShellCommandPrefix: vi.fn((): string | undefined => undefined),
+      getShellPath: vi.fn((): string | undefined => undefined),
+      getImageAutoResize: vi.fn(() => true),
       applyOverrides: vi.fn(),
     },
     resourceLoader: {
@@ -531,7 +554,7 @@ describe('piHarnessAdapter', () => {
       ['pi-web-access'],
       '/work',
     );
-    expect(createAgentSessionMock.mock.calls[0]?.[0]).not.toHaveProperty('customTools');
+    expect(createAgentSessionMock.mock.calls[0]?.[0].customTools).toEqual(DEFAULT_HOST_TOOLS);
   });
 
   it.runIf(process.platform === 'linux')(
@@ -964,6 +987,7 @@ describe('piHarnessAdapter', () => {
               'Call set_output({key: "<output-key>", value: "<value>"}) directly for each required workflow output; do not call it through mcp. The exact key, value encoding, and JSON Schema for each are in the task prompt.',
             ],
           }),
+          ...DEFAULT_HOST_TOOLS,
         ],
       }),
     );
@@ -989,7 +1013,7 @@ describe('piHarnessAdapter', () => {
     expect(createAgentSessionMock.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         tools: ['read', 'set_output'],
-        customTools: [expect.objectContaining({name: 'set_output'})],
+        customTools: [expect.objectContaining({name: 'set_output'}), ...hostTools('read')],
       }),
     );
   });
@@ -1069,6 +1093,7 @@ describe('piHarnessAdapter', () => {
               type: 'object',
             },
           }),
+          ...hostTools('read'),
         ],
       }),
     );
@@ -1109,6 +1134,7 @@ describe('piHarnessAdapter', () => {
       expect.objectContaining({
         customTools: [
           expect.objectContaining({name: 'linear_main__get_issue', parameters: schema}),
+          ...DEFAULT_HOST_TOOLS,
         ],
       }),
     );
@@ -1116,6 +1142,7 @@ describe('piHarnessAdapter', () => {
       expect.objectContaining({
         customTools: [
           expect.objectContaining({name: 'linear_main__get_issue', parameters: schema}),
+          ...DEFAULT_HOST_TOOLS,
         ],
       }),
     );
@@ -1157,6 +1184,7 @@ describe('piHarnessAdapter', () => {
         customTools: [
           expect.objectContaining({name: 'set_output'}),
           expect.objectContaining({name: 'linear_main__get_issue'}),
+          ...hostTools('read'),
         ],
       }),
     );
@@ -1405,7 +1433,7 @@ describe('piHarnessAdapter', () => {
     expect(options).toEqual(
       expect.objectContaining({
         model,
-        customTools: [expect.objectContaining({name: 'set_output'})],
+        customTools: [expect.objectContaining({name: 'set_output'}), ...DEFAULT_HOST_TOOLS],
       }),
     );
     expect(setActiveToolsByNameMock).toHaveBeenCalledWith([
@@ -2670,10 +2698,10 @@ describe('piHarnessAdapter', () => {
     expect(entries).toEqual([]);
   });
 
-  it('sets GIT_CONFIG_GLOBAL for the prompt and restores the previous value', async () => {
+  it('leaves the runner environment alone while a prompt with a Git config runs', async () => {
     process.env.GIT_CONFIG_GLOBAL = '/runner/base.gitconfig';
     promptMock.mockImplementation(() => {
-      expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/job/git-cred.config');
+      expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/base.gitconfig');
       return Promise.resolve();
     });
 
@@ -2682,51 +2710,22 @@ describe('piHarnessAdapter', () => {
     expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/base.gitconfig');
   });
 
-  it('deletes GIT_CONFIG_GLOBAL after the prompt when it was previously unset', async () => {
-    promptMock.mockImplementation(() => {
-      expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/job/git-cred.config');
-      return Promise.resolve();
-    });
+  it('runs Pi shell commands on the invocation host with the job Git config', async () => {
+    const host = new LocalExecutionHost();
+    const spawn = vi.spyOn(host, 'spawn');
 
-    await piHarnessAdapter.run(invocation({gitConfigGlobal: '/runner/job/git-cred.config'}));
-
-    expect(process.env.GIT_CONFIG_GLOBAL).toBeUndefined();
-  });
-
-  it('restores GIT_CONFIG_GLOBAL when the prompt throws', async () => {
-    process.env.GIT_CONFIG_GLOBAL = '/runner/base.gitconfig';
-    promptMock.mockImplementation(() => {
-      expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/job/git-cred.config');
-      return Promise.reject(new Error('prompt failed'));
-    });
-
-    await expect(
-      piHarnessAdapter.run(invocation({gitConfigGlobal: '/runner/job/git-cred.config'})),
-    ).rejects.toThrow('prompt failed');
-
-    expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/base.gitconfig');
-  });
-
-  it('restores GIT_CONFIG_GLOBAL synchronously when the signal aborts mid-prompt', async () => {
-    const ac = new AbortController();
-    process.env.GIT_CONFIG_GLOBAL = '/runner/base.gitconfig';
-    let resolvePrompt: () => void = () => undefined;
-    promptMock.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          resolvePrompt = resolve;
-        }),
+    await piHarnessAdapter.run(
+      invocation({host, cwd: tmpdir(), gitConfigGlobal: '/runner/job/git-cred.config'}),
     );
 
-    const promise = piHarnessAdapter.run(
-      invocation({signal: ac.signal, gitConfigGlobal: '/runner/job/git-cred.config'}),
-    );
-    await vi.waitFor(() => expect(promptMock).toHaveBeenCalled());
-    ac.abort();
-
-    expect(process.env.GIT_CONFIG_GLOBAL).toBe('/runner/base.gitconfig');
-    resolvePrompt();
-    await expect(promise).rejects.toThrow('Agent step aborted');
+    const bashOptions = vi.mocked(createBashToolDefinition).mock.calls.at(-1)?.[1];
+    const chunks: Buffer[] = [];
+    await bashOptions?.operations?.exec('echo "$GIT_CONFIG_GLOBAL"', tmpdir(), {
+      onData: (data) => chunks.push(data),
+      env: {PATH: process.env.PATH},
+    });
+    expect(Buffer.concat(chunks).toString()).toBe('/runner/job/git-cred.config\n');
+    expect(spawn).toHaveBeenCalledOnce();
   });
 
   it('throws an AgentConfigError naming the provider when it is unknown', async () => {

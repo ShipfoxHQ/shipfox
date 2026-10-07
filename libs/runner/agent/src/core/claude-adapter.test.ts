@@ -60,12 +60,14 @@ import {
 } from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import type {SpawnedProcess, SpawnOptions} from '@anthropic-ai/claude-agent-sdk';
 import {
   CLAUDE_MANAGED_MODEL_FAMILY_IDS,
   CLAUDE_MODEL_FAMILY_IDS,
   CLAUDE_MODEL_LINE,
 } from '@shipfox/api-agent-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {LocalExecutionHost} from '@shipfox/runner-container';
 import {claudeHarnessAdapter} from '#core/claude-adapter.js';
 import {CLAUDE_AUTH_HELPER_PATH} from '#core/claude-auth-helper.js';
 import {resolveBundledClaudeCodeExecutable} from '#core/claude-code.js';
@@ -190,6 +192,8 @@ function lastQueryOptions(): {
   resume?: string;
   forkSession?: boolean;
   settings?: {apiKeyHelper?: string};
+  pathToClaudeCodeExecutable?: string;
+  spawnClaudeCodeProcess?: (options: SpawnOptions) => SpawnedProcess;
 } {
   const call = queryMock.mock.calls[0] as
     | [
@@ -790,25 +794,40 @@ describe('claudeHarnessAdapter', () => {
     expect(lastQueryOptions().mcpServers).toBeUndefined();
   });
 
+  it('starts the bundled Claude Code on the invocation host', async () => {
+    queryMock.mockReturnValue(makeQuery([successMessage]));
+    const host = new LocalExecutionHost();
+    const spawn = vi.spyOn(host, 'spawn');
+
+    await claudeHarnessAdapter.run(invocation({host}));
+
+    const {spawnClaudeCodeProcess} = lastQueryOptions();
+    expect(spawnClaudeCodeProcess).toBeTypeOf('function');
+    const child = spawnClaudeCodeProcess?.({
+      command: 'cat',
+      args: [],
+      cwd: testCwd,
+      env: {PATH: process.env.PATH},
+      signal: new AbortController().signal,
+    });
+    child?.stdin.end();
+    await new Promise((resolve) => child?.once('exit', resolve));
+    expect(spawn).toHaveBeenCalledWith(
+      expect.objectContaining({cwd: testCwd, stdin: 'pipe', argv: ['cat']}),
+    );
+  });
+
   it.runIf(process.platform === 'linux')(
-    'starts the bundled Claude Code through a shell that resets its OOM score',
+    'passes the bundled Claude Code executable without its own OOM wrapper',
     async () => {
       queryMock.mockReturnValue(makeQuery([successMessage]));
 
       await claudeHarnessAdapter.run(invocation());
 
-      expect(queryMock).toHaveBeenCalledWith({
-        prompt: expect.any(Object),
-        options: expect.objectContaining({
-          pathToClaudeCodeExecutable: '/bin/sh',
-          executableArgs: [
-            '-c',
-            '{ echo 0 > /proc/self/oom_score_adj; } 2>/dev/null; exec "$@"',
-            'sh',
-            resolveBundledClaudeCodeExecutable(),
-          ],
-        }),
+      expect(lastQueryOptions()).toMatchObject({
+        pathToClaudeCodeExecutable: resolveBundledClaudeCodeExecutable(),
       });
+      expect(lastQueryOptions()).not.toHaveProperty('executableArgs');
     },
   );
 

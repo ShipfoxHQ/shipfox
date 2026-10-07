@@ -4,19 +4,6 @@
 // the runner after spawn would race the subprocess's first fork.
 const RESET_OOM_SCORE = '{ echo 0 > /proc/self/oom_score_adj; } 2>/dev/null';
 
-export type OomScoreLaunch = {
-  executable: string;
-  args: string[];
-};
-
-export function withDefaultOomScore(launch: OomScoreLaunch): OomScoreLaunch {
-  if (process.platform !== 'linux') return launch;
-  return {
-    executable: '/bin/sh',
-    args: ['-c', `${RESET_OOM_SCORE}; exec "$@"`, 'sh', launch.executable, ...launch.args],
-  };
-}
-
 export function withDefaultOomScoreShellPrefix(prefix: string | undefined): string | undefined {
   if (process.platform !== 'linux') return prefix;
   return prefix === undefined ? RESET_OOM_SCORE : `${RESET_OOM_SCORE}\n${prefix}`;

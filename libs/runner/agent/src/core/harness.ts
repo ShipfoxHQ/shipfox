@@ -3,6 +3,7 @@ import type {
   CustomModelProviderRuntimeConfigDto,
 } from '@shipfox/api-agent-dto';
 import type {OutputDeclarations} from '@shipfox/expression';
+import type {ExecutionHost} from '@shipfox/runner-container';
 import type {IntegrationToolsBridge} from '#core/integration-tools-bridge.js';
 import type {AgentPrerequisiteContract} from '#core/prerequisite-ledger.js';
 
@@ -69,6 +70,8 @@ export interface HarnessInvocation {
   readonly customProvider?: CustomModelProviderRuntimeConfigDto | undefined;
   readonly claude?: ClaudeRuntimeConfigDto | undefined;
   readonly gitConfigGlobal?: string | undefined;
+  /** Where the agent's tools and processes run. Defaults to the runner's own machine. */
+  readonly host?: ExecutionHost | undefined;
   readonly signal: AbortSignal;
   /** Forwards each verbatim session entry line as persisted, in order. Best-effort. */
   readonly onSessionEntry?: (line: string) => void;

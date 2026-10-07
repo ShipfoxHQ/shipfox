@@ -109,6 +109,20 @@ export function describeExecutionHostContract(
         await waitFor(async () => !(await isAlive(stdout.trim())));
       });
 
+      it('reports the process exit while a background process holds the output pipes', async () => {
+        const child = run('sleep 60 & echo $!; exit 4');
+        const output = readAll(child.stdout);
+        const pid = await firstLine(child.stdout, output);
+
+        const exit = await child.processExited;
+
+        expect(exit.exitCode).toBe(4);
+        expect(await isAlive(pid)).toBe(true);
+        await child.killTree();
+        await child.exited;
+        await waitFor(async () => !(await isAlive(pid)));
+      });
+
       it('can kill a process that already exited', async () => {
         const child = run('true');
         await child.exited;

@@ -8758,6 +8758,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/runner-container':
+        specifier: workspace:*
+        version: link:../container
       '@shipfox/runner-execution':
         specifier: workspace:*
         version: link:../execution
