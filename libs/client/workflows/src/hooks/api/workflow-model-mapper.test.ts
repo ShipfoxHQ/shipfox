@@ -84,6 +84,20 @@ describe('toEvaluationTrace', () => {
     );
   });
 
+  test('reports the CEL message when a succeeded job is read through needs', () => {
+    const trace = toEvaluationTrace(
+      conditionTraceDto({
+        message: 'No such key: build',
+        path: 'needs.build',
+        source: {kind: 'job', key: 'build', status: 'succeeded'},
+      }),
+    );
+
+    expect(conditionErrorDescription(trace)).toBe(
+      'Shipfox cannot evaluate the if condition: No such key: build',
+    );
+  });
+
   test('has no description for a trace stored without an error', () => {
     expect(conditionErrorDescription(toEvaluationTrace(conditionTraceDto(undefined)))).toBeNull();
   });

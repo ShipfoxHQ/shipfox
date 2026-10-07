@@ -1,6 +1,7 @@
 import type {EvaluationTraceEntry, EvaluationTraceError} from './entities/step-attempt.js';
 
 const CONDITION_FIELDS = new Set(['job.if', 'step.if']);
+const OUTPUT_PATH = /^(?:steps|jobs)\.[^.]+\.outputs\.([^.]+)$/;
 
 /**
  * Names the value an errored `if` condition could not read, or returns null when the trace
@@ -26,8 +27,9 @@ function describeConditionError({message, path, source}: EvaluationTraceError): 
 
   const subject = `${source.kind === 'step' ? 'Step' : 'Job'} \`${source.key}\``;
   if (source.status === 'succeeded') {
-    const field = path.slice(path.lastIndexOf('.') + 1);
-    return `\`${path}\` has no value. ${subject} succeeded but did not report \`${field}\`.`;
+    const output = OUTPUT_PATH.exec(path)?.[1];
+    if (output === undefined) return `Shipfox cannot evaluate the if condition: ${message}`;
+    return `\`${path}\` has no value. ${subject} succeeded but did not report \`${output}\`.`;
   }
   return `\`${path}\` has no value because ${source.kind} \`${source.key}\` ${statusClause(source.status)}.`;
 }
