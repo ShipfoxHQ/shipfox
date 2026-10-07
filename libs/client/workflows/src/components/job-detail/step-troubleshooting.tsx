@@ -959,6 +959,8 @@ function failureTitle(reason: string | JobStatusReason, error: StepError | null)
       return 'The runner cannot start Git';
     case 'workspace_prep_failed':
       return 'The runner cannot prepare the job';
+    case 'container_setup_failed':
+      return 'The job container did not start';
     case 'setup_aborted':
       return 'The job stopped during setup';
     case 'config_unresolvable':
@@ -1080,6 +1082,8 @@ function failureDescription(
       return 'Install Git in the runner image. Then rerun the job.';
     case 'workspace_prep_failed':
       return 'Read the setup logs for the cause. Then rerun the job.';
+    case 'container_setup_failed':
+      return 'Read the setup logs for the Docker error. Check the image name and registry credentials, then rerun the job.';
     case 'setup_aborted':
       return 'A user cancelled the job, or it reached its timeout, before setup finished. Rerun the job.';
     case 'config_unresolvable':

@@ -151,6 +151,7 @@ describe('workflow diagnostic Agent Access schemas', () => {
             'checkout_destination_occupied',
             'git_unavailable',
             'workspace_prep_failed',
+            'container_setup_failed',
             'setup_aborted',
             'config_unresolvable',
             'output_invalid',

@@ -381,6 +381,79 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
     });
   });
 
+  test('returns the secrets a setup step binds for its job container', async () => {
+    const {run, job, step} = await createRunningRunStep();
+    await db()
+      .update(stepsTable)
+      .set({
+        type: 'setup',
+        config: {
+          container: {
+            image: 'ghcr.io/acme/toolbox:1',
+            options: '',
+            docker_socket: true,
+            env: {MODE: 'ci'},
+            username: 'acme-bot',
+          },
+          secret_bindings: [
+            {
+              target: {kind: 'container_credential', field: 'password'},
+              segments: [{kind: 'secret', store: 'local', key: 'GHCR_TOKEN'}],
+            },
+            {
+              target: {kind: 'container_env', name: 'LICENSE_KEY'},
+              segments: [{kind: 'secret', store: 'local', key: 'TOOLBOX_LICENSE'}],
+            },
+          ],
+        },
+      })
+      .where(eq(stepsTable.id, step.id));
+    await secrets.setSecrets({
+      workspaceId: run.workspaceId,
+      projectId: run.projectId,
+      values: {GHCR_TOKEN: 'ghcr-secret', TOOLBOX_LICENSE: 'license-secret'},
+    });
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId: job.id,
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: stepSecretsUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      secrets: [
+        {store: 'local', key: 'GHCR_TOKEN', value: 'ghcr-secret'},
+        {store: 'local', key: 'TOOLBOX_LICENSE', value: 'license-secret'},
+      ],
+    });
+  });
+
+  test('returns 409 when the leased setup step has no job container', async () => {
+    const {job, step} = await createRunningRunStep();
+    await db()
+      .update(stepsTable)
+      .set({type: 'setup', config: {checkout: {persist_credentials: true}}})
+      .where(eq(stepsTable.id, step.id));
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId: job.id,
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: stepSecretsUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('step-not-run');
+  });
+
   test('returns 409 when the leased step is not a run or action step', async () => {
     const {job, step} = await createRunningAgentStep();
     const token = await mintActiveLeaseToken({

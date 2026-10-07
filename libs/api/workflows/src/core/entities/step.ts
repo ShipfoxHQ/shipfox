@@ -98,6 +98,14 @@ export interface StepConfigDispatchPlan {
   tool?: {
     with?: WorkflowJsonTemplateTree;
   };
+  // Setup steps only: the job container fields this materialization site could not fill.
+  container?: {
+    image?: ResolvedField;
+    options?: ResolvedField;
+    username?: ResolvedField;
+    password?: ResolvedField;
+    env?: Readonly<Record<string, ResolvedField>>;
+  };
   // Always present on action steps: dispatch applies input defaults and types
   // from these declarations, even when every `with` value is a literal.
   action?: {

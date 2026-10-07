@@ -27,7 +27,7 @@ export function createGetStepSecretsRoute(
     method: 'GET',
     path: '/steps/:stepId/secrets',
     description:
-      "Returns decrypted secret values referenced by the runner's currently leased running run or action step. The job scope and secret bindings are re-derived from server state; the runner supplies only the step id and current attempt.",
+      "Returns decrypted secret values referenced by the runner's currently leased running run or action step, or setup step with a job container. The job scope and secret bindings are re-derived from server state; the runner supplies only the step id and current attempt.",
     schema: {
       params: stepSecretsParamsSchema,
       querystring: stepSecretsQuerySchema,
@@ -55,7 +55,7 @@ export function createGetStepSecretsRoute(
         attempt,
       });
 
-      if (step.type !== 'run' && step.type !== 'action') {
+      if (!stepHasSecretBindings(step)) {
         throw new ClientError('Step is not a run or action step', 'step-not-run', {status: 409});
       }
 
@@ -138,6 +138,12 @@ export function createGetStepSecretsRoute(
       return {secrets};
     },
   });
+}
+
+// A setup step carries secrets only for a job container, so a plain setup step has none to pull.
+function stepHasSecretBindings(step: {type: string; config: Record<string, unknown>}): boolean {
+  if (step.type === 'run' || step.type === 'action') return true;
+  return step.type === 'setup' && step.config.container !== undefined;
 }
 
 function parseSecretBindings(value: unknown): z.infer<typeof secretBindingsSchema> {

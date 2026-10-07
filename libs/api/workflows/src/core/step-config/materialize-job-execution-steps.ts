@@ -11,6 +11,7 @@ import {
   AgentIntegrationMaterializationError,
   InterpolationUnresolvableError,
 } from '#core/errors.js';
+import {resolveSetupContainer} from './container.js';
 import {resolveStepConfig, type WorkflowStepTemplateDiagnostic} from './resolve-step-config.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
@@ -51,7 +52,8 @@ export interface MaterializeJobExecutionStepsParams {
 // Synthetic "Set up job" step prepended when a job execution's steps are materialized.
 // The runner prepares the workspace here; failures report through the normal step
 // protocol instead of hanging the job until the lease/timeout fires. Its config carries
-// checkout policy, never credential material.
+// checkout policy and the job container. Registry credentials and secret container env
+// values are bindings, never values.
 const SETUP_STEP: Omit<MaterializedWorkflowStep, 'config'> = {
   key: null,
   name: 'Set up job',
@@ -78,7 +80,7 @@ export async function materializeJobExecutionSteps(
   } = params;
 
   return [
-    setupStepForJob(job),
+    setupStepForJob({job, context, definitionId}),
     ...(await Promise.all(
       job.steps.map(async (step, stepPosition) => {
         const stepContext = {
@@ -142,21 +144,43 @@ export async function materializeJobExecutionSteps(
   ];
 }
 
-function setupStepForJob(job: WorkflowModelJob): MaterializedWorkflowStep {
-  if (job.checkout === false || firstStepOwnsJobRoot(job)) {
-    return {...SETUP_STEP, config: {}};
-  }
-
-  const checkout = job.checkout ?? DEFAULT_JOB_CHECKOUT;
+function setupStepForJob(params: {
+  readonly job: WorkflowModelJob;
+  readonly context: WorkflowEvaluationContext;
+  readonly definitionId: string;
+}): MaterializedWorkflowStep {
+  const {job, context, definitionId} = params;
+  const checkout = setupCheckoutPolicy(job);
+  const container =
+    job.container === undefined
+      ? null
+      : resolveSetupContainer({container: job.container, context, definitionId});
 
   return {
     ...SETUP_STEP,
     config: {
-      checkout: {
-        permissions: checkout.permissions,
-        persist_credentials: checkout.persistCredentials,
-      },
+      ...(checkout === null ? {} : {checkout}),
+      ...(container === null ? {} : {container: container.config}),
     },
+    ...(container === null
+      ? {}
+      : materializedConfigPlan(
+          container.configPlan === undefined ? null : {container: container.configPlan},
+          container.trace,
+        )),
+    ...(container === null || container.diagnostics.length === 0
+      ? {}
+      : {diagnostics: container.diagnostics}),
+  };
+}
+
+function setupCheckoutPolicy(job: WorkflowModelJob) {
+  if (job.checkout === false || firstStepOwnsJobRoot(job)) return null;
+
+  const checkout = job.checkout ?? DEFAULT_JOB_CHECKOUT;
+  return {
+    permissions: checkout.permissions,
+    persist_credentials: checkout.persistCredentials,
   };
 }
 

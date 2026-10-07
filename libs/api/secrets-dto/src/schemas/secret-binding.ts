@@ -13,6 +13,18 @@ export const secretBindingInputTargetSchema = z.object({
   name: secretBindingTargetSchema,
 });
 
+// Job container bindings belong to the setup step. A credential target is the registry username
+// or password, and an env target is a variable of the container.
+export const secretBindingContainerCredentialTargetSchema = z.object({
+  kind: z.literal('container_credential'),
+  field: z.enum(['username', 'password']),
+});
+
+export const secretBindingContainerEnvTargetSchema = z.object({
+  kind: z.literal('container_env'),
+  name: secretBindingTargetSchema,
+});
+
 export const secretBindingSegmentSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('literal'),
@@ -26,10 +38,21 @@ export const secretBindingSegmentSchema = z.discriminatedUnion('kind', [
 ]);
 
 export const materializedSecretBindingSchema = z.object({
-  target: z.union([secretBindingTargetSchema, secretBindingInputTargetSchema]),
+  target: z.union([
+    secretBindingTargetSchema,
+    secretBindingInputTargetSchema,
+    secretBindingContainerCredentialTargetSchema,
+    secretBindingContainerEnvTargetSchema,
+  ]),
   segments: z.array(secretBindingSegmentSchema),
 });
 
 export type SecretBindingSegmentDto = z.infer<typeof secretBindingSegmentSchema>;
 export type SecretBindingInputTargetDto = z.infer<typeof secretBindingInputTargetSchema>;
+export type SecretBindingContainerCredentialTargetDto = z.infer<
+  typeof secretBindingContainerCredentialTargetSchema
+>;
+export type SecretBindingContainerEnvTargetDto = z.infer<
+  typeof secretBindingContainerEnvTargetSchema
+>;
 export type MaterializedSecretBindingDto = z.infer<typeof materializedSecretBindingSchema>;

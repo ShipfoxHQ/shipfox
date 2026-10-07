@@ -76,6 +76,11 @@ const STEP_FAILURE_COPY: Readonly<
     title: 'The runner cannot prepare the job',
     description: 'Read the setup logs for the cause. Then rerun the job.',
   },
+  container_setup_failed: {
+    title: 'The job container did not start',
+    description:
+      'Read the setup logs for the Docker error. Check the image name and registry credentials, then rerun the job.',
+  },
   setup_aborted: {
     title: 'The job stopped during setup',
     description:

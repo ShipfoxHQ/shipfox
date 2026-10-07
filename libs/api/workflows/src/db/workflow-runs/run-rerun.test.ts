@@ -150,6 +150,60 @@ describe('workflow run queries', () => {
       }
     });
 
+    test('carries the job container on the setup step of a rerun', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              container: {
+                image: 'ghcr.io/acme/toolbox:1',
+                credentials: {username: 'acme-bot', password: template('secrets.GHCR_TOKEN')},
+              },
+              steps: [{run: 'echo build'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: source.version,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const [job] = await getJobsByWorkflowRunId(rerun.id);
+      if (!job) throw new Error('Expected a rerun job');
+      const [setup] = await getStepsByJobId(job.id);
+      expect(setup).toMatchObject({
+        type: 'setup',
+        status: 'pending',
+        config: {
+          container: {
+            image: 'ghcr.io/acme/toolbox:1',
+            options: '',
+            docker_socket: true,
+            env: {},
+            username: 'acme-bot',
+          },
+        },
+      });
+      expect(setup?.configPlan?.container?.password).toBeDefined();
+    });
+
     test('copies the source claim origin scope instead of the rerun actor scope', async () => {
       const initiatedByUserId = crypto.randomUUID();
       const source = await createWorkflowRun({

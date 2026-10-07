@@ -15,6 +15,7 @@ import type {
 import {AgentStepSessionClaimError, ToolConfigInvalidError} from '#core/errors.js';
 import {completeActionConfig} from './action.js';
 import {completeAgentConfig, readAgentStepSessionIntent} from './agent.js';
+import {completeSetupContainerConfig} from './container.js';
 import {completeStepFieldWithTrace} from './fields.js';
 import {completeRunDispatchConfig} from './run.js';
 import {assertSecretInputDestinations, completeWith} from './tool.js';
@@ -76,6 +77,13 @@ export async function completeStepDispatchConfig(params: {
     authoredWith: authoredToolWith(params.step),
   });
   completeRunDispatchConfig({
+    config,
+    plan,
+    context: params.context,
+    definitionId: params.definitionId,
+    trace,
+  });
+  completeSetupContainerConfig({
     config,
     plan,
     context: params.context,

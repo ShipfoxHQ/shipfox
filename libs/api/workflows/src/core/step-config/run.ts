@@ -174,7 +174,12 @@ type CompletedDispatchField =
  * a binding to `target`, so the config and trace keep references, never values.
  */
 export function completeDispatchField(params: {
-  readonly field: 'run' | 'env.value' | 'action.with';
+  readonly field:
+    | 'run'
+    | 'env.value'
+    | 'action.with'
+    | 'job.container.credentials'
+    | 'job.container.env.value';
   readonly traceField: StepConfigField;
   readonly errorField: StepConfigField;
   readonly template: ResolvedField;
@@ -183,7 +188,7 @@ export function completeDispatchField(params: {
   readonly target: MaterializedSecretBindingDto['target'];
   readonly trace: PersistedEvaluationTraceEntry[];
 }): CompletedDispatchField {
-  const envKey = typeof params.target === 'string' ? params.target : undefined;
+  const envKey = bindingEnvKey(params.target);
   const resolved = resolveStepField({...params, ...(envKey === undefined ? {} : {envKey})});
   params.trace.push(...tagTrace(resolved.trace, params.traceField, envKey));
   if (resolved.kind === 'frozen') return {kind: 'value', value: resolved.value};
@@ -203,6 +208,11 @@ export function completeDispatchField(params: {
     ...(envKey === undefined ? {} : {envKey}),
     contextUnavailable: true,
   });
+}
+
+function bindingEnvKey(target: MaterializedSecretBindingDto['target']): string | undefined {
+  if (typeof target === 'string') return target;
+  return target.kind === 'container_env' ? target.name : undefined;
 }
 
 function containsOnlyRunnerSecretSegments(field: ResolvedField): boolean {
