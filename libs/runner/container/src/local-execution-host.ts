@@ -1,6 +1,6 @@
 import {type ChildProcess, spawn} from 'node:child_process';
 import {createWriteStream, type Dirent, type Stats} from 'node:fs';
-import {access, mkdir, readdir, readFile, stat, writeFile} from 'node:fs/promises';
+import {access, mkdir, open, readdir, readFile, stat, writeFile} from 'node:fs/promises';
 import {Readable} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
 import type {
@@ -9,6 +9,7 @@ import type {
   HostFileType,
   HostProcess,
   HostProcessExit,
+  HostReadFileOptions,
   HostStat,
   HostWriteFileOptions,
   SpawnRequest,
@@ -54,8 +55,16 @@ export class LocalExecutionHost implements ExecutionHost {
     };
   }
 
-  readFile(path: string): Promise<Buffer> {
-    return readFile(path);
+  async readFile(path: string, options: HostReadFileOptions = {}): Promise<Buffer> {
+    if (options.length === undefined) return await readFile(path);
+    const file = await open(path, 'r');
+    try {
+      const buffer = Buffer.alloc(options.length);
+      const {bytesRead} = await file.read(buffer, 0, options.length, 0);
+      return buffer.subarray(0, bytesRead);
+    } finally {
+      await file.close();
+    }
   }
 
   async writeFile(

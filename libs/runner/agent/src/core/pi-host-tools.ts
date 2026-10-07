@@ -14,7 +14,7 @@ import {
 } from '@earendil-works/pi-coding-agent';
 import type {ExecutionHost, HostProcess, HostProcessExit} from '@shipfox/runner-container';
 import {type CarriedEnv, prependPath} from '@shipfox/runner-execution/carried-env';
-import {detectSupportedImageMimeType} from '#core/pi-image-mime.js';
+import {detectSupportedImageMimeType, SNIFF_BYTES} from '#core/pi-image-mime.js';
 
 /** What pi activates when a step does not pick tools. */
 const DEFAULT_PI_TOOL_NAMES = ['read', 'bash', 'edit', 'write'] as const;
@@ -96,7 +96,8 @@ function createReadOperations(host: ExecutionHost): ReadOperations {
     access: async (path) => {
       await host.stat(path);
     },
-    detectImageMimeType: async (path) => detectSupportedImageMimeType(await host.readFile(path)),
+    detectImageMimeType: async (path) =>
+      detectSupportedImageMimeType(await host.readFile(path, {length: SNIFF_BYTES})),
   };
 }
 

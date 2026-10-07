@@ -130,6 +130,17 @@ describe('Pi host tools', () => {
     });
   });
 
+  it('sniffs only the head of a large file for an image', async () => {
+    const path = join(root, 'large.txt');
+    await writeFile(path, 'x'.repeat(100_000));
+    const readFileSpy = vi.spyOn(host, 'readFile');
+
+    await call('read', {path});
+
+    expect(readFileSpy).toHaveBeenCalledWith(path, {length: 4100});
+    readFileSpy.mockRestore();
+  });
+
   describe('bash operations', () => {
     function exec(
       command: string,
