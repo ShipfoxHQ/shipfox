@@ -5,12 +5,14 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, test} from 'node:test';
 import {
-  copyPlaywrightTestResults,
   copySharedOllamaLog,
+  e2eEnv,
+} from '../src/e2e.mjs';
+import {
+  copyPlaywrightTestResults,
   defaultLogDir,
   e2eClickUpApiBaseUrl,
   e2eDiscordApiBaseUrl,
-  e2eEnv,
   e2eJiraApiBaseUrl,
   e2eNotionApiBaseUrl,
   e2ePosthogApiBaseUrl,
@@ -21,7 +23,7 @@ import {
   startFakeRouters,
   turboBuildCommandArgs,
   turboCommandArgs,
-} from '../src/e2e.mjs';
+} from '../src/harness.mjs';
 import {startFakeRouter} from '../src/fake-router.mjs';
 
 const unknownCommandPattern = /Unknown command/;

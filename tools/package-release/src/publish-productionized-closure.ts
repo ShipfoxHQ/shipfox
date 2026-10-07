@@ -31,7 +31,7 @@ export interface PublicationClosureConfig {
 
 export function findClosureManifests(root: string, packageNames: string[]): string[] {
   const manifestsByName = new Map<string, string>();
-  for (const manifestPath of globSync(join(root, 'libs/**/package.json'))) {
+  for (const manifestPath of globSync(join(root, '{e2e,libs}/**/package.json'))) {
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as JsonRecord;
     if (typeof manifest.name !== 'string') continue;
     if (manifestsByName.has(manifest.name)) {

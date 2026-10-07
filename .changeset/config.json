@@ -62,7 +62,8 @@
       "@shipfox/api-workflows",
       "@shipfox/api-workflows-dto",
       "@shipfox/api-workspaces",
-      "@shipfox/api-workspaces-dto"
+      "@shipfox/api-workspaces-dto",
+      "@shipfox/e2e-harness"
     ],
     [
       "@shipfox/client-agent",
