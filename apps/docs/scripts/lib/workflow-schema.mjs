@@ -291,9 +291,9 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
     example: 'step-outputs.yml',
     select: () => ({
       '<output_name>': {
-        type: 'string | number | boolean | json | {type: string | number | boolean; default?: value} | {type: json; schema?: value; default?: value}',
+        type: 'string | number | boolean | json | {type: string | number | boolean; default?: value; from_file?: string; from_stdout?: true} | {type: json; schema?: value; default?: value; from_file?: string; from_stdout?: true}',
         description:
-          'Defines an output from the step. Set its type directly, for example `sha: string`, or use an object with `type`. Only `json` outputs can include `schema`. Without `schema`, a `json` output can contain any JSON value. Run and agent steps can add `default`, which later steps read when the step has no value for the output, for example when it is skipped. The default must match the type and `schema`.',
+          'Defines an output from the step. Set its type directly, for example `sha: string`, or use an object with `type`. Only `json` outputs can include `schema`. Without `schema`, a `json` output can contain any JSON value. Run and agent steps can add `default`, which later steps read when the step has no value for the output, for example when it is skipped. The default must match the type and `schema`. Only run steps support `from_file` and `from_stdout`; agent and checkout steps reject them. `from_file` reads the output from a file after the command exits, and `from_stdout` reads it from standard output. A file path is relative to the step working directory and must stay inside the job workspace. A missing file leaves the output unset. Standard output and each file are limited to 64 KiB, and one trailing newline is removed. An output uses `from_file` or `from_stdout`, not both, and a step has at most one `from_stdout` output.',
       },
     }),
   },

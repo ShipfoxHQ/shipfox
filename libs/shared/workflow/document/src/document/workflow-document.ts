@@ -393,14 +393,34 @@ export const workflowDocumentStepOutputDeclarationSchema = z
         description:
           'Value that later steps read when the step has no value for this output, for example when it is skipped. It must match the declared type and `schema`. Run and agent steps only.',
       }),
+      from_file: z.string().min(1).optional().meta({
+        description:
+          'Run steps only. Reads the output from this file after the command exits. The path is relative to the step working directory and must stay inside the job workspace. A missing file leaves the output unset.',
+      }),
+      from_stdout: z.literal(true).optional().meta({
+        description:
+          'Run steps only. Reads the output from the standard output of the command, up to 64 KiB. One trailing newline is removed. At most one output of a step can use it.',
+      }),
     }),
   ])
-  .superRefine((declaration, ctx) =>
+  .superRefine((declaration, ctx) => {
     validateWorkflowDocumentValueDeclaration(
       {type: declaration.type, schema: 'schema' in declaration ? declaration.schema : undefined},
       ctx,
-    ),
-  );
+    );
+    if (
+      'from_file' in declaration &&
+      declaration.from_file !== undefined &&
+      'from_stdout' in declaration &&
+      declaration.from_stdout !== undefined
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['from_stdout'],
+        message: 'An output can use `from_file` or `from_stdout`, not both.',
+      });
+    }
+  });
 
 // Step outputs and action manifest inputs and outputs share one type vocabulary.
 export function validateWorkflowDocumentValueDeclaration(
@@ -1212,12 +1232,43 @@ function validateWorkflowDocumentStepOutputs(
     });
     return;
   }
+  addWorkflowDocumentOutputSourceIssues(step.outputs, stepKind, ctx);
   if (!stepOutputsContainMappingForm(step.outputs)) return;
   ctx.addIssue({
     code: 'custom',
     path: ['outputs'],
     message: `The \`outputs\` declaration form is required on ${articleForStepKind(stepKind)} ${stepKind} step.`,
   });
+}
+
+function addWorkflowDocumentOutputSourceIssues(
+  outputs: Readonly<Record<string, unknown>>,
+  stepKind: 'agent' | 'checkout' | 'run',
+  ctx: z.RefinementCtx,
+): void {
+  let stdoutOutput: string | undefined;
+  for (const [key, declaration] of Object.entries(outputs)) {
+    if (typeof declaration !== 'object' || declaration === null) continue;
+    const sources = declaration as {from_file?: unknown; from_stdout?: unknown};
+    for (const field of ['from_file', 'from_stdout'] as const) {
+      if (sources[field] === undefined || stepKind === 'run') continue;
+      ctx.addIssue({
+        code: 'custom',
+        path: ['outputs', key, field],
+        message: `\`${field}\` is only supported on run steps.`,
+      });
+    }
+    if (stepKind !== 'run' || sources.from_stdout === undefined) continue;
+    if (stdoutOutput !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['outputs', key, 'from_stdout'],
+        message: `Only one output of a step can use \`from_stdout\`. "${stdoutOutput}" already does.`,
+      });
+      continue;
+    }
+    stdoutOutput = key;
+  }
 }
 
 function validateWorkflowDocumentRunStep(

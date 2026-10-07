@@ -76,13 +76,31 @@ export function resolveRunStepConfig(params: ResolveRunStepConfigParams): RunSte
   const configPlan = hasConfigPlan ? ({env: planEnv} satisfies StepConfigDispatchPlan) : null;
   const hasTemplates = envResolution.hasTemplates || commandResolution.hasTemplate;
 
+  const outputSources = runOutputSources(params.step.outputs);
+
   return {
-    config: {run: commandResolution.command, ...envConfig},
+    config: {
+      run: commandResolution.command,
+      ...envConfig,
+      ...(outputSources === undefined ? {} : {output_sources: outputSources}),
+    },
     configPlan,
     diagnostics: [...envResolution.diagnostics, ...commandResolution.diagnostics],
     trace: [...envResolution.trace, ...commandResolution.trace],
     hasTemplates,
   };
+}
+
+/** Where the runner reads each output declared with `from_file` or `from_stdout`. */
+function runOutputSources(
+  outputs: WorkflowModelRunStep['outputs'],
+): Record<string, {from_file: string} | {from_stdout: true}> | undefined {
+  const sources: Record<string, {from_file: string} | {from_stdout: true}> = {};
+  for (const [key, declaration] of Object.entries(outputs ?? {})) {
+    if (declaration.from_file !== undefined) sources[key] = {from_file: declaration.from_file};
+    else if (declaration.from_stdout) sources[key] = {from_stdout: true};
+  }
+  return Object.keys(sources).length === 0 ? undefined : sources;
 }
 
 export function completeRunDispatchConfig(params: {

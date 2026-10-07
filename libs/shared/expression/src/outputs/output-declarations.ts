@@ -14,6 +14,9 @@ export interface OutputTypeDeclaration {
   readonly required?: boolean;
   /** Stands in for the output when its step has no value for it. `null` is a value; `undefined` is no default. */
   readonly default?: unknown;
+  // Run steps only: where the runner reads the value from instead of `$SHIPFOX_OUTPUT`.
+  readonly from_file?: string | undefined;
+  readonly from_stdout?: true | undefined;
 }
 
 export type OutputDeclarations = Readonly<Record<string, OutputTypeDeclaration>>;

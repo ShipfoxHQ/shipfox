@@ -16,6 +16,12 @@ import {
 } from '#core/annotation-spool.js';
 import {readOomKillCount} from '#core/out-of-memory.js';
 import {
+  type OutputSources,
+  readOutputSources,
+  readOutputSourceValues,
+  StdoutCapture,
+} from '#core/output-sources.js';
+import {
   formatOutputSizeViolation,
   MAX_OUTPUT_TOTAL_BYTES,
   parseStepOutput,
@@ -82,6 +88,8 @@ export interface StepProcessOptions {
    */
   memoryEventsPath?: string;
   onOutput?: OutputSink;
+  /** Outputs read from a file or from stdout, as declared by the step. */
+  outputSources?: OutputSources;
   /** Called for script commands only. */
   onCommandStart?: CommandStartSink;
 }
@@ -111,7 +119,12 @@ export function executeRunStep(
     });
   }
 
-  return runStepProcess({script: command}, {...readStepEnv(step), ...options.secretEnv}, options);
+  const outputSources = readOutputSources(step);
+  return runStepProcess(
+    {script: command},
+    {...readStepEnv(step), ...options.secretEnv},
+    outputSources === undefined ? options : {...options, outputSources},
+  );
 }
 
 /**
@@ -164,6 +177,20 @@ async function runStepProcess(
     }
 
     isolatedGitConfigGlobal = await isolateGitConfigGlobal(options.gitConfigGlobal, tempDir);
+    const stdoutCapture =
+      options.outputSources?.stdout === undefined ? undefined : new StdoutCapture();
+    const spawnOptions = {
+      ...options,
+      ...(isolatedGitConfigGlobal === undefined ? {} : {gitConfigGlobal: isolatedGitConfigGlobal}),
+      ...(stdoutCapture === undefined
+        ? {}
+        : {
+            onOutput: ((chunk, source) => {
+              if (source === 'stdout') stdoutCapture.push(chunk);
+              options.onOutput?.(chunk, source);
+            }) satisfies OutputSink,
+          }),
+    };
     const oomKillsBefore =
       options.memoryEventsPath === undefined
         ? undefined
@@ -174,12 +201,14 @@ async function runStepProcess(
       stepEnv,
       outputPath,
       annotationSpool,
-      isolatedGitConfigGlobal === undefined
-        ? options
-        : {...options, gitConfigGlobal: isolatedGitConfigGlobal},
+      spawnOptions,
     );
     result = await reportOutOfMemory(result, oomKillsBefore, options);
-    const outputResult = await finalizeStepOutput(result, outputPath);
+    const outputResult = await applyOutputSources(
+      await finalizeStepOutput(result, outputPath),
+      options,
+      stdoutCapture,
+    );
     if (!annotationSpool) return outputResult;
 
     const annotations = await collectAnnotationOperations(annotationSpool);
@@ -467,6 +496,33 @@ async function finalizeStepOutput(result: StepResult, outputPath: string): Promi
     const outputs = parseStepOutput(raw);
     if (Object.keys(outputs).length === 0) return result;
     return {...result, outputs};
+  } catch (error) {
+    if (!result.success) return result;
+    return {
+      success: false,
+      error: {message: stepOutputErrorMessage(error)},
+      exit_code: null,
+    };
+  }
+}
+
+async function applyOutputSources(
+  result: StepResult,
+  options: StepProcessOptions,
+  stdout: StdoutCapture | undefined,
+): Promise<StepResult> {
+  if (options.outputSources === undefined) return result;
+  try {
+    const cwd = options.cwd ?? process.cwd();
+    const values = await readOutputSourceValues({
+      host: options.host ?? localExecutionHost,
+      sources: options.outputSources,
+      stdout,
+      cwd,
+      workspace: options.workspace ?? cwd,
+    });
+    if (Object.keys(values).length === 0) return result;
+    return {...result, outputs: {...result.outputs, ...values}};
   } catch (error) {
     if (!result.success) return result;
     return {

@@ -1112,6 +1112,59 @@ describe('materializeJobExecutionSteps', () => {
     });
   });
 
+  it('sends the output sources of a run step in its dispatch config', async () => {
+    const model = workflowModel({
+      jobs: {
+        review: {
+          steps: [
+            {
+              run: 'git rev-parse HEAD',
+              outputs: {
+                commit: {type: 'string', from_stdout: true},
+                patch: {type: 'string', from_file: '.git/shipfox-repair.patch'},
+                plain: {type: 'string'},
+              },
+            },
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = await materializeJobExecutionSteps({
+      model,
+      job,
+      context: jobExecutionContext(),
+    });
+
+    expect(steps[1]?.config).toMatchObject({
+      run: 'git rev-parse HEAD',
+      output_sources: {
+        commit: {from_stdout: true},
+        patch: {from_file: '.git/shipfox-repair.patch'},
+      },
+    });
+  });
+
+  it('omits output sources when no output declares one', async () => {
+    const model = workflowModel({
+      jobs: {
+        review: {steps: [{run: 'echo hi', outputs: {plain: {type: 'string'}}}]},
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = await materializeJobExecutionSteps({
+      model,
+      job,
+      context: jobExecutionContext(),
+    });
+
+    expect(steps[1]?.config).not.toHaveProperty('output_sources');
+  });
+
   it('throws a permanent interpolation error for unsafe run interpolation', async () => {
     const model = workflowModel({
       jobs: {
