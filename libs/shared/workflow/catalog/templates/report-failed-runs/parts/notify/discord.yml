@@ -7,7 +7,7 @@ send_report: |
       channel_id: "replace-with-discord-channel-id"
       # Every part is capped so the message stays under Discord's 2,000-character limit.
       message: >-
-        ${{ "**[" + (event.workflow.name.size() > 80 ? event.workflow.name.substring(0, 80) + "…" : event.workflow.name) + " #" + string(event.run.number) + "](<https://app.shipfox.io/runs/" + event.run.id + ">)** " + event.run.status
+        ${{ "**[" + (event.workflow.name.size() > 80 ? event.workflow.name.substring(0, 80) + "…" : event.workflow.name) + " #" + string(event.run.number) + "](<" + event.run.url + ">)** " + event.run.status
         + (event.run.attempt > 1 ? " on attempt " + string(event.run.attempt) : "")
         + " in " + (event.project.name.size() > 80 ? event.project.name.substring(0, 80) + "…" : event.project.name)
         + (steps.detail.outputs.failed != "" ? "\nFailed: " + (steps.detail.outputs.failed.size() > 300 ? steps.detail.outputs.failed.substring(0, 300) + "…" : steps.detail.outputs.failed) : "")

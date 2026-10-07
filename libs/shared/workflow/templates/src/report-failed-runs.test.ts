@@ -69,6 +69,7 @@ function completedEvent(
     },
     run: {
       id: '0198a100-0000-7000-8000-000000000003',
+      url: 'https://app.example.test/runs/0198a100-0000-7000-8000-000000000003',
       number: 7,
       attempt: 1,
       origin: 'synced',
@@ -270,7 +271,7 @@ describe('failed run report', () => {
     });
 
     expect(text).toBe(
-      '**[Deploy #7](https://app.shipfox.io/runs/0198a100-0000-7000-8000-000000000003)** failed on attempt 2 in api\nFailed: `build` › `Run tests`\n```\nError: boom\n```\nNext: Rerun.',
+      '**[Deploy #7](https://app.example.test/runs/0198a100-0000-7000-8000-000000000003)** failed on attempt 2 in api\nFailed: `build` › `Run tests`\n```\nError: boom\n```\nNext: Rerun.',
     );
   });
 
@@ -314,7 +315,7 @@ describe('failed run report on Discord', () => {
     );
 
     expect(text).toBe(
-      '**[Deploy #7](<https://app.shipfox.io/runs/0198a100-0000-7000-8000-000000000003>)** failed on attempt 2 in api\nFailed: `build` › `Run tests`\n```\nError: boom\n```\nNext: Rerun.',
+      '**[Deploy #7](<https://app.example.test/runs/0198a100-0000-7000-8000-000000000003>)** failed on attempt 2 in api\nFailed: `build` › `Run tests`\n```\nError: boom\n```\nNext: Rerun.',
     );
   });
 

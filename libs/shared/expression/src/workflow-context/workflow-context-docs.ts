@@ -103,6 +103,7 @@ export const workflowContextDocs = [
       name: 'Resolved run name, or the workflow name when `run_name` is not set.',
       project_id: 'Identifier of the project that owns the run.',
       workspace_id: 'Identifier of the workspace that owns the run.',
+      url: 'Link to the run in the Shipfox app.',
       created_at: 'Time the run was created.',
     },
   },

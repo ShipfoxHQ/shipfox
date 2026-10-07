@@ -604,6 +604,37 @@ describe('createDevRun', () => {
     expect(await eventsForWorkspace(params.workspaceId)).toHaveLength(0);
   });
 
+  test('replays a Shipfox event stored without a run link with the link a new event carries', async () => {
+    const params = buildParams({
+      triggerKey: 'on_completed',
+      triggers: {on_completed: {source: 'shipfox', event: 'run.completed'}},
+    });
+    const runId = crypto.randomUUID();
+    const sourceEvent = await receivedEventFactory.create({
+      workspaceId: params.workspaceId,
+      origin: 'integration',
+      provider: 'shipfox',
+      source: 'shipfox',
+      event: 'run.completed',
+      deliveryId: 'delivery-shipfox',
+      connectionId: crypto.randomUUID(),
+      connectionName: 'shipfox',
+      payload: {run: {id: runId, status: 'failed'}},
+      outcome: 'routed',
+    });
+    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(params.triggers));
+    startDevRun.mockResolvedValue({id: crypto.randomUUID(), name: 'Dev replay run'});
+
+    await createDevRun({...params, replayEventId: sourceEvent.id});
+
+    const [startPayload] = startDevRun.mock.calls[0] as [Record<string, unknown>];
+    expect(startPayload).toMatchObject({
+      triggerPayload: {
+        data: {run: {id: runId, status: 'failed', url: `https://app.example.test/runs/${runId}`}},
+      },
+    });
+  });
+
   test('replays a journaled integration event for an event-less trigger', async () => {
     const params = buildParams({
       triggerKey: 'on_push',

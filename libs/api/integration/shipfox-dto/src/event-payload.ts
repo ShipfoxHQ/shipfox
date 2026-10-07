@@ -54,6 +54,7 @@ const runIdentitySchema = z.object({
   root_run_id: idSchema
     .nullable()
     .describe('ID of the first run in a chain of runs started with `start_workflow_run`.'),
+  url: nonEmptyStringSchema.describe('Link to the run in the Shipfox app.'),
   created_at: timestampSchema.describe('Time the run was created.'),
 });
 

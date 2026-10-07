@@ -6,6 +6,10 @@ import yaml from 'js-yaml';
 const JOB_QUEUE_TIMEOUT_PATTERN = /^(\d+(?:\.\d+)?)(s|m|h)$/i;
 
 export const config = createConfig({
+  CLIENT_BASE_URL: str({
+    desc: 'Base URL of the client app. Used to build the run links that workflows read as run.url.',
+    default: 'http://localhost:5173',
+  }),
   RUNNER_CATALOG_PATH: str({
     desc: 'Path to the YAML file that maps runner catalog names to complete label sets. Leave it empty to use every job runner value as a literal label. The file is loaded at startup; restart the API after changing it.',
     default: '',

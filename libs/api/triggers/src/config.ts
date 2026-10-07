@@ -1,6 +1,10 @@
-import {createConfig, num} from '@shipfox/config';
+import {createConfig, num, str} from '@shipfox/config';
 
 export const config = createConfig({
+  CLIENT_BASE_URL: str({
+    desc: 'Base URL of the client app. Used to build the run links on Shipfox run and job events.',
+    default: 'http://localhost:5173',
+  }),
   TRIGGER_EVENT_RETENTION_DAYS: num({
     desc: 'How many days a recorded trigger event (and its decisions) is kept before the hourly prune cron deletes it. Must be at least 1; a smaller value moves the cutoff to now or the future and would delete freshly recorded events. Defaults to 30.',
     default: 30,

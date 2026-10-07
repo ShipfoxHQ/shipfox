@@ -12,8 +12,10 @@ import type {
   WorkflowsWorkflowRunStartedEventDto,
   WorkflowsWorkflowRunTerminatedEventDto,
 } from '@shipfox/api-workflows-dto';
+import {workflowRunUrl} from '@shipfox/api-workflows-dto';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {DomainEvent} from '@shipfox/node-outbox';
+import {config} from '#config.js';
 import {dispatchIntegrationEvent} from '#core/dispatch-integration-event.js';
 import {findMatchingJobListenerSubscriptions} from '#db/job-listener-subscriptions.js';
 import {findMatchingSubscriptions} from '#db/subscriptions.js';
@@ -118,6 +120,7 @@ function lifecycleBase(context: LifecycleContext) {
     commit: context.run.commit,
     parent_run_id: context.run.parent_run_id,
     root_run_id: context.run.root_run_id,
+    url: workflowRunUrl({clientBaseUrl: config.CLIENT_BASE_URL, runId: context.run.id}),
     created_at: context.run.created_at,
   };
   return {

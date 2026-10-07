@@ -43,8 +43,6 @@ Replace `replace-with-discord-channel-id` with the report channel ID, which Disc
 The bot needs `View Channel`, `Read Message History`, `Send Messages`, `Send Messages in Threads`, and `Create Public Threads` there.
 Keep every `connection: shipfox` line and `source: shipfox`. They use the built-in Shipfox connection, not a workspace connection.
 
-Report links point to `https://app.shipfox.io/runs/`. On a self-hosted installation, replace `https://app.shipfox.io` with the address of your Shipfox app.
-
 ## Choose a model
 
 Confirm the provider, model, harness, and thinking setting for `# model:diagnose`.

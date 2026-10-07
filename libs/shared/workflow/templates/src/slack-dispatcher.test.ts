@@ -19,6 +19,7 @@ const channelIdInput = /- channel_id: the Discord channel ID above, exactly\./g;
 const messageIdInput = /- message_id: the message ID above, exactly\./g;
 const slackOnlyText = /Slack|thread_ts/;
 const childRunId = '0199a8f0-0000-7000-8000-000000000001';
+const childRunUrl = `https://app.example.test/runs/${childRunId}`;
 
 function at(value: unknown, ...path: (string | number)[]): unknown {
   return path.reduce<unknown>((current, key) => (current as YamlRecord)[key], value);
@@ -57,7 +58,7 @@ const withoutPullRequest = [
 // condition is false, so a message that indexes a missing event fails the whole execution.
 function renderFollowUpMessages(document: YamlRecord, events: YamlRecord[]): string[] {
   const context = {
-    jobs: {route: {outputs: {run_id: childRunId, run_number: 12}}},
+    jobs: {route: {outputs: {run_id: childRunId, run_number: 12, run_url: childRunUrl}}},
     execution: {events},
   };
   return (at(document, 'jobs', 'follow_up', 'steps') as YamlRecord[]).map((entry) =>
@@ -121,6 +122,17 @@ describe('Slack dispatcher template', () => {
       'send_message',
       'send_message',
     ]);
+  });
+
+  it.each([
+    {name: 'the started run link', started: 'succeeded', expected: childRunUrl},
+    {name: 'an empty link when the start step did not succeed', started: 'failed', expected: ''},
+  ])('exposes $name as the route run_url', ({started, expected}) => {
+    const runUrl = at(workflow, 'jobs', 'route', 'outputs', 'run_url');
+
+    expect(evaluate(runUrl, {steps: {start: {status: started, outputs: {url: childRunUrl}}}})).toBe(
+      expected,
+    );
   });
 
   it('starts only a workflow that the prompt lists, in this project', () => {
@@ -280,7 +292,7 @@ describe('Slack dispatcher template', () => {
   it('links the pull request and the run that opened it', () => {
     const message = String(at(step('follow_up', 'pull_request'), 'with', 'message'));
     const context = {
-      jobs: {route: {outputs: {run_id: childRunId, run_number: 12}}},
+      jobs: {route: {outputs: {run_id: childRunId, run_number: 12, run_url: childRunUrl}}},
       execution: {
         events: [
           jobCompleted({
@@ -297,7 +309,7 @@ describe('Slack dispatcher template', () => {
 
     expect(rendered).toBe(
       [
-        `Run [#12](https://app.shipfox.io/runs/${childRunId}) opened a pull request for this request: https://github.com/acme/api/pull/7`,
+        `Run [#12](${childRunUrl}) opened a pull request for this request: https://github.com/acme/api/pull/7`,
         '',
         '_Review it before you merge it._',
       ].join('\n'),

@@ -120,6 +120,7 @@ const runTypeEnvironment = {
       name: 'string',
       project_id: 'string',
       workspace_id: 'string',
+      url: 'string',
       created_at: 'timestamp',
     },
   },

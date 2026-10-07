@@ -7,4 +7,5 @@ process.env.POSTGRES_MAX_CONNECTIONS ??= '5';
 process.env.WORKFLOWS_LEGACY_TRIGGER_EVENTS_WRITE_ENABLED = 'false';
 process.env.AUTH_ROOT_KEY = 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
 process.env.SECRETS_ENCRYPTION_KEK = 'ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=';
+process.env.CLIENT_BASE_URL = 'https://app.example.test';
 process.env.TZ = 'UTC';

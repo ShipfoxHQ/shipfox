@@ -1287,6 +1287,7 @@ describe('integrations inter-module callTool', () => {
       deduplicated: false,
     });
     const provider = createShipfoxAgentToolsProvider({
+      clientBaseUrl: 'https://app.example.test',
       annotations: {
         listAnnotationsForRunAttempt: vi.fn(),
       },

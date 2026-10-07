@@ -50,6 +50,7 @@ const event = {
     commit: null,
     parent_run_id: null,
     root_run_id: null,
+    url: 'https://app.example.test/runs/0198a100-0000-7000-8000-000000000003',
     created_at: '2026-09-26T10:00:00Z',
     status: 'succeeded',
     status_reason: null,

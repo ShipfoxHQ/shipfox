@@ -138,6 +138,7 @@ describe('assembleWorkflowRunContext', () => {
         name: 'Build',
         project_id: 'proj-1',
         workspace_id: 'workspace-1',
+        url: 'https://app.example.test/runs/run-1',
         created_at: run.createdAt,
       },
       trigger: {

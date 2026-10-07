@@ -1,3 +1,4 @@
+import {workflowRunUrl} from '@shipfox/api-workflows-dto';
 import {
   analyzeContextPathAccess,
   type ContextPathLiteralSegment,
@@ -10,6 +11,7 @@ import {
   type WorkflowExpressionEvaluationContext,
   type WorkflowPredicateContextRoot,
 } from '@shipfox/expression';
+import {config} from '#config.js';
 import type {Job, JobListeningTrigger} from '#core/entities/job.js';
 import type {
   JobExecution,
@@ -77,6 +79,7 @@ export function assembleWorkflowRunContext(
       name: params.run.name,
       project_id: params.run.projectId,
       workspace_id: params.run.workspaceId,
+      url: workflowRunUrl({clientBaseUrl: config.CLIENT_BASE_URL, runId: params.run.id}),
       created_at: params.run.createdAt,
     },
     trigger: {
