@@ -1,7 +1,7 @@
 ---
 name: write-a-workflow
 description: Use when writing a Shipfox workflow from an idea or adapting an existing workflow without a template.
-revision: 3
+revision: 4
 catalog_title: Write a workflow
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to write a workflow for this repository.

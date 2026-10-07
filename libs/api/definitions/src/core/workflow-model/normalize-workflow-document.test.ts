@@ -2822,7 +2822,7 @@ describe('normalizeWorkflowDocument', () => {
             checkout: false,
             steps: [
               {checkout: {repository: 'acme/api'}},
-              {checkout: {repository: 'acme/helm', path: '.'}},
+              {checkout: {repository: 'acme/helm'}},
             ],
           },
         },
