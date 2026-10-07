@@ -49,6 +49,7 @@ interface PackCandidateBundleOptions {
   sha: string;
 }
 
+export const candidateImagesFile = 'images.json';
 export const candidateManifestFile = 'manifest.json';
 export const candidateOverridesFile = 'overrides.yaml';
 const fullShaPattern = /^[0-9a-f]{40}$/u;

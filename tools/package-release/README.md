@@ -79,7 +79,8 @@ pnpm --filter=@shipfox/package-release pack:candidate -- \
   --public-url https://candidates.shipfox.io
 ```
 
-The output folder holds every tarball, plus these two files:
+The output folder holds every tarball, plus these two files. The CI candidate
+job adds `images.json` from the application release before upload.
 
 - `manifest.json`: `schemaVersion`, `sha`, `createdAt`, `ciRun`, and
   `packages` sorted by name. Each package lists its `name`, `version`, tarball
@@ -87,14 +88,16 @@ The output folder holds every tarball, plus these two files:
   in a consumer's lockfile.
 - `overrides.yaml`: an `overrides:` map from each package name to its tarball
   URL, ready to merge into Cloud's `pnpm-workspace.yaml`.
+- `images.json` (CI only): the runner and provisioner image repositories and
+  digests from the application release for the same commit.
 
 `upload:candidate` writes the folder to `candidates/<sha>/` in the
 `shipfox-package-candidates` R2 bucket. It sends each object with
 `If-None-Match: *`, so it never overwrites one. Tarballs go first, then
-`overrides.yaml`, then `manifest.json`, so a present manifest means a complete
-folder. A rerun succeeds when the existing objects match. A tarball or
-`overrides.yaml` must match byte for byte. A manifest must list the same
-packages. Any other conflict fails the upload.
+`images.json` and `overrides.yaml`, then `manifest.json`, so a present manifest
+means a complete folder. A rerun succeeds when the existing objects match. A
+tarball, `images.json`, or `overrides.yaml` must match byte for byte. A manifest
+must list the same packages. Any other conflict fails the upload.
 
 Then the upload rewrites `candidates/main.json` as `{"sha", "createdAt"}`. It
 skips this when the pointer already names a newer commit, for example when
