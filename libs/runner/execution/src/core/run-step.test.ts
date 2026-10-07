@@ -1230,6 +1230,26 @@ describe('executeRunStep output sources', () => {
     expect(result.error?.message).toContain('Output "big" exceeds the per-value size limit');
   });
 
+  it('fails a succeeded step whose file and SHIPFOX_OUTPUT outputs exceed the total cap together', async () => {
+    const script = [
+      "const fs = require('node:fs');",
+      `const value = 'x'.repeat(${MAX_OUTPUT_VALUE_BYTES});`,
+      "fs.writeFileSync(process.env.SHIPFOX_OUTPUT, ['a', 'b', 'c'].map((key) => key + '=' + value + '\\n').join(''));",
+      "fs.writeFileSync('d.txt', value);",
+      "fs.writeFileSync('e.txt', value);",
+    ].join(' ');
+    const step = sourceStep(`node -e ${JSON.stringify(script)}`, {
+      d: {from_file: 'd.txt'},
+      e: {from_file: 'e.txt'},
+    });
+
+    const result = await executeRunStep(step, {cwd: workspace, workspace});
+
+    expect(result.success).toBe(false);
+    expect(result.outputs).toBeUndefined();
+    expect(result.error?.message).toContain('Step outputs exceed the total size limit');
+  });
+
   it('fails a file that is not a regular file', async () => {
     await mkdir(join(workspace, 'dir'));
     const step = sourceStep('true', {dir: {from_file: 'dir'}});

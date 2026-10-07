@@ -100,7 +100,6 @@ export async function readOutputSourceValues(params: {
     values[stdoutKey] = valueFromRaw(stdoutKey, params.stdout.text());
   }
 
-  assertTotalSize(values);
   return values;
 }
 
@@ -120,7 +119,7 @@ function valueFromRaw(key: string, raw: string): string {
   return value;
 }
 
-function assertTotalSize(values: Readonly<Record<string, string>>): void {
+export function assertTotalOutputSize(values: Readonly<Record<string, string>>): void {
   let total = 0;
   for (const value of Object.values(values)) total += Buffer.byteLength(value, 'utf8');
   if (total <= MAX_OUTPUT_TOTAL_BYTES) return;

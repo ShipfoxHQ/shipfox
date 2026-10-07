@@ -1138,12 +1138,9 @@ describe('materializeJobExecutionSteps', () => {
       context: jobExecutionContext(),
     });
 
-    expect(steps[1]?.config).toMatchObject({
-      run: 'git rev-parse HEAD',
-      output_sources: {
-        commit: {from_stdout: true},
-        patch: {from_file: '.git/shipfox-repair.patch'},
-      },
+    expect(steps[1]?.config.output_sources).toEqual({
+      commit: {from_stdout: true},
+      patch: {from_file: '.git/shipfox-repair.patch'},
     });
   });
 

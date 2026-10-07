@@ -16,6 +16,7 @@ import {
 } from '#core/annotation-spool.js';
 import {readOomKillCount} from '#core/out-of-memory.js';
 import {
+  assertTotalOutputSize,
   type OutputSources,
   readOutputSources,
   readOutputSourceValues,
@@ -522,7 +523,9 @@ async function applyOutputSources(
       workspace: options.workspace ?? cwd,
     });
     if (Object.keys(values).length === 0) return result;
-    return {...result, outputs: {...result.outputs, ...values}};
+    const outputs = {...result.outputs, ...values};
+    assertTotalOutputSize(outputs);
+    return {...result, outputs};
   } catch (error) {
     if (!result.success) return result;
     return {

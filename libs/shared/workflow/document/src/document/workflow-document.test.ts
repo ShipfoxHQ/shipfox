@@ -1796,22 +1796,13 @@ describe('workflowDocumentSchema', () => {
     expect(issue?.message).toBe(`\`${field}\` is only supported on run steps.`);
   });
 
-  it('rejects from_stdout set to false and an empty from_file', () => {
+  it.each([
+    ['from_stdout set to false', {type: 'string', from_stdout: false}],
+    ['an empty from_file', {type: 'string', from_file: ''}],
+  ] as const)('rejects %s', (_label, declaration) => {
     const result = workflowDocumentSchema.safeParse({
       name: 'output sources',
-      jobs: {
-        build: {
-          steps: [
-            {
-              run: 'echo hi',
-              outputs: {
-                a: {type: 'string', from_stdout: false},
-                b: {type: 'string', from_file: ''},
-              },
-            },
-          ],
-        },
-      },
+      jobs: {build: {steps: [{run: 'echo hi', outputs: {value: declaration}}]}},
     });
 
     expect(result.success).toBe(false);
