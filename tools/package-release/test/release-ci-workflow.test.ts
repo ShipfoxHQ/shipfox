@@ -140,6 +140,9 @@ describe('generated release CI path', () => {
       assert.ok(candidate.if.includes(`needs.${job}.result == 'success'`), job);
     }
     assert.deepEqual(candidate.permissions, {contents: 'read', packages: 'read'});
+    assert.ok(stepIndex('Set up ORAS') >= 0);
+    assert.ok(stepIndex('Log in to GHCR') >= 0);
+    assert.ok(stepIndex('Pack candidate bundle') >= 0);
     assert.ok(stepIndex('Set up ORAS') < stepIndex('Add application image references'));
     assert.ok(stepIndex('Log in to GHCR') < stepIndex('Add application image references'));
     assert.ok(stepIndex('Pack candidate bundle') < stepIndex('Add application image references'));
