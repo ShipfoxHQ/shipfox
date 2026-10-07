@@ -60,9 +60,9 @@ export async function runE2e({
 
   process.once('SIGINT', onSigint);
   process.once('SIGTERM', onSigterm);
-  await mkdir(logDir, {recursive: true});
 
   try {
+    await mkdir(logDir, {recursive: true});
     if (options.turboTask === defaultTurboTask || options.turboTask === evalTurboTask) {
       await buildE2eDependencies(options, resolvedEnv, runningServers, logDir);
     }
@@ -553,6 +553,11 @@ async function startServer(params) {
       env: params.env,
       stdio: ['ignore', logFd, logFd],
     });
+    const started = new Promise((resolve, reject) => {
+      child.once('spawn', resolve);
+      child.once('error', reject);
+    });
+    await started;
   } finally {
     closeSync(logFd);
   }
@@ -741,6 +746,21 @@ function parsePositiveInteger(raw, flag) {
   return value;
 }
 
+function usage() {
+  printLine(`Usage: mise run e2e [options] [turbo args]
+
+Options:
+  --filter=<package>      Passed through to turbo, for example --filter=@shipfox/e2e-flow-workflows
+  --keep-open             Leave API and client dev servers running after tests
+  --log-dir=<path>        Directory for API/client logs and failure diagnostics
+  --task=<task>           Turbo task to run (default: test:e2e)
+  --timeout-ms=<ms>       Readiness timeout for API and client (default: 60000)
+
+Examples:
+  mise run e2e -- --filter=@shipfox/e2e-flow-workflows
+  mise run e2e -- --filter=@shipfox/e2e-client-auth
+`);
+}
 
 function printLine(message) {
   process.stdout.write(`${message}\n`);
