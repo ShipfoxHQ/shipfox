@@ -1,6 +1,7 @@
 job: |
   report:
     needs: [investigate, deliver]
+    run_after: always
     if: ${{ jobs.investigate.status == "succeeded" }}
     checkout: false
     steps:

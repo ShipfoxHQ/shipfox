@@ -238,7 +238,15 @@ describe('scheduleRuntimeDag run_after', () => {
         completed: completed({build: status}),
       });
 
-      expect(commands.slice(0, 1)).toEqual([passes ? pass(target) : skip(target)]);
+      // A rejected job is skipped and never reaches activation, so its if is not evaluated.
+      expect(commands).toEqual(
+        passes
+          ? [pass(target)]
+          : [
+              skip(target),
+              {kind: 'complete-run', status: status === 'failed' ? 'failed' : 'succeeded'},
+            ],
+      );
     });
 
     it('waits for every need to finish before it decides', () => {
