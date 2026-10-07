@@ -408,7 +408,7 @@ export class GithubSourceControlProvider
   ): number {
     if (!installation || installation.suspendedAt !== null || installation.deletedAt !== null) {
       throw new GithubIntegrationProviderError(
-        'access-denied',
+        'installation-inactive',
         'GitHub installation is not active for the connection',
       );
     }

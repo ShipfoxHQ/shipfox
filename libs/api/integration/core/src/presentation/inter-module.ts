@@ -2,7 +2,10 @@ import type {
   MaterializedAgentIntegrationConfigDto,
   MaterializedAgentIntegrationToolConfigDto,
 } from '@shipfox/api-agent-dto';
-import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
+import {
+  integrationsInterModuleContract,
+  PROVIDER_MESSAGE_MAX_LENGTH,
+} from '@shipfox/api-integration-core-dto/inter-module';
 import {agentToolResultKind} from '@shipfox/api-integration-spi';
 import {
   createInterModuleKnownError,
@@ -12,6 +15,7 @@ import {
 } from '@shipfox/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
+import {redactSensitiveText} from '@shipfox/redact';
 import type {z} from 'zod';
 import type {WorkspaceBuiltinConnection} from '#core/agent-tool-selection.js';
 import {
@@ -751,11 +755,17 @@ function mapProviderError(
         ...(error.retryAfterSeconds === undefined
           ? {}
           : {retryAfterSeconds: error.retryAfterSeconds}),
+        providerMessage: toProviderMessage(error.message),
+        ...(error.status === undefined ? {} : {providerStatus: error.status}),
       });
     }
     return error;
   }
   return error;
+}
+
+function toProviderMessage(message: string): string {
+  return redactSensitiveText(message).slice(0, PROVIDER_MESSAGE_MAX_LENGTH);
 }
 
 function refDetails(input: {ref?: string | undefined}): {ref: string} {

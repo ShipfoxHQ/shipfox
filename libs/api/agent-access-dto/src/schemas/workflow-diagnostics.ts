@@ -189,6 +189,8 @@ const stepErrorSchema = z
     limit_bytes: z.number().int().positive().optional(),
     measured_bytes: z.number().int().positive().optional(),
     overshoot_bytes: z.number().int().positive().optional(),
+    provider_message: textSchema.optional(),
+    provider_status: z.number().int().min(100).max(599).optional(),
   })
   .strict()
   .nullable();
@@ -533,6 +535,8 @@ const stepErrorJson = {
     limit_bytes: {type: 'integer', minimum: 1},
     measured_bytes: {type: 'integer', minimum: 1},
     overshoot_bytes: {type: 'integer', minimum: 1},
+    provider_message: text,
+    provider_status: {type: 'integer', minimum: 100, maximum: 599},
   },
   required: ['message'],
   additionalProperties: false,

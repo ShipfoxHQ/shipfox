@@ -305,6 +305,24 @@ describe('GithubCheckoutTokenCache', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it('backs off a terminal mint failure for 60 seconds', async () => {
+    const store = createStore();
+    const shared = cache({store, currentTime: () => now});
+
+    await expect(
+      shared.getOrMint(baseScope, () =>
+        Promise.reject(
+          new GithubIntegrationProviderError('access-denied', 'denied', undefined, 403),
+        ),
+      ),
+    ).rejects.toMatchObject({reason: 'access-denied', status: 403});
+
+    const backedOff = parseGithubCheckoutTokenEnvelope(
+      store.values.get(githubCheckoutTokenStorageKey(baseScope)) ?? '',
+    );
+    expect(backedOff?.backoffUntil?.getTime()).toBe(now.getTime() + 60_000);
+  });
+
   it('times out a hanging mint', async () => {
     const shared = cache({mintTimeoutMs: 1});
 

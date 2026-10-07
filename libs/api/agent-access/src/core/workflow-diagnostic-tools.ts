@@ -731,6 +731,8 @@ function projectStepError(error: unknown): Record<string, unknown> | null {
   assignNumber(projected, 'limit_bytes', error.limit_bytes);
   assignNumber(projected, 'measured_bytes', error.measured_bytes);
   assignNumber(projected, 'overshoot_bytes', error.overshoot_bytes);
+  assignCappedString(projected, 'provider_message', error.provider_message);
+  assignNumber(projected, 'provider_status', error.provider_status);
   return projected;
 }
 

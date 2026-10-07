@@ -4,7 +4,11 @@ import {projectFactory} from '#test/factories/project.js';
 import {createStepCheckoutSpec, renewStepCheckoutCredentials} from './checkout.js';
 import type {Step} from './entities/step.js';
 import type {WorkflowRunDevSource, WorkflowRunTriggerReference} from './entities/workflow-run.js';
-import {CheckoutConfigInvalidError, CheckoutIntentUnresolvedError} from './errors.js';
+import {
+  CheckoutConfigInvalidError,
+  type CheckoutFailureTarget,
+  CheckoutIntentUnresolvedError,
+} from './errors.js';
 
 const syncedRun = {origin: 'synced', devSource: null} as const;
 
@@ -755,6 +759,60 @@ describe('createStepCheckoutSpec', () => {
     expect(getProjectById).not.toHaveBeenCalled();
     expect(resolveCheckoutTarget).not.toHaveBeenCalled();
     expect(createCheckoutSpec).not.toHaveBeenCalled();
+  });
+
+  it('records the connection slug and repository the checkout was about', async () => {
+    const project = projectFactory.build();
+    getProjectById.mockResolvedValue({project});
+    const connectionId = crypto.randomUUID();
+    resolveConnection.mockResolvedValue({id: connectionId, provider: 'github', slug: 'partner-gh'});
+    createCheckoutSpec.mockRejectedValue(new Error('provider failed'));
+    const failure: CheckoutFailureTarget = {};
+
+    const act = createStepCheckoutSpec({
+      run: syncedRun,
+      step: checkoutStep({connection: 'partner-gh', repository: 'partner/widgets'}),
+      workspaceId: project.workspaceId,
+      projectId: project.id,
+      integrations: integrations as IntegrationsModuleClient,
+      projects: projects as ProjectsModuleClient,
+      failure,
+    });
+
+    await expect(act).rejects.toThrow('provider failed');
+    expect(failure).toMatchObject({
+      connection: 'partner-gh',
+      connectionId,
+      repository: 'partner/widgets',
+    });
+  });
+
+  it('records the repository of the run project for a default checkout', async () => {
+    const project = projectFactory.build();
+    getProjectById.mockResolvedValue({project});
+    resolveCheckoutTarget.mockResolvedValue({
+      projectId: project.id,
+      connectionId: project.sourceConnectionId,
+      target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
+    });
+    createCheckoutSpec.mockRejectedValue(new Error('provider failed'));
+    const failure: CheckoutFailureTarget = {};
+
+    const act = createStepCheckoutSpec({
+      run: syncedRun,
+      step: checkoutStep({}),
+      workspaceId: project.workspaceId,
+      projectId: project.id,
+      integrations: integrations as IntegrationsModuleClient,
+      projects: projects as ProjectsModuleClient,
+      failure,
+    });
+
+    await expect(act).rejects.toThrow('provider failed');
+    expect(failure).toEqual({
+      connectionId: project.sourceConnectionId,
+      repository: `${project.sourceRepositoryOwner}/${project.sourceRepositoryName}`,
+    });
   });
 
   it('throws when the run project is missing', async () => {

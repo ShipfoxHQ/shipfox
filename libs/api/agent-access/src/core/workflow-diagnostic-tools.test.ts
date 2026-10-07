@@ -528,6 +528,34 @@ describe('workflow diagnostic agent-access tools', () => {
     expect(getStepAttemptResultSchema.safeParse(result).success).toBe(true);
   });
 
+  test('projects the provider explanation of a refused checkout through the Agent Access contract', async () => {
+    const mocks = clients();
+    mocks.getWorkflowStepAttemptDetail.mockResolvedValue(
+      stepAttemptDetail({
+        error: {
+          message: 'Checkout failed.',
+          reason: 'checkout_auth_failed',
+          code: 'access-denied',
+          provider_message: 'Resource not accessible by integration',
+          provider_status: 403,
+        },
+      }),
+    );
+
+    const response = await tool(mocks, 'get_step_attempt').execute({
+      context,
+      arguments: {step_id: stepId, attempt: 1},
+    });
+    const result = success<GetStepAttemptResultDto>(response);
+
+    expect(result.error).toMatchObject({
+      code: 'access-denied',
+      provider_message: 'Resource not accessible by integration',
+      provider_status: 403,
+    });
+    expect(getStepAttemptResultSchema.safeParse(result).success).toBe(true);
+  });
+
   test('projects every current producer gate branch', async () => {
     const gateResults = [
       {kind: 'none'},

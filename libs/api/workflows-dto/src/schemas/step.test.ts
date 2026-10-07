@@ -2,6 +2,7 @@ import {
   agentStepSessionDescriptorSchema,
   agentStepSessionIntentSchema,
   STEP_ERROR_MESSAGE_MAX_LENGTH,
+  STEP_ERROR_PROVIDER_MESSAGE_MAX_LENGTH,
   STEP_STATUS_REASONS,
   stepAttemptDtoSchema,
   stepDtoSchema,
@@ -126,6 +127,29 @@ describe('stepErrorDtoSchema', () => {
       measured_bytes: 12 * 1024,
       overshoot_bytes: 4 * 1024,
     });
+  });
+
+  it('accepts the provider explanation of a refused request', () => {
+    const result = stepErrorDtoSchema.parse({
+      message: 'Checkout failed.',
+      code: 'access-denied',
+      provider_message: 'Resource not accessible by integration',
+      provider_status: 403,
+    });
+
+    expect(result).toMatchObject({
+      provider_message: 'Resource not accessible by integration',
+      provider_status: 403,
+    });
+  });
+
+  it('rejects a provider explanation longer than 500 characters', () => {
+    const result = stepErrorDtoSchema.safeParse({
+      message: 'Checkout failed.',
+      provider_message: 'x'.repeat(STEP_ERROR_PROVIDER_MESSAGE_MAX_LENGTH + 1),
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it.each([
