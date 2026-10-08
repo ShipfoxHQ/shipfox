@@ -726,6 +726,32 @@ describe('nextStepForJob', () => {
     expect(await jobStepsSettledEvents(jobId)).toMatchObject([{status: 'failed'}]);
   });
 
+  test('names the missing value and the skipped step when a condition reads its output', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    const skipped = steps[0];
+    const errored = steps[1];
+    if (!skipped || !errored) throw new Error('Expected arranged steps');
+    await db()
+      .update(stepsTable)
+      .set({key: 'build', condition: conditionExpression('false')})
+      .where(eq(stepsTable.id, skipped.id));
+    await db()
+      .update(stepsTable)
+      .set({key: 'deploy', condition: conditionExpression('steps.build.outputs.sha != ""')})
+      .where(eq(stepsTable.id, errored.id));
+
+    const result = await nextStepForJob(jobId);
+
+    expect(result).toEqual({kind: 'done', status: 'failed'});
+    const after = await getStepsByJobId(jobId);
+    expect(after.find((step) => step.id === errored.id)?.error).toMatchObject({
+      message:
+        "The `if` of step `deploy` can't be evaluated: `steps.build.outputs.sha` has no value because step `build` was skipped.",
+      reason: 'condition_errored',
+      summary: '`steps.build.outputs.sha` has no value because step `build` was skipped.',
+    });
+  });
+
   test('runs a failure-gated step after a step whose condition errors', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
     const errored = steps[0];

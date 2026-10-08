@@ -40,6 +40,7 @@ import {
 } from '#metrics/instance.js';
 import {createAgentDefaultsResolver} from './agent-defaults.js';
 import {
+  conditionErrorSummary,
   defaultStepConditionTrace,
   explicitConditionTrace,
   UNFILLABLE_CONDITION_SUMMARY,
@@ -954,7 +955,10 @@ function evaluateStepCondition(params: {
     return {
       kind: 'fail',
       evaluationTrace,
-      summary: outcome.error?.message ?? UNFILLABLE_CONDITION_SUMMARY,
+      summary:
+        conditionErrorSummary(evaluationTrace) ??
+        outcome.error?.message ??
+        UNFILLABLE_CONDITION_SUMMARY,
     };
   }
   return outcome.value

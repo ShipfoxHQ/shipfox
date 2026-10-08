@@ -3,7 +3,7 @@ import {
   evaluatePlannedPredicateAtSite,
   type WorkflowPredicateField,
 } from '@shipfox/expression';
-import {explicitConditionTrace} from './condition-trace.js';
+import {conditionErrorSummary, explicitConditionTrace} from './condition-trace.js';
 
 function conditionTraceFor(params: {
   source: string;
@@ -30,6 +30,11 @@ function conditionTraceFor(params: {
     values: params.values,
   });
   return entry;
+}
+
+function conditionSummaryFor(params: Parameters<typeof conditionTraceFor>[0]) {
+  const entry = conditionTraceFor(params);
+  return conditionErrorSummary(entry ? [entry] : []);
 }
 
 describe('explicitConditionTrace', () => {
@@ -120,5 +125,44 @@ describe('explicitConditionTrace', () => {
     });
 
     expect(entry).not.toHaveProperty('error');
+  });
+});
+
+describe('conditionErrorSummary', () => {
+  test('names the missing value and the skipped step that should have set it', () => {
+    const summary = conditionSummaryFor({
+      source: 'steps.build.outputs.sha != ""',
+      field: 'step.if',
+      site: 'step-dispatch',
+      values: {steps: {build: {status: 'skipped', outputs: {}}}},
+    });
+
+    expect(summary).toBe(
+      '`steps.build.outputs.sha` has no value because step `build` was skipped.',
+    );
+  });
+
+  test('names the output a succeeded step did not report', () => {
+    const summary = conditionSummaryFor({
+      source: 'steps.fix.outputs.status == "implemented"',
+      field: 'step.if',
+      site: 'step-dispatch',
+      values: {steps: {fix: {status: 'succeeded', outputs: {}}}},
+    });
+
+    expect(summary).toBe(
+      '`steps.fix.outputs.status` has no value. Step `fix` succeeded but did not report `status`.',
+    );
+  });
+
+  test('returns undefined when the error names no step or job', () => {
+    const summary = conditionSummaryFor({
+      source: '1 / 0 == 0',
+      field: 'step.if',
+      site: 'step-dispatch',
+      values: {},
+    });
+
+    expect(summary).toBeUndefined();
   });
 });
