@@ -352,6 +352,9 @@ function applyStepExecutionState(
       }),
       env: execution.container.env,
       runnerInstallDir: execution.container.runnerInstallDir,
+      ...(execution.container.gitConfigPath
+        ? {gitConfigPath: execution.container.gitConfigPath}
+        : {}),
     };
   }
   if (execution.ambientGitConfigPath) state.ambientGitConfigPath = execution.ambientGitConfigPath;
@@ -718,6 +721,8 @@ interface JobContainerRuntime {
   env: Readonly<Record<string, string>>;
   /** The runner installation that the container sees under `/__shipfox/runner`. */
   runnerInstallDir: string;
+  /** The Git config its steps read, in place of the one on the runner. */
+  gitConfigPath?: string | undefined;
 }
 
 type CredentialScope = {
@@ -1706,10 +1711,8 @@ async function executeRunStepBranch(params: ProcessStepBranchParams): Promise<St
     cwd: params.stepCwd,
     workspace: input.cwd,
     ...(input.container ? await containerRunStepOptions(input.container) : {}),
-    // The Git config points at helpers on the runner, so a container does not get it.
-    ...(input.ambientGitConfigPath && !input.container
-      ? {gitConfigGlobal: input.ambientGitConfigPath}
-      : {}),
+    // The Git config on the runner points at helpers on the runner, so a container gets its own.
+    ...gitConfigGlobalOption(input),
     ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
     ...(secretMaterial ? {secretEnv: secretMaterial.secretEnv} : {}),
     ...(stepSecrets.length > 0 ? {secretValues: [...stepSecrets]} : {}),
@@ -1718,6 +1721,14 @@ async function executeRunStepBranch(params: ProcessStepBranchParams): Promise<St
     onOutput: (chunk, source) => stepStream?.write(chunk, source),
   });
   return finishProcessStep(params, stepStream, result);
+}
+
+function gitConfigGlobalOption(input: {
+  ambientGitConfigPath?: string | undefined;
+  container?: JobContainerRuntime | undefined;
+}): {gitConfigGlobal?: string} {
+  const path = input.container ? input.container.gitConfigPath : input.ambientGitConfigPath;
+  return path ? {gitConfigGlobal: path} : {};
 }
 
 // The environment starts from the container's own, never the runner's. Its `PATH` is named so the
@@ -1735,8 +1746,8 @@ async function containerRunStepOptions(
 }
 
 // Claude Code starts in the job container, from the container's own environment like a run step.
-// pi runs its tools on the runner until they move into the container too. The Git config points
-// at helpers on the runner, so a container does not get it.
+// pi runs its tools on the runner until they move into the container too. The Git config on the
+// runner points at helpers on the runner, so the container gets its own.
 async function agentPlacementOptions(
   input: Parameters<typeof executeStep>[0],
   harness: string,
@@ -1745,6 +1756,7 @@ async function agentPlacementOptions(
   | {
       host: ContainerExecutionHost;
       container: {env: Record<string, string>; runnerInstallDir: string};
+      gitConfigGlobal?: string;
     }
 > {
   const {container} = input;
@@ -1758,6 +1770,7 @@ async function agentPlacementOptions(
       env: {...(path === '' ? {} : {PATH: path}), ...container.env},
       runnerInstallDir: container.runnerInstallDir,
     },
+    ...(container.gitConfigPath ? {gitConfigGlobal: container.gitConfigPath} : {}),
   };
 }
 

@@ -12,10 +12,12 @@ import type {KyInstance} from 'ky';
 import {
   type CheckoutLogSink,
   type CheckoutPhaseResult,
+  type ContainerGitConfigTarget,
   checkoutRepositoryAt,
   requestCheckoutCredentials,
 } from '#core/checkout-execution.js';
 import {
+  containerGitConfigTarget,
   parseSetupContainerConfig,
   type SetupContainerContext,
   type StartedSetupContainer,
@@ -74,14 +76,26 @@ export async function executeSetupStep(params: {
   const workspaceFailure = await prepareWorkspace({cwd, log});
   if (workspaceFailure) return logSetupFailure(workspaceFailure, jobContext);
 
-  const checkout = await runCheckoutPhase({...params, stepId: step.id, log});
+  const checkout = await runCheckoutPhase({
+    ...params,
+    stepId: step.id,
+    log,
+    ...(step.config.container !== undefined && params.container
+      ? {containerGitConfig: containerGitConfigTarget(params.container)}
+      : {}),
+  });
   if (!checkout.ok) return logSetupFailure(checkout.result, jobContext);
 
   let container: StartedSetupContainer | undefined;
   if (step.config.container !== undefined) {
     const started = await runContainerSetup({...params, config: step.config.container, log});
     if (!started.ok) return logSetupFailure(started.result, jobContext);
-    container = started.value;
+    container = {
+      ...started.value,
+      ...(checkout.value?.containerGitConfigPath
+        ? {gitConfigPath: checkout.value.containerGitConfigPath}
+        : {}),
+    };
   }
 
   log?.writeOutputLine('Setup completed successfully. The job is ready to run.');
@@ -101,6 +115,7 @@ function runCheckoutPhase(params: {
   attempt: number;
   log?: SetupLogSink | undefined;
   credentialHelper?: GitCredentialHelperConfig | undefined;
+  containerGitConfig?: ContainerGitConfigTarget | undefined;
 }): Promise<CheckoutPhaseResult<CheckoutSetup | undefined>> {
   if (params.step.config.checkout !== undefined) return runCheckoutSetup(params);
   params.log?.writeGroup({
@@ -178,6 +193,7 @@ async function prepareWorkspace(params: {
 
 interface CheckoutSetup {
   ambientGitConfigPath?: string | undefined;
+  containerGitConfigPath?: string | undefined;
   ambientGitConfigSecrets?: string[] | undefined;
   persistedCheckoutCredential?: PersistedCheckoutCredential | undefined;
   checkout: NonNullable<StepResult['checkout']>;
@@ -192,6 +208,7 @@ async function runCheckoutSetup(params: {
   attempt: number;
   log?: SetupLogSink | undefined;
   credentialHelper?: GitCredentialHelperConfig | undefined;
+  containerGitConfig?: ContainerGitConfigTarget | undefined;
 }): Promise<CheckoutPhaseResult<CheckoutSetup>> {
   const {log} = params;
   log?.writeGroupStart('Checkout');
@@ -211,6 +228,7 @@ async function runCheckoutSetup(params: {
       ...(log ? {log} : {}),
       scope: 'setup',
       credentialHelper: params.credentialHelper,
+      containerGitConfig: params.containerGitConfig,
     });
   } finally {
     log?.writeGroupEnd();

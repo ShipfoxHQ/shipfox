@@ -14,6 +14,7 @@ const createJobDirMock = vi.fn();
 const normalizeCheckoutDestinationMock = vi.fn();
 const checkoutRepositoryMock = vi.fn();
 const writeAmbientGitCredentialMock = vi.fn();
+const writeContainerGitConfigMock = vi.fn();
 const startJobContainerMock = vi.fn();
 
 vi.mock('@shipfox/runner-container', async () => {
@@ -46,6 +47,7 @@ vi.mock('@shipfox/runner-workspace', async () => {
     normalizeCheckoutDestination: (...args: unknown[]) => normalizeCheckoutDestinationMock(...args),
     checkoutRepository: (...args: unknown[]) => checkoutRepositoryMock(...args),
     writeAmbientGitCredential: (...args: unknown[]) => writeAmbientGitCredentialMock(...args),
+    writeContainerGitConfig: (...args: unknown[]) => writeContainerGitConfigMock(...args),
   };
 });
 
@@ -174,6 +176,7 @@ beforeEach(() => {
   requestCheckoutTokenMock.mockResolvedValue(checkoutResponse());
   checkoutRepositoryMock.mockResolvedValue('abc123');
   writeAmbientGitCredentialMock.mockResolvedValue(undefined);
+  writeContainerGitConfigMock.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -902,6 +905,112 @@ describe('executeSetupStep', () => {
       expect(result.container).toEqual({
         name: 'shipfox-job-1',
         env: {LICENSE: 'literal', TOKEN: 'env-secret'},
+      });
+    });
+
+    describe('Git access in the container', () => {
+      const gitConfigTarget = `${containerContext.tempDir}/container-gitconfig`;
+      const renewableAuth = {
+        kind: 'basic',
+        username: 'x-access-token',
+        token: 'renewable-token',
+        expires_at: '2030-01-01T00:00:00.000Z',
+        generation: 'generation-one',
+        renewal: {mode: 'on-rejection'},
+        carry: 'header',
+        host: 'github.com',
+        persist: true,
+      };
+      const gitAuthor = {name: 'Shipfox Bot', email: 'bot@shipfox.io'};
+
+      it('writes a config with the helper spelled for the container and returns its path', async () => {
+        requestCheckoutTokenMock.mockResolvedValue(checkoutResponse(renewableAuth, gitAuthor));
+
+        const result = await run(
+          undefined,
+          buildSetupStep({checkout: {}, container: containerConfig}),
+          true,
+          containerContext,
+        );
+
+        expect(writeContainerGitConfigMock).toHaveBeenCalledWith({
+          configPath: gitConfigTarget,
+          repositoryUrl: 'https://github.com/acme/repo.git',
+          helper: {
+            ...credentialHelper,
+            command: '/__shipfox/node/bin/node /__shipfox/runner/dist/git-credential-helper.js',
+          },
+          gitAuthor,
+        });
+        expect(result.container?.gitConfigPath).toBe(gitConfigTarget);
+        expect(result.ambientGitConfigPath).toBe(GIT_CONFIG_PATH);
+      });
+
+      it('writes the legacy header when the credential is not renewable', async () => {
+        requestCheckoutTokenMock.mockResolvedValue(
+          checkoutResponse({kind: 'bearer', token: 'inline-token', carry: 'header', persist: true}),
+        );
+
+        const result = await run(
+          undefined,
+          buildSetupStep({checkout: {}, container: containerConfig}),
+          true,
+          containerContext,
+        );
+
+        expect(writeContainerGitConfigMock).toHaveBeenCalledWith({
+          configPath: gitConfigTarget,
+          repositoryUrl: 'https://github.com/acme/repo.git',
+          auth: expect.objectContaining({kind: 'bearer', token: 'inline-token'}),
+        });
+        expect(result.container?.gitConfigPath).toBe(gitConfigTarget);
+      });
+
+      it('writes nothing when the checkout persisted no credential and no author', async () => {
+        requestCheckoutTokenMock.mockResolvedValue(
+          checkoutResponse({kind: 'bearer', token: 'one-shot', carry: 'header', persist: false}),
+        );
+
+        const result = await run(
+          undefined,
+          buildSetupStep({checkout: {}, container: containerConfig}),
+          true,
+          containerContext,
+        );
+
+        expect(writeContainerGitConfigMock).not.toHaveBeenCalled();
+        expect(result.container).not.toHaveProperty('gitConfigPath');
+      });
+
+      it('writes nothing for a job without a container', async () => {
+        requestCheckoutTokenMock.mockResolvedValue(checkoutResponse(renewableAuth));
+
+        const result = await run(undefined, buildSetupStep(), true);
+
+        expect(writeContainerGitConfigMock).not.toHaveBeenCalled();
+        expect(result).not.toHaveProperty('container');
+      });
+
+      it('warns and leaves the container without Git access when the config cannot be written', async () => {
+        const log = fakeLog();
+        requestCheckoutTokenMock.mockResolvedValue(checkoutResponse(renewableAuth));
+        writeContainerGitConfigMock.mockRejectedValue(new Error('disk full'));
+
+        const result = await run(
+          log,
+          buildSetupStep({checkout: {}, container: containerConfig}),
+          true,
+          containerContext,
+        );
+
+        expect(result.result.success).toBe(true);
+        expect(result.container).not.toHaveProperty('gitConfigPath');
+        expect(result.ambientGitConfigPath).toBe(GIT_CONFIG_PATH);
+        expect(log.writeGroup).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: 'Repository access was not persisted in the job container',
+          }),
+        );
       });
     });
 

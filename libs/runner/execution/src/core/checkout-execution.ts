@@ -18,6 +18,7 @@ import {
   type GitCredentialHelperConfig,
   type PersistedCheckoutCredential,
   writeAmbientGitCredential,
+  writeContainerGitConfig,
 } from '@shipfox/runner-workspace';
 import type {KyInstance} from 'ky';
 import type {StepResult} from '#core/step-result.js';
@@ -93,6 +94,13 @@ export async function requestCheckoutCredentials(params: {
   }
 }
 
+/** Where the Git config of a job container goes, and how it names the credential helper. */
+export interface ContainerGitConfigTarget {
+  path: string;
+  /** The command that starts the credential helper inside the container. */
+  helperCommand: string;
+}
+
 export async function checkoutRepositoryAt(params: {
   destination: string;
   gitConfigPath: string;
@@ -104,9 +112,12 @@ export async function checkoutRepositoryAt(params: {
   log?: CheckoutLogSink | undefined;
   scope: CheckoutFailureScope;
   credentialHelper?: GitCredentialHelperConfig | undefined;
+  /** Also writes the Git config the job container reads, when the checkout leaves one behind. */
+  containerGitConfig?: ContainerGitConfigTarget | undefined;
 }): Promise<
   CheckoutPhaseResult<{
     ambientGitConfigPath?: string | undefined;
+    containerGitConfigPath?: string | undefined;
     ambientGitConfigSecrets?: string[] | undefined;
     persistedCheckoutCredential?: PersistedCheckoutCredential | undefined;
     checkout: NonNullable<StepResult['checkout']>;
@@ -123,6 +134,7 @@ export async function checkoutRepositoryAt(params: {
     log,
     scope,
     credentialHelper,
+    containerGitConfig,
   } = params;
   try {
     log?.writeGroup({
@@ -169,6 +181,7 @@ export async function checkoutRepositoryAt(params: {
       checkoutStepId,
       checkoutAttempt,
       ...credentialHelperOptions(credentialHelper),
+      ...(containerGitConfig ? {containerGitConfig} : {}),
     });
     return {
       ok: true,
@@ -239,16 +252,26 @@ async function persistAmbientGitCredential(params: {
   checkoutStepId: string;
   checkoutAttempt: number;
   credentialHelper?: GitCredentialHelperConfig | undefined;
+  containerGitConfig?: ContainerGitConfigTarget | undefined;
 }): Promise<
   | {
       path: string;
+      containerPath?: string | undefined;
       secrets: string[];
       persistedCheckoutCredential?: PersistedCheckoutCredential | undefined;
     }
   | undefined
 > {
-  const {gitConfigPath, checkout, log, scope, checkoutStepId, checkoutAttempt, credentialHelper} =
-    params;
+  const {
+    gitConfigPath,
+    checkout,
+    log,
+    scope,
+    checkoutStepId,
+    checkoutAttempt,
+    credentialHelper,
+    containerGitConfig,
+  } = params;
   const auth = checkout.auth;
   const shouldPersistCredential = auth?.persist === true && auth.carry === 'header';
   if (!shouldPersistCredential && checkout.git_author === undefined) return undefined;
@@ -258,15 +281,29 @@ async function persistAmbientGitCredential(params: {
       : persistedCheckoutCredentialFromCheckout({checkout, checkoutStepId, checkoutAttempt});
 
   try {
+    const helper = persistedCheckoutCredential ? credentialHelper : undefined;
+    const persistedAuth = authOptions({auth, shouldPersistCredential, persistedCheckoutCredential});
     await writeAmbientGitCredential({
       configPath: gitConfigPath,
       repositoryUrl: checkout.repository_url,
-      ...credentialHelperOptions(persistedCheckoutCredential ? credentialHelper : undefined),
-      ...authOptions({auth, shouldPersistCredential, persistedCheckoutCredential}),
+      ...credentialHelperOptions(helper),
+      ...persistedAuth,
       ...(checkout.git_author ? {gitAuthor: checkout.git_author} : {}),
     });
+    const containerPath = containerGitConfig
+      ? await persistContainerGitConfig({
+          target: containerGitConfig,
+          repositoryUrl: checkout.repository_url,
+          helper,
+          gitAuthor: checkout.git_author,
+          ...persistedAuth,
+          log,
+          scope,
+        })
+      : undefined;
     return {
       path: gitConfigPath,
+      ...(containerPath ? {containerPath} : {}),
       secrets:
         persistedCheckoutCredential === undefined && shouldPersistCredential && auth
           ? ambientGitCredentialSecrets(auth)
@@ -287,6 +324,40 @@ async function persistAmbientGitCredential(params: {
   }
 }
 
+// A failure leaves the container without ambient Git access, but not the host.
+async function persistContainerGitConfig(params: {
+  target: ContainerGitConfigTarget;
+  repositoryUrl: string;
+  helper: GitCredentialHelperConfig | undefined;
+  auth?: CheckoutTokenResponseDto['auth'];
+  gitAuthor: {name: string; email: string} | undefined;
+  log: CheckoutLogSink | undefined;
+  scope: CheckoutFailureScope;
+}): Promise<string | undefined> {
+  const {target, helper} = params;
+  try {
+    await writeContainerGitConfig({
+      configPath: target.path,
+      repositoryUrl: params.repositoryUrl,
+      ...(helper ? {helper: {...helper, command: target.helperCommand}} : {}),
+      ...(params.auth ? {auth: params.auth} : {}),
+      ...(params.gitAuthor ? {gitAuthor: params.gitAuthor} : {}),
+    });
+    return target.path;
+  } catch (error) {
+    writeWarning(
+      params.log,
+      'Repository access was not persisted in the job container',
+      [
+        `The checkout succeeded, but run steps in the job container will run without ambient git authentication. Details: ${messageOf(error)}`,
+        'Git commands in later steps may need their own credentials.',
+      ],
+      params.scope,
+    );
+    return undefined;
+  }
+}
+
 function checkoutPhaseValue(params: {
   checkout: CheckoutTokenResponseDto;
   destination: string;
@@ -294,12 +365,14 @@ function checkoutPhaseValue(params: {
   ambientGitConfig:
     | {
         path: string;
+        containerPath?: string | undefined;
         secrets: string[];
         persistedCheckoutCredential?: PersistedCheckoutCredential | undefined;
       }
     | undefined;
 }): {
   ambientGitConfigPath?: string | undefined;
+  containerGitConfigPath?: string | undefined;
   ambientGitConfigSecrets?: string[] | undefined;
   persistedCheckoutCredential?: PersistedCheckoutCredential | undefined;
   checkout: NonNullable<StepResult['checkout']>;
@@ -315,6 +388,9 @@ function checkoutPhaseValue(params: {
     ...(ambientGitConfig
       ? {
           ambientGitConfigPath: ambientGitConfig.path,
+          ...(ambientGitConfig.containerPath
+            ? {containerGitConfigPath: ambientGitConfig.containerPath}
+            : {}),
           ambientGitConfigSecrets: ambientGitConfig.secrets,
           ...(ambientGitConfig.persistedCheckoutCredential
             ? {persistedCheckoutCredential: ambientGitConfig.persistedCheckoutCredential}

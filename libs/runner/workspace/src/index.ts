@@ -13,6 +13,7 @@ export {
   GitUnavailableError,
   redactSecrets,
   writeAmbientGitCredential,
+  writeContainerGitConfig,
   writeGitCredentialHelperConfig,
 } from '#checkout.js';
 export {

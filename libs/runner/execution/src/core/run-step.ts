@@ -211,7 +211,11 @@ async function runStepProcess(
     }
     annotationSpool = await createScratchFiles(files, tempDir, options);
 
-    isolatedGitConfigGlobal = await isolateGitConfigGlobal(options.gitConfigGlobal, tempDir);
+    isolatedGitConfigGlobal = await isolateGitConfigGlobal({
+      configPath: options.gitConfigGlobal,
+      tempDir,
+      mode: options.shareScratchFiles ? 0o644 : 0o600,
+    });
     const stdoutCapture =
       options.outputSources?.stdout === undefined ? undefined : new StdoutCapture();
     const spawnOptions = {
@@ -317,15 +321,17 @@ async function reportOutOfMemory(
   };
 }
 
-async function isolateGitConfigGlobal(
-  configPath: string | undefined,
-  tempDir: string,
-): Promise<string | undefined> {
+async function isolateGitConfigGlobal(params: {
+  configPath: string | undefined;
+  tempDir: string;
+  mode: number;
+}): Promise<string | undefined> {
+  const {configPath, tempDir, mode} = params;
   if (configPath === undefined) return undefined;
   const isolatedPath = join(tempDir, `shipfox-gitconfig-${randomUUID()}`);
   try {
     await copyFile(configPath, isolatedPath);
-    await chmod(isolatedPath, 0o600);
+    await chmod(isolatedPath, mode);
     return isolatedPath;
   } catch (error) {
     await unlink(isolatedPath).catch(() => undefined);

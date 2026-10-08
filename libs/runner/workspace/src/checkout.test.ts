@@ -25,6 +25,7 @@ const {
   CheckoutError,
   redactSecrets,
   writeAmbientGitCredential,
+  writeContainerGitConfig,
   writeGitCredentialHelperConfig,
 } = await import('#checkout.js');
 
@@ -1130,6 +1131,84 @@ describe('writeAmbientGitCredential', () => {
     expect(content).toContain('--timeout-ms 60000');
     expect(content).not.toContain('password');
     expect(content).not.toContain('token');
+  });
+
+  describe('writeContainerGitConfig', () => {
+    const helper = {
+      command: '/__shipfox/node/bin/node /__shipfox/runner/dist/git-credential-helper.js',
+      socketPath: '/work/cred/credential.sock',
+      capability: 'job-capability',
+      timeoutMs: 60_000,
+    };
+
+    it('writes the helper for the container paths, the author, and safe.directory', async () => {
+      const configPath = join(root, 'container-gitconfig');
+
+      await writeContainerGitConfig({
+        configPath,
+        repositoryUrl: 'https://github.com/acme/repo.git',
+        helper,
+        gitAuthor: {name: 'Shipfox Bot', email: 'bot@shipfox.io'},
+      });
+
+      const content = await readFile(configPath, 'utf8');
+      expect(content).toContain('[safe]\n\tdirectory = *');
+      expect(content).toContain('[credential]\n\tuseHttpPath = true');
+      expect(content).toContain('[credential "https://github.com/acme/repo.git"]');
+      expect(content).toContain(
+        '\thelper = "!/__shipfox/node/bin/node /__shipfox/runner/dist/git-credential-helper.js --socket /work/cred/credential.sock --capability job-capability --timeout-ms 60000"',
+      );
+      expect(content).toContain('[user]\n\tname = "Shipfox Bot"\n\temail = "bot@shipfox.io"');
+      expect(content).not.toContain('[include]');
+      expect(content).not.toContain('extraHeader');
+    });
+
+    it('writes the legacy header when the checkout persisted one without a helper', async () => {
+      const configPath = join(root, 'container-gitconfig');
+
+      await writeContainerGitConfig({
+        configPath,
+        repositoryUrl: 'https://github.com/acme/repo.git',
+        auth: {
+          kind: 'basic',
+          username: 'x-token',
+          token: 'tok-123',
+          expires_at: '2026-01-01T00:00:00Z',
+          carry: 'header',
+          host: 'github.com',
+          persist: true,
+        },
+      });
+
+      const content = await readFile(configPath, 'utf8');
+      const expected = Buffer.from('x-token:tok-123').toString('base64');
+      expect(content).toContain('[safe]\n\tdirectory = *');
+      expect(content).toContain(
+        `[http "https://github.com/acme/repo.git"]\n\textraHeader = "Authorization: Basic ${expected}"`,
+      );
+      expect(content).not.toContain('helper');
+    });
+
+    it('lets the container user read the file', async () => {
+      const configPath = join(root, 'container-gitconfig');
+
+      await writeContainerGitConfig({
+        configPath,
+        repositoryUrl: 'https://github.com/acme/repo.git',
+      });
+
+      expect((await stat(configPath)).mode & 0o777).toBe(0o644);
+    });
+
+    it('rejects a helper without a socket path', async () => {
+      await expect(
+        writeContainerGitConfig({
+          configPath: join(root, 'container-gitconfig'),
+          repositoryUrl: 'https://github.com/acme/repo.git',
+          helper: {...helper, socketPath: ''},
+        }),
+      ).rejects.toThrow('required');
+    });
   });
 
   it('keeps a repository URL without a .git suffix in the credential subsection', async () => {
