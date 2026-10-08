@@ -290,10 +290,11 @@ describe('failed run report on Discord', () => {
   ])('diagnoses in the thread of the report in the %o variant', (selections) => {
     const jobs = workflow(selections, 'discord').jobs;
 
-    expect(jobs.report?.outputs).toEqual({
-      message_id: '${{ steps.notify.outputs.message_id }}',
-      channel: '${{ steps.notify.outputs.channel }}',
-    });
+    expect(jobs.report?.outputs).toBeUndefined();
+    expect(jobs.report?.steps.find((step) => step.key === 'notify')?.export).toEqual([
+      'message_id',
+      'channel',
+    ]);
     expect(jobs.diagnose?.steps.map((step) => step.key)).toEqual(['diagnose', 'reply']);
     expect(jobs.diagnose?.steps[1]).toMatchObject({
       tool: 'send_message',

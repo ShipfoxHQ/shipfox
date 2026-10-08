@@ -22,7 +22,6 @@ jobs:
         steps.read_pr.outputs.repository == event.repository.full_name &&
         steps.read_pr.outputs.branch == event.workflow_run.head_branch &&
         steps.read_pr.outputs.head_sha == event.workflow_run.head_sha }}
-      head_sha: ${{ steps.read_pr.outputs.head_sha }}
     steps:
       # part:source.read_pr
 
@@ -30,11 +29,6 @@ jobs:
     needs: inspect
     if: ${{ needs.all(n, n.status == "succeeded") && jobs.inspect.outputs.eligible }}
     checkout: false
-    outputs:
-      outcome: ${{ steps.deliver.outputs.outcome }}
-      commit: ${{ steps.deliver.outputs.commit }}
-      patch_base64: ${{ steps.deliver.outputs.patch_base64 }}
-      summary: ${{ steps.fix_failure.outputs.summary }}
     steps:
       # part:source.checkout
       # slot:setup_commands

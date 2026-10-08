@@ -131,6 +131,7 @@ investigate: |
           - get_job_logs
           - actions_list.list_workflow_runs
           - actions_list.list_workflow_jobs
+    export: true
     outputs:
       status:
         type: json
@@ -178,6 +179,7 @@ open_pr: |
 
         _Opened by Shipfox run ${{ run.number }}._
       draft: true
+    export: [pr_number, pr_url]
     outputs:
       pr_number: ${{ result.pull_request.number }}
       pr_url: ${{ result.pull_request.html_url }}

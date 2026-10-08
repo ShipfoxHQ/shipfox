@@ -15,6 +15,7 @@ revision: |
         printf 'code_url=https://%s/%s/blob/%s\n' "$HOST" "$REPOSITORY" "$COMMIT"
         printf 'tree_url=https://%s/%s/tree/%s\n' "$HOST" "$REPOSITORY" "$COMMIT"
       } >> "$SHIPFOX_OUTPUT"
+    export: [repository, commit, tree_url]
     outputs:
       repository: string
       commit: string

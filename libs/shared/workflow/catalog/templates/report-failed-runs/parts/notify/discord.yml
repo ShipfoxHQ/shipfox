@@ -14,6 +14,7 @@ send_report: |
         + (steps.detail.outputs.error != "" ? "\nError: " + (steps.detail.outputs.error.size() > 300 ? steps.detail.outputs.error.substring(0, 300) + "…" : steps.detail.outputs.error) : "")
         + (steps.logs.outputs.excerpt != "" ? "\n```\n" + steps.logs.outputs.excerpt + "\n```" : "")
         + "\nNext: " + steps.detail.outputs.next }}
+    export: [message_id, channel]
     outputs:
       message_id: ${{ result.id }}
       channel: ${{ result.channel_id }}

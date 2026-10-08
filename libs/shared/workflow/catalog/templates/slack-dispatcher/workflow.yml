@@ -15,9 +15,8 @@ jobs:
     needs: thread
     if: ${{ needs.all(n, n.status == "succeeded") }}
     checkout: false
+    # A tool step output has no default, so these guards stay explicit when start is skipped.
     outputs:
-      status: ${{ steps.route.outputs.status }}
-      workflow: ${{ steps.route.outputs.workflow }}
       run_id: '${{ steps.start.status == "succeeded" ? steps.start.outputs.run_id : "" }}'
       run_number: '${{ steps.start.status == "succeeded" ? int(steps.start.outputs.run_number) : 0 }}'
       run_url: '${{ steps.start.status == "succeeded" ? steps.start.outputs.url : "" }}'
@@ -110,6 +109,7 @@ jobs:
           its result appears. Do not mention users, groups, roles, or
           channels, and do not use @here, @channel, @everyone, <@...>, or
           <!...> syntax in any output.
+        export: [status, workflow]
         outputs:
           status:
             type: json

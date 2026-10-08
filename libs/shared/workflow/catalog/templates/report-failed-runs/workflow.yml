@@ -23,9 +23,6 @@ jobs:
     # A failed report would otherwise report itself.
     if: ${{ event.workflow.id != workflow.id }}
     checkout: false
-    outputs:
-      message_id: ${{ steps.notify.outputs.message_id }}
-      channel: ${{ steps.notify.outputs.channel }}
     steps:
       - key: detail
         tool: get_workflow_run

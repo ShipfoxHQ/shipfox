@@ -23,9 +23,11 @@ load_ticket: |
   - key: ticket_ref
     env:
       TASK_ID: '${{ trigger.source == "manual" ? "" : event.task_id }}'
-    run: printf 'task_id=%s\n' "$TASK_ID" >> "$SHIPFOX_OUTPUT"
+    run: printf '%s' "$TASK_ID"
     outputs:
-      task_id: string
+      task_id:
+        type: string
+        from_stdout: true
   - key: load_ticket
     if: ${{ steps.ticket_ref.outputs.task_id != "" }}
     tool: get_task

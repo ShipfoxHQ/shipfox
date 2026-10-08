@@ -16,15 +16,6 @@ jobs:
     needs: thread
     if: ${{ needs.all(n, n.status == "succeeded") }}
     # part:source.checkout
-    outputs:
-      status: ${{ steps.draft.outputs.status }}
-      title: ${{ steps.draft.outputs.title }}
-      description: ${{ steps.draft.outputs.description }}
-      reply: ${{ steps.draft.outputs.reply }}
-      existing_ticket: ${{ steps.draft.outputs.existing_ticket }}
-      repository: ${{ steps.revision.outputs.repository }}
-      commit: ${{ steps.revision.outputs.commit }}
-      tree_url: ${{ steps.revision.outputs.tree_url }}
     steps:
       # part:source.revision
 
@@ -103,6 +94,7 @@ jobs:
           use @here, @channel, @everyone, <@...>, <@&...>, <#...>, or <!...>
           syntax in any output.
         # part:chat.read_tools
+        export: true
         outputs:
           status:
             type: json

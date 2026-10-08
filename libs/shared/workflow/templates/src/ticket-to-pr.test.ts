@@ -26,6 +26,7 @@ const defaults: Readonly<Record<string, string>> = Object.fromEntries(
 );
 const optionMarker = /^\s*# option:([a-z_]+)=([a-z_]+) (begin|end)$/;
 const expressionPattern = /^\$\{\{\s*([\s\S]*?)\s*\}\}$/;
+const trailingNewline = /\n$/;
 const heredocPattern = /^([a-z_]+)<<(\w+)$/;
 const runNamePrefix = /^Implement /;
 const environment = createWorkflowEnvironment();
@@ -142,7 +143,12 @@ function runStep(entry: YamlRecord, context: YamlRecord, cwd = tempRoot()) {
     encoding: 'utf8',
     env: {...process.env, ...env, SHIPFOX_OUTPUT: output},
   });
-  return {status: result.status, stderr: result.stderr, outputs: readOutputs(output)};
+  const outputs = readOutputs(output);
+  for (const [name, declaration] of Object.entries((entry.outputs ?? {}) as YamlRecord)) {
+    const source = declaration as YamlRecord;
+    if (source.from_stdout === true) outputs[name] = result.stdout.replace(trailingNewline, '');
+  }
+  return {status: result.status, stderr: result.stderr, outputs};
 }
 
 function readOutputs(path: string): Record<string, string> {
@@ -792,6 +798,37 @@ describe('ticket to PR template', () => {
     for (const write of writes) {
       expect(String(write.if).startsWith('${{ !execution.failed && ')).toBe(true);
     }
+  });
+
+  it('exports step outputs and guards the pull request outputs of a skipped open_pr', () => {
+    const document = workflow(manualOnly);
+    const outputs = at(document, 'jobs', 'implement', 'outputs') as YamlRecord;
+
+    expect(step(document, 'implement', 'task').export).toEqual(['ticket_id', 'identifier']);
+    expect(step(document, 'implement', 'prepare').export).toEqual([
+      'branch',
+      'repository',
+      'owner',
+      'repo',
+    ]);
+    expect(step(document, 'implement', 'fix').export).toEqual(['status', 'questions']);
+    expect(Object.keys(outputs)).toEqual(['pr_number', 'pr_url']);
+
+    const skipped = {steps: {open_pr: {status: 'skipped'}}};
+    expect(evaluate(outputs.pr_number, skipped)).toBe(0n);
+    expect(evaluate(outputs.pr_url, skipped)).toBe('');
+    expect(
+      evaluate(at(document, 'jobs', 'respond_to_feedback', 'if'), {
+        needs: [{status: 'succeeded'}],
+        jobs: {implement: {outputs: {pr_url: evaluate(outputs.pr_url, skipped)}}},
+      }),
+    ).toBe(false);
+
+    const opened = {
+      steps: {open_pr: {status: 'succeeded', outputs: {pr_number: 7, pr_url: 'https://x/pull/7'}}},
+    };
+    expect(evaluate(outputs.pr_number, opened)).toBe(7);
+    expect(evaluate(outputs.pr_url, opened)).toBe('https://x/pull/7');
   });
 
   it('publishes the task outcome for the workflow that started the run', () => {
