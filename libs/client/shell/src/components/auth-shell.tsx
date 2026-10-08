@@ -7,6 +7,8 @@ export interface AuthShellProps {
   title: string;
   description: string;
   children: ReactNode;
+  /** Replaces the logo tile above the title. */
+  illustration?: ReactNode;
   className?: string;
   headingProps?: Omit<HeaderProps, 'children' | 'id'> | undefined;
   headingRef?: Ref<HTMLHeadingElement> | undefined;
@@ -16,6 +18,7 @@ export function AuthShell({
   title,
   description,
   children,
+  illustration,
   className,
   headingProps,
   headingRef,
@@ -40,9 +43,11 @@ export function AuthShell({
           aria-labelledby="auth-title"
         >
           <div className="flex flex-col items-center gap-group">
-            <div className="flex size-64 items-center justify-center rounded-12 border border-border-neutral-base bg-background-neutral-base p-tight shadow-button-neutral">
-              <Icon name="shipfox" className="size-42 text-background-highlight-interactive" />
-            </div>
+            {illustration ?? (
+              <div className="flex size-64 items-center justify-center rounded-12 border border-border-neutral-base bg-background-neutral-base p-tight shadow-button-neutral">
+                <Icon name="shipfox" className="size-42 text-background-highlight-interactive" />
+              </div>
+            )}
             <div className="flex min-w-[128px] flex-col items-center gap-tight text-center">
               <Header
                 id="auth-title"

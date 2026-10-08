@@ -2,6 +2,7 @@ import {signupBodySchema} from '@shipfox/api-auth-dto';
 import {
   AuthShell,
   rememberLastWorkspaceId,
+  Shippy,
   useRouteSearch,
   userWorkspacesQueryKey,
 } from '@shipfox/client-shell/runtime';
@@ -285,7 +286,11 @@ export function SignupPage() {
   }
 
   return (
-    <AuthShell title={headerTitle} description={headerDescription}>
+    <AuthShell
+      title={headerTitle}
+      description={headerDescription}
+      illustration={<Shippy pose="welcome" className="h-104" />}
+    >
       <form
         className="flex flex-col gap-group"
         noValidate

@@ -8,6 +8,11 @@ export type EmptyStateVariant = 'default' | 'compact' | 'panel';
 
 export interface EmptyStateProps extends ComponentProps<'div'> {
   icon?: IconName;
+  /**
+   * Replaces the icon on a first-use or dead-end state. The `compact` variant
+   * has no room for one and keeps its icon.
+   */
+  illustration?: ReactNode;
   /** Tints the icon only: neutral for "no content", error for a failed load. */
   tone?: 'neutral' | 'error';
   title?: string;
@@ -20,6 +25,7 @@ export interface EmptyStateProps extends ComponentProps<'div'> {
 
 export function EmptyState({
   icon = 'fileDamageLine',
+  illustration,
   tone = 'neutral',
   title,
   description,
@@ -32,11 +38,6 @@ export function EmptyState({
   if (variant === 'compact') containerClasses = 'flex flex-col items-center justify-center gap-10';
   else if (variant === 'panel') containerClasses = 'w-full flex-1 flex-col gap-12';
 
-  const iconContainerClasses =
-    variant === 'compact'
-      ? 'flex size-32 items-center justify-center rounded-6 border border-border-neutral-strong bg-background-neutral-base p-8'
-      : 'flex size-32 items-center justify-center rounded-6 border border-border-neutral-strong';
-
   const EmptyStateContainer = variant === 'panel' ? PanelEmpty : 'div';
 
   return (
@@ -46,17 +47,11 @@ export function EmptyState({
       className={cn(containerClasses, className)}
       {...props}
     >
-      <div className={iconContainerClasses}>
-        <Icon
-          name={icon}
-          className={cn(
-            variant === 'compact' ? 'size-20' : 'size-16',
-            // Only the glyph carries the status color (DESIGN.md §10.1 / §13);
-            // the surface and border stay neutral so the placeholder reads calm.
-            tone === 'error' ? 'text-tag-error-icon' : 'text-foreground-neutral-subtle',
-          )}
-        />
-      </div>
+      {illustration && variant !== 'compact' ? (
+        illustration
+      ) : (
+        <EmptyStateIcon icon={icon} tone={tone} compact={variant === 'compact'} />
+      )}
       <div className={cn('text-center', variant !== 'compact' && 'space-y-4')}>
         {title ? (
           <Text
@@ -78,5 +73,34 @@ export function EmptyState({
       </div>
       {action ? <div>{action}</div> : null}
     </EmptyStateContainer>
+  );
+}
+
+function EmptyStateIcon({
+  icon,
+  tone,
+  compact,
+}: {
+  icon: IconName;
+  tone: 'neutral' | 'error';
+  compact: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex size-32 items-center justify-center rounded-6 border border-border-neutral-strong',
+        compact && 'bg-background-neutral-base p-8',
+      )}
+    >
+      <Icon
+        name={icon}
+        className={cn(
+          compact ? 'size-20' : 'size-16',
+          // Only the glyph carries the status color (DESIGN.md §10.1 / §13);
+          // the surface and border stay neutral so the placeholder reads calm.
+          tone === 'error' ? 'text-tag-error-icon' : 'text-foreground-neutral-subtle',
+        )}
+      />
+    </div>
   );
 }

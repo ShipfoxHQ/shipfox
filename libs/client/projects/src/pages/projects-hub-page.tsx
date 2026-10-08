@@ -5,7 +5,7 @@ import {
   IntegrationIcon,
   useIntegrationConnectionsQuery,
 } from '@shipfox/client-integrations';
-import {useChrome} from '@shipfox/client-shell/runtime';
+import {Shippy, useChrome} from '@shipfox/client-shell/runtime';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -219,6 +219,7 @@ function EmptyProjects({workspaceSlug}: {workspaceSlug: string}) {
   return (
     <EmptyState
       icon="folderLine"
+      illustration={<Shippy pose="lot" className="h-96" />}
       title="Create your first project"
       description="Connect a repository-backed project to start building workflows."
       variant="panel"

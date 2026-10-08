@@ -1,3 +1,4 @@
+import {Shippy} from '@shipfox/client-shell/runtime';
 import type {QueryLoadErrorQuery} from '@shipfox/client-ui';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -71,6 +72,7 @@ export function WorkflowRunListEmpty({
   return (
     <EmptyState
       icon="pulseLine"
+      illustration={<Shippy pose="button" className="h-96" />}
       title="No runs yet"
       description="Runs from this project's workflows appear here the moment one is launched."
       action={
