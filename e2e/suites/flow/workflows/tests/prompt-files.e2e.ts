@@ -75,6 +75,7 @@ test('joins a prompt file and an anchored string into the authored prompt', asyn
       'Follow the house rules.\nReply with exactly the word: ok\n\nSecond task: say ok.\n\nDo not include any other text.',
     );
     const requests = await getScriptedManagedProviderRequests({projectId: seeded.project.id});
+    expect(requests).toHaveLength(2);
     expect(requests.every((request) => !request.surprise)).toBe(true);
   } finally {
     await attachLocalRunnerLog(

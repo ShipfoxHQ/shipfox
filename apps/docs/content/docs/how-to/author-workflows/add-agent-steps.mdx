@@ -127,9 +127,9 @@ This has three consequences:
   that branch. See [Run a workflow before you
   push](/how-to/run-and-troubleshoot/test-local-workflow-change).
 
-If a prompt file is missing or empty, the sync fails with `prompt-file-invalid`,
-and the error names the step and the file. The workflow keeps its previous
-version. See [Find why a workflow did not
+If a prompt file is missing, empty, not UTF-8 text, or too large, the sync fails
+with `prompt-file-invalid`. The error names the step and the file. The workflow
+keeps its previous version. See [Find why a workflow did not
 sync](/how-to/run-and-troubleshoot/workflow-sync).
 
 ## Adapt the step to your task
