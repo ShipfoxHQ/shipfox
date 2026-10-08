@@ -1,7 +1,7 @@
 ---
 title: "Context and templating"
 sidebarTitle: "Context & Templating"
-description: "Understand when run data becomes available, how outputs move it between jobs, and how workflows use it safely."
+description: "Understand how a workflow reads run data, how outputs move it between jobs, and how workflows use it safely."
 ---
 
 **Context** is the data a workflow can read while it runs. It starts with the
@@ -20,20 +20,9 @@ A predicate is a yes-or-no check. For example, `step.exit_code == 0` passes a
 gate when the command succeeds. Filters, conditions, gates, and job success
 rules use predicates.
 
-The [Expressions reference](/reference/expressions) defines the exact syntax
-and available fields.
-
-## When data becomes available
-
-A workflow gains data as the run progresses:
-
-- Run details, trigger data, inputs, and variables are available from the start.
-- Step outputs become available after the step finishes.
-- Job outputs become available after an upstream job finishes.
-- Restart feedback becomes available when a gate repeats steps.
-
-The [Contexts reference](/reference/contexts#context-availability) lists the
-exact availability of these values, tool results, listening events, and secrets.
+The [Expressions reference](/reference/expressions) defines the exact syntax.
+The [Contexts reference](/reference/contexts) lists the data that each field
+can read.
 
 ## How outputs move results between jobs
 
