@@ -60,7 +60,13 @@ export class LocalExecutionHost implements ExecutionHost {
     const file = await open(path, 'r');
     try {
       const buffer = Buffer.alloc(options.length);
-      const {bytesRead} = await file.read(buffer, 0, options.length, 0);
+      let bytesRead = 0;
+      // A read can return fewer bytes than asked before the end of the file.
+      while (bytesRead < options.length) {
+        const result = await file.read(buffer, bytesRead, options.length - bytesRead, bytesRead);
+        if (result.bytesRead === 0) break;
+        bytesRead += result.bytesRead;
+      }
       return buffer.subarray(0, bytesRead);
     } finally {
       await file.close();
