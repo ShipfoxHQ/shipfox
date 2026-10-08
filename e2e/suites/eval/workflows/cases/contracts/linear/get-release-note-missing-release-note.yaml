@@ -1,0 +1,10 @@
+provider: linear
+kind: error
+modes: [real, fake]
+steps:
+  - tool: get_release_note
+    with:
+      id: $target.linear.missing_release_note.id
+    # "Release note not found." is not worded like the messages that map to not-found.
+    expect:
+      error: unknown

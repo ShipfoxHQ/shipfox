@@ -1,0 +1,14 @@
+{
+  "tool": "list_agent_skills",
+  "arguments": {
+    "limit": 1
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"agentSkills\":[],\"hasNextPage\":false}"
+      }
+    ]
+  }
+}

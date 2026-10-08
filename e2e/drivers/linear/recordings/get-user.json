@@ -1,0 +1,14 @@
+{
+  "tool": "get_user",
+  "arguments": {
+    "query": "b2f39d6d-42c5-4111-b521-bbfa50b73b36"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"b2f39d6d-42c5-4111-b521-bbfa50b73b36\",\"name\":\"Shipfox - Staging\",\"email\":\"b9208ed9-3504-4c33-830c-75a2b8f63dd3@oauthapp.linear.app\",\"displayName\":\"shipfox-staging\",\"avatarUrl\":\"https://public.linear.app/809f81a4-d265-4111-83c4-c79f9409cb17/fa263ddd-e538-4a01-a0e7-7078d20ca8a9/256x256/c496673d-665a-46b5-b7ea-ab63adbe7b3f\",\"isAdmin\":false,\"isGuest\":false,\"isActive\":true,\"createdAt\":\"2026-10-05T18:23:06.576Z\",\"updatedAt\":\"2026-10-05T18:23:06.737Z\",\"status\":\"Offline (last seen 2026-10-05T18:23:06.710Z)\",\"teams\":[]}"
+      }
+    ]
+  }
+}

@@ -8,6 +8,7 @@ import {
   LINEAR_WRITE_RESULT_MARKER,
   startLinearMcpMock,
 } from './linear-mcp.js';
+import {loadLinearRecordings} from './linear-recordings.js';
 
 describe('Linear MCP mock', () => {
   it('serves deterministic authenticated read and write tool calls', async () => {
@@ -215,6 +216,69 @@ describe('Linear MCP mock', () => {
       });
       expect(children.body).toMatchObject({issues: [{id: 'ENG-2'}], hasNextPage: false});
       expect(missing).toMatchObject({isError: true, body: {error: 'invalid_request'}});
+    } finally {
+      await client.close();
+      await mock.stop();
+    }
+  });
+});
+
+describe('Linear MCP mock with recordings', () => {
+  async function connect(endpoint: URL) {
+    const client = new Client({name: 'linear-recordings-test', version: '0.0.0'});
+    const transport = new StreamableHTTPClientTransport(endpoint, {
+      requestInit: {headers: {authorization: 'Bearer synthetic-linear-token'}},
+    });
+    await client.connect(transport as unknown as Transport);
+    return client;
+  }
+
+  it('replays the content blocks of every recorded call', async () => {
+    const recordings = await loadLinearRecordings();
+    const mock = await startLinearMcpMock({
+      endpoint: new URL('http://127.0.0.1:0/mcp'),
+      recordings,
+    });
+    const client = await connect(mock.endpoint);
+
+    try {
+      expect(recordings).toHaveLength(31);
+      for (const recording of recordings) {
+        const result = await client.callTool(
+          {name: recording.tool, arguments: recording.arguments},
+          CallToolResultSchema,
+        );
+
+        expect(result.content, recording.tool).toEqual(recording.result.content);
+        expect(result.structuredContent, recording.tool).toBeUndefined();
+        expect(result.isError === true, recording.tool).toBe(recording.result.isError === true);
+      }
+    } finally {
+      await client.close();
+      await mock.stop();
+    }
+  });
+
+  it('fails a call whose arguments were not recorded, or that adds a field', async () => {
+    const mock = await startLinearMcpMock({
+      endpoint: new URL('http://127.0.0.1:0/mcp'),
+      recordings: await loadLinearRecordings(),
+    });
+    const client = await connect(mock.endpoint);
+
+    try {
+      const result = await client.callTool(
+        {name: 'get_issue', arguments: {id: 'SAR-999999'}},
+        CallToolResultSchema,
+      );
+
+      const extraField = await client.callTool(
+        {name: 'get_issue', arguments: {id: 'SAR-5', extra: 'field'}},
+        CallToolResultSchema,
+      );
+
+      expect(result.isError).toBe(true);
+      expect(extraField.isError).toBe(true);
     } finally {
       await client.close();
       await mock.stop();

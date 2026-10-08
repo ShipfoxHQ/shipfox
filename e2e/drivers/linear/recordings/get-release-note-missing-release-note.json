@@ -1,0 +1,15 @@
+{
+  "tool": "get_release_note",
+  "arguments": {
+    "id": "00000000-0000-4000-8000-000000000000"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"error\":\"invalid_request\",\"message\":\"Release note not found.\",\"status\":400,\"requestId\":\"0000000000000000\"}"
+      }
+    ],
+    "isError": true
+  }
+}

@@ -1,3 +1,7 @@
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
+import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import type {createApiClient} from '@shipfox/e2e-core';
 import {type DiscordApiMock, startDiscordApiMock} from '@shipfox/e2e-driver-discord';
 import {type GithubApiMock, startGithubApiMock} from '@shipfox/e2e-driver-github';
@@ -12,6 +16,7 @@ import {
   discordContractFake,
   githubContractFake,
   jiraContractFake,
+  linearContractFake,
   notionContractFake,
   posthogContractFake,
   type SandboxFixtures,
@@ -20,7 +25,21 @@ import {
 
 // The fakes listen behind the stack's router in a run. The tests bind them to a free port, and
 // keep them to read what the adapters seeded.
-const started: {clickup?: {endpoint: URL}; notion?: {endpoint: URL}} = {};
+const started: {clickup?: {endpoint: URL}; notion?: {endpoint: URL}; linear?: {endpoint: URL}} = {};
+vi.mock('@shipfox/e2e-driver-linear', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@shipfox/e2e-driver-linear')>();
+  return {
+    ...original,
+    startLinearMcpMock: async (options: Parameters<typeof original.startLinearMcpMock>[0]) => {
+      const mock = await original.startLinearMcpMock({
+        ...options,
+        endpoint: new URL('http://127.0.0.1:0/mcp'),
+      });
+      started.linear = mock;
+      return mock;
+    },
+  };
+});
 vi.mock('@shipfox/e2e-driver-clickup', async (importOriginal) => {
   const original = await importOriginal<typeof import('@shipfox/e2e-driver-clickup')>();
   return {
@@ -56,6 +75,7 @@ vi.mock('@shipfox/e2e-setup-integrations', () => ({
   createClickUpConnection: vi.fn(() => Promise.resolve({id: 'connection-2', slug: 'clickup_fake'})),
   createNotionConnection: vi.fn(() => Promise.resolve({id: 'connection-3', slug: 'notion_fake'})),
   createSlackConnection: vi.fn(() => Promise.resolve({id: 'connection-4', slug: 'slack_fake'})),
+  createLinearConnection: vi.fn(() => Promise.resolve({id: 'connection-6', slug: 'linear_fake'})),
 }));
 
 type ApiClient = ReturnType<typeof createApiClient>;
@@ -573,5 +593,48 @@ describe('jiraContractFake', () => {
 
   it('is the adapter of the jira provider', () => {
     expect(CONTRACT_FAKE_ADAPTERS.jira).toBe(jiraContractFake);
+  });
+});
+
+describe('linearContractFake', () => {
+  it('replays the recorded Linear responses behind a connection of its own', async () => {
+    const cleanups: Array<() => Promise<void>> = [];
+    const fake = await linearContractFake({
+      workspaceId: 'workspace',
+      uniqueId: 'unique',
+      github: {
+        mock: {} as GithubApiMock,
+        connectionId: 'connection-1',
+        connectionSlug: 'github_fake',
+      },
+      client: {} as ApiClient,
+      cleanups,
+    });
+
+    try {
+      await fake.seed({});
+      const client = new Client({name: 'linear-contract-fake-test', version: '0.0.0'});
+      await client.connect(
+        new StreamableHTTPClientTransport(started.linear?.endpoint as URL, {
+          requestInit: {headers: {authorization: 'Bearer lin_oauth_contracts_unique'}},
+        }) as unknown as Transport,
+      );
+      const result = await client.callTool(
+        {name: 'get_team', arguments: {query: '4016fa95-dfda-4139-88ba-133ba5955b01'}},
+        CallToolResultSchema,
+      );
+      await client.close();
+
+      expect(fake.connectionSlug).toBe('linear_fake');
+      expect(result.isError).not.toBe(true);
+      expect(result.structuredContent).toBeUndefined();
+      expect(fake.writes()).toEqual([]);
+    } finally {
+      await Promise.all(cleanups.map((cleanup) => cleanup()));
+    }
+  });
+
+  it('is the adapter of the linear provider', () => {
+    expect(CONTRACT_FAKE_ADAPTERS.linear).toBe(linearContractFake);
   });
 });

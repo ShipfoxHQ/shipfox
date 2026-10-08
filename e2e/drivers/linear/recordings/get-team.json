@@ -1,0 +1,14 @@
+{
+  "tool": "get_team",
+  "arguments": {
+    "query": "4016fa95-dfda-4139-88ba-133ba5955b01"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"4016fa95-dfda-4139-88ba-133ba5955b01\",\"key\":\"SAR\",\"parentId\":null,\"displayName\":\"sandbox-read\",\"icon\":\":book:\",\"name\":\"sandbox-read\",\"visibility\":\"public\",\"createdAt\":\"2026-10-05T18:20:04.280Z\",\"updatedAt\":\"2026-10-06T09:26:47.935Z\"}"
+      }
+    ]
+  }
+}

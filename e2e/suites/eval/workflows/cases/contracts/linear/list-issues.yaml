@@ -1,5 +1,5 @@
 provider: linear
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: list_issues
     with:

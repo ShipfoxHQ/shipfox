@@ -1,6 +1,6 @@
 provider: linear
 kind: error
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: get_issue
     with:

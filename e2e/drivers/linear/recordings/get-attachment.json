@@ -1,0 +1,15 @@
+{
+  "tool": "get_attachment",
+  "arguments": {
+    "id": "6e2b43dd-a80b-4b06-b0d2-875625571572"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "image",
+        "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        "mimeType": "image/png"
+      }
+    ]
+  }
+}

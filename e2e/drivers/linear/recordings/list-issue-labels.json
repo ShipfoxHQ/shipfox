@@ -1,0 +1,16 @@
+{
+  "tool": "list_issue_labels",
+  "arguments": {
+    "team": "4016fa95-dfda-4139-88ba-133ba5955b01",
+    "name": "contract-fixture",
+    "limit": 1
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"labels\":[{\"id\":\"166e6019-a6be-4812-a527-1f8e3b2369a6\",\"name\":\"contract-fixture\",\"color\":\"#4EA7FC\",\"description\":null,\"archivedAt\":null}],\"hasNextPage\":false}"
+      }
+    ]
+  }
+}

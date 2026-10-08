@@ -1,0 +1,23 @@
+{
+  "tool": "extract_images",
+  "arguments": {
+    "markdown": "![pixel](https://uploads.linear.app/e484a79e-8b9a-4a38-a993-d4c2b102f0ad/c08f60ac-3cc0-46c7-bae7-98b0c95ec368/5017dc05-f01d-4d1d-8e52-b0f9812f3746)"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Successfully fetched 1 image."
+      },
+      {
+        "type": "text",
+        "text": "Image: pixel"
+      },
+      {
+        "type": "image",
+        "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        "mimeType": "image/png"
+      }
+    ]
+  }
+}

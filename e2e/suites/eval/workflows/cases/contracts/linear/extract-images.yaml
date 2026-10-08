@@ -1,0 +1,10 @@
+provider: linear
+modes: [real, fake]
+steps:
+  - tool: extract_images
+    with:
+      markdown: $fixture.linear.upload.markdown
+    # The hosted MCP answers with two text blocks and the image. The result is the first text.
+    expect:
+      text:
+        - Successfully fetched 1 image

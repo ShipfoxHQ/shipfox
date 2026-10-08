@@ -1,0 +1,14 @@
+{
+  "tool": "list_cycles",
+  "arguments": {
+    "teamId": "4016fa95-dfda-4139-88ba-133ba5955b01"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "[{\"id\":\"e96b156c-a634-41d4-9c3e-a144e2f5c9af\",\"number\":2,\"startsAt\":\"2026-10-26T07:00:00.000Z\",\"endsAt\":\"2026-11-09T08:00:00.000Z\",\"completedIssueCountHistory\":[],\"issueCountHistory\":[],\"completedScopeHistory\":[],\"scopeHistory\":[],\"isCurrent\":false},{\"id\":\"2fa6e971-66cd-4534-99d5-c15312765f1b\",\"number\":1,\"startsAt\":\"2026-10-12T07:00:00.000Z\",\"endsAt\":\"2026-10-26T07:00:00.000Z\",\"completedIssueCountHistory\":[],\"issueCountHistory\":[],\"completedScopeHistory\":[],\"scopeHistory\":[],\"isCurrent\":false}]"
+      }
+    ]
+  }
+}

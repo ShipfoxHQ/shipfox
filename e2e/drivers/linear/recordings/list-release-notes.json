@@ -1,0 +1,14 @@
+{
+  "tool": "list_release_notes",
+  "arguments": {
+    "limit": 1
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"releaseNotes\":[],\"hasNextPage\":false}"
+      }
+    ]
+  }
+}

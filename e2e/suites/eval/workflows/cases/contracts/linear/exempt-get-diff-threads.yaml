@@ -1,0 +1,4 @@
+provider: linear
+exempt:
+  tool: get_diff_threads
+  reason: The hosted Linear MCP does not offer it to the sandbox connection. It answers that the tool was not found.

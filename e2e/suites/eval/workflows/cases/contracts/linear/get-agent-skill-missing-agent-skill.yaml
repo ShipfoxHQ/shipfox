@@ -1,0 +1,9 @@
+provider: linear
+kind: error
+modes: [real, fake]
+steps:
+  - tool: get_agent_skill
+    with:
+      id: $target.linear.missing_agent_skill.id
+    expect:
+      error: not-found

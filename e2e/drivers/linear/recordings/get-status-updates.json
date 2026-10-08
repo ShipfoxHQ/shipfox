@@ -1,0 +1,16 @@
+{
+  "tool": "get_status_updates",
+  "arguments": {
+    "type": "project",
+    "project": "fa265fda-fe3e-4049-a2a8-b4173aa5b266",
+    "limit": 1
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"statusUpdates\":[{\"id\":\"532105f9-05b5-43b5-b3c2-ccc7e7b4ee6b\",\"body\":\"Status update with café 日本語.\",\"health\":\"onTrack\",\"url\":\"https://linear.app/shipfox-sandbox/project/contract-fixture-project-02783eb0856e/activity#project-update-532105f9\",\"createdAt\":\"2026-10-05T18:26:20.805Z\",\"updatedAt\":\"2026-10-05T18:26:20.805Z\",\"editedAt\":null,\"archivedAt\":null,\"diffMarkdown\":\"**Status**: Backlog\",\"isDiffHidden\":false,\"user\":{\"id\":\"6bb15791-3a74-424e-837f-4c9618732360\",\"name\":\"Noé Charmet\"},\"type\":\"project\",\"project\":{\"id\":\"fa265fda-fe3e-4049-a2a8-b4173aa5b266\",\"name\":\"Contract fixture project\"}}],\"hasNextPage\":false}"
+      }
+    ]
+  }
+}
