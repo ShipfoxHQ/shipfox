@@ -5,6 +5,11 @@ const poses = {
   machine: {width: 702, height: 480},
   delivery: {width: 566, height: 480},
   door: {width: 556, height: 480},
+  approaches: {width: 796, height: 225},
+  control: {width: 796, height: 480},
+  vending: {width: 548, height: 480},
+  loop: {width: 541, height: 480},
+  cables: {width: 612, height: 480},
 } as const;
 
 interface ShippyProps {
@@ -23,7 +28,7 @@ export function Shippy({pose, className}: ShippyProps) {
       aria-hidden="true"
       width={width}
       height={height}
-      loading={pose === 'foreman' ? 'eager' : 'lazy'}
+      loading={pose === 'foreman' || pose === 'approaches' ? 'eager' : 'lazy'}
       className={`not-prose pointer-events-none h-auto select-none ${className ?? ''}`}
     />
   );
