@@ -13,6 +13,7 @@
     "run-after-another-workflow",
     "---Run commands---",
     "run-shell-commands",
+    "set-environment-variables-for-later-steps",
     "choose-runners",
     "group-command-logs",
     "---Use agents---",

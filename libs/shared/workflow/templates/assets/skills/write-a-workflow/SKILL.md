@@ -1,7 +1,7 @@
 ---
 name: write-a-workflow
 description: Use when writing a Shipfox workflow from an idea or adapting an existing workflow without a template.
-revision: 4
+revision: 5
 catalog_title: Write a workflow
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to write a workflow for this repository.
@@ -68,6 +68,17 @@ Ask one question per message and wait for the answer. With each question, restat
 ## 5. Write the file
 
 Create a descriptive `.yml` file under `.shipfox/workflows/`. Put the editor schema header from `docs://shipfox/reference/workflow-schema` on the first line. Bind only the integration connections and tool IDs the workflow uses. Keep each `integrations.include` list narrow. Reference secrets by name, never by value. Grant checkout write permission only to a job or step that pushes repository changes. Set `path` on every checkout that doesn't own the job root.
+
+Move data with workflow fields, not shell plumbing:
+
+- Publish a step output to later jobs with `export` on the step. Write a job `outputs` map to rename a value, build one from several steps, or guard a tool output with its step `status`.
+- Give a run or agent output a `default` when the step can be skipped or fail and later work reads the output. Tool step outputs have no `default`, so guard them with the step `status`.
+- Fill a run step output with `from_stdout` or `from_file` instead of writing to `$SHIPFOX_OUTPUT`, when the command already prints the value or writes it to a file.
+- Hand an environment variable or a `PATH` directory to later steps of the job through `$SHIPFOX_ENV` and `$SHIPFOX_PATH`. Do not repeat the setup in each step. Never write a credential to `$SHIPFOX_ENV`: it is not masked.
+- Put a list or a map in `env` directly. It arrives as JSON text, so do not wrap it in `toJson()`.
+- Read the run from `SHIPFOX_RUN_ID`, `SHIPFOX_RUN_NUMBER`, `SHIPFOX_RUN_ATTEMPT`, and `SHIPFOX_RUN_URL` in a run step. Link to a run with `run.url`, never a hardcoded host.
+
+Read `docs://shipfox/how-to/author-workflows/pass-outputs` and `docs://shipfox/how-to/author-workflows/set-environment-variables-for-later-steps` before using them.
 
 ## 6. Verify and deliver
 

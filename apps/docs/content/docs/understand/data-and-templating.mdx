@@ -1,7 +1,7 @@
 ---
 title: "Context and templating"
 sidebarTitle: "Context & Templating"
-description: "Understand when run data becomes available, how outputs move it between jobs, and how workflows use it safely."
+description: "Understand how a workflow reads run data, how outputs move it between jobs, and how workflows use it safely."
 ---
 
 **Context** is the data a workflow can read while it runs. It starts with the
@@ -9,33 +9,26 @@ event or the manual inputs. It grows as jobs and steps produce results.
 
 ## How interpolation works
 
-Interpolation reads a value from context and inserts it into a workflow field.
-Wrap the expression in `${{ }}`. For example, `Hello ${{ inputs.name }}` adds
-the `name` input after `Hello`.
+**Interpolation** puts a value from the context into a field of the workflow.
+Write the name of the value between `${{` and `}}`. Shipfox replaces this
+expression with the value when the workflow runs.
 
-Use interpolation to add data to text or settings. It does not decide whether
-work runs.
+For example, the `name` input contains `Ada`. Then `Hello ${{ inputs.name }}`
+becomes `Hello Ada`.
 
-A predicate is a yes-or-no check. For example, `step.exit_code == 0` passes a
-gate when the command succeeds. Filters, conditions, gates, and job success
+Interpolation only adds data to a field. It doesn't decide if a step or a job
+runs.
+
+A **predicate** makes that decision. A predicate is an expression with a
+yes-or-no result. For example, the predicate `step.exit_code == 0` is true
+when the command succeeds. Filters, `if` conditions, gates, and job success
 rules use predicates.
 
-The [Expressions reference](/reference/expressions) defines the exact syntax
-and available fields.
+The [Expressions reference](/reference/expressions) defines the exact syntax.
+The [Contexts reference](/reference/contexts) lists the data that each field
+can read.
 
-## When data becomes available
-
-A workflow gains data as the run progresses:
-
-- Run details, trigger data, inputs, and variables are available from the start.
-- Step outputs become available after the step finishes.
-- Job outputs become available after an upstream job finishes.
-- Restart feedback becomes available when a gate repeats steps.
-
-The [Contexts reference](/reference/contexts#context-availability) lists the
-exact availability of these values, tool results, listening events, and secrets.
-
-## How outputs move results between jobs
+## How jobs share data
 
 Steps in one job can share files, but files don't cross a job boundary. An
 output turns a result into named workflow data that later work can read.
@@ -53,27 +46,87 @@ triggers:
 
 jobs:
   package:
-    outputs:
-      version: ${{ steps.read_version.outputs.version }}
     steps:
+      # Takes the output from what the command prints.
       - key: read_version
-        run: echo "version=$(git describe --tags --always)" >> "$SHIPFOX_OUTPUT"
+        run: git describe --tags --always
         outputs:
-          version: string
+          version:
+            type: string
+            from_stdout: true
+        # Publishes every output of this step as an output of the job.
+        export: true
+      # Writes name=value lines to a file, so one step creates several outputs.
+      - key: read_commit
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$SHIPFOX_OUTPUT"
+          echo "branch=$(git branch --show-current)" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          sha: string
+          branch: string
+        export: true
 
   publish:
+    # Waits for the package job and makes its outputs readable.
     needs: package
     steps:
+      # Reads the job outputs.
       - run: printf 'Publishing version %s\n' "${{ jobs.package.outputs.version }}"
+      - run: printf 'Built from commit %s\n' "${{ jobs.package.outputs.sha }}"
 ```
 
-The step creates `version`. The `package` job publishes it. The `publish` job
-declares the dependency and puts the value in its command.
+A step creates an output in one of two ways. The `read_version` step takes
+`version` from what its command prints. The `read_commit` step writes
+`name=value` lines to the file `$SHIPFOX_OUTPUT`, which lets one step create
+several outputs.
 
-When a step declares a JSON array or object, a job output that maps exactly one
-expression keeps that structure for later jobs. A later expression such as
-`jobs.review.outputs.findings[0].severity` can then read a nested field. A
-template that mixes text and expressions still produces a string.
+`export` publishes the outputs of both steps as outputs of the `package` job.
+The `publish` job declares the dependency and puts the values in its commands.
+
+### Rename or join values
+
+`export` keeps the name of the step output. Sometimes a job output needs a
+different name. Sometimes it needs a value that joins several step outputs. In
+these cases, add an `outputs` map to the job. Each line of the map gives one
+name and the expression that makes its value.
+
+This map belongs to the `package` job. It joins the version and the commit:
+
+```yaml
+outputs:
+  release: ${{ steps.read_version.outputs.version }}+${{ steps.read_commit.outputs.sha }}
+```
+
+A later job reads this value as `jobs.package.outputs.release`.
+
+### Pass a list or an object
+
+An output can hold a list or an object. Declare this output with the type
+`json`.
+
+A later job can then read one part of the value. For example,
+`jobs.review.outputs.findings[0].severity` reads the `severity` field of the
+first finding.
+
+A job output keeps the list or the object in two cases:
+
+- The step exports the output.
+- A line of the job `outputs` map contains one expression and no other text.
+
+If a line of the map mixes text and expressions, the job output is text. A
+later job can't read one part of it.
+
+A shell command can also use a list or an object. Put the value in the `env`
+of the step. Shipfox writes the value as JSON text in the environment variable.
+The command then reads the variable with a JSON tool such as `jq`:
+
+```yaml
+- env:
+    FINDINGS: ${{ jobs.review.outputs.findings }}
+  run: printf '%s' "$FINDINGS" | jq -r '.[0].severity'
+```
+
+### When an output is the wrong tool
 
 Outputs fit small facts. Files and build products belong in external artifact
 storage, with an output that carries their location. [Step
@@ -81,22 +134,41 @@ outputs](/reference/workflow-schema#step-outputs) defines declaration types and
 encoding. [Job outputs](/reference/limits#job-outputs) lists the limits for job
 outputs.
 
-## Treat outside data as text, not as instructions
+Sometimes the steps of one job must share an environment variable or a
+program that one step installs. You don't need an output for this. A step can
+give an environment variable or a `PATH` directory to the steps that run after
+it in the same job. See [Set environment variables for later
+steps](/how-to/author-workflows/set-environment-variables-for-later-steps).
 
-Events, inputs, and step outputs carry data that the workflow didn't write. A
-shell step reads that data as text, so it can't run as a command. [A few shell
-constructs](/reference/workflow-schema#run-step-fields) read their own arguments
-again and break that protection.
+## Outside data and secrets
 
-Nothing protects a prompt or a job setting this way. An event can contain
-instructions for an agent. It can also choose the runner a job uses. Keep event
-data out of any choice you wouldn't let a stranger make.
+Events, inputs, and step outputs contain data from outside the workflow.
+People outside your team can write this data. For example, the author of a
+pull request chooses its title.
 
-A secret follows the same rule. Only a run step's command or `env` can bind one,
-so no prompt, model field, or predicate can read it. Shipfox never resolves the
-value on the server. The runner pulls it before the step starts and masks it
-in logs, outputs, and error messages. Masking is a safety net, not a
-guarantee, so a step that transforms and prints a secret can still leak it.
-[Integrations, integration connections, and
-tools](/understand/integrations-connections-and-tools) explains the external
-credential boundary.
+**Shell commands are protected.** Shipfox gives this data to a run step as
+text. The shell doesn't run the text as a command. This protection has one
+limit. Some commands, such as `eval` and `sh -c`, run their arguments as a new
+command. Don't give outside data to these commands. See [Run step
+fields](/reference/workflow-schema#run-step-fields).
+
+**Prompts and job settings aren't protected.** An event can contain text that
+tells an agent what to do, and the agent can follow it. If you put an event
+value in the `runner` field, the event selects the runner of the job. Don't
+let event data make a decision that a stranger must not make.
+
+**Secrets have a stricter rule.** A secret works in two places only: the command
+of a run step and the `env` of a run step. A prompt, a model field, or
+a predicate can't read a secret.
+
+The server never puts the value of a secret in the workflow. The runner gets
+the value immediately before the step starts. The runner then hides the value
+in logs, outputs, and error messages.
+
+This masking has a limit. If a step changes a secret and then prints the
+result, the runner can't always recognize it. Don't print a secret in any
+form.
+
+Integrations keep their credentials in a different way. See [Integrations,
+integration connections, and
+tools](/understand/integrations-connections-and-tools).

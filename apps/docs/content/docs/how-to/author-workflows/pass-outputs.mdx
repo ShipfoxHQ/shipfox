@@ -26,13 +26,12 @@ triggers:
 
 jobs:
   prepare:
-    outputs:
-      message: ${{ steps.create_message.outputs.message }}
     steps:
       - key: create_message
         run: echo "message=Hello from the prepare job" >> "$SHIPFOX_OUTPUT"
         outputs:
           message: string
+        export: true
 
   consume:
     needs: prepare
@@ -47,28 +46,113 @@ To send any value between jobs, you need three things:
 1. **Create the value in a step.** Give the step a `key`. Declare the output
    name and type under `outputs`. In the command, write `name=value` to the
    file `$SHIPFOX_OUTPUT`.
-2. **Publish the value from the job.** Add an `outputs` map to the job. Give
-   the value a name and set it to the step output.
+2. **Export the value from the step.** Add `export: true` to publish every
+   declared output of the step as a job output with the same name. To publish
+   only some outputs, list their names, as in `export: [message]`.
 3. **Read the value in a later job.** Add the first job to `needs` in the later
    job. Read the value with `jobs.<job>.outputs.<name>`.
 
 In your own workflow, change the output names, the type, and the command that
 produces the value. Keep everything else.
 
+## Set a default for a step that may not produce the value
+
+A skipped step has no value for its outputs. A failed step has a value only
+for the outputs it wrote before it failed. An exported output without a value
+is left out of the job outputs, and a later job that reads it fails. Add a `default` to the output when later work always reads it.
+
+```yaml
+- key: changes
+  run: git diff --quiet || echo "changed=true" >> "$SHIPFOX_OUTPUT"
+  outputs:
+    changed:
+      type: boolean
+      default: false
+  export: true
+```
+
+Later steps and jobs read the default of each output that the step has no
+value for. That covers a skipped step, and a failed or cancelled step that
+didn't write the output. It also covers a run step that succeeds without
+writing the output, as the example does when nothing changed.
+
+Two step types behave differently:
+
+- **Agent steps.** An agent step that finishes must still set every declared
+  output. Its defaults apply only when the step is skipped, fails, or is
+  cancelled.
+- **Tool steps.** A tool step output can't have a default, because it is an
+  expression and not a declaration. Don't export an output that later work
+  always reads. Publish it from the job `outputs` map and check the step status
+  there:
+
+  ```yaml
+  outputs:
+    pr_url: '${{ steps.open_pr.status == "succeeded" ? steps.open_pr.outputs.pr_url : "" }}'
+  ```
+
+## Fill an output from standard output or a file
+
+A run step can fill an output without writing to `$SHIPFOX_OUTPUT`. Use
+`from_stdout` when the command prints the value. Use `from_file` when the
+command writes the value to a file.
+
+```yaml
+- key: revision
+  run: git rev-parse HEAD
+  outputs:
+    commit:
+      type: string
+      from_stdout: true
+  export: true
+- key: notes
+  run: git log -5 --format=%s > notes.txt
+  outputs:
+    notes:
+      type: string
+      from_file: notes.txt
+  export: true
+```
+
+Shipfox removes one trailing newline from the value. A step can have one
+`from_stdout` output. A file path is relative to the working directory of the
+step. [Step outputs](/reference/workflow-schema#step-outputs) lists the rules
+and the size limits.
+
+## Pass a list or a map to a command
+
+Put the value in `env`. Shipfox writes a list or a map as JSON text, so the
+command can parse it. You don't need `toJson()`.
+
+```yaml
+- key: plan
+  run: echo 'targets=["api","web"]' >> "$SHIPFOX_OUTPUT"
+  outputs:
+    targets: json
+- env:
+    TARGETS: ${{ steps.plan.outputs.targets }}
+  run: printf '%s' "$TARGETS" | jq -r '.[]'
+```
+
 ## Adapt it to your workflow
 
 | To... | Change this |
 | --- | --- |
-| Read the value in a later step of the same job | You don't need the job `outputs` map or `needs`. Read `steps.<key>.outputs.<name>` in the later step. |
+| Read the value in a later step of the same job | You don't need `export` or `needs`. Read `steps.<key>.outputs.<name>` in the later step. |
+| Rename a value, or build it from several steps | Remove `export`. Add an `outputs` map to the job and set each name to an expression. [Job fields](/reference/workflow-schema#job-fields) describes the map. |
 | Pass a number, a boolean, or structured data | Declare another output type. [Step outputs](/reference/workflow-schema#step-outputs) lists the types and their encoding. |
-| Read a nested field in a later job | Declare a `json` output. Set the job output to one expression and nothing else. Later jobs can then read nested fields. See [How outputs move results between jobs](/understand/data-and-templating#how-outputs-move-results-between-jobs). |
+| Read a nested field in a later job | Declare a `json` output and export it. Later jobs can then read nested fields. See [How jobs share data](/understand/data-and-templating#how-jobs-share-data). |
 | Run a later step only for some values | Read the output in the `if` condition of that step. |
-| Publish a value from an agent step | Declare the outputs on the agent step. See [Get typed agent outputs](/how-to/author-workflows/use-structured-agent-outputs). |
+| Publish a value from an agent step | Declare the outputs on the agent step and add `export`. See [Get typed agent outputs](/how-to/author-workflows/use-structured-agent-outputs). |
 | Pass a file or a build product | Outputs are for small values. Upload the file to your own storage and pass its URL or path as the output. |
 
 To use an output in a shell command, put it in `env` and read the environment
 variable, as the example does. The shell then treats the value as text and
 doesn't run it as part of the command.
+
+To give later steps of the same job an environment variable or a `PATH`
+directory, see [Set environment variables for later
+steps](/how-to/author-workflows/set-environment-variables-for-later-steps).
 
 ## Verify the output
 
