@@ -80,6 +80,16 @@ export interface StepProcessOptions {
    * config copies of the step. Defaults to the OS temp directory.
    */
   tempDir?: string;
+  /**
+   * The shell that runs a script. Defaults to `bash`, else `sh`, found on the runner's own PATH,
+   * which says nothing about the PATH of another host.
+   */
+  shell?: string;
+  /**
+   * Lets any user write the step files and the annotation spool, for a process that runs as
+   * another user than the runner, such as one in a job container.
+   */
+  shareScratchFiles?: boolean;
   /** Base environment of the process. Replaces the inherited `process.env` when given. */
   env?: Readonly<Record<string, string>>;
   /**
@@ -181,7 +191,7 @@ async function runStepProcess(
 ): Promise<StepResult> {
   const host = options.host ?? localExecutionHost;
   const tempDir = options.tempDir ?? tmpdir();
-  const launch = processLaunch(command, options.cwd, tempDir);
+  const launch = processLaunch(command, options.cwd, tempDir, options.shell);
   const files = {
     output: join(tempDir, `shipfox-output-${randomUUID()}`),
     env: join(tempDir, `shipfox-env-${randomUUID()}`),
@@ -199,17 +209,7 @@ async function runStepProcess(
         mode: 0o700,
       });
     }
-    await Promise.all(
-      [files.output, files.env, files.path].map((file) => writeFile(file, '', {mode: 0o600})),
-    );
-    try {
-      annotationSpool = await createAnnotationSpool({tempDir});
-    } catch (error) {
-      logger().warn(
-        {err: error},
-        'Failed to create annotation spool; running step without annotation collection',
-      );
-    }
+    annotationSpool = await createScratchFiles(files, tempDir, options);
 
     isolatedGitConfigGlobal = await isolateGitConfigGlobal(options.gitConfigGlobal, tempDir);
     const stdoutCapture =
@@ -250,17 +250,45 @@ async function runStepProcess(
   }
 }
 
+// The mode of a new file is cut down by the umask, so it is set again.
+async function createScratchFiles(
+  files: StepFiles,
+  tempDir: string,
+  options: StepProcessOptions,
+): Promise<AnnotationSpool | undefined> {
+  const mode = options.shareScratchFiles ? 0o666 : 0o600;
+  await Promise.all(
+    [files.output, files.env, files.path].map(async (file) => {
+      await writeFile(file, '', {mode});
+      await chmod(file, mode);
+    }),
+  );
+  try {
+    return await createAnnotationSpool({
+      tempDir,
+      ...(options.shareScratchFiles ? {shared: true} : {}),
+    });
+  } catch (error) {
+    logger().warn(
+      {err: error},
+      'Failed to create annotation spool; running step without annotation collection',
+    );
+    return undefined;
+  }
+}
+
 function processLaunch(
   command: StepCommand,
   cwd: string | undefined,
   tempDir: string,
+  shell: string | undefined,
 ): ProcessLaunch {
   if ('argv' in command) {
     const [executable, ...args] = command.argv;
     return {executable, args};
   }
   const scriptPath = join(tempDir, `shipfox-runner-${randomUUID()}.sh`);
-  const metadata = commandStartMetadata({command: command.script, scriptPath, cwd});
+  const metadata = commandStartMetadata({command: command.script, scriptPath, cwd, shell});
   return {
     executable: metadata.shell.executable,
     args: metadata.shell.args,
@@ -883,8 +911,9 @@ function commandStartMetadata(args: {
   command: string;
   scriptPath: string;
   cwd: string | undefined;
+  shell: string | undefined;
 }): CommandStartMetadata {
-  const executable = findShell();
+  const executable = args.shell ?? findShell();
   const shellArgs =
     basename(executable) === 'bash'
       ? ['--noprofile', '--norc', '-eo', 'pipefail', args.scriptPath]

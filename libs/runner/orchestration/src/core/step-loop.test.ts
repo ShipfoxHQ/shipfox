@@ -138,6 +138,22 @@ vi.mock('@shipfox/runner-execution', () => ({
   executeCheckoutStep: (...args: unknown[]) => executeCheckoutStepMock(...args),
 }));
 
+const {containerHosts} = vi.hoisted(() => ({
+  containerHosts: [] as Array<{
+    params: {container: string; tempDir: string};
+    probe: () => unknown;
+  }>,
+}));
+
+vi.mock('@shipfox/runner-container', () => ({
+  ContainerExecutionHost: class {
+    probe = vi.fn(() => Promise.resolve({shell: '/usr/bin/bash', path: '/usr/local/bin:/usr/bin'}));
+    constructor(readonly params: {container: string; tempDir: string}) {
+      containerHosts.push(this);
+    }
+  },
+}));
+
 vi.mock('@shipfox/runner-logs', async () => {
   const actual =
     await vi.importActual<typeof import('@shipfox/runner-logs')>('@shipfox/runner-logs');
@@ -594,6 +610,38 @@ describe('runJobSteps', () => {
           container: expect.objectContaining({secrets: {username: 'acme-bot', env: {}}}),
         }),
       );
+    });
+
+    it('runs the run steps that follow in the container, without the runner Git config', async () => {
+      const setup = containerSetup();
+      const run = buildRunStep();
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(run, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeSetupStepMock.mockResolvedValueOnce({
+        result: {success: true, error: null, exit_code: 0},
+        ambientGitConfigPath: '/runner-cred/job-1/ambient.config',
+        container: {name: 'shipfox-job-1', env: {LICENSE: 'license-secret'}},
+      });
+      executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+      containerHosts.length = 0;
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(containerHosts).toHaveLength(1);
+      expect(containerHosts[0]?.params).toEqual({
+        container: 'shipfox-job-1',
+        tempDir: JOB_TEMP_DIR,
+      });
+      const options = executeRunStepMock.mock.calls[0]?.[1];
+      expect(options).toMatchObject({
+        host: containerHosts[0],
+        shell: '/usr/bin/bash',
+        shareScratchFiles: true,
+      });
+      expect(options.env).toEqual({PATH: '/usr/local/bin:/usr/bin', LICENSE: 'license-secret'});
+      expect(options).not.toHaveProperty('gitConfigGlobal');
     });
 
     it('skips the secrets route when the container has no secrets', async () => {

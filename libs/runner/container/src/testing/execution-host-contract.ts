@@ -71,14 +71,21 @@ export function describeExecutionHostContract(
         expect((await context.host.readFile(join(sandbox, 'marker'))).toString()).toBe('here\n');
       });
 
-      it('passes exactly the requested environment', async () => {
-        const child = run(`echo "$GREETING/\${HOME-unset}"`, {
-          env: {...BASE_ENV, GREETING: 'hello'},
-        });
+      it('passes the requested environment and nothing from the runner', async () => {
+        const previous = process.env.SHIPFOX_CONTRACT_RUNNER_ONLY;
+        process.env.SHIPFOX_CONTRACT_RUNNER_ONLY = 'leaked';
+        try {
+          const child = run('echo "$GREETING/$SHIPFOX_CONTRACT_RUNNER_ONLY"', {
+            env: {...BASE_ENV, GREETING: 'hello'},
+          });
 
-        const [stdout] = await Promise.all([readAll(child.stdout), child.exited]);
+          const [stdout] = await Promise.all([readAll(child.stdout), child.exited]);
 
-        expect(stdout).toBe('hello/unset\n');
+          expect(stdout).toBe('hello/\n');
+        } finally {
+          if (previous === undefined) delete process.env.SHIPFOX_CONTRACT_RUNNER_ONLY;
+          else process.env.SHIPFOX_CONTRACT_RUNNER_ONLY = previous;
+        }
       });
 
       it('connects stdin when asked to', async () => {

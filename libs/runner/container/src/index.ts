@@ -1,3 +1,8 @@
+export {
+  ContainerExecutionHost,
+  type ContainerExecutionHostParams,
+  ContainerFileError,
+} from '#container-execution-host.js';
 export type {
   ExecutionHost,
   HostDirEntry,
