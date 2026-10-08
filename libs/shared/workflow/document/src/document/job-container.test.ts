@@ -112,7 +112,12 @@ describe('parseWorkflowDocument jobContainers', () => {
     }
 
     expect(error).toBeInstanceOf(InvalidWorkflowDocumentError);
-    expect((error as InvalidWorkflowDocumentError).validationError.issues).toHaveLength(1);
+    expect((error as InvalidWorkflowDocumentError).validationError.issues).toEqual([
+      expect.objectContaining({
+        path: ['jobs', 'build', 'container'],
+        message: 'Job containers (`container`) are not supported yet.',
+      }),
+    ]);
   });
 
   it('leaves documents without a container unchanged either way', () => {

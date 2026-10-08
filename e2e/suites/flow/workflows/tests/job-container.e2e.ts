@@ -138,9 +138,6 @@ test('a container job runs run steps, an action, sibling containers, and a Git p
       name: `E2E ${NAME} ${uniqueId}`,
       runnerLabel,
       installDir,
-      // What the runner image enables: the Git credential helper, which the job
-      // container runs from the mounted installation.
-      renewableGit: true,
     });
     try {
       // Only a definition sync snapshots actions, so the definition comes from the repository.

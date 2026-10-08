@@ -65,9 +65,9 @@ await stopProvisioner(handle);
 
 ### `deployRunner(params)`
 
-Deploys `@shipfox/runner` into `installDir` and returns the directory. The result has
-the layout of the runner image: the runner and its production dependencies in one
-tree. It follows the image build: `turbo prune`, an overlay of the built `dist/`
+Deploys `@shipfox/runner` into `installDir`, which must not exist yet, and returns the
+directory. The result has the layout of the runner image: the runner and its production
+dependencies in one tree. It follows the image build: `turbo prune`, an overlay of the built `dist/`
 directories, then `pnpm deploy` from the pruned copy, so the workspace install is left
 alone. Build the runner first; under Turbo, `test:e2e` does it. Pass it to `startLocalRunner` as `installDir` to run the
 built runner with plain Node instead of the source entry through tsx.
