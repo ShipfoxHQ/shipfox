@@ -118,9 +118,6 @@ at most 1,000,000 UTF-8 bytes in one evaluation. `fromJson()` expects a valid
 JSON string and converts safe integer numbers to CEL integers. `toJson()` writes
 integers outside the range JSON numbers represent exactly as quoted strings.
 
-Interpolation already writes a list or a map as compact JSON text. A field such
-as `env: {LABELS: "${{ event.pull_request.labels }}"}` needs no `toJson()`.
-
 Lookups through an open map, schema-less tool output, or an unknown JSON Schema
 are `dyn`. They can be used with field access, methods, and comparisons, but a
 runtime failure still makes the surrounding predicate fail.
