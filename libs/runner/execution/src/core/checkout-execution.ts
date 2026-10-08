@@ -1,6 +1,11 @@
 import type {CheckoutTokenResponseDto, StepErrorReasonDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
-import {classifyCheckoutTokenFailure, requestCheckoutToken} from '@shipfox/runner-protocol';
+import {
+  type CheckoutTokenFailure,
+  classifyCheckoutTokenFailure,
+  readCheckoutTokenFailure,
+  requestCheckoutToken,
+} from '@shipfox/runner-protocol';
 import {
   ambientGitCredentialSecrets,
   type CheckoutCommandStartMetadata,
@@ -57,15 +62,34 @@ export async function requestCheckoutCredentials(params: {
     return {ok: true, value: checkout};
   } catch (error) {
     const reason = CHECKOUT_KIND_REASON[classifyCheckoutTokenFailure(error)];
-    writeFailure(
-      log,
+    const failure = readCheckoutTokenFailure(error);
+    const summary =
       scope === 'setup'
         ? 'Setup failed because Shipfox could not grant repository access.'
-        : 'Checkout step failed because Shipfox could not grant repository access.',
-      checkoutTokenFailureHelp(reason),
-      error,
-    );
-    return {ok: false, result: fail(error, reason)};
+        : 'Checkout step failed because Shipfox could not grant repository access.';
+    if (failure === undefined) {
+      writeFailure(log, summary, checkoutTokenFailureHelp(reason), error);
+      return {ok: false, result: fail(error, reason)};
+    }
+    writeCheckoutTokenFailure({log, summary, failure, reason, error});
+    return {
+      ok: false,
+      result: {
+        success: false,
+        error: {
+          message: failure.message,
+          code: failure.code,
+          reason,
+          ...(failure.providerMessage === undefined
+            ? {}
+            : {provider_message: failure.providerMessage}),
+          ...(failure.providerStatus === undefined
+            ? {}
+            : {provider_status: failure.providerStatus}),
+        },
+        exit_code: null,
+      },
+    };
   }
 }
 
@@ -423,6 +447,40 @@ function checkoutTokenFailureHelp(reason: StepErrorReasonDto): string {
     return 'Retry the job; Shipfox or the repository provider may be temporarily unavailable.';
   }
   return 'Check the repository connection and job permissions in Shipfox, then retry the job.';
+}
+
+// Fixes for the causes the server names. Other codes keep the guidance for their reason.
+const CHECKOUT_TOKEN_CODE_HELP: Readonly<Record<string, string>> = {
+  'repository-not-granted':
+    'Link a project to the repository, or let the connection use all repositories.',
+  'checkout-repository-not-authorized': 'Use a project of this workspace in `checkout.project`.',
+  'installation-inactive': 'Unsuspend or reinstall the Shipfox GitHub App.',
+  'repository-not-found':
+    'Check the repository name, and that the installation of the provider includes it.',
+  'access-denied': 'Check the permissions and repository access of the connection.',
+  'provider-rejected': 'Read the provider response above.',
+  'integration-connection-inactive': 'Open the connection in Shipfox and enable it.',
+  'checkout-unavailable': 'Fix the connection or project of the checkout in the workflow.',
+};
+
+function writeCheckoutTokenFailure(params: {
+  log: CheckoutLogSink | undefined;
+  summary: string;
+  failure: CheckoutTokenFailure;
+  reason: StepErrorReasonDto;
+  error: unknown;
+}): void {
+  const {log, summary, failure, reason, error} = params;
+  log?.writeOutputLine(`${summary} Details: ${failure.message}`, 'stderr');
+  if (failure.providerMessage !== undefined) {
+    const status = failure.providerStatus === undefined ? '' : ` (${failure.providerStatus})`;
+    log?.writeOutputLine(`Provider response${status}: ${failure.providerMessage}`, 'stderr');
+  }
+  log?.writeOutputLine(`Request: ${messageOf(error)}`, 'stderr');
+  log?.writeOutputLine(
+    `Next step: ${CHECKOUT_TOKEN_CODE_HELP[failure.code] ?? checkoutTokenFailureHelp(reason)}`,
+    'stderr',
+  );
 }
 
 function checkoutFailureResult(params: {

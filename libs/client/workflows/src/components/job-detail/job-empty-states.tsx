@@ -374,8 +374,10 @@ export function toSelectedAttemptError(
 
 function selectedErrorStringFields(
   error: Record<string, unknown>,
-): Pick<StepError, 'code' | 'field' | 'source'> {
+): Pick<StepError, 'code' | 'field' | 'source' | 'providerMessage'> {
+  const providerMessage = error.providerMessage ?? error.provider_message;
   return {
+    ...(typeof providerMessage === 'string' ? {providerMessage} : {}),
     ...(typeof error.code === 'string' ? {code: error.code} : {}),
     ...(typeof error.field === 'string' ? {field: error.field} : {}),
     ...(typeof error.source === 'string' ? {source: error.source} : {}),

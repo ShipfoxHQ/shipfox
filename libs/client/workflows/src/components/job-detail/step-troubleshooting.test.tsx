@@ -31,6 +31,8 @@ const INSPECTOR_TRIGGER_NAME = 'Open inspector';
 const INVOCATION_LOG_DESCRIPTION = /The invocation log has the full result\./u;
 const MASKED_SECRET_INPUT = /\*\*\* \(secrets\.SLACK_TOKEN\)/u;
 
+const DEFINITE_CAUSE_ADVICE = /suspended|reconnect/iu;
+
 describe('StepInspectorSheet', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -820,6 +822,94 @@ describe('StepInspectorSheet', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('Shipfox')).toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      code: 'repository-not-granted',
+      title: 'Shipfox is not allowed to check out this repository',
+      fix: 'Link a project to the repository, or let the connection use all repositories. Then rerun the job.',
+    },
+    {
+      code: 'checkout-repository-not-authorized',
+      title: 'Shipfox is not allowed to check out this repository',
+      fix: 'Use a project of this workspace in checkout.project. Then start a new run.',
+    },
+    {
+      code: 'installation-inactive',
+      title: 'The GitHub App installation is suspended or removed',
+      fix: 'Unsuspend or reinstall the Shipfox GitHub App. Then rerun the job.',
+    },
+    {
+      code: 'repository-not-found',
+      title: 'The provider cannot find the repository',
+      fix: 'Check the repository name, and that the connection includes the repository. Then rerun the job.',
+    },
+    {
+      code: 'access-denied',
+      title: 'The provider denied access to the repository',
+      fix: 'Check the permissions and the repository access of the connection.',
+    },
+    {
+      code: 'provider-rejected',
+      title: 'The provider rejected the checkout request',
+      fix: 'Read the step logs for the request that failed.',
+    },
+    {
+      code: 'integration-connection-inactive',
+      title: 'The checkout connection is disabled',
+      fix: 'Enable the connection in the integration settings. Then rerun the job.',
+    },
+    {
+      code: 'checkout-unavailable',
+      title: 'The checkout connection or project does not exist',
+      fix: 'Fix checkout.connection or checkout.project in the workflow. Then start a new run.',
+    },
+  ])('names the cause of a $code checkout failure', async ({code, title, fix}) => {
+    const user = userEvent.setup();
+    configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
+
+    await renderPanel({
+      entry: stepEntry('checkout_failed', code, {message: 'Server message naming acme/api'}),
+    });
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    expect(await screen.findByText(title)).toBeInTheDocument();
+    expect(screen.getByText(fix)).toBeInTheDocument();
+    expect(screen.getByText('Server message naming acme/api')).toBeInTheDocument();
+  });
+
+  it('shows the provider explanation for a denied checkout without claiming a cause', async () => {
+    const user = userEvent.setup();
+    configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
+
+    await renderPanel({
+      entry: stepEntry('checkout_auth_failed', 'access-denied', {
+        message: 'The provider denied access to `acme/api` through connection `github`',
+        provider_message: 'Resource not accessible by integration',
+        provider_status: 403,
+      }),
+    });
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Resource not accessible by integration');
+    expect(alert).not.toHaveTextContent(DEFINITE_CAUSE_ADVICE);
+  });
+
+  it('keeps the copy of the reason for a checkout failure without a code', async () => {
+    const user = userEvent.setup();
+    configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
+
+    await renderPanel({entry: stepEntry('checkout_auth_failed')});
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    expect(await screen.findByText('The repository rejected the checkout')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Check that the integration connection can read this repository. Then rerun the job.',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('keeps non-tool failure chips keyed to their stable reason', async () => {

@@ -31,6 +31,7 @@ import {
   isTransientCheckoutTokenError,
   pollRunnerAssignment,
   RunnerSessionExhaustedError,
+  readCheckoutTokenFailure,
   registerRunnerSession,
   reportStep,
   requestActionBundle,
@@ -437,6 +438,42 @@ describe('api-client auth contexts', () => {
 
   it('classifies non-HTTP checkout-token failures as generic failures', () => {
     expect(classifyCheckoutTokenFailure(new TypeError('network unavailable'))).toBe('failed');
+  });
+
+  it('reads the cause and provider explanation of a refused checkout-token request', () => {
+    const error = checkoutTokenHttpError(422, {
+      code: 'access-denied',
+      details: {
+        message: 'The provider denied access to `acme/api` through connection `github`',
+        repository: 'acme/api',
+        connection: 'github',
+        provider_message: 'x'.repeat(600),
+        provider_status: 403,
+      },
+    });
+
+    const failure = readCheckoutTokenFailure(error);
+
+    expect(failure).toEqual({
+      code: 'access-denied',
+      message: 'The provider denied access to `acme/api` through connection `github`',
+      providerMessage: 'x'.repeat(500),
+      providerStatus: 403,
+    });
+  });
+
+  it.each([
+    ['a non-HTTP error', new TypeError('network unavailable')],
+    ['an empty body', checkoutTokenHttpError(404)],
+    ['a text body', checkoutTokenHttpError(502, 'gateway error')],
+    ['a body without details', checkoutTokenHttpError(404, {code: 'not-found'})],
+    [
+      'details without a message',
+      checkoutTokenHttpError(429, {code: 'rate-limited', details: {retry_after_seconds: 30}}),
+    ],
+    ['a body without a code', checkoutTokenHttpError(422, {details: {message: 'No code'}})],
+  ])('reads no checkout-token cause from %s', (_name, error) => {
+    expect(readCheckoutTokenFailure(error)).toBeUndefined();
   });
 
   it('requestAgentRuntimeConfig sends the lease token and parses credentials', async () => {

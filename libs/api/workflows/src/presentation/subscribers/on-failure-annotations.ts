@@ -190,6 +190,49 @@ const UNKNOWN_STEP_FAILURE_COPY: FailureCopy = {
   description: 'Read the step logs for the cause. Then rerun the job.',
 };
 
+// Causes the checkout-token route names. Copy states a cause only when the code
+// establishes it: `access-denied` and `provider-rejected` cover several causes, so
+// they show the provider's explanation instead.
+const CHECKOUT_CAUSE_COPY: Readonly<Record<string, FailureCopy>> = {
+  'repository-not-granted': {
+    title: 'Shipfox is not allowed to check out this repository',
+    description:
+      'Link a project to the repository, or let the connection use all repositories. Then rerun the job.',
+  },
+  'checkout-repository-not-authorized': {
+    title: 'Shipfox is not allowed to check out this repository',
+    description: 'Use a project of this workspace in `checkout.project`. Then start a new run.',
+  },
+  'installation-inactive': {
+    title: 'The GitHub App installation is suspended or removed',
+    description: 'Unsuspend or reinstall the Shipfox GitHub App. Then rerun the job.',
+  },
+  'repository-not-found': {
+    title: 'The provider cannot find the repository',
+    description:
+      'Check the repository name, and that the connection includes the repository. Then rerun the job.',
+  },
+  'access-denied': {
+    title: 'The provider denied access to the repository',
+    description: 'Check the permissions and the repository access of the connection.',
+  },
+  'provider-rejected': {
+    title: 'The provider rejected the checkout request',
+    description: 'Read the step logs for the request that failed.',
+  },
+  'integration-connection-inactive': {
+    title: 'The checkout connection is disabled',
+    description: 'Enable the connection in the integration settings. Then rerun the job.',
+  },
+  'checkout-unavailable': {
+    title: 'The checkout connection or project does not exist',
+    description:
+      'Fix `checkout.connection` or `checkout.project` in the workflow. Then start a new run.',
+  },
+};
+
+const CHECKOUT_CAUSE_REASONS = new Set(['checkout_failed', 'checkout_auth_failed']);
+
 const AGENT_CONFIG_FAILURE_COPY: Readonly<Record<AgentConfigIssueDto, FailureCopy>> = {
   step_config_invalid: {
     title: 'Complete the agent step',
@@ -477,6 +520,9 @@ function stepFailureCopy(step: StepAttemptDetailStep, attempt: StepAttempt): Fai
   if (providerFailure !== undefined) return providerFailure;
 
   const reason = errorReason(error);
+  const checkoutCause = checkoutCauseFailureCopy(error, reason);
+  if (checkoutCause !== undefined) return checkoutCause;
+
   const configFailure = configUnresolvableFailureCopy(error, reason);
   if (configFailure !== undefined) return configFailure;
 
@@ -497,6 +543,32 @@ function stepFailureCopy(step: StepAttemptDetailStep, attempt: StepAttempt): Fai
   if (reason === 'invocation_interrupted') return interruptedToolFailureCopy(step);
 
   return knownStepFailureCopy(reason);
+}
+
+function checkoutCauseFailureCopy(
+  error: Record<string, unknown> | null,
+  reason: string | undefined,
+): FailureCopy | undefined {
+  if (reason === undefined || !CHECKOUT_CAUSE_REASONS.has(reason)) return undefined;
+  const code = errorString(error, 'code');
+  const copy = code === undefined ? undefined : CHECKOUT_CAUSE_COPY[code];
+  if (copy === undefined) return undefined;
+
+  const message = errorString(error, 'message');
+  const providerMessage = errorString(error, 'providerMessage');
+  return {
+    title: copy.title,
+    description: [
+      ...(message === undefined ? [] : [message.endsWith('.') ? message : `${message}.`]),
+      ...(providerMessage === undefined ? [] : ['The provider said:', codeBlock(providerMessage)]),
+      copy.description,
+    ].join('\n\n'),
+  };
+}
+
+// The provider's text is untrusted, so it is shown as inert code.
+function codeBlock(text: string): string {
+  return ['```text', text.replaceAll('```', "'''"), '```'].join('\n');
 }
 
 function configUnresolvableFailureCopy(

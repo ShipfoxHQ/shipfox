@@ -16,7 +16,23 @@ import {StepInspectorSheet} from './step-troubleshooting.js';
 
 type ToolStepOutcome = 'succeeded' | 'failed' | 'running';
 
+// `none` is a row written before the runner reported the cause.
+const CHECKOUT_FAILURE_CODES = [
+  'repository-not-granted',
+  'checkout-repository-not-authorized',
+  'installation-inactive',
+  'repository-not-found',
+  'access-denied',
+  'provider-rejected',
+  'integration-connection-inactive',
+  'checkout-unavailable',
+  'none',
+] as const;
+
+type CheckoutFailureCode = (typeof CHECKOUT_FAILURE_CODES)[number];
+
 interface StepInspectorStoryArgs {
+  checkoutFailureCode: CheckoutFailureCode;
   toolOutcome: ToolStepOutcome;
   runnerLossReason: RunnerLossReason;
 }
@@ -39,10 +55,12 @@ const meta = {
     layout: 'fullscreen',
   },
   args: {
+    checkoutFailureCode: 'repository-not-granted',
     toolOutcome: 'succeeded',
     runnerLossReason: 'lease_expired',
   },
   argTypes: {
+    checkoutFailureCode: {control: 'select', options: CHECKOUT_FAILURE_CODES},
     toolOutcome: {control: 'select', options: ['succeeded', 'failed', 'running']},
     runnerLossReason: {control: 'select', options: RUNNER_LOSS_REASONS},
   },
@@ -53,6 +71,12 @@ type Story = StoryObj<typeof meta>;
 
 export const FailedStep: Story = {
   render: () => <FailedStepStory />,
+};
+
+export const CheckoutFailureCauses: Story = {
+  render: ({checkoutFailureCode}) => (
+    <FailedStepStory entry={checkoutFailureEntry(checkoutFailureCode)} />
+  ),
 };
 
 export const GateAttemptLimitReached: Story = {
@@ -378,11 +402,10 @@ function ToolStepStory({outcome}: {outcome: ToolStepOutcome}) {
   );
 }
 
-function FailedStepStory() {
+function FailedStepStory({entry = failedStepEntry()}: {entry?: StepListEntryModel}) {
   const [queryClient] = useState(
     () => new QueryClient({defaultOptions: {queries: {staleTime: Number.POSITIVE_INFINITY}}}),
   );
-  const entry = failedStepEntry();
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -456,6 +479,79 @@ function failedStepEntry(): StepListEntryModel {
                   category: 'user',
                   exit_code: 1,
                 },
+                finished_at: '2026-06-21T12:04:00.000Z',
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+  const execution = job.jobExecutions[0];
+  if (!execution) throw new Error('Story fixture is missing a job execution.');
+
+  const entry = buildStepListModel({job, jobExecution: execution}).entries[0];
+  if (!entry) throw new Error('Story fixture is missing a step attempt.');
+
+  return entry;
+}
+
+const CHECKOUT_FAILURE_MESSAGES: Record<CheckoutFailureCode, string> = {
+  'repository-not-granted':
+    "Shipfox isn't allowed to check out `acme/api`: no project in this workspace is linked to it, and connection `github` doesn't allow all repositories",
+  'checkout-repository-not-authorized':
+    "Shipfox isn't allowed to check out the repository of project `billing`: the project doesn't belong to this workspace",
+  'installation-inactive':
+    'The GitHub App installation for connection `github` is suspended or removed',
+  'repository-not-found': "The provider can't find `acme/api` through connection `github`",
+  'access-denied': 'The provider denied access to `acme/api` through connection `github`',
+  'provider-rejected': 'Integration provider request failed',
+  'integration-connection-inactive': 'Integration connection `github` is not active',
+  'checkout-unavailable': "Checkout connection `githb` doesn't exist in this workspace",
+  none: 'Request failed with status code 404 Not Found: POST https://api.shipfox.io/runs/jobs/current/steps/55555555-5555-4555-8555-000000000002/checkout-token',
+};
+
+function checkoutFailureEntry(code: CheckoutFailureCode): StepListEntryModel {
+  const jobId = '44444444-4444-4444-8444-000000000002';
+  const executionId = '77777777-7777-4777-8777-000000000002';
+  const stepId = '55555555-5555-4555-8555-000000000002';
+  const reason = code === 'access-denied' ? 'checkout_auth_failed' : 'checkout_failed';
+  const error = {
+    message: CHECKOUT_FAILURE_MESSAGES[code],
+    reason,
+    category: 'setup',
+    ...(code === 'none' ? {} : {code}),
+    ...(code === 'access-denied'
+      ? {provider_message: 'Resource not accessible by integration', provider_status: 403}
+      : {}),
+    ...(code === 'provider-rejected'
+      ? {provider_message: 'Validation Failed: repository is archived', provider_status: 422}
+      : {}),
+  } as const;
+  const job = workflowJob({
+    id: jobId,
+    name: 'build',
+    key: 'build',
+    status: 'failed',
+    job_executions: [
+      workflowJobExecutionDto({
+        id: executionId,
+        job_id: jobId,
+        status: 'failed',
+        steps: [
+          workflowStepDto({
+            id: stepId,
+            job_execution_id: executionId,
+            name: 'Checkout',
+            status: 'failed',
+            type: 'checkout',
+            config: {checkout: {repository: 'acme/api', connection: 'github'}},
+            error,
+            attempts: [
+              workflowStepAttemptDto({
+                id: '66666666-6666-4666-8666-000000000002',
+                step_id: stepId,
+                status: 'failed',
                 finished_at: '2026-06-21T12:04:00.000Z',
               }),
             ],
