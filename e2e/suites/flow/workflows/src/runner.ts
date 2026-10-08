@@ -27,6 +27,8 @@ export async function startSuiteLocalRunner(params: {
   extraEnv?: Record<string, string> | undefined;
   renewableGit?: boolean | undefined;
   renewableInference?: boolean | undefined;
+  /** A runner installation from `deployRunner`, for container jobs. */
+  installDir?: string | undefined;
 }): Promise<{runner: LocalRunnerHandle; logFile: string}> {
   const registrationToken = await mintManualRegistrationToken({
     workspaceId: params.workspaceId,
@@ -48,6 +50,7 @@ export async function startSuiteLocalRunner(params: {
       labels: [params.runnerLabel],
       logFile,
       workspaceRoot: join(runDir, 'runner-workspaces', params.runnerLabel),
+      ...(params.installDir === undefined ? {} : {installDir: params.installDir}),
       extraEnv: {
         ...(params.extraEnv ?? {}),
         ...(params.renewableGit === true ? {SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT: 'true'} : {}),

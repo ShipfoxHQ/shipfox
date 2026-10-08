@@ -74,10 +74,22 @@ describe('workflowDocumentContainerSchema', () => {
 });
 
 describe('parseWorkflowDocument jobContainers', () => {
-  it('rejects the field by default', () => {
+  it('accepts the field by default', () => {
+    const document = documentWithContainer({image: 'node', docker_socket: false});
+
+    expect(parseWorkflowDocument(document)).toEqual(document);
+  });
+
+  it('validates the container shape', () => {
+    expect(() =>
+      parseWorkflowDocument(documentWithContainer({image: 'node', ports: ['80:80']})),
+    ).toThrow(InvalidWorkflowDocumentError);
+  });
+
+  it('rejects the field when disabled', () => {
     let error: unknown;
     try {
-      parseWorkflowDocument(documentWithContainer('node'));
+      parseWorkflowDocument(documentWithContainer('node'), {jobContainers: false});
     } catch (caught) {
       error = caught;
     }
@@ -91,47 +103,30 @@ describe('parseWorkflowDocument jobContainers', () => {
     ]);
   });
 
-  it('reports only that the field is unsupported, not its shape', () => {
-    expect(() => parseWorkflowDocument(documentWithContainer({volumes: []}))).toThrow(
-      InvalidWorkflowDocumentError,
-    );
+  it('reports only that the field is unsupported, not its shape, when disabled', () => {
+    let error: unknown;
     try {
-      parseWorkflowDocument(documentWithContainer({volumes: []}));
-    } catch (error) {
-      expect((error as InvalidWorkflowDocumentError).validationError.issues).toHaveLength(1);
+      parseWorkflowDocument(documentWithContainer({volumes: []}), {jobContainers: false});
+    } catch (caught) {
+      error = caught;
     }
-  });
 
-  it('accepts the field when enabled', () => {
-    const document = documentWithContainer({image: 'node', docker_socket: false});
-
-    expect(parseWorkflowDocument(document, {jobContainers: true})).toEqual(document);
-  });
-
-  it('still validates the container shape when enabled', () => {
-    expect(() =>
-      parseWorkflowDocument(documentWithContainer({image: 'node', ports: ['80:80']}), {
-        jobContainers: true,
-      }),
-    ).toThrow(InvalidWorkflowDocumentError);
+    expect(error).toBeInstanceOf(InvalidWorkflowDocumentError);
+    expect((error as InvalidWorkflowDocumentError).validationError.issues).toHaveLength(1);
   });
 
   it('leaves documents without a container unchanged either way', () => {
     const document = {name: 'plain', jobs: {build: {steps: [{run: 'echo ok'}]}}};
 
-    expect(parseWorkflowDocument(document, {jobContainers: true})).toEqual(
+    expect(parseWorkflowDocument(document, {jobContainers: false})).toEqual(
       parseWorkflowDocument(document),
     );
   });
 });
 
 describe('buildWorkflowJsonSchema containers', () => {
-  it('strips the container field by default', () => {
-    expect(jobProperties(buildWorkflowJsonSchema())).not.toHaveProperty('container');
-  });
-
-  it('publishes the container field when enabled', () => {
-    const properties = jobProperties(buildWorkflowJsonSchema({containers: true}));
+  it('publishes the container field by default', () => {
+    const properties = jobProperties(buildWorkflowJsonSchema());
 
     expect(properties.container).toMatchObject({
       anyOf: [
@@ -141,8 +136,14 @@ describe('buildWorkflowJsonSchema containers', () => {
     });
   });
 
-  it('keeps every container property described when enabled', () => {
-    const container = jobProperties(buildWorkflowJsonSchema({containers: true})).container as {
+  it('strips the container field when disabled', () => {
+    expect(jobProperties(buildWorkflowJsonSchema({containers: false}))).not.toHaveProperty(
+      'container',
+    );
+  });
+
+  it('keeps every container property described', () => {
+    const container = jobProperties(buildWorkflowJsonSchema()).container as {
       description?: string;
       anyOf: {properties?: Record<string, {description?: string}>}[];
     };

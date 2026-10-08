@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "shipfox-e2e-toolbox ran in the job container"
