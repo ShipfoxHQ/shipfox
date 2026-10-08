@@ -133,8 +133,6 @@ The command then reads the variable with a JSON tool such as `jq`:
   run: printf '%s' "$FINDINGS" | jq -r '.[0].severity'
 ```
 
-Don't call `toJson()` on the value. Shipfox already converts it.
-
 ### When an output is the wrong tool
 
 Outputs fit small facts. Files and build products belong in external artifact
