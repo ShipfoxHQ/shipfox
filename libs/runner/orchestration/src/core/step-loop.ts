@@ -14,6 +14,7 @@ import type {
   LogOutcomeDto,
   NextStepResponseDto,
   StepDto,
+  StepEnvSourceDto,
   StepErrorReasonDto,
 } from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -33,6 +34,7 @@ import {
   type SetupJobContext,
   type StepResult,
 } from '@shipfox/runner-execution';
+import {type CarriedEnv, mergeCarriedEnv} from '@shipfox/runner-execution/carried-env';
 import {
   buildSecretVariants,
   createSessionLogStream,
@@ -158,6 +160,7 @@ export async function runJobSteps(params: {
     ambientGitConfigSecrets: [],
     checkoutDestinations: new Map(),
     annotationContexts: createAnnotationContextRegistry(),
+    carriedEnv: new Map(),
     activeStream: undefined,
     checkoutRef: undefined,
   };
@@ -183,6 +186,8 @@ interface JobStepLoopState {
   ambientGitConfigSecrets: string[];
   checkoutDestinations: TrackedCheckoutDestinations;
   annotationContexts: AnnotationContextRegistry;
+  /** What each step attempt that ran in this job wrote to `$SHIPFOX_ENV` and `$SHIPFOX_PATH`. */
+  carriedEnv: Map<string, CarriedEnv>;
   activeStream: LogStreamLifecycle | undefined;
   checkoutRef: string | undefined;
 }
@@ -201,6 +206,7 @@ async function runJobStepIteration(
   if (!pulled || params.signal.aborted) return 'stop';
   params.onLeaseTokenAdopted?.(pulled.leaseToken);
   const {step, attempt} = pulled;
+  const carriedEnv = carriedEnvForStep(state.carriedEnv, pulled.envSources);
   const credentialFailureCursor =
     isCredentialFailureAttributionStep(step) && params.credentialFailureEvents !== undefined
       ? params.credentialFailureEvents.getFailureEventCursor()
@@ -253,6 +259,7 @@ async function runJobStepIteration(
     ...(params.onJobContainerRequested
       ? {onJobContainerRequested: params.onJobContainerRequested}
       : {}),
+    ...(carriedEnv ? {carriedEnv} : {}),
     ...(params.credentialHelper ? {credentialHelper: params.credentialHelper} : {}),
     ...preparation,
   };
@@ -326,6 +333,9 @@ function applyStepExecutionState(
   execution: StepExecution,
 ): void {
   state.activeStream = execution.stream;
+  if (execution.result.carriedEnv) {
+    state.carriedEnv.set(carriedEnvKey(step.position, attempt), execution.result.carriedEnv);
+  }
   if (execution.preparedWorkspace) state.workspacePrepared = true;
   if (execution.ambientGitConfigPath) state.ambientGitConfigPath = execution.ambientGitConfigPath;
   if (execution.ambientGitConfigSecrets) {
@@ -567,6 +577,26 @@ export interface PulledStep {
   step: StepDto;
   attempt: number;
   leaseToken: string;
+  /** Earlier step attempts whose carried env applies. Absent when the server names none. */
+  envSources?: readonly StepEnvSourceDto[] | undefined;
+}
+
+function carriedEnvKey(position: number, attempt: number): string {
+  return `${position}:${attempt}`;
+}
+
+// The server names the earlier attempts that still count, in position order. A skipped or
+// rewound step is not listed, and anything the runner stored for it is left out.
+function carriedEnvForStep(
+  stored: ReadonlyMap<string, CarriedEnv>,
+  envSources: readonly StepEnvSourceDto[] | undefined,
+): CarriedEnv | undefined {
+  if (envSources === undefined || envSources.length === 0) return undefined;
+  const applicable = envSources.flatMap((source) => {
+    const carried = stored.get(carriedEnvKey(source.position, source.attempt));
+    return carried === undefined ? [] : [carried];
+  });
+  return applicable.length === 0 ? undefined : mergeCarriedEnv(applicable);
 }
 
 // Pulls the next step, translating the loop's two quiet stop conditions into `undefined`:
@@ -594,7 +624,12 @@ export async function pullNextStep(params: {
       continue;
     }
 
-    return {step: next.step, attempt: next.attempt, leaseToken: next.lease_token};
+    return {
+      step: next.step,
+      attempt: next.attempt,
+      leaseToken: next.lease_token,
+      ...(next.env_sources === undefined ? {} : {envSources: next.env_sources}),
+    };
   }
 
   return undefined;
@@ -706,6 +741,8 @@ export async function executeStep(params: {
   jobTempDir: string;
   credentialsDir: string;
   onJobContainerRequested?: (() => void) | undefined;
+  /** What the steps listed in `env_sources` carried. */
+  carriedEnv?: CarriedEnv | undefined;
   jobId: string;
   stepLabel: string;
   prepareLogs?: (() => Promise<void>) | undefined;
@@ -1191,6 +1228,7 @@ async function executeAgentStepBranch(params: {
       ...(session.invocation === undefined ? {} : {session: session.invocation}),
       ...(resumePrompt === undefined ? {} : {prompt: resumePrompt}),
       ...(input.ambientGitConfigPath ? {gitConfigGlobal: input.ambientGitConfigPath} : {}),
+      ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
       runtime: {
         harness: runtimeConfig.harness,
         provider: runtimeConfig.provider_id,
@@ -1637,6 +1675,7 @@ async function executeRunStepBranch(params: ProcessStepBranchParams): Promise<St
     cwd: params.stepCwd,
     workspace: input.cwd,
     ...(input.ambientGitConfigPath ? {gitConfigGlobal: input.ambientGitConfigPath} : {}),
+    ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
     ...(secretMaterial ? {secretEnv: secretMaterial.secretEnv} : {}),
     ...(stepSecrets.length > 0 ? {secretValues: [...stepSecrets]} : {}),
     ...(input.subscribeSecrets ? {subscribeSecrets: input.subscribeSecrets} : {}),
@@ -1675,6 +1714,7 @@ async function executeActionStepBranch(params: ProcessStepBranchParams): Promise
     loadBundle: () =>
       requestActionBundle(input.leaseClient, {stepId: input.step.id, signal: input.signal}),
     ...(input.ambientGitConfigPath ? {gitConfigGlobal: input.ambientGitConfigPath} : {}),
+    ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
     ...(secretMaterial
       ? {secretEnv: secretMaterial.secretEnv, secretInputs: secretMaterial.secretInputs}
       : {}),

@@ -1,5 +1,6 @@
 import type {LeasedWriteAnnotationOperationDto} from '@shipfox/annotations-dto';
 import type {CheckoutResultDto, StepErrorDto} from '@shipfox/api-workflows-dto';
+import type {CarriedEnv} from '#core/carried-env.js';
 
 export type CheckoutResult = CheckoutResultDto;
 
@@ -14,6 +15,8 @@ export interface StepResult {
   sessionId?: string;
   // Run-step annotations posted before reporting the step result.
   annotations?: LeasedWriteAnnotationOperationDto[];
+  // What the step wrote to `$SHIPFOX_ENV` and `$SHIPFOX_PATH`. Stays on the runner; never reported.
+  carriedEnv?: CarriedEnv;
   // Resolved checkout details reported by setup or an explicit checkout step.
   checkout?: CheckoutResult;
   // Populated when success is false. Null on success.

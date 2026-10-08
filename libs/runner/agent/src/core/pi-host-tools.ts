@@ -13,6 +13,7 @@ import {
   type WriteOperations,
 } from '@earendil-works/pi-coding-agent';
 import type {ExecutionHost, HostProcess, HostProcessExit} from '@shipfox/runner-container';
+import {type CarriedEnv, prependPath} from '@shipfox/runner-execution/carried-env';
 import {detectSupportedImageMimeType} from '#core/pi-image-mime.js';
 
 /** What pi activates when a step does not pick tools. */
@@ -42,6 +43,8 @@ export function createPiHostToolDefinitions(params: {
   settings: PiHostToolSettings;
   /** Becomes `GIT_CONFIG_GLOBAL` for shell commands only, instead of the runner's environment. */
   gitConfigGlobal: string | undefined;
+  /** What earlier steps carried. Shell commands get it above the runner environment. */
+  carriedEnv?: CarriedEnv | undefined;
 }): ToolDefinition[] {
   const {host, cwd, settings} = params;
   const exposed = new Set(params.selectedTools ?? DEFAULT_PI_TOOL_NAMES);
@@ -65,6 +68,7 @@ export function createPiHostToolDefinitions(params: {
           operations: createBashOperations(host, {
             shellPath: settings.shellPath,
             gitConfigGlobal: params.gitConfigGlobal,
+            carriedEnv: params.carriedEnv,
           }),
         }) as ToolDefinition,
     ],
@@ -126,7 +130,11 @@ function createLsOperations(host: ExecutionHost): LsOperations {
 
 export function createBashOperations(
   host: ExecutionHost,
-  options: {shellPath: string | undefined; gitConfigGlobal: string | undefined},
+  options: {
+    shellPath: string | undefined;
+    gitConfigGlobal: string | undefined;
+    carriedEnv?: CarriedEnv | undefined;
+  },
 ): BashOperations {
   return {
     exec: async (command, cwd, {onData, signal, timeout, env}) => {
@@ -140,7 +148,7 @@ export function createBashOperations(
       const child = host.spawn({
         argv: [shell.shell, ...shell.args, command],
         cwd,
-        env: shellEnvironment(env ?? process.env, options.gitConfigGlobal),
+        env: shellEnvironment(env ?? process.env, options),
       });
       child.stdout.on('data', onData);
       child.stderr.on('data', onData);
@@ -160,10 +168,15 @@ export function createBashOperations(
 
 function shellEnvironment(
   env: NodeJS.ProcessEnv,
-  gitConfigGlobal: string | undefined,
+  options: {gitConfigGlobal: string | undefined; carriedEnv?: CarriedEnv | undefined},
 ): Record<string, string> {
+  const {gitConfigGlobal, carriedEnv} = options;
+  const shellEnv = {...definedEntries(env), ...carriedEnv?.env};
+  if (carriedEnv !== undefined && carriedEnv.path.length > 0) {
+    shellEnv.PATH = prependPath(carriedEnv.path, shellEnv.PATH);
+  }
   return {
-    ...definedEntries(env),
+    ...shellEnv,
     ...(gitConfigGlobal === undefined ? {} : {GIT_CONFIG_GLOBAL: gitConfigGlobal}),
   };
 }

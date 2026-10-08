@@ -228,6 +228,7 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
       customTools,
       host: invocation.host ?? localExecutionHost,
       gitConfigGlobal,
+      carriedEnv: invocation.carriedEnv,
       mcpConfig,
       cwd,
       agentStateDir,
@@ -268,6 +269,7 @@ async function createPiSession(params: {
   customTools: ToolDefinition[];
   host: ExecutionHost;
   gitConfigGlobal: string | undefined;
+  carriedEnv: HarnessInvocation['carriedEnv'];
   mcpConfig: PiMcpConfig | undefined;
   cwd: string;
   agentStateDir: string;
@@ -287,6 +289,7 @@ async function createPiSession(params: {
       shellPath: params.services.settingsManager.getShellPath(),
     },
     gitConfigGlobal: params.gitConfigGlobal,
+    carriedEnv: params.carriedEnv,
   });
   const sessionTools = [...params.customTools, ...hostTools];
   try {

@@ -1,0 +1,3 @@
+name: Carry env
+description: Reads what earlier steps carried, hands more to the steps after it, then fails.
+main: index.ts

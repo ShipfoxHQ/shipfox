@@ -175,6 +175,17 @@ The bootstrap:
   or an unhandled rejection prints the stack and exits 1. An action that calls `process.exit`
   before the handler settles leaves no result, so the runner cannot count it as a success.
 
+The runner sets two files for the steps that follow, as it does for run steps:
+
+- `SHIPFOX_ENV` holds environment variables, one `NAME=value` per line or `NAME<<DELIMITER`
+  blocks for multi-line values. Later run, action, and agent steps in the job see them. Step
+  `env` overrides them. `PATH` and names starting with `SHIPFOX_` fail the step.
+- `SHIPFOX_PATH` holds one directory per line. A relative directory resolves against the step
+  working directory. Later steps get these directories at the front of `PATH`, latest first.
+
+The runner reads both files after the process exits, whatever its exit code, so a failing action
+still hands its values on. `runAction` does not set them.
+
 The loader decides by importer:
 
 - `@shipfox/actions` and its entry points resolve to the bootstrap's own copy, for every importer.

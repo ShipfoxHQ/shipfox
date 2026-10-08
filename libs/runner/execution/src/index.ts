@@ -1,5 +1,6 @@
 export type {ActionToolRow, ActionToolsUpstream} from '#core/action-endpoint.js';
 export {type ActionStepOptions, executeActionStep} from '#core/action-step.js';
+export type {CarriedEnv} from '#core/carried-env.js';
 export {
   type CheckoutDestination,
   type CheckoutDestinations,

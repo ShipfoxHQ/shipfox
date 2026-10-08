@@ -24,6 +24,7 @@ import {
   isReservedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {type CarriedEnv, prependPath} from '@shipfox/runner-execution/carried-env';
 import {z} from 'zod';
 import {config} from '#config.js';
 import {CLAUDE_AUTH_HELPER_PATH} from '#core/claude-auth-helper.js';
@@ -317,6 +318,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
     prompt,
     credentials,
     gitConfigGlobal,
+    carriedEnv,
     signal,
     onSessionEntry,
   } = invocation;
@@ -405,6 +407,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
           override,
           effectiveModel,
           credentialBroker,
+          carriedEnv,
         ),
         ...(toolContext.mcpServers === undefined ? {} : {mcpServers: toolContext.mcpServers}),
         ...claudeSessionQueryOptions(sessionInvocation, sessionStore),
@@ -1530,8 +1533,12 @@ function claudeEnvironment(
   override: ClaudeAnthropicOverride | undefined,
   effectiveModel: string,
   credentialBroker: ClaudeCredentialBroker | undefined,
+  carriedEnv: CarriedEnv | undefined,
 ): NodeJS.ProcessEnv {
-  const environment: NodeJS.ProcessEnv = {...process.env};
+  const environment: NodeJS.ProcessEnv = {...process.env, ...carriedEnv?.env};
+  if (carriedEnv !== undefined && carriedEnv.path.length > 0) {
+    environment.PATH = prependPath(carriedEnv.path, environment.PATH);
+  }
   delete environment.ANTHROPIC_AUTH_TOKEN;
   if (credentialBroker === undefined) {
     environment.ANTHROPIC_API_KEY = auth.apiKey;

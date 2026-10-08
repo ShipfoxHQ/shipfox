@@ -14,6 +14,13 @@ import {
   createAnnotationSpool,
   disposeAnnotationSpool,
 } from '#core/annotation-spool.js';
+import {
+  type CarriedEnv,
+  EMPTY_CARRIED_ENV,
+  parseCarriedEnv,
+  parseCarriedPath,
+  prependPath,
+} from '#core/carried-env.js';
 import {readOomKillCount} from '#core/out-of-memory.js';
 import {
   assertTotalOutputSize,
@@ -23,6 +30,7 @@ import {
   StdoutCapture,
 } from '#core/output-sources.js';
 import {
+  ENV_FILE,
   formatOutputSizeViolation,
   MAX_OUTPUT_TOTAL_BYTES,
   parseStepOutput,
@@ -74,6 +82,13 @@ export interface StepProcessOptions {
   tempDir?: string;
   /** Base environment of the process. Replaces the inherited `process.env` when given. */
   env?: Readonly<Record<string, string>>;
+  /**
+   * What earlier steps of the job carried. The variables sit above the base environment and
+   * below `stepEnv`, and the directories are prepended to `PATH`.
+   */
+  carriedEnv?: CarriedEnv;
+  /** Environment the step configures. It overrides the carried environment. */
+  stepEnv?: Readonly<Record<string, string>>;
   secretEnv?: Readonly<Record<string, string>>;
   /**
    * Variables the runner sets last, so neither the step `env` nor the base environment can
@@ -129,20 +144,27 @@ export function executeRunStep(
   const shipfoxEnv = {...readShipfoxEnv(step.config.shipfox_env), ...options.shipfoxEnv};
   return runStepProcess(
     {script: command},
-    {...readStepEnv(step), ...options.secretEnv},
+    {...readStepEnv(step), ...options.stepEnv, ...options.secretEnv},
     {...options, shipfoxEnv, ...(outputSources === undefined ? {} : {outputSources})},
   );
 }
 
 /**
  * Runs a script or an argv command with the run step supervision: process group,
- * cancellation, output streaming, the `SHIPFOX_OUTPUT` file, and the annotation spool.
+ * cancellation, output streaming, the `SHIPFOX_OUTPUT`, `SHIPFOX_ENV` and `SHIPFOX_PATH`
+ * files, and the annotation spool.
  */
 export function executeStepProcess(
   command: StepCommand,
   options: StepProcessOptions = {},
 ): Promise<StepResult> {
-  return runStepProcess(command, options.secretEnv ?? {}, options);
+  return runStepProcess(command, {...options.stepEnv, ...options.secretEnv}, options);
+}
+
+interface StepFiles {
+  readonly output: string;
+  readonly env: string;
+  readonly path: string;
 }
 
 interface ProcessLaunch {
@@ -160,7 +182,11 @@ async function runStepProcess(
   const host = options.host ?? localExecutionHost;
   const tempDir = options.tempDir ?? tmpdir();
   const launch = processLaunch(command, options.cwd, tempDir);
-  const outputPath = join(tempDir, `shipfox-output-${randomUUID()}`);
+  const files = {
+    output: join(tempDir, `shipfox-output-${randomUUID()}`),
+    env: join(tempDir, `shipfox-env-${randomUUID()}`),
+    path: join(tempDir, `shipfox-path-${randomUUID()}`),
+  };
   if (launch.metadata) {
     notifyCommandStart(options.onCommandStart, cloneCommandStartMetadata(launch.metadata));
   }
@@ -173,7 +199,9 @@ async function runStepProcess(
         mode: 0o700,
       });
     }
-    await writeFile(outputPath, '', {mode: 0o600});
+    await Promise.all(
+      [files.output, files.env, files.path].map((file) => writeFile(file, '', {mode: 0o600})),
+    );
     try {
       annotationSpool = await createAnnotationSpool({tempDir});
     } catch (error) {
@@ -202,20 +230,9 @@ async function runStepProcess(
       options.memoryEventsPath === undefined
         ? undefined
         : await readOomKillCount(options.memoryEventsPath);
-    let result = await spawnAndCapture(
-      host,
-      launch,
-      stepEnv,
-      outputPath,
-      annotationSpool,
-      spawnOptions,
-    );
+    let result = await spawnAndCapture(host, launch, stepEnv, files, annotationSpool, spawnOptions);
     result = await reportOutOfMemory(result, oomKillsBefore, options);
-    const outputResult = await applyOutputSources(
-      await finalizeStepOutput(result, outputPath),
-      options,
-      stdoutCapture,
-    );
+    const outputResult = await finalizeFiles(result, files, options, stdoutCapture);
     if (!annotationSpool) return outputResult;
 
     const annotations = await collectAnnotationOperations(annotationSpool);
@@ -227,7 +244,9 @@ async function runStepProcess(
     }
     if (annotationSpool) await disposeAnnotationSpool(annotationSpool);
     if (launch.scriptFile) await unlink(launch.scriptFile.path).catch(() => undefined);
-    await unlink(outputPath).catch(() => undefined);
+    await Promise.all(
+      [files.output, files.env, files.path].map((file) => unlink(file).catch(() => undefined)),
+    );
   }
 }
 
@@ -297,7 +316,7 @@ function spawnAndCapture(
   host: ExecutionHost,
   launch: ProcessLaunch,
   stepEnv: Readonly<Record<string, string>>,
-  outputPath: string,
+  files: StepFiles,
   annotationSpool: AnnotationSpool | undefined,
   options: StepProcessOptions,
 ): Promise<StepResult> {
@@ -317,14 +336,7 @@ function spawnAndCapture(
       stderrTeeRedactor?.setSecrets(buildSecretVariants(teeSecrets));
     });
 
-    const spawned = spawnRunStepProcess(
-      host,
-      launch,
-      stepEnv,
-      outputPath,
-      annotationSpool,
-      options,
-    );
+    const spawned = spawnRunStepProcess(host, launch, stepEnv, files, annotationSpool, options);
     if (!spawned.ok) {
       unsubscribeSecrets?.();
       logger().error({err: spawned.error}, 'Failed to spawn process');
@@ -383,7 +395,7 @@ function spawnRunStepProcess(
   host: ExecutionHost,
   launch: ProcessLaunch,
   stepEnv: Readonly<Record<string, string>>,
-  outputPath: string,
+  files: StepFiles,
   annotationSpool: AnnotationSpool | undefined,
   options: StepProcessOptions,
 ): SpawnRunStepResult {
@@ -392,13 +404,14 @@ function spawnRunStepProcess(
       argv: [launch.executable, ...launch.args],
       cwd: options.cwd,
       env: {
-        ...(options.env ?? definedEnv(process.env)),
-        ...stepEnv,
+        ...layeredEnv(options, stepEnv),
         ...((options.workspace ?? options.cwd)
           ? {SHIPFOX_WORKSPACE: options.workspace ?? options.cwd}
           : {}),
         ...(options.gitConfigGlobal ? {GIT_CONFIG_GLOBAL: options.gitConfigGlobal} : {}),
-        SHIPFOX_OUTPUT: outputPath,
+        SHIPFOX_OUTPUT: files.output,
+        SHIPFOX_ENV: files.env,
+        SHIPFOX_PATH: files.path,
         ...(annotationSpool?.env ?? {}),
         ...(options.shipfoxEnv ?? {}),
       },
@@ -419,6 +432,18 @@ function spawnRunStepProcess(
       },
     };
   }
+}
+
+// Lowest to highest: the base environment, what earlier steps carried, what the step
+// configures. The carried directories go in front of whatever `PATH` that leaves.
+function layeredEnv(
+  options: StepProcessOptions,
+  stepEnv: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const carried = options.carriedEnv ?? EMPTY_CARRIED_ENV;
+  const env = {...(options.env ?? definedEnv(process.env)), ...carried.env, ...stepEnv};
+  if (carried.path.length > 0) env.PATH = prependPath(carried.path, env.PATH);
+  return env;
 }
 
 function definedEnv(env: NodeJS.ProcessEnv): Record<string, string> {
@@ -514,6 +539,21 @@ async function finalizeStepOutput(result: StepResult, outputPath: string): Promi
   }
 }
 
+// The step is done: read what it left in its files and output sources.
+async function finalizeFiles(
+  result: StepResult,
+  files: StepFiles,
+  options: StepProcessOptions,
+  stdoutCapture: StdoutCapture | undefined,
+): Promise<StepResult> {
+  const withOutputs = await applyOutputSources(
+    await finalizeStepOutput(result, files.output),
+    options,
+    stdoutCapture,
+  );
+  return finalizeCarriedEnv(withOutputs, files, options.cwd ?? process.cwd());
+}
+
 async function applyOutputSources(
   result: StepResult,
   options: StepProcessOptions,
@@ -543,12 +583,51 @@ async function applyOutputSources(
   }
 }
 
-async function readBoundedStepOutput(outputPath: string): Promise<string | undefined> {
-  const handle = await open(outputPath, constants.O_RDONLY | constants.O_NONBLOCK);
+interface BoundedFileMessages {
+  notRegularFile: string;
+  tooLarge: (measuredBytes: number) => string;
+}
+
+const OUTPUT_FILE_MESSAGES: BoundedFileMessages = {
+  notRegularFile: 'Step output file is not a regular file.',
+  tooLarge: (measuredBytes) =>
+    formatOutputSizeViolation({
+      limitBytes: MAX_OUTPUT_TOTAL_BYTES,
+      measuredBytes,
+      scope: 'total',
+    }),
+};
+
+const ENV_FILE_MESSAGES: BoundedFileMessages = {
+  notRegularFile: 'SHIPFOX_ENV is not a regular file.',
+  tooLarge: (measuredBytes) =>
+    formatOutputSizeViolation({
+      limitBytes: MAX_OUTPUT_TOTAL_BYTES,
+      measuredBytes,
+      scope: 'total',
+      kind: ENV_FILE,
+    }),
+};
+
+const PATH_FILE_MESSAGES: BoundedFileMessages = {
+  notRegularFile: 'SHIPFOX_PATH is not a regular file.',
+  tooLarge: (measuredBytes) =>
+    `SHIPFOX_PATH exceeds the size limit of ${MAX_OUTPUT_TOTAL_BYTES} bytes (measured ${measuredBytes} bytes).`,
+};
+
+function readBoundedStepOutput(outputPath: string): Promise<string | undefined> {
+  return readBoundedFile(outputPath, OUTPUT_FILE_MESSAGES);
+}
+
+async function readBoundedFile(
+  path: string,
+  messages: BoundedFileMessages,
+): Promise<string | undefined> {
+  const handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK);
   try {
     const initialStat = await handle.stat();
     if (!initialStat.isFile()) {
-      throw new StepOutputError('Step output file is not a regular file.');
+      throw new StepOutputError(messages.notRegularFile);
     }
 
     const buffer = Buffer.alloc(MAX_OUTPUT_TOTAL_BYTES + 1);
@@ -557,17 +636,52 @@ async function readBoundedStepOutput(outputPath: string): Promise<string | undef
     const measuredStat = await handle.stat();
     const measuredBytes = Math.max(bytesRead, measuredStat.size);
     if (measuredBytes > MAX_OUTPUT_TOTAL_BYTES) {
-      throw new StepOutputError(
-        formatOutputSizeViolation({
-          limitBytes: MAX_OUTPUT_TOTAL_BYTES,
-          measuredBytes,
-          scope: 'total',
-        }),
-      );
+      throw new StepOutputError(messages.tooLarge(measuredBytes));
     }
     return buffer.subarray(0, bytesRead).toString('utf8');
   } finally {
     await handle.close();
+  }
+}
+
+// Reads what the step left in `$SHIPFOX_ENV` and `$SHIPFOX_PATH`, whatever its exit status. A
+// file the step broke fails a step that otherwise succeeded, like a bad output file does.
+async function finalizeCarriedEnv(
+  result: StepResult,
+  files: StepFiles,
+  cwd: string,
+): Promise<StepResult> {
+  try {
+    const [rawEnv, rawPath] = await Promise.all([
+      readOptionalFile(files.env, ENV_FILE_MESSAGES),
+      readOptionalFile(files.path, PATH_FILE_MESSAGES),
+    ]);
+    const env = rawEnv === undefined ? {} : parseCarriedEnv(rawEnv);
+    const path = rawPath === undefined ? [] : parseCarriedPath(rawPath, cwd);
+    if (Object.keys(env).length === 0 && path.length === 0) return result;
+    return {...result, carriedEnv: {env, path}};
+  } catch (error) {
+    if (!result.success) return result;
+    return {
+      success: false,
+      error: {
+        message:
+          error instanceof StepOutputError ? error.message : 'Carried env files could not be read.',
+      },
+      exit_code: null,
+    };
+  }
+}
+
+async function readOptionalFile(
+  path: string,
+  messages: BoundedFileMessages,
+): Promise<string | undefined> {
+  try {
+    return await readBoundedFile(path, messages);
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') return undefined;
+    throw error;
   }
 }
 

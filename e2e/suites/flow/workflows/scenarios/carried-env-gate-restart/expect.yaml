@@ -1,0 +1,22 @@
+trigger: push
+run:
+  status: succeeded
+jobs:
+  skipped_on_rerun:
+    status: succeeded
+    steps:
+      once:
+        status: skipped
+      verify:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["skipped step carried nothing"]
+  rerun_with_new_values:
+    status: succeeded
+    steps:
+      verify:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["later steps saw only the new values"]

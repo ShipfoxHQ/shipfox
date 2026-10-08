@@ -817,6 +817,35 @@ describe('claudeHarnessAdapter', () => {
     );
   });
 
+  it('runs Claude with the carried env above the runner env and PATH directories in front', async () => {
+    process.env.CARRIED_TEST_VAR = 'runner';
+    process.env.ANTHROPIC_API_KEY = 'sk-parent';
+    queryMock.mockReturnValue(makeQuery([successMessage]));
+
+    try {
+      await claudeHarnessAdapter.run(
+        invocation({
+          carriedEnv: {
+            env: {
+              CARRIED_TEST_VAR: 'carried',
+              CARRIED_TEST_NEW: 'new',
+              ANTHROPIC_API_KEY: 'carried-key',
+            },
+            path: ['/carried/a', '/carried/b'],
+          },
+        }),
+      );
+
+      const env = lastQueryOptions().env;
+      expect(env).toMatchObject({CARRIED_TEST_VAR: 'carried', CARRIED_TEST_NEW: 'new'});
+      expect(env.ANTHROPIC_API_KEY).toBe('sk-runtime-secret');
+      expect(env.PATH?.startsWith('/carried/a:/carried/b:')).toBe(true);
+      expect(process.env.CARRIED_TEST_VAR).toBe('runner');
+    } finally {
+      delete process.env.CARRIED_TEST_VAR;
+    }
+  });
+
   it.runIf(process.platform === 'linux')(
     'passes the bundled Claude Code executable without its own OOM wrapper',
     async () => {
