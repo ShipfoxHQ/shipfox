@@ -54,23 +54,41 @@ triggers:
 jobs:
   package:
     steps:
+      # Takes the output from what the command prints.
       - key: read_version
         run: git describe --tags --always
         outputs:
           version:
             type: string
             from_stdout: true
+        # Publishes every output of this step as an output of the job.
+        export: true
+      # Writes name=value lines to a file, so one step creates several outputs.
+      - key: read_commit
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$SHIPFOX_OUTPUT"
+          echo "branch=$(git branch --show-current)" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          sha: string
+          branch: string
         export: true
 
   publish:
+    # Waits for the package job and makes its outputs readable.
     needs: package
     steps:
+      # Reads the job outputs.
       - run: printf 'Publishing version %s\n' "${{ jobs.package.outputs.version }}"
+      - run: printf 'Built from commit %s\n' "${{ jobs.package.outputs.sha }}"
 ```
 
-The step creates `version` from what its command prints. `export` publishes it
-as an output of the `package` job. The `publish` job declares the dependency
-and puts the value in its command.
+A step creates an output in one of two ways. The `read_version` step takes
+`version` from what its command prints. The `read_commit` step writes
+`name=value` lines to the file `$SHIPFOX_OUTPUT`, which lets one step create
+several outputs.
+
+`export` publishes the outputs of both steps as outputs of the `package` job.
+The `publish` job declares the dependency and puts the values in its commands.
 
 A job can also publish values through its own `outputs` map, which sets each
 name to an expression. Use the map to rename a value or to build one from
