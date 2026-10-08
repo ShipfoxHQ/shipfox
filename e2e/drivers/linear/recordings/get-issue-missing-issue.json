@@ -1,0 +1,15 @@
+{
+  "tool": "get_issue",
+  "arguments": {
+    "id": "SAR-999999"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"error\":\"invalid_request\",\"message\":\"Could not find referenced Issue.\",\"status\":400,\"requestId\":\"0000000000000000\"}"
+      }
+    ],
+    "isError": true
+  }
+}

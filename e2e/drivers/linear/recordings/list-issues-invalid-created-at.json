@@ -1,0 +1,15 @@
+{
+  "tool": "list_issues",
+  "arguments": {
+    "createdAt": "not-a-date"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"error\":\"invalid_request\",\"message\":\"Variable \\\"$filter\\\" got invalid value \\\"not-a-date\\\" at \\\"filter.createdAt.gte\\\"; Expected type \\\"DateTimeOrDuration\\\". Unable to parse value 'not-a-date' into a valid date\",\"status\":400,\"requestId\":\"0000000000000000\"}"
+      }
+    ],
+    "isError": true
+  }
+}

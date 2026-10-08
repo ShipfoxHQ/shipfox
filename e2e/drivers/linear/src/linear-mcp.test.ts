@@ -242,7 +242,7 @@ describe('Linear MCP mock with recordings', () => {
     const client = await connect(mock.endpoint);
 
     try {
-      expect(recordings).toHaveLength(12);
+      expect(recordings).toHaveLength(21);
       for (const recording of recordings) {
         const result = await client.callTool(
           {name: recording.tool, arguments: recording.arguments},
@@ -251,7 +251,7 @@ describe('Linear MCP mock with recordings', () => {
 
         expect(result.content, recording.tool).toEqual(recording.result.content);
         expect(result.structuredContent, recording.tool).toBeUndefined();
-        expect(result.isError, recording.tool).not.toBe(true);
+        expect(result.isError === true, recording.tool).toBe(recording.result.isError === true);
       }
     } finally {
       await client.close();

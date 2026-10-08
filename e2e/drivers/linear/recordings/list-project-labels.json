@@ -1,0 +1,14 @@
+{
+  "tool": "list_project_labels",
+  "arguments": {
+    "limit": 5
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"labels\":[],\"hasNextPage\":false}"
+      }
+    ]
+  }
+}

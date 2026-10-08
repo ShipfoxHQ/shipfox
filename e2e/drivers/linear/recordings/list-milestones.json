@@ -1,0 +1,14 @@
+{
+  "tool": "list_milestones",
+  "arguments": {
+    "project": "fa265fda-fe3e-4049-a2a8-b4173aa5b266"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"milestones\":[{\"id\":\"78f5b498-6c53-4e69-8fce-32cc67027324\",\"name\":\"Contract fixture milestone\",\"progress\":0,\"sortOrder\":-85}]}"
+      }
+    ]
+  }
+}

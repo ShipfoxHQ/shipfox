@@ -1,0 +1,15 @@
+{
+  "tool": "list_documents",
+  "arguments": {
+    "query": "Contract fixture document",
+    "limit": 1
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"documents\":[{\"id\":\"d62d8166-2acc-415d-931f-0ad494108719\",\"title\":\"Contract fixture document 2\",\"content\":\"# Contract fixture document 2\\n\\nA document with **markdown**, unicode café 日本語 🚀.\\n\\n* one\\n* two\",\"icon\":null,\"color\":null,\"url\":\"https://linear.app/shipfox-sandbox/document/contract-fixture-document-2-86be831e7b2e\",\"slugId\":\"86be831e7b2e\",\"createdAt\":\"2026-10-05T18:25:50.259Z\",\"updatedAt\":\"2026-10-05T18:25:51.845Z\",\"archivedAt\":null,\"creator\":{\"id\":\"6bb15791-3a74-424e-837f-4c9618732360\",\"name\":\"Noé Charmet\"},\"updatedBy\":{\"id\":\"6bb15791-3a74-424e-837f-4c9618732360\",\"name\":\"Noé Charmet\"},\"project\":{\"id\":\"fa265fda-fe3e-4049-a2a8-b4173aa5b266\",\"name\":\"Contract fixture project\"},\"initiative\":null,\"team\":null,\"issue\":null}],\"hasNextPage\":true,\"cursor\":\"d62d8166-2acc-415d-931f-0ad494108719\"}"
+      }
+    ]
+  }
+}
