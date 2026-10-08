@@ -9,6 +9,7 @@ import {
   registryOf,
   removeJobContainer,
   resolveRunnerInstallDir,
+  runnerMountPath,
   startJobContainer,
 } from '#job-container.js';
 
@@ -127,6 +128,22 @@ describe('resolveRunnerInstallDir', () => {
   });
 });
 
+describe('runnerMountPath', () => {
+  it('places a file of the installation under the runner mount', () => {
+    expect(runnerMountPath('/opt/runner/node_modules/claude/bin/claude', '/opt/runner')).toBe(
+      '/__shipfox/runner/node_modules/claude/bin/claude',
+    );
+  });
+
+  it.each([
+    ['a file outside the installation', '/opt/other/claude'],
+    ['a sibling that shares the name prefix', '/opt/runner-extra/claude'],
+    ['the installation directory itself', '/opt/runner'],
+  ])('has no mount path for %s', (_name, path) => {
+    expect(runnerMountPath(path, '/opt/runner')).toBeUndefined();
+  });
+});
+
 describe('with a fake docker', () => {
   let root: string;
   let log: string;
@@ -192,7 +209,10 @@ describe('with a fake docker', () => {
   it('pulls, creates, starts, and probes the container in order', async () => {
     const container = await start();
 
-    expect(container).toEqual({name: `shipfox-job-${JOB_ID}`});
+    expect(container).toEqual({
+      name: `shipfox-job-${JOB_ID}`,
+      runnerInstallDir: join(root, 'install'),
+    });
     const calls = await invocations();
     expect(calls.map((call) => call.split(' ').slice(0, 2).join(' '))).toEqual([
       'pull --platform',
@@ -227,6 +247,19 @@ describe('with a fake docker', () => {
     expect((await stat(join(dirs.workspaceDir, 'file.txt'))).mode & 0o777).toBe(0o666);
     expect((await stat(dirs.tempDir)).mode & 0o777).toBe(0o777);
     expect((await stat(join(dirs.credentialsDir, 'git.sock'))).mode & 0o777).toBe(0o666);
+    expect((await stat(dirs.agentStateDir)).mode & 0o777).toBe(0o777);
+  });
+
+  it('creates and mounts the socket directory read-only', async () => {
+    const socketDir = join(root, 'sockets');
+
+    await start({socketDir});
+
+    expect((await stat(socketDir)).mode & 0o777).toBe(0o711);
+    const calls = await invocations();
+    expect(calls[1]).toContain(
+      `--mount type=bind,source=${socketDir},target=${socketDir},readonly `,
+    );
   });
 
   it('authenticates the pull through a private DOCKER_CONFIG and removes it afterwards', async () => {

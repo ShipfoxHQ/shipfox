@@ -75,6 +75,8 @@ export type CredentialSocketTransportServerOptions = {
   timeoutMs: number;
   handleRequest: CredentialSocketTransportHandler;
   onRequestRejected?: CredentialSocketTransportRejectionHandler;
+  /** Owner-only by default. A container user that is not the runner user needs more. */
+  socketMode?: number;
 };
 
 export type CredentialSocketTransportServer = {
@@ -209,7 +211,7 @@ export function createCredentialSocketTransportServer(
         await listen(nextServer, options.socketPath);
         listening = true;
         assertServerOpen();
-        await chmod(options.socketPath, CREDENTIAL_SOCKET_MODE);
+        await chmod(options.socketPath, options.socketMode ?? CREDENTIAL_SOCKET_MODE);
         server = nextServer;
         socketLock = nextSocketLock;
         keepSocketLock = true;

@@ -14,6 +14,7 @@ import type {
 } from '@shipfox/api-workflows-dto';
 import type {OutputDeclarations} from '@shipfox/expression';
 import {logger} from '@shipfox/node-opentelemetry';
+import type {ExecutionHost} from '@shipfox/runner-container';
 import type {StepResult} from '@shipfox/runner-execution';
 import type {CarriedEnv} from '@shipfox/runner-execution/carried-env';
 import {createIntegrationToolsGatewayFetch, type LeaseTokenSource} from '@shipfox/runner-protocol';
@@ -26,7 +27,9 @@ import {
   AgentSessionUnavailableError,
 } from '#core/errors.js';
 import type {
+  AgentJobContainer,
   HarnessAdapter,
+  HarnessInvocation,
   HarnessToolSurface,
   InferenceCredentialSource,
   RequestedIntegrationTool,
@@ -66,6 +69,10 @@ export async function executeAgentStep(
     };
     gitConfigGlobal?: string | undefined;
     carriedEnv?: CarriedEnv | undefined;
+    /** Where the agent's processes run. Defaults to the runner's own machine. */
+    host?: ExecutionHost | undefined;
+    /** Set when `host` is the job container. */
+    container?: AgentJobContainer | undefined;
     onSessionEntry?: (line: string) => void;
     credentialSource?: InferenceCredentialSource | undefined;
     leaseToken?: LeaseTokenSource | undefined;
@@ -150,11 +157,20 @@ export async function executeAgentStep(
       signal: options.signal,
       gitConfigGlobal: options.gitConfigGlobal,
       carriedEnv: options.carriedEnv,
+      placement: agentPlacement(options.host, options.container),
       onSessionEntry: options.onSessionEntry,
     });
   } finally {
     await closeIntegrationToolsBridges(integrationToolsBridges);
   }
+}
+
+function agentPlacement(
+  host: ExecutionHost | undefined,
+  container: AgentJobContainer | undefined,
+): Pick<HarnessInvocation, 'host' | 'container'> {
+  if (host === undefined) return {};
+  return container === undefined ? {host} : {host, container};
 }
 
 async function runSelectedHarness(params: {
@@ -182,6 +198,7 @@ async function runSelectedHarness(params: {
   signal: AbortSignal | undefined;
   gitConfigGlobal: string | undefined;
   carriedEnv: CarriedEnv | undefined;
+  placement: Pick<HarnessInvocation, 'host' | 'container'>;
   onSessionEntry: ((line: string) => void) | undefined;
 }): Promise<StepResult> {
   const {
@@ -208,6 +225,7 @@ async function runSelectedHarness(params: {
     claude,
     gitConfigGlobal,
     carriedEnv,
+    placement,
     onSessionEntry,
   } = params;
   const signal = params.signal ?? new AbortController().signal;
@@ -239,6 +257,7 @@ async function runSelectedHarness(params: {
         signal,
         ...(gitConfigGlobal ? {gitConfigGlobal} : {}),
         ...(carriedEnv ? {carriedEnv} : {}),
+        ...placement,
         ...(onSessionEntry ? {onSessionEntry} : {}),
       }),
       signal,

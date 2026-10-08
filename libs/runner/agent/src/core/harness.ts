@@ -43,6 +43,17 @@ export interface InferenceCredentialSource {
   close(): void;
 }
 
+/** The job container that an agent's processes run in. */
+export interface AgentJobContainer {
+  /**
+   * The environment a process in the container starts with: the `PATH` of its image and the
+   * `container.env` of the job. The runner's own environment never reaches it.
+   */
+  readonly env: Readonly<Record<string, string>>;
+  /** The runner installation that the container sees under `/__shipfox/runner`. */
+  readonly runnerInstallDir: string;
+}
+
 export interface HarnessInvocation {
   /** Workflow execution identity used to correlate runner diagnostics. */
   readonly jobExecutionId?: string | undefined;
@@ -73,6 +84,8 @@ export interface HarnessInvocation {
   readonly gitConfigGlobal?: string | undefined;
   /** Where the agent's tools and processes run. Defaults to the runner's own machine. */
   readonly host?: ExecutionHost | undefined;
+  /** Set when `host` is the job container. */
+  readonly container?: AgentJobContainer | undefined;
   /** What earlier steps carried. The agent's shell tools run with it. */
   readonly carriedEnv?: CarriedEnv | undefined;
   readonly signal: AbortSignal;

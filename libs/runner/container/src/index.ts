@@ -17,8 +17,11 @@ export type {
 export {
   type JobContainer,
   jobContainerName,
+  NODE_MOUNT,
   type RegistryCredentials,
+  RUNNER_MOUNT,
   removeJobContainer,
+  runnerMountPath,
   type StartJobContainerParams,
   startJobContainer,
 } from '#job-container.js';

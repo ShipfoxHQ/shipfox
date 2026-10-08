@@ -351,6 +351,7 @@ function applyStepExecutionState(
         tempDir: params.tempDir,
       }),
       env: execution.container.env,
+      runnerInstallDir: execution.container.runnerInstallDir,
     };
   }
   if (execution.ambientGitConfigPath) state.ambientGitConfigPath = execution.ambientGitConfigPath;
@@ -715,6 +716,8 @@ export interface StepExecution {
 interface JobContainerRuntime {
   host: ContainerExecutionHost;
   env: Readonly<Record<string, string>>;
+  /** The runner installation that the container sees under `/__shipfox/runner`. */
+  runnerInstallDir: string;
 }
 
 type CredentialScope = {
@@ -1248,13 +1251,14 @@ async function executeAgentStepBranch(params: {
       session,
     });
     const resumePrompt = buildResumePrompt(session, params.checkoutRef, input.step.config.prompt);
+    const placement = await agentPlacementOptions(input, runtimeConfig.harness);
     const result = await executeAgentStep(input.step, {
       signal: input.signal,
       cwd: params.stepCwd,
       agentStateDir: input.agentStateDir,
       ...(session.invocation === undefined ? {} : {session: session.invocation}),
       ...(resumePrompt === undefined ? {} : {prompt: resumePrompt}),
-      ...(input.ambientGitConfigPath ? {gitConfigGlobal: input.ambientGitConfigPath} : {}),
+      ...placement,
       ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
       runtime: {
         harness: runtimeConfig.harness,
@@ -1727,6 +1731,33 @@ async function containerRunStepOptions(
     env: {...(path === '' ? {} : {PATH: path}), ...container.env},
     shell,
     shareScratchFiles: true,
+  };
+}
+
+// Claude Code starts in the job container, from the container's own environment like a run step.
+// pi runs its tools on the runner until they move into the container too. The Git config points
+// at helpers on the runner, so a container does not get it.
+async function agentPlacementOptions(
+  input: Parameters<typeof executeStep>[0],
+  harness: string,
+): Promise<
+  | {gitConfigGlobal?: string}
+  | {
+      host: ContainerExecutionHost;
+      container: {env: Record<string, string>; runnerInstallDir: string};
+    }
+> {
+  const {container} = input;
+  if (harness !== 'claude' || !container) {
+    return input.ambientGitConfigPath ? {gitConfigGlobal: input.ambientGitConfigPath} : {};
+  }
+  const {path} = await container.host.probe();
+  return {
+    host: container.host,
+    container: {
+      env: {...(path === '' ? {} : {PATH: path}), ...container.env},
+      runnerInstallDir: container.runnerInstallDir,
+    },
   };
 }
 

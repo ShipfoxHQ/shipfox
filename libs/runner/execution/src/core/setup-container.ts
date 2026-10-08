@@ -1,4 +1,5 @@
 import {type JobContainer, startJobContainer} from '@shipfox/runner-container';
+import {RUNNER_FALLBACK_CREDENTIAL_SOCKET_DIR} from '@shipfox/runner-workspace';
 import {z} from 'zod';
 
 // The shape the server writes into the setup step config when the job has a `container`.
@@ -65,6 +66,7 @@ export async function startSetupContainer(params: {
     agentStateDir: context.agentStateDir,
     credentialsDir: context.credentialsDir,
     logsDir: context.logsDir,
+    socketDir: RUNNER_FALLBACK_CREDENTIAL_SOCKET_DIR,
     signal: params.signal,
     onOutput: (line, source) => params.log?.writeOutputLine(line, source),
   });

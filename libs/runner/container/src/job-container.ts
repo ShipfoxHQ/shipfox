@@ -1,5 +1,5 @@
-import {chmod, mkdtemp, readdir, realpath, rm, stat, writeFile} from 'node:fs/promises';
-import {dirname, join} from 'node:path';
+import {chmod, mkdir, mkdtemp, readdir, realpath, rm, stat, writeFile} from 'node:fs/promises';
+import {dirname, join, relative, sep} from 'node:path';
 import {logger} from '@shipfox/node-opentelemetry';
 import {type CommandOutputSource, runCommand, runCommandChecked} from '#run-command.js';
 import {splitOptions} from '#split-options.js';
@@ -8,10 +8,11 @@ const NO_SUCH_CONTAINER = /no such container/iu;
 const CONTAINER_NAME_PREFIX = 'shipfox-job-';
 const DOCKER_SOCKET_PATH = '/var/run/docker.sock';
 const DOCKER_HUB_REGISTRY = 'https://index.docker.io/v1/';
-const RUNNER_MOUNT = '/__shipfox/runner';
-const NODE_MOUNT = '/__shipfox/node/bin/node';
+export const RUNNER_MOUNT = '/__shipfox/runner';
+export const NODE_MOUNT = '/__shipfox/node/bin/node';
 const CREDENTIAL_SOCKET_MODE = 0o666;
 const PRIVATE_FILE_MODE = 0o600;
+const SOCKET_DIRECTORY_MODE = 0o711;
 
 export interface RegistryCredentials {
   readonly username: string;
@@ -35,6 +36,12 @@ export interface StartJobContainerParams {
   credentialsDir: string;
   /** Mounted read-only at the same path. */
   logsDir: string;
+  /**
+   * Holds the sockets the runner serves from outside the job's directories, because their path
+   * would be too long for a Unix socket. Created when missing, and mounted read-only at the same
+   * path.
+   */
+  socketDir?: string | undefined;
   /** Defaults to {@link resolveRunnerInstallDir}. */
   runnerInstallDir?: string | undefined;
   /** Defaults to the Node binary running the runner. */
@@ -46,6 +53,8 @@ export interface StartJobContainerParams {
 
 export interface JobContainer {
   readonly name: string;
+  /** The runner installation that the container sees at {@link RUNNER_MOUNT}. */
+  readonly runnerInstallDir: string;
 }
 
 export function jobContainerName(jobId: string): string {
@@ -71,6 +80,7 @@ export async function startJobContainer(params: StartJobContainerParams): Promis
   const platform = dockerPlatform();
   const options = splitOptions(params.options);
   const socketGid = params.dockerSocket ? await dockerSocketGid() : undefined;
+  const runnerInstallDir = params.runnerInstallDir ?? (await resolveRunnerInstallDir());
   const run = {signal: params.signal, onLine: params.onOutput};
 
   await pullImage({
@@ -80,6 +90,7 @@ export async function startJobContainer(params: StartJobContainerParams): Promis
     configParent: params.tempDir,
     ...run,
   });
+  if (params.socketDir !== undefined) await shareSocketDirectory(params.socketDir);
   await runCommandChecked({
     argv: [
       'docker',
@@ -91,8 +102,12 @@ export async function startJobContainer(params: StartJobContainerParams): Promis
         socketGid,
         mounts: {
           readWrite: [params.workspaceDir, params.tempDir, params.agentStateDir],
-          readOnly: [params.credentialsDir, params.logsDir],
-          runnerInstallDir: params.runnerInstallDir ?? (await resolveRunnerInstallDir()),
+          readOnly: [
+            params.credentialsDir,
+            params.logsDir,
+            ...(params.socketDir === undefined ? [] : [params.socketDir]),
+          ],
+          runnerInstallDir,
           nodeBinary: params.nodeBinary ?? process.execPath,
         },
       }),
@@ -106,7 +121,19 @@ export async function startJobContainer(params: StartJobContainerParams): Promis
     signal: params.signal,
   });
   await shareFilesWithContainer(params);
-  return {name};
+  return {name, runnerInstallDir};
+}
+
+/**
+ * Where a file of the runner installation is inside the container, or `undefined` when the file
+ * is outside the installation and so is not mounted.
+ */
+export function runnerMountPath(path: string, runnerInstallDir: string): string | undefined {
+  const relativePath = relative(runnerInstallDir, path);
+  if (relativePath === '' || relativePath === '..' || relativePath.startsWith(`..${sep}`)) {
+    return undefined;
+  }
+  return join(RUNNER_MOUNT, relativePath);
 }
 
 /** Never rejects: a container that is already gone is the goal. */
@@ -228,11 +255,17 @@ async function pullImage(params: {
   }
 }
 
+// The container user may only reach the sockets in the directory when it can traverse it.
+async function shareSocketDirectory(dir: string): Promise<void> {
+  await mkdir(dir, {recursive: true, mode: SOCKET_DIRECTORY_MODE});
+  await chmod(dir, SOCKET_DIRECTORY_MODE);
+}
+
 // The container user may differ from the runner user. The VM stays the security boundary, so
 // the shared files are opened up instead of handed over.
 async function shareFilesWithContainer(params: StartJobContainerParams): Promise<void> {
   await runCommandChecked({
-    argv: ['chmod', '-R', 'a+rwX', params.workspaceDir, params.tempDir],
+    argv: ['chmod', '-R', 'a+rwX', params.workspaceDir, params.tempDir, params.agentStateDir],
     signal: params.signal,
   });
   for (const entry of await readdir(params.credentialsDir, {withFileTypes: true})) {
