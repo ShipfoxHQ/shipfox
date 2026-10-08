@@ -1,4 +1,4 @@
-import {access, chmod, mkdir, mkdtemp, rename, rm, writeFile} from 'node:fs/promises';
+import {access, chmod, mkdir, mkdtemp, readdir, rename, rm, writeFile} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
 import {decodeActionBundle} from '@shipfox/workflow-document';
 
@@ -26,8 +26,6 @@ export async function prepareActionBundle(params: {
   await mkdir(actionsDir, {recursive: true});
   const staging = await mkdtemp(join(actionsDir, '.extract-'));
   try {
-    // `mkdtemp` makes the directory private to the runner user.
-    if (params.shared) await chmod(staging, SHARED_DIRECTORY_MODE);
     for (const file of files) {
       const path = join(staging, file.path);
       await mkdir(dirname(path), {recursive: true});
@@ -39,6 +37,7 @@ export async function prepareActionBundle(params: {
         mode: READ_ONLY_FILE_MODE,
       });
     }
+    if (params.shared) await shareBundle({actionsDir, staging});
     await rename(staging, target);
   } catch (error) {
     await rm(staging, {recursive: true, force: true});
@@ -47,6 +46,20 @@ export async function prepareActionBundle(params: {
     throw error;
   }
   return target;
+}
+
+// The umask cuts down the mode of every file and directory created above, and `mkdtemp` makes
+// the staging directory private, so a user other than the runner's needs them opened again.
+async function shareBundle(params: {actionsDir: string; staging: string}): Promise<void> {
+  await chmod(params.actionsDir, SHARED_DIRECTORY_MODE);
+  await chmod(params.staging, SHARED_DIRECTORY_MODE);
+  const entries = await readdir(params.staging, {recursive: true, withFileTypes: true});
+  for (const entry of entries) {
+    await chmod(
+      join(entry.parentPath, entry.name),
+      entry.isDirectory() ? SHARED_DIRECTORY_MODE : READ_ONLY_FILE_MODE,
+    );
+  }
 }
 
 async function exists(path: string): Promise<boolean> {

@@ -30,6 +30,7 @@ import type {StepResult} from '#core/step-result.js';
 
 const PRIVATE_FILE_MODE = 0o600;
 const SHARED_DIRECTORY_MODE = 0o777;
+const SHARED_DIRECTORY_MODE_READ = 0o755;
 
 const sensitivitySchema = z.enum(['read', 'write']);
 
@@ -174,10 +175,15 @@ export async function executeActionStep(
     });
   }
 
-  await mkdir(join(jobTempDir, 'steps'), {recursive: true});
-  const stepTemp = await mkdtemp(join(jobTempDir, 'steps', 'step-'));
-  // The action may run as another user than the runner and writes its result here.
-  if (options.container) await chmod(stepTemp, SHARED_DIRECTORY_MODE);
+  const stepsDir = join(jobTempDir, 'steps');
+  await mkdir(stepsDir, {recursive: true});
+  const stepTemp = await mkdtemp(join(stepsDir, 'step-'));
+  // The action may run as another user than the runner and writes its result here. The umask
+  // can cut down the mode of the directories above it, so they are opened as well.
+  if (options.container) {
+    await chmod(stepsDir, SHARED_DIRECTORY_MODE_READ);
+    await chmod(stepTemp, SHARED_DIRECTORY_MODE);
+  }
   const endpoint = await startActionEndpoint({
     host,
     integrations: integrationGrants(config.integrations),
