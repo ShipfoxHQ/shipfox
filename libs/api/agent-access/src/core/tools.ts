@@ -4,6 +4,7 @@ import {
   agentAccessOutputSchema,
 } from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
+import type {AdminRole} from '@shipfox/api-auth-dto';
 import {AGENT_ACCESS_FIXTURE_ACTION_TOOL_NAME, AGENT_ACCESS_FIXTURE_TOOL_NAME} from '#constants.js';
 import {agentAccessError, agentAccessSuccess} from './envelope.js';
 
@@ -24,6 +25,8 @@ export interface AgentAccessTool {
     readonly idempotentHint?: boolean | undefined;
     readonly openWorldHint?: boolean | undefined;
   };
+  /** Admin endpoint only: the lowest admin role allowed to call the tool. */
+  minimumAdminRole?: AdminRole | undefined;
   execute: (call: AgentAccessToolCall) => Promise<AgentAccessEnvelopeDto> | AgentAccessEnvelopeDto;
   validateResult?: ((result: unknown) => boolean) | undefined;
 }

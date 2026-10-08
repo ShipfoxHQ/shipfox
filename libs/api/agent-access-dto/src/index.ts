@@ -27,6 +27,28 @@ export {
   rerunWorkflowRunResultSchema,
 } from './schemas/action-tools.js';
 export {
+  AGENT_ACCESS_FIND_USERS_DEFAULT_LIMIT,
+  AGENT_ACCESS_FIND_USERS_LIMIT_MAX,
+  type FindUsersInputDto,
+  type FindUsersResultDto,
+  findUsersInputJsonSchema,
+  findUsersInputSchema,
+  findUsersResultJsonSchema,
+  findUsersResultSchema,
+  type StartImpersonationInputDto,
+  type StartImpersonationResultDto,
+  type StopImpersonationInputDto,
+  type StopImpersonationResultDto,
+  startImpersonationInputJsonSchema,
+  startImpersonationInputSchema,
+  startImpersonationResultJsonSchema,
+  startImpersonationResultSchema,
+  stopImpersonationInputJsonSchema,
+  stopImpersonationInputSchema,
+  stopImpersonationResultJsonSchema,
+  stopImpersonationResultSchema,
+} from './schemas/admin-tools.js';
+export {
   type GetWorkflowAuthoringContextInputDto,
   type GetWorkflowAuthoringContextResultDto,
   getWorkflowAuthoringContextInputJsonSchema,

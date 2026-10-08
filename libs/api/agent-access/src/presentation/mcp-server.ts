@@ -25,6 +25,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {getShippedSkillResource, listShippedSkillResources} from '@shipfox/workflow-templates';
 import {
   AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT,
+  AGENT_ACCESS_ADMIN_MCP_INSTRUCTIONS,
   AGENT_ACCESS_MCP_SERVER_NAME,
   createAgentAccessMcpInstructions,
 } from '#constants.js';
@@ -61,6 +62,11 @@ export interface BuildAgentAccessMcpServerParams {
   auth?: AuthInterModuleClient | undefined;
   recordCall?: AgentAccessToolCallRecorder | undefined;
   docs?: DocsCache | undefined;
+  /**
+   * Serves the admin endpoint: every tool call re-checks the caller's admin
+   * role first, and the server lists no resources.
+   */
+  endpoint?: 'customer' | 'admin' | undefined;
 }
 
 const defaultTools = (): readonly AgentAccessTool[] => [createAgentAccessFixtureTool()];
@@ -73,14 +79,17 @@ export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParam
     createAgentAccessRateLimiter({limit: AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT});
   const recordCall = params.recordCall ?? createAgentAccessToolCallRecorder();
   const docs = params.docs;
+  const isAdminEndpoint = params.endpoint === 'admin';
   const server = new Server(
     {name: AGENT_ACCESS_MCP_SERVER_NAME, version: AGENT_ACCESS_PACKAGE_VERSION},
     {
-      capabilities: {tools: {}, resources: {}},
-      instructions: createAgentAccessMcpInstructions(
-        AGENT_ACCESS_INTEGRATION_TOOL_NAMES.every((name) => tools.has(name)),
-        docs?.enabled ?? false,
-      ),
+      capabilities: isAdminEndpoint ? {tools: {}} : {tools: {}, resources: {}},
+      instructions: isAdminEndpoint
+        ? AGENT_ACCESS_ADMIN_MCP_INSTRUCTIONS
+        : createAgentAccessMcpInstructions(
+            AGENT_ACCESS_INTEGRATION_TOOL_NAMES.every((name) => tools.has(name)),
+            docs?.enabled ?? false,
+          ),
     },
   );
 
@@ -102,67 +111,69 @@ export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParam
     })),
   }));
 
-  server.setRequestHandler(ListResourcesRequestSchema, () => ({
-    resources: [
-      ...listShippedSkillResources().map((resource) => ({
-        uri: resource.uri,
-        name: resource.name,
-        title: resource.title,
-        description: resource.description,
-        mimeType: resource.mimeType,
-        size: resource.size,
-        _meta: {sha256: resource.sha256},
-        annotations: {audience: ['assistant' as const]},
-      })),
-      ...(docs?.enabled
+  if (!isAdminEndpoint) {
+    server.setRequestHandler(ListResourcesRequestSchema, () => ({
+      resources: [
+        ...listShippedSkillResources().map((resource) => ({
+          uri: resource.uri,
+          name: resource.name,
+          title: resource.title,
+          description: resource.description,
+          mimeType: resource.mimeType,
+          size: resource.size,
+          _meta: {sha256: resource.sha256},
+          annotations: {audience: ['assistant' as const]},
+        })),
+        ...(docs?.enabled
+          ? [
+              {
+                uri: DOCS_INDEX_URI,
+                name: 'Shipfox documentation index',
+                title: 'Shipfox documentation index',
+                description: 'Index of Shipfox documentation pages and their docs:// URIs.',
+                mimeType: 'text/markdown',
+                annotations: {audience: ['assistant' as const]},
+              },
+            ]
+          : []),
+      ],
+    }));
+    server.setRequestHandler(ListResourceTemplatesRequestSchema, () => ({
+      resourceTemplates: docs?.enabled
         ? [
             {
-              uri: DOCS_INDEX_URI,
-              name: 'Shipfox documentation index',
-              title: 'Shipfox documentation index',
-              description: 'Index of Shipfox documentation pages and their docs:// URIs.',
+              uriTemplate: DOCS_TEMPLATE_URI,
+              name: 'Shipfox documentation page',
+              title: 'Shipfox documentation page',
+              description:
+                'Read a Shipfox documentation page by its slug from the docs index or search_docs.',
               mimeType: 'text/markdown',
               annotations: {audience: ['assistant' as const]},
             },
           ]
-        : []),
-    ],
-  }));
-  server.setRequestHandler(ListResourceTemplatesRequestSchema, () => ({
-    resourceTemplates: docs?.enabled
-      ? [
-          {
-            uriTemplate: DOCS_TEMPLATE_URI,
-            name: 'Shipfox documentation page',
-            title: 'Shipfox documentation page',
-            description:
-              'Read a Shipfox documentation page by its slug from the docs index or search_docs.',
-            mimeType: 'text/markdown',
-            annotations: {audience: ['assistant' as const]},
-          },
-        ]
-      : [],
-  }));
-  server.setRequestHandler(ReadResourceRequestSchema, (request) => {
-    const uri = request.params.uri;
-    const resource = getShippedSkillResource(uri);
-    if (resource === undefined && docs?.enabled && uri.startsWith('docs://shipfox/')) {
-      return readDocsResource({uri, docs, rateLimiter, recordCall, context: params.context});
-    }
-    recordToolCall(recordCall, {
-      kind: 'resource',
-      source: 'skill',
-      tool: 'resources/read',
-      outcome: resource === undefined ? 'invalid-request' : 'success',
-      errorCode: resource === undefined ? 'unknown-resource' : 'none',
-      context: params.context,
-      target: {uri},
+        : [],
+    }));
+    server.setRequestHandler(ReadResourceRequestSchema, (request) => {
+      const uri = request.params.uri;
+      const resource = getShippedSkillResource(uri);
+      if (resource === undefined && docs?.enabled && uri.startsWith('docs://shipfox/')) {
+        return readDocsResource({uri, docs, rateLimiter, recordCall, context: params.context});
+      }
+      recordToolCall(recordCall, {
+        kind: 'resource',
+        source: 'skill',
+        tool: 'resources/read',
+        outcome: resource === undefined ? 'invalid-request' : 'success',
+        errorCode: resource === undefined ? 'unknown-resource' : 'none',
+        context: params.context,
+        target: {uri},
+      });
+      if (resource === undefined) {
+        throw new McpError(ErrorCode.InvalidParams, 'Resource is not available', {uri});
+      }
+      return {contents: [{uri, mimeType: resource.mimeType, text: resource.text}]};
     });
-    if (resource === undefined) {
-      throw new McpError(ErrorCode.InvalidParams, 'Resource is not available', {uri});
-    }
-    return {contents: [{uri, mimeType: resource.mimeType, text: resource.text}]};
-  });
+  }
 
   server.setRequestHandler(CallToolRequestSchema, (request) =>
     handleAgentAccessToolCall({
@@ -174,6 +185,7 @@ export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParam
       actionRateLimiter,
       auth: params.auth,
       recordCall,
+      isAdminEndpoint,
     }),
   );
 
@@ -249,6 +261,7 @@ interface HandleAgentAccessToolCallParams {
   actionRateLimiter: AgentAccessRateLimiter;
   auth: AuthInterModuleClient | undefined;
   recordCall: AgentAccessToolCallRecorder;
+  isAdminEndpoint: boolean;
 }
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: keep rate limiting and dispatch ordering together.
@@ -280,6 +293,10 @@ async function handleAgentAccessToolCall(
       ),
       true,
     );
+  }
+  if (params.isAdminEndpoint) {
+    const denied = await requireAdminRoleForCall(params, tool);
+    if (denied !== undefined) return denied;
   }
   if (tool === undefined) return unknownToolResult(params);
 
@@ -363,7 +380,7 @@ async function executeAgentAccessTool(params: {
       tool: params.tool.name,
       outcome,
       errorCode: boundedEnvelope.ok ? 'none' : (boundedEnvelope.error?.code ?? 'unknown'),
-      context: params.context,
+      context: withResultWindow(params.context, boundedEnvelope),
       ...(target === undefined ? {} : {target}),
       ...(action === undefined ? {} : {action}),
     });
@@ -379,6 +396,51 @@ async function executeAgentAccessTool(params: {
     });
     logger().error({err: error, tool: params.tool.name}, 'Agent-access tool execution failed');
     reportError(error, {boundary: 'agent-access.mcp', operation: 'tool-call'});
+    return toolResult(agentAccessError('tool-failed'), true);
+  }
+}
+
+/** Tags an admin audit record with the window a successful result names. */
+function withResultWindow(
+  context: AgentAccessContext,
+  envelope: AgentAccessEnvelopeDto,
+): AgentAccessContext {
+  if (context.admin === undefined || !envelope.ok || !isRecord(envelope.result)) return context;
+  const windowId = envelope.result.window_id;
+  if (typeof windowId !== 'string') return context;
+  return {...context, admin: {...context.admin, windowId}};
+}
+
+async function requireAdminRoleForCall(
+  params: HandleAgentAccessToolCallParams,
+  tool: AgentAccessTool | undefined,
+): Promise<CallToolResult | undefined> {
+  const toolName = tool?.name ?? 'unknown';
+  try {
+    if (params.auth === undefined) throw new Error('Agent-access auth client is not configured');
+    await params.auth.requireAdminRole({
+      userId: params.context.userId,
+      minimumRole: tool?.minimumAdminRole ?? 'admin-observer',
+    });
+    return undefined;
+  } catch (error) {
+    if (isInterModuleKnownError(authInterModuleContract.methods.requireAdminRole, error)) {
+      recordToolCall(params.recordCall, {
+        tool: toolName,
+        outcome: 'tool-error',
+        errorCode: 'admin-role-required',
+        context: params.context,
+      });
+      return toolResult(agentAccessError('admin-role-required'), true);
+    }
+    recordToolCall(params.recordCall, {
+      tool: toolName,
+      outcome: 'exception',
+      errorCode: 'unknown',
+      context: params.context,
+    });
+    logger().error({err: error, tool: toolName}, 'Agent-access admin role check failed');
+    reportError(error, {boundary: 'agent-access.mcp', operation: 'admin-role-check'});
     return toolResult(agentAccessError('tool-failed'), true);
   }
 }
@@ -524,6 +586,7 @@ function createActionAudit(
     run_id: 'target_run_id',
     definition_id: 'target_definition_id',
     project_id: 'project_id',
+    workspace_id: 'workspace_id',
     ref: 'ref',
     commit: 'commit',
     config_path: 'config_path',

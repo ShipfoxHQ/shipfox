@@ -89,6 +89,14 @@ function auditLogContext(record: AgentAccessToolCallAuditRecord): Record<string,
     credentialKind: credential.kind,
     credentialId: credential.grantId,
     clientId: credential.clientId,
+    ...(record.context.admin === undefined
+      ? {}
+      : {
+          adminActorId: record.context.admin.actorId,
+          ...(record.context.admin.windowId === undefined
+            ? {}
+            : {impersonationWindowId: record.context.admin.windowId}),
+        }),
     ...(record.target === undefined ? {} : {target: record.target}),
     ...(record.action === undefined ? {} : {action: record.action}),
   };
