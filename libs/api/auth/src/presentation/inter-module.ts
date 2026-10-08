@@ -15,17 +15,30 @@ import {
 } from '@shipfox/node-drizzle';
 import {z} from 'zod';
 import {getCurrentAdminRole, requireAdminRole} from '#core/admin-role.js';
-import {listImpersonationEligibleUserSummaries} from '#core/administration.js';
+import {
+  findActorOpenImpersonationWindow,
+  listImpersonationEligibleUserSummaries,
+  startWorkspaceImpersonationWindow,
+  stopActorImpersonationWindow,
+} from '#core/administration.js';
 import {checkAgentGrantAuthority} from '#core/agent-grant-authority.js';
 import {mintAgentLogDownloadToken} from '#core/agent-log-download-token.js';
 import {
+  AdminIdempotencyKeyReuseError,
   AdminRoleRequiredError,
   AgentGrantAuthorityRevokedError,
   ImpersonationDisabledError,
+  ImpersonationWindowDeadlineReachedError,
+  ImpersonationWindowLimitReachedError,
+  ImpersonationWindowNotFoundError,
+  ImpersonationWindowStoppedError,
+  ImpersonationWorkspaceNotActiveError,
 } from '#core/errors.js';
 import {issueJobLeaseToken} from '#core/job-lease-token.js';
+import {AuthRateLimitExceededError, checkAuthRateLimit} from '#core/rate-limit.js';
 import {issueRunnerSessionToken} from '#core/runner-session-token.js';
 import {getUserSummary, getUserSummaryByEmail} from '#core/user-summary.js';
+import {authRateLimitPolicies} from './routes/rate-limit.js';
 
 const impersonationEligibilityCursorSchema = z.object({
   mode: z.literal('search'),
@@ -109,6 +122,124 @@ async function listImpersonationEligibleUserSummariesPresentation(
   }
 }
 
+type WindowMethodInput<Name extends keyof typeof authInterModuleContract.methods> = z.infer<
+  (typeof authInterModuleContract.methods)[Name]['input']
+>;
+
+function isWindowClosedError(error: unknown): boolean {
+  return (
+    error instanceof ImpersonationWindowNotFoundError ||
+    error instanceof ImpersonationWindowStoppedError ||
+    error instanceof ImpersonationWindowDeadlineReachedError
+  );
+}
+
+/** Applies the actor bucket of the same rate limit the browser route uses. */
+async function enforceActorRateLimit(
+  action: 'impersonate' | 'impersonate-stop',
+  actorId: string,
+): Promise<void> {
+  const policy = authRateLimitPolicies[action].actor;
+  if (!policy) return;
+  await checkAuthRateLimit({action, scope: 'actor', identifier: actorId, ...policy});
+}
+
+async function startImpersonationWindowPresentation(
+  input: WindowMethodInput<'startImpersonationWindow'>,
+  workspaces: WorkspacesInterModuleClient,
+) {
+  const method = authInterModuleContract.methods.startImpersonationWindow;
+  try {
+    await enforceActorRateLimit('impersonate', input.actorId);
+    const window = await startWorkspaceImpersonationWindow({...input, workspaces});
+    return {
+      windowId: window.windowId,
+      workspaceId: window.workspaceId,
+      startedAt: window.startedAt.toISOString(),
+      deadlineAt: window.deadlineAt.toISOString(),
+    };
+  } catch (error) {
+    if (error instanceof AuthRateLimitExceededError) {
+      throw createInterModuleKnownError(method, 'rate-limited', {
+        retryAfterSeconds: error.retryAfterSeconds,
+      });
+    }
+    if (error instanceof AdminRoleRequiredError) {
+      throw createInterModuleKnownError(method, 'admin-role-required', {
+        requiredRole: error.minimumRole,
+      });
+    }
+    if (error instanceof ImpersonationDisabledError) {
+      throw createInterModuleKnownError(method, 'impersonation-disabled', {});
+    }
+    if (error instanceof ImpersonationWorkspaceNotActiveError) {
+      throw createInterModuleKnownError(method, 'impersonation-workspace-not-active', {});
+    }
+    if (error instanceof ImpersonationWindowLimitReachedError) {
+      throw createInterModuleKnownError(method, 'impersonation-window-limit-reached', {});
+    }
+    if (error instanceof AdminIdempotencyKeyReuseError) {
+      throw createInterModuleKnownError(method, 'idempotency-key-reused', {});
+    }
+    if (isWindowClosedError(error)) {
+      throw createInterModuleKnownError(method, 'impersonation-window-closed', {});
+    }
+    throw error;
+  }
+}
+
+async function stopImpersonationWindowPresentation(
+  input: WindowMethodInput<'stopImpersonationWindow'>,
+) {
+  const method = authInterModuleContract.methods.stopImpersonationWindow;
+  try {
+    await enforceActorRateLimit('impersonate-stop', input.actorId);
+    const result = await stopActorImpersonationWindow(input);
+    return {windowId: result.windowId, endedAt: result.endedAt.toISOString()};
+  } catch (error) {
+    if (error instanceof AuthRateLimitExceededError) {
+      throw createInterModuleKnownError(method, 'rate-limited', {
+        retryAfterSeconds: error.retryAfterSeconds,
+      });
+    }
+    if (error instanceof AdminRoleRequiredError) {
+      throw createInterModuleKnownError(method, 'admin-role-required', {
+        requiredRole: error.minimumRole,
+      });
+    }
+    if (error instanceof AdminIdempotencyKeyReuseError) {
+      throw createInterModuleKnownError(method, 'idempotency-key-reused', {});
+    }
+    if (isWindowClosedError(error)) {
+      throw createInterModuleKnownError(method, 'impersonation-window-closed', {});
+    }
+    throw error;
+  }
+}
+
+async function findOpenImpersonationWindowPresentation(
+  input: WindowMethodInput<'findOpenImpersonationWindow'>,
+) {
+  const method = authInterModuleContract.methods.findOpenImpersonationWindow;
+  try {
+    const window = await findActorOpenImpersonationWindow(input);
+    if (!window) throw createInterModuleKnownError(method, 'impersonation-window-closed', {});
+    return {
+      windowId: window.id,
+      workspaceId: input.workspaceId,
+      startedAt: window.startedAt.toISOString(),
+      deadlineAt: window.deadlineAt.toISOString(),
+    };
+  } catch (error) {
+    if (error instanceof AdminRoleRequiredError) {
+      throw createInterModuleKnownError(method, 'admin-role-required', {
+        requiredRole: error.minimumRole,
+      });
+    }
+    throw error;
+  }
+}
+
 export function createAuthInterModulePresentation(
   workspaces: WorkspacesInterModuleClient,
 ): InterModulePresentation<typeof authInterModuleContract> {
@@ -173,5 +304,8 @@ export function createAuthInterModulePresentation(
       }
     },
     listImpersonationEligibleUserSummaries: listImpersonationEligibleUserSummariesPresentation,
+    startImpersonationWindow: (input) => startImpersonationWindowPresentation(input, workspaces),
+    stopImpersonationWindow: stopImpersonationWindowPresentation,
+    findOpenImpersonationWindow: findOpenImpersonationWindowPresentation,
   });
 }

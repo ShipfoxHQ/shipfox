@@ -91,6 +91,9 @@ const workspaceTestDoubles = vi.hoisted(() => {
 };
 const workspaces = workspaceTestDoubles as unknown as WorkspacesInterModuleClient;
 
+/** The Workspaces client the test app and the Auth inter-module presentation share. */
+export const testWorkspaces: WorkspacesInterModuleClient = workspaces;
+
 vi.mock('#config.js', () => ({
   config: testConfig.authConfig,
   mailer: testConfig.mailer,

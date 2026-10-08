@@ -105,4 +105,13 @@ export const runnersTestAuthClient: AuthInterModuleClient = {
   listImpersonationEligibleUserSummaries(_input) {
     return Promise.reject(new Error('Impersonation eligibility is not configured in runner tests'));
   },
+  startImpersonationWindow(_input) {
+    return Promise.reject(new Error('Impersonation windows are not configured in runner tests'));
+  },
+  stopImpersonationWindow(_input) {
+    return Promise.reject(new Error('Impersonation windows are not configured in runner tests'));
+  },
+  findOpenImpersonationWindow(_input) {
+    return Promise.reject(new Error('Impersonation windows are not configured in runner tests'));
+  },
 };
