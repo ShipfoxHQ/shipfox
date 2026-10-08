@@ -104,10 +104,10 @@ describe('ProviderGrid connection state', () => {
     expect(screen.getByRole('link', {name: 'Install Linear'})).toBeVisible();
   });
 
-  test('ignores connections that are not active', async () => {
+  test.each(['disabled', 'error'] as const)('ignores a %s connection', async (lifecycleStatus) => {
     renderGrid({
       showConnectionState: true,
-      connections: [connection('linear', {lifecycleStatus: 'disabled'})],
+      connections: [connection('linear', {lifecycleStatus})],
     });
 
     expect(await screen.findByRole('link', {name: 'Install Linear'})).toBeVisible();

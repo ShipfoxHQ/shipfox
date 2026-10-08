@@ -54,8 +54,13 @@ describe('RedirectInstallPage', () => {
   describe('return target', () => {
     beforeEach(() => window.sessionStorage.clear());
 
+    // Reads storage at the moment the page leaves the app, so a write that moves after the
+    // redirect fails the test.
     async function startInstall(options: {search?: string; storeReturnTarget?: boolean}) {
-      const assignLocation = vi.fn();
+      let storedAtRedirect: string | null = null;
+      const assignLocation = vi.fn(() => {
+        storedAtRedirect = window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY);
+      });
       renderInstallPage(
         {
           installRequest: vi.fn().mockResolvedValue({installUrl: 'https://provider.test/install'}),
@@ -66,38 +71,42 @@ describe('RedirectInstallPage', () => {
         options.search ? {search: options.search} : undefined,
       );
       await waitFor(() => expect(assignLocation).toHaveBeenCalled());
+      return storedAtRedirect;
     }
 
     test('stores home before leaving the app when the install asks for it', async () => {
-      await startInstall({search: '?returnTo=home', storeReturnTarget: true});
+      const stored = await startInstall({search: '?returnTo=home', storeReturnTarget: true});
 
-      expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBe('home');
+      expect(stored).toBe('home');
     });
 
     test('stores settings when the install does not ask for a target', async () => {
-      await startInstall({storeReturnTarget: true});
+      const stored = await startInstall({storeReturnTarget: true});
 
-      expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBe('settings');
+      expect(stored).toBe('settings');
     });
 
     test('does not let a target from an earlier install reach a settings install', async () => {
       window.sessionStorage.setItem(INSTALL_RETURN_TARGET_KEY, 'home');
 
-      await startInstall({storeReturnTarget: true});
+      const stored = await startInstall({storeReturnTarget: true});
 
-      expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBe('settings');
+      expect(stored).toBe('settings');
     });
 
     test('stores an unknown target as settings', async () => {
-      await startInstall({search: '?returnTo=https%3A%2F%2Fevil.test', storeReturnTarget: true});
+      const stored = await startInstall({
+        search: '?returnTo=https%3A%2F%2Fevil.test',
+        storeReturnTarget: true,
+      });
 
-      expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBe('settings');
+      expect(stored).toBe('settings');
     });
 
     test('stores nothing for an install that did not opt in', async () => {
-      await startInstall({search: '?returnTo=home'});
+      const stored = await startInstall({search: '?returnTo=home'});
 
-      expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBeNull();
+      expect(stored).toBeNull();
     });
   });
 
