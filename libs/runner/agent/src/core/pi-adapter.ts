@@ -64,7 +64,7 @@ import {
   isPiExtensionAvailable,
   piExtensionDirectories,
 } from '#core/pi-extensions.js';
-import {createPiHostToolDefinitions} from '#core/pi-host-tools.js';
+import {createPiHostToolDefinitions, PI_HOST_BINARY_TOOL_NAMES} from '#core/pi-host-tools.js';
 import {createPiSessionDiagnosticsExtension} from '#core/pi-session-diagnostics.js';
 import {createPiToolErrorNormalizerExtension} from '#core/pi-tool-error-normalizer.js';
 import {createPiToolSvgNormalizerExtension} from '#core/pi-tool-svg-normalizer.js';
@@ -227,6 +227,7 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
       tools,
       customTools,
       host: invocation.host ?? localExecutionHost,
+      container: invocation.container,
       gitConfigGlobal,
       carriedEnv: invocation.carriedEnv,
       mcpConfig,
@@ -268,6 +269,7 @@ async function createPiSession(params: {
   tools: readonly string[] | undefined;
   customTools: ToolDefinition[];
   host: ExecutionHost;
+  container: HarnessInvocation['container'];
   gitConfigGlobal: string | undefined;
   carriedEnv: HarnessInvocation['carriedEnv'];
   mcpConfig: PiMcpConfig | undefined;
@@ -290,6 +292,7 @@ async function createPiSession(params: {
     },
     gitConfigGlobal: params.gitConfigGlobal,
     carriedEnv: params.carriedEnv,
+    container: params.container,
   });
   const sessionTools = [...params.customTools, ...hostTools];
   try {
@@ -304,6 +307,9 @@ async function createPiSession(params: {
           : [PI_MCP_TOOL_NAME, ...params.mcpConfig.directToolNames]),
       ]),
       ...(sessionTools.length === 0 ? {} : {customTools: sessionTools}),
+      // Pi runs these with `rg` and `fd` on the runner, so in a container they would search the
+      // runner's files. The agent uses the shell there.
+      ...(params.container === undefined ? {} : {excludeTools: [...PI_HOST_BINARY_TOOL_NAMES]}),
       sessionManager,
     });
     if (params.tools === undefined && params.customTools.length > 0) {

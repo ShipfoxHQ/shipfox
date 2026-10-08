@@ -854,6 +854,7 @@ describe('claudeHarnessAdapter', () => {
     const runnerInstallDir = join(import.meta.dirname, '../../../../..');
     const container = {
       env: {PATH: '/usr/local/bin:/usr/bin', IMAGE_VAR: 'from-container'},
+      shell: '/bin/sh',
       runnerInstallDir,
     };
 

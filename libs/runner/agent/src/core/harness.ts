@@ -45,6 +45,8 @@ export interface InferenceCredentialSource {
 
 /** The job container that an agent's processes run in. */
 export interface AgentJobContainer {
+  /** The shell that runs an agent's commands: `bash` when the image has it, else `sh`. */
+  readonly shell: string;
   /**
    * The environment a process in the container starts with: the `PATH` of its image and the
    * `container.env` of the job. The runner's own environment never reaches it.

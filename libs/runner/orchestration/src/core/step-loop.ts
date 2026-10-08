@@ -1256,7 +1256,7 @@ async function executeAgentStepBranch(params: {
       session,
     });
     const resumePrompt = buildResumePrompt(session, params.checkoutRef, input.step.config.prompt);
-    const placement = await agentPlacementOptions(input, runtimeConfig.harness);
+    const placement = await agentPlacementOptions(input);
     const result = await executeAgentStep(input.step, {
       signal: input.signal,
       cwd: params.stepCwd,
@@ -1745,29 +1745,27 @@ async function containerRunStepOptions(
   };
 }
 
-// Claude Code starts in the job container, from the container's own environment like a run step.
-// pi runs its tools on the runner until they move into the container too. The Git config on the
-// runner points at helpers on the runner, so the container gets its own.
-async function agentPlacementOptions(
-  input: Parameters<typeof executeStep>[0],
-  harness: string,
-): Promise<
+// The agent's tools start in the job container, from the container's own environment like a run
+// step. The Git config on the runner points at helpers on the runner, so the container gets its
+// own.
+async function agentPlacementOptions(input: Parameters<typeof executeStep>[0]): Promise<
   | {gitConfigGlobal?: string}
   | {
       host: ContainerExecutionHost;
-      container: {env: Record<string, string>; runnerInstallDir: string};
+      container: {env: Record<string, string>; shell: string; runnerInstallDir: string};
       gitConfigGlobal?: string;
     }
 > {
   const {container} = input;
-  if (harness !== 'claude' || !container) {
+  if (!container) {
     return input.ambientGitConfigPath ? {gitConfigGlobal: input.ambientGitConfigPath} : {};
   }
-  const {path} = await container.host.probe();
+  const {shell, path} = await container.host.probe();
   return {
     host: container.host,
     container: {
       env: {...(path === '' ? {} : {PATH: path}), ...container.env},
+      shell,
       runnerInstallDir: container.runnerInstallDir,
     },
     ...(container.gitConfigPath ? {gitConfigGlobal: container.gitConfigPath} : {}),

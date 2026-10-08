@@ -213,6 +213,44 @@ describe('Pi host tools', () => {
       );
     });
 
+    describe('in a container', () => {
+      const container = {shell: '/bin/sh', env: {PATH: ENV.PATH ?? '', IMAGE_ONLY: 'yes'}};
+
+      function execInContainer(command: string, env: NodeJS.ProcessEnv) {
+        const chunks: Buffer[] = [];
+        const operations = createBashOperations(host, {
+          shellPath: '/runner/only/bash',
+          gitConfigGlobal: undefined,
+          carriedEnv: {env: {CARRIED: 'yes'}, path: ['/carried/bin']},
+          container,
+        });
+        return {
+          result: operations.exec(command, root, {onData: (data) => chunks.push(data), env}),
+          output: () => Buffer.concat(chunks).toString(),
+        };
+      }
+
+      it('runs the command with the container shell and never the shell path of the runner', async () => {
+        const spawn = vi.spyOn(host, 'spawn');
+
+        await execInContainer('true', ENV).result;
+
+        expect(spawn.mock.calls.at(-1)?.[0].argv).toEqual(['/bin/sh', '-c', 'true']);
+        spawn.mockRestore();
+      });
+
+      it('starts from the container environment, not from the one pi hands over', async () => {
+        const run = execInContainer('echo "$IMAGE_ONLY/$RUNNER_ONLY/$CARRIED"; echo "$PATH"', {
+          ...ENV,
+          RUNNER_ONLY: 'leaked',
+        });
+
+        await run.result;
+
+        expect(run.output()).toBe(`yes//yes\n/carried/bin:${ENV.PATH}\n`);
+      });
+    });
+
     it('returns when the shell exits although a background process holds the pipes', async () => {
       const startedAt = Date.now();
       const run = exec('sleep 30 & echo $!');
