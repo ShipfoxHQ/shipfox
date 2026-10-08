@@ -158,6 +158,10 @@ export const findUsersResultJsonSchema = {
   additionalProperties: false,
 } as const satisfies AgentAccessObjectSchema;
 
+/** The workspace a read tool targets on the admin endpoint, added to that tool's own input. */
+export const adminWorkspaceIdSchema = idSchema;
+export const adminWorkspaceIdJsonSchema = uuid;
+
 export const startImpersonationInputJsonSchema = {
   type: 'object',
   properties: {workspace_id: uuid},

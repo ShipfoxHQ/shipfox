@@ -12,6 +12,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import {
   type AgentAccessEnvelopeDto,
+  adminWorkspaceIdSchema,
   agentAccessEnvelopeSchema,
 } from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
@@ -29,6 +30,7 @@ import {
   AGENT_ACCESS_MCP_SERVER_NAME,
   createAgentAccessMcpInstructions,
 } from '#constants.js';
+import {AGENT_ACCESS_ADMIN_WORKSPACE_ID_PROPERTY} from '#core/admin-tools.js';
 import {
   DOCS_INDEX_URI,
   DOCS_TEMPLATE_URI,
@@ -280,7 +282,7 @@ async function handleAgentAccessToolCall(
       tool: tool?.name ?? 'unknown',
       outcome: 'rate-limited',
       errorCode: 'rate-limited',
-      context: params.context,
+      context: await rateLimitedAuditContext(params, tool),
       ...(target === undefined ? {} : {target}),
       ...(action === undefined ? {} : {action}),
     });
@@ -294,22 +296,118 @@ async function handleAgentAccessToolCall(
       true,
     );
   }
+  let context = params.context;
+  let input = params.arguments ?? {};
   if (params.isAdminEndpoint) {
     const denied = await requireAdminRoleForCall(params, tool);
     if (denied !== undefined) return denied;
+    if (tool?.workspaceScoped) {
+      const scope = await resolveWorkspaceScope(params, tool);
+      if ('result' in scope) return scope.result;
+      context = scope.context;
+      input = scope.input;
+    }
   }
   if (tool === undefined) return unknownToolResult(params);
 
-  const input = params.arguments ?? {};
   if (!isRecord(input)) return invalidArgumentsResult(params, tool.name);
   return await executeAgentAccessTool({
     tool,
     input,
-    context: params.context,
+    context,
     actionRateLimiter: params.actionRateLimiter,
     auth: params.auth,
     recordCall: params.recordCall,
   });
+}
+
+type WorkspaceScope =
+  | {context: AgentAccessContext; input: Record<string, unknown>}
+  | {result: CallToolResult};
+
+/**
+ * Binds a workspace-scoped admin call to the administrator's open window on
+ * `workspace_id`. The tool then runs as the administrator in that workspace
+ * and never sees the argument, so execution and audit share one context.
+ */
+async function resolveWorkspaceScope(
+  params: HandleAgentAccessToolCallParams,
+  tool: AgentAccessTool,
+): Promise<WorkspaceScope> {
+  const rawInput = params.arguments ?? {};
+  if (!isRecord(rawInput)) return {result: invalidArgumentsResult(params, tool.name)};
+
+  const {[AGENT_ACCESS_ADMIN_WORKSPACE_ID_PROPERTY]: rawWorkspaceId, ...input} = rawInput;
+  const workspaceId = adminWorkspaceIdSchema.safeParse(rawWorkspaceId);
+  if (!workspaceId.success) {
+    recordToolCall(params.recordCall, {
+      tool: tool.name,
+      outcome: 'invalid-request',
+      errorCode: 'invalid-request',
+      context: params.context,
+    });
+    return {result: toolResult(agentAccessError('invalid-request'), true)};
+  }
+
+  const context = {...params.context, workspaceId: workspaceId.data};
+  try {
+    const window = await findOpenWindow(params, workspaceId.data);
+    return {
+      context: {...context, admin: {actorId: params.context.userId, windowId: window.windowId}},
+      input,
+    };
+  } catch (error) {
+    if (
+      isInterModuleKnownError(authInterModuleContract.methods.findOpenImpersonationWindow, error)
+    ) {
+      recordToolCall(params.recordCall, {
+        tool: tool.name,
+        outcome: 'tool-error',
+        errorCode: error.code,
+        context,
+      });
+      return {result: toolResult(agentAccessError(error.code), true)};
+    }
+    recordToolCall(params.recordCall, {
+      tool: tool.name,
+      outcome: 'exception',
+      errorCode: 'unknown',
+      context,
+    });
+    logger().error({err: error, tool: tool.name}, 'Agent-access impersonation window check failed');
+    reportError(error, {boundary: 'agent-access.mcp', operation: 'impersonation-window-check'});
+    return {result: toolResult(agentAccessError('tool-failed'), true)};
+  }
+}
+
+function findOpenWindow(params: HandleAgentAccessToolCallParams, workspaceId: string) {
+  if (params.auth === undefined) throw new Error('Agent-access auth client is not configured');
+  return params.auth.findOpenImpersonationWindow({actorId: params.context.userId, workspaceId});
+}
+
+/**
+ * Ties a rate-limited admin call to the window it named, when it has one. The
+ * lookup only enriches the audit record, so any failure leaves the record
+ * without a window.
+ */
+async function rateLimitedAuditContext(
+  params: HandleAgentAccessToolCallParams,
+  tool: AgentAccessTool | undefined,
+): Promise<AgentAccessContext> {
+  if (!params.isAdminEndpoint || !tool?.workspaceScoped || !isRecord(params.arguments)) {
+    return params.context;
+  }
+  const workspaceId = adminWorkspaceIdSchema.safeParse(
+    params.arguments[AGENT_ACCESS_ADMIN_WORKSPACE_ID_PROPERTY],
+  );
+  if (!workspaceId.success) return params.context;
+  const context = {...params.context, workspaceId: workspaceId.data};
+  try {
+    const window = await findOpenWindow(params, workspaceId.data);
+    return {...context, admin: {actorId: params.context.userId, windowId: window.windowId}};
+  } catch {
+    return context;
+  }
 }
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: keep the security-sensitive dispatch order together.

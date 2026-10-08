@@ -40,7 +40,10 @@ import {
   AGENT_ACCESS_PROTECTED_RESOURCE_METADATA_PATH,
 } from '#constants.js';
 import {createAgentAccessActionTools} from '#core/action-tools.js';
-import {createAgentAccessAdminTools} from '#core/admin-tools.js';
+import {
+  createAgentAccessAdminTools,
+  createAgentAccessAdminWorkspaceTools,
+} from '#core/admin-tools.js';
 import {createAgentAccessAuthoringContextTools} from '#core/authoring-context.js';
 import {createAgentAccessDiagnosticTools} from '#core/diagnostic-tools.js';
 import {createDocsCache, type DocsCache} from '#core/docs.js';
@@ -109,7 +112,7 @@ export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions 
   const recordCall = options.recordCall ?? createAgentAccessToolCallRecorder();
   const originMatcher = options.isOriginAllowed ?? createAllowedOriginMatcher();
   const errorHandler = createAgentAccessErrorHandler(resourceMetadataUrl(options));
-  const adminTools = createAdminTools(options);
+  const adminTools = createAdminTools(options, tools);
 
   const createPostHandler =
     (params: {tools: readonly AgentAccessTool[]; endpoint: 'customer' | 'admin'}) =>
@@ -228,6 +231,7 @@ export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions 
 
 function createAdminTools(
   options: CreateAgentAccessRoutesOptions,
+  customerTools: readonly AgentAccessTool[],
 ): readonly AgentAccessTool[] | undefined {
   if (!(options.adminMcpEnabled ?? config.AGENT_ACCESS_ADMIN_MCP_ENABLED)) return undefined;
   if (options.auth === undefined || options.workspaces === undefined) {
@@ -235,6 +239,7 @@ function createAdminTools(
   }
   const tools = [
     ...createAgentAccessAdminTools({auth: options.auth, workspaces: options.workspaces}),
+    ...createAgentAccessAdminWorkspaceTools(customerTools),
     ...(options.additionalAdminTools ?? []),
   ];
   createAgentAccessToolMap(tools);
