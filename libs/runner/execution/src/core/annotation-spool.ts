@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {constants} from 'node:fs';
-import {mkdir, open, opendir, rm, unlink, writeFile} from 'node:fs/promises';
+import {chmod, mkdir, open, opendir, rm, unlink, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {LeasedWriteAnnotationOperationDto} from '@shipfox/annotations-dto';
@@ -29,16 +29,24 @@ interface BoundedFileRead {
   accountedBytes: number;
 }
 
-/** Creates the spool files in `tempDir`, the runner-owned job directory. */
+/**
+ * Creates the spool files in `tempDir`, the runner-owned job directory. `shared` lets any user
+ * write them, for a process that runs as another user than the runner.
+ */
 export async function createAnnotationSpool(
-  options: {tempDir?: string} = {},
+  options: {tempDir?: string; shared?: boolean} = {},
 ): Promise<AnnotationSpool> {
   const tempDir = options.tempDir ?? tmpdir();
   const summaryPath = join(tempDir, `shipfox-step-summary-${randomUUID()}`);
   const annotationsDir = join(tempDir, `shipfox-annotations-${randomUUID()}`);
 
-  await writeFile(summaryPath, '', {mode: 0o600});
-  await mkdir(annotationsDir, {mode: 0o700});
+  const fileMode = options.shared ? 0o666 : 0o600;
+  const dirMode = options.shared ? 0o777 : 0o700;
+  // The mode of a new file is cut down by the umask, so it is set again.
+  await writeFile(summaryPath, '', {mode: fileMode});
+  await chmod(summaryPath, fileMode);
+  await mkdir(annotationsDir, {mode: dirMode});
+  await chmod(annotationsDir, dirMode);
 
   return {
     summaryPath,

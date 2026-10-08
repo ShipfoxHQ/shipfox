@@ -20,6 +20,7 @@ import type {
 import {logger} from '@shipfox/node-opentelemetry';
 import {interruptibleSleep, nextBackoffInterval, withJitter} from '@shipfox/node-resilient-loop';
 import {redactSecrets} from '@shipfox/redact';
+import {ContainerExecutionHost} from '@shipfox/runner-container';
 import {
   type ActionToolsUpstream,
   type CheckoutDestination,
@@ -32,6 +33,8 @@ import {
   resolveCgroupMemoryEventsPath,
   type SetupContainerSecrets,
   type SetupJobContext,
+  type StartedSetupContainer,
+  type StepProcessOptions,
   type StepResult,
 } from '@shipfox/runner-execution';
 import {type CarriedEnv, mergeCarriedEnv} from '@shipfox/runner-execution/carried-env';
@@ -156,6 +159,7 @@ export async function runJobSteps(params: {
     logsPrepared: false,
     agentStatePrepared: false,
     tempDirPrepared: false,
+    container: undefined,
     ambientGitConfigPath: undefined,
     ambientGitConfigSecrets: [],
     checkoutDestinations: new Map(),
@@ -182,6 +186,8 @@ interface JobStepLoopState {
   logsPrepared: boolean;
   agentStatePrepared: boolean;
   tempDirPrepared: boolean;
+  /** Set once the setup step started the job container. */
+  container: JobContainerRuntime | undefined;
   ambientGitConfigPath: string | undefined;
   ambientGitConfigSecrets: string[];
   checkoutDestinations: TrackedCheckoutDestinations;
@@ -256,6 +262,7 @@ async function runJobStepIteration(
     gitConfigPath: params.gitConfigPath,
     jobTempDir: params.tempDir,
     credentialsDir: params.credentialsDir,
+    ...(state.container ? {container: state.container} : {}),
     ...(params.onJobContainerRequested
       ? {onJobContainerRequested: params.onJobContainerRequested}
       : {}),
@@ -337,6 +344,15 @@ function applyStepExecutionState(
     state.carriedEnv.set(carriedEnvKey(step.position, attempt), execution.result.carriedEnv);
   }
   if (execution.preparedWorkspace) state.workspacePrepared = true;
+  if (execution.container) {
+    state.container = {
+      host: new ContainerExecutionHost({
+        container: execution.container.name,
+        tempDir: params.tempDir,
+      }),
+      env: execution.container.env,
+    };
+  }
   if (execution.ambientGitConfigPath) state.ambientGitConfigPath = execution.ambientGitConfigPath;
   if (execution.ambientGitConfigSecrets) {
     params.registerSecrets?.(execution.ambientGitConfigSecrets);
@@ -691,6 +707,14 @@ export interface StepExecution {
   ambientGitConfigPath?: string | undefined;
   ambientGitConfigSecrets?: string[] | undefined;
   persistedCheckoutCredential?: PersistedCheckoutCredential | undefined;
+  /** Set when a setup step started the job container. */
+  container?: StartedSetupContainer | undefined;
+}
+
+/** The job container once it runs: where its steps start and the environment they begin with. */
+interface JobContainerRuntime {
+  host: ContainerExecutionHost;
+  env: Readonly<Record<string, string>>;
 }
 
 type CredentialScope = {
@@ -740,6 +764,8 @@ export async function executeStep(params: {
    */
   jobTempDir: string;
   credentialsDir: string;
+  /** Set once the job container runs. Run steps start in it instead of on the runner. */
+  container?: JobContainerRuntime | undefined;
   onJobContainerRequested?: (() => void) | undefined;
   /** What the steps listed in `env_sources` carried. */
   carriedEnv?: CarriedEnv | undefined;
@@ -1106,6 +1132,7 @@ async function executeSetupStepBranch(params: {
     ...(setup.persistedCheckoutCredential
       ? {persistedCheckoutCredential: setup.persistedCheckoutCredential}
       : {}),
+    ...(setup.container ? {container: setup.container} : {}),
   };
 }
 
@@ -1674,7 +1701,11 @@ async function executeRunStepBranch(params: ProcessStepBranchParams): Promise<St
     tempDir: input.jobTempDir,
     cwd: params.stepCwd,
     workspace: input.cwd,
-    ...(input.ambientGitConfigPath ? {gitConfigGlobal: input.ambientGitConfigPath} : {}),
+    ...(input.container ? await containerRunStepOptions(input.container) : {}),
+    // The Git config points at helpers on the runner, so a container does not get it.
+    ...(input.ambientGitConfigPath && !input.container
+      ? {gitConfigGlobal: input.ambientGitConfigPath}
+      : {}),
     ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
     ...(secretMaterial ? {secretEnv: secretMaterial.secretEnv} : {}),
     ...(stepSecrets.length > 0 ? {secretValues: [...stepSecrets]} : {}),
@@ -1683,6 +1714,20 @@ async function executeRunStepBranch(params: ProcessStepBranchParams): Promise<St
     onOutput: (chunk, source) => stepStream?.write(chunk, source),
   });
   return finishProcessStep(params, stepStream, result);
+}
+
+// The environment starts from the container's own, never the runner's. Its `PATH` is named so the
+// directories earlier steps carried go in front of it.
+async function containerRunStepOptions(
+  container: JobContainerRuntime,
+): Promise<Pick<StepProcessOptions, 'host' | 'env' | 'shell' | 'shareScratchFiles'>> {
+  const {shell, path} = await container.host.probe();
+  return {
+    host: container.host,
+    env: {...(path === '' ? {} : {PATH: path}), ...container.env},
+    shell,
+    shareScratchFiles: true,
+  };
 }
 
 async function executeActionStepBranch(params: ProcessStepBranchParams): Promise<StepExecution> {
