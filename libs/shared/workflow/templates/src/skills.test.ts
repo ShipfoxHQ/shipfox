@@ -115,7 +115,7 @@ describe('shipped skill resources', () => {
     const testing = getShippedSkillResource('skill://shipfox/test-workflow-change/SKILL.md');
 
     expect(authoring?.revision).toBe(5);
-    expect(testing?.revision).toBe(2);
+    expect(testing?.revision).toBe(3);
     for (const identifier of ['get_workflow_template', 'get_workflow_authoring_context']) {
       expect(template?.text).toContain(identifier);
     }
@@ -134,6 +134,15 @@ describe('shipped skill resources', () => {
       'get_step_logs',
     ]) {
       expect(testing?.text).toContain(identifier);
+    }
+  });
+
+  test('tells the agent to push prompt files and pass the ref', () => {
+    for (const name of ['validate-workflow-change', 'test-workflow-change']) {
+      const skill = getShippedSkillResource(`skill://shipfox/${name}/SKILL.md`);
+
+      expect(skill?.text, name).toContain('push the branch, and pass that branch as `ref`');
+      expect(skill?.text, name).not.toContain('prompts in separate files');
     }
   });
 

@@ -48,6 +48,90 @@ prompt has three parts:
 Commit and push the file to the project's default branch. Wait for **Summarize
 the repository** to appear in the project's **Workflows** tab.
 
+## Split a prompt into parts
+
+Write `prompt` as a list when several steps share some of their text. Each item
+of the list is one part. Shipfox removes the line breaks at the end of each
+part, then joins the parts with one blank line.
+
+A YAML anchor holds one whole part, so a list can reuse it before, between, or
+after the text of each step. The example below is a complete workflow. Its first
+step names the shared rules `&rules`, and its second step reuses them with
+`*rules`:
+
+```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Review the repository
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+
+jobs:
+  review:
+    steps:
+      - prompt:
+          - Read this repository and list three risks in its error handling.
+          - &rules |
+            Answer in a numbered list.
+            Name the file for each item.
+            Do not change any files.
+      - prompt:
+          - Read this repository and list three gaps in its tests.
+          - *rules
+```
+
+Keep these rules in mind when you write your own parts:
+
+- A part is a string or a file. A list cannot contain another list, so an
+  anchor must hold one part.
+- A `${{ }}` expression must start and end in the same part.
+- A prompt has a maximum number of parts. See [Workflow
+  document](/reference/limits#workflow-document).
+
+## Keep a prompt in a file
+
+Move a part to a file when the text is long or when several workflows share it.
+Replace the part with a `file` reference. This fragment changes the second step
+of the example above:
+
+```yaml
+      - prompt:
+          - Read this repository and list three gaps in its tests.
+          - file: ./.shipfox/prompts/review-rules.md
+```
+
+The path starts with `./` and is relative to the root of the repository. The
+whole file is the part. A file cannot include another file.
+
+Shipfox reads a prompt file when it reads the workflow YAML, from the same
+commit. It stores the text in the workflow definition. A run never reads a
+prompt file from the job's copy of the repository.
+
+| Run started by | Prompt files come from |
+| --- | --- |
+| An event, a schedule, or **Run** | The commit of the workflow YAML on the default branch |
+| A dev run from a branch or tag | The commit of that branch or tag |
+| A dev run from unpushed YAML | The commit of the dev run's `ref`, or the default branch when it has none |
+| A rerun | The text of the original run |
+
+This has three consequences:
+
+- A pull request that edits a prompt file does not change the runs that the pull
+  request starts. Those runs use the text on the default branch until the pull
+  request merges. The workflow YAML behaves the same way.
+- A commit to the default branch that changes only a prompt file updates the
+  workflow.
+- To test an edit to a prompt file, push your branch, then start a dev run from
+  that branch. See [Run a workflow before you
+  push](/how-to/run-and-troubleshoot/test-local-workflow-change).
+
+If a prompt file is missing or empty, the sync fails with `prompt-file-invalid`,
+and the error names the step and the file. The workflow keeps its previous
+version. See [Find why a workflow did not
+sync](/how-to/run-and-troubleshoot/workflow-sync).
+
 ## Adapt the step to your task
 
 Start from the example and change one thing at a time:
