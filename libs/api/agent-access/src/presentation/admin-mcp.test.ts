@@ -2,6 +2,9 @@ import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
 import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
+import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
+import {agentAccessOutputSchema} from '@shipfox/api-agent-access-dto';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {
   type AgentAccessContext,
   AUTH_AGENT_ACCESS,
@@ -11,6 +14,14 @@ import {
   type AuthInterModuleClient,
   authInterModuleContract,
 } from '@shipfox/api-auth-dto/inter-module';
+import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {LogsModuleClient} from '@shipfox/api-logs-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {RegistryInterModuleClient} from '@shipfox/api-registry-dto/inter-module';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
+import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
+import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {
@@ -20,10 +31,11 @@ import {
   createApp,
   type FastifyRequest,
 } from '@shipfox/node-fastify';
+import type {TemplateLoader} from '@shipfox/workflow-templates';
 import {createDocsCache} from '#core/docs.js';
-import {agentAccessSuccess} from '#core/envelope.js';
+import {agentAccessError, agentAccessSuccess} from '#core/envelope.js';
 import {createAgentAccessRateLimiter} from '#core/rate-limiter.js';
-import {createAgentAccessFixtureTool} from '#core/tools.js';
+import {type AgentAccessTool, createAgentAccessFixtureTool} from '#core/tools.js';
 import {type CreateAgentAccessRoutesOptions, createAgentAccessRoutes} from './routes.js';
 
 const ACTOR_ID = '11111111-1111-4111-8111-111111111111';
@@ -93,7 +105,61 @@ function createAuthClient(role: keyof typeof ROLE_RANK | null) {
     stopImpersonationWindow: vi.fn(() =>
       Promise.resolve({windowId: WINDOW_ID, endedAt: DEADLINE_AT}),
     ),
+    findOpenImpersonationWindow: vi.fn(({workspaceId}: {workspaceId: string}) =>
+      Promise.resolve({
+        windowId: WINDOW_ID,
+        workspaceId,
+        startedAt: STARTED_AT,
+        deadlineAt: DEADLINE_AT,
+      }),
+    ),
     checkAgentGrantAuthority: vi.fn(() => Promise.resolve({ok: true as const})),
+  };
+}
+
+function windowClosedError() {
+  return createInterModuleKnownError(
+    authInterModuleContract.methods.findOpenImpersonationWindow,
+    'impersonation-window-closed',
+    {},
+  );
+}
+
+const OTHER_WORKSPACE_ID = '55555555-5555-4555-8555-555555555555';
+
+/** A customer read tool that reports the identity it ran with. */
+function createWhoAmITool(name = 'who_am_i'): AgentAccessTool {
+  const isValid = (input: unknown) =>
+    typeof input === 'object' &&
+    input !== null &&
+    Object.keys(input).every((key) => key === 'note') &&
+    (!('note' in input) || typeof input.note === 'string');
+  return {
+    name,
+    description: 'Reports the identity the tool ran with.',
+    inputSchema: {
+      type: 'object',
+      properties: {note: {type: 'string'}},
+      additionalProperties: false,
+    },
+    outputSchema: agentAccessOutputSchema({type: 'object', additionalProperties: true}),
+    validateInput: isValid,
+    annotations: {readOnlyHint: true},
+    execute: ({context: callContext, arguments: input}) =>
+      input.note === 'fail'
+        ? agentAccessError('not-found')
+        : agentAccessSuccess({
+            user_id: callContext.userId,
+            workspace_id: callContext.workspaceId,
+            arguments: input,
+          }),
+  };
+}
+
+function createActionTool(): AgentAccessTool {
+  return {
+    ...createWhoAmITool('do_something'),
+    annotations: {readOnlyHint: false, destructiveHint: true},
   };
 }
 
@@ -243,7 +309,7 @@ describe('admin MCP endpoint', () => {
   });
 
   test('lists only the admin tools and no resources', async () => {
-    const {client, close} = await connect({auth: createAuthClient('admin-operator')});
+    const {client, close} = await connect({auth: createAuthClient('admin-operator'), tools: []});
 
     const tools = await client.listTools();
     const capabilities = client.getServerCapabilities();
@@ -251,6 +317,7 @@ describe('admin MCP endpoint', () => {
 
     expect(tools.tools.map((tool) => tool.name).sort()).toEqual([
       'find_users',
+      'search_docs',
       'start_impersonation',
       'stop_impersonation',
     ]);
@@ -403,6 +470,283 @@ describe('admin MCP endpoint', () => {
     expect(recordCall).toHaveBeenCalledWith(expect.objectContaining({context}));
   });
 
+  describe('workspace read tools', () => {
+    const tools = [
+      createWhoAmITool(),
+      createActionTool(),
+      createWhoAmITool('get_step_log_download'),
+    ];
+
+    test('lists read tools with a required workspace_id and no action or download tool', async () => {
+      const {client, close} = await connect({auth: createAuthClient('admin-operator'), tools});
+
+      const listed = await client.listTools();
+      await close();
+
+      expect(listed.tools.map((tool) => tool.name).sort()).toEqual([
+        'find_users',
+        'search_docs',
+        'start_impersonation',
+        'stop_impersonation',
+        'who_am_i',
+      ]);
+      const whoAmI = listed.tools.find((tool) => tool.name === 'who_am_i');
+      expect(whoAmI?.inputSchema.required).toEqual(['workspace_id']);
+      expect(whoAmI?.inputSchema.properties).toEqual({
+        note: {type: 'string'},
+        workspace_id: {type: 'string', format: 'uuid'},
+      });
+    });
+
+    test('runs the tool as the administrator in the named workspace', async () => {
+      const auth = createAuthClient('admin-operator');
+      const recordCall = vi.fn();
+      const {client, close} = await connect({auth, tools, recordCall});
+
+      const result = await callTool(client, 'who_am_i', {
+        workspace_id: OTHER_WORKSPACE_ID,
+        note: 'hello',
+      });
+      await close();
+
+      expect(result.structuredContent).toEqual({
+        ok: true,
+        result: {user_id: ACTOR_ID, workspace_id: OTHER_WORKSPACE_ID, arguments: {note: 'hello'}},
+      });
+      expect(auth.findOpenImpersonationWindow).toHaveBeenCalledWith({
+        actorId: ACTOR_ID,
+        workspaceId: OTHER_WORKSPACE_ID,
+      });
+      expect(recordCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tool: 'who_am_i',
+          outcome: 'success',
+          context: {
+            ...context,
+            workspaceId: OTHER_WORKSPACE_ID,
+            admin: {actorId: ACTOR_ID, windowId: WINDOW_ID},
+          },
+        }),
+      );
+    });
+
+    test('returns what the customer endpoint returns for the same workspace', async () => {
+      const customerContext = {...context, userId: ACTOR_ID, workspaceId: OTHER_WORKSPACE_ID};
+      const customerTool = createWhoAmITool();
+      const customer = await customerTool.execute({context: customerContext, arguments: {}});
+      const {client, close} = await connect({auth: createAuthClient('admin-operator'), tools});
+
+      const admin = await callTool(client, 'who_am_i', {workspace_id: OTHER_WORKSPACE_ID});
+      await close();
+
+      expect(admin.structuredContent).toEqual(customer);
+    });
+
+    test.each([
+      ['stopped, past its deadline, or never opened', windowClosedError()],
+      [
+        'the role was revoked',
+        createInterModuleKnownError(
+          authInterModuleContract.methods.findOpenImpersonationWindow,
+          'admin-role-required',
+          {requiredRole: 'admin-operator'},
+        ),
+      ],
+    ])('refuses the call when the window is unavailable: %s', async (_name, error) => {
+      const auth = createAuthClient('admin-operator');
+      auth.findOpenImpersonationWindow.mockRejectedValueOnce(error);
+      const recordCall = vi.fn();
+      const {client, close} = await connect({auth, tools, recordCall});
+
+      const result = await callTool(client, 'who_am_i', {workspace_id: OTHER_WORKSPACE_ID});
+      await close();
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toEqual({ok: false, error: {code: error.code}});
+      expect(recordCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tool: 'who_am_i',
+          outcome: 'tool-error',
+          errorCode: error.code,
+          context: {
+            ...context,
+            workspaceId: OTHER_WORKSPACE_ID,
+            admin: {actorId: ACTOR_ID},
+          },
+        }),
+      );
+    });
+
+    test('refuses a read tool when the administrator lost the operator role', async () => {
+      const auth = createAuthClient('admin-observer');
+      const {client, close} = await connect({auth, tools});
+
+      const result = await callTool(client, 'who_am_i', {workspace_id: OTHER_WORKSPACE_ID});
+      await close();
+
+      expect(result.structuredContent).toEqual({ok: false, error: {code: 'admin-role-required'}});
+      expect(auth.findOpenImpersonationWindow).not.toHaveBeenCalled();
+    });
+
+    test('rejects a missing or malformed workspace_id before any window lookup', async () => {
+      const auth = createAuthClient('admin-operator');
+      const recordCall = vi.fn();
+      const {client, close} = await connect({auth, tools, recordCall});
+
+      const missing = await callTool(client, 'who_am_i', {});
+      const malformed = await callTool(client, 'who_am_i', {workspace_id: 'acme'});
+      await close();
+
+      for (const result of [missing, malformed]) {
+        expect(result.structuredContent).toEqual({ok: false, error: {code: 'invalid-request'}});
+      }
+      expect(auth.findOpenImpersonationWindow).not.toHaveBeenCalled();
+      expect(recordCall).toHaveBeenCalledTimes(2);
+      expect(recordCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcome: 'invalid-request',
+          context: {...context, admin: {actorId: ACTOR_ID}},
+        }),
+      );
+    });
+
+    test('puts the administrator and the window on every outcome', async () => {
+      const recordCall = vi.fn();
+      const rateLimiter = createAgentAccessRateLimiter({limit: 3, now: () => 1_000});
+      const {client, close} = await connect({
+        auth: createAuthClient('admin-operator'),
+        tools,
+        recordCall,
+        rateLimiter,
+      });
+
+      await callTool(client, 'who_am_i', {workspace_id: WORKSPACE_ID});
+      await callTool(client, 'who_am_i', {workspace_id: WORKSPACE_ID, note: 'fail'});
+      await callTool(client, 'who_am_i', {workspace_id: WORKSPACE_ID, extra: true});
+      await callTool(client, 'who_am_i', {workspace_id: WORKSPACE_ID});
+      await close();
+
+      const admin = {actorId: ACTOR_ID, windowId: WINDOW_ID};
+      expect(
+        recordCall.mock.calls.map(([record]) => [record.outcome, record.context.admin]),
+      ).toEqual([
+        ['success', admin],
+        ['tool-error', admin],
+        ['invalid-request', admin],
+        ['rate-limited', admin],
+      ]);
+    });
+
+    test('serves read tools added through additionalTools and not their action siblings', async () => {
+      const {client, close} = await connect({
+        auth: createAuthClient('admin-operator'),
+        tools: [],
+        additionalTools: [createWhoAmITool('extra_read'), createActionTool()],
+      });
+
+      const listed = await client.listTools();
+      await close();
+
+      expect(listed.tools.map((tool) => tool.name)).toContain('extra_read');
+      expect(listed.tools.map((tool) => tool.name)).not.toContain('do_something');
+    });
+
+    test('rejects a read tool that already declares workspace_id at startup', () => {
+      const tool = createWhoAmITool();
+
+      expect(() =>
+        createTestRoutes({
+          adminMcpEnabled: true,
+          auth: createAuthClient('admin-owner') as unknown as AuthInterModuleClient,
+          workspaces,
+          tools: [
+            {
+              ...tool,
+              inputSchema: {
+                type: 'object',
+                properties: {workspace_id: {type: 'string'}},
+                additionalProperties: false,
+              },
+            },
+          ],
+        }),
+      ).toThrow('Agent-access tool who_am_i already declares workspace_id');
+    });
+  });
+
+  test('lists a reviewed set of tool names for a fully wired API', async () => {
+    const stub = <T>() => ({}) as unknown as T;
+    const app = await createTestApp({
+      auth: createAuthClient('admin-operator'),
+      projects: stub<ProjectsModuleClient>(),
+      definitions: stub<DefinitionsInterModuleClient>(),
+      workflows: stub<WorkflowsModuleClient>(),
+      annotations: stub<AnnotationsInterModuleClient>(),
+      triggers: stub<TriggersInterModuleClient>(),
+      logs: stub<LogsModuleClient>(),
+      integrations: stub<IntegrationsModuleClient>(),
+      secrets: stub<SecretsInterModuleClient>(),
+      templates: stub<TemplateLoader>(),
+      registry: stub<RegistryInterModuleClient>(),
+      agent: stub<AgentInterModuleClient>(),
+    });
+    const address = await app.listen({port: 0, host: '127.0.0.1'});
+    const client = new Client({name: 'test-http-client', version: '0.0.0'});
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL('/mcp/admin', address), {
+        requestInit: {headers: {authorization: 'Bearer valid-token'}},
+      }) as unknown as Transport,
+    );
+
+    const listed = await client.listTools();
+    await client.close();
+
+    // A new read tool reaches administrators through this list; review it before updating.
+    expect(listed.tools.map((tool) => tool.name).sort()).toMatchInlineSnapshot(`
+      [
+        "diff_registry_action",
+        "find_users",
+        "get_execution_trigger_event",
+        "get_integration_connection_tools",
+        "get_registry_package",
+        "get_run_annotations",
+        "get_step_attempt",
+        "get_step_logs",
+        "get_trigger_event",
+        "get_trigger_event_facets",
+        "get_workflow_authoring_context",
+        "get_workflow_execution_context",
+        "get_workflow_job",
+        "get_workflow_run",
+        "get_workflow_run_source",
+        "get_workflow_template",
+        "list_execution_trigger_events",
+        "list_integration_connections",
+        "list_projects",
+        "list_registry_packages",
+        "list_trigger_events",
+        "list_workflow_definitions",
+        "list_workflow_execution_steps",
+        "list_workflow_job_executions",
+        "list_workflow_run_attempts",
+        "list_workflow_run_job_explanations",
+        "list_workflow_run_jobs",
+        "list_workflow_runs",
+        "list_workflow_step_attempts",
+        "list_workflow_templates",
+        "list_workspace_models",
+        "search_docs",
+        "start_impersonation",
+        "stop_impersonation",
+      ]
+    `);
+    expect(
+      listed.tools
+        .filter((tool) => tool.annotations?.readOnlyHint !== true)
+        .map((tool) => tool.name),
+    ).toEqual(['start_impersonation', 'stop_impersonation']);
+  });
+
   test('serves additional admin tools behind the same role check', async () => {
     const auth = createAuthClient('admin-observer');
     const extra = {
@@ -424,6 +768,8 @@ describe('admin MCP endpoint', () => {
 
 async function connect(options: {
   auth: ReturnType<typeof createAuthClient>;
+  tools?: CreateAgentAccessRoutesOptions['tools'];
+  additionalTools?: CreateAgentAccessRoutesOptions['additionalTools'];
   recordCall?: CreateAgentAccessRoutesOptions['recordCall'];
   rateLimiter?: CreateAgentAccessRoutesOptions['rateLimiter'];
   additionalAdminTools?: CreateAgentAccessRoutesOptions['additionalAdminTools'];

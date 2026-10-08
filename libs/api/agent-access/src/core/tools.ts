@@ -27,6 +27,12 @@ export interface AgentAccessTool {
   };
   /** Admin endpoint only: the lowest admin role allowed to call the tool. */
   minimumAdminRole?: AdminRole | undefined;
+  /**
+   * Admin endpoint only: the call names a `workspace_id`. The dispatcher
+   * resolves the administrator's open window on it and runs the tool in that
+   * workspace, with the argument removed.
+   */
+  workspaceScoped?: boolean | undefined;
   execute: (call: AgentAccessToolCall) => Promise<AgentAccessEnvelopeDto> | AgentAccessEnvelopeDto;
   validateResult?: ((result: unknown) => boolean) | undefined;
 }

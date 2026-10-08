@@ -29,6 +29,8 @@ export {
 export {
   AGENT_ACCESS_FIND_USERS_DEFAULT_LIMIT,
   AGENT_ACCESS_FIND_USERS_LIMIT_MAX,
+  adminWorkspaceIdJsonSchema,
+  adminWorkspaceIdSchema,
   type FindUsersInputDto,
   type FindUsersResultDto,
   findUsersInputJsonSchema,

@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {
+  adminWorkspaceIdJsonSchema,
   agentAccessOutputSchema,
   findUsersInputJsonSchema,
   findUsersInputSchema,
@@ -29,6 +30,15 @@ export const AGENT_ACCESS_ADMIN_TOOL_NAMES = [
   'start_impersonation',
   'stop_impersonation',
 ] as const;
+
+/**
+ * Read-only tools the admin endpoint never serves. `get_step_log_download`
+ * mints a credential tied to the caller's grant, which an administrator does
+ * not hold on the customer's workspace.
+ */
+export const AGENT_ACCESS_ADMIN_DENIED_TOOL_NAMES: readonly string[] = ['get_step_log_download'];
+
+export const AGENT_ACCESS_ADMIN_WORKSPACE_ID_PROPERTY = 'workspace_id';
 
 export interface AgentAccessAdminToolsOptions {
   auth: AuthInterModuleClient;
@@ -191,4 +201,46 @@ function knownErrorEnvelope(error: {code: string; details: unknown}) {
       ? details.retryAfterSeconds
       : undefined;
   return agentAccessError(error.code, optionalField('retryAfterSeconds', retryAfterSeconds));
+}
+
+/**
+ * Derives the admin endpoint's copy of each customer read tool: same name and
+ * behavior, plus a required `workspace_id`. Action tools and denied tools are
+ * left out, so a new tool needs a conscious decision to reach this endpoint.
+ */
+export function createAgentAccessAdminWorkspaceTools(
+  tools: readonly AgentAccessTool[],
+): readonly AgentAccessTool[] {
+  return tools
+    .filter(
+      (tool) =>
+        tool.annotations.readOnlyHint && !AGENT_ACCESS_ADMIN_DENIED_TOOL_NAMES.includes(tool.name),
+    )
+    .map((tool) => {
+      const properties = tool.inputSchema.properties;
+      if (
+        isRecord(properties) &&
+        Object.hasOwn(properties, AGENT_ACCESS_ADMIN_WORKSPACE_ID_PROPERTY)
+      ) {
+        throw new Error(`Agent-access tool ${tool.name} already declares workspace_id`);
+      }
+      const required = Array.isArray(tool.inputSchema.required) ? tool.inputSchema.required : [];
+      return {
+        ...tool,
+        inputSchema: {
+          ...tool.inputSchema,
+          properties: {
+            ...(isRecord(properties) ? properties : {}),
+            [AGENT_ACCESS_ADMIN_WORKSPACE_ID_PROPERTY]: adminWorkspaceIdJsonSchema,
+          },
+          required: [AGENT_ACCESS_ADMIN_WORKSPACE_ID_PROPERTY, ...required],
+        },
+        minimumAdminRole: 'admin-operator',
+        workspaceScoped: true,
+      };
+    });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
