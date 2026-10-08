@@ -27,7 +27,7 @@ export interface ParseWorkflowDocumentOptions {
    * to `false`. Only applies with `actions`.
    */
   registryActions?: boolean;
-  /** Accepts the job `container` field. Defaults to `false`. */
+  /** Accepts the job `container` field. Defaults to `true`. */
   jobContainers?: boolean;
 }
 
@@ -36,7 +36,7 @@ export function parseWorkflowDocument(
   {
     actions = false,
     registryActions = false,
-    jobContainers = false,
+    jobContainers = true,
   }: ParseWorkflowDocumentOptions = {},
 ): WorkflowDocument {
   try {

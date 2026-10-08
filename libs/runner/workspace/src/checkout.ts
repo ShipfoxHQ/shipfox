@@ -368,7 +368,10 @@ export async function writeContainerGitConfig(params: {
   gitAuthor?: {name: string; email: string} | undefined;
 }): Promise<void> {
   const {configPath, helper, auth, gitAuthor} = params;
-  const repositoryUrl = gitConfigRepositoryUrl(params.repositoryUrl);
+  // Only the helper needs the HTTPS form the broker matches. A persisted header keeps the URL
+  // as written, as on the runner, so a self-hosted server over HTTP works too.
+  const repositoryUrl =
+    helper === undefined ? params.repositoryUrl : gitConfigRepositoryUrl(params.repositoryUrl);
   if (helper !== undefined) validateGitCredentialHelper(helper);
   const lines = [
     '[safe]',

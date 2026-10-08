@@ -260,6 +260,20 @@ export async function getFileSha(params: GetFileShaParams): Promise<string> {
   return file.sha;
 }
 
+// The bot only reads code through its org team, so a job that pushes with the checkout
+// credential needs write access on its own repository.
+export async function grantBotRepoWrite(params: {
+  org: string;
+  repo: string;
+  botUsername?: string;
+}): Promise<void> {
+  const botUsername = params.botUsername ?? config.E2E_GITEA_BOT_USERNAME;
+  await giteaFetch(
+    `repos/${encodeSegment(params.org)}/${encodeSegment(params.repo)}/collaborators/${encodeSegment(botUsername)}`,
+    {method: 'PUT', json: {permission: 'write'}},
+  );
+}
+
 export async function deleteRepo(params: {org: string; repo: string}): Promise<void> {
   await giteaFetch(`repos/${encodeSegment(params.org)}/${encodeSegment(params.repo)}`, {
     method: 'DELETE',

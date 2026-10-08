@@ -6,6 +6,13 @@ export type {
   CreateProvisionerTokenResponseDto,
   ListActiveProvisionersResponseDto,
 } from '@shipfox/api-runners-dto';
+export {type DeployRunnerParams, deployRunner} from './deployed-runner.js';
+export {
+  type PublishedJobContainerImage,
+  type PublishJobContainerImageParams,
+  publishJobContainerImage,
+  removePublishedJobContainerImage,
+} from './job-container-image.js';
 export {
   type LocalRunnerExit,
   type LocalRunnerHandle,

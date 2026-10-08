@@ -63,6 +63,42 @@ best-effort: a Docker failure is written to stderr, not thrown.
 await stopProvisioner(handle);
 ```
 
+### `deployRunner(params)`
+
+Deploys `@shipfox/runner` into `installDir`, which must not exist yet, and returns the
+directory. The result has the layout of the runner image: the runner and its production
+dependencies in one tree. It follows the image build: `turbo prune`, an overlay of the built `dist/`
+directories, then `pnpm deploy` from the pruned copy, so the workspace install is left
+alone. Build the runner first; under Turbo, `test:e2e` does it. Pass it to `startLocalRunner` as `installDir` to run the
+built runner with plain Node instead of the source entry through tsx.
+
+A container job needs this. The job container mounts the runner installation, and a
+runner started from source keeps its packages outside `apps/runner`, where the
+container cannot reach them.
+
+```ts
+const installDir = await deployRunner({installDir: '/abs/path/to/runner-install'});
+const runner = startLocalRunner({workspaceId, registrationToken, labels, logFile, installDir});
+```
+
+### `publishJobContainerImage(params)`
+
+Starts a `registry:2` container on a loopback port, builds the image from
+`contextDir`, pushes it, and returns the reference a job `container` names. The runner
+always pulls the job image, so an image that only exists in the local image store is
+not enough. `removePublishedJobContainerImage(published)` removes the registry and the
+local image.
+
+```ts
+const published = await publishJobContainerImage({
+  contextDir: '/abs/path/to/fixture',
+  name: 'shipfox-e2e/toolbox',
+  uniqueId,
+});
+// published.image is "127.0.0.1:<port>/shipfox-e2e/toolbox:e2e"
+await removePublishedJobContainerImage(published);
+```
+
 ## Manual verification
 
 Automated coverage lands with the E2E suite for the flow workflow, which composes these

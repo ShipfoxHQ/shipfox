@@ -143,6 +143,20 @@ with the recipes.
 Keep the recipes readable as user code: they import only their own files, Node built-ins, and
 `@shipfox/actions`, and they use only erasable TypeScript syntax, since Node strips the types.
 
+## Job containers
+
+`tests/job-container.e2e.ts` runs one job in a container: a run step calls an executable
+that only the image has, an action sets an output, a run step mounts the workspace in a
+sibling container, and a run step pushes to Gitea. The spec builds the image from
+`fixtures/container-toolbox/` and pushes it to a registry it starts on a loopback port,
+because the runner always pulls the job image. It also deploys the runner to a directory,
+because the job container mounts the runner installation and a runner started from
+source keeps its packages outside it. Both helpers are in
+`@shipfox/e2e-driver-runner-process`.
+
+The job container runs the Node binary of the runner, so the spec is skipped unless the
+host is Linux.
+
 ## Local run
 
 Each scenario starts a local runner process from `apps/runner/src/index.ts` through

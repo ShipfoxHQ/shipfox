@@ -33,6 +33,11 @@ export interface StartLocalRunnerParams {
   extraEnv?: Record<string, string> | undefined;
   /** Overrides the resolved `@shipfox/runner` source entry (run via tsx). */
   entryPath?: string | undefined;
+  /**
+   * A runner installation from `deployRunner`. The runner then runs its built entry
+   * with plain Node, as the runner image does, instead of the source entry via tsx.
+   */
+  installDir?: string | undefined;
 }
 
 export interface LocalRunnerHandle {
@@ -56,15 +61,33 @@ export interface LocalRunnerExit {
 interface RunnerModule {
   /** Package directory used as the child's cwd for tsx and workspace-source resolution. */
   cwd: string;
-  /** Source entry the child runs. */
+  /** Entry the child runs. */
   entry: string;
+  /** Node flags that load the entry: tsx for a source entry, none for a built one. */
+  nodeArgs: readonly string[];
 }
+
+const SOURCE_NODE_ARGS = ['--import', 'tsx', '--conditions=workspace-source'];
 
 function resolveRunnerModule(): RunnerModule {
   const require = createRequire(import.meta.url);
   const packageJsonPath = require.resolve('@shipfox/runner/package.json');
   const cwd = dirname(packageJsonPath);
-  return {cwd, entry: join(cwd, 'src/index.ts')};
+  return {cwd, entry: join(cwd, 'src/index.ts'), nodeArgs: SOURCE_NODE_ARGS};
+}
+
+function runnerModuleFor(params: StartLocalRunnerParams): RunnerModule {
+  if (params.installDir !== undefined) {
+    return {
+      cwd: params.installDir,
+      entry: join(params.installDir, 'dist/index.js'),
+      nodeArgs: [],
+    };
+  }
+  if (params.entryPath !== undefined) {
+    return {cwd: dirname(params.entryPath), entry: params.entryPath, nodeArgs: SOURCE_NODE_ARGS};
+  }
+  return resolveRunnerModule();
 }
 
 function inheritedProcessEnv(): Record<string, string> {
@@ -142,17 +165,15 @@ export function localRunnerLogTail(path: string): string {
 }
 
 export function startLocalRunner(params: StartLocalRunnerParams): LocalRunnerHandle {
-  const runnerModule = params.entryPath
-    ? {cwd: dirname(params.entryPath), entry: params.entryPath}
-    : resolveRunnerModule();
-  const {cwd, entry} = runnerModule;
+  const runnerModule = runnerModuleFor(params);
+  const {cwd, entry, nodeArgs} = runnerModule;
   const credentialHelperBinDir = createCredentialHelperBin(runnerModule, params);
 
   let child: ChildProcess;
   try {
     const logFd = openSync(params.logFile, 'a');
     try {
-      child = spawn(process.execPath, ['--import', 'tsx', '--conditions=workspace-source', entry], {
+      child = spawn(process.execPath, [...nodeArgs, entry], {
         cwd,
         stdio: ['ignore', logFd, logFd],
         env: buildRunnerEnv(params, credentialHelperBinDir),

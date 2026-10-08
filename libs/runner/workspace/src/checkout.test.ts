@@ -1189,6 +1189,28 @@ describe('writeAmbientGitCredential', () => {
       expect(content).not.toContain('helper');
     });
 
+    it('writes the legacy header for a repository served over HTTP', async () => {
+      const configPath = join(root, 'container-gitconfig');
+
+      await writeContainerGitConfig({
+        configPath,
+        repositoryUrl: 'http://localhost:3000/acme/repo.git',
+        auth: {
+          kind: 'basic',
+          username: 'x-token',
+          token: 'tok-123',
+          expires_at: '2026-01-01T00:00:00Z',
+          carry: 'header',
+          host: 'localhost:3000',
+          persist: true,
+        },
+      });
+
+      const content = await readFile(configPath, 'utf8');
+      expect(content).toContain('[safe]\n\tdirectory = *');
+      expect(content).toContain('[http "http://localhost:3000/acme/repo.git"]\n\textraHeader = ');
+    });
+
     it('lets the container user read the file', async () => {
       const configPath = join(root, 'container-gitconfig');
 

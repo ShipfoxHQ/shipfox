@@ -1534,6 +1534,9 @@ importers:
       '@shipfox/runner':
         specifier: workspace:*
         version: link:../../../apps/runner
+      '@shipfox/tool-utils':
+        specifier: workspace:*
+        version: link:../../../tools/utils
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*

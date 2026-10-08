@@ -196,6 +196,29 @@ manifest.inputs?.channel_id?.type; // "string"
 manifest.integrations?.slack?.allow_write; // false
 ```
 
+A job may name a Docker image with `container`. The value is an image string,
+or an object with `image`, `credentials` (`username` and `password`), `env`,
+`options`, and `docker_socket`. `volumes` and `ports` are rejected. The
+`options` string is not validated. `parseWorkflowDocument` accepts the field by
+default; pass `{jobContainers: false}` to reject it with "Job containers
+(`container`) are not supported yet." `buildWorkflowJsonSchema()` includes the
+field unless called with `{containers: false}`.
+
+```ts
+parseWorkflowDocument({
+  name: 'lint',
+  jobs: {
+    lint: {
+      container: {
+        image: 'ghcr.io/acme/toolbox:2026.10',
+        credentials: {username: 'acme-bot', password: '${{ secrets.GHCR_TOKEN }}'},
+      },
+      steps: [{run: 'acme-lint --strict'}],
+    },
+  },
+});
+```
+
 Jobs may also declare checkout intent. `permissions.contents` accepts `read` or
 `write`; `persist-credentials` accepts a boolean. Both fields are optional in
 the document shape. Later layers resolve omitted values to read-only checkout
