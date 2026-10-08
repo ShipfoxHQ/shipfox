@@ -239,22 +239,6 @@ describe('RUNNER_EXECUTION_FENCE_MARGIN_SECONDS validation', () => {
   });
 });
 
-describe('termination reason defaults', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.resetModules();
-  });
-
-  it('enables job-timeout termination authorization by default', async () => {
-    vi.stubEnv('RUNNER_TERMINATION_REASON_JOB_TIMEOUT_ENABLED', undefined);
-    vi.resetModules();
-
-    const {config} = await import('#config.js');
-
-    expect(config.RUNNER_TERMINATION_REASON_JOB_TIMEOUT_ENABLED).toBe(true);
-  });
-});
-
 describe('RUNNER_STALE_SESSION_THRESHOLD_SECONDS validation', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

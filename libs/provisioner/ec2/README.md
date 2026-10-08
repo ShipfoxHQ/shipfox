@@ -173,10 +173,9 @@ The provider reads the shared provisioner variables plus these EC2-specific vari
 | `SHIPFOX_PROVISIONER_EC2_RECONCILE_INTERVAL_MS` | no | `60000` | Interval for a full backend reconcile using EC2 instance tags. |
 | `SHIPFOX_PROVISIONER_EC2_STOPPING_TIMEOUT_MS` | no | `300000` | Time an authorized instance may remain in `stopping` before one forced termination retry. |
 
-The runners API must have `RUNNER_TERMINATION_REASON_REGISTRATION_DEADLINE_ENABLED=true` before
-deploying registration-deadline cleanup. The API flag defaults to false; while it is disabled,
-the provider keeps overdue candidates out of capacity and retries authorization without
-terminating them.
+Upgrade the runners API before deploying registration-deadline cleanup. Until the API authorizes
+termination, the provider keeps overdue candidates out of capacity and retries authorization
+without terminating them.
 
 The reservation clock starts when the API grants demand. The EC2 registration clock starts
 when EC2 records the instance launch time. The provider requests
