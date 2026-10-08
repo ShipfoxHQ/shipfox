@@ -7,6 +7,7 @@ import {
   type ExpressionTypeEnvironment,
   hoistPlannedRunCommand,
   parseWorkflowTemplate,
+  referencesExecutionFailed,
   type ShellReevaluatingConstruct,
   type UnsafeRunInterpolation,
   UnsafeRunInterpolationError,
@@ -962,6 +963,21 @@ function normalizeStep(params: {
     allowedJobReferences: params.allowedJobReferences,
     typeOverlay: conditionTypeOverlay,
   });
+  if (
+    condition !== undefined &&
+    stepBase.runAfter !== 'always' &&
+    referencesExecutionFailed(condition)
+  ) {
+    params.issues.push(
+      issue({
+        code: 'invalid-step-if',
+        message:
+          'Step if reads execution.failed, which run_after already decides. Remove it, or set run_after: always.',
+        path: ['jobs', params.sourceName, 'steps', params.index, 'if'],
+        details: {field: 'step.if', source: params.step.if},
+      }),
+    );
+  }
   const gate = normalizeStepGate({
     step: params.step,
     sourceName: params.sourceName,

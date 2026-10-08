@@ -14,7 +14,6 @@ jobs:
 
   answer:
     needs: thread
-    if: ${{ needs.all(n, n.status == "succeeded") }}
     # part:source.checkout
     outputs:
       reply_ts: ${{ steps.reply.outputs.message_id }}
@@ -90,7 +89,8 @@ jobs:
 
   report_failure:
     needs: [thread, answer]
-    if: ${{ jobs.thread.status == "succeeded" && jobs.answer.status == "failed" }}
+    run_after: failure
+    if: ${{ jobs.thread.status == "succeeded" }}
     checkout: false
     steps:
       # part:chat.failure_reply

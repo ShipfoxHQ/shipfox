@@ -53,7 +53,6 @@ jobs:
 
   diagnose:
     needs: report
-    if: ${{ needs.all(n, n.status == "succeeded") }}
     checkout: false
     # The report is already posted. A failed diagnosis only loses the thread reply.
     success: 'true'

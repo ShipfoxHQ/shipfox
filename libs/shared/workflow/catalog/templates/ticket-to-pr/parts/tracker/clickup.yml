@@ -77,7 +77,7 @@ ask_questions: |
 mark_in_progress: |
   # option:ticket_write_back=comment_and_transition begin
   - key: mark_in_progress
-    if: ${{ !execution.failed && steps.task.outputs.ticket_id != "" }}
+    if: ${{ steps.task.outputs.ticket_id != "" }}
     tool: update_task
     connection: clickup_tracker # bind:tracker
     with:
@@ -91,7 +91,7 @@ write_back: |
   # option:ticket_write_back=comment begin
   comment_only:
     needs: implement
-    if: ${{ needs.all(n, n.status == "succeeded") && jobs.implement.outputs.pr_url != "" && jobs.implement.outputs.ticket_id != "" }}
+    if: ${{ jobs.implement.outputs.pr_url != "" && jobs.implement.outputs.ticket_id != "" }}
     checkout: false
     steps:
       - key: write_back
@@ -104,7 +104,7 @@ write_back: |
   # option:ticket_write_back=comment_and_transition begin
   comment_on_ticket:
     needs: implement
-    if: ${{ needs.all(n, n.status == "succeeded") && jobs.implement.outputs.pr_url != "" && jobs.implement.outputs.ticket_id != "" }}
+    if: ${{ jobs.implement.outputs.pr_url != "" && jobs.implement.outputs.ticket_id != "" }}
     checkout: false
     steps:
       - key: write_back

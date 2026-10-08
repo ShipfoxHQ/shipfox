@@ -40,7 +40,7 @@ function expressionMinimumFillTarget(
   return laterFillTarget(fillTarget, 'step-dispatch');
 }
 
-function referencesExecutionFailed(expression: WorkflowExpression): boolean {
+export function referencesExecutionFailed(expression: WorkflowExpression): boolean {
   const access = analyzeContextRootKeyAccess(expression, ['execution']);
   return access.references.some((reference) => reference.key === 'failed');
 }

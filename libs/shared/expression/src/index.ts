@@ -125,7 +125,11 @@ export type {
   ResolvedFieldLiteralSegment,
   ResolvedFieldSegment,
 } from './plan/resolved-field.js';
-export {type RoutedExpression, routeExpression} from './plan/route-expression.js';
+export {
+  type RoutedExpression,
+  referencesExecutionFailed,
+  routeExpression,
+} from './plan/route-expression.js';
 export {
   type ServerEvaluabilityResult,
   type ServerEvaluabilityViolation,

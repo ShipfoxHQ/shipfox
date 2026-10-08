@@ -13,7 +13,6 @@ jobs:
 
   route:
     needs: thread
-    if: ${{ needs.all(n, n.status == "succeeded") }}
     checkout: false
     # A tool step output has no default, so these guards stay explicit when start is skipped.
     outputs:
@@ -153,10 +152,9 @@ jobs:
             exit 1
           fi
 
-      # Without project_id, the routed workflow must belong to this project. A step with its own `if`
-      # still runs after an earlier step fails, so it checks execution.failed.
+      # Without project_id, the routed workflow must belong to this project.
       - key: start
-        if: ${{ steps.route.outputs.status == "start" && !execution.failed }}
+        if: ${{ steps.route.outputs.status == "start" }}
         tool: start_workflow_run
         connection: shipfox
         with:
@@ -174,7 +172,7 @@ jobs:
   # the task to pull request workflow, reports it here. Other routed workflows reply in the thread.
   follow_up:
     needs: [thread, route]
-    if: ${{ needs.all(n, n.status == "succeeded") && jobs.route.outputs.status == "start" }}
+    if: ${{ jobs.route.outputs.status == "start" }}
     checkout: false
     listening:
       on:
@@ -196,7 +194,8 @@ jobs:
 
   report_failure:
     needs: [thread, route]
-    if: ${{ jobs.thread.status == "succeeded" && jobs.route.status == "failed" }}
+    run_after: failure
+    if: ${{ jobs.thread.status == "succeeded" }}
     checkout: false
     steps:
       # part:chat.failure_reply

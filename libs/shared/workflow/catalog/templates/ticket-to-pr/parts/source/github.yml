@@ -57,7 +57,7 @@ prepare: |
       repo: string
 push: |
   - key: push
-    if: ${{ !execution.failed && steps.fix.outputs.status == "implemented" }}
+    if: ${{ steps.fix.outputs.status == "implemented" }}
     env:
       BRANCH_NAME: ${{ steps.prepare.outputs.branch }}
       COMMIT_TITLE: ${{ steps.fix.outputs.pr_title }}
@@ -72,7 +72,7 @@ push: |
       git push -u origin "$BRANCH_NAME"
 open_pr: |
   - key: open_pr
-    if: ${{ !execution.failed && steps.fix.outputs.status == "implemented" }}
+    if: ${{ steps.fix.outputs.status == "implemented" }}
     tool: create_pull_request
     connection: github_source # bind:source
     with:
@@ -204,7 +204,7 @@ respond: |
                 type: string
 push_feedback: |
   - key: push_feedback
-    if: ${{ !execution.failed && steps.detect_changes.outputs.has_changes }}
+    if: ${{ steps.detect_changes.outputs.has_changes }}
     env:
       PR_BRANCH: ${{ jobs.implement.outputs.branch }}
       CHECKED_OUT_HEAD: ${{ steps.confirm_clean.outputs.head_sha }}
@@ -225,6 +225,7 @@ push_feedback: |
           current head.
 reply: |
   - key: reply
+    run_after: always
     if: >-
       ${{ steps.respond.status == "succeeded" && steps.respond.outputs.decisions.exists(d, d.decision != "ignore") }}
     model: glm-5.3-flash # model:reply
