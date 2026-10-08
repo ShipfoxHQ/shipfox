@@ -242,7 +242,7 @@ describe('Linear MCP mock with recordings', () => {
     const client = await connect(mock.endpoint);
 
     try {
-      expect(recordings).toHaveLength(21);
+      expect(recordings).toHaveLength(31);
       for (const recording of recordings) {
         const result = await client.callTool(
           {name: recording.tool, arguments: recording.arguments},

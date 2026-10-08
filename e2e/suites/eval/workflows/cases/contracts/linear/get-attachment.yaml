@@ -1,0 +1,7 @@
+provider: linear
+modes: [real, fake]
+steps:
+  - tool: get_attachment
+    with:
+      id: $fixture.linear.upload.id
+    # The hosted MCP answers with one image block and no text, so the step's result is empty.

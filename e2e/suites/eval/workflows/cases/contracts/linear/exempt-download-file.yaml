@@ -1,0 +1,4 @@
+provider: linear
+exempt:
+  tool: download_file
+  reason: It returns a file, which only an action step can download. A tool step fails with provider-rejected before the call, and contract cases are tool steps.

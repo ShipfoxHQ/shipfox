@@ -1,0 +1,14 @@
+{
+  "tool": "list_release_pipelines",
+  "arguments": {
+    "limit": 1
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"releasePipelines\":[],\"hasNextPage\":false}"
+      }
+    ]
+  }
+}

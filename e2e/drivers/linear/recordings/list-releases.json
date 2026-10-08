@@ -1,0 +1,14 @@
+{
+  "tool": "list_releases",
+  "arguments": {
+    "limit": 1
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"releases\":[],\"hasNextPage\":false}"
+      }
+    ]
+  }
+}

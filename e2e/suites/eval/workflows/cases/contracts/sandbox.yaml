@@ -241,8 +241,28 @@ linear:
         with: {id: $fixture.linear.document.id}
         expect:
           values: {id: $fixture.linear.document.id, title: $fixture.linear.document.title}
+    status_update:
+      id: 532105f9-05b5-43b5-b3c2-ccc7e7b4ee6b
+      body: Status update with café 日本語.
+      read:
+        tool: get_status_updates
+        with: {type: project, project: $fixture.linear.project.id, limit: 1}
+        expect:
+          values:
+            statusUpdates[0].id: $fixture.linear.status_update.id
+    # SAR-40 holds one attachment, a 1x1 PNG uploaded to Linear. The markdown embeds its asset URL.
+    upload:
+      id: 6e2b43dd-a80b-4b06-b0d2-875625571572
+      title: Fixture upload
+      markdown: '![pixel](https://uploads.linear.app/e484a79e-8b9a-4a38-a993-d4c2b102f0ad/c08f60ac-3cc0-46c7-bae7-98b0c95ec368/5017dc05-f01d-4d1d-8e52-b0f9812f3746)'
+      read:
+        tool: get_attachment
+        with: {id: $fixture.linear.upload.id}
   targets:
     missing_issue: {kind: absent, identifier: SAR-999999}
+    missing_release: {kind: absent, id: 00000000-0000-4000-8000-000000000000}
+    missing_release_note: {kind: absent, id: 00000000-0000-4000-8000-000000000000}
+    missing_agent_skill: {kind: absent, id: 00000000-0000-4000-8000-000000000000}
 slack:
   connection: slack_shipfox
   fixtures:

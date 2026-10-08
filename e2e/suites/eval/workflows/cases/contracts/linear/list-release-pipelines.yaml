@@ -1,0 +1,13 @@
+provider: linear
+modes: [real, fake]
+steps:
+  - tool: list_release_pipelines
+    with:
+      limit: 1
+    # The sandbox holds none, so the list is empty and the first item has nothing to check.
+    expect:
+      shape:
+        releasePipelines: list
+        hasNextPage: boolean
+      values:
+        hasNextPage: false

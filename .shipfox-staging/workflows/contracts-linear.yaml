@@ -143,6 +143,22 @@ jobs:
           value_title: '${{ has(result.title) ? result.title : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_id) == type("") && step.outputs.value_id == "471c6da6-c647-4770-b6d3-27dc53189810" && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Contract fixture document"
+      - key: status_update
+        tool: get_status_updates
+        connection: linear_shipfox_sandbox
+        with:
+          type: project
+          project: fa265fda-fe3e-4049-a2a8-b4173aa5b266
+          limit: 1
+        outputs:
+          value_statusUpdates_0_id: '${{ has(result.statusUpdates) && type(result.statusUpdates) == type([]) && size(result.statusUpdates) > 0 && [result.statusUpdates[0]].all(i0, has(i0.id)) ? result.statusUpdates[0].id : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_statusUpdates_0_id) == type("") && step.outputs.value_statusUpdates_0_id == "532105f9-05b5-43b5-b3c2-ccc7e7b4ee6b"
+      - key: upload
+        tool: get_attachment
+        connection: linear_shipfox_sandbox
+        with:
+          id: 6e2b43dd-a80b-4b06-b0d2-875625571572
   attachment_round_trip:
     checkout: false
     steps:
@@ -433,6 +449,36 @@ jobs:
           value_statusType: '${{ has(result.statusType) ? result.statusType : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_statusType) == type("") && step.outputs.value_statusType == "canceled"
+  extract_images:
+    checkout: false
+    steps:
+      - key: extract_images
+        tool: extract_images
+        connection: linear_shipfox_sandbox
+        with:
+          markdown: "![pixel](https://uploads.linear.app/e484a79e-8b9a-4a38-a993-d4c2b102f0ad/c08f60ac-3cc0-46c7-bae7-98b0c95ec368/5017dc05-f01d-4d1d-8e52-b0f9812f3746)"
+        outputs:
+          text_0: ${{ type(result) == type("") && result.matches("Successfully fetched 1 image") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.text_0
+  get_agent_skill_missing_agent_skill:
+    checkout: false
+    steps:
+      - key: get_agent_skill_missing_agent_skill
+        tool: get_agent_skill
+        connection: linear_shipfox_sandbox
+        with:
+          id: 00000000-0000-4000-8000-000000000000
+        gate:
+          success: step.status == "failed" && step.error.code == "not-found"
+  get_attachment:
+    checkout: false
+    steps:
+      - key: get_attachment
+        tool: get_attachment
+        connection: linear_shipfox_sandbox
+        with:
+          id: 6e2b43dd-a80b-4b06-b0d2-875625571572
   get_document:
     checkout: false
     steps:
@@ -533,6 +579,46 @@ jobs:
           value_name: '${{ has(result.name) ? result.name : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_uuid && step.outputs.shape_name && step.outputs.shape_url && type(step.outputs.value_uuid) == type("") && step.outputs.value_uuid == "fa265fda-fe3e-4049-a2a8-b4173aa5b266" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Contract fixture project"
+  get_release_missing_release:
+    checkout: false
+    steps:
+      - key: get_release_missing_release
+        tool: get_release
+        connection: linear_shipfox_sandbox
+        with:
+          id: 00000000-0000-4000-8000-000000000000
+        gate:
+          success: step.status == "failed" && step.error.code == "not-found"
+  get_release_note_missing_release_note:
+    checkout: false
+    steps:
+      - key: get_release_note_missing_release_note
+        tool: get_release_note
+        connection: linear_shipfox_sandbox
+        with:
+          id: 00000000-0000-4000-8000-000000000000
+        gate:
+          success: step.status == "failed" && step.error.code == "unknown"
+  get_status_updates:
+    checkout: false
+    steps:
+      - key: get_status_updates
+        tool: get_status_updates
+        connection: linear_shipfox_sandbox
+        with:
+          type: project
+          project: fa265fda-fe3e-4049-a2a8-b4173aa5b266
+          limit: 1
+        outputs:
+          shape_statusUpdates_0_id: ${{ has(result.statusUpdates) && type(result.statusUpdates) == type([]) && size(result.statusUpdates) > 0 && [result.statusUpdates[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+          shape_statusUpdates_0_body: ${{ has(result.statusUpdates) && type(result.statusUpdates) == type([]) && size(result.statusUpdates) > 0 && [result.statusUpdates[0]].all(i0, has(i0.body) && type(i0.body) == type("")) }}
+          shape_statusUpdates_0_health: ${{ has(result.statusUpdates) && type(result.statusUpdates) == type([]) && size(result.statusUpdates) > 0 && [result.statusUpdates[0]].all(i0, has(i0.health) && type(i0.health) == type("")) }}
+          shape_statusUpdates_0_url: ${{ has(result.statusUpdates) && type(result.statusUpdates) == type([]) && size(result.statusUpdates) > 0 && [result.statusUpdates[0]].all(i0, has(i0.url) && type(i0.url) == type("")) }}
+          shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
+          value_statusUpdates_0_id: '${{ has(result.statusUpdates) && type(result.statusUpdates) == type([]) && size(result.statusUpdates) > 0 && [result.statusUpdates[0]].all(i0, has(i0.id)) ? result.statusUpdates[0].id : "" }}'
+          value_statusUpdates_0_body: '${{ has(result.statusUpdates) && type(result.statusUpdates) == type([]) && size(result.statusUpdates) > 0 && [result.statusUpdates[0]].all(i0, has(i0.body)) ? result.statusUpdates[0].body : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_statusUpdates_0_id && step.outputs.shape_statusUpdates_0_body && step.outputs.shape_statusUpdates_0_health && step.outputs.shape_statusUpdates_0_url && step.outputs.shape_hasNextPage && type(step.outputs.value_statusUpdates_0_id) == type("") && step.outputs.value_statusUpdates_0_id == "532105f9-05b5-43b5-b3c2-ccc7e7b4ee6b" && type(step.outputs.value_statusUpdates_0_body) == type("") && step.outputs.value_statusUpdates_0_body == "Status update with café 日本語."
   get_team:
     checkout: false
     steps:
@@ -657,6 +743,20 @@ jobs:
           matches_labels_0_name: ${{ has(result.labels) && type(result.labels) == type([]) && size(result.labels) > 0 && [result.labels[0]].all(i0, has(i0.name) && type(i0.name) == type("") && i0.name.matches("^Contract contract-[0-9a-f-]+$")) }}
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_labels_0_color) == type("") && step.outputs.value_labels_0_color == "#4EA7FC" && type(step.outputs.value_labels_0_description) == type("") && step.outputs.value_labels_0_description == "Created by a contract." && step.outputs.matches_labels_0_name
+  list_agent_skills:
+    checkout: false
+    steps:
+      - key: list_agent_skills
+        tool: list_agent_skills
+        connection: linear_shipfox_sandbox
+        with:
+          limit: 1
+        outputs:
+          shape_agentSkills: ${{ has(result.agentSkills) && type(result.agentSkills) == type([]) }}
+          shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
+          value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_agentSkills && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == false
   list_comments:
     checkout: false
     steps:
@@ -810,6 +910,48 @@ jobs:
           value_projects_0_name: '${{ has(result.projects) && type(result.projects) == type([]) && size(result.projects) > 0 && [result.projects[0]].all(i0, has(i0.name)) ? result.projects[0].name : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_projects_0_id && step.outputs.shape_projects_0_uuid && step.outputs.shape_projects_0_name && type(step.outputs.value_projects_0_uuid) == type("") && step.outputs.value_projects_0_uuid == "fa265fda-fe3e-4049-a2a8-b4173aa5b266" && type(step.outputs.value_projects_0_name) == type("") && step.outputs.value_projects_0_name == "Contract fixture project"
+  list_release_notes:
+    checkout: false
+    steps:
+      - key: list_release_notes
+        tool: list_release_notes
+        connection: linear_shipfox_sandbox
+        with:
+          limit: 1
+        outputs:
+          shape_releaseNotes: ${{ has(result.releaseNotes) && type(result.releaseNotes) == type([]) }}
+          shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
+          value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_releaseNotes && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == false
+  list_release_pipelines:
+    checkout: false
+    steps:
+      - key: list_release_pipelines
+        tool: list_release_pipelines
+        connection: linear_shipfox_sandbox
+        with:
+          limit: 1
+        outputs:
+          shape_releasePipelines: ${{ has(result.releasePipelines) && type(result.releasePipelines) == type([]) }}
+          shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
+          value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_releasePipelines && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == false
+  list_releases:
+    checkout: false
+    steps:
+      - key: list_releases
+        tool: list_releases
+        connection: linear_shipfox_sandbox
+        with:
+          limit: 1
+        outputs:
+          shape_releases: ${{ has(result.releases) && type(result.releases) == type([]) }}
+          shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
+          value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_releases && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == false
   list_teams:
     checkout: false
     steps:

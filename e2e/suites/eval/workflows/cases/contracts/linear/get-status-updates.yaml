@@ -1,0 +1,15 @@
+provider: linear
+modes: [real, fake]
+steps:
+  - tool: get_status_updates
+    with:
+      type: project
+      project: $fixture.linear.project.id
+      limit: 1
+    expect:
+      shape:
+        statusUpdates: [{id: string, body: string, health: string, url: string}]
+        hasNextPage: boolean
+      values:
+        statusUpdates[0].id: $fixture.linear.status_update.id
+        statusUpdates[0].body: $fixture.linear.status_update.body
