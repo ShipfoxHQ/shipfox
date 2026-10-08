@@ -25,9 +25,12 @@ const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 
 // The step environment arrives as an `export` file, so values never show up in process arguments
 // and a value such as DOCKER_HOST cannot reach the runner's own `docker` calls. The file is
-// deleted before the command starts. `exec` keeps the shell's PID, and `docker exec` makes that
-// process a session and process group leader, so the recorded PID is the group to kill.
-const EXEC_PREAMBLE = 'echo $$ > "$1.pid"; . "$1"; rm -f "$1"; shift; exec "$@"';
+// deleted before the command starts, with the `PATH` from before the file changed it, so a step
+// that sets `PATH` cannot keep `rm` from being found. `exec` keeps the shell's PID, and
+// `docker exec` makes that process a session and process group leader, so the recorded PID is the
+// group to kill.
+const EXEC_PREAMBLE =
+  'echo $$ > "$1.pid"; shipfox_path=$PATH; . "$1"; PATH=$shipfox_path rm -f "$1"; shift; exec "$@"';
 
 // While the process may not have started yet, waits for the preamble to record the PID.
 const KILL_SCRIPT = `
@@ -66,7 +69,7 @@ const MKDIR_SCRIPT =
 const FILE_ERROR_CODES: ReadonlyArray<readonly [message: RegExp, code: string]> = [
   [/no such file or directory|directory nonexistent|nonexistent directory/iu, 'ENOENT'],
   [/not a directory/iu, 'ENOTDIR'],
-  [/file exists/iu, 'EEXIST'],
+  [/file exists|cannot overwrite existing file/iu, 'EEXIST'],
   [/is a directory/iu, 'EISDIR'],
   [/permission denied/iu, 'EACCES'],
 ];
@@ -323,6 +326,7 @@ export class ContainerExecutionHost implements ExecutionHost {
         stderr: Buffer.concat(await stderr).toString('utf8'),
       };
     } catch (error) {
+      void child.killTree();
       if (params.signal?.aborted) throw params.signal.reason ?? error;
       throw error;
     } finally {
@@ -343,10 +347,11 @@ async function feedStdin(child: HostProcess, data: Uint8Array | Readable | undef
   // The command can exit before it reads everything, which closes the pipe under the writer.
   stdin.on('error', () => undefined);
   if (data instanceof Readable) {
-    await new Promise<void>((resolve) => {
-      data.on('error', () => {
+    // A failing source is not an end of file: the write must fail instead of keeping a prefix.
+    await new Promise<void>((resolve, reject) => {
+      data.on('error', (error) => {
         stdin.destroy();
-        resolve();
+        reject(error);
       });
       stdin.on('close', resolve);
       data.pipe(stdin);

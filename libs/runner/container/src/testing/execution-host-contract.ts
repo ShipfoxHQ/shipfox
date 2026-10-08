@@ -72,6 +72,7 @@ export function describeExecutionHostContract(
       });
 
       it('passes the requested environment and nothing from the runner', async () => {
+        const previous = process.env.SHIPFOX_CONTRACT_RUNNER_ONLY;
         process.env.SHIPFOX_CONTRACT_RUNNER_ONLY = 'leaked';
         try {
           const child = run('echo "$GREETING/$SHIPFOX_CONTRACT_RUNNER_ONLY"', {
@@ -82,7 +83,8 @@ export function describeExecutionHostContract(
 
           expect(stdout).toBe('hello/\n');
         } finally {
-          delete process.env.SHIPFOX_CONTRACT_RUNNER_ONLY;
+          if (previous === undefined) delete process.env.SHIPFOX_CONTRACT_RUNNER_ONLY;
+          else process.env.SHIPFOX_CONTRACT_RUNNER_ONLY = previous;
         }
       });
 

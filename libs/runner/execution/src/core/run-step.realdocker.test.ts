@@ -49,25 +49,46 @@ async function startFixture(image: string, options = ''): Promise<Fixture> {
   await writeFile(join(root, 'node'), '');
   await chmod(join(root, 'node'), 0o755);
   const jobId = randomUUID();
-  const container = await startJobContainer({
-    jobId,
-    image,
-    options,
-    dockerSocket: false,
-    ...dirs,
-    runnerInstallDir: root,
-    nodeBinary: join(root, 'node'),
-    signal: new AbortController().signal,
-  });
+  const name = jobContainerName(jobId);
+  // The container user owns what it created, so the container empties the mounts before they go.
+  const dispose = async () => {
+    try {
+      execFileSync('docker', [
+        'exec',
+        '--user',
+        '0',
+        name,
+        'sh',
+        '-c',
+        `rm -rf ${root}/job/* ${root}/tmp/*`,
+      ]);
+    } catch {
+      // The container never started, so nothing in it owns anything.
+    }
+    await removeJobContainer(name);
+    await rm(root, {recursive: true, force: true});
+  };
+  try {
+    await startJobContainer({
+      jobId,
+      image,
+      options,
+      dockerSocket: false,
+      ...dirs,
+      runnerInstallDir: root,
+      nodeBinary: join(root, 'node'),
+      signal: new AbortController().signal,
+    });
+  } catch (error) {
+    await dispose();
+    throw error;
+  }
   return {
-    host: new ContainerExecutionHost({container: container.name, tempDir: dirs.tempDir}),
-    name: container.name,
+    host: new ContainerExecutionHost({container: name, tempDir: dirs.tempDir}),
+    name,
     root,
     dirs,
-    dispose: async () => {
-      await removeJobContainer(jobContainerName(jobId));
-      await rm(root, {recursive: true, force: true});
-    },
+    dispose,
   };
 }
 
@@ -151,7 +172,7 @@ describe.skipIf(!dockerAvailable()).each(IMAGES)('run steps in a container on %s
     try {
       const result = await executeRunStep(
         buildStep({
-          run: 'echo "layers=$LAYER runner=$SHIPFOX_RUNNER_ONLY secret=$SECRET_ONLY"',
+          run: 'echo "layers=$LAYER kept=$KEPT runner=$SHIPFOX_RUNNER_ONLY secret=$SECRET_ONLY"',
           env: {LAYER: 'step'},
         }),
         {
@@ -162,7 +183,7 @@ describe.skipIf(!dockerAvailable()).each(IMAGES)('run steps in a container on %s
       );
 
       expect(result.success).toBe(true);
-      expect(output.text()).toBe('layers=step runner= secret=s3cret\n');
+      expect(output.text()).toBe('layers=step kept=yes runner= secret=s3cret\n');
     } finally {
       delete process.env.SHIPFOX_RUNNER_ONLY;
     }

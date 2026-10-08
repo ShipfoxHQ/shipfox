@@ -637,10 +637,10 @@ describe('runJobSteps', () => {
       const options = executeRunStepMock.mock.calls[0]?.[1];
       expect(options).toMatchObject({
         host: containerHosts[0],
-        env: {PATH: '/usr/local/bin:/usr/bin', LICENSE: 'license-secret'},
         shell: '/usr/bin/bash',
         shareScratchFiles: true,
       });
+      expect(options.env).toEqual({PATH: '/usr/local/bin:/usr/bin', LICENSE: 'license-secret'});
       expect(options).not.toHaveProperty('gitConfigGlobal');
     });
 

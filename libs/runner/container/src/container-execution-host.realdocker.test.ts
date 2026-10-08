@@ -3,8 +3,10 @@ import {randomUUID} from 'node:crypto';
 import {chmod, mkdir, mkdtemp, readdir, realpath, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {Readable} from 'node:stream';
 import {ContainerExecutionHost} from '#container-execution-host.js';
 import {jobContainerName, removeJobContainer, startJobContainer} from '#job-container.js';
+import {runCommand} from '#run-command.js';
 import {describeExecutionHostContract} from '#testing/execution-host-contract.js';
 
 // A fake docker would accept any argument list, so the host runs against a real daemon. BusyBox
@@ -46,25 +48,45 @@ async function startFixture(image: string): Promise<Fixture> {
   await writeFile(join(root, 'node'), '');
   await chmod(join(root, 'node'), 0o755);
   const jobId = randomUUID();
-  const container = await startJobContainer({
-    jobId,
-    image,
-    options: '',
-    dockerSocket: false,
-    ...dirs,
-    runnerInstallDir: root,
-    nodeBinary: join(root, 'node'),
-    signal: new AbortController().signal,
-  });
+  const name = jobContainerName(jobId);
+  // The container user owns what it created, so the container empties the mounts before they go.
+  const dispose = async () => {
+    await runCommand({
+      argv: [
+        'docker',
+        'exec',
+        '--user',
+        '0',
+        name,
+        'sh',
+        '-c',
+        `rm -rf ${root}/job/* ${root}/tmp/*`,
+      ],
+    });
+    await removeJobContainer(name);
+    await rm(root, {recursive: true, force: true});
+  };
+  try {
+    await startJobContainer({
+      jobId,
+      image,
+      options: '',
+      dockerSocket: false,
+      ...dirs,
+      runnerInstallDir: root,
+      nodeBinary: join(root, 'node'),
+      signal: new AbortController().signal,
+    });
+  } catch (error) {
+    await dispose();
+    throw error;
+  }
   return {
-    host: new ContainerExecutionHost({container: container.name, tempDir: dirs.tempDir}),
+    host: new ContainerExecutionHost({container: name, tempDir: dirs.tempDir}),
     root,
     tempDir: dirs.tempDir,
     workspaceDir: dirs.workspaceDir,
-    dispose: async () => {
-      await removeJobContainer(jobContainerName(jobId));
-      await rm(root, {recursive: true, force: true});
-    },
+    dispose,
   };
 }
 
@@ -86,11 +108,7 @@ describe.skipIf(!available).each(IMAGES)('ContainerExecutionHost on %s', (image)
   it('keeps multi-line and quoted values out of the arguments and intact', async () => {
     const value = 'it\'s a\nmulti-line $HOME "quoted" `value`';
     const child = fixture.host.spawn({
-      argv: [
-        'sh',
-        '-c',
-        'printf %s "$TRICKY"; ps -o args= 2>/dev/null | grep -c multi-line || true',
-      ],
+      argv: ['sh', '-c', 'printf %s "$TRICKY"'],
       cwd: fixture.workspaceDir,
       env: {PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', TRICKY: value},
     });
@@ -100,7 +118,7 @@ describe.skipIf(!available).each(IMAGES)('ContainerExecutionHost on %s', (image)
 
     await child.exited;
 
-    expect(Buffer.concat(chunks).toString().startsWith(value)).toBe(true);
+    expect(Buffer.concat(chunks).toString()).toBe(value);
   });
 
   it('deletes the environment file before the command runs', async () => {
@@ -132,6 +150,34 @@ describe.skipIf(!available).each(IMAGES)('ContainerExecutionHost on %s', (image)
     expect(exit.exitCode).toBe(0);
     expect(Buffer.concat(chunks).toString()).toBe('tcp://127.0.0.1:1\n');
     expect(await fixture.host.exists(fixture.workspaceDir)).toBe(true);
+  });
+
+  it('deletes the environment file even when the step replaces PATH', async () => {
+    const child = fixture.host.spawn({
+      argv: ['/bin/sh', '-c', 'true'],
+      cwd: fixture.workspaceDir,
+      env: {PATH: '/nonexistent', SECRET: 'value'},
+    });
+    child.stdout.resume();
+    child.stderr.resume();
+
+    const exit = await child.exited;
+
+    expect(exit.exitCode).toBe(0);
+    expect((await readdir(fixture.tempDir)).filter((name) => name.endsWith('.env'))).toEqual([]);
+  });
+
+  it('fails a streamed write when the source fails, instead of keeping a prefix', async () => {
+    const source = new Readable({
+      read() {
+        this.push(Buffer.from('partial'));
+        this.destroy(new Error('source failed'));
+      },
+    });
+
+    await expect(
+      fixture.host.writeFile(join(fixture.workspaceDir, 'truncated.txt'), source),
+    ).rejects.toThrow('source failed');
   });
 
   it('finds the shell and the PATH of the image', async () => {
