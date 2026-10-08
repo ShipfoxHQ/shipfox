@@ -123,9 +123,17 @@ A job output keeps the list or the object in two cases:
 If a line of the map mixes text and expressions, the job output is text. A
 later job can't read one part of it.
 
-Interpolation writes a list or a map as JSON text. To pass one to a shell
-command, put it in `env` and parse the environment variable. You don't need to
-call `toJson()` first.
+A shell command can also use a list or an object. Put the value in the `env`
+of the step. Shipfox writes the value as JSON text in the environment variable.
+The command then reads the variable with a JSON tool such as `jq`:
+
+```yaml
+- env:
+    FINDINGS: ${{ jobs.review.outputs.findings }}
+  run: printf '%s' "$FINDINGS" | jq -r '.[0].severity'
+```
+
+Don't call `toJson()` on the value. Shipfox already converts it.
 
 ### When an output is the wrong tool
 
