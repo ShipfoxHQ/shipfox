@@ -18,6 +18,7 @@ export function DiscordInstallPage() {
         Connecting a Discord server that is already connected links it to this workspace again.
       </Text>
       <RedirectInstallPage
+        storeReturnTarget
         installRequest={installRequest}
         errorFallbackMessage="Could not start Discord install."
         loadingLabel="Connecting Discord"

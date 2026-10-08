@@ -13,6 +13,7 @@ export function JiraInstallPage() {
 
   return (
     <RedirectInstallPage
+      storeReturnTarget
       installRequest={installRequest}
       errorFallbackMessage="Could not start Jira install."
       loadingLabel="Connecting Jira"

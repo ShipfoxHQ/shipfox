@@ -4,6 +4,7 @@ import {ApiError} from '@shipfox/client-api';
 import {FOCUSED_FRAME_CONTENT_CLASS_NAME} from '@shipfox/client-shell/runtime';
 import {screen, waitFor} from '@testing-library/react';
 import {StrictMode} from 'react';
+import {INSTALL_RETURN_TARGET_KEY} from '#install-return-target.js';
 import {INTEGRATIONS_TEST_WID, renderIntegrationsPage} from '#test/render.js';
 import {RedirectInstallPage} from './redirect-install-page.js';
 
@@ -11,10 +12,10 @@ const FOCUSED_FRAME_CONTENT_CLASSES = FOCUSED_FRAME_CONTENT_CLASS_NAME.split(' '
 
 function renderInstallPage(
   props: Parameters<typeof RedirectInstallPage>[0],
-  options?: {strict?: boolean},
+  options?: {strict?: boolean; search?: string},
 ) {
   return renderIntegrationsPage({
-    path: '/w/acme/integrations/github',
+    path: `/w/acme/integrations/github${options?.search ?? ''}`,
     routePath: '/w/$workspaceSlug/integrations/github',
     element: options?.strict ? (
       <StrictMode>
@@ -48,6 +49,56 @@ describe('RedirectInstallPage', () => {
     expect(beforeRedirect.mock.invocationCallOrder[0]).toBeLessThan(
       installRequest.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     );
+  });
+
+  describe('return target', () => {
+    beforeEach(() => window.sessionStorage.clear());
+
+    async function startInstall(options: {search?: string; storeReturnTarget?: boolean}) {
+      const assignLocation = vi.fn();
+      renderInstallPage(
+        {
+          installRequest: vi.fn().mockResolvedValue({installUrl: 'https://provider.test/install'}),
+          errorFallbackMessage: 'Could not start install.',
+          assignLocation,
+          ...(options.storeReturnTarget ? {storeReturnTarget: true} : {}),
+        },
+        options.search ? {search: options.search} : undefined,
+      );
+      await waitFor(() => expect(assignLocation).toHaveBeenCalled());
+    }
+
+    test('stores home before leaving the app when the install asks for it', async () => {
+      await startInstall({search: '?returnTo=home', storeReturnTarget: true});
+
+      expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBe('home');
+    });
+
+    test('stores settings when the install does not ask for a target', async () => {
+      await startInstall({storeReturnTarget: true});
+
+      expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBe('settings');
+    });
+
+    test('does not let a target from an earlier install reach a settings install', async () => {
+      window.sessionStorage.setItem(INSTALL_RETURN_TARGET_KEY, 'home');
+
+      await startInstall({storeReturnTarget: true});
+
+      expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBe('settings');
+    });
+
+    test('stores an unknown target as settings', async () => {
+      await startInstall({search: '?returnTo=https%3A%2F%2Fevil.test', storeReturnTarget: true});
+
+      expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBe('settings');
+    });
+
+    test('stores nothing for an install that did not opt in', async () => {
+      await startInstall({search: '?returnTo=home'});
+
+      expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBeNull();
+    });
   });
 
   test('shows the API error message with a back link on failure', async () => {

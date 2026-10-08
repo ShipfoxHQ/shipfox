@@ -17,6 +17,7 @@ import {
 } from '#discord-callback.js';
 import {classifyDiscordCallbackError, type DiscordCallbackFailure} from '#discord-form-errors.js';
 import {useCompleteDiscordCallbackMutation} from '#hooks/api/integrations.js';
+import {consumeInstallReturnLocation} from '#install-return-target.js';
 import {rememberCallbackKey, resolveWorkspaceSlug} from '#workspace-navigation.js';
 
 const callbackRequests = createSingleFlight<string, IntegrationConnection>({
@@ -209,11 +210,7 @@ async function navigateToDiscordWorkspace(
       return;
     }
     params.setCompletedWorkspace({slug: workspaceSlug});
-    await params.navigate({
-      to: '/w/$workspaceSlug/settings/integrations',
-      params: {workspaceSlug},
-      replace: true,
-    });
+    await params.navigate(consumeInstallReturnLocation(workspaceSlug));
   } catch {
     if (!params.isDisposed()) params.setCompletedWorkspace({slug: workspaceSlug});
   }

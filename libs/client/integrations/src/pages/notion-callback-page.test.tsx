@@ -5,6 +5,7 @@ import {authStateAtom} from '@shipfox/client-auth';
 import {act, screen, waitFor} from '@testing-library/react';
 import {useSetAtom} from 'jotai';
 import {type ReactNode, StrictMode, useEffect} from 'react';
+import {INSTALL_RETURN_TARGET_KEY} from '#install-return-target.js';
 import {NOTION_INSTALL_WORKSPACE_KEY} from '#notion-callback.js';
 import {INTEGRATIONS_TEST_WID, renderIntegrationsPage, testWorkspace} from '#test/render.js';
 import {NotionCallbackPage} from './notion-callback-page.js';
@@ -104,6 +105,58 @@ describe('NotionCallbackPage', () => {
     );
     expect(window.sessionStorage.getItem(NOTION_INSTALL_WORKSPACE_KEY)).toBeNull();
     expect(screen.getByText('Notion installed.')).toBeInTheDocument();
+  });
+
+  it('returns to the workspace home when the install started from the home', async () => {
+    const responseWorkspaceId = '22222222-2222-4222-8222-222222222222';
+    window.sessionStorage.setItem(NOTION_INSTALL_WORKSPACE_KEY, INTEGRATIONS_TEST_WID);
+    window.sessionStorage.setItem(INSTALL_RETURN_TARGET_KEY, 'home');
+    completeCallbackMock.mockResolvedValue({
+      id: 'connection-1',
+      workspaceId: responseWorkspaceId,
+      provider: 'notion',
+      externalAccountId: 'team-1',
+      slug: 'notion_acme',
+      displayName: 'Notion Acme',
+      lifecycleStatus: 'active',
+      capabilities: ['agent_tools'],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    renderIntegrationsPage({
+      path: '/integrations/notion/callback?code=grant-code-home&state=signed-state-home',
+      routePath: '/integrations/notion/callback',
+      element: (
+        <StrictMode>
+          <NotionCallbackPage />
+        </StrictMode>
+      ),
+      workspaces: [
+        testWorkspace(),
+        testWorkspace({id: responseWorkspaceId, slug: 'response-workspace'}),
+      ],
+      extraRoutes: [
+        '/w/response-workspace',
+        '/w/$workspaceSlug/integrations/notion',
+        '/auth/login',
+      ],
+    });
+
+    await waitFor(() =>
+      expect(completeCallbackMock).toHaveBeenCalledWith({
+        query: {code: 'grant-code-home', state: 'signed-state-home'},
+        token: 'test-token',
+      }),
+    );
+    expect(completeCallbackMock).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(screen.getByTestId('route:/w/response-workspace')).toBeInTheDocument(),
+    );
+    expect(window.sessionStorage.getItem(NOTION_INSTALL_WORKSPACE_KEY)).toBeNull();
+    expect(screen.getByText('Notion installed.')).toBeInTheDocument();
+
+    expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBeNull();
   });
 
   it('waits for auth before submitting the original callback query', async () => {

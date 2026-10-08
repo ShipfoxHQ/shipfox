@@ -29,6 +29,7 @@ import {
   useCompleteJiraCallbackMutation,
   useCompleteJiraSiteSelectionMutation,
 } from '#hooks/api/integrations.js';
+import {consumeInstallReturnLocation} from '#install-return-target.js';
 import {
   clearJiraInstallWorkspace,
   parseJiraCallbackQuery,
@@ -89,11 +90,7 @@ async function navigateFromCompletedJiraConnection(
       return;
     }
     params.setCompletedWorkspace({slug: workspaceSlug});
-    await params.navigate({
-      to: '/w/$workspaceSlug/settings/integrations',
-      params: {workspaceSlug},
-      replace: true,
-    });
+    await params.navigate(consumeInstallReturnLocation(workspaceSlug));
   } catch {
     if (!jiraCompletionInactive(params.disposedRef, params.isActive)) {
       params.setCompletedWorkspace({slug: workspaceSlug});
