@@ -75,22 +75,6 @@ are not permitted in `$SHIPFOX_ENV`: `PATH`, and a name that starts with
   instead.
 </Callout>
 
-## Write the files from an action
-
-An action step gets the same two files. Append to them from the action code:
-
-```ts
-import {appendFileSync} from 'node:fs';
-import {join} from 'node:path';
-import {defineAction} from '@shipfox/actions';
-
-export default defineAction(() => {
-  const workspace = process.env.SHIPFOX_WORKSPACE ?? '';
-  appendFileSync(process.env.SHIPFOX_ENV ?? '', 'RELEASE_CHANNEL=beta\n');
-  appendFileSync(process.env.SHIPFOX_PATH ?? '', `${join(workspace, 'tools/bin')}\n`);
-});
-```
-
 ## Check which value a step gets
 
 A step can get the same variable from several places. Shipfox applies the
