@@ -96,7 +96,7 @@ trigger and its filter.
 | To... | Change this |
 | --- | --- |
 | Publish several values | Add one entry per value to the top-level `outputs` map. |
-| Publish structured data | Declare a `json` step output. Set the job output and the workflow output to one expression each and nothing else. See [How outputs move results between jobs](/understand/data-and-templating#how-outputs-move-results-between-jobs). |
+| Publish structured data | Declare a `json` step output. Set the job output and the workflow output to one expression each and nothing else. See [How jobs share data](/understand/data-and-templating#how-jobs-share-data). |
 | Combine values in one output | Write text around the expression, such as `api-${{ jobs.build.outputs.version }}`. The result is a string. |
 | Use data other than job outputs | Read `inputs`, `vars`, `run`, `workflow`, `trigger`, or `event` in the expression. See [Context availability](/reference/contexts#context-availability). |
 | Read the outputs in another project | Change the project name in the downstream filter. Workflow outputs reach every workflow in the workspace that matches the event. |

@@ -28,7 +28,7 @@ The [Expressions reference](/reference/expressions) defines the exact syntax.
 The [Contexts reference](/reference/contexts) lists the data that each field
 can read.
 
-## How outputs move results between jobs
+## How jobs share data
 
 Steps in one job can share files, but files don't cross a job boundary. An
 output turns a result into named workflow data that later work can read.
@@ -139,7 +139,7 @@ You don't need an output for this. A step can give an environment variable or
 a `PATH` directory to the steps that run after it in the same job. See [Share
 tools between steps](/how-to/author-workflows/share-tools-between-steps).
 
-## Treat outside data as text, not as instructions
+## Outside data and secrets
 
 Events, inputs, and step outputs contain data from outside the workflow.
 People outside your team can write this data. For example, the author of a
