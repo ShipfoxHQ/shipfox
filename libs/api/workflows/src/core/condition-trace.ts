@@ -17,6 +17,7 @@ const FAILURE_STEP_CONDITION_SOURCE = 'execution.failed';
 export const UNFILLABLE_CONDITION_SUMMARY =
   'The condition reads a value that is not available here.';
 const SOURCE_PATH = /^(steps|jobs|needs)\.([A-Za-z_][A-Za-z0-9_]*)(?:\.|$)/;
+const OUTPUT_PATH = /^(?:steps|jobs|needs)\.[^.]+\.outputs\.([^.]+)$/;
 
 export function explicitConditionTrace(params: {
   readonly expression: WorkflowExpression;
@@ -77,6 +78,40 @@ export function defaultStepConditionTrace(
       field: 'step.default_gate',
     },
   ]);
+}
+
+/**
+ * Names the value an errored condition could not read and the step or job that should have
+ * set it. Returns undefined when the trace does not name a source, so the caller keeps the
+ * evaluator message.
+ */
+export function conditionErrorSummary(
+  trace: readonly PersistedEvaluationTraceEntry[],
+): string | undefined {
+  const error = trace.flatMap((entry) => ('error' in entry && entry.error ? [entry.error] : []))[0];
+  if (error?.path === undefined || error.source === undefined) return undefined;
+
+  const {path, source} = error;
+  if (source.status === 'succeeded') {
+    const output = OUTPUT_PATH.exec(path)?.[1];
+    if (output === undefined) return undefined;
+    const subject = source.kind === 'step' ? 'Step' : 'Job';
+    return `\`${path}\` has no value. ${subject} \`${source.key}\` succeeded but did not report \`${output}\`.`;
+  }
+  return `\`${path}\` has no value because ${source.kind} \`${source.key}\` ${sourceStatusClause(source.status)}.`;
+}
+
+function sourceStatusClause(status: string): string {
+  switch (status) {
+    case 'skipped':
+      return 'was skipped';
+    case 'cancelled':
+      return 'was cancelled';
+    case 'failed':
+      return 'failed';
+    default:
+      return 'has not finished';
+  }
 }
 
 function conditionTraceError(

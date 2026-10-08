@@ -412,6 +412,48 @@ describe('failure annotations', () => {
     );
   });
 
+  it('names the missing value and the skipped step in the condition error copy', async () => {
+    const payload = stepAttemptTerminatedPayload();
+    const step = stepEntity({
+      id: payload.stepId,
+      jobExecutionId: JOB_EXECUTION_ID,
+      key: 'deploy',
+      status: 'failed',
+    });
+    const attempt = stepAttemptEntity({
+      stepId: step.id,
+      status: 'failed',
+      error: {
+        reason: 'condition_errored',
+        field: 'step.if',
+        summary: '`steps.build.outputs.sha` has no value because step `build` was skipped.',
+      },
+    });
+    dbMocks.getStepAttemptDetail.mockResolvedValue({
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
+      step,
+      attempt,
+    });
+    dbMocks.getWorkflowRunAttemptById.mockResolvedValue({attempt: 1});
+
+    await onStepAttemptTerminatedFailureAnnotation(annotations)(payload);
+
+    expect(replaceOrRemoveAnnotation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotation: {
+          op: 'replace',
+          style: 'error',
+          body: [
+            '**A step condition has an error**',
+            '',
+            "The `if` of step `deploy` can't be evaluated: `steps.build.outputs.sha` has no value because step `build` was skipped. Fix the condition, then start a new run.",
+          ].join('\n'),
+        },
+      }),
+    );
+  });
+
   it('shortens a long step name in the condition error copy', async () => {
     const payload = stepAttemptTerminatedPayload();
     const step = stepEntity({
