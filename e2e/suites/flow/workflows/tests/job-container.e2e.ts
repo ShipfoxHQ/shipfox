@@ -56,6 +56,8 @@ jobs:
         name: Push a commit
         run: |
           git config --local commit.gpgsign false
+          git config --local user.name "Shipfox E2E"
+          git config --local user.email "e2e@shipfox.test"
           echo "pushed from the job container" > ${PUSHED_FILE}
           git add ${PUSHED_FILE}
           git commit -m "push from the job container"
