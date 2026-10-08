@@ -612,7 +612,7 @@ describe('runJobSteps', () => {
       );
     });
 
-    it('runs the run steps that follow in the container, without the runner Git config', async () => {
+    it('runs the run steps that follow in the container, without a Git config it was not given', async () => {
       const setup = containerSetup();
       const run = buildRunStep();
       requestNextStepMock
@@ -644,8 +644,33 @@ describe('runJobSteps', () => {
       expect(options).not.toHaveProperty('gitConfigGlobal');
     });
 
+    it('gives the run steps the container Git config, not the runner one', async () => {
+      const setup = containerSetup();
+      const run = buildRunStep();
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(run, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeSetupStepMock.mockResolvedValueOnce({
+        result: {success: true, error: null, exit_code: 0},
+        ambientGitConfigPath: '/runner-cred/job-1/ambient.config',
+        container: {
+          name: 'shipfox-job-1',
+          env: {},
+          gitConfigPath: `${JOB_TEMP_DIR}/container-gitconfig`,
+        },
+      });
+      executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(executeRunStepMock.mock.calls[0]?.[1]).toMatchObject({
+        gitConfigGlobal: `${JOB_TEMP_DIR}/container-gitconfig`,
+      });
+    });
+
     describe('agent steps', () => {
-      function runAgentInContainer(harness: 'claude' | 'pi') {
+      function runAgentInContainer(harness: 'claude' | 'pi', containerExtras = {}) {
         requestAgentRuntimeConfigMock.mockResolvedValue({
           harness,
           provider_id: 'anthropic',
@@ -664,6 +689,7 @@ describe('runJobSteps', () => {
             name: 'shipfox-job-1',
             env: {LICENSE: 'license-secret'},
             runnerInstallDir: '/opt/runner',
+            ...containerExtras,
           },
         });
         executeAgentStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
@@ -682,6 +708,14 @@ describe('runJobSteps', () => {
           runnerInstallDir: '/opt/runner',
         });
         expect(options).not.toHaveProperty('gitConfigGlobal');
+      });
+
+      it('gives Claude the container Git config', async () => {
+        await runAgentInContainer('claude', {gitConfigPath: `${JOB_TEMP_DIR}/container-gitconfig`});
+
+        expect(executeAgentStepMock.mock.calls[0]?.[1].gitConfigGlobal).toBe(
+          `${JOB_TEMP_DIR}/container-gitconfig`,
+        );
       });
 
       it('keeps pi on the runner', async () => {

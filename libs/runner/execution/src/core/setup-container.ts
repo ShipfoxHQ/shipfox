@@ -1,6 +1,13 @@
-import {type JobContainer, startJobContainer} from '@shipfox/runner-container';
+import {join} from 'node:path';
+import {
+  type JobContainer,
+  NODE_MOUNT,
+  RUNNER_MOUNT,
+  startJobContainer,
+} from '@shipfox/runner-container';
 import {RUNNER_FALLBACK_CREDENTIAL_SOCKET_DIR} from '@shipfox/runner-workspace';
 import {z} from 'zod';
+import type {ContainerGitConfigTarget} from '#core/checkout-execution.js';
 
 // The shape the server writes into the setup step config when the job has a `container`.
 const setupContainerConfigSchema = z.object({
@@ -37,6 +44,16 @@ export interface SetupContainerLog {
 export interface StartedSetupContainer extends JobContainer {
   /** The environment every process in the container gets, secrets included. */
   readonly env: Readonly<Record<string, string>>;
+  /** The Git config for the container, set when the checkout left ambient Git access. */
+  readonly gitConfigPath?: string | undefined;
+}
+
+/** The Git config a job container reads, and the helper it runs from the mounted runner. */
+export function containerGitConfigTarget(context: SetupContainerContext): ContainerGitConfigTarget {
+  return {
+    path: join(context.tempDir, 'container-gitconfig'),
+    helperCommand: `${NODE_MOUNT} ${RUNNER_MOUNT}/dist/git-credential-helper.js`,
+  };
 }
 
 export function parseSetupContainerConfig(config: unknown): SetupContainerConfig {

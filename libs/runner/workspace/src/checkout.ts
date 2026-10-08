@@ -353,6 +353,61 @@ export function writeGitCredentialHelperConfig(params: {
   );
 }
 
+/**
+ * Writes the Git config a job container reads through `GIT_CONFIG_GLOBAL`. It carries the same
+ * identity and repository access as the ambient config, but its helper is spelled for the paths
+ * inside the container, and `safe.directory` lets Git open a workspace the container user does
+ * not own. The runner user's own global config is not included, since it is not that user's.
+ * Pass `auth` only for a checkout that persisted a credential without a helper.
+ */
+export async function writeContainerGitConfig(params: {
+  configPath: string;
+  repositoryUrl: string;
+  helper?: GitCredentialHelperConfig | undefined;
+  auth?: CheckoutTokenAuthDto | undefined;
+  gitAuthor?: {name: string; email: string} | undefined;
+}): Promise<void> {
+  const {configPath, helper, auth, gitAuthor} = params;
+  const repositoryUrl = gitConfigRepositoryUrl(params.repositoryUrl);
+  if (helper !== undefined) validateGitCredentialHelper(helper);
+  const lines = [
+    '[safe]',
+    '\tdirectory = *',
+    ...(gitAuthor
+      ? [
+          GIT_USER_SECTION_HEADER,
+          `\tname = ${gitConfigQuotedValue(gitAuthor.name)}`,
+          `\temail = ${gitConfigQuotedValue(gitAuthor.email)}`,
+        ]
+      : []),
+    ...(helper
+      ? [
+          '[credential]',
+          '\tuseHttpPath = true',
+          `[credential "${gitConfigSubsection(repositoryUrl)}"]`,
+          `\thelper = ${gitConfigQuotedValue(gitCredentialHelperCommandLine(helper))}`,
+        ]
+      : []),
+    ...(auth
+      ? [
+          `[http "${gitConfigSubsection(repositoryUrl)}"]`,
+          `\textraHeader = ${gitConfigQuotedValue(`Authorization: ${authorizationValue(auth)}`)}`,
+        ]
+      : []),
+    '',
+  ];
+  await mkdir(dirname(configPath), {recursive: true});
+  // The container user reads it, and the job temp directory is the runner's to share.
+  await writeFile(configPath, lines.join('\n'), {mode: 0o644});
+  await chmod(configPath, 0o644);
+}
+
+function gitCredentialHelperCommandLine(helper: GitCredentialHelperConfig): string {
+  const timeout =
+    helper.timeoutMs === undefined ? '' : ` --timeout-ms ${shellQuote(String(helper.timeoutMs))}`;
+  return `!${helper.command} --socket ${shellQuote(helper.socketPath)} --capability ${shellQuote(helper.capability)}${timeout}`;
+}
+
 function gitConfigRepositoryUrl(repositoryUrl: string): string {
   const normalized = normalizeRepositoryUrl(repositoryUrl);
   const originalPath = new URL(repositoryUrl).pathname.replace(TRAILING_SLASHES_RE, '');
@@ -398,7 +453,7 @@ async function updateGitCredentialHelperConfig(params: {
   const helperLines = [
     ...(hasGitCredentialHttpPath(current) ? [] : ['[credential]', '\tuseHttpPath = true']),
     `[credential "${gitConfigSubsection(params.repositoryUrl)}"]`,
-    `\thelper = ${gitConfigQuotedValue(`!${params.helper.command} --socket ${shellQuote(params.helper.socketPath)} --capability ${shellQuote(params.helper.capability)}${params.helper.timeoutMs === undefined ? '' : ` --timeout-ms ${shellQuote(String(params.helper.timeoutMs))}`}`)}`,
+    `\thelper = ${gitConfigQuotedValue(gitCredentialHelperCommandLine(params.helper))}`,
   ];
 
   await writeAmbientGitConfigFile(params.configPath, async (temporaryConfigPath) => {
