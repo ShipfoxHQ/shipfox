@@ -24,7 +24,7 @@ import {createGitSmartHttpFixture, type GitSmartHttpFixture} from '#test/git-sma
 // Git in a Debian container has to find the config, run the helper from the mounted runner, and
 // reach the credential socket as another user than the runner. Only a real container shows that.
 // Unix sockets do not cross the bind mounts of Docker Desktop or OrbStack, so this runs on Linux.
-const JOB_IMAGE = 'buildpack-deps:bookworm-scm';
+const JOB_IMAGE = 'debian:bookworm-slim';
 const NODE_IMAGE = 'node:24-bookworm-slim';
 const CONTAINER_USER = '12345:12345';
 const USERNAME = 'x-access-token';
@@ -74,6 +74,11 @@ function dockerAvailable(): boolean {
   } catch {
     return false;
   }
+}
+
+// CI buffers test output, so a hang in setup shows only as a timeout without these.
+function progress(step: string): void {
+  process.stderr.write(`container-git: ${step}\n`);
 }
 
 function git(args: string[], cwd: string): string {
@@ -172,6 +177,7 @@ describe.skipIf(!dockerAvailable() || process.platform !== 'linux')(
           {generation: 2, username: USERNAME, token: TOKENS[2], accepted: true},
         ],
       });
+      progress('starting the Git endpoint');
       await fixture.start();
       git(['clone', bareRepository, join(workspaceDir, 'repo')], root);
       git(['remote', 'set-url', 'origin', fixture.url], join(workspaceDir, 'repo'));
@@ -193,6 +199,7 @@ describe.skipIf(!dockerAvailable() || process.platform !== 'linux')(
             : {ok: true};
         },
       });
+      progress('starting the credential socket');
       await socketServer.start();
 
       gitConfigPath = join(tempDir, 'container-gitconfig');
@@ -214,6 +221,7 @@ describe.skipIf(!dockerAvailable() || process.platform !== 'linux')(
 
       const jobId = randomUUID();
       containerName = jobContainerName(jobId);
+      progress('starting the job container');
       await startJobContainer({
         jobId,
         image: JOB_IMAGE,
@@ -228,6 +236,18 @@ describe.skipIf(!dockerAvailable() || process.platform !== 'linux')(
         nodeBinary: join(root, 'node'),
         signal: new AbortController().signal,
       });
+      // The image is the base the other container tests pull. Git is added as root, since the
+      // job runs as another user.
+      progress('installing Git in the job container');
+      execFileSync('docker', [
+        'exec',
+        '--user',
+        '0',
+        containerName,
+        'sh',
+        '-c',
+        'apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates',
+      ]);
       host = new ContainerExecutionHost({container: containerName, tempDir});
     }, 300_000);
 
