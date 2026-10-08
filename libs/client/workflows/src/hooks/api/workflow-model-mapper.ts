@@ -32,6 +32,7 @@ export function toWorkflowJobStepError(dto: StepErrorDto): StepError | null {
     ...(dto.attempt_count === undefined ? {} : {attemptCount: dto.attempt_count}),
     ...(dto.max_attempts === undefined ? {} : {maxAttempts: dto.max_attempts}),
     ...(dto.restart_from === undefined ? {} : {restartFrom: dto.restart_from}),
+    ...(dto.provider_message === undefined ? {} : {providerMessage: dto.provider_message}),
   };
 }
 

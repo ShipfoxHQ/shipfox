@@ -86,6 +86,8 @@ const githubSpec = (token: string) => ({
   credentials: {username: 'x-access-token', token, expiresAt: new Date('2026-06-10T12:00:00.000Z')},
 });
 
+const ACCESS_DENIED_MESSAGE = /^The provider denied access to `.+` through the connection$/u;
+
 describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
   let app: FastifyInstance;
 
@@ -1224,7 +1226,12 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       const res = await send();
 
       expect(res.statusCode).toBe(404);
-      expect(res.json().details).toEqual({repository: 'partner/widgets', connection: 'partner-gh'});
+      expect(res.json().details).toEqual({
+        repository: 'partner/widgets',
+        connection: 'partner-gh',
+        message:
+          "Shipfox isn't allowed to check out `partner/widgets`: no project in this workspace is linked to it, and connection `partner-gh` doesn't allow all repositories",
+      });
       expect(loggedMessages()).toContain('`partner/widgets`');
       expect(loggedMessages()).toContain('connection `partner-gh`');
       expect(resolveConnectionById).not.toHaveBeenCalled();
@@ -1409,7 +1416,11 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       expect(res.statusCode).toBe(422);
       expect(res.json()).toMatchObject({
         code: 'access-denied',
-        details: {provider_message: providerMessage, provider_status: 403},
+        details: {
+          message: expect.stringMatching(ACCESS_DENIED_MESSAGE),
+          provider_message: providerMessage,
+          provider_status: 403,
+        },
       });
     });
   });

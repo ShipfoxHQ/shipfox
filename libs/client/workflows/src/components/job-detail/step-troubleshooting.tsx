@@ -163,9 +163,10 @@ function StepFailureCallout({
   const reason = failureReason(step, error, jobStatusReason);
   const toolGuidance =
     toolFailureGuidance(reason, step, attempt, error) ?? actionFailureGuidance(reason, step, error);
-  const title = toolGuidance?.title ?? failureTitle(reason, error);
+  const guidance = toolGuidance ?? checkoutCauseGuidance(reason, error);
+  const title = guidance?.title ?? failureTitle(reason, error);
   const description =
-    toolGuidance?.description ?? failureDescription(reason, step, error, step.gateMaxAttempts);
+    guidance?.description ?? failureDescription(reason, step, error, step.gateMaxAttempts);
   const failureCode = failureCodeForStep(step, error, reason);
   const sourceLink = sourceLinkForFailure(reason) && step.sourceLocation;
 
@@ -193,6 +194,7 @@ function StepFailureCallout({
             <div className="flex min-w-0 flex-col gap-tight">
               <span>{description}</span>
               <FailureMessage error={error} />
+              <ProviderMessage error={error} />
             </div>
             <Code as="span" variant="label" className="text-tag-error-text">
               {failureCode}
@@ -897,6 +899,16 @@ function FailureMessage({error}: {error: StepError | null}): ReactNode {
   return <span className="text-foreground-neutral-muted">{error.message}</span>;
 }
 
+function ProviderMessage({error}: {error: StepError | null}): ReactNode {
+  if (!error?.providerMessage) return null;
+  return (
+    <span className="text-foreground-neutral-muted">
+      The provider said:{' '}
+      <span className="break-words font-code text-xs">{error.providerMessage}</span>
+    </span>
+  );
+}
+
 function ProviderStreamDetails({step, error}: {step: Step; error: StepError | null}): ReactNode {
   if (!isProviderStreamFailure(error) || !error) return null;
 
@@ -1202,6 +1214,55 @@ function toolFailureGuidance(
     return SUCCESSFUL_TOOL_OUTPUT_FAILURE_GUIDANCE;
   }
   return error?.code ? (TOOL_FAILURE_GUIDANCE_BY_CODE[error.code] ?? null) : null;
+}
+
+// Causes the checkout-token route names, with the same copy as the failure annotation.
+// `access-denied` and `provider-rejected` cover several causes, so they claim none and
+// rely on the provider's explanation shown below.
+const CHECKOUT_CAUSE_GUIDANCE_BY_CODE: Readonly<Record<string, ToolFailureGuidance>> = {
+  'repository-not-granted': {
+    title: 'Shipfox is not allowed to check out this repository',
+    description:
+      'Link a project to the repository, or let the connection use all repositories. Then rerun the job.',
+  },
+  'checkout-repository-not-authorized': {
+    title: 'Shipfox is not allowed to check out this repository',
+    description: 'Use a project of this workspace in checkout.project. Then start a new run.',
+  },
+  'installation-inactive': {
+    title: 'The GitHub App installation is suspended or removed',
+    description: 'Unsuspend or reinstall the Shipfox GitHub App. Then rerun the job.',
+  },
+  'repository-not-found': {
+    title: 'The provider cannot find the repository',
+    description:
+      'Check the repository name, and that the connection includes the repository. Then rerun the job.',
+  },
+  'access-denied': {
+    title: 'The provider denied access to the repository',
+    description: 'Check the permissions and the repository access of the connection.',
+  },
+  'provider-rejected': {
+    title: 'The provider rejected the checkout request',
+    description: 'Read the step logs for the request that failed.',
+  },
+  'integration-connection-inactive': {
+    title: 'The checkout connection is disabled',
+    description: 'Enable the connection in the integration settings. Then rerun the job.',
+  },
+  'checkout-unavailable': {
+    title: 'The checkout connection or project does not exist',
+    description:
+      'Fix checkout.connection or checkout.project in the workflow. Then start a new run.',
+  },
+};
+
+function checkoutCauseGuidance(
+  reason: string | JobStatusReason,
+  error: StepError | null,
+): ToolFailureGuidance | null {
+  if (reason !== 'checkout_failed' && reason !== 'checkout_auth_failed') return null;
+  return error?.code ? (CHECKOUT_CAUSE_GUIDANCE_BY_CODE[error.code] ?? null) : null;
 }
 
 const OUT_OF_MEMORY_MESSAGE = /out of memory/iu;

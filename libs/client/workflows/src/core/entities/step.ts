@@ -102,6 +102,7 @@ export interface StepError {
   attemptCount?: number | undefined;
   maxAttempts?: number | undefined;
   restartFrom?: string | undefined;
+  providerMessage?: string | undefined;
 }
 
 export interface AgentStepConfig {

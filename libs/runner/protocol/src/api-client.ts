@@ -53,6 +53,7 @@ import {
   reportStepBodySchema,
   reportStepResponseSchema,
   STEP_ERROR_MESSAGE_MAX_LENGTH,
+  STEP_ERROR_PROVIDER_MESSAGE_MAX_LENGTH,
   STEP_RESPONSE_MAX_LENGTH,
   type StepErrorDto,
 } from '@shipfox/api-workflows-dto';
@@ -513,6 +514,51 @@ export function classifyCheckoutTokenFailure(error: unknown): CheckoutTokenFailu
     return 'unavailable';
   }
   return 'failed';
+}
+
+export interface CheckoutTokenFailure {
+  code: string;
+  message: string;
+  providerMessage?: string;
+  providerStatus?: number;
+}
+
+/**
+ * Reads the cause the server gave for a refused checkout-token request. ky has
+ * already parsed the body into `error.data` and consumed the response.
+ */
+export function readCheckoutTokenFailure(error: unknown): CheckoutTokenFailure | undefined {
+  if (!(error instanceof HTTPError)) return undefined;
+  const body = error.data;
+  if (typeof body !== 'object' || body === null) return undefined;
+  if (!('code' in body) || typeof body.code !== 'string' || body.code === '') return undefined;
+  if (!('details' in body) || typeof body.details !== 'object' || body.details === null) {
+    return undefined;
+  }
+
+  const {details} = body;
+  if (!('message' in details) || typeof details.message !== 'string' || details.message === '') {
+    return undefined;
+  }
+  const providerMessage =
+    'provider_message' in details && typeof details.provider_message === 'string'
+      ? details.provider_message.slice(0, STEP_ERROR_PROVIDER_MESSAGE_MAX_LENGTH)
+      : undefined;
+  const providerStatus =
+    'provider_status' in details &&
+    typeof details.provider_status === 'number' &&
+    Number.isInteger(details.provider_status) &&
+    details.provider_status >= 100 &&
+    details.provider_status <= 599
+      ? details.provider_status
+      : undefined;
+
+  return {
+    code: body.code,
+    message: details.message.slice(0, STEP_ERROR_MESSAGE_MAX_LENGTH),
+    ...(providerMessage ? {providerMessage} : {}),
+    ...(providerStatus === undefined ? {} : {providerStatus}),
+  };
 }
 
 export async function requestAgentRuntimeConfig(

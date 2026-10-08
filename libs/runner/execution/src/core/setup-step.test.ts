@@ -671,6 +671,70 @@ describe('executeSetupStep', () => {
     expectSetupFailureWarning(warn, reason);
   });
 
+  it.each([
+    {status: 404, code: 'repository-not-granted', reason: 'checkout_failed'},
+    {status: 404, code: 'checkout-repository-not-authorized', reason: 'checkout_failed'},
+    {status: 422, code: 'installation-inactive', reason: 'checkout_failed'},
+    {status: 422, code: 'repository-not-found', reason: 'checkout_failed'},
+    {status: 422, code: 'access-denied', reason: 'checkout_auth_failed'},
+    {status: 422, code: 'provider-rejected', reason: 'checkout_failed'},
+    {status: 422, code: 'integration-connection-inactive', reason: 'checkout_failed'},
+    {status: 404, code: 'checkout-unavailable', reason: 'checkout_failed'},
+  ])('reports the cause of a $code checkout-token refusal', async ({status, code, reason}) => {
+    spySetupWarnings();
+    requestCheckoutTokenMock.mockRejectedValue(
+      httpError(status, {
+        code,
+        details: {
+          message: 'Server message naming `acme/api`',
+          repository: 'acme/api',
+          connection: 'github',
+        },
+      }),
+    );
+
+    const result = await run();
+
+    expect(result.result.error).toEqual({
+      message: 'Server message naming `acme/api`',
+      code,
+      reason,
+    });
+  });
+
+  it('reports the provider explanation and logs the request status line', async () => {
+    spySetupWarnings();
+    const error = httpError(422, {
+      code: 'access-denied',
+      details: {
+        message: 'The provider denied access to `acme/api` through connection `github`',
+        provider_message: 'Resource not accessible by integration',
+        provider_status: 403,
+      },
+    });
+    requestCheckoutTokenMock.mockRejectedValue(error);
+    const log = fakeLog();
+
+    const result = await run(log);
+
+    expect(result.result.error).toEqual({
+      message: 'The provider denied access to `acme/api` through connection `github`',
+      code: 'access-denied',
+      reason: 'checkout_auth_failed',
+      provider_message: 'Resource not accessible by integration',
+      provider_status: 403,
+    });
+    expect(log.writeOutputLine.mock.calls).toEqual([
+      [
+        'Setup failed because Shipfox could not grant repository access. Details: The provider denied access to `acme/api` through connection `github`',
+        'stderr',
+      ],
+      ['Provider response (403): Resource not accessible by integration', 'stderr'],
+      [`Request: ${error.message}`, 'stderr'],
+      ['Next step: Check the permissions and repository access of the connection.', 'stderr'],
+    ]);
+  });
+
   it('maps a non-HTTP checkout-token error to checkout_failed', async () => {
     const warn = spySetupWarnings();
     requestCheckoutTokenMock.mockRejectedValue(new Error('socket hang up'));

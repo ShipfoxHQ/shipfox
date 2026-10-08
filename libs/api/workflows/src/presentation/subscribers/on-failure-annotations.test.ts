@@ -317,6 +317,8 @@ const JOB_FAILURE_CASES = [
   description: string;
 }[];
 
+const DEFINITE_CAUSE_ADVICE = /suspended|reconnect/iu;
+
 describe('failure annotations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -495,6 +497,111 @@ describe('failure annotations', () => {
         }),
       }),
     );
+  });
+
+  it.each([
+    {
+      code: 'repository-not-granted',
+      reason: 'checkout_failed',
+      title: 'Shipfox is not allowed to check out this repository',
+      fix: 'Link a project to the repository, or let the connection use all repositories. Then rerun the job.',
+    },
+    {
+      code: 'checkout-repository-not-authorized',
+      reason: 'checkout_failed',
+      title: 'Shipfox is not allowed to check out this repository',
+      fix: 'Use a project of this workspace in `checkout.project`. Then start a new run.',
+    },
+    {
+      code: 'installation-inactive',
+      reason: 'checkout_failed',
+      title: 'The GitHub App installation is suspended or removed',
+      fix: 'Unsuspend or reinstall the Shipfox GitHub App. Then rerun the job.',
+    },
+    {
+      code: 'repository-not-found',
+      reason: 'checkout_failed',
+      title: 'The provider cannot find the repository',
+      fix: 'Check the repository name, and that the connection includes the repository. Then rerun the job.',
+    },
+    {
+      code: 'access-denied',
+      reason: 'checkout_auth_failed',
+      title: 'The provider denied access to the repository',
+      fix: 'Check the permissions and the repository access of the connection.',
+    },
+    {
+      code: 'provider-rejected',
+      reason: 'checkout_failed',
+      title: 'The provider rejected the checkout request',
+      fix: 'Read the step logs for the request that failed.',
+    },
+    {
+      code: 'integration-connection-inactive',
+      reason: 'checkout_failed',
+      title: 'The checkout connection is disabled',
+      fix: 'Enable the connection in the integration settings. Then rerun the job.',
+    },
+    {
+      code: 'checkout-unavailable',
+      reason: 'checkout_failed',
+      title: 'The checkout connection or project does not exist',
+      fix: 'Fix `checkout.connection` or `checkout.project` in the workflow. Then start a new run.',
+    },
+  ])('names the cause of a $code checkout failure', async ({code, reason, title, fix}) => {
+    const body = await checkoutFailureBody({
+      reason,
+      code,
+      message: 'Server message naming `acme/api` and connection `github`',
+    });
+
+    expect(body).toBe(
+      [
+        `**${title}**`,
+        '',
+        'Server message naming `acme/api` and connection `github`.',
+        '',
+        fix,
+      ].join('\n'),
+    );
+  });
+
+  it.each([
+    'access-denied',
+    'provider-rejected',
+  ])('shows the provider explanation for %s without claiming a cause', async (code) => {
+    const body = await checkoutFailureBody({
+      reason: 'checkout_auth_failed',
+      code,
+      message: 'The provider denied access to `acme/api` through connection `github`',
+      providerMessage: 'Resource not accessible by ```integration```',
+      providerStatus: 403,
+    });
+
+    expect(body).toContain(
+      "The provider said:\n\n```text\nResource not accessible by '''integration'''\n```",
+    );
+    expect(body).not.toMatch(DEFINITE_CAUSE_ADVICE);
+  });
+
+  it('keeps the copy of the reason for a checkout failure without a known code', async () => {
+    const withoutCode = await checkoutFailureBody({
+      reason: 'checkout_auth_failed',
+      message: 'Request failed with status code 403',
+    });
+    const unknownCode = await checkoutFailureBody({
+      reason: 'checkout_auth_failed',
+      code: 'forbidden',
+      message: 'Integration connection does not belong to this workspace',
+    });
+
+    const expected = [
+      '**The repository rejected the checkout**',
+      '',
+      'Check that the integration connection can read this repository. Then rerun the job.',
+    ].join('\n');
+    expect(withoutCode).toBe(expected);
+    expect(unknownCode).toBe(expected);
   });
 
   it('includes bounded size details in a size-failure annotation', async () => {
@@ -1360,6 +1467,31 @@ describe('failure annotations', () => {
     );
   });
 });
+
+async function checkoutFailureBody(error: Record<string, unknown>): Promise<string> {
+  const payload = stepAttemptTerminatedPayload();
+  const step = stepEntity({
+    id: payload.stepId,
+    jobExecutionId: JOB_EXECUTION_ID,
+    type: 'checkout',
+    status: 'failed',
+  });
+  const attempt = stepAttemptEntity({stepId: step.id, status: 'failed', error});
+  dbMocks.getStepAttemptDetail.mockResolvedValue({
+    workflowRunId: payload.workflowRunId,
+    workflowRunAttemptId: payload.workflowRunAttemptId,
+    step,
+    attempt,
+  });
+  dbMocks.getWorkflowRunAttemptById.mockResolvedValue({attempt: 1});
+
+  await onStepAttemptTerminatedFailureAnnotation(annotations)(payload);
+
+  const call = replaceOrRemoveAnnotation.mock.calls.at(-1) as unknown as [
+    {annotation: {body: string}},
+  ];
+  return call[0].annotation.body;
+}
 
 function stepAttemptTerminatedPayload(
   overrides: Partial<WorkflowsStepAttemptTerminatedEventDto> = {},

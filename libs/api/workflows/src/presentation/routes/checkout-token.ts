@@ -271,7 +271,19 @@ async function withConnectionSlug(
   }
 }
 
+// The shared error handler returns only the code and details, so the cause the runner
+// reports to the user travels in `details.message`.
 function mapCheckoutTokenError(error: unknown, target: CheckoutFailureTarget): unknown {
+  const mapped = mapCheckoutTokenCause(error, target);
+  if (mapped === error || !(mapped instanceof ClientError)) return mapped;
+  mapped.details = {
+    ...(mapped.details as Record<string, unknown> | undefined),
+    message: mapped.message,
+  };
+  return mapped;
+}
+
+function mapCheckoutTokenCause(error: unknown, target: CheckoutFailureTarget): unknown {
   if (error instanceof CheckoutIntentUnresolvedError) {
     return new ClientError(unresolvedCheckoutMessage(error), 'checkout-unavailable', {
       details: {[error.kind]: error.value},
@@ -351,9 +363,11 @@ function integrationCheckoutError(
       );
     case 'connection-inactive':
       return new ClientError(
-        'Integration connection is not active',
+        target.connection === undefined
+          ? 'Integration connection is not active'
+          : `Integration ${connection} is not active`,
         'integration-connection-inactive',
-        {status: 422},
+        {details: {connection: target.connection}, status: 422},
       );
     case 'connection-workspace-mismatch':
       return new ClientError(
@@ -380,11 +394,11 @@ function integrationCheckoutError(
         {status: 422},
       );
     case 'provider-failure':
-      return providerFailureError(
-        error.details as ProviderFailureDetails,
+      return providerFailureError(error.details as ProviderFailureDetails, {
+        repository,
         connection,
         targetDetails,
-      );
+      });
     case repositoryAuthorizationErrorCodes.required:
       return new ClientError(
         `Checkout on ${connection} needs a repository, written as owner/name`,
@@ -422,22 +436,37 @@ function integrationCheckoutError(
 
 function providerFailureError(
   details: ProviderFailureDetails,
-  connection: string,
-  targetDetails: {repository: string | undefined; connection: string | undefined},
+  target: {
+    repository: string;
+    connection: string;
+    targetDetails: {repository: string | undefined; connection: string | undefined};
+  },
 ): ClientError {
-  const message =
-    details.reason === 'installation-inactive'
-      ? `The GitHub App installation for ${connection} is suspended or removed`
-      : 'Integration provider request failed';
-  return new ClientError(message, details.reason, {
+  return new ClientError(providerFailureMessage(details.reason, target), details.reason, {
     details: {
-      ...targetDetails,
+      ...target.targetDetails,
       retry_after_seconds: details.retryAfterSeconds,
       provider_message: details.providerMessage,
       provider_status: details.providerStatus,
     },
     status: providerFailureStatus(details.reason),
   });
+}
+
+function providerFailureMessage(
+  reason: string,
+  target: {repository: string; connection: string},
+): string {
+  switch (reason) {
+    case 'installation-inactive':
+      return `The GitHub App installation for ${target.connection} is suspended or removed`;
+    case 'repository-not-found':
+      return `The provider can't find ${target.repository} through ${target.connection}`;
+    case 'access-denied':
+      return `The provider denied access to ${target.repository} through ${target.connection}`;
+    default:
+      return 'Integration provider request failed';
+  }
 }
 
 function providerFailureStatus(reason: string): 422 | 429 | 503 {
