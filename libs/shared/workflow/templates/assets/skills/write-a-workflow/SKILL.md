@@ -78,7 +78,7 @@ Move data with workflow fields, not shell plumbing:
 - Put a list or a map in `env` directly. It arrives as JSON text, so do not wrap it in `toJson()`.
 - Read the run from `SHIPFOX_RUN_ID`, `SHIPFOX_RUN_NUMBER`, `SHIPFOX_RUN_ATTEMPT`, and `SHIPFOX_RUN_URL` in a run step. Link to a run with `run.url`, never a hardcoded host.
 
-Read `docs://shipfox/how-to/author-workflows/pass-outputs` and `docs://shipfox/how-to/author-workflows/share-tools-between-steps` before using them.
+Read `docs://shipfox/how-to/author-workflows/pass-outputs` and `docs://shipfox/how-to/author-workflows/set-environment-variables-for-later-steps` before using them.
 
 ## 6. Verify and deliver
 

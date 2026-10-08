@@ -1,0 +1,145 @@
+---
+title: "Set Environment Variables for Later Steps"
+sidebarTitle: "Set Variables for Later Steps"
+description: "Set an environment variable or add a PATH directory in one step, and use it in the later steps of the same job."
+---
+
+A step can set an environment variable for the steps that run after it in the
+same job. A step can also add a directory to `PATH` for these steps. Use this
+when one step installs a program or calculates a value that later steps need.
+
+Each step starts a new process. A shell `export` or a change to `PATH` ends
+when the step ends. To keep a change, write it to one of two files:
+`$SHIPFOX_ENV` for environment variables and `$SHIPFOX_PATH` for `PATH`
+directories. Shipfox reads these files when the step ends and applies them to
+the later steps.
+
+The example below installs Nix in one step and runs it in the next step. For
+your own case, keep the two `echo` lines. Change the variable, the directory,
+and the commands.
+
+## Set a variable and add a PATH directory
+
+This is a complete workflow:
+
+```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Set environment variables for later steps
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+
+jobs:
+  test:
+    steps:
+      - name: Install Nix
+        run: |
+          curl -L https://nixos.org/nix/install | sh -s -- --no-daemon
+          echo "$HOME/.nix-profile/bin" >> "$SHIPFOX_PATH"
+          echo "NIX_PATH=nixpkgs=channel:nixos-24.05" >> "$SHIPFOX_ENV"
+      - run: nix develop --command make test
+```
+
+The first step does two things for the later steps:
+
+1. **It sets an environment variable.** It writes `NAME=value` to the file
+   `$SHIPFOX_ENV`. Write one variable on each line. Later steps read `$NAME`.
+2. **It adds a directory to `PATH`.** It writes the directory to the file
+   `$SHIPFOX_PATH`. Write one directory on each line. Later steps find the
+   programs in that directory.
+
+These steps get the values:
+
+- The run steps and the action steps that run later in the same job.
+- The shell commands of the agent steps that run later in the same job.
+
+The step that writes the files doesn't get the values. Other jobs don't get
+them.
+
+Shipfox reads the files when the step ends, even if the step fails. Two names
+are not permitted in `$SHIPFOX_ENV`: `PATH`, and a name that starts with
+`SHIPFOX_`. A step that writes one of these names fails.
+
+<Callout title="Values in $SHIPFOX_ENV are not masked" type="warn">
+  Shipfox masks only the secrets it stores. A token that a command fetches and
+  writes to `$SHIPFOX_ENV` appears in the logs of any later step that prints
+  it. Store the token as a [secret](/how-to/set-up-work/secrets-and-variables)
+  instead.
+</Callout>
+
+## Write the files from an action
+
+An action step gets the same two files. Append to them from the action code:
+
+```ts
+import {appendFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {defineAction} from '@shipfox/actions';
+
+export default defineAction(() => {
+  const workspace = process.env.SHIPFOX_WORKSPACE ?? '';
+  appendFileSync(process.env.SHIPFOX_ENV ?? '', 'RELEASE_CHANNEL=beta\n');
+  appendFileSync(process.env.SHIPFOX_PATH ?? '', `${join(workspace, 'tools/bin')}\n`);
+});
+```
+
+## Check which value a step gets
+
+A step can get the same variable from several places. Shipfox applies the
+places in this order. A later place replaces an earlier one:
+
+1. The environment of the runner.
+2. The values that earlier steps wrote to `$SHIPFOX_ENV`. When two steps write
+   the same name, the later step wins.
+3. The `env` of the workflow, the job, and the step, including the secrets they
+   bind.
+4. The variables that Shipfox sets, such as `SHIPFOX_RUN_ID`.
+
+Shipfox puts the directories from `$SHIPFOX_PATH` before the directories that
+`PATH` already contains. The directory that was written last comes first.
+
+## Know what a gate restart changes
+
+A [gate](/understand/feedback-loops) can make earlier steps run again. Later
+steps then get the values from the last time each step ran:
+
+- A step that runs again replaces all the values it wrote before.
+- A step that is skipped the second time gives no values. Shipfox removes the
+  values and the directories that the step wrote before.
+- A step before the restart point keeps its values.
+
+## Adapt it to your workflow
+
+| To... | Change this |
+| --- | --- |
+| Set a value that has several lines | Write a `NAME<<DELIMITER` line, the value, then a line with only the delimiter. The format is the same as for `$SHIPFOX_OUTPUT`. |
+| Add a directory inside the repository | Write a relative path to `$SHIPFOX_PATH`. Shipfox resolves it against the working directory of the step. |
+| Use another value in one step only | Set the variable in the `env` of that step. See [Environment variables](/reference/workflow-schema#environment-variables). |
+| Send a value to another job | Use an output. See [Pass values between jobs](/how-to/author-workflows/pass-outputs). |
+| Use a credential | Bind a secret in `env` instead of writing it to `$SHIPFOX_ENV`. See [Add secrets and variables](/how-to/set-up-work/secrets-and-variables). |
+
+## Verify the values
+
+<Steps>
+  <Step>
+
+    **Start the workflow**
+
+    Select **Run**, then open the new run.
+  </Step>
+  <Step>
+
+    **Inspect the later step**
+
+    Open a step that runs after the step that writes the files. Confirm that
+    it read the variable and found the program.
+
+    In the example, the second step runs `nix`. The log doesn't contain a
+    "command not found" error.
+  </Step>
+</Steps>
+
+See [Step environment](/reference/runner#step-environment) for every variable
+that Shipfox sets on a step.

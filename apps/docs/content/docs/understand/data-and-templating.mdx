@@ -134,10 +134,11 @@ outputs](/reference/workflow-schema#step-outputs) defines declaration types and
 encoding. [Job outputs](/reference/limits#job-outputs) lists the limits for job
 outputs.
 
-Sometimes the steps of one job must share a tool or an environment variable.
-You don't need an output for this. A step can give an environment variable or
-a `PATH` directory to the steps that run after it in the same job. See [Share
-tools between steps](/how-to/author-workflows/share-tools-between-steps).
+Sometimes the steps of one job must share an environment variable or a
+program that one step installs. You don't need an output for this. A step can
+give an environment variable or a `PATH` directory to the steps that run after
+it in the same job. See [Set environment variables for later
+steps](/how-to/author-workflows/set-environment-variables-for-later-steps).
 
 ## Outside data and secrets
 
