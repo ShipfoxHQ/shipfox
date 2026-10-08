@@ -1,6 +1,6 @@
 ---
 "@shipfox/workflow-templates": patch
-"@shipfox/api-definitions": minor
+"@shipfox/api-definitions": major
 "@shipfox/expression": minor
 ---
 
