@@ -259,7 +259,7 @@ describe('Linear MCP mock with recordings', () => {
     }
   });
 
-  it('fails a call whose arguments were not recorded', async () => {
+  it('fails a call whose arguments were not recorded, or that adds a field', async () => {
     const mock = await startLinearMcpMock({
       endpoint: new URL('http://127.0.0.1:0/mcp'),
       recordings: await loadLinearRecordings(),
@@ -272,7 +272,13 @@ describe('Linear MCP mock with recordings', () => {
         CallToolResultSchema,
       );
 
+      const extraField = await client.callTool(
+        {name: 'get_issue', arguments: {id: 'SAR-5', extra: 'field'}},
+        CallToolResultSchema,
+      );
+
       expect(result.isError).toBe(true);
+      expect(extraField.isError).toBe(true);
     } finally {
       await client.close();
       await mock.stop();

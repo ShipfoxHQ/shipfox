@@ -289,12 +289,17 @@ function registerRecordedTools(
   }
   for (const [tool, toolRecordings] of byTool) {
     // The recorded arguments name the inputs. The fake accepts any value for them and leaves the
-    // match to the recording, so a call with other arguments fails as the hosted MCP's does.
-    const inputSchema = Object.fromEntries(
-      toolRecordings.flatMap((recording) =>
-        Object.keys(recording.arguments).map((name) => [name, z.any().optional()] as const),
-      ),
-    );
+    // match to the recording. The schema is strict, because a field it doesn't name would
+    // otherwise be dropped before the match, and a call with other arguments would replay.
+    const inputSchema = z
+      .object(
+        Object.fromEntries(
+          toolRecordings.flatMap((recording) =>
+            Object.keys(recording.arguments).map((name) => [name, z.any().optional()] as const),
+          ),
+        ),
+      )
+      .strict();
     mcp.registerTool(
       tool,
       {description: `Replay the recorded Linear ${tool} response.`, inputSchema},
