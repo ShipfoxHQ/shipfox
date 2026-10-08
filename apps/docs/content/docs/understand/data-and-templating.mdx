@@ -82,8 +82,9 @@ expression. A later expression such as
 `jobs.review.outputs.findings[0].severity` can then read a nested field. A
 template that mixes text and expressions still produces a string.
 
-A text field such as `env` or a command receives a list or a map as JSON text.
-A shell step can parse it without calling `toJson()` first.
+Interpolation writes a list or a map as JSON text. To pass one to a shell
+command, put it in `env` and parse the environment variable. You don't need to
+call `toJson()` first.
 
 Outputs fit small facts. Files and build products belong in external artifact
 storage, with an output that carries their location. [Step

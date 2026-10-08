@@ -71,7 +71,7 @@ Create a descriptive `.yml` file under `.shipfox/workflows/`. Put the editor sch
 
 Move data with workflow fields, not shell plumbing:
 
-- Publish a step output to later jobs with `export` on the step. Write a job `outputs` map only to rename a value or build one from several steps.
+- Publish a step output to later jobs with `export` on the step. Write a job `outputs` map to rename a value, build one from several steps, or guard a tool output with its step `status`.
 - Give a run or agent output a `default` when the step can be skipped or fail and later work reads the output. Tool step outputs have no `default`, so guard them with the step `status`.
 - Fill a run step output with `from_stdout` or `from_file` instead of writing to `$SHIPFOX_OUTPUT`, when the command already prints the value or writes it to a file.
 - Hand an environment variable or a `PATH` directory to later steps of the job through `$SHIPFOX_ENV` and `$SHIPFOX_PATH`. Do not repeat the setup in each step. Never write a credential to `$SHIPFOX_ENV`: it is not masked.

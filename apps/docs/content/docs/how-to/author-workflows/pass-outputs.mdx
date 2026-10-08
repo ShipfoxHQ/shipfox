@@ -57,9 +57,9 @@ produces the value. Keep everything else.
 
 ## Set a default for a step that may not produce the value
 
-A step that is skipped or fails has no value for its outputs. An exported
-output without a value is left out of the job outputs, and a later job that
-reads it fails. Add a `default` to the output when later work always reads it.
+A skipped step has no value for its outputs. A failed step has a value only
+for the outputs it wrote before it failed. An exported output without a value
+is left out of the job outputs, and a later job that reads it fails. Add a `default` to the output when later work always reads it.
 
 ```yaml
 - key: changes
@@ -71,10 +71,10 @@ reads it fails. Add a `default` to the output when later work always reads it.
   export: true
 ```
 
-Later steps and jobs read the default when the step has no value for the
-output. That covers a skipped, failed, or cancelled step. It also covers a run
-step that succeeds without writing the output, as the example does when nothing
-changed.
+Later steps and jobs read the default of each output that the step has no
+value for. That covers a skipped step, and a failed or cancelled step that
+didn't write the output. It also covers a run step that succeeds without
+writing the output, as the example does when nothing changed.
 
 Two step types behave differently:
 
