@@ -13,6 +13,7 @@ export function ClickUpInstallPage() {
 
   return (
     <RedirectInstallPage
+      storeReturnTarget
       installRequest={installRequest}
       errorFallbackMessage="Could not start ClickUp install."
       loadingLabel="Connecting ClickUp"

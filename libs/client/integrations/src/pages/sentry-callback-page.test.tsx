@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import {ApiError} from '@shipfox/client-api';
 import {fireEvent, screen, waitFor} from '@testing-library/react';
+import {INSTALL_RETURN_TARGET_KEY} from '#install-return-target.js';
 import {renderIntegrationsPage, testWorkspace} from '#test/render.js';
 import {SentryCallbackPage} from './sentry-callback-page.js';
 
@@ -42,6 +43,7 @@ function renderCallback(options: {
     routePath: '/integrations/sentry/callback',
     element: <SentryCallbackPage />,
     extraRoutes: [
+      '/w/$workspaceSlug',
       '/w/$workspaceSlug/settings/integrations',
       '/w/$workspaceSlug/integrations/sentry',
     ],
@@ -116,6 +118,18 @@ describe('SentryCallbackPage', () => {
       },
       token: 'test-token',
     });
+  });
+
+  test('returns to the workspace home when the install started from the home', async () => {
+    window.sessionStorage.setItem(INSTALL_RETURN_TARGET_KEY, 'home');
+    connectSentryMock.mockResolvedValue({});
+    renderCallback({installationId: 'install-home'});
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Install'}));
+
+    await screen.findByTestId('route:/w/$workspaceSlug');
+    expect(screen.queryByTestId('route:/w/$workspaceSlug/settings/integrations')).toBeNull();
+    expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBeNull();
   });
 
   test('retry after a transient failure issues a fresh request', async () => {

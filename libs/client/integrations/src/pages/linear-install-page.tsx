@@ -13,6 +13,7 @@ export function LinearInstallPage() {
 
   return (
     <RedirectInstallPage
+      storeReturnTarget
       installRequest={installRequest}
       errorFallbackMessage="Could not start Linear install."
       loadingLabel="Connecting Linear"

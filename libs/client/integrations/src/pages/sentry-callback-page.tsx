@@ -21,6 +21,7 @@ import {
 import {useCompleteIntegrationCallback} from '#application/complete-integration-callback.js';
 import type {IntegrationConnection} from '#core/models.js';
 import {connectSentry} from '#hooks/api/integrations.js';
+import {consumeInstallReturnLocation} from '#install-return-target.js';
 import {
   classifySentryConnectError,
   clearSentryInstallWorkspace,
@@ -269,11 +270,7 @@ async function handleSentryConnectSuccess({
   });
   if (disposedRef.current) return;
   if (workspaceSlug) {
-    await navigate({
-      to: '/w/$workspaceSlug/settings/integrations',
-      params: {workspaceSlug},
-      replace: true,
-    });
+    await navigate(consumeInstallReturnLocation(workspaceSlug));
     return;
   }
   await navigate({to: '/', replace: true});

@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import {ApiError} from '@shipfox/client-api';
 import {screen, waitFor} from '@testing-library/react';
 import {StrictMode} from 'react';
+import {INSTALL_RETURN_TARGET_KEY} from '#install-return-target.js';
 import {LINEAR_INSTALL_WORKSPACE_KEY} from '#linear-callback.js';
 import {INTEGRATIONS_TEST_WID, renderIntegrationsPage, testWorkspace} from '#test/render.js';
 import {LinearCallbackPage} from './linear-callback-page.js';
@@ -114,6 +115,58 @@ describe('LinearCallbackPage', () => {
     );
     expect(window.sessionStorage.getItem(LINEAR_INSTALL_WORKSPACE_KEY)).toBeNull();
     expect(screen.getByText('Linear installed.')).toBeInTheDocument();
+  });
+
+  test('returns to the workspace home when the install started from the home', async () => {
+    const responseWorkspaceId = '22222222-2222-4222-8222-222222222222';
+    window.sessionStorage.setItem(LINEAR_INSTALL_WORKSPACE_KEY, INTEGRATIONS_TEST_WID);
+    window.sessionStorage.setItem(INSTALL_RETURN_TARGET_KEY, 'home');
+    completeCallbackMock.mockResolvedValue({
+      id: 'connection-1',
+      workspaceId: responseWorkspaceId,
+      provider: 'linear',
+      external_account_id: 'linear-org',
+      slug: 'linear_org',
+      display_name: 'Linear org',
+      lifecycle_status: 'active',
+      capabilities: [],
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    });
+
+    renderIntegrationsPage({
+      path: '/integrations/linear/callback?code=grant-code-home-success&state=signed-state-home-success',
+      routePath: '/integrations/linear/callback',
+      element: (
+        <StrictMode>
+          <LinearCallbackPage />
+        </StrictMode>
+      ),
+      workspaces: [
+        testWorkspace(),
+        testWorkspace({id: responseWorkspaceId, slug: 'response-workspace'}),
+      ],
+      extraRoutes: [
+        '/w/response-workspace',
+        '/w/$workspaceSlug/integrations/linear',
+        '/auth/login',
+      ],
+    });
+
+    await waitFor(() =>
+      expect(completeCallbackMock).toHaveBeenCalledWith({
+        query: {code: 'grant-code-home-success', state: 'signed-state-home-success'},
+        token: 'test-token',
+      }),
+    );
+    expect(completeCallbackMock).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(screen.getByTestId('route:/w/response-workspace')).toBeInTheDocument(),
+    );
+    expect(window.sessionStorage.getItem(LINEAR_INSTALL_WORKSPACE_KEY)).toBeNull();
+    expect(screen.getByText('Linear installed.')).toBeInTheDocument();
+
+    expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBeNull();
   });
 
   test('renders terminal conflicts without offering an ineffective restart', async () => {

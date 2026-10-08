@@ -1,6 +1,7 @@
 import {ApiError} from '@shipfox/client-api';
 import {useActiveWorkspace} from '@shipfox/client-auth';
-import {FocusedFrame} from '@shipfox/client-shell/runtime';
+import {FocusedFrame, useRouteSearch} from '@shipfox/client-shell/runtime';
+import {sessionStorageOrUndefined} from '@shipfox/client-ui';
 import {ButtonLink} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
@@ -8,6 +9,7 @@ import {Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
 import {useEffect, useRef, useState} from 'react';
 import type {InstallRedirect} from '#core/models.js';
+import {parseInstallReturnTarget, saveInstallReturnTarget} from '#install-return-target.js';
 
 interface RedirectInstallPageProps {
   installRequest: (body: {workspace_id: string}) => Promise<InstallRedirect>;
@@ -19,6 +21,11 @@ interface RedirectInstallPageProps {
    * should never block the redirect.
    */
   beforeRedirect?: (workspaceId: string) => void;
+  /**
+   * Remembers the `returnTo` search value (`settings` when absent) so the provider callback can
+   * send the user back to where the install started. Only for providers whose callback reads it.
+   */
+  storeReturnTarget?: boolean;
   /** Injectable for tests: jsdom's window.location cannot be stubbed. */
   assignLocation?: (url: string) => void;
 }
@@ -28,9 +35,11 @@ export function RedirectInstallPage({
   errorFallbackMessage,
   loadingLabel = 'Starting installation',
   beforeRedirect,
+  storeReturnTarget = false,
   assignLocation = (url) => window.location.assign(url),
 }: RedirectInstallPageProps) {
   const workspace = useActiveWorkspace();
+  const returnTarget = useRouteSearch(parseInstallReturnTarget);
   const startedRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
@@ -40,6 +49,7 @@ export function RedirectInstallPage({
     // The side effect is best-effort persistence; a throw here must never
     // block the install redirect, so swallow it and continue.
     try {
+      if (storeReturnTarget) saveInstallReturnTarget(sessionStorageOrUndefined(), returnTarget);
       beforeRedirect?.(workspace.id);
     } catch {
       // ignore
@@ -51,7 +61,15 @@ export function RedirectInstallPage({
       .catch((error: unknown) => {
         setErrorMessage(error instanceof ApiError ? error.message : errorFallbackMessage);
       });
-  }, [workspace, installRequest, beforeRedirect, errorFallbackMessage, assignLocation]);
+  }, [
+    workspace,
+    installRequest,
+    beforeRedirect,
+    errorFallbackMessage,
+    assignLocation,
+    storeReturnTarget,
+    returnTarget,
+  ]);
 
   if (errorMessage) {
     return (

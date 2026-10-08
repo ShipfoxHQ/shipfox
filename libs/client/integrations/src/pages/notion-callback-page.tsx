@@ -10,6 +10,7 @@ import {useCompleteIntegrationCallback} from '#application/complete-integration-
 import {CallbackStatusShell} from '#components/callback-status-shell.js';
 import type {IntegrationConnection} from '#core/models.js';
 import {useCompleteNotionCallbackMutation} from '#hooks/api/integrations.js';
+import {consumeInstallReturnLocation} from '#install-return-target.js';
 import {
   clearNotionInstallWorkspace,
   parseNotionCallbackQuery,
@@ -209,11 +210,7 @@ async function navigateToNotionWorkspace(
       return;
     }
     params.setCompletedWorkspace({slug: workspaceSlug});
-    await params.navigate({
-      to: '/w/$workspaceSlug/settings/integrations',
-      params: {workspaceSlug},
-      replace: true,
-    });
+    await params.navigate(consumeInstallReturnLocation(workspaceSlug));
   } catch {
     if (!params.isDisposed()) params.setCompletedWorkspace({slug: workspaceSlug});
   }

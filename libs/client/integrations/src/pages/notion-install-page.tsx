@@ -19,6 +19,7 @@ export function NotionInstallPage() {
         existing workflows.
       </Text>
       <RedirectInstallPage
+        storeReturnTarget
         installRequest={installRequest}
         errorFallbackMessage="Could not start Notion install."
         loadingLabel="Connecting Notion"

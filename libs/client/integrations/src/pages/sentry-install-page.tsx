@@ -6,6 +6,7 @@ import {saveSentryInstallWorkspace} from '#sentry-callback.js';
 export function SentryInstallPage() {
   return (
     <RedirectInstallPage
+      storeReturnTarget
       installRequest={createSentryInstall}
       errorFallbackMessage="Could not start Sentry install."
       loadingLabel="Connecting Sentry"

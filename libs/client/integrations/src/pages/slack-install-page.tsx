@@ -12,6 +12,7 @@ export function SlackInstallPage() {
   );
   return (
     <RedirectInstallPage
+      storeReturnTarget
       installRequest={installRequest}
       errorFallbackMessage="Could not start Slack install."
       loadingLabel="Connecting Slack"

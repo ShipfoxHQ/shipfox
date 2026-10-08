@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import {ApiError} from '@shipfox/client-api';
 import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {StrictMode} from 'react';
+import {INSTALL_RETURN_TARGET_KEY} from '#install-return-target.js';
 import {JIRA_INSTALL_WORKSPACE_KEY} from '#jira-callback.js';
 import {resetJiraCallbackState} from '#jira-callback-state.js';
 import {INTEGRATIONS_TEST_WID, renderIntegrationsPage, testWorkspace} from '#test/render.js';
@@ -161,6 +162,47 @@ describe('JiraCallbackPage', () => {
     expect(completeCallbackMock).toHaveBeenCalledTimes(1);
     await screen.findByTestId('route:/w/acme/settings/integrations');
     expect(screen.getByText('Jira installed.')).toBeInTheDocument();
+  });
+
+  test('returns to the workspace home when the install started from the home', async () => {
+    window.sessionStorage.setItem(JIRA_INSTALL_WORKSPACE_KEY, INTEGRATIONS_TEST_WID);
+    window.sessionStorage.setItem(INSTALL_RETURN_TARGET_KEY, 'home');
+    completeCallbackMock.mockResolvedValue({
+      id: 'connection-single',
+      workspaceId: INTEGRATIONS_TEST_WID,
+      provider: 'jira',
+      externalAccountId: 'cloud-single',
+      slug: 'jira_single',
+      displayName: 'Jira Single',
+      lifecycleStatus: 'active',
+      capabilities: ['agent_tools'],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    renderIntegrationsPage({
+      path: '/integrations/jira/callback?code=grant-code-home-single&state=signed-state-home-single',
+      routePath: '/integrations/jira/callback',
+      element: (
+        <StrictMode>
+          <JiraCallbackPage />
+        </StrictMode>
+      ),
+      workspaces: [testWorkspace()],
+      extraRoutes: ['/w/acme', '/w/$workspaceSlug/integrations/jira', '/auth/login'],
+    });
+
+    await waitFor(() =>
+      expect(completeCallbackMock).toHaveBeenCalledWith({
+        query: {code: 'grant-code-home-single', state: 'signed-state-home-single'},
+        token: 'test-token',
+      }),
+    );
+    expect(completeCallbackMock).toHaveBeenCalledTimes(1);
+    await screen.findByTestId('route:/w/acme');
+    expect(screen.getByText('Jira installed.')).toBeInTheDocument();
+
+    expect(window.sessionStorage.getItem(INSTALL_RETURN_TARGET_KEY)).toBeNull();
   });
 
   test('renders recovery without submitting an invalid callback', async () => {
