@@ -11,11 +11,9 @@ import {createGithubConnection} from '@shipfox/e2e-setup-integrations';
 import {createProject} from '@shipfox/e2e-setup-projects';
 import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
 import {attachLocalRunnerLog} from '#attachments.js';
-import {waitForDefinitionSyncTerminal} from '#polling.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import {expect, test} from './fixtures.js';
 
-const SYNC_TIMEOUT_MS = 60_000;
 const RUN_LOOKUP_TIMEOUT_MS = 15_000;
 const RUN_TIMEOUT_MS = 120_000;
 const MAX_DELIVERY_ATTEMPTS = 8;
@@ -157,11 +155,6 @@ test('starts runs from labeled and assigned issues and records the comment each 
       sourceRepositoryOwner: repository.owner,
       sourceRepositoryName: repository.name,
       sourceDefaultBranch: repository.defaultBranch,
-    });
-    await waitForDefinitionSyncTerminal({
-      projectId: project.id,
-      token: session.token,
-      timeoutMs: SYNC_TIMEOUT_MS,
     });
 
     const localRunner = await startSuiteLocalRunner({
