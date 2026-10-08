@@ -1,7 +1,6 @@
 import {describe, expect, it} from '@shipfox/vitest/vi';
 import {
   impersonateResponseSchema,
-  impersonationStopReasonRequiredErrorSchema,
   impersonationTargetNotWorkspaceMemberErrorSchema,
   impersonationWindowContinueBodySchema,
   impersonationWindowContinueResponseSchema,
@@ -96,6 +95,9 @@ describe('impersonation window DTOs', () => {
       reason: 'Investigate a support link',
       required_workspace_id: '44444444-4444-4444-8444-444444444444',
     });
+    expect(impersonationWindowStartBodySchema.parse({target_user_id: target.id})).toEqual({
+      target_user_id: target.id,
+    });
     expect(impersonationWindowContinueBodySchema.parse(undefined)).toEqual({});
     expect(impersonationWindowParamsSchema.parse({windowId})).toEqual({windowId});
     expect(impersonationWindowStopBodySchema.parse(undefined)).toEqual({});
@@ -109,6 +111,15 @@ describe('impersonation window DTOs', () => {
       }).success,
     ).toBe(false);
     expect(impersonationWindowStopBodySchema.safeParse({reason: '   '}).success).toBe(false);
+  });
+
+  it('returns a null reason for windows opened without one', () => {
+    expect(
+      impersonationWindowsResponseSchema.parse({
+        windows: [{...windowSummary, reason: null}],
+        next_cursor: null,
+      }).windows[0]?.reason,
+    ).toBeNull();
   });
 
   it('defaults and bounds collection reads', () => {
@@ -177,7 +188,6 @@ describe('impersonation window DTOs', () => {
     [impersonationWindowStoppedErrorSchema, 'impersonation-window-stopped'],
     [impersonationWindowDeadlineReachedErrorSchema, 'impersonation-window-deadline-reached'],
     [impersonationWindowLimitReachedErrorSchema, 'impersonation-window-limit-reached'],
-    [impersonationStopReasonRequiredErrorSchema, 'impersonation-stop-reason-required'],
     [impersonationTargetNotWorkspaceMemberErrorSchema, 'impersonation-target-not-workspace-member'],
   ])('provides a Fastify-compatible schema for %s', (schema, code) => {
     expect(schema.parse({code})).toEqual({code});

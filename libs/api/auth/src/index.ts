@@ -161,7 +161,6 @@ export {
   EmailNotVerifiedError,
   ImpersonationDisabledError,
   ImpersonationExpiredError,
-  ImpersonationStopReasonRequiredError,
   ImpersonationTargetNotActiveError,
   ImpersonationTargetNotWorkspaceMemberError,
   ImpersonationWindowDeadlineReachedError,

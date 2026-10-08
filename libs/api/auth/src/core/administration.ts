@@ -176,7 +176,7 @@ function impersonationWindowMaxSeconds(): number {
 
 export interface StartImpersonationWindowParams extends AdministrationMutationContext {
   targetUserId: string;
-  reason: string;
+  reason?: string | undefined;
   requiredWorkspaceId?: string | undefined;
   workspaces: WorkspacesInterModuleClient;
 }
@@ -199,7 +199,7 @@ export async function startImpersonationWindow(
     IMPERSONATION_WINDOW_START_COMMAND_NAME,
     {
       targetUserId: params.targetUserId,
-      reason: params.reason,
+      reason: params.reason ?? null,
       requiredWorkspaceId: params.requiredWorkspaceId ?? null,
     },
   );
@@ -211,7 +211,7 @@ export async function startImpersonationWindow(
         actorId: params.actorId,
         targetType: 'user',
         targetId: params.targetUserId,
-        reason: params.reason,
+        reason: params.reason ?? null,
         idempotencyKeyFingerprint,
         correlationId: params.correlationId,
       });
@@ -221,12 +221,12 @@ export async function startImpersonationWindow(
     const command: ImpersonationWindowMintCommandParams = {
       actorId: params.actorId,
       targetUserId: params.targetUserId,
-      reason: params.reason,
       idempotencyKeyFingerprint,
       requestFingerprint,
       correlationId: params.correlationId,
       workspaces: params.workspaces,
       windowMaxSeconds: impersonationWindowMaxSeconds(),
+      ...(params.reason === undefined ? {} : {reason: params.reason}),
       ...(params.requiredWorkspaceId === undefined
         ? {}
         : {requiredWorkspaceId: params.requiredWorkspaceId}),
@@ -316,7 +316,7 @@ export interface ImpersonationWindowView {
   windowId: string;
   actor: AdministratorUserSummary;
   target: AdministratorUserSummary;
-  reason: string;
+  reason: string | null;
   actorRoleAtStart: ImpersonationWindow['actorRoleAtStart'];
   startedAt: Date;
   deadlineAt: Date;

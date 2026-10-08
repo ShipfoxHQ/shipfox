@@ -78,6 +78,13 @@
       "when": 1790955163649,
       "tag": "0010_consented_at",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791417822905,
+      "tag": "0011_relax_impersonation_reason",
+      "breakpoints": true
     }
   ]
 }

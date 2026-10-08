@@ -246,13 +246,6 @@ export class ImpersonationWindowLimitReachedError extends Error {
   }
 }
 
-export class ImpersonationStopReasonRequiredError extends Error {
-  constructor() {
-    super("A reason is required to stop another actor's impersonation window");
-    this.name = 'ImpersonationStopReasonRequiredError';
-  }
-}
-
 export class ImpersonationTargetNotWorkspaceMemberError extends Error {
   constructor() {
     super('Impersonation target is not an active member of the required workspace');

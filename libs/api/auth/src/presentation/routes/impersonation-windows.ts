@@ -113,7 +113,7 @@ export function createImpersonationWindowRoutes(
       const result = await startImpersonationWindow({
         actorId: requireActorId(request),
         targetUserId: request.body.target_user_id,
-        reason: request.body.reason,
+        ...(request.body.reason ? {reason: request.body.reason} : {}),
         ...(request.body.required_workspace_id
           ? {requiredWorkspaceId: request.body.required_workspace_id}
           : {}),

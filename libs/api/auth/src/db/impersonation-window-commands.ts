@@ -22,7 +22,6 @@ import {
   CannotImpersonateSelfError,
   ImpersonationDisabledError,
   ImpersonationExpiredError,
-  ImpersonationStopReasonRequiredError,
   ImpersonationTargetNotActiveError,
   ImpersonationTargetNotWorkspaceMemberError,
   ImpersonationWindowDeadlineReachedError,
@@ -73,7 +72,7 @@ type WindowMintCommand =
 export interface ImpersonationWindowMintCommandParams {
   actorId: string;
   targetUserId: string;
-  reason: string;
+  reason?: string | undefined;
   requiredWorkspaceId?: string | undefined;
   idempotencyKeyFingerprint: string;
   requestFingerprint: string;
@@ -140,7 +139,7 @@ export type ImpersonationWindowCommandOutcome<T> =
 interface MintAuditContext {
   actorId: string;
   targetUserId: string;
-  reason: string;
+  reason: string | null;
   actorRole?: AdminRole | null | undefined;
   actorRoleAtStart?: AdminRole | undefined;
 }
@@ -179,7 +178,7 @@ function stopEvent(params: {
   windowId: string;
   actorRole: AdminRole | null;
   actorRoleAtStart: AdminRole;
-  reason: string;
+  reason: string | null;
   idempotencyKeyFingerprint: string;
   correlationId: string;
   occurredAt: Date;
@@ -402,7 +401,7 @@ async function writeWindowStateFailure(
     window: {
       actorId: string;
       targetUserId: string;
-      reason: string;
+      reason: string | null;
       actorRoleAtStart: AdminRole;
       startedAt: Date;
       endedAt: Date | null;
@@ -512,7 +511,7 @@ async function executeWindowMint(
   const context: MintAuditContext = {
     actorId: params.actorId,
     targetUserId: params.targetUserId,
-    reason: params.reason,
+    reason: params.reason ?? null,
   };
   let windowForFailure: Awaited<ReturnType<typeof findImpersonationWindow>> | undefined;
   let terminalTransitions: ImpersonationWindowTerminalTransition[] = [];
@@ -624,7 +623,7 @@ async function executeWindowMint(
     const window = await createImpersonationWindow(tx, {
       actorId: params.actorId,
       targetUserId: target.id,
-      reason: params.reason,
+      reason: params.reason ?? null,
       actorRoleAtStart: actorRole,
       startedAt: now,
       deadlineAt: new Date(now.getTime() + params.windowMaxSeconds * 1000),
@@ -935,7 +934,6 @@ export async function stopImpersonationWindowCommand(
     let actorRole: AdminRole | null = null;
     if (!owned) {
       actorRole = await readOwnerRole(tx, params.actorId);
-      if (!params.reason) throw new ImpersonationStopReasonRequiredError();
     }
 
     const now = new Date();
@@ -1068,7 +1066,7 @@ export async function publishImpersonationWindowFailure(params: {
   actorId: string;
   targetType: 'user' | 'impersonation-window';
   targetId: string;
-  reason: string;
+  reason: string | null;
   actorRoleAtStart?: AdminRole | undefined;
   idempotencyKeyFingerprint: string;
   correlationId: string;

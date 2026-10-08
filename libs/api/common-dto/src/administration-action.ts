@@ -43,7 +43,7 @@ const administrationActionEventFieldsSchema = z.object({
   command: safeIdentifierSchema,
   targetType: safeIdentifierSchema,
   targetId: z.string().min(1).max(255),
-  reason: safeReasonSchema,
+  reason: safeReasonSchema.nullable(),
   result: administrationActionResultSchema,
   correlationId: z.string().min(1).max(255),
   idempotencyKeyFingerprint: idempotencyKeyFingerprintSchema,
@@ -97,7 +97,7 @@ export interface CreateAdministrationActionEventInput {
   command: string;
   targetType: string;
   targetId: string;
-  reason: string;
+  reason: string | null;
   result: AdministrationActionResult;
   correlationId: string;
   idempotencyKeyFingerprint: string;

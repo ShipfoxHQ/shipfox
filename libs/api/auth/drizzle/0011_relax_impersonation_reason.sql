@@ -1,0 +1,1 @@
+ALTER TABLE "auth_impersonation_windows" ALTER COLUMN "reason" DROP NOT NULL;

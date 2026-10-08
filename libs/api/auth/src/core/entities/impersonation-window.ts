@@ -9,7 +9,7 @@ export interface ImpersonationWindow {
   id: string;
   actorId: string;
   targetUserId: string;
-  reason: string;
+  reason: string | null;
   actorRoleAtStart: AdminRole;
   startedAt: Date;
   deadlineAt: Date;

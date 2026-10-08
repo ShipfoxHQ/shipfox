@@ -61,7 +61,6 @@ import {
   EmailNotVerifiedError,
   ImpersonationDisabledError,
   ImpersonationExpiredError,
-  ImpersonationStopReasonRequiredError,
   ImpersonationTargetNotActiveError,
   ImpersonationTargetNotWorkspaceMemberError,
   ImpersonationWindowDeadlineReachedError,
@@ -230,13 +229,6 @@ function translateImpersonationWindowError(error: unknown): ClientError | undefi
       'The administrator already has the maximum number of open impersonation windows',
       'impersonation-window-limit-reached',
       {status: 409},
-    );
-  }
-  if (error instanceof ImpersonationStopReasonRequiredError) {
-    return new ClientError(
-      "A reason is required to stop another actor's impersonation window",
-      'impersonation-stop-reason-required',
-      {status: 400},
     );
   }
   if (error instanceof ImpersonationTargetNotWorkspaceMemberError) {
