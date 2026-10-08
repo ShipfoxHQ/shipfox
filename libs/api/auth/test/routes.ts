@@ -1,6 +1,10 @@
 import type {OutgoingHttpHeaders} from 'node:http';
 import type {AUTH_PASSWORD_RESET_SEND_REQUESTED} from '@shipfox/api-auth-dto';
-import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
+import {
+  type WorkspacesInterModuleClient,
+  workspacesInterModuleContract,
+} from '@shipfox/api-workspaces-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {userAccessTokenKey} from '@shipfox/node-auth-root-key';
 import {type AppConfig, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
@@ -74,6 +78,10 @@ const workspaceTestDoubles = vi.hoisted(() => {
   return {
     acceptInvitation: vi.fn(),
     getWorkspaceCreator: vi.fn(),
+    getWorkspaceOperatingState: vi.fn(() => Promise.resolve({status: 'active'})),
+    getWorkspaceSummary: vi.fn(({workspaceId}: {workspaceId: string}) =>
+      Promise.resolve({id: workspaceId, name: 'Workspace', slug: `ws-${workspaceId.slice(0, 8)}`}),
+    ),
     preflightInvitationAcceptance: vi.fn(),
     listMembershipsForTokenClaims: vi.fn(() => Promise.resolve({memberships: []})),
     requireActiveMembership: vi.fn(),
@@ -103,6 +111,20 @@ export const peekInvitationByRawTokenMock: ReturnType<typeof vi.fn> =
 export const listMembershipsByUserMock: ReturnType<typeof vi.fn> =
   workspaceTestDoubles.listMembershipsForTokenClaims;
 
+export const getWorkspaceOperatingStateMock: ReturnType<typeof vi.fn> =
+  workspaceTestDoubles.getWorkspaceOperatingState;
+export const getWorkspaceSummaryMock: ReturnType<typeof vi.fn> =
+  workspaceTestDoubles.getWorkspaceSummary;
+
+/** Makes the Workspaces contract report one workspace as missing. */
+export function missingWorkspaceError(workspaceId: string): Error {
+  return createInterModuleKnownError(
+    workspacesInterModuleContract.methods.getWorkspaceOperatingState,
+    'workspace-not-found',
+    {workspaceId},
+  );
+}
+
 export function resetCapturedMail(): void {
   testConfig.captured.length = 0;
   testConfig.challenges.clear();
@@ -110,6 +132,12 @@ export function resetCapturedMail(): void {
   peekInvitationByRawTokenMock.mockReset();
   listMembershipsByUserMock.mockReset();
   listMembershipsByUserMock.mockResolvedValue({memberships: []});
+  getWorkspaceOperatingStateMock.mockReset();
+  getWorkspaceOperatingStateMock.mockResolvedValue({status: 'active'});
+  getWorkspaceSummaryMock.mockReset();
+  getWorkspaceSummaryMock.mockImplementation(({workspaceId}: {workspaceId: string}) =>
+    Promise.resolve({id: workspaceId, name: 'Workspace', slug: `ws-${workspaceId.slice(0, 8)}`}),
+  );
 }
 
 /** Flips `AUTH_IMPERSONATION_ENABLED` for the shared route-test config mock. */

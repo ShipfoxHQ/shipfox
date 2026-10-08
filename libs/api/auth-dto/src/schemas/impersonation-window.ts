@@ -35,9 +35,8 @@ const windowLimitSchema = z.preprocess((value) => {
 }, z.number().int().min(1).max(IMPERSONATION_WINDOW_PAGE_MAX));
 
 export const impersonationWindowStartBodySchema = z.object({
-  target_user_id: z.string().uuid(),
+  workspace_id: z.string().uuid(),
   reason: windowReasonSchema.optional(),
-  required_workspace_id: z.string().uuid().optional(),
 });
 
 export type ImpersonationWindowStartBodyDto = z.infer<typeof impersonationWindowStartBodySchema>;
@@ -76,6 +75,7 @@ export type ImpersonationWindowExactReadParamsDto = z.infer<
 >;
 
 const impersonationWindowTokenResponseSchema = impersonateResponseSchema.extend({
+  workspace_id: z.string().uuid(),
   window_id: windowIdSchema,
   window_started_at: timestampSchema,
   window_deadline: timestampSchema,
@@ -96,7 +96,10 @@ export type ImpersonationWindowContinueResponseDto = z.infer<
 const impersonationWindowMetadataSchema = z.object({
   window_id: windowIdSchema,
   actor: administratorUserSummarySchema,
-  target: administratorUserSummarySchema,
+  // Null for windows opened before windows targeted a workspace.
+  workspace_id: z.string().uuid().nullable(),
+  // Null for windows opened after windows targeted a workspace.
+  target: administratorUserSummarySchema.nullable(),
   reason: windowReasonSchema.nullable(),
   started_at: timestampSchema,
   deadline_at: timestampSchema,
@@ -181,7 +184,7 @@ export const impersonationWindowErrorCodeSchema = z.enum([
   'impersonation-window-stopped',
   'impersonation-window-deadline-reached',
   'impersonation-window-limit-reached',
-  'impersonation-target-not-workspace-member',
+  'impersonation-workspace-not-active',
 ]);
 
 export type ImpersonationWindowErrorCode = z.infer<typeof impersonationWindowErrorCodeSchema>;
@@ -206,10 +209,9 @@ export const impersonationWindowDeadlineReachedErrorSchema = impersonationWindow
 export const impersonationWindowLimitReachedErrorSchema = impersonationWindowErrorSchema.extend({
   code: z.literal('impersonation-window-limit-reached'),
 });
-export const impersonationTargetNotWorkspaceMemberErrorSchema =
-  impersonationWindowErrorSchema.extend({
-    code: z.literal('impersonation-target-not-workspace-member'),
-  });
+export const impersonationWorkspaceNotActiveErrorSchema = impersonationWindowErrorSchema.extend({
+  code: z.literal('impersonation-workspace-not-active'),
+});
 
 export const impersonationWindowErrorResponseSchema = impersonationWindowErrorSchema;
 

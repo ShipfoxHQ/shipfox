@@ -69,6 +69,7 @@ function toWindowTokenResponse(result: Awaited<ReturnType<typeof startImpersonat
     server_time: result.serverTime.toISOString(),
     impersonator_id: result.impersonatorId,
     user: toUserDto(result.user),
+    workspace_id: result.workspaceId,
     window_id: result.windowId,
     window_started_at: result.windowStartedAt.toISOString(),
     window_deadline: result.windowDeadline.toISOString(),
@@ -79,7 +80,8 @@ function toWindowSummaryResponse(view: Awaited<ReturnType<typeof getImpersonatio
   return {
     window_id: view.windowId,
     actor: toAdministratorUserSummaryDto(view.actor),
-    target: toAdministratorUserSummaryDto(view.target),
+    workspace_id: view.workspaceId,
+    target: view.target ? toAdministratorUserSummaryDto(view.target) : null,
     reason: view.reason,
     started_at: view.startedAt.toISOString(),
     deadline_at: view.deadlineAt.toISOString(),
@@ -112,11 +114,8 @@ export function createImpersonationWindowRoutes(
     handler: async (request) => {
       const result = await startImpersonationWindow({
         actorId: requireActorId(request),
-        targetUserId: request.body.target_user_id,
+        workspaceId: request.body.workspace_id,
         ...(request.body.reason ? {reason: request.body.reason} : {}),
-        ...(request.body.required_workspace_id
-          ? {requiredWorkspaceId: request.body.required_workspace_id}
-          : {}),
         idempotencyKey: requireIdempotencyKey(request),
         correlationId: request.id,
         workspaces,

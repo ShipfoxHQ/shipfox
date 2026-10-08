@@ -15,32 +15,22 @@ export type TokenMembership = z.infer<typeof tokenMembershipSchema>;
 
 const impersonatorIdSchema = z.string().uuid();
 
-// UUIDs are case-insensitive hex strings: compare normalized values so a
-// re-cased identifier cannot change an authorization decision.
-export function isSameUuid(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase();
-}
-
 // Rollback hazard: pre-impersonation verifiers strip unknown claims (zod's
 // default object parsing), so a marked token verified by an old build silently
 // loses the marker. Upgrade every verifier before any issuer mints marked tokens.
-export const userTokenClaimsSchema = z
-  .object({
-    sub: z.string().uuid(),
-    refreshSessionId: z.string().uuid().optional(),
-    impersonatorId: impersonatorIdSchema.optional(),
-    email: z.string().email(),
-    name: z.string().nullable().optional(),
-    memberships: z.array(tokenMembershipSchema),
-    iat: z.number().int(),
-    exp: z.number().int(),
-    jti: z.string().uuid().optional(),
-  })
-  .refine(
-    (claims) =>
-      claims.impersonatorId === undefined || !isSameUuid(claims.impersonatorId, claims.sub),
-    {message: 'impersonatorId must differ from sub'},
-  );
+// `impersonatorId` equals `sub` on a workspace window: the administrator acts as
+// themself, and the marker is what the guards key on.
+export const userTokenClaimsSchema = z.object({
+  sub: z.string().uuid(),
+  refreshSessionId: z.string().uuid().optional(),
+  impersonatorId: impersonatorIdSchema.optional(),
+  email: z.string().email(),
+  name: z.string().nullable().optional(),
+  memberships: z.array(tokenMembershipSchema),
+  iat: z.number().int(),
+  exp: z.number().int(),
+  jti: z.string().uuid().optional(),
+});
 
 export type UserTokenClaims = z.infer<typeof userTokenClaimsSchema>;
 
@@ -62,13 +52,11 @@ export interface VerifyUserTokenParams {
 }
 
 export async function signUserToken(params: SignUserTokenParams): Promise<string> {
-  if (params.impersonatorId !== undefined) {
-    if (!impersonatorIdSchema.safeParse(params.impersonatorId).success) {
-      throw new TypeError('impersonatorId must be a UUID');
-    }
-    if (isSameUuid(params.impersonatorId, params.userId)) {
-      throw new TypeError('impersonatorId must differ from userId');
-    }
+  if (
+    params.impersonatorId !== undefined &&
+    !impersonatorIdSchema.safeParse(params.impersonatorId).success
+  ) {
+    throw new TypeError('impersonatorId must be a UUID');
   }
 
   const token = await signHs256({

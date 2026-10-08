@@ -12,9 +12,9 @@ export const impersonationWindows = pgTable(
     actorId: uuid('actor_id')
       .notNull()
       .references(() => users.id, {onDelete: 'cascade'}),
-    targetUserId: uuid('target_user_id')
-      .notNull()
-      .references(() => users.id, {onDelete: 'cascade'}),
+    // Windows opened before they targeted a workspace carry a target user and no workspace.
+    targetUserId: uuid('target_user_id').references(() => users.id, {onDelete: 'cascade'}),
+    workspaceId: uuid('workspace_id'),
     reason: text('reason'),
     actorRoleAtStart: adminRoleEnum('actor_role_at_start').notNull(),
     startedAt: timestamp('started_at', {withTimezone: true}).notNull(),

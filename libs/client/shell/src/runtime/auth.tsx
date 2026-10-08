@@ -36,10 +36,10 @@ const TERMINAL_CONTINUATION_CODES = new Set([
   'impersonation-disabled',
   'impersonation-expired',
   'impersonation-target-not-active',
-  'impersonation-target-not-workspace-member',
   'impersonation-window-deadline-reached',
   'impersonation-window-not-found',
   'impersonation-window-stopped',
+  'impersonation-workspace-not-active',
 ]);
 // Consecutive renewal responses that do not advance the adopted window (a
 // malformed response, or an expiry no later than the one already held) end

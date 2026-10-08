@@ -47,7 +47,7 @@ export interface StoredImpersonationResult {
 
 export interface StoredImpersonationWindowResult {
   windowId: string;
-  targetUserId: string;
+  workspaceId: string;
   windowStartedAt: string;
   windowDeadline: string;
   expiresAt: string;

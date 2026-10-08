@@ -29,7 +29,7 @@ export type ImpersonationWindowExecutor = ReturnType<typeof db> | Tx;
 export interface CreateImpersonationWindowParams {
   id?: string;
   actorId: string;
-  targetUserId: string;
+  workspaceId: string;
   reason?: string | null | undefined;
   actorRoleAtStart: AdminRole;
   startedAt: Date;
@@ -90,6 +90,7 @@ export function toImpersonationWindow(row: ImpersonationWindowDb): Impersonation
     id: row.id,
     actorId: row.actorId,
     targetUserId: row.targetUserId,
+    workspaceId: row.workspaceId,
     reason: row.reason,
     actorRoleAtStart: row.actorRoleAtStart,
     startedAt: row.startedAt,
@@ -120,7 +121,7 @@ export async function createImpersonationWindow(
   }
   const values: ImpersonationWindowCreateDb = {
     actorId: params.actorId,
-    targetUserId: params.targetUserId,
+    workspaceId: params.workspaceId,
     reason: params.reason ?? null,
     actorRoleAtStart: params.actorRoleAtStart,
     startedAt: params.startedAt,

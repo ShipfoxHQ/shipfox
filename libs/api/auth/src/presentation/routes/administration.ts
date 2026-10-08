@@ -62,11 +62,11 @@ import {
   ImpersonationDisabledError,
   ImpersonationExpiredError,
   ImpersonationTargetNotActiveError,
-  ImpersonationTargetNotWorkspaceMemberError,
   ImpersonationWindowDeadlineReachedError,
   ImpersonationWindowLimitReachedError,
   ImpersonationWindowNotFoundError,
   ImpersonationWindowStoppedError,
+  ImpersonationWorkspaceNotActiveError,
   InvalidAdminBootstrapTokenError,
   InvalidAdministratorUserDirectoryFilterError,
   InvalidCredentialsError,
@@ -231,10 +231,10 @@ function translateImpersonationWindowError(error: unknown): ClientError | undefi
       {status: 409},
     );
   }
-  if (error instanceof ImpersonationTargetNotWorkspaceMemberError) {
+  if (error instanceof ImpersonationWorkspaceNotActiveError) {
     return new ClientError(
-      'Impersonation target is not an active member of the required workspace',
-      'impersonation-target-not-workspace-member',
+      'Impersonation workspace does not exist or is not active',
+      'impersonation-workspace-not-active',
       {status: 409},
     );
   }

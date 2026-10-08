@@ -21,13 +21,12 @@ import {impersonationWindows} from './schema/impersonation-windows.js';
 describe('impersonation windows db', () => {
   test('persists only inert window metadata and derives effective expiry', async () => {
     const actor = await userFactory.create({emailVerifiedAt: new Date()});
-    const target = await userFactory.create({emailVerifiedAt: new Date()});
     const startedAt = new Date('2026-01-01T00:00:00.000Z');
     const deadlineAt = new Date('2026-01-01T00:30:00.000Z');
 
     const window = await createImpersonationWindow({
       actorId: actor.id,
-      targetUserId: target.id,
+      workspaceId: crypto.randomUUID(),
       reason: 'Investigate a support report',
       actorRoleAtStart: 'admin-owner',
       startedAt,
@@ -49,6 +48,7 @@ describe('impersonation windows db', () => {
       'reason',
       'startedAt',
       'targetUserId',
+      'workspaceId',
     ]);
 
     await expect(
@@ -85,13 +85,12 @@ describe('impersonation windows db', () => {
 
   test('materializes expiry before a late stop', async () => {
     const actor = await userFactory.create({emailVerifiedAt: new Date()});
-    const target = await userFactory.create({emailVerifiedAt: new Date()});
     const deadlineAt = new Date('2026-01-01T00:30:00.000Z');
     const capturedAt = new Date('2026-01-01T00:31:00.000Z');
 
     const window = await createImpersonationWindow({
       actorId: actor.id,
-      targetUserId: target.id,
+      workspaceId: crypto.randomUUID(),
       reason: 'Investigate a support report',
       actorRoleAtStart: 'admin-owner',
       startedAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -215,7 +214,6 @@ describe('impersonation windows db', () => {
   test('counts currently open windows across actors for service metrics', async () => {
     const firstActor = await userFactory.create({emailVerifiedAt: new Date()});
     const secondActor = await userFactory.create({emailVerifiedAt: new Date()});
-    const target = await userFactory.create({emailVerifiedAt: new Date()});
     const now = new Date();
     const openDeadline = new Date(now.getTime() + 60_000);
     const expiredDeadline = new Date(now.getTime() - 60_000);
@@ -223,7 +221,7 @@ describe('impersonation windows db', () => {
 
     await createImpersonationWindow({
       actorId: firstActor.id,
-      targetUserId: target.id,
+      workspaceId: crypto.randomUUID(),
       reason: 'First open window',
       actorRoleAtStart: 'admin-operator',
       startedAt: now,
@@ -231,7 +229,7 @@ describe('impersonation windows db', () => {
     });
     await createImpersonationWindow({
       actorId: secondActor.id,
-      targetUserId: target.id,
+      workspaceId: crypto.randomUUID(),
       reason: 'Second open window',
       actorRoleAtStart: 'admin-operator',
       startedAt: now,
@@ -239,7 +237,7 @@ describe('impersonation windows db', () => {
     });
     await createImpersonationWindow({
       actorId: firstActor.id,
-      targetUserId: target.id,
+      workspaceId: crypto.randomUUID(),
       reason: 'Expired window',
       actorRoleAtStart: 'admin-operator',
       startedAt: new Date(now.getTime() - 120_000),
@@ -251,13 +249,12 @@ describe('impersonation windows db', () => {
 
   test('enforces terminal consistency and a deadline after the start', async () => {
     const actor = await userFactory.create({emailVerifiedAt: new Date()});
-    const target = await userFactory.create({emailVerifiedAt: new Date()});
     const startedAt = new Date('2026-01-01T00:00:00.000Z');
 
     await expect(
       createImpersonationWindow({
         actorId: actor.id,
-        targetUserId: target.id,
+        workspaceId: crypto.randomUUID(),
         reason: 'Invalid deadline',
         actorRoleAtStart: 'admin-operator',
         startedAt,
@@ -268,7 +265,7 @@ describe('impersonation windows db', () => {
     await expect(
       createImpersonationWindow({
         actorId: actor.id,
-        targetUserId: target.id,
+        workspaceId: crypto.randomUUID(),
         reason: 'Invalid terminal state',
         actorRoleAtStart: 'admin-operator',
         startedAt,

@@ -12,25 +12,23 @@ import {hasMinimumAdminRole, highestAdminRole} from '#core/admin-role-model.js';
 import {
   createImpersonatedSessionTokenFromClaims,
   impersonationTtlSeconds,
-  loadTokenMemberships,
+  loadWorkspaceWindowMembership,
 } from '#core/auth.js';
+import type {ImpersonationWindow} from '#core/entities/impersonation-window.js';
 import type {User} from '#core/entities/user.js';
 import {
   AdminIdempotencyKeyReuseError,
   AdminRoleRequiredError,
-  CannotImpersonateAdministratorError,
-  CannotImpersonateSelfError,
   ImpersonationDisabledError,
   ImpersonationExpiredError,
-  ImpersonationTargetNotActiveError,
-  ImpersonationTargetNotWorkspaceMemberError,
   ImpersonationWindowDeadlineReachedError,
   ImpersonationWindowLimitReachedError,
   ImpersonationWindowNotFoundError,
   ImpersonationWindowStoppedError,
+  ImpersonationWorkspaceNotActiveError,
   UserNotFoundError,
 } from '#core/errors.js';
-import {isSameUuid} from '#core/jwt.js';
+import type {TokenMembership} from '#core/jwt.js';
 import {recordImpersonationAuditWriteFailure} from '#metrics/index.js';
 import {
   findAdminCommandResult,
@@ -42,8 +40,8 @@ import {
   updateAdminCommandResult,
   writeAdminAction,
 } from './admin-command.js';
+import {requireActiveAdminOperator} from './admin-user-moderation.js';
 import {db} from './db.js';
-import {runImpersonationLadder} from './impersonation.js';
 import {
   createImpersonationWindow,
   findImpersonationWindow,
@@ -71,9 +69,8 @@ type WindowMintCommand =
 
 export interface ImpersonationWindowMintCommandParams {
   actorId: string;
-  targetUserId: string;
+  workspaceId: string;
   reason?: string | undefined;
-  requiredWorkspaceId?: string | undefined;
   idempotencyKeyFingerprint: string;
   requestFingerprint: string;
   correlationId: string;
@@ -104,6 +101,7 @@ export interface ImpersonationWindowMintResult {
   expiresAt: Date;
   user: User;
   impersonatorId: string;
+  workspaceId: string;
   windowId: string;
   windowStartedAt: Date;
   windowDeadline: Date;
@@ -136,9 +134,14 @@ export type ImpersonationWindowCommandOutcome<T> =
       terminalTransitions?: ImpersonationWindowTerminalTransition[];
     };
 
+interface AuditTarget {
+  type: 'workspace' | 'user' | 'impersonation-window';
+  id: string;
+}
+
 interface MintAuditContext {
   actorId: string;
-  targetUserId: string;
+  target: AuditTarget;
   reason: string | null;
   actorRole?: AdminRole | null | undefined;
   actorRoleAtStart?: AdminRole | undefined;
@@ -147,7 +150,6 @@ interface MintAuditContext {
 function mintEvent(params: {
   command: WindowMintCommand;
   context: MintAuditContext;
-  targetType?: 'user' | 'impersonation-window';
   result: AdministrationActionResult;
   idempotencyKeyFingerprint: string;
   correlationId: string;
@@ -163,8 +165,8 @@ function mintEvent(params: {
       ? {}
       : {actorRoleAtStart: params.context.actorRoleAtStart}),
     command: params.command,
-    targetType: params.targetType ?? 'user',
-    targetId: params.context.targetUserId,
+    targetType: params.context.target.type,
+    targetId: params.context.target.id,
     reason: params.context.reason,
     result: params.result,
     correlationId: params.correlationId,
@@ -237,11 +239,22 @@ async function readCurrentAdminRole(tx: Tx, actorId: string): Promise<AdminRole 
   return highestAdminRole(grantRows.map(({role}) => role));
 }
 
-async function readTargetUser(tx: Tx, targetUserId: string): Promise<User> {
-  const rows = await tx.select().from(users).where(eq(users.id, targetUserId)).limit(1);
+async function readActorUser(tx: Tx, actorId: string): Promise<User> {
+  const rows = await tx.select().from(users).where(eq(users.id, actorId)).limit(1);
   const row = rows[0];
-  if (!row || row.status === 'deleted') throw new UserNotFoundError(targetUserId);
+  if (!row || row.status === 'deleted') throw new UserNotFoundError(actorId);
   return toUser(row);
+}
+
+// Windows opened before they targeted a workspace audit against their user.
+function windowAuditTarget(window: {
+  id: string;
+  workspaceId: string | null;
+  targetUserId: string | null;
+}): AuditTarget {
+  if (window.workspaceId) return {type: 'workspace', id: window.workspaceId};
+  if (window.targetUserId) return {type: 'user', id: window.targetUserId};
+  return {type: 'impersonation-window', id: window.id};
 }
 
 function terminalTransition(window: {
@@ -278,7 +291,7 @@ function tokenTtlSeconds(now: Date, deadlineAt: Date, canonicalExpiry?: Date): n
 
 async function mintFromSnapshot(params: {
   user: User;
-  memberships: Awaited<ReturnType<typeof loadTokenMemberships>>;
+  memberships: TokenMembership[];
   actorId: string;
   deadlineAt: Date;
   canonicalExpiry?: Date;
@@ -309,16 +322,37 @@ async function mintFromSnapshot(params: {
   throw new ImpersonationWindowDeadlineReachedError();
 }
 
-function hasActiveRequiredWorkspace(
-  memberships: Awaited<ReturnType<typeof loadTokenMemberships>>,
-  requiredWorkspaceId: string | undefined,
-): boolean {
-  if (!requiredWorkspaceId) return true;
-  return memberships.some(
-    (membership) =>
-      isSameUuid(membership.workspaceId, requiredWorkspaceId) &&
-      membership.workspaceStatus === 'active',
-  );
+/**
+ * Builds the token for a window: the administrator's identity with one
+ * membership, the window's workspace, and the `impersonatorId` marker. Start,
+ * idempotent replay, and continuation all mint here, so each re-checks the
+ * actor's role and re-reads the workspace state. The administrator's real
+ * memberships are never loaded.
+ */
+async function mintWindowToken(
+  tx: Tx,
+  params: {
+    actorId: string;
+    workspaceId: string;
+    deadlineAt: Date;
+    canonicalExpiry?: Date;
+    workspaces: WorkspacesInterModuleClient;
+  },
+): Promise<{
+  actorRole: AdminRole;
+  minted: Awaited<ReturnType<typeof createImpersonatedSessionTokenFromClaims>>;
+}> {
+  const actorRole = await requireActiveAdminOperator(tx, params.actorId);
+  const actor = await readActorUser(tx, params.actorId);
+  const membership = await loadWorkspaceWindowMembership(params.workspaceId, params.workspaces);
+  const minted = await mintFromSnapshot({
+    user: actor,
+    memberships: [membership],
+    actorId: params.actorId,
+    deadlineAt: params.deadlineAt,
+    ...(params.canonicalExpiry ? {canonicalExpiry: params.canonicalExpiry} : {}),
+  });
+  return {actorRole, minted};
 }
 
 function toStoredWindowResult(
@@ -326,7 +360,7 @@ function toStoredWindowResult(
 ): StoredImpersonationWindowResult {
   return {
     windowId: result.windowId,
-    targetUserId: result.user.id,
+    workspaceId: result.workspaceId,
     windowStartedAt: result.windowStartedAt.toISOString(),
     windowDeadline: result.windowDeadline.toISOString(),
     expiresAt: result.expiresAt.toISOString(),
@@ -342,6 +376,7 @@ function fromStoredWindowResult(
   stored: StoredImpersonationWindowResult,
   minted: Awaited<ReturnType<typeof createImpersonatedSessionTokenFromClaims>>,
   actorId: string,
+  workspaceId: string,
   serverTime: Date,
 ): ImpersonationWindowMintResult {
   return {
@@ -349,6 +384,7 @@ function fromStoredWindowResult(
     expiresAt: new Date(stored.expiresAt),
     user: minted.user,
     impersonatorId: actorId,
+    workspaceId,
     windowId: stored.windowId,
     windowStartedAt: new Date(stored.windowStartedAt),
     windowDeadline: new Date(stored.windowDeadline),
@@ -359,13 +395,10 @@ function fromStoredWindowResult(
 function isMintFailureAuditable(error: unknown): boolean {
   return (
     error instanceof AdminRoleRequiredError ||
-    error instanceof CannotImpersonateAdministratorError ||
-    error instanceof CannotImpersonateSelfError ||
     error instanceof ImpersonationDisabledError ||
     error instanceof ImpersonationExpiredError ||
-    error instanceof ImpersonationTargetNotActiveError ||
-    error instanceof ImpersonationTargetNotWorkspaceMemberError ||
-    error instanceof ImpersonationWindowLimitReachedError
+    error instanceof ImpersonationWindowLimitReachedError ||
+    error instanceof ImpersonationWorkspaceNotActiveError
   );
 }
 
@@ -399,8 +432,10 @@ async function writeWindowStateFailure(
   params: {
     command: WindowMintCommand;
     window: {
+      id: string;
       actorId: string;
-      targetUserId: string;
+      targetUserId: string | null;
+      workspaceId: string | null;
       reason: string | null;
       actorRoleAtStart: AdminRole;
       startedAt: Date;
@@ -418,7 +453,7 @@ async function writeWindowStateFailure(
     command: params.command,
     context: {
       actorId: params.actorId,
-      targetUserId: params.window.targetUserId,
+      target: windowAuditTarget(params.window),
       reason: params.window.reason,
       actorRoleAtStart: params.window.actorRoleAtStart,
     },
@@ -430,6 +465,32 @@ async function writeWindowStateFailure(
     kind: 'failure',
     error: params.error,
   };
+}
+
+// JWT NumericDate values have whole-second precision. The final partial second
+// cannot safely receive a bearer token, so the window is materialized at its
+// authoritative deadline before the audited 410.
+async function materializeFinalSecond(
+  tx: Tx,
+  window: ImpersonationWindow,
+  now: Date,
+): Promise<{window: ImpersonationWindow; transition?: ImpersonationWindowTerminalTransition}> {
+  if (window.endedAt !== null || window.deadlineAt.getTime() - now.getTime() >= 1000) {
+    return {window};
+  }
+
+  const materialized = await materializeImpersonationWindowExpiry(tx, {
+    id: window.id,
+    now: new Date(Math.max(now.getTime(), window.deadlineAt.getTime())),
+  });
+  if (materialized) {
+    const transition = terminalTransition(materialized);
+    return {window: materialized, ...(transition ? {transition} : {})};
+  }
+
+  const reloaded = await findImpersonationWindow(tx, {id: window.id});
+  if (!reloaded) throw new ImpersonationWindowNotFoundError();
+  return {window: reloaded};
 }
 
 async function readWindowStateFailure(
@@ -447,29 +508,7 @@ async function readWindowStateFailure(
     throw new ImpersonationWindowNotFoundError();
   }
 
-  let window = params.window;
-  let transition: ImpersonationWindowTerminalTransition | undefined;
-  const remainingWindowMilliseconds = window.deadlineAt.getTime() - params.now.getTime();
-  if (window.endedAt === null && remainingWindowMilliseconds < 1000) {
-    // JWT NumericDate values have whole-second precision. The final partial
-    // second cannot safely receive a bearer token, so materialize the window
-    // at its authoritative deadline before returning the audited 410.
-    const materializationTime = new Date(
-      Math.max(params.now.getTime(), window.deadlineAt.getTime()),
-    );
-    const materialized = await materializeImpersonationWindowExpiry(tx, {
-      id: window.id,
-      now: materializationTime,
-    });
-    if (materialized) {
-      window = materialized;
-      transition = terminalTransition(window);
-    } else {
-      const reloaded = await findImpersonationWindow(tx, {id: window.id});
-      if (!reloaded) throw new ImpersonationWindowNotFoundError();
-      window = reloaded;
-    }
-  }
+  const {window, transition} = await materializeFinalSecond(tx, params.window, params.now);
 
   if (window.endedReason === 'expired') {
     const outcome = await writeWindowStateFailure(tx, {
@@ -484,7 +523,10 @@ async function readWindowStateFailure(
     return transition ? {...outcome, terminalTransition: transition} : outcome;
   }
 
-  if (window.endedAt !== null) {
+  // A window opened before windows targeted a workspace has no workspace to
+  // mint a membership for, so it is closed to new tokens and runs out at its
+  // deadline.
+  if (window.endedAt !== null || window.workspaceId === null) {
     return await writeWindowStateFailure(tx, {
       command: params.command,
       window,
@@ -499,6 +541,12 @@ async function readWindowStateFailure(
   return undefined;
 }
 
+// Unreachable after `readWindowStateFailure` returned nothing; narrows the type.
+function requireWindowWorkspaceId(window: {workspaceId: string | null}): string {
+  if (window.workspaceId === null) throw new ImpersonationWindowStoppedError();
+  return window.workspaceId;
+}
+
 // The start transaction keeps replay, expiry, ladder, capacity, signing, and
 // audit ordering together so no branch can accidentally cross the security boundary.
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: transaction precedence is security-sensitive
@@ -510,7 +558,7 @@ async function executeWindowMint(
   const now = new Date();
   const context: MintAuditContext = {
     actorId: params.actorId,
-    targetUserId: params.targetUserId,
+    target: {type: 'workspace', id: params.workspaceId},
     reason: params.reason ?? null,
   };
   let windowForFailure: Awaited<ReturnType<typeof findImpersonationWindow>> | undefined;
@@ -534,7 +582,7 @@ async function executeWindowMint(
         throw new ImpersonationWindowNotFoundError();
       }
       windowForFailure = window;
-      context.targetUserId = window.targetUserId;
+      context.target = windowAuditTarget(window);
       context.reason = window.reason;
       context.actorRoleAtStart = window.actorRoleAtStart;
 
@@ -548,25 +596,15 @@ async function executeWindowMint(
       });
       if (stateFailure) return stateFailure as ImpersonationWindowCommandOutcome<never>;
 
-      const actorRole = await runImpersonationLadder(tx, {
+      const workspaceId = requireWindowWorkspaceId(window);
+      const {actorRole, minted} = await mintWindowToken(tx, {
         actorId: params.actorId,
-        targetUserId: window.targetUserId,
+        workspaceId,
+        deadlineAt: window.deadlineAt,
+        canonicalExpiry: new Date(stored.expiresAt),
+        workspaces: params.workspaces,
       });
       context.actorRole = actorRole;
-      const target = await readTargetUser(tx, window.targetUserId);
-      const memberships = await loadTokenMemberships(target.id, params.workspaces);
-      if (!hasActiveRequiredWorkspace(memberships, params.requiredWorkspaceId)) {
-        throw new ImpersonationTargetNotWorkspaceMemberError();
-      }
-
-      const canonicalExpiry = new Date(stored.expiresAt);
-      const minted = await mintFromSnapshot({
-        user: target,
-        memberships,
-        actorId: params.actorId,
-        deadlineAt: window.deadlineAt,
-        canonicalExpiry,
-      });
       await updateAdminCommandResult(
         tx,
         {
@@ -594,17 +632,13 @@ async function executeWindowMint(
       );
       return {
         kind: 'success',
-        result: fromStoredWindowResult(stored, minted, params.actorId, now),
+        result: fromStoredWindowResult(stored, minted, params.actorId, workspaceId, now),
       };
     }
 
-    const actorRole = await runImpersonationLadder(tx, {
-      actorId: params.actorId,
-      targetUserId: params.targetUserId,
-    });
-    context.actorRole = actorRole;
-    context.actorRoleAtStart = actorRole;
-
+    // The role check comes before the capacity check so a denied actor is never
+    // reported as being at the window limit; the minting helper checks it again.
+    await requireActiveAdminOperator(tx, params.actorId);
     const expiredWindows = await requireImpersonationWindowCapacity(tx, {
       actorId: params.actorId,
       now,
@@ -614,32 +648,31 @@ async function executeWindowMint(
       return transition ? [transition] : [];
     });
 
-    const target = await readTargetUser(tx, params.targetUserId);
-    const memberships = await loadTokenMemberships(target.id, params.workspaces);
-    if (!hasActiveRequiredWorkspace(memberships, params.requiredWorkspaceId)) {
-      throw new ImpersonationTargetNotWorkspaceMemberError();
-    }
+    const deadlineAt = new Date(now.getTime() + params.windowMaxSeconds * 1000);
+    const {actorRole, minted} = await mintWindowToken(tx, {
+      actorId: params.actorId,
+      workspaceId: params.workspaceId,
+      deadlineAt,
+      workspaces: params.workspaces,
+    });
+    context.actorRole = actorRole;
+    context.actorRoleAtStart = actorRole;
 
     const window = await createImpersonationWindow(tx, {
       actorId: params.actorId,
-      targetUserId: target.id,
+      workspaceId: params.workspaceId,
       reason: params.reason ?? null,
       actorRoleAtStart: actorRole,
       startedAt: now,
-      deadlineAt: new Date(now.getTime() + params.windowMaxSeconds * 1000),
+      deadlineAt,
     });
     windowForFailure = window;
-    const minted = await mintFromSnapshot({
-      user: target,
-      memberships,
-      actorId: params.actorId,
-      deadlineAt: window.deadlineAt,
-    });
     const result: ImpersonationWindowMintResult = {
       token: minted.token,
       expiresAt: minted.expiresAt,
       user: minted.user,
       impersonatorId: params.actorId,
+      workspaceId: params.workspaceId,
       windowId: window.id,
       windowStartedAt: window.startedAt,
       windowDeadline: window.deadlineAt,
@@ -726,7 +759,7 @@ async function executeWindowContinue(
     }
     context = {
       actorId: params.actorId,
-      targetUserId: window.targetUserId,
+      target: windowAuditTarget(window),
       reason: window.reason,
       actorRoleAtStart: window.actorRoleAtStart,
     };
@@ -741,13 +774,7 @@ async function executeWindowContinue(
     });
     if (stateFailure) return stateFailure as ImpersonationWindowCommandOutcome<never>;
 
-    const actorRole = await runImpersonationLadder(tx, {
-      actorId: params.actorId,
-      targetUserId: window.targetUserId,
-    });
-    context.actorRole = actorRole;
-    const target = await readTargetUser(tx, window.targetUserId);
-    const memberships = await loadTokenMemberships(target.id, params.workspaces);
+    const workspaceId = requireWindowWorkspaceId(window);
     const stored = existing
       ? (() => {
           if (!('impersonationWindow' in existing.result)) {
@@ -757,18 +784,20 @@ async function executeWindowContinue(
         })()
       : undefined;
     const canonicalExpiry = stored ? new Date(stored.expiresAt) : undefined;
-    const minted = await mintFromSnapshot({
-      user: target,
-      memberships,
+    const {actorRole, minted} = await mintWindowToken(tx, {
       actorId: params.actorId,
+      workspaceId,
       deadlineAt: window.deadlineAt,
       ...(canonicalExpiry ? {canonicalExpiry} : {}),
+      workspaces: params.workspaces,
     });
+    context.actorRole = actorRole;
     const result: ImpersonationWindowMintResult = {
       token: minted.token,
       expiresAt: stored ? (canonicalExpiry ?? minted.expiresAt) : minted.expiresAt,
       user: minted.user,
       impersonatorId: params.actorId,
+      workspaceId,
       windowId: window.id,
       windowStartedAt: window.startedAt,
       windowDeadline: window.deadlineAt,
@@ -802,7 +831,7 @@ async function executeWindowContinue(
         {
           impersonationWindow: {
             windowId: window.id,
-            targetUserId: window.targetUserId,
+            workspaceId,
             windowStartedAt: window.startedAt.toISOString(),
             windowDeadline: window.deadlineAt.toISOString(),
             expiresAt: result.expiresAt.toISOString(),
@@ -1064,7 +1093,7 @@ export async function stopImpersonationWindowCommand(
 export async function publishImpersonationWindowFailure(params: {
   command: WindowMintCommand;
   actorId: string;
-  targetType: 'user' | 'impersonation-window';
+  targetType: 'workspace' | 'impersonation-window';
   targetId: string;
   reason: string | null;
   actorRoleAtStart?: AdminRole | undefined;
@@ -1078,10 +1107,9 @@ export async function publishImpersonationWindowFailure(params: {
         tx,
         mintEvent({
           command: params.command,
-          targetType: params.targetType,
           context: {
             actorId: params.actorId,
-            targetUserId: params.targetId,
+            target: {type: params.targetType, id: params.targetId},
             reason: params.reason,
             actorRole,
             ...(params.actorRoleAtStart === undefined

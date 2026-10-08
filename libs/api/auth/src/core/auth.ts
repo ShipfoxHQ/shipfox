@@ -41,6 +41,7 @@ import {
   EmailNotVerifiedError,
   EmailTakenError,
   ImpersonationDisabledError,
+  ImpersonationWorkspaceNotActiveError,
   InvalidCredentialsError,
   InvitationEmailMismatchError,
   SignupNotAllowedError,
@@ -113,6 +114,42 @@ export async function loadTokenMemberships(
       throw new AuthDependencyUnavailableError('workspaces', error);
     });
   return memberships.memberships;
+}
+
+/**
+ * The single membership an impersonation window grants: the window's workspace
+ * with the only workspace role, read fresh so a suspended or deleted workspace
+ * cannot be entered or continued. It never reads the administrator's real
+ * memberships.
+ */
+export async function loadWorkspaceWindowMembership(
+  workspaceId: string,
+  workspaces: WorkspacesInterModuleClient,
+): Promise<TokenMembership> {
+  try {
+    const [state, summary] = await Promise.all([
+      workspaces.getWorkspaceOperatingState({workspaceId}),
+      workspaces.getWorkspaceSummary({workspaceId}),
+    ]);
+    if (state.status !== 'active' || !summary) throw new ImpersonationWorkspaceNotActiveError();
+    return {
+      workspaceId,
+      workspaceSlug: summary.slug,
+      role: 'admin',
+      workspaceStatus: 'active',
+    };
+  } catch (error) {
+    if (error instanceof ImpersonationWorkspaceNotActiveError) throw error;
+    if (
+      isInterModuleKnownError(
+        workspacesInterModuleContract.methods.getWorkspaceOperatingState,
+        error,
+      )
+    ) {
+      throw new ImpersonationWorkspaceNotActiveError();
+    }
+    throw new AuthDependencyUnavailableError('workspaces', error);
+  }
 }
 
 async function signAccessToken(
