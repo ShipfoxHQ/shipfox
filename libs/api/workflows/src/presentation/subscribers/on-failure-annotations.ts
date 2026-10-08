@@ -12,6 +12,7 @@ import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {JobStatusReason} from '#core/entities/job.js';
 import type {StepAttempt} from '#core/entities/step.js';
+import {boundedStepName} from '#core/errors.js';
 import {GATE_EVALUATION_ERROR_REASON} from '#core/step-transition/evaluate-gate.js';
 import {
   getJobExecutionFailureOrigin,
@@ -21,6 +22,8 @@ import {
 } from '#db/index.js';
 import type {StepAttemptDetailStep} from '#db/workflow-runs/steps.js';
 import {recordWorkflowFailureAnnotationFailed} from '#metrics/instance.js';
+
+const TRAILING_PERIOD = /\.$/u;
 
 const JOB_FAILURE_ANNOTATION_REASONS = new Set([
   'timed_out',
@@ -90,6 +93,11 @@ const STEP_FAILURE_COPY: Readonly<
     title: 'A value in this step has an error',
     description:
       'Shipfox cannot compute a value in this step. Fix the expression, then start a new run.',
+  },
+  condition_errored: {
+    title: 'A step condition has an error',
+    description:
+      'Shipfox cannot evaluate the `if` of this step. Fix the condition, then start a new run.',
   },
   output_invalid: {
     title: 'The step output has the wrong shape',
@@ -472,6 +480,9 @@ function stepFailureCopy(step: StepAttemptDetailStep, attempt: StepAttempt): Fai
   const configFailure = configUnresolvableFailureCopy(error, reason);
   if (configFailure !== undefined) return configFailure;
 
+  const conditionFailure = conditionErroredFailureCopy(step, error, reason);
+  if (conditionFailure !== undefined) return conditionFailure;
+
   const toolFailure = toolStepFailureCopy(step, attempt, error, reason);
   if (toolFailure !== undefined) return toolFailure;
 
@@ -501,6 +512,22 @@ function configUnresolvableFailureCopy(
   return {
     title: 'A value in this step has an error',
     description: `\`${field}\` uses \`${source}\`, but that value does not exist. Fix it, then start a new run.`,
+  };
+}
+
+function conditionErroredFailureCopy(
+  step: StepAttemptDetailStep,
+  error: Record<string, unknown> | null,
+  reason: string | undefined,
+): FailureCopy | undefined {
+  if (reason !== 'condition_errored') return undefined;
+
+  const summary = errorString(error, 'summary');
+  if (summary === undefined) return undefined;
+
+  return {
+    title: 'A step condition has an error',
+    description: `The \`if\` of step \`${boundedStepName(step.key ?? step.name)}\` can't be evaluated: ${summary.replace(TRAILING_PERIOD, '')}. Fix the condition, then start a new run.`,
   };
 }
 

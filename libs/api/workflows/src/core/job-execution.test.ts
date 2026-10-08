@@ -683,35 +683,67 @@ describe('nextStepForJob', () => {
     expect(await getStepAttempts(jobId)).toMatchObject([{stepId: runnableStep.id}]);
   });
 
-  test('skips an errored condition without creating an attempt', async () => {
+  test('fails a step whose condition errors and skips the later default steps', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const skippedStep = steps[0];
-    const runnableStep = steps[1];
-    if (!skippedStep || !runnableStep) throw new Error('Expected arranged steps');
+    const errored = steps[0];
+    const defaultGated = steps[1];
+    if (!errored || !defaultGated) throw new Error('Expected arranged steps');
     await db()
       .update(stepsTable)
       .set({condition: conditionExpression('1 / 0 == 0')})
-      .where(eq(stepsTable.id, skippedStep.id));
+      .where(eq(stepsTable.id, errored.id));
+
+    const result = await nextStepForJob(jobId);
+
+    expect(result).toEqual({kind: 'done', status: 'failed'});
+    const after = await getStepsByJobId(jobId);
+    expect(after.find((step) => step.id === errored.id)).toMatchObject({
+      status: 'failed',
+      error: {
+        message: expect.stringContaining("can't be evaluated: CEL evaluation failed"),
+        reason: 'condition_errored',
+        field: 'step.if',
+        summary: 'CEL evaluation failed (division_by_zero)',
+        stepIndex: errored.position,
+      },
+    });
+    expect(after.find((step) => step.id === defaultGated.id)).toMatchObject({
+      status: 'skipped',
+      statusReason: 'default_gate_rejected',
+    });
+    expect(await getStepAttempts(jobId)).toMatchObject([
+      {
+        stepId: errored.id,
+        status: 'failed',
+        evaluationTrace: [
+          {
+            ...conditionTrace('step.if', '1 / 0 == 0', [], false, true),
+            error: {message: 'CEL evaluation failed (division_by_zero)'},
+          },
+        ],
+      },
+    ]);
+    expect(await jobStepsSettledEvents(jobId)).toMatchObject([{status: 'failed'}]);
+  });
+
+  test('runs a failure-gated step after a step whose condition errors', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    const errored = steps[0];
+    const cleanup = steps[1];
+    if (!errored || !cleanup) throw new Error('Expected arranged steps');
+    await db()
+      .update(stepsTable)
+      .set({condition: conditionExpression('1 / 0 == 0')})
+      .where(eq(stepsTable.id, errored.id));
+    await db().update(stepsTable).set({runAfter: 'failure'}).where(eq(stepsTable.id, cleanup.id));
 
     const result = await nextStepForJob(jobId);
 
     expect(result).toEqual({
       kind: 'step',
-      step: expect.objectContaining({id: runnableStep.id}),
+      step: expect.objectContaining({id: cleanup.id}),
       dispatched: true,
     });
-    const after = await getStepsByJobId(jobId);
-    expect(after.find((step) => step.id === skippedStep.id)).toMatchObject({
-      status: 'skipped',
-      statusReason: 'condition_errored',
-      evaluationTrace: [
-        {
-          ...conditionTrace('step.if', '1 / 0 == 0', [], false, true),
-          error: {message: 'CEL evaluation failed (division_by_zero)'},
-        },
-      ],
-    });
-    expect(await getStepAttempts(jobId)).toMatchObject([{stepId: runnableStep.id}]);
   });
 
   test('skips adjacent false conditions in one pull and keeps condition out of runner config', async () => {

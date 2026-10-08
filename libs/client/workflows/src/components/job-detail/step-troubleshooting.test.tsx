@@ -549,6 +549,19 @@ describe('StepInspectorSheet', () => {
     expect(screen.queryByRole('button', {name: 'View invocation log'})).toBeNull();
   });
 
+  it('shows the stored cause when a step condition cannot be evaluated', async () => {
+    const user = userEvent.setup();
+    configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
+
+    await renderPanel({entry: toolStepEntry({status: 'failed', reason: 'condition_errored'})});
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    expect(await screen.findByText('A step condition has an error')).toBeInTheDocument();
+    expect(
+      screen.getByText('Tool output was invalid. Fix the condition, then start a new run.'),
+    ).toBeInTheDocument();
+  });
+
   it('explains unavailable credentials and links to reconnection', async () => {
     const user = userEvent.setup();
     configureToolDetailResponse();

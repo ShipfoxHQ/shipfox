@@ -45,7 +45,7 @@ export function classifyOutputFailure(
   return null;
 }
 
-function boundedStatusReasonMessage(message: string): string {
+export function boundedStatusReasonMessage(message: string): string {
   return message.length <= MAX_STATUS_REASON_MESSAGE_LENGTH
     ? message
     : `${message.slice(0, MAX_STATUS_REASON_MESSAGE_LENGTH - 1)}…`;

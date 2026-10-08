@@ -1,4 +1,5 @@
-import {eq} from 'drizzle-orm';
+import {WORKFLOWS_JOB_TERMINATED} from '@shipfox/api-workflows-dto';
+import {and, eq, sql} from 'drizzle-orm';
 import {
   buildModel,
   conditionTrace,
@@ -8,6 +9,7 @@ import {
 } from '#test/helpers/workflow-runs.js';
 import {db} from '../db.js';
 import {jobs} from '../schema/jobs.js';
+import {workflowsOutbox} from '../schema/outbox.js';
 import {createWorkflowRun, evaluateJobActivations, updateJobStatus} from '../workflow-runs.js';
 
 describe('evaluateJobActivations', () => {
@@ -197,7 +199,7 @@ describe('evaluateJobActivations', () => {
     expect(result).toEqual([{kind: 'start-job', jobId: notify.id}]);
   });
 
-  it('records condition_errored when predicate evaluation fails closed', async () => {
+  it('fails the job with condition_errored when predicate evaluation errors', async () => {
     const run = await createWorkflowRun({
       ...scope,
       name: 'broken condition',
@@ -232,11 +234,26 @@ describe('evaluateJobActivations', () => {
     });
 
     expect(result).toEqual([
-      {kind: 'terminal-job', jobId: notify.id, status: 'skipped', jobVersion: expect.any(Number)},
+      {kind: 'terminal-job', jobId: notify.id, status: 'failed', jobVersion: expect.any(Number)},
     ]);
-    const skipped = await jobByKey(run.id, 'notify');
-    expect(skipped.statusReason).toBe('condition_errored');
-    expect(skipped.evaluationTrace).toEqual([
+    const failed = await jobByKey(run.id, 'notify');
+    expect(failed.status).toBe('failed');
+    expect(failed.statusReason).toBe('condition_errored');
+    const [terminated] = await db()
+      .select({payload: workflowsOutbox.payload})
+      .from(workflowsOutbox)
+      .where(
+        and(
+          eq(workflowsOutbox.eventType, WORKFLOWS_JOB_TERMINATED),
+          sql`${workflowsOutbox.payload}->>'jobId' = ${notify.id}`,
+        ),
+      );
+    expect(terminated?.payload).toMatchObject({
+      status: 'failed',
+      statusReason: 'condition_errored',
+      statusReasonMessage: "The `if` of job `notify` can't be evaluated: No such key: sha",
+    });
+    expect(failed.evaluationTrace).toEqual([
       {
         ...conditionTrace(
           'job.if',

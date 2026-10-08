@@ -39,7 +39,11 @@ import {
   recordWorkflowStepRestartExhausted,
 } from '#metrics/instance.js';
 import {createAgentDefaultsResolver} from './agent-defaults.js';
-import {defaultStepConditionTrace, explicitConditionTrace} from './condition-trace.js';
+import {
+  defaultStepConditionTrace,
+  explicitConditionTrace,
+  UNFILLABLE_CONDITION_SUMMARY,
+} from './condition-trace.js';
 import {assertWorkflowProductOutputSize, assertWorkflowStepResultSize} from './diagnostics.js';
 import type {JobExecution} from './entities/job-execution.js';
 import type {
@@ -52,6 +56,7 @@ import {
   ActionInputInvalidError,
   AgentConfigUnresolvableError,
   AgentStepSessionClaimError,
+  boundedStepName,
   InterpolationUnresolvableError,
   JobNotFoundError,
   JobOutputTooLargeError,
@@ -167,6 +172,11 @@ type StepConditionOutcome =
       kind: 'skip';
       statusReason: StepStatusReason;
       evaluationTrace: readonly PersistedEvaluationTraceEntry[];
+    }
+  | {
+      kind: 'fail';
+      evaluationTrace: readonly PersistedEvaluationTraceEntry[];
+      summary: string;
     };
 
 async function nextStepForJobExecutionInTransaction(
@@ -333,6 +343,22 @@ async function resolveNextPendingStep({
       });
     }
 
+    if (condition.kind === 'fail') {
+      return failPendingStep({
+        jobExecutionId,
+        pending,
+        jobExecution,
+        tx,
+        agent,
+        error: conditionErroredStepError({
+          step: pending,
+          jobKey: workflowContext.jobKey,
+          summary: condition.summary,
+        }),
+        evaluationTrace: condition.evaluationTrace,
+      });
+    }
+
     const skipped = await markStepSkipped(
       {
         jobExecutionId,
@@ -471,35 +497,56 @@ async function dispatchPendingStepWithConfigPlan({
           })
         : configError,
     );
-    await insertRunningStepAttempt(
-      {
-        jobExecutionId,
-        stepId: pending.id,
-        attempt: pending.currentAttempt,
-      },
-      tx,
-    );
-    await finishStepAttempt(
-      {
-        stepId: pending.id,
-        attempt: pending.currentAttempt,
-        status: 'failed',
-        error: failureError,
-        logOutcome: 'abandoned',
-      },
-      tx,
-    );
-    const status = await settleJobFailed(tx, {
-      jobId: jobExecution.jobId,
+    return failPendingStep({
       jobExecutionId,
-      failedStepId: pending.id,
+      pending,
+      jobExecution,
+      tx,
+      agent,
       error: failureError,
     });
-    if (status) recordWorkflowJobExecutionStepsSettled(status);
-    return status === null
-      ? nextStepForJobExecutionInTransaction(jobExecutionId, tx, agent)
-      : {kind: 'done', status};
   }
+}
+
+async function failPendingStep(params: {
+  readonly jobExecutionId: string;
+  readonly pending: Step;
+  readonly jobExecution: JobExecution;
+  readonly tx: Tx;
+  readonly agent?: AgentInterModuleClient | undefined;
+  readonly error: Record<string, unknown>;
+  readonly evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | undefined;
+}): Promise<NextStepResolution> {
+  const {jobExecutionId, pending, jobExecution, tx, agent} = params;
+  await insertRunningStepAttempt(
+    {
+      jobExecutionId,
+      stepId: pending.id,
+      attempt: pending.currentAttempt,
+      ...(params.evaluationTrace === undefined ? {} : {evaluationTrace: params.evaluationTrace}),
+    },
+    tx,
+  );
+  await finishStepAttempt(
+    {
+      stepId: pending.id,
+      attempt: pending.currentAttempt,
+      status: 'failed',
+      error: params.error,
+      logOutcome: 'abandoned',
+    },
+    tx,
+  );
+  const status = await settleJobFailed(tx, {
+    jobId: jobExecution.jobId,
+    jobExecutionId,
+    failedStepId: pending.id,
+    error: params.error,
+  });
+  if (status) recordWorkflowJobExecutionStepsSettled(status);
+  return status === null
+    ? nextStepForJobExecutionInTransaction(jobExecutionId, tx, agent)
+    : {kind: 'done', status};
 }
 
 function initialToolInvocation(
@@ -904,7 +951,11 @@ function evaluateStepCondition(params: {
     values: params.context.values,
   });
   if (outcome.evaluationFailed) {
-    return {kind: 'skip', statusReason: 'condition_errored', evaluationTrace};
+    return {
+      kind: 'fail',
+      evaluationTrace,
+      summary: outcome.error?.message ?? UNFILLABLE_CONDITION_SUMMARY,
+    };
   }
   return outcome.value
     ? {kind: 'run'}
@@ -958,6 +1009,25 @@ function interpolationConfigError(error: InterpolationUnresolvableError): Record
     ...(error.summary === undefined ? {} : {summary: error.summary}),
     ...(error.jobKey === undefined ? {} : {jobKey: error.jobKey}),
     ...(error.step === undefined ? {} : {stepIndex: error.step.index}),
+  };
+}
+
+const TRAILING_PERIOD = /\.$/u;
+
+function conditionErroredStepError(params: {
+  readonly step: Step;
+  readonly jobKey: string;
+  readonly summary: string;
+}): Record<string, unknown> {
+  const label = boundedStepName(params.step.key ?? params.step.name);
+  return {
+    message: `The \`if\` of step \`${label}\` can't be evaluated: ${params.summary.replace(TRAILING_PERIOD, '')}.`,
+    reason: 'condition_errored',
+    field: 'step.if',
+    source: 'workflows',
+    summary: params.summary,
+    jobKey: params.jobKey,
+    stepIndex: params.step.position,
   };
 }
 

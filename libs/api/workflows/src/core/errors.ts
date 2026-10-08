@@ -310,14 +310,16 @@ function interpolationUnresolvableMessage(
 // A run step is named after its first command line, which can be arbitrarily long.
 const STEP_NAME_MAX_LENGTH = 80;
 
+export function boundedStepName(name: string): string {
+  return name.length > STEP_NAME_MAX_LENGTH ? `${name.slice(0, STEP_NAME_MAX_LENGTH)}…` : name;
+}
+
 function interpolationLocationPrefix(params: InterpolationUnresolvableParams): string {
   if (params.jobKey === undefined) return '';
   if (params.step === undefined) return `Job \`${params.jobKey}\`: `;
   const name = params.step.name ?? params.step.key;
   const step =
-    name === undefined
-      ? `step ${params.step.index}`
-      : `step \`${name.length > STEP_NAME_MAX_LENGTH ? `${name.slice(0, STEP_NAME_MAX_LENGTH)}…` : name}\``;
+    name === undefined ? `step ${params.step.index}` : `step \`${boundedStepName(name)}\``;
   const line = params.step.line === undefined ? '' : ` (line ${params.step.line})`;
   return `Job \`${params.jobKey}\`, ${step}${line}: `;
 }

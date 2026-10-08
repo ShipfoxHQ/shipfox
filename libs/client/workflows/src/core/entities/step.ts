@@ -12,6 +12,7 @@ export type StepErrorReason =
   | 'container_setup_failed'
   | 'setup_aborted'
   | 'config_unresolvable'
+  | 'condition_errored'
   | 'output_invalid'
   | 'agent_config_invalid'
   | 'agent_invocation_failed'
@@ -51,6 +52,7 @@ export const STEP_ERROR_REASONS = new Set<StepErrorReason>([
   'container_setup_failed',
   'setup_aborted',
   'config_unresolvable',
+  'condition_errored',
   'output_invalid',
   'agent_config_invalid',
   'agent_invocation_failed',

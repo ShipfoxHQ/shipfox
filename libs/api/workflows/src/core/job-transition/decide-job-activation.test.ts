@@ -57,7 +57,7 @@ describe('decideJobActivation', () => {
     });
   });
 
-  test('marks skipped jobs as condition_errored when the predicate cannot evaluate', () => {
+  test('fails the job with condition_errored when the predicate cannot evaluate', () => {
     const run = workflowRun();
     const build = workflowJob({key: 'build', status: 'succeeded'});
     const notify = workflowJob({key: 'notify', dependencies: ['build']});
@@ -70,10 +70,11 @@ describe('decideJobActivation', () => {
     });
 
     expect(decision).toEqual({
-      kind: 'skip-job',
+      kind: 'fail-job',
       jobId: notify.id,
-      status: 'skipped',
+      status: 'failed',
       statusReason: 'condition_errored',
+      statusReasonMessage: "The `if` of job `notify` can't be evaluated: No such key: sha",
       evaluationTrace: [
         expect.objectContaining({
           expression: 'jobs.build.outputs.sha.missing == "abc123"',
@@ -91,7 +92,7 @@ describe('decideJobActivation', () => {
     });
   });
 
-  test('names the skipped job whose output a condition reads', () => {
+  test('names the skipped job whose output a failed condition reads', () => {
     const run = workflowRun();
     const write = workflowJob({key: 'write', status: 'skipped'});
     const notify = workflowJob({key: 'notify', dependencies: ['write']});
@@ -104,7 +105,7 @@ describe('decideJobActivation', () => {
     });
 
     expect(decision).toMatchObject({
-      kind: 'skip-job',
+      kind: 'fail-job',
       statusReason: 'condition_errored',
       evaluationTrace: [
         {
