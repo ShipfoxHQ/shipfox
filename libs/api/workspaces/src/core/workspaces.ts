@@ -12,6 +12,7 @@ import {
   findMembership,
   listMembershipsByUser,
   listMembershipsByWorkspace,
+  listSessionMembershipsByWorkspaces,
   type MembershipWithUser,
   type MembershipWithWorkspace,
   removeMembership,
@@ -173,6 +174,25 @@ export async function listUserWorkspaceMemberships(params: {
   userId: string;
 }): Promise<MembershipWithWorkspace[]> {
   return await listMembershipsByUser({userId: params.userId});
+}
+
+/**
+ * Lists the workspaces an impersonated session may enter. The session token is
+ * the authority there: a window grants one workspace the administrator holds
+ * no membership in, and must not expose the administrator's own workspaces.
+ */
+export async function listSessionWorkspaceMemberships(params: {
+  userId: string;
+  userEmail: string;
+  userName: string | null;
+  memberships: ReadonlyArray<UserContextMembership>;
+}): Promise<MembershipWithWorkspace[]> {
+  return await listSessionMembershipsByWorkspaces({
+    userId: params.userId,
+    userEmail: params.userEmail,
+    userName: params.userName,
+    workspaceIds: params.memberships.map((membership) => membership.workspaceId),
+  });
 }
 
 export async function listWorkspaceMembers(params: {

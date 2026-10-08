@@ -49,6 +49,7 @@ export {
   checkWorkspaceSlugAvailability,
   createWorkspaceForUser,
   getWorkspace,
+  listSessionWorkspaceMemberships,
   listUserWorkspaceMemberships,
   listWorkspaceMembers,
   type RequireWorkspaceMembershipParams,
