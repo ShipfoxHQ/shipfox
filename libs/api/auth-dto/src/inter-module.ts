@@ -94,6 +94,22 @@ const listImpersonationEligibleUserSummariesInputSchema = z
     }
   });
 
+const impersonationIdempotencyKeySchema = z.string().trim().min(1).max(256);
+const impersonationWindowInterModuleSchema = z.object({
+  windowId: idSchema,
+  workspaceId: idSchema,
+  startedAt: z.string().datetime(),
+  deadlineAt: z.string().datetime(),
+});
+const impersonationWindowMutationInputSchema = z.object({
+  actorId: idSchema,
+  workspaceId: idSchema,
+  idempotencyKey: impersonationIdempotencyKeySchema,
+  correlationId: z.string().min(1).max(256),
+});
+const impersonationWindowClosedError = z.object({});
+const impersonationRateLimitedError = z.object({retryAfterSeconds: z.number().int().min(0)});
+
 const runnerSessionClaimsSchema = runnerSessionTokenClaimsSchema.omit({
   aud: true,
   iat: true,
@@ -183,6 +199,45 @@ export const authInterModuleContract = defineInterModuleContract({
         'invalid-cursor': z.object({}),
       },
     },
+    /**
+     * Opens an impersonation window for the actor on a workspace with the same
+     * command as the browser route, or returns the actor's open window on that
+     * workspace. The result is window metadata only; no token crosses the
+     * boundary.
+     */
+    startImpersonationWindow: {
+      input: impersonationWindowMutationInputSchema,
+      output: impersonationWindowInterModuleSchema,
+      errors: {
+        'admin-role-required': z.object({requiredRole: adminRoleSchema}),
+        'impersonation-disabled': z.object({}),
+        'impersonation-workspace-not-active': z.object({}),
+        'impersonation-window-limit-reached': z.object({}),
+        'impersonation-window-closed': impersonationWindowClosedError,
+        'idempotency-key-reused': z.object({}),
+        'rate-limited': impersonationRateLimitedError,
+      },
+    },
+    /** Ends the actor's open window on a workspace. */
+    stopImpersonationWindow: {
+      input: impersonationWindowMutationInputSchema,
+      output: z.object({windowId: idSchema, endedAt: z.string().datetime()}),
+      errors: {
+        'admin-role-required': z.object({requiredRole: adminRoleSchema}),
+        'impersonation-window-closed': impersonationWindowClosedError,
+        'idempotency-key-reused': z.object({}),
+        'rate-limited': impersonationRateLimitedError,
+      },
+    },
+    /** Reads the actor's open window on a workspace, re-checking the actor's role. */
+    findOpenImpersonationWindow: {
+      input: z.object({actorId: idSchema, workspaceId: idSchema}),
+      output: impersonationWindowInterModuleSchema,
+      errors: {
+        'admin-role-required': z.object({requiredRole: adminRoleSchema}),
+        'impersonation-window-closed': impersonationWindowClosedError,
+      },
+    },
   },
 });
 
@@ -190,6 +245,7 @@ export type UserSummaryInterModule = z.infer<typeof userSummaryInterModuleSchema
 export type AdministratorUserSummaryInterModule = z.infer<
   typeof administratorUserSummaryInterModuleSchema
 >;
+export type ImpersonationWindowInterModule = z.infer<typeof impersonationWindowInterModuleSchema>;
 export type ListImpersonationEligibleUserSummariesInput = z.infer<
   typeof listImpersonationEligibleUserSummariesInputSchema
 >;

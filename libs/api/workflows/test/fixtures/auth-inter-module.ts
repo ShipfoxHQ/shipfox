@@ -33,4 +33,13 @@ export const workflowsTestAuthClient: AuthInterModuleClient = {
       new Error('Impersonation eligibility is not configured in workflow tests'),
     );
   },
+  startImpersonationWindow() {
+    return Promise.reject(new Error('Impersonation windows are not configured in workflow tests'));
+  },
+  stopImpersonationWindow() {
+    return Promise.reject(new Error('Impersonation windows are not configured in workflow tests'));
+  },
+  findOpenImpersonationWindow() {
+    return Promise.reject(new Error('Impersonation windows are not configured in workflow tests'));
+  },
 };

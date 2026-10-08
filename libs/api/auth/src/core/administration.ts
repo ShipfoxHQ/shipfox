@@ -54,6 +54,7 @@ import {
 } from '#db/impersonation-window-commands.js';
 import {
   findImpersonationWindow,
+  findOpenImpersonationWindowForWorkspace,
   getEffectiveImpersonationWindow,
   listAllOpenImpersonationWindows,
   listOpenImpersonationWindows,
@@ -66,7 +67,7 @@ import {
   recordImpersonationWindowEnded,
   recordImpersonationWindowStartOutcome,
 } from '#metrics/index.js';
-import {getCurrentAdminRole, requireAdminRole} from './admin-role.js';
+import {getCurrentAdminRole, hasMinimumAdminRole, requireAdminRole} from './admin-role.js';
 import type {AdminGrant} from './entities/admin-grant.js';
 import type {
   AdministratorGrantSummary,
@@ -305,6 +306,62 @@ export async function stopImpersonationWindow(
     recordImpersonationStopOutcome('failed');
     throw error;
   }
+}
+
+export interface StartWorkspaceImpersonationWindowParams extends AdministrationMutationContext {
+  workspaceId: string;
+  workspaces: WorkspacesInterModuleClient;
+}
+
+/**
+ * Opens a window like the browser route does, but returns the actor's open
+ * window on the workspace when there is one. A caller without the operator
+ * role skips that shortcut so the start command refuses and audits the denial.
+ */
+export async function startWorkspaceImpersonationWindow(
+  params: StartWorkspaceImpersonationWindowParams,
+): Promise<{windowId: string; workspaceId: string; startedAt: Date; deadlineAt: Date}> {
+  const role = await getCurrentAdminRole({userId: params.actorId});
+  if (config.AUTH_IMPERSONATION_ENABLED && role && hasMinimumAdminRole(role, ADMIN_OPERATOR_ROLE)) {
+    const open = await findOpenImpersonationWindowForWorkspace({
+      actorId: params.actorId,
+      workspaceId: params.workspaceId,
+      now: new Date(),
+    });
+    if (open) {
+      return {
+        windowId: open.id,
+        workspaceId: params.workspaceId,
+        startedAt: open.startedAt,
+        deadlineAt: open.deadlineAt,
+      };
+    }
+  }
+
+  const started = await startImpersonationWindow(params);
+  return {
+    windowId: started.windowId,
+    workspaceId: started.workspaceId,
+    startedAt: started.windowStartedAt,
+    deadlineAt: started.windowDeadline,
+  };
+}
+
+/** Reads the actor's open window on a workspace; undefined once it is closed. */
+export async function findActorOpenImpersonationWindow(params: {
+  actorId: string;
+  workspaceId: string;
+}): Promise<ImpersonationWindow | undefined> {
+  await requireAdminRole({userId: params.actorId, minimumRole: ADMIN_OPERATOR_ROLE});
+  return await findOpenImpersonationWindowForWorkspace({...params, now: new Date()});
+}
+
+export async function stopActorImpersonationWindow(
+  params: AdministrationMutationContext & {workspaceId: string},
+): Promise<ImpersonationWindowStopResult> {
+  const open = await findActorOpenImpersonationWindow(params);
+  if (!open) throw new ImpersonationWindowNotFoundError();
+  return await stopImpersonationWindow({...params, windowId: open.id});
 }
 
 export interface ImpersonationWindowView {

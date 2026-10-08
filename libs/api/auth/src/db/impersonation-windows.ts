@@ -258,6 +258,33 @@ export async function listAllOpenImpersonationWindows(
   return {rows: page.pageRows.map(toImpersonationWindow), nextCursor: page.nextCursor};
 }
 
+export interface FindOpenImpersonationWindowForWorkspaceParams {
+  actorId: string;
+  workspaceId: string;
+  now: Date;
+}
+
+/** Returns the actor's most recently started open window on a workspace. */
+export async function findOpenImpersonationWindowForWorkspace(
+  params: FindOpenImpersonationWindowForWorkspaceParams,
+): Promise<ImpersonationWindow | undefined> {
+  const rows = await db()
+    .select()
+    .from(impersonationWindows)
+    .where(
+      and(
+        eq(impersonationWindows.actorId, params.actorId),
+        eq(impersonationWindows.workspaceId, params.workspaceId),
+        isNull(impersonationWindows.endedAt),
+        gt(impersonationWindows.deadlineAt, params.now),
+      ),
+    )
+    .orderBy(desc(impersonationWindows.startedAt), desc(impersonationWindows.id))
+    .limit(1);
+  const row = rows[0];
+  return row ? toImpersonationWindow(row) : undefined;
+}
+
 export async function listImpersonationWindowsByTarget(
   params: ListImpersonationWindowsByTargetParams,
   executor?: ImpersonationWindowExecutor,

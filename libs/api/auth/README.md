@@ -175,6 +175,14 @@ be removed or forged by a client.
   `409 impersonation-workspace-not-active`. A window opened before windows
   targeted a workspace has no `workspace_id`; it cannot be continued
   (`409 impersonation-window-stopped`) and runs out at its deadline.
+- **Inter-module methods:** other modules open, stop, and look up windows through
+  `startImpersonationWindow`, `stopImpersonationWindow`, and
+  `findOpenImpersonationWindow`. Each re-checks the actor's `admin-operator` role
+  (`admin-role-required`) and none returns a token. Start runs the browser's start
+  command, keeps its audit event and idempotency key, and returns the actor's open
+  window on that workspace if there is one. Start and stop apply the actor bucket
+  of the `impersonate` and `impersonate-stop` rate limits (`rate-limited`). A
+  stopped, expired, or missing window is `impersonation-window-closed`.
 - **Lifetime:** TTL is `min(AUTH_JWT_EXPIRES_IN, 15 minutes)`. The mint,
   replay, and renewal responses carry `expires_at` and a `server_time` anchor
   from the issuer; the client never decodes the JWT.
