@@ -22,6 +22,7 @@ read_pr: |
       owner: ${{ event.repository.owner.login }}
       repo: ${{ event.repository.name }}
       pull_number: ${{ event.workflow_run.pull_requests[0].number }}
+    export: [head_sha]
     outputs:
       open: ${{ result.state == "open" }}
       # option:pr_selection=label begin
@@ -105,6 +106,7 @@ fix: |
     integrations:
       - connection: github_source # bind:source
         include: [get_job_logs, pull_request_read.get_diff]
+    export: [summary]
     outputs:
       status:
         type: json
@@ -169,6 +171,7 @@ deliver: |
       PATCH_BASE64="$(base64 < .git/shipfox-repair.patch | tr -d '\n')"
       printf 'outcome=proposed\npatch_base64=%s\n' "$PATCH_BASE64" >> "$SHIPFOX_OUTPUT"
       # option:delivery_mode=comment_only end
+    export: true
     outputs:
       outcome: string
       commit: string

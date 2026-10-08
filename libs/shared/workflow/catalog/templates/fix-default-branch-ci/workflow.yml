@@ -24,21 +24,16 @@ jobs:
     needs: inspect
     if: ${{ needs.all(n, n.status == "succeeded") && jobs.inspect.outputs.open_repairs == 0 && jobs.inspect.outputs.previous_conclusion != "failure" }}
     checkout: false
-    outputs:
-      status: ${{ steps.investigate.outputs.status }}
-      classification: ${{ steps.investigate.outputs.classification }}
-      summary: ${{ steps.investigate.outputs.summary }}
-      pr_title: ${{ steps.investigate.outputs.pr_title }}
-      commit: ${{ steps.revision.outputs.commit }}
-      outcome: '${{ steps.package.status == "succeeded" ? steps.package.outputs.outcome : "none" }}'
-      patch_base64: '${{ steps.package.status == "succeeded" ? steps.package.outputs.patch_base64 : "" }}'
     steps:
       # part:source.checkout
 
       - key: revision
-        run: printf 'commit=%s\n' "$(git rev-parse HEAD)" >> "$SHIPFOX_OUTPUT"
+        run: git rev-parse HEAD
+        export: true
         outputs:
-          commit: string
+          commit:
+            type: string
+            from_stdout: true
 
       # slot:setup_commands
 
@@ -95,25 +90,29 @@ jobs:
       - key: package
         if: ${{ steps.investigate.outputs.status == "repair_candidate" }}
         run: |
+          rm -f .git/shipfox-repair.base64
           git diff --cached --binary --full-index > .git/shipfox-repair.patch
           if [ "$(wc -c < .git/shipfox-repair.patch)" -gt 30000 ]; then
-            printf 'outcome=patch_too_large\npatch_base64=\n' >> "$SHIPFOX_OUTPUT"
+            echo patch_too_large
             exit 0
           fi
-          PATCH_BASE64="$(base64 < .git/shipfox-repair.patch | tr -d '\n')"
-          printf 'outcome=ready\npatch_base64=%s\n' "$PATCH_BASE64" >> "$SHIPFOX_OUTPUT"
+          base64 < .git/shipfox-repair.patch | tr -d '\n' > .git/shipfox-repair.base64
+          echo ready
+        export: true
         outputs:
-          outcome: string
-          patch_base64: string
+          outcome:
+            type: string
+            from_stdout: true
+            default: none
+          patch_base64:
+            type: string
+            from_file: .git/shipfox-repair.base64
+            default: ''
 
   deliver:
     needs: investigate
     if: ${{ needs.all(n, n.status == "succeeded") && jobs.investigate.outputs.outcome == "ready" }}
     checkout: false
-    outputs:
-      branch: ${{ steps.push_repair.outputs.branch }}
-      pr_number: ${{ steps.open_pr.outputs.pr_number }}
-      pr_url: ${{ steps.open_pr.outputs.pr_url }}
     steps:
       # part:source.checkout_repair
 
@@ -138,6 +137,7 @@ jobs:
           git commit -m "$COMMIT_TITLE"
           git push origin "HEAD:refs/heads/$BRANCH_NAME"
           printf 'branch=%s\ncommit=%s\n' "$BRANCH_NAME" "$(git rev-parse HEAD)" >> "$SHIPFOX_OUTPUT"
+        export: [branch]
         outputs:
           branch: string
           commit: string

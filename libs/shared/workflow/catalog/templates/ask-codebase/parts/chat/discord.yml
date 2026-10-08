@@ -14,8 +14,6 @@ read_thread: |
     channel_id: '${{ trigger.source == "manual" ? inputs.channel_id : event.channel_id }}'
     message_id: '${{ trigger.source == "manual" ? inputs.message_id : event.id }}'
     request: '${{ trigger.source == "manual" ? (has(inputs.request) ? inputs.request : "") : event.content }}'
-    messages: ${{ steps.read_thread.outputs.messages }}
-    truncated: ${{ steps.read_thread.outputs.truncated }}
   steps:
     - key: read_thread
       tool: read_thread
@@ -24,8 +22,9 @@ read_thread: |
         channel_id: '${{ trigger.source == "manual" ? inputs.channel_id : event.channel_id }}'
         message_id: '${{ trigger.source == "manual" ? inputs.message_id : event.id }}'
         limit: 50
+      export: [messages, truncated]
       outputs:
-        messages: '${{ toJson(result.messages.map(m, {"id": m.id, "timestamp": m.timestamp, "author": has(m.author.bot) && m.author.bot ? "bot:" + m.author.id : m.author.id, "text": !has(m.content) ? "" : size(m.content) > 1000 ? m.content.substring(0, 1000) + " [truncated]" : m.content})) }}'
+        messages: '${{ result.messages.map(m, {"id": m.id, "timestamp": m.timestamp, "author": has(m.author.bot) && m.author.bot ? "bot:" + m.author.id : m.author.id, "text": !has(m.content) ? "" : size(m.content) > 1000 ? m.content.substring(0, 1000) + " [truncated]" : m.content}) }}'
         truncated: ${{ size(result.messages) >= 50 }}
 reply: |
   - key: reply

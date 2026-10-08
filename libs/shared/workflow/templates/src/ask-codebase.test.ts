@@ -167,7 +167,7 @@ describe('codebase question template', () => {
       ],
     };
 
-    expect(JSON.parse(String(evaluate(outputs.messages, {result})))).toEqual([
+    expect(evaluate(outputs.messages, {result})).toEqual([
       {ts: '1.1', author: 'U1', text: 'Where is auth?'},
       {ts: '1.2', author: 'bot:B1', text: 'Automated note'},
       {ts: '1.3', author: 'U2', text: ''},
@@ -343,7 +343,7 @@ describe('codebase question template on Discord', () => {
       ],
     };
 
-    expect(JSON.parse(String(evaluate(outputs.messages, {result})))).toEqual([
+    expect(evaluate(outputs.messages, {result})).toEqual([
       {
         id: '1',
         timestamp: '2026-10-01T10:00:01.000000+00:00',

@@ -24,8 +24,6 @@ read_thread: |
     message_id: ${{ event.id }}
     request: ${{ event.content }}
     permalink: ${{ event.url }}
-    messages: ${{ steps.read_thread.outputs.messages }}
-    truncated: ${{ steps.read_thread.outputs.truncated }}
   steps:
     - key: read_thread
       tool: read_thread
@@ -34,8 +32,9 @@ read_thread: |
         channel_id: ${{ event.channel_id }}
         message_id: ${{ event.id }}
         limit: 50
+      export: [messages, truncated]
       outputs:
-        messages: '${{ toJson(result.messages.map(m, {"id": m.id, "timestamp": m.timestamp, "author": has(m.author.bot) && m.author.bot ? "bot:" + m.author.id : m.author.id, "text": !has(m.content) ? "" : size(m.content) > 1000 ? m.content.substring(0, 1000) + " [truncated]" : m.content})) }}'
+        messages: '${{ result.messages.map(m, {"id": m.id, "timestamp": m.timestamp, "author": has(m.author.bot) && m.author.bot ? "bot:" + m.author.id : m.author.id, "text": !has(m.content) ? "" : size(m.content) > 1000 ? m.content.substring(0, 1000) + " [truncated]" : m.content}) }}'
         # The tool returns the starting message and up to 50 thread messages, so more than 50 means it cut the thread.
         truncated: ${{ size(result.messages) > 50 }}
 reply: |

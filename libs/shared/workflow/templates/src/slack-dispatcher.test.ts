@@ -135,6 +135,27 @@ describe('Slack dispatcher template', () => {
     );
   });
 
+  it.each([
+    {name: 'an integer for the started run', started: 'succeeded', expected: 12n},
+    {name: '0 when the start step did not succeed', started: 'skipped', expected: 0n},
+  ])('exposes $name as the route run_number', ({started, expected}) => {
+    const runNumber = at(workflow, 'jobs', 'route', 'outputs', 'run_number');
+    const result = evaluate(runNumber, {
+      steps: {start: {status: started, outputs: {run_number: '12'}}},
+    });
+
+    expect(result).toBe(expected);
+  });
+
+  it('exports the route decision and keeps the tool step guards as job outputs', () => {
+    expect(step('route', 'route').export).toEqual(['status', 'workflow']);
+    expect(Object.keys(at(workflow, 'jobs', 'route', 'outputs') as YamlRecord)).toEqual([
+      'run_id',
+      'run_number',
+      'run_url',
+    ]);
+  });
+
   it('starts only a workflow that the prompt lists, in this project', () => {
     const prompt = String(step('route', 'route').prompt);
     const listed = [...prompt.matchAll(/^\d+\. `([^`]+)`$/gm)].map((match) => match[1]);

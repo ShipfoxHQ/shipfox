@@ -1,5 +1,5 @@
 import {execFileSync, spawnSync} from 'node:child_process';
-import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createWorkflowEnvironment} from '@shipfox/expression';
@@ -17,6 +17,7 @@ const template = loadShippedTemplates().find((entry) => entry.id === 'fix-defaul
 if (template === undefined) throw new Error('Missing default-branch CI template');
 const reportMarker = /^\s*# option:report_outcomes=([\w,]+) (begin|end)$/;
 const expressionPattern = /^\$\{\{\s*([\s\S]*?)\s*\}\}$/;
+const trailingNewline = /\n$/;
 const interpolationPattern = /\$\{\{\s*([\s\S]*?)\s*\}\}/g;
 const environment = createWorkflowEnvironment();
 const roots: string[] = [];
@@ -118,6 +119,26 @@ function run(
   };
 }
 
+/** Applies what the platform does after a run step: output sources, then defaults. */
+function resolveOutputs(
+  entry: YamlRecord,
+  written: Record<string, string>,
+  stdout: string,
+  cwd: string,
+): Record<string, string> {
+  const values = {...written};
+  for (const [name, declaration] of Object.entries((entry.outputs ?? {}) as YamlRecord)) {
+    if (typeof declaration !== 'object' || declaration === null) continue;
+    const {from_stdout, from_file, default: fallback} = declaration as YamlRecord;
+    if (from_stdout === true) values[name] = stdout.replace(trailingNewline, '');
+    if (typeof from_file === 'string' && existsSync(join(cwd, from_file))) {
+      values[name] = readFileSync(join(cwd, from_file), 'utf8').replace(trailingNewline, '');
+    }
+    if (values[name] === undefined && fallback !== undefined) values[name] = String(fallback);
+  }
+  return values;
+}
+
 function checkout() {
   const root = mkdtempSync(join(tmpdir(), 'shipfox-default-branch-ci-'));
   roots.push(root);
@@ -148,7 +169,7 @@ function checkout() {
         env: {...process.env, SHIPFOX_OUTPUT: output, EXPECTED_HEAD: head, ...env},
       },
     );
-    const values = Object.fromEntries(
+    const written = Object.fromEntries(
       readFileSync(output, 'utf8')
         .split('\n')
         .filter(Boolean)
@@ -157,7 +178,7 @@ function checkout() {
           return [line.slice(0, equal), line.slice(equal + 1)];
         }),
     );
-    return {...result, values};
+    return {...result, values: resolveOutputs(step(job, key), written, result.stdout, cwd)};
   };
   return {cwd, git, head, remote, execute};
 }
@@ -331,6 +352,27 @@ describe('default-branch CI repair template', () => {
     const jobs = {inspect: {outputs: {open_repairs: count, previous_conclusion: previous}}};
 
     expect(evaluate(condition, {jobs, needs: [{status: 'succeeded'}]})).toBe(expected);
+  });
+
+  it('exports step outputs as job outputs and defaults the skipped package outputs', () => {
+    const document = workflow();
+
+    expect(at(document, 'jobs', 'investigate', 'outputs')).toBeUndefined();
+    expect(at(document, 'jobs', 'deliver', 'outputs')).toBeUndefined();
+    expect(step('investigate', 'revision')).toMatchObject({
+      export: true,
+      outputs: {commit: {type: 'string', from_stdout: true}},
+    });
+    expect(step('investigate', 'investigate').export).toBe(true);
+    expect(step('investigate', 'package')).toMatchObject({
+      export: true,
+      outputs: {
+        outcome: {type: 'string', from_stdout: true, default: 'none'},
+        patch_base64: {type: 'string', from_file: '.git/shipfox-repair.base64', default: ''},
+      },
+    });
+    expect(step('deliver', 'push_repair').export).toEqual(['branch']);
+    expect(step('deliver', 'open_pr').export).toEqual(['pr_number', 'pr_url']);
   });
 
   it('delivers a tested patch with new and binary files on a fresh checkout', () => {
