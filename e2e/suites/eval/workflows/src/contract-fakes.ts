@@ -7,6 +7,7 @@ import {type ClickUpTaskFixture, startClickUpApiMock} from '@shipfox/e2e-driver-
 import {type DiscordApiMock, startDiscordApiMock} from '@shipfox/e2e-driver-discord';
 import type {GithubApiMock} from '@shipfox/e2e-driver-github';
 import type {JiraSeed} from '@shipfox/e2e-driver-jira';
+import {loadLinearRecordings, startLinearMcpMock} from '@shipfox/e2e-driver-linear';
 import {startNotionApiMock} from '@shipfox/e2e-driver-notion';
 import {seedPosthogMock} from '@shipfox/e2e-driver-posthog';
 import {
@@ -17,6 +18,7 @@ import {
 import {
   createClickUpConnection,
   createDiscordConnection,
+  createLinearConnection,
   createNotionConnection,
   createPosthogConnection,
   createSlackConnection,
@@ -810,6 +812,36 @@ export const posthogContractFake: ContractFakeAdapter = async ({workspaceId, uni
 };
 
 /**
+ * Linear, with its own fake and a connection to it. The fake replays the calls recorded from the
+ * sandbox workspace, one text block each as the hosted MCP sends them, for the sandbox fixtures
+ * the 12 read cases name. The recordings hold the fixtures' ids and fields, so `seed` has nothing
+ * to load: a case whose fixture changed in `sandbox.yaml` sends arguments with no recording and
+ * fails on the fake until it is recorded again.
+ */
+export const linearContractFake: ContractFakeAdapter = async ({
+  workspaceId,
+  uniqueId,
+  cleanups,
+}) => {
+  const accessToken = `lin_oauth_contracts_${uniqueId}`;
+  const mock = await startLinearMcpMock({accessToken, recordings: await loadLinearRecordings()});
+  cleanups.push(() => mock.stop());
+  const connection = await createLinearConnection({
+    workspaceId,
+    organizationId: `contracts-org-${uniqueId}`,
+    organizationUrlKey: `contracts-${uniqueId}`,
+    appUserId: `contracts-app-${uniqueId}`,
+    displayName: `Contracts Linear ${uniqueId}`,
+    accessToken,
+  });
+  return {
+    connectionSlug: connection.slug,
+    seed: () => Promise.resolve(),
+    writes: () => mock.writes(),
+  };
+};
+
+/**
  * The adapter of each provider the suite can run in fake mode. A provider joins when its fake
  * parity unit adds its adapter, and its cases gain `fake` in `modes` in the same change.
  */
@@ -821,4 +853,5 @@ export const CONTRACT_FAKE_ADAPTERS: Readonly<Record<string, ContractFakeAdapter
   posthog: posthogContractFake,
   slack: slackContractFake,
   jira: jiraContractFake,
+  linear: linearContractFake,
 };

@@ -1,0 +1,14 @@
+{
+  "tool": "get_project",
+  "arguments": {
+    "query": "fa265fda-fe3e-4049-a2a8-b4173aa5b266"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"P-SAR-1\",\"uuid\":\"fa265fda-fe3e-4049-a2a8-b4173aa5b266\",\"icon\":null,\"color\":\"#95a2b3\",\"name\":\"Contract fixture project\",\"summary\":\"Read fixture project with unicode café 日本語 and **markdown**.\",\"description\":null,\"url\":\"https://linear.app/shipfox-sandbox/project/contract-fixture-project-02783eb0856e\",\"resourceCount\":2,\"createdAt\":\"2026-10-05T18:25:48.849Z\",\"updatedAt\":\"2026-10-05T18:25:48.849Z\",\"startedAt\":null,\"completedAt\":null,\"canceledAt\":null,\"startDate\":null,\"startDateResolution\":null,\"targetDate\":null,\"targetDateResolution\":null,\"priority\":{\"value\":0,\"name\":\"No priority\"},\"labels\":[],\"initiatives\":[],\"lead\":{},\"leadTeam\":{\"id\":\"4016fa95-dfda-4139-88ba-133ba5955b01\",\"name\":\"sandbox-read\",\"key\":\"SAR\"},\"status\":{\"id\":\"55cd8a13-cae4-4f73-9925-1ddaf3dd4031\",\"name\":\"Backlog\",\"type\":\"backlog\"},\"teams\":[{\"id\":\"4016fa95-dfda-4139-88ba-133ba5955b01\",\"name\":\"sandbox-read\",\"key\":\"SAR\"}]}"
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "tool": "get_issue_status",
+  "arguments": {
+    "id": "91e00ebb-7180-424a-b436-82c9f2d75346",
+    "name": "Todo",
+    "team": "4016fa95-dfda-4139-88ba-133ba5955b01"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"91e00ebb-7180-424a-b436-82c9f2d75346\",\"type\":\"unstarted\",\"name\":\"Todo\"}"
+      }
+    ]
+  }
+}

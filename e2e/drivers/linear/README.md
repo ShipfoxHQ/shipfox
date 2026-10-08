@@ -11,6 +11,12 @@ A fake Linear hosted MCP server and signed webhook sender for E2E suites. The se
   connection the spec creates: the stack router sends the fake the requests that carry it, so
   specs in other workers share the address. The token is required unless `options.endpoint`
   is set, which listens directly instead.
+  `options.recordings` replays recorded calls to the hosted MCP instead: the call whose tool and
+  arguments match answers with the recorded content blocks, and any other call fails. The 12
+  recordings in `recordings/` come from the sandbox workspace through
+  `e2e/suites/eval/workflows/scripts/record-linear-responses.mjs`, a manual one-off. The hosted
+  MCP answers each with one text block and no `structuredContent`, and so does the fake.
+- `loadLinearRecordings()`: read the files in `recordings/` as `LinearRecording` entries.
 - `LinearMcpMock.calls` and `uploads`: every tool call and upload request, in arrival order.
 - `LinearMcpMock.writes()`: the accepted state-changing tool calls as `RecordedWrite` entries
   (`kind`, `target`, `payload`). Today that is `save_comment` and `save_issue`, targeted at their

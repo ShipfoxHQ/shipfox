@@ -4,6 +4,7 @@ import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/st
 import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
 import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-core';
 import {z} from 'zod';
+import {type LinearRecording, linearArgumentsKey} from './linear-recordings.js';
 
 export const LINEAR_READ_RESULT_MARKER = 'linear-read-result-marker';
 export const LINEAR_WRITE_RESULT_MARKER = 'linear-write-result-marker';
@@ -83,6 +84,12 @@ export interface LinearMcpMockOptions {
   endpoint?: URL | undefined;
   /** Serves the read tools from this workspace instead of fixed markers. */
   workspace?: LinearWorkspaceFixture | undefined;
+  /**
+   * Replays these recorded calls to the hosted MCP instead of serving fixed markers or a
+   * workspace. A call answers with the content blocks of the recording whose tool and arguments
+   * match, and fails when none does.
+   */
+  recordings?: readonly LinearRecording[] | undefined;
 }
 
 export interface LinearMcpMock {
@@ -111,6 +118,7 @@ export async function startLinearMcpMock(
     void handleMcpRequest({
       calls,
       workspace: options.workspace,
+      recordings: options.recordings,
       createdIssues,
       endpoint: boundEndpoint,
       request,
@@ -173,6 +181,7 @@ function linearWrites(calls: readonly LinearMcpCall[]): RecordedWrite[] {
 async function handleMcpRequest(params: {
   calls: LinearMcpCall[];
   workspace: LinearWorkspaceFixture | undefined;
+  recordings: readonly LinearRecording[] | undefined;
   createdIssues: {count: number};
   endpoint: URL;
   request: IncomingMessage;
@@ -198,7 +207,9 @@ async function handleMcpRequest(params: {
         toolName,
       });
     };
-    if (params.workspace === undefined) {
+    if (params.recordings !== undefined) {
+      registerRecordedTools(mcp, params.recordings, record);
+    } else if (params.workspace === undefined) {
       mcp.registerTool(
         'get_issue',
         {
@@ -264,6 +275,47 @@ async function handleMcpRequest(params: {
     if (!params.response.headersSent)
       sendMcpError(params.response, 500, -32603, 'MCP request failed.');
     else params.response.end();
+  }
+}
+
+function registerRecordedTools(
+  mcp: McpServer,
+  recordings: readonly LinearRecording[],
+  record: (toolName: string, arguments_: Record<string, unknown>) => void,
+): void {
+  const byTool = new Map<string, LinearRecording[]>();
+  for (const recording of recordings) {
+    byTool.set(recording.tool, [...(byTool.get(recording.tool) ?? []), recording]);
+  }
+  for (const [tool, toolRecordings] of byTool) {
+    // The recorded arguments name the inputs. The fake accepts any value for them and leaves the
+    // match to the recording, so a call with other arguments fails as the hosted MCP's does.
+    const inputSchema = Object.fromEntries(
+      toolRecordings.flatMap((recording) =>
+        Object.keys(recording.arguments).map((name) => [name, z.any().optional()] as const),
+      ),
+    );
+    mcp.registerTool(
+      tool,
+      {description: `Replay the recorded Linear ${tool} response.`, inputSchema},
+      (arguments_: Record<string, unknown>) => {
+        record(tool, arguments_);
+        const key = linearArgumentsKey(arguments_);
+        const match = toolRecordings.find((item) => linearArgumentsKey(item.arguments) === key);
+        if (match === undefined) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: 'text' as const,
+                text: `No recorded Linear ${tool} response for ${JSON.stringify(arguments_)}.`,
+              },
+            ],
+          };
+        }
+        return match.result as never;
+      },
+    );
   }
 }
 

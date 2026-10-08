@@ -1,0 +1,14 @@
+{
+  "tool": "list_issue_statuses",
+  "arguments": {
+    "team": "4016fa95-dfda-4139-88ba-133ba5955b01"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "[{\"id\":\"eff5e0f3-560b-4312-afc7-88665bc3c68a\",\"type\":\"canceled\",\"name\":\"Canceled\"},{\"id\":\"d7b5f545-5e8a-4ac6-9e17-663256486d49\",\"type\":\"started\",\"name\":\"In Progress\"},{\"id\":\"91e00ebb-7180-424a-b436-82c9f2d75346\",\"type\":\"unstarted\",\"name\":\"Todo\"},{\"id\":\"91def1c0-dad7-48a8-942e-7a5a2b9deeb0\",\"type\":\"backlog\",\"name\":\"Backlog\"},{\"id\":\"8afcec5f-bf63-4e42-a664-81da534f4e8e\",\"type\":\"completed\",\"name\":\"Done\"},{\"id\":\"88aed9e0-d742-4013-a563-98f41f6f945f\",\"type\":\"duplicate\",\"name\":\"Duplicate\"}]"
+      }
+    ]
+  }
+}
