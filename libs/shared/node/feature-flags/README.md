@@ -48,7 +48,7 @@ A flag override is derived from its definition, not declared in a `config.ts`. `
 ## Behavior notes
 
 - **Resolution order:** env override, provider, code default.
-- **A read never throws.** An error, an unknown flag, or a value that fails the schema returns the code default. The package logs once for each flag and reason.
+- **A `createFeatureFlags` read never throws.** An error, an unknown flag, or a value that fails the schema returns the code default. The package logs once for each flag and reason. `createTestFeatureFlags` throws when a listed value fails the flag's kind or schema.
 - **The provider is set without waiting.** Reads return defaults until it is ready, so a slow vendor never delays startup.
 - **The instance holds no registry.** A definition carries its key, default, and schema, so the instance works before any module exists.
 - **OpenFeature stays private.** Modules never import `@openfeature/server-sdk`. Only a composition root or provider adapter handles the `Provider` type, which this package re-exports.

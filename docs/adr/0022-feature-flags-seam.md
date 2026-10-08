@@ -29,7 +29,7 @@
 
 **The composition root creates one `FeatureFlags` instance.** It calls `createFeatureFlags({provider?})`, builds its policies with that instance, and passes it to `defaultModules({featureFlags})`. With no option, `defaultModules` creates an instance with no provider. `defaultModules` hands the instance to each module factory that reads a flag.
 
-**A read takes the definition and an explicit subject.** `flags.boolean(definition, subject)` and `flags.config(definition, subject)` resolve in this order: the `FLAG_<KEY>` env override, the provider, the code default. The subject is `{userId?, email?, workspaceId?, anonymousId?}`. Upstream has no ambient request context, and this decision adds none.
+**A read takes the definition and an optional subject.** `flags.boolean(definition, subject)` and `flags.config(definition, subject)` resolve in this order: the `FLAG_<KEY>` env override, the provider, the code default. The subject is `{userId?, email?, workspaceId?, anonymousId?}`; omitting it evaluates globally. Upstream has no ambient request context, and this decision adds none.
 
 **A read never throws.** Any error, unknown flag, or schema mismatch returns the code default and logs once for each flag and reason. A provider that is not ready serves defaults, because the provider is set without waiting.
 

@@ -16,7 +16,7 @@ The package performs no input or output and reads no environment. [`@shipfox/nod
 ## Installation and setup
 
 ```sh
-pnpm add @shipfox/feature-flags
+pnpm add @shipfox/feature-flags zod
 ```
 
 ## Usage
@@ -44,7 +44,7 @@ export const definitionsFlags = defineFlags({
 
 ## Behavior notes
 
-- **A key is kebab-case** and starts with the context that owns the flag. `defineFlags` throws on any other key.
+- **A key is kebab-case** and should start with the context that owns the flag. `defineFlags` throws on malformed keys.
 - **A default must satisfy its kind and schema.** `defineFlags` throws when it does not, so a bad declaration fails at import.
 - **A boolean override takes `true` or `false`.** A config override takes JSON, so a string value is quoted: `FLAG_LIMITS_CONCURRENCY_ENFORCEMENT='"enforce"'`.
 - **A flag marked `client: true`** is the only kind a web client may read. Server-only flags never reach the browser.
