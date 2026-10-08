@@ -150,14 +150,20 @@ tools between steps](/how-to/author-workflows/share-tools-between-steps).
 
 ## Treat outside data as text, not as instructions
 
-Events, inputs, and step outputs carry data that the workflow didn't write. A
-shell step reads that data as text, so it can't run as a command. [A few shell
-constructs](/reference/workflow-schema#run-step-fields) read their own arguments
-again and break that protection.
+Events, inputs, and step outputs contain data from outside the workflow.
+People outside your team can write this data. For example, the author of a
+pull request chooses its title.
 
-Nothing protects a prompt or a job setting this way. An event can contain
-instructions for an agent. It can also choose the runner a job uses. Keep event
-data out of any choice you wouldn't let a stranger make.
+**Shell commands are protected.** Shipfox gives this data to a run step as
+text. The shell doesn't run the text as a command. This protection has one
+limit. Some commands, such as `eval` and `sh -c`, run their arguments as a new
+command. Don't give outside data to these commands. See [Run step
+fields](/reference/workflow-schema#run-step-fields).
+
+**Prompts and job settings aren't protected.** An event can contain text that
+tells an agent what to do, and the agent can follow it. If you put an event
+value in the `runner` field, the event selects the runner of the job. Don't
+let event data make a decision that a stranger must not make.
 
 A secret follows the same rule. Only a run step's command or `env` can bind one,
 so no prompt, model field, or predicate can read it. Shipfox never resolves the
