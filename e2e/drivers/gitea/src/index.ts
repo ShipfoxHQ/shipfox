@@ -34,6 +34,7 @@ export {
   type GetFileShaParams,
   generateOrgName,
   getFileSha,
+  grantBotRepoWrite,
   type IssueComment,
   listIssueComments,
 } from './instance.js';

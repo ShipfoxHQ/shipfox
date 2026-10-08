@@ -30,6 +30,8 @@ Instance side (admin-credentialed, against `E2E_GITEA_URL`):
   `branch` and commits onto it.
 - `getFileSha({org, repo, path, ref?})`: the current blob SHA of a file, for `update` and
   `delete`. `ref` defaults to `main`.
+- `grantBotRepoWrite({org, repo})`: makes the bot a write collaborator on one repository,
+  for a job that pushes with its checkout credential. The org teams only let the bot read code.
 - `deleteRepo({org, repo})`, `deleteOrg({org})`: teardown. `deleteOrg` deletes the org's
   repositories first, then the org (Gitea rejects deleting an org that still owns repos).
 

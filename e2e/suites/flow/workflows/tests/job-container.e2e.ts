@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createApiClient} from '@shipfox/e2e-core';
-import {getFileSha} from '@shipfox/e2e-driver-gitea';
+import {getFileSha, grantBotRepoWrite} from '@shipfox/e2e-driver-gitea';
 import {
   deployRunner,
   localRunnerLogTail,
@@ -154,6 +154,7 @@ test('a container job runs run steps, an action, sibling containers, and a Git p
         replacements: {__CONTAINER_IMAGE__: published.image},
         extraFiles: probeAction,
       });
+      await grantBotRepoWrite({org: suite.org, repo});
       const runId = await fireManualAndAwaitRun({
         client: createApiClient({token}),
         definitionId: seeded.definition.id,
