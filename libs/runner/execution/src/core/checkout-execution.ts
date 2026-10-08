@@ -453,8 +453,7 @@ function checkoutTokenFailureHelp(reason: StepErrorReasonDto): string {
 const CHECKOUT_TOKEN_CODE_HELP: Readonly<Record<string, string>> = {
   'repository-not-granted':
     'Link a project to the repository, or let the connection use all repositories.',
-  'checkout-repository-not-authorized':
-    'Check out a project of this workspace, or link a project to the repository.',
+  'checkout-repository-not-authorized': 'Use a project of this workspace in `checkout.project`.',
   'installation-inactive': 'Unsuspend or reinstall the Shipfox GitHub App.',
   'repository-not-found':
     'Check the repository name, and that the installation of the provider includes it.',
