@@ -1,19 +1,22 @@
-import {access, mkdir, mkdtemp, rename, rm, writeFile} from 'node:fs/promises';
+import {access, chmod, mkdir, mkdtemp, rename, rm, writeFile} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
 import {decodeActionBundle} from '@shipfox/workflow-document';
 
 const READ_ONLY_FILE_MODE = 0o444;
+const SHARED_DIRECTORY_MODE = 0o755;
 const MODULE_PACKAGE_JSON = `${JSON.stringify({type: 'module'})}\n`;
 
 /**
  * Extracts an action bundle once per job execution to `<job temp>/actions/<digest>/` and returns
  * that directory. `load` runs only on the first use of a digest. The digest is checked before any
- * file is written, and a partial extraction is never reused.
+ * file is written, and a partial extraction is never reused. `shared` lets any user read it, for
+ * an action that runs as another user than the runner.
  */
 export async function prepareActionBundle(params: {
   jobTempDir: string;
   digest: string;
   load: () => Promise<Uint8Array>;
+  shared?: boolean;
 }): Promise<string> {
   const actionsDir = join(params.jobTempDir, 'actions');
   const target = join(actionsDir, params.digest.replace(':', '-'));
@@ -23,6 +26,8 @@ export async function prepareActionBundle(params: {
   await mkdir(actionsDir, {recursive: true});
   const staging = await mkdtemp(join(actionsDir, '.extract-'));
   try {
+    // `mkdtemp` makes the directory private to the runner user.
+    if (params.shared) await chmod(staging, SHARED_DIRECTORY_MODE);
     for (const file of files) {
       const path = join(staging, file.path);
       await mkdir(dirname(path), {recursive: true});

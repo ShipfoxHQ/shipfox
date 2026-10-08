@@ -1,5 +1,5 @@
 import {readFileSync} from 'node:fs';
-import {mkdir, mkdtemp, readFile, realpath, rm} from 'node:fs/promises';
+import {chmod, mkdir, mkdtemp, realpath, rm} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
 import {
   ACTION_ENV,
@@ -10,7 +10,12 @@ import {
 } from '@shipfox/actions/contract';
 import {ACTION_BOOTSTRAP_PATH, ACTION_LOADER_PATH} from '@shipfox/actions/runtime-files';
 import type {StepDto} from '@shipfox/api-workflows-dto';
-import {type ExecutionHost, localExecutionHost} from '@shipfox/runner-container';
+import {
+  type ExecutionHost,
+  localExecutionHost,
+  NODE_MOUNT,
+  runnerMountPath,
+} from '@shipfox/runner-container';
 import {actionBundleDigestSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {prepareActionBundle} from '#core/action-bundle.js';
@@ -24,6 +29,7 @@ import {executeStepProcess, readShipfoxEnv, type StepProcessOptions} from '#core
 import type {StepResult} from '#core/step-result.js';
 
 const PRIVATE_FILE_MODE = 0o600;
+const SHARED_DIRECTORY_MODE = 0o777;
 
 const sensitivitySchema = z.enum(['read', 'write']);
 
@@ -82,6 +88,14 @@ const actionStepConfigSchema = z.object({
 
 type ActionStepConfig = z.infer<typeof actionStepConfigSchema>;
 
+/** What an action needs to run in the job container instead of on the runner. */
+export interface ActionContainerRuntime {
+  /** The runner installation the container mounts, which holds the action runtime files. */
+  runnerInstallDir: string;
+  /** The environment the process starts from, never the runner's. */
+  env: Readonly<Record<string, string>>;
+}
+
 export interface ActionStepOptions
   extends Pick<
     StepProcessOptions,
@@ -98,6 +112,11 @@ export interface ActionStepOptions
   workspace: string;
   /** Where the action process runs and where its files are written. Defaults to the runner. */
   host?: ExecutionHost;
+  /**
+   * Set with a container `host`. Without it the action runs on the runner's own Node binary and
+   * environment.
+   */
+  container?: ActionContainerRuntime;
   /**
    * Runner-owned job directory outside the workspace, for extracted bundles, step files, and
    * the scripts and output files of the process.
@@ -121,9 +140,10 @@ export interface ActionStepOptions
 }
 
 /**
- * Runs an action step in its own Node process: `node --import <loader> <bootstrap>`. Success
- * needs exit code 0 and a `succeeded` result file. The process group is killed after every exit,
- * and outputs and annotations are kept even when the action fails.
+ * Runs an action step in its own Node process: `node --import <loader> <bootstrap>`, on the
+ * runner or in the job container. Success needs exit code 0 and a `succeeded` result file. The
+ * process group is killed after every exit, and outputs and annotations are kept even when the
+ * action fails.
  */
 export async function executeActionStep(
   step: StepDto,
@@ -138,11 +158,14 @@ export async function executeActionStep(
   // The action loader compares its importers after realpath, so the bundle must live under one.
   const jobTempDir = await realpath(options.jobTempDir);
   let actionPath: string;
+  let runtime: ActionRuntime;
   try {
+    runtime = actionRuntime(options.container);
     actionPath = await prepareActionBundle({
       jobTempDir,
       digest: config.action.digest,
       load: options.loadBundle,
+      shared: options.container !== undefined,
     });
   } catch (error) {
     return failure({
@@ -153,6 +176,8 @@ export async function executeActionStep(
 
   await mkdir(join(jobTempDir, 'steps'), {recursive: true});
   const stepTemp = await mkdtemp(join(jobTempDir, 'steps', 'step-'));
+  // The action may run as another user than the runner and writes its result here.
+  if (options.container) await chmod(stepTemp, SHARED_DIRECTORY_MODE);
   const endpoint = await startActionEndpoint({
     host,
     integrations: integrationGrants(config.integrations),
@@ -183,11 +208,11 @@ export async function executeActionStep(
     const result = await executeStepProcess(
       {
         argv: [
-          process.execPath,
+          runtime.nodePath,
           '--import',
-          ACTION_LOADER_PATH,
+          runtime.loaderPath,
           '--disable-warning=ExperimentalWarning',
-          ACTION_BOOTSTRAP_PATH,
+          runtime.bootstrapPath,
         ],
       },
       {
@@ -195,7 +220,8 @@ export async function executeActionStep(
         tempDir: jobTempDir,
         cwd: options.cwd,
         workspace: options.workspace,
-        env: inheritedActionEnv(process.env),
+        env: runtime.env,
+        ...(options.container ? {shareScratchFiles: true} : {}),
         stepEnv: {
           ...config.env,
           ...options.secretEnv,
@@ -219,11 +245,42 @@ export async function executeActionStep(
         ...(options.onOutput ? {onOutput: options.onOutput} : {}),
       },
     );
-    return actionResult(result, await readResultStatus(paths.result));
+    return actionResult(result, await readResultStatus(host, paths.result));
   } finally {
     await endpoint.close();
     await rm(stepTemp, {recursive: true, force: true});
   }
+}
+
+interface ActionRuntime {
+  nodePath: string;
+  loaderPath: string;
+  bootstrapPath: string;
+  env: Readonly<Record<string, string>>;
+}
+
+// In the container, the runner's Node binary and runtime files come from the runner mount.
+function actionRuntime(container: ActionContainerRuntime | undefined): ActionRuntime {
+  if (!container) {
+    return {
+      nodePath: process.execPath,
+      loaderPath: ACTION_LOADER_PATH,
+      bootstrapPath: ACTION_BOOTSTRAP_PATH,
+      env: inheritedActionEnv(process.env),
+    };
+  }
+  return {
+    nodePath: NODE_MOUNT,
+    loaderPath: mountedRuntimeFile(ACTION_LOADER_PATH, container.runnerInstallDir),
+    bootstrapPath: mountedRuntimeFile(ACTION_BOOTSTRAP_PATH, container.runnerInstallDir),
+    env: container.env,
+  };
+}
+
+function mountedRuntimeFile(path: string, runnerInstallDir: string): string {
+  const mounted = runnerMountPath(path, runnerInstallDir);
+  if (mounted === undefined) throw new Error(`${path} is outside the runner installation.`);
+  return mounted;
 }
 
 function integrationGrants(
@@ -276,9 +333,14 @@ function outputDeclarations(outputs: ActionStepConfig['outputs']): ActionOutputD
   );
 }
 
-async function readResultStatus(path: string): Promise<ActionResultFileV1['status'] | undefined> {
+async function readResultStatus(
+  host: ExecutionHost,
+  path: string,
+): Promise<ActionResultFileV1['status'] | undefined> {
   try {
-    const result = JSON.parse(await readFile(path, 'utf8')) as Partial<ActionResultFileV1>;
+    const result = JSON.parse(
+      (await host.readFile(path)).toString('utf8'),
+    ) as Partial<ActionResultFileV1>;
     return result.status === 'succeeded' || result.status === 'failed' ? result.status : undefined;
   } catch {
     return undefined;
