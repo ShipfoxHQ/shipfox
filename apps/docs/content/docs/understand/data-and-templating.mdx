@@ -163,11 +163,18 @@ tells an agent what to do, and the agent can follow it. If you put an event
 value in the `runner` field, the event selects the runner of the job. Don't
 let event data make a decision that a stranger must not make.
 
-A secret follows the same rule. Only a run step's command or `env` can bind one,
-so no prompt, model field, or predicate can read it. Shipfox never resolves the
-value on the server. The runner pulls it before the step starts and masks it
-in logs, outputs, and error messages. Masking is a safety net, not a
-guarantee, so a step that transforms and prints a secret can still leak it.
-[Integrations, integration connections, and
-tools](/understand/integrations-connections-and-tools) explains the external
-credential boundary.
+**Secrets have a stricter rule.** A secret works in two places only: the command
+of a run step and the `env` of a run step. A prompt, a model field, or
+a predicate can't read a secret.
+
+The server never puts the value of a secret in the workflow. The runner gets
+the value immediately before the step starts. The runner then hides the value
+in logs, outputs, and error messages.
+
+This masking has a limit. If a step changes a secret and then prints the
+result, the runner can't recognize it. For example, the runner doesn't hide a
+secret that a command encodes in Base64. Don't print a secret in any form.
+
+Integrations keep their credentials in a different way. See [Integrations,
+integration connections, and
+tools](/understand/integrations-connections-and-tools).
