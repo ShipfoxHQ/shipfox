@@ -90,6 +90,8 @@ several outputs.
 `export` publishes the outputs of both steps as outputs of the `package` job.
 The `publish` job declares the dependency and puts the values in its commands.
 
+### Rename or join values
+
 `export` keeps the name of the step output. Sometimes a job output needs a
 different name. Sometimes it needs a value that joins several step outputs. In
 these cases, add an `outputs` map to the job. Each line of the map gives one
@@ -103,6 +105,8 @@ outputs:
 ```
 
 A later job reads this value as `jobs.package.outputs.release`.
+
+### Pass a list or an object
 
 An output can hold a list or an object. Declare this output with the type
 `json`.
@@ -122,6 +126,8 @@ later job can't read one part of it.
 Interpolation writes a list or a map as JSON text. To pass one to a shell
 command, put it in `env` and parse the environment variable. You don't need to
 call `toJson()` first.
+
+### When an output is the wrong tool
 
 Outputs fit small facts. Files and build products belong in external artifact
 storage, with an output that carries their location. [Step
