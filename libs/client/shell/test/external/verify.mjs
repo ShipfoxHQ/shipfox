@@ -1,5 +1,5 @@
 import {spawn} from 'node:child_process';
-import {globSync} from 'node:fs';
+import {globSync, statSync} from 'node:fs';
 import {
   cp,
   mkdir,
@@ -472,16 +472,19 @@ function concretePatternEntryPoints(entryPoint, packageDirectory) {
       .map((segment) => segment.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'))
       .join('(.+)')}$`,
   );
-  const concreteEntryPoints = globSync(join(packageDirectory, globPattern)).map((path) => {
-    const relativePath = relative(packageDirectory, path).split(sep).join('/');
-    const match = capturePattern.exec(relativePath);
-    if (!match) {
-      throw new Error(
-        `Wildcard export ${entryPoint.specifier} resolved ${relativePath} outside ${targetPattern}.`,
-      );
-    }
-    return {...entryPoint, specifier: entryPoint.specifier.replace('*', match[1])};
-  });
+  // The glob also matches directories, which are not importable entry points.
+  const concreteEntryPoints = globSync(join(packageDirectory, globPattern))
+    .filter((path) => statSync(path).isFile())
+    .map((path) => {
+      const relativePath = relative(packageDirectory, path).split(sep).join('/');
+      const match = capturePattern.exec(relativePath);
+      if (!match) {
+        throw new Error(
+          `Wildcard export ${entryPoint.specifier} resolved ${relativePath} outside ${targetPattern}.`,
+        );
+      }
+      return {...entryPoint, specifier: entryPoint.specifier.replace('*', match[1])};
+    });
 
   if (!concreteEntryPoints.length) {
     throw new Error(
