@@ -1,5 +1,6 @@
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
+import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import {createFakeInterModuleClients} from '@shipfox/node-module/inter-module/testing';
 import {decodeActionBundle, encodeActionBundle} from '@shipfox/workflow-document';
 import {upsertActionSnapshot} from '#db/action-snapshots.js';
@@ -17,6 +18,7 @@ function definitionsClient() {
       projects: {} as never,
       agent: {} as never,
       integrations: {} as never,
+      flags: createTestFeatureFlags(),
     }),
   }).definitions;
 }

@@ -1,5 +1,4 @@
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
-import {config} from '../config.js';
 import {validateDefinition as validateDefinitionBase} from './validate-definition.js';
 
 function validateDefinition(yaml: string, options = {}) {
@@ -348,10 +347,6 @@ jobs:
       path: 'jobs.build.steps.0.run',
     };
 
-    test('DEFINITION_ACTIONS_ENABLED defaults to true outside production', () => {
-      expect(config.DEFINITION_ACTIONS_ENABLED).toBe(true);
-    });
-
     test('rejects uses as not supported yet when actions are disabled', () => {
       const result = validateDefinition(actionYaml('\n        run: echo hi'), {
         actionsEnabled: false,
@@ -368,10 +363,10 @@ jobs:
       expect(result).toEqual({valid: false, errors: [runOnAction]});
     });
 
-    test('uses DEFINITION_ACTIONS_ENABLED when the option is omitted', () => {
+    test('rejects uses when the option is omitted, like the flag default', () => {
       const result = validateDefinition(actionYaml('\n        run: echo hi'));
 
-      expect(result).toEqual({valid: false, errors: [runOnAction]});
+      expect(result).toEqual({valid: false, errors: [notSupported]});
     });
 
     test('reports an action step whose manifest was not resolved', () => {

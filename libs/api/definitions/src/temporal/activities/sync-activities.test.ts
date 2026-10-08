@@ -5,6 +5,7 @@ import {
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {isErrorReported} from '@shipfox/node-error-monitoring';
+import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import {ApplicationFailure} from '@temporalio/common';
 import {sql} from 'drizzle-orm';
 import type {DefinitionsSourceControl} from '#core/integrations.js';
@@ -283,7 +284,10 @@ describe('definition sync activities', () => {
           Promise.resolve({path, ref, content: repository[path] ?? ''}),
         ),
       });
-      const activities = createDefinitionSyncActivities(source, agent);
+      const activities = createDefinitionSyncActivities(source, agent, undefined, {
+        workflowPath: '.shipfox/workflows/',
+        flags: createTestFeatureFlags({'definitions-actions': true}),
+      });
       const workspaceId = crypto.randomUUID();
       const sync = () =>
         activities.fetchAndApplyDefinitionWorkflows({
@@ -331,6 +335,43 @@ describe('definition sync activities', () => {
           manifest: {name: 'Notify', main: 'index.ts'},
         });
       }
+    });
+
+    it('rejects an action step as a permanent failure while the definitions-actions flag is off', async () => {
+      const source = sourceControl({
+        fetchFile: vi.fn(() =>
+          Promise.resolve({
+            path: '.shipfox/workflows/ci.yml',
+            ref: 'main',
+            content: [
+              'name: Actions',
+              'runner: ubuntu-latest',
+              'jobs:',
+              '  build:',
+              '    steps:',
+              '      - uses: ./.shipfox/actions/notify',
+            ].join('\n'),
+          }),
+        ),
+      });
+      const activities = createDefinitionSyncActivities(source, agent, undefined, {
+        workflowPath: '.shipfox/workflows/',
+        flags: createTestFeatureFlags(),
+      });
+
+      const error = await activities
+        .fetchAndApplyDefinitionWorkflows({
+          projectId,
+          workspaceId: crypto.randomUUID(),
+          sourceConnectionId,
+          sourceExternalRepositoryId: 'gitea:gitea-owner/platform',
+          sourceRef: 'main',
+          paths: ['.shipfox/workflows/ci.yml'],
+        })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ApplicationFailure);
+      expect(error).toMatchObject({nonRetryable: true, type: 'invalid-definition'});
     });
 
     it('adds the workflow file path to persisted diagnostics', async () => {

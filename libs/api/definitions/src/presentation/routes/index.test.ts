@@ -1,6 +1,7 @@
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
+import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import type {FastifyRequest} from 'fastify';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import {createDefinitionRoutes} from './index.js';
@@ -14,6 +15,7 @@ const definitionRoutes = createDefinitionRoutes({
   agent: {getValidationCatalogV2: vi.fn(() => agentValidationCatalog)} as never,
   integrations: {} as never,
   registry: {} as never,
+  flags: createTestFeatureFlags(),
 });
 
 const fakeUserAuth: AuthMethod = {

@@ -1,6 +1,7 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
@@ -15,6 +16,13 @@ describe('POST /definitions/validate', () => {
   const getProjectById = vi.fn();
   const getValidationCatalogV2 = vi.fn(() => agentValidationCatalog);
   const getAgentToolsContext = vi.fn();
+  const actionsEnabledFor = new Set<string>();
+  const flagsBoolean = vi.fn((_definition: unknown, subject?: {workspaceId?: string}) =>
+    Promise.resolve(
+      subject?.workspaceId !== undefined && actionsEnabledFor.has(subject.workspaceId),
+    ),
+  );
+  const flags = {boolean: flagsBoolean} as unknown as FeatureFlags;
 
   beforeAll(async () => {
     app = Fastify();
@@ -36,6 +44,7 @@ describe('POST /definitions/validate', () => {
       buildValidateDefinitionRoute({
         agent: {getValidationCatalogV2} as never,
         projects: {getProjectById} as Pick<ProjectsModuleClient, 'getProjectById'> as never,
+        flags,
         integrations: {
           getAgentToolsContext,
         } as Pick<IntegrationsModuleClient, 'getAgentToolsContext'> as IntegrationsModuleClient,
@@ -49,6 +58,8 @@ describe('POST /definitions/validate', () => {
     workspaceId = crypto.randomUUID();
     sourceConnectionId = crypto.randomUUID();
     getProjectById.mockResolvedValue({project: {id: projectId, workspaceId, sourceConnectionId}});
+    actionsEnabledFor.clear();
+    flagsBoolean.mockClear();
     getAgentToolsContext.mockClear();
     getAgentToolsContext.mockResolvedValue({
       selectionCatalogs: [],
@@ -143,6 +154,68 @@ jobs:
     expect(res.statusCode).toBe(200);
     expect(getProjectById).toHaveBeenCalledWith({projectId});
     expect(getValidationCatalogV2).toHaveBeenCalledWith({workspaceId});
+  });
+
+  describe('action steps', () => {
+    const actionYaml = `
+name: Test
+runner: ubuntu-latest
+jobs:
+  build:
+    steps:
+      - uses: ./.shipfox/actions/notify
+`;
+
+    test('rejects uses when the definitions-actions flag is off for the project workspace', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/definitions/validate',
+        payload: {project_id: projectId, yaml: actionYaml},
+      });
+
+      expect(res.json()).toEqual({
+        valid: false,
+        errors: [
+          {
+            message: 'Action steps (`uses`) are not supported yet.',
+            path: 'jobs.build.steps.0.uses',
+          },
+        ],
+      });
+      expect(flagsBoolean).toHaveBeenCalledWith(
+        expect.objectContaining({key: 'definitions-actions'}),
+        {workspaceId},
+      );
+    });
+
+    test('accepts uses syntax when the flag is on for the project workspace', async () => {
+      actionsEnabledFor.add(workspaceId);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/definitions/validate',
+        payload: {project_id: projectId, yaml: actionYaml},
+      });
+
+      const messages = res.json().errors.map((error: {message: string}) => error.message);
+      expect(messages).not.toContain('Action steps (`uses`) are not supported yet.');
+    });
+
+    test('reads the flag globally when no project is given', async () => {
+      actionsEnabledFor.add(workspaceId);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/definitions/validate',
+        payload: {yaml: actionYaml},
+      });
+
+      expect(res.json().valid).toBe(false);
+      expect(flagsBoolean).toHaveBeenCalledWith(
+        expect.objectContaining({key: 'definitions-actions'}),
+        {},
+      );
+    });
   });
 
   test('invalid YAML returns 200 with { valid: false, errors }', async () => {

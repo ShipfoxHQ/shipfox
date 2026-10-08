@@ -5,6 +5,7 @@ import {
 } from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
+import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import {eq, sql} from 'drizzle-orm';
 import {DefinitionAtRefError} from '#core/errors.js';
 import {listDefinitionsAtRef, resolveDefinitionAtRef} from '#core/resolve-definition-at-ref.js';
@@ -1243,6 +1244,34 @@ jobs:
     expect(await snapshotRows(workspaceId)).toEqual([
       expect.objectContaining({source: 'vcs', fileCount: 3}),
     ]);
+  });
+
+  test('reads actions when the definitions-actions flag is on and actionsEnabled is omitted', async () => {
+    const {projectId, clients} = clientsFor(actionRepository());
+
+    const result = await resolveDefinitionAtRef({
+      projectId,
+      ref: 'fix-branch',
+      configPath: CONFIG_PATH,
+      flags: createTestFeatureFlags({'definitions-actions': true}),
+      ...clients,
+    });
+
+    expect(JSON.stringify(result.model)).toContain('"kind":"action"');
+  });
+
+  test('rejects action steps when the definitions-actions flag is off', async () => {
+    const {projectId, clients} = clientsFor(actionRepository());
+
+    await expect(
+      resolveDefinitionAtRef({
+        projectId,
+        ref: 'fix-branch',
+        configPath: CONFIG_PATH,
+        flags: createTestFeatureFlags(),
+        ...clients,
+      }),
+    ).rejects.toMatchObject({code: 'invalid-definition'});
   });
 
   test('replaces uploaded directories and reads the others from the ref', async () => {

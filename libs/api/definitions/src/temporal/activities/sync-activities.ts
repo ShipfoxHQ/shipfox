@@ -2,8 +2,10 @@ import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {RegistryInterModuleClient} from '@shipfox/api-registry-dto/inter-module';
 import {markErrorReported} from '@shipfox/node-error-monitoring';
+import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {Context} from '@temporalio/activity';
 import {ApplicationFailure} from '@temporalio/common';
+import {readActionSupport} from '#core/action-support.js';
 import {
   type DefinitionSyncDiagnostic,
   type DefinitionSyncErrorCode,
@@ -71,6 +73,8 @@ export interface DefinitionSyncActivityOptions {
   workflowPath: string;
   /** Resolves registry actions during sync. */
   registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
+  /** Reads the `definitions-actions` flag per workspace. Without it, the flag's default applies. */
+  flags?: FeatureFlags | undefined;
 }
 
 export function createDefinitionSyncActivities(
@@ -84,6 +88,7 @@ export function createDefinitionSyncActivities(
     agent,
     integrations,
     options?.registry,
+    options?.flags,
   );
   const markDefinitionSyncSucceeded = createMarkSyncSucceededActivity();
   const markDefinitionSyncFailed = createMarkSyncFailedActivity();
@@ -152,13 +157,16 @@ function createFetchAndApplyActivity(
   agent: AgentInterModuleClient,
   integrations?: IntegrationsModuleClient | undefined,
   registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined,
+  flags?: FeatureFlags | undefined,
 ) {
   return async function fetchAndApplyDefinitionWorkflows(
     input: FetchAndApplyActivityInput,
   ): Promise<FetchAndApplyActivityResult> {
     return await runWithPermanentTranslation(async () => {
+      const actionSupport = await readActionSupport({flags, workspaceId: input.workspaceId});
       const {workflows, actions, actionDiagnostics} = await fetchAndParseWorkflows({
         ...input,
+        ...actionSupport,
         ref: input.sourceCommitSha ?? input.sourceRef,
         sourceControl,
         registry,

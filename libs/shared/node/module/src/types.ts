@@ -1,3 +1,4 @@
+import type {FlagDefinition} from '@shipfox/feature-flags';
 import type {InterModulePresentation} from '@shipfox/inter-module';
 import type {AuthMethod, RouteExport} from '@shipfox/node-fastify';
 import type {OutboxTable} from '@shipfox/node-outbox';
@@ -98,6 +99,13 @@ export interface ShipfoxModule {
   services?: ModuleService[];
   metrics?: ModuleMetricsRegistration;
   startupTasks?: ModuleStartupTasks;
+  /**
+   * Feature flags the module, or a policy built for it, reads. Declare them with
+   * `defineFlags` next to `config.ts`. `defaultModules` collects every
+   * definition to reject duplicate keys and to check `FLAG_*` overrides at
+   * startup.
+   */
+  flags?: Readonly<Record<string, FlagDefinition>>;
   /**
    * Producer presentations this module registers on the application's
    * inter-module transport. Typed against each contract at the module factory

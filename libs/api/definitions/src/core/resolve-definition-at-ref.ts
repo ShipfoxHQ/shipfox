@@ -23,13 +23,14 @@ import {
   registryInterModuleContract,
 } from '@shipfox/api-registry-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
+import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {boundedMap} from '@shipfox/node-module';
 import type {ActionBundleFile, WorkflowDocument} from '@shipfox/workflow-document';
 import {upsertActionSnapshot} from '#db/action-snapshots.js';
 import {definitionTriggersFor} from '#db/definition-triggers.js';
 import {findOrCreateWorkflowLineage} from '#db/definitions.js';
 import {recordDefinitionRefResolution} from '#metrics/index.js';
-import {definitionActionsEnabled, definitionRegistryActionsEnabled} from '../config.js';
+import {readActionSupport} from './action-support.js';
 import {checkActionImports} from './check-action-imports.js';
 import {collectActionReferences} from './collect-action-references.js';
 import {collectPromptFilePaths} from './collect-prompt-file-references.js';
@@ -82,13 +83,15 @@ export interface ResolveDefinitionAtRefParams {
   expectedCommit?: string | undefined;
   /** Each upload replaces the ref's copy of its action directory completely. */
   actions?: readonly ActionUpload[] | undefined;
-  /** Accepts action steps (`uses`). Defaults to `DEFINITION_ACTIONS_ENABLED`. */
+  /** Accepts action steps (`uses`). Defaults to the `definitions-actions` flag for the project's workspace. */
   actionsEnabled?: boolean | undefined;
   /**
-   * Accepts registry references in `uses`. Defaults to on when
-   * `DEFINITION_ACTIONS_ENABLED` is on and `REGISTRY_URL` is set.
+   * Accepts registry references in `uses`. Defaults to on when actions are on
+   * and `REGISTRY_URL` is set.
    */
   registryActionsEnabled?: boolean | undefined;
+  /** Reads the `definitions-actions` flag. Without it, the flag's default applies. */
+  flags?: FeatureFlags | undefined;
   projects: ProjectsModuleClient;
   agent: AgentInterModuleClient;
   integrations: IntegrationsModuleClient;
@@ -120,6 +123,8 @@ export interface ListDefinitionsAtRefParams {
   agent: AgentInterModuleClient;
   integrations: IntegrationsModuleClient;
   project?: DefinitionAtRefProject;
+  /** Reads the `definitions-actions` flag. Without it, the flag's default applies. */
+  flags?: FeatureFlags | undefined;
   signal?: AbortSignal;
 }
 
@@ -223,8 +228,12 @@ async function resolveDefinitionAtRefUnsafe(
     params.signal,
   );
   throwIfAborted(params.signal);
-  const actionsEnabled = params.actionsEnabled ?? definitionActionsEnabled;
-  const registryActionsEnabled = params.registryActionsEnabled ?? definitionRegistryActionsEnabled;
+  const {actionsEnabled, registryActionsEnabled} = await readActionSupport({
+    flags: params.flags,
+    workspaceId: source.workspaceId,
+    actionsEnabled: params.actionsEnabled,
+    registryActionsEnabled: params.registryActionsEnabled,
+  });
   const document = parseWorkflowDocumentAtRef(snapshot.content, {
     agentValidationCatalog,
     actionsEnabled,
@@ -361,9 +370,13 @@ async function listDefinitionsAtRefUnsafe(
     params.signal,
   );
   throwIfAborted(params.signal);
+  const actionSupport = await readActionSupport({
+    flags: params.flags,
+    workspaceId: source.workspaceId,
+  });
   let entries = fetched.map((entry) => {
     throwIfAborted(params.signal);
-    return parseListingEntry(entry, {agentValidationCatalog});
+    return parseListingEntry(entry, {agentValidationCatalog, ...actionSupport});
   });
 
   const needsIntegrationContext = entries.some(
@@ -380,7 +393,7 @@ async function listDefinitionsAtRefUnsafe(
       'definition' in entry && needsIntegrationValidationContext(entry.definition.document)
         ? parseListingEntry(
             {path: entry.path, content: entry.content},
-            {agentValidationCatalog, integrationValidationContext},
+            {agentValidationCatalog, integrationValidationContext, ...actionSupport},
           )
         : entry,
     );

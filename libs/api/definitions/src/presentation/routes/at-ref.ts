@@ -6,6 +6,7 @@ import {
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {DefinitionAtRefError} from '#core/errors.js';
 import {listDefinitionsAtRef} from '#core/resolve-definition-at-ref.js';
 import {toDefinitionAtRefFileDto} from '#presentation/dto/index.js';
@@ -17,6 +18,7 @@ export interface AtRefRouteOptions {
   projects: ProjectsModuleClient;
   agent: AgentInterModuleClient;
   integrations: IntegrationsModuleClient;
+  flags: FeatureFlags;
 }
 
 export function buildAtRefRoute(options: AtRefRouteOptions) {

@@ -15,6 +15,7 @@ import {
   type InterModulePresentation,
   isInterModuleKnownError,
 } from '@shipfox/inter-module';
+import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {DefinitionAtRefError, listDefinitionsAtRef, resolveDefinitionAtRef} from '#core/index.js';
 import {populateDefaultGateMaxAttempts} from '#core/workflow-model/populate-default-gate-max-attempts.js';
 import {getActionSnapshot} from '#db/action-snapshots.js';
@@ -31,6 +32,7 @@ export interface CreateDefinitionsInterModulePresentationParams {
   agent: AgentInterModuleClient;
   integrations: IntegrationsModuleClient;
   registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
+  flags: FeatureFlags;
 }
 
 export function createDefinitionsInterModulePresentation(

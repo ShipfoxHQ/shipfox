@@ -1,6 +1,7 @@
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {createInterModuleKnownError, isInterModuleKnownError} from '@shipfox/inter-module';
+import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import {DefinitionAtRefError} from '#core/errors.js';
 import {UNRESOLVED_SYNC_REF} from '#core/sync-definitions.js';
 import {createDefinitionsInterModulePresentation} from './inter-module.js';
@@ -46,6 +47,7 @@ function presentation() {
     projects: {requireProjectForWorkspace: mocks.requireProjectForWorkspace} as never,
     agent: {} as never,
     integrations: {} as never,
+    flags: createTestFeatureFlags(),
   });
 }
 
