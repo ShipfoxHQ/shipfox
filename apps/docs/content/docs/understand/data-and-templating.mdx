@@ -9,15 +9,19 @@ event or the manual inputs. It grows as jobs and steps produce results.
 
 ## How interpolation works
 
-Interpolation reads a value from context and inserts it into a workflow field.
-Wrap the expression in `${{ }}`. For example, `Hello ${{ inputs.name }}` adds
-the `name` input after `Hello`.
+**Interpolation** puts a value from the context into a field of the workflow.
+Write the name of the value between `${{` and `}}`. Shipfox replaces this
+expression with the value when the workflow runs.
 
-Use interpolation to add data to text or settings. It does not decide whether
-work runs.
+For example, the `name` input contains `Ada`. Then `Hello ${{ inputs.name }}`
+becomes `Hello Ada`.
 
-A predicate is a yes-or-no check. For example, `step.exit_code == 0` passes a
-gate when the command succeeds. Filters, conditions, gates, and job success
+Interpolation only adds data to a field. It doesn't decide if a step or a job
+runs.
+
+A **predicate** makes that decision. A predicate is an expression with a
+yes-or-no result. For example, the predicate `step.exit_code == 0` is true
+when the command succeeds. Filters, `if` conditions, gates, and job success
 rules use predicates.
 
 The [Expressions reference](/reference/expressions) defines the exact syntax.
