@@ -138,6 +138,7 @@ import {basename, isAbsolute, join} from 'node:path';
 import {
   type AgentSessionEvent,
   createBashToolDefinition,
+  createReadToolDefinition,
   type ToolDefinition,
 } from '@earendil-works/pi-coding-agent';
 import {
@@ -2726,6 +2727,57 @@ describe('piHarnessAdapter', () => {
     });
     expect(Buffer.concat(chunks).toString()).toBe('/runner/job/git-cred.config\n');
     expect(spawn).toHaveBeenCalledOnce();
+  });
+
+  describe('in a container job', () => {
+    const CONTAINER_ENV = {PATH: '/usr/local/bin:/usr/bin', IMAGE_ONLY: 'yes'};
+
+    function containerInvocation(host: LocalExecutionHost) {
+      return invocation({
+        cwd: tmpdir(),
+        host,
+        container: {shell: '/bin/sh', env: CONTAINER_ENV, runnerInstallDir: '/opt/runner'},
+      });
+    }
+
+    it('runs Pi shell commands on the container host with the container shell and environment', async () => {
+      const host = new LocalExecutionHost();
+      const spawn = vi.spyOn(host, 'spawn');
+
+      await piHarnessAdapter.run(containerInvocation(host));
+
+      const bashOptions = vi.mocked(createBashToolDefinition).mock.calls.at(-1)?.[1];
+      await bashOptions?.operations?.exec('true', tmpdir(), {
+        onData: () => undefined,
+        env: {PATH: process.env.PATH, RUNNER_ONLY: 'leaked'},
+      });
+      const request = spawn.mock.calls.at(-1)?.[0];
+      expect(request?.argv).toEqual(['/bin/sh', '-c', 'true']);
+      expect(request?.env).toEqual(CONTAINER_ENV);
+    });
+
+    it('takes the file tools to the container host', async () => {
+      const host = new LocalExecutionHost();
+      const readFile = vi.spyOn(host, 'readFile');
+
+      await piHarnessAdapter.run(containerInvocation(host));
+
+      const readOptions = vi.mocked(createReadToolDefinition).mock.calls.at(-1)?.[1];
+      await readOptions?.operations?.readFile('/work/notes.txt').catch(() => undefined);
+      expect(readFile).toHaveBeenCalledWith('/work/notes.txt');
+    });
+
+    it('removes grep and find from the tool list', async () => {
+      await piHarnessAdapter.run(containerInvocation(new LocalExecutionHost()));
+
+      expect(createAgentSessionMock.mock.calls[0]?.[0].excludeTools).toEqual(['grep', 'find']);
+    });
+
+    it('keeps grep and find outside a container job', async () => {
+      await piHarnessAdapter.run(invocation());
+
+      expect(createAgentSessionMock.mock.calls[0]?.[0]).not.toHaveProperty('excludeTools');
+    });
   });
 
   it('runs Pi shell commands with the carried env and PATH', async () => {

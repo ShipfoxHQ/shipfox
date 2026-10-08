@@ -14,6 +14,7 @@ import {
 } from '@earendil-works/pi-coding-agent';
 import type {ExecutionHost, HostProcess, HostProcessExit} from '@shipfox/runner-container';
 import {type CarriedEnv, prependPath} from '@shipfox/runner-execution/carried-env';
+import type {AgentJobContainer} from '#core/harness.js';
 import {detectSupportedImageMimeType, SNIFF_BYTES} from '#core/pi-image-mime.js';
 
 /** What pi activates when a step does not pick tools. */
@@ -22,6 +23,9 @@ const MAX_TIMEOUT_SECONDS = 2_147_483.647;
 // How long the pipes may stay quiet after the shell exited before a background process that kept
 // them open is left behind. Matches pi's local bash tool.
 const OUTPUT_IDLE_GRACE_MS = 100;
+
+/** The built-in tools that run host binaries (`rg`, `fd`), which a container image may lack. */
+export const PI_HOST_BINARY_TOOL_NAMES = ['grep', 'find'] as const;
 
 export interface PiHostToolSettings {
   readonly autoResizeImages: boolean;
@@ -43,8 +47,10 @@ export function createPiHostToolDefinitions(params: {
   settings: PiHostToolSettings;
   /** Becomes `GIT_CONFIG_GLOBAL` for shell commands only, instead of the runner's environment. */
   gitConfigGlobal: string | undefined;
-  /** What earlier steps carried. Shell commands get it above the runner environment. */
+  /** What earlier steps carried. Shell commands get it above the base environment. */
   carriedEnv?: CarriedEnv | undefined;
+  /** Set in container jobs: shell commands use its shell and start from its environment. */
+  container?: Pick<AgentJobContainer, 'shell' | 'env'> | undefined;
 }): ToolDefinition[] {
   const {host, cwd, settings} = params;
   const exposed = new Set(params.selectedTools ?? DEFAULT_PI_TOOL_NAMES);
@@ -64,11 +70,15 @@ export function createPiHostToolDefinitions(params: {
           ...(settings.shellCommandPrefix === undefined
             ? {}
             : {commandPrefix: settings.shellCommandPrefix}),
-          ...(settings.shellPath === undefined ? {} : {shellPath: settings.shellPath}),
+          // The configured shell path names a file on the runner, not in the container.
+          ...(settings.shellPath === undefined || params.container !== undefined
+            ? {}
+            : {shellPath: settings.shellPath}),
           operations: createBashOperations(host, {
             shellPath: settings.shellPath,
             gitConfigGlobal: params.gitConfigGlobal,
             carriedEnv: params.carriedEnv,
+            container: params.container,
           }),
         }) as ToolDefinition,
     ],
@@ -135,6 +145,7 @@ export function createBashOperations(
     shellPath: string | undefined;
     gitConfigGlobal: string | undefined;
     carriedEnv?: CarriedEnv | undefined;
+    container?: Pick<AgentJobContainer, 'shell' | 'env'> | undefined;
   },
 ): BashOperations {
   return {
@@ -145,11 +156,10 @@ export function createBashOperations(
         throw new Error(`Working directory does not exist: ${cwd}\nCannot execute bash commands.`);
       }
 
-      const shell = getShellConfig(options.shellPath);
       const child = host.spawn({
-        argv: [shell.shell, ...shell.args, command],
+        argv: shellArgv(command, options),
         cwd,
-        env: shellEnvironment(env ?? process.env, options),
+        env: shellEnvironment(baseEnvironment(env, options), options),
       });
       child.stdout.on('data', onData);
       child.stderr.on('data', onData);
@@ -165,6 +175,23 @@ export function createBashOperations(
       }
     },
   };
+}
+
+function shellArgv(
+  command: string,
+  options: {shellPath: string | undefined; container?: Pick<AgentJobContainer, 'shell'> | undefined},
+): [string, ...string[]] {
+  if (options.container !== undefined) return [options.container.shell, '-c', command];
+  const shell = getShellConfig(options.shellPath);
+  return [shell.shell, ...shell.args, command];
+}
+
+// Pi hands over the runner's own environment, which a container never inherits.
+function baseEnvironment(
+  env: NodeJS.ProcessEnv | undefined,
+  options: {container?: Pick<AgentJobContainer, 'env'> | undefined},
+): NodeJS.ProcessEnv {
+  return options.container === undefined ? (env ?? process.env) : options.container.env;
 }
 
 function shellEnvironment(

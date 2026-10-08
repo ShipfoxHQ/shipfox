@@ -697,34 +697,29 @@ describe('runJobSteps', () => {
         return runLoop({signal: new AbortController().signal});
       }
 
-      it('starts Claude in the container from the container environment, without the runner Git config', async () => {
-        await runAgentInContainer('claude');
+      it.each(['claude', 'pi'] as const)(
+        'starts %s in the container from the container environment, without the runner Git config',
+        async (harness) => {
+          await runAgentInContainer(harness);
 
-        const options = executeAgentStepMock.mock.calls[0]?.[1];
-        expect(containerHosts).toHaveLength(1);
-        expect(options.host).toBe(containerHosts[0]);
-        expect(options.container).toEqual({
-          env: {PATH: '/usr/local/bin:/usr/bin', LICENSE: 'license-secret'},
-          runnerInstallDir: '/opt/runner',
-        });
-        expect(options).not.toHaveProperty('gitConfigGlobal');
-      });
+          const options = executeAgentStepMock.mock.calls[0]?.[1];
+          expect(containerHosts).toHaveLength(1);
+          expect(options.host).toBe(containerHosts[0]);
+          expect(options.container).toEqual({
+            env: {PATH: '/usr/local/bin:/usr/bin', LICENSE: 'license-secret'},
+            shell: '/usr/bin/bash',
+            runnerInstallDir: '/opt/runner',
+          });
+          expect(options).not.toHaveProperty('gitConfigGlobal');
+        },
+      );
 
-      it('gives Claude the container Git config', async () => {
-        await runAgentInContainer('claude', {gitConfigPath: `${JOB_TEMP_DIR}/container-gitconfig`});
+      it.each(['claude', 'pi'] as const)('gives %s the container Git config', async (harness) => {
+        await runAgentInContainer(harness, {gitConfigPath: `${JOB_TEMP_DIR}/container-gitconfig`});
 
         expect(executeAgentStepMock.mock.calls[0]?.[1].gitConfigGlobal).toBe(
           `${JOB_TEMP_DIR}/container-gitconfig`,
         );
-      });
-
-      it('keeps pi on the runner', async () => {
-        await runAgentInContainer('pi');
-
-        const options = executeAgentStepMock.mock.calls[0]?.[1];
-        expect(options).not.toHaveProperty('host');
-        expect(options).not.toHaveProperty('container');
-        expect(options.gitConfigGlobal).toBe('/runner-cred/job-1/ambient.config');
       });
     });
 
