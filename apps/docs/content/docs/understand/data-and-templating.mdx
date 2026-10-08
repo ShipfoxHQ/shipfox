@@ -90,9 +90,19 @@ several outputs.
 `export` publishes the outputs of both steps as outputs of the `package` job.
 The `publish` job declares the dependency and puts the values in its commands.
 
-A job can also publish values through its own `outputs` map, which sets each
-name to an expression. Use the map to rename a value or to build one from
-several steps.
+`export` keeps the name of the step output. Sometimes a job output needs a
+different name. Sometimes it needs a value that joins several step outputs. In
+these cases, add an `outputs` map to the job. Each line of the map gives one
+name and the expression that makes its value.
+
+This map belongs to the `package` job. It joins the version and the commit:
+
+```yaml
+outputs:
+  release: ${{ steps.read_version.outputs.version }}+${{ steps.read_commit.outputs.sha }}
+```
+
+A later job reads this value as `jobs.package.outputs.release`.
 
 When a step declares a JSON array or object, an exported output keeps that
 structure for later jobs. So does a job output that maps exactly one
