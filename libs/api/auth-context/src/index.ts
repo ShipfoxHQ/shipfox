@@ -53,6 +53,8 @@ export interface AgentAccessContext {
   userId: string;
   workspaceId: string;
   credential: AgentAccessCredential;
+  /** Set on every admin-endpoint call; `windowId` is known once a call is tied to a window. */
+  admin?: {actorId: string; windowId?: string | undefined} | undefined;
 }
 
 export interface AgentLogDownloadContext {

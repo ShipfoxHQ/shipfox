@@ -1,5 +1,7 @@
 export {
   AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT,
+  AGENT_ACCESS_ADMIN_MCP_INSTRUCTIONS,
+  AGENT_ACCESS_ADMIN_MCP_PATH,
   AGENT_ACCESS_FIXTURE_ACTION_TOOL_NAME,
   AGENT_ACCESS_FIXTURE_TOOL_NAME,
   AGENT_ACCESS_MCP_INSTRUCTIONS,
@@ -13,6 +15,11 @@ export {
   type AgentAccessActionToolsOptions,
   createAgentAccessActionTools,
 } from '#core/action-tools.js';
+export {
+  AGENT_ACCESS_ADMIN_TOOL_NAMES,
+  type AgentAccessAdminToolsOptions,
+  createAgentAccessAdminTools,
+} from '#core/admin-tools.js';
 export {
   AGENT_ACCESS_AUTHORING_CONTEXT_TOOL_NAME,
   type AgentAccessAuthoringContextToolsOptions,

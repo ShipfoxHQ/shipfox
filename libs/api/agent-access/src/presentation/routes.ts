@@ -17,6 +17,7 @@ import type {RegistryInterModuleClient} from '@shipfox/api-registry-dto/inter-mo
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
+import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {
   ClientError,
@@ -33,11 +34,13 @@ import type {TemplateLoader} from '@shipfox/workflow-templates';
 import {config} from '#config.js';
 import {
   AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT,
+  AGENT_ACCESS_ADMIN_MCP_PATH,
   AGENT_ACCESS_MCP_BODY_LIMIT_BYTES,
   AGENT_ACCESS_MCP_PATH,
   AGENT_ACCESS_PROTECTED_RESOURCE_METADATA_PATH,
 } from '#constants.js';
 import {createAgentAccessActionTools} from '#core/action-tools.js';
+import {createAgentAccessAdminTools} from '#core/admin-tools.js';
 import {createAgentAccessAuthoringContextTools} from '#core/authoring-context.js';
 import {createAgentAccessDiagnosticTools} from '#core/diagnostic-tools.js';
 import {createDocsCache, type DocsCache} from '#core/docs.js';
@@ -66,11 +69,16 @@ export interface CreateAgentAccessRoutesOptions {
   tools?: readonly AgentAccessTool[] | undefined;
   /** Appended to the resolved tools; duplicate names fail during route creation. */
   additionalTools?: readonly AgentAccessTool[] | undefined;
+  /** Admin-only tools appended to the admin endpoint; duplicate names fail during route creation. */
+  additionalAdminTools?: readonly AgentAccessTool[] | undefined;
+  /** Overrides `AGENT_ACCESS_ADMIN_MCP_ENABLED`. */
+  adminMcpEnabled?: boolean | undefined;
   rateLimiter?: AgentAccessRateLimiter | undefined;
   actionRateLimiter?: AgentAccessRateLimiter | undefined;
   recordCall?: AgentAccessToolCallRecorder | undefined;
   docs?: DocsCache | undefined;
   auth?: AuthInterModuleClient | undefined;
+  workspaces?: WorkspacesInterModuleClient | undefined;
   agent?: AgentInterModuleClient | undefined;
   isOriginAllowed?: ((origin: string | undefined) => boolean) | undefined;
   projects?: ProjectsModuleClient | undefined;
@@ -101,6 +109,63 @@ export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions 
   const recordCall = options.recordCall ?? createAgentAccessToolCallRecorder();
   const originMatcher = options.isOriginAllowed ?? createAllowedOriginMatcher();
   const errorHandler = createAgentAccessErrorHandler(resourceMetadataUrl(options));
+  const adminTools = createAdminTools(options);
+
+  const createPostHandler =
+    (params: {tools: readonly AgentAccessTool[]; endpoint: 'customer' | 'admin'}) =>
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const customerContext = requireAgentAccessContext(request);
+      const context =
+        params.endpoint === 'admin'
+          ? {...customerContext, admin: {actorId: customerContext.userId}}
+          : customerContext;
+      const server = buildAgentAccessMcpServer({
+        context,
+        tools: params.tools,
+        rateLimiter,
+        actionRateLimiter,
+        auth: options.auth,
+        recordCall,
+        docs,
+        endpoint: params.endpoint,
+      });
+      // No sessionIdGenerator selects the SDK's stateless transport mode.
+      const transport = new StreamableHTTPServerTransport();
+      let connected = false;
+      let cleanedUp = false;
+
+      const cleanup = () => {
+        if (cleanedUp) return;
+        cleanedUp = true;
+        void transport.close().catch((error) => {
+          logger().error({err: error}, 'Failed to close agent-access transport');
+          reportError(error, {
+            boundary: 'agent-access.mcp',
+            operation: 'close-transport',
+          });
+        });
+        if (connected) {
+          void server.close().catch((error) => {
+            logger().error({err: error}, 'Failed to close agent-access server');
+            reportError(error, {
+              boundary: 'agent-access.mcp',
+              operation: 'close-server',
+            });
+          });
+        }
+      };
+
+      reply.raw.once('close', cleanup);
+      try {
+        await server.connect(transport as unknown as Transport);
+        connected = true;
+        reply.hijack();
+        await transport.handleRequest(request.raw, reply.raw, request.body);
+      } catch (error) {
+        cleanup();
+        throw error;
+      }
+    };
 
   return {
     prefix: '',
@@ -127,57 +192,53 @@ export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions 
         options: {bodyLimit: AGENT_ACCESS_MCP_BODY_LIMIT_BYTES},
         preAuth: createOriginGuard(originMatcher),
         errorHandler,
-        handler: async (request, reply) => {
-          const context = requireAgentAccessContext(request);
-          const server = buildAgentAccessMcpServer({
-            context,
-            tools,
-            rateLimiter,
-            actionRateLimiter,
-            auth: options.auth,
-            recordCall,
-            docs,
-          });
-          // No sessionIdGenerator selects the SDK's stateless transport mode.
-          const transport = new StreamableHTTPServerTransport();
-          let connected = false;
-          let cleanedUp = false;
-
-          const cleanup = () => {
-            if (cleanedUp) return;
-            cleanedUp = true;
-            void transport.close().catch((error) => {
-              logger().error({err: error}, 'Failed to close agent-access transport');
-              reportError(error, {
-                boundary: 'agent-access.mcp',
-                operation: 'close-transport',
-              });
-            });
-            if (connected) {
-              void server.close().catch((error) => {
-                logger().error({err: error}, 'Failed to close agent-access server');
-                reportError(error, {
-                  boundary: 'agent-access.mcp',
-                  operation: 'close-server',
-                });
-              });
-            }
-          };
-
-          reply.raw.once('close', cleanup);
-          try {
-            await server.connect(transport as unknown as Transport);
-            connected = true;
-            reply.hijack();
-            await transport.handleRequest(request.raw, reply.raw, request.body);
-          } catch (error) {
-            cleanup();
-            throw error;
-          }
-        },
+        handler: createPostHandler({tools, endpoint: 'customer'}),
       }),
+      ...(adminTools === undefined
+        ? []
+        : [
+            defineRoute({
+              method: 'GET',
+              path: AGENT_ACCESS_ADMIN_MCP_PATH,
+              description: 'Admin MCP endpoint does not provide an SSE GET stream.',
+              preAuth: createOriginGuard(originMatcher),
+              handler: methodNotAllowed,
+            }),
+            defineRoute({
+              method: 'DELETE',
+              path: AGENT_ACCESS_ADMIN_MCP_PATH,
+              description: 'Admin MCP endpoint does not provide DELETE session operations.',
+              preAuth: createOriginGuard(originMatcher),
+              handler: methodNotAllowed,
+            }),
+            defineRoute({
+              method: 'POST',
+              path: AGENT_ACCESS_ADMIN_MCP_PATH,
+              description: 'Stateless Streamable HTTP MCP endpoint for admin-only tools.',
+              auth: AUTH_AGENT_ACCESS,
+              options: {bodyLimit: AGENT_ACCESS_MCP_BODY_LIMIT_BYTES},
+              preAuth: createOriginGuard(originMatcher),
+              errorHandler,
+              handler: createPostHandler({tools: adminTools, endpoint: 'admin'}),
+            }),
+          ]),
     ],
   };
+}
+
+function createAdminTools(
+  options: CreateAgentAccessRoutesOptions,
+): readonly AgentAccessTool[] | undefined {
+  if (!(options.adminMcpEnabled ?? config.AGENT_ACCESS_ADMIN_MCP_ENABLED)) return undefined;
+  if (options.auth === undefined || options.workspaces === undefined) {
+    throw new Error('The admin MCP endpoint requires the auth and workspaces clients');
+  }
+  const tools = [
+    ...createAgentAccessAdminTools({auth: options.auth, workspaces: options.workspaces}),
+    ...(options.additionalAdminTools ?? []),
+  ];
+  createAgentAccessToolMap(tools);
+  return tools;
 }
 
 let sharedDocs: DocsCache | undefined;

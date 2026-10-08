@@ -69,10 +69,11 @@ export interface DefaultModulesOptions {
   agentModuleOptions?: DefaultAgentModuleOptions | undefined;
   runnersModuleOptions?: DefaultRunnersModuleOptions | undefined;
   workflowsModuleOptions?: DefaultWorkflowsModuleOptions | undefined;
-  /** Appends composition-root tools to the standard Agent Access tool list. */
+  /** Appends composition-root tools to the standard Agent Access tool lists. */
   agentAccess?:
     | {
         additionalTools?: readonly AgentAccessTool[] | undefined;
+        additionalAdminTools?: readonly AgentAccessTool[] | undefined;
       }
     | undefined;
   authModuleFactory?: DefaultAuthModuleFactory | undefined;
@@ -462,6 +463,7 @@ export async function defaultModules(
       projects: projectsClient,
       triggers: triggersClient,
       workflows: workflowsClient,
+      workspaces: workspacesClient,
       integrations: integrationsClient,
       secrets: secretsClient,
       templates: shippedTemplateLoader,

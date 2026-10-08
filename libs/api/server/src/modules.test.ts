@@ -508,6 +508,7 @@ describe('defaultModules', () => {
       templates: expect.any(Object),
       triggers: expect.any(Object),
       workflows: expect.any(Object),
+      workspaces: expect.any(Object),
     });
   });
 
@@ -552,6 +553,7 @@ describe('defaultModules', () => {
       templates: expect.any(Object),
       triggers: expect.any(Object),
       workflows: expect.any(Object),
+      workspaces: expect.any(Object),
       additionalTools,
     });
   });
