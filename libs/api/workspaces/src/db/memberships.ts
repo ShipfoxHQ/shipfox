@@ -112,6 +112,47 @@ export async function listMembershipsByUser(params: {
   }));
 }
 
+/**
+ * Lists the given workspaces as memberships of one user. A workspace the user
+ * holds no membership row in still yields an entry, identified by the
+ * workspace: an impersonation window grants access through the session token
+ * only and never writes a membership.
+ */
+export async function listSessionMembershipsByWorkspaces(params: {
+  userId: string;
+  userEmail: string;
+  userName: string | null;
+  workspaceIds: readonly string[];
+}): Promise<MembershipWithWorkspace[]> {
+  if (params.workspaceIds.length === 0) return [];
+  const rows = await db()
+    .select({workspace: workspaces, membership: memberships})
+    .from(workspaces)
+    .leftJoin(
+      memberships,
+      and(eq(memberships.workspaceId, workspaces.id), eq(memberships.userId, params.userId)),
+    )
+    .where(inArray(workspaces.id, [...params.workspaceIds]))
+    .orderBy(workspaces.name);
+
+  return rows.map((row) => ({
+    ...(row.membership
+      ? toMembership(row.membership)
+      : {
+          id: row.workspace.id,
+          userId: params.userId,
+          userEmail: params.userEmail,
+          userName: params.userName,
+          workspaceId: row.workspace.id,
+          createdAt: row.workspace.createdAt,
+          updatedAt: row.workspace.updatedAt,
+        }),
+    workspaceName: row.workspace.name,
+    workspaceSlug: row.workspace.slug,
+    workspaceStatus: row.workspace.status,
+  }));
+}
+
 export interface MembershipWithUser extends Membership {
   userEmail: string;
   userName: string | null;
