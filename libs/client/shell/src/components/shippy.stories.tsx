@@ -3,7 +3,6 @@ import type {Meta, StoryObj} from '@storybook/react';
 import {Shippy, type ShippyPose} from './shippy.js';
 
 const POSES: readonly ShippyPose[] = [
-  'welcome',
   'bench',
   'nameplate',
   'lost',
@@ -19,7 +18,7 @@ const meta = {
   title: 'Shell/Shippy',
   component: Shippy,
   parameters: {layout: 'centered'},
-  args: {pose: 'welcome', className: 'h-104'},
+  args: {pose: 'bench', className: 'h-104'},
   argTypes: {pose: {control: 'select', options: POSES}},
 } satisfies Meta<typeof Shippy>;
 
@@ -47,7 +46,7 @@ export const Sizes: Story = {
   render: () => (
     <div className="flex items-end gap-region">
       <Shippy pose="lost" className="h-160" />
-      <Shippy pose="welcome" className="h-104" />
+      <Shippy pose="bench" className="h-104" />
       <Shippy pose="lot" className="h-96" />
       <Shippy pose="party" className="h-56" />
     </div>

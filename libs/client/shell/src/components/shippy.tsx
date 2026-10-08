@@ -3,11 +3,6 @@ import {cn} from '@shipfox/react-ui/utils';
 // `new URL(..., import.meta.url)` keeps each file a static asset reference the
 // bundler can fingerprint, and it resolves the same from `src` and from `dist`.
 const poses = {
-  welcome: {
-    width: 230,
-    height: 240,
-    src: new URL('../../assets/shippy/welcome.webp', import.meta.url).href,
-  },
   bench: {
     width: 295,
     height: 240,

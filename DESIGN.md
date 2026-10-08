@@ -838,11 +838,11 @@ appending 50 lines a second with an entrance animation is nausea.
 - **`ShipfoxLoader`** is the brand spinner for page-level and blocking loads; the
   inline `Icon name="spinner"` goes inside buttons and small spots.
 - **`Shippy`** is the mascot illustration. It appears only where a screen has
-  nothing else to show: sign-up and invitation screens, first-use empty states,
-  dead-end pages, and the completed setup checklist. Show one pose per screen at
-  most. Never place it in a list, a log, a graph, a transcript, a filtered-empty
-  state, a load error inside a panel, or anywhere a run has failed. `EmptyState`
-  and `AuthShell` take it through their `illustration` prop.
+  nothing else to show: invitation and workspace creation screens, first-use
+  empty states, dead-end pages, and the completed setup checklist. Show one pose
+  per screen at most. Never place it in a list, a log, a graph, a transcript, a
+  filtered-empty state, a load error inside a panel, or anywhere a run has
+  failed. `EmptyState` and `AuthShell` take it through their `illustration` prop.
 
 ## Do's and Don'ts
 
