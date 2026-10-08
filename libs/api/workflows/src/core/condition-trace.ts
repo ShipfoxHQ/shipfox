@@ -13,6 +13,9 @@ import type {PersistedEvaluationTraceEntry} from './entities/step.js';
 const DEFAULT_JOB_CONDITION_SOURCE = 'needs.all(n, n.status == "succeeded")';
 const SUCCESS_STEP_CONDITION_SOURCE = '!execution.failed';
 const FAILURE_STEP_CONDITION_SOURCE = 'execution.failed';
+/** Reported when a condition cannot be filled at its site, so no evaluation error exists. */
+export const UNFILLABLE_CONDITION_SUMMARY =
+  'The condition reads a value that is not available here.';
 const SOURCE_PATH = /^(steps|jobs|needs)\.([A-Za-z_][A-Za-z0-9_]*)(?:\.|$)/;
 
 export function explicitConditionTrace(params: {

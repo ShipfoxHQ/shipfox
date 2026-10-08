@@ -379,13 +379,14 @@ async function evaluateJobActivationTarget(
     status: decision.status,
     expectedVersion,
     statusReason: decision.statusReason,
+    ...(decision.kind === 'fail-job' ? {statusReasonMessage: decision.statusReasonMessage} : {}),
     evaluationTrace: decision.evaluationTrace,
   });
   if (updated) {
     return {
       kind: 'terminal-job',
       jobId: job.id,
-      status: 'skipped',
+      status: decision.status,
       jobVersion: updated.job.version,
       changed: updated.changed,
     };
@@ -456,6 +457,8 @@ export interface UpdateJobStatusAtVersionParams {
   status: JobStatus;
   expectedVersion: number;
   statusReason?: JobStatusReason | null | undefined;
+  /** For a job that ends without an execution. Otherwise the latest execution's message is used. */
+  statusReasonMessage?: string | null | undefined;
   evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | null | undefined;
 }
 
@@ -518,7 +521,8 @@ export async function updateJobStatusAtVersion(
         finishedAt: job.updatedAt.toISOString(),
         status: job.status,
         statusReason: job.statusReason,
-        statusReasonMessage: currentExecution?.statusReasonMessage ?? null,
+        statusReasonMessage:
+          currentExecution?.statusReasonMessage ?? params.statusReasonMessage ?? null,
       },
     });
   }

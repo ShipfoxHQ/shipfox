@@ -100,6 +100,13 @@ const STEP_FAILURE_CASES = [
       'Shipfox cannot compute a value in this step. Fix the expression, then start a new run.',
   },
   {
+    reason: 'condition_errored',
+    type: 'run',
+    title: 'A step condition has an error',
+    description:
+      'Shipfox cannot evaluate the `if` of this step. Fix the condition, then start a new run.',
+  },
+  {
     reason: 'output_invalid',
     type: 'run',
     title: 'The step output has the wrong shape',
@@ -358,6 +365,49 @@ describe('failure annotations', () => {
         originStepAttempt: payload.attempt,
         context: `failure:step:${payload.stepId}`,
         annotation: expect.objectContaining({op: 'replace', style: 'error'}),
+      }),
+    );
+  });
+
+  it('names the step and the cause when its if condition cannot be evaluated', async () => {
+    const payload = stepAttemptTerminatedPayload();
+    const step = stepEntity({
+      id: payload.stepId,
+      jobExecutionId: JOB_EXECUTION_ID,
+      key: 'deploy',
+      status: 'failed',
+    });
+    const attempt = stepAttemptEntity({
+      stepId: step.id,
+      status: 'failed',
+      error: {
+        reason: 'condition_errored',
+        field: 'step.if',
+        summary: 'No such key: sha',
+        message: 'internal runtime detail',
+      },
+    });
+    dbMocks.getStepAttemptDetail.mockResolvedValue({
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
+      step,
+      attempt,
+    });
+    dbMocks.getWorkflowRunAttemptById.mockResolvedValue({attempt: 1});
+
+    await onStepAttemptTerminatedFailureAnnotation(annotations)(payload);
+
+    expect(replaceOrRemoveAnnotation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotation: {
+          op: 'replace',
+          style: 'error',
+          body: [
+            '**A step condition has an error**',
+            '',
+            "The `if` of step `deploy` can't be evaluated: No such key: sha. Fix the condition, then start a new run.",
+          ].join('\n'),
+        },
       }),
     );
   });

@@ -228,6 +228,9 @@ export function emptyStateForMissingExecution(job: Job): StepListEmptyState {
 }
 
 function missingExecutionFailureDescription(job: Job): string {
+  if (job.statusReason === 'condition_errored') {
+    return skippedJobDescription(job.statusReason, job.evaluationTrace);
+  }
   if (job.mode === 'listening' && job.statusReason === 'output_too_large') {
     return LISTENER_FILTER_SNAPSHOT_TOO_LARGE_DESCRIPTION;
   }

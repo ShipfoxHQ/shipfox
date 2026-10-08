@@ -349,6 +349,35 @@ describe('workflow diagnostic agent-access tools', () => {
     expect(getStepAttemptResultSchema.safeParse(result).success).toBe(true);
   });
 
+  test('returns condition_errored as the reason of a step whose if cannot be evaluated', async () => {
+    const mocks = clients();
+    mocks.getWorkflowStepAttemptDetail.mockResolvedValue(
+      stepAttemptDetail({
+        error: {
+          message: "The `if` of step `deploy` can't be evaluated: No such key: sha.",
+          reason: 'condition_errored',
+          field: 'step.if',
+          summary: 'No such key: sha',
+          job_key: 'build',
+          step_index: 2,
+        },
+      }),
+    );
+
+    const response = await tool(mocks, 'get_step_attempt').execute({
+      context,
+      arguments: {step_id: stepId},
+    });
+    const result = success<GetStepAttemptResultDto>(response);
+
+    expect(result.error).toMatchObject({
+      reason: 'condition_errored',
+      field: 'step.if',
+      summary: 'No such key: sha',
+    });
+    expect(getStepAttemptResultSchema.safeParse(result).success).toBe(true);
+  });
+
   test('omits an absent step attempt from the producer request', async () => {
     const mocks = clients();
     mocks.getWorkflowStepAttemptDetail.mockResolvedValue(stepAttemptDetail());

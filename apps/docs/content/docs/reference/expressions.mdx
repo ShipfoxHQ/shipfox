@@ -79,7 +79,8 @@ execution_name: 'Deploy #${{ run.number }}'
 Static checking rejects incompatible known types rather than treating them as a
 false result. Dynamic values are checked when the expression runs, and numeric
 comparisons support both `int` and `double`. A predicate that errors never
-passes.
+passes. When the `if` of a job or step errors, the job or step fails and the
+message names the cause. It is not skipped.
 
 ## Functions and macros
 
@@ -106,8 +107,10 @@ passes.
 | `fromJson(string)` | `fromJson(event.payload)` | The JSON text parsed into a dynamic CEL value |
 
 `list.first()` and `list.last()` keep the element's type. Calling either method
-on an empty list causes an evaluation error. Workflow job and step conditions
-record that outcome as errored rather than rejected.
+on an empty list causes an evaluation error. A job or step `if` that hits one
+fails the job or step with the reason `condition_errored`, and the steps that
+run by default after it are skipped. Guard a value that may be missing with
+`has()`, as in `has(steps.build.outputs.sha) && steps.build.outputs.sha != ""`.
 
 `range()` accepts a positive step and can materialize at most 1,000 values and
 1,000,000 context-byte fan-out units in one evaluation. `toJson()` can produce

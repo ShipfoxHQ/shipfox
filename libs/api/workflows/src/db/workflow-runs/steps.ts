@@ -153,6 +153,8 @@ export interface StepAttemptDetail {
  */
 export interface StepAttemptDetailStep {
   id: string;
+  key: string | null;
+  name: string;
   jobExecutionId: string;
   status: StepStatus;
   type: StepType;
@@ -242,6 +244,8 @@ export async function getStepAttemptDetail(params: {
       jobExecutionId: jobExecutions.id,
       step: {
         id: steps.id,
+        key: steps.key,
+        name: steps.name,
         jobExecutionId: steps.jobExecutionId,
         status: steps.status,
         type: steps.type,

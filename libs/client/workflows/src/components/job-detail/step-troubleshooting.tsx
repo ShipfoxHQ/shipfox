@@ -1023,7 +1023,7 @@ function failureTitle(reason: string | JobStatusReason, error: StepError | null)
     case 'default_gate_rejected':
       return 'A needed job failed';
     case 'condition_errored':
-      return 'The job condition has an error';
+      return 'A step condition has an error';
     case 'user_cancelled':
       return 'A user cancelled this job';
     case 'run_cancelled':
@@ -1147,10 +1147,10 @@ function failureDescription(
     case 'condition_rejected':
       return 'The if condition of this job is false.';
     case 'condition_errored':
-      return (
-        conditionErrorDescription(step.evaluationTrace) ??
-        'Shipfox cannot evaluate the if condition. Fix it, then start a new run.'
-      );
+      return error?.message
+        ? `${error.message} Fix the condition, then start a new run.`
+        : (conditionErrorDescription(step.evaluationTrace) ??
+            'Shipfox cannot evaluate the if condition of this step. Fix it, then start a new run.');
     case 'default_gate_rejected':
       return 'This job needs another job that did not succeed.';
     case 'step_failed':

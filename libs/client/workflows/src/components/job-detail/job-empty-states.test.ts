@@ -358,6 +358,47 @@ describe('materialized output failure descriptions', () => {
     });
   });
 
+  test('names the missing value of a job that failed on its condition', () => {
+    expect(
+      emptyStateForMissingExecution(
+        workflowJob({
+          status: 'failed',
+          status_reason: 'condition_errored',
+          evaluation_trace: [
+            {
+              expression: 'jobs.write.outputs.created_branch != ""',
+              roots: ['jobs'],
+              fill_target: 'job-activation',
+              evaluated_at: 'job-activation',
+              field: 'job.if',
+              degraded: true,
+              error: {
+                message: 'No such key: created_branch',
+                path: 'jobs.write.outputs.created_branch',
+                source: {kind: 'job', key: 'write', status: 'skipped'},
+              },
+            },
+          ],
+        }),
+      ),
+    ).toMatchObject({
+      title: 'The job failed before it started',
+      description:
+        '`jobs.write.outputs.created_branch` has no value because job `write` was skipped.',
+    });
+  });
+
+  test('keeps the generic copy for a failed job condition without a stored error', () => {
+    expect(
+      emptyStateForMissingExecution(
+        workflowJob({status: 'failed', status_reason: 'condition_errored'}),
+      ),
+    ).toMatchObject({
+      description:
+        'Shipfox cannot evaluate the if condition of this job. Fix it, then start a new run.',
+    });
+  });
+
   test('explains an oversized listener filter snapshot without an execution', () => {
     expect(
       emptyStateForMissingExecution(

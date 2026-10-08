@@ -67,6 +67,9 @@ function skippedJobSummary(
 }
 
 function failedJobSummary(explanation: RunJobExplanation): string {
+  if (explanation.statusReason === 'condition_errored') {
+    return skippedJobSummary(explanation.statusReason, explanation.evaluationTrace);
+  }
   const successConditionTrace = explanation.evaluationTrace?.filter(
     (entry) => !('dropped' in entry) && entry.field === 'job.success',
   );
