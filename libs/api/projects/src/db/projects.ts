@@ -451,6 +451,8 @@ export interface ResolveCheckoutTargetParams {
 export interface ResolvedCheckoutTarget {
   projectId: string;
   connectionId: string;
+  sourceRepositoryOwner: string | null;
+  sourceRepositoryName: string | null;
   target: {kind: 'external-id'; externalRepositoryId: string};
 }
 
@@ -462,6 +464,8 @@ export async function resolveCheckoutTarget(
       projectId: projects.id,
       connectionId: projects.sourceConnectionId,
       externalRepositoryId: projects.sourceExternalRepositoryId,
+      sourceRepositoryOwner: projects.sourceRepositoryOwner,
+      sourceRepositoryName: projects.sourceRepositoryName,
     })
     .from(projects)
     .where(
@@ -473,6 +477,8 @@ export async function resolveCheckoutTarget(
     : {
         projectId: project.projectId,
         connectionId: project.connectionId,
+        sourceRepositoryOwner: project.sourceRepositoryOwner,
+        sourceRepositoryName: project.sourceRepositoryName,
         target: {kind: 'external-id', externalRepositoryId: project.externalRepositoryId},
       };
 }

@@ -815,6 +815,39 @@ describe('createStepCheckoutSpec', () => {
     });
   });
 
+  it('records the repository of an explicit checkout.project', async () => {
+    const project = projectFactory.build();
+    const targetProjectId = crypto.randomUUID();
+    const targetConnectionId = crypto.randomUUID();
+    getProjectById.mockResolvedValue({project});
+    resolveCheckoutTarget.mockResolvedValue({
+      projectId: targetProjectId,
+      connectionId: targetConnectionId,
+      sourceRepositoryOwner: 'partner',
+      sourceRepositoryName: 'widgets',
+      target: {kind: 'external-id', externalRepositoryId: 'external-widgets'},
+    });
+    createCheckoutSpec.mockRejectedValue(new Error('provider failed'));
+    const failure: CheckoutFailureTarget = {};
+
+    const act = createStepCheckoutSpec({
+      run: syncedRun,
+      step: checkoutStep({project: targetProjectId}),
+      workspaceId: project.workspaceId,
+      projectId: project.id,
+      integrations: integrations as IntegrationsModuleClient,
+      projects: projects as ProjectsModuleClient,
+      failure,
+    });
+
+    await expect(act).rejects.toThrow('provider failed');
+    expect(failure).toMatchObject({
+      connectionId: targetConnectionId,
+      project: targetProjectId,
+      repository: 'partner/widgets',
+    });
+  });
+
   it('throws when the run project is missing', async () => {
     const projectId = crypto.randomUUID();
     getProjectById.mockResolvedValue({project: null});

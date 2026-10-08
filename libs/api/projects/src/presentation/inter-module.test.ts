@@ -311,6 +311,8 @@ describe('Projects checkout target inter-module presentation', () => {
     ).resolves.toEqual({
       projectId: project.projectId,
       connectionId: project.connectionId,
+      sourceRepositoryOwner: 'acme',
+      sourceRepositoryName: 'api',
       target: {
         kind: 'external-id',
         externalRepositoryId: project.externalRepositoryId,

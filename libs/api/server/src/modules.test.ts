@@ -261,6 +261,8 @@ describe('defaultModules', () => {
           resolveCheckoutTarget: () => ({
             projectId: crypto.randomUUID(),
             connectionId: crypto.randomUUID(),
+            sourceRepositoryOwner: null,
+            sourceRepositoryName: null,
             target: {kind: 'external-id' as const, externalRepositoryId: 'repo'},
           }),
         }),
