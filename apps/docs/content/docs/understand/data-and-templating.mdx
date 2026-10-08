@@ -104,11 +104,20 @@ outputs:
 
 A later job reads this value as `jobs.package.outputs.release`.
 
-When a step declares a JSON array or object, an exported output keeps that
-structure for later jobs. So does a job output that maps exactly one
-expression. A later expression such as
-`jobs.review.outputs.findings[0].severity` can then read a nested field. A
-template that mixes text and expressions still produces a string.
+An output can hold a list or an object. Declare this output with the type
+`json`.
+
+A later job can then read one part of the value. For example,
+`jobs.review.outputs.findings[0].severity` reads the `severity` field of the
+first finding.
+
+A job output keeps the list or the object in two cases:
+
+- The step exports the output.
+- A line of the job `outputs` map contains one expression and no other text.
+
+If a line of the map mixes text and expressions, the job output is text. A
+later job can't read one part of it.
 
 Interpolation writes a list or a map as JSON text. To pass one to a shell
 command, put it in `env` and parse the environment variable. You don't need to
