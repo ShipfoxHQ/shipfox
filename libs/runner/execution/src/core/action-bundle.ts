@@ -1,19 +1,22 @@
-import {access, mkdir, mkdtemp, rename, rm, writeFile} from 'node:fs/promises';
+import {access, chmod, mkdir, mkdtemp, readdir, rename, rm, writeFile} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
 import {decodeActionBundle} from '@shipfox/workflow-document';
 
 const READ_ONLY_FILE_MODE = 0o444;
+const SHARED_DIRECTORY_MODE = 0o755;
 const MODULE_PACKAGE_JSON = `${JSON.stringify({type: 'module'})}\n`;
 
 /**
  * Extracts an action bundle once per job execution to `<job temp>/actions/<digest>/` and returns
  * that directory. `load` runs only on the first use of a digest. The digest is checked before any
- * file is written, and a partial extraction is never reused.
+ * file is written, and a partial extraction is never reused. `shared` lets any user read it, for
+ * an action that runs as another user than the runner.
  */
 export async function prepareActionBundle(params: {
   jobTempDir: string;
   digest: string;
   load: () => Promise<Uint8Array>;
+  shared?: boolean;
 }): Promise<string> {
   const actionsDir = join(params.jobTempDir, 'actions');
   const target = join(actionsDir, params.digest.replace(':', '-'));
@@ -34,6 +37,7 @@ export async function prepareActionBundle(params: {
         mode: READ_ONLY_FILE_MODE,
       });
     }
+    if (params.shared) await shareBundle({actionsDir, staging});
     await rename(staging, target);
   } catch (error) {
     await rm(staging, {recursive: true, force: true});
@@ -42,6 +46,20 @@ export async function prepareActionBundle(params: {
     throw error;
   }
   return target;
+}
+
+// The umask cuts down the mode of every file and directory created above, and `mkdtemp` makes
+// the staging directory private, so a user other than the runner's needs them opened again.
+async function shareBundle(params: {actionsDir: string; staging: string}): Promise<void> {
+  await chmod(params.actionsDir, SHARED_DIRECTORY_MODE);
+  await chmod(params.staging, SHARED_DIRECTORY_MODE);
+  const entries = await readdir(params.staging, {recursive: true, withFileTypes: true});
+  for (const entry of entries) {
+    await chmod(
+      join(entry.parentPath, entry.name),
+      entry.isDirectory() ? SHARED_DIRECTORY_MODE : READ_ONLY_FILE_MODE,
+    );
+  }
 }
 
 async function exists(path: string): Promise<boolean> {

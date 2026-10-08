@@ -669,6 +669,45 @@ describe('runJobSteps', () => {
       });
     });
 
+    it('runs the action steps that follow in the container, with the container Git config', async () => {
+      const setup = containerSetup();
+      const action = buildStep({
+        id: '00000000-0000-0000-0000-0000000000e2',
+        type: 'action',
+        config: {},
+        position: 1,
+      });
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(setup, 1))
+        .mockResolvedValueOnce(stepResponse(action, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeSetupStepMock.mockResolvedValueOnce({
+        result: {success: true, error: null, exit_code: 0},
+        ambientGitConfigPath: '/runner-cred/job-1/ambient.config',
+        container: {
+          name: 'shipfox-job-1',
+          env: {LICENSE: 'license-secret'},
+          runnerInstallDir: '/srv/runner',
+          gitConfigPath: `${JOB_TEMP_DIR}/container-gitconfig`,
+        },
+      });
+      executeActionStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+      requestActionBundleMock.mockResolvedValue(new Uint8Array());
+      containerHosts.length = 0;
+
+      await runLoop({signal: new AbortController().signal});
+
+      const options = executeActionStepMock.mock.calls[0]?.[1];
+      expect(options).toMatchObject({
+        host: containerHosts[0],
+        container: {
+          runnerInstallDir: '/srv/runner',
+          env: {PATH: '/usr/local/bin:/usr/bin', LICENSE: 'license-secret'},
+        },
+      });
+      expect(options.gitConfigGlobal).toBe(`${JOB_TEMP_DIR}/container-gitconfig`);
+    });
+
     describe('agent steps', () => {
       function runAgentInContainer(harness: 'claude' | 'pi', containerExtras = {}) {
         requestAgentRuntimeConfigMock.mockResolvedValue({

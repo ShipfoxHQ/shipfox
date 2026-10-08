@@ -22,6 +22,7 @@ import {interruptibleSleep, nextBackoffInterval, withJitter} from '@shipfox/node
 import {redactSecrets} from '@shipfox/redact';
 import {ContainerExecutionHost} from '@shipfox/runner-container';
 import {
+  type ActionStepOptions,
   type ActionToolsUpstream,
   type CheckoutDestination,
   type CheckoutDestinations,
@@ -1772,6 +1773,19 @@ async function agentPlacementOptions(input: Parameters<typeof executeStep>[0]): 
   };
 }
 
+async function containerActionOptions(
+  container: JobContainerRuntime,
+): Promise<Pick<ActionStepOptions, 'host' | 'container'>> {
+  const {path} = await container.host.probe();
+  return {
+    host: container.host,
+    container: {
+      runnerInstallDir: container.runnerInstallDir,
+      env: {...(path === '' ? {} : {PATH: path}), ...container.env},
+    },
+  };
+}
+
 async function executeActionStepBranch(params: ProcessStepBranchParams): Promise<StepExecution> {
   const input = params.params;
   const opening = await openProcessStep(params);
@@ -1800,7 +1814,8 @@ async function executeActionStepBranch(params: ProcessStepBranchParams): Promise
     jobId: input.jobContext.jobId,
     loadBundle: () =>
       requestActionBundle(input.leaseClient, {stepId: input.step.id, signal: input.signal}),
-    ...(input.ambientGitConfigPath ? {gitConfigGlobal: input.ambientGitConfigPath} : {}),
+    ...(input.container ? await containerActionOptions(input.container) : {}),
+    ...gitConfigGlobalOption(input),
     ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
     ...(secretMaterial
       ? {secretEnv: secretMaterial.secretEnv, secretInputs: secretMaterial.secretInputs}
