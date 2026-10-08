@@ -8,11 +8,17 @@ A step can set an environment variable for the steps that run after it in the
 same job. A step can also add a directory to `PATH` for these steps. Use this
 when one step installs a program or calculates a value that later steps need.
 
-Each step starts a new process. A shell `export` or a change to `PATH` ends
-when the step ends. To keep a change, write it to one of two files:
-`$SHIPFOX_ENV` for environment variables and `$SHIPFOX_PATH` for `PATH`
-directories. Shipfox reads these files when the step ends and applies them to
-the later steps.
+Each step runs in a new shell. When the step ends, the shell closes. The
+variables that the step set with `export` are lost. The changes that the step
+made to `PATH` are also lost.
+
+To keep a value for the later steps, write the value to a file:
+
+- Write an environment variable to the file `$SHIPFOX_ENV`.
+- Write a `PATH` directory to the file `$SHIPFOX_PATH`.
+
+When the step ends, Shipfox reads the two files. Shipfox then gives the values
+to each later step of the job.
 
 The example below installs Nix in one step and runs it in the next step. For
 your own case, keep the two `echo` lines. Change the variable, the directory,
