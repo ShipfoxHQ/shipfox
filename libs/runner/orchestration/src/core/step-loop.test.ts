@@ -697,22 +697,22 @@ describe('runJobSteps', () => {
         return runLoop({signal: new AbortController().signal});
       }
 
-      it.each(['claude', 'pi'] as const)(
-        'starts %s in the container from the container environment, without the runner Git config',
-        async (harness) => {
-          await runAgentInContainer(harness);
+      it.each([
+        'claude',
+        'pi',
+      ] as const)('starts %s in the container from the container environment, without the runner Git config', async (harness) => {
+        await runAgentInContainer(harness);
 
-          const options = executeAgentStepMock.mock.calls[0]?.[1];
-          expect(containerHosts).toHaveLength(1);
-          expect(options.host).toBe(containerHosts[0]);
-          expect(options.container).toEqual({
-            env: {PATH: '/usr/local/bin:/usr/bin', LICENSE: 'license-secret'},
-            shell: '/usr/bin/bash',
-            runnerInstallDir: '/opt/runner',
-          });
-          expect(options).not.toHaveProperty('gitConfigGlobal');
-        },
-      );
+        const options = executeAgentStepMock.mock.calls[0]?.[1];
+        expect(containerHosts).toHaveLength(1);
+        expect(options.host).toBe(containerHosts[0]);
+        expect(options.container).toEqual({
+          env: {PATH: '/usr/local/bin:/usr/bin', LICENSE: 'license-secret'},
+          shell: '/usr/bin/bash',
+          runnerInstallDir: '/opt/runner',
+        });
+        expect(options).not.toHaveProperty('gitConfigGlobal');
+      });
 
       it.each(['claude', 'pi'] as const)('gives %s the container Git config', async (harness) => {
         await runAgentInContainer(harness, {gitConfigPath: `${JOB_TEMP_DIR}/container-gitconfig`});

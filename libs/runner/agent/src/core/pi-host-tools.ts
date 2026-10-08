@@ -179,7 +179,10 @@ export function createBashOperations(
 
 function shellArgv(
   command: string,
-  options: {shellPath: string | undefined; container?: Pick<AgentJobContainer, 'shell'> | undefined},
+  options: {
+    shellPath: string | undefined;
+    container?: Pick<AgentJobContainer, 'shell'> | undefined;
+  },
 ): [string, ...string[]] {
   if (options.container !== undefined) return [options.container.shell, '-c', command];
   const shell = getShellConfig(options.shellPath);

@@ -1748,9 +1748,7 @@ async function containerRunStepOptions(
 // The agent's tools start in the job container, from the container's own environment like a run
 // step. The Git config on the runner points at helpers on the runner, so the container gets its
 // own.
-async function agentPlacementOptions(
-  input: Parameters<typeof executeStep>[0],
-): Promise<
+async function agentPlacementOptions(input: Parameters<typeof executeStep>[0]): Promise<
   | {gitConfigGlobal?: string}
   | {
       host: ContainerExecutionHost;

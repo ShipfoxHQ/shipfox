@@ -115,6 +115,16 @@ describe.skipIf(!dockerAvailable())(`Pi host tools in a container (${IMAGE})`, (
     return result.content.map((part) => ('text' in part ? part.text : '')).join('');
   }
 
+  // The kill is asynchronous, and a killed process is still there until it is reaped.
+  async function expectProcessGone(pidFile: string) {
+    const pid = (await readFile(pidFile, 'utf8')).trim();
+    await vi.waitFor(async () => {
+      expect(
+        await call('bash', {command: `kill -0 ${pid} 2>/dev/null && echo alive || echo gone`}),
+      ).toBe('gone\n');
+    });
+  }
+
   it('runs a command that exists only in the image', async () => {
     const output = await call('bash', {command: '. /etc/os-release; echo "$VERSION_CODENAME"'});
 
@@ -171,10 +181,7 @@ describe.skipIf(!dockerAvailable())(`Pi host tools in a container (${IMAGE})`, (
       call('bash', {command: 'sleep 60 & echo $! > sleeper.pid; wait', timeout: 1}),
     ).rejects.toThrow('timed out');
 
-    const pid = (await readFile(join(workspaceDir, 'sleeper.pid'), 'utf8')).trim();
-    expect(
-      await call('bash', {command: `kill -0 ${pid} 2>/dev/null && echo alive || echo gone`}),
-    ).toBe('gone\n');
+    await expectProcessGone(join(workspaceDir, 'sleeper.pid'));
   });
 
   it('kills the process tree in the container when the call aborts', async () => {
@@ -191,9 +198,6 @@ describe.skipIf(!dockerAvailable())(`Pi host tools in a container (${IMAGE})`, (
     controller.abort();
 
     await expect(running).rejects.toThrow('aborted');
-    const pid = (await readFile(join(workspaceDir, 'aborted.pid'), 'utf8')).trim();
-    expect(
-      await call('bash', {command: `kill -0 ${pid} 2>/dev/null && echo alive || echo gone`}),
-    ).toBe('gone\n');
+    await expectProcessGone(join(workspaceDir, 'aborted.pid'));
   });
 });
