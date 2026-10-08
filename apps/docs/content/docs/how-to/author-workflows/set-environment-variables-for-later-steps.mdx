@@ -71,8 +71,9 @@ are not permitted in `$SHIPFOX_ENV`: `PATH`, and a name that starts with
 <Callout title="Values in $SHIPFOX_ENV are not masked" type="warn">
   Shipfox masks only the secrets it stores. A token that a command fetches and
   writes to `$SHIPFOX_ENV` appears in the logs of any later step that prints
-  it. Store the token as a [secret](/how-to/set-up-work/secrets-and-variables)
-  instead.
+  it. Don't print this token in a later step. If the token doesn't change
+  between runs, store it as a
+  [secret](/how-to/set-up-work/secrets-and-variables) instead.
 </Callout>
 
 ## Check which value a step gets

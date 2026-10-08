@@ -166,8 +166,8 @@ the value immediately before the step starts. The runner then hides the value
 in logs, outputs, and error messages.
 
 This masking has a limit. If a step changes a secret and then prints the
-result, the runner can't recognize it. For example, the runner doesn't hide a
-secret that a command encodes in Base64. Don't print a secret in any form.
+result, the runner can't always recognize it. Don't print a secret in any
+form.
 
 Integrations keep their credentials in a different way. See [Integrations,
 integration connections, and
