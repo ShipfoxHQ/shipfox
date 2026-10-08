@@ -43,18 +43,18 @@ jobs:
       - name: Install Nix
         run: |
           curl -L https://nixos.org/nix/install | sh -s -- --no-daemon
-          echo "$HOME/.nix-profile/bin" >> "$SHIPFOX_PATH"
+
+          # Sets the variable NIX_PATH for the later steps.
+          # Write one NAME=value on each line.
           echo "NIX_PATH=nixpkgs=channel:nixos-24.05" >> "$SHIPFOX_ENV"
+
+          # Adds the directory of the nix program to PATH for the later steps.
+          # Write one directory on each line.
+          echo "$HOME/.nix-profile/bin" >> "$SHIPFOX_PATH"
+
+      # This step finds the nix program and reads $NIX_PATH.
       - run: nix develop --command make test
 ```
-
-The first step does two things for the later steps:
-
-1. **It sets an environment variable.** It writes `NAME=value` to the file
-   `$SHIPFOX_ENV`. Write one variable on each line. Later steps read `$NAME`.
-2. **It adds a directory to `PATH`.** It writes the directory to the file
-   `$SHIPFOX_PATH`. Write one directory on each line. Later steps find the
-   programs in that directory.
 
 These steps get the values:
 
