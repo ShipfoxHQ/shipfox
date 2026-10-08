@@ -25,7 +25,9 @@ import {
   type WorkspacesInterModuleClient,
   workspacesInterModuleContract,
 } from '@shipfox/api-workspaces-dto/inter-module';
+import {defineFlags} from '@shipfox/feature-flags';
 import {defineInterModuleContract, defineInterModulePresentation} from '@shipfox/inter-module';
+import {createFeatureFlags} from '@shipfox/node-feature-flags';
 import type {
   DefaultAgentModuleFactory,
   DefaultAgentModuleOptions,
@@ -973,6 +975,79 @@ describe('defaultModules', () => {
     expect(mocks.createWorkflowsModule).toHaveBeenCalledWith(
       expect.objectContaining({admission: {policy}}),
     );
+  });
+
+  describe('feature flags', () => {
+    const testFlags = defineFlags({
+      'sample-cap': {kind: 'boolean', default: false, desc: 'Caps job duration in the sample.'},
+    });
+
+    function createCappingPolicy(flags: ReturnType<typeof createFeatureFlags>) {
+      return {
+        resolve: async ({workspaceId}: {workspaceId: string}) => ({
+          maxExecutionMs: (await flags.boolean(testFlags['sample-cap'], {workspaceId}))
+            ? 60_000
+            : null,
+          defaultExecutionMs: null,
+          mode: 'enforce' as const,
+        }),
+      };
+    }
+
+    it('lets a policy built before defaultModules read flags through the root instance', async () => {
+      const featureFlags = createFeatureFlags({env: {FLAG_SAMPLE_CAP: 'true'}});
+      const policy = createCappingPolicy(featureFlags);
+
+      await defaultModules({
+        featureFlags,
+        workflowsModuleOptions: {executionLimits: {policy}},
+      });
+
+      const composed = mocks.createWorkflowsModule.mock.calls[0]?.[0].executionLimits.policy;
+      const limits = await composed.resolve({
+        workspaceId: crypto.randomUUID(),
+        projectId: crypto.randomUUID(),
+        jobExecutionId: crypto.randomUUID(),
+      });
+      expect(limits.maxExecutionMs).toBe(60_000);
+    });
+
+    it('hands the root instance to the module factories', async () => {
+      const featureFlags = createFeatureFlags({env: {}});
+
+      await defaultModules({featureFlags});
+
+      expect(mocks.createDefinitionsModule).toHaveBeenCalledWith(
+        expect.objectContaining({flags: featureFlags}),
+      );
+    });
+
+    it('creates an instance with no provider when none is passed', async () => {
+      await defaultModules();
+
+      const flags = mocks.createDefinitionsModule.mock.calls[0]?.[0].flags;
+      expect(await flags.boolean(testFlags['sample-cap'])).toBe(false);
+    });
+
+    it('fails startup when two modules declare the same flag key', async () => {
+      const extension = () => [
+        {name: 'first', flags: testFlags},
+        {name: 'second', flags: testFlags},
+      ];
+
+      await expect(defaultModules({extension})).rejects.toThrow(
+        'Flag key "sample-cap" is declared more than once',
+      );
+    });
+
+    it('fails startup when a FLAG_ override is invalid', async () => {
+      const featureFlags = createFeatureFlags({env: {FLAG_SAMPLE_CAP: 'yes'}});
+      const extension = () => [{name: 'sample', flags: testFlags}];
+
+      await expect(defaultModules({featureFlags, extension})).rejects.toThrow(
+        'FLAG_SAMPLE_CAP is invalid',
+      );
+    });
   });
 
   it('extends the default module list with the composed subject clients', async () => {

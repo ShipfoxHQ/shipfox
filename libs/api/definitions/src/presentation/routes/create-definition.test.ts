@@ -6,6 +6,7 @@ import {
 } from '@shipfox/api-definitions-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
@@ -46,6 +47,7 @@ describe('POST /api/definitions', () => {
       buildCreateDefinitionRoute({
         projects: projects as ProjectsModuleClient,
         agent: agent as never,
+        flags: createTestFeatureFlags(),
         ...(integrations === undefined ? {} : {integrations}),
       }),
     );

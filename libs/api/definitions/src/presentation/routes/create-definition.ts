@@ -9,7 +9,9 @@ import {
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {z} from 'zod';
+import {readActionSupport} from '#core/action-support.js';
 import {collectRegistryRefs} from '#core/collect-registry-refs.js';
 import {limitDefinitionSyncDiagnostics} from '#core/entities/sync-state.js';
 import {DefinitionParseError} from '#core/errors.js';
@@ -28,6 +30,7 @@ export interface CreateDefinitionRouteOptions {
   projects: ProjectsModuleClient;
   agent: AgentInterModuleClient;
   integrations?: IntegrationsModuleClient;
+  flags: FeatureFlags;
 }
 
 export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions) {
@@ -63,12 +66,20 @@ export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions
       const agentValidationCatalog = await options.agent.getValidationCatalogV2({
         workspaceId: project.workspaceId,
       });
-      const structurallyParsed = parseDefinitionForCreate(yamlString, {agentValidationCatalog});
+      const actionSupport = await readActionSupport({
+        flags: options.flags,
+        workspaceId: project.workspaceId,
+      });
+      const structurallyParsed = parseDefinitionForCreate(yamlString, {
+        agentValidationCatalog,
+        ...actionSupport,
+      });
       const {integrations} = options;
       const parsed =
         integrations !== undefined && needsIntegrationValidationContext(structurallyParsed.document)
           ? parseDefinitionForCreate(yamlString, {
               agentValidationCatalog,
+              ...actionSupport,
               integrationValidationContext: await loadIntegrationValidationContext(
                 integrations,
                 project.workspaceId,

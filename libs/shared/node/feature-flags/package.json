@@ -1,18 +1,17 @@
 {
-  "name": "@shipfox/node-module",
+  "name": "@shipfox/node-feature-flags",
   "license": "MIT",
-  "version": "1.1.2",
+  "private": false,
+  "version": "0.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "libs/shared/node/module"
+    "directory": "libs/shared/node/feature-flags"
   },
-  "private": false,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
-    "#test/*": "./test/*",
     "#*": {
       "workspace-source": "./src/*",
       "default": "./dist/*"
@@ -29,24 +28,14 @@
         "default": "./dist/index.js"
       }
     },
-    "./inter-module": {
+    "./testing": {
       "workspace-source": {
-        "types": "./src/inter-module/index.ts",
-        "default": "./src/inter-module/index.ts"
+        "types": "./src/testing.ts",
+        "default": "./src/testing.ts"
       },
       "default": {
-        "types": "./dist/inter-module/index.d.ts",
-        "default": "./dist/inter-module/index.js"
-      }
-    },
-    "./inter-module/testing": {
-      "workspace-source": {
-        "types": "./src/inter-module/testing.ts",
-        "default": "./src/inter-module/testing.ts"
-      },
-      "default": {
-        "types": "./dist/inter-module/testing.d.ts",
-        "default": "./dist/inter-module/testing.js"
+        "types": "./dist/testing.d.ts",
+        "default": "./dist/testing.js"
       }
     }
   },
@@ -60,23 +49,16 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@openfeature/server-sdk": "catalog:",
     "@shipfox/feature-flags": "workspace:*",
-    "@shipfox/inter-module": "workspace:*",
-    "@shipfox/node-drizzle": "workspace:*",
-    "@shipfox/node-fastify": "workspace:*",
-    "@shipfox/node-error-monitoring": "workspace:*",
-    "@shipfox/node-opentelemetry": "workspace:*",
-    "@shipfox/node-outbox": "workspace:*",
-    "@shipfox/node-temporal": "workspace:*",
-    "@temporalio/activity": "catalog:",
-    "drizzle-orm": "catalog:",
-    "zod": "catalog:"
+    "@shipfox/node-opentelemetry": "workspace:*"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
-    "@shipfox/vitest": "workspace:*"
+    "@shipfox/vitest": "workspace:*",
+    "zod": "catalog:"
   }
 }

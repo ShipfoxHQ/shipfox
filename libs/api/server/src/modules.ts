@@ -46,6 +46,7 @@ import {
   workspacesInterModuleContract,
 } from '@shipfox/api-workspaces-dto/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
+import {createFeatureFlags, type FeatureFlags} from '@shipfox/node-feature-flags';
 import {durationToSeconds} from '@shipfox/node-jwt';
 import type {ModuleDatabase, ShipfoxModule} from '@shipfox/node-module';
 import {
@@ -56,6 +57,13 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {shippedTemplateLoader} from '@shipfox/workflow-templates';
 
 export interface DefaultModulesOptions {
+  /**
+   * The one flag reader for the application. Create it at the composition root,
+   * before `defaultModules`, so policies built earlier can read flags through the
+   * same instance. Without it, flags resolve from `FLAG_*` overrides and code
+   * defaults.
+   */
+  featureFlags?: FeatureFlags | undefined;
   webhookDeliverySource?: WebhookDeliverySource | undefined;
   authModuleOptions?: DefaultAuthModuleOptions | undefined;
   agentModuleOptions?: DefaultAgentModuleOptions | undefined;
@@ -131,6 +139,7 @@ export type DefaultModulesExtension = (options: {
 export async function defaultModules(
   options: DefaultModulesOptions = {},
 ): Promise<ShipfoxModule[]> {
+  const featureFlags = options.featureFlags ?? createFeatureFlags();
   const interModuleTransport = createInMemoryInterModuleTransport({
     reportInternalError: (error, context) => {
       logger().error(
@@ -380,6 +389,7 @@ export async function defaultModules(
     agent: agentClient,
     integrations: integrationsClient,
     registry: registryClient,
+    flags: featureFlags,
   });
   const extensionModules =
     options.extension?.({
@@ -500,6 +510,7 @@ export async function defaultModules(
     dispatcherModule,
     ...extensionModules,
   ];
+  featureFlags.validate(modules.flatMap((module) => Object.values(module.flags ?? {})));
   registerInterModulePresentations({transport: interModuleTransport, modules});
   interModuleTransport.seal();
   return modules;

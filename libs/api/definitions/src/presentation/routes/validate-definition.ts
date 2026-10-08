@@ -7,7 +7,9 @@ import {
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {defineRoute} from '@shipfox/node-fastify';
+import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {z} from 'zod';
+import {readActionSupport} from '#core/action-support.js';
 import {loadIntegrationValidationContext} from '#core/integrations.js';
 import {needsIntegrationValidationContext} from '#core/needs-integration-validation-context.js';
 import {validateDefinition} from '#core/validate-definition.js';
@@ -35,6 +37,7 @@ export function buildValidateDefinitionRoute(options: {
   agent: AgentInterModuleClient;
   projects: ProjectsModuleClient;
   integrations: IntegrationsModuleClient;
+  flags: FeatureFlags;
 }) {
   return defineRoute({
     method: 'POST',
@@ -54,8 +57,13 @@ export function buildValidateDefinitionRoute(options: {
           : await requireProjectAccess(request, projectId, options.projects);
       const workspaceId = project?.workspaceId ?? null;
       const agentValidationCatalog = await options.agent.getValidationCatalogV2({workspaceId});
+      const actionSupport = await readActionSupport({
+        flags: options.flags,
+        workspaceId,
+      });
       let result = validateDefinition(yaml, {
         agentValidationCatalog,
+        ...actionSupport,
       });
 
       if (result.valid && needsIntegrationValidationContext(result.definition.document)) {
@@ -74,6 +82,7 @@ export function buildValidateDefinitionRoute(options: {
 
         result = validateDefinition(yaml, {
           agentValidationCatalog,
+          ...actionSupport,
           integrationValidationContext: await loadIntegrationValidationContext(
             options.integrations,
             project.workspaceId,

@@ -88,7 +88,11 @@ const architecturePackages = {
   },
   'shared-infrastructure': {
     api: ['libs/api/auth-context', 'libs/api/dispatcher', 'libs/api/email-challenges'],
-    common: ['libs/shared/common/config', 'libs/shared/common/inter-module'],
+    common: [
+      'libs/shared/common/config',
+      'libs/shared/common/feature-flags',
+      'libs/shared/common/inter-module',
+    ],
     node: [
       'libs/shared/node/auth-root-key',
       'libs/shared/node/drizzle',
@@ -97,6 +101,7 @@ const architecturePackages = {
       'libs/shared/node/envelope-encryption',
       'libs/shared/node/error-monitoring',
       'libs/shared/node/fastify',
+      'libs/shared/node/feature-flags',
       'libs/shared/node/jwt',
       'libs/shared/node/log',
       'libs/shared/node/mailer',

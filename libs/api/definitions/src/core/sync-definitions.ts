@@ -9,7 +9,7 @@ import {
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {boundedMap} from '@shipfox/node-module';
 import type {WorkflowDocument} from '@shipfox/workflow-document';
-import {definitionActionsEnabled, definitionRegistryActionsEnabled} from '../config.js';
+import {actionSupportFor} from './action-support.js';
 import {checkActionImports} from './check-action-imports.js';
 import {collectActionReferences} from './collect-action-references.js';
 import {collectPromptFilePaths} from './collect-prompt-file-references.js';
@@ -128,11 +128,11 @@ export interface FetchAndParseWorkflowsParams extends SyncSourceContext {
   onProgress?: ((path: string) => void) | undefined;
   agentValidationCatalog: AgentValidationCatalogV2;
   loadIntegrationValidationContext?: (() => Promise<IntegrationValidationContext>) | undefined;
-  /** Accepts action steps (`uses`). Defaults to `DEFINITION_ACTIONS_ENABLED`. */
+  /** Accepts action steps (`uses`). Defaults to off; read the `definitions-actions` flag to set it. */
   actionsEnabled?: boolean | undefined;
   /**
-   * Accepts registry references in `uses`. Defaults to on when
-   * `DEFINITION_ACTIONS_ENABLED` is on and `REGISTRY_URL` is set.
+   * Accepts registry references in `uses`. Defaults to on when `actionsEnabled`
+   * is on and `REGISTRY_URL` is set.
    */
   registryActionsEnabled?: boolean | undefined;
   /** Resolves registry actions. Without it, a registry reference fails sync. */
@@ -155,8 +155,9 @@ export interface ParsedWorkflows {
 export async function fetchAndParseWorkflows(
   params: FetchAndParseWorkflowsParams,
 ): Promise<ParsedWorkflows> {
-  const actionsEnabled = params.actionsEnabled ?? definitionActionsEnabled;
-  const registryActionsEnabled = params.registryActionsEnabled ?? definitionRegistryActionsEnabled;
+  const support = actionSupportFor(params.actionsEnabled ?? false);
+  const actionsEnabled = support.actionsEnabled;
+  const registryActionsEnabled = params.registryActionsEnabled ?? support.registryActionsEnabled;
   const fetched = await boundedMap(
     params.paths,
     FILE_FETCH_CONCURRENCY,

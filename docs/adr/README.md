@@ -31,6 +31,7 @@ documentation model and other engineering sources, start with the
 | [0019: Collection navigation](0019-collection-navigation.md) | Proposed; amends ADR 0003 | The completeness rule for local sorting and filtering, the shared append footer contract, and feature-owned navigation state. |
 | [0020: Header actions chrome slot](0020-header-actions-chrome-slot.md) | Accepted; amends ADR 0001 | The optional routed application-header action slot and its error isolation. |
 | [0021: Required action rendering and intent slot](0021-required-action-rendering-and-intent-slot.md) | Accepted; amends ADR 0001 | The shared required action component, its URL rule, and the optional intent chrome slot. |
+| [0022: Feature flags seam](0022-feature-flags-seam.md) | Accepted; amends ADR 0004 | The two feature flag packages, the root-owned `FeatureFlags` instance, the resolution order, and the private OpenFeature boundary. |
 
 When a decision changes, add a new ADR that supersedes or amends the earlier
 record. Keep the original record intact so readers can understand why the

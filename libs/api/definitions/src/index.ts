@@ -18,6 +18,7 @@ import {
 } from '@shipfox/api-projects-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {RegistryInterModuleClient} from '@shipfox/api-registry-dto/inter-module';
+import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {createDefinitionsSourceControl} from '#core/integrations.js';
@@ -32,6 +33,7 @@ import {
 } from '#presentation/subscribers/index.js';
 import {createDefinitionSyncActivities, DEFINITIONS_TASK_QUEUE} from '#temporal/index.js';
 import {definitionWorkflowPath} from './config.js';
+import {definitionsFlags} from './flags.js';
 
 export type {
   HistoricalEventPayloadDependency,
@@ -64,6 +66,7 @@ export {
   getDefinitionById,
   migrationsPath,
 } from '#db/index.js';
+export {definitionsFlags} from './flags.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
@@ -77,6 +80,7 @@ export interface CreateDefinitionsModuleOptions {
   agent: AgentInterModuleClient;
   integrations: IntegrationsModuleClient;
   registry: RegistryInterModuleClient;
+  flags: FeatureFlags;
 }
 
 export function createDefinitionsModule({
@@ -84,13 +88,15 @@ export function createDefinitionsModule({
   agent,
   integrations,
   registry,
+  flags,
 }: CreateDefinitionsModuleOptions): ShipfoxModule {
   const sourceControl = createDefinitionsSourceControl(integrations);
 
   return {
     name: 'definitions',
     database: {db, migrationsPath, databaseNamespace: 'definitions'},
-    routes: createDefinitionRoutes({projects, agent, integrations, registry}),
+    flags: definitionsFlags,
+    routes: createDefinitionRoutes({projects, agent, integrations, registry, flags}),
     publishers: [
       {name: 'definitions', table: definitionsOutbox, db, eventSchemas: definitionsEventSchemas},
     ],
@@ -115,12 +121,13 @@ export function createDefinitionsModule({
           createDefinitionSyncActivities(sourceControl, agent, integrations, {
             workflowPath: definitionWorkflowPath,
             registry,
+            flags,
           }),
         workflows: [],
       },
     ],
     interModulePresentations: [
-      createDefinitionsInterModulePresentation({projects, agent, integrations, registry}),
+      createDefinitionsInterModulePresentation({projects, agent, integrations, registry, flags}),
     ],
   };
 }

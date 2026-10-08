@@ -340,9 +340,9 @@ export function e2eEnv(sourceEnv) {
     // harness-defaulted deployment is not bootstrap-able by anyone with
     // repository access.
     AUTH_IMPERSONATION_ENABLED: valueOr(sourceEnv.AUTH_IMPERSONATION_ENABLED, 'true'),
-    // Workflow actions stay dark in production until launch. Its `devDefault` does not
-    // apply here, because the E2E API runs without NODE_ENV.
-    DEFINITION_ACTIONS_ENABLED: valueOr(sourceEnv.DEFINITION_ACTIONS_ENABLED, 'true'),
+    // Workflow actions stay dark in production until launch. The flag defaults to
+    // off, so the E2E deployment turns it on.
+    FLAG_DEFINITIONS_ACTIONS: valueOr(sourceEnv.FLAG_DEFINITIONS_ACTIONS, 'true'),
     // The harness builds the API before it starts it, so the workflow bundles
     // already exist. Compiling them again at worker startup takes most of the boot.
     TEMPORAL_PREBUILT_WORKFLOW_BUNDLES: valueOr(

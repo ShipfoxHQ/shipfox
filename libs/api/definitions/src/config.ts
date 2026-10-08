@@ -1,4 +1,4 @@
-import {bool, createConfig, str} from '@shipfox/config';
+import {createConfig, str} from '@shipfox/config';
 import {findInvalidLabels, MAX_RUNNER_LABELS, parseLabelList} from '@shipfox/runner-labels';
 
 export const config = createConfig({
@@ -6,13 +6,8 @@ export const config = createConfig({
     desc: 'Default runner label(s) applied to workflow jobs that do not declare a "runner" at the job or workflow level. Set it to a comma-separated list, for example ubuntu-latest or ubuntu-latest,node-22. Leave it empty to require every workflow job to declare runner labels explicitly; with no value set, a job without a runner fails definition validation.',
     default: '',
   }),
-  DEFINITION_ACTIONS_ENABLED: bool({
-    desc: 'Whether workflow steps can run repository actions with `uses`. Use true or false. Defaults to false; local development defaults to true. When false, a workflow with a `uses` step fails validation with "not supported yet".',
-    default: false,
-    devDefault: true,
-  }),
   REGISTRY_URL: str({
-    desc: 'URL of the Shipfox Registry API, such as https://api.registry.shipfox.io. When it is set and DEFINITION_ACTIONS_ENABLED is on, workflow steps can run registry actions with `uses: namespace/name@1.4.2`. Defaults to the central Shipfox Registry. Set it to an empty value to accept repository actions only. The registry module reads the same variable.',
+    desc: 'URL of the Shipfox Registry API, such as https://api.registry.shipfox.io. When it is set and the definitions-actions flag is on for the workspace, workflow steps can run registry actions with `uses: namespace/name@1.4.2`. Defaults to the central Shipfox Registry. Set it to an empty value to accept repository actions only. The registry module reads the same variable.',
     default: 'https://api.registry.shipfox.io',
   }),
   DEFINITION_WORKFLOW_PATH: str({
@@ -46,7 +41,4 @@ export const definitionDefaultRunnerLabels = parseDefinitionDefaultRunnerLabels(
 
 export const definitionWorkflowPath = config.DEFINITION_WORKFLOW_PATH;
 
-export const definitionActionsEnabled = config.DEFINITION_ACTIONS_ENABLED;
-
-export const definitionRegistryActionsEnabled =
-  config.DEFINITION_ACTIONS_ENABLED && config.REGISTRY_URL.trim() !== '';
+export const definitionRegistryConfigured = config.REGISTRY_URL.trim() !== '';

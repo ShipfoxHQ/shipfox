@@ -7,6 +7,7 @@ import {
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {errorHandler} from '@shipfox/node-fastify';
+import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
@@ -96,7 +97,10 @@ describe('GET /api/definitions/at-ref', () => {
       );
       done();
     });
-    app.get('/api/definitions/at-ref', buildAtRefRoute({projects, agent, integrations}));
+    app.get(
+      '/api/definitions/at-ref',
+      buildAtRefRoute({projects, agent, integrations, flags: createTestFeatureFlags()}),
+    );
     app.setErrorHandler(errorHandler);
     await app.ready();
   });
