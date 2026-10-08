@@ -36,7 +36,7 @@ const windowLimitSchema = z.preprocess((value) => {
 
 export const impersonationWindowStartBodySchema = z.object({
   target_user_id: z.string().uuid(),
-  reason: windowReasonSchema,
+  reason: windowReasonSchema.optional(),
   required_workspace_id: z.string().uuid().optional(),
 });
 
@@ -97,7 +97,7 @@ const impersonationWindowMetadataSchema = z.object({
   window_id: windowIdSchema,
   actor: administratorUserSummarySchema,
   target: administratorUserSummarySchema,
-  reason: windowReasonSchema,
+  reason: windowReasonSchema.nullable(),
   started_at: timestampSchema,
   deadline_at: timestampSchema,
 });
@@ -181,7 +181,6 @@ export const impersonationWindowErrorCodeSchema = z.enum([
   'impersonation-window-stopped',
   'impersonation-window-deadline-reached',
   'impersonation-window-limit-reached',
-  'impersonation-stop-reason-required',
   'impersonation-target-not-workspace-member',
 ]);
 
@@ -206,9 +205,6 @@ export const impersonationWindowDeadlineReachedErrorSchema = impersonationWindow
 });
 export const impersonationWindowLimitReachedErrorSchema = impersonationWindowErrorSchema.extend({
   code: z.literal('impersonation-window-limit-reached'),
-});
-export const impersonationStopReasonRequiredErrorSchema = impersonationWindowErrorSchema.extend({
-  code: z.literal('impersonation-stop-reason-required'),
 });
 export const impersonationTargetNotWorkspaceMemberErrorSchema =
   impersonationWindowErrorSchema.extend({

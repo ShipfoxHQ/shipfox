@@ -30,7 +30,7 @@ export interface CreateImpersonationWindowParams {
   id?: string;
   actorId: string;
   targetUserId: string;
-  reason: string;
+  reason?: string | null | undefined;
   actorRoleAtStart: AdminRole;
   startedAt: Date;
   deadlineAt: Date;
@@ -121,7 +121,7 @@ export async function createImpersonationWindow(
   const values: ImpersonationWindowCreateDb = {
     actorId: params.actorId,
     targetUserId: params.targetUserId,
-    reason: params.reason,
+    reason: params.reason ?? null,
     actorRoleAtStart: params.actorRoleAtStart,
     startedAt: params.startedAt,
     deadlineAt: params.deadlineAt,

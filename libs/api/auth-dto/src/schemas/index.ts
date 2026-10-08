@@ -158,7 +158,6 @@ export {
   type ImpersonationWindowSummaryDto,
   type ImpersonationWindowsQueryDto,
   type ImpersonationWindowsResponseDto,
-  impersonationStopReasonRequiredErrorSchema,
   impersonationTargetNotWorkspaceMemberErrorSchema,
   impersonationWindowContinueBodySchema,
   impersonationWindowContinueParamsSchema,

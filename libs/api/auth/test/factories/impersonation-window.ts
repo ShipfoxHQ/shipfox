@@ -13,7 +13,7 @@ export const impersonationWindowFactory = Factory.define<ImpersonationWindow>(
       id: params.id ?? crypto.randomUUID(),
       actorId: params.actorId ?? crypto.randomUUID(),
       targetUserId: params.targetUserId ?? crypto.randomUUID(),
-      reason: params.reason ?? `Support investigation ${sequence}`,
+      reason: params.reason === undefined ? `Support investigation ${sequence}` : params.reason,
       actorRoleAtStart: params.actorRoleAtStart ?? 'admin-operator',
       startedAt,
       deadlineAt,

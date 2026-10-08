@@ -15,6 +15,7 @@ import {adminCommandResults} from '#db/schema/admin-command-results.js';
 import {impersonationWindows} from '#db/schema/impersonation-windows.js';
 import {authOutbox} from '#db/schema/outbox.js';
 import * as authMetrics from '#metrics/index.js';
+import {impersonationWindowFactory} from '#test/index.js';
 import {
   createAuthTestApp,
   createVerifiedSession,
@@ -83,7 +84,7 @@ describe('impersonation window routes', () => {
     token: string;
     targetUserId: string;
     key: string;
-    reason?: string;
+    reason?: string | null;
     requiredWorkspaceId?: string;
     requestId?: string;
   }) {
@@ -93,7 +94,7 @@ describe('impersonation window routes', () => {
       headers: authHeaders(params.token, params.key, params.requestId),
       payload: {
         target_user_id: params.targetUserId,
-        reason: params.reason ?? 'Support reproduction',
+        ...(params.reason === null ? {} : {reason: params.reason ?? 'Support reproduction'}),
         ...(params.requiredWorkspaceId ? {required_workspace_id: params.requiredWorkspaceId} : {}),
       },
     });
@@ -695,7 +696,114 @@ describe('impersonation window routes', () => {
     ).resolves.toEqual([{endedAt: deadlineAt, endedReason: 'expired'}]);
   });
 
-  test('owner Stop requires a fresh reason and emits current-role audit context', async () => {
+  test('opens a window without a reason and stores the reason when one is sent', async () => {
+    const owner = await bootstrapOwner('window-optional-reason');
+    const target = await createVerifiedSession('window-optional-reason-target');
+
+    const withoutReason = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-optional-reason-none',
+      reason: null,
+    });
+    const withReason = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-optional-reason-sent',
+      reason: 'Legacy client reason',
+    });
+
+    expect(withoutReason.statusCode).toBe(200);
+    expect(withReason.statusCode).toBe(200);
+    const withoutReasonId = impersonationWindowStartResponseSchema.parse(
+      withoutReason.json(),
+    ).window_id;
+    const withReasonId = impersonationWindowStartResponseSchema.parse(withReason.json()).window_id;
+    const listed = await app.inject({
+      method: 'GET',
+      url: '/admin/auth/impersonation/windows?scope=owned',
+      headers: {authorization: `Bearer ${owner.token}`},
+    });
+    const reasons = Object.fromEntries(
+      impersonationWindowsResponseSchema
+        .parse(listed.json())
+        .windows.map((window) => [window.window_id, window.reason]),
+    );
+    expect(reasons).toEqual({
+      [withoutReasonId]: null,
+      [withReasonId]: 'Legacy client reason',
+    });
+    const events = await actionEvents();
+    expect(events.map((event) => (event.payload as {reason: string | null}).reason)).toEqual([
+      null,
+      'Legacy client reason',
+    ]);
+  });
+
+  test('keeps the reason of a window created before reasons became optional', async () => {
+    const owner = await bootstrapOwner('window-legacy-reason');
+    const target = await createVerifiedSession('window-legacy-reason-target');
+    const window = await impersonationWindowFactory.create({
+      actorId: owner.userId,
+      targetUserId: target.userId,
+      actorRoleAtStart: 'admin-owner',
+      reason: 'Reason from before the change',
+    });
+
+    const exact = await app.inject({
+      method: 'GET',
+      url: `/admin/auth/impersonation/windows/${window.id}`,
+      headers: {authorization: `Bearer ${owner.token}`},
+    });
+
+    expect(exact.statusCode).toBe(200);
+    expect(impersonationWindowExactResponseSchema.parse(exact.json()).reason).toBe(
+      'Reason from before the change',
+    );
+  });
+
+  test('owner Stop works without a reason and audits the window reason', async () => {
+    const owner = await bootstrapOwner('window-owner-stop-no-reason');
+    const actor = await createVerifiedSession('window-owner-stop-no-reason-actor');
+    const target = await createVerifiedSession('window-owner-stop-no-reason-target');
+    const grant = await app.inject({
+      method: 'POST',
+      url: '/admin/auth/admin-grants',
+      headers: authHeaders(owner.token, 'window-owner-stop-no-reason-grant'),
+      payload: {user_id: actor.userId, role: 'admin-operator', reason: 'Window actor'},
+    });
+    expect(grant.statusCode).toBe(201);
+    const started = await startWindow({
+      token: actor.token,
+      targetUserId: target.userId,
+      key: 'window-owner-stop-no-reason-start',
+      reason: null,
+    });
+    const windowId = impersonationWindowStartResponseSchema.parse(started.json()).window_id;
+
+    const stopped = await app.inject({
+      method: 'POST',
+      url: `/admin/auth/impersonation/windows/${windowId}/stop`,
+      headers: authHeaders(owner.token, 'window-owner-stop-no-reason'),
+      payload: {},
+    });
+
+    expect(stopped.statusCode).toBe(200);
+    expect(impersonationWindowStopResponseSchema.parse(stopped.json())).toMatchObject({
+      window_id: windowId,
+      state: 'stopped',
+    });
+    const events = await actionEvents();
+    expect(events.at(-1)?.payload).toMatchObject({
+      command: 'auth.impersonation.window.stop',
+      authorizationBasis: 'current-role',
+      actorRole: 'admin-owner',
+      targetId: windowId,
+      reason: null,
+    });
+  });
+
+  test('owner Stop records a supplied reason with current-role audit context', async () => {
     const owner = await bootstrapOwner('window-owner-stop');
     const actor = await createVerifiedSession('window-owner-stop-actor');
     const target = await createVerifiedSession('window-owner-stop-target');
@@ -712,15 +820,6 @@ describe('impersonation window routes', () => {
       key: 'window-owner-stop-start',
     });
     const windowId = impersonationWindowStartResponseSchema.parse(started.json()).window_id;
-
-    const missingReason = await app.inject({
-      method: 'POST',
-      url: `/admin/auth/impersonation/windows/${windowId}/stop`,
-      headers: authHeaders(owner.token, 'window-owner-stop-missing-reason'),
-      payload: {},
-    });
-    expect(missingReason.statusCode).toBe(400);
-    expect(missingReason.json()).toEqual({code: 'impersonation-stop-reason-required'});
 
     const stopped = await app.inject({
       method: 'POST',

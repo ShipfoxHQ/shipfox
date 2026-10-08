@@ -15,7 +15,7 @@ export const impersonationWindows = pgTable(
     targetUserId: uuid('target_user_id')
       .notNull()
       .references(() => users.id, {onDelete: 'cascade'}),
-    reason: text('reason').notNull(),
+    reason: text('reason'),
     actorRoleAtStart: adminRoleEnum('actor_role_at_start').notNull(),
     startedAt: timestamp('started_at', {withTimezone: true}).notNull(),
     deadlineAt: timestamp('deadline_at', {withTimezone: true}).notNull(),
