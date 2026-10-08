@@ -94,10 +94,9 @@ remain continuous.
 | `SHIPFOX_RUNNER_POLL_MAX_DURATION_MS` | no | `300000` | Idle polling lifetime injected into each runner. |
 | `SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS` | no | `3600` | Legacy lifetime key retained in user data while old images remain in the rollback window; timer-free images accept it without scheduling age-based shutdown. |
 
-Before deploying registration-deadline cleanup, enable
-`RUNNER_TERMINATION_REASON_REGISTRATION_DEADLINE_ENABLED=true` in the runners API. The flag
-defaults to false; an EC2 provider safely keeps overdue instances out of capacity and retries
-backend authorization while it remains disabled.
+Upgrade the runners API before deploying registration-deadline cleanup. An EC2 provider safely
+keeps overdue instances out of capacity and retries backend authorization until the API
+authorizes termination.
 
 ## Development
 

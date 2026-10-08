@@ -175,45 +175,9 @@ export const config = createConfig({
     desc: 'Whether runners_provider_runner_count_divergence includes template_key as a metric label. Use true or false. Defaults to false because template keys can create high-cardinality metric series. Set true only when template keys are bounded and stable.',
     default: false,
   }),
-  RUNNER_TERMINATION_REASON_REGISTRATION_DEADLINE_ENABLED: bool({
-    desc: 'Allow registration-deadline termination authorization.',
-    default: false,
-  }),
-  RUNNER_TERMINATION_REASON_ACTIVATION_TIMEOUT_ENABLED: bool({
-    desc: 'Allow activation-timeout termination authorization.',
-    default: true,
-  }),
-  RUNNER_TERMINATION_REASON_RUNNER_UNRESPONSIVE_ENABLED: bool({
-    desc: 'Allow runner-unresponsive termination authorization.',
-    default: false,
-  }),
-  RUNNER_TERMINATION_REASON_LEASE_EXPIRED_ENABLED: bool({
-    desc: 'Allow lease-expired termination authorization. During rollout, heartbeat, lease-expiry maintenance, and runner-reconciliation replicas must be upgraded or drained together because the old heartbeat lock order is not mixed-version compatible with the session-first order; keep this flag disabled until that rollout is complete.',
-    default: false,
-  }),
-  RUNNER_TERMINATION_REASON_SESSION_EXHAUSTED_ENABLED: bool({
-    desc: 'Allow session-exhausted termination authorization.',
-    default: false,
-  }),
   RUNNER_TERMINATION_REASON_STOPPING_TIMEOUT_ENABLED: bool({
     desc: 'Allow stopping-timeout termination authorization.',
     default: false,
-  }),
-  RUNNER_TERMINATION_REASON_PROVIDER_HEALTH_FAILED_ENABLED: bool({
-    desc: 'Allow provider-health-failed termination authorization.',
-    default: false,
-  }),
-  RUNNER_TERMINATION_REASON_JOB_CANCELLED_ENABLED: bool({
-    desc: 'Allow job-cancelled termination authorization.',
-    default: true,
-  }),
-  RUNNER_TERMINATION_REASON_JOB_TIMEOUT_ENABLED: bool({
-    desc: 'Allow job-timeout termination authorization.',
-    default: true,
-  }),
-  RUNNER_TERMINATION_REASON_TERMINAL_STATE_ENABLED: bool({
-    desc: 'Allow terminal-state termination authorization.',
-    default: true,
   }),
 });
 

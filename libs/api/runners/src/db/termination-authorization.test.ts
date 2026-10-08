@@ -1,15 +1,11 @@
 import {eq} from 'drizzle-orm';
-import {config} from '#config.js';
 import {authorizeRunnerTermination} from '#core/termination-authorization.js';
 import {db} from '#db/db.js';
 import {providerRunners} from '#db/schema/runner-instances.js';
 import {providerRunnerFactory} from '#test/index.js';
 
 describe('termination authorization concurrency', () => {
-  it.skipIf(
-    !config.RUNNER_TERMINATION_REASON_JOB_TIMEOUT_ENABLED ||
-      !config.RUNNER_TERMINATION_REASON_TERMINAL_STATE_ENABLED,
-  )('persists one stable authorization and reason for concurrent attempts', async () => {
+  it('persists one stable authorization and reason for concurrent attempts', async () => {
     const runner = await providerRunnerFactory.create({workspaceId: crypto.randomUUID()});
     const results = await Promise.all(
       Array.from({length: 8}, (_, index) =>
@@ -51,33 +47,46 @@ describe('termination authorization concurrency', () => {
     });
   });
 
-  it.skipIf(!config.RUNNER_TERMINATION_REASON_TERMINAL_STATE_ENABLED)(
-    'persists a fresh authorization when its reason gate is enabled',
-    async () => {
-      const runner = await providerRunnerFactory.create({workspaceId: crypto.randomUUID()});
-      const before = new Date();
+  it('persists a fresh authorization for an enabled reason', async () => {
+    const runner = await providerRunnerFactory.create({workspaceId: crypto.randomUUID()});
+    const before = new Date();
 
-      const result = await authorizeRunnerTermination({
-        provisionerId: runner.provisionerId,
-        providerRunnerId: runner.providerRunnerId,
-        reason: 'terminal-state',
-      });
-      const [row] = await db()
-        .select({
-          terminationAuthorizedAt: providerRunners.terminationAuthorizedAt,
-          terminationReason: providerRunners.terminationReason,
-          updatedAt: providerRunners.updatedAt,
-        })
-        .from(providerRunners)
-        .where(eq(providerRunners.id, runner.id));
+    const result = await authorizeRunnerTermination({
+      provisionerId: runner.provisionerId,
+      providerRunnerId: runner.providerRunnerId,
+      reason: 'terminal-state',
+    });
+    const [row] = await db()
+      .select({
+        terminationAuthorizedAt: providerRunners.terminationAuthorizedAt,
+        terminationReason: providerRunners.terminationReason,
+        updatedAt: providerRunners.updatedAt,
+      })
+      .from(providerRunners)
+      .where(eq(providerRunners.id, runner.id));
 
-      expect(result.desiredIntent).toBe('terminate');
-      expect(result.terminationReason).toBe('terminal-state');
-      expect(result.terminationAuthorizedAt).toBeInstanceOf(Date);
-      expect(result.terminationAuthorizedAt?.getTime()).toBeGreaterThanOrEqual(before.getTime());
-      expect(row?.terminationAuthorizedAt).toEqual(result.terminationAuthorizedAt);
-      expect(row?.terminationReason).toBe('terminal-state');
-      expect(row?.updatedAt).toEqual(result.terminationAuthorizedAt);
-    },
-  );
+    expect(result.desiredIntent).toBe('terminate');
+    expect(result.terminationReason).toBe('terminal-state');
+    expect(result.terminationAuthorizedAt).toBeInstanceOf(Date);
+    expect(result.terminationAuthorizedAt?.getTime()).toBeGreaterThanOrEqual(before.getTime());
+    expect(row?.terminationAuthorizedAt).toEqual(result.terminationAuthorizedAt);
+    expect(row?.terminationReason).toBe('terminal-state');
+    expect(row?.updatedAt).toEqual(result.terminationAuthorizedAt);
+  });
+
+  it('keeps a runner when stopping-timeout authorization is disabled', async () => {
+    const runner = await providerRunnerFactory.create({workspaceId: crypto.randomUUID()});
+
+    const result = await authorizeRunnerTermination({
+      provisionerId: runner.provisionerId,
+      providerRunnerId: runner.providerRunnerId,
+      reason: 'stopping-timeout',
+    });
+
+    expect(result).toEqual({
+      desiredIntent: 'keep',
+      terminationAuthorizedAt: null,
+      terminationReason: null,
+    });
+  });
 });

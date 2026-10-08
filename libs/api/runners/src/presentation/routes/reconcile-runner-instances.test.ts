@@ -20,7 +20,6 @@ import {
 import {vi} from '@shipfox/vitest/vi';
 import {and, desc, eq} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
-import {config} from '#config.js';
 import {db} from '#db/db.js';
 import {recordHeartbeat} from '#db/job-executions.js';
 import {reservations} from '#db/schema/reservations.js';
@@ -262,9 +261,6 @@ describe('POST /provisioners/runner-instances/reconcile', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    if (cancellationReason === 'timed_out') {
-      expect(config.RUNNER_TERMINATION_REASON_JOB_TIMEOUT_ENABLED).toBe(true);
-    }
     expect(res.json().runners[0]).toMatchObject({
       desired_intent: 'terminate',
       termination_reason: expectedReason,

@@ -23,20 +23,20 @@ export interface RunnerTerminationAuthorizationParams {
   reason: string;
 }
 
-const terminationReasonGate: Record<RunnerTerminationReason, keyof typeof config> = {
-  'registration-deadline': 'RUNNER_TERMINATION_REASON_REGISTRATION_DEADLINE_ENABLED',
-  'activation-timeout': 'RUNNER_TERMINATION_REASON_ACTIVATION_TIMEOUT_ENABLED',
-  'runner-unresponsive': 'RUNNER_TERMINATION_REASON_RUNNER_UNRESPONSIVE_ENABLED',
-  'lease-expired': 'RUNNER_TERMINATION_REASON_LEASE_EXPIRED_ENABLED',
-  'session-exhausted': 'RUNNER_TERMINATION_REASON_SESSION_EXHAUSTED_ENABLED',
-  'stopping-timeout': 'RUNNER_TERMINATION_REASON_STOPPING_TIMEOUT_ENABLED',
-  'provider-health-failed': 'RUNNER_TERMINATION_REASON_PROVIDER_HEALTH_FAILED_ENABLED',
-  'job-cancelled': 'RUNNER_TERMINATION_REASON_JOB_CANCELLED_ENABLED',
-  'job-timeout': 'RUNNER_TERMINATION_REASON_JOB_TIMEOUT_ENABLED',
-  'terminal-state': 'RUNNER_TERMINATION_REASON_TERMINAL_STATE_ENABLED',
+const isTerminationReasonEnabled: Record<RunnerTerminationReason, () => boolean> = {
+  'registration-deadline': () => true,
+  'activation-timeout': () => true,
+  'runner-unresponsive': () => true,
+  'lease-expired': () => true,
+  'session-exhausted': () => true,
+  'stopping-timeout': () => config.RUNNER_TERMINATION_REASON_STOPPING_TIMEOUT_ENABLED,
+  'provider-health-failed': () => true,
+  'job-cancelled': () => true,
+  'job-timeout': () => true,
+  'terminal-state': () => true,
 };
 
-const terminationReasons = new Set<string>(Object.keys(terminationReasonGate));
+const terminationReasons = new Set<string>(Object.keys(isTerminationReasonEnabled));
 
 export async function authorizeRunnerTermination(
   params: RunnerTerminationAuthorizationParams,
@@ -158,7 +158,7 @@ export function resolveRunnerTerminationReason(
     return {reason: null, rejectionReason: 'unknown-reason'};
 
   const reason = params.reason as RunnerTerminationReason;
-  if (!config[terminationReasonGate[reason]]) return {reason: null, rejectionReason: reason};
+  if (!isTerminationReasonEnabled[reason]()) return {reason: null, rejectionReason: reason};
 
   return {reason};
 }
