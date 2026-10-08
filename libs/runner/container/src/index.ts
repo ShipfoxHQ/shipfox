@@ -4,6 +4,7 @@ export type {
   HostFileType,
   HostProcess,
   HostProcessExit,
+  HostReadFileOptions,
   HostStat,
   HostWriteFileOptions,
   SpawnRequest,

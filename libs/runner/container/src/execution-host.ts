@@ -55,6 +55,11 @@ export interface HostDirEntry {
   readonly type: HostFileType;
 }
 
+export interface HostReadFileOptions {
+  /** Reads at most this many bytes from the start of the file. */
+  readonly length?: number | undefined;
+}
+
 export interface HostWriteFileOptions {
   readonly mode?: number | undefined;
   /** Fails with `EEXIST` instead of replacing an existing file. */
@@ -68,7 +73,8 @@ export interface HostWriteFileOptions {
  */
 export interface ExecutionHost {
   spawn(request: SpawnRequest): HostProcess;
-  readFile(path: string): Promise<Buffer>;
+  /** Reads the whole file, or only its first `length` bytes when given. */
+  readFile(path: string, options?: HostReadFileOptions): Promise<Buffer>;
   /** Streams `data` when it is a `Readable`. */
   writeFile(
     path: string,

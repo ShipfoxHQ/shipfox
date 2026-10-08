@@ -140,6 +140,15 @@ export function describeExecutionHostContract(
         expect((await context.host.readFile(path)).toString()).toBe('content');
       });
 
+      it('reads only the first bytes of a file when given a length', async () => {
+        const path = join(sandbox, 'head.txt');
+        await context.host.writeFile(path, Buffer.from('0123456789'));
+
+        expect((await context.host.readFile(path, {length: 4})).toString()).toBe('0123');
+        expect((await context.host.readFile(path, {length: 100})).toString()).toBe('0123456789');
+        expect((await context.host.readFile(path, {length: 0})).length).toBe(0);
+      });
+
       it('streams a readable into a file', async () => {
         const path = join(sandbox, 'stream.txt');
 
