@@ -1,3 +1,4 @@
+import {Shippy} from '@shipfox/client-shell/runtime';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {IntegrationIcon} from '@shipfox/integration-icons';
 import {IconButton} from '@shipfox/react-ui/button';
@@ -67,6 +68,7 @@ export function InstalledIntegrationsSection({
         <Panel>
           <EmptyState
             icon="componentLine"
+            illustration={<Shippy pose="switchboard" className="h-96" />}
             title="No integrations installed yet"
             description="Install a provider below to get started."
             variant="panel"

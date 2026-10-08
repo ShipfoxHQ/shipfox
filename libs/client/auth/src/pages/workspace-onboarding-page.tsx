@@ -1,6 +1,6 @@
 import {slugifyName, slugSchema} from '@shipfox/api-common-dto';
 import {createWorkspaceBodySchema} from '@shipfox/api-workspaces-dto';
-import {FocusedFrame} from '@shipfox/client-shell/runtime';
+import {FocusedFrame, Shippy} from '@shipfox/client-shell/runtime';
 import {displayNameFieldError, SlugField} from '@shipfox/client-ui';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -77,7 +77,7 @@ export function WorkspaceOnboardingPage() {
 
         <section className="flex flex-1 items-center">
           <form
-            className="w-full"
+            className="relative w-full"
             noValidate
             aria-labelledby="workspace-onboarding-title"
             onSubmit={(event) => {
@@ -86,6 +86,7 @@ export function WorkspaceOnboardingPage() {
               void form.handleSubmit();
             }}
           >
+            <Shippy pose="nameplate" className="absolute right-row bottom-full h-104" />
             <Panel>
               <PanelHeader variant="plain" className="flex-col items-start gap-inline">
                 <PanelTitle id="workspace-onboarding-title" variant="h1">

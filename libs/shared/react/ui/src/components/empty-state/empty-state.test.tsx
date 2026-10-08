@@ -34,4 +34,26 @@ describe('EmptyState', () => {
     expect(state?.classList.contains('min-h-120')).toBe(false);
     expect(state?.classList.contains('p-panel')).toBe(false);
   });
+
+  test('renders the illustration in place of the icon', () => {
+    const {container} = render(
+      <EmptyState title="No runs yet" illustration={<img alt="" data-testid="illustration" />} />,
+    );
+
+    expect(container.querySelector('[data-testid="illustration"]')).not.toBeNull();
+    expect(container.querySelector('svg')).toBeNull();
+  });
+
+  test('keeps the icon in the compact variant', () => {
+    const {container} = render(
+      <EmptyState
+        variant="compact"
+        title="Nothing here yet."
+        illustration={<img alt="" data-testid="illustration" />}
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="illustration"]')).toBeNull();
+    expect(container.querySelector('svg')).not.toBeNull();
+  });
 });

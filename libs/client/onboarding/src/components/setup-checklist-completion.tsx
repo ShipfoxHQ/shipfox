@@ -1,3 +1,4 @@
+import {Shippy} from '@shipfox/client-shell/runtime';
 import {Button} from '@shipfox/react-ui/button';
 import {Icon} from '@shipfox/react-ui/icon';
 import {Text} from '@shipfox/react-ui/typography';
@@ -30,11 +31,7 @@ export function SetupChecklistCompletion({
     >
       <ConfettiBurst active={showBurst} onComplete={onBurstComplete} />
       <div className="relative flex items-center gap-group">
-        <Icon
-          name="checkCircleSolid"
-          className="size-20 shrink-0 text-tag-success-icon"
-          aria-hidden="true"
-        />
+        <Shippy pose="party" className="h-56" />
         <div className="min-w-0 flex-1">
           <Text size="sm" bold className="text-tag-success-text">
             You're set up

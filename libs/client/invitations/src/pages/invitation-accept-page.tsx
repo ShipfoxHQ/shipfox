@@ -1,6 +1,7 @@
 import {isErrorWithCode} from '@shipfox/client-api';
 import {
   AuthShell,
+  Shippy,
   useAuthState,
   useRefreshAuth,
   useRouteSearch,
@@ -204,7 +205,11 @@ export function InvitationAcceptPage() {
     const signupHref = `/auth/signup?redirect=${encodeURIComponent(redirect)}`;
     const loginHref = `/auth/login?redirect=${encodeURIComponent(redirect)}`;
     return (
-      <AuthShell title={data.workspaceName} description={inviterLine}>
+      <AuthShell
+        title={data.workspaceName}
+        description={inviterLine}
+        illustration={<Shippy pose="bench" className="h-104" />}
+      >
         <div className="flex flex-col gap-group">
           <Button asChild className="w-full">
             <Link to={signupHref}>Create account</Link>

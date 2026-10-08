@@ -6,6 +6,7 @@ import {Header, Text} from '@shipfox/react-ui/typography';
 import type {QueryClient} from '@tanstack/react-query';
 import {type ErrorComponentProps, useRouter} from '@tanstack/react-router';
 import {FocusedFrame} from '#components/focused-frame.js';
+import {Shippy} from '#components/shippy.js';
 
 export interface WorkspaceSetupState {
   hideProjectNavigation: boolean;
@@ -64,6 +65,7 @@ export function WorkspaceLayoutErrorRoute({error, reset}: ErrorComponentProps) {
   return (
     <main className="min-h-screen bg-background-subtle-base px-frame py-frame max-[520px]:px-row">
       <FocusedFrame className="flex flex-col gap-section">
+        <Shippy pose="extinguisher" className="h-160 self-start" />
         <Header variant="h1">{setupError ? 'Workspace setup' : 'Workspace'}</Header>
         <Callout role="alert" type="error">
           <div className="flex flex-col gap-inline">

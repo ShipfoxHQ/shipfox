@@ -1,3 +1,4 @@
+import {Shippy} from '@shipfox/client-shell/runtime';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -206,6 +207,7 @@ function ConfiguredProvidersSection({
         <Panel>
           <EmptyState
             icon="key2Line"
+            illustration={<Shippy pose="cartridge" className="h-96" />}
             title="No providers configured"
             description="Configure a provider below to run agent steps with workspace-managed credentials."
             variant="panel"
