@@ -531,15 +531,29 @@ describe('admin MCP endpoint', () => {
     });
 
     test('returns what the customer endpoint returns for the same workspace', async () => {
-      const customerContext = {...context, userId: ACTOR_ID, workspaceId: OTHER_WORKSPACE_ID};
-      const customerTool = createWhoAmITool();
-      const customer = await customerTool.execute({context: customerContext, arguments: {}});
-      const {client, close} = await connect({auth: createAuthClient('admin-operator'), tools});
+      const app = await createTestApp({auth: createAuthClient('admin-operator'), tools});
+      const address = await app.listen({port: 0, host: '127.0.0.1'});
+      const connectTo = async (path: string) => {
+        const client = new Client({name: 'test-http-client', version: '0.0.0'});
+        await client.connect(
+          new StreamableHTTPClientTransport(new URL(path, address), {
+            requestInit: {headers: {authorization: 'Bearer valid-token'}},
+          }) as unknown as Transport,
+        );
+        return client;
+      };
+      const customerClient = await connectTo('/mcp');
+      const adminClient = await connectTo('/mcp/admin');
 
-      const admin = await callTool(client, 'who_am_i', {workspace_id: OTHER_WORKSPACE_ID});
-      await close();
+      const customer = await callTool(customerClient, 'who_am_i', {note: 'same'});
+      const admin = await callTool(adminClient, 'who_am_i', {
+        workspace_id: WORKSPACE_ID,
+        note: 'same',
+      });
+      await Promise.all([customerClient.close(), adminClient.close()]);
 
-      expect(admin.structuredContent).toEqual(customer);
+      expect(customer.structuredContent).toMatchObject({ok: true});
+      expect(admin.structuredContent).toEqual(customer.structuredContent);
     });
 
     test.each([
