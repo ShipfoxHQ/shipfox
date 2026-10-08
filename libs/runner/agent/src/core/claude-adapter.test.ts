@@ -55,6 +55,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -84,6 +85,7 @@ import type {IntegrationToolsBridge} from '#core/integration-tools-bridge.js';
 // Mirrors claudeModelCapabilities() family normalization in the adapter.
 const CLAUDE_SNAPSHOT_DATE_SUFFIX = /-\d{8}$/;
 const ABORT_ERROR_PATTERN = /abort/i;
+const OUTSIDE_RUNNER_INSTALLATION = /outside the runner installation/u;
 
 function invocation(overrides: Partial<HarnessInvocation> = {}): HarnessInvocation {
   return {
@@ -844,6 +846,89 @@ describe('claudeHarnessAdapter', () => {
     } finally {
       delete process.env.CARRIED_TEST_VAR;
     }
+  });
+
+  describe('in a job container', () => {
+    // The checkout holds both the Claude Code binary and the credential helper, as the runner
+    // installation does in the images.
+    const runnerInstallDir = join(import.meta.dirname, '../../../../..');
+    const container = {
+      env: {PATH: '/usr/local/bin:/usr/bin', IMAGE_VAR: 'from-container'},
+      runnerInstallDir,
+    };
+
+    function mountedPath(path: string): string {
+      return `/__shipfox/runner/${path.slice(runnerInstallDir.length + 1)}`;
+    }
+
+    it('runs the mounted Claude Code binary from the container environment', async () => {
+      process.env.RUNNER_ONLY_VAR = 'secret-of-the-runner';
+      queryMock.mockReturnValue(makeQuery([successMessage]));
+
+      try {
+        await claudeHarnessAdapter.run(
+          invocation({
+            container,
+            carriedEnv: {env: {CARRIED_VAR: 'carried'}, path: ['/carried/bin']},
+          }),
+        );
+      } finally {
+        delete process.env.RUNNER_ONLY_VAR;
+      }
+
+      const options = lastQueryOptions();
+      expect(options.pathToClaudeCodeExecutable).toBe(
+        mountedPath(resolveBundledClaudeCodeExecutable()),
+      );
+      expect(options.env).toMatchObject({
+        IMAGE_VAR: 'from-container',
+        CARRIED_VAR: 'carried',
+        PATH: '/carried/bin:/usr/local/bin:/usr/bin',
+        ANTHROPIC_API_KEY: 'sk-runtime-secret',
+      });
+      expect(options.env).not.toHaveProperty('RUNNER_ONLY_VAR');
+    });
+
+    it('runs the credential helper on the mounted Node and lets the container reach its socket', async () => {
+      let configDirMode: number | undefined;
+      let socketMode: number | undefined;
+      queryMock.mockImplementation((params: {options: {env: NodeJS.ProcessEnv}}) => {
+        const {env} = params.options;
+        configDirMode = statSync(env.CLAUDE_CONFIG_DIR ?? '').mode & 0o777;
+        socketMode = statSync(env[CLAUDE_CREDENTIAL_SOCKET_ENV] ?? '').mode & 0o777;
+        return makeQuery([successMessage]);
+      });
+      const credentialSource: InferenceCredentialSource = {
+        resolve: vi.fn().mockResolvedValue({token: 'managed-token', generation: 'generation-1'}),
+        close: vi.fn(),
+      };
+
+      await claudeHarnessAdapter.run(
+        invocation({
+          container,
+          provider: 'shipfox',
+          credentials: {api_key: 'managed-token'},
+          claude: {base_url: 'https://inference.shipfox.dev/v1'},
+          credentialSource,
+        }),
+      );
+
+      expect(lastQueryOptions().settings).toEqual({
+        apiKeyHelper: `'/__shipfox/node/bin/node' '${mountedPath(CLAUDE_AUTH_HELPER_PATH)}'`,
+      });
+      expect(configDirMode).toBe(0o777);
+      expect(socketMode).toBe(0o666);
+    });
+
+    it('fails when the Claude Code binary is outside the runner installation', async () => {
+      queryMock.mockReturnValue(makeQuery([successMessage]));
+
+      await expect(
+        claudeHarnessAdapter.run(
+          invocation({container: {...container, runnerInstallDir: join(testCwd, 'elsewhere')}}),
+        ),
+      ).rejects.toThrow(OUTSIDE_RUNNER_INSTALLATION);
+    });
   });
 
   it.runIf(process.platform === 'linux')(

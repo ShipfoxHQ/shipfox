@@ -1,4 +1,4 @@
-import {mkdir, mkdtemp, open, readFile, rm, writeFile} from 'node:fs/promises';
+import {chmod, mkdir, mkdtemp, open, readFile, rm, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {TextDecoder} from 'node:util';
 import {
@@ -24,6 +24,7 @@ import {
   isReservedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {logger} from '@shipfox/node-opentelemetry';
+import {NODE_MOUNT, runnerMountPath} from '@shipfox/runner-container';
 import {type CarriedEnv, prependPath} from '@shipfox/runner-execution/carried-env';
 import {z} from 'zod';
 import {config} from '#config.js';
@@ -51,13 +52,19 @@ import {
   AgentPermissionModeError,
   AgentSessionUnavailableError,
 } from '#core/errors.js';
-import type {HarnessAdapter, HarnessInvocation, HarnessResult} from '#core/harness.js';
+import type {
+  AgentJobContainer,
+  HarnessAdapter,
+  HarnessInvocation,
+  HarnessResult,
+} from '#core/harness.js';
 import {
   OutputCollector,
   RequiredOutputsMissingError,
   runOutputTurnLoop,
   withOutputGuidance,
 } from '#core/output-collector.js';
+import {reclaimAgentState} from '#core/reclaim-agent-state.js';
 import {toolSelectionOption} from '#core/tool-selection.js';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com';
@@ -69,6 +76,8 @@ const REPOSITORY_INSTRUCTIONS_HEADER =
 const CLAUDE_THINKING_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max', 'default'] as const;
 const CLAUDE_SESSION_FILE_NAME = 'claude-session.jsonl';
 const CLAUDE_SESSION_LINE_SEPARATOR = /\r?\n/u;
+// Claude Code in the job container may run as another user than the runner.
+const CONTAINER_SHARED_DIRECTORY_MODE = 0o777;
 const CLAUDE_MCP_METADATA_TIMEOUT_MS = 10_000;
 const CLAUDE_MCP_METADATA_TIMEOUT_MESSAGE = 'Claude integration tool catalog resolution timed out.';
 
@@ -319,6 +328,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
     credentials,
     gitConfigGlobal,
     carriedEnv,
+    container,
     signal,
     onSessionEntry,
   } = invocation;
@@ -370,12 +380,13 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
     toolContext = await createClaudeToolContext(invocation, managedMcpServers);
     activeToolDiagnostics = toolContext.diagnostics;
     toolContext.diagnostics.logManifest();
-    configDir = await createClaudeConfigDir(agentStateDir);
+    configDir = await createClaudeConfigDir(agentStateDir, container !== undefined);
     if (invocation.credentialSource !== undefined && invocation.claude !== undefined) {
       credentialBroker = createClaudeCredentialBroker({
         credentialSource: invocation.credentialSource,
         signal,
         socketDirectory: agentStateDir,
+        shareSocket: container !== undefined,
       });
       await credentialBroker.start();
     }
@@ -395,11 +406,11 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
         abortController: controller,
         ...toolContext.selectedToolOptions,
         ...claudeSystemPromptOption(),
-        ...claudeExecutableOptions(),
+        ...claudeExecutableOptions(container),
         spawnClaudeCodeProcess: processSpawner.spawn,
         ...(credentialBroker === undefined
           ? {}
-          : {settings: {apiKeyHelper: CLAUDE_AUTH_HELPER_PATH}}),
+          : {settings: {apiKeyHelper: claudeApiKeyHelper(container)}}),
         env: claudeEnvironment(
           auth,
           configDir,
@@ -408,6 +419,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
           effectiveModel,
           credentialBroker,
           carriedEnv,
+          container,
         ),
         ...(toolContext.mcpServers === undefined ? {} : {mcpServers: toolContext.mcpServers}),
         ...claudeSessionQueryOptions(sessionInvocation, sessionStore),
@@ -472,7 +484,7 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
     } catch (error) {
       logger().warn({err: error}, 'Failed to remove Claude credential broker');
     }
-    if (configDir !== undefined) await cleanupClaudeConfigDir(configDir);
+    if (configDir !== undefined) await cleanupClaudeConfigDir(configDir, container !== undefined);
   }
 }
 
@@ -1406,7 +1418,19 @@ function userMessage(content: string): SDKUserMessage {
 }
 
 // The local execution host resets the OOM score of every process it starts, including this one.
-function claudeExecutableOptions(): {readonly pathToClaudeCodeExecutable?: string} {
+// The job container runs the binary the runner mounts, at the path it has in the container.
+function claudeExecutableOptions(container: AgentJobContainer | undefined): {
+  readonly pathToClaudeCodeExecutable?: string;
+} {
+  if (container !== undefined) {
+    return {
+      pathToClaudeCodeExecutable: mountedRunnerPath({
+        path: resolveBundledClaudeCodeExecutable(),
+        container,
+        description: 'Claude Code',
+      }),
+    };
+  }
   if (process.platform !== 'linux') return {};
   return {pathToClaudeCodeExecutable: resolveBundledClaudeCodeExecutable()};
 }
@@ -1497,12 +1521,45 @@ function isFileNotFoundError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT';
 }
 
-async function createClaudeConfigDir(agentStateDir: string): Promise<string> {
+async function createClaudeConfigDir(agentStateDir: string, shared: boolean): Promise<string> {
   await mkdir(agentStateDir, {recursive: true});
-  return mkdtemp(join(agentStateDir, 'claude-config-'));
+  const configDir = await mkdtemp(join(agentStateDir, 'claude-config-'));
+  if (shared) await chmod(configDir, CONTAINER_SHARED_DIRECTORY_MODE);
+  return configDir;
 }
 
-async function cleanupClaudeConfigDir(configDir: string): Promise<void> {
+// Claude Code runs the helper through a shell. In the container it runs on the Node the runner
+// mounts, because the image may have none.
+function claudeApiKeyHelper(container: AgentJobContainer | undefined): string {
+  if (container === undefined) return CLAUDE_AUTH_HELPER_PATH;
+  const helper = mountedRunnerPath({
+    path: CLAUDE_AUTH_HELPER_PATH,
+    container,
+    description: 'The Claude credential helper',
+  });
+  return `${shellQuote(NODE_MOUNT)} ${shellQuote(helper)}`;
+}
+
+function mountedRunnerPath(params: {
+  path: string;
+  container: AgentJobContainer;
+  description: string;
+}): string {
+  const mounted = runnerMountPath(params.path, params.container.runnerInstallDir);
+  if (mounted === undefined) {
+    throw new Error(
+      `${params.description} at ${params.path} is outside the runner installation at ${params.container.runnerInstallDir}, so the job container cannot run it.`,
+    );
+  }
+  return mounted;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+async function cleanupClaudeConfigDir(configDir: string, inContainer: boolean): Promise<void> {
+  if (inContainer) await reclaimAgentState(configDir);
   try {
     await rm(configDir, {
       recursive: true,
@@ -1534,8 +1591,10 @@ function claudeEnvironment(
   effectiveModel: string,
   credentialBroker: ClaudeCredentialBroker | undefined,
   carriedEnv: CarriedEnv | undefined,
+  container: AgentJobContainer | undefined,
 ): NodeJS.ProcessEnv {
-  const environment: NodeJS.ProcessEnv = {...process.env, ...carriedEnv?.env};
+  // The container starts from its image, never from the runner's environment.
+  const environment: NodeJS.ProcessEnv = {...(container?.env ?? process.env), ...carriedEnv?.env};
   if (carriedEnv !== undefined && carriedEnv.path.length > 0) {
     environment.PATH = prependPath(carriedEnv.path, environment.PATH);
   }

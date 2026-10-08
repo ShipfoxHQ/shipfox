@@ -644,6 +644,55 @@ describe('runJobSteps', () => {
       expect(options).not.toHaveProperty('gitConfigGlobal');
     });
 
+    describe('agent steps', () => {
+      function runAgentInContainer(harness: 'claude' | 'pi') {
+        requestAgentRuntimeConfigMock.mockResolvedValue({
+          harness,
+          provider_id: 'anthropic',
+          model: 'claude-opus-4-8',
+          thinking: 'high',
+          credentials: {api_key: 'sk-runtime-secret'},
+        });
+        requestNextStepMock
+          .mockResolvedValueOnce(stepResponse(containerSetup(), 1))
+          .mockResolvedValueOnce(stepResponse(buildAgentStep(), 1))
+          .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+        executeSetupStepMock.mockResolvedValueOnce({
+          result: {success: true, error: null, exit_code: 0},
+          ambientGitConfigPath: '/runner-cred/job-1/ambient.config',
+          container: {
+            name: 'shipfox-job-1',
+            env: {LICENSE: 'license-secret'},
+            runnerInstallDir: '/opt/runner',
+          },
+        });
+        executeAgentStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+        containerHosts.length = 0;
+        return runLoop({signal: new AbortController().signal});
+      }
+
+      it('starts Claude in the container from the container environment, without the runner Git config', async () => {
+        await runAgentInContainer('claude');
+
+        const options = executeAgentStepMock.mock.calls[0]?.[1];
+        expect(options.host).toBe(containerHosts[0]);
+        expect(options.container).toEqual({
+          env: {PATH: '/usr/local/bin:/usr/bin', LICENSE: 'license-secret'},
+          runnerInstallDir: '/opt/runner',
+        });
+        expect(options).not.toHaveProperty('gitConfigGlobal');
+      });
+
+      it('keeps pi on the runner', async () => {
+        await runAgentInContainer('pi');
+
+        const options = executeAgentStepMock.mock.calls[0]?.[1];
+        expect(options).not.toHaveProperty('host');
+        expect(options).not.toHaveProperty('container');
+        expect(options.gitConfigGlobal).toBe('/runner-cred/job-1/ambient.config');
+      });
+    });
+
     it('skips the secrets route when the container has no secrets', async () => {
       const setup = containerSetup();
       requestNextStepMock

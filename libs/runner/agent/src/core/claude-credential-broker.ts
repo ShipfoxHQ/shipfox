@@ -17,6 +17,9 @@ export const CLAUDE_CREDENTIAL_SOCKET_ENV = 'SHIPFOX_CLAUDE_CREDENTIAL_SOCKET';
 export const CLAUDE_CREDENTIAL_CAPABILITY_ENV = 'SHIPFOX_CLAUDE_CREDENTIAL_CAPABILITY';
 export const CLAUDE_CREDENTIAL_TIMEOUT_ENV = 'SHIPFOX_CLAUDE_CREDENTIAL_TIMEOUT_MS';
 
+// The capability in the request is what authorizes it, so the socket itself can be open.
+const SHARED_SOCKET_MODE = 0o666;
+
 /** Claude Code's helper cache interval. The broker renews before this expires on rejection. */
 export const CLAUDE_CREDENTIAL_HELPER_TTL_MS = 120_000;
 
@@ -34,6 +37,8 @@ export function createClaudeCredentialBroker(options: {
   readonly credentialSource: InferenceCredentialSource;
   readonly signal: AbortSignal;
   readonly socketDirectory: string;
+  /** Lets a process that runs as another user, such as one in the job container, connect. */
+  readonly shareSocket?: boolean;
   readonly monotonicNow?: () => number;
 }): ClaudeCredentialBroker {
   const capability = randomUUID();
@@ -60,6 +65,7 @@ export function createClaudeCredentialBroker(options: {
     capability,
     timeoutMs: CLAUDE_CREDENTIAL_HELPER_TIMEOUT_MS,
     handleRequest,
+    ...(options.shareSocket ? {socketMode: SHARED_SOCKET_MODE} : {}),
   });
 
   async function handleRequest(request: CredentialSocketTransportRequest, signal: AbortSignal) {
