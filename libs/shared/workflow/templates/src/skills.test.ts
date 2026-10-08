@@ -114,7 +114,7 @@ describe('shipped skill resources', () => {
     const authoring = getShippedSkillResource('skill://shipfox/write-a-workflow/SKILL.md');
     const testing = getShippedSkillResource('skill://shipfox/test-workflow-change/SKILL.md');
 
-    expect(authoring?.revision).toBe(4);
+    expect(authoring?.revision).toBe(5);
     expect(testing?.revision).toBe(2);
     for (const identifier of ['get_workflow_template', 'get_workflow_authoring_context']) {
       expect(template?.text).toContain(identifier);

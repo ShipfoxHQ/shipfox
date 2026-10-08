@@ -53,13 +53,14 @@ triggers:
 
 jobs:
   package:
-    outputs:
-      version: ${{ steps.read_version.outputs.version }}
     steps:
       - key: read_version
-        run: echo "version=$(git describe --tags --always)" >> "$SHIPFOX_OUTPUT"
+        run: git describe --tags --always
         outputs:
-          version: string
+          version:
+            type: string
+            from_stdout: true
+        export: true
 
   publish:
     needs: package
@@ -67,19 +68,32 @@ jobs:
       - run: printf 'Publishing version %s\n' "${{ jobs.package.outputs.version }}"
 ```
 
-The step creates `version`. The `package` job publishes it. The `publish` job
-declares the dependency and puts the value in its command.
+The step creates `version` from what its command prints. `export` publishes it
+as an output of the `package` job. The `publish` job declares the dependency
+and puts the value in its command.
 
-When a step declares a JSON array or object, a job output that maps exactly one
-expression keeps that structure for later jobs. A later expression such as
+A job can also publish values through its own `outputs` map, which sets each
+name to an expression. Use the map to rename a value or to build one from
+several steps.
+
+When a step declares a JSON array or object, an exported output keeps that
+structure for later jobs. So does a job output that maps exactly one
+expression. A later expression such as
 `jobs.review.outputs.findings[0].severity` can then read a nested field. A
 template that mixes text and expressions still produces a string.
+
+A text field such as `env` or a command receives a list or a map as JSON text.
+A shell step can parse it without calling `toJson()` first.
 
 Outputs fit small facts. Files and build products belong in external artifact
 storage, with an output that carries their location. [Step
 outputs](/reference/workflow-schema#step-outputs) defines declaration types and
 encoding. [Job outputs](/reference/limits#job-outputs) lists the limits for job
 outputs.
+
+Outputs cross job boundaries. Inside one job, a step can also hand an
+environment variable or a `PATH` directory to the steps after it. See [Share
+tools between steps](/how-to/author-workflows/share-tools-between-steps).
 
 ## Treat outside data as text, not as instructions
 

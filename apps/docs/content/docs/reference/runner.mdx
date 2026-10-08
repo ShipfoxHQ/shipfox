@@ -121,6 +121,12 @@ The runner sets these variables on run steps and action steps. A step `env` entr
 | `SHIPFOX_RUN_NUMBER` | Number of the workflow run. |
 | `SHIPFOX_RUN_ATTEMPT` | Attempt of the workflow run, starting at `1`. |
 | `SHIPFOX_RUN_URL` | Link to the run in the Shipfox dashboard. |
+| `SHIPFOX_ENV` | Path of a file. Each `NAME=value` line, or `NAME<<DELIMITER` block, sets an environment variable for later steps of the job. `PATH` and names that start with `SHIPFOX_` fail the step. |
+| `SHIPFOX_PATH` | Path of a file. Each line names a directory that later steps of the job get at the front of `PATH`. A relative directory resolves against the step working directory. |
+
+The runner reads `SHIPFOX_ENV` and `SHIPFOX_PATH` when the step exits, whatever
+its exit code. See [Share tools between
+steps](/how-to/author-workflows/share-tools-between-steps).
 
 ## Related pages
 
