@@ -675,6 +675,7 @@ describe('runJobSteps', () => {
         await runAgentInContainer('claude');
 
         const options = executeAgentStepMock.mock.calls[0]?.[1];
+        expect(containerHosts).toHaveLength(1);
         expect(options.host).toBe(containerHosts[0]);
         expect(options.container).toEqual({
           env: {PATH: '/usr/local/bin:/usr/bin', LICENSE: 'license-secret'},
