@@ -546,21 +546,52 @@ describe('impersonation window routes', () => {
     ]);
   });
 
-  test('refuses Continue once the workspace is suspended or the role is gone', async () => {
-    const owner = await bootstrapOwner('window-continue-recheck');
-    const started = await startWindow({token: owner.token, key: 'window-continue-recheck-start'});
+  test('refuses Continue once the workspace is suspended', async () => {
+    const owner = await bootstrapOwner('window-continue-suspended');
+    const started = await startWindow({token: owner.token, key: 'window-continue-suspended-start'});
     const windowId = impersonationWindowStartResponseSchema.parse(started.json()).window_id;
     getWorkspaceOperatingStateMock.mockResolvedValue({status: 'suspended'});
 
     const continued = await app.inject({
       method: 'POST',
       url: `/admin/auth/impersonation/windows/${windowId}/continue`,
-      headers: authHeaders(owner.token, 'window-continue-recheck-continue'),
+      headers: authHeaders(owner.token, 'window-continue-suspended-continue'),
       payload: {},
     });
 
     expect(continued.statusCode).toBe(409);
     expect(continued.json()).toEqual({code: 'impersonation-workspace-not-active'});
+  });
+
+  test('refuses Continue once the operator role is revoked', async () => {
+    const owner = await bootstrapOwner('window-continue-revoked');
+    const actor = await createVerifiedSession('window-continue-revoked-actor');
+    const grant = await app.inject({
+      method: 'POST',
+      url: '/admin/auth/admin-grants',
+      headers: authHeaders(owner.token, 'window-continue-revoked-grant'),
+      payload: {user_id: actor.userId, role: 'admin-operator', reason: 'Window actor'},
+    });
+    expect(grant.statusCode).toBe(201);
+    const started = await startWindow({token: actor.token, key: 'window-continue-revoked-start'});
+    const windowId = impersonationWindowStartResponseSchema.parse(started.json()).window_id;
+    const revoked = await app.inject({
+      method: 'DELETE',
+      url: `/admin/auth/admin-grants/${grant.json().id}`,
+      headers: authHeaders(owner.token, 'window-continue-revoked-revoke'),
+      payload: {reason: 'Window actor no longer needs access'},
+    });
+    expect(revoked.statusCode).toBe(200);
+
+    const continued = await app.inject({
+      method: 'POST',
+      url: `/admin/auth/impersonation/windows/${windowId}/continue`,
+      headers: authHeaders(actor.token, 'window-continue-revoked-continue'),
+      payload: {},
+    });
+
+    expect(continued.statusCode).toBe(403);
+    expect(continued.json()).toMatchObject({code: 'forbidden'});
   });
 
   test('refuses Continue for a window opened before windows targeted a workspace', async () => {

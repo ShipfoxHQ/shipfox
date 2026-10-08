@@ -263,12 +263,6 @@ administration dashboard specification (2026-07-27), by reference.** ADR 0008 it
 edited; it continues to govern the role model, idempotency, audit, and suspension semantics that
 this capability builds on.
 
-**Window targeting is amended.** An impersonation window now targets a workspace, not a user. The
-administrator keeps their own identity: the token's `sub` is the administrator, its only membership
-is the window's workspace with role `admin`, and `impersonatorId` equals `sub`. The target-user
-rules (rules 4 through 6) apply to the legacy `POST /:userId/impersonate` route only. The marker,
-the `/admin` guard, the durable-artefact deny-list, and the token lifetime are unchanged.
-
 ## Consequences
 
 - An impersonated session cannot outlive its 15-minute window and cannot be refreshed. The
