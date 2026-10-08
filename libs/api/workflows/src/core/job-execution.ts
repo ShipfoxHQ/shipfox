@@ -56,6 +56,7 @@ import {
   ActionInputInvalidError,
   AgentConfigUnresolvableError,
   AgentStepSessionClaimError,
+  boundedStepName,
   InterpolationUnresolvableError,
   JobNotFoundError,
   JobOutputTooLargeError,
@@ -1018,7 +1019,7 @@ function conditionErroredStepError(params: {
   readonly jobKey: string;
   readonly summary: string;
 }): Record<string, unknown> {
-  const label = params.step.key ?? params.step.name;
+  const label = boundedStepName(params.step.key ?? params.step.name);
   return {
     message: `The \`if\` of step \`${label}\` can't be evaluated: ${params.summary.replace(TRAILING_PERIOD, '')}.`,
     reason: 'condition_errored',

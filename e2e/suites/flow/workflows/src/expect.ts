@@ -62,6 +62,7 @@ const stepErrorReasonSchema = z.enum([
   'container_setup_failed',
   'setup_aborted',
   'config_unresolvable',
+  'condition_errored',
   'output_invalid',
   'agent_config_invalid',
   'agent_invocation_failed',

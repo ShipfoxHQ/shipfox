@@ -12,6 +12,7 @@ import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {JobStatusReason} from '#core/entities/job.js';
 import type {StepAttempt} from '#core/entities/step.js';
+import {boundedStepName} from '#core/errors.js';
 import {GATE_EVALUATION_ERROR_REASON} from '#core/step-transition/evaluate-gate.js';
 import {
   getJobExecutionFailureOrigin,
@@ -526,7 +527,7 @@ function conditionErroredFailureCopy(
 
   return {
     title: 'A step condition has an error',
-    description: `The \`if\` of step \`${step.key ?? step.name}\` can't be evaluated: ${summary.replace(TRAILING_PERIOD, '')}. Fix the condition, then start a new run.`,
+    description: `The \`if\` of step \`${boundedStepName(step.key ?? step.name)}\` can't be evaluated: ${summary.replace(TRAILING_PERIOD, '')}. Fix the condition, then start a new run.`,
   };
 }
 

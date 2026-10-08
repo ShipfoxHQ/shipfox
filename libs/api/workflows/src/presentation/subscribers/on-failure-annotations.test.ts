@@ -412,6 +412,44 @@ describe('failure annotations', () => {
     );
   });
 
+  it('shortens a long step name in the condition error copy', async () => {
+    const payload = stepAttemptTerminatedPayload();
+    const step = stepEntity({
+      id: payload.stepId,
+      jobExecutionId: JOB_EXECUTION_ID,
+      key: null,
+      name: 'x'.repeat(500),
+      status: 'failed',
+    });
+    const attempt = stepAttemptEntity({
+      stepId: step.id,
+      status: 'failed',
+      error: {reason: 'condition_errored', summary: 'No such key: sha', message: 'ignored'},
+    });
+    dbMocks.getStepAttemptDetail.mockResolvedValue({
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
+      step,
+      attempt,
+    });
+    dbMocks.getWorkflowRunAttemptById.mockResolvedValue({attempt: 1});
+
+    await onStepAttemptTerminatedFailureAnnotation(annotations)(payload);
+
+    expect(replaceOrRemoveAnnotation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotation: expect.objectContaining({
+          body: expect.stringContaining(`\`${'x'.repeat(80)}…\``),
+        }),
+      }),
+    );
+    expect(replaceOrRemoveAnnotation).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotation: expect.objectContaining({body: expect.stringContaining('x'.repeat(81))}),
+      }),
+    );
+  });
+
   it('names the unresolved configuration field and reference without exposing raw details', async () => {
     const payload = stepAttemptTerminatedPayload();
     const step = stepEntity({
