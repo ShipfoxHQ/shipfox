@@ -1,7 +1,6 @@
 import {describe, expect, it} from '@shipfox/vitest/vi';
 import {
   impersonateResponseSchema,
-  impersonationTargetNotWorkspaceMemberErrorSchema,
   impersonationWindowContinueBodySchema,
   impersonationWindowContinueResponseSchema,
   impersonationWindowDeadlineReachedErrorSchema,
@@ -16,6 +15,7 @@ import {
   impersonationWindowStopResponseSchema,
   impersonationWindowsQuerySchema,
   impersonationWindowsResponseSchema,
+  impersonationWorkspaceNotActiveErrorSchema,
 } from './index.js';
 
 const actor = {
@@ -37,6 +37,7 @@ const target = {
   admin_role: null,
 };
 const windowId = '33333333-3333-4333-8333-333333333333';
+const workspaceId = '44444444-4444-4444-8444-444444444444';
 const startedAt = '2026-01-01T00:00:00.000Z';
 const deadlineAt = '2026-01-01T01:00:00.000Z';
 
@@ -54,6 +55,7 @@ const tokenResponse = {
     created_at: target.created_at,
     updated_at: target.created_at,
   },
+  workspace_id: workspaceId,
   window_id: windowId,
   window_started_at: startedAt,
   window_deadline: deadlineAt,
@@ -62,7 +64,8 @@ const tokenResponse = {
 const windowSummary = {
   window_id: windowId,
   actor,
-  target,
+  workspace_id: workspaceId,
+  target: null,
   reason: 'Support is investigating a user-provided run link',
   started_at: startedAt,
   deadline_at: deadlineAt,
@@ -86,18 +89,19 @@ describe('impersonation window DTOs', () => {
   it('validates the separate Start, Continue, and Stop command shapes', () => {
     expect(
       impersonationWindowStartBodySchema.parse({
-        target_user_id: target.id,
+        workspace_id: workspaceId,
         reason: 'Investigate a support link',
-        required_workspace_id: '44444444-4444-4444-8444-444444444444',
       }),
     ).toEqual({
-      target_user_id: target.id,
+      workspace_id: workspaceId,
       reason: 'Investigate a support link',
-      required_workspace_id: '44444444-4444-4444-8444-444444444444',
     });
-    expect(impersonationWindowStartBodySchema.parse({target_user_id: target.id})).toEqual({
-      target_user_id: target.id,
+    expect(impersonationWindowStartBodySchema.parse({workspace_id: workspaceId})).toEqual({
+      workspace_id: workspaceId,
     });
+    expect(impersonationWindowStartBodySchema.safeParse({target_user_id: target.id}).success).toBe(
+      false,
+    );
     expect(impersonationWindowContinueBodySchema.parse(undefined)).toEqual({});
     expect(impersonationWindowParamsSchema.parse({windowId})).toEqual({windowId});
     expect(impersonationWindowStopBodySchema.parse(undefined)).toEqual({});
@@ -106,7 +110,7 @@ describe('impersonation window DTOs', () => {
     });
     expect(
       impersonationWindowStartBodySchema.safeParse({
-        target_user_id: target.id,
+        workspace_id: workspaceId,
         reason: '   ',
       }).success,
     ).toBe(false);
@@ -120,6 +124,14 @@ describe('impersonation window DTOs', () => {
         next_cursor: null,
       }).windows[0]?.reason,
     ).toBeNull();
+  });
+
+  it('keeps the target for windows opened before windows targeted a workspace', () => {
+    const legacy = {...windowSummary, workspace_id: null, target};
+
+    expect(
+      impersonationWindowsResponseSchema.parse({windows: [legacy], next_cursor: null}).windows[0],
+    ).toMatchObject({workspace_id: null, target: {id: target.id}});
   });
 
   it('defaults and bounds collection reads', () => {
@@ -188,7 +200,7 @@ describe('impersonation window DTOs', () => {
     [impersonationWindowStoppedErrorSchema, 'impersonation-window-stopped'],
     [impersonationWindowDeadlineReachedErrorSchema, 'impersonation-window-deadline-reached'],
     [impersonationWindowLimitReachedErrorSchema, 'impersonation-window-limit-reached'],
-    [impersonationTargetNotWorkspaceMemberErrorSchema, 'impersonation-target-not-workspace-member'],
+    [impersonationWorkspaceNotActiveErrorSchema, 'impersonation-workspace-not-active'],
   ])('provides a Fastify-compatible schema for %s', (schema, code) => {
     expect(schema.parse({code})).toEqual({code});
   });

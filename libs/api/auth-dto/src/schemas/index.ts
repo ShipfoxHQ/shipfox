@@ -158,7 +158,6 @@ export {
   type ImpersonationWindowSummaryDto,
   type ImpersonationWindowsQueryDto,
   type ImpersonationWindowsResponseDto,
-  impersonationTargetNotWorkspaceMemberErrorSchema,
   impersonationWindowContinueBodySchema,
   impersonationWindowContinueParamsSchema,
   impersonationWindowContinueResponseSchema,
@@ -183,6 +182,7 @@ export {
   impersonationWindowSummarySchema,
   impersonationWindowsQuerySchema,
   impersonationWindowsResponseSchema,
+  impersonationWorkspaceNotActiveErrorSchema,
 } from './impersonation-window.js';
 export {
   JOB_LEASE_TOKEN_AUDIENCE,

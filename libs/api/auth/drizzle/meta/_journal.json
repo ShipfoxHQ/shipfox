@@ -85,6 +85,13 @@
       "when": 1791417822905,
       "tag": "0011_relax_impersonation_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791419939519,
+      "tag": "0012_workspace_impersonation_windows",
+      "breakpoints": true
     }
   ]
 }

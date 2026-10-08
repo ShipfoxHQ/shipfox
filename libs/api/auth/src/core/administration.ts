@@ -175,9 +175,8 @@ function impersonationWindowMaxSeconds(): number {
 }
 
 export interface StartImpersonationWindowParams extends AdministrationMutationContext {
-  targetUserId: string;
+  workspaceId: string;
   reason?: string | undefined;
-  requiredWorkspaceId?: string | undefined;
   workspaces: WorkspacesInterModuleClient;
 }
 
@@ -198,9 +197,8 @@ export async function startImpersonationWindow(
   const requestFingerprint = administrationCommandFingerprint(
     IMPERSONATION_WINDOW_START_COMMAND_NAME,
     {
-      targetUserId: params.targetUserId,
+      workspaceId: params.workspaceId,
       reason: params.reason ?? null,
-      requiredWorkspaceId: params.requiredWorkspaceId ?? null,
     },
   );
 
@@ -209,8 +207,8 @@ export async function startImpersonationWindow(
       await publishImpersonationWindowFailure({
         command: IMPERSONATION_WINDOW_START_COMMAND_NAME,
         actorId: params.actorId,
-        targetType: 'user',
-        targetId: params.targetUserId,
+        targetType: 'workspace',
+        targetId: params.workspaceId,
         reason: params.reason ?? null,
         idempotencyKeyFingerprint,
         correlationId: params.correlationId,
@@ -220,16 +218,13 @@ export async function startImpersonationWindow(
 
     const command: ImpersonationWindowMintCommandParams = {
       actorId: params.actorId,
-      targetUserId: params.targetUserId,
+      workspaceId: params.workspaceId,
       idempotencyKeyFingerprint,
       requestFingerprint,
       correlationId: params.correlationId,
       workspaces: params.workspaces,
       windowMaxSeconds: impersonationWindowMaxSeconds(),
       ...(params.reason === undefined ? {} : {reason: params.reason}),
-      ...(params.requiredWorkspaceId === undefined
-        ? {}
-        : {requiredWorkspaceId: params.requiredWorkspaceId}),
     };
     const outcome = await startImpersonationWindowCommand(command);
     const result = resolveWindowCommandOutcome(outcome);
@@ -315,7 +310,10 @@ export async function stopImpersonationWindow(
 export interface ImpersonationWindowView {
   windowId: string;
   actor: AdministratorUserSummary;
-  target: AdministratorUserSummary;
+  /** Null for windows opened before windows targeted a workspace. */
+  workspaceId: string | null;
+  /** Null for windows opened after windows targeted a workspace. */
+  target: AdministratorUserSummary | null;
   reason: string | null;
   actorRoleAtStart: ImpersonationWindow['actorRoleAtStart'];
   startedAt: Date;
@@ -330,14 +328,18 @@ async function toImpersonationWindowView(
 ): Promise<ImpersonationWindowView> {
   const [actor, target] = await Promise.all([
     findAdministratorUserSummaryInDb(db(), {id: window.actorId}),
-    findAdministratorUserSummaryInDb(db(), {id: window.targetUserId}),
+    window.targetUserId
+      ? findAdministratorUserSummaryInDb(db(), {id: window.targetUserId})
+      : undefined,
   ]);
-  if (!actor || !target) throw new UserNotFoundError(window.targetUserId);
+  if (!actor) throw new UserNotFoundError(window.actorId);
+  if (window.targetUserId && !target) throw new UserNotFoundError(window.targetUserId);
   const state = 'state' in window ? window.state : 'open';
   return {
     windowId: window.id,
     actor,
-    target,
+    workspaceId: window.workspaceId,
+    target: target ?? null,
     reason: window.reason,
     actorRoleAtStart: window.actorRoleAtStart,
     startedAt: window.startedAt,

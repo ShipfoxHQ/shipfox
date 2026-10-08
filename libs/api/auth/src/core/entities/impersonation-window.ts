@@ -8,7 +8,10 @@ export type ImpersonationWindowState = 'open' | 'stopped' | 'expired';
 export interface ImpersonationWindow {
   id: string;
   actorId: string;
-  targetUserId: string;
+  /** Null for windows opened before windows targeted a workspace. */
+  targetUserId: string | null;
+  /** Null for windows opened before windows targeted a workspace; they cannot be continued. */
+  workspaceId: string | null;
   reason: string | null;
   actorRoleAtStart: AdminRole;
   startedAt: Date;

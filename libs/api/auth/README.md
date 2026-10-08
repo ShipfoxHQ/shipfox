@@ -164,6 +164,17 @@ be removed or forged by a client.
   membership claims as login) plus the `impersonatorId` claim. The token carries
   **no `refreshSessionId`**, and the command creates no refresh session and no
   cookie, so nothing persisted can resurrect the session after the window.
+- **Workspace windows:** `POST /admin/auth/impersonation/windows` takes a
+  `workspace_id` and opens a window on that workspace. The window's token is the
+  administrator's own identity (`sub` and `impersonatorId` are both the
+  administrator) with one membership: the window's workspace, role `admin`. The
+  administrator's real memberships are never loaded. Start, idempotent replay,
+  and continuation all mint through one helper that re-checks the actor's
+  `admin-operator` role and re-reads the workspace, and they keep the window's
+  original deadline. A suspended, deleted, or missing workspace returns
+  `409 impersonation-workspace-not-active`. A window opened before windows
+  targeted a workspace has no `workspace_id`; it cannot be continued
+  (`409 impersonation-window-stopped`) and runs out at its deadline.
 - **Lifetime:** TTL is `min(AUTH_JWT_EXPIRES_IN, 15 minutes)`. The mint,
   replay, and renewal responses carry `expires_at` and a `server_time` anchor
   from the issuer; the client never decodes the JWT.
@@ -626,7 +637,7 @@ The module creates tables with the `auth_` prefix:
 
 Agent-access authorization codes and refresh tokens are stored as hashes. Client
 identities retain only validated redirect metadata, display names, and lifecycle timestamps.
-Impersonation windows store inert actor, target, an optional reason, role, time, and terminal metadata. Windows created before the reason became optional keep theirs.
+Impersonation windows store inert actor, workspace, an optional reason, role, time, and terminal metadata. Windows created before windows targeted a workspace keep their target user and have no workspace; windows created before the reason became optional keep theirs.
 They store no token, claims, fingerprint, refresh material, or other credential.
 
 The directory ordering index uses a transactional migration. PostgreSQL holds a `ShareLock` on `auth_users` for the full index build, so writes wait during that period. The build time depends on the table size; schedule the migration when writes can wait.

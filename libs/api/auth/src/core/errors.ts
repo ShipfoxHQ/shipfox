@@ -246,10 +246,10 @@ export class ImpersonationWindowLimitReachedError extends Error {
   }
 }
 
-export class ImpersonationTargetNotWorkspaceMemberError extends Error {
+export class ImpersonationWorkspaceNotActiveError extends Error {
   constructor() {
-    super('Impersonation target is not an active member of the required workspace');
-    this.name = 'ImpersonationTargetNotWorkspaceMemberError';
+    super('Impersonation workspace does not exist or is not active');
+    this.name = 'ImpersonationWorkspaceNotActiveError';
   }
 }
 
