@@ -49,7 +49,7 @@ const poses = {
     src: new URL('../../assets/shippy/cartridge.webp', import.meta.url).href,
   },
   party: {
-    width: 297,
+    width: 275,
     height: 240,
     src: new URL('../../assets/shippy/party.webp', import.meta.url).href,
   },
