@@ -3,6 +3,8 @@ import {
   modelProviderConfigsQueryOptions,
 } from '@shipfox/client-agent';
 import {
+  type IntegrationConnection,
+  type IntegrationProvider,
   integrationConnectionsQueryOptions,
   integrationProvidersQueryOptions,
 } from '@shipfox/client-integrations';
@@ -15,7 +17,10 @@ import {
   listMembersQueryOptions,
 } from '@shipfox/client-workspace-settings';
 import {useQuery} from '@tanstack/react-query';
-import {deriveIntegrationReadiness} from '#core/integration-readiness.js';
+import {
+  deriveIntegrationReadiness,
+  type WorkspaceIntegrationReadiness,
+} from '#core/integration-readiness.js';
 import {
   deriveSetupChecklist,
   type FirstWorkflowProgress,
@@ -30,6 +35,16 @@ export interface ChecklistQueryState {
   checklist: SetupChecklist;
   /** Undefined until the first-workflow read answers. */
   firstWorkflow: FirstWorkflowProgress | undefined;
+  /** The first-workflow read answered or failed. */
+  firstWorkflowSettled: boolean;
+  /** Empty until the providers and connections reads answer. */
+  integrations: {
+    providers: readonly IntegrationProvider[];
+    connections: readonly IntegrationConnection[];
+    readiness: WorkspaceIntegrationReadiness;
+    /** Both reads succeeded. */
+    loaded: boolean;
+  };
   baseSettled: boolean;
   /**
    * Every family that can still add a tracked row has reported, by success or
@@ -51,10 +66,15 @@ export interface ChecklistQueryState {
  * in the API adapter boundary gives each query family one shared cache policy
  * while allowing dismissed hosts to remain unsubscribed.
  */
-export function useSetupChecklistQueryState(
-  workspaceId: string,
-  subscribed: boolean,
-): ChecklistQueryState {
+export function useSetupChecklistQueryState({
+  workspaceId,
+  subscribed,
+  toolsStepFinished,
+}: {
+  workspaceId: string;
+  subscribed: boolean;
+  toolsStepFinished: boolean;
+}): ChecklistQueryState {
   const queryEnabled = shouldEnableChecklistQueries(subscribed, workspaceId);
   const queryPolicy = {
     enabled: queryEnabled,
@@ -116,11 +136,11 @@ export function useSetupChecklistQueryState(
     },
   });
 
+  const providers = providersQuery.data ?? [];
+  const connections = connectionsQuery.data ?? [];
+  const readiness = deriveIntegrationReadiness({providers, connections});
   const rawChecklist = deriveSetupChecklist({
-    readiness: deriveIntegrationReadiness({
-      providers: providersQuery.data ?? [],
-      connections: connectionsQuery.data ?? [],
-    }),
+    readiness,
     installationRunners: runnersStatusQuery.data ?? 'managed',
     workspaceRunnerCapacity: (activeProvisionersQuery.data?.length ?? 0) > 0,
     modelProvider: {
@@ -134,7 +154,8 @@ export function useSetupChecklistQueryState(
       memberCount: membersQuery.data?.length ?? 0,
       pendingInvitationCount: invitationsQuery.data?.length ?? 0,
     },
-    firstWorkflow: firstWorkflow.progress ?? {state: 'open'},
+    firstWorkflow: firstWorkflow.progress,
+    toolsStepFinished,
   });
 
   const hiddenRows = hiddenChecklistRows(families);
@@ -144,6 +165,13 @@ export function useSetupChecklistQueryState(
 
   return {
     firstWorkflow: firstWorkflow.progress,
+    firstWorkflowSettled: families.firstWorkflowSettled,
+    integrations: {
+      providers,
+      connections,
+      readiness,
+      loaded: families.providersReady && families.connectionsReady,
+    },
     baseSettled: families.baseSettled,
     trackedRowsSettled: families.trackedRowsSettled,
     completionReady: families.completionReady,
@@ -199,6 +227,7 @@ function checklistFamilyState(queries: {
     modelReady: queries.catalogQuery.isSuccess && queries.configsQuery.isSuccess,
     membersReady: queries.membersQuery.isSuccess && queries.invitationsQuery.isSuccess,
     firstWorkflowReady: queries.firstWorkflowQuery.isSuccess,
+    firstWorkflowSettled,
     baseSettled: isSettled(queries.providersQuery) && isSettled(queries.connectionsQuery),
     trackedRowsSettled: runnerSettled && modelSettled && firstWorkflowSettled,
     completionReady: providersReady && connectionsReady && everyFamilySettled,
@@ -212,9 +241,14 @@ function hiddenChecklistRows(readiness: {
   modelReady: boolean;
   membersReady: boolean;
   firstWorkflowReady: boolean;
+  firstWorkflowSettled: boolean;
 }): Set<SetupChecklistItemId> {
   const hiddenRows = new Set<SetupChecklistItemId>();
-  if (!readiness.providersReady || !readiness.connectionsReady) hiddenRows.add('tools');
+  // The tools row is tracked or a pointer depending on the first workflow, so
+  // it also waits for that read. A failed read still shows it, as open.
+  if (!readiness.providersReady || !readiness.connectionsReady || !readiness.firstWorkflowSettled) {
+    hiddenRows.add('tools');
+  }
   if (!readiness.runnerReady) hiddenRows.add('runner');
   if (!readiness.modelReady) hiddenRows.add('model-provider');
   if (!readiness.membersReady) hiddenRows.add('teammates');

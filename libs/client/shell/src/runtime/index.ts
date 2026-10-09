@@ -49,3 +49,4 @@ export * from './router-context.js';
 export * from './search-serialization.js';
 export * from './workspace-setup.js';
 export * from './workspace-setup-dismissal.js';
+export * from './workspace-setup-tools-step.js';

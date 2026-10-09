@@ -67,7 +67,10 @@ export interface SetupChecklistInput {
   workspaceRunnerCapacity: boolean;
   modelProvider: {installationProvided: boolean; configured: boolean};
   membership: {memberCount: number; pendingInvitationCount: number};
-  firstWorkflow: FirstWorkflowProgress;
+  /** Undefined when the first-workflow read has no answer, which reads as `open`. */
+  firstWorkflow: FirstWorkflowProgress | undefined;
+  /** The reader skipped or continued past the tools step on this device. */
+  toolsStepFinished: boolean;
 }
 
 const TOOLS_TITLE = 'Connect your tools';
@@ -95,17 +98,23 @@ export function deriveSetupChecklist({
   modelProvider,
   membership,
   firstWorkflow,
+  toolsStepFinished,
 }: SetupChecklistInput): SetupChecklist {
   const toolsAttention =
     !readiness.hasToolIntegration && attentionToolProviders(readiness).length > 0;
+  // Tools are asked for before the first workflow only. Past that point a
+  // workspace without a tool is still set up, so the row turns into a pointer.
+  const toolsPointer =
+    !readiness.hasToolIntegration &&
+    (toolsStepFinished || (firstWorkflow !== undefined && firstWorkflow.state !== 'open'));
   const items: SetupChecklistItem[] = [
     {id: 'source-control', title: 'Connect source control', status: 'done', tracked: true},
     {id: 'project', title: 'Create a project', status: 'done', tracked: true},
     {
       id: 'tools',
       title: toolsTitle(readiness),
-      status: readiness.hasToolIntegration ? 'done' : 'open',
-      tracked: true,
+      status: toolsStatus(readiness.hasToolIntegration, toolsPointer),
+      tracked: !toolsPointer,
       attention: toolsAttention,
       purpose: TOOLS_PURPOSE,
       action: {label: 'Connect', href: '/settings/integrations'},
@@ -134,7 +143,7 @@ export function deriveSetupChecklist({
     });
   }
 
-  items.push(firstWorkflowItem(firstWorkflow), {
+  items.push(firstWorkflowItem(firstWorkflow ?? {state: 'open'}), {
     id: 'teammates',
     title: 'Invite your teammates',
     status: membership.memberCount >= 2 || membership.pendingInvitationCount >= 1 ? 'done' : 'info',
@@ -152,6 +161,11 @@ export function deriveSetupChecklist({
     trackedCount: trackedItems.length,
     complete: openCount === 0,
   };
+}
+
+function toolsStatus(connected: boolean, pointer: boolean): SetupChecklistItemStatus {
+  if (connected) return 'done';
+  return pointer ? 'info' : 'open';
 }
 
 function firstWorkflowItem(progress: FirstWorkflowProgress): SetupChecklistItem {

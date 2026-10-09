@@ -27,12 +27,16 @@ post-activation Get-started checklist, and its panel and top-bar hosts.
 - **`selectNextSetupStep`**: the one row a compact host asks for. It returns the
   first open tracked row, falling back to the first unfinished pointer once
   every tracked row is done.
+- **`selectHomePanel`**: the one onboarding panel the home shows: none, the
+  tools step, the first workflow, or the compact checklist. It is a pure
+  function of the device flags and the settled reads.
 - **`WorkspaceSetupChecklist`** and **`WorkspaceSetupIndicator`**: slot-ready
-  hosts that load the six checklist query families, render the checklist in a
-  panel or a non-modal popover, and persist per-device dismissal. The panel sits
-  above a page's own content, so it shows only the next step. A header toggle
-  opens the full list, and that choice is remembered per device. The popover
-  always carries the whole checklist.
+  hosts that load the six checklist query families and persist per-device
+  dismissal. `WorkspaceSetupChecklist` is the home slot. It renders one panel at
+  a time: the tools step, then the first-workflow panel, then the compact
+  checklist. The compact checklist shows only the next step. A header toggle
+  opens the full list, and that choice is remembered per device. The indicator
+  is a non-modal popover that always carries the whole checklist.
 - **`FirstWorkflowPanel`**: the first workflow panel. In choose mode it shows
   the MCP setup inline, collapsing to "Connected: <client>" once the signed-in
   user has an agent grant for the workspace. It recommends one workflow
@@ -42,7 +46,8 @@ post-activation Get-started checklist, and its panel and top-bar hosts.
   not shown. In finish mode it links
   the latest succeeded test run and explains which pull request turns the
   workflow on. The template cards move behind a disclosure.
-  `WorkspaceSetupChecklist` mounts it below the checklist on the home.
+  `WorkspaceSetupChecklist` mounts it on the home once the tools step is
+  finished, with a close button that hides the setup guide.
 - **`ProjectFirstWorkflowPanel`**: slot-ready host that renders
   `FirstWorkflowPanel` for one project, in place of the project workflows
   page's empty list.
@@ -87,6 +92,7 @@ const checklist = deriveSetupChecklist({
   modelProvider: {installationProvided: false, configured: false},
   membership: {memberCount: 1, pendingInvitationCount: 0},
   firstWorkflow: {state: 'open'},
+  toolsStepFinished: false,
 });
 
 checklist.items; // 7 rows: source control, project, tools, runner,
@@ -127,7 +133,10 @@ The caller maps its own query results to the derivation inputs:
   configuration.
 - `membership` reports the member and pending-invitation counts.
 - `firstWorkflow` is `{state: 'open'}`, `{state: 'test_run_succeeded',
-  testRunId}`, or `{state: 'done'}`.
+  testRunId}`, or `{state: 'done'}`. Pass `undefined` when the read has no
+  answer.
+- `toolsStepFinished` reports whether the reader skipped or continued past the
+  tools step on this device.
 
 ## Behavior notes
 
@@ -138,9 +147,16 @@ The caller maps its own query results to the derivation inputs:
   provider lacks the `source_control` capability. GitHub never satisfies it.
 - The tools row names one attention provider ("Linear needs attention") or
   counts several ("2 integrations need attention").
+- The tools row is done once a tool is connected. Without a tool it is open
+  while the tools step is unfinished on this device and the first workflow is
+  `open` or its read failed. It becomes a pointer that does not count, and
+  keeps its "Connect" action, once the tools step is finished or the first
+  workflow is known and no longer `open`. The hosts hide the row while the
+  first-workflow read is unanswered.
 - `complete` is true when every tracked row is done. Tracked rows are source
-  control, project, tools, and first workflow, plus runner and model-provider
-  when those rows exist. The teammates pointer never counts.
+  control, project, and first workflow, plus the tools row while it is not a
+  pointer, and runner and model-provider when those rows exist. The teammates
+  pointer never counts.
 - The first-workflow row is open with "Create your first workflow" and a link
   to the workspace home until a dev run succeeds. It then reads "A test run
   succeeded" and links to that run. It is done once the workspace has a
@@ -154,12 +170,35 @@ The caller maps its own query results to the derivation inputs:
   false.
 - The teammates row renders done at `memberCount >= 2` or
   `pendingInvitationCount >= 1`, but stays a pointer.
-- The panel and indicator render nothing until enough queries have settled to
-  know what to show, so a workspace that finished setup never sees a
-  placeholder. An open tracked step can appear while other families are still
-  loading. Outside the completion state, the panel renders only while a loaded
-  family reports an open tracked step, including when the full list was left
-  open. The slots exported from `./feature` load lazily behind their own
+- The home slot picks its panel with `selectHomePanel`, which is separate from
+  checklist completion. It takes the first rule that matches:
+  1. Nothing, while the setup guide is hidden or the slot is not ready.
+  2. The tools panel, while the tools step is unfinished on this device, the
+     first workflow is known and `open`, and the providers and connections
+     reads succeeded. The number of connected tools is not a condition, so the
+     panel stays after an install until its button is pressed.
+  3. The first-workflow panel, while the first workflow is known and not
+     `done`, and runners and a model are available.
+  4. The compact checklist, while a tracked row is open or the completion
+     state is showing.
+  5. Nothing.
+- The home slot is ready once the providers, connections, and first-workflow
+  reads have each settled, by success or by failure. Unknown first-workflow
+  progress stays unknown: a failed read matches neither rule 2 nor rule 3 and
+  falls through to the compact checklist. A workspace that finished setup
+  never sees a panel, at the cost of the panel appearing after the slower
+  first-workflow read.
+- The tools panel lists the enabled providers that are not source control and
+  that install through a redirect. A connected provider stays listed as
+  "Connected" with "Add another", and an install started there returns to the
+  home. The footer button reads "Skip for now" with no tool connected in the
+  workspace and "Continue" with one or more. Either one finishes the tools
+  step on this device, captures `onboarding_tools_step_finished` with
+  `outcome` (`skipped` or `continued`) and `connected_count`, and moves focus
+  to the title of the first-workflow panel.
+- The indicator renders nothing until enough queries have settled to know
+  what to show. An open tracked step can appear while other families are still
+  loading. The slots exported from `./feature` load lazily behind their own
   hidden Suspense boundary.
 - The panel and indicator render nothing for an initially complete checklist;
   the mounted host that observes the final tracked row transition renders the
@@ -169,20 +208,6 @@ The caller maps its own query results to the derivation inputs:
   same transition completes the checklist, only the completion burst plays.
 - Both hosts capture `first_workflow_test_run_shown` once per mount, the first
   time they show the row as "A test run succeeded".
-- `WorkspaceSetupChecklist` takes an optional `companion` node. The host renders
-  it directly below the panel, in the same render that mounts the panel, and
-  renders nothing for it whenever the panel itself renders nothing: dismissed,
-  complete on load, or still loading. It stays through the "You're set up"
-  state and leaves with the panel on "Done". It adds no queries and no
-  analytics events.
-- The panel host renders `FirstWorkflowPanel` below the checklist when runners
-  are available (installation-managed or workspace capacity), a model is
-  available (installation-provided or configured), and the workspace has no
-  definition. It reads these facts from their queries, not from row
-  visibility, and renders no panel while the runner or model family is
-  loading or failed. It does not wait for the tools row, so a GitHub-only
-  workspace sees the panel while "Connect your tools" is the next step. A
-  dismissed checklist hides the panel too.
 - `ProjectFirstWorkflowPanel` reads the definitions and succeeded dev runs of
   its project only, so a definition or a test run in another project never
   changes its mode or run link. It ignores the checklist's dismissal and polls
@@ -199,8 +224,9 @@ The caller maps its own query results to the derivation inputs:
   and `mode` once per mode it shows, and `first_workflow_prompt_copied` with
   `surface`, `template_id` (or `generic`), and `group` for a template after a
   successful copy.
-- Dismissal is scoped to the workspace and device. A dismissed host does not
-  subscribe to checklist queries until the flag is cleared.
+- Dismissal and the tools step flag are scoped to the workspace and device. A
+  dismissed host does not subscribe to checklist queries until the flag is
+  cleared, and hides every home panel.
 
 ## Development
 

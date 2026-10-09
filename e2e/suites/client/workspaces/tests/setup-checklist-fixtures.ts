@@ -4,7 +4,7 @@ import type {Page} from '@shipfox/playwright';
 
 export const INITIAL_CHECKLIST_COUNT_RE = /2 of 5 done/u;
 export const LINEAR_CHECKLIST_COUNT_RE = /3 of 5 done/u;
-export const CLOUD_CHECKLIST_COUNT_RE = /3 of 4 done/u;
+export const SKIPPED_TOOLS_CHECKLIST_COUNT_RE = /2 of 3 done/u;
 export const LINEAR_AUTHORIZE_ORIGIN = 'https://linear.app';
 export const LINEAR_AUTHORIZE_URL_RE = /^https:\/\/linear\.app\//u;
 
@@ -90,7 +90,7 @@ export async function createChecklistWorkspace({
   return {id: workspace.id, slug: workspace.slug, ownerUserId: user.user.id, projectId: project.id};
 }
 
-/** Adds the workspace's first definition, which completes the first-workflow row. */
+/** Adds the workspace's first definition, which marks the first-workflow row done. */
 export async function createFirstDefinition({
   auth,
   workspace,

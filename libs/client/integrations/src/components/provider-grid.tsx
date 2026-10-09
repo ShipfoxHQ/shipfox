@@ -7,7 +7,7 @@ import {Panel, PanelBody, PanelCell, PanelCellAction, PanelGrid} from '@shipfox/
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
-import type {ReactNode} from 'react';
+import {Fragment, type ReactNode} from 'react';
 import type {IntegrationConnection, IntegrationProvider} from '#core/models.js';
 import {INSTALL_RETURN_TARGET_PARAM, type InstallReturnTarget} from '#install-return-target.js';
 import {PROVIDER_CATALOG} from '#provider-catalog.js';
@@ -32,6 +32,11 @@ export interface ProviderGridProps {
   showConnectionState?: boolean;
   /** Where an install started from this grid lands afterwards. Defaults to settings. */
   returnTo?: InstallReturnTarget | undefined;
+  /**
+   * Render without the panel frame, for a host that is itself a panel. A panel never
+   * contains another panel.
+   */
+  embedded?: boolean;
 }
 
 export function ProviderGrid({
@@ -48,6 +53,7 @@ export function ProviderGrid({
   connections,
   showConnectionState = false,
   returnTo,
+  embedded = false,
 }: ProviderGridProps) {
   const connectedProviders = showConnectionState
     ? new Set(
@@ -58,11 +64,19 @@ export function ProviderGrid({
     : undefined;
   const installableProviders = providers.filter((provider) => PROVIDER_CATALOG[provider.provider]);
 
-  if (isPending) return <ProviderGridSkeleton label={loadingLabel} />;
+  const Frame = embedded ? Fragment : Panel;
+
+  if (isPending) {
+    return (
+      <Frame>
+        <ProviderGridSkeleton label={loadingLabel} />
+      </Frame>
+    );
+  }
 
   if (error) {
     return (
-      <Panel>
+      <Frame>
         <QueryLoadError
           query={{
             isError: true,
@@ -74,25 +88,25 @@ export function ProviderGrid({
           subject={errorSubject}
           variant="panel"
         />
-      </Panel>
+      </Frame>
     );
   }
 
   if (installableProviders.length === 0) {
     return (
-      <Panel>
+      <Frame>
         <EmptyState
           icon="componentLine"
           title="No integrations available"
           description={emptyMessage}
           variant="panel"
         />
-      </Panel>
+      </Frame>
     );
   }
 
   return (
-    <Panel>
+    <Frame>
       <PanelBody>
         <PanelGrid aria-label="Available integrations">
           {installableProviders.map((provider) => (
@@ -107,7 +121,7 @@ export function ProviderGrid({
           ))}
         </PanelGrid>
       </PanelBody>
-    </Panel>
+    </Frame>
   );
 }
 
@@ -214,22 +228,20 @@ function ProviderCellContent({
 
 function ProviderGridSkeleton({label}: {label: string}) {
   return (
-    <Panel>
-      <PanelBody>
-        <PanelGrid role="status" aria-label={label}>
-          {[0, 1, 2, 3].map((tile) => (
-            <PanelCell key={tile}>
-              <div className="flex items-center justify-between gap-cluster px-row py-row">
-                <div className="flex min-w-0 items-center gap-cluster">
-                  <Skeleton className="size-24 shrink-0" />
-                  <Skeleton className="h-16 w-100" />
-                </div>
-                <Skeleton className="h-16 w-64 shrink-0" />
+    <PanelBody>
+      <PanelGrid role="status" aria-label={label}>
+        {[0, 1, 2, 3].map((tile) => (
+          <PanelCell key={tile}>
+            <div className="flex items-center justify-between gap-cluster px-row py-row">
+              <div className="flex min-w-0 items-center gap-cluster">
+                <Skeleton className="size-24 shrink-0" />
+                <Skeleton className="h-16 w-100" />
               </div>
-            </PanelCell>
-          ))}
-        </PanelGrid>
-      </PanelBody>
-    </Panel>
+              <Skeleton className="h-16 w-64 shrink-0" />
+            </div>
+          </PanelCell>
+        ))}
+      </PanelGrid>
+    </PanelBody>
   );
 }

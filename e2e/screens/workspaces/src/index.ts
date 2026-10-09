@@ -8,7 +8,6 @@ const SETUP_INDICATOR_NAME_RE = /Get started/u;
 const SETUP_STATUS_NAME_RE = /^(?:\d+ of \d+ done|You're set up)$/u;
 const SETUP_DIALOG_NAME_RE = /Get started/u;
 const SETTINGS_ROOT_URL_RE = /\/settings(?:\/members)?\/?$/u;
-const SHOW_ALL_STEPS_NAME_RE = /^Show all \d+ steps$/u;
 // Bounds one in-app route change. A client-side click is fast when it lands, so
 // this only has to be long enough to absorb CI scheduling noise before the
 // caller recovers with a document load.
@@ -202,6 +201,31 @@ export class WorkspaceSetupChecklistScreen {
     return this.page.getByRole('main').getByRole('region', {name: 'Get started'});
   }
 
+  /** The tools step, shown alone on the home before the first workflow. */
+  toolsPanel(): Locator {
+    return this.page.getByRole('main').getByRole('region', {name: 'Connect your tools'});
+  }
+
+  toolsInstallLink(name: string): Locator {
+    return this.toolsPanel().getByRole('link', {name: `Install ${name}`});
+  }
+
+  toolsConnectedCell(name: string): Locator {
+    return this.toolsPanel().getByRole('listitem').filter({hasText: name}).getByText('Connected');
+  }
+
+  skipToolsButton(): Locator {
+    return this.toolsPanel().getByRole('button', {name: 'Skip for now'});
+  }
+
+  continueButton(): Locator {
+    return this.toolsPanel().getByRole('button', {name: 'Continue'});
+  }
+
+  firstWorkflowPanel(): Locator {
+    return this.page.getByRole('main').getByRole('region', {name: 'Create your first workflow'});
+  }
+
   indicator(): Locator {
     return this.page.getByRole('button', {name: SETUP_INDICATOR_NAME_RE});
   }
@@ -210,35 +234,12 @@ export class WorkspaceSetupChecklistScreen {
     return this.panel().getByRole('listitem').filter({hasText: title});
   }
 
-  heading(): Locator {
-    return this.panel().getByRole('heading', {name: 'Get started'});
-  }
-
-  firstRow(): Locator {
-    return this.panel().getByRole('listitem').first();
-  }
-
-  async expandAllStepsIfNeeded(): Promise<void> {
-    const expandButton = this.panel().getByRole('button', {name: SHOW_ALL_STEPS_NAME_RE});
-    if ((await expandButton.count()) === 1) {
-      await expandButton.click();
-    }
-  }
-
-  connectLink(): Locator {
-    return this.panel().getByRole('link', {name: 'Connect'});
-  }
-
   text(text: string | RegExp): Locator {
     return this.panel().getByText(text);
   }
 
-  countLabel(count: string | RegExp): Locator {
-    return this.panel().getByText(count);
-  }
-
   hideButton(): Locator {
-    return this.panel().getByRole('button', {name: 'Hide setup guide'});
+    return this.page.getByRole('main').getByRole('button', {name: 'Hide setup guide'});
   }
 
   completionMessage(): Locator {

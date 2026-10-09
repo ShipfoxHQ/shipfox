@@ -33,6 +33,7 @@ function input(overrides: Partial<SetupChecklistInput> = {}): SetupChecklistInpu
     modelProvider: {installationProvided: true, configured: false},
     membership: {memberCount: 1, pendingInvitationCount: 0},
     firstWorkflow: {state: 'open'},
+    toolsStepFinished: false,
     ...overrides,
   };
 }
@@ -294,6 +295,74 @@ describe('deriveSetupChecklist', () => {
     });
   });
 
+  describe('tools row', () => {
+    function toolsRow(overrides: Partial<SetupChecklistInput>) {
+      const checklist = deriveSetupChecklist(input(overrides));
+      const row = checklist.items.find((item) => item.id === 'tools');
+      return {checklist, row};
+    }
+
+    test('is done and tracked once a tool is connected, whatever the flag says', () => {
+      const {row} = toolsRow({
+        readiness: readiness({hasToolIntegration: true}),
+        toolsStepFinished: true,
+      });
+
+      expect(row).toMatchObject({status: 'done', tracked: true});
+    });
+
+    test('is open while the flag is unset and the first workflow is open', () => {
+      const {row, checklist} = toolsRow({firstWorkflow: {state: 'open'}});
+
+      expect(row).toMatchObject({status: 'open', tracked: true});
+      expect(checklist.trackedCount).toBe(4);
+    });
+
+    test('is open while the flag is unset and the first-workflow read has no answer', () => {
+      const {row} = toolsRow({firstWorkflow: undefined});
+
+      expect(row).toMatchObject({status: 'open', tracked: true});
+    });
+
+    test('is an uncounted pointer once the flag is set', () => {
+      const {row, checklist} = toolsRow({toolsStepFinished: true});
+
+      expect(row).toMatchObject({
+        status: 'info',
+        tracked: false,
+        action: {label: 'Connect', href: '/settings/integrations'},
+      });
+      expect(checklist.trackedCount).toBe(3);
+      expect(checklist.openCount).toBe(1);
+    });
+
+    test.each([
+      {state: 'test_run_succeeded', testRunId: 'run-1'},
+      {state: 'done'},
+    ] as const)('is an uncounted pointer once the first workflow is $state', (firstWorkflow) => {
+      const {row, checklist} = toolsRow({firstWorkflow});
+
+      expect(row).toMatchObject({status: 'info', tracked: false});
+      expect(checklist.trackedCount).toBe(3);
+    });
+
+    test('lets a workspace that skipped tools complete the checklist', () => {
+      const {checklist} = toolsRow({toolsStepFinished: true, firstWorkflow: {state: 'done'}});
+
+      expect(checklist.openCount).toBe(0);
+      expect(checklist.complete).toBe(true);
+    });
+
+    test('keeps the attention title on a pointer row', () => {
+      const {row} = toolsRow({
+        toolsStepFinished: true,
+        readiness: readiness({attentionProviders: ['linear']}),
+      });
+
+      expect(row).toMatchObject({title: 'Linear needs attention', tracked: false});
+    });
+  });
+
   test('asks for the first workflow from the workspace home while nothing ran', () => {
     const checklist = deriveSetupChecklist(input({firstWorkflow: {state: 'open'}}));
 
@@ -320,7 +389,7 @@ describe('deriveSetupChecklist', () => {
       purpose: 'Merge the workflow pull request from your coding agent to turn the workflow on',
       action: {label: 'View run', href: '/runs/$workflowRunId', workflowRunId: 'run-1'},
     });
-    expect(checklist.openCount).toBe(2);
+    expect(checklist.openCount).toBe(1);
   });
 
   test('marks the first-workflow row done once a definition exists', () => {
@@ -332,7 +401,7 @@ describe('deriveSetupChecklist', () => {
       status: 'done',
       tracked: true,
     });
-    expect(checklist.openCount).toBe(1);
+    expect(checklist.openCount).toBe(0);
   });
 
   test('treats the teammates row as a pointer that never counts', () => {

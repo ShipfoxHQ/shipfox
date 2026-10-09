@@ -8,7 +8,9 @@ import {
 import {provisionerTokenQueryKeys} from '@shipfox/client-runners';
 import {
   clearWorkspaceSetupChecklistDismissal,
+  clearWorkspaceSetupToolsStep,
   dismissWorkspaceSetupChecklist,
+  finishWorkspaceSetupToolsStep,
 } from '@shipfox/client-shell/runtime';
 import {listInvitationsQueryKey, listMembersQueryKey} from '@shipfox/client-workspace-settings';
 import {Panel, PanelBody} from '@shipfox/react-ui/panel';
@@ -47,6 +49,10 @@ const EXPANDED_WORKSPACE: WorkspaceReference = {
   id: 'expanded-story-workspace',
   slug: WORKSPACE.slug,
 };
+const TOOLS_FINISHED_WORKSPACE: WorkspaceReference = {
+  id: 'tools-finished-story-workspace',
+  slug: WORKSPACE.slug,
+};
 const now = new Date().toISOString();
 
 const githubProvider: IntegrationProvider = {
@@ -57,6 +63,16 @@ const githubProvider: IntegrationProvider = {
 const linearProvider: IntegrationProvider = {
   provider: 'linear',
   displayName: 'Linear',
+  capabilities: ['agent_tools'],
+};
+const slackProvider: IntegrationProvider = {
+  provider: 'slack',
+  displayName: 'Slack',
+  capabilities: ['agent_tools'],
+};
+const notionProvider: IntegrationProvider = {
+  provider: 'notion',
+  displayName: 'Notion',
   capabilities: ['agent_tools'],
 };
 const githubConnection: IntegrationConnection = {
@@ -123,6 +139,7 @@ const completeChecklist = deriveSetupChecklist({
   modelProvider: {installationProvided: true, configured: false},
   membership: {memberCount: 2, pendingInvitationCount: 0},
   firstWorkflow: {state: 'done'},
+  toolsStepFinished: false,
 });
 
 const meta = {
@@ -135,8 +152,16 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const CloudPanel: Story = {
+export const ToolsStepPanel: Story = {
   render: () => <HostStory scenario="cloud" host="panel" />,
+};
+
+export const ToolsStepConnectedPanel: Story = {
+  render: () => <HostStory scenario="tools-connected" host="panel" />,
+};
+
+export const CloudPanel: Story = {
+  render: () => <HostStory scenario="cloud" host="panel" toolsStepFinished />,
 };
 
 export const CloudIndicator: Story = {
@@ -144,7 +169,7 @@ export const CloudIndicator: Story = {
 };
 
 export const SelfHostedPanel: Story = {
-  render: () => <HostStory scenario="self-hosted" host="panel" />,
+  render: () => <HostStory scenario="self-hosted" host="panel" toolsStepFinished />,
 };
 
 export const SelfHostedIndicator: Story = {
@@ -152,7 +177,7 @@ export const SelfHostedIndicator: Story = {
 };
 
 export const NeedsAttentionPanel: Story = {
-  render: () => <HostStory scenario="attention" host="panel" />,
+  render: () => <HostStory scenario="attention" host="panel" toolsStepFinished />,
 };
 
 export const NeedsAttentionIndicator: Story = {
@@ -211,16 +236,38 @@ export const CompletedWithoutBurst: Story = {
   render: () => <CompletedStory />,
 };
 
-function HostStory({scenario, host}: {scenario: Scenario; host: 'panel' | 'indicator'}) {
+/**
+ * The tools step flag is persisted per workspace, so the stories past that step
+ * use their own workspace: a shared one would leak the flag into the others.
+ */
+function HostStory({
+  scenario,
+  host,
+  toolsStepFinished = false,
+}: {
+  scenario: Scenario;
+  host: 'panel' | 'indicator';
+  toolsStepFinished?: boolean;
+}) {
+  const workspace = toolsStepFinished ? TOOLS_FINISHED_WORKSPACE : WORKSPACE;
+  const [initialized, setInitialized] = useState(!toolsStepFinished);
+
+  useEffect(() => {
+    if (!toolsStepFinished) return;
+    finishWorkspaceSetupToolsStep(TOOLS_FINISHED_WORKSPACE.id);
+    setInitialized(true);
+    return () => clearWorkspaceSetupToolsStep(TOOLS_FINISHED_WORKSPACE.id);
+  }, [toolsStepFinished]);
+
   return (
-    <StoryProviders scenario={scenario} workspace={WORKSPACE}>
+    <StoryProviders scenario={scenario} workspace={workspace}>
       <div className="min-h-[240px] bg-background-subtle-base p-frame">
         <div className="mx-auto flex w-full max-w-[480px] flex-col gap-group">
           {host === 'panel' ? (
-            <WorkspaceSetupChecklist workspace={WORKSPACE} />
+            initialized && <WorkspaceSetupChecklist workspace={workspace} />
           ) : (
             <div className="flex justify-end border-b border-border-neutral-base bg-background-neutral-base p-row">
-              <WorkspaceSetupIndicator workspace={WORKSPACE} />
+              <WorkspaceSetupIndicator workspace={workspace} />
             </div>
           )}
         </div>
@@ -238,8 +285,12 @@ function ExpandedPanelStory() {
 
   useEffect(() => {
     setWorkspaceSetupChecklistExpanded(EXPANDED_WORKSPACE.id, true);
+    finishWorkspaceSetupToolsStep(EXPANDED_WORKSPACE.id);
     setInitialized(true);
-    return () => setWorkspaceSetupChecklistExpanded(EXPANDED_WORKSPACE.id, false);
+    return () => {
+      setWorkspaceSetupChecklistExpanded(EXPANDED_WORKSPACE.id, false);
+      clearWorkspaceSetupToolsStep(EXPANDED_WORKSPACE.id);
+    };
   }, []);
 
   return (
@@ -290,7 +341,7 @@ function DismissedStory() {
   );
 }
 
-type Scenario = 'attention' | 'cloud' | 'complete' | 'self-hosted' | 'test-run';
+type Scenario = 'attention' | 'cloud' | 'complete' | 'self-hosted' | 'test-run' | 'tools-connected';
 
 const SCENARIO_FIRST_WORKFLOW: Record<Scenario, FirstWorkflowProgress> = {
   attention: {state: 'open'},
@@ -298,6 +349,7 @@ const SCENARIO_FIRST_WORKFLOW: Record<Scenario, FirstWorkflowProgress> = {
   complete: {state: 'done'},
   'self-hosted': {state: 'open'},
   'test-run': {state: 'test_run_succeeded', testRunId: 'story-run'},
+  'tools-connected': {state: 'open'},
 };
 
 function StoryProviders({
@@ -324,11 +376,10 @@ function StoryProviders({
 
 function createScenarioQueryClient(scenario: Scenario, workspace: WorkspaceReference) {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
-  const cloud = scenario === 'cloud' || scenario === 'complete' || scenario === 'test-run';
+  const cloud = scenario !== 'attention' && scenario !== 'self-hosted';
   const attention = scenario === 'attention';
-  const toolsConnected = scenario === 'test-run';
-  const providers =
-    attention || toolsConnected ? [githubProvider, linearProvider] : [githubProvider];
+  const toolsConnected = scenario === 'test-run' || scenario === 'tools-connected';
+  const providers = [githubProvider, linearProvider, slackProvider, notionProvider];
   const connections = [githubConnection];
   if (attention) connections.push(disabledLinearConnection);
   if (toolsConnected) connections.push(activeLinearConnection);
@@ -369,8 +420,8 @@ function createScenarioQueryClient(scenario: Scenario, workspace: WorkspaceRefer
     firstWorkflowQueryKeys.scope({kind: 'workspace', workspaceId: workspace.id}),
     SCENARIO_FIRST_WORKFLOW[scenario],
   );
-  // The home renders the first workflow panel under the checklist when runners
-  // and a model are available, so its reads are seeded too.
+  // The home renders the first workflow panel once the tools step is finished
+  // and runners and a model are available, so its reads are seeded too.
   queryClient.setQueryData(agentGrantsQueryOptions().queryKey, [
     {
       id: 'grant-1',
@@ -397,6 +448,9 @@ function createStoryRouter(children: ReactNode) {
     '/w/$workspaceSlug/settings/agents',
     '/w/$workspaceSlug/settings/members',
     '/w/$workspaceSlug/setup/members',
+    '/w/$workspaceSlug/integrations/linear',
+    '/w/$workspaceSlug/integrations/slack',
+    '/w/$workspaceSlug/integrations/notion',
     '/runs/$workflowRunId',
   ].map((path) =>
     createRoute({

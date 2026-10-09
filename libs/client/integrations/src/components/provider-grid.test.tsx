@@ -142,3 +142,19 @@ describe('ProviderGrid return target', () => {
     expect(install.getAttribute('href')).toBe('/w/acme/integrations/slack?returnTo=home');
   });
 });
+
+describe('ProviderGrid frame', () => {
+  test('renders inside its own panel by default', async () => {
+    const {container} = renderGrid({});
+
+    await screen.findByRole('link', {name: 'Install Linear'});
+    expect(container.querySelector('[data-slot="panel"]')).not.toBeNull();
+  });
+
+  test('drops the panel frame when embedded in a host panel', async () => {
+    const {container} = renderGrid({embedded: true});
+
+    expect(await screen.findByRole('link', {name: 'Install Linear'})).toBeVisible();
+    expect(container.querySelector('[data-slot="panel"]')).toBeNull();
+  });
+});

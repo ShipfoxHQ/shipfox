@@ -1,3 +1,4 @@
+export {type HomePanel, type HomePanelInput, selectHomePanel} from '#core/home-panel.js';
 export {
   deriveIntegrationReadiness,
   type IntegrationProviderReadiness,

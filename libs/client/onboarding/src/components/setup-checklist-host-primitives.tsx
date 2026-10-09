@@ -5,8 +5,6 @@ import type {SetupChecklist} from '#core/setup-checklist.js';
 
 export interface ChecklistExpansionControl {
   expanded: boolean;
-  /** Rows behind the toggle, so the collapsed label can name what it opens. */
-  stepCount: number;
   /** The panel body the toggle controls. */
   bodyId: string;
   onToggle: () => void;
@@ -52,7 +50,7 @@ export function ChecklistHeader({
             iconRight={expansion.expanded ? 'arrowUpSLine' : 'arrowDownSLine'}
             onClick={expansion.onToggle}
           >
-            {expansion.expanded ? 'Show less' : `Show all ${expansion.stepCount} steps`}
+            {expansion.expanded ? 'Show less' : 'Show all steps'}
           </Button>
         ) : null}
         <IconButton

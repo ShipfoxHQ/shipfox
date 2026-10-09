@@ -13,6 +13,7 @@ import {
   useShownAnalytics,
 } from '#hooks/use-checklist-analytics.js';
 import {useChecklistDismissal} from '#hooks/use-checklist-dismissal.js';
+import {useToolsStep} from '#hooks/use-tools-step.js';
 import {SetupChecklistBody} from './setup-checklist-body.js';
 import {ChecklistDismissAction, checklistCountLabel} from './setup-checklist-host-primitives.js';
 import type {WorkspaceReference, WorkspaceSetupHostProps} from './setup-checklist-types.js';
@@ -36,7 +37,12 @@ function WorkspaceSetupIndicatorFromShell() {
 
 function WorkspaceSetupIndicatorForWorkspace({workspace}: {workspace: WorkspaceReference}) {
   const dismissal = useChecklistDismissal(workspace.id);
-  const queryState = useSetupChecklistQueryState(workspace.id, !dismissal.dismissed);
+  const toolsStep = useToolsStep(workspace.id);
+  const queryState = useSetupChecklistQueryState({
+    workspaceId: workspace.id,
+    subscribed: !dismissal.dismissed,
+    toolsStepFinished: toolsStep.finished,
+  });
   const analytics = useClientAnalytics();
   const [open, setOpen] = useState(false);
   const [pulseKey, setPulseKey] = useState(0);
