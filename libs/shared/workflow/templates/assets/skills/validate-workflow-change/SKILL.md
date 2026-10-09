@@ -1,7 +1,7 @@
 ---
 name: validate-workflow-change
 description: Use when checking a local Shipfox workflow change without starting a run.
-revision: 3
+revision: 4
 catalog_title: Validate a workflow change
 catalog_category: Workflow validation
 catalog_prompt: Validate this local Shipfox workflow change without running it.
@@ -30,7 +30,9 @@ catalog_prompt: Validate this local Shipfox workflow change without running it.
 4. Take a candidate's `id` from `trigger_events` and pass it as `event_id` to `get_trigger_event`. Review its payload and target resource against the trigger filter and workflow expressions. Pick the most recent matching event yourself and name it in one line.
 5. Pass that selected event's `id` as `replay_event_id` to `create_dev_run`. Use the same `project_id`, `config_path`, `trigger`, and `content`, with `dry_run: true`. `check_passed: true` with `event_checked: true` confirms the event source and name match and the filter passes. If the event is filtered or mismatched, inspect another candidate or correct the YAML, then repeat the dry run.
 
-Only `content` is uploaded. Separate scripts, prompts, and other working-tree changes are not checked. A dry run checks the definition and trigger, but it does not check admission or execute workflow steps.
+Only `content` is uploaded. Separate scripts and other working-tree changes are not checked. A dry run checks the definition and trigger, but it does not check admission or execute workflow steps.
+
+Prompt files, the `file` parts of an agent `prompt`, are not uploaded. The dry run reads them from the commit of `ref`, or from the default branch head when `ref` is omitted. To check a new or edited prompt file, commit it, push the branch, and pass that branch as `ref` on `create_dev_run`.
 
 ## Fix a refusal
 

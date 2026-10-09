@@ -24,6 +24,16 @@ yes-or-no result. For example, the predicate `step.exit_code == 0` is true
 when the command succeeds. Filters, `if` conditions, gates, and job success
 rules use predicates.
 
+An agent prompt can keep part of its text in a repository file. An expression
+in a prompt file works like an expression in the workflow YAML. Shipfox checks
+it against each step that uses the file, so every one of those steps must be
+able to read the value. [Keep a prompt in a
+file](/how-to/author-workflows/add-agent-steps#keep-a-prompt-in-a-file) shows
+how to reference a file.
+
+To write the literal text `${{` in the YAML or in a prompt file, write `$${{`.
+Use this escape when a prompt shows the agent an example of an expression.
+
 The [Expressions reference](/reference/expressions) defines the exact syntax.
 The [Contexts reference](/reference/contexts) lists the data that each field
 can read.

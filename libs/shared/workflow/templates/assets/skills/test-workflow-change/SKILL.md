@@ -1,7 +1,7 @@
 ---
 name: test-workflow-change
 description: Use when running a validated local Shipfox workflow change against a real trigger and inspecting its effects.
-revision: 2
+revision: 3
 catalog_title: Test a workflow change
 catalog_category: Workflow testing
 catalog_prompt: Test this validated local Shipfox workflow change against a real trigger.
@@ -24,7 +24,9 @@ catalog_prompt: Test this validated local Shipfox workflow change against a real
 3. Inspect the external resource for writes already made before retrying a failed run. Dev runs have no idempotency key. If `create_dev_run` returns `tool-failed` or the transport times out, call `list_workflow_runs` for the project with `origin: dev` before any retry.
 4. If the YAML needs a fix, edit it, follow `validate-workflow-change` again, and start another real run. If the YAML is unchanged and the run is terminal, call `rerun_workflow_run` with `run_id`, its current `expected_attempt`, and `mode: all` or `mode: failed`. A rerun uses the stored workflow snapshot. Review existing effects before either kind of repeat; stop and ask the user after five failed real runs.
 
-Only the YAML in `content` is uploaded and stored as the run's workflow source. Scripts, prompts in separate files, and other working-tree changes stay local. Commit and push those dependencies to a revision selected by checkout rules before testing them.
+Only the YAML in `content` is uploaded and stored as the run's workflow source. Scripts and other working-tree changes stay local. Commit and push those dependencies to a revision selected by checkout rules before testing them.
+
+Prompt files, the `file` parts of an agent `prompt`, are not uploaded and are not read from the checkout. Shipfox reads them from the commit of `ref`, or from the default branch head when `ref` is omitted. To test a new or edited prompt file, commit it, push the branch, and pass that branch as `ref`.
 
 The default checkout is the project's default branch head at check time. Set `ref` on `create_dev_run` to use another branch or tag as the fallback checkout. Checkout order is:
 
