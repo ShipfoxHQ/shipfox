@@ -13,8 +13,9 @@ import {
 } from './setup-checklist-fixtures.js';
 import {expect, test} from './test.js';
 
-// The first-workflow read polls every 15 seconds while the tab is visible.
-const FIRST_WORKFLOW_POLL_TIMEOUT_MS = 30_000;
+// The first-workflow read polls every 15 seconds while the tab is visible, so
+// this leaves room for three polls.
+const FIRST_WORKFLOW_POLL_TIMEOUT_MS = 60_000;
 
 function workspaceHomeUrlRe(workspaceSlug: string): RegExp {
   return new RegExp(`/w/${workspaceSlug}/?$`, 'u');

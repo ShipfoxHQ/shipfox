@@ -1,7 +1,7 @@
 import {useClientAnalytics, useMaybeActiveWorkspace} from '@shipfox/client-shell/runtime';
 import {Panel, PanelBody} from '@shipfox/react-ui/panel';
 import {useCallback, useId, useState} from 'react';
-import {selectHomePanel} from '#core/home-panel.js';
+import {type HomePanel, selectHomePanel} from '#core/home-panel.js';
 import {type SetupChecklistItem, selectNextSetupStep} from '#core/setup-checklist.js';
 import {type ChecklistQueryState, useSetupChecklistQueryState} from '#hooks/api/setup-checklist.js';
 import {
@@ -109,10 +109,9 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
   const nextStep = selectNextSetupStep(queryState.checklist);
   useFirstWorkflowTestRunShown(
     'panel',
-    panel === 'checklist' &&
-      !showCompletion &&
+    !showCompletion &&
       queryState.firstWorkflow?.state === 'test_run_succeeded' &&
-      (expanded || nextStep?.id === 'first-workflow'),
+      showsFirstWorkflow({panel, expanded, nextStepId: nextStep?.id}),
   );
 
   if (panel === 'none') return null;
@@ -181,6 +180,20 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
       </section>
     </Panel>
   );
+}
+
+/** The first-workflow panel, or a checklist that has the first-workflow row on screen. */
+function showsFirstWorkflow({
+  panel,
+  expanded,
+  nextStepId,
+}: {
+  panel: HomePanel;
+  expanded: boolean;
+  nextStepId: SetupChecklistItem['id'] | undefined;
+}): boolean {
+  if (panel === 'first-workflow') return true;
+  return panel === 'checklist' && (expanded || nextStepId === 'first-workflow');
 }
 
 /**

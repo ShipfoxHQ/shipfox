@@ -1330,6 +1330,43 @@ describe('home panel', () => {
     expectNoToolsPanel();
   });
 
+  test('captures the test run once the first-workflow panel shows its finish mode', async () => {
+    const queryClient = createQueryClient();
+    seedQueries(queryClient, {
+      modelConfigured: true,
+      firstWorkflow: {state: 'test_run_succeeded', testRunId: 'run-1'},
+    });
+    const capture = vi.fn();
+
+    renderHome(queryClient, capture);
+
+    expect(await screen.findByRole('heading', {name: 'Finish your first workflow'})).toBeVisible();
+    await waitFor(() =>
+      expect(capture).toHaveBeenCalledWith('first_workflow_test_run_shown', {host: 'panel'}),
+    );
+  });
+
+  test('keeps the tools panel when a later connections refetch fails', async () => {
+    const queryClient = createQueryClient();
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() => Promise.reject(new Error('request failed'))),
+    });
+    seedQueries(queryClient, {modelConfigured: true, firstWorkflow: OPEN});
+    const connectionsKey = integrationConnectionsQueryOptions(WORKSPACE.id).queryKey;
+
+    renderHome(queryClient);
+    expect(await screen.findByRole('heading', TOOLS_HEADING)).toBeVisible();
+
+    await act(async () => {
+      await queryClient.refetchQueries({queryKey: connectionsKey});
+    });
+
+    expect(queryClient.getQueryState(connectionsKey)?.status).toBe('error');
+    expect(screen.getByRole('heading', TOOLS_HEADING)).toBeVisible();
+    expectNoFirstWorkflowPanel();
+  });
+
   test('shows no tools panel once the workspace has a definition', async () => {
     const queryClient = createQueryClient();
     seedQueries(queryClient);

@@ -7,7 +7,7 @@ export interface HomePanelInput {
   dismissed: boolean;
   /** The providers, connections, and first-workflow reads have each settled. */
   settled: boolean;
-  /** The providers and connections reads both succeeded. */
+  /** The providers and connections reads have both answered once. */
   integrationsLoaded: boolean;
   toolsStepFinished: boolean;
   /** Undefined when the first-workflow read has no answer. */

@@ -175,7 +175,7 @@ The caller maps its own query results to the derivation inputs:
   1. Nothing, while the setup guide is hidden or the slot is not ready.
   2. The tools panel, while the tools step is unfinished on this device, the
      first workflow is known and `open`, and the providers and connections
-     reads succeeded. The number of connected tools is not a condition, so the
+     reads have answered once. A failed refetch keeps the panel. The number of connected tools is not a condition, so the
      panel stays after an install until its button is pressed.
   3. The first-workflow panel, while the first workflow is known and not
      `done`, and runners and a model are available.
@@ -207,7 +207,8 @@ The caller maps its own query results to the derivation inputs:
   `first_workflow_activated` and plays a burst above the next step. When the
   same transition completes the checklist, only the completion burst plays.
 - Both hosts capture `first_workflow_test_run_shown` once per mount, the first
-  time they show the row as "A test run succeeded".
+  time they show the row as "A test run succeeded". The home also captures it
+  when the first-workflow panel shows its finish mode.
 - `ProjectFirstWorkflowPanel` reads the definitions and succeeded dev runs of
   its project only, so a definition or a test run in another project never
   changes its mode or run link. It ignores the checklist's dismissal and polls

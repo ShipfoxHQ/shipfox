@@ -42,7 +42,7 @@ export interface ChecklistQueryState {
     providers: readonly IntegrationProvider[];
     connections: readonly IntegrationConnection[];
     readiness: WorkspaceIntegrationReadiness;
-    /** Both reads succeeded. */
+    /** Both reads have answered once. A failed refetch keeps the last answer. */
     loaded: boolean;
   };
   baseSettled: boolean;
@@ -170,7 +170,7 @@ export function useSetupChecklistQueryState({
       providers,
       connections,
       readiness,
-      loaded: families.providersReady && families.connectionsReady,
+      loaded: providersQuery.data !== undefined && connectionsQuery.data !== undefined,
     },
     baseSettled: families.baseSettled,
     trackedRowsSettled: families.trackedRowsSettled,
