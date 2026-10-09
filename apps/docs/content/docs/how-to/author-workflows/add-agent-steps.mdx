@@ -114,9 +114,10 @@ example above:
 The path starts with `./` and is relative to the root of the repository. The
 whole file is the part. A file cannot include another file.
 
-A prompt file is a part of the workflow. Shipfox uses the version of the file
-from the same commit as the workflow YAML. If a step changes the file during a
-run, the agent does not get the change.
+A prompt file is a part of the workflow. Shipfox reads the file from the
+repository, not from the files of the job. The table below shows which commit
+Shipfox reads. If a step changes the file during a run, the agent does not get
+the change.
 
 | Run started by | Prompt files come from |
 | --- | --- |
