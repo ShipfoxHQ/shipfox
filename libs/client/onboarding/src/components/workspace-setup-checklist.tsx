@@ -1,6 +1,7 @@
 import {useClientAnalytics, useMaybeActiveWorkspace} from '@shipfox/client-shell/runtime';
 import {Panel, PanelBody} from '@shipfox/react-ui/panel';
-import {type ReactNode, useCallback, useId, useState} from 'react';
+import {useCallback, useId, useState} from 'react';
+import {type HomePanel, selectHomePanel} from '#core/home-panel.js';
 import {type SetupChecklistItem, selectNextSetupStep} from '#core/setup-checklist.js';
 import {type ChecklistQueryState, useSetupChecklistQueryState} from '#hooks/api/setup-checklist.js';
 import {
@@ -11,7 +12,8 @@ import {
 } from '#hooks/use-checklist-analytics.js';
 import {useChecklistDismissal} from '#hooks/use-checklist-dismissal.js';
 import {useChecklistExpansion} from '#hooks/use-checklist-expansion.js';
-import {FirstWorkflowPanel, type FirstWorkflowPanelProgress} from './first-workflow-panel.js';
+import {useToolsStep} from '#hooks/use-tools-step.js';
+import {FirstWorkflowPanel} from './first-workflow-panel.js';
 import {SetupChecklistBody} from './setup-checklist-body.js';
 import {FirstWorkflowCelebration, SetupChecklistCompletion} from './setup-checklist-completion.js';
 import {
@@ -21,42 +23,34 @@ import {
 } from './setup-checklist-host-primitives.js';
 import {SetupChecklistNextStep} from './setup-checklist-next-step.js';
 import type {WorkspaceReference, WorkspaceSetupChecklistProps} from './setup-checklist-types.js';
+import {ToolsStepPanel} from './tools-step-panel.js';
 
 export function WorkspaceSetupChecklist(props: WorkspaceSetupChecklistProps = {}) {
   if (props.workspace) {
     return (
-      <WorkspaceSetupChecklistForWorkspace
-        key={props.workspace.id}
-        workspace={props.workspace}
-        companion={props.companion}
-      />
+      <WorkspaceSetupChecklistForWorkspace key={props.workspace.id} workspace={props.workspace} />
     );
   }
 
-  return <WorkspaceSetupChecklistFromShell companion={props.companion} />;
+  return <WorkspaceSetupChecklistFromShell />;
 }
 
-function WorkspaceSetupChecklistFromShell({companion}: {companion: ReactNode}) {
+function WorkspaceSetupChecklistFromShell() {
   const workspace = useMaybeActiveWorkspace();
   return workspace ? (
-    <WorkspaceSetupChecklistForWorkspace
-      key={workspace.id}
-      workspace={workspace}
-      companion={companion}
-    />
+    <WorkspaceSetupChecklistForWorkspace key={workspace.id} workspace={workspace} />
   ) : null;
 }
 
-function WorkspaceSetupChecklistForWorkspace({
-  workspace,
-  companion,
-}: {
-  workspace: WorkspaceReference;
-  companion: ReactNode;
-}) {
+function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceReference}) {
   const dismissal = useChecklistDismissal(workspace.id);
+  const toolsStep = useToolsStep(workspace.id);
   const {expanded, toggle: toggleExpansion} = useChecklistExpansion(workspace.id);
-  const queryState = useSetupChecklistQueryState(workspace.id, !dismissal.dismissed);
+  const queryState = useSetupChecklistQueryState({
+    workspaceId: workspace.id,
+    subscribed: !dismissal.dismissed,
+    toolsStepFinished: toolsStep.finished,
+  });
   const bodyId = useId();
   const [burstPending, setBurstPending] = useState(false);
   const handleCompleted = useCallback((completed: boolean) => {
@@ -65,6 +59,7 @@ function WorkspaceSetupChecklistForWorkspace({
   const showCompletion = useCompletionTransition(queryState, 'panel', handleCompleted);
   const firstWorkflowCelebrating = useFirstWorkflowActivation(queryState);
   const [firstWorkflowBurstPlayed, setFirstWorkflowBurstPlayed] = useState(false);
+  const [toolsStepLeft, setToolsStepLeft] = useState(false);
   const analytics = useClientAnalytics();
   const consumeBurst = useCallback(() => setBurstPending(false), []);
   const consumeFirstWorkflowBurst = useCallback(() => setFirstWorkflowBurstPlayed(true), []);
@@ -86,25 +81,67 @@ function WorkspaceSetupChecklistForWorkspace({
       expanded: !expanded,
     });
   }, [analytics, expanded, toggleExpansion]);
-  // The panel sits above the page's own content, so it stays out of the layout
-  // until a loaded family reports an open tracked step. Rows stay hidden while
-  // their family loads, so anything less could still turn out to be a finished
-  // workspace and take the panel away a moment later.
-  const isVisible =
-    !dismissal.dismissed &&
-    queryState.baseSettled &&
-    (queryState.checklist.openCount > 0 || showCompletion);
-  useShownAnalytics('panel', isVisible);
+  const connectedToolCount = queryState.integrations.readiness.providers.filter(
+    (provider) => provider.connected && !provider.capabilities.includes('source_control'),
+  ).length;
+  const finishToolsStep = useCallback(() => {
+    toolsStep.finish();
+    setToolsStepLeft(true);
+    analytics.capture('onboarding_tools_step_finished', {
+      outcome: connectedToolCount > 0 ? 'continued' : 'skipped',
+      connected_count: connectedToolCount,
+    });
+  }, [analytics, connectedToolCount, toolsStep]);
+
+  // The slot sits above the page's own content, so it stays out of the layout
+  // until the reads that pick the panel have settled. Anything less could still
+  // turn out to be a finished workspace and take the panel away a moment later.
+  const panel = selectHomePanel({
+    dismissed: dismissal.dismissed,
+    settled: queryState.baseSettled && queryState.firstWorkflowSettled,
+    integrationsLoaded: queryState.integrations.loaded,
+    toolsStepFinished: toolsStep.finished,
+    firstWorkflow: queryState.firstWorkflow,
+    canRunWorkflows: queryState.canRunWorkflows,
+    checklistVisible: queryState.checklist.openCount > 0 || showCompletion,
+  });
+  useShownAnalytics('panel', panel !== 'none');
   const nextStep = selectNextSetupStep(queryState.checklist);
   useFirstWorkflowTestRunShown(
     'panel',
-    isVisible &&
-      !showCompletion &&
+    !showCompletion &&
       queryState.firstWorkflow?.state === 'test_run_succeeded' &&
-      (expanded || nextStep?.id === 'first-workflow'),
+      showsFirstWorkflow({panel, expanded, nextStepId: nextStep?.id}),
   );
 
-  if (!isVisible) return null;
+  if (panel === 'none') return null;
+
+  if (panel === 'tools') {
+    return (
+      <ToolsStepPanel
+        workspaceSlug={workspace.slug}
+        providers={queryState.integrations.providers}
+        connections={queryState.integrations.connections}
+        connectedCount={connectedToolCount}
+        onFinish={finishToolsStep}
+        onDismiss={dismiss}
+      />
+    );
+  }
+
+  if (panel === 'first-workflow') {
+    const progress = queryState.firstWorkflow;
+    if (!progress || progress.state === 'done') return null;
+    return (
+      <FirstWorkflowPanel
+        workspace={workspace}
+        progress={progress}
+        surface="home"
+        onDismiss={dismiss}
+        focusTitle={toolsStepLeft}
+      />
+    );
+  }
 
   const expandable = !showCompletion && queryState.checklist.items.length > 1;
 
@@ -116,16 +153,10 @@ function WorkspaceSetupChecklistForWorkspace({
     : undefined;
 
   const expansionControl: ChecklistExpansionControl | undefined = expandable
-    ? {
-        expanded,
-        stepCount: queryState.checklist.items.length,
-        bodyId,
-        onToggle: handleToggleExpansion,
-      }
+    ? {expanded, bodyId, onToggle: handleToggleExpansion}
     : undefined;
 
-  const firstWorkflowPanelProgress = homeFirstWorkflowPanelProgress(queryState);
-  const checklistPanel = (
+  return (
     <Panel asChild className="w-full">
       <section aria-label="Get started">
         <ChecklistHeader count={countLabel} expansion={expansionControl} onDismiss={dismiss} />
@@ -149,35 +180,20 @@ function WorkspaceSetupChecklistForWorkspace({
       </section>
     </Panel>
   );
-
-  return (
-    <>
-      {checklistPanel}
-      {companion}
-      {firstWorkflowPanelProgress ? (
-        <FirstWorkflowPanel
-          workspace={workspace}
-          progress={firstWorkflowPanelProgress}
-          surface="home"
-        />
-      ) : null}
-    </>
-  );
 }
 
-/**
- * The home offers the first workflow only once a run could succeed: runners and
- * a model are known to be available and the workspace has no definition. It
- * reads those facts rather than row visibility, since the checklist hides a row
- * while its family loads, and it does not wait on the tools row, which a
- * GitHub-only workspace never finishes.
- */
-function homeFirstWorkflowPanelProgress(
-  queryState: ChecklistQueryState,
-): FirstWorkflowPanelProgress | undefined {
-  const progress = queryState.firstWorkflow;
-  if (!queryState.canRunWorkflows || !progress || progress.state === 'done') return undefined;
-  return progress;
+/** The first-workflow panel, or a checklist that has the first-workflow row on screen. */
+function showsFirstWorkflow({
+  panel,
+  expanded,
+  nextStepId,
+}: {
+  panel: HomePanel;
+  expanded: boolean;
+  nextStepId: SetupChecklistItem['id'] | undefined;
+}): boolean {
+  if (panel === 'first-workflow') return true;
+  return panel === 'checklist' && (expanded || nextStepId === 'first-workflow');
 }
 
 /**

@@ -89,11 +89,10 @@ test.describe('workspace onboarding', () => {
     });
     await workspaceHome.createProject('E2E First Project');
     await expect(page).toHaveURL(new RegExp(`/w/${workspaceSlug}/?$`, 'u'));
-    await expect(workspaceSetupChecklist.panel()).toBeVisible();
-    await expect(workspaceSetupChecklist.heading()).toBeVisible();
-    await expect(workspaceSetupChecklist.countLabel(INITIAL_CHECKLIST_COUNT_RE)).toBeVisible();
-    await workspaceSetupChecklist.expandAllStepsIfNeeded();
-    await expect(workspaceSetupChecklist.firstRow()).toContainText('Connect source control');
+    await expect(workspaceSetupChecklist.toolsPanel()).toBeVisible();
+    await expect(workspaceSetupChecklist.skipToolsButton()).toBeVisible();
+    await expect(workspaceSetupChecklist.panel()).toHaveCount(0);
+    await expect(workspaceSetupChecklist.firstWorkflowPanel()).toHaveCount(0);
     await expect(workspaceSetupChecklist.indicator()).toBeVisible();
     await expect(workspaceSetupChecklist.indicator()).toHaveAttribute(
       'aria-label',

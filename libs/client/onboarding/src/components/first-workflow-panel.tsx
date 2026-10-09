@@ -1,11 +1,18 @@
 import {McpSetupInstructions} from '@shipfox/client-agent';
 import {PROVIDER_CATALOG} from '@shipfox/client-integrations';
 import {useClientAnalytics} from '@shipfox/client-shell/runtime';
-import {Button, ButtonLink} from '@shipfox/react-ui/button';
+import {Button, ButtonLink, IconButton} from '@shipfox/react-ui/button';
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@shipfox/react-ui/collapsible';
 import {useCopyToClipboard} from '@shipfox/react-ui/hooks';
 import {Icon} from '@shipfox/react-ui/icon';
-import {Panel, PanelBody, PanelHeader, PanelRow, PanelTitle} from '@shipfox/react-ui/panel';
+import {
+  Panel,
+  PanelActions,
+  PanelBody,
+  PanelHeader,
+  PanelRow,
+  PanelTitle,
+} from '@shipfox/react-ui/panel';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Text} from '@shipfox/react-ui/typography';
@@ -36,13 +43,28 @@ export interface FirstWorkflowPanelProps {
   workspace: WorkspaceReference;
   progress: FirstWorkflowPanelProgress;
   surface: FirstWorkflowSurface;
+  /** Adds a close button that hides the setup guide. The home passes it. */
+  onDismiss?: (() => void) | undefined;
+  /** Moves focus to the title on mount, when the panel replaces another step. */
+  focusTitle?: boolean;
 }
 
 type PanelMode = 'choose' | 'finish';
 
-export function FirstWorkflowPanel({workspace, progress, surface}: FirstWorkflowPanelProps) {
+export function FirstWorkflowPanel({
+  workspace,
+  progress,
+  surface,
+  onDismiss,
+  focusTitle = false,
+}: FirstWorkflowPanelProps) {
   const analytics = useClientAnalytics();
   const titleId = useId();
+  // Mount only: the flag says how the panel arrived, not a state to follow.
+  const focusOnMount = useRef(focusTitle);
+  useEffect(() => {
+    if (focusOnMount.current) document.getElementById(titleId)?.focus();
+  }, [titleId]);
   const mode: PanelMode = progress.state === 'open' ? 'choose' : 'finish';
   const openedModes = useRef(new Set<PanelMode>());
 
@@ -57,15 +79,30 @@ export function FirstWorkflowPanel({workspace, progress, surface}: FirstWorkflow
   return (
     <Panel asChild>
       <section aria-labelledby={titleId}>
-        <PanelHeader className="flex-col items-start gap-tight">
-          <PanelTitle id={titleId} variant="h2">
-            {mode === 'choose' ? 'Create your first workflow' : 'Finish your first workflow'}
-          </PanelTitle>
-          {mode === 'choose' ? (
-            <Text size="sm" className="text-foreground-neutral-muted">
-              Pick a workflow. Your coding agent adapts it to this repository, tests it on a real
-              run, and opens a pull request that adds it.
-            </Text>
+        <PanelHeader className="items-start">
+          <div className="flex min-w-0 flex-col gap-tight">
+            <PanelTitle id={titleId} tabIndex={-1} variant="h2">
+              {mode === 'choose' ? 'Create your first workflow' : 'Finish your first workflow'}
+            </PanelTitle>
+            {mode === 'choose' ? (
+              <Text size="sm" className="text-foreground-neutral-muted">
+                Pick a workflow. Your coding agent adapts it to this repository, tests it on a real
+                run, and opens a pull request that adds it.
+              </Text>
+            ) : null}
+          </div>
+          {onDismiss ? (
+            <PanelActions>
+              <IconButton
+                type="button"
+                variant="transparent"
+                size="sm"
+                muted
+                icon="close"
+                aria-label="Hide setup guide"
+                onClick={onDismiss}
+              />
+            </PanelActions>
           ) : null}
         </PanelHeader>
         <PanelBody>
