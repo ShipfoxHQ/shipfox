@@ -4,15 +4,21 @@ sidebarTitle: "Add an Agent Step"
 description: "Add a step that gives a prompt to an AI agent in your repository. The example summarizes the project without changing files."
 ---
 
-Use an agent step for work that needs investigation or judgment. Use a `run`
-step when a fixed command is enough.
+An agent step gives a task to an AI agent. Use an agent step when the work
+needs judgment, such as a review or an investigation. Use a `run` step when one
+fixed command does the work.
 
-A step becomes an agent step when it has a `prompt`. The agent runs on the same
-runner as the other steps of the job. It works in the job's copy of the
-repository.
+To make an agent step, add a `prompt` to a step. The prompt is the text that
+tells the agent what to do.
 
-The example below asks an agent to summarize a repository. To do other work,
-such as a review, a triage, or a fix, keep the same step and change the prompt.
+The agent works in the same place as the other steps of the job:
+
+- The agent runs on the same runner.
+- The agent reads and changes the same copy of the repository.
+
+This guide uses one example. In the example, an agent writes a summary of a
+repository. For other work, such as a review, a triage, or a fix, keep the step
+and change only the prompt.
 
 ## Add the agent step
 
@@ -50,14 +56,16 @@ the repository** to appear in the project's **Workflows** tab.
 
 ## Split a prompt into parts
 
-Write `prompt` as a list when several steps share some of their text. Each item
-of the list is one part. Shipfox removes the line breaks at the end of each
-part, then joins the parts with one blank line.
+Several steps can use the same text in their prompts. To share that text, write
+`prompt` as a list. Each item of the list is one part.
 
-A YAML anchor holds one whole part, so a list can reuse it before, between, or
-after the text of each step. The example below is a complete workflow. Its first
-step names the shared rules `&rules`, and its second step reuses them with
-`*rules`:
+Shipfox joins the parts into one prompt. It puts one blank line between two
+parts. It also removes the line breaks at the end of each part.
+
+A YAML anchor gives a name to one part. Another step can then use that part
+again by its name. The example below is a complete workflow. The first step
+gives the name `&rules` to the shared rules. The second step uses the rules
+again with `*rules`:
 
 ```yaml
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
@@ -92,9 +100,10 @@ Keep these rules in mind when you write your own parts:
 
 ## Keep a prompt in a file
 
-Move a part to a file when the text is long or when several workflows share it.
-Replace the part with a `file` reference. This fragment changes the second step
-of the example above:
+A part can also come from a file in the repository. Use a file when the text is
+long, or when several workflows use the same text. In the prompt, write a `file`
+reference in place of the text. This fragment changes the second step of the
+example above:
 
 ```yaml
       - prompt:
@@ -105,9 +114,9 @@ of the example above:
 The path starts with `./` and is relative to the root of the repository. The
 whole file is the part. A file cannot include another file.
 
-Shipfox reads a prompt file when it reads the workflow YAML, from the same
-commit. It stores the text in the workflow definition. A run never reads a
-prompt file from the job's copy of the repository.
+A prompt file is a part of the workflow. Shipfox uses the version of the file
+from the same commit as the workflow YAML. If a step changes the file during a
+run, the agent does not get the change.
 
 | Run started by | Prompt files come from |
 | --- | --- |
@@ -116,7 +125,7 @@ prompt file from the job's copy of the repository.
 | A dev run from unpushed YAML | The commit of the dev run's `ref`, or the default branch when it has none |
 | A rerun | The text of the original run |
 
-This has three consequences:
+This rule has three results:
 
 - A pull request that edits a prompt file does not change the runs that the pull
   request starts. Those runs use the text on the default branch until the pull
