@@ -347,6 +347,7 @@ jobs:
             --filter=@shipfox/actions... \
             --filter=@shipfox/client-shell... \
             --filter=@shipfox/client-features... \
+            --filter=@shipfox/e2e-core... \
             --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
       - name: Verify packed API runtime closure
@@ -1317,11 +1318,11 @@ jobs:
       - name: Set up pnpm
         uses: ./.github/actions/setup-pnpm
         with:
-          # The publication closure and its build only use libraries and tools.
-          filter: "./{libs,tools}/**"
+          # The publication closure also contains the published E2E core package.
+          filter: "./{e2e/core,libs,tools}/**"
 
       - name: Build publication closure
-        run: turbo type build type:emit --filter='./libs/**' --filter='./tools/**'
+        run: turbo type build type:emit --filter=@shipfox/e2e-core... --filter='./libs/**' --filter='./tools/**'
 
       - name: Pack candidate bundle
         run: |

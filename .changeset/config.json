@@ -5,6 +5,7 @@
   "fixed": [],
   "linked": [
     [
+      "@shipfox/e2e-core",
       "@shipfox/annotations",
       "@shipfox/annotations-dto",
       "@shipfox/api-agent",
