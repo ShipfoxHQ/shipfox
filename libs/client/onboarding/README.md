@@ -175,8 +175,9 @@ The caller maps its own query results to the derivation inputs:
   1. Nothing, while the setup guide is hidden or the slot is not ready.
   2. The tools panel, while the tools step is unfinished on this device, the
      first workflow is known and `open`, and the providers and connections
-     reads have answered once. A failed refetch keeps the panel. The number of connected tools is not a condition, so the
-     panel stays after an install until its button is pressed.
+     reads have answered once. A failed refetch keeps the panel. The number of
+     connected tools is not a condition, so the panel stays after an install
+     until its button is pressed.
   3. The first-workflow panel, while the first workflow is known and not
      `done`, and runners and a model are available.
   4. The compact checklist, while a tracked row is open or the completion
