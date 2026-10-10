@@ -111,7 +111,6 @@ export {
   createAgentAccessRoutes,
 } from '#presentation/routes.js';
 export {
-  agentAccessModule,
   type CreateAgentAccessModuleOptions,
   createAgentAccessModule,
 } from './module.js';

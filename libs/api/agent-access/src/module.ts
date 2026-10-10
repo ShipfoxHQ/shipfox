@@ -22,5 +22,3 @@ export function createAgentAccessModule(
     ],
   };
 }
-
-export const agentAccessModule = createAgentAccessModule();
