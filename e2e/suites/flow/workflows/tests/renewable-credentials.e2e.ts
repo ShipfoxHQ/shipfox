@@ -159,8 +159,6 @@ test('renews managed inference credentials for both harnesses', async ({suite}, 
     definitionId: project.definition.id,
     scenario: 'renewable-inference',
     runnerLabel,
-    renewableGit: false,
-    renewableInference: true,
   });
   const after = await adminClient.requestJson<InferenceFixtureStats>(
     'get',
@@ -279,7 +277,6 @@ test('renews rejected credentials across multiple checkouts', async ({
     definitionId: workflow.definition.id,
     scenario: 'renewable-credentials-on-rejection',
     runnerLabel,
-    renewableGit: true,
   });
   const after = await getTestVcsStats({connectionId: connection.id});
 
@@ -346,7 +343,6 @@ test('refreshes before Git needs an expired credential', async ({
     definitionId: workflow.definition.id,
     scenario: 'renewable-credentials-refresh-at',
     runnerLabel,
-    renewableGit: true,
   });
   const after = await getTestVcsStats({connectionId: connection.id});
 
@@ -386,7 +382,6 @@ test('keeps author identity without persisting credentials when disabled', async
     definitionId: workflow.definition.id,
     scenario: 'renewable-credentials-no-persistence',
     runnerLabel,
-    renewableGit: true,
   });
   const after = await getTestVcsStats({connectionId: suite.testVcsConnectionId});
 
@@ -429,7 +424,6 @@ test('shares one provider mint across concurrent jobs with the same scope', asyn
     runnerLabel,
     runnerCount: 2,
     runnerLabels,
-    renewableGit: true,
   });
   const after = await getTestVcsStats({connectionId: suite.testVcsConnectionId});
 
@@ -472,7 +466,6 @@ test('fails the workflow promptly when the provider cannot mint credentials', as
     definitionId: workflow.definition.id,
     scenario: 'renewable-credentials-provider-failure',
     runnerLabel,
-    renewableGit: true,
   });
   const after = await getTestVcsStats({connectionId: suite.testVcsConnectionId});
 
@@ -573,8 +566,6 @@ async function runWorkflow(params: {
   runnerLabel: string;
   runnerCount?: number | undefined;
   runnerLabels?: readonly string[] | undefined;
-  renewableGit: boolean;
-  renewableInference?: boolean | undefined;
 }): Promise<{terminal: WorkflowRunObservation; logFiles: string[]}> {
   const token = params.suite.sessionToken;
   const client = createApiClient({token});
@@ -598,8 +589,6 @@ async function runWorkflow(params: {
             GIT_SSL_NO_VERIFY: 'true',
             SHIPFOX_POLL_MAX_DURATION_MS: String(RUNNER_TERMINAL_TIMEOUT_MS),
           },
-          renewableGit: params.renewableGit,
-          renewableInference: params.renewableInference,
         }),
       );
     }

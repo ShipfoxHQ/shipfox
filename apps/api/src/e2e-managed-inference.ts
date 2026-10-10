@@ -166,7 +166,6 @@ interface CredentialState {
   stepAttemptId: string;
   nextGeneration: number;
   model: string;
-  renewableInference: boolean;
   projectId: string;
   scriptedAttempt: ScriptedAttempt | undefined;
   /** Set when the project's requests go to OpenRouter, with the identity its usage is recorded under. */
@@ -269,7 +268,6 @@ function resolveE2eCredentials(
   const key = params.stepAttemptId;
   const now = Date.now();
   pruneCredentialStates(state, now);
-  const renewableInference = params.renewableInference;
   const projectId = params.jobIdentity.projectId;
   const credentialState =
     state.credentials.get(key) ??
@@ -277,9 +275,6 @@ function resolveE2eCredentials(
     createCredentialState({state, params, jobIdentity: params.jobIdentity, now});
   if (credentialState.model !== model.id) {
     throw new Error('E2E managed provider model changed during credential renewal');
-  }
-  if (credentialState.renewableInference !== renewableInference) {
-    throw new Error('E2E managed provider renewable mode changed during credential renewal');
   }
   if (credentialState.projectId !== projectId) {
     throw new Error('E2E managed provider project changed during credential renewal');
@@ -298,7 +293,7 @@ function resolveE2eCredentials(
     baseUrl,
     credentials: {api_key: token},
   };
-  if (!renewableInference) return runtimeConfig;
+  if (!isRenewalModel(model.id)) return runtimeConfig;
 
   return {
     ...runtimeConfig,
@@ -332,7 +327,6 @@ function createCredentialState(params: {
     stepAttemptId: params.params.stepAttemptId,
     nextGeneration: 1,
     model: params.params.model,
-    renewableInference: params.params.renewableInference,
     projectId: jobIdentity.projectId,
     scriptedAttempt,
     openRouterIdentity: openRouter
@@ -1034,7 +1028,7 @@ function isCurrentCredential(
     tokenDetails !== undefined &&
     credentialState !== undefined &&
     tokenDetails.generation === credentialState.nextGeneration - 1 &&
-    (!credentialState.renewableInference || tokenDetails.generation !== 1)
+    (!isRenewalModel(credentialState.model) || tokenDetails.generation !== 1)
   );
 }
 
@@ -1074,7 +1068,7 @@ function recordGeneration(
 function pruneCredentialStates(state: InferenceState, now: number): void {
   for (const [key, credentialState] of state.credentials) {
     if (
-      credentialState.renewableInference &&
+      isRenewalModel(credentialState.model) &&
       now - credentialState.lastTouchedAt > E2E_CREDENTIAL_STATE_TTL_MS
     ) {
       state.credentials.delete(key);
@@ -1116,6 +1110,11 @@ function rememberCredentialTombstone(
     if (oldestKey === undefined) return;
     state.tombstones.delete(oldestKey);
   }
+}
+
+/** The models whose first credential is rejected, so a step on one must renew to finish. */
+function isRenewalModel(model: string): boolean {
+  return model === E2E_PI_MODEL || model === E2E_CLAUDE_MODEL || isRefreshAtModel(model);
 }
 
 function isRefreshAtModel(model: string): boolean {

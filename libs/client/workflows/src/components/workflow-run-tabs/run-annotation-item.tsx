@@ -43,6 +43,7 @@ const MINTED_CONTEXTS = [
     key: ({originStepId}: MintedContextSource) => `agent-tool-capability:${originStepId}`,
   },
   {
+    // No longer minted. Runs from before every runner renewed Git credentials still carry it.
     key: ({originStepId}: MintedContextSource) => `renewable-git-capability:${originStepId}`,
   },
 ] as const;

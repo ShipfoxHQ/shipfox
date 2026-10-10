@@ -81,7 +81,6 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
       values: {API_TOKEN: 'runtime-secret', UNUSED_TOKEN: 'unused-secret'},
     });
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -123,7 +122,6 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
       values: {API_TOKEN: 'hostile-secret'},
     });
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
       token: {workspaceId: hostileWorkspaceId, projectId: crypto.randomUUID()},
     });
@@ -160,7 +158,6 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
       values: {PROJECT_TOKEN: 'cross-project-secret'},
     });
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -198,7 +195,7 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
       projectId: run.projectId,
       values: {SHARED_TOKEN: 'later-project-secret'},
     });
-    const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+    const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -240,7 +237,7 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
       projectId: sourceProjectId,
       keys: ['PINNED_TOKEN'],
     });
-    const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+    const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -265,7 +262,7 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
         segments: [{kind: 'secret', store: 'inputs', key: 'MISSING_INPUT'}],
       },
     ]);
-    const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+    const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -306,7 +303,7 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
       projectId: run.projectId,
       values: {LOCAL_TOKEN: 'local-value'},
     });
-    const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+    const token = await mintActiveLeaseToken({jobId: job.id});
 
     const res = await app.inject({
       method: 'GET',
@@ -324,7 +321,6 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
   test('returns an empty response without resolving secrets when bindings are absent', async () => {
     const {job, step} = await createRunningRunStep();
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -362,7 +358,6 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
       values: {SLACK: 'slack-secret', NPM_TOKEN: 'npm-secret'},
     });
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -414,7 +409,6 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
       values: {GHCR_TOKEN: 'ghcr-secret', TOOLBOX_LICENSE: 'license-secret'},
     });
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -440,7 +434,6 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
       .set({type: 'setup', config: {checkout: {persist_credentials: true}}})
       .where(eq(stepsTable.id, step.id));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -457,7 +450,6 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
   test('returns 409 when the leased step is not a run or action step', async () => {
     const {job, step} = await createRunningAgentStep();
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -480,7 +472,6 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
       },
     ]);
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -504,7 +495,6 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
       .set({config: {run: 'echo "$TOKEN"', secret_bindings: [{target: 'TOKEN'}]}})
       .where(eq(stepsTable.id, step.id));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 

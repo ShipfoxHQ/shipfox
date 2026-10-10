@@ -478,33 +478,23 @@ export async function runJob(
     releaseCredentialLock = await createJobCredentialsDir(credentialsDir);
 
     const leaseClient = createLeaseClient(() => currentLeaseToken);
-    const renewableGitEnabled = runnerToolCapabilities().features.renewable_git;
-    if (renewableGitEnabled) {
-      let candidate: ReturnType<typeof createJobCredentialLifecycle> | undefined;
-      try {
-        candidate = createJobCredentialLifecycle({
-          credentialsDir,
-          leaseClient,
-          signal: ac.signal,
-          registerSecrets: registerBrokerSecrets,
-          replaceSecrets: replaceBrokerSecrets,
-          clearSecrets: clearBrokerSecrets,
-        });
-        await candidate.start();
-        credentialLifecycle = candidate;
-      } catch (error) {
-        logger().error(
-          {err: error, jobId: job.job_id},
-          'Renewable Git broker unavailable; refusing opted-in job',
-        );
-        await candidate?.close().catch((closeError) => {
-          logger().warn(
-            {err: closeError, jobId: job.job_id},
-            'Failed to close unavailable job credential broker',
-          );
-        });
-        return;
-      }
+    const jobCredentialLifecycle = createJobCredentialLifecycle({
+      credentialsDir,
+      leaseClient,
+      signal: ac.signal,
+      registerSecrets: registerBrokerSecrets,
+      replaceSecrets: replaceBrokerSecrets,
+      clearSecrets: clearBrokerSecrets,
+    });
+    credentialLifecycle = jobCredentialLifecycle;
+    try {
+      await jobCredentialLifecycle.start();
+    } catch (error) {
+      logger().error(
+        {err: error, jobId: job.job_id},
+        'Git credential broker unavailable; refusing job',
+      );
+      return;
     }
     await runJobSteps({
       jobId: job.job_id,
@@ -517,13 +507,9 @@ export async function runJob(
       },
       registerSecrets,
       replaceInferenceSecrets,
-      ...(credentialLifecycle
-        ? {
-            credentialHelper: credentialLifecycle.helper,
-            registerCheckoutCredential: credentialLifecycle.register,
-            credentialFailureEvents: credentialLifecycle,
-          }
-        : {}),
+      credentialHelper: jobCredentialLifecycle.helper,
+      registerCheckoutCredential: jobCredentialLifecycle.register,
+      credentialFailureEvents: jobCredentialLifecycle,
       signal: ac.signal,
       cwd,
       gitConfigPath,

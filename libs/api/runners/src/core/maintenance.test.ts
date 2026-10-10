@@ -196,7 +196,6 @@ describe('deleteExpiredRunnerSessions', () => {
       providerRunnerId: params.kind === 'ephemeral' ? `provisioned-${params.id}` : null,
       labels: ['linux'],
       toolCapabilities: {
-        features: {renewable_git: false, renewable_inference: false},
         harnesses: {},
       },
       lifecycleCapabilities: ['local_execution_fence_v1'],

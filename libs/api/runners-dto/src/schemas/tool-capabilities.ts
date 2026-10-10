@@ -1,14 +1,5 @@
 import {z} from 'zod';
 
-export const runnerFeaturesSchema = z
-  .object({
-    renewable_git: z.boolean(),
-    renewable_inference: z.boolean(),
-  })
-  .strict();
-
-export type RunnerFeaturesDto = z.infer<typeof runnerFeaturesSchema>;
-
 export const runnerHarnessToolCapabilitiesSchema = z
   .object({
     tools: z.array(z.string().min(1)).superRefine((tools, ctx) => {
@@ -31,7 +22,6 @@ export const runnerHarnessToolCapabilitiesSchema = z
 
 export const runnerToolCapabilitiesSchema = z
   .object({
-    features: runnerFeaturesSchema,
     harnesses: z
       .object({
         pi: runnerHarnessToolCapabilitiesSchema.optional(),

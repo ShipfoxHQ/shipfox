@@ -19,10 +19,6 @@ import type {RunnerSession} from '#core/entities/runner-session.js';
 import {pgTable} from './common.js';
 
 export interface PersistedRunnerToolCapabilities {
-  features?: {
-    renewable_git?: boolean;
-    renewable_inference?: boolean;
-  };
   harnesses?: RunnerToolCapabilitiesDto['harnesses'];
 }
 
@@ -88,13 +84,7 @@ export type RunnerSessionInsertDb = typeof runnerSessions.$inferInsert;
 export function normalizeRunnerToolCapabilities(
   capabilities: PersistedRunnerToolCapabilities | null,
 ): RunnerToolCapabilitiesDto {
-  return {
-    features: {
-      renewable_git: capabilities?.features?.renewable_git === true,
-      renewable_inference: capabilities?.features?.renewable_inference === true,
-    },
-    harnesses: capabilities?.harnesses ?? {},
-  };
+  return {harnesses: capabilities?.harnesses ?? {}};
 }
 
 export function normalizeRunnerLifecycleCapabilities(

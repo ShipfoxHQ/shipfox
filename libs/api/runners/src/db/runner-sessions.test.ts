@@ -11,22 +11,20 @@ import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 describe('runner session capability persistence', () => {
   it('defaults nullable legacy capabilities', () => {
     expect(normalizeRunnerToolCapabilities(null)).toEqual({
-      features: {renewable_git: false, renewable_inference: false},
       harnesses: {},
     });
     expect(normalizeRunnerLifecycleCapabilities(null)).toEqual([]);
   });
 
-  it('defaults missing legacy feature flags without discarding reported capabilities', () => {
-    expect(
-      normalizeRunnerToolCapabilities({
-        features: {renewable_git: true},
-        harnesses: {pi: {tools: ['read']}},
-      }),
-    ).toEqual({
-      features: {renewable_git: true, renewable_inference: false},
+  it('drops the legacy feature flags of a persisted manifest', () => {
+    const persisted = {
+      features: {renewable_git: true, renewable_inference: true},
       harnesses: {pi: {tools: ['read']}},
-    });
+    };
+
+    const capabilities = normalizeRunnerToolCapabilities(persisted);
+
+    expect(capabilities).toEqual({harnesses: {pi: {tools: ['read']}}});
   });
 });
 
@@ -155,7 +153,6 @@ describe('deleteExpiredRunnerSessions', () => {
         providerRunnerId,
         labels: ['linux'],
         toolCapabilities: {
-          features: {renewable_git: false, renewable_inference: false},
           harnesses: {},
         },
         lifecycleCapabilities: ['local_execution_fence_v1'],
@@ -172,7 +169,6 @@ describe('deleteExpiredRunnerSessions', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
-        renewableInference: false,
         workspaceId,
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),

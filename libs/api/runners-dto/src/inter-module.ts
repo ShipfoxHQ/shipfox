@@ -14,10 +14,7 @@ export const runnersInterModuleContract = defineInterModuleContract({
         jobExecutionId: idSchema,
         runnerSessionId: idSchema,
       }),
-      output: z.object({
-        active: z.boolean(),
-        renewableInference: z.boolean(),
-      }),
+      output: z.object({active: z.boolean()}),
     },
     getEffectiveRunnerToolCapabilities: {
       input: z.object({runnerSessionId: idSchema}),

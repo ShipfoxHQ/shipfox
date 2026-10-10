@@ -35,7 +35,6 @@ export interface ResolveRuntimeCredentialsParams {
   runId: string;
   stepAttemptId: string;
   jobIdentity?: ManagedProviderJobIdentity | undefined;
-  renewableInference: boolean;
   /** A credential refresh of a running step, which must not be cut off by model availability. */
   renewal?: boolean | undefined;
   harness: Harness;
@@ -106,7 +105,6 @@ async function resolveManagedCredentials(
     stepAttemptId: params.stepAttemptId,
     ...(params.jobIdentity === undefined ? {} : {jobIdentity: params.jobIdentity}),
     model: params.model,
-    renewableInference: params.renewableInference,
   });
   recordRuntimeConfigResolution(params, {source: 'instance', outcome: 'resolved'});
   return toResponse(params, managedRuntimeConfig.credentials, undefined, {

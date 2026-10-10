@@ -22,14 +22,6 @@ export const config = createConfig({
     desc: 'Comma-separated hosts and IP ranges that custom model providers may not call. Accepts exact hosts, suffix patterns such as .internal.example or *.internal.example, IP literals, and CIDR blocks such as 10.0.0.0/8.',
     default: '',
   }),
-  SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT: bool({
-    desc: 'Enables the runner-local renewable Git credential broker. Source-run defaults remain disabled; verified managed images set this after the helper and production closure are checked.',
-    default: false,
-  }),
-  SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE: bool({
-    desc: 'Enables renewable managed inference credentials. Source-run defaults remain disabled; verified managed images set this after the helper and production closure are checked.',
-    default: false,
-  }),
 });
 
 export function runnerEgressPolicy(): EgressPolicy {

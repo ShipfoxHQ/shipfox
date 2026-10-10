@@ -33,7 +33,6 @@ import {
   expireStuckJobExecutions,
   getJobExecutionCleanupStats,
   getJobExecutionQueueDepth,
-  getJobLeaseState,
   isJobLeaseActive,
   reconcileTerminalJobExecution,
   recordHeartbeat,
@@ -653,54 +652,6 @@ describe('claimPendingJobExecution', () => {
     expect(running?.firstHeartbeatAt).toBeNull();
   });
 
-  it('snapshots renewable inference from the registered manifest', async () => {
-    await db()
-      .update(runnerSessions)
-      .set({
-        toolCapabilities: {
-          features: {renewable_git: false, renewable_inference: true},
-          harnesses: {},
-        },
-      })
-      .where(eq(runnerSessions.id, runnerSessionId));
-    const created = await pendingJobFactory.create({workspaceId});
-
-    await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
-    const [running] = await db()
-      .select({renewableInference: runningJobExecutions.renewableInference})
-      .from(runningJobExecutions)
-      .where(eq(runningJobExecutions.jobExecutionId, created.jobExecutionId));
-
-    expect(running?.renewableInference).toBe(true);
-
-    await expect(
-      getJobLeaseState({
-        jobId: created.jobId,
-        jobExecutionId: created.jobExecutionId,
-        runnerSessionId,
-      }),
-    ).resolves.toEqual({active: true, renewableInference: true});
-  });
-
-  it('snapshots false for a claim without renewable inference capability', async () => {
-    const created = await pendingJobFactory.create({workspaceId});
-
-    await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
-
-    const [running] = await db()
-      .select({renewableInference: runningJobExecutions.renewableInference})
-      .from(runningJobExecutions)
-      .where(eq(runningJobExecutions.jobExecutionId, created.jobExecutionId));
-    expect(running?.renewableInference).toBe(false);
-    await expect(
-      getJobLeaseState({
-        jobId: created.jobId,
-        jobExecutionId: created.jobExecutionId,
-        runnerSessionId,
-      }),
-    ).resolves.toEqual({active: true, renewableInference: false});
-  });
-
   it('reports an active lease only for the session that claimed the job', async () => {
     const created = await pendingJobFactory.create({workspaceId});
     const otherRunnerSession = await runnerSessionFactory.create({workspaceId});
@@ -1088,7 +1039,6 @@ describe('claimPendingJobExecution', () => {
 
     await expect(
       db().insert(runningJobExecutions).values({
-        renewableInference: false,
         workspaceId,
         workflowRunId: created.workflowRunId,
         jobId: created.jobId,
@@ -1130,7 +1080,6 @@ describe('claimPendingJobExecution', () => {
       workspaceId,
       labels: sessionLabels,
       toolCapabilities: {
-        features: {renewable_git: false, renewable_inference: false},
         harnesses: {pi: {tools: ['read']}},
       },
     });
@@ -1138,7 +1087,6 @@ describe('claimPendingJobExecution', () => {
       workspaceId,
       labels: sessionLabels,
       toolCapabilities: {
-        features: {renewable_git: false, renewable_inference: false},
         harnesses: {pi: {tools: []}},
       },
     });
@@ -2038,7 +1986,6 @@ describe('detectAndExpireStuckJobs', () => {
         providerRunnerId: providerRunner.providerRunnerId,
         labels: sessionLabels,
         toolCapabilities: {
-          features: {renewable_git: false, renewable_inference: false},
           harnesses: {},
         },
         lifecycleCapabilities,
@@ -2117,7 +2064,6 @@ describe('detectAndExpireStuckJobs', () => {
         providerRunnerId,
         labels: sessionLabels,
         toolCapabilities: {
-          features: {renewable_git: false, renewable_inference: false},
           harnesses: {},
         },
         lifecycleCapabilities: ['local_execution_fence_v1'],
@@ -2144,7 +2090,6 @@ describe('detectAndExpireStuckJobs', () => {
         providerRunnerId,
         labels: sessionLabels,
         toolCapabilities: {
-          features: {renewable_git: false, renewable_inference: false},
           harnesses: {},
         },
         lifecycleCapabilities: [],

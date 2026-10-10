@@ -133,7 +133,6 @@ async function createStaleIdleRunnerSession(params: {
       providerRunnerId: providerRunner.providerRunnerId,
       labels: ['linux'],
       toolCapabilities: {
-        features: {renewable_git: false, renewable_inference: false},
         harnesses: {},
       },
       lifecycleCapabilities: ['local_execution_fence_v1'],
@@ -167,7 +166,6 @@ async function insertRunningJobRow(params: {
   await db()
     .insert(runningJobExecutions)
     .values({
-      renewableInference: false,
       workspaceId: params.workspaceId,
       workflowRunId: crypto.randomUUID(),
       workflowRunAttemptId: crypto.randomUUID(),
@@ -234,7 +232,6 @@ describe('authorizeRunnerTermination', () => {
         providerRunnerId,
         labels: ['linux'],
         toolCapabilities: {
-          features: {renewable_git: false, renewable_inference: false},
           harnesses: {},
         },
         lifecycleCapabilities: ['local_execution_fence_v1'],
@@ -492,7 +489,6 @@ describe('recoverStaleIdleRunnerSessions', () => {
         providerRunnerId: providerRunner.providerRunnerId,
         labels: ['linux'],
         toolCapabilities: {
-          features: {renewable_git: false, renewable_inference: false},
           harnesses: {},
         },
         lifecycleCapabilities: ['local_execution_fence_v1'],
@@ -587,7 +583,6 @@ describe('recoverStaleIdleRunnerSessions', () => {
         providerRunnerId: providerRunner.providerRunnerId,
         labels: ['linux'],
         toolCapabilities: {
-          features: {renewable_git: false, renewable_inference: false},
           harnesses: {},
         },
         lifecycleCapabilities: ['local_execution_fence_v1'],
@@ -2607,7 +2602,6 @@ describe('listProvisionerTerminateIntents', () => {
         providerRunnerId: 'activated-demand-runner',
         labels: ['linux'],
         toolCapabilities: {
-          features: {renewable_git: false, renewable_inference: false},
           harnesses: {},
         },
         lifecycleCapabilities: ['local_execution_fence_v1'],
@@ -3299,7 +3293,6 @@ describe('reapStaleRunnerInstances', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
-        renewableInference: false,
         workspaceId,
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
@@ -4005,7 +3998,6 @@ describe('reconcileRunnerInstances', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
-        renewableInference: false,
         workspaceId,
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
@@ -4086,7 +4078,6 @@ describe('reconcileRunnerInstances', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
-        renewableInference: false,
         workspaceId,
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
@@ -4147,7 +4138,6 @@ describe('reconcileRunnerInstances', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
-        renewableInference: false,
         workspaceId,
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
@@ -4618,7 +4608,6 @@ describe('reconcileRunnerInstances', () => {
         providerRunnerId: params.providerRunnerId,
         labels: ['linux'],
         toolCapabilities: {
-          features: {renewable_git: false, renewable_inference: false},
           harnesses: {},
         },
         lifecycleCapabilities: ['local_execution_fence_v1'],
@@ -4642,7 +4631,6 @@ describe('reconcileRunnerInstances', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
-        renewableInference: false,
         workspaceId,
         jobId: params.jobId,
         jobExecutionId: params.jobExecutionId ?? crypto.randomUUID(),

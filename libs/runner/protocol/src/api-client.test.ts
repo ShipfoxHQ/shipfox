@@ -56,7 +56,6 @@ const STEP_ID = crypto.randomUUID();
 const SESSION_ID = crypto.randomUUID();
 const ZOD_ERROR_TEXT_REGEX = /Zod|Invalid|Required/;
 const TOOL_CAPABILITIES: RunnerToolCapabilitiesDto = {
-  features: {renewable_git: true, renewable_inference: false},
   harnesses: {
     pi: {tools: ['read', 'bash']},
     claude: {tools: ['Read', 'Bash']},

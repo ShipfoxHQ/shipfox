@@ -2,7 +2,6 @@ import {
   type ManagedModelLock,
   type ManagedModelProvider,
   MODEL_UNAVAILABLE_ERROR_CODE,
-  RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
 } from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
@@ -213,7 +212,6 @@ describe('agent inter-module presentation', () => {
       provider: 'anthropic' as const,
       model: 'claude-opus-4-8',
       thinking: 'high' as const,
-      renewableInference: false,
     };
 
     const result = await Promise.resolve(
@@ -318,52 +316,6 @@ describe('agent inter-module presentation', () => {
     });
   });
 
-  test('maps a managed provider capability failure to the runtime contract', async () => {
-    const managedProvider: ManagedModelProvider = {
-      id: 'shipfox',
-      label: 'Shipfox',
-      models: [{id: 'managed-model', label: 'Managed model', api: 'openai-responses'}],
-      defaultModel: 'managed-model',
-      resolveCredentials: vi.fn(() => {
-        throw Object.assign(new Error('runner capability required'), {
-          code: RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
-        });
-      }),
-    };
-    const presentation = createAgentInterModulePresentation({
-      secrets: agentTestSecretsClient,
-      managedProvider,
-      workspaceProviders: 'disabled',
-    });
-
-    const result = await Promise.resolve(
-      presentation.handlers.resolveRuntimeCredentials(
-        {
-          workspaceId: crypto.randomUUID(),
-          runId: crypto.randomUUID(),
-          stepAttemptId: crypto.randomUUID(),
-          harness: 'pi',
-          provider: 'shipfox',
-          model: 'managed-model',
-          thinking: 'high',
-          renewableInference: false,
-        },
-        {signal: new AbortController().signal},
-      ),
-    ).catch((error: unknown) => error);
-
-    expect(
-      isInterModuleKnownError(agentInterModuleContract.methods.resolveRuntimeCredentials, result),
-    ).toBe(true);
-    if (
-      !isInterModuleKnownError(agentInterModuleContract.methods.resolveRuntimeCredentials, result)
-    ) {
-      throw new Error('Expected a runner capability known error');
-    }
-    expect(result.code).toBe(RUNNER_CAPABILITY_REQUIRED_ERROR_CODE);
-    expect(result.details).toEqual({});
-  });
-
   describe('managed model availability', () => {
     const notice = {
       reason: 'model-locked',
@@ -406,7 +358,6 @@ describe('agent inter-module presentation', () => {
             provider: 'shipfox',
             model: 'managed-model',
             thinking: 'high',
-            renewableInference: true,
             ...overrides,
           },
           {signal: new AbortController().signal},

@@ -449,7 +449,6 @@ describe('POST /provisioners/runner-instances/reconcile', () => {
         providerRunnerId: 'enrolled-candidate',
         labels: ['linux'],
         toolCapabilities: {
-          features: {renewable_git: false, renewable_inference: false},
           harnesses: {},
         },
         lifecycleCapabilities: ['local_execution_fence_v1'],
@@ -890,7 +889,6 @@ describe('POST /provisioners/runner-instances/reconcile', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
-        renewableInference: false,
         workspaceId,
         workflowRunId: params.workflowRunId,
         jobId: params.jobId,

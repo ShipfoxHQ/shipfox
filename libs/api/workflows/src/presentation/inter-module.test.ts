@@ -1361,7 +1361,7 @@ describe('Workflows inter-module presentation', () => {
     });
     mocks.getJobScope.mockResolvedValue({workspaceId: '00000000-0000-4000-8000-000000000010'});
     const runners = {
-      getLeaseState: vi.fn().mockResolvedValue({active: true, renewableInference: false}),
+      getLeaseState: vi.fn().mockResolvedValue({active: true}),
     };
     const presentation = createWorkflowsInterModulePresentation({
       agent: {} as never,
@@ -1439,7 +1439,7 @@ describe('Workflows inter-module presentation', () => {
         integrations: {} as never,
         projects: {} as never,
         runners: {
-          getLeaseState: vi.fn().mockResolvedValue({active: true, renewableInference: false}),
+          getLeaseState: vi.fn().mockResolvedValue({active: true}),
         } as never,
         secrets: {} as never,
         workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
@@ -1579,7 +1579,7 @@ describe('Workflows inter-module presentation', () => {
         sessionDescriptor: {id: sessionId, key: 'main', mode: 'resume', segment: 3},
       });
       const runners = {
-        getLeaseState: vi.fn().mockResolvedValue({active: true, renewableInference: false}),
+        getLeaseState: vi.fn().mockResolvedValue({active: true}),
       };
 
       const result = await presentation(runners).handlers.getLeasedAgentSessionContext(input, {
@@ -1609,7 +1609,7 @@ describe('Workflows inter-module presentation', () => {
         sessionDescriptor: null,
       });
       const runners = {
-        getLeaseState: vi.fn().mockResolvedValue({active: true, renewableInference: false}),
+        getLeaseState: vi.fn().mockResolvedValue({active: true}),
       };
 
       const result = await presentation(runners).handlers.getLeasedAgentSessionContext(input, {
@@ -1622,7 +1622,7 @@ describe('Workflows inter-module presentation', () => {
     it('fails fast when the lease is not active', async () => {
       arrangeRunningAgentStep();
       const runners = {
-        getLeaseState: vi.fn().mockResolvedValue({active: false, renewableInference: false}),
+        getLeaseState: vi.fn().mockResolvedValue({active: false}),
       };
 
       await expectKnownError(
@@ -1647,7 +1647,7 @@ describe('Workflows inter-module presentation', () => {
         sessionDescriptor: {id: 'not-a-uuid', key: 'main', mode: 'resume', segment: 1},
       });
       const runners = {
-        getLeaseState: vi.fn().mockResolvedValue({active: true, renewableInference: false}),
+        getLeaseState: vi.fn().mockResolvedValue({active: true}),
       };
 
       await expectKnownError(
@@ -1665,7 +1665,7 @@ describe('Workflows inter-module presentation', () => {
       ['leased-step-not-agent', {currentAttempt: 1, status: 'running', type: 'run'}],
     ] as const)('maps a %s step to the published contract error', async (code, step) => {
       const runners = {
-        getLeaseState: vi.fn().mockResolvedValue({active: true, renewableInference: false}),
+        getLeaseState: vi.fn().mockResolvedValue({active: true}),
       };
       mocks.getStepByIdForJobExecution.mockResolvedValue(step);
       if (step !== undefined) {
@@ -1692,7 +1692,7 @@ describe('Workflows inter-module presentation', () => {
       });
       mocks.getJobScope.mockResolvedValue(undefined);
       const runners = {
-        getLeaseState: vi.fn().mockResolvedValue({active: true, renewableInference: false}),
+        getLeaseState: vi.fn().mockResolvedValue({active: true}),
       };
 
       await expectKnownError(
@@ -1717,7 +1717,7 @@ describe('Workflows inter-module presentation', () => {
       });
       mocks.getStepAttemptDetail.mockResolvedValue(undefined);
       const runners = {
-        getLeaseState: vi.fn().mockResolvedValue({active: true, renewableInference: false}),
+        getLeaseState: vi.fn().mockResolvedValue({active: true}),
       };
 
       await expectKnownError(

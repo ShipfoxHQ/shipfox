@@ -63,7 +63,6 @@ export function createLeaseTokenRouteGroup(params: LeaseTokenRouteClients): Rout
       createNextStepRoute(params),
       createReportStepRoute(params.runners),
       createCheckoutTokenRoute({
-        annotations: params.annotations,
         integrations: params.integrations,
         projects: params.projects,
         runners: params.runners,

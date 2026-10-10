@@ -30,7 +30,6 @@ const fakeProvisionerAuth: AuthMethod = {
 
 const registrationCapabilities = {
   capabilities: {
-    features: {renewable_git: false, renewable_inference: false},
     harnesses: {},
   },
   lifecycle_capabilities: ['local_execution_fence_v1'],

@@ -171,7 +171,6 @@ async function mintStepToken(params: {
   attempt: number;
 }): Promise<string> {
   return await mintActiveLeaseToken({
-    renewableInference: false,
     jobId: params.jobId,
     token: {currentStepId: params.stepId, currentStepAttempt: params.attempt},
   });

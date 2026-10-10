@@ -33,9 +33,6 @@ export const managedProviderJobIdentitySchema = z.object({
 
 export type ManagedProviderJobIdentity = z.infer<typeof managedProviderJobIdentitySchema>;
 
-/** Stable provider error code for a runner that cannot use renewable inference credentials. */
-export const RUNNER_CAPABILITY_REQUIRED_ERROR_CODE = 'runner-capability-required';
-
 /** Stable provider error code for a managed model that the workspace may not use. */
 export const MODEL_UNAVAILABLE_ERROR_CODE = 'agent-model-unavailable';
 
@@ -168,12 +165,7 @@ export interface ManagedModelProvider {
   readonly availability?:
     | ((params: {workspaceId: string}) => Promise<ReadonlyMap<string, ManagedModelLock>>)
     | undefined;
-  /**
-   * Resolves credentials for one leased step attempt.
-   *
-   * Reject with an `Error` carrying `RUNNER_CAPABILITY_REQUIRED_ERROR_CODE` when renewable
-   * credentials require runner support that the claim-time capability snapshot does not provide.
-   */
+  /** Resolves credentials for one leased step attempt. Every runner can renew them. */
   readonly resolveCredentials: (params: {
     workspaceId: string;
     runId: string;
@@ -181,6 +173,5 @@ export interface ManagedModelProvider {
     /** Complete job identity supplied by the leased workflow step when available. */
     jobIdentity?: ManagedProviderJobIdentity | undefined;
     model: string;
-    renewableInference: boolean;
   }) => Promise<ManagedProviderRuntimeConfig>;
 }

@@ -30,7 +30,6 @@ export const runnerSessionFactory = Factory.define<
     providerRunnerId: null,
     labels: ['linux', 'x64'],
     toolCapabilities: {
-      features: {renewable_git: false, renewable_inference: false},
       harnesses: {},
     },
     lifecycleCapabilities: ['local_execution_fence_v1'],

@@ -6,7 +6,6 @@ import {
 } from './runner-tool-capabilities.js';
 
 const capabilities: RunnerToolCapabilitiesDto = {
-  features: {renewable_git: false, renewable_inference: false},
   harnesses: {
     pi: {tools: ['read', 'bash']},
   },
@@ -48,7 +47,6 @@ describe('unadvertisedRunnerTools', () => {
       harness: 'claude',
       requestedTools: ['read', 'Read'],
       capabilities: {
-        features: {renewable_git: false, renewable_inference: false},
         harnesses: {claude: {tools: ['read']}, pi: {tools: ['Read']}},
       },
     });

@@ -1,0 +1,1 @@
+ALTER TABLE "runners_running_jobs" DROP COLUMN "renewable_inference";

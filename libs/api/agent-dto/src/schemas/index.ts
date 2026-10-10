@@ -115,7 +115,6 @@ export {
   managedModelThinkingLevelSchema,
   managedProviderJobIdentitySchema,
   modelUnavailableDetailsSchema,
-  RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
   toCustomAgentModelDto,
 } from './managed-provider.js';
 export {

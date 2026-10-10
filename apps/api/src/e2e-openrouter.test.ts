@@ -263,7 +263,6 @@ describe('OpenRouter backend', () => {
         stepAttemptId: '00000000-0000-4000-8000-000000000009',
         jobIdentity: JOB_IDENTITY,
         model: 'e2e-renewable-pi',
-        renewableInference: false,
       }),
     ).rejects.toThrow('no OpenRouter model for e2e-renewable-pi');
   });
@@ -285,7 +284,6 @@ describe('OpenRouter backend', () => {
       stepAttemptId: STEP_ATTEMPT_ID,
       jobIdentity: JOB_IDENTITY,
       model: 'gpt-6-sol',
-      renewableInference: false,
     });
 
     const response = await app.inject({
@@ -365,7 +363,6 @@ async function startOpenRouterProject(baseUrl: string) {
     stepAttemptId: STEP_ATTEMPT_ID,
     jobIdentity: JOB_IDENTITY,
     model: 'gpt-6-luna',
-    renewableInference: false,
   });
   expect(runtime.api).toBe('openai-completions');
   return {app, fixture, recorded, runtime};

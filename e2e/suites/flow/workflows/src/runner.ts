@@ -25,8 +25,6 @@ export async function startSuiteLocalRunner(params: {
   runnerLabel: string;
   runnerInstanceId?: string | undefined;
   extraEnv?: Record<string, string> | undefined;
-  renewableGit?: boolean | undefined;
-  renewableInference?: boolean | undefined;
   /** A runner installation from `deployRunner`, for container jobs. */
   installDir?: string | undefined;
 }): Promise<{runner: LocalRunnerHandle; logFile: string}> {
@@ -51,13 +49,7 @@ export async function startSuiteLocalRunner(params: {
       logFile,
       workspaceRoot: join(runDir, 'runner-workspaces', params.runnerLabel),
       ...(params.installDir === undefined ? {} : {installDir: params.installDir}),
-      extraEnv: {
-        ...(params.extraEnv ?? {}),
-        ...(params.renewableGit === true ? {SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT: 'true'} : {}),
-        ...(params.renewableInference === true
-          ? {SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE: 'true'}
-          : {}),
-      },
+      ...(params.extraEnv === undefined ? {} : {extraEnv: params.extraEnv}),
     }),
     logFile,
   };

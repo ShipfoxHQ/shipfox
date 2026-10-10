@@ -67,8 +67,6 @@ export async function registerRunnerSession(params: {
       runnerSessionId: session.id,
       ...(session.runnerInstanceId ? {runnerInstanceId: session.runnerInstanceId} : {}),
       mode,
-      renewableGit: session.toolCapabilities.features.renewable_git,
-      renewableInference: session.toolCapabilities.features.renewable_inference,
     },
     'Runner capability profile registered',
   );

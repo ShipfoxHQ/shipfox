@@ -15,7 +15,8 @@ export const runnerLabelSchema = z
 
 export const registerRunnerBodySchema = z.object({
   labels: z.array(runnerLabelSchema).min(1).max(MAX_RUNNER_LABELS),
-  capabilities: runnerToolCapabilitiesSchema,
+  // Runner images released before credential renewal became unconditional still send `features`.
+  capabilities: runnerToolCapabilitiesSchema.extend({features: z.unknown().optional()}),
   lifecycle_capabilities: runnerLifecycleCapabilitiesSchema,
 });
 

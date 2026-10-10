@@ -154,7 +154,6 @@ describe('POST /runs/jobs/current/steps/next', () => {
   test('returns the lowest-position pending step and marks it running', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(3);
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId,
     });
     const lease = getLeaseTokenClaims(token);
@@ -199,7 +198,6 @@ describe('POST /runs/jobs/current/steps/next', () => {
     };
     await db().update(stepsTable).set({config, configPlan: null}).where(eq(stepsTable.id, step.id));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId,
     });
 
@@ -229,7 +227,6 @@ describe('POST /runs/jobs/current/steps/next', () => {
     };
     await db().update(stepsTable).set({config, configPlan: null}).where(eq(stepsTable.id, step.id));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId,
     });
     const headers = {authorization: `Bearer ${token}`};
@@ -253,7 +250,6 @@ describe('POST /runs/jobs/current/steps/next', () => {
   test('re-delivers the in-flight step on a retried pull', async () => {
     const {jobId} = await arrangeJobWithSteps(3);
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId,
     });
     const first = await app.inject({
@@ -294,7 +290,6 @@ describe('POST /runs/jobs/current/steps/next', () => {
       })
       .where(eq(stepsTable.id, step.id));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId,
     });
     const headers = {authorization: `Bearer ${token}`};
@@ -345,7 +340,6 @@ describe('POST /runs/jobs/current/steps/next', () => {
       })
       .where(eq(stepsTable.id, steps[0]?.id as string));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId,
     });
     const lease = getLeaseTokenClaims(token);
@@ -392,7 +386,6 @@ describe('POST /runs/jobs/current/steps/next', () => {
       })
       .where(eq(stepsTable.id, step.id));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId,
     });
     const lease = getLeaseTokenClaims(token);
@@ -440,7 +433,6 @@ describe('POST /runs/jobs/current/steps/next', () => {
     const run = await getWorkflowRunByAttemptId(job.workflowRunAttemptId);
     if (!run) throw new Error('Expected workflow run to exist');
     await insertRunningJobLease({
-      renewableInference: false,
       workspaceId: run.workspaceId,
       workflowRunId: run.id,
       workflowRunAttemptId: job.workflowRunAttemptId,
@@ -472,7 +464,6 @@ describe('POST /runs/jobs/current/steps/next', () => {
   test('reports {done, succeeded} once every step succeeded', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId,
     });
     for (const step of steps) {
@@ -497,7 +488,6 @@ describe('POST /runs/jobs/current/steps/next', () => {
   test('reports {done, failed} after a failed step skips the default-gated rest', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId,
     });
     await app.inject({method: 'POST', url: URL, headers: {authorization: `Bearer ${token}`}});
@@ -520,7 +510,6 @@ describe('POST /runs/jobs/current/steps/next', () => {
   test('concurrent pulls hand out the same step exactly once', async () => {
     const {jobId} = await arrangeJobWithSteps(3);
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId,
     });
 
@@ -547,7 +536,6 @@ describe('POST /runs/jobs/current/steps/next', () => {
       .set({currentAttempt: 2})
       .where(eq(stepsTable.id, steps[0]?.id as string));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId,
     });
 
@@ -567,7 +555,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
   describe('shipfox_env', () => {
     async function pullStep(jobId: string) {
-      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      const token = await mintActiveLeaseToken({jobId});
       const res = await app.inject({
         method: 'POST',
         url: URL,
@@ -651,7 +639,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
         })
         .where(eq(stepsTable.id, reviewer.id));
       await db().update(stepsTable).set({key: 'producer'}).where(eq(stepsTable.id, producer.id));
-      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      const token = await mintActiveLeaseToken({jobId});
       await pullAndSucceed(token, jobId, lead);
       await pullAndSucceed(token, jobId, producer);
       await pull(token);
@@ -667,7 +655,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
     test('is empty for the first step of a job', async () => {
       const {jobId} = await arrangeJobWithSteps(2);
-      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      const token = await mintActiveLeaseToken({jobId});
 
       expect((await pull(token)).env_sources).toEqual([]);
     });
@@ -675,7 +663,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     test('lists the earlier executed steps in position order', async () => {
       const {jobId, steps} = await arrangeJobWithSteps(3);
       const [first, second] = steps as [Step, Step, Step];
-      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      const token = await mintActiveLeaseToken({jobId});
       await pullAndSucceed(token, jobId, first);
       await pullAndSucceed(token, jobId, second);
 
@@ -687,7 +675,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
     test('lists the same sources when the running step is re-delivered', async () => {
       const {jobId, steps} = await arrangeJobWithSteps(2);
-      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      const token = await mintActiveLeaseToken({jobId});
       await pullAndSucceed(token, jobId, steps[0] as Step);
 
       const first = await pull(token);
@@ -701,7 +689,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     test('never lists a skipped step', async () => {
       const {jobId, steps} = await arrangeJobWithSteps(3);
       const [first, skipped, last] = steps as [Step, Step, Step];
-      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      const token = await mintActiveLeaseToken({jobId});
       await pullAndSucceed(token, jobId, first);
       await skipWhen(skipped, 'false');
 
@@ -714,7 +702,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     test('lists an earlier step whose attempt failed', async () => {
       const {jobId, steps} = await arrangeJobWithSteps(2);
       const [failed, cleanup] = steps as [Step, Step];
-      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      const token = await mintActiveLeaseToken({jobId});
       await pull(token);
       await recordStepResult({
         jobId,
@@ -735,7 +723,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     test('never lists a tool step', async () => {
       const {jobId, steps} = await arrangeJobWithSteps(3);
       const [first, tool, last] = steps as [Step, Step, Step];
-      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      const token = await mintActiveLeaseToken({jobId});
       await pullAndSucceed(token, jobId, first);
       // A server-run step settles with an attempt row, like an executed step.
       await db().update(stepsTable).set({type: 'tool'}).where(eq(stepsTable.id, tool.id));
@@ -756,7 +744,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     test('never lists a pending step', async () => {
       const {jobId, steps} = await arrangeJobWithSteps(3);
       const [first, pending, last] = steps as [Step, Step, Step];
-      const token = await mintActiveLeaseToken({renewableInference: false, jobId});
+      const token = await mintActiveLeaseToken({jobId});
       await pullAndSucceed(token, jobId, first);
       await db().update(stepsTable).set({status: 'pending'}).where(eq(stepsTable.id, pending.id));
       // Dispatch the step behind the pending one, as if the runner were ahead of the server.

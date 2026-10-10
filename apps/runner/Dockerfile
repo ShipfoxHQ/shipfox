@@ -123,12 +123,6 @@ COPY --from=build --chmod=0755 /app/apps/runner/docker-entrypoint.sh /usr/local/
 # against the deployed flat layout, not the pnpm development tree.
 RUN node ./dist/verify-installation.js
 
-# This image has passed the installation gate, so managed containers may advertise
-# renewable Git and inference credentials. Source-run and older images retain the
-# flags' false defaults.
-ENV SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT=true
-ENV SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE=true
-
 USER shipfox
 
 # The build/promotion workflows pass revision/created as build args.

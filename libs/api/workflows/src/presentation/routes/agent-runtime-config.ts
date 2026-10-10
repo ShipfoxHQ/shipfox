@@ -3,7 +3,6 @@ import {
   type MaterializedAgentStepConfigDto,
   MODEL_UNAVAILABLE_ERROR_CODE,
   materializedAgentStepConfigSchema,
-  RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
 } from '@shipfox/api-agent-dto';
 import {
   type AgentInterModuleClient,
@@ -47,7 +46,7 @@ export function createAgentRuntimeConfigRoute(params: {
         stepId,
         attempt,
       });
-      const {step, workspaceId, projectId, renewableInference} = loadedStep;
+      const {step, workspaceId, projectId} = loadedStep;
 
       if (step.type !== 'agent') {
         throw new ClientError('Step is not an agent step', 'step-not-agent', {status: 409});
@@ -87,7 +86,6 @@ export function createAgentRuntimeConfigRoute(params: {
         provider: agentConfig.provider,
         model: agentConfig.model,
         thinking: agentConfig.thinking,
-        renewableInference,
         ...(request.headers[AGENT_RUNTIME_CONFIG_RENEWAL_HEADER] === 'true' ? {renewal: true} : {}),
       });
 
@@ -112,12 +110,6 @@ function toRuntimeConfigClientError(error: unknown): unknown {
     return error;
   }
   switch (error.code) {
-    case RUNNER_CAPABILITY_REQUIRED_ERROR_CODE:
-      return new ClientError(
-        'Runner does not support renewable inference credentials',
-        RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
-        {status: 409, cause: error},
-      );
     case 'model-provider-credentials-invalid':
       captureException(error);
       return new ClientError(

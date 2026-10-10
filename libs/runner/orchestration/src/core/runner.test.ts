@@ -79,7 +79,6 @@ vi.mock('@shipfox/runner-agent', () => {
     isPiExtensionAvailable: isPiExtensionAvailableMock,
     PI_HARNESS_EXTENSION_PACKAGE_NAMES: ['pi-web-access', 'pi-mcp-adapter'],
     runnerToolCapabilities: vi.fn(() => ({
-      features: {renewable_git: false, renewable_inference: false},
       harnesses: {
         pi: {tools: ['read']},
       },
@@ -94,7 +93,6 @@ vi.mock('@shipfox/runner-agent/pi-extensions', () => ({
 
 vi.mock('@shipfox/runner-agent/tool-capabilities', () => ({
   runnerToolCapabilities: vi.fn(() => ({
-    features: {renewable_git: false, renewable_inference: false},
     harnesses: {
       pi: {tools: ['read']},
     },
@@ -353,9 +351,6 @@ describe('runJob', () => {
     expect(mockCleanupJobAgentState.mock.invocationCallOrder[0]).toBeLessThan(
       mockReleaseAgentStateLock.mock.invocationCallOrder[0] ?? Infinity,
     );
-    expect(mockRunJobSteps.mock.calls[0]?.[0]).not.toHaveProperty('credentialHelper');
-    expect(mockRunJobSteps.mock.calls[0]?.[0]).not.toHaveProperty('registerCheckoutCredential');
-    expect(mockRunJobSteps.mock.calls[0]?.[0]).not.toHaveProperty('credentialFailureEvents');
     expect(mockCreateJobCredentialsDir.mock.invocationCallOrder[0]).toBeLessThan(
       mockCleanupJobCredentials.mock.invocationCallOrder[0] ?? Infinity,
     );
@@ -366,12 +361,7 @@ describe('runJob', () => {
     );
   });
 
-  it('starts the broker lifecycle only when renewable Git is explicitly enabled', async () => {
-    mockRunnerToolCapabilities.mockReturnValueOnce({
-      features: {renewable_git: true, renewable_inference: false},
-      harnesses: {pi: {tools: ['read']}},
-    });
-
+  it('starts the Git credential broker lifecycle for every job', async () => {
     await runJob(JOB, WORKSPACE_ROOT);
 
     expect(mockRunJobSteps).toHaveBeenCalledWith(
@@ -389,12 +379,8 @@ describe('runJob', () => {
     expect(mockReleaseCredentialLock).toHaveBeenCalledOnce();
   });
 
-  it('refuses an opted-in job when the broker cannot start', async () => {
+  it('refuses a job when the broker cannot start', async () => {
     const startError = new Error('socket unavailable');
-    mockRunnerToolCapabilities.mockReturnValueOnce({
-      features: {renewable_git: true, renewable_inference: false},
-      harnesses: {pi: {tools: ['read']}},
-    });
     mockCredentialLifecycle.start.mockRejectedValueOnce(startError);
 
     await runJob(JOB, WORKSPACE_ROOT);
@@ -501,10 +487,6 @@ describe('runJob', () => {
 
   it('replaces inference generations without dropping other job secrets', async () => {
     const observedSecrets: string[][] = [];
-    mockRunnerToolCapabilities.mockReturnValueOnce({
-      features: {renewable_git: true, renewable_inference: false},
-      harnesses: {pi: {tools: ['read']}},
-    });
     mockRunJobSteps.mockImplementationOnce((params) => {
       params.subscribeSecrets?.((secrets) => observedSecrets.push(secrets));
       params.registerSecrets?.(['checkout-token']);
@@ -712,10 +694,6 @@ describe('runJob', () => {
         renewal: {mode: 'on-rejection' as const},
       },
     };
-    mockRunnerToolCapabilities.mockReturnValueOnce({
-      features: {renewable_git: true, renewable_inference: false},
-      harnesses: {pi: {tools: ['read']}},
-    });
     createJobCredentialLifecycleMock.mockImplementationOnce((options) => {
       mockCredentialLifecycle.register.mockImplementationOnce((registered) => {
         options.registerSecrets([registered.credential.token]);
@@ -832,7 +810,6 @@ describe('startRunner', () => {
     expect(mockRegisterRunnerSession).toHaveBeenCalledTimes(1);
     expect(mockRegisterRunnerSession).toHaveBeenCalledWith({
       capabilities: {
-        features: {renewable_git: false, renewable_inference: false},
         harnesses: {pi: {tools: ['read']}},
       },
       lifecycleCapabilities: ['local_execution_fence_v1'],
@@ -1148,7 +1125,6 @@ describe('startRunner', () => {
     expect(mockPollRunnerAssignment).toHaveBeenCalledWith('control-token', expect.any(AbortSignal));
     expect(mockRegisterRunnerSession).toHaveBeenCalledWith({
       capabilities: {
-        features: {renewable_git: false, renewable_inference: false},
         harnesses: {pi: {tools: ['read']}},
       },
       lifecycleCapabilities: ['local_execution_fence_v1'],
@@ -1238,7 +1214,6 @@ describe('startRunner', () => {
     expect(mockPollRunnerAssignment).toHaveBeenCalledTimes(2);
     expect(mockRegisterRunnerSession).toHaveBeenCalledWith({
       capabilities: {
-        features: {renewable_git: false, renewable_inference: false},
         harnesses: {pi: {tools: ['read']}},
       },
       lifecycleCapabilities: ['local_execution_fence_v1'],
@@ -1296,7 +1271,6 @@ describe('startRunner', () => {
     expect(mockPollRunnerAssignment).not.toHaveBeenCalled();
     expect(mockRegisterRunnerSession).toHaveBeenCalledWith({
       capabilities: {
-        features: {renewable_git: false, renewable_inference: false},
         harnesses: {pi: {tools: ['read']}},
       },
       lifecycleCapabilities: ['local_execution_fence_v1'],

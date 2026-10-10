@@ -12,7 +12,6 @@ import {
   modelProviderRefSchema,
   modelReferencesSchema,
   modelUnavailableDetailsSchema,
-  RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
   thinkingLevelsForHarness,
 } from '#schemas/index.js';
 
@@ -208,7 +207,6 @@ export const agentInterModuleContract = defineInterModuleContract({
         runId: z.string().uuid(),
         stepAttemptId: z.string().uuid(),
         jobIdentity: managedProviderJobIdentitySchema.optional(),
-        renewableInference: z.boolean(),
         /** Marks a credential refresh of a running step, which skips the model availability check. */
         renewal: z.boolean().optional(),
         harness: harnessSchema,
@@ -220,7 +218,6 @@ export const agentInterModuleContract = defineInterModuleContract({
       errors: {
         'model-provider-not-configured': z.object({}),
         'model-provider-credentials-invalid': z.object({}),
-        [RUNNER_CAPABILITY_REQUIRED_ERROR_CODE]: z.object({}),
         [MODEL_UNAVAILABLE_ERROR_CODE]: modelUnavailableDetailsSchema,
         'model-availability-unavailable': z.object({}),
         'workspace-providers-disabled': z.object({

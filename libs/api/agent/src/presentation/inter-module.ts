@@ -3,7 +3,6 @@ import {
   MODEL_UNAVAILABLE_ERROR_CODE,
   type ModelUnavailableDetails,
   modelUnavailableDetailsSchema,
-  RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
   type WorkspaceProvidersPolicy,
 } from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
@@ -128,13 +127,6 @@ function toResolveAgentConfigKnownError(error: unknown): unknown {
 }
 
 function toResolveRuntimeCredentialsKnownError(error: unknown): unknown {
-  if (isRunnerCapabilityRequiredError(error)) {
-    return createInterModuleKnownError(
-      agentInterModuleContract.methods.resolveRuntimeCredentials,
-      RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
-      {},
-    );
-  }
   const modelUnavailable = parseModelUnavailableError(error);
   if (modelUnavailable !== undefined) {
     return createInterModuleKnownError(
@@ -188,17 +180,6 @@ function parseModelUnavailableError(error: unknown): ModelUnavailableDetails | u
   }
   const details = modelUnavailableDetailsSchema.safeParse(error);
   return details.success ? details.data : undefined;
-}
-
-function isRunnerCapabilityRequiredError(
-  error: unknown,
-): error is Error & {readonly code: typeof RUNNER_CAPABILITY_REQUIRED_ERROR_CODE} {
-  // Managed providers are extension points, so identify this contract error by its stable code.
-  return (
-    error instanceof Error &&
-    'code' in error &&
-    error.code === RUNNER_CAPABILITY_REQUIRED_ERROR_CODE
-  );
 }
 
 function toClaimSessionKnownError(error: unknown): unknown {

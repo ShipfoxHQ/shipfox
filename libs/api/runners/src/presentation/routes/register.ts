@@ -19,11 +19,8 @@ function isOutdatedRunnerRegistration(error: unknown, request: FastifyRequest): 
     return false;
   }
   if (typeof request.body !== 'object' || request.body === null) return false;
-  const body = request.body as {
-    capabilities?: {features?: unknown};
-    lifecycle_capabilities?: unknown;
-  };
-  return body.lifecycle_capabilities === undefined || body.capabilities?.features === undefined;
+  const body = request.body as {capabilities?: unknown; lifecycle_capabilities?: unknown};
+  return body.lifecycle_capabilities === undefined || body.capabilities === undefined;
 }
 
 export function createRegisterRoute(auth: AuthInterModuleClient) {
@@ -70,7 +67,7 @@ export function createRegisterRoute(auth: AuthInterModuleClient) {
               }
             : runner,
         labels: request.body.labels,
-        toolCapabilities: request.body.capabilities,
+        toolCapabilities: {harnesses: request.body.capabilities.harnesses},
         lifecycleCapabilities: request.body.lifecycle_capabilities,
       });
 

@@ -172,12 +172,6 @@ const agentToolWarningFailedCount = meter.createCounter<{
   description: 'Agent tool capability warning failures by bounded reason',
 });
 
-const checkoutCapabilityWarningFailedCount = meter.createCounter<{
-  reason: 'budget' | 'lookup' | 'write';
-}>('workflows_checkout_capability_warning_failed', {
-  description: 'Checkout capability warning failures by bounded reason',
-});
-
 const failureAnnotationFailedCount = meter.createCounter<{
   reason: 'lookup' | 'budget' | 'write';
 }>('workflows_failure_annotation_failed', {
@@ -485,12 +479,6 @@ export function recordWorkflowToolInvocationLogAppendFailure(reason: 'known' | '
 
 export function recordWorkflowAgentToolWarningFailed(reason: 'budget' | 'lookup' | 'write'): void {
   agentToolWarningFailedCount.add(1, {reason});
-}
-
-export function recordWorkflowCheckoutCapabilityWarningFailed(
-  reason: 'budget' | 'lookup' | 'write',
-): void {
-  checkoutCapabilityWarningFailedCount.add(1, {reason});
 }
 
 export function recordWorkflowFailureAnnotationFailed(reason: 'lookup' | 'budget' | 'write'): void {

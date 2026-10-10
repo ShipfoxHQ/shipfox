@@ -450,7 +450,7 @@ async function pullRunStepSecrets(app: FastifyInstance, runId: string) {
     .update(stepsTable)
     .set({status: 'running', config: completed.config})
     .where(eq(stepsTable.id, step.id));
-  const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+  const token = await mintActiveLeaseToken({jobId: job.id});
 
   return await app.inject({
     method: 'GET',

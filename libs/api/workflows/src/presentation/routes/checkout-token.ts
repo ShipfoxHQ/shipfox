@@ -1,4 +1,3 @@
-import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import {
   type IntegrationsModuleClient,
   integrationsInterModuleContract,
@@ -24,7 +23,6 @@ import {
   renewStepCheckoutCredentials,
   repositoryNameFromUrl,
 } from '#core/checkout.js';
-import {warnRenewableGitCapabilityMismatchOnDispatch} from '#core/checkout-capability-warning.js';
 import type {CheckoutRenewalSubject} from '#core/entities/checkout-renewal-subject.js';
 import type {StepStatus} from '#core/entities/step.js';
 import {
@@ -43,7 +41,6 @@ import {
 } from './leased-step.js';
 
 export function createCheckoutTokenRoute(clients: {
-  annotations: AnnotationsInterModuleClient;
   runners: RunnersInterModuleClient;
   integrations: IntegrationsModuleClient;
   projects: ProjectsModuleClient;
@@ -103,14 +100,6 @@ export function createCheckoutTokenRoute(clients: {
           warn: (context, message) => request.log.warn(context, message),
           error: (context, message) => request.log.error(context, message),
         });
-        if (response.auth?.persist === true) {
-          await warnRenewableGitCapabilityMismatchOnDispatch({
-            annotations: clients.annotations,
-            runners: clients.runners,
-            leaseIdentity: loaded.leasedJob,
-            step: loaded.step,
-          });
-        }
         recordWorkflowCheckoutTokenRequest(mode, 'success');
         reply.header('cache-control', 'no-store');
         return response;

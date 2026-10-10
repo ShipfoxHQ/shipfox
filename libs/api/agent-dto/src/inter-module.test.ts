@@ -1,4 +1,3 @@
-import {RUNNER_CAPABILITY_REQUIRED_ERROR_CODE} from './index.js';
 import {agentInterModuleContract, agentSessionDescriptorSchema} from './inter-module.js';
 
 const UUID = '00000000-0000-4000-8000-000000000001';
@@ -313,34 +312,11 @@ describe('agentInterModuleContract', () => {
       provider: 'shipfox' as const,
       model: 'managed-model',
       thinking: 'default' as const,
-      renewableInference: true,
     };
 
     const parsed = agentInterModuleContract.methods.resolveRuntimeCredentials.input.parse(input);
 
     expect(parsed).toEqual(input);
-  });
-
-  test('requires the runner capability snapshot for runtime credentials', () => {
-    expect(() =>
-      agentInterModuleContract.methods.resolveRuntimeCredentials.input.parse({
-        workspaceId: UUID,
-        runId: '00000000-0000-4000-8000-000000000002',
-        stepAttemptId: '00000000-0000-4000-8000-000000000003',
-        harness: 'pi',
-        provider: 'shipfox',
-        model: 'managed-model',
-        thinking: 'high',
-      }),
-    ).toThrow();
-  });
-
-  test('declares the runner capability failure for runtime credentials', () => {
-    const error = agentInterModuleContract.methods.resolveRuntimeCredentials.errors[
-      RUNNER_CAPABILITY_REQUIRED_ERROR_CODE
-    ].parse({});
-
-    expect(error).toEqual({});
   });
 
   test('rejects a runtime job identity without workflowRunAttemptId', () => {
@@ -360,7 +336,6 @@ describe('agentInterModuleContract', () => {
         provider: 'shipfox',
         model: 'managed-model',
         thinking: 'high',
-        renewableInference: true,
       }),
     ).toThrow();
   });

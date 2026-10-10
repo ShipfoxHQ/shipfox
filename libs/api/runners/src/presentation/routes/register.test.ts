@@ -31,7 +31,6 @@ const fakeProvisionerAuth: AuthMethod = {
 };
 
 const fullCapabilities: RunnerToolCapabilitiesDto = {
-  features: {renewable_git: true, renewable_inference: false},
   harnesses: {
     pi: {tools: ['read', 'bash', 'web_search']},
     claude: {tools: ['Read', 'Bash', 'WebSearch']},
@@ -128,6 +127,29 @@ describe('POST /runners/register', () => {
     expect(session?.lifecycleCapabilities).toEqual(['local_execution_fence_v1']);
   });
 
+  it('accepts the feature flags an older runner image still reports and does not store them', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/runners/register',
+      headers: {authorization: `Bearer ${rawToken}`},
+      payload: {
+        labels: ['linux'],
+        capabilities: {
+          features: {renewable_git: true, renewable_inference: true},
+          ...fullCapabilities,
+        },
+        lifecycle_capabilities: ['local_execution_fence_v1'],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [session] = await db()
+      .select()
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, res.json().session_id));
+    expect(session?.toolCapabilities).toEqual(fullCapabilities);
+  });
+
   it('strips reserved labels from manual registration', async () => {
     const res = await app.inject({
       method: 'POST',
@@ -191,7 +213,6 @@ describe('POST /runners/register', () => {
       payload: {
         labels: ['linux'],
         capabilities: {
-          features: {renewable_git: false, renewable_inference: false},
           harnesses: {pi: {tools: ['read', 'read']}},
         },
         lifecycle_capabilities: ['local_execution_fence_v1'],

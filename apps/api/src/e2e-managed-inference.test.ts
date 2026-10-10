@@ -19,7 +19,7 @@ afterEach(async () => {
 });
 
 describe('E2E managed inference fixture', () => {
-  it('accepts generation one for static credentials', async () => {
+  it('accepts generation one for a model without forced renewal', async () => {
     const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
     if (fixture === undefined) throw new Error('fixture should be configured');
     const app = await createApp({
@@ -32,15 +32,14 @@ describe('E2E managed inference fixture', () => {
       runId: 'run',
       stepAttemptId: 'static-step',
       jobIdentity: JOB_IDENTITY,
-      model: 'e2e-renewable-pi',
-      renewableInference: false,
+      model: 'gpt-6-sol',
     });
 
     const response = await app.inject({
       method: 'POST',
       url: '/__e2e-managed-inference/v1/chat/completions',
       headers: {authorization: `Bearer ${runtimeConfig.credentials.api_key}`},
-      payload: {model: 'e2e-renewable-pi'},
+      payload: {model: 'gpt-6-sol'},
     });
 
     expect(response.statusCode).toBe(200);
@@ -49,7 +48,7 @@ describe('E2E managed inference fixture', () => {
       method: 'POST',
       url: '/__e2e-managed-inference/v1/chat/completions',
       headers: {authorization: 'Bearer e2e-admin-key'},
-      payload: {model: 'e2e-renewable-pi'},
+      payload: {model: 'gpt-6-sol'},
     });
     expect(adminResponse.statusCode).toBe(200);
   });
@@ -87,7 +86,6 @@ describe('E2E managed inference fixture', () => {
       stepAttemptId: 'scripted-step-one',
       jobIdentity: {...JOB_IDENTITY, projectId},
       model: 'gpt-6-sol',
-      renewableInference: false,
     });
     const firstResponse = await app.inject({
       method: 'POST',
@@ -128,7 +126,6 @@ describe('E2E managed inference fixture', () => {
       stepAttemptId: 'scripted-step-two',
       jobIdentity: {...JOB_IDENTITY, projectId},
       model: 'gpt-6-sol',
-      renewableInference: false,
     });
     const retry = await app.inject({
       method: 'POST',
@@ -179,7 +176,6 @@ describe('E2E managed inference fixture', () => {
       stepAttemptId: 'surprise-step',
       jobIdentity: {...JOB_IDENTITY, projectId},
       model: 'glm-5.3-flash',
-      renewableInference: false,
     });
     const headers = {authorization: `Bearer ${runtime.credentials.api_key}`};
     const unexpected = await app.inject({
@@ -228,7 +224,6 @@ describe('E2E managed inference fixture', () => {
         stepAttemptId: `catalog-step-${index}`,
         jobIdentity: JOB_IDENTITY,
         model,
-        renewableInference: false,
       });
       expect(runtime.api).toBe('openai-completions');
 
@@ -270,7 +265,6 @@ describe('E2E managed inference fixture', () => {
       stepAttemptId: 'renewable-step',
       jobIdentity: JOB_IDENTITY,
       model: 'e2e-renewable-pi',
-      renewableInference: true,
     });
     expect(first.generation).toMatch(UUID_V4_PATTERN);
 
@@ -289,7 +283,6 @@ describe('E2E managed inference fixture', () => {
       stepAttemptId: 'renewable-step',
       jobIdentity: JOB_IDENTITY,
       model: 'e2e-renewable-pi',
-      renewableInference: true,
     });
     const accepted = await app.inject({
       method: 'POST',
@@ -316,7 +309,6 @@ describe('E2E managed inference fixture', () => {
       stepAttemptId: 'claude-step',
       jobIdentity: JOB_IDENTITY,
       model: 'e2e-renewable-claude',
-      renewableInference: true,
     });
     const rejectedClaude = await app.inject({
       method: 'POST',
@@ -336,7 +328,6 @@ describe('E2E managed inference fixture', () => {
       stepAttemptId: 'claude-step',
       jobIdentity: JOB_IDENTITY,
       model: 'e2e-renewable-claude',
-      renewableInference: true,
     });
     const acceptedClaude = await app.inject({
       method: 'POST',
@@ -352,7 +343,6 @@ describe('E2E managed inference fixture', () => {
       stepAttemptId: 'refresh-at-step',
       jobIdentity: JOB_IDENTITY,
       model: 'e2e-refresh-renewable-claude',
-      renewableInference: true,
     });
     if (firstRefreshAt.renewal?.mode !== 'refresh-at' || firstRefreshAt.expiresAt === undefined) {
       throw new Error('refresh-at credentials should include a renewal window');
@@ -374,7 +364,6 @@ describe('E2E managed inference fixture', () => {
       stepAttemptId: 'refresh-at-step',
       jobIdentity: JOB_IDENTITY,
       model: 'e2e-refresh-renewable-claude',
-      renewableInference: true,
     });
     const acceptedRefreshAt = await app.inject({
       method: 'POST',
@@ -402,8 +391,7 @@ describe('E2E managed inference fixture', () => {
         runId: 'run',
         stepAttemptId: `bounded-step-${index}`,
         jobIdentity: JOB_IDENTITY,
-        model: 'e2e-renewable-pi',
-        renewableInference: false,
+        model: 'gpt-6-sol',
       });
       const token = runtimeConfig.credentials.api_key;
       if (token === undefined) throw new Error('E2E credentials should include an API key');
@@ -415,7 +403,7 @@ describe('E2E managed inference fixture', () => {
       method: 'POST',
       url: '/__e2e-managed-inference/v1/chat/completions',
       headers: {authorization: `Bearer ${oldestToken}`},
-      payload: {model: 'e2e-renewable-pi'},
+      payload: {model: 'gpt-6-sol'},
     });
     expect(evicted.statusCode).toBe(401);
 
@@ -427,7 +415,6 @@ describe('E2E managed inference fixture', () => {
           stepAttemptId: 'bounded-step-0',
           jobIdentity: JOB_IDENTITY,
           model: 'e2e-renewable-claude',
-          renewableInference: false,
         }),
       ),
     ).rejects.toThrow('model changed during credential renewal');
@@ -436,7 +423,7 @@ describe('E2E managed inference fixture', () => {
       method: 'POST',
       url: '/__e2e-managed-inference/v1/chat/completions',
       headers: {authorization: `Bearer ${newestToken}`},
-      payload: {model: 'e2e-renewable-pi'},
+      payload: {model: 'gpt-6-sol'},
     });
     expect(newest.statusCode).toBe(200);
 
@@ -445,7 +432,7 @@ describe('E2E managed inference fixture', () => {
       method: 'POST',
       url: '/__e2e-managed-inference/v1/chat/completions',
       headers: {authorization: 'Bearer shipfox-e2e-bounded-step-1000-g999'},
-      payload: {model: 'e2e-renewable-pi'},
+      payload: {model: 'gpt-6-sol'},
     });
     expect(unissuedGeneration.statusCode).toBe(401);
 
@@ -454,7 +441,7 @@ describe('E2E managed inference fixture', () => {
         method: 'POST',
         url: '/__e2e-managed-inference/v1/chat/completions',
         headers: {authorization: `Bearer shipfox-e2e-unknown-step-${index}-g1`},
-        payload: {model: 'e2e-renewable-pi'},
+        payload: {model: 'gpt-6-sol'},
       });
       expect(unknown.statusCode).toBe(401);
     }
@@ -462,7 +449,7 @@ describe('E2E managed inference fixture', () => {
     expect(after.json().requestsByGeneration).toEqual(before.json().requestsByGeneration);
   });
 
-  it('retains static credential state past the renewable state TTL', async () => {
+  it('retains credential state past the TTL for a model without forced renewal', async () => {
     let now = Date.now();
     vi.spyOn(Date, 'now').mockImplementation(() => now);
     const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
@@ -477,8 +464,7 @@ describe('E2E managed inference fixture', () => {
       runId: 'run',
       stepAttemptId: 'static-retention-step',
       jobIdentity: JOB_IDENTITY,
-      model: 'e2e-renewable-pi',
-      renewableInference: false,
+      model: 'gpt-6-sol',
     });
 
     now += 600_001;
@@ -486,13 +472,13 @@ describe('E2E managed inference fixture', () => {
       method: 'POST',
       url: '/__e2e-managed-inference/v1/chat/completions',
       headers: {authorization: `Bearer ${runtimeConfig.credentials.api_key}`},
-      payload: {model: 'e2e-renewable-pi'},
+      payload: {model: 'gpt-6-sol'},
     });
 
     expect(response.statusCode).toBe(200);
   });
 
-  it('rejects model and renewable mode changes for a credential identity', async () => {
+  it('rejects a model change for a credential identity', async () => {
     const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
     if (fixture === undefined) throw new Error('fixture should be configured');
     const credentialParams = {
@@ -504,7 +490,6 @@ describe('E2E managed inference fixture', () => {
     await fixture.provider.resolveCredentials({
       ...credentialParams,
       model: 'e2e-renewable-pi',
-      renewableInference: false,
     });
 
     await expect(
@@ -512,18 +497,8 @@ describe('E2E managed inference fixture', () => {
         fixture.provider.resolveCredentials({
           ...credentialParams,
           model: 'e2e-renewable-claude',
-          renewableInference: false,
         }),
       ),
     ).rejects.toThrow('model changed during credential renewal');
-    await expect(
-      Promise.resolve().then(() =>
-        fixture.provider.resolveCredentials({
-          ...credentialParams,
-          model: 'e2e-renewable-pi',
-          renewableInference: true,
-        }),
-      ),
-    ).rejects.toThrow('renewable mode changed during credential renewal');
   });
 });

@@ -69,11 +69,7 @@ import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
 import {reservations} from './schema/reservations.js';
 import {providerRunners} from './schema/runner-instances.js';
-import {
-  normalizeRunnerLifecycleCapabilities,
-  normalizeRunnerToolCapabilities,
-  runnerSessions,
-} from './schema/runner-sessions.js';
+import {normalizeRunnerLifecycleCapabilities, runnerSessions} from './schema/runner-sessions.js';
 import {runningJobExecutions} from './schema/running-job-executions.js';
 
 const defaultJobStopHandoffCleanupLimit = 100;
@@ -892,7 +888,6 @@ interface ClaimPendingJobExecutionParams {
 interface ClaimRunnerContext {
   provisionerId: string | null;
   providerRunnerId: string | null;
-  renewableInference: boolean;
   runnerInstanceCondition: ReturnType<typeof eq> | undefined;
 }
 
@@ -913,7 +908,7 @@ export async function claimPendingJobExecution(
   let refusedForMissingCapacityHold = false;
   const result = await db()
     .transaction(async (tx) => {
-      const {provisionerId, providerRunnerId, renewableInference, runnerInstanceCondition} =
+      const {provisionerId, providerRunnerId, runnerInstanceCondition} =
         await loadClaimRunnerContextTx(tx, params);
       const provisionerScope = await loadProvisionerScopeTx(tx, provisionerId);
       const requiresCapacityHold =
@@ -928,7 +923,6 @@ export async function claimPendingJobExecution(
         params,
         provisionerId,
         providerRunnerId,
-        renewableInference,
       );
       if (!pendingClaim) return null;
       const {row, claimed} = pendingClaim;
@@ -1059,7 +1053,6 @@ async function loadClaimRunnerContextTx(
       runnerInstanceId: runnerSessions.runnerInstanceId,
       provisionerId: runnerSessions.provisionerId,
       providerRunnerId: runnerSessions.providerRunnerId,
-      toolCapabilities: runnerSessions.toolCapabilities,
     })
     .from(runnerSessions)
     .where(eq(runnerSessions.id, params.runnerSessionId))
@@ -1073,10 +1066,6 @@ async function loadClaimRunnerContextTx(
     providerRunnerId = session.providerRunnerId;
   }
   if (!session) throw new Error(`Runner session not found: ${params.runnerSessionId}`);
-  // Snapshot the registered manifest at claim time. Later heartbeat reports must not change the
-  // execution's eligibility.
-  const toolCapabilities = normalizeRunnerToolCapabilities(session.toolCapabilities);
-  const renewableInference = toolCapabilities.features.renewable_inference;
   const runnerInstanceCondition = claimRunnerInstanceCondition(
     runnerInstanceId,
     provisionerId,
@@ -1085,7 +1074,7 @@ async function loadClaimRunnerContextTx(
   if (runnerInstanceCondition && provisionerId) {
     await lockClaimRunnerReservationIdsTx(tx, provisionerId, runnerInstanceCondition);
   }
-  return {provisionerId, providerRunnerId, renewableInference, runnerInstanceCondition};
+  return {provisionerId, providerRunnerId, runnerInstanceCondition};
 }
 
 async function loadProvisionerScopeTx(
@@ -1163,7 +1152,6 @@ async function claimPendingCandidateTx(
   params: ClaimPendingJobExecutionParams,
   provisionerId: string | null,
   providerRunnerId: string | null,
-  renewableInference: boolean,
 ): Promise<{
   row: typeof pendingJobExecutions.$inferSelect;
   claimed: {
@@ -1208,7 +1196,6 @@ async function claimPendingCandidateTx(
       jobExecutionId: row.jobExecutionId,
       projectId: row.projectId,
       runnerSessionId: params.runnerSessionId,
-      renewableInference,
       provisionerId,
       providerRunnerId,
       requiredLabels: row.requiredLabels,
@@ -1686,7 +1673,6 @@ export async function isJobLeaseActive(params: {
 
 export interface JobLeaseState {
   active: boolean;
-  renewableInference: boolean;
 }
 
 export async function getJobLeaseState(params: {
@@ -1695,10 +1681,7 @@ export async function getJobLeaseState(params: {
   runnerSessionId: string;
 }): Promise<JobLeaseState> {
   const [row] = await db()
-    .select({
-      id: runningJobExecutions.id,
-      renewableInference: runningJobExecutions.renewableInference,
-    })
+    .select({id: runningJobExecutions.id})
     .from(runningJobExecutions)
     .where(
       and(
@@ -1709,8 +1692,7 @@ export async function getJobLeaseState(params: {
     )
     .limit(1);
 
-  if (!row) return {active: false, renewableInference: false};
-  return {active: true, renewableInference: row.renewableInference};
+  return {active: row !== undefined};
 }
 
 export async function recordHeartbeat(params: {

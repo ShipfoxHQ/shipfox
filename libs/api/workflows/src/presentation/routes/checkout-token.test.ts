@@ -1,4 +1,3 @@
-import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import {
   type IntegrationsModuleClient,
@@ -25,12 +24,8 @@ import {createWorkflowRun, getJobsByWorkflowRunId, getStepsByJobId} from '#db/wo
 import {projectFactory} from '#test/factories/project.js';
 import {workflowModel} from '#test/factories/workflow-model.js';
 import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
-import {
-  fakeLeaseTokenAuthMethod,
-  getLeaseTokenClaims,
-  mintLeaseToken,
-} from '#test/fixtures/lease-token.js';
-import {runnersTestClient, setRunnerToolCapabilities} from '#test/fixtures/runners-inter-module.js';
+import {fakeLeaseTokenAuthMethod, mintLeaseToken} from '#test/fixtures/lease-token.js';
+import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
 
 const {captureExceptionMock, savePendingCheckoutRenewalSubjectMock} = vi.hoisted(() => ({
@@ -72,12 +67,6 @@ const integrations = {
   'createCheckoutSpec' | 'createCheckoutCredentials' | 'resolveConnection' | 'resolveConnectionById'
 >;
 
-const annotationWrites = vi.fn<AnnotationsInterModuleClient['replaceOrRemoveAnnotation']>();
-const annotations = {
-  replaceOrRemoveAnnotation: annotationWrites.mockResolvedValue({}),
-  listAnnotationsForRunAttempt: vi.fn(),
-} satisfies AnnotationsInterModuleClient;
-
 const {logger, lines: logLines, clear: clearLogLines} = createCapturingLogger();
 
 const githubSpec = (token: string) => ({
@@ -97,7 +86,7 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       routes: [
         createLeaseTokenRouteGroup({
           agent: {} as never,
-          annotations,
+          annotations: {} as never,
           auth: {} as never,
           definitions: {} as never,
           integrations: integrations as never,
@@ -121,7 +110,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     resolveCheckoutTarget.mockReset();
     savePendingCheckoutRenewalSubjectMock.mockClear();
     captureExceptionMock.mockReset();
-    annotationWrites.mockClear();
     clearLogLines();
   });
 
@@ -158,7 +146,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     });
     createCheckoutSpec.mockResolvedValue(githubSpec('ghs-secret-token'));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -212,90 +199,9 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     });
   });
 
-  test('writes the renewable Git warning after persisted credentials are issued', async () => {
-    const {project, job, step} = await createRunningCheckoutStep({kind: 'checkout'});
-    getProjectById.mockResolvedValue({project});
-    resolveCheckoutTarget.mockResolvedValue({
-      projectId: project.id,
-      connectionId: project.sourceConnectionId,
-      target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
-    });
-    createCheckoutSpec.mockResolvedValue(githubSpec('ghs-warning-token'));
-    const token = await mintActiveLeaseToken({
-      renewableInference: false,
-      jobId: job.id,
-    });
-    const lease = getLeaseTokenClaims(token);
-    if (!lease) throw new Error('Expected minted lease token to verify');
-    setRunnerToolCapabilities(lease.runnerSessionId, {
-      capabilities: {harnesses: {}},
-    });
-
-    const res = await app.inject({
-      method: 'POST',
-      url: checkoutUrl(step.id, step.currentAttempt),
-      headers: {authorization: `Bearer ${token}`},
-    });
-
-    expect(res.statusCode).toBe(200);
-    const retry = await app.inject({
-      method: 'POST',
-      url: checkoutUrl(step.id, step.currentAttempt),
-      headers: {authorization: `Bearer ${token}`},
-    });
-
-    expect(retry.statusCode).toBe(200);
-    expect(annotationWrites).toHaveBeenCalledTimes(2);
-    expect(annotationWrites).toHaveBeenCalledWith(
-      expect.objectContaining({
-        jobExecutionId: lease.jobExecutionId,
-        originStepId: step.id,
-        context: `renewable-git-capability:${step.id}`,
-        annotation: expect.objectContaining({
-          op: 'replace',
-          body: expect.stringContaining('may expire during a long job'),
-        }),
-      }),
-    );
-  });
-
-  test('does not warn when the checkout response has no credentials', async () => {
-    const {project, job, step} = await createRunningCheckoutStep({kind: 'checkout'});
-    getProjectById.mockResolvedValue({project});
-    resolveCheckoutTarget.mockResolvedValue({
-      projectId: project.id,
-      connectionId: project.sourceConnectionId,
-      target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
-    });
-    createCheckoutSpec.mockResolvedValue({
-      repositoryUrl: 'https://github.com/acme/public-repo.git',
-      ref: 'main',
-    });
-    const token = await mintActiveLeaseToken({
-      renewableInference: false,
-      jobId: job.id,
-    });
-    const lease = getLeaseTokenClaims(token);
-    if (!lease) throw new Error('Expected minted lease token to verify');
-    setRunnerToolCapabilities(lease.runnerSessionId, {
-      capabilities: {harnesses: {}},
-    });
-
-    const res = await app.inject({
-      method: 'POST',
-      url: checkoutUrl(step.id, step.currentAttempt),
-      headers: {authorization: `Bearer ${token}`},
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).not.toHaveProperty('auth');
-    expect(annotationWrites).not.toHaveBeenCalled();
-  });
-
   test('rejects a renewal generation from an unscoped lease', async () => {
     const {job, step} = await createRunningCheckoutStep();
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -321,7 +227,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
   ] as const)('rejects a renewal generation from a lease with a mismatched %s', async (mismatch) => {
     const {job, step} = await createRunningCheckoutStep();
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
       token: {
         currentStepId: mismatch === 'step ID' ? crypto.randomUUID() : step.id,
@@ -349,7 +254,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
   test('rejects a renewal generation without a pending checkout subject', async () => {
     const {job, step} = await createRunningCheckoutStep();
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
       token: {currentStepId: step.id, currentStepAttempt: step.currentAttempt},
     });
@@ -394,7 +298,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       credentials: {...initialSpec.credentials, generation: 'generation-1'},
     });
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
       token: {currentStepId: step.id, currentStepAttempt: step.currentAttempt},
     });
@@ -477,12 +380,11 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
     });
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
     vi.spyOn(runnersTestClient, 'getLeaseState')
-      .mockResolvedValueOnce({active: true, renewableInference: false})
-      .mockResolvedValueOnce({active: false, renewableInference: false});
+      .mockResolvedValueOnce({active: true})
+      .mockResolvedValueOnce({active: false});
 
     const res = await app.inject({
       method: 'POST',
@@ -511,13 +413,12 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     });
     createCheckoutSpec.mockResolvedValue(githubSpec('ghs-expired-after-mint-token'));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
     vi.spyOn(runnersTestClient, 'getLeaseState')
-      .mockResolvedValueOnce({active: true, renewableInference: false})
-      .mockResolvedValueOnce({active: true, renewableInference: false})
-      .mockResolvedValueOnce({active: false, renewableInference: false});
+      .mockResolvedValueOnce({active: true})
+      .mockResolvedValueOnce({active: true})
+      .mockResolvedValueOnce({active: false});
 
     const res = await app.inject({
       method: 'POST',
@@ -545,7 +446,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     });
     createCheckoutSpec.mockResolvedValue(githubSpec('ghs-initial-token'));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -726,7 +626,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     createCheckoutSpec.mockResolvedValue(githubSpec('ghs-untracked-token'));
     savePendingCheckoutRenewalSubjectMock.mockResolvedValueOnce(false);
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -752,7 +651,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     createCheckoutSpec.mockResolvedValue(githubSpec('ghs-save-failure-token'));
     savePendingCheckoutRenewalSubjectMock.mockRejectedValueOnce(new Error('database unavailable'));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -786,7 +684,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     });
     createCheckoutSpec.mockResolvedValue(githubSpec('ghs-trigger-token'));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -818,7 +715,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     });
     createCheckoutSpec.mockResolvedValue({...githubSpec('ghs-dev-token'), ref: devCommit});
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -844,7 +740,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     const {job, step} = await createRunningCheckoutStep({kind: 'checkout'});
     getProjectById.mockResolvedValue({project: null});
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -866,7 +761,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       checkout: {project: 'not-a-uuid'},
     });
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -896,7 +790,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       ref: 'trunk',
     });
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -942,7 +835,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       ref: 'refs/pull/412/head',
     });
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -978,7 +870,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     });
     createCheckoutSpec.mockResolvedValue(githubSpec('token'));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
       token: {workspaceId: crypto.randomUUID()},
     });
@@ -1015,7 +906,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     const first = await createRunningCheckoutStep();
     const second = await createRunningCheckoutStep();
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: first.job.id,
     });
 
@@ -1033,7 +923,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
   test('returns 409 for a stale step attempt', async () => {
     const {job, step} = await createRunningCheckoutStep();
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -1057,7 +946,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
   ] as const)('returns 409 when the checkout step is %s', async (status) => {
     const {job, step} = await createRunningCheckoutStep({status});
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -1075,7 +963,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
   test('returns 409 when the leased step is not a checkout step', async () => {
     const {job, step} = await createRunningCheckoutStep({kind: 'run'});
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -1104,7 +991,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       ),
     );
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -1138,7 +1024,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       ),
     );
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -1159,7 +1044,7 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
         ...(options.checkout === undefined ? {} : {checkout: options.checkout}),
       });
       getProjectById.mockResolvedValue({project});
-      const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+      const token = await mintActiveLeaseToken({jobId: job.id});
       const send = () =>
         app.inject({
           method: 'POST',
@@ -1346,7 +1231,7 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     test('names the project that was deleted', async () => {
       const {job, step} = await createRunningCheckoutStep({kind: 'checkout'});
       getProjectById.mockResolvedValue({project: null});
-      const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+      const token = await mintActiveLeaseToken({jobId: job.id});
 
       const res = await app.inject({
         method: 'POST',
@@ -1441,7 +1326,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       ),
     );
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -1467,7 +1351,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     const secret = 'ghs-super-secret-token-value';
     createCheckoutSpec.mockResolvedValue(githubSpec(secret));
     const token = await mintActiveLeaseToken({
-      renewableInference: false,
       jobId: job.id,
     });
 
@@ -1485,7 +1368,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
   test('uses the active lease identity when a newer lease has replaced it', async () => {
     const {run, project, job, step} = await createRunningCheckoutStep();
     await insertRunningJobLease({
-      renewableInference: false,
       workspaceId: project.workspaceId,
       workflowRunId: run.id,
       workflowRunAttemptId: job.workflowRunAttemptId,
@@ -1624,7 +1506,6 @@ async function createPromotedCheckout(app: FastifyInstance) {
   });
   createCheckoutSpec.mockResolvedValue(githubSpec('ghs-initial-token'));
   const token = await mintActiveLeaseToken({
-    renewableInference: false,
     jobId: job.id,
     token: {currentStepId: step.id, currentStepAttempt: step.currentAttempt},
   });

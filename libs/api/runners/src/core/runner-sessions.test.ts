@@ -25,7 +25,6 @@ import {getRunnerAssignment, issueRunnerActivationToken} from './runner-activati
 import {registerRunnerSession} from './runner-sessions.js';
 
 const toolCapabilities = {
-  features: {renewable_git: false, renewable_inference: false},
   harnesses: {},
 };
 const lifecycleCapabilities: ['local_execution_fence_v1'] = ['local_execution_fence_v1'];

@@ -26,14 +26,12 @@ export interface LoadedRunningLeasedStep {
   run: WorkflowRunOriginState;
   /** The server-frozen subject for an initial replacement or persisted checkout renewal. */
   checkoutRenewalSubject?: CheckoutRenewalSubject;
-  /** The capability snapshot captured when the runner claimed this execution. */
-  renewableInference: boolean;
 }
 
 export async function assertLeasedJobActive(
   runners: RunnersInterModuleClient,
   leasedJob: Pick<LeasedJobContext, 'jobId' | 'jobExecutionId' | 'runnerSessionId'>,
-): Promise<Awaited<ReturnType<RunnersInterModuleClient['getLeaseState']>>> {
+): Promise<void> {
   const leaseState = await runners.getLeaseState({
     jobId: leasedJob.jobId,
     jobExecutionId: leasedJob.jobExecutionId,
@@ -42,7 +40,6 @@ export async function assertLeasedJobActive(
   if (!leaseState.active) {
     throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
   }
-  return leaseState;
 }
 
 function assertCurrentLeasedStep(params: {
@@ -68,8 +65,7 @@ export async function loadRunningLeasedStep(params: {
 }): Promise<LoadedRunningLeasedStep> {
   const leasedJob = requireLeasedJobContext(params.request);
 
-  const leaseState = await assertLeasedJobActive(params.runners, leasedJob);
-  const renewableInference = leaseState.renewableInference;
+  await assertLeasedJobActive(params.runners, leasedJob);
 
   const step = await getStepByIdForJobExecution({
     stepId: params.stepId,
@@ -103,7 +99,6 @@ export async function loadRunningLeasedStep(params: {
           secretInputs: scope.secretInputs ?? null,
           run: scope.run,
           checkoutRenewalSubject,
-          renewableInference,
         };
       }
     }
@@ -136,6 +131,5 @@ export async function loadRunningLeasedStep(params: {
     secretInputs: scope.secretInputs ?? null,
     run: scope.run,
     ...(checkoutRenewalSubject === null ? {} : {checkoutRenewalSubject}),
-    renewableInference,
   };
 }
