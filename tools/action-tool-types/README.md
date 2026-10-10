@@ -1,7 +1,7 @@
 # @shipfox/action-tool-types
 
-The generator for the tool argument types that `@shipfox/actions` ships, built from the provider
-tool catalogs.
+The generator for the tool argument and result types that `@shipfox/actions` ships, built from
+the provider tool catalogs.
 
 ## What it does
 
@@ -9,7 +9,9 @@ tool catalogs.
   `libs/shared/workflow/actions/src/generated/tool-catalog.ts`. It emits one argument type per
   tool id and per `family.method` name from the tool's `inputSchema`, using
   `json-schema-to-typescript`. A `family.method` type omits `method`, which the runner fills in.
-  Results are not typed.
+- **It emits one result type per tool from the tool's `outputSchema`.** The methods of a family
+  share the result type of the family. A tool without an `outputSchema`, and a file tool, has an
+  `unknown` result.
 - **It also writes `libs/shared/workflow/actions/src/generated/tool-grants.ts`,** the
   sensitivity and result kind of every tool, and the sensitivity of every family method.
   `@shipfox/actions/testing` checks calls against it.

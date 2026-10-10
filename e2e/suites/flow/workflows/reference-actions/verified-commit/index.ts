@@ -59,7 +59,7 @@ export default defineAction<Inputs>(async ({inputs, tools, log, signal}) => {
       },
       {signal},
     );
-    const {commit} = result.structured as {commit: {oid: string; url: string}};
+    const {commit} = result.structured;
     return {
       outcome: 'committed',
       branch: target.branch,

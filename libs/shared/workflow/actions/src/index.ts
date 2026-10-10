@@ -19,6 +19,7 @@ export type {
   AliasTools,
   ProviderToolArguments,
   ProviderToolName,
+  ProviderToolResult,
   ProviderTools,
   ToolArguments,
   ToolCallOptions,

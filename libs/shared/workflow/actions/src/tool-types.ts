@@ -35,6 +35,12 @@ export type ProviderToolArguments<
   T extends ProviderToolName<P>,
 > = ProviderToolCatalog[P][T] extends {arguments: infer Arguments} ? Arguments : never;
 
+/** The structured result of a tool, or `unknown` when its catalog declares no output schema. */
+export type ProviderToolResult<
+  P extends ToolProvider,
+  T extends ProviderToolName<P>,
+> = ProviderToolCatalog[P][T] extends {structured: infer Structured} ? Structured : unknown;
+
 type ProviderToolNameOfKind<P extends ToolProvider, Kind extends 'json' | 'file'> = {
   [T in ProviderToolName<P>]: ProviderToolCatalog[P][T] extends {result: Kind} ? T : never;
 }[ProviderToolName<P>];
@@ -45,13 +51,13 @@ type CallParameters<Arguments> =
     ? [args?: Arguments, options?: ToolCallOptions]
     : [args: Arguments, options?: ToolCallOptions];
 
-/** The tools of an alias, typed by its provider catalog. Results stay untyped. */
+/** The tools of an alias, typed by its provider catalog. */
 export interface ProviderTools<P extends ToolProvider> {
   /** Calls a granted tool. Throws `ToolCallError` when the call fails. */
   call<T extends ProviderToolNameOfKind<P, 'json'>>(
     tool: T,
     ...parameters: CallParameters<ProviderToolArguments<P, T>>
-  ): Promise<ToolResult>;
+  ): Promise<ToolResult<ProviderToolResult<P, T>>>;
   /** Calls a granted file tool and writes the file into the workspace. */
   download<T extends ProviderToolNameOfKind<P, 'file'>>(
     tool: T,
@@ -61,8 +67,8 @@ export interface ProviderTools<P extends ToolProvider> {
 }
 
 /**
- * Maps manifest integration aliases to provider slugs, to type tool arguments. Action code
- * declares it once, with every alias of its manifest:
+ * Maps manifest integration aliases to provider slugs, to type tool arguments and results. Action
+ * code declares it once, with every alias of its manifest:
  *
  * ```ts
  * declare module '@shipfox/actions' {
@@ -72,7 +78,8 @@ export interface ProviderTools<P extends ToolProvider> {
  * }
  * ```
  *
- * Without it, every alias accepts any tool name and `Record<string, unknown>` arguments.
+ * Without it, every alias accepts any tool name and `Record<string, unknown>` arguments, and
+ * results are `unknown`.
  */
 // biome-ignore lint/suspicious/noEmptyInterface: action code fills it through module augmentation.
 export interface Aliases {}
