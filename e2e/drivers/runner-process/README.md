@@ -33,7 +33,14 @@ Image mode needs:
 - An API that listens on an address the Docker bridge reaches. On Linux, `host-gateway` is the bridge address, so an API bound to `127.0.0.1` refuses the connection. Bind `0.0.0.0`.
 - A provisioner image and a runner image built from the same revision as the API. The templates file names the runner image.
 
-Source mode needs `@shipfox/runner` or `@shipfox/provisioner-docker` in the `package.json` of the suite. This package does not depend on them, because they are not published. Turbo then builds them before `test:e2e`.
+Source mode needs the app each helper runs in the `package.json` of the suite:
+
+| Helper | App |
+| --- | --- |
+| `startProvisioner` in source mode | `@shipfox/provisioner-docker` |
+| `startLocalRunner` without `installDir` | `@shipfox/runner` |
+
+This package does not depend on them, because they are not published. Turbo then builds them before `test:e2e`.
 
 ## Usage
 
