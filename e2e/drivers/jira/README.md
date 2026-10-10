@@ -18,7 +18,8 @@ A fake Jira REST API and signed webhook sender for E2E suites. The fake stands i
   methods get a 404 or 405 and are not recorded.
 - Writes change what the fake serves. A created issue gets the next key of its project and is read
   back by key or ID with its summary, description, labels, assignee, priority, and type. An update
-  applies the fields it sends. A comment shows in the issue's comments, an assignment in its
+  applies the summary, description, labels, assignee, priority, and type it sends, and ignores
+  other fields. A comment shows in the issue's comments, an assignment in its
   `assignee`, and a transition moves its status: the default workflow offers the other two of
   `To Do` (11), `In Progress` (21), and `Done` (31), and a transition the issue cannot take answers
   400. The `update` operations of a write are recorded but not applied. A write to an issue the
