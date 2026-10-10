@@ -44,15 +44,16 @@ export default defineAction<Inputs>(async ({inputs, tools, log, signal}) => {
       `deletions (${changes.bytes} bytes) to ${target.branch} on top of ${expectedHead}.`,
   );
 
+  // Uploads stay outside the handler below: a failed upload means no commit was attempted.
+  const additions = await uploadAdditions({
+    additions: changes.additions,
+    repository: inputs.repository,
+    tools,
+    signal,
+  });
+  const deletions = changes.deletions.map((deletion) => ({path: deletion.path, delete: true}));
+  const entries = [...additions, ...deletions];
   try {
-    const additions = await uploadAdditions({
-      additions: changes.additions,
-      repository: inputs.repository,
-      tools,
-      signal,
-    });
-    const deletions = changes.deletions.map((deletion) => ({path: deletion.path, delete: true}));
-    const entries = [...additions, ...deletions];
     const result = await tools.github.call(
       'create_commit',
       {

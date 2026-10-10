@@ -22,10 +22,11 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
   the text blocks. `json()` parses that text and throws when it is not JSON. Text is never parsed
   silently.
 - **`ToolCallError`** is thrown for a failed call, with `code`, `reason`, `retryAfterSeconds`,
-  `outcomeUnknown`, and `callId`. When a provider refuses a write, `reason` is a
+  `outcomeUnknown`, and `callId`. When a provider refuses a write, `reason` may be a
   `ProviderErrorReason` such as `stale-head` or `pull-request-exists`, listed in
-  `PROVIDER_ERROR_REASONS`. Branch on it instead of matching the message. When `outcomeUnknown` is true, a write may have reached the
-  provider, so do not retry it blindly.
+  `PROVIDER_ERROR_REASONS`. When it is set, branch on it instead of matching the message. A
+  refusal the provider cannot name has no reason. When `outcomeUnknown` is true, a write may
+  have reached the provider, so do not retry it blindly.
 - **`ActionOutputError`** is thrown when an output is undeclared, has the wrong type, or a
   required output is missing.
 - **`log.info`, `log.warn`, `log.error`, and `log.group(name, fn)`** write to the step log.

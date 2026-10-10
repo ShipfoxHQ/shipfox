@@ -44,6 +44,10 @@ export function validatePullRequestExtras(arguments_: Record<string, unknown>): 
       return `Parameter ${name} must be an array of non-empty strings`;
     }
   }
+  const milestone = arguments_.milestone;
+  if (milestone !== undefined && (!Number.isInteger(milestone) || (milestone as number) < 1)) {
+    return 'Parameter milestone must be a positive integer';
+  }
   return arguments_.draft !== undefined && typeof arguments_.draft !== 'boolean'
     ? 'Parameter draft must be a boolean'
     : undefined;

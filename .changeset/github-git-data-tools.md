@@ -2,7 +2,7 @@
 "@shipfox/api-integration-github": minor
 ---
 
-Rework the `create_commit` GitHub tool onto GitHub's Git database API and add `create_blob`. A commit is now a list of tree entries on top of `parent_oid`, so it can hold file modes, symbolic links, submodules, and files up to 40 MiB each, and is still signed by GitHub as the Shipfox bot. `create_commit` creates a missing branch, requires a fast-forward otherwise, and resets the branch with `force`. An optional `expected_head_oid` checks the branch head just before either move. The earlier `additions` and `deletions` arguments are gone, with the 1,000,000-byte limit and the `CREATE_COMMIT_ON_BRANCH_MUTATION` export.
+Rework the `create_commit` GitHub tool onto GitHub's Git database API and add `create_blob`. A commit is now a list of tree entries on top of `parent_oid`, so it can hold file modes, symbolic links, submodules, and files up to 40 MiB each, and is still signed by GitHub as the Shipfox bot. `create_commit` creates a missing branch, requires a fast-forward otherwise, and resets the branch with `force`. An optional `expected_head_oid` checks the branch head before either move. The earlier `additions` and `deletions` arguments are gone, with the 1,000,000-byte limit and the `CREATE_COMMIT_ON_BRANCH_MUTATION` export.
 
 Add the `delete_branch` GitHub tool. It refuses the default branch, treats a branch that is already gone as a success, and deletes only a branch that still points at `expected_head_oid` when that argument is set.
 

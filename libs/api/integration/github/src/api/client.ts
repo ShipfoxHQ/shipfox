@@ -773,9 +773,7 @@ export function githubErrorDetail(error: {
     if (pattern.test(error.message)) return detail;
   }
   if (error.reason === 'access-denied') return 'permission-denied';
-  if (error.reason !== 'provider-rejected') return undefined;
-  if (error.status === 403) return 'permission-denied';
-  return error.status === 422 ? 'unprocessable' : undefined;
+  return error.reason === 'provider-rejected' && error.status === 422 ? 'unprocessable' : undefined;
 }
 
 // GitHub names the grants that would have satisfied a denied request in this header. It is

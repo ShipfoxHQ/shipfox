@@ -46,7 +46,6 @@ describe('github error detail', () => {
       422,
       'Repository rule violations found\n\nChanges must be made through a pull request.',
     ],
-    ['permission-denied', 403, 'Resource not accessible by integration'],
     ['unprocessable', 422, 'Validation Failed'],
   ])('names %s for a %i "%s"', async (detail, status, message) => {
     const error = await mapped(githubFailure(status, message));
@@ -63,6 +62,22 @@ describe('github error detail', () => {
       message: 'Git Repository is empty.',
       detail: undefined,
     });
+  });
+
+  it('names permission-denied when GitHub lists the permissions it would accept', async () => {
+    const error = await mapped(
+      githubFailure(403, 'Resource not accessible by integration', {
+        'x-accepted-github-permissions': 'contents=write',
+      }),
+    );
+
+    expect(error).toMatchObject({reason: 'access-denied', detail: 'permission-denied'});
+  });
+
+  it('leaves a 403 that is not a permission denial without a detail', async () => {
+    const error = await mapped(githubFailure(403, 'Repository was archived so is read-only.'));
+
+    expect(error).toMatchObject({reason: 'provider-rejected', detail: undefined});
   });
 
   it('does not call a rate limit a permission denial', async () => {

@@ -163,6 +163,7 @@ describe('update_pull_request settings', () => {
     ['add_labels', {add_labels: ['']}],
     ['add_assignees', {add_assignees: 'octocat'}],
     ['draft', {draft: 'yes'}],
+    ['milestone', {milestone: 0}],
   ])('rejects a malformed %s before calling GitHub', async (_name, override) => {
     const request = vi.fn();
 
