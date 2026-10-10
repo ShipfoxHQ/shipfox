@@ -587,6 +587,10 @@ function typeCheck({accessor, type}: {accessor: string; type: ShapeLeaf['type']}
 // A dyn mapping is declared as a json output, and the declaration parses string values, so an id
 // like "901222980414" would come back as a number. A string-typed mapping skips the parse. A
 // result of another type maps to "" and fails the check.
+//
+// An absent field maps to a value of the expected value's type that differs from it. A tool with a
+// typed output schema rejects a ternary whose branches have different types, and the check still
+// fails on the absent field.
 function stringValueMapping({
   segments,
   value,
@@ -594,9 +598,17 @@ function stringValueMapping({
   segments: Segment[];
   value: ContractScalar;
 }): string {
-  if (!changedByJsonParse(value)) return `${presence({segments})} ? ${accessorOf(segments)} : ""`;
+  if (!changedByJsonParse(value)) {
+    return `${presence({segments})} ? ${accessorOf(segments)} : ${absentValue(value)}`;
+  }
   const check = (accessor: string) => typeCheck({accessor, type: 'string'});
   return `${presence({segments, check})} ? string(${accessorOf(segments)}) : ""`;
+}
+
+function absentValue(value: ContractScalar): string {
+  if (typeof value === 'boolean') return String(!value);
+  if (typeof value === 'number') return String(value + 1);
+  return '""';
 }
 
 function changedByJsonParse(value: ContractScalar): boolean {

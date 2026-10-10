@@ -50,7 +50,7 @@ jobs:
         outputs:
           shape_results_0_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
           shape_has_more: ${{ has(result.has_more) && type(result.has_more) == type(true) }}
-          value_has_more: '${{ has(result.has_more) ? result.has_more : "" }}'
+          value_has_more: "${{ has(result.has_more) ? result.has_more : true }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_results_0_id && step.outputs.shape_has_more && type(step.outputs.value_has_more) == type(true) && step.outputs.value_has_more == false
   get_page:
@@ -145,8 +145,8 @@ jobs:
                 - text:
                     content: Contract page updated
         outputs:
-          value_properties_updated: '${{ has(result.properties_updated) ? result.properties_updated : "" }}'
-          value_content_updated: '${{ has(result.content_updated) ? result.content_updated : "" }}'
+          value_properties_updated: "${{ has(result.properties_updated) ? result.properties_updated : false }}"
+          value_content_updated: "${{ has(result.content_updated) ? result.content_updated : true }}"
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_properties_updated) == type(true) && step.outputs.value_properties_updated == true && type(step.outputs.value_content_updated) == type(true) && step.outputs.value_content_updated == false
       - key: rename_effect
@@ -166,8 +166,8 @@ jobs:
           markdown: Updated by a contract.
           mode: replace
         outputs:
-          value_properties_updated: '${{ has(result.properties_updated) ? result.properties_updated : "" }}'
-          value_content_updated: '${{ has(result.content_updated) ? result.content_updated : "" }}'
+          value_properties_updated: "${{ has(result.properties_updated) ? result.properties_updated : true }}"
+          value_content_updated: "${{ has(result.content_updated) ? result.content_updated : false }}"
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_properties_updated) == type(true) && step.outputs.value_properties_updated == false && type(step.outputs.value_content_updated) == type(true) && step.outputs.value_content_updated == true
       - key: rewrite_effect
@@ -176,7 +176,7 @@ jobs:
         with:
           page_id: ${{ steps.create.outputs.ref_id }}
         outputs:
-          value_truncated: '${{ has(result.truncated) ? result.truncated : "" }}'
+          value_truncated: "${{ has(result.truncated) ? result.truncated : true }}"
           matches_markdown: ${{ has(result.markdown) && type(result.markdown) == type("") && result.markdown.matches("Updated by a contract\\.") }}
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_truncated) == type(true) && step.outputs.value_truncated == false && step.outputs.matches_markdown
@@ -212,7 +212,7 @@ jobs:
           shape_results_0_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
           shape_next_cursor: ${{ has(result.next_cursor) && type(result.next_cursor) == type("") }}
           shape_has_more: ${{ has(result.has_more) && type(result.has_more) == type(true) }}
-          value_has_more: '${{ has(result.has_more) ? result.has_more : "" }}'
+          value_has_more: "${{ has(result.has_more) ? result.has_more : false }}"
           ref_next_cursor: '${{ has(result.next_cursor) ? result.next_cursor : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_results_0_id && step.outputs.shape_next_cursor && step.outputs.shape_has_more && type(step.outputs.value_has_more) == type(true) && step.outputs.value_has_more == true
@@ -226,7 +226,7 @@ jobs:
         outputs:
           shape_results_0_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
           shape_has_more: ${{ has(result.has_more) && type(result.has_more) == type(true) }}
-          value_has_more: '${{ has(result.has_more) ? result.has_more : "" }}'
+          value_has_more: "${{ has(result.has_more) ? result.has_more : true }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_results_0_id && step.outputs.shape_has_more && type(step.outputs.value_has_more) == type(true) && step.outputs.value_has_more == false
   search:

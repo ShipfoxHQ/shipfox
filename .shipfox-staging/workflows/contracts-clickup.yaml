@@ -105,7 +105,7 @@ jobs:
           shape_tasks_0_id: ${{ has(result.tasks) && type(result.tasks) == type([]) && size(result.tasks) > 0 && [result.tasks[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
           shape_tasks_0_name: ${{ has(result.tasks) && type(result.tasks) == type([]) && size(result.tasks) > 0 && [result.tasks[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
           shape_last_page: ${{ has(result.last_page) && type(result.last_page) == type(true) }}
-          value_last_page: '${{ has(result.last_page) ? result.last_page : "" }}'
+          value_last_page: "${{ has(result.last_page) ? result.last_page : true }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_tasks_0_id && step.outputs.shape_tasks_0_name && step.outputs.shape_last_page && type(step.outputs.value_last_page) == type(true) && step.outputs.value_last_page == false
   search_tasks_invalid_page:

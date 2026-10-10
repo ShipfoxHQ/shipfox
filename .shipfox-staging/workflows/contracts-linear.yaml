@@ -218,7 +218,7 @@ jobs:
         with:
           id: ${{ steps.attach.outputs.ref_id }}
         outputs:
-          value_deleted: '${{ has(result.deleted) ? result.deleted : "" }}'
+          value_deleted: "${{ has(result.deleted) ? result.deleted : false }}"
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_deleted) == type(true) && step.outputs.value_deleted == true
       - key: delete_effect
@@ -728,7 +728,7 @@ jobs:
           shape_color: ${{ has(result.color) && type(result.color) == type("") }}
           shape_isGroup: ${{ has(result.isGroup) && type(result.isGroup) == type(true) }}
           value_color: '${{ has(result.color) ? result.color : "" }}'
-          value_isGroup: '${{ has(result.isGroup) ? result.isGroup : "" }}'
+          value_isGroup: "${{ has(result.isGroup) ? result.isGroup : true }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_color && step.outputs.shape_isGroup && type(step.outputs.value_color) == type("") && step.outputs.value_color == "#4EA7FC" && type(step.outputs.value_isGroup) == type(true) && step.outputs.value_isGroup == false
       - key: label_effect
@@ -754,7 +754,7 @@ jobs:
         outputs:
           shape_agentSkills: ${{ has(result.agentSkills) && type(result.agentSkills) == type([]) }}
           shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
-          value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
+          value_hasNextPage: "${{ has(result.hasNextPage) ? result.hasNextPage : true }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_agentSkills && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == false
   list_comments:
@@ -770,7 +770,7 @@ jobs:
           shape_comments_0_id: ${{ has(result.comments) && type(result.comments) == type([]) && size(result.comments) > 0 && [result.comments[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
           shape_comments_0_body: ${{ has(result.comments) && type(result.comments) == type([]) && size(result.comments) > 0 && [result.comments[0]].all(i0, has(i0.body) && type(i0.body) == type("")) }}
           shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
-          value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
+          value_hasNextPage: "${{ has(result.hasNextPage) ? result.hasNextPage : false }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_comments_0_id && step.outputs.shape_comments_0_body && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == true
   list_cycles:
@@ -803,7 +803,7 @@ jobs:
           shape_documents_0_title: ${{ has(result.documents) && type(result.documents) == type([]) && size(result.documents) > 0 && [result.documents[0]].all(i0, has(i0.title) && type(i0.title) == type("")) }}
           shape_documents_0_url: ${{ has(result.documents) && type(result.documents) == type([]) && size(result.documents) > 0 && [result.documents[0]].all(i0, has(i0.url) && type(i0.url) == type("")) }}
           shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
-          value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
+          value_hasNextPage: "${{ has(result.hasNextPage) ? result.hasNextPage : false }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_documents_0_id && step.outputs.shape_documents_0_title && step.outputs.shape_documents_0_url && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == true
   list_issue_labels:
@@ -853,7 +853,7 @@ jobs:
           shape_issues_0_title: ${{ has(result.issues) && type(result.issues) == type([]) && size(result.issues) > 0 && [result.issues[0]].all(i0, has(i0.title) && type(i0.title) == type("")) }}
           shape_issues_0_status: ${{ has(result.issues) && type(result.issues) == type([]) && size(result.issues) > 0 && [result.issues[0]].all(i0, has(i0.status) && type(i0.status) == type("")) }}
           shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
-          value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
+          value_hasNextPage: "${{ has(result.hasNextPage) ? result.hasNextPage : false }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_issues_0_id && step.outputs.shape_issues_0_uuid && step.outputs.shape_issues_0_title && step.outputs.shape_issues_0_status && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == true
   list_issues_invalid_created_at:
@@ -921,7 +921,7 @@ jobs:
         outputs:
           shape_releaseNotes: ${{ has(result.releaseNotes) && type(result.releaseNotes) == type([]) }}
           shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
-          value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
+          value_hasNextPage: "${{ has(result.hasNextPage) ? result.hasNextPage : true }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_releaseNotes && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == false
   list_release_pipelines:
@@ -935,7 +935,7 @@ jobs:
         outputs:
           shape_releasePipelines: ${{ has(result.releasePipelines) && type(result.releasePipelines) == type([]) }}
           shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
-          value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
+          value_hasNextPage: "${{ has(result.hasNextPage) ? result.hasNextPage : true }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_releasePipelines && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == false
   list_releases:
@@ -949,7 +949,7 @@ jobs:
         outputs:
           shape_releases: ${{ has(result.releases) && type(result.releases) == type([]) }}
           shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
-          value_hasNextPage: '${{ has(result.hasNextPage) ? result.hasNextPage : "" }}'
+          value_hasNextPage: "${{ has(result.hasNextPage) ? result.hasNextPage : true }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_releases && step.outputs.shape_hasNextPage && type(step.outputs.value_hasNextPage) == type(true) && step.outputs.value_hasNextPage == false
   list_teams:

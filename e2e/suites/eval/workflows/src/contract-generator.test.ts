@@ -258,6 +258,19 @@ describe('generateContractFiles', () => {
       expect(content).toContain(`id: \${{ steps.list.outputs.text_issues_0_number }}`);
     });
 
+    it('maps an absent boolean or number to a different value of the same type', async () => {
+      await writeCase(
+        'linear/typed-values.yaml',
+        `provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n    expect:\n      values: {done: true, count: 3, title: Fixture}\n`,
+      );
+
+      const content = await generatedLinear();
+
+      expect(content).toContain(`value_done: "\${{ has(result.done) ? result.done : false }}"`);
+      expect(content).toContain(`value_count: "\${{ has(result.count) ? result.count : 4 }}"`);
+      expect(content).toContain(`value_title: '\${{ has(result.title) ? result.title : "" }}'`);
+    });
+
     it('compiles expect.includes to exists() over the list', async () => {
       expect(await generatedLinear()).toContain(
         `includes_labels: \${{ has(result.labels) && type(result.labels) == type([]) && result.labels.exists(item, has(item.name) && type(item.name) == type("") && item.name == "contract") }}`,

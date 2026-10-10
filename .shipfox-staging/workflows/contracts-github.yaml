@@ -17,7 +17,7 @@ jobs:
           repo: contract-tests
           issue_number: 1
         outputs:
-          value_number: '${{ has(result.number) ? result.number : "" }}'
+          value_number: "${{ has(result.number) ? result.number : 2 }}"
           value_title: '${{ has(result.title) ? result.title : "" }}'
         gate:
           success: 'step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 1 && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Fixture issue: markdown, unicode, long body"'
@@ -29,7 +29,7 @@ jobs:
           repo: contract-tests
           issue_number: 2
         outputs:
-          value_number: '${{ has(result.number) ? result.number : "" }}'
+          value_number: "${{ has(result.number) ? result.number : 3 }}"
           value_state: '${{ has(result.state) ? result.state : "" }}'
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 2 && type(step.outputs.value_state) == type("") && step.outputs.value_state == "closed"
@@ -41,7 +41,7 @@ jobs:
           repo: contract-tests
           issue_number: 3
         outputs:
-          value_number: '${{ has(result.number) ? result.number : "" }}'
+          value_number: "${{ has(result.number) ? result.number : 4 }}"
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 3
       - key: sub_issue
@@ -52,7 +52,7 @@ jobs:
           repo: contract-tests
           issue_number: 4
         outputs:
-          value_number: '${{ has(result.number) ? result.number : "" }}'
+          value_number: "${{ has(result.number) ? result.number : 5 }}"
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 4
       - key: pull_request
@@ -63,7 +63,7 @@ jobs:
           repo: contract-tests
           pull_number: 35
         outputs:
-          value_number: '${{ has(result.number) ? result.number : "" }}'
+          value_number: "${{ has(result.number) ? result.number : 36 }}"
           value_state: '${{ has(result.state) ? result.state : "" }}'
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 35 && type(step.outputs.value_state) == type("") && step.outputs.value_state == "open"
@@ -75,9 +75,9 @@ jobs:
           repo: contract-tests
           pull_number: 36
         outputs:
-          value_number: '${{ has(result.number) ? result.number : "" }}'
+          value_number: "${{ has(result.number) ? result.number : 37 }}"
           value_state: '${{ has(result.state) ? result.state : "" }}'
-          value_merged: '${{ has(result.merged) ? result.merged : "" }}'
+          value_merged: "${{ has(result.merged) ? result.merged : true }}"
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 36 && type(step.outputs.value_state) == type("") && step.outputs.value_state == "closed" && type(step.outputs.value_merged) == type(true) && step.outputs.value_merged == false
       - key: merged_pull_request
@@ -88,9 +88,9 @@ jobs:
           repo: contract-tests
           pull_number: 37
         outputs:
-          value_number: '${{ has(result.number) ? result.number : "" }}'
+          value_number: "${{ has(result.number) ? result.number : 38 }}"
           value_state: '${{ has(result.state) ? result.state : "" }}'
-          value_merged: '${{ has(result.merged) ? result.merged : "" }}'
+          value_merged: "${{ has(result.merged) ? result.merged : false }}"
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 37 && type(step.outputs.value_state) == type("") && step.outputs.value_state == "closed" && type(step.outputs.value_merged) == type(true) && step.outputs.value_merged == true
       - key: workflow
@@ -101,7 +101,7 @@ jobs:
           repo: contract-tests
           resource_id: fixture.yml
         outputs:
-          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_id: "${{ has(result.id) ? result.id : 375690479 }}"
           value_name: '${{ has(result.name) ? result.name : "" }}'
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 375690478 && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Fixture"
@@ -112,7 +112,7 @@ jobs:
           repository: ShipfoxSandbox/contract-tests
           branch: fixture/open-pr
         outputs:
-          value_exists: '${{ has(result.exists) ? result.exists : "" }}'
+          value_exists: "${{ has(result.exists) ? result.exists : false }}"
           value_oid: '${{ has(result.oid) ? result.oid : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == true && type(step.outputs.value_oid) == type("") && step.outputs.value_oid == "8c2d6bf2700044628216c6daf699870ef9e0915a"
@@ -183,7 +183,7 @@ jobs:
           shape_name: ${{ has(result.name) && type(result.name) == type("") }}
           shape_path: ${{ has(result.path) && type(result.path) == type("") }}
           shape_state: ${{ has(result.state) && type(result.state) == type("") }}
-          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_id: "${{ has(result.id) ? result.id : 375690479 }}"
           value_name: '${{ has(result.name) ? result.name : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_path && step.outputs.shape_state && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 375690478 && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Fixture"
@@ -264,7 +264,7 @@ jobs:
           shape_conclusion: ${{ has(result.conclusion) && type(result.conclusion) == type("") }}
           shape_event: ${{ has(result.event) && type(result.event) == type("") }}
           shape_run_number: ${{ has(result.run_number) && (type(result.run_number) == type(1) || type(result.run_number) == type(1.0)) }}
-          value_workflow_id: '${{ has(result.workflow_id) ? result.workflow_id : "" }}'
+          value_workflow_id: "${{ has(result.workflow_id) ? result.workflow_id : 375690479 }}"
           value_name: '${{ has(result.name) ? result.name : "" }}'
           value_status: '${{ has(result.status) ? result.status : "" }}'
           value_conclusion: '${{ has(result.conclusion) ? result.conclusion : "" }}'
@@ -357,7 +357,7 @@ jobs:
           shape_jobs_0_status: ${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 0 && [result.jobs[0]].all(i0, has(i0.status) && type(i0.status) == type("")) }}
           shape_jobs_0_conclusion: ${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 0 && [result.jobs[0]].all(i0, has(i0.conclusion) && type(i0.conclusion) == type("")) }}
           shape_jobs_0_run_id: ${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 0 && [result.jobs[0]].all(i0, has(i0.run_id) && (type(i0.run_id) == type(1) || type(i0.run_id) == type(1.0))) }}
-          value_total_count: '${{ has(result.total_count) ? result.total_count : "" }}'
+          value_total_count: "${{ has(result.total_count) ? result.total_count : 3 }}"
           includes_jobs: ${{ has(result.jobs) && type(result.jobs) == type([]) && result.jobs.exists(item, has(item.name) && type(item.name) == type("") && item.name == "build" && has(item.status) && type(item.status) == type("") && item.status == "completed" && has(item.conclusion) && type(item.conclusion) == type("") && item.conclusion == "success") }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_total_count && step.outputs.shape_jobs_0_id && step.outputs.shape_jobs_0_name && step.outputs.shape_jobs_0_status && step.outputs.shape_jobs_0_conclusion && step.outputs.shape_jobs_0_run_id && (type(step.outputs.value_total_count) == type(1) || type(step.outputs.value_total_count) == type(1.0)) && step.outputs.value_total_count == 2 && step.outputs.includes_jobs
@@ -390,7 +390,7 @@ jobs:
           shape_artifacts_0_name: ${{ has(result.artifacts) && type(result.artifacts) == type([]) && size(result.artifacts) > 0 && [result.artifacts[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
           shape_artifacts_0_size_in_bytes: ${{ has(result.artifacts) && type(result.artifacts) == type([]) && size(result.artifacts) > 0 && [result.artifacts[0]].all(i0, has(i0.size_in_bytes) && (type(i0.size_in_bytes) == type(1) || type(i0.size_in_bytes) == type(1.0))) }}
           shape_artifacts_0_expired: ${{ has(result.artifacts) && type(result.artifacts) == type([]) && size(result.artifacts) > 0 && [result.artifacts[0]].all(i0, has(i0.expired) && type(i0.expired) == type(true)) }}
-          value_total_count: '${{ has(result.total_count) ? result.total_count : "" }}'
+          value_total_count: "${{ has(result.total_count) ? result.total_count : 2 }}"
           includes_artifacts: ${{ has(result.artifacts) && type(result.artifacts) == type([]) && result.artifacts.exists(item, has(item.name) && type(item.name) == type("") && item.name == "report" && has(item.expired) && type(item.expired) == type(true) && item.expired == false) }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_total_count && step.outputs.shape_artifacts_0_id && step.outputs.shape_artifacts_0_name && step.outputs.shape_artifacts_0_size_in_bytes && step.outputs.shape_artifacts_0_expired && (type(step.outputs.value_total_count) == type(1) || type(step.outputs.value_total_count) == type(1.0)) && step.outputs.value_total_count == 1 && step.outputs.includes_artifacts
@@ -447,11 +447,11 @@ jobs:
           shape_commits_0_message: ${{ has(result.commits) && type(result.commits) == type([]) && size(result.commits) > 0 && [result.commits[0]].all(i0, has(i0.message) && type(i0.message) == type("")) }}
           shape_truncated: ${{ has(result.truncated) && type(result.truncated) == type(true) }}
           value_status: '${{ has(result.status) ? result.status : "" }}'
-          value_ahead_by: '${{ has(result.ahead_by) ? result.ahead_by : "" }}'
-          value_behind_by: '${{ has(result.behind_by) ? result.behind_by : "" }}'
+          value_ahead_by: "${{ has(result.ahead_by) ? result.ahead_by : 2 }}"
+          value_behind_by: "${{ has(result.behind_by) ? result.behind_by : 1 }}"
           value_merge_base_oid: '${{ has(result.merge_base_oid) ? result.merge_base_oid : "" }}'
-          value_total_commits: '${{ has(result.total_commits) ? result.total_commits : "" }}'
-          value_truncated: '${{ has(result.truncated) ? result.truncated : "" }}'
+          value_total_commits: "${{ has(result.total_commits) ? result.total_commits : 2 }}"
+          value_truncated: "${{ has(result.truncated) ? result.truncated : true }}"
           includes_commits: ${{ has(result.commits) && type(result.commits) == type([]) && result.commits.exists(item, has(item.oid) && type(item.oid) == type("") && item.oid == "8c2d6bf2700044628216c6daf699870ef9e0915a" && has(item.message) && type(item.message) == type("") && item.message == "Extend the notes") }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_status && step.outputs.shape_ahead_by && step.outputs.shape_behind_by && step.outputs.shape_merge_base_oid && step.outputs.shape_total_commits && step.outputs.shape_commits_0_oid && step.outputs.shape_commits_0_message && step.outputs.shape_truncated && type(step.outputs.value_status) == type("") && step.outputs.value_status == "ahead" && (type(step.outputs.value_ahead_by) == type(1) || type(step.outputs.value_ahead_by) == type(1.0)) && step.outputs.value_ahead_by == 1 && (type(step.outputs.value_behind_by) == type(1) || type(step.outputs.value_behind_by) == type(1.0)) && step.outputs.value_behind_by == 0 && type(step.outputs.value_merge_base_oid) == type("") && step.outputs.value_merge_base_oid == "a7d8de632b46c87cb8d6df0377755825732e461e" && (type(step.outputs.value_total_commits) == type(1) || type(step.outputs.value_total_commits) == type(1.0)) && step.outputs.value_total_commits == 1 && type(step.outputs.value_truncated) == type(true) && step.outputs.value_truncated == false && step.outputs.includes_commits
@@ -469,9 +469,9 @@ jobs:
           shape_exists: ${{ has(result.exists) && type(result.exists) == type(true) }}
           shape_protected: ${{ has(result.protected) && type(result.protected) == type(true) }}
           value_branch: '${{ has(result.branch) ? result.branch : "" }}'
-          value_exists: '${{ has(result.exists) ? result.exists : "" }}'
+          value_exists: "${{ has(result.exists) ? result.exists : false }}"
           value_oid: '${{ has(result.oid) ? result.oid : "" }}'
-          value_protected: '${{ has(result.protected) ? result.protected : "" }}'
+          value_protected: "${{ has(result.protected) ? result.protected : true }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_branch && step.outputs.shape_exists && step.outputs.shape_protected && type(step.outputs.value_branch) == type("") && step.outputs.value_branch == "fixture/open-pr" && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == true && type(step.outputs.value_oid) == type("") && step.outputs.value_oid == "8c2d6bf2700044628216c6daf699870ef9e0915a" && type(step.outputs.value_protected) == type(true) && step.outputs.value_protected == false
       - key: get_branch_2
@@ -483,7 +483,7 @@ jobs:
         outputs:
           shape_branch: ${{ has(result.branch) && type(result.branch) == type("") }}
           shape_exists: ${{ has(result.exists) && type(result.exists) == type(true) }}
-          value_exists: '${{ has(result.exists) ? result.exists : "" }}'
+          value_exists: "${{ has(result.exists) ? result.exists : true }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_branch && step.outputs.shape_exists && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == false
   get_commit:
@@ -577,8 +577,8 @@ jobs:
           shape_run_id: ${{ has(result.run_id) && (type(result.run_id) == type(1) || type(result.run_id) == type(1.0)) }}
           shape_total_jobs: ${{ has(result.total_jobs) && (type(result.total_jobs) == type(1) || type(result.total_jobs) == type(1.0)) }}
           shape_failed_jobs: ${{ has(result.failed_jobs) && (type(result.failed_jobs) == type(1) || type(result.failed_jobs) == type(1.0)) }}
-          value_total_jobs: '${{ has(result.total_jobs) ? result.total_jobs : "" }}'
-          value_failed_jobs: '${{ has(result.failed_jobs) ? result.failed_jobs : "" }}'
+          value_total_jobs: "${{ has(result.total_jobs) ? result.total_jobs : 3 }}"
+          value_failed_jobs: "${{ has(result.failed_jobs) ? result.failed_jobs : 1 }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_run_id && step.outputs.shape_total_jobs && step.outputs.shape_failed_jobs && (type(step.outputs.value_total_jobs) == type(1) || type(step.outputs.value_total_jobs) == type(1.0)) && step.outputs.value_total_jobs == 2 && (type(step.outputs.value_failed_jobs) == type(1) || type(step.outputs.value_failed_jobs) == type(1.0)) && step.outputs.value_failed_jobs == 0
   get_repository:
@@ -596,7 +596,7 @@ jobs:
           shape_bot_login: ${{ has(result.bot_login) && type(result.bot_login) == type("") }}
           value_full_name: '${{ has(result.full_name) ? result.full_name : "" }}'
           value_default_branch: '${{ has(result.default_branch) ? result.default_branch : "" }}'
-          value_private: '${{ has(result.private) ? result.private : "" }}'
+          value_private: "${{ has(result.private) ? result.private : false }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_full_name && step.outputs.shape_default_branch && step.outputs.shape_private && step.outputs.shape_bot_login && type(step.outputs.value_full_name) == type("") && step.outputs.value_full_name == "ShipfoxSandbox/contract-tests" && type(step.outputs.value_default_branch) == type("") && step.outputs.value_default_branch == "main" && type(step.outputs.value_private) == type(true) && step.outputs.value_private == true
   issue_read_get:
@@ -614,7 +614,7 @@ jobs:
           shape_title: ${{ has(result.title) && type(result.title) == type("") }}
           shape_state: ${{ has(result.state) && type(result.state) == type("") }}
           shape_labels: ${{ has(result.labels) && type(result.labels) == type([]) }}
-          value_number: '${{ has(result.number) ? result.number : "" }}'
+          value_number: "${{ has(result.number) ? result.number : 2 }}"
           value_title: '${{ has(result.title) ? result.title : "" }}'
           value_state: '${{ has(result.state) ? result.state : "" }}'
         gate:
@@ -678,7 +678,7 @@ jobs:
           shape_number: ${{ has(result.number) && (type(result.number) == type(1) || type(result.number) == type(1.0)) }}
           shape_title: ${{ has(result.title) && type(result.title) == type("") }}
           shape_state: ${{ has(result.state) && type(result.state) == type("") }}
-          value_number: '${{ has(result.number) ? result.number : "" }}'
+          value_number: "${{ has(result.number) ? result.number : 4 }}"
           value_title: '${{ has(result.title) ? result.title : "" }}'
         gate:
           success: 'step.status == "succeeded" && step.outputs.shape_number && step.outputs.shape_title && step.outputs.shape_state && (type(step.outputs.value_number) == type(1) || type(step.outputs.value_number) == type(1.0)) && step.outputs.value_number == 3 && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Fixture issue: parent with sub-issue"'
@@ -771,7 +771,7 @@ jobs:
           shape_state: ${{ has(result.state) && type(result.state) == type("") }}
           shape_head_ref: ${{ has(result.head) && has(result.head.ref) && type(result.head.ref) == type("") }}
           shape_base_ref: ${{ has(result.base) && has(result.base.ref) && type(result.base.ref) == type("") }}
-          value_number: '${{ has(result.number) ? result.number : "" }}'
+          value_number: "${{ has(result.number) ? result.number : 36 }}"
           value_title: '${{ has(result.title) ? result.title : "" }}'
           value_state: '${{ has(result.state) ? result.state : "" }}'
         gate:
@@ -791,7 +791,7 @@ jobs:
           shape_total_count: ${{ has(result.total_count) && (type(result.total_count) == type(1) || type(result.total_count) == type(1.0)) }}
           shape_check_runs_0_name: ${{ has(result.check_runs) && type(result.check_runs) == type([]) && size(result.check_runs) > 0 && [result.check_runs[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
           shape_check_runs_0_status: ${{ has(result.check_runs) && type(result.check_runs) == type([]) && size(result.check_runs) > 0 && [result.check_runs[0]].all(i0, has(i0.status) && type(i0.status) == type("")) }}
-          value_total_count: '${{ has(result.total_count) ? result.total_count : "" }}'
+          value_total_count: "${{ has(result.total_count) ? result.total_count : 3 }}"
           includes_check_runs: ${{ has(result.check_runs) && type(result.check_runs) == type([]) && result.check_runs.exists(item, has(item.name) && type(item.name) == type("") && item.name == "verify" && has(item.status) && type(item.status) == type("") && item.status == "completed" && has(item.conclusion) && type(item.conclusion) == type("") && item.conclusion == "success") }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_total_count && step.outputs.shape_check_runs_0_name && step.outputs.shape_check_runs_0_status && (type(step.outputs.value_total_count) == type(1) || type(step.outputs.value_total_count) == type(1.0)) && step.outputs.value_total_count == 2 && step.outputs.includes_check_runs
@@ -926,7 +926,7 @@ jobs:
           shape_state: ${{ has(result.state) && type(result.state) == type("") }}
           shape_sha: ${{ has(result.sha) && type(result.sha) == type("") }}
           shape_total_count: ${{ has(result.total_count) && (type(result.total_count) == type(1) || type(result.total_count) == type(1.0)) }}
-          value_total_count: '${{ has(result.total_count) ? result.total_count : "" }}'
+          value_total_count: "${{ has(result.total_count) ? result.total_count : 1 }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_state && step.outputs.shape_sha && step.outputs.shape_total_count && (type(step.outputs.value_total_count) == type(1) || type(step.outputs.value_total_count) == type(1.0)) && step.outputs.value_total_count == 0
   search_issues:

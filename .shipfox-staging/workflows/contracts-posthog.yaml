@@ -24,7 +24,7 @@ jobs:
         with:
           key: contract-flag
         outputs:
-          value_results_0_id: '${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id)) ? result.results[0].id : "" }}'
+          value_results_0_id: "${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id)) ? result.results[0].id : 301244 }}"
           value_results_0_key: '${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.key)) ? result.results[0].key : "" }}'
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_results_0_id) == type(1) || type(step.outputs.value_results_0_id) == type(1.0)) && step.outputs.value_results_0_id == 301243 && type(step.outputs.value_results_0_key) == type("") && step.outputs.value_results_0_key == "contract-flag"
@@ -34,7 +34,7 @@ jobs:
         with:
           id: 6355500
         outputs:
-          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_id: "${{ has(result.id) ? result.id : 6355501 }}"
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 6355500
       - key: dashboard
@@ -52,7 +52,7 @@ jobs:
         with:
           id: 99531
         outputs:
-          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_id: "${{ has(result.id) ? result.id : 99532 }}"
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 99531
       - key: experiment_results
@@ -61,7 +61,7 @@ jobs:
         with:
           id: 99702
         outputs:
-          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_id: "${{ has(result.id) ? result.id : 99703 }}"
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 99702
       - key: survey
@@ -173,7 +173,7 @@ jobs:
           shape_name: ${{ has(result.name) && type(result.name) == type("") }}
           shape_status: ${{ has(result.status) && type(result.status) == type("") }}
           shape_feature_flag_key: ${{ has(result.feature_flag_key) && type(result.feature_flag_key) == type("") }}
-          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_id: "${{ has(result.id) ? result.id : 99532 }}"
           value_name: '${{ has(result.name) ? result.name : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_status && step.outputs.shape_feature_flag_key && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 99531 && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Contract fixture experiment"
@@ -209,15 +209,15 @@ jobs:
           shape_exposures_total_exposures_test: ${{ has(result.exposures) && has(result.exposures.total_exposures) && has(result.exposures.total_exposures.test) && (type(result.exposures.total_exposures.test) == type(1) || type(result.exposures.total_exposures.test) == type(1.0)) }}
           shape_metrics_primary_count: ${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.count) && (type(result.metrics.primary.count) == type(1) || type(result.metrics.primary.count) == type(1.0)) }}
           shape_metrics_primary_results_0_index: ${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.results) && type(result.metrics.primary.results) == type([]) && size(result.metrics.primary.results) > 0 && [result.metrics.primary.results[0]].all(i0, has(i0.index) && (type(i0.index) == type(1) || type(i0.index) == type(1.0))) }}
-          value_experiment_id: '${{ has(result.experiment) && has(result.experiment.id) ? result.experiment.id : "" }}'
+          value_experiment_id: "${{ has(result.experiment) && has(result.experiment.id) ? result.experiment.id : 99703 }}"
           value_experiment_name: '${{ has(result.experiment) && has(result.experiment.name) ? result.experiment.name : "" }}'
-          value_exposures_total_exposures_control: '${{ has(result.exposures) && has(result.exposures.total_exposures) && has(result.exposures.total_exposures.control) ? result.exposures.total_exposures.control : "" }}'
-          value_exposures_total_exposures_test: '${{ has(result.exposures) && has(result.exposures.total_exposures) && has(result.exposures.total_exposures.test) ? result.exposures.total_exposures.test : "" }}'
-          value_metrics_primary_count: '${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.count) ? result.metrics.primary.count : "" }}'
+          value_exposures_total_exposures_control: "${{ has(result.exposures) && has(result.exposures.total_exposures) && has(result.exposures.total_exposures.control) ? result.exposures.total_exposures.control : 31 }}"
+          value_exposures_total_exposures_test: "${{ has(result.exposures) && has(result.exposures.total_exposures) && has(result.exposures.total_exposures.test) ? result.exposures.total_exposures.test : 31 }}"
+          value_metrics_primary_count: "${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.count) ? result.metrics.primary.count : 2 }}"
           value_metrics_primary_results_0_data_baseline_key: '${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.results) && type(result.metrics.primary.results) == type([]) && size(result.metrics.primary.results) > 0 && [result.metrics.primary.results[0]].all(i0, has(i0.data) && has(i0.data.baseline) && has(i0.data.baseline.key)) ? result.metrics.primary.results[0].data.baseline.key : "" }}'
-          value_metrics_primary_results_0_data_baseline_sum: '${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.results) && type(result.metrics.primary.results) == type([]) && size(result.metrics.primary.results) > 0 && [result.metrics.primary.results[0]].all(i0, has(i0.data) && has(i0.data.baseline) && has(i0.data.baseline.sum)) ? result.metrics.primary.results[0].data.baseline.sum : "" }}'
+          value_metrics_primary_results_0_data_baseline_sum: "${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.results) && type(result.metrics.primary.results) == type([]) && size(result.metrics.primary.results) > 0 && [result.metrics.primary.results[0]].all(i0, has(i0.data) && has(i0.data.baseline) && has(i0.data.baseline.sum)) ? result.metrics.primary.results[0].data.baseline.sum : 31 }}"
           value_metrics_primary_results_0_data_variant_results_0_key: '${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.results) && type(result.metrics.primary.results) == type([]) && size(result.metrics.primary.results) > 0 && [result.metrics.primary.results[0]].all(i0, has(i0.data) && has(i0.data.variant_results) && type(i0.data.variant_results) == type([]) && size(i0.data.variant_results) > 0 && [i0.data.variant_results[0]].all(i1, has(i1.key))) ? result.metrics.primary.results[0].data.variant_results[0].key : "" }}'
-          value_metrics_primary_results_0_data_variant_results_0_sum: '${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.results) && type(result.metrics.primary.results) == type([]) && size(result.metrics.primary.results) > 0 && [result.metrics.primary.results[0]].all(i0, has(i0.data) && has(i0.data.variant_results) && type(i0.data.variant_results) == type([]) && size(i0.data.variant_results) > 0 && [i0.data.variant_results[0]].all(i1, has(i1.sum))) ? result.metrics.primary.results[0].data.variant_results[0].sum : "" }}'
+          value_metrics_primary_results_0_data_variant_results_0_sum: "${{ has(result.metrics) && has(result.metrics.primary) && has(result.metrics.primary.results) && type(result.metrics.primary.results) == type([]) && size(result.metrics.primary.results) > 0 && [result.metrics.primary.results[0]].all(i0, has(i0.data) && has(i0.data.variant_results) && type(i0.data.variant_results) == type([]) && size(i0.data.variant_results) > 0 && [i0.data.variant_results[0]].all(i1, has(i1.sum))) ? result.metrics.primary.results[0].data.variant_results[0].sum : 46 }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_experiment_id && step.outputs.shape_experiment_name && step.outputs.shape_experiment_status && step.outputs.shape_exposures_total_exposures_control && step.outputs.shape_exposures_total_exposures_test && step.outputs.shape_metrics_primary_count && step.outputs.shape_metrics_primary_results_0_index && (type(step.outputs.value_experiment_id) == type(1) || type(step.outputs.value_experiment_id) == type(1.0)) && step.outputs.value_experiment_id == 99702 && type(step.outputs.value_experiment_name) == type("") && step.outputs.value_experiment_name == "Contract results experiment" && (type(step.outputs.value_exposures_total_exposures_control) == type(1) || type(step.outputs.value_exposures_total_exposures_control) == type(1.0)) && step.outputs.value_exposures_total_exposures_control == 30 && (type(step.outputs.value_exposures_total_exposures_test) == type(1) || type(step.outputs.value_exposures_total_exposures_test) == type(1.0)) && step.outputs.value_exposures_total_exposures_test == 30 && (type(step.outputs.value_metrics_primary_count) == type(1) || type(step.outputs.value_metrics_primary_count) == type(1.0)) && step.outputs.value_metrics_primary_count == 1 && type(step.outputs.value_metrics_primary_results_0_data_baseline_key) == type("") && step.outputs.value_metrics_primary_results_0_data_baseline_key == "control" && (type(step.outputs.value_metrics_primary_results_0_data_baseline_sum) == type(1) || type(step.outputs.value_metrics_primary_results_0_data_baseline_sum) == type(1.0)) && step.outputs.value_metrics_primary_results_0_data_baseline_sum == 30 && type(step.outputs.value_metrics_primary_results_0_data_variant_results_0_key) == type("") && step.outputs.value_metrics_primary_results_0_data_variant_results_0_key == "test" && (type(step.outputs.value_metrics_primary_results_0_data_variant_results_0_sum) == type(1) || type(step.outputs.value_metrics_primary_results_0_data_variant_results_0_sum) == type(1.0)) && step.outputs.value_metrics_primary_results_0_data_variant_results_0_sum == 45
   feature_flag_get_all:
@@ -231,7 +231,7 @@ jobs:
         outputs:
           shape_results_0_id: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
           shape_results_0_key: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.key) && type(i0.key) == type("")) }}
-          value_results_0_id: '${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id)) ? result.results[0].id : "" }}'
+          value_results_0_id: "${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.id)) ? result.results[0].id : 301244 }}"
           value_results_0_key: '${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.key)) ? result.results[0].key : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_results_0_id && step.outputs.shape_results_0_key && (type(step.outputs.value_results_0_id) == type(1) || type(step.outputs.value_results_0_id) == type(1.0)) && step.outputs.value_results_0_id == 301243 && type(step.outputs.value_results_0_key) == type("") && step.outputs.value_results_0_key == "contract-flag"
@@ -247,9 +247,9 @@ jobs:
           shape_id: ${{ has(result.id) && (type(result.id) == type(1) || type(result.id) == type(1.0)) }}
           shape_key: ${{ has(result.key) && type(result.key) == type("") }}
           shape_active: ${{ has(result.active) && type(result.active) == type(true) }}
-          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_id: "${{ has(result.id) ? result.id : 301244 }}"
           value_key: '${{ has(result.key) ? result.key : "" }}'
-          value_active: '${{ has(result.active) ? result.active : "" }}'
+          value_active: "${{ has(result.active) ? result.active : false }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_key && step.outputs.shape_active && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 301243 && type(step.outputs.value_key) == type("") && step.outputs.value_key == "contract-flag" && type(step.outputs.value_active) == type(true) && step.outputs.value_active == true
   feature_flag_get_definition_missing_flag:
@@ -274,7 +274,7 @@ jobs:
           shape_id: ${{ has(result.id) && (type(result.id) == type(1) || type(result.id) == type(1.0)) }}
           shape_short_id: ${{ has(result.short_id) && type(result.short_id) == type("") }}
           shape_name: ${{ has(result.name) && type(result.name) == type("") }}
-          value_id: '${{ has(result.id) ? result.id : "" }}'
+          value_id: "${{ has(result.id) ? result.id : 6355501 }}"
           value_short_id: '${{ has(result.short_id) ? result.short_id : "" }}'
           value_name: '${{ has(result.name) ? result.name : "" }}'
         gate:
@@ -293,10 +293,10 @@ jobs:
           shape_insight_name: ${{ has(result.insight) && has(result.insight.name) && type(result.insight.name) == type("") }}
           shape_results_0_count: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.count) && (type(i0.count) == type(1) || type(i0.count) == type(1.0))) }}
           shape_results_0_label: ${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.label) && type(i0.label) == type("")) }}
-          value_insight_id: '${{ has(result.insight) && has(result.insight.id) ? result.insight.id : "" }}'
+          value_insight_id: "${{ has(result.insight) && has(result.insight.id) ? result.insight.id : 6355501 }}"
           value_insight_short_id: '${{ has(result.insight) && has(result.insight.short_id) ? result.insight.short_id : "" }}'
           value_results_0_label: '${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.label)) ? result.results[0].label : "" }}'
-          value_results_0_count: '${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.count)) ? result.results[0].count : "" }}'
+          value_results_0_count: "${{ has(result.results) && type(result.results) == type([]) && size(result.results) > 0 && [result.results[0]].all(i0, has(i0.count)) ? result.results[0].count : 41 }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_insight_id && step.outputs.shape_insight_short_id && step.outputs.shape_insight_name && step.outputs.shape_results_0_count && step.outputs.shape_results_0_label && (type(step.outputs.value_insight_id) == type(1) || type(step.outputs.value_insight_id) == type(1.0)) && step.outputs.value_insight_id == 6355500 && type(step.outputs.value_insight_short_id) == type("") && step.outputs.value_insight_short_id == "wTSHwcPR" && type(step.outputs.value_results_0_label) == type("") && step.outputs.value_results_0_label == "contract_event" && (type(step.outputs.value_results_0_count) == type(1) || type(step.outputs.value_results_0_count) == type(1.0)) && step.outputs.value_results_0_count == 40
   insights_list:
@@ -399,10 +399,10 @@ jobs:
           shape_per_question_stats_0_question_text: ${{ has(result.per_question_stats) && type(result.per_question_stats) == type([]) && size(result.per_question_stats) > 0 && [result.per_question_stats[0]].all(i0, has(i0.question_text) && type(i0.question_text) == type("")) }}
           shape_per_question_stats_0_response_count: ${{ has(result.per_question_stats) && type(result.per_question_stats) == type([]) && size(result.per_question_stats) > 0 && [result.per_question_stats[0]].all(i0, has(i0.response_count) && (type(i0.response_count) == type(1) || type(i0.response_count) == type(1.0))) }}
           value_survey_id: '${{ has(result.survey_id) ? result.survey_id : "" }}'
-          value_rates_response_rate: '${{ has(result.rates) && has(result.rates.response_rate) ? result.rates.response_rate : "" }}'
-          value_rates_dismissal_rate: '${{ has(result.rates) && has(result.rates.dismissal_rate) ? result.rates.dismissal_rate : "" }}'
+          value_rates_response_rate: "${{ has(result.rates) && has(result.rates.response_rate) ? result.rates.response_rate : 1 }}"
+          value_rates_dismissal_rate: "${{ has(result.rates) && has(result.rates.dismissal_rate) ? result.rates.dismissal_rate : 1 }}"
           value_per_question_stats_0_question_text: '${{ has(result.per_question_stats) && type(result.per_question_stats) == type([]) && size(result.per_question_stats) > 0 && [result.per_question_stats[0]].all(i0, has(i0.question_text)) ? result.per_question_stats[0].question_text : "" }}'
-          value_per_question_stats_0_response_count: '${{ has(result.per_question_stats) && type(result.per_question_stats) == type([]) && size(result.per_question_stats) > 0 && [result.per_question_stats[0]].all(i0, has(i0.response_count)) ? result.per_question_stats[0].response_count : "" }}'
+          value_per_question_stats_0_response_count: "${{ has(result.per_question_stats) && type(result.per_question_stats) == type([]) && size(result.per_question_stats) > 0 && [result.per_question_stats[0]].all(i0, has(i0.response_count)) ? result.per_question_stats[0].response_count : 1 }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_survey_id && step.outputs.shape_rates_response_rate && step.outputs.shape_rates_dismissal_rate && step.outputs.shape_stats && step.outputs.shape_per_question_stats_0_question_id && step.outputs.shape_per_question_stats_0_question_text && step.outputs.shape_per_question_stats_0_response_count && type(step.outputs.value_survey_id) == type("") && step.outputs.value_survey_id == "01a10dad-d398-0000-5b35-0c6a08cd8ee8" && (type(step.outputs.value_rates_response_rate) == type(1) || type(step.outputs.value_rates_response_rate) == type(1.0)) && step.outputs.value_rates_response_rate == 0 && (type(step.outputs.value_rates_dismissal_rate) == type(1) || type(step.outputs.value_rates_dismissal_rate) == type(1.0)) && step.outputs.value_rates_dismissal_rate == 0 && type(step.outputs.value_per_question_stats_0_question_text) == type("") && step.outputs.value_per_question_stats_0_question_text == "What do you think? café 日本語" && (type(step.outputs.value_per_question_stats_0_response_count) == type(1) || type(step.outputs.value_per_question_stats_0_response_count) == type(1.0)) && step.outputs.value_per_question_stats_0_response_count == 0
   surveys_get_all:

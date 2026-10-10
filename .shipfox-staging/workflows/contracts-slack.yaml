@@ -210,7 +210,7 @@ jobs:
           shape_messages_0_ts: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.ts) && type(i0.ts) == type("")) }}
           shape_messages_0_text: ${{ has(result.messages) && type(result.messages) == type([]) && size(result.messages) > 0 && [result.messages[0]].all(i0, has(i0.text) && type(i0.text) == type("")) }}
           shape_has_more: ${{ has(result.has_more) && type(result.has_more) == type(true) }}
-          value_has_more: '${{ has(result.has_more) ? result.has_more : "" }}'
+          value_has_more: "${{ has(result.has_more) ? result.has_more : false }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_messages_0_ts && step.outputs.shape_messages_0_text && step.outputs.shape_has_more && type(step.outputs.value_has_more) == type(true) && step.outputs.value_has_more == true
   read_channel_info:
