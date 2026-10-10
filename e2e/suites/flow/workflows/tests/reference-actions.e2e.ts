@@ -393,7 +393,7 @@ ${commitStep(10)}
       (call): call is Extract<GithubApiMockCall, {kind: 'create-commit'}> =>
         call.kind === 'create-commit',
     );
-    expect(commits.map((call) => [branchName(call.input), call.accepted])).toEqual(
+    expect(commits.map((call) => [call.commit.branch, call.accepted])).toEqual(
       expect.arrayContaining([
         ['e2e/publish', true],
         ['e2e/moved', false],
@@ -401,15 +401,15 @@ ${commitStep(10)}
     );
     expect(commits).toHaveLength(2);
     const published = commits.find((call) => call.accepted);
-    expect(published?.input).toMatchObject({
-      branch: {repositoryNameWithOwner: GITHUB_REPOSITORY, branchName: 'e2e/publish'},
-      expectedHeadOid: run.headSha,
-      message: {headline: 'Publish generated assets', body: 'Made by the E2E suite.'},
-      fileChanges: {
-        deletions: [{path: 'notes/obsolete.txt'}, {path: 'notes/old-name.txt'}],
-      },
+    expect(published?.commit).toMatchObject({
+      repository: GITHUB_REPOSITORY,
+      branch: 'e2e/publish',
+      parentOid: run.headSha,
+      deletions: [{path: 'notes/obsolete.txt'}, {path: 'notes/old-name.txt'}],
     });
-    const additions = fileAdditions(published?.input);
+    expect(published?.commit.message).toContain('Publish generated assets');
+    expect(published?.commit.message).toContain('Made by the E2E suite.');
+    const additions = fileAdditions(published?.commit);
     expect([...additions.keys()]).toEqual([
       'assets/blob.bin',
       'notes/changelog.md',
@@ -581,17 +581,11 @@ ${exportStep('ENG-20', true)}
   }
 });
 
-function branchName(input: Record<string, unknown>): unknown {
-  const branch = input.branch as {branchName?: unknown} | undefined;
-  return branch?.branchName;
-}
-
-function fileAdditions(input: Record<string, unknown> | undefined): Map<string, Buffer> {
-  const fileChanges = input?.fileChanges as
-    | {additions?: {path: string; contents: string}[]}
-    | undefined;
+function fileAdditions(
+  commit: {additions: {path: string; contents: string}[]} | undefined,
+): Map<string, Buffer> {
   return new Map(
-    (fileChanges?.additions ?? []).map((addition) => [
+    (commit?.additions ?? []).map((addition) => [
       addition.path,
       Buffer.from(addition.contents, 'base64'),
     ]),

@@ -1,4 +1,3 @@
-import {createHash} from 'node:crypto';
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
 import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-core';
 import {
@@ -7,6 +6,7 @@ import {
   type GithubWorkflowFixture,
   type GithubWorkflowRunFixture,
 } from './actions.js';
+import {createGitDataRoutes, type GitDataCommit, type GitDataRoutes} from './git-data.js';
 import {
   type AddGithubBranchParams,
   type AddGithubRepositoryParams,
@@ -104,8 +104,8 @@ export type GithubApiMockCall =
   | {
       kind: 'create-commit';
       authorization: string | undefined;
-      input: Record<string, unknown>;
-      /** False when the expected head was stale and GitHub would reject the commit. */
+      commit: GitDataCommit;
+      /** False when the branch moved and GitHub would reject the update. */
       accepted: boolean;
     }
   | {
@@ -148,7 +148,7 @@ export interface GithubApiMock extends GithubWebhookSender {
   workflows: Map<number, GithubWorkflowFixture>;
   /** Workflow runs by id. A workflow with none answers an empty run list. */
   workflowRuns: Map<number, GithubWorkflowRunFixture>;
-  /** Branch tips for createCommitOnBranch's compare-and-swap, by branch name. */
+  /** Branch tips a commit must fast-forward from, by branch name. */
   branchHeads: Map<string, string>;
   /** Creates a bare repository the fake serves over git and describes in its repository API. */
   addRepository(params: AddGithubRepositoryParams): Promise<GithubRepositoryFixture>;
@@ -219,6 +219,14 @@ export async function startGithubApiMock(
   });
   const issueRoutes = createIssueRoutes({issues, pullRequests, recordWrite});
   const actionsRoutes = createActionsRoutes({workflows, workflowRuns});
+  const gitDataRoutes = createGitDataRoutes({
+    branchHeads,
+    recordCommit: (commit, accepted, authorization) => {
+      if (isCurrentInstallationAuthorization({installationId, installationToken, authorization})) {
+        calls.push({kind: 'create-commit', authorization, commit, accepted});
+      }
+    },
+  });
   const repositories = createGitRepositories();
   const webhookSender = createGithubWebhookSender({
     installationId,
@@ -248,6 +256,7 @@ export async function startGithubApiMock(
       issues,
       issueRoutes,
       actionsRoutes,
+      gitDataRoutes,
       branchHeads,
       repositories,
       recordWrite: (write) => writes.push(write),
@@ -314,6 +323,7 @@ interface GithubRequestContext {
   issues: Map<number, GithubIssueFixture>;
   issueRoutes: IssueRoutes;
   actionsRoutes: ActionsRoutes;
+  gitDataRoutes: GitDataRoutes;
   branchHeads: Map<string, string>;
   repositories: GitRepositories;
   recordWrite: (write: RecordedWrite) => void;
@@ -338,6 +348,7 @@ async function handleGithubRequest(params: {
   issues: Map<number, GithubIssueFixture>;
   issueRoutes: IssueRoutes;
   actionsRoutes: ActionsRoutes;
+  gitDataRoutes: GitDataRoutes;
   branchHeads: Map<string, string>;
   repositories: GitRepositories;
   recordWrite: (write: RecordedWrite) => void;
@@ -425,12 +436,14 @@ async function handleRoutedRequest(
     issueRoutes: IssueRoutes;
     pullRequestRoutes: PullRequestRoutes;
     actionsRoutes: ActionsRoutes;
+    gitDataRoutes: GitDataRoutes;
   },
   requestUrl: URL,
 ): Promise<void> {
   if (await params.issueRoutes.handle(params.request, params.response, requestUrl)) return;
   if (await params.pullRequestRoutes.handle(params.request, params.response, requestUrl)) return;
   if (params.actionsRoutes.handle(params.request, params.response, requestUrl)) return;
+  if (await params.gitDataRoutes.handle(params.request, params.response, requestUrl)) return;
   sendJson(params.response, 404, {message: 'Not Found'});
 }
 
@@ -671,10 +684,6 @@ async function handleGraphqlRequest(params: GithubRequestContext): Promise<void>
   const body = await readJsonBody(params.request);
   const query = typeof body.query === 'string' ? body.query : '';
   const variables = isRecord(body.variables) ? body.variables : {};
-  if (query.includes('createCommitOnBranch')) {
-    handleCreateCommitRequest(params, isRecord(variables.input) ? variables.input : {});
-    return;
-  }
   if (isCurrentInstallationAuthorization(params)) {
     params.calls.push({kind: 'graphql', authorization: params.authorization, query, variables});
   }
@@ -728,47 +737,6 @@ async function handleGraphqlRequest(params: GithubRequestContext): Promise<void>
     return;
   }
   sendJson(params.response, 200, {data: {}});
-}
-
-// Like GitHub, a commit lands only when expectedHeadOid still names the branch tip.
-function handleCreateCommitRequest(
-  params: GithubRequestContext,
-  input: Record<string, unknown>,
-): void {
-  const branch = isRecord(input.branch) ? input.branch : {};
-  const branchName = String(branch.branchName);
-  const head = params.branchHeads.get(branchName);
-  const accepted = head !== undefined && head === input.expectedHeadOid;
-  if (isCurrentInstallationAuthorization(params)) {
-    params.calls.push({
-      kind: 'create-commit',
-      authorization: params.authorization,
-      input,
-      accepted,
-    });
-  }
-  if (!accepted) {
-    sendJson(params.response, 200, {
-      data: null,
-      errors: [
-        {
-          type: 'STALE_DATA',
-          message: `Expected branch to point to "${String(input.expectedHeadOid)}" but it did not. Pull and try again.`,
-        },
-      ],
-    });
-    return;
-  }
-  const oid = createHash('sha1').update(JSON.stringify(input)).digest('hex');
-  params.branchHeads.set(branchName, oid);
-  const repository = String(branch.repositoryNameWithOwner);
-  sendJson(params.response, 200, {
-    data: {
-      createCommitOnBranch: {
-        commit: {oid, url: `https://github.com/${repository}/commit/${oid}`},
-      },
-    },
-  });
 }
 
 function isCurrentInstallationAuthorization(

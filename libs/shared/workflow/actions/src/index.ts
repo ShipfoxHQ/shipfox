@@ -12,7 +12,12 @@ export {
 } from '#define-action.js';
 export type {ActionLog} from '#log.js';
 export {ActionOutputError, type ActionOutputValues} from '#outputs.js';
-export {ToolCallError} from '#tool-call-error.js';
+export {
+  PROVIDER_ERROR_REASONS,
+  type ProviderErrorReason,
+  ToolCallError,
+  type ToolCallErrorReason,
+} from '#tool-call-error.js';
 export {type DownloadedFile, ToolResult} from '#tool-result.js';
 export type {
   Aliases,

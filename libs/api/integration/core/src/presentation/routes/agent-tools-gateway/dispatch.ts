@@ -86,6 +86,7 @@ function toolError(error: IntegrationToolCallError): CallToolResult {
     content: [{type: 'text', text: error.message}],
     structuredContent: {
       code: error.code,
+      ...(error.reason === undefined ? {} : {reason: error.reason}),
       ...(error.retryAfterSeconds === undefined
         ? {}
         : {retryAfterSeconds: error.retryAfterSeconds}),

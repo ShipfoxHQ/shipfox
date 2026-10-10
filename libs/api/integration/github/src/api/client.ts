@@ -2,6 +2,7 @@ import {Buffer} from 'node:buffer';
 import {
   decodeRepositoryFileText,
   type FileEntryType,
+  type IntegrationProviderErrorDetail,
   isRecord,
   MAX_REPOSITORY_FILE_BYTES,
 } from '@shipfox/api-integration-spi';
@@ -741,7 +742,40 @@ function mapGithubRequestError(
     reason = 'provider-rejected';
   } else throw error;
   const message = reason === 'access-denied' ? withAcceptedPermissions(error) : error.message;
-  return new GithubIntegrationProviderError(reason, message, retryAfter, error.status);
+  return new GithubIntegrationProviderError(
+    reason,
+    message,
+    retryAfter,
+    error.status,
+    githubErrorDetail({reason, status: error.status, message: error.message}),
+  );
+}
+
+const GITHUB_ERROR_DETAIL_PATTERNS: readonly [RegExp, IntegrationProviderErrorDetail][] = [
+  [/protected branch|repository rule violations/iu, 'protected-branch'],
+  [/not a fast[ -]forward/iu, 'stale-head'],
+  [/reference already exists/iu, 'branch-exists'],
+  [/reference does not exist|branch not found/iu, 'branch-not-found'],
+  [/a pull request already exists/iu, 'pull-request-exists'],
+  [/no commits between/iu, 'no-commits-between'],
+];
+
+/**
+ * Names the cause of a refused GitHub request from the wording GitHub documents for it. An
+ * unknown 422 is `unprocessable`; any other unknown failure carries no detail.
+ */
+export function githubErrorDetail(error: {
+  reason: string;
+  status: number;
+  message: string;
+}): IntegrationProviderErrorDetail | undefined {
+  for (const [pattern, detail] of GITHUB_ERROR_DETAIL_PATTERNS) {
+    if (pattern.test(error.message)) return detail;
+  }
+  if (error.reason === 'access-denied') return 'permission-denied';
+  if (error.reason !== 'provider-rejected') return undefined;
+  if (error.status === 403) return 'permission-denied';
+  return error.status === 422 ? 'unprocessable' : undefined;
 }
 
 // GitHub names the grants that would have satisfied a denied request in this header. It is

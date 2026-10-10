@@ -10,7 +10,7 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
 - `startGithubApiMock(options?)`: start the fake and return a `GithubApiMock`. It
   serves installation tokens, repository and issue reads, pull request create,
   list, read, update, and merge, review comment replies, issue comments, issue
-  list and search, issue types, GraphQL review threads and `createCommitOnBranch`, issue
+  list and search, issue types, GraphQL review threads, Git database commits, issue
   creation, check runs, and the workflow and workflow run reads. The stack router sends the fake the token mints for
   its `installationId` and the requests that carry its `installationToken`, so specs in other
   workers share the address; make both unique to the spec. Behind the router, `installationId` is

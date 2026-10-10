@@ -258,14 +258,14 @@ describe('startActionEndpoint', () => {
       expect(calls).toHaveLength(0);
     });
 
-    it('refuses a body above 2 MiB', async () => {
+    it('refuses a body above 64 MiB', async () => {
       const {upstream, calls} = fakeUpstream();
       const target = await start({upstream});
 
       const response = await call(target, {
         alias: 'slack',
         tool: 'post_message',
-        arguments: {text: 'x'.repeat(2 * 1024 * 1024)},
+        arguments: {text: 'x'.repeat(64 * 1024 * 1024)},
       });
 
       expect(response.status).toBe(413);

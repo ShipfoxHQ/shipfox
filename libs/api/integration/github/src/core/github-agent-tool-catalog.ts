@@ -74,6 +74,8 @@ interface GithubAgentToolCatalogInput {
   methods?: readonly GithubAgentToolCatalogMethod[] | undefined;
 }
 
+export const GIT_TREE_ENTRY_MODES = ['100644', '100755', '120000', '160000'] as const;
+
 const scopes = {
   issuesRead: [{permission: 'issues', access: 'read'}],
   issuesWrite: [{permission: 'issues', access: 'write'}],
@@ -540,6 +542,37 @@ const actionsRunTriggerMethods = [
   ),
 ] as const satisfies readonly GithubAgentToolCatalogMethod[];
 
+const pullRequestWarningsSchema = arraySchema(
+  stringSchema('A setting that could not be applied after the pull request was saved'),
+);
+
+const repositoryNameSchema = stringSchema(
+  'Repository in owner/name format. Must be a repository the connection can access.',
+);
+
+const commitIdentitySchema = objectSchema(
+  {
+    login: nullableStringSchema('GitHub login of the matching account, or null'),
+    name: nullableStringSchema('Name recorded in the commit'),
+    email: nullableStringSchema('Email recorded in the commit'),
+    date: nullableStringSchema('RFC 3339 timestamp recorded in the commit'),
+  },
+  ['login', 'name', 'email', 'date'],
+);
+
+const commitOutputSchema = objectSchema(
+  {
+    oid: stringSchema('The oid of the commit'),
+    url: stringSchema('The URL of the commit'),
+    message: stringSchema('The commit message'),
+    parents: arraySchema(stringSchema('The oid of a parent commit')),
+    author: commitIdentitySchema,
+    committer: commitIdentitySchema,
+    verified: booleanSchema('Whether GitHub verified the commit signature'),
+  },
+  ['oid', 'message', 'parents', 'author', 'committer', 'verified'],
+);
+
 export const githubAgentToolCatalog = [
   tool({
     id: 'issue_read',
@@ -825,7 +858,8 @@ export const githubAgentToolCatalog = [
   tool({
     id: 'create_pull_request',
     category: 'pull_requests',
-    description: 'Create a new pull request in a GitHub repository.',
+    description:
+      'Create a new pull request in a GitHub repository. Labels, assignees, and the milestone are applied after the pull request is created. When one of them fails, the call still succeeds and the result lists the failure under warnings, because the pull request already exists and a retry would open a duplicate. On failure, the error reason is one of: pull-request-exists, no-commits-between, branch-not-found, permission-denied, unprocessable.',
     sensitivity: 'write',
     sensitive: false,
     requiredScope: scopes.pullRequestsWrite,
@@ -838,18 +872,25 @@ export const githubAgentToolCatalog = [
         draft: booleanSchema('Create as draft PR'),
         maintainer_can_modify: booleanSchema('Allow maintainer edits'),
         reviewers: arraySchema(stringSchema('GitHub username or ORG/team-slug reviewer')),
+        labels: arraySchema(stringSchema('Name of a label to add')),
+        assignees: arraySchema(stringSchema('GitHub username to assign')),
+        milestone: integerSchema('Number of the milestone to set', {minimum: 1}),
       },
       ['title', 'head', 'base'],
     ),
-    outputSchema: objectSchema({pull_request: openObjectSchema('Created GitHub pull request')}, [
-      'pull_request',
-    ]),
+    outputSchema: objectSchema(
+      {
+        pull_request: openObjectSchema('Created GitHub pull request'),
+        warnings: pullRequestWarningsSchema,
+      },
+      ['pull_request'],
+    ),
   }),
   tool({
     id: 'create_commit',
     category: 'repository',
     description:
-      "Create a commit on an existing branch in a GitHub repository. The commit is authored and signed by GitHub on behalf of the Shipfox bot (shipfox-ai[bot]) and shows the Verified badge. Renames are expressed as a deletion of the old path plus an addition of the new path. File contents are validated server-side and limited to a total of about 1 MiB per call; keep edits small and explicit. Text contents are sent as utf8 and transcoded to base64 by the server; binary contents can be provided with encoding base64. The expected_head_oid must be the current head of the branch (compare-and-swap): if the branch moved, the commit is rejected with a stale-head error and the call should be retried with the new head. When issuing several dependent commits, derive each expected_head_oid from the returned oid of the previous commit so the commits land in order. Branch protection rules are the only barrier to writing the default branch. Authorized changes to files under .github/workflows are sent to GitHub, which returns success or denial based on the installation's grants and repository rules.",
+      "Create a commit on a branch of a GitHub repository from a list of tree entries, with file modes, symbolic links, and submodules. The commit is signed by GitHub on behalf of the Shipfox bot (shipfox-ai[bot]) and shows the Verified badge. Entries are applied on top of the tree of parent_oid, which becomes the commit's only parent and must be a commit GitHub already has. Each entry names a path and exactly one of: contents (inline text), oid (a blob from create_blob, an existing blob, or a submodule commit), or delete. A rename is a delete of the old path plus an entry for the new path. A symbolic link uses mode 120000 with the link target as contents. The branch is created when it does not exist. Otherwise it must fast-forward to the new commit: if it moved, the commit is rejected with a stale-head error and the call should be retried from the new head. With force, the branch is reset to the new commit whatever it pointed at. Set expected_head_oid to the head you saw to guard either move: the call fails with a stale-head error when the branch points elsewhere or does not exist. GitHub offers no atomic compare for a ref update, so a push that lands between that check and the update is not detected, and a forced move overwrites it. Branch protection rules are the only barrier to writing the default branch. On failure, the error reason is one of: stale-head, protected-branch, permission-denied, unprocessable.",
     sensitivity: 'write',
     sensitive: false,
     requiredScope: scopes.contentsWrite,
@@ -858,32 +899,34 @@ export const githubAgentToolCatalog = [
         repository: stringSchema(
           'Repository in owner/name format. Must be a repository the connection can access.',
         ),
-        branch: stringSchema('The name of the existing branch to commit to'),
-        expected_head_oid: stringSchema(
-          'The commit oid (40 or 64 hexadecimal characters) the branch head is expected to point to (compare-and-swap)',
+        branch: stringSchema('The name of the branch to move, without any refs/ prefix'),
+        parent_oid: stringSchema(
+          'The commit oid (40 or 64 hexadecimal characters) the new commit is built on',
         ),
-        message: objectSchema(
-          {
-            headline: stringSchema('Commit headline'),
-            body: stringSchema('Commit body'),
-          },
-          ['headline'],
-        ),
-        additions: arraySchema(
+        message: stringSchema('Commit message. The first line is the headline.'),
+        entries: arraySchema(
           objectSchema(
             {
               path: stringSchema('Repository-relative file path'),
-              contents: stringSchema('File contents'),
-              encoding: enumSchema(['utf8', 'base64'], 'Contents encoding (default utf8)'),
+              mode: enumSchema(
+                [...GIT_TREE_ENTRY_MODES],
+                'Git file mode: 100644 file (default), 100755 executable, 120000 symbolic link, 160000 submodule',
+              ),
+              contents: stringSchema('Inline text contents, or the target of a symbolic link'),
+              oid: stringSchema('The oid of a blob, or of the commit a submodule points at'),
+              delete: booleanSchema('Remove the path from the tree'),
             },
-            ['path', 'contents'],
+            ['path'],
           ),
         ),
-        deletions: arraySchema(
-          objectSchema({path: stringSchema('Repository-relative file path to delete')}, ['path']),
+        expected_head_oid: stringSchema(
+          'The commit oid the branch is expected to point at before it moves. Checked just before the update.',
+        ),
+        force: booleanSchema(
+          'Reset the branch to the new commit instead of requiring a fast-forward (default false)',
         ),
       },
-      ['repository', 'branch', 'expected_head_oid', 'message'],
+      ['repository', 'branch', 'parent_oid', 'message', 'entries'],
     ),
     outputSchema: objectSchema(
       {
@@ -891,17 +934,20 @@ export const githubAgentToolCatalog = [
           {
             oid: stringSchema('The oid of the created commit'),
             url: stringSchema('The URL of the created commit'),
+            verified: booleanSchema('Whether GitHub signed the commit'),
           },
-          ['oid', 'url'],
+          ['oid', 'url', 'verified'],
         ),
+        branch: stringSchema('The branch that now points at the commit'),
       },
-      ['commit'],
+      ['commit', 'branch'],
     ),
   }),
   tool({
     id: 'update_pull_request',
     category: 'pull_requests',
-    description: 'Update an existing pull request in a GitHub repository.',
+    description:
+      'Update an existing pull request in a GitHub repository. add_labels and add_assignees add to what the pull request already has and remove nothing. draft true converts an open pull request to a draft, and draft false marks it ready for review. These are applied after the update itself. When one of them fails, the call still succeeds and the result lists the failure under warnings. On failure, the error reason is one of: permission-denied, unprocessable.',
     sensitivity: 'write',
     sensitive: false,
     requiredScope: scopes.pullRequestsWrite,
@@ -914,12 +960,19 @@ export const githubAgentToolCatalog = [
         base: stringSchema('New base branch name'),
         maintainer_can_modify: booleanSchema('Allow maintainer edits'),
         reviewers: arraySchema(stringSchema('GitHub username or ORG/team-slug reviewer')),
+        add_labels: arraySchema(stringSchema('Name of a label to add')),
+        add_assignees: arraySchema(stringSchema('GitHub username to assign')),
+        draft: booleanSchema('Convert to a draft (true) or mark ready for review (false)'),
       },
       ['pull_number'],
     ),
-    outputSchema: objectSchema({pull_request: openObjectSchema('Updated GitHub pull request')}, [
-      'pull_request',
-    ]),
+    outputSchema: objectSchema(
+      {
+        pull_request: openObjectSchema('Updated GitHub pull request'),
+        warnings: pullRequestWarningsSchema,
+      },
+      ['pull_request'],
+    ),
   }),
   tool({
     id: 'add_reply_to_pull_request_comment',
@@ -1158,7 +1211,7 @@ export const githubAgentToolCatalog = [
     id: 'create_branch',
     category: 'repository',
     description:
-      'Create a branch in a GitHub repository pointing at a commit. Provide `from` as a 40- or 64-character commit oid (for example, the checkout commit of a step) or as an existing branch name, which the server resolves to its current head at call time. An existing branch is reused when it already points at the requested commit, and rejected otherwise. Creating a branch fires GitHub push-event workflows from the new ref, so only branch from commits you intend to activate.',
+      'Create a branch in a GitHub repository pointing at a commit. Provide `from` as a 40- or 64-character commit oid (for example, the checkout commit of a step) or as an existing branch name, which the server resolves to its current head at call time. An existing branch is reused when it already points at the requested commit, and rejected otherwise. Creating a branch fires GitHub push-event workflows from the new ref, so only branch from commits you intend to activate. On failure, the error reason is one of: branch-exists, branch-not-found, protected-branch, permission-denied, unprocessable.',
     sensitivity: 'write',
     sensitive: false,
     requiredScope: scopes.contentsWrite,
@@ -1179,6 +1232,158 @@ export const githubAgentToolCatalog = [
         url: stringSchema('The API URL of the created git ref'),
       },
       ['branch', 'oid', 'url'],
+    ),
+  }),
+  tool({
+    id: 'create_blob',
+    category: 'repository',
+    description:
+      'Upload the contents of one file to a GitHub repository as a Git blob and return its oid. The blob is not part of any commit until create_commit references it. Use it for binary files and for files too large to send inline; text is sent as utf8 and binary contents as base64. One file may hold up to 40 MiB.',
+    sensitivity: 'write',
+    sensitive: false,
+    requiredScope: scopes.contentsWrite,
+    inputSchema: objectSchema(
+      {
+        repository: stringSchema(
+          'Repository in owner/name format. Must be a repository the connection can access.',
+        ),
+        contents: stringSchema('File contents'),
+        encoding: enumSchema(['utf8', 'base64'], 'Contents encoding (default utf8)'),
+      },
+      ['repository', 'contents'],
+    ),
+    outputSchema: objectSchema({oid: stringSchema('The oid of the created blob')}, ['oid']),
+  }),
+  tool({
+    id: 'delete_branch',
+    category: 'repository',
+    description:
+      "Delete a branch of a GitHub repository. A branch that is already gone is a success with existed false, so the call is safe to retry. The repository's default branch is refused. Set expected_head_oid to delete the branch only while it points at that commit: the call fails with a stale-head error when it points elsewhere. GitHub offers no atomic compare for a ref deletion, so a push that lands between that check and the deletion is lost. Deleting the head branch of an open pull request closes the pull request. On failure, the error reason is one of: stale-head, protected-branch, permission-denied, unprocessable.",
+    sensitivity: 'write',
+    sensitive: false,
+    requiredScope: scopes.contentsWrite,
+    inputSchema: objectSchema(
+      {
+        repository: stringSchema(
+          'Repository in owner/name format. Must be a repository the connection can access.',
+        ),
+        branch: stringSchema('The name of the branch to delete, without any refs/ prefix'),
+        expected_head_oid: stringSchema(
+          'The commit oid the branch is expected to point at. Checked just before the deletion.',
+        ),
+      },
+      ['repository', 'branch'],
+    ),
+    outputSchema: objectSchema(
+      {
+        branch: stringSchema('The name of the branch'),
+        existed: booleanSchema('Whether the branch existed and was deleted by this call'),
+        oid: nullableStringSchema('The commit oid the branch pointed at, or null when it was gone'),
+      },
+      ['branch', 'existed', 'oid'],
+    ),
+  }),
+  tool({
+    id: 'get_repository',
+    category: 'repository',
+    description:
+      'Get a GitHub repository: its full name, its default branch, and bot_login, the GitHub login of the Shipfox bot on this connection. Commits made by create_commit carry that login as their author, so compare it with the author login of a commit to tell bot commits from others.',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: scopes.contentsRead,
+    inputSchema: objectSchema({repository: repositoryNameSchema}, ['repository']),
+    outputSchema: objectSchema(
+      {
+        full_name: stringSchema('Repository in owner/name format'),
+        default_branch: stringSchema('The name of the default branch'),
+        private: booleanSchema('Whether the repository is private'),
+        url: stringSchema('The URL of the repository'),
+        bot_login: stringSchema('The GitHub login of the Shipfox bot, for example shipfox-ai[bot]'),
+      },
+      ['full_name', 'default_branch', 'private', 'bot_login'],
+    ),
+  }),
+  tool({
+    id: 'get_branch',
+    category: 'repository',
+    description:
+      'Get the head of a branch in a GitHub repository. A branch that does not exist is a success with exists false, so it can be told apart from a failed call.',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: scopes.contentsRead,
+    inputSchema: objectSchema(
+      {
+        repository: repositoryNameSchema,
+        branch: stringSchema('The name of the branch, without any refs/ prefix'),
+      },
+      ['repository', 'branch'],
+    ),
+    outputSchema: objectSchema(
+      {
+        branch: stringSchema('The name of the branch'),
+        exists: booleanSchema('Whether the branch exists'),
+        oid: nullableStringSchema('The commit oid the branch points at, or null when missing'),
+        protected: booleanSchema('Whether branch protection applies to the branch'),
+      },
+      ['branch', 'exists', 'oid', 'protected'],
+    ),
+  }),
+  tool({
+    id: 'get_commit',
+    category: 'repository',
+    description:
+      'Get one commit of a GitHub repository by oid, branch, or tag: its parents, message, author, committer, and whether GitHub verified its signature. The author and committer login is the GitHub account matching the commit email, or null when no account matches.',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: scopes.contentsRead,
+    inputSchema: objectSchema(
+      {
+        repository: repositoryNameSchema,
+        ref: stringSchema('A commit oid, branch name, or tag name'),
+      },
+      ['repository', 'ref'],
+    ),
+    outputSchema: objectSchema({commit: commitOutputSchema}, ['commit']),
+  }),
+  tool({
+    id: 'compare_commits',
+    category: 'repository',
+    description:
+      'List the commits a head has on top of a base in a GitHub repository, oldest first, with how far the head is ahead and behind and the merge base. Base and head are commit oids, branch names, or tag names. A page holds up to 100 commits: when truncated is true, call again with the next page.',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: scopes.contentsRead,
+    inputSchema: objectSchema(
+      {
+        repository: repositoryNameSchema,
+        base: stringSchema('The commit oid, branch, or tag to compare from'),
+        head: stringSchema('The commit oid, branch, or tag to compare to'),
+        page: integerSchema('Page of commits to return (default 1)', {minimum: 1}),
+      },
+      ['repository', 'base', 'head'],
+    ),
+    outputSchema: objectSchema(
+      {
+        status: enumSchema(
+          ['ahead', 'behind', 'identical', 'diverged'],
+          'How the head relates to the base',
+        ),
+        ahead_by: integerSchema('Commits the head has that the base lacks'),
+        behind_by: integerSchema('Commits the base has that the head lacks'),
+        merge_base_oid: nullableStringSchema('The oid of the merge base commit'),
+        total_commits: integerSchema('Commits between the base and the head, on every page'),
+        commits: arraySchema(commitOutputSchema),
+        truncated: booleanSchema('Whether later pages hold more commits'),
+      },
+      [
+        'status',
+        'ahead_by',
+        'behind_by',
+        'merge_base_oid',
+        'total_commits',
+        'commits',
+        'truncated',
+      ],
     ),
   }),
 ] as const satisfies readonly GithubAgentToolCatalogEntry[];

@@ -48,10 +48,12 @@ describe('verified-commit', () => {
     expect(result.calls.find((call) => call.tool === 'create_commit')?.args).toEqual({
       repository: 'acme/app',
       branch: 'feature',
-      expected_head_oid: head,
-      message: {headline: 'Update notes', body: 'From a job.'},
-      additions: [{path: 'notes.md', contents: 'second\n', encoding: 'utf8'}],
-      deletions: [{path: 'old.md'}],
+      parent_oid: head,
+      message: 'Update notes\n\nFrom a job.',
+      entries: [
+        {path: 'notes.md', contents: 'second\n'},
+        {path: 'old.md', delete: true},
+      ],
     });
   });
 
@@ -86,7 +88,7 @@ describe('verified-commit', () => {
           throw toolError({
             code: 'provider-rejected',
             reason: 'stale-head',
-            message: `Stale branch head (stale-head): expected_head_oid ${head} did not match the branch tip.`,
+            message: `Stale branch head (stale-head): branch feature moved and no longer fast-forwards from parent_oid ${head}.`,
           });
         },
       }),
