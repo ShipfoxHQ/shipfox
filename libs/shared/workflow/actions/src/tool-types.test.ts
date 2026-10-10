@@ -97,7 +97,8 @@ describe('tool argument types', () => {
 
   it('types the structured result from the catalog output schema', () => {
     expectTypeOf<ProviderToolResult<'github', 'create_commit'>>().toEqualTypeOf<{
-      commit: {oid: string; url: string};
+      commit: {oid: string; url: string; verified: boolean};
+      branch: string;
     }>();
     expectTypeOf<ProviderToolResult<'github', 'pull_request_read.get'>>().toEqualTypeOf<
       ProviderToolResult<'github', 'pull_request_read'>
