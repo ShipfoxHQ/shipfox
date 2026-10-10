@@ -1,5 +1,16 @@
 # @shipfox/api-workspaces-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- 89a6cc7: Exposes the workspace slug to server modules. The workspace summary now returns the slug, and each membership in the user token carries an optional `workspaceSlug` claim. Tokens issued before this release stay valid without the claim.
+
+### Patch Changes
+
+- Updated dependencies [7ea02c4]
+  - @shipfox/api-common-dto@34.0.0
+
 ## 29.1.0
 
 ### Minor Changes

@@ -1,5 +1,70 @@
 # @shipfox/client-features
 
+## 53.0.0
+
+### Minor Changes
+
+- 2021ae8: The project workflows page shows the first workflow panel when the project has no workflow.
+
+  - **`@shipfox/client-shell`:** `ChromeSlots` gains an optional `FirstWorkflowPanel` slot that receives `projectId`.
+  - **`@shipfox/client-workflows`:** `ProjectWorkflowsPage` renders the slot in place of the empty definitions list once definitions have loaded, the project has none, and sync is neither pending nor running. Without the slot, the page keeps its empty list. When the project has no definitions, a sync that failed only because the repository has no workflow files no longer shows the "Workflow sync failed" callout; the empty state already says so.
+  - **`@shipfox/client-onboarding`:** exports `ProjectFirstWorkflowPanel`, also from `/feature` as a lazy component. It reads the progress of that project only, so a definition or a test run in another project never changes it, and it ignores the checklist's dismissal. It shows a skeleton while that progress loads and falls back to choose mode if the read fails. Once the project has a definition, it renders nothing and refreshes the project's definitions list.
+  - **`@shipfox/client-features`:** the default project workflows page shows the first workflow panel when the project has no workflow.
+
+### Patch Changes
+
+- Updated dependencies [8b8b37b]
+- Updated dependencies [c64d42f]
+- Updated dependencies [c25c566]
+- Updated dependencies [851908c]
+- Updated dependencies [7d1ae3e]
+- Updated dependencies [a02f5cf]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [a9e85c1]
+- Updated dependencies [dc8065c]
+- Updated dependencies [2021ae8]
+- Updated dependencies [853a185]
+- Updated dependencies [c481dab]
+- Updated dependencies [5e12647]
+- Updated dependencies [2c89020]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [a99c11b]
+- Updated dependencies [fc455ac]
+- Updated dependencies [1320dac]
+- Updated dependencies [853a185]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [658d71f]
+- Updated dependencies [70eb330]
+- Updated dependencies [f5bdc5b]
+- Updated dependencies [e17aa3b]
+- Updated dependencies [bea7e50]
+- Updated dependencies [bea7e50]
+- Updated dependencies [3869c1d]
+- Updated dependencies [560cee4]
+- Updated dependencies [a15e118]
+- Updated dependencies [96a66ed]
+- Updated dependencies [4aad893]
+- Updated dependencies [a328042]
+- Updated dependencies [bea7e50]
+- Updated dependencies [cc70c3b]
+- Updated dependencies [8317a3c]
+- Updated dependencies [d0c49b5]
+- Updated dependencies [f1cbae0]
+- Updated dependencies [9f185e9]
+- Updated dependencies [405e69e]
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/client-integrations@53.0.0
+  - @shipfox/client-workflows@53.0.0
+  - @shipfox/client-onboarding@53.0.0
+  - @shipfox/client-triggers@53.0.0
+  - @shipfox/client-agent@53.0.0
+  - @shipfox/client-auth@53.0.0
+  - @shipfox/client-invitations@53.0.0
+  - @shipfox/client-projects@53.0.0
+  - @shipfox/client-secrets@53.0.0
+  - @shipfox/client-runners@53.0.0
+  - @shipfox/client-workspace-settings@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # @shipfox/api-auth-context
 
+## 34.0.0
+
+### Minor Changes
+
+- 16d18f4: Adds the admin MCP endpoint `POST /mcp/admin`, mounted when `AGENT_ACCESS_ADMIN_MCP_ENABLED` is `true` (default `false`). It shares the `/mcp` origin guard, rate limiters, envelope, and OAuth resource, and re-checks the caller's administrator role against the database on every call, returning `admin-role-required` on failure. It serves `find_users`, `start_impersonation`, and `stop_impersonation`, plus any tools passed through the new `additionalAdminTools` option. `AgentAccessContext` gains an optional `admin` marker, and the audit log line carries `adminActorId` and `impersonationWindowId`. The customer `/mcp` endpoint is unchanged.
+- 89a6cc7: Exposes the workspace slug to server modules. The workspace summary now returns the slug, and each membership in the user token carries an optional `workspaceSlug` claim. Tokens issued before this release stay valid without the claim.
+
+### Patch Changes
+
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [8a926dc]
+- Updated dependencies [c06262b]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/api-workspaces-dto@34.0.0
+
 ## 29.1.0
 
 ### Patch Changes

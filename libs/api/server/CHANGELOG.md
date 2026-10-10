@@ -1,5 +1,255 @@
 # @shipfox/api-server
 
+## 34.0.0
+
+### Minor Changes
+
+- 16d18f4: Adds the admin MCP endpoint `POST /mcp/admin`, mounted when `AGENT_ACCESS_ADMIN_MCP_ENABLED` is `true` (default `false`). It shares the `/mcp` origin guard, rate limiters, envelope, and OAuth resource, and re-checks the caller's administrator role against the database on every call, returning `admin-role-required` on failure. It serves `find_users`, `start_impersonation`, and `stop_impersonation`, plus any tools passed through the new `additionalAdminTools` option. `AgentAccessContext` gains an optional `admin` marker, and the audit log line carries `adminActorId` and `impersonationWindowId`. The customer `/mcp` endpoint is unchanged.
+- 8a926dc: Adds an email-based user summary lookup to the Auth inter-module contract.
+- 24ea599: Adds a feature flags seam. `@shipfox/feature-flags` declares flags with `defineFlags`. `@shipfox/node-feature-flags` reads them through `createFeatureFlags({provider?})`, resolving a `FLAG_*` env override, then the provider, then the code default. A read never throws. `ShipfoxModule` gains an optional `flags` field, and `defaultModules` accepts a root-created `featureFlags` instance, hands it to the modules, rejects a duplicate flag key, and fails startup on an invalid `FLAG_*` value.
+
+  `DEFINITION_ACTIONS_ENABLED` is replaced by the `definitions-actions` flag, read per workspace. Set `FLAG_DEFINITIONS_ACTIONS=true` where you set `DEFINITION_ACTIONS_ENABLED=true`. The flag defaults to `false`, and the old setting no longer has any effect. The development `.env` sets the override, so local development keeps action steps on.
+
+- 0975515: Adds the Registry module. It resolves registry package versions through an inter-module contract. It returns a version only when a trusted key signed it and its content matches the signed digest. It caches verified versions and checks them again on every read. Set `REGISTRY_URL` and `REGISTRY_TRUSTED_KEYS` to turn it on.
+
+### Patch Changes
+
+- fb79732: Definition sync and dev runs resolve registry actions, such as `uses: shipfox/slack-thread-digest@1.4.2`. Registry actions turn on when `DEFINITION_ACTIONS_ENABLED` is on and `REGISTRY_URL` is set. Definitions now read `REGISTRY_URL` too, to decide whether to accept registry references.
+
+  - **Resolution:** the Registry module returns a verified version, and the definitions module checks that the bundle's `action.yml` equals the signed manifest. Sync and dev runs store the bundle as a workspace action snapshot with the new `registry` source, so the runtime bundle route and the runner stay unchanged.
+  - **Limits:** the 20-action limit per workflow file counts repository and registry actions together. Registry bundles skip the repository size limits and the relative import check, because the registry bundles them. Uploads apply to `./` paths only.
+  - **Model:** action steps gain `origin` (`local` or `registry`), and registry steps also carry `package` and `version`. Models stored before this change omit `origin` and mean `local`. The step config sent to the runner carries the same fields.
+  - **Sync errors:** a missing version is `action-not-found`. A version that fails verification, an unsupported document format, or a bundle that differs from its signed manifest is `action-invalid`. Both appear as diagnostics on the workflow file that references the action. An unavailable registry fails the sync attempt and retries.
+  - **Dev runs:** a registry failure fails the run with an `invalid-definition` message that names the action.
+
+- 76d054a: Adds the `list_registry_packages`, `get_registry_package`, and `diff_registry_action` MCP read tools, so coding agents can browse registry packages and compare two action versions before upgrading.
+- 68e8e1d: Failed tool calls mark their trace span as an error, and the API traces outbound `fetch` requests.
+- Updated dependencies [e99aa97]
+- Updated dependencies [066e73c]
+- Updated dependencies [1d94e37]
+- Updated dependencies [2d52a6c]
+- Updated dependencies [88b9937]
+- Updated dependencies [16d18f4]
+- Updated dependencies [c3b44a2]
+- Updated dependencies [7a63059]
+- Updated dependencies [d764315]
+- Updated dependencies [d865fc1]
+- Updated dependencies [cab2d1e]
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [b97171d]
+- Updated dependencies [5f88947]
+- Updated dependencies [5a14986]
+- Updated dependencies [9806da2]
+- Updated dependencies [a2fbdd3]
+- Updated dependencies [5588247]
+- Updated dependencies [8a926dc]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [ba0d750]
+- Updated dependencies [807ae57]
+- Updated dependencies [026cf88]
+- Updated dependencies [c4f486b]
+- Updated dependencies [c25c566]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [5d5d006]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [e1cfc2a]
+- Updated dependencies [e64c10d]
+- Updated dependencies [175482e]
+- Updated dependencies [9e7dd0e]
+- Updated dependencies [6b4ae32]
+- Updated dependencies [1418393]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [2e5a311]
+- Updated dependencies [f05ecde]
+- Updated dependencies [c865118]
+- Updated dependencies [a02f5cf]
+- Updated dependencies [73f496d]
+- Updated dependencies [280260c]
+- Updated dependencies [cdc958f]
+- Updated dependencies [2d009f4]
+- Updated dependencies [7c77f5d]
+- Updated dependencies [4273dad]
+- Updated dependencies [5ffbd17]
+- Updated dependencies [491fce5]
+- Updated dependencies [b3796d7]
+- Updated dependencies [be060f4]
+- Updated dependencies [1153277]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [cc644b8]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [a9e85c1]
+- Updated dependencies [dc8065c]
+- Updated dependencies [39c5466]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [eab1dd7]
+- Updated dependencies [8b16e92]
+- Updated dependencies [184305a]
+- Updated dependencies [0c9d83e]
+- Updated dependencies [a73e712]
+- Updated dependencies [82d7d73]
+- Updated dependencies [48b8237]
+- Updated dependencies [fdca5b6]
+- Updated dependencies [b64fff6]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [e087b95]
+- Updated dependencies [8872f36]
+- Updated dependencies [2a1b6eb]
+- Updated dependencies [9e131f3]
+- Updated dependencies [a99c11b]
+- Updated dependencies [a9bf139]
+- Updated dependencies [fc455ac]
+- Updated dependencies [18a5420]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [ac3561b]
+- Updated dependencies [af3b91f]
+- Updated dependencies [c8e0869]
+- Updated dependencies [f5bdc5b]
+- Updated dependencies [e40ec8b]
+- Updated dependencies [e3b9558]
+- Updated dependencies [c06262b]
+- Updated dependencies [8136245]
+- Updated dependencies [9674325]
+- Updated dependencies [21c993b]
+- Updated dependencies [a26baf5]
+- Updated dependencies [1d94e37]
+- Updated dependencies [5ce9d5b]
+- Updated dependencies [3869c1d]
+- Updated dependencies [55152c5]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4e3497b]
+- Updated dependencies [4aad893]
+- Updated dependencies [6c0d6bd]
+- Updated dependencies [d657853]
+- Updated dependencies [7e0041d]
+- Updated dependencies [81a3514]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [d77a8c4]
+- Updated dependencies [4508c5d]
+- Updated dependencies [f64bff1]
+- Updated dependencies [0975515]
+- Updated dependencies [59c3ea8]
+- Updated dependencies [76d054a]
+- Updated dependencies [526bb18]
+- Updated dependencies [ac90873]
+- Updated dependencies [5fb1fbd]
+- Updated dependencies [b1cc902]
+- Updated dependencies [d273097]
+- Updated dependencies [507915a]
+- Updated dependencies [a9f19e0]
+- Updated dependencies [1e58954]
+- Updated dependencies [b8b990d]
+- Updated dependencies [04680a3]
+- Updated dependencies [9906470]
+- Updated dependencies [c06262b]
+- Updated dependencies [6ae0088]
+- Updated dependencies [3aa5d7a]
+- Updated dependencies [5276fca]
+- Updated dependencies [a429987]
+- Updated dependencies [ebe3ac1]
+- Updated dependencies [edd18ca]
+- Updated dependencies [42829e8]
+- Updated dependencies [d273097]
+- Updated dependencies [9674325]
+- Updated dependencies [15282f5]
+- Updated dependencies [71c11b1]
+- Updated dependencies [3c92a34]
+- Updated dependencies [257e53e]
+- Updated dependencies [e701cfc]
+- Updated dependencies [7e4deaa]
+- Updated dependencies [94e77bc]
+- Updated dependencies [8aa2d59]
+- Updated dependencies [9bac67e]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [d0c49b5]
+- Updated dependencies [96ac908]
+- Updated dependencies [651153a]
+- Updated dependencies [901e5b3]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e2e561c]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [00dd046]
+- Updated dependencies [da36a04]
+- Updated dependencies [fe15ea2]
+- Updated dependencies [9485c57]
+- Updated dependencies [f9c2dec]
+- Updated dependencies [4a664ca]
+- Updated dependencies [e663112]
+- Updated dependencies [3e8ff99]
+- Updated dependencies [70e6983]
+- Updated dependencies [15e9d33]
+- Updated dependencies [f187551]
+- Updated dependencies [d0fcdae]
+- Updated dependencies [8786552]
+- Updated dependencies [c29a8bb]
+- Updated dependencies [b1cc902]
+- Updated dependencies [8f54fc9]
+- Updated dependencies [a4c05ba]
+- Updated dependencies [c14f398]
+- Updated dependencies [b0b0a82]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+- Updated dependencies [0b2af13]
+- Updated dependencies [68e8e1d]
+- Updated dependencies [2b3ef4a]
+- Updated dependencies [3c8db4c]
+- Updated dependencies [ffffc16]
+- Updated dependencies [c06262b]
+- Updated dependencies [e71cded]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [70e6983]
+- Updated dependencies [89a6cc7]
+- Updated dependencies [b121f14]
+- Updated dependencies [9549da3]
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/api-workflows@34.0.0
+  - @shipfox/api-integration-core@34.0.0
+  - @shipfox/api-agent-access@34.0.0
+  - @shipfox/api-auth@34.0.0
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/workflow-templates@2.0.0
+  - @shipfox/api-runners@34.0.0
+  - @shipfox/api-runners-dto@34.0.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-definitions@34.0.0
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/api-projects@34.0.0
+  - @shipfox/api-agent-dto@34.0.0
+  - @shipfox/api-agent@34.0.0
+  - @shipfox/api-triggers@34.0.0
+  - @shipfox/api-triggers-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/feature-flags@0.1.0
+  - @shipfox/node-feature-flags@0.1.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/api-workspaces@34.0.0
+  - @shipfox/api-dispatcher@34.0.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-registry@34.0.0
+  - @shipfox/api-registry-dto@34.0.0
+  - @shipfox/api-logs-dto@34.0.0
+  - @shipfox/api-logs@34.0.0
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/api-secrets@34.0.0
+  - @shipfox/annotations@34.0.0
+  - @shipfox/api-usage@34.0.0
+  - @shipfox/api-email-challenges@1.1.21
+
 ## 33.2.1
 
 ### Patch Changes

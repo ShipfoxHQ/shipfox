@@ -1,5 +1,21 @@
 # @shipfox/api-integration-jira-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- b4c1fa2: Adds a Jira E2E connection route and setup helper for API E2E tests.
+- 3726d36: Adds an optional `webhook_ids` field to the create-Jira-E2E-connection request, letting a connection accept deliveries for the listed Jira webhooks.
+
+### Patch Changes
+
+- Updated dependencies [c4f486b]
+- Updated dependencies [4273dad]
+- Updated dependencies [e2e561c]
+- Updated dependencies [9485c57]
+- Updated dependencies [82f2480]
+  - @shipfox/api-integration-core-dto@34.0.0
+
 ## 31.0.0
 
 ### Major Changes

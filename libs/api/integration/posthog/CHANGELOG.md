@@ -1,5 +1,29 @@
 # @shipfox/api-integration-posthog
 
+## 34.0.0
+
+### Patch Changes
+
+- 462cc7c: Fixes every call to the `survey-stats` tool failing with an unknown `date-time` format. The date fields keep their ISO timestamp pattern.
+- bbc57ef: Returns PostHog tool results as JSON to tool steps, so a step can map fields of the result. Agent steps keep the compact text.
+- Updated dependencies [16d18f4]
+- Updated dependencies [c4f486b]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [c8e0869]
+- Updated dependencies [21c993b]
+- Updated dependencies [1d94e37]
+- Updated dependencies [e2e561c]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-integration-spi@4.4.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/api-integration-posthog-dto@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 32.2.0
 
 ### Patch Changes

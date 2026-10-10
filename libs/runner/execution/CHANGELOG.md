@@ -1,5 +1,78 @@
 # @shipfox/runner-execution
 
+## 0.1.64
+
+### Patch Changes
+
+- c25c566: Shows the cause of a checkout failure and its fix. The failure annotation and the run page choose their copy from the error code of the refused checkout, and show the provider's own explanation when there is one. A refused checkout-token request now returns its cause in `details.message`, and a provider refusal names the repository and the connection.
+- Updated dependencies [d027d31]
+- Updated dependencies [30b30f8]
+- Updated dependencies [6b4ae32]
+- Updated dependencies [1d94e37]
+- Updated dependencies [8798531]
+- Updated dependencies [fdff3a6]
+- Updated dependencies [5f6f18b]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [0a77d26]
+- Updated dependencies [c4f486b]
+- Updated dependencies [c25c566]
+- Updated dependencies [d273097]
+- Updated dependencies [e087b95]
+- Updated dependencies [2e5a311]
+- Updated dependencies [1153277]
+- Updated dependencies [e6986cb]
+- Updated dependencies [7d2b854]
+- Updated dependencies [62f96d4]
+- Updated dependencies [bc9f9c7]
+- Updated dependencies [c0d3b0e]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [dc8065c]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [a73e712]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ab66d1e]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [2a1b6eb]
+- Updated dependencies [fc455ac]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [a4e1e24]
+- Updated dependencies [1d94e37]
+- Updated dependencies [3869c1d]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4e3497b]
+- Updated dependencies [4aad893]
+- Updated dependencies [d657853]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [cb411b1]
+- Updated dependencies [bce8c94]
+- Updated dependencies [507915a]
+- Updated dependencies [9906470]
+- Updated dependencies [94e77bc]
+- Updated dependencies [9bac67e]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [651153a]
+- Updated dependencies [901e5b3]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [9f5cf64]
+- Updated dependencies [e71cded]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+  - @shipfox/actions@0.1.0
+  - @shipfox/workflow-document@3.11.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/runner-protocol@0.2.57
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/runner-workspace@0.0.59
+  - @shipfox/runner-container@0.0.1
+
 ## 0.1.63
 
 ### Patch Changes

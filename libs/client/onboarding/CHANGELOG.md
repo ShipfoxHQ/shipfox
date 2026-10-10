@@ -1,5 +1,156 @@
 # @shipfox/client-onboarding
 
+## 53.0.0
+
+### Major Changes
+
+- bea7e50: The workspace home now shows one onboarding panel at a time. A new workspace sees the tools step first: a provider grid on the home, with "Skip for now" or "Continue". The first-workflow panel shows only after that button is pressed, and the home waits for the first-workflow read before it renders anything. A workspace that skipped the tools step, or that already has a test run or a workflow, no longer counts the tools row toward completion.
+
+  Breaking: `deriveSetupChecklist` requires `toolsStepFinished` and accepts an undefined `firstWorkflow`. The compact panel toggle reads "Show all steps". The panel captures `onboarding_tools_step_finished` with `outcome` and `connected_count`.
+
+### Minor Changes
+
+- 2021ae8: The project workflows page shows the first workflow panel when the project has no workflow.
+
+  - **`@shipfox/client-shell`:** `ChromeSlots` gains an optional `FirstWorkflowPanel` slot that receives `projectId`.
+  - **`@shipfox/client-workflows`:** `ProjectWorkflowsPage` renders the slot in place of the empty definitions list once definitions have loaded, the project has none, and sync is neither pending nor running. Without the slot, the page keeps its empty list. When the project has no definitions, a sync that failed only because the repository has no workflow files no longer shows the "Workflow sync failed" callout; the empty state already says so.
+  - **`@shipfox/client-onboarding`:** exports `ProjectFirstWorkflowPanel`, also from `/feature` as a lazy component. It reads the progress of that project only, so a definition or a test run in another project never changes it, and it ignores the checklist's dismissal. It shows a skeleton while that progress loads and falls back to choose mode if the read fails. Once the project has a definition, it renders nothing and refreshes the project's definitions list.
+  - **`@shipfox/client-features`:** the default project workflows page shows the first workflow panel when the project has no workflow.
+
+- 853a185: Show suggested workflow templates and the inline MCP setup in `FirstWorkflowPanel`, with a finish mode once a test run succeeds. `FirstWorkflowPanel` now takes `progress` and `surface`. `WorkspaceSetupChecklist` renders it below the checklist when runners and a model are available and the workspace has no definition.
+- c481dab: The Get-started checklist tracks the first workflow, from a test run to the first synced definition.
+
+  - **Tracked row:** the first-workflow row now counts toward completion. It reads "Create your first workflow" and links to the workspace home. Once a dev run succeeds, it reads "A test run succeeded" and links to that run. It is done once the workspace has a definition.
+  - **Input:** `deriveSetupChecklist` takes a required `firstWorkflow` progress (`open`, `test_run_succeeded` with its `testRunId`, or `done`). `FirstWorkflowProgress` and `FirstWorkflowState` are exported. The quickstart action on this row is removed.
+  - **Refresh:** the hosts read each project's definitions and succeeded dev runs, stopping at the first definition. They reload when the window regains focus and poll every 15 seconds while the tab is visible, until the row is done. A dismissed checklist makes no request.
+  - **Celebration:** when the home panel sees the row turn done, it plays a burst and captures `first_workflow_activated`. If the same change completes the checklist, only the checklist completion plays. A workspace that already had a definition when the page loaded shows no burst.
+  - **Analytics:** `first_workflow_test_run_shown` is captured, with the host, the first time the row shows "A test run succeeded".
+  - **`@shipfox/client-workflows`:** exports `listWorkflowRuns`.
+
+- 70eb330: Exports `WorkspaceSetupChecklistProps`.
+- cc70c3b: Shippy, the Shipfox mascot, appears on first-use, invitation, and dead-end screens.
+
+  - **`@shipfox/react-ui`:** `EmptyState` gains an optional `illustration` prop that replaces the icon. The `compact` variant keeps its icon.
+  - **`@shipfox/client-shell`:** `/runtime` exports `Shippy`, which renders one of nine poses shipped in `assets/shippy`. `AuthShell` gains an optional `illustration` prop that replaces the logo tile. The page-not-found page and the workspace load error page show a pose.
+  - **`@shipfox/client-auth`:** the workspace creation page shows a pose.
+  - **`@shipfox/client-invitations`:** the invitation page for a signed-out visitor shows a pose.
+  - **`@shipfox/client-projects`:** the empty projects list shows a pose.
+  - **`@shipfox/client-workflows`:** the empty run list shows a pose.
+  - **`@shipfox/client-integrations`:** the empty installed integrations list shows a pose.
+  - **`@shipfox/client-agent`:** the empty configured providers list shows a pose.
+  - **`@shipfox/client-onboarding`:** the completed setup checklist shows a pose in place of the check icon.
+
+### Patch Changes
+
+- 7d1ae3e: Removes loading phases from client startup. The shell enters the cookie session a declining boot restorer already read instead of refreshing a second time, and `WorkspaceSetupRouteOptions` gains an optional `revalidate` callback that re-runs the workspace setup gate. The onboarding gate lets a workspace that had a project on this device through at once and checks project existence in the background. The lazy onboarding chrome slots load behind their own hidden Suspense boundary, and the setup checklist panel renders nothing until it has loaded and has a step to show.
+- f5bdc5b: Exports `FIRST_WORKFLOW_PROMPT` from the browser-safe `@shipfox/workflow-templates/prompt` subpath for consumers that need the first-workflow onboarding prompt.
+- e17aa3b: The Get started panel no longer flashes on workspaces that have already completed setup.
+- Updated dependencies [16d18f4]
+- Updated dependencies [c3b44a2]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [b97171d]
+- Updated dependencies [5f88947]
+- Updated dependencies [5a14986]
+- Updated dependencies [9806da2]
+- Updated dependencies [5588247]
+- Updated dependencies [c64d42f]
+- Updated dependencies [ba0d750]
+- Updated dependencies [807ae57]
+- Updated dependencies [c4f486b]
+- Updated dependencies [c25c566]
+- Updated dependencies [e1cfc2a]
+- Updated dependencies [e64c10d]
+- Updated dependencies [851908c]
+- Updated dependencies [7d1ae3e]
+- Updated dependencies [175482e]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [2e5a311]
+- Updated dependencies [a02f5cf]
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [cc644b8]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [dc8065c]
+- Updated dependencies [eab1dd7]
+- Updated dependencies [2021ae8]
+- Updated dependencies [c481dab]
+- Updated dependencies [8b16e92]
+- Updated dependencies [184305a]
+- Updated dependencies [48b8237]
+- Updated dependencies [5e12647]
+- Updated dependencies [2c89020]
+- Updated dependencies [fdca5b6]
+- Updated dependencies [593142d]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [a99c11b]
+- Updated dependencies [93b8cac]
+- Updated dependencies [fc455ac]
+- Updated dependencies [1320dac]
+- Updated dependencies [853a185]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [658d71f]
+- Updated dependencies [f5bdc5b]
+- Updated dependencies [e3b9558]
+- Updated dependencies [8136245]
+- Updated dependencies [9674325]
+- Updated dependencies [a26baf5]
+- Updated dependencies [bea7e50]
+- Updated dependencies [5ce9d5b]
+- Updated dependencies [3869c1d]
+- Updated dependencies [55152c5]
+- Updated dependencies [560cee4]
+- Updated dependencies [a15e118]
+- Updated dependencies [96a66ed]
+- Updated dependencies [4aad893]
+- Updated dependencies [76d054a]
+- Updated dependencies [5fb1fbd]
+- Updated dependencies [b1cc902]
+- Updated dependencies [a328042]
+- Updated dependencies [bea7e50]
+- Updated dependencies [42829e8]
+- Updated dependencies [cc70c3b]
+- Updated dependencies [8317a3c]
+- Updated dependencies [d273097]
+- Updated dependencies [9674325]
+- Updated dependencies [15282f5]
+- Updated dependencies [71c11b1]
+- Updated dependencies [3c92a34]
+- Updated dependencies [257e53e]
+- Updated dependencies [e701cfc]
+- Updated dependencies [d0c49b5]
+- Updated dependencies [00dd046]
+- Updated dependencies [da36a04]
+- Updated dependencies [fe15ea2]
+- Updated dependencies [f9c2dec]
+- Updated dependencies [4a664ca]
+- Updated dependencies [e663112]
+- Updated dependencies [3e8ff99]
+- Updated dependencies [70e6983]
+- Updated dependencies [15e9d33]
+- Updated dependencies [f187551]
+- Updated dependencies [d0fcdae]
+- Updated dependencies [8786552]
+- Updated dependencies [c29a8bb]
+- Updated dependencies [8f54fc9]
+- Updated dependencies [a4c05ba]
+- Updated dependencies [c14f398]
+- Updated dependencies [b0b0a82]
+- Updated dependencies [2ab4025]
+- Updated dependencies [405e69e]
+- Updated dependencies [b121f14]
+- Updated dependencies [9549da3]
+  - @shipfox/api-agent-access-dto@34.0.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/workflow-templates@2.0.0
+  - @shipfox/client-integrations@53.0.0
+  - @shipfox/client-workflows@53.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/client-agent@53.0.0
+  - @shipfox/client-projects@53.0.0
+  - @shipfox/client-runners@53.0.0
+  - @shipfox/client-workspace-settings@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

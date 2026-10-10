@@ -1,5 +1,15 @@
 # @shipfox/node-pg
 
+## 0.6.0
+
+### Minor Changes
+
+- 2d009f4: Adds Discord Gateway leader election. When `DISCORD_GATEWAY_ENABLED` is set, each API replica runs `DiscordGatewayService`, and one replica holds the shard 0 Postgres advisory lock on a dedicated connection. The others retry every 10 seconds. The leader checks the connection every 15 seconds and reports `onLost` if it drops. `@shipfox/node-postgres` exports `openPostgresSession` for connections that live outside the pool.
+
+### Patch Changes
+
+- 21c993b: Keep the process running when PostgreSQL drops a pooled connection. The query in flight still rejects.
+
 ## 0.5.2
 
 ### Patch Changes

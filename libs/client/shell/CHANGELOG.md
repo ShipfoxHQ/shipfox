@@ -1,5 +1,57 @@
 # Changelog
 
+## 53.0.0
+
+### Minor Changes
+
+- 7d1ae3e: Removes loading phases from client startup. The shell enters the cookie session a declining boot restorer already read instead of refreshing a second time, and `WorkspaceSetupRouteOptions` gains an optional `revalidate` callback that re-runs the workspace setup gate. The onboarding gate lets a workspace that had a project on this device through at once and checks project existence in the background. The lazy onboarding chrome slots load behind their own hidden Suspense boundary, and the setup checklist panel renders nothing until it has loaded and has a step to show.
+- 2021ae8: The project workflows page shows the first workflow panel when the project has no workflow.
+
+  - **`@shipfox/client-shell`:** `ChromeSlots` gains an optional `FirstWorkflowPanel` slot that receives `projectId`.
+  - **`@shipfox/client-workflows`:** `ProjectWorkflowsPage` renders the slot in place of the empty definitions list once definitions have loaded, the project has none, and sync is neither pending nor running. Without the slot, the page keeps its empty list. When the project has no definitions, a sync that failed only because the repository has no workflow files no longer shows the "Workflow sync failed" callout; the empty state already says so.
+  - **`@shipfox/client-onboarding`:** exports `ProjectFirstWorkflowPanel`, also from `/feature` as a lazy component. It reads the progress of that project only, so a definition or a test run in another project never changes it, and it ignores the checklist's dismissal. It shows a skeleton while that progress loads and falls back to choose mode if the read fails. Once the project has a definition, it renders nothing and refreshes the project's definitions list.
+  - **`@shipfox/client-features`:** the default project workflows page shows the first workflow panel when the project has no workflow.
+
+- 2c89020: Adds an optional, error-isolated HeaderActions slot to the application header.
+- a328042: `@shipfox/client-shell` exports `RequiredActionLink`, `RequiredActionDefaultLink`, and `RequiredActionTrigger`, and `ChromeSlots` gains an optional `RequiredActionIntent` slot for actions that carry an `intent`. Every required action now renders through one URL rule: relative and same-origin URLs open in the same tab, other `http(s)` origins open in a new tab, `mailto:` URLs are plain links, and any other URL shows the message as text.
+
+  Workflow and agent surfaces render required actions through it. The duration notice's billing link now opens in the same tab.
+
+- bea7e50: Adds the workspace-scoped, per-device flag for the tools step of the workspace home: `isWorkspaceSetupToolsStepFinished`, `finishWorkspaceSetupToolsStep`, `clearWorkspaceSetupToolsStep`, and `WORKSPACE_SETUP_TOOLS_STEP_EVENT`.
+- cc70c3b: Shippy, the Shipfox mascot, appears on first-use, invitation, and dead-end screens.
+
+  - **`@shipfox/react-ui`:** `EmptyState` gains an optional `illustration` prop that replaces the icon. The `compact` variant keeps its icon.
+  - **`@shipfox/client-shell`:** `/runtime` exports `Shippy`, which renders one of nine poses shipped in `assets/shippy`. `AuthShell` gains an optional `illustration` prop that replaces the logo tile. The page-not-found page and the workspace load error page show a pose.
+  - **`@shipfox/client-auth`:** the workspace creation page shows a pose.
+  - **`@shipfox/client-invitations`:** the invitation page for a signed-out visitor shows a pose.
+  - **`@shipfox/client-projects`:** the empty projects list shows a pose.
+  - **`@shipfox/client-workflows`:** the empty run list shows a pose.
+  - **`@shipfox/client-integrations`:** the empty installed integrations list shows a pose.
+  - **`@shipfox/client-agent`:** the empty configured providers list shows a pose.
+  - **`@shipfox/client-onboarding`:** the completed setup checklist shows a pose in place of the check icon.
+
+### Patch Changes
+
+- 8b8b37b: Targets impersonation windows at a workspace and keeps the administrator's own identity. `POST /admin/auth/impersonation/windows` takes `workspace_id` instead of `target_user_id` and `required_workspace_id`. The window token's `sub` is the administrator and its only membership is the window's workspace with role `admin`; start, idempotent replay, and continuation mint it through one helper that re-checks the operator role and the workspace state. A suspended, deleted, or missing workspace returns `409 impersonation-workspace-not-active`, which replaces `impersonation-target-not-workspace-member` and `impersonationTargetNotWorkspaceMemberErrorSchema`. Window start and continue responses carry `workspace_id`. Window summaries carry a nullable `workspace_id`, and `target` is now nullable. The `impersonatorId` token claim may equal `sub`. A window opened before this change has no workspace and returns `impersonation-window-stopped` on continuation. The legacy `POST /:userId/impersonate` route is unchanged. The client shell treats `impersonation-workspace-not-active` as a terminal continuation error.
+- f57e1d1: Adds `DropdownMenuSegmentedRadioGroup` and `DropdownMenuSegmentedRadioItem`, a labelled row of icon segments for a short single choice inside a dropdown menu. The user menu now picks the theme with light, dark, and system icons.
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [8a926dc]
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [93b8cac]
+- Updated dependencies [507915a]
+- Updated dependencies [a429987]
+- Updated dependencies [cc70c3b]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/policy-notice@0.1.0
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/client-config@53.0.0
+  - @shipfox/client-ui@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

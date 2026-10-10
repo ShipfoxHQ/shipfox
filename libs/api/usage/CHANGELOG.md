@@ -1,5 +1,57 @@
 # @shipfox/api-usage
 
+## 34.0.0
+
+### Patch Changes
+
+- Updated dependencies [16d18f4]
+- Updated dependencies [a2fbdd3]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [c4f486b]
+- Updated dependencies [2e5a311]
+- Updated dependencies [2d009f4]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [dc8065c]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [a73e712]
+- Updated dependencies [b64fff6]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [fc455ac]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [c06262b]
+- Updated dependencies [21c993b]
+- Updated dependencies [3869c1d]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4aad893]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [507915a]
+- Updated dependencies [94e77bc]
+- Updated dependencies [9bac67e]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [a32c90c]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-runners-dto@34.0.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-temporal@0.6.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 33.0.0
 
 ### Patch Changes

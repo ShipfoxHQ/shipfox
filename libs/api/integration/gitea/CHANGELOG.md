@@ -1,5 +1,34 @@
 # @shipfox/api-integration-gitea
 
+## 34.0.0
+
+### Minor Changes
+
+- 9f5cf64: The Gitea tool catalog is exported from `@shipfox/api-integration-gitea/agent-tools`, like the other providers.
+
+### Patch Changes
+
+- e2e561c: Reads source files as strict UTF-8 and lists symlinks and submodules. Fetching a file that is not valid UTF-8 now fails with the `binary-file-unsupported` reason instead of replacing invalid bytes. Source file listings now report `symlink` and `submodule` entries next to `file` entries. Workflow sync ignores those entries and reports a workflow file that is not UTF-8 text as an invalid definition for that file.
+- Updated dependencies [16d18f4]
+- Updated dependencies [c4f486b]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [c8e0869]
+- Updated dependencies [21c993b]
+- Updated dependencies [1d94e37]
+- Updated dependencies [c06262b]
+- Updated dependencies [e2e561c]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-integration-spi@4.4.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-integration-gitea-dto@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 31.0.0
 
 ### Patch Changes

@@ -1,5 +1,43 @@
 # @shipfox/client-invitations
 
+## 53.0.0
+
+### Minor Changes
+
+- cc70c3b: Shippy, the Shipfox mascot, appears on first-use, invitation, and dead-end screens.
+
+  - **`@shipfox/react-ui`:** `EmptyState` gains an optional `illustration` prop that replaces the icon. The `compact` variant keeps its icon.
+  - **`@shipfox/client-shell`:** `/runtime` exports `Shippy`, which renders one of nine poses shipped in `assets/shippy`. `AuthShell` gains an optional `illustration` prop that replaces the logo tile. The page-not-found page and the workspace load error page show a pose.
+  - **`@shipfox/client-auth`:** the workspace creation page shows a pose.
+  - **`@shipfox/client-invitations`:** the invitation page for a signed-out visitor shows a pose.
+  - **`@shipfox/client-projects`:** the empty projects list shows a pose.
+  - **`@shipfox/client-workflows`:** the empty run list shows a pose.
+  - **`@shipfox/client-integrations`:** the empty installed integrations list shows a pose.
+  - **`@shipfox/client-agent`:** the empty configured providers list shows a pose.
+  - **`@shipfox/client-onboarding`:** the completed setup checklist shows a pose in place of the check icon.
+
+### Patch Changes
+
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [8a926dc]
+- Updated dependencies [7d1ae3e]
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [2021ae8]
+- Updated dependencies [2c89020]
+- Updated dependencies [93b8cac]
+- Updated dependencies [a328042]
+- Updated dependencies [bea7e50]
+- Updated dependencies [cc70c3b]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/client-ui@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

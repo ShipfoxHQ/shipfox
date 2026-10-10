@@ -1,5 +1,76 @@
 # @shipfox/client-integrations
 
+## 53.0.0
+
+### Major Changes
+
+- 5e12647: Lets a member choose among several linkable GitHub installations. `POST /integrations/github/link/complete` now returns up to 20 candidates with a five-minute signed selection token, and `POST /integrations/github/link/select` connects the chosen installation. More candidates return `github-too-many-linkable-installations`, which replaces `github-multiple-linkable-installations` and `GithubMultipleLinkableInstallationsError`. `GithubApiClient.listUserInstallations` now returns installation details instead of IDs. The GitHub callback page shows the installation picker, and `completeGithubLink` can now return a selection instead of a connection.
+
+### Minor Changes
+
+- c64d42f: Adds actor-bound GitHub link OAuth routes, DTOs, and client adapters for reconnecting accessible installations.
+- a02f5cf: Adds Discord to the client integrations gallery with OAuth install and callback wiring. Adds the callback DTO contract and Discord provider name to workflow failure annotations.
+- bea7e50: Exports `ProviderGrid` and the `InstallReturnTarget` type. The grid takes an `embedded` prop that drops its panel frame, for a host that is itself a panel.
+- 560cee4: Adds an opt-in connected state to the provider grid and a return target for installs. With `showConnectionState` and `connections`, the grid shows a provider with an active connection as connected, with an "Add another" action. With `returnTo: 'home'`, an install started from the grid sends the user to the workspace home when the callback succeeds. `returnTo: 'settings'`, the default, returns to the integrations settings page. Without either prop, the grid and the callbacks behave as before.
+- 96a66ed: Recovers orphaned GitHub installations by starting the link flow from incomplete callback landings and from an unlisted `/w/$workspaceSlug/integrations/github/link` support route, and handles link callbacks.
+- cc70c3b: Shippy, the Shipfox mascot, appears on first-use, invitation, and dead-end screens.
+
+  - **`@shipfox/react-ui`:** `EmptyState` gains an optional `illustration` prop that replaces the icon. The `compact` variant keeps its icon.
+  - **`@shipfox/client-shell`:** `/runtime` exports `Shippy`, which renders one of nine poses shipped in `assets/shippy`. `AuthShell` gains an optional `illustration` prop that replaces the logo tile. The page-not-found page and the workspace load error page show a pose.
+  - **`@shipfox/client-auth`:** the workspace creation page shows a pose.
+  - **`@shipfox/client-invitations`:** the invitation page for a signed-out visitor shows a pose.
+  - **`@shipfox/client-projects`:** the empty projects list shows a pose.
+  - **`@shipfox/client-workflows`:** the empty run list shows a pose.
+  - **`@shipfox/client-integrations`:** the empty installed integrations list shows a pose.
+  - **`@shipfox/client-agent`:** the empty configured providers list shows a pose.
+  - **`@shipfox/client-onboarding`:** the completed setup checklist shows a pose in place of the check icon.
+
+### Patch Changes
+
+- 658d71f: Reports incomplete GitHub callbacks to analytics and Sentry.
+- Updated dependencies [8b8b37b]
+- Updated dependencies [c64d42f]
+- Updated dependencies [c4f486b]
+- Updated dependencies [7d1ae3e]
+- Updated dependencies [9e7dd0e]
+- Updated dependencies [a02f5cf]
+- Updated dependencies [eec818d]
+- Updated dependencies [2c9838a]
+- Updated dependencies [4273dad]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [2021ae8]
+- Updated dependencies [474e21f]
+- Updated dependencies [5e12647]
+- Updated dependencies [2c89020]
+- Updated dependencies [b4c1fa2]
+- Updated dependencies [3726d36]
+- Updated dependencies [93b8cac]
+- Updated dependencies [a328042]
+- Updated dependencies [9f27c98]
+- Updated dependencies [bea7e50]
+- Updated dependencies [7056182]
+- Updated dependencies [cc70c3b]
+- Updated dependencies [e2e561c]
+- Updated dependencies [9485c57]
+- Updated dependencies [82f2480]
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/api-integration-github-dto@34.0.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/api-integration-discord-dto@34.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/integration-icons@0.6.0
+  - @shipfox/api-integration-jira-dto@34.0.0
+  - @shipfox/api-integration-sentry-dto@34.0.0
+  - @shipfox/client-auth@53.0.0
+  - @shipfox/api-integration-clickup-dto@34.0.0
+  - @shipfox/api-integration-gitea-dto@34.0.0
+  - @shipfox/api-integration-linear-dto@34.0.0
+  - @shipfox/api-integration-notion-dto@34.0.0
+  - @shipfox/api-integration-posthog-dto@34.0.0
+  - @shipfox/api-integration-slack-dto@34.0.0
+  - @shipfox/api-integration-webhook-dto@34.0.0
+  - @shipfox/client-ui@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

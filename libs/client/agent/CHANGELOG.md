@@ -1,5 +1,58 @@
 # @shipfox/client-agent
 
+## 53.0.0
+
+### Minor Changes
+
+- a99c11b: Show managed models that a workspace cannot run. The workspace model catalog marks them `locked`, validation warns with `model-locked` and never rejects, and the model lists mark them with a lock and explain the reason once, with the required action, while keeping them selectable.
+- 1320dac: Export `McpSetup` from `@shipfox/client-agent/mcp-setup` and add Cursor and VS Code setup tabs.
+- 853a185: Export `McpSetupInstructions`, the MCP endpoint and per-client tabs without a heading or frame, and export `McpSetup` from the package root.
+- cc70c3b: Shippy, the Shipfox mascot, appears on first-use, invitation, and dead-end screens.
+
+  - **`@shipfox/react-ui`:** `EmptyState` gains an optional `illustration` prop that replaces the icon. The `compact` variant keeps its icon.
+  - **`@shipfox/client-shell`:** `/runtime` exports `Shippy`, which renders one of nine poses shipped in `assets/shippy`. `AuthShell` gains an optional `illustration` prop that replaces the logo tile. The page-not-found page and the workspace load error page show a pose.
+  - **`@shipfox/client-auth`:** the workspace creation page shows a pose.
+  - **`@shipfox/client-invitations`:** the invitation page for a signed-out visitor shows a pose.
+  - **`@shipfox/client-projects`:** the empty projects list shows a pose.
+  - **`@shipfox/client-workflows`:** the empty run list shows a pose.
+  - **`@shipfox/client-integrations`:** the empty installed integrations list shows a pose.
+  - **`@shipfox/client-agent`:** the empty configured providers list shows a pose.
+  - **`@shipfox/client-onboarding`:** the completed setup checklist shows a pose in place of the check icon.
+
+### Patch Changes
+
+- a328042: `@shipfox/client-shell` exports `RequiredActionLink`, `RequiredActionDefaultLink`, and `RequiredActionTrigger`, and `ChromeSlots` gains an optional `RequiredActionIntent` slot for actions that carry an `intent`. Every required action now renders through one URL rule: relative and same-origin URLs open in the same tab, other `http(s)` origins open in a new tab, `mailto:` URLs are plain links, and any other URL shows the message as text.
+
+  Workflow and agent surfaces render required actions through it. The duration notice's billing link now opens in the same tab.
+
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [8a926dc]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [7d1ae3e]
+- Updated dependencies [2c9838a]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [2021ae8]
+- Updated dependencies [2c89020]
+- Updated dependencies [a99c11b]
+- Updated dependencies [93b8cac]
+- Updated dependencies [a15e118]
+- Updated dependencies [507915a]
+- Updated dependencies [a328042]
+- Updated dependencies [a429987]
+- Updated dependencies [bea7e50]
+- Updated dependencies [cc70c3b]
+- Updated dependencies [dd20040]
+- Updated dependencies [70e6983]
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/api-agent-dto@34.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/policy-notice@0.1.0
+  - @shipfox/client-ui@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes

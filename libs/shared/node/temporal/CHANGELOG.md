@@ -1,5 +1,16 @@
 # @shipfox/node-temporal
 
+## 0.6.0
+
+### Minor Changes
+
+- a32c90c: `TEMPORAL_PREBUILT_WORKFLOW_BUNDLES=true` makes workers load the workflow bundles written at build time outside production, instead of compiling each workflow entrypoint at startup.
+
+### Patch Changes
+
+- Updated dependencies [c06262b]
+  - @shipfox/node-opentelemetry@0.7.0
+
 ## 0.5.2
 
 ### Patch Changes

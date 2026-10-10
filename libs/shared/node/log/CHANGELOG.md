@@ -1,5 +1,11 @@
 # @shipfox/node-log
 
+## 0.3.10
+
+### Patch Changes
+
+- 5cf799b: Stops logging credentials. The `req` serializer keeps only the `user-agent` and `x-forwarded-for` headers, and the `res` serializer keeps only the status code. Error serializers drop the `options`, `request`, `response`, and `config` fields of HTTP client errors, and redact `authorization`, `cookie`, `proxy-authorization`, and `set-cookie` fields at any depth.
+
 ## 0.3.9
 
 ### Patch Changes

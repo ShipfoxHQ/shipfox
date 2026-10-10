@@ -1,5 +1,227 @@
 # @shipfox/api-workflows
 
+## 34.0.0
+
+### Minor Changes
+
+- b9a53b2: Adds `status_reason`, `status_reason_message`, and `outputs` to the run overview attempt. The `shipfox` provider's `get_workflow_run` tool returns them on its attempt, and the agent-access `get_workflow_run` tool returns them on the run.
+- 6b01f3d: Names the missing variable and where it is read when a run cannot start. `InterpolationUnresolvableError` and the `interpolation-unresolvable` inter-module error carry optional `variableKey`, `jobKey` and `step`. Predicates report `job.if`, `job.success`, `job.listening.filter`, `step.if` and `step.gate.success` instead of `env`. The error message no longer suggests `has()` for a missing variable.
+- a15e118: Lets a managed model provider refuse a model for one workspace at run time. A provider opts in by implementing `availability`, which returns the workspace's locked models. A locked model fails the step with a 422 `agent-model-unavailable` response and a policy notice. An error from `availability` returns a retryable 503. Credential renewal doesn't recheck, so a running step is never cut off. The stored step error carries the notice, and the model unavailable callout shows its message and required action. Providers without `availability` behave as before.
+- 4aad893: Adds machine placement rules for installation provisioning. A policy can now pass `placement.resolve`, and a job that needs a reserved runner label but only matches refused templates fails within one poll with the new `runner_not_allowed` status reason and its notice. The client shows the notice and its action.
+- d657853: Adds `run_after` to steps and jobs. Set it to `success`, `failure`, or `always` to choose when a step or job runs after an earlier failure. It defaults to `success`, and an `if` now adds to it instead of replacing it. Workflows stored before this change keep their current behavior until their file is next synced.
+- 507915a: A required action can carry an optional `intent`, and `REQUIRED_ACTION_INTENTS` lists the known values. `intent` names a behavior a composing application may provide in place of opening `url`, such as `contact-support`. `url` stays required as the fallback, and an unknown `intent` still parses.
+
+  The admission denial contract, the HTTP 409 `required_action`, and the agent-access error details now keep `intent` when it is set.
+
+- a429987: Adds the shared policy notice contract and preserves the workflow admission type export.
+- 94e77bc: Stores an optional runner-reported `log_path` on step attempts and exposes it in dispatch context when a finalized step log is available.
+- dd20040: Names the cause of a refused start when an agent step's configuration cannot be used. The agent `agent-config-invalid` error carries a `reason` (`model-unknown`, `provider-unsupported`, `harness-unsupported`, `thinking-unsupported` or `workspace-providers-disabled`) with the `model` and `provider` where they apply. `agent-config-unresolvable` passes them on with the job and step, in the inter-module error, the 422 `details` (`reason`, `model`, `provider`, `job_key`, `step`) and the trigger diagnostic. Every new field is optional, so stored diagnostics still map.
+- daf0208: Names the cause of a refused start when an integration connection or tool cannot be materialized. `agent-integration-materialization-failed` carries a `reason` (`connection-missing`, `connection-provider-mismatch`, `source-connection-missing`, `tool-unknown` or `no-tools-selected`) with the `connection` and `tool` where they apply, and the job and step it came from. They reach the inter-module error, the 422 `details` (`reason`, `connection`, `tool`, `job_key`, `step`) and the trigger diagnostic. Setup failures keep no reason. Every new field is optional, so stored diagnostics still map.
+- 3c8db4c: The gate of a tool step can read `step.error`, with the `code` and optional provider `status` of a failed tool call, or null when the call did not fail. A gate can accept an expected failure and tell a missing object from an outage.
+- 6b2a308: Adds the workflow outputs runtime. `WorkflowModel` gains optional `outputs` and `outputTypes`. When a run attempt succeeds, its outputs are evaluated with the job-output limits and stored on the attempt. An output that cannot be evaluated or is too large fails the attempt with the `output_invalid` or `output_too_large` status reason. The lifecycle event context returns `run.outputs`, and run creation errors can name the `workflow.outputs` field.
+
+### Patch Changes
+
+- e99aa97: Action steps pass secrets to their inputs by reference.
+
+  - **Binding target:** a secret binding's `target` is either an environment variable name, as before, or `{kind: 'input', name}` for an action input. Run-step bindings keep their shape.
+  - **Dispatch:** a `with` input whose whole value is a secret reference becomes an input binding. The step config and the evaluation trace hold only the reference, never the value. The input must be declared as a string, or the attempt fails with `action_input_invalid`.
+  - **Step secrets:** `GET /runs/jobs/current/steps/:stepId/secrets` serves action steps as well as run steps.
+
+- 066e73c: Action steps expose their workflow job key as `context.jobKey`.
+- 2d52a6c: Action step configs mark each granted tool and method as sensitive or not, so the runner keeps sensitive tool arguments and results out of the step log.
+- c4f486b: Names the cause of a checkout failure. Each refusal now identifies the repository, connection or project it was about, a suspended or removed GitHub App installation has its own `installation-inactive` code, and GitHub's own explanation reaches the step error as `provider_message` and `provider_status`. A missing repository now returns a 422, and a failed token mint is cached for 60 seconds instead of 15 minutes.
+- c25c566: Shows the cause of a checkout failure and its fix. The failure annotation and the run page choose their copy from the error code of the refused checkout, and show the provider's own explanation when there is one. A refused checkout-token request now returns its cause in `details.message`, and a provider refusal names the repository and the connection.
+- 7fddfc5: A checkout-token refusal for an explicit `checkout.project` names the repository when the project has a source owner and name. `resolveCheckoutTarget` returns both as `sourceRepositoryOwner` and `sourceRepositoryName`.
+- 5d5d006: A checkout with `persist-credentials: false` can now get a fresh credential when the runner reports that the first one was rejected.
+
+  - **Replacement scope:** this now works for every initial checkout with credentials, including non-persisted ones.
+  - **After success:** a non-persisted checkout still gets no replacement once its step attempt finishes.
+  - **Response:** a replacement credential keeps the step's `persist` setting instead of always reporting `true`.
+
+- fb79732: Definition sync and dev runs resolve registry actions, such as `uses: shipfox/slack-thread-digest@1.4.2`. Registry actions turn on when `DEFINITION_ACTIONS_ENABLED` is on and `REGISTRY_URL` is set. Definitions now read `REGISTRY_URL` too, to decide whether to accept registry references.
+
+  - **Resolution:** the Registry module returns a verified version, and the definitions module checks that the bundle's `action.yml` equals the signed manifest. Sync and dev runs store the bundle as a workspace action snapshot with the new `registry` source, so the runtime bundle route and the runner stay unchanged.
+  - **Limits:** the 20-action limit per workflow file counts repository and registry actions together. Registry bundles skip the repository size limits and the relative import check, because the registry bundles them. Uploads apply to `./` paths only.
+  - **Model:** action steps gain `origin` (`local` or `registry`), and registry steps also carry `package` and `version`. Models stored before this change omit `origin` and mean `local`. The step config sent to the runner carries the same fields.
+  - **Sync errors:** a missing version is `action-not-found`. A version that fails verification, an unsupported document format, or a bundle that differs from its signed manifest is `action-invalid`. Both appear as diagnostics on the workflow file that references the action. An unavailable registry fails the sync attempt and retries.
+  - **Dev runs:** a registry failure fails the run with an `invalid-definition` message that names the action.
+
+- 2e5a311: Dev runs accept action uploads. `POST /dev-runs` and the `create_dev_run` MCP tool take an `actions` field: whole action directories, each replacing the ref's copy of its `uses` path. Both routes accept bodies up to 4 MiB. The `create_dev_run` description tells agents which files to send. The run DTO's `dev_source` gains `local_actions`, the uploaded action paths. It defaults to an empty list for older runs.
+- a02f5cf: Adds Discord to the client integrations gallery with OAuth install and callback wiring. Adds the callback DTO contract and Discord provider name to workflow failure annotations.
+- dc8065c: Fails a step or job when its `if` can't be evaluated, instead of skipping it. The step error reason is `condition_errored`, and the failure names the cause.
+- 39c5466: A failed step keeps the outputs it set, typed by their declarations. Values that do not match their declaration are dropped.
+- 0c9d83e: Run creation freezes the tool grants of action steps. Each integration alias resolves to its connection and to the concrete tools its selectors match, with methods, sensitivity, and result kind. The grants are stored with the run attempt, so reruns reuse them and a tool added to the catalog later does not widen them. An action step's config lists the granted tools of each alias. An unavailable or mismatched connection fails run creation.
+- a73e712: The integration tool gateway serves action steps as well as agent steps.
+
+  - **Leased tool context:** `getLeasedAgentToolContext` keeps its name and accepts leased `action` steps. Other step types still fail with `leased-step-not-agent`. The result gains `stepType` (`agent` or `action`). For an action step, `integrations` holds the tools frozen at run creation, with one entry per connection, and each tool carries its `result` kind.
+  - **Audit:** the tool call caller adds `action`, on both the audit line and the `integrations_agent_tool_call` metric label. When the runner sends `x-shipfox-call-id`, the audit line records it as `callId`.
+
+- ef7cf4a: Adds the `container_setup_failed` step error reason. The runner reports it when the setup step cannot pull or start the job container.
+- e087b95: A job keeps its project checkout at the root when its first step checks out a repository into its own `path`.
+- 8872f36: Shipfox lifecycle events now resolve their workflow context by lineage, so `source: shipfox` triggers dispatch instead of being dropped. The definitions contract adds a `getWorkflow` method for this lookup.
+- fc455ac: Workflow runs materialize and dispatch action steps (`uses`). Definitions accept `uses` only while `DEFINITION_ACTIONS_ENABLED` is on, and it stays off in production for now.
+
+  - **Step type:** steps gain the `action` type. The job detail and agent access step type enums accept it.
+  - **Config:** an action step's config carries the action (`uses`, snapshot digest, `main`, and name), its `inputs`, the merged workflow, job, and step `env`, the connection binding of each integration alias, and the manifest outputs with `required`.
+  - **Dispatch:** `with` values are completed at dispatch. Defaults fill omitted inputs, and each value is coerced to its declared type. A value that fails coercion fails the attempt with the new `action_input_invalid` reason.
+  - **Error reasons:** `stepErrorReasonSchema` adds `action_input_invalid` (user) and `action_unavailable` (setup, for a runner that cannot load the action snapshot). The agent access diagnostics enum adds both.
+  - **Interpolation fields:** the workflows and triggers inter-module error schemas accept `action.with`.
+  - **Reruns** copy the attempt model, so they run the same action snapshot.
+  - **Client:** the step error reason type accepts the two new reasons.
+
+- 18a5420: A step field segment that mixes `steps` with an earlier context, such as `event`, `run`, `workflow`, `trigger`, `inputs`, `job`, `needs`, or `executions`, now resolves at step dispatch instead of failing with `config_unresolvable`. When a field reads a context that its fill site does not provide, the error no longer suggests `has(x)`.
+- ecc70c2: A step or job `if` condition that cannot be evaluated now records the error in its evaluation trace, with the missing path and the status of the step or job it reads. The run UI says which value is missing and why. A step that has not run exposes empty `outputs`, so `has(steps.x.outputs.y)` returns `false` instead of failing.
+- af3b91f: Definition validation normalizes action steps (`uses`) into the workflow model.
+
+  - **Model:** `WorkflowModelActionStep` carries the action's path, snapshot digest, name, entry file, input declarations, and integration bindings, plus `with`, `env`, and outputs from the manifest. Every output declares `required` explicitly, and the manifest default is `false`.
+  - **Validation:** `DefinitionValidationOptions.actionManifests` supplies the manifest and digest for each `uses` path. A step is checked against its manifest: known inputs, required inputs, literal input types, secrets only as whole top-level input values, one connection per integration alias, and connections that exist, match the alias provider, and serve agent tools. Manifest selectors must exist in the provider catalog, and write tools need `allow_write`. An action without a resolved manifest fails with "could not be resolved".
+  - **Integration context:** `needsIntegrationValidationContext` also returns `true` when a referenced manifest declares integrations.
+  - **Workflows:** run creation rejects action steps until they can be materialized.
+
+- e40ec8b: Adds an optional `required` flag to step output declarations. When a declaration sets `required: false`, `coerceStepOutputs` accepts a result without that output and still type-checks the value when it is present. Declarations without the flag stay required. Expressions can check an optional output with `has()`. Reading an absent output raises the existing missing-path error.
+
+  The workflows step reader now keeps `required` when it reads output declarations from step config.
+
+- 3869c1d: Fail queued job executions that are not claimed before the configured queue timeout and start execution timeouts from the persisted claim timestamp.
+- 6c0d6bd: Adds Shipfox run and job lifecycle events for workflow triggers.
+- c6f2ae3: `checkRunReadiness` now reports `agent-config-invalid` for an agent step whose model, provider or thinking level the agent module refuses. It checks only steps whose `model`, `provider` and `thinking` are literal or absent, so a templated value never produces an issue. An absent value falls back to the workspace defaults. The issue blocks the start for a normal job, and fails the job when the job is listening or the session key is filled after run creation. The readiness route returns the new issue with its `reason`, `model` and `provider`. `@shipfox/expression` exports `shouldFillAtSite`.
+- fafbe84: `checkRunReadiness` now reports `secret-missing` for a step secret that is defined at neither workspace nor project scope. It fails the job after the run starts, and never refuses the start. Each definition also lists the `secrets.inputs.*` it reads, so a trigger can compare them with its secret mappings.
+- 737c625: Adds the `checkRunReadiness` inter-module operation, which reports the variables a workflow reads that are not defined at workspace or project scope. Each `variable-missing` issue says whether it blocks the run from starting or fails a job after the run starts, and where the variable is read.
+- ac90873: Listener executions no longer write the legacy trigger-event array, and the `WORKFLOWS_LEGACY_TRIGGER_EVENTS_WRITE_ENABLED` setting is removed.
+- a9f19e0: Re-run failed jobs now also re-runs every succeeded job that depends on a re-run job, instead of reusing it.
+- b8b990d: Run and action steps can access `SHIPFOX_RUN_ID`, `SHIPFOX_RUN_NUMBER`, `SHIPFOX_RUN_ATTEMPT` and `SHIPFOX_RUN_URL` as environment variables.
+- 04680a3: Extract the run requirement collector so variable and secret references carry their job and step location.
+- 9906470: Adds `from_file` and `from_stdout` to run step output declarations. A run step can read an output from a file in the job workspace or from its standard output, up to 64 KiB, instead of writing to `$SHIPFOX_OUTPUT`. The run dispatch config carries them as `output_sources`.
+- 5276fca: Adds `GET /runs/jobs/current/steps/:stepId/action-bundle`, which returns the gzipped action bundle for the runner's currently leased action step. The step must be the lease's current step and an `action` step. The digest comes from the step config, and a missing snapshot returns 404 `action-snapshot-not-found`. Responses are sent with `cache-control: no-store`.
+- 8aa2d59: Names the missing value and the step or job that should have set it when a step `if` can't be evaluated. The step error and the failure annotation both carry that text.
+- 9bac67e: Run, action and agent steps dispatched to a runner carry `env_sources`: the earlier steps, in position order, whose current attempt the runner executed.
+- f6bc1f4: Adds `export` to run, agent, action, and tool steps. `export: true` promotes every declared output of the step to a job output of the same name, and `export: [names]` promotes the listed ones. A later job reads them with the usual types. Sync rejects an unknown name, a clash with the job `outputs` map, and two steps that export the same name. A job output exported from a step that did not produce it is omitted instead of failing the job.
+- d0c49b5: Step and job failure copy uses plain words and active voice, and each message names the next action.
+
+  - **Rerun or new run:** a message says "rerun the job" when a workspace setting fixes the failure, and "start a new run" when the workflow file must change. A rerun keeps the workflow file of the original run.
+  - **`@shipfox/client-workflows`:** the step failure callouts and the job empty states use the new copy. The model availability callout names the model, for example "claude-opus-4-8 is not available in this workspace". `lease_expired`, `provider_lost`, `lifecycle_violation`, and `runner_lost` share one title; the failure code still tells them apart.
+  - **`@shipfox/api-workflows`:** failure annotations give the same recovery advice as the step callouts. Annotations that already exist keep their old text until the step or job fails again.
+
+- 651153a: Run and agent step output declarations accept a `default`. When a step has no value for an output, for example because it was skipped or its run step succeeded without writing it, later steps and job outputs read the default from `steps.<key>.outputs`. A default that does not match its declared type or `schema` fails sync. `steps.<key>.outputs` now reads the step's current attempt, so a step that a gate restart skips on the rerun no longer shows the previous pass's values, and it is `{}` before the step's first attempt finishes.
+- 901e5b3: A step that fails on a missing secret now names the secret.
+
+  - **API:** `secret-not-found` and `secret-input-missing` from the step secrets route carry `details: {key, store}`.
+  - **Runner:** the step failure reads "Secret `K` is not set in this project or workspace." or "Secret input `K` was not passed to this run." When the API sends no details, the runner keeps the generic message.
+
+- 0b2af13: Tool step outputs keep JSON-looking strings as strings instead of parsing them into numbers or booleans.
+- 68e8e1d: Failed tool calls mark their trace span as an error, and the API traces outbound `fetch` requests.
+- 2b3ef4a: Tool steps accept provider input schemas that use `format` keywords such as `date-time`. A Sentry `search-issues` step failed before it reached Sentry.
+- c06262b: Each claimed tool-step call and concurrency repair gets its own span, and idle scans create none.
+- e71cded: Accepts top-level workflow `outputs`. The document schema takes a map from output names to templates, with the job-outputs entry limit. The new `workflow.outputs` expression field reads the `jobs`, `inputs`, `vars`, `workflow`, `run`, `trigger`, and `event` contexts. Definitions normalize the map into `WorkflowModel.outputs` and `outputTypes` and type-check each output against the declared job outputs, so a reference to an undeclared job output is a sync error. The workflow outputs runtime now evaluates under the `workflow.outputs` field.
+- 2ab4025: Workflows can link to their runs. `run.url` in the run context, `event.run.url` on Shipfox run and job events, and `url` on the `start_workflow_run` output hold the run permalink, built from `CLIENT_BASE_URL`. Replaying a Shipfox event stored without `run.url` fills it in. The `slack-dispatcher` and `report-failed-runs` templates use these links instead of `https://app.shipfox.io/runs/`.
+- Updated dependencies [e99aa97]
+- Updated dependencies [6b4ae32]
+- Updated dependencies [af3b91f]
+- Updated dependencies [16d18f4]
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [a2fbdd3]
+- Updated dependencies [8a926dc]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [807ae57]
+- Updated dependencies [c4f486b]
+- Updated dependencies [d273097]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [e087b95]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [027e401]
+- Updated dependencies [2e5a311]
+- Updated dependencies [f05ecde]
+- Updated dependencies [2d009f4]
+- Updated dependencies [4273dad]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [b76c004]
+- Updated dependencies [dc8065c]
+- Updated dependencies [39c5466]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [a73e712]
+- Updated dependencies [b64fff6]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ab66d1e]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [8872f36]
+- Updated dependencies [a99c11b]
+- Updated dependencies [fc455ac]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [af3b91f]
+- Updated dependencies [e40ec8b]
+- Updated dependencies [c06262b]
+- Updated dependencies [21c993b]
+- Updated dependencies [3869c1d]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4e3497b]
+- Updated dependencies [4aad893]
+- Updated dependencies [6c0d6bd]
+- Updated dependencies [d657853]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [cb411b1]
+- Updated dependencies [507915a]
+- Updated dependencies [9906470]
+- Updated dependencies [3aa5d7a]
+- Updated dependencies [a429987]
+- Updated dependencies [ebe3ac1]
+- Updated dependencies [42829e8]
+- Updated dependencies [94e77bc]
+- Updated dependencies [9bac67e]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [96ac908]
+- Updated dependencies [651153a]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e2e561c]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [00dd046]
+- Updated dependencies [9485c57]
+- Updated dependencies [a32c90c]
+- Updated dependencies [82f2480]
+- Updated dependencies [0b2af13]
+- Updated dependencies [3c8db4c]
+- Updated dependencies [e71cded]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [70e6983]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/workflow-document@3.11.0
+  - @shipfox/expression@2.12.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/api-runners-dto@34.0.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/api-agent-dto@34.0.0
+  - @shipfox/api-integration-shipfox-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/policy-notice@0.1.0
+  - @shipfox/api-logs-dto@34.0.0
+  - @shipfox/node-temporal@0.6.0
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 33.0.0
 
 ### Patch Changes

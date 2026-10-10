@@ -2,7 +2,7 @@
   "name": "@shipfox/registry-release",
   "license": "MIT",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "bin": {
     "shipfox-registry-release": "./dist/cli.js"
