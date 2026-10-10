@@ -6018,13 +6018,13 @@ export interface SlackListScheduledMessagesArguments {
    */
   channel_id?: string;
   /**
-   * Start of the post_at range, as a Slack timestamp
+   * Start of the post_at range, as a Unix timestamp
    */
-  oldest?: string;
+  oldest?: number;
   /**
-   * End of the post_at range, as a Slack timestamp
+   * End of the post_at range, as a Unix timestamp
    */
-  latest?: string;
+  latest?: number;
   /**
    * Scheduled messages to return per page (default 100)
    */

@@ -471,7 +471,10 @@ function generationResolver({
     inOneHour:
       references === undefined
         ? withOnly('$in_one_hour')
-        : () => interpolation('int(run.created_at) + 3600'),
+        : () =>
+            interpolation(
+              '(run.created_at - timestamp("1970-01-01T00:00:00Z")).getSeconds() + 3600',
+            ),
   };
 }
 

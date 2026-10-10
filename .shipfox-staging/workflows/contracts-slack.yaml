@@ -304,7 +304,7 @@ jobs:
         with:
           channel_id: C0C6ZSXHEJ0
           message: Contract contract-${{ run.id }} scheduled
-          post_at: ${{ int(run.created_at) + 3600 }}
+          post_at: ${{ (run.created_at - timestamp("1970-01-01T00:00:00Z")).getSeconds() + 3600 }}
         outputs:
           shape_channel: ${{ has(result.channel) && type(result.channel) == type("") }}
           shape_scheduled_message_id: ${{ has(result.scheduled_message_id) && type(result.scheduled_message_id) == type("") }}

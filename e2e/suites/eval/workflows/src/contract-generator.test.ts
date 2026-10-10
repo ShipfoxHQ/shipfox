@@ -239,7 +239,9 @@ describe('generateContractFiles', () => {
         `provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n    with: {at: $in_one_hour}\n`,
       );
 
-      expect(await generatedLinear()).toContain('at: ${{ int(run.created_at) + 3600 }}');
+      expect(await generatedLinear()).toContain(
+        'at: ${{ (run.created_at - timestamp("1970-01-01T00:00:00Z")).getSeconds() + 3600 }}',
+      );
     });
 
     it('compiles expect.includes to exists() over the list', async () => {
