@@ -95,10 +95,6 @@ export const config = createConfig({
     desc: 'Minimum stale-lease ratio required, together with RUNNER_CORRELATED_STALE_MIN_COUNT, to defer lease expiry for a suspected control-plane outage. Set between 0 and 1.',
     default: 0.5,
   }),
-  RUNNER_CORRELATED_STALE_LEASE_MODE: str({
-    desc: 'Correlated stale-lease circuit-breaker mode. defer prevents expiry during a correlated outage; shadow records the decision but preserves legacy expiry behavior.',
-    default: 'defer',
-  }),
   RUNNER_CORRELATED_STALE_LEASE_OVERRIDE: bool({
     desc: 'Explicit operator override that permits bounded stale-lease recovery while the correlated stale-lease circuit breaker is open.',
     default: false,
@@ -315,15 +311,6 @@ if (
 if (config.RUNNER_CORRELATED_STALE_RATIO <= 0 || config.RUNNER_CORRELATED_STALE_RATIO > 1) {
   throw new Error(
     `RUNNER_CORRELATED_STALE_RATIO (${config.RUNNER_CORRELATED_STALE_RATIO}) must be greater than 0 and no greater than 1.`,
-  );
-}
-
-if (
-  config.RUNNER_CORRELATED_STALE_LEASE_MODE !== 'defer' &&
-  config.RUNNER_CORRELATED_STALE_LEASE_MODE !== 'shadow'
-) {
-  throw new Error(
-    `RUNNER_CORRELATED_STALE_LEASE_MODE (${config.RUNNER_CORRELATED_STALE_LEASE_MODE}) must be defer or shadow.`,
   );
 }
 
