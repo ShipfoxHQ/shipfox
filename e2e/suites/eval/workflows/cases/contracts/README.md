@@ -17,7 +17,7 @@ Each provider has its own sandbox tenant. Cases never read or write in company a
 
 | Provider | Tenant | Read fixtures | Write container |
 | --- | --- | --- | --- |
-| GitHub | A sandbox organization with the staging GitHub App installed | A repository with issues, pull requests, review threads, labels, and Actions runs | The same repository, on `contract/*` branches |
+| GitHub | A sandbox organization with the staging GitHub App installed | A repository with issues, pull requests, review threads, labels, and Actions runs | The same repository, on `contract/*` branches, and the runs of its `trigger.yml` workflow |
 | Linear | A sandbox workspace | A read team with issues, comments, a project, and documents | A write team |
 | Slack | A sandbox workspace | A read channel with a fixed message and thread | A write channel |
 | ClickUp | A sandbox workspace | A list with tasks and comments | A write list |
@@ -59,6 +59,7 @@ steps:
 - **`matches`** gives a regular expression for a text value. Use it when the layout of the text is not part of the contract, such as the SQL results of PostHog.
 - **`text`** lists regular expressions for a result that is itself text, not a map. PostHog returns most reads as TOON text. Each expression must match somewhere in the result.
 - **`$steps.<key>.<path>`** passes a value from an earlier step of the case. Write `$steps_text` instead when the value is a number and the next tool takes a string, such as the `resource_id` of the GitHub Actions tools. A number in a string input fails the step.
+- **`poll_seconds`** on an `effect` is for a write the provider applies later, such as the cancellation of a GitHub Actions run. The job waits that long before the read, and reads again until the effect shows, up to five times.
 - **`modes`** lists `real`, `fake`, or both. List `fake` only when the E2E fake answers the tool with the same fields. The pending list reports the cases that lack it.
 
 Remove the case's backlog entry in the same change, and lower `ceiling` to the new entry count.

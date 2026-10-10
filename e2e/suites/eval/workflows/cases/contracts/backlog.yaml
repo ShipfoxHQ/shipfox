@@ -1,10 +1,5 @@
-ceiling: 39
+ceiling: 34
 entries:
-  - {tool: github.actions_run_trigger, method: cancel_workflow_run, kind: write, issue: ENG-2829}
-  - {tool: github.actions_run_trigger, method: delete_workflow_run_logs, kind: write, issue: ENG-2829}
-  - {tool: github.actions_run_trigger, method: rerun_failed_jobs, kind: write, issue: ENG-2829}
-  - {tool: github.actions_run_trigger, method: rerun_workflow_run, kind: write, issue: ENG-2829}
-  - {tool: github.actions_run_trigger, method: run_workflow, kind: write, issue: ENG-2829}
   - {tool: github.add_comment_to_pending_review, kind: write, issue: ENG-2834}
   - {tool: github.add_issue_comment, kind: write, issue: ENG-2828}
   - {tool: github.add_reply_to_pull_request_comment, kind: write, issue: ENG-2834}

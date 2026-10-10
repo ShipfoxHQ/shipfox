@@ -105,6 +105,18 @@ jobs:
           value_name: '${{ has(result.name) ? result.name : "" }}'
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 375690478 && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Fixture"
+      - key: trigger_workflow
+        tool: actions_get.get_workflow
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: trigger.yml
+        outputs:
+          value_id: "${{ has(result.id) ? result.id : 380752214 }}"
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+        gate:
+          success: step.status == "succeeded" && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 380752213 && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Trigger"
       - key: branch
         tool: get_branch
         connection: github_shipfoxsandbox
@@ -126,6 +138,96 @@ jobs:
           value_commit_oid: '${{ has(result.commit) && has(result.commit.oid) ? result.commit.oid : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_commit_oid) == type("") && step.outputs.value_commit_oid == "8c2d6bf2700044628216c6daf699870ef9e0915a"
+  actions_failed_run_round_trip:
+    checkout: false
+    steps:
+      - key: dispatch
+        tool: actions_run_trigger.run_workflow
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          workflow_id: trigger.yml
+          ref: main
+          inputs:
+            marker: contract-${{ run.id }}
+            outcome: fail
+        outputs:
+          shape_workflow_run_id: ${{ has(result.workflow_run_id) && (type(result.workflow_run_id) == type(1) || type(result.workflow_run_id) == type(1.0)) }}
+          shape_run_url: ${{ has(result.run_url) && type(result.run_url) == type("") }}
+          shape_html_url: ${{ has(result.html_url) && type(result.html_url) == type("") }}
+          text_workflow_run_id: '${{ has(result.workflow_run_id) ? string(result.workflow_run_id) : "" }}'
+          ref_workflow_run_id: '${{ has(result.workflow_run_id) ? result.workflow_run_id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_workflow_run_id && step.outputs.shape_run_url && step.outputs.shape_html_url
+      - key: dispatch_wait
+        run: sleep 15
+      - key: dispatch_effect
+        tool: actions_get.get_workflow_run
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.dispatch.outputs.text_workflow_run_id }}
+        outputs:
+          value_workflow_id: "${{ has(result.workflow_id) ? result.workflow_id : 380752214 }}"
+          value_event: '${{ has(result.event) ? result.event : "" }}'
+          value_run_attempt: "${{ has(result.run_attempt) ? result.run_attempt : 2 }}"
+          value_status: '${{ has(result.status) ? result.status : "" }}'
+          value_conclusion: '${{ has(result.conclusion) ? result.conclusion : "" }}'
+          matches_display_title: ${{ has(result.display_title) && type(result.display_title) == type("") && result.display_title.matches("^Trigger contract-") }}
+        gate:
+          success: step.status == "succeeded" && (type(step.outputs.value_workflow_id) == type(1) || type(step.outputs.value_workflow_id) == type(1.0)) && step.outputs.value_workflow_id == 380752213 && type(step.outputs.value_event) == type("") && step.outputs.value_event == "workflow_dispatch" && (type(step.outputs.value_run_attempt) == type(1) || type(step.outputs.value_run_attempt) == type(1.0)) && step.outputs.value_run_attempt == 1 && type(step.outputs.value_status) == type("") && step.outputs.value_status == "completed" && type(step.outputs.value_conclusion) == type("") && step.outputs.value_conclusion == "failure" && step.outputs.matches_display_title
+          on_failure:
+            restart_from: dispatch_wait
+      - key: rerun
+        tool: actions_run_trigger.rerun_failed_jobs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          run_id: ${{ steps.dispatch.outputs.ref_workflow_run_id }}
+      - key: rerun_wait
+        run: sleep 15
+      - key: rerun_effect
+        tool: actions_get.get_workflow_run
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.dispatch.outputs.text_workflow_run_id }}
+        outputs:
+          value_run_attempt: "${{ has(result.run_attempt) ? result.run_attempt : 3 }}"
+          value_status: '${{ has(result.status) ? result.status : "" }}'
+          value_conclusion: '${{ has(result.conclusion) ? result.conclusion : "" }}'
+        gate:
+          success: step.status == "succeeded" && (type(step.outputs.value_run_attempt) == type(1) || type(step.outputs.value_run_attempt) == type(1.0)) && step.outputs.value_run_attempt == 2 && type(step.outputs.value_status) == type("") && step.outputs.value_status == "completed" && type(step.outputs.value_conclusion) == type("") && step.outputs.value_conclusion == "failure"
+          on_failure:
+            restart_from: rerun_wait
+      - key: delete_logs
+        tool: actions_run_trigger.delete_workflow_run_logs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          run_id: ${{ steps.dispatch.outputs.ref_workflow_run_id }}
+      - key: delete_logs_wait
+        run: sleep 5
+      - key: delete_logs_effect
+        tool: get_job_logs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          run_id: ${{ steps.dispatch.outputs.ref_workflow_run_id }}
+          failed_only: true
+        outputs:
+          value_failed_jobs: "${{ has(result.failed_jobs) ? result.failed_jobs : 2 }}"
+          matches_logs_0_error: ${{ has(result.logs) && type(result.logs) == type([]) && size(result.logs) > 0 && [result.logs[0]].all(i0, has(i0.error) && type(i0.error) == type("") && i0.error.matches("Not Found")) }}
+        gate:
+          success: step.status == "succeeded" && (type(step.outputs.value_failed_jobs) == type(1) || type(step.outputs.value_failed_jobs) == type(1.0)) && step.outputs.value_failed_jobs == 1 && step.outputs.matches_logs_0_error
+          on_failure:
+            restart_from: delete_logs_wait
   actions_get_download_workflow_run_artifact:
     checkout: false
     steps:
@@ -427,6 +529,116 @@ jobs:
           shape_workflows_0_state: ${{ has(result.workflows) && type(result.workflows) == type([]) && size(result.workflows) > 0 && [result.workflows[0]].all(i0, has(i0.state) && type(i0.state) == type("")) }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_total_count && step.outputs.shape_workflows_0_id && step.outputs.shape_workflows_0_name && step.outputs.shape_workflows_0_path && step.outputs.shape_workflows_0_state
+  actions_run_round_trip:
+    checkout: false
+    steps:
+      - key: dispatch
+        tool: actions_run_trigger.run_workflow
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          workflow_id: trigger.yml
+          ref: main
+          inputs:
+            marker: contract-${{ run.id }}
+            outcome: wait
+        outputs:
+          shape_workflow_run_id: ${{ has(result.workflow_run_id) && (type(result.workflow_run_id) == type(1) || type(result.workflow_run_id) == type(1.0)) }}
+          shape_run_url: ${{ has(result.run_url) && type(result.run_url) == type("") }}
+          shape_html_url: ${{ has(result.html_url) && type(result.html_url) == type("") }}
+          text_workflow_run_id: '${{ has(result.workflow_run_id) ? string(result.workflow_run_id) : "" }}'
+          ref_workflow_run_id: '${{ has(result.workflow_run_id) ? result.workflow_run_id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_workflow_run_id && step.outputs.shape_run_url && step.outputs.shape_html_url
+      - key: dispatch_wait
+        run: sleep 5
+      - key: dispatch_effect
+        tool: actions_get.get_workflow_run
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.dispatch.outputs.text_workflow_run_id }}
+        outputs:
+          value_workflow_id: "${{ has(result.workflow_id) ? result.workflow_id : 380752214 }}"
+          value_event: '${{ has(result.event) ? result.event : "" }}'
+          value_run_attempt: "${{ has(result.run_attempt) ? result.run_attempt : 2 }}"
+          matches_display_title: ${{ has(result.display_title) && type(result.display_title) == type("") && result.display_title.matches("^Trigger contract-") }}
+        gate:
+          success: step.status == "succeeded" && (type(step.outputs.value_workflow_id) == type(1) || type(step.outputs.value_workflow_id) == type(1.0)) && step.outputs.value_workflow_id == 380752213 && type(step.outputs.value_event) == type("") && step.outputs.value_event == "workflow_dispatch" && (type(step.outputs.value_run_attempt) == type(1) || type(step.outputs.value_run_attempt) == type(1.0)) && step.outputs.value_run_attempt == 1 && step.outputs.matches_display_title
+          on_failure:
+            restart_from: dispatch_wait
+      - key: cancel
+        tool: actions_run_trigger.cancel_workflow_run
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          run_id: ${{ steps.dispatch.outputs.ref_workflow_run_id }}
+      - key: cancel_wait
+        run: sleep 15
+      - key: cancel_effect
+        tool: actions_get.get_workflow_run
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.dispatch.outputs.text_workflow_run_id }}
+        outputs:
+          value_run_attempt: "${{ has(result.run_attempt) ? result.run_attempt : 2 }}"
+          value_status: '${{ has(result.status) ? result.status : "" }}'
+          value_conclusion: '${{ has(result.conclusion) ? result.conclusion : "" }}'
+        gate:
+          success: step.status == "succeeded" && (type(step.outputs.value_run_attempt) == type(1) || type(step.outputs.value_run_attempt) == type(1.0)) && step.outputs.value_run_attempt == 1 && type(step.outputs.value_status) == type("") && step.outputs.value_status == "completed" && type(step.outputs.value_conclusion) == type("") && step.outputs.value_conclusion == "cancelled"
+          on_failure:
+            restart_from: cancel_wait
+      - key: rerun
+        tool: actions_run_trigger.rerun_workflow_run
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          run_id: ${{ steps.dispatch.outputs.ref_workflow_run_id }}
+      - key: rerun_wait
+        run: sleep 5
+      - key: rerun_effect
+        tool: actions_get.get_workflow_run
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.dispatch.outputs.text_workflow_run_id }}
+        outputs:
+          value_run_attempt: "${{ has(result.run_attempt) ? result.run_attempt : 3 }}"
+        gate:
+          success: step.status == "succeeded" && (type(step.outputs.value_run_attempt) == type(1) || type(step.outputs.value_run_attempt) == type(1.0)) && step.outputs.value_run_attempt == 2
+          on_failure:
+            restart_from: rerun_wait
+      - key: cancel_rerun
+        tool: actions_run_trigger.cancel_workflow_run
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          run_id: ${{ steps.dispatch.outputs.ref_workflow_run_id }}
+      - key: cancel_rerun_wait
+        run: sleep 15
+      - key: cancel_rerun_effect
+        tool: actions_get.get_workflow_run
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.dispatch.outputs.text_workflow_run_id }}
+        outputs:
+          value_run_attempt: "${{ has(result.run_attempt) ? result.run_attempt : 3 }}"
+          value_status: '${{ has(result.status) ? result.status : "" }}'
+          value_conclusion: '${{ has(result.conclusion) ? result.conclusion : "" }}'
+        gate:
+          success: step.status == "succeeded" && (type(step.outputs.value_run_attempt) == type(1) || type(step.outputs.value_run_attempt) == type(1.0)) && step.outputs.value_run_attempt == 2 && type(step.outputs.value_status) == type("") && step.outputs.value_status == "completed" && type(step.outputs.value_conclusion) == type("") && step.outputs.value_conclusion == "cancelled"
+          on_failure:
+            restart_from: cancel_rerun_wait
   compare_commits:
     checkout: false
     steps:

@@ -1,0 +1,85 @@
+provider: github
+kind: round-trip
+modes: [real]
+steps:
+  # With `outcome: wait` the trigger workflow sleeps three minutes, so each attempt of the run is
+  # still going when it is cancelled. The workflow puts the marker in the title of the run.
+  - key: dispatch
+    tool: actions_run_trigger
+    method: run_workflow
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      workflow_id: $fixture.github.trigger_workflow.file
+      ref: $fixture.github.trigger_workflow.ref
+      inputs: {marker: $marker, outcome: wait}
+    expect:
+      shape: {workflow_run_id: number, run_url: string, html_url: string}
+    effect:
+      tool: actions_get
+      method: get_workflow_run
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        resource_id: $steps_text.dispatch.workflow_run_id
+      poll_seconds: 5
+      expect:
+        values:
+          workflow_id: $fixture.github.trigger_workflow.id
+          event: workflow_dispatch
+          run_attempt: 1
+        matches:
+          display_title: '^Trigger contract-'
+  # GitHub cancels a run some seconds after it accepts the call.
+  - key: cancel
+    tool: actions_run_trigger
+    method: cancel_workflow_run
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      run_id: $steps.dispatch.workflow_run_id
+    effect:
+      tool: actions_get
+      method: get_workflow_run
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        resource_id: $steps_text.dispatch.workflow_run_id
+      poll_seconds: 15
+      expect:
+        values: {run_attempt: 1, status: completed, conclusion: cancelled}
+  - key: rerun
+    tool: actions_run_trigger
+    method: rerun_workflow_run
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      run_id: $steps.dispatch.workflow_run_id
+    effect:
+      tool: actions_get
+      method: get_workflow_run
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        resource_id: $steps_text.dispatch.workflow_run_id
+      poll_seconds: 5
+      expect:
+        values: {run_attempt: 2}
+  # The second cancellation leaves the run completed.
+  - key: cancel_rerun
+    tool: actions_run_trigger
+    method: cancel_workflow_run
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      run_id: $steps.dispatch.workflow_run_id
+    effect:
+      tool: actions_get
+      method: get_workflow_run
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        resource_id: $steps_text.dispatch.workflow_run_id
+      poll_seconds: 15
+      expect:
+        values: {run_attempt: 2, status: completed, conclusion: cancelled}

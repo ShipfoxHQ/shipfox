@@ -80,12 +80,20 @@ const stepExpectSchema = outputExpectSchema
   );
 
 // The shape of a step that only reads: an effect, or the read of a fixture.
-const effectSchema = z
+const readSchema = z
   .object({
     tool: toolSchema,
     method: nameSchema.optional(),
     with: z.record(z.string().min(1), z.unknown()).default({}),
     expect: outputExpectSchema.default({}),
+  })
+  .strict();
+
+const effectSchema = readSchema
+  .extend({
+    // For a write the provider applies later, such as the cancellation of a GitHub Actions run.
+    // The job waits this long before each read, and reads again until the effect shows.
+    poll_seconds: z.number().int().min(1).max(60).optional(),
   })
   .strict();
 
@@ -101,7 +109,7 @@ const stepSchema = z
   .strict();
 
 export type ContractStep = z.infer<typeof stepSchema>;
-export type ContractRead = z.infer<typeof effectSchema>;
+export type ContractRead = z.infer<typeof readSchema>;
 
 /** One contract case. It becomes one job in its provider's workflow. */
 export const contractCaseSchema = z
@@ -175,7 +183,7 @@ export type ContractExemption = z.infer<typeof contractExemptionSchema>;
 
 // `read` is the one non-scalar key of a fixture, so a fixture field can't be named `read`.
 const fixtureSchema = z
-  .object({read: effectSchema.optional()})
+  .object({read: readSchema.optional()})
   .catchall(scalarSchema)
   .refine((fixture) => Object.keys(fixture).every((field) => FIELD_PATTERN.test(field)), {
     message: 'field names must be letters, digits, and `_`',

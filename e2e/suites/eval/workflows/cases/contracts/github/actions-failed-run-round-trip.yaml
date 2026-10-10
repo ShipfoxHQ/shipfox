@@ -1,0 +1,71 @@
+provider: github
+kind: round-trip
+modes: [real]
+steps:
+  # With `outcome: fail` the trigger workflow fails at once, which gives a run with a failed job
+  # to rerun and with logs to delete.
+  - key: dispatch
+    tool: actions_run_trigger
+    method: run_workflow
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      workflow_id: $fixture.github.trigger_workflow.file
+      ref: $fixture.github.trigger_workflow.ref
+      inputs: {marker: $marker, outcome: fail}
+    expect:
+      shape: {workflow_run_id: number, run_url: string, html_url: string}
+    effect:
+      tool: actions_get
+      method: get_workflow_run
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        resource_id: $steps_text.dispatch.workflow_run_id
+      poll_seconds: 15
+      expect:
+        values:
+          workflow_id: $fixture.github.trigger_workflow.id
+          event: workflow_dispatch
+          run_attempt: 1
+          status: completed
+          conclusion: failure
+        matches:
+          display_title: '^Trigger contract-'
+  - key: rerun
+    tool: actions_run_trigger
+    method: rerun_failed_jobs
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      run_id: $steps.dispatch.workflow_run_id
+    effect:
+      tool: actions_get
+      method: get_workflow_run
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        resource_id: $steps_text.dispatch.workflow_run_id
+      poll_seconds: 15
+      expect:
+        values: {run_attempt: 2, status: completed, conclusion: failure}
+  - key: delete_logs
+    tool: actions_run_trigger
+    method: delete_workflow_run_logs
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      run_id: $steps.dispatch.workflow_run_id
+    # The run keeps its failed job, and the log of that job can no longer be found.
+    effect:
+      tool: get_job_logs
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        run_id: $steps.dispatch.workflow_run_id
+        failed_only: true
+      poll_seconds: 5
+      expect:
+        values: {failed_jobs: 1}
+        matches:
+          logs[0].error: Not Found

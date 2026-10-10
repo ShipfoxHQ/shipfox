@@ -115,6 +115,23 @@ github:
           resource_id: $fixture.github.workflow.file
         expect:
           values: {id: $fixture.github.workflow.id, name: $fixture.github.workflow.name}
+    # The workflow the Actions round-trips dispatch, cancel, and rerun. It takes a `marker` and an
+    # `outcome`: `wait` sleeps three minutes, and `fail` fails at once. Its runs change every night,
+    # so no read case uses them.
+    trigger_workflow:
+      id: 380752213
+      file: trigger.yml
+      name: Trigger
+      ref: main
+      read:
+        tool: actions_get
+        method: get_workflow
+        with:
+          owner: $fixture.github.repository.owner
+          repo: $fixture.github.repository.name
+          resource_id: $fixture.github.trigger_workflow.file
+        expect:
+          values: {id: $fixture.github.trigger_workflow.id, name: $fixture.github.trigger_workflow.name}
     # The default branch moves, so the repository cases pin the head of the open pull request branch.
     # Its one commit sits on top of `base_oid`, so a comparison from there is a clean "ahead by 1".
     branch:
