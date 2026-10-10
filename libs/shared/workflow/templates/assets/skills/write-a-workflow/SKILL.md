@@ -64,7 +64,7 @@ Ask one question per message and wait for the answer. With each question, restat
 - Use a gate when an objective check should decide whether an agent retries. Read `docs://shipfox/understand/feedback-loops`.
 - Use a listening job when later events should continue the same run. Match events to that run and bound the listener. Read `docs://shipfox/understand/listening-jobs`.
 - Use a concurrency group when newer runs can replace queued work for the same item. Read `docs://shipfox/understand/workflow-concurrency-groups`.
-- Use `run_after` to decide what runs after a failure. The default, `success`, skips a step after an earlier step failed and skips a job unless every job in `needs` succeeded. An `if` adds to `run_after` and never replaces it. Set `run_after: failure` on a failure handler and `run_after: always` on a report that must run either way. A step or job that runs after a failure can read an output that was never set, so guard an optional output with `has()`. Read `docs://shipfox/understand/jobs-and-steps`.
+- Use `run_after` to decide what runs after a failure. By default a step or job is skipped after an earlier failure, and an `if` adds to that. Set `run_after: failure` on a failure handler and `run_after: always` on a report. Guard an optional output with `has()`. Read `docs://shipfox/understand/jobs-and-steps`.
 
 ## 5. Write the file
 
