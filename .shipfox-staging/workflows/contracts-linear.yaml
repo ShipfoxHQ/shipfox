@@ -449,6 +449,50 @@ jobs:
           value_statusType: '${{ has(result.statusType) ? result.statusType : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_statusType) == type("") && step.outputs.value_statusType == "canceled"
+  document_round_trip:
+    checkout: false
+    steps:
+      - key: create
+        tool: save_document
+        connection: linear_shipfox_sandbox
+        with:
+          team: 9356e9c7-94d5-444d-83eb-d54b22c8082c
+          title: Contract contract-${{ run.id }}
+          content: Created by a contract.
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_title: ${{ has(result.title) && type(result.title) == type("") }}
+          shape_url: ${{ has(result.url) && type(result.url) == type("") }}
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_title && step.outputs.shape_url
+      - key: create_effect
+        tool: get_document
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_content: '${{ has(result.content) ? result.content : "" }}'
+          matches_title: ${{ has(result.title) && type(result.title) == type("") && result.title.matches("^Contract contract-[0-9a-f-]+$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_content) == type("") && step.outputs.value_content == "Created by a contract." && step.outputs.matches_title
+      - key: update
+        tool: save_document
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.create.outputs.ref_id }}
+          title: Contract contract-${{ run.id }} updated
+          content: Updated by a contract.
+      - key: update_effect
+        tool: get_document
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_content: '${{ has(result.content) ? result.content : "" }}'
+          matches_title: ${{ has(result.title) && type(result.title) == type("") && result.title.matches("^Contract contract-[0-9a-f-]+ updated$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_content) == type("") && step.outputs.value_content == "Updated by a contract." && step.outputs.matches_title
   extract_images:
     checkout: false
     steps:
@@ -984,6 +1028,157 @@ jobs:
           value_users_0_name: '${{ has(result.users) && type(result.users) == type([]) && size(result.users) > 0 && [result.users[0]].all(i0, has(i0.name)) ? result.users[0].name : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_users_0_id && step.outputs.shape_users_0_name && type(step.outputs.value_users_0_id) == type("") && step.outputs.value_users_0_id == "b2f39d6d-42c5-4111-b521-bbfa50b73b36" && type(step.outputs.value_users_0_name) == type("") && step.outputs.value_users_0_name == "Shipfox - Staging"
+  milestone_round_trip:
+    checkout: false
+    steps:
+      - key: project
+        tool: save_project
+        connection: linear_shipfox_sandbox
+        with:
+          name: Contract contract-${{ run.id }}
+          addTeams:
+            - 9356e9c7-94d5-444d-83eb-d54b22c8082c
+          summary: Holds the milestone of a contract.
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_uuid: ${{ has(result.uuid) && type(result.uuid) == type("") }}
+          ref_uuid: '${{ has(result.uuid) ? result.uuid : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_uuid
+      - key: project_effect
+        tool: get_project
+        connection: linear_shipfox_sandbox
+        with:
+          query: ${{ steps.project.outputs.ref_uuid }}
+        outputs:
+          value_summary: '${{ has(result.summary) ? result.summary : "" }}'
+          matches_name: ${{ has(result.name) && type(result.name) == type("") && result.name.matches("^Contract contract-[0-9a-f-]+$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_summary) == type("") && step.outputs.value_summary == "Holds the milestone of a contract." && step.outputs.matches_name
+      - key: create
+        tool: save_milestone
+        connection: linear_shipfox_sandbox
+        with:
+          project: ${{ steps.project.outputs.ref_uuid }}
+          name: Contract milestone
+          description: Created by a contract.
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_name: ${{ has(result.name) && type(result.name) == type("") }}
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Contract milestone"
+      - key: create_effect
+        tool: get_milestone
+        connection: linear_shipfox_sandbox
+        with:
+          project: ${{ steps.project.outputs.ref_uuid }}
+          query: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+          value_description: '${{ has(result.description) ? result.description : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Contract milestone" && type(step.outputs.value_description) == type("") && step.outputs.value_description == "Created by a contract."
+      - key: update
+        tool: save_milestone
+        connection: linear_shipfox_sandbox
+        with:
+          project: ${{ steps.project.outputs.ref_uuid }}
+          id: ${{ steps.create.outputs.ref_id }}
+          name: Contract milestone updated
+          description: Updated by a contract.
+      - key: update_effect
+        tool: get_milestone
+        connection: linear_shipfox_sandbox
+        with:
+          project: ${{ steps.project.outputs.ref_uuid }}
+          query: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+          value_description: '${{ has(result.description) ? result.description : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Contract milestone updated" && type(step.outputs.value_description) == type("") && step.outputs.value_description == "Updated by a contract."
+      - key: cancel
+        tool: save_project
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.project.outputs.ref_uuid }}
+          state: canceled
+      - key: cancel_effect
+        tool: get_project
+        connection: linear_shipfox_sandbox
+        with:
+          query: ${{ steps.project.outputs.ref_uuid }}
+        outputs:
+          value_status_type: '${{ has(result.status) && has(result.status.type) ? result.status.type : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_status_type) == type("") && step.outputs.value_status_type == "canceled"
+  project_round_trip:
+    checkout: false
+    steps:
+      - key: create
+        tool: save_project
+        connection: linear_shipfox_sandbox
+        with:
+          name: Contract contract-${{ run.id }}
+          addTeams:
+            - 9356e9c7-94d5-444d-83eb-d54b22c8082c
+          summary: Created by a contract.
+          description: Created by a contract.
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_uuid: ${{ has(result.uuid) && type(result.uuid) == type("") }}
+          shape_name: ${{ has(result.name) && type(result.name) == type("") }}
+          shape_url: ${{ has(result.url) && type(result.url) == type("") }}
+          value_summary: '${{ has(result.summary) ? result.summary : "" }}'
+          ref_uuid: '${{ has(result.uuid) ? result.uuid : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_uuid && step.outputs.shape_name && step.outputs.shape_url && type(step.outputs.value_summary) == type("") && step.outputs.value_summary == "Created by a contract."
+      - key: create_effect
+        tool: get_project
+        connection: linear_shipfox_sandbox
+        with:
+          query: ${{ steps.create.outputs.ref_uuid }}
+        outputs:
+          value_summary: '${{ has(result.summary) ? result.summary : "" }}'
+          value_description: '${{ has(result.description) ? result.description : "" }}'
+          value_teams_0_id: '${{ has(result.teams) && type(result.teams) == type([]) && size(result.teams) > 0 && [result.teams[0]].all(i0, has(i0.id)) ? result.teams[0].id : "" }}'
+          matches_name: ${{ has(result.name) && type(result.name) == type("") && result.name.matches("^Contract contract-[0-9a-f-]+$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_summary) == type("") && step.outputs.value_summary == "Created by a contract." && type(step.outputs.value_description) == type("") && step.outputs.value_description == "Created by a contract." && type(step.outputs.value_teams_0_id) == type("") && step.outputs.value_teams_0_id == "9356e9c7-94d5-444d-83eb-d54b22c8082c" && step.outputs.matches_name
+      - key: update
+        tool: save_project
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.create.outputs.ref_uuid }}
+          summary: Updated by a contract.
+          description: Updated by a contract.
+      - key: update_effect
+        tool: get_project
+        connection: linear_shipfox_sandbox
+        with:
+          query: ${{ steps.create.outputs.ref_uuid }}
+        outputs:
+          value_summary: '${{ has(result.summary) ? result.summary : "" }}'
+          value_description: '${{ has(result.description) ? result.description : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_summary) == type("") && step.outputs.value_summary == "Updated by a contract." && type(step.outputs.value_description) == type("") && step.outputs.value_description == "Updated by a contract."
+      - key: cancel
+        tool: save_project
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.create.outputs.ref_uuid }}
+          state: canceled
+      - key: cancel_effect
+        tool: get_project
+        connection: linear_shipfox_sandbox
+        with:
+          query: ${{ steps.create.outputs.ref_uuid }}
+        outputs:
+          value_status_type: '${{ has(result.status) && has(result.status.type) ? result.status.type : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_status_type) == type("") && step.outputs.value_status_type == "canceled"
   search_documentation:
     checkout: false
     steps:
@@ -999,3 +1194,113 @@ jobs:
           shape_0_snippet: ${{ type(result) == type([]) && size(result) > 0 && [result[0]].all(i0, has(i0.snippet) && type(i0.snippet) == type("")) }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_0_id && step.outputs.shape_0_title && step.outputs.shape_0_url && step.outputs.shape_0_snippet
+  status_update_round_trip:
+    checkout: false
+    steps:
+      - key: project
+        tool: save_project
+        connection: linear_shipfox_sandbox
+        with:
+          name: Contract contract-${{ run.id }}
+          addTeams:
+            - 9356e9c7-94d5-444d-83eb-d54b22c8082c
+          summary: Holds the status updates of a contract.
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_uuid: ${{ has(result.uuid) && type(result.uuid) == type("") }}
+          ref_uuid: '${{ has(result.uuid) ? result.uuid : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_uuid
+      - key: project_effect
+        tool: get_project
+        connection: linear_shipfox_sandbox
+        with:
+          query: ${{ steps.project.outputs.ref_uuid }}
+        outputs:
+          value_summary: '${{ has(result.summary) ? result.summary : "" }}'
+          matches_name: ${{ has(result.name) && type(result.name) == type("") && result.name.matches("^Contract contract-[0-9a-f-]+$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_summary) == type("") && step.outputs.value_summary == "Holds the status updates of a contract." && step.outputs.matches_name
+      - key: create
+        tool: save_status_update
+        connection: linear_shipfox_sandbox
+        with:
+          type: project
+          project: ${{ steps.project.outputs.ref_uuid }}
+          body: Created by a contract.
+          health: onTrack
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_body: ${{ has(result.body) && type(result.body) == type("") }}
+          shape_health: ${{ has(result.health) && type(result.health) == type("") }}
+          shape_url: ${{ has(result.url) && type(result.url) == type("") }}
+          value_body: '${{ has(result.body) ? result.body : "" }}'
+          value_health: '${{ has(result.health) ? result.health : "" }}'
+          ref_id: '${{ has(result.id) ? result.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_body && step.outputs.shape_health && step.outputs.shape_url && type(step.outputs.value_body) == type("") && step.outputs.value_body == "Created by a contract." && type(step.outputs.value_health) == type("") && step.outputs.value_health == "onTrack"
+      - key: create_effect
+        tool: get_status_updates
+        connection: linear_shipfox_sandbox
+        with:
+          type: project
+          project: ${{ steps.project.outputs.ref_uuid }}
+        outputs:
+          includes_statusUpdates: ${{ has(result.statusUpdates) && type(result.statusUpdates) == type([]) && result.statusUpdates.exists(item, has(item.body) && type(item.body) == type("") && item.body == "Created by a contract." && has(item.health) && type(item.health) == type("") && item.health == "onTrack") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_statusUpdates
+      - key: update
+        tool: save_status_update
+        connection: linear_shipfox_sandbox
+        with:
+          type: project
+          id: ${{ steps.create.outputs.ref_id }}
+          body: Updated by a contract.
+          health: atRisk
+      - key: update_effect
+        tool: get_status_updates
+        connection: linear_shipfox_sandbox
+        with:
+          type: project
+          project: ${{ steps.project.outputs.ref_uuid }}
+        outputs:
+          includes_statusUpdates: ${{ has(result.statusUpdates) && type(result.statusUpdates) == type([]) && result.statusUpdates.exists(item, has(item.body) && type(item.body) == type("") && item.body == "Updated by a contract." && has(item.health) && type(item.health) == type("") && item.health == "atRisk") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_statusUpdates
+      - key: delete
+        tool: delete_status_update
+        connection: linear_shipfox_sandbox
+        with:
+          type: project
+          id: ${{ steps.create.outputs.ref_id }}
+        outputs:
+          value_deleted: "${{ has(result.deleted) ? result.deleted : false }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_deleted) == type(true) && step.outputs.value_deleted == true
+      - key: delete_effect
+        tool: get_status_updates
+        connection: linear_shipfox_sandbox
+        with:
+          type: project
+          project: ${{ steps.project.outputs.ref_uuid }}
+        outputs:
+          shape_statusUpdates: ${{ has(result.statusUpdates) && type(result.statusUpdates) == type([]) }}
+          shape_hasNextPage: ${{ has(result.hasNextPage) && type(result.hasNextPage) == type(true) }}
+          value_statusUpdates_0_id: '${{ has(result.statusUpdates) && type(result.statusUpdates) == type([]) && size(result.statusUpdates) > 0 && [result.statusUpdates[0]].all(i0, has(i0.id)) ? result.statusUpdates[0].id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_statusUpdates && step.outputs.shape_hasNextPage && type(step.outputs.value_statusUpdates_0_id) == type("") && step.outputs.value_statusUpdates_0_id == ""
+      - key: cancel
+        tool: save_project
+        connection: linear_shipfox_sandbox
+        with:
+          id: ${{ steps.project.outputs.ref_uuid }}
+          state: canceled
+      - key: cancel_effect
+        tool: get_project
+        connection: linear_shipfox_sandbox
+        with:
+          query: ${{ steps.project.outputs.ref_uuid }}
+        outputs:
+          value_status_type: '${{ has(result.status) && has(result.status.type) ? result.status.type : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_status_type) == type("") && step.outputs.value_status_type == "canceled"

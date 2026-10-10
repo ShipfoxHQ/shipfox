@@ -1,0 +1,87 @@
+provider: linear
+kind: round-trip
+modes: [real]
+steps:
+  - key: project
+    tool: save_project
+    with:
+      name: Contract $marker
+      addTeams: [$fixture.linear.write_team.id]
+      summary: Holds the status updates of a contract.
+    expect:
+      shape: {id: string, uuid: string}
+    effect:
+      tool: get_project
+      with:
+        query: $steps.project.uuid
+      expect:
+        values:
+          summary: Holds the status updates of a contract.
+        matches:
+          name: '^Contract contract-[0-9a-f-]+$'
+  - key: create
+    tool: save_status_update
+    with:
+      type: project
+      project: $steps.project.uuid
+      body: Created by a contract.
+      health: onTrack
+    expect:
+      shape: {id: string, body: string, health: string, url: string}
+      values:
+        body: Created by a contract.
+        health: onTrack
+    # The project is this run's, so its status updates can't come from an earlier run.
+    effect:
+      tool: get_status_updates
+      with:
+        type: project
+        project: $steps.project.uuid
+      expect:
+        includes:
+          statusUpdates: {body: Created by a contract., health: onTrack}
+  - key: update
+    tool: save_status_update
+    with:
+      type: project
+      id: $steps.create.id
+      body: Updated by a contract.
+      health: atRisk
+    effect:
+      tool: get_status_updates
+      with:
+        type: project
+        project: $steps.project.uuid
+      expect:
+        includes:
+          statusUpdates: {body: Updated by a contract., health: atRisk}
+  - key: delete
+    tool: delete_status_update
+    with:
+      type: project
+      id: $steps.create.id
+    expect:
+      values:
+        deleted: true
+    # The project holds only this status update, so an empty first id means it is gone.
+    effect:
+      tool: get_status_updates
+      with:
+        type: project
+        project: $steps.project.uuid
+      expect:
+        shape: {statusUpdates: list, hasNextPage: boolean}
+        values:
+          statusUpdates[0].id: ''
+  - key: cancel
+    tool: save_project
+    with:
+      id: $steps.project.uuid
+      state: canceled
+    effect:
+      tool: get_project
+      with:
+        query: $steps.project.uuid
+      expect:
+        values:
+          status.type: canceled

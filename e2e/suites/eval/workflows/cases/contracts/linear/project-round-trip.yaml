@@ -1,0 +1,59 @@
+provider: linear
+kind: round-trip
+modes: [real]
+steps:
+  - key: create
+    tool: save_project
+    with:
+      name: Contract $marker
+      addTeams: [$fixture.linear.write_team.id]
+      summary: Created by a contract.
+      description: Created by a contract.
+    expect:
+      shape:
+        id: string
+        uuid: string
+        name: string
+        url: string
+      values:
+        summary: Created by a contract.
+    # The marker is in the name, so a pattern checks it. The project is this run's, so the values
+    # below can't come from an earlier run.
+    effect:
+      tool: get_project
+      with:
+        query: $steps.create.uuid
+      expect:
+        values:
+          summary: Created by a contract.
+          description: Created by a contract.
+          teams[0].id: $fixture.linear.write_team.id
+        matches:
+          name: '^Contract contract-[0-9a-f-]+$'
+  - key: update
+    tool: save_project
+    with:
+      id: $steps.create.uuid
+      summary: Updated by a contract.
+      description: Updated by a contract.
+    effect:
+      tool: get_project
+      with:
+        query: $steps.create.uuid
+      expect:
+        values:
+          summary: Updated by a contract.
+          description: Updated by a contract.
+  # The tools cannot delete a project, so the project ends canceled.
+  - key: cancel
+    tool: save_project
+    with:
+      id: $steps.create.uuid
+      state: canceled
+    effect:
+      tool: get_project
+      with:
+        query: $steps.create.uuid
+      expect:
+        values:
+          status.type: canceled

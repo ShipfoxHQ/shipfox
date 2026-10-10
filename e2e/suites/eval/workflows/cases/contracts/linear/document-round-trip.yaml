@@ -1,0 +1,39 @@
+provider: linear
+kind: round-trip
+modes: [real]
+steps:
+  # The tools cannot delete or archive a document, so it stays in the write team.
+  - key: create
+    tool: save_document
+    with:
+      team: $fixture.linear.write_team.id
+      title: Contract $marker
+      content: Created by a contract.
+    expect:
+      shape: {id: string, title: string, url: string}
+    # The marker is in the title, so a pattern checks it. The document is this run's, so the
+    # content below can't come from an earlier run.
+    effect:
+      tool: get_document
+      with:
+        id: $steps.create.id
+      expect:
+        values:
+          content: Created by a contract.
+        matches:
+          title: '^Contract contract-[0-9a-f-]+$'
+  - key: update
+    tool: save_document
+    with:
+      id: $steps.create.id
+      title: Contract $marker updated
+      content: Updated by a contract.
+    effect:
+      tool: get_document
+      with:
+        id: $steps.create.id
+      expect:
+        values:
+          content: Updated by a contract.
+        matches:
+          title: '^Contract contract-[0-9a-f-]+ updated$'

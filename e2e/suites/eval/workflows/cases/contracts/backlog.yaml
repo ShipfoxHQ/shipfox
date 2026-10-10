@@ -1,4 +1,4 @@
-ceiling: 34
+ceiling: 27
 entries:
   - {tool: github.add_comment_to_pending_review, kind: write, issue: ENG-2834}
   - {tool: github.add_issue_comment, kind: write, issue: ENG-2828}
@@ -27,10 +27,3 @@ entries:
   - {tool: jira.create_issue, kind: write, issue: ENG-2826}
   - {tool: jira.transition_issue, kind: write, issue: ENG-2826}
   - {tool: jira.update_issue, kind: write, issue: ENG-2826}
-  - {tool: linear.delete_status_update, kind: write, issue: ENG-2830}
-  - {tool: linear.save_document, kind: write, issue: ENG-2830}
-  - {tool: linear.save_milestone, kind: write, issue: ENG-2830}
-  - {tool: linear.save_project, kind: write, issue: ENG-2830}
-  - {tool: linear.save_release, kind: write, issue: ENG-2830}
-  - {tool: linear.save_release_note, kind: write, issue: ENG-2830}
-  - {tool: linear.save_status_update, kind: write, issue: ENG-2830}

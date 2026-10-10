@@ -1,0 +1,4 @@
+provider: linear
+exempt:
+  tool: save_release
+  reason: Releases need a Linear Business plan, which the sandbox workspace does not have. Linear answers that the feature is not accessible, so no release pipeline can exist there.
