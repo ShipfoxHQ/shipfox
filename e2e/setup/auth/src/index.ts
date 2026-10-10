@@ -52,7 +52,7 @@ export async function createSession(params: E2eCreateSessionBodyDto): Promise<E2
   return {...(await response.json<E2eCreateSessionResponseDto>()), setCookie};
 }
 
-function parseSetCookie(setCookie: string): {name: string; value: string; path: string} {
+export function parseSetCookie(setCookie: string): {name: string; value: string; path: string} {
   const segments = setCookie.split(';').map((segment) => segment.trim());
   const [pair] = segments;
   if (!pair) throw new Error('Set-Cookie header did not include a cookie');

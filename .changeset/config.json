@@ -65,7 +65,13 @@
       "@shipfox/api-workflows-dto",
       "@shipfox/api-workspaces",
       "@shipfox/api-workspaces-dto",
-      "@shipfox/e2e-harness"
+      "@shipfox/e2e-harness",
+      "@shipfox/e2e-setup-auth",
+      "@shipfox/e2e-setup-workspaces",
+      "@shipfox/e2e-setup-projects",
+      "@shipfox/e2e-setup-integrations",
+      "@shipfox/e2e-setup-agent",
+      "@shipfox/e2e-observe-workflows"
     ],
     [
       "@shipfox/client-agent",

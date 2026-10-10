@@ -163,6 +163,25 @@ describe('auth setup helper', () => {
     });
   });
 
+  test('parses the refresh cookie name, value, and path', async () => {
+    vi.doMock('@shipfox/e2e-core', () => ({config: {}, request: vi.fn(), requestJson: vi.fn()}));
+    const {parseSetCookie} = await import('./index.js');
+
+    expect(parseSetCookie(refreshCookie)).toEqual({
+      name: 'shipfox_refresh',
+      value: 'refresh-token',
+      path: '/auth/refresh',
+    });
+    expect(parseSetCookie('shipfox_refresh=a=b')).toEqual({
+      name: 'shipfox_refresh',
+      value: 'a=b',
+      path: '/',
+    });
+    expect(() => parseSetCookie('no-value; Path=/')).toThrow(
+      'Set-Cookie header did not include a cookie value',
+    );
+  });
+
   test('fails when the session response omits the refresh cookie', async () => {
     const request = vi.fn().mockResolvedValue(response({json: {token: 'session-token'}}));
     vi.doMock('@shipfox/e2e-core', () => ({config: {}, request, requestJson: vi.fn()}));
