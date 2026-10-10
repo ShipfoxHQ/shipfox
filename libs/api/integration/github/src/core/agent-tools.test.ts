@@ -1,12 +1,8 @@
-import {
-  assertAgentToolCatalogRepositoryScopes,
-  MAX_REPOSITORY_FILE_BYTES,
-} from '@shipfox/api-integration-spi';
+import {assertAgentToolCatalogRepositoryScopes} from '@shipfox/api-integration-spi';
 import {RequestError} from 'octokit';
 import type {GithubApiClient} from '#api/client.js';
 import {DEFAULT_JOB_LOG_TAIL_LINES} from '#core/actions-logs.js';
 import {
-  CREATE_COMMIT_ON_BRANCH_MUTATION,
   type GithubAgentToolId,
   GithubAgentToolsProvider,
   type GithubToolClient,
@@ -250,6 +246,48 @@ const expectedCatalogRows = [
     sensitive: false,
     requiredScope: [{permission: 'contents', access: 'write'}],
   },
+  {
+    id: 'create_blob',
+    category: 'repository',
+    sensitivity: 'write',
+    sensitive: false,
+    requiredScope: [{permission: 'contents', access: 'write'}],
+  },
+  {
+    id: 'delete_branch',
+    category: 'repository',
+    sensitivity: 'write',
+    sensitive: false,
+    requiredScope: [{permission: 'contents', access: 'write'}],
+  },
+  {
+    id: 'get_repository',
+    category: 'repository',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: [{permission: 'contents', access: 'read'}],
+  },
+  {
+    id: 'get_branch',
+    category: 'repository',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: [{permission: 'contents', access: 'read'}],
+  },
+  {
+    id: 'get_commit',
+    category: 'repository',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: [{permission: 'contents', access: 'read'}],
+  },
+  {
+    id: 'compare_commits',
+    category: 'repository',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: [{permission: 'contents', access: 'read'}],
+  },
 ];
 
 type GithubOperationRouteCase = {
@@ -444,11 +482,6 @@ const githubOperationRouteCases = [
     expectedRoute: 'POST /repos/{owner}/{repo}/pulls',
   },
   {
-    toolId: 'create_commit',
-    args: {},
-    expectedRoute: 'POST /graphql',
-  },
-  {
     toolId: 'create_branch',
     args: {
       repository: 'shipfox/platform',
@@ -457,6 +490,54 @@ const githubOperationRouteCases = [
     },
     runtimeInjectedProperties: ['owner', 'repo'],
     expectedRoute: 'POST /repos/{owner}/{repo}/git/refs',
+  },
+  {
+    toolId: 'get_repository',
+    args: {repository: 'shipfox/platform'},
+    runtimeInjectedProperties: ['owner', 'repo'],
+    expectedRoute: 'GET /repos/{owner}/{repo}',
+  },
+  {
+    toolId: 'get_branch',
+    args: {repository: 'shipfox/platform', branch: 'main'},
+    runtimeInjectedProperties: ['owner', 'repo'],
+    expectedRoute: 'GET /repos/{owner}/{repo}/branches/{branch}',
+  },
+  {
+    toolId: 'get_commit',
+    args: {repository: 'shipfox/platform', ref: 'main'},
+    runtimeInjectedProperties: ['owner', 'repo'],
+    expectedRoute: 'GET /repos/{owner}/{repo}/commits/{ref}',
+  },
+  {
+    toolId: 'compare_commits',
+    args: {repository: 'shipfox/platform', base: 'main', head: 'feature'},
+    runtimeInjectedProperties: ['owner', 'repo', 'basehead'],
+    expectedRoute: 'GET /repos/{owner}/{repo}/compare/{basehead}',
+  },
+  {
+    toolId: 'delete_branch',
+    args: {repository: 'shipfox/platform', branch: 'feature'},
+    runtimeInjectedProperties: ['owner', 'repo', 'ref'],
+    expectedRoute: 'DELETE /repos/{owner}/{repo}/git/refs/{ref}',
+  },
+  {
+    toolId: 'create_blob',
+    args: {repository: 'shipfox/platform', contents: 'hello'},
+    runtimeInjectedProperties: ['owner', 'repo'],
+    expectedRoute: 'POST /repos/{owner}/{repo}/git/blobs',
+  },
+  {
+    toolId: 'create_commit',
+    args: {
+      repository: 'shipfox/platform',
+      branch: 'feature',
+      parent_oid: 'aa218f56b14c9653891f9e74264a383fa43fefbd',
+      message: 'Update',
+      entries: [{path: 'a.txt', contents: 'a'}],
+    },
+    runtimeInjectedProperties: ['owner', 'repo'],
+    expectedRoute: 'POST /repos/{owner}/{repo}/git/commits',
   },
   {
     toolId: 'update_pull_request',
@@ -842,7 +923,8 @@ describe('github agent tool catalog', () => {
     ];
     expect(searchIssuesSchema.oneOf).toEqual(searchRepositoryPairSchema);
     expect(searchPullRequestsSchema.oneOf).toEqual(searchRepositoryPairSchema);
-    expect(updatePullRequestSchema.properties).not.toHaveProperty('draft');
+    // GitHub's update endpoint ignores draft, so the tool applies it through GraphQL instead.
+    expect(updatePullRequestSchema.properties?.draft).toMatchObject({type: 'boolean'});
     expect(addIssueCommentSchema.anyOf).toEqual([
       {required: ['issue_number', 'body']},
       {required: ['issue_number', 'reaction']},
@@ -900,26 +982,19 @@ describe('github agent tool catalog', () => {
     expect(createCommitSchema.required).toEqual([
       'repository',
       'branch',
-      'expected_head_oid',
+      'parent_oid',
       'message',
+      'entries',
     ]);
-    expect(createCommitSchema.properties?.message).toMatchObject({
-      type: 'object',
-      required: ['headline'],
-    });
-    expect(createCommitSchema.properties?.additions).toMatchObject({
+    expect(createCommitSchema.properties?.entries).toMatchObject({
       type: 'array',
       items: {
         type: 'object',
-        required: ['path', 'contents'],
+        required: ['path'],
         properties: {
-          encoding: {type: 'string', enum: ['utf8', 'base64']},
+          mode: {type: 'string', enum: ['100644', '100755', '120000', '160000']},
         },
       },
-    });
-    expect(createCommitSchema.properties?.deletions).toMatchObject({
-      type: 'array',
-      items: {type: 'object', required: ['path']},
     });
     expect(checkRunWriteSchema.properties?.status).toMatchObject({
       type: 'string',
@@ -1840,11 +1915,13 @@ describe('github agent tool catalog', () => {
           reviewers: ['stranger'],
         },
       }),
-    ).rejects.toMatchObject({
-      reason: 'provider-rejected',
-      status: 422,
-      message:
-        'Pull request #7 was saved but requesting reviewers failed: Reviews may only be requested from collaborators.',
+    ).resolves.toMatchObject({
+      structuredContent: {
+        pull_request: {number: 7},
+        warnings: [
+          'Pull request #7 was saved but requesting reviewers failed: Reviews may only be requested from collaborators.',
+        ],
+      },
     });
   });
 
@@ -1874,13 +1951,15 @@ describe('github agent tool catalog', () => {
           reviewers: ['octocat'],
         },
       }),
-    ).rejects.toMatchObject({
-      reason: 'provider-unavailable',
-      message: 'Pull request #7 was saved but requesting reviewers failed: fetch failed',
+    ).resolves.toMatchObject({
+      structuredContent: {
+        pull_request: {number: 7},
+        warnings: ['Pull request #7 was saved but requesting reviewers failed: fetch failed'],
+      },
     });
   });
 
-  it('maps a reviewer request 404 to provider-rejected rather than a missing repository', async () => {
+  it('reports a reviewer request 404 as a warning on the saved pull request', async () => {
     const request = vi
       .fn()
       .mockResolvedValueOnce({data: {number: 7}})
@@ -1907,10 +1986,11 @@ describe('github agent tool catalog', () => {
         toolId: 'update_pull_request',
         arguments: {owner: 'shipfox', repo: 'platform', pull_number: 7, reviewers: ['octocat']},
       }),
-    ).rejects.toMatchObject({
-      reason: 'provider-rejected',
-      status: 404,
-      message: 'Pull request #7 was saved but requesting reviewers failed: Not Found',
+    ).resolves.toMatchObject({
+      structuredContent: {
+        pull_request: {number: 7},
+        warnings: ['Pull request #7 was saved but requesting reviewers failed: Not Found'],
+      },
     });
   });
 
@@ -1940,7 +2020,7 @@ describe('github agent tool catalog', () => {
     ).rejects.toMatchObject({
       reason: 'malformed-provider-response',
       message:
-        'Pull request was saved but GitHub did not return its number, so reviewers were not requested',
+        'Pull request was saved but GitHub did not return its number, so its other settings were not applied',
     });
     expect(request).toHaveBeenCalledOnce();
   });
@@ -1980,111 +2060,6 @@ describe('github agent tool catalog', () => {
       ],
       structuredContent: {code: 'invalid-request'},
     });
-  });
-
-  it('sends authorized workflow file changes to GitHub', async () => {
-    const oid = '0'.repeat(40);
-    const graphql = vi.fn().mockResolvedValueOnce({
-      createCommitOnBranch: {
-        commit: {oid, url: `https://github.com/shipfox/platform/commit/${oid}`},
-      },
-    });
-    const provider = createAgentToolsProvider({request: vi.fn(), graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    const result = await session.call({
-      toolId: 'create_commit',
-      arguments: {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Add CI'},
-        additions: [{path: '.github/workflows/ci.yml', contents: 'name: ci\n'}],
-      },
-    });
-
-    expect(graphql).toHaveBeenCalledOnce();
-    expect(result).toMatchObject({structuredContent: {commit: {oid}}});
-  });
-
-  it.each([
-    {
-      label: 'a relative workflow path',
-      changes: {additions: [{path: './.github/workflows/ci.yml', contents: 'name: ci\n'}]},
-      code: 'invalid-request',
-    },
-    {
-      label: 'a parent-traversal workflow path',
-      changes: {additions: [{path: 'docs/../.github/workflows/ci.yml', contents: 'name: ci\n'}]},
-      code: 'invalid-request',
-    },
-  ])('rejects $label before GitHub', async ({changes, code}) => {
-    const graphql = vi.fn();
-    const provider = createAgentToolsProvider({request: vi.fn(), graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    const result = await session.call({
-      toolId: 'create_commit',
-      arguments: {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Touch CI'},
-        ...changes,
-      },
-    });
-
-    expect(graphql).not.toHaveBeenCalled();
-    expect(result).toMatchObject({isError: true, structuredContent: {code}});
-  });
-
-  it('sends workflow file commits when token metadata is incomplete', async () => {
-    const oid = '0'.repeat(40);
-    const graphql = vi.fn().mockResolvedValueOnce({
-      createCommitOnBranch: {
-        commit: {oid, url: `https://github.com/shipfox/platform/commit/${oid}`},
-      },
-    });
-    const getInstallationAccessToken = vi.fn(() =>
-      Promise.resolve({
-        token: 'installation-token',
-        expiresAt: new Date(),
-        permissions: {},
-      }),
-    );
-    const provider = new GithubAgentToolsProvider({
-      getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
-      tokenProvider: {getInstallationAccessToken},
-      createClient: vi.fn(() => ({request: vi.fn(), graphql})),
-    });
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    const result = await session.call({
-      toolId: 'create_commit',
-      arguments: {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Add CI'},
-        additions: [{path: '.github/workflows/ci.yml', contents: 'name: ci\n'}],
-      },
-    });
-
-    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
-    expect(graphql).toHaveBeenCalledOnce();
-    expect(result).toMatchObject({structuredContent: {commit: {oid}}});
   });
 
   it('returns artifact download metadata without buffering archive bytes', async () => {
@@ -2324,729 +2299,6 @@ describe('github agent tool catalog', () => {
       reason: 'provider-rejected',
       message:
         'GitHub review thread was not found. Refresh the current review threads before retrying.',
-    });
-  });
-
-  it('creates a commit through GraphQL with utf8 contents transcoded to base64', async () => {
-    const request = vi.fn();
-    const data = {
-      createCommitOnBranch: {
-        commit: {
-          oid: '0123456789abcdef0123456789abcdef01234567',
-          url: 'https://github.com/shipfox/platform/commit/0123456789abcdef0123456789abcdef01234567',
-        },
-      },
-    };
-    const graphql = vi.fn().mockResolvedValueOnce(data);
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    const result = await session.call({
-      toolId: 'create_commit',
-      arguments: {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'fedcba9876543210fedcba9876543210fedcba98',
-        message: {headline: 'Implement ENG-1719', body: 'Signed bot commits.'},
-        additions: [
-          {path: 'docs/README.md', contents: 'Hello, 世界!\n'},
-          {path: 'config.json', contents: 'eyJmb28iOiJiYXIifQ==', encoding: 'base64'},
-        ],
-        deletions: [{path: 'legacy/old-file.txt'}],
-      },
-    });
-
-    expect(request).not.toHaveBeenCalled();
-    expect(graphql).toHaveBeenCalledWith(CREATE_COMMIT_ON_BRANCH_MUTATION, {
-      input: {
-        branch: {repositoryNameWithOwner: 'shipfox/platform', branchName: 'feature'},
-        expectedHeadOid: 'fedcba9876543210fedcba9876543210fedcba98',
-        message: {headline: 'Implement ENG-1719', body: 'Signed bot commits.'},
-        fileChanges: {
-          additions: [
-            {
-              path: 'docs/README.md',
-              contents: Buffer.from('Hello, 世界!\n', 'utf8').toString('base64'),
-            },
-            {path: 'config.json', contents: 'eyJmb28iOiJiYXIifQ=='},
-          ],
-          deletions: [{path: 'legacy/old-file.txt'}],
-        },
-      },
-    });
-    expect(result).toEqual({
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            commit: {
-              oid: data.createCommitOnBranch.commit.oid,
-              url: data.createCommitOnBranch.commit.url,
-            },
-          }),
-        },
-      ],
-      structuredContent: {
-        commit: {
-          oid: data.createCommitOnBranch.commit.oid,
-          url: data.createCommitOnBranch.commit.url,
-        },
-      },
-    });
-  });
-
-  it('models renames as a deletion of the old path plus an addition of the new path', async () => {
-    const request = vi.fn();
-    const graphql = vi.fn().mockResolvedValueOnce({
-      createCommitOnBranch: {
-        commit: {
-          oid: 'a'.repeat(40),
-          url: `https://github.com/shipfox/platform/commit/${'a'.repeat(40)}`,
-        },
-      },
-    });
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    await session.call({
-      toolId: 'create_commit',
-      arguments: {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'b'.repeat(40),
-        message: {headline: 'Rename file'},
-        deletions: [{path: 'docs/README.md'}],
-        additions: [{path: 'docs/README.txt', contents: 'Hello, 世界!\n'}],
-      },
-    });
-
-    const input = graphql.mock.calls[0]?.[1];
-    expect(input).toEqual({
-      input: {
-        branch: {repositoryNameWithOwner: 'shipfox/platform', branchName: 'feature'},
-        expectedHeadOid: 'b'.repeat(40),
-        message: {headline: 'Rename file'},
-        fileChanges: {
-          additions: [
-            {
-              path: 'docs/README.txt',
-              contents: Buffer.from('Hello, 世界!\n', 'utf8').toString('base64'),
-            },
-          ],
-          deletions: [{path: 'docs/README.md'}],
-        },
-      },
-    });
-  });
-
-  it('passes base64-encoded binary contents through unchanged', async () => {
-    const binaryBase64 = Buffer.from([0x00, 0x01, 0x89, 0xff, 0x10]).toString('base64');
-    const request = vi.fn();
-    const graphql = vi.fn().mockResolvedValueOnce({
-      createCommitOnBranch: {
-        commit: {
-          oid: 'c'.repeat(40),
-          url: `https://github.com/shipfox/platform/commit/${'c'.repeat(40)}`,
-        },
-      },
-    });
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    await session.call({
-      toolId: 'create_commit',
-      arguments: {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'd'.repeat(40),
-        message: {headline: 'Add binary asset'},
-        additions: [{path: 'assets/logo.png', contents: binaryBase64, encoding: 'base64'}],
-      },
-    });
-
-    expect(graphql.mock.calls[0]?.[1]).toEqual({
-      input: {
-        branch: {repositoryNameWithOwner: 'shipfox/platform', branchName: 'feature'},
-        expectedHeadOid: 'd'.repeat(40),
-        message: {headline: 'Add binary asset'},
-        fileChanges: {
-          additions: [{path: 'assets/logo.png', contents: binaryBase64}],
-          deletions: [],
-        },
-      },
-    });
-  });
-
-  it('accepts empty base64 contents as an empty file', async () => {
-    const request = vi.fn();
-    const graphql = vi.fn().mockResolvedValueOnce({
-      createCommitOnBranch: {
-        commit: {
-          oid: 'c'.repeat(40),
-          url: `https://github.com/shipfox/platform/commit/${'c'.repeat(40)}`,
-        },
-      },
-    });
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    await session.call({
-      toolId: 'create_commit',
-      arguments: {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'd'.repeat(40),
-        message: {headline: 'Add empty file'},
-        additions: [{path: 'assets/empty.bin', contents: '', encoding: 'base64'}],
-      },
-    });
-
-    expect(graphql.mock.calls[0]?.[1]).toEqual({
-      input: {
-        branch: {repositoryNameWithOwner: 'shipfox/platform', branchName: 'feature'},
-        expectedHeadOid: 'd'.repeat(40),
-        message: {headline: 'Add empty file'},
-        fileChanges: {
-          additions: [{path: 'assets/empty.bin', contents: ''}],
-          deletions: [],
-        },
-      },
-    });
-  });
-
-  it('accepts a 64-character SHA-256 oid', async () => {
-    const request = vi.fn();
-    const graphql = vi.fn().mockResolvedValueOnce({
-      createCommitOnBranch: {
-        commit: {
-          oid: 'e'.repeat(64),
-          url: `https://github.com/shipfox/platform/commit/${'e'.repeat(64)}`,
-        },
-      },
-    });
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    const result = await session.call({
-      toolId: 'create_commit',
-      arguments: {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'f'.repeat(64),
-        message: {headline: 'SHA-256 repo'},
-        additions: [{path: 'docs/README.md', contents: 'content'}],
-      },
-    });
-
-    expect(graphql).toHaveBeenCalledWith(CREATE_COMMIT_ON_BRANCH_MUTATION, {
-      input: expect.objectContaining({expectedHeadOid: 'f'.repeat(64)}),
-    });
-    expect(result).toMatchObject({
-      structuredContent: {commit: {oid: 'e'.repeat(64)}},
-    });
-  });
-
-  it('maps an expectedHeadOid mismatch to a provider-rejected stale-head error', async () => {
-    const request = vi.fn();
-    const providerMessage =
-      'Expected branch to point to "fedcba9876543210fedcba9876543210fedcba98" but it did not. Pull and try again.';
-    const graphql = vi
-      .fn()
-      .mockRejectedValue(graphqlError([{type: 'STALE_DATA', message: providerMessage}]));
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    await expect(
-      session.call({
-        toolId: 'create_commit',
-        arguments: {
-          repository: 'shipfox/platform',
-          branch: 'feature',
-          expected_head_oid: 'fedcba9876543210fedcba9876543210fedcba98',
-          message: {headline: 'Race'},
-          additions: [{path: 'docs/README.md', contents: 'content'}],
-        },
-      }),
-    ).rejects.toMatchObject({
-      reason: 'provider-rejected',
-      message:
-        'Stale branch head (stale-head): expected_head_oid fedcba9876543210fedcba9876543210fedcba98 did not match the branch tip. ' +
-        providerMessage,
-    });
-  });
-
-  it('maps an STALE_HEAD_OID typed GraphQL error without a matching message', async () => {
-    const request = vi.fn();
-    const graphql = vi
-      .fn()
-      .mockRejectedValue(
-        graphqlError([{type: 'STALE_HEAD_OID', message: 'The branch head moved'}]),
-      );
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    await expect(
-      session.call({
-        toolId: 'create_commit',
-        arguments: {
-          repository: 'shipfox/platform',
-          branch: 'feature',
-          expected_head_oid: 'a'.repeat(40),
-          message: {headline: 'Race'},
-          additions: [{path: 'docs/README.md', contents: 'content'}],
-        },
-      }),
-    ).rejects.toMatchObject({
-      reason: 'provider-rejected',
-      message: expect.stringContaining('stale-head'),
-    });
-  });
-
-  it('maps a message-only expectedHeadOid mismatch to a stale-head error', async () => {
-    const request = vi.fn();
-    const providerMessage =
-      'Expected branch to point to "0123456789abcdef0123456789abcdef01234567" but it did not. Pull and try again.';
-    const graphql = vi.fn().mockRejectedValue(graphqlError([{message: providerMessage}]));
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    await expect(
-      session.call({
-        toolId: 'create_commit',
-        arguments: {
-          repository: 'shipfox/platform',
-          branch: 'feature',
-          expected_head_oid: '0123456789abcdef0123456789abcdef01234567',
-          message: {headline: 'Race'},
-          additions: [{path: 'docs/README.md', contents: 'content'}],
-        },
-      }),
-    ).rejects.toMatchObject({
-      reason: 'provider-rejected',
-      message:
-        'Stale branch head (stale-head): expected_head_oid 0123456789abcdef0123456789abcdef01234567 did not match the branch tip. ' +
-        providerMessage,
-    });
-  });
-
-  it('maps a RATE_LIMITED GraphQL error anywhere in the errors list with retry context', async () => {
-    const request = vi.fn();
-    const graphql = vi
-      .fn()
-      .mockRejectedValue(
-        graphqlError(
-          [
-            {message: 'A non-classified error appears first'},
-            {type: 'RATE_LIMITED', message: 'The GraphQL rate limit has been hit'},
-          ],
-          {status: 403, headers: {'retry-after': '60'}},
-        ),
-      );
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    await expect(
-      session.call({
-        toolId: 'create_commit',
-        arguments: {
-          repository: 'shipfox/platform',
-          branch: 'feature',
-          expected_head_oid: 'a'.repeat(40),
-          message: {headline: 'Rate limited'},
-          additions: [{path: 'docs/README.md', contents: 'content'}],
-        },
-      }),
-    ).rejects.toMatchObject({
-      reason: 'rate-limited',
-      message: 'The GraphQL rate limit has been hit',
-      retryAfterSeconds: 60,
-      status: 403,
-    });
-  });
-
-  it('surfaces unique-path violations readably', async () => {
-    const request = vi.fn();
-    const graphql = vi
-      .fn()
-      .mockRejectedValueOnce(graphqlError([{message: 'Path must be unique: docs/README.md'}]));
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    await expect(
-      session.call({
-        toolId: 'create_commit',
-        arguments: {
-          repository: 'shipfox/platform',
-          branch: 'feature',
-          expected_head_oid: 'a'.repeat(40),
-          message: {headline: 'Duplicate'},
-          additions: [
-            {path: 'docs/README.md', contents: 'one'},
-            {path: 'docs/README.md', contents: 'two'},
-          ],
-        },
-      }),
-    ).rejects.toMatchObject({
-      reason: 'provider-rejected',
-      message: 'Path must be unique: docs/README.md',
-    });
-  });
-
-  it('surfaces nonexistent-deletion errors readably', async () => {
-    const request = vi.fn();
-    const message =
-      'A path was requested for deletion which does not exist as of commit oid `' +
-      'a'.repeat(40) +
-      '`';
-    const graphql = vi.fn().mockRejectedValueOnce(graphqlError([{message}]));
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    await expect(
-      session.call({
-        toolId: 'create_commit',
-        arguments: {
-          repository: 'shipfox/platform',
-          branch: 'feature',
-          expected_head_oid: 'a'.repeat(40),
-          message: {headline: 'Delete'},
-          deletions: [{path: 'docs/missing.md'}],
-        },
-      }),
-    ).rejects.toMatchObject({
-      reason: 'provider-rejected',
-      message,
-    });
-  });
-
-  it('rejects an empty change set at validation', async () => {
-    const request = vi.fn();
-    const graphql = vi.fn();
-    const result = await callGithubToolWithRequest(
-      'create_commit',
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Empty'},
-      },
-      request,
-    );
-
-    expect(graphql).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      isError: true,
-      content: [
-        {type: 'text', text: 'At least one addition or deletion is required to create a commit'},
-      ],
-      structuredContent: {code: 'invalid-request'},
-    });
-  });
-
-  it.each([
-    '0'.repeat(40),
-    '0'.repeat(64),
-  ])('rejects an all-zero expected head object id before the provider request', async (expectedHeadOid) => {
-    const request = vi.fn();
-    const graphql = vi.fn();
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    const result = await session.call({
-      toolId: 'create_commit',
-      arguments: {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: expectedHeadOid,
-        message: {headline: 'Zero oid'},
-        additions: [{path: 'a.txt', contents: 'x'}],
-      },
-    });
-
-    expect(result).toEqual({
-      isError: true,
-      content: [
-        {
-          type: 'text',
-          text: 'Parameter expected_head_oid must be a 40- or 64-character commit oid',
-        },
-      ],
-      structuredContent: {code: 'invalid-request'},
-    });
-    expect(request).not.toHaveBeenCalled();
-    expect(graphql).not.toHaveBeenCalled();
-  });
-
-  it('rejects malformed create_commit arguments at validation', async () => {
-    const request = vi.fn();
-    const graphql = vi.fn();
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    const invalidCalls = [
-      {
-        repository: 'platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Bad repository'},
-        additions: [{path: 'a.txt', contents: 'x'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'not-an-oid',
-        message: {headline: 'Bad oid'},
-        additions: [{path: 'a.txt', contents: 'x'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Bad encoding'},
-        additions: [{path: 'a.txt', contents: 'x', encoding: 'hex'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Bad body', body: 42},
-        additions: [{path: 'a.txt', contents: 'x'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: '   ',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Blank branch'},
-        additions: [{path: 'a.txt', contents: 'x'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: 'not-an-object',
-        additions: [{path: 'a.txt', contents: 'x'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: '   '},
-        additions: [{path: 'a.txt', contents: 'x'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Bad additions type'},
-        additions: 'x',
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Bad deletions type'},
-        additions: [{path: 'a.txt', contents: 'x'}],
-        deletions: 'x',
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Empty addition path'},
-        additions: [{path: '', contents: 'x'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Non-string contents'},
-        additions: [{path: 'a.txt', contents: 42}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Empty deletion path'},
-        additions: [{path: 'a.txt', contents: 'x'}],
-        deletions: [{path: ''}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Parent traversal path'},
-        additions: [{path: '../escape.txt', contents: 'x'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Absolute path'},
-        additions: [{path: '/etc/passwd', contents: 'x'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Dotgit path'},
-        additions: [{path: '.git/config', contents: 'x'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Unpaired surrogate'},
-        additions: [{path: 'a.txt', contents: '\uD800'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Unpaired surrogate with explicit utf8'},
-        additions: [{path: 'a.txt', contents: '\uD800', encoding: 'utf8'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Malformed base64'},
-        additions: [{path: 'a.bin', contents: 'not!base64', encoding: 'base64'}],
-      },
-      {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'Oversized contents'},
-        additions: [{path: 'a.txt', contents: 'x'.repeat(MAX_REPOSITORY_FILE_BYTES + 1)}],
-      },
-    ];
-
-    for (const arguments_ of invalidCalls) {
-      const result = await session.call({toolId: 'create_commit', arguments: arguments_});
-      expect(result).toMatchObject({isError: true, structuredContent: {code: 'invalid-request'}});
-    }
-    expect(graphql).not.toHaveBeenCalled();
-  });
-
-  it('sends create_commit to GitHub when token metadata is incomplete', async () => {
-    const oid = '0'.repeat(40);
-    const graphql = vi.fn().mockResolvedValueOnce({
-      createCommitOnBranch: {
-        commit: {oid, url: `https://github.com/shipfox/platform/commit/${oid}`},
-      },
-    });
-    const getInstallationAccessToken = vi.fn(() =>
-      Promise.resolve({
-        token: 'installation-token',
-        expiresAt: new Date(),
-        permissions: {issues: 'write' as const, pull_requests: 'write' as const},
-      }),
-    );
-    const provider = new GithubAgentToolsProvider({
-      getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
-      tokenProvider: {
-        getInstallationAccessToken,
-      },
-      createClient: vi.fn(() => ({request: vi.fn(), graphql})),
-    });
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    const result = await session.call({
-      toolId: 'create_commit',
-      arguments: {
-        repository: 'shipfox/platform',
-        branch: 'feature',
-        expected_head_oid: 'a'.repeat(40),
-        message: {headline: 'No scope'},
-        additions: [{path: 'a.txt', contents: 'x'}],
-      },
-    });
-
-    expect(result).toMatchObject({structuredContent: {commit: {oid}}});
-    expect(graphql).toHaveBeenCalledOnce();
-    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
-  });
-
-  it('rejects a createCommitOnBranch response without a commit', async () => {
-    const request = vi.fn();
-    const graphql = vi.fn().mockResolvedValueOnce({createCommitOnBranch: {commit: {}}});
-    const provider = createAgentToolsProvider({request, graphql});
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    await expect(
-      session.call({
-        toolId: 'create_commit',
-        arguments: {
-          repository: 'shipfox/platform',
-          branch: 'feature',
-          expected_head_oid: 'a'.repeat(40),
-          message: {headline: 'Broken'},
-          additions: [{path: 'a.txt', contents: 'x'}],
-        },
-      }),
-    ).rejects.toMatchObject({
-      reason: 'malformed-provider-response',
-      message: 'GitHub createCommitOnBranch response did not include a commit oid and url',
     });
   });
 
@@ -5150,12 +4402,6 @@ function pullRequestReviewThreadWriteTool() {
     (entry) => entry.id === 'pull_request_review_thread_write',
   );
   if (!tool) throw new Error('Missing pull_request_review_thread_write tool');
-  return tool;
-}
-
-function createCommitTool() {
-  const tool = githubAgentToolCatalog.find((entry) => entry.id === 'create_commit');
-  if (!tool) throw new Error('Missing create_commit tool');
   return tool;
 }
 

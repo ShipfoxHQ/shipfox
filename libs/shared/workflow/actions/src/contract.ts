@@ -10,8 +10,11 @@ export const TOOLS_CALL_PATH = '/v1/tools/call';
 export const TOOLS_DOWNLOAD_PATH = '/v1/tools/download';
 export const TOOLS_LIST_PATH = '/v1/tools';
 
-/** Encoded request body limit, sized so a 1 MB `create_commit` still fits after base64. */
-export const MAX_TOOL_REQUEST_BYTES = 2 * 1024 * 1024;
+/**
+ * Encoded request body limit, sized so the 40 MiB file GitHub accepts in one `create_blob` still
+ * fits after base64. The gateway enforces the same limit.
+ */
+export const MAX_TOOL_REQUEST_BYTES = 64 * 1024 * 1024;
 
 /** One downloaded file. The gateway enforces the same limit. */
 export const MAX_DOWNLOAD_FILE_BYTES = 100 * 1024 * 1024;

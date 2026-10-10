@@ -22,8 +22,11 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
   the text blocks. `json()` parses that text and throws when it is not JSON. Text is never parsed
   silently.
 - **`ToolCallError`** is thrown for a failed call, with `code`, `reason`, `retryAfterSeconds`,
-  `outcomeUnknown`, and `callId`. When `outcomeUnknown` is true, a write may have reached the
-  provider, so do not retry it blindly.
+  `outcomeUnknown`, and `callId`. When a provider refuses a write, `reason` may be a
+  `ProviderErrorReason` such as `stale-head` or `pull-request-exists`, listed in
+  `PROVIDER_ERROR_REASONS`. When it is set, branch on it instead of matching the message. A
+  refusal the provider cannot name has no reason. When `outcomeUnknown` is true, a write may
+  have reached the provider, so do not retry it blindly.
 - **`ActionOutputError`** is thrown when an output is undeclared, has the wrong type, or a
   required output is missing.
 - **`log.info`, `log.warn`, `log.error`, and `log.group(name, fn)`** write to the step log.
@@ -150,8 +153,8 @@ Limits:
   merged over earlier `setOutput` values. A declaration without `required: false` is required.
 - **Only `rate-limited` errors are retried**, up to 3 times and within 60 seconds in total,
   waiting `retry_after_seconds` when the runner sends it. No other error is retried.
-- **A request above 2 MiB fails with `request-too-large`** before any network call. The limit
-  fits a 1 MB `create_commit` after base64.
+- **A request above 64 MiB fails with `request-too-large`** before any network call. The limit
+  fits the 40 MiB file GitHub accepts in one `create_blob` after base64.
 - **Argument types are generated** from the provider catalogs into `src/generated/tool-catalog.ts`.
   Regenerate them with `pnpm --filter @shipfox/action-tool-types generate`.
 - **Downloads** resolve `destination` against the step working directory and must stay inside

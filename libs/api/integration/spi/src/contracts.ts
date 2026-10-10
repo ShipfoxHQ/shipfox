@@ -459,12 +459,30 @@ export type IntegrationProviderErrorReason =
   | 'file-too-large'
   | 'file-location-not-allowed';
 
+/**
+ * Why a provider refused a write, for callers that react to the failure instead of reporting it.
+ * `unprocessable` is the fallback for a refusal no other detail describes.
+ */
+export const INTEGRATION_PROVIDER_ERROR_DETAILS = [
+  'stale-head',
+  'branch-not-found',
+  'branch-exists',
+  'pull-request-exists',
+  'no-commits-between',
+  'protected-branch',
+  'permission-denied',
+  'unprocessable',
+] as const;
+
+export type IntegrationProviderErrorDetail = (typeof INTEGRATION_PROVIDER_ERROR_DETAILS)[number];
+
 export class IntegrationProviderError extends Error {
   constructor(
     public readonly reason: IntegrationProviderErrorReason,
     message: string,
     public readonly retryAfterSeconds?: number | undefined,
     public readonly status?: number | undefined,
+    public readonly detail?: IntegrationProviderErrorDetail | undefined,
   ) {
     super(message);
     this.name = 'IntegrationProviderError';

@@ -27,8 +27,27 @@ const documentedRouteAliases: Record<string, string> = {
 /** Extra REST requests an operation issues around its main route. */
 const supportingRoutes: Record<string, string[]> = {
   create_branch: ['GET /repos/{owner}/{repo}/git/ref/{ref}'],
-  create_pull_request: ['POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers'],
-  update_pull_request: ['POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers'],
+  delete_branch: ['GET /repos/{owner}/{repo}', 'GET /repos/{owner}/{repo}/git/ref/{ref}'],
+  create_commit: [
+    'GET /repos/{owner}/{repo}/git/ref/{ref}',
+    'GET /repos/{owner}/{repo}/git/commits/{commit_sha}',
+    'POST /repos/{owner}/{repo}/git/trees',
+    'PATCH /repos/{owner}/{repo}/git/refs/{ref}',
+    'POST /repos/{owner}/{repo}/git/refs',
+  ],
+  create_pull_request: [
+    'POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers',
+    'POST /repos/{owner}/{repo}/issues/{issue_number}/labels',
+    'POST /repos/{owner}/{repo}/issues/{issue_number}/assignees',
+    'PATCH /repos/{owner}/{repo}/issues/{issue_number}',
+  ],
+  update_pull_request: [
+    'POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers',
+    'POST /repos/{owner}/{repo}/issues/{issue_number}/labels',
+    'POST /repos/{owner}/{repo}/issues/{issue_number}/assignees',
+    'PATCH /repos/{owner}/{repo}/issues/{issue_number}',
+    'POST /graphql',
+  ],
   'pull_request_review_write.submit_pending': [
     'GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews',
   ],
@@ -43,7 +62,7 @@ const graphqlRequirements: Record<string, GithubAppEndpointPermission> = {
   'pull_request_read.get_review_threads': {permission: 'pull_requests', access: 'read'},
   'pull_request_review_thread_write.resolve': {permission: 'pull_requests', access: 'write'},
   add_comment_to_pending_review: {permission: 'pull_requests', access: 'write'},
-  create_commit: {permission: 'contents', access: 'write'},
+  update_pull_request: {permission: 'pull_requests', access: 'write'},
 };
 
 /** Search is gated only by the metadata grant every installation token carries. */

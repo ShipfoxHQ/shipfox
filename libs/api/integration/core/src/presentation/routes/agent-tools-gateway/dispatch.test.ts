@@ -53,6 +53,30 @@ describe('createIntegrationToolDispatcher', () => {
     expect(dispatchMocks.reportError).not.toHaveBeenCalled();
   });
 
+  it('returns the provider detail as the error reason', async () => {
+    const dispatch = createDispatcher(
+      new IntegrationProviderError(
+        'provider-rejected',
+        'Stale branch head',
+        undefined,
+        422,
+        'stale-head',
+      ),
+    );
+
+    const result = await dispatch({
+      authorizedTool: authorizedTool(),
+      arguments: {method: 'get', owner: 'shipfox', repo: 'platform', issue_number: 1},
+      method: 'get',
+    });
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{type: 'text', text: 'Stale branch head'}],
+      structuredContent: {code: 'provider-rejected', reason: 'stale-head', status: 422},
+    });
+  });
+
   it('reports provider outages while preserving their message and status', async () => {
     const providerError = new IntegrationProviderError(
       'provider-unavailable',

@@ -18,9 +18,12 @@ import {
   resolveAuthorizedIntegrationTools,
 } from './resolve-authorized-tools.js';
 
-// A create_commit near its 1,000,000 decoded-byte file limit grows past Fastify's 1 MiB default
-// once base64 and JSON framing are added. The runner bridge caps requests at the same size.
-const GATEWAY_MCP_BODY_LIMIT = 2 * 1024 * 1024;
+// An action uploads one file per create_blob call. GitHub accepts a 40 MiB blob, which grows to
+// about 54 MiB once base64 and JSON framing are added. The actions SDK caps requests at this size.
+const GATEWAY_MCP_BODY_LIMIT = 64 * 1024 * 1024;
+// File contents an agent sends pass through the model, so agent calls keep a small budget. The
+// runner bridge caps requests at the same size.
+const AGENT_MCP_BODY_LIMIT = 2 * 1024 * 1024;
 
 export {leasedToolCaller} from './caller.js';
 export type {LeasedAgentStepLoader} from './resolve-authorized-tools.js';
@@ -55,6 +58,12 @@ export function createAgentToolsGatewayRoutes(
             getIntegrationConnectionById: params.getIntegrationConnectionById,
             builtinConnections: params.builtinConnections,
           });
+          if (stepType === 'agent' && requestBodyBytes(request) > AGENT_MCP_BODY_LIMIT) {
+            return reply.code(413).send({
+              code: 'request-too-large',
+              message: `An agent tool call is limited to ${AGENT_MCP_BODY_LIMIT} bytes.`,
+            });
+          }
           const caller = leasedToolCaller({stepType, callId: request.headers[CALL_ID_HEADER]});
           const server = buildAgentToolsMcpServer({
             authorizedTools,
@@ -93,4 +102,13 @@ export function createAgentToolsGatewayRoutes(
       createToolDownloadRoute(params),
     ],
   };
+}
+
+function requestBodyBytes(request: {
+  headers: {'content-length'?: string | undefined};
+  body: unknown;
+}): number {
+  const declared = Number(request.headers['content-length']);
+  if (Number.isFinite(declared)) return declared;
+  return Buffer.byteLength(JSON.stringify(request.body ?? null), 'utf8');
 }

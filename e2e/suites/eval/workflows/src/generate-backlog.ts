@@ -89,6 +89,8 @@ const COVERING_ISSUES: ReadonlyArray<{issue: string; patterns: readonly string[]
       'github.add_issue_comment',
       'github.create_branch',
       'github.create_commit',
+      'github.create_blob',
+      'github.delete_branch',
       'github.check_run_write',
     ],
   },

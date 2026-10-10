@@ -55,6 +55,8 @@ export {SHIPFOX_BUILTIN_CONNECTION_ID};
 
 export interface IntegrationToolCallError {
   code: IntegrationAgentToolCallErrorCode;
+  /** A stable, machine-readable cause, when the provider names one. */
+  reason?: string | undefined;
   message: string;
   retryAfterSeconds?: number | undefined;
   status?: number | undefined;
@@ -865,6 +867,7 @@ function errorResult(error: unknown): IntegrationToolCallError {
     const status = statusCode(error.status);
     return {
       code: error.reason === 'timeout' ? 'provider-timeout' : error.reason,
+      ...(error.detail === undefined ? {} : {reason: error.detail}),
       message: error.message,
       ...(retryAfterSeconds === undefined ? {} : {retryAfterSeconds}),
       ...(status === undefined ? {} : {status}),

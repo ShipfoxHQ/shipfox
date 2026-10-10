@@ -8,7 +8,7 @@ import type {
   IntegrationProviderErrorReason,
   OpenAgentToolsSessionInput,
 } from '@shipfox/api-integration-spi';
-import {isValidGitObjectId, MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-spi';
+import {isValidGitObjectId} from '@shipfox/api-integration-spi';
 import {Octokit} from 'octokit';
 import {mapGithubError} from '#api/client.js';
 import {
@@ -19,6 +19,17 @@ import {normalizedGithubApiBaseUrl} from '#config.js';
 import type {GithubInstallation} from '#db/installations.js';
 import {githubAppBotLogin} from './bot-identity.js';
 import {GithubIntegrationProviderError} from './errors.js';
+import {
+  createCommit,
+  createGitBlob,
+  deleteBranch,
+  projectCreateBlobOutput,
+  projectCreateCommitOutput,
+  validateCreateBlobArguments,
+  validateCreateCommitArguments,
+  validateDeleteBranchArguments,
+} from './git-data-tools.js';
+import {executeGitReadTool, isGitReadTool, validateGitReadArguments} from './git-read-tools.js';
 import {
   checkRunInputConclusions,
   checkRunInputStatuses,
@@ -31,6 +42,11 @@ import {
   githubAgentToolCatalog,
   githubAgentToolSelectionCatalog,
 } from './github-agent-tool-catalog.js';
+import {
+  applyPullRequestExtras,
+  splitPullRequestExtras,
+  validatePullRequestExtras,
+} from './pull-request-extras.js';
 
 export type {
   AgentToolRepositoryScope,
@@ -150,17 +166,6 @@ const RESOLVE_PULL_REQUEST_REVIEW_THREAD_MUTATION = `
       thread {
         id
         isResolved
-      }
-    }
-  }
-`;
-
-export const CREATE_COMMIT_ON_BRANCH_MUTATION = `
-  mutation CreateCommitOnBranch($input: CreateCommitOnBranchInput!) {
-    createCommitOnBranch(input: $input) {
-      commit {
-        oid
-        url
       }
     }
   }
@@ -352,6 +357,8 @@ export interface GithubToolResponse {
   headers?: Record<string, string | number | undefined> | undefined;
   status?: number | undefined;
   url?: string | undefined;
+  /** Follow-up writes that failed after the main write succeeded. */
+  warnings?: string[] | undefined;
 }
 
 export interface GithubToolClient {
@@ -501,10 +508,22 @@ export function githubOperationRoute(
       return 'GET /search/issues';
     case 'create_pull_request.':
       return `POST ${repoPath}/pulls`;
-    case 'create_commit.':
-      return GITHUB_GRAPHQL_ROUTE;
     case 'create_branch.':
       return `POST ${repoPath}/git/refs`;
+    case 'get_repository.':
+      return `GET ${repoPath}`;
+    case 'get_branch.':
+      return `GET ${repoPath}/branches/{branch}`;
+    case 'get_commit.':
+      return `GET ${repoPath}/commits/{ref}`;
+    case 'compare_commits.':
+      return `GET ${repoPath}/compare/{basehead}`;
+    case 'delete_branch.':
+      return `DELETE ${repoPath}/git/refs/{ref}`;
+    case 'create_blob.':
+      return `POST ${repoPath}/git/blobs`;
+    case 'create_commit.':
+      return `POST ${repoPath}/git/commits`;
     case 'update_pull_request.':
       return `PATCH ${repoPath}/pulls/${pull}`;
     case 'add_reply_to_pull_request_comment.':
@@ -625,151 +644,12 @@ async function executeGithubGraphqlOperation(
       });
     case 'add_comment_to_pending_review.':
       return await addCommentToPendingReview(client, parameters);
-    case 'create_commit.':
-      return await createCommitOnBranch(client, parameters);
     default:
       throw new GithubIntegrationProviderError(
         'malformed-provider-response',
         'GitHub operation does not support GraphQL operations',
       );
   }
-}
-
-const CREATE_COMMIT_STALE_HEAD_TYPE_PATTERN = /^STALE_(HEAD_OID|DATA)$/u;
-const CREATE_COMMIT_STALE_HEAD_MESSAGE_PATTERN = /Expected branch to point to/u;
-const CREATE_COMMIT_RATE_LIMITED_TYPE = 'RATE_LIMITED';
-const CREATE_COMMIT_REPOSITORY_PATTERN = /^[^/\s]+\/[^/\s]+$/u;
-const CREATE_COMMIT_ENCODINGS = new Set(['utf8', 'base64']);
-const CREATE_COMMIT_UNPAIRED_SURROGATE_PATTERN = /[\uD800-\uDFFF]/u;
-const CREATE_COMMIT_BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/u;
-
-async function createCommitOnBranch(
-  client: GithubToolClient,
-  parameters: Record<string, unknown>,
-): Promise<unknown> {
-  const graphql = client.graphql;
-  if (graphql === undefined) {
-    throw new GithubIntegrationProviderError(
-      'malformed-provider-response',
-      'GitHub client does not support GraphQL operations',
-    );
-  }
-  const message = isRecord(parameters.message) ? parameters.message : undefined;
-  const additions = Array.isArray(parameters.additions)
-    ? parameters.additions.filter(isRecord)
-    : [];
-  const deletions = Array.isArray(parameters.deletions)
-    ? parameters.deletions.filter(isRecord)
-    : [];
-  const input = {
-    branch: {
-      repositoryNameWithOwner: parameters.repository,
-      branchName: parameters.branch,
-    },
-    expectedHeadOid: parameters.expected_head_oid,
-    message: {
-      headline: message?.headline,
-      ...(message?.body === undefined ? {} : {body: message.body}),
-    },
-    fileChanges: {
-      additions: additions.map(transcodeFileAddition),
-      deletions: deletions.map((deletion) => ({path: deletion.path})),
-    },
-  };
-
-  try {
-    return await graphql(CREATE_COMMIT_ON_BRANCH_MUTATION, {input});
-  } catch (error) {
-    throw mapCreateCommitError(error, parameters.expected_head_oid);
-  }
-}
-
-function transcodeFileAddition(addition: Record<string, unknown>): Record<string, unknown> {
-  const contents = typeof addition.contents === 'string' ? addition.contents : '';
-  const contentsBase64 =
-    addition.encoding === 'base64' ? contents : Buffer.from(contents, 'utf8').toString('base64');
-  return {path: addition.path, contents: contentsBase64};
-}
-
-function mapCreateCommitError(error: unknown, expectedHeadOid: unknown): never {
-  const graphqlErrors = createCommitGraphqlErrors(error);
-  if (graphqlErrors.length === 0) throw error;
-  const rateLimited = graphqlErrors.find(
-    (graphqlError) => graphqlError.type === CREATE_COMMIT_RATE_LIMITED_TYPE,
-  );
-  if (rateLimited !== undefined) {
-    throw new GithubIntegrationProviderError(
-      'rate-limited',
-      rateLimited.message,
-      createCommitRateLimitRetryAfterSeconds(error),
-      githubGraphqlResponseStatus(error),
-    );
-  }
-  const staleHead = graphqlErrors.find(isStaleHeadCreateCommitError);
-  if (staleHead !== undefined) {
-    throw new GithubIntegrationProviderError(
-      'provider-rejected',
-      `Stale branch head (stale-head): expected_head_oid ${String(expectedHeadOid)} did not match the branch tip. ${staleHead.message}`,
-    );
-  }
-  const first = graphqlErrors[0];
-  if (first === undefined) throw error;
-  throw new GithubIntegrationProviderError('provider-rejected', first.message);
-}
-
-interface CreateCommitGraphqlError {
-  type?: string | undefined;
-  message: string;
-}
-
-function createCommitGraphqlErrors(error: unknown): CreateCommitGraphqlError[] {
-  if (!isRecord(error) || !Array.isArray(error.errors)) return [];
-  const graphqlErrors: CreateCommitGraphqlError[] = [];
-  for (const entry of error.errors) {
-    if (!isRecord(entry) || typeof entry.message !== 'string') continue;
-    graphqlErrors.push({
-      ...(typeof entry.type === 'string' ? {type: entry.type} : {}),
-      message: entry.message,
-    });
-  }
-  return graphqlErrors;
-}
-
-function createCommitRateLimitRetryAfterSeconds(error: unknown): number | undefined {
-  const headers = githubGraphqlResponseHeaders(error);
-  if (headers === undefined) return undefined;
-  const retryAfter = parseCreateCommitHeaderSeconds(headers['retry-after']);
-  if (retryAfter !== undefined) return retryAfter;
-  const resetAt = parseCreateCommitHeaderSeconds(headers['x-ratelimit-reset']);
-  if (resetAt === undefined) return undefined;
-  const seconds = resetAt - Math.floor(Date.now() / 1000);
-  return seconds > 0 ? seconds : undefined;
-}
-
-function githubGraphqlResponseHeaders(error: unknown): Record<string, unknown> | undefined {
-  if (!isRecord(error) || !isRecord(error.response)) return undefined;
-  return isRecord(error.response.headers) ? error.response.headers : undefined;
-}
-
-function githubGraphqlResponseStatus(error: unknown): number | undefined {
-  if (!isRecord(error) || !isRecord(error.response)) return undefined;
-  return typeof error.response.status === 'number' ? error.response.status : undefined;
-}
-
-function parseCreateCommitHeaderSeconds(value: unknown): number | undefined {
-  if (typeof value !== 'string' && typeof value !== 'number') return undefined;
-  const parsed = Number.parseInt(String(value), 10);
-  return Number.isNaN(parsed) ? undefined : parsed;
-}
-
-function isStaleHeadCreateCommitError(error: {
-  type?: string | undefined;
-  message: string;
-}): boolean {
-  return (
-    (error.type !== undefined && CREATE_COMMIT_STALE_HEAD_TYPE_PATTERN.test(error.type)) ||
-    CREATE_COMMIT_STALE_HEAD_MESSAGE_PATTERN.test(error.message)
-  );
 }
 
 export function projectGithubOperationParameters(
@@ -877,8 +757,12 @@ async function executeGithubRestOperation(
   toolId: GithubAgentToolId,
 ): Promise<GithubToolResponse> {
   if (toolId === 'create_branch') return await createGitBranch(client, parameters);
+  if (toolId === 'create_blob') return await createGitBlob(client, parameters);
+  if (toolId === 'delete_branch') return await deleteBranch(client, parameters);
+  if (isGitReadTool(toolId)) return await executeGitReadTool(client, toolId, parameters);
+  if (toolId === 'create_commit') return await createCommit(client, parameters);
   if (toolId === 'create_pull_request' || toolId === 'update_pull_request') {
-    return await savePullRequestWithReviewers(client, route, parameters);
+    return await savePullRequest(client, route, parameters, toolId);
   }
   return await client.request(route, parameters);
 }
@@ -886,44 +770,83 @@ async function executeGithubRestOperation(
 const REQUESTED_REVIEWERS_ROUTE =
   'POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers';
 
-async function savePullRequestWithReviewers(
+async function savePullRequest(
   client: GithubToolClient,
   route: string,
   parameters: Record<string, unknown>,
+  toolId: 'create_pull_request' | 'update_pull_request',
 ): Promise<GithubToolResponse> {
-  const {reviewers, ...pullRequestParameters} = parameters;
-  const response = await client.request(route, pullRequestParameters);
+  const {request, extras} = splitPullRequestExtras(toolId, parameters);
+  const {reviewers, ...pullRequestParameters} = request;
+  const saved = await client.request(route, pullRequestParameters);
   const requested = splitRequestedReviewers(reviewers);
-  if (requested === undefined) return response;
+  const hasExtras = Object.values(extras).some((value) => value !== undefined);
+  if (requested === undefined && !hasExtras) return saved;
 
   const pullNumber =
-    isRecord(response.data) && typeof response.data.number === 'number'
-      ? response.data.number
+    isRecord(saved.data) && typeof saved.data.number === 'number'
+      ? saved.data.number
       : pullRequestParameters.pull_number;
   if (typeof pullNumber !== 'number') {
     throw new GithubIntegrationProviderError(
       'malformed-provider-response',
-      'Pull request was saved but GitHub did not return its number, so reviewers were not requested',
+      'Pull request was saved but GitHub did not return its number, so its other settings were not applied',
     );
   }
+  const target = {
+    owner: pullRequestParameters.owner,
+    repo: pullRequestParameters.repo,
+    pullNumber,
+  };
+  const warnings: string[] = [];
+  let response = saved;
+  if (requested !== undefined) {
+    try {
+      response = await requestReviewers(client, {...target, requested});
+    } catch (error) {
+      warnings.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  const applied = await applyPullRequestExtras(client, {
+    ...target,
+    pullRequest: isRecord(saved.data) ? saved.data : {},
+    extras,
+  });
+  warnings.push(...applied.warnings);
+  const data =
+    applied.draft === undefined || !isRecord(response.data)
+      ? response.data
+      : {...response.data, draft: applied.draft};
+  return {...response, data, ...(warnings.length === 0 ? {} : {warnings})};
+}
+
+async function requestReviewers(
+  client: GithubToolClient,
+  params: {
+    owner: unknown;
+    repo: unknown;
+    pullNumber: number;
+    requested: {reviewers: string[]; team_reviewers: string[]};
+  },
+): Promise<GithubToolResponse> {
   try {
     return await mapGithubError(
       () =>
         client.request(REQUESTED_REVIEWERS_ROUTE, {
-          owner: pullRequestParameters.owner,
-          repo: pullRequestParameters.repo,
-          pull_number: pullNumber,
-          ...requested,
+          owner: params.owner,
+          repo: params.repo,
+          pull_number: params.pullNumber,
+          ...params.requested,
         }),
       'provider-rejected',
     );
   } catch (error) {
-    throw reviewerRequestFailure(pullNumber, error);
+    throw reviewerRequestFailure(params.pullNumber, error);
   }
 }
 
-// Every failure after the save must carry the pull request number so the agent
-// does not retry the whole write and open a duplicate.
+// A failure after the save names the pull request, so the caller does not retry the whole
+// write and open a duplicate.
 function reviewerRequestFailure(
   pullNumber: number,
   error: unknown,
@@ -935,6 +858,7 @@ function reviewerRequestFailure(
       `${prefix}: ${error.message}`,
       error.retryAfterSeconds,
       error.status,
+      error.detail,
     );
   }
   const message = error instanceof Error ? error.message : String(error);
@@ -1014,6 +938,7 @@ async function resolveBranchHeadOid(
         `Branch '${branch}' does not exist in repository ${owner}/${repo}; from must be a 40- or 64-character commit oid or an existing branch name`,
         undefined,
         error.status,
+        'branch-not-found',
       );
     }
     throw error;
@@ -1113,6 +1038,7 @@ async function reconcileExistingBranch(
     `Branch '${branch}' already exists in repository ${owner}/${repo}`,
     undefined,
     422,
+    'branch-exists',
   );
 }
 
@@ -1345,24 +1271,19 @@ function projectGithubToolOutput(
       return {pull_requests: githubSearchItems(data)};
     case 'create_pull_request':
     case 'update_pull_request':
-      return {pull_request: data};
+      return response?.warnings === undefined
+        ? {pull_request: data}
+        : {pull_request: data, warnings: response.warnings};
     case 'create_branch':
       return projectGithubCreateBranchOutput(data);
+    case 'create_blob':
+      return projectCreateBlobOutput(data);
+    case 'create_commit':
+      return projectCreateCommitOutput(data);
     case 'check_run_write':
       return {check_run: projectGithubCheckRunOutput(data)};
     case 'merge_pull_request':
       return {merge: data};
-    case 'create_commit': {
-      const payload = isRecord(data) ? data.createCommitOnBranch : undefined;
-      const commit = isRecord(payload) ? payload.commit : undefined;
-      if (!isRecord(commit) || typeof commit.oid !== 'string' || typeof commit.url !== 'string') {
-        throw new GithubIntegrationProviderError(
-          'malformed-provider-response',
-          'GitHub createCommitOnBranch response did not include a commit oid and url',
-        );
-      }
-      return {commit: {oid: commit.oid, url: commit.url}};
-    }
     default:
       return isRecord(data) ? data : {result: data};
   }
@@ -1521,13 +1442,18 @@ function validateGithubToolArguments(
   if (argumentValidationError !== undefined) return argumentValidationError;
 
   if (tool.id === 'create_pull_request' || tool.id === 'update_pull_request') {
-    return validateRequestedReviewers(arguments_.reviewers);
+    return (
+      validateRequestedReviewers(arguments_.reviewers) ?? validatePullRequestExtras(arguments_)
+    );
   }
   if (tool.id === 'pull_request_review_write') return validateReviewWriteArguments(arguments_);
   if (tool.id === 'add_comment_to_pending_review') {
     return validatePendingReviewCommentArguments(arguments_);
   }
   if (tool.id === 'check_run_write') return validateCheckRunArguments(arguments_);
+  if (tool.id === 'create_blob') return validateCreateBlobArguments(arguments_);
+  if (tool.id === 'delete_branch') return validateDeleteBranchArguments(arguments_);
+  if (isGitReadTool(tool.id)) return validateGitReadArguments(tool.id, arguments_);
   return tool.id === 'create_commit' ? validateCreateCommitArguments(arguments_) : undefined;
 }
 
@@ -1948,118 +1874,6 @@ function hasUnquotedGithubSearchScopeQualifier(query: string): boolean {
   }
 
   return GITHUB_SEARCH_SCOPE_QUALIFIER_PATTERN.test(unquotedQuery);
-}
-
-function validateCreateCommitArguments(arguments_: Record<string, unknown>): string | undefined {
-  const metadataError = validateCreateCommitMetadata(arguments_);
-  if (metadataError !== undefined) return metadataError;
-  return validateCreateCommitChanges(arguments_.additions, arguments_.deletions);
-}
-
-function validateCreateCommitMetadata(arguments_: Record<string, unknown>): string | undefined {
-  const repository = arguments_.repository;
-  if (typeof repository !== 'string' || !CREATE_COMMIT_REPOSITORY_PATTERN.test(repository)) {
-    return 'Parameter repository must be a repository in owner/name format';
-  }
-  const branch = arguments_.branch;
-  if (typeof branch !== 'string' || branch.trim().length === 0) {
-    return 'Parameter branch must be a non-empty branch name';
-  }
-  const expectedHeadOid = arguments_.expected_head_oid;
-  if (typeof expectedHeadOid !== 'string' || !isValidGitObjectId(expectedHeadOid)) {
-    return 'Parameter expected_head_oid must be a 40- or 64-character commit oid';
-  }
-  const message = arguments_.message;
-  if (
-    !isRecord(message) ||
-    typeof message.headline !== 'string' ||
-    message.headline.trim().length === 0 ||
-    (message.body !== undefined && typeof message.body !== 'string')
-  ) {
-    return 'Parameter message must be an object with a headline string and optional body string';
-  }
-  return undefined;
-}
-
-function validateCreateCommitChanges(additions: unknown, deletions: unknown): string | undefined {
-  if (additions !== undefined && !isFileAdditionList(additions)) {
-    return 'Parameter additions must be an array of {path, contents, encoding?} objects';
-  }
-  if (deletions !== undefined && !isFileDeletionList(deletions)) {
-    return 'Parameter deletions must be an array of {path} objects';
-  }
-  if (
-    Array.isArray(additions) &&
-    additions.length > 0 &&
-    createCommitAdditionsByteLength(additions) > MAX_REPOSITORY_FILE_BYTES
-  ) {
-    return 'Parameter additions must fit within the 1 MiB payload bound per call';
-  }
-  if (
-    (!Array.isArray(additions) || additions.length === 0) &&
-    (!Array.isArray(deletions) || deletions.length === 0)
-  ) {
-    return 'At least one addition or deletion is required to create a commit';
-  }
-  return undefined;
-}
-
-function isFileAdditionList(value: unknown): value is readonly Record<string, unknown>[] {
-  if (!Array.isArray(value)) return false;
-  return value.every(isFileAddition);
-}
-
-function isFileAddition(item: unknown): item is Record<string, unknown> {
-  if (!isRecord(item)) return false;
-  if (typeof item.path !== 'string' || !isSafeRepositoryPath(item.path)) return false;
-  if (typeof item.contents !== 'string') return false;
-  if (item.encoding === undefined) {
-    return !CREATE_COMMIT_UNPAIRED_SURROGATE_PATTERN.test(item.contents);
-  }
-  if (typeof item.encoding !== 'string' || !CREATE_COMMIT_ENCODINGS.has(item.encoding))
-    return false;
-  if (item.encoding === 'base64') return isWellFormedBase64(item.contents);
-  return !CREATE_COMMIT_UNPAIRED_SURROGATE_PATTERN.test(item.contents);
-}
-
-function isFileDeletionList(value: unknown): value is readonly Record<string, unknown>[] {
-  if (!Array.isArray(value)) return false;
-  return value.every(
-    (item) => isRecord(item) && typeof item.path === 'string' && isSafeRepositoryPath(item.path),
-  );
-}
-
-function isSafeRepositoryPath(path: string): boolean {
-  if (path.startsWith('/') || path.includes('\\')) return false;
-  if (containsCreateCommitControlCharacter(path)) return false;
-  return path.split('/').every((segment) => {
-    return segment.length > 0 && segment !== '.' && segment !== '..' && segment !== '.git';
-  });
-}
-
-function containsCreateCommitControlCharacter(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code < 0x20 || code === 0x7f) return true;
-  }
-  return false;
-}
-
-function isWellFormedBase64(value: string): boolean {
-  if (value.length % 4 !== 0) return false;
-  if (!CREATE_COMMIT_BASE64_PATTERN.test(value)) return false;
-  return Buffer.from(value, 'base64').toString('base64') === value;
-}
-
-function createCommitAdditionsByteLength(additions: readonly Record<string, unknown>[]): number {
-  return additions.reduce((total, addition) => total + createCommitAdditionByteLength(addition), 0);
-}
-
-function createCommitAdditionByteLength(addition: Record<string, unknown>): number {
-  const contents = typeof addition.contents === 'string' ? addition.contents : '';
-  return addition.encoding === 'base64'
-    ? Buffer.from(contents, 'base64').byteLength
-    : Buffer.byteLength(contents, 'utf8');
 }
 
 function methodRequiredParameters(
