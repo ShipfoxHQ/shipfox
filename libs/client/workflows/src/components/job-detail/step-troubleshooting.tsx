@@ -30,7 +30,7 @@ import {formatDuration} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import {Fragment, type ReactNode} from 'react';
 import {readActionStepConfig} from '#core/action-step.js';
-import {conditionErrorDescription} from '#core/condition-error.js';
+import {conditionErrorDescription, RUN_AFTER_SKIP_DESCRIPTION} from '#core/condition-error.js';
 import type {
   JobStatusReason,
   Step,
@@ -1031,9 +1031,9 @@ function failureTitle(reason: string | JobStatusReason, error: StepError | null)
       return 'A needed job did not finish';
     case 'condition_false':
     case 'condition_rejected':
-      return 'The job condition skipped this job';
+      return 'The if condition skipped this step';
     case 'default_gate_rejected':
-      return 'A needed job failed';
+      return 'run_after skipped this step';
     case 'condition_errored':
       return 'A step condition has an error';
     case 'user_cancelled':
@@ -1157,14 +1157,14 @@ function failureDescription(
       return 'This job needs another job that did not finish.';
     case 'condition_false':
     case 'condition_rejected':
-      return 'The if condition of this job is false.';
+      return 'The if condition of this step is false.';
     case 'condition_errored':
       return error?.message
         ? `${error.message} Fix the condition, then start a new run.`
         : (conditionErrorDescription(step.evaluationTrace) ??
             'Shipfox cannot evaluate the if condition of this step. Fix it, then start a new run.');
     case 'default_gate_rejected':
-      return 'This job needs another job that did not succeed.';
+      return RUN_AFTER_SKIP_DESCRIPTION;
     case 'step_failed':
       return 'A step failed before this job could finish.';
     case 'user_cancelled':
