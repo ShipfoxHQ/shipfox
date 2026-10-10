@@ -16,7 +16,7 @@ Shipfox uses Slack OAuth with a bot token. Install the Shipfox app in the target
 Slack workspace and approve its requested bot scopes.
 
 The app requests read access for channel history and metadata, direct-message
-history, user profiles, reactions, and mentions. It requests write access for
+history, user profiles, reactions, canvases, and mentions. It requests write access for
 messages, reactions, and canvases. It also requests the `commands` scope for
 slash commands.
 
@@ -24,7 +24,7 @@ The required bot scopes are:
 
 - Read: `app_mentions:read`, `im:history`, `im:read`, `mpim:history`,
   `mpim:read`, `channels:history`, `groups:history`, `channels:read`,
-  `groups:read`, `users:read`, and `reactions:read`.
+  `groups:read`, `users:read`, `reactions:read`, and `canvases:read`.
 - Write: `chat:write`, `reactions:write`, and `canvases:write`.
 - Commands: `commands`.
 

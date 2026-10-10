@@ -273,6 +273,12 @@ describe('checkContractCoverage', () => {
       expect(problemsOf(arrangeWrite({effect}))).toEqual([]);
     });
 
+    it('accepts a write whose effect asserts a pattern', () => {
+      const effect = {...savedIssue, expect: {matches: {title: '^Contract'}}};
+
+      expect(problemsOf(arrangeWrite({effect}))).toEqual([]);
+    });
+
     it('fails a write without an effect', () => {
       expect(problemsOf(arrangeWrite({}))).toEqual([
         'case linear/save: write step "save_issue" has no `effect`',
@@ -290,7 +296,7 @@ describe('checkContractCoverage', () => {
       const effect = {...savedIssue, expect: {shape: {id: 'string'}}};
 
       expect(problemsOf(arrangeWrite({effect, backlogged: true}))).toEqual([
-        'case linear/save: the effect of write step "save_issue" needs `expect.values` or `expect.includes`, a shape check proves nothing',
+        'case linear/save: the effect of write step "save_issue" needs `expect.values`, `expect.includes`, or `expect.matches`, a shape check proves nothing',
       ]);
     });
 
@@ -298,7 +304,7 @@ describe('checkContractCoverage', () => {
       const effect = {tool: 'get_issue', with: {id: '$steps.save.id'}};
 
       expect(problemsOf(arrangeWrite({effect, backlogged: true}))).toEqual([
-        'case linear/save: the effect of write step "save_issue" needs `expect.values` or `expect.includes`, a shape check proves nothing',
+        'case linear/save: the effect of write step "save_issue" needs `expect.values`, `expect.includes`, or `expect.matches`, a shape check proves nothing',
       ]);
     });
 

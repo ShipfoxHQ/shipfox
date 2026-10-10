@@ -14,6 +14,8 @@ const expectedTools = [
   {id: 'read_channel_members', sensitivity: 'read', requiredScope: 'read'},
   {id: 'read_user_profile', sensitivity: 'read', requiredScope: 'read'},
   {id: 'search_channels', sensitivity: 'read', requiredScope: 'read'},
+  {id: 'list_scheduled_messages', sensitivity: 'read', requiredScope: 'read'},
+  {id: 'lookup_canvas_sections', sensitivity: 'read', requiredScope: 'read'},
   {id: 'send_message', sensitivity: 'write', requiredScope: 'write'},
   {id: 'schedule_message', sensitivity: 'write', requiredScope: 'write'},
   {id: 'update_message', sensitivity: 'write', requiredScope: 'write'},
@@ -95,6 +97,8 @@ describe('slackAgentToolCatalog', () => {
       read_channel_members: 'conversations.members',
       read_user_profile: 'users.info',
       search_channels: 'conversations.list',
+      list_scheduled_messages: 'chat.scheduledMessages.list',
+      lookup_canvas_sections: 'canvases.sections.lookup',
       send_message: 'chat.postMessage',
       schedule_message: 'chat.scheduleMessage',
       update_message: 'chat.update',
@@ -219,6 +223,22 @@ describe('slackAgentToolCatalog', () => {
         document_content: {type: 'markdown', markdown: '# Steps'},
       },
     );
+  });
+
+  it('lists the scheduled messages of one channel', () => {
+    expect(
+      operation('list_scheduled_messages').mapArguments({channel_id: 'C123', limit: 10}),
+    ).toMatchObject({channel: 'C123', limit: 10});
+  });
+
+  it('nests the canvas section filters under the lookup criteria', () => {
+    expect(
+      operation('lookup_canvas_sections').mapArguments({
+        canvas_id: 'F123',
+        contains_text: 'marker',
+        section_types: ['h1'],
+      }),
+    ).toEqual({canvas_id: 'F123', criteria: {contains_text: 'marker', section_types: ['h1']}});
   });
 
   it('excludes archived channels unless the caller asks for them', () => {

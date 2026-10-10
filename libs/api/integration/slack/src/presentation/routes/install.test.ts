@@ -58,6 +58,7 @@ function slackClient(overrides: Partial<SlackApiClient> = {}): SlackApiClient {
           'users:read',
           'reactions:read',
           'reactions:write',
+          'canvases:read',
           'canvases:write',
           'commands',
         ],

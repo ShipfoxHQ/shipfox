@@ -17,7 +17,15 @@ export interface MarkerReference {
   kind: 'marker';
 }
 
-export type ContractReference = ManifestReference | StepsReference | MarkerReference;
+export interface InOneHourReference {
+  kind: 'in_one_hour';
+}
+
+export type ContractReference =
+  | ManifestReference
+  | StepsReference
+  | MarkerReference
+  | InOneHourReference;
 
 const IDENTIFIER = '[A-Za-z_][A-Za-z0-9_]*';
 // A `$` and the dotted path after it, so `$markers` is one unknown token and not `$marker` plus `s`.
@@ -32,21 +40,31 @@ const FIELD = new RegExp(`^${IDENTIFIER}$`, 'u');
 /** Reads one token such as `$fixture.linear.issue.uuid`. Returns undefined for an unknown form. */
 export function parseContractReference(token: string): ContractReference | undefined {
   const [head = '', ...rest] = token.slice(1).split('.');
-  if (head === 'marker') return rest.length === 0 ? {kind: 'marker'} : undefined;
-  if (head === 'fixture' || head === 'target') {
-    const [provider, name, field, ...extra] = rest;
-    if (provider === undefined || name === undefined || field === undefined) return undefined;
-    if (extra.length > 0 || !NAME.test(provider) || !NAME.test(name) || !FIELD.test(field)) {
-      return undefined;
-    }
-    return {kind: head, provider, name, field};
+  if (head === 'marker' || head === 'in_one_hour') {
+    return rest.length === 0 ? {kind: head} : undefined;
   }
+  if (head === 'fixture' || head === 'target') return parseManifestReference({kind: head, rest});
   if (head === 'steps') {
     const [key, ...path] = rest;
     if (key === undefined || !NAME.test(key) || path.length === 0) return undefined;
     return {kind: 'steps', key, path: path.join('.')};
   }
   return undefined;
+}
+
+function parseManifestReference({
+  kind,
+  rest,
+}: {
+  kind: ManifestReference['kind'];
+  rest: string[];
+}): ManifestReference | undefined {
+  const [provider, name, field, ...extra] = rest;
+  if (provider === undefined || name === undefined || field === undefined) return undefined;
+  if (extra.length > 0 || !NAME.test(provider) || !NAME.test(name) || !FIELD.test(field)) {
+    return undefined;
+  }
+  return {kind, provider, name, field};
 }
 
 export interface FoundReference {
@@ -82,6 +100,7 @@ export interface ContractReferenceResolver {
   target: (reference: ManifestReference) => unknown;
   steps: (reference: StepsReference) => unknown;
   marker: () => unknown;
+  inOneHour: () => unknown;
 }
 
 function resolveReference({
@@ -100,6 +119,8 @@ function resolveReference({
       return resolver.steps(reference);
     case 'marker':
       return resolver.marker();
+    case 'in_one_hour':
+      return resolver.inOneHour();
   }
 }
 
@@ -149,8 +170,8 @@ export function resolveManifestValue({
 /**
  * Reports the references of a case that cannot be resolved: an unknown form, a fixture or target
  * the manifest lacks, a target outside an error case, a `$steps` reference to a key that is
- * missing or runs later, and a `$steps` or `$marker` outside a `with`. A step's `effect` may read
- * the step it checks.
+ * missing or runs later, and a `$steps`, `$marker`, or `$in_one_hour` outside a `with`. A step's
+ * `effect` may read the step it checks.
  */
 export function checkCaseReferences({
   contractCase,
@@ -207,11 +228,14 @@ function referenceProblem({
 }): string | undefined {
   const {reference, token} = found;
   if (reference === undefined) return `unknown reference ${token}`;
-  if (inExpect && (reference.kind === 'marker' || reference.kind === 'steps')) {
+  if (
+    inExpect &&
+    (reference.kind === 'marker' || reference.kind === 'steps' || reference.kind === 'in_one_hour')
+  ) {
     // The gate that checks `expect` reads the step's own result, not the run id or another step.
     return `${token} is only for \`with\`, not \`expect\``;
   }
-  if (reference.kind === 'marker') return undefined;
+  if (reference.kind === 'marker' || reference.kind === 'in_one_hour') return undefined;
   if (reference.kind === 'steps') {
     const position = keyIndex.get(reference.key);
     if (position === undefined) return `${token} names a step key the case doesn't have`;

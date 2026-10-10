@@ -25,6 +25,7 @@ const resolver: ContractReferenceResolver = {
   target: () => 'CON-999999',
   steps: ({key, path}) => `steps.${key}.outputs.${path}`,
   marker: () => 'contract-run',
+  inOneHour: () => 'in-one-hour',
 };
 
 describe('parseContractReference', () => {
@@ -42,12 +43,14 @@ describe('parseContractReference', () => {
       path: 'messages[0].ts',
     });
     expect(parseContractReference('$marker')).toEqual({kind: 'marker'});
+    expect(parseContractReference('$in_one_hour')).toEqual({kind: 'in_one_hour'});
   });
 
   it('returns undefined for an unknown form', () => {
     expect(parseContractReference('$fixtures.linear.issue.uuid')).toBeUndefined();
     expect(parseContractReference('$fixture.linear.issue')).toBeUndefined();
     expect(parseContractReference('$markers')).toBeUndefined();
+    expect(parseContractReference('$in_one_hour.later')).toBeUndefined();
     expect(parseContractReference('$steps.send')).toBeUndefined();
   });
 });
@@ -187,7 +190,7 @@ describe('checkCaseReferences', () => {
       {key: 'first', tool: 'save_issue'},
       {
         tool: 'get_issue',
-        expect: {values: {title: 'Contract $marker'}},
+        expect: {values: {title: 'Contract $marker', at: '$in_one_hour'}},
         effect: {
           tool: 'get_issue',
           expect: {values: {id: '$steps.first.id'}, includes: {labels: {name: '$marker'}}},
@@ -197,6 +200,7 @@ describe('checkCaseReferences', () => {
 
     expect(checkCaseReferences({contractCase, manifest})).toEqual([
       'steps.1.expect.values.title: $marker is only for `with`, not `expect`',
+      'steps.1.expect.values.at: $in_one_hour is only for `with`, not `expect`',
       'steps.1.effect.expect.values.id: $steps.first.id is only for `with`, not `expect`',
       'steps.1.effect.expect.includes.labels.name: $marker is only for `with`, not `expect`',
     ]);

@@ -1,0 +1,9 @@
+provider: slack
+modes: [real]
+steps:
+  - tool: list_scheduled_messages
+    with:
+      channel_id: $fixture.slack.write_channel.id
+    expect:
+      shape:
+        scheduled_messages: list

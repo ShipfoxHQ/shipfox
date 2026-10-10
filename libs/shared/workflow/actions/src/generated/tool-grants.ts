@@ -248,6 +248,8 @@ export const toolGrants: Readonly<Record<string, Readonly<Record<string, ToolGra
     add_reaction: {sensitivity: 'write', result: 'json'},
     create_canvas: {sensitivity: 'write', result: 'json'},
     get_permalink: {sensitivity: 'read', result: 'json'},
+    list_scheduled_messages: {sensitivity: 'read', result: 'json'},
+    lookup_canvas_sections: {sensitivity: 'read', result: 'json'},
     read_channel: {sensitivity: 'read', result: 'json'},
     read_channel_info: {sensitivity: 'read', result: 'json'},
     read_channel_members: {sensitivity: 'read', result: 'json'},

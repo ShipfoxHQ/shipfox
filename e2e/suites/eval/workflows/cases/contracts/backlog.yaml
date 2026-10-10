@@ -1,4 +1,4 @@
-ceiling: 47
+ceiling: 45
 entries:
   - {tool: github.actions_get, method: download_workflow_run_artifact, kind: read, issue: ENG-2818}
   - {tool: github.actions_get, method: get_workflow_job, kind: read, issue: ENG-2818}
@@ -45,5 +45,3 @@ entries:
   - {tool: linear.save_release, kind: write, issue: ENG-2830}
   - {tool: linear.save_release_note, kind: write, issue: ENG-2830}
   - {tool: linear.save_status_update, kind: write, issue: ENG-2830}
-  - {tool: slack.create_canvas, kind: write, issue: ENG-3007}
-  - {tool: slack.schedule_message, kind: write, issue: ENG-3007}

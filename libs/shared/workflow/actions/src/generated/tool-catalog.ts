@@ -862,6 +862,14 @@ export interface ProviderToolCatalog {
      */
     get_permalink: {arguments: SlackGetPermalinkArguments; result: 'json'};
     /**
+     * List the messages scheduled for future delivery, optionally for one channel. Returns each scheduled message ID, channel, post_at, and text. Scheduled messages are not visible to read_channel until they are sent.
+     */
+    list_scheduled_messages: {arguments: SlackListScheduledMessagesArguments; result: 'json'};
+    /**
+     * Find the sections of a Slack canvas that contain a text or have a section type. Returns the matching section IDs, and an empty list when nothing matches. Use it to check what a canvas holds.
+     */
+    lookup_canvas_sections: {arguments: SlackLookupCanvasSectionsArguments; result: 'json'};
+    /**
      * Read messages from a Slack channel in reverse chronological order (newest first). Reading direct message history needs the ID of that conversation, not the ID of the user on the other side.
      */
     read_channel: {arguments: SlackReadChannelArguments; result: 'json'};
@@ -6002,6 +6010,44 @@ export interface SlackGetPermalinkArguments {
    * Timestamp of the message, such as 1234567890.123456
    */
   message_ts: string;
+}
+
+export interface SlackListScheduledMessagesArguments {
+  /**
+   * Only list the messages scheduled in this channel
+   */
+  channel_id?: string;
+  /**
+   * Start of the post_at range, as a Slack timestamp
+   */
+  oldest?: string;
+  /**
+   * End of the post_at range, as a Slack timestamp
+   */
+  latest?: string;
+  /**
+   * Scheduled messages to return per page (default 100)
+   */
+  limit?: number;
+  /**
+   * Pagination cursor from a previous request
+   */
+  cursor?: string;
+}
+
+export interface SlackLookupCanvasSectionsArguments {
+  /**
+   * Canvas ID, such as F0ABC12345
+   */
+  canvas_id: string;
+  /**
+   * Only sections that contain this text
+   */
+  contains_text?: string;
+  /**
+   * Only sections of these types, such as h1, h2, h3, any_header, or table
+   */
+  section_types?: string[];
 }
 
 export interface SlackReadChannelArguments {

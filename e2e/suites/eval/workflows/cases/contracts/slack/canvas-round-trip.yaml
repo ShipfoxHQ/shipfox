@@ -1,0 +1,31 @@
+provider: slack
+kind: round-trip
+modes: [real]
+steps:
+  - key: create
+    tool: create_canvas
+    with:
+      title: Contract canvas
+      content: |-
+        # Contract heading
+
+        Contract $marker canvas
+    expect:
+      shape: {canvas_id: string}
+    # The marker is in the body, so a section lookup finds the canvas of this run and no other. The
+    # tools cannot delete a canvas, so it stays in the workspace.
+    effect:
+      tool: lookup_canvas_sections
+      with:
+        canvas_id: $steps.create.canvas_id
+        contains_text: $marker
+      expect:
+        matches:
+          sections[0].id: '^temp:'
+  - tool: lookup_canvas_sections
+    with:
+      canvas_id: $steps.create.canvas_id
+      section_types: [h1]
+    expect:
+      shape:
+        sections: [{id: string}]

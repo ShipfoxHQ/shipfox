@@ -110,9 +110,9 @@ function addId({map, key, id}: {map: Map<string, string[]>; key: string; id: str
 
 /**
  * Reports why a write step does not prove its write: it sits outside a round-trip case, it has no
- * `effect`, or its `effect` proves nothing. An `effect` needs a `values` or `includes` assertion,
- * because a shape check holds with or without the write. It also reads an object this run
- * created, through `$steps`, or filters its read with `$marker`. Data left over from an earlier
+ * `effect`, or its `effect` proves nothing. An `effect` needs a `values`, `includes`, or `matches`
+ * assertion, because a shape check holds with or without the write. It also reads an object this
+ * run created, through `$steps`, or filters its read with `$marker`. Data left over from an earlier
  * run then can't satisfy it. A gate can't read the run id, so `$marker` filters the read and is
  * never asserted.
  */
@@ -136,11 +136,12 @@ function writeProblems({
   if (effectUnit?.kind === 'write') problems.push(`the effect of ${name} must read, not write`);
   if (
     Object.keys(effect.expect.values ?? {}).length +
-      Object.keys(effect.expect.includes ?? {}).length ===
+      Object.keys(effect.expect.includes ?? {}).length +
+      Object.keys(effect.expect.matches ?? {}).length ===
     0
   ) {
     problems.push(
-      `the effect of ${name} needs \`expect.values\` or \`expect.includes\`, a shape check proves nothing`,
+      `the effect of ${name} needs \`expect.values\`, \`expect.includes\`, or \`expect.matches\`, a shape check proves nothing`,
     );
   }
   const anchored = findContractReferences(effect.with).some(
