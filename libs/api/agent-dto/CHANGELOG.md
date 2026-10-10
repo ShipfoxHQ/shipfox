@@ -1,5 +1,37 @@
 # @shipfox/api-agent-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- 68d6cd6: Adds lab and display label fields to workspace model contracts while preserving strict agent-access projections.
+- 8a4f3d8: Adds the GET /__e2e/agent/sessions/:stepAttemptId route and exports the e2eSessionTranscriptResponseSchema/E2eSessionTranscriptResponseDto contract for decrypted agent session transcripts.
+- a99c11b: Show managed models that a workspace cannot run. The workspace model catalog marks them `locked`, validation warns with `model-locked` and never rejects, and the model lists mark them with a lock and explain the reason once, with the required action, while keeping them selectable.
+- a15e118: Lets a managed model provider refuse a model for one workspace at run time. A provider opts in by implementing `availability`, which returns the workspace's locked models. A locked model fails the step with a 422 `agent-model-unavailable` response and a policy notice. An error from `availability` returns a retryable 503. Credential renewal doesn't recheck, so a running step is never cut off. The stored step error carries the notice, and the model unavailable callout shows its message and required action. Providers without `availability` behave as before.
+- dd20040: Names the cause of a refused start when an agent step's configuration cannot be used. The agent `agent-config-invalid` error carries a `reason` (`model-unknown`, `provider-unsupported`, `harness-unsupported`, `thinking-unsupported` or `workspace-providers-disabled`) with the `model` and `provider` where they apply. `agent-config-unresolvable` passes them on with the job and step, in the inter-module error, the 422 `details` (`reason`, `model`, `provider`, `job_key`, `step`) and the trigger diagnostic. Every new field is optional, so stored diagnostics still map.
+- 70e6983: Adds `managed_provider_id` to the `getWorkspaceModels` inter-module result, so consumers can tell the managed provider's models apart from bring-your-own-key providers.
+
+### Patch Changes
+
+- Updated dependencies [6b4ae32]
+- Updated dependencies [d273097]
+- Updated dependencies [e087b95]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ab66d1e]
+- Updated dependencies [4e3497b]
+- Updated dependencies [d657853]
+- Updated dependencies [cb411b1]
+- Updated dependencies [507915a]
+- Updated dependencies [9906470]
+- Updated dependencies [a429987]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [651153a]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e71cded]
+  - @shipfox/workflow-document@3.11.0
+  - @shipfox/policy-notice@0.1.0
+
 ## 33.0.0
 
 ### Minor Changes

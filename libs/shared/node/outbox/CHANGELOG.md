@@ -1,5 +1,15 @@
 # @shipfox/node-outbox
 
+## 0.3.0
+
+### Minor Changes
+
+- c06262b: Adds `onOutboxWrite(listener)`, which calls the listener after each `writeOutboxEvents` insert in the same process and returns an unsubscribe function.
+
+### Patch Changes
+
+- @shipfox/node-drizzle@0.3.7
+
 ## 0.2.7
 
 ### Patch Changes

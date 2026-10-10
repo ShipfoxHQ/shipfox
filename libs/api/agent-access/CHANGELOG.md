@@ -1,5 +1,210 @@
 # @shipfox/api-agent-access
 
+## 34.0.0
+
+### Major Changes
+
+- 5588247: Replaces the `models` list in the `get_workflow_authoring_context` result with `model_count`. The `write-a-workflow` skill now finds models through `list_workspace_models` and writes the chosen `provider`.
+
+### Minor Changes
+
+- 16d18f4: Adds the admin MCP endpoint `POST /mcp/admin`, mounted when `AGENT_ACCESS_ADMIN_MCP_ENABLED` is `true` (default `false`). It shares the `/mcp` origin guard, rate limiters, envelope, and OAuth resource, and re-checks the caller's administrator role against the database on every call, returning `admin-role-required` on failure. It serves `find_users`, `start_impersonation`, and `stop_impersonation`, plus any tools passed through the new `additionalAdminTools` option. `AgentAccessContext` gains an optional `admin` marker, and the audit log line carries `adminActorId` and `impersonationWindowId`. The customer `/mcp` endpoint is unchanged.
+- c3b44a2: Serves every read-only workspace tool on the admin MCP endpoint `POST /mcp/admin`, with the same name and behavior as on `/mcp` plus a required `workspace_id`. Each call requires the `admin-operator` role and an open impersonation window on that workspace; role failures return `admin-role-required`, and calls without an open window return `impersonation-window-closed`. The tool runs as the administrator in the named workspace and never sees `workspace_id`. Action tools and `get_step_log_download` are not served. Audit records include the administrator and the resolved window; closed-window attempts record the administrator and the target workspace.
+- cc644b8: `list_workflow_templates` now marks each role with `from_project`. `get_workflow_template` accepts a project role that matches the project's source provider, and its errors now carry a `message` that names the unknown input, missing role, or invalid provider ID. The tool description and the create-workflow-from-template skill show the expected call shape.
+- b9a53b2: Adds `status_reason`, `status_reason_message`, and `outputs` to the run overview attempt. The `shipfox` provider's `get_workflow_run` tool returns them on its attempt, and the agent-access `get_workflow_run` tool returns them on the run.
+- ac3561b: Names what is missing in MCP tool errors when a run cannot start. `fire_manual_trigger` and `create_dev_run` include the variable key and where it is read, the trigger secret key, runner labels and size figures in the error message and details. `start_workflow_run` does the same. The `interpolation-unresolvable` error from Triggers now carries the optional `variableKey`, `jobKey` and `step`.
+- e3b9558: Templates can declare optional roles. A role with `optional: true` gives a `question` and a `tradeoff`. When the role is unbound, `composeTemplate` drops its parts. `composeTemplate` now writes the `# shipfox-template:` header from the bound roles, so base workflows must no longer declare it. `templateRoleBindings` lists every supported binding, with each optional role both bound and unbound.
+
+  `list_workflow_templates` returns `optional`, `question`, and `tradeoff` for each role. It computes `compatible` and `missing_providers` from required roles only. `get_workflow_template` accepts optional roles being left out. The create-workflow-from-template skill asks about an optional role only when the workspace has a connection for it.
+
+- 8136245: Adds the paged and filterable `list_workspace_models` MCP read tool.
+- 76d054a: Adds the `list_registry_packages`, `get_registry_package`, and `diff_registry_action` MCP read tools, so coding agents can browse registry packages and compare two action versions before upgrading.
+- 507915a: A required action can carry an optional `intent`, and `REQUIRED_ACTION_INTENTS` lists the known values. `intent` names a behavior a composing application may provide in place of opening `url`, such as `contact-support`. `url` stays required as the fallback, and an unknown `intent` still parses.
+
+  The admission denial contract, the HTTP 409 `required_action`, and the agent-access error details now keep `intent` when it is set.
+
+- 70e6983: Replaces `suggested_models` in the `get_workflow_template` result with bounded `model_recommendations`, so the response fits the size limit for any workspace catalog.
+
+  Placeholders are grouped by the binding their tested model resolves to. Each group has a mode: `recommended` (the tested model and up to four labelled alternatives), `template_default` (the tested model without scores), `workspace_default` (the tested model is unavailable), or `choose`. Every choice carries its complete binding and `provider_required`.
+
+  `@shipfox/workflow-templates` removes `suggestModels` and the manifest `models.<placeholder>.reference` field; the `# model:` line now records the tested setting. The `create-workflow-from-template` skill confirms models per group through a new `choose-models.md` reference.
+
+- 15e9d33: `get_workflow_template` accepts `options`, such as `{"pr_mode": "ready"}`, and returns `workflow_yaml` with only the chosen option blocks. The header keeps the legacy form. A call with an unknown option or choice explains the valid ones. The result also carries the manifest's `writes` and `prerequisites` as authored.
+
+  The create-workflow-from-template skill (revision 14) passes the answers as `options` and takes the applicable writes and prerequisites from the result. The template guides no longer repeat their prerequisites and expected writes.
+
+- b1cc902: `get_workflow_template` serves templates that have no project source role. It still checks the project, and it skips the source connection lookup.
+- b121f14: Adds `GET /workspaces/:workspaceId/workflow-templates` for workspace members. It lists workflow templates grouped as `try_now`, `starts_on_event`, or `needs_connection`, ordered by template rank, each with its providers, missing providers, and setup prompt. The response schema is `listWorkspaceWorkflowTemplatesResponseSchema`. The MCP server instructions now tell agents to follow the `create-workflow-from-template` skill when the user asks to create, set up, or suggest a workflow.
+
+### Patch Changes
+
+- 88b9937: The MCP server instructions tell agents that docs pages describing a task name the skill resource for it.
+- 7a63059: Reads `docs://` pages from the docs site's `mcp.mdx/<slug>` route instead of `llms.mdx/<slug>`, and the home page from `mcp.mdx/home`. A docs site set in `DOCS_BASE_URL` must serve `mcp.mdx`.
+- c4f486b: Names the cause of a checkout failure. Each refusal now identifies the repository, connection or project it was about, a suspended or removed GitHub App installation has its own `installation-inactive` code, and GitHub's own explanation reaches the step error as `provider_message` and `provider_status`. A missing repository now returns a 422, and a failed token mint is cached for 60 seconds instead of 15 minutes.
+- 68d6cd6: Adds lab and display label fields to workspace model contracts while preserving strict agent-access projections.
+- e1cfc2a: Defaults PR feedback and Linear updates, uses GPT 6 Luna max and GLM 5.3 Flash, and guides trigger-safe issue selection, status retries, and dev-run links.
+- 2e5a311: Dev runs accept action uploads. `POST /dev-runs` and the `create_dev_run` MCP tool take an `actions` field: whole action directories, each replacing the ref's copy of its `uses` path. Both routes accept bodies up to 4 MiB. The `create_dev_run` description tells agents which files to send. The run DTO's `dev_source` gains `local_actions`, the uploaded action paths. It defaults to an empty list for older runs.
+- c865118: Development runs accept a short branch name such as `main` as the ref, and the `create_dev_run` tool explains how to fix a rejected ref.
+- dc8065c: Fails a step or job when its `if` can't be evaluated, instead of skipping it. The step error reason is `condition_errored`, and the failure names the cause.
+- 48b8237: Adds GitHub issues as a tracker for the `ticket-to-pr` template. A label or an assignee on an open issue in the project's repository starts the workflow. By default, the workflow adds an in-progress label when work starts and comments on the issue with the PR link. The PR body ends with `Fixes #<number>`, so GitHub links the PR to the issue.
+
+  `get_workflow_template` now suggests the project's source integration connection for a role on the source provider, such as GitHub issues as the tracker.
+
+- fdca5b6: Guided template setup asks fewer, plainer questions. The agent chooses install, build, and test commands from the repository instead of asking the user to confirm them, and asks only when several CI workflows could be watched. Option markers can list several choices, such as `# option:report_outcomes=needs_person,both begin`.
+
+  The agent binds the template's tested model or the workspace default without asking and tells the user they can change it later in the workflow file. The `get_workflow_template` tool description also tells the agent to offer alternatives only when the user asks.
+
+- ecc70c2: A step or job `if` condition that cannot be evaluated now records the error in its evaluation trace, with the missing path and the status of the step or job it reads. The run UI says which value is missing and why. A step that has not run exposes empty `outputs`, so `has(steps.x.outputs.y)` returns `false` instead of failing.
+- Updated dependencies [e99aa97]
+- Updated dependencies [6b4ae32]
+- Updated dependencies [16d18f4]
+- Updated dependencies [c3b44a2]
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [b97171d]
+- Updated dependencies [5f88947]
+- Updated dependencies [5a14986]
+- Updated dependencies [9806da2]
+- Updated dependencies [5588247]
+- Updated dependencies [8a926dc]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [ba0d750]
+- Updated dependencies [807ae57]
+- Updated dependencies [c4f486b]
+- Updated dependencies [d273097]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [e087b95]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [e1cfc2a]
+- Updated dependencies [e64c10d]
+- Updated dependencies [175482e]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [2e5a311]
+- Updated dependencies [f05ecde]
+- Updated dependencies [4273dad]
+- Updated dependencies [8a4f3d8]
+- Updated dependencies [cc644b8]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [a9e85c1]
+- Updated dependencies [dc8065c]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [eab1dd7]
+- Updated dependencies [8b16e92]
+- Updated dependencies [184305a]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [a73e712]
+- Updated dependencies [48b8237]
+- Updated dependencies [fdca5b6]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ab66d1e]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [8872f36]
+- Updated dependencies [a99c11b]
+- Updated dependencies [fc455ac]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [ac3561b]
+- Updated dependencies [af3b91f]
+- Updated dependencies [f5bdc5b]
+- Updated dependencies [e3b9558]
+- Updated dependencies [8136245]
+- Updated dependencies [9674325]
+- Updated dependencies [a26baf5]
+- Updated dependencies [5ce9d5b]
+- Updated dependencies [3869c1d]
+- Updated dependencies [55152c5]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4e3497b]
+- Updated dependencies [4aad893]
+- Updated dependencies [d657853]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [d77a8c4]
+- Updated dependencies [cb411b1]
+- Updated dependencies [f64bff1]
+- Updated dependencies [0975515]
+- Updated dependencies [a509c87]
+- Updated dependencies [150d735]
+- Updated dependencies [c8857f4]
+- Updated dependencies [76fbfe9]
+- Updated dependencies [7517867]
+- Updated dependencies [76d054a]
+- Updated dependencies [5fb1fbd]
+- Updated dependencies [b1cc902]
+- Updated dependencies [507915a]
+- Updated dependencies [9906470]
+- Updated dependencies [3aa5d7a]
+- Updated dependencies [42829e8]
+- Updated dependencies [d273097]
+- Updated dependencies [9674325]
+- Updated dependencies [15282f5]
+- Updated dependencies [71c11b1]
+- Updated dependencies [3c92a34]
+- Updated dependencies [257e53e]
+- Updated dependencies [e701cfc]
+- Updated dependencies [94e77bc]
+- Updated dependencies [9bac67e]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [651153a]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e2e561c]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [00dd046]
+- Updated dependencies [da36a04]
+- Updated dependencies [fe15ea2]
+- Updated dependencies [9485c57]
+- Updated dependencies [f9c2dec]
+- Updated dependencies [4a664ca]
+- Updated dependencies [e663112]
+- Updated dependencies [3e8ff99]
+- Updated dependencies [70e6983]
+- Updated dependencies [15e9d33]
+- Updated dependencies [f187551]
+- Updated dependencies [d0fcdae]
+- Updated dependencies [8786552]
+- Updated dependencies [c29a8bb]
+- Updated dependencies [8f54fc9]
+- Updated dependencies [a4c05ba]
+- Updated dependencies [c14f398]
+- Updated dependencies [b0b0a82]
+- Updated dependencies [82f2480]
+- Updated dependencies [ffffc16]
+- Updated dependencies [e71cded]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [70e6983]
+- Updated dependencies [89a6cc7]
+- Updated dependencies [b121f14]
+- Updated dependencies [9549da3]
+  - @shipfox/api-secrets-dto@34.0.0
+  - @shipfox/workflow-document@3.11.0
+  - @shipfox/api-agent-access-dto@34.0.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/workflow-templates@2.0.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/api-agent-dto@34.0.0
+  - @shipfox/api-triggers-dto@34.0.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-registry-dto@34.0.0
+  - @shipfox/registry-format@0.1.0
+  - @shipfox/api-logs-dto@34.0.0
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 33.2.1
 
 ### Patch Changes

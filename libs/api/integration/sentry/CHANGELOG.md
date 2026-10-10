@@ -1,5 +1,34 @@
 # @shipfox/api-integration-sentry
 
+## 34.0.0
+
+### Patch Changes
+
+- 9f27c98: Adds a Sentry E2E connection route and setup helper for API E2E tests.
+- 68e8e1d: Sentry token renewal waits 15 seconds for a mint and repeats it when Sentry reports another mint in progress, instead of failing the tool call with `access-denied`.
+- Updated dependencies [16d18f4]
+- Updated dependencies [c4f486b]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [c8e0869]
+- Updated dependencies [21c993b]
+- Updated dependencies [1d94e37]
+- Updated dependencies [c06262b]
+- Updated dependencies [9f27c98]
+- Updated dependencies [e2e561c]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-integration-spi@4.4.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-integration-sentry-dto@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 33.2.0
 
 ### Minor Changes

@@ -1,5 +1,22 @@
 # @shipfox/api-dispatcher
 
+## 34.0.0
+
+### Patch Changes
+
+- c06262b: The outbox drainer doubles its idle wait up to 2 seconds while the outbox stays empty, and a local outbox write ends the idle wait. Claims create no spans, and each dispatched event gets an `outbox.dispatch` span.
+- Updated dependencies [2d009f4]
+- Updated dependencies [24ea599]
+- Updated dependencies [c06262b]
+- Updated dependencies [21c993b]
+- Updated dependencies [c06262b]
+- Updated dependencies [a32c90c]
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-temporal@0.6.0
+
 ## 29.0.0
 
 ### Patch Changes

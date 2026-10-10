@@ -1,5 +1,74 @@
 # @shipfox/api-logs
 
+## 34.0.0
+
+### Minor Changes
+
+- 3aa5d7a: Adds a `tool_row` log record so a runner can append tool call and tool result rows to step logs. They read back as `agent_session` rows, like tool-step calls.
+
+### Patch Changes
+
+- Updated dependencies [6b4ae32]
+- Updated dependencies [16d18f4]
+- Updated dependencies [ba1aff7]
+- Updated dependencies [c4f486b]
+- Updated dependencies [d273097]
+- Updated dependencies [e087b95]
+- Updated dependencies [2e5a311]
+- Updated dependencies [2d009f4]
+- Updated dependencies [b9a53b2]
+- Updated dependencies [dc8065c]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [a73e712]
+- Updated dependencies [593142d]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ab66d1e]
+- Updated dependencies [ef7cf4a]
+- Updated dependencies [f7e0fb7]
+- Updated dependencies [fc455ac]
+- Updated dependencies [ecc70c2]
+- Updated dependencies [6b01f3d]
+- Updated dependencies [c06262b]
+- Updated dependencies [21c993b]
+- Updated dependencies [3869c1d]
+- Updated dependencies [c06262b]
+- Updated dependencies [a15e118]
+- Updated dependencies [4e3497b]
+- Updated dependencies [4aad893]
+- Updated dependencies [d657853]
+- Updated dependencies [c6f2ae3]
+- Updated dependencies [fafbe84]
+- Updated dependencies [737c625]
+- Updated dependencies [cb411b1]
+- Updated dependencies [507915a]
+- Updated dependencies [9906470]
+- Updated dependencies [3aa5d7a]
+- Updated dependencies [94e77bc]
+- Updated dependencies [9bac67e]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [651153a]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [dd20040]
+- Updated dependencies [daf0208]
+- Updated dependencies [a32c90c]
+- Updated dependencies [e71cded]
+- Updated dependencies [6b2a308]
+- Updated dependencies [2ab4025]
+- Updated dependencies [89a6cc7]
+  - @shipfox/workflow-document@3.11.0
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-workflows-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-logs-dto@34.0.0
+  - @shipfox/node-temporal@0.6.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 33.0.0
 
 ### Patch Changes

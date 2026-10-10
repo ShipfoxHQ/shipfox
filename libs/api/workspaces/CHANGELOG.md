@@ -1,5 +1,47 @@
 # @shipfox/api-workspaces
 
+## 34.0.0
+
+### Minor Changes
+
+- 89a6cc7: Exposes the workspace slug to server modules. The workspace summary now returns the slug, and each membership in the user token carries an optional `workspaceSlug` claim. Tokens issued before this release stay valid without the claim.
+
+### Patch Changes
+
+- 9e131f3: `GET /workspaces` lists the workspaces the session token grants when the session is impersonated.
+  An impersonation window grants its workspace through the token only, so the client could not enter it.
+- Updated dependencies [16d18f4]
+- Updated dependencies [7ea02c4]
+- Updated dependencies [6e53525]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [a2fbdd3]
+- Updated dependencies [8a926dc]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [b64fff6]
+- Updated dependencies [465a5eb]
+- Updated dependencies [c06262b]
+- Updated dependencies [21c993b]
+- Updated dependencies [c06262b]
+- Updated dependencies [4aad893]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-auth-dto@34.0.0
+  - @shipfox/api-common-dto@34.0.0
+  - @shipfox/api-runners-dto@34.0.0
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/node-email@0.4.0
+  - @shipfox/node-outbox@0.3.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+  - @shipfox/node-mailer@0.2.8
+
 ## 29.1.0
 
 ### Patch Changes

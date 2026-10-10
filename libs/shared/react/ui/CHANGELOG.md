@@ -1,5 +1,27 @@
 # @shipfox/react-ui
 
+## 3.4.0
+
+### Minor Changes
+
+- 2c9838a: Adds the Discord logo as a `discord` icon and maps the `discord` provider to it.
+- f57e1d1: Adds `DropdownMenuSegmentedRadioGroup` and `DropdownMenuSegmentedRadioItem`, a labelled row of icon segments for a short single choice inside a dropdown menu. The user menu now picks the theme with light, dark, and system icons.
+- cc70c3b: Shippy, the Shipfox mascot, appears on first-use, invitation, and dead-end screens.
+
+  - **`@shipfox/react-ui`:** `EmptyState` gains an optional `illustration` prop that replaces the icon. The `compact` variant keeps its icon.
+  - **`@shipfox/client-shell`:** `/runtime` exports `Shippy`, which renders one of nine poses shipped in `assets/shippy`. `AuthShell` gains an optional `illustration` prop that replaces the logo tile. The page-not-found page and the workspace load error page show a pose.
+  - **`@shipfox/client-auth`:** the workspace creation page shows a pose.
+  - **`@shipfox/client-invitations`:** the invitation page for a signed-out visitor shows a pose.
+  - **`@shipfox/client-projects`:** the empty projects list shows a pose.
+  - **`@shipfox/client-workflows`:** the empty run list shows a pose.
+  - **`@shipfox/client-integrations`:** the empty installed integrations list shows a pose.
+  - **`@shipfox/client-agent`:** the empty configured providers list shows a pose.
+  - **`@shipfox/client-onboarding`:** the completed setup checklist shows a pose in place of the check icon.
+
+### Patch Changes
+
+- 93b8cac: `LogDisclosureTrigger` now keeps its label at full width and truncates the summary first. The label truncates only when it alone is wider than the row.
+
 ## 3.3.0
 
 ### Minor Changes

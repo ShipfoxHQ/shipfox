@@ -1,5 +1,46 @@
 # @shipfox/expression
 
+## 2.12.0
+
+### Minor Changes
+
+- af3b91f: Adds the `action.with` interpolation field for action step inputs. Like `tool.with`, it resolves at step dispatch. Unlike `tool.with`, it also accepts bare `secrets` references, which the runner fills.
+- 39c5466: A failed step keeps the outputs it set, typed by their declarations. Values that do not match their declaration are dropped.
+- f1f520f: Adds the job `container` field to the workflow document, and the `job.container.*` expression fields. The field is a string or an object with `image`, `credentials`, `env`, `options`, and `docker_socket`. `parseWorkflowDocument` rejects it unless `jobContainers` is set, and `buildWorkflowJsonSchema` leaves it out unless `containers` is set. The workflow model carries the normalized container, and snapshots that include one use version 5.
+- ecc70c2: A step or job `if` condition that cannot be evaluated now records the error in its evaluation trace, with the missing path and the status of the step or job it reads. The run UI says which value is missing and why. A step that has not run exposes empty `outputs`, so `has(steps.x.outputs.y)` returns `false` instead of failing.
+- e40ec8b: Adds an optional `required` flag to step output declarations. When a declaration sets `required: false`, `coerceStepOutputs` accepts a result without that output and still type-checks the value when it is present. Declarations without the flag stay required. Expressions can check an optional output with `has()`. Reading an absent output raises the existing missing-path error.
+
+  The workflows step reader now keeps `required` when it reads output declarations from step config.
+
+- c6f2ae3: `checkRunReadiness` now reports `agent-config-invalid` for an agent step whose model, provider or thinking level the agent module refuses. It checks only steps whose `model`, `provider` and `thinking` are literal or absent, so a templated value never produces an issue. An absent value falls back to the workspace defaults. The issue blocks the start for a normal job, and fails the job when the job is listening or the session key is filled after run creation. The readiness route returns the new issue with its `reason`, `model` and `provider`. `@shipfox/expression` exports `shouldFillAtSite`.
+- 9906470: Adds `from_file` and `from_stdout` to run step output declarations. A run step can read an output from a file in the job workspace or from its standard output, up to 64 KiB, instead of writing to `$SHIPFOX_OUTPUT`. The run dispatch config carries them as `output_sources`.
+- 42829e8: Rejects a step `if` that reads `execution.failed` unless the step sets `run_after: always`, and exports `referencesExecutionFailed` from `@shipfox/expression`. The shipped templates now use `run_after` for their failure handlers and drop the `!execution.failed` and `needs.all(n, n.status == "succeeded")` guards it makes redundant.
+- 96ac908: Adds `log_path` to `steps.<key>`, `steps.<key>.attempts[]`, and `step.restart.from` in workflow expressions, and rejects it in job outputs, workflow outputs, and `tool` step inputs.
+- 651153a: Run and agent step output declarations accept a `default`. When a step has no value for an output, for example because it was skipped or its run step succeeded without writing it, later steps and job outputs read the default from `steps.<key>.outputs`. A default that does not match its declared type or `schema` fails sync. `steps.<key>.outputs` now reads the step's current attempt, so a step that a gate restart skips on the rerun no longer shows the previous pass's values, and it is `{}` before the step's first attempt finishes.
+- 3c8db4c: The gate of a tool step can read `step.error`, with the `code` and optional provider `status` of a failed tool call, or null when the call did not fail. A gate can accept an expected failure and tell a missing object from an outage.
+- e71cded: Accepts top-level workflow `outputs`. The document schema takes a map from output names to templates, with the job-outputs entry limit. The new `workflow.outputs` expression field reads the `jobs`, `inputs`, `vars`, `workflow`, `run`, `trigger`, and `event` contexts. Definitions normalize the map into `WorkflowModel.outputs` and `outputTypes` and type-check each output against the declared job outputs, so a reference to an undeclared job output is a sync error. The workflow outputs runtime now evaluates under the `workflow.outputs` field.
+- 2ab4025: Workflows can link to their runs. `run.url` in the run context, `event.run.url` on Shipfox run and job events, and `url` on the `start_workflow_run` output hold the run permalink, built from `CLIENT_BASE_URL`. Replaying a Shipfox event stored without `run.url` fills it in. The `slack-dispatcher` and `report-failed-runs` templates use these links instead of `https://app.shipfox.io/runs/`.
+
+### Patch Changes
+
+- b76c004: Correctly infers mapped expressions as lists and preserves their element types, allowing list outputs to validate against their JSON Schemas.
+- 0b2af13: Tool step outputs keep JSON-looking strings as strings instead of parsing them into numbers or booleans.
+- Updated dependencies [6b4ae32]
+- Updated dependencies [d273097]
+- Updated dependencies [e087b95]
+- Updated dependencies [cfd75e4]
+- Updated dependencies [f1f520f]
+- Updated dependencies [ab66d1e]
+- Updated dependencies [4e3497b]
+- Updated dependencies [d657853]
+- Updated dependencies [cb411b1]
+- Updated dependencies [9906470]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [651153a]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e71cded]
+  - @shipfox/workflow-document@3.11.0
+
 ## 2.11.2
 
 ### Patch Changes

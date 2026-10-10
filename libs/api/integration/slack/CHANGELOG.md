@@ -1,5 +1,35 @@
 # @shipfox/api-integration-slack
 
+## 34.0.0
+
+### Minor Changes
+
+- e701cfc: Adds the `get_permalink` read tool. It returns a permanent link to a Slack message, including a reply in a thread, from its channel ID and timestamp.
+- e3586c3: Adds the `list_scheduled_messages` and `lookup_canvas_sections` read tools. `list_scheduled_messages` lists the messages scheduled for future delivery. `lookup_canvas_sections` finds the sections of a canvas by text or type. The Slack app now requests the `canvases:read` bot scope, so an installation made before this change needs a reinstall before `lookup_canvas_sections` works.
+
+### Patch Changes
+
+- Updated dependencies [16d18f4]
+- Updated dependencies [c4f486b]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [c8e0869]
+- Updated dependencies [21c993b]
+- Updated dependencies [1d94e37]
+- Updated dependencies [c06262b]
+- Updated dependencies [e2e561c]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-integration-spi@4.4.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/api-integration-slack-dto@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 31.0.0
 
 ### Patch Changes

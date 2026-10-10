@@ -1,5 +1,31 @@
 # @shipfox/api-integration-clickup
 
+## 34.0.0
+
+### Patch Changes
+
+- ade6bf1: Connecting a ClickUp workspace that is already linked to the same Shipfox workspace now replaces the stored grant and webhook instead of failing with `clickup-installation-already-linked`. The error still applies when the ClickUp workspace belongs to another Shipfox workspace.
+- Updated dependencies [16d18f4]
+- Updated dependencies [c4f486b]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [c8e0869]
+- Updated dependencies [21c993b]
+- Updated dependencies [1d94e37]
+- Updated dependencies [c06262b]
+- Updated dependencies [e2e561c]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-integration-spi@4.4.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/api-integration-clickup-dto@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 31.0.0
 
 ### Patch Changes

@@ -1,5 +1,64 @@
 # @shipfox/api-integration-github
 
+## 34.0.0
+
+### Major Changes
+
+- 5e12647: Lets a member choose among several linkable GitHub installations. `POST /integrations/github/link/complete` now returns up to 20 candidates with a five-minute signed selection token, and `POST /integrations/github/link/select` connects the chosen installation. More candidates return `github-too-many-linkable-installations`, which replaces `github-multiple-linkable-installations` and `GithubMultipleLinkableInstallationsError`. `GithubApiClient.listUserInstallations` now returns installation details instead of IDs. The GitHub callback page shows the installation picker, and `completeGithubLink` can now return a selection instead of a connection.
+
+### Minor Changes
+
+- c64d42f: Adds actor-bound GitHub link OAuth routes, DTOs, and client adapters for reconnecting accessible installations.
+- 1d94e37: Rework the `create_commit` GitHub tool onto GitHub's Git database API and add `create_blob`. A commit is now a list of tree entries on top of `parent_oid`, so it can hold file modes, symbolic links, submodules, and files up to 40 MiB each, and is still signed by GitHub as the Shipfox bot. `create_commit` creates a missing branch, requires a fast-forward otherwise, and resets the branch with `force`. An optional `expected_head_oid` checks the branch head before either move. The earlier `additions` and `deletions` arguments are gone, with the 1,000,000-byte limit and the `CREATE_COMMIT_ON_BRANCH_MUTATION` export.
+
+  Add the `delete_branch` GitHub tool. It refuses the default branch, treats a branch that is already gone as a success, and deletes only a branch that still points at `expected_head_oid` when that argument is set.
+
+  Add the read tools `get_repository`, `get_branch`, `get_commit`, and `compare_commits`. `get_repository` returns the default branch and `bot_login`, the login of the Shipfox bot. `get_branch` answers `exists: false` for a missing branch. Commits come back with parents, author and committer identities, and whether GitHub verified them.
+
+  `create_pull_request` takes `labels`, `assignees`, and `milestone`. `update_pull_request` takes additive `add_labels` and `add_assignees`, `milestone`, and `draft` to convert an open pull request to a draft or mark it ready for review. These are applied after the pull request is saved, and a failure is reported under `warnings` in the result instead of failing the call. A failed reviewer request is now a warning too, where it failed the call before.
+
+- 1d94e37: A refused provider write now carries a stable reason next to its code: `stale-head`, `branch-not-found`, `branch-exists`, `pull-request-exists`, `no-commits-between`, `protected-branch`, `permission-denied`, or `unprocessable`. `IntegrationProviderError` takes it as `detail`, the tools gateway returns it as `reason`, and an action reads it from `ToolCallError.reason`. `@shipfox/actions` exports `PROVIDER_ERROR_REASONS`, `ProviderErrorReason`, and `ToolCallErrorReason`. The code and the message are unchanged.
+
+### Patch Changes
+
+- c4f486b: Names the cause of a checkout failure. Each refusal now identifies the repository, connection or project it was about, a suspended or removed GitHub App installation has its own `installation-inactive` code, and GitHub's own explanation reaches the step error as `provider_message` and `provider_status`. A missing repository now returns a 422, and a failed token mint is cached for 60 seconds instead of 15 minutes.
+- 9e7dd0e: Record unknown GitHub installations and expose a service-level orphan gauge.
+- 82d7d73: Removes GitHub installation records when their integration connections are deleted.
+- 474e21f: Adds GitHub installation identity logging and install callback outcome telemetry, and records install callback outcomes on the `integrations_github_connect` counter. Extends the GitHub webhook payload schema with nullable `installation.account.login`, `installation.account.type`, `sender.login`, and `requester.login` fields.
+- e2e561c: Reads source files as strict UTF-8 and lists symlinks and submodules. Fetching a file that is not valid UTF-8 now fails with the `binary-file-unsupported` reason instead of replacing invalid bytes. Source file listings now report `symlink` and `submodule` entries next to `file` entries. Workflow sync ignores those entries and reports a workflow file that is not UTF-8 text as an invalid definition for that file.
+- 7d9b08a: Integration providers can serve file tools, and leased action steps download their files through the tool gateway.
+
+  - **Adapter:** `AgentToolsProvider` gains an optional `downloadFile({connection, toolId, arguments, signal})`, which returns `{body, mediaType, filename?, size?}`. A provider whose catalog declares a `file` tool implements it. It passes `signal` to the provider fetch and to the body, so an abandoned transfer stops. `MAX_AGENT_TOOL_FILE_BYTES` is the 100 MiB per-file limit.
+  - **Errors:** `IntegrationProviderErrorReason` adds `file-too-large` and `file-location-not-allowed`.
+  - **Route:** `POST /runs/jobs/current/integration-tools/download` takes `{connection_slug, tool, arguments}` from a leased action step. It authorizes like the MCP route: the frozen grant, the live connection state, and repository scope. It streams the file with `content-type`, `x-shipfox-filename` (RFC 5987), and `x-shipfox-size` when known, and cuts the stream past 100 MiB. The deadline is the smaller of `x-shipfox-deadline` (remaining milliseconds) and 5 minutes. A runner disconnect aborts the provider transfer. Errors before the first byte use the gateway codes. Agent steps get `leased-step-not-action`.
+  - **Audit:** downloads are audited with the `action` caller, `resultKind: 'file'`, and the streamed byte count.
+  - **Frozen result kind:** the gateway reads each tool's frozen `result` kind. A tool frozen as a file tool stays out of MCP `listTools`, even when the live catalog no longer lists it.
+
+- Updated dependencies [16d18f4]
+- Updated dependencies [c64d42f]
+- Updated dependencies [c4f486b]
+- Updated dependencies [9e7dd0e]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [474e21f]
+- Updated dependencies [5e12647]
+- Updated dependencies [c8e0869]
+- Updated dependencies [21c993b]
+- Updated dependencies [1d94e37]
+- Updated dependencies [c06262b]
+- Updated dependencies [e2e561c]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-integration-github-dto@34.0.0
+  - @shipfox/api-integration-spi@4.4.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/api-workspaces-dto@34.0.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 31.0.0
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @shipfox/api-runners-dto
 
+## 34.0.0
+
+### Minor Changes
+
+- a2fbdd3: Expires pending job executions atomically relative to claims, so an execution is never expired after a runner has claimed it; late or repeated enqueues of an already-handled execution are ignored.
+- b64fff6: Records capacity holds for managed installation runners when the provisioning policy sets `placement`, so each runner counts against its workspace until it stops. Adds the `getWorkspaceCapacityUsage` inter-module read and the `GET /admin/runners/workspaces/:workspaceId/capacity` admin route. Holds do not refuse claims yet.
+- 4aad893: Adds machine placement rules for installation provisioning. A policy can now pass `placement.resolve`, and a job that needs a reserved runner label but only matches refused templates fails within one poll with the new `runner_not_allowed` status reason and its notice. The client shows the notice and its action.
+
+### Patch Changes
+
+- Updated dependencies [507915a]
+- Updated dependencies [a429987]
+  - @shipfox/policy-notice@0.1.0
+
 ## 29.0.0
 
 ### Major Changes

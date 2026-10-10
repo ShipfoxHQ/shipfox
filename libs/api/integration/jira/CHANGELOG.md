@@ -1,5 +1,37 @@
 # @shipfox/api-integration-jira
 
+## 34.0.0
+
+### Patch Changes
+
+- b4c1fa2: Adds a Jira E2E connection route and setup helper for API E2E tests.
+- 3726d36: Adds an optional `webhook_ids` field to the create-Jira-E2E-connection request, letting a connection accept deliveries for the listed Jira webhooks.
+- 0891956: Fixes Jira tool calls that failed with `provider-unavailable` on HTTP 400 and 404 responses. A missing issue or an invalid JQL query now reaches the agent with Jira's error body instead of being retried like an outage.
+- c1dca0e: Jira tool calls now report `not-found` for HTTP 404 responses and `provider-rejected` for HTTP 400 responses instead of `unknown`, so a workflow gate can tell a missing issue from an invalid request.
+- Updated dependencies [16d18f4]
+- Updated dependencies [c4f486b]
+- Updated dependencies [2d009f4]
+- Updated dependencies [c06262b]
+- Updated dependencies [24ea599]
+- Updated dependencies [b4c1fa2]
+- Updated dependencies [3726d36]
+- Updated dependencies [c8e0869]
+- Updated dependencies [21c993b]
+- Updated dependencies [1d94e37]
+- Updated dependencies [c06262b]
+- Updated dependencies [e2e561c]
+- Updated dependencies [7d9b08a]
+- Updated dependencies [82f2480]
+- Updated dependencies [89a6cc7]
+  - @shipfox/api-auth-context@34.0.0
+  - @shipfox/api-integration-spi@4.4.0
+  - @shipfox/node-postgres@0.6.0
+  - @shipfox/node-fastify@0.5.0
+  - @shipfox/node-module@1.2.0
+  - @shipfox/api-integration-jira-dto@34.0.0
+  - @shipfox/node-opentelemetry@0.7.0
+  - @shipfox/node-drizzle@0.3.7
+
 ## 31.0.0
 
 ### Patch Changes

@@ -1,5 +1,43 @@
 # @shipfox/workflow-document
 
+## 3.11.0
+
+### Minor Changes
+
+- 6b4ae32: Workflow steps can declare an action with `uses`, and `actionManifestSchema` describes the `action.yml` manifest. Both stay off by default until workflow actions launch.
+
+  - **Action steps:** `uses` takes a normalized repository path that starts with `./`. Other forms, such as `owner/repo@ref`, fail with "not supported yet". `connections` binds manifest aliases to connection slugs, and `with` passes inputs. A secret reference in `with` must be the whole value of a top-level input.
+  - **Forbidden fields:** an action step rejects `run`, agent fields, `checkout`, `tool`, `connection`, and `outputs`. Other step kinds reject `uses` and `connections`.
+  - **Opt-in:** `parseWorkflowDocument(input, {actions: true})` accepts action steps. Without it, `uses` fails with "Action steps (`uses`) are not supported yet." `buildWorkflowJsonSchema({actions: true})` adds the action fields; the default schema is unchanged.
+  - **Manifest:** `actionManifestSchema`, `buildActionManifestJsonSchema`, and the `ActionManifest` types cover `name`, `description`, `runtime`, `main`, typed `inputs` and `outputs`, and `integrations` with explicit selectors.
+  - **Messages:** `with` size, depth, and JSON-tree errors now start with "`with`" instead of "Tool `with`".
+
+- f1f520f: Adds the job `container` field to the workflow document, and the `job.container.*` expression fields. The field is a string or an object with `image`, `credentials`, `env`, `options`, and `docker_socket`. `parseWorkflowDocument` rejects it unless `jobContainers` is set, and `buildWorkflowJsonSchema` leaves it out unless `containers` is set. The workflow model carries the normalized container, and snapshots that include one use version 5.
+- ab66d1e: The job `container` field is now accepted by default. `parseWorkflowDocument` accepts it unless called with `{jobContainers: false}`, and `buildWorkflowJsonSchema` includes it unless called with `{containers: false}`. Both options defaulted to `false` before.
+- 4e3497b: Lets an agent step `prompt` be a list of up to 64 parts. A part is a string or a `{file: ./path}` reference. The normalizer joins string parts with a blank line, and a string `prompt` is unchanged. A `file` part fails with `prompt-file-invalid` until prompt files are supported.
+- d657853: Adds `run_after` to steps and jobs. Set it to `success`, `failure`, or `always` to choose when a step or job runs after an earlier failure. It defaults to `success`, and an `if` now adds to it instead of replacing it. Workflows stored before this change keep their current behavior until their file is next synced.
+- cb411b1: Action steps can reference a registry version, such as `uses: shipfox/slack-thread-digest@1.4.2`. Registry references stay off by default.
+
+  - **Opt-in:** `parseWorkflowDocument(input, {actions: true, registryActions: true})` accepts registry references. Without `registryActions`, every registry form still fails with "Remote actions are not supported yet". `workflowDocumentStepSchema` used directly accepts them.
+  - **Grammar:** a reference is `namespace/name@MAJOR.MINOR.PATCH`. Namespaces and names are 2 to 40 lowercase letters, digits, and single hyphens. Ranges, tags, pre-release versions, and bare names fail with "Pin an exact version". A host such as `registry.acme.dev/...` fails with "Other registries are not supported yet", and `owner/repo/path@ref` fails with "Remote actions come from the registry, not from Git". Repository path forms keep their messages.
+  - **Parsed reference:** `parseWorkflowActionRef(uses)` returns `{kind: 'local', path}` or `{kind: 'registry', namespace, name, version}`, or the message for an invalid value.
+  - **Manifest:** `action.yml` accepts optional `keywords` (up to 10 slugs) and `related` (registry package names).
+
+- 9906470: Adds `from_file` and `from_stdout` to run step output declarations. A run step can read an output from a file in the job workspace or from its standard output, up to 64 KiB, instead of writing to `$SHIPFOX_OUTPUT`. The run dispatch config carries them as `output_sources`.
+- f6bc1f4: Adds `export` to run, agent, action, and tool steps. `export: true` promotes every declared output of the step to a job output of the same name, and `export: [names]` promotes the listed ones. A later job reads them with the usual types. Sync rejects an unknown name, a clash with the job `outputs` map, and two steps that export the same name. A job output exported from a step that did not produce it is omitted instead of failing the job.
+- 651153a: Run and agent step output declarations accept a `default`. When a step has no value for an output, for example because it was skipped or its run step succeeded without writing it, later steps and job outputs read the default from `steps.<key>.outputs`. A default that does not match its declared type or `schema` fails sync. `steps.<key>.outputs` now reads the step's current attempt, so a step that a gate restart skips on the rerun no longer shows the previous pass's values, and it is `{}` before the step's first attempt finishes.
+- dbe45d5: Adds the action bundle codec. `encodeActionBundle` writes the files of an action directory as canonical JSON with a `sha256:<hex>` digest and a gzipped stored form, and `decodeActionBundle` reads it back after checking the digest.
+
+  Definitions stores action snapshots per workspace and digest, and the new `getActionSnapshot` inter-module method returns the manifest, the gzipped bundle as base64, and the byte length of the uncompressed bundle, or the `action-snapshot-not-found` known error.
+
+- e71cded: Accepts top-level workflow `outputs`. The document schema takes a map from output names to templates, with the job-outputs entry limit. The new `workflow.outputs` expression field reads the `jobs`, `inputs`, `vars`, `workflow`, `run`, `trigger`, and `event` contexts. Definitions normalize the map into `WorkflowModel.outputs` and `outputTypes` and type-check each output against the declared job outputs, so a reference to an undeclared job output is a sync error. The workflow outputs runtime now evaluates under the `workflow.outputs` field.
+
+### Patch Changes
+
+- d273097: The checkout step `path` description now says `path` is required unless the checkout owns the job root.
+- e087b95: The checkout step and job `checkout` schema descriptions now state how a first-step checkout's `path` and the job `checkout` option decide which repository holds the job root.
+- cfd75e4: Points the `gate.success` field description at the renamed feedback-loops docs section.
+
 ## 3.10.0
 
 ### Minor Changes

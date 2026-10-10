@@ -1,5 +1,74 @@
 # @shipfox/client-projects
 
+## 53.0.0
+
+### Minor Changes
+
+- cc70c3b: Shippy, the Shipfox mascot, appears on first-use, invitation, and dead-end screens.
+
+  - **`@shipfox/react-ui`:** `EmptyState` gains an optional `illustration` prop that replaces the icon. The `compact` variant keeps its icon.
+  - **`@shipfox/client-shell`:** `/runtime` exports `Shippy`, which renders one of nine poses shipped in `assets/shippy`. `AuthShell` gains an optional `illustration` prop that replaces the logo tile. The page-not-found page and the workspace load error page show a pose.
+  - **`@shipfox/client-auth`:** the workspace creation page shows a pose.
+  - **`@shipfox/client-invitations`:** the invitation page for a signed-out visitor shows a pose.
+  - **`@shipfox/client-projects`:** the empty projects list shows a pose.
+  - **`@shipfox/client-workflows`:** the empty run list shows a pose.
+  - **`@shipfox/client-integrations`:** the empty installed integrations list shows a pose.
+  - **`@shipfox/client-agent`:** the empty configured providers list shows a pose.
+  - **`@shipfox/client-onboarding`:** the completed setup checklist shows a pose in place of the check icon.
+
+### Patch Changes
+
+- Updated dependencies [7ea02c4]
+- Updated dependencies [8b8b37b]
+- Updated dependencies [c64d42f]
+- Updated dependencies [807ae57]
+- Updated dependencies [c4f486b]
+- Updated dependencies [7fddfc5]
+- Updated dependencies [7d1ae3e]
+- Updated dependencies [3b3e25c]
+- Updated dependencies [fb79732]
+- Updated dependencies [f05ecde]
+- Updated dependencies [a02f5cf]
+- Updated dependencies [2c9838a]
+- Updated dependencies [4273dad]
+- Updated dependencies [f57e1d1]
+- Updated dependencies [2021ae8]
+- Updated dependencies [5e12647]
+- Updated dependencies [2c89020]
+- Updated dependencies [f1f520f]
+- Updated dependencies [8872f36]
+- Updated dependencies [a99c11b]
+- Updated dependencies [93b8cac]
+- Updated dependencies [1320dac]
+- Updated dependencies [853a185]
+- Updated dependencies [af3b91f]
+- Updated dependencies [658d71f]
+- Updated dependencies [bea7e50]
+- Updated dependencies [560cee4]
+- Updated dependencies [96a66ed]
+- Updated dependencies [d657853]
+- Updated dependencies [a328042]
+- Updated dependencies [bea7e50]
+- Updated dependencies [cc70c3b]
+- Updated dependencies [f6bc1f4]
+- Updated dependencies [651153a]
+- Updated dependencies [dbe45d5]
+- Updated dependencies [e2e561c]
+- Updated dependencies [00dd046]
+- Updated dependencies [9485c57]
+- Updated dependencies [82f2480]
+- Updated dependencies [6b2a308]
+  - @shipfox/api-common-dto@34.0.0
+  - @shipfox/client-shell@53.0.0
+  - @shipfox/client-integrations@53.0.0
+  - @shipfox/api-definitions-dto@34.0.0
+  - @shipfox/api-integration-core-dto@34.0.0
+  - @shipfox/api-projects-dto@34.0.0
+  - @shipfox/react-ui@3.4.0
+  - @shipfox/client-agent@53.0.0
+  - @shipfox/client-auth@53.0.0
+  - @shipfox/client-ui@53.0.0
+
 ## 52.0.3
 
 ### Patch Changes
