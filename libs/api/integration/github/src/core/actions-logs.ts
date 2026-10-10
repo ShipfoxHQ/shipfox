@@ -1,4 +1,5 @@
 import {Buffer} from 'node:buffer';
+import {GithubIntegrationProviderError} from './errors.js';
 import {DEFAULT_JOB_LOG_TAIL_LINES} from './github-agent-tool-catalog.js';
 
 export {DEFAULT_JOB_LOG_TAIL_LINES} from './github-agent-tool-catalog.js';
@@ -11,8 +12,10 @@ export interface GithubJobLogSource {
   jobId: number;
   name?: string | undefined;
   conclusion?: string | undefined;
-  logsUrl: string;
-  fetchContent?: (() => Promise<string>) | undefined;
+  /** Resolves the short-lived download URL of the job logs. */
+  logsUrl: () => Promise<string>;
+  /** Downloads the log text from the URL that `logsUrl` resolved. */
+  fetchContent?: ((logsUrl: string) => Promise<string>) | undefined;
 }
 
 export interface BuildGithubSingleJobLogResultInput {
@@ -40,6 +43,8 @@ export interface GithubFailedJobLogsResult {
   logs?: GithubJobLogResult[] | undefined;
   return_format?: {content: boolean; urls: boolean} | undefined;
 }
+
+export const MAX_JOB_LOG_DOWNLOAD_BYTES = 64 * 1024 * 1024;
 
 export function buildGithubSingleJobLogResult(
   input: BuildGithubSingleJobLogResultInput,
@@ -84,36 +89,35 @@ export async function buildGithubFailedJobLogsResult(
   };
 }
 
-function buildGithubJobLogData(
+async function buildGithubJobLogData(
   input: BuildGithubSingleJobLogResultInput,
 ): Promise<GithubJobLogResult> {
   const result: GithubJobLogResult = {
     job_id: input.job.jobId,
     ...(input.job.name ? {job_name: input.job.name} : {}),
   };
+  const logsUrl = await input.job.logsUrl();
 
   if (input.returnContent === true) {
-    const content = input.job.fetchContent ? input.job.fetchContent() : Promise.resolve('');
-    return content.then((logsContent) => {
-      const processed = processGithubJobLogContent(logsContent, {
-        tailLines: input.tailLines,
-        contentWindowSize: input.contentWindowSize,
-      });
-      return {
-        ...result,
-        logs_content: processed.content,
-        message: 'Job logs content retrieved successfully',
-        original_length: processed.totalLines,
-      };
+    const logsContent = input.job.fetchContent ? await input.job.fetchContent(logsUrl) : '';
+    const processed = processGithubJobLogContent(logsContent, {
+      tailLines: input.tailLines,
+      contentWindowSize: input.contentWindowSize,
     });
+    return {
+      ...result,
+      logs_content: processed.content,
+      message: 'Job logs content retrieved successfully',
+      original_length: processed.totalLines,
+    };
   }
 
-  return Promise.resolve({
+  return {
     ...result,
-    logs_url: input.job.logsUrl,
+    logs_url: logsUrl,
     message: 'Job logs are available for download',
     note: 'The logs_url provides a download link for the individual job logs in plain text format.\nUse return_content=true to get the actual log content.',
-  });
+  };
 }
 
 export function processGithubJobLogContent(
@@ -184,4 +188,73 @@ function splitLogLines(content: string): string[] {
 function truncateLongLine(line: string): string {
   if (Buffer.byteLength(line, 'utf8') < MAX_JOB_LOG_LINE_BYTES) return line;
   return `${Array.from(line).slice(0, MAX_TRUNCATED_JOB_LOG_LINE_CHARS).join('')}...\n[TRUNCATED]`;
+}
+
+/**
+ * Downloads the text of a job log from the short-lived URL GitHub redirects to. The read stops at
+ * `maxBytes`, so a very large log fails instead of filling memory.
+ */
+export async function downloadGithubJobLogs({
+  url,
+  timeoutMs,
+  maxBytes = MAX_JOB_LOG_DOWNLOAD_BYTES,
+}: {
+  url: string;
+  timeoutMs: number;
+  maxBytes?: number;
+}): Promise<string> {
+  if (!url.startsWith('https://')) {
+    throw new GithubIntegrationProviderError(
+      'malformed-provider-response',
+      'GitHub job logs download URL is not https',
+    );
+  }
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {signal: abortController.signal});
+    if (!response.ok) {
+      throw new GithubIntegrationProviderError(
+        'provider-rejected',
+        `GitHub job logs download failed with status ${response.status}`,
+      );
+    }
+    return await readTextWithLimit({response, maxBytes});
+  } catch (error) {
+    if (error instanceof GithubIntegrationProviderError) throw error;
+    if (abortController.signal.aborted) {
+      throw new GithubIntegrationProviderError('timeout', 'GitHub job logs download timed out');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function readTextWithLimit({
+  response,
+  maxBytes,
+}: {
+  response: Response;
+  maxBytes: number;
+}): Promise<string> {
+  const reader = response.body?.getReader();
+  if (reader === undefined) return '';
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  let chunk = await reader.read();
+  while (!chunk.done) {
+    const {value} = chunk;
+    received += value.byteLength;
+    if (received > maxBytes) {
+      await reader.cancel();
+      throw new GithubIntegrationProviderError(
+        'provider-rejected',
+        `GitHub job logs exceed the ${maxBytes} byte download limit`,
+      );
+    }
+    chunks.push(value);
+    chunk = await reader.read();
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }

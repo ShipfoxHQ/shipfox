@@ -17,6 +17,12 @@ import {
 } from '#api/installation-token-provider.js';
 import {normalizedGithubApiBaseUrl} from '#config.js';
 import type {GithubInstallation} from '#db/installations.js';
+import {
+  buildGithubFailedJobLogsResult,
+  buildGithubSingleJobLogResult,
+  downloadGithubJobLogs,
+  type GithubJobLogSource,
+} from './actions-logs.js';
 import {githubAppBotLogin} from './bot-identity.js';
 import {GithubIntegrationProviderError} from './errors.js';
 import {
@@ -84,6 +90,19 @@ type GithubToolErrorCode = 'invalid-request' | IntegrationProviderErrorReason;
 const GITHUB_GRAPHQL_ROUTE = 'POST /graphql';
 const GITHUB_ARTIFACT_ARCHIVE_FORMAT = 'zip';
 const GITHUB_ARTIFACT_DOWNLOAD_ROUTE = `GET /repos/{owner}/{repo}/actions/artifacts/{resource_id}/${GITHUB_ARTIFACT_ARCHIVE_FORMAT}`;
+const GITHUB_RUN_LOGS_ROUTE = 'GET /repos/{owner}/{repo}/actions/runs/{resource_id}/logs';
+const GITHUB_JOB_LOGS_ROUTE = 'GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs';
+const GITHUB_RUN_JOBS_ROUTE = 'GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs';
+const GITHUB_JOB_LOGS_TIMEOUT_MS = 30_000;
+const GITHUB_RUN_JOBS_PAGE_SIZE = 100;
+const GITHUB_RUN_JOBS_MAX_PAGES = 10;
+// GitHub answers these with a redirect to a short-lived archive. The tool returns that URL instead
+// of following it, so no archive bytes pass through the integration.
+const GITHUB_REDIRECT_ROUTES: ReadonlySet<string> = new Set([
+  GITHUB_ARTIFACT_DOWNLOAD_ROUTE,
+  GITHUB_RUN_LOGS_ROUTE,
+  GITHUB_JOB_LOGS_ROUTE,
+]);
 const GITHUB_ARTIFACT_DOWNLOAD_TIMEOUT_MS = 30_000;
 const PENDING_REVIEW_PAGE_SIZE = 100;
 const PENDING_REVIEW_MAX_PAGE_REQUESTS = 5;
@@ -363,6 +382,8 @@ export interface GithubToolResponse {
 
 export interface GithubToolClient {
   request(route: string, parameters: Record<string, unknown>): Promise<GithubToolResponse>;
+  /** Downloads the text a short-lived GitHub URL points at, such as a job log. */
+  download?: ((url: string) => Promise<string>) | undefined;
   graphql?: ((query: string, variables: Record<string, unknown>) => Promise<unknown>) | undefined;
 }
 
@@ -382,7 +403,7 @@ function createOctokitClient(token: string): GithubToolClient {
   });
   return {
     request: async (route, parameters) => {
-      if (route !== GITHUB_ARTIFACT_DOWNLOAD_ROUTE) {
+      if (!GITHUB_REDIRECT_ROUTES.has(route)) {
         return await octokit.request(route, parameters);
       }
 
@@ -404,6 +425,8 @@ function createOctokitClient(token: string): GithubToolClient {
         clearTimeout(timeout);
       }
     },
+    download: async (url) =>
+      await downloadGithubJobLogs({url, timeoutMs: GITHUB_JOB_LOGS_TIMEOUT_MS}),
     graphql: async (query, variables) => await octokit.graphql(query, variables),
   };
 }
@@ -563,7 +586,7 @@ export function githubOperationRoute(
     case 'actions_get.get_workflow_run_usage':
       return `GET ${repoPath}/actions/runs/${resource}/timing`;
     case 'actions_get.get_workflow_run_logs_url':
-      return `GET ${repoPath}/actions/runs/${resource}/logs`;
+      return GITHUB_RUN_LOGS_ROUTE;
     case 'actions_run_trigger.run_workflow':
       return `POST ${repoPath}/actions/workflows/{workflow_id}/dispatches`;
     case 'actions_run_trigger.rerun_workflow_run':
@@ -575,7 +598,7 @@ export function githubOperationRoute(
     case 'actions_run_trigger.delete_workflow_run_logs':
       return `DELETE ${repoPath}/actions/runs/${run}/logs`;
     case 'get_job_logs.':
-      return `GET ${repoPath}/actions/jobs/{job_id}/logs`;
+      return GITHUB_JOB_LOGS_ROUTE;
     default:
       return undefined;
   }
@@ -760,6 +783,7 @@ async function executeGithubRestOperation(
   if (toolId === 'create_blob') return await createGitBlob(client, parameters);
   if (toolId === 'delete_branch') return await deleteBranch(client, parameters);
   if (isGitReadTool(toolId)) return await executeGitReadTool(client, toolId, parameters);
+  if (toolId === 'get_job_logs') return await getJobLogs(client, parameters);
   if (toolId === 'create_commit') return await createCommit(client, parameters);
   if (toolId === 'create_pull_request' || toolId === 'update_pull_request') {
     return await savePullRequest(client, route, parameters, toolId);
@@ -769,6 +793,113 @@ async function executeGithubRestOperation(
 
 const REQUESTED_REVIEWERS_ROUTE =
   'POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers';
+
+async function getJobLogs(
+  client: GithubToolClient,
+  parameters: Record<string, unknown>,
+): Promise<GithubToolResponse> {
+  const repository = {owner: parameters.owner, repo: parameters.repo};
+  const options = {
+    returnContent: parameters.return_content === true,
+    tailLines: typeof parameters.tail_lines === 'number' ? parameters.tail_lines : undefined,
+  };
+  const source = (job: {
+    jobId: number;
+    name?: string;
+    conclusion?: string;
+  }): GithubJobLogSource => ({
+    ...job,
+    logsUrl: async () => await resolveJobLogsUrl(client, {...repository, job_id: job.jobId}),
+    fetchContent: async (url) => await downloadJobLogs(client, url),
+  });
+
+  if (parameters.failed_only === true) {
+    const runId = Number(parameters.run_id);
+    const jobs = await listRunJobs(client, {...repository, run_id: runId});
+    return {
+      data: await buildGithubFailedJobLogsResult({jobs: jobs.map(source), runId, ...options}),
+    };
+  }
+  const job = source({jobId: Number(parameters.job_id)});
+  return {data: await buildGithubSingleJobLogResult({job, ...options})};
+}
+
+async function resolveJobLogsUrl(
+  client: GithubToolClient,
+  parameters: Record<string, unknown>,
+): Promise<string> {
+  const response = await client.request(GITHUB_JOB_LOGS_ROUTE, parameters);
+  const logsUrl = response.headers?.location;
+  if (typeof logsUrl !== 'string' || logsUrl.length === 0) {
+    throw new GithubIntegrationProviderError(
+      'malformed-provider-response',
+      'GitHub job logs did not return a download URL',
+    );
+  }
+  return logsUrl;
+}
+
+async function downloadJobLogs(client: GithubToolClient, url: string): Promise<string> {
+  if (client.download === undefined) {
+    throw new GithubIntegrationProviderError(
+      'malformed-provider-response',
+      'GitHub client cannot download job logs',
+    );
+  }
+  return await client.download(url);
+}
+
+interface RunJob {
+  jobId: number;
+  name?: string;
+  conclusion?: string;
+}
+
+async function listRunJobs(
+  client: GithubToolClient,
+  parameters: Record<string, unknown>,
+): Promise<RunJob[]> {
+  const jobs: RunJob[] = [];
+  for (let page = 1; page <= GITHUB_RUN_JOBS_MAX_PAGES; page += 1) {
+    const response = await client.request(GITHUB_RUN_JOBS_ROUTE, {
+      ...parameters,
+      per_page: GITHUB_RUN_JOBS_PAGE_SIZE,
+      page,
+    });
+    const items = isRecord(response.data) ? response.data.jobs : undefined;
+    if (!Array.isArray(items)) {
+      throw new GithubIntegrationProviderError(
+        'malformed-provider-response',
+        'GitHub workflow run jobs response did not include a jobs list',
+      );
+    }
+    jobs.push(...items.flatMap(runJobOf));
+    if (items.length < GITHUB_RUN_JOBS_PAGE_SIZE) break;
+  }
+  return jobs;
+}
+
+function runJobOf(item: unknown): RunJob[] {
+  if (!isRecord(item) || typeof item.id !== 'number') return [];
+  return [
+    {
+      jobId: item.id,
+      ...(typeof item.name === 'string' ? {name: item.name} : {}),
+      ...(typeof item.conclusion === 'string' ? {conclusion: item.conclusion} : {}),
+    },
+  ];
+}
+
+function validateJobLogsArguments(arguments_: Record<string, unknown>): string | undefined {
+  if (arguments_.failed_only === true) {
+    return arguments_.run_id === undefined
+      ? 'run_id is required when failed_only is true'
+      : undefined;
+  }
+  return arguments_.job_id === undefined
+    ? 'job_id is required unless failed_only is true with a run_id'
+    : undefined;
+}
 
 async function savePullRequest(
   client: GithubToolClient,
@@ -1237,7 +1368,9 @@ function githubToolResult(
   const structuredContent = projectGithubToolOutput(toolId, data, response, parameters, route);
   if (structuredContent === undefined) {
     return githubToolError(
-      'GitHub artifact download did not return a download URL',
+      route === GITHUB_RUN_LOGS_ROUTE
+        ? 'GitHub workflow run logs did not return a download URL'
+        : 'GitHub artifact download did not return a download URL',
       'malformed-provider-response',
     );
   }
@@ -1257,6 +1390,7 @@ function projectGithubToolOutput(
   if (route === GITHUB_ARTIFACT_DOWNLOAD_ROUTE) {
     return projectGithubArtifactDownloadOutput(response, parameters);
   }
+  if (route === GITHUB_RUN_LOGS_ROUTE) return projectGithubRunLogsUrlOutput(response);
 
   switch (toolId) {
     case 'list_issue_types':
@@ -1412,6 +1546,14 @@ function projectGithubArtifactDownloadOutput(
   return output;
 }
 
+function projectGithubRunLogsUrlOutput(
+  response: GithubToolResponse | undefined,
+): Record<string, unknown> | undefined {
+  const downloadUrl = response?.headers?.location;
+  if (typeof downloadUrl !== 'string' || downloadUrl.length === 0) return undefined;
+  return {archive_format: GITHUB_ARTIFACT_ARCHIVE_FORMAT, download_url: downloadUrl};
+}
+
 function githubSearchItems(data: unknown): unknown {
   return isRecord(data) ? data.items : data;
 }
@@ -1451,6 +1593,7 @@ function validateGithubToolArguments(
     return validatePendingReviewCommentArguments(arguments_);
   }
   if (tool.id === 'check_run_write') return validateCheckRunArguments(arguments_);
+  if (tool.id === 'get_job_logs') return validateJobLogsArguments(arguments_);
   if (tool.id === 'create_blob') return validateCreateBlobArguments(arguments_);
   if (tool.id === 'delete_branch') return validateDeleteBranchArguments(arguments_);
   if (isGitReadTool(tool.id)) return validateGitReadArguments(tool.id, arguments_);

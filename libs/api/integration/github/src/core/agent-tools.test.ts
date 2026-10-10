@@ -2127,6 +2127,178 @@ describe('github agent tool catalog', () => {
     });
   });
 
+  it('returns the workflow run logs archive URL without following the redirect', async () => {
+    const request = vi.fn(() =>
+      Promise.resolve({
+        status: 302,
+        headers: {location: 'https://objects.example/logs.zip?token=temporary'},
+        data: new ArrayBuffer(1024),
+      }),
+    );
+    const result = await callGithubToolWithRequest(
+      'actions_get',
+      {
+        method: 'get_workflow_run_logs_url',
+        owner: 'shipfox',
+        repo: 'platform',
+        resource_id: '42',
+      },
+      request,
+    );
+    const expected = {
+      archive_format: 'zip',
+      download_url: 'https://objects.example/logs.zip?token=temporary',
+    };
+
+    expect(request).toHaveBeenCalledWith(
+      'GET /repos/{owner}/{repo}/actions/runs/{resource_id}/logs',
+      {
+        owner: 'shipfox',
+        repo: 'platform',
+        resource_id: '42',
+      },
+    );
+    expect(result).toEqual({
+      content: [{type: 'text', text: JSON.stringify(expected)}],
+      structuredContent: expected,
+    });
+  });
+
+  it('fails workflow run logs without a redirect URL instead of returning an empty success', async () => {
+    const result = await callGithubToolWithRequest(
+      'actions_get',
+      {
+        method: 'get_workflow_run_logs_url',
+        owner: 'shipfox',
+        repo: 'platform',
+        resource_id: '42',
+      },
+      vi.fn(() => Promise.resolve({status: 302, headers: {}, data: new ArrayBuffer(0)})),
+    );
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{type: 'text', text: 'GitHub workflow run logs did not return a download URL'}],
+      structuredContent: {code: 'malformed-provider-response'},
+    });
+  });
+
+  describe('get_job_logs', () => {
+    const logsRoute = 'GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs';
+    const jobsRoute = 'GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs';
+    const repository = {owner: 'shipfox', repo: 'platform'};
+
+    async function callJobLogs(arguments_: Record<string, unknown>, client: GithubToolClient) {
+      const tool = githubAgentToolCatalog.find((entry) => entry.id === 'get_job_logs');
+      if (!tool) throw new Error('Missing GitHub tool: get_job_logs');
+      const session = await createAgentToolsProvider(client).openSession({
+        connection: connection(),
+        tools: [tool],
+        scope: undefined,
+      });
+      return await session.call({
+        toolId: 'get_job_logs',
+        arguments: {...repository, ...arguments_},
+      });
+    }
+
+    function redirectTo(location: string) {
+      return Promise.resolve({status: 302, headers: {location}, data: new ArrayBuffer(0)});
+    }
+
+    it('returns the logs URL of one job without downloading it', async () => {
+      const request = vi.fn(() => redirectTo('https://objects.example/job-7.txt'));
+      const download = vi.fn(() => Promise.resolve('unused'));
+
+      const result = await callJobLogs({job_id: 7}, {request, download});
+
+      expect(request).toHaveBeenCalledWith(logsRoute, {...repository, job_id: 7});
+      expect(download).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        structuredContent: {job_id: 7, logs_url: 'https://objects.example/job-7.txt'},
+      });
+    });
+
+    it('downloads the log and returns its tail when content is requested', async () => {
+      const request = vi.fn(() => redirectTo('https://objects.example/job-7.txt'));
+      const download = vi.fn(() => Promise.resolve('line 1\nline 2\nline 3\n'));
+
+      const result = await callJobLogs(
+        {job_id: 7, return_content: true, tail_lines: 2},
+        {request, download},
+      );
+
+      expect(download).toHaveBeenCalledWith('https://objects.example/job-7.txt');
+      expect(result).toMatchObject({
+        structuredContent: {job_id: 7, logs_content: 'line 2\nline 3', original_length: 3},
+      });
+    });
+
+    it('reads the logs of every failed job of a run, across job pages', async () => {
+      const page = (first: number, count: number, conclusion: string) => ({
+        data: {
+          jobs: Array.from({length: count}, (_value, index) => ({
+            id: first + index,
+            name: `job ${first + index}`,
+            conclusion: first + index === 150 ? 'failure' : conclusion,
+          })),
+        },
+      });
+      const request = vi.fn((route: string, parameters: Record<string, unknown>) => {
+        if (route === jobsRoute) {
+          return Promise.resolve(
+            parameters.page === 1 ? page(1, 100, 'success') : page(101, 50, 'success'),
+          );
+        }
+        return redirectTo(`https://objects.example/job-${parameters.job_id}.txt`);
+      });
+
+      const result = await callJobLogs({run_id: 99, failed_only: true}, {request});
+
+      expect(request).toHaveBeenCalledWith(jobsRoute, {
+        ...repository,
+        run_id: 99,
+        per_page: 100,
+        page: 2,
+      });
+      expect(result).toMatchObject({
+        structuredContent: {
+          run_id: 99,
+          total_jobs: 150,
+          failed_jobs: 1,
+          logs: [
+            {job_id: 150, job_name: 'job 150', logs_url: 'https://objects.example/job-150.txt'},
+          ],
+        },
+      });
+    });
+
+    it('reports an error when GitHub gives no logs URL', async () => {
+      const request = vi.fn(() => Promise.resolve({status: 302, headers: {}, data: null}));
+
+      await expect(callJobLogs({job_id: 7}, {request})).rejects.toThrow(
+        'GitHub job logs did not return a download URL',
+      );
+    });
+
+    it('rejects a call that names neither a job nor a failed run', async () => {
+      const request = vi.fn();
+
+      const missingJob = await callJobLogs({}, {request});
+      const missingRun = await callJobLogs({failed_only: true}, {request});
+
+      expect(missingJob).toMatchObject({
+        isError: true,
+        structuredContent: {code: 'invalid-request'},
+      });
+      expect(missingRun).toMatchObject({
+        isError: true,
+        content: [{type: 'text', text: 'run_id is required when failed_only is true'}],
+      });
+      expect(request).not.toHaveBeenCalled();
+    });
+  });
+
   it('projects get_diff request headers through the provider session', async () => {
     const request = vi.fn(() => Promise.resolve({data: 'diff --git a/file b/file'}));
     const result = await callGithubToolWithRequest(
