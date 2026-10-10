@@ -67,6 +67,9 @@ Every runner renews Git credentials. A checkout with `persist-credentials: true`
 renews its exact repository credential during a long job without workflow-supplied
 tokens or retry logic.
 
+Renewal applies to repositories served over HTTPS. A repository served over plain
+HTTP keeps the credential issued at checkout for the whole job.
+
 The runner configures Git to call the `git-credential-shipfox` helper, so that
 command must be on the runner's `PATH`. Runner images install it. A runner started
 another way needs the helper from the runner package on its `PATH`.

@@ -427,6 +427,9 @@ function persistedCheckoutCredentialFromCheckout(params: {
   if (auth?.kind !== 'basic' || auth.generation === undefined || auth.renewal === undefined) {
     return undefined;
   }
+  // The credential broker only serves HTTPS repositories. A plain-HTTP server, such as a
+  // self-hosted one on a private network, keeps the inline credential.
+  if (!params.checkout.repository_url.toLowerCase().startsWith('https://')) return undefined;
 
   return {
     repositoryUrl: params.checkout.repository_url,

@@ -380,6 +380,33 @@ describe('executeSetupStep', () => {
     expect(result).not.toHaveProperty('persistedCheckoutCredential');
   });
 
+  it('falls back to inline auth when a renewable credential is for a plain-HTTP repository', async () => {
+    const auth = {
+      kind: 'basic' as const,
+      username: 'x-access-token',
+      token: 'http-token',
+      expires_at: '2030-01-01T00:00:00.000Z',
+      generation: 'generation-one',
+      renewal: {mode: 'on-rejection' as const},
+      carry: 'header' as const,
+      host: 'git.internal',
+      persist: true,
+    };
+    requestCheckoutTokenMock.mockResolvedValue({
+      ...checkoutResponse(auth),
+      repository_url: 'http://git.internal/acme/repo.git',
+    });
+
+    const result = await run(undefined, buildSetupStep(), true);
+
+    expect(writeAmbientGitCredentialMock).toHaveBeenCalledWith({
+      configPath: GIT_CONFIG_PATH,
+      repositoryUrl: 'http://git.internal/acme/repo.git',
+      auth,
+    });
+    expect(result).not.toHaveProperty('persistedCheckoutCredential');
+  });
+
   it('keeps the author when credentials are not persisted', async () => {
     requestCheckoutTokenMock.mockResolvedValue(
       checkoutResponse(
