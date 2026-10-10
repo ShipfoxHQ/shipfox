@@ -103,7 +103,7 @@ jobs:
         with:
           idOrKey: E2ER-999999
         gate:
-          success: step.status == "failed" && step.error.code == "provider-unavailable"
+          success: step.status == "failed" && step.error.code == "not-found"
   get_issue_transitions:
     checkout: false
     steps:
@@ -179,4 +179,4 @@ jobs:
         with:
           jql: this is ((not jql
         gate:
-          success: step.status == "failed" && step.error.code == "provider-unavailable"
+          success: step.status == "failed" && step.error.code == "provider-rejected"

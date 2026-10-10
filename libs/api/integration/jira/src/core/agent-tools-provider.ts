@@ -129,11 +129,11 @@ async function requestJiraTool(params: {
 }
 
 function mapJiraToolResponse(response: JiraAgentToolResponse): JiraToolCallResult {
-  if (response.status === 400 || response.status === 404) {
-    return jiraRequestError(
-      response.body,
-      response.status === 404 ? 'Jira resource was not found' : 'Jira request was rejected',
-    );
+  if (response.status === 404) {
+    return jiraRequestError(response.body, 'Jira resource was not found', 'not-found');
+  }
+  if (response.status === 400) {
+    return jiraRequestError(response.body, 'Jira request was rejected', 'provider-rejected');
   }
   if (response.status < 200 || response.status >= 300) {
     return jiraToolError(`Jira request returned HTTP ${response.status}`);
@@ -162,8 +162,12 @@ function jiraToolResult(body: unknown, status: number): JiraToolCallResult {
   };
 }
 
-function jiraRequestError(body: unknown, fallbackMessage: string): JiraToolCallResult {
-  return jiraToolError(jiraErrorMessage(body, fallbackMessage));
+function jiraRequestError(
+  body: unknown,
+  fallbackMessage: string,
+  code: 'not-found' | 'provider-rejected',
+): JiraToolCallResult {
+  return jiraToolError(jiraErrorMessage(body, fallbackMessage), {code});
 }
 
 function jiraErrorMessage(body: unknown, fallbackMessage: string): string {

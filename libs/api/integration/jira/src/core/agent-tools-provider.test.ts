@@ -232,6 +232,7 @@ describe('JiraAgentToolsProvider', () => {
     expect(result).toEqual({
       isError: true,
       content: [{type: 'text', text: 'Issue does not exist'}],
+      structuredContent: {code: 'not-found'},
     });
   });
 
@@ -250,6 +251,7 @@ describe('JiraAgentToolsProvider', () => {
     expect(result).toEqual({
       isError: true,
       content: [{type: 'text', text: 'The JQL query is invalid'}],
+      structuredContent: {code: 'provider-rejected'},
     });
   });
 

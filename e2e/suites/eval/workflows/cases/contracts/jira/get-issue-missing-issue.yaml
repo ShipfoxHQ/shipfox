@@ -6,4 +6,4 @@ steps:
     with:
       idOrKey: $target.jira.missing_issue.key
     expect:
-      error: provider-unavailable
+      error: not-found
