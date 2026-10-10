@@ -1,6 +1,6 @@
 provider: clickup
 kind: round-trip
-modes: [real]
+modes: [real, fake]
 steps:
   - key: create
     tool: create_task

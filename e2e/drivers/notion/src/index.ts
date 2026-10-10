@@ -3,8 +3,10 @@ export {
   type NotionApiMock,
   type NotionApiMockCall,
   type NotionApiMockOptions,
+  type NotionCommentFixture,
   type NotionDataSourceFixture,
   type NotionPageFixture,
+  type NotionPageParent,
   startNotionApiMock,
 } from './notion-api.js';
 export {

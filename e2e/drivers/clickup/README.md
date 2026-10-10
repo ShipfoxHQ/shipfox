@@ -5,7 +5,8 @@ A fake ClickUp API and event sender for E2E suites. The fake stands in for `api.
 ## Public API
 
 - `startClickUpApiMock(options?)`: start the fake and return a `ClickUpApiMock`. It
-  serves task reads, task searches, task updates, and task comments. `options.accessToken` is the token of the
+  serves task reads, task searches, task creation, task updates, and task comments, and a read
+  shows each change. `options.accessToken` is the token of the
   connection the spec creates: the stack router sends the fake the requests that carry it, so
   specs in other workers share the address. The token is required unless `options.endpoint`
   is set, which listens directly instead.
@@ -16,8 +17,12 @@ A fake ClickUp API and event sender for E2E suites. The fake stands in for `api.
   started. A task search answers 100 tasks a page for the Lists it names, and leaves out closed
   tasks and subtasks unless the search asks for them. A comment list answers the first 25 comments.
 - `ClickUpApiMock.calls`: every request the fake handled, as `ClickUpApiMockCall` entries.
-- `ClickUpApiMock.writes()`: the comments (`add_comment`) and task updates (`update_task`) the
-  fake accepted, as `RecordedWrite` entries targeted at their task ID.
+- `ClickUpApiMock.writes()`: the tasks created (`create_task`, targeted at their List ID), the task
+  updates (`update_task`), and the comments (`add_comment`) the fake accepted, as `RecordedWrite`
+  entries targeted at their task ID. A task update changes the name, the Markdown description, and
+  the status. The `complete` and `closed` statuses close the task. A comment goes first in the
+  comment list. A task the fake does not hold still gets a placeholder answer to an update or a
+  comment.
 - `signClickUpHeaders`, `buildTaskCommentPostedEnvelope`, and `postClickUpCommentDelivery`: sign
   and send a comment event. The suite waits for the run it starts.
 - `buildTaskTagUpdatedEnvelope` and `buildTaskStatusUpdatedEnvelope`: the payloads of a tag

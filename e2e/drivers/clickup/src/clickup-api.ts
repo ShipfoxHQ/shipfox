@@ -6,10 +6,13 @@ export const CLICKUP_COMMENT_RESULT_MARKER = 'clickup-comment-result-marker';
 
 const CLICKUP_TASK_PATH_RE = /^\/api\/v2\/task\/([^/]+)(?:\/comment)?$/;
 const CLICKUP_TEAM_TASKS_PATH_RE = /^\/api\/v2\/team\/[^/]+\/task$/;
+const CLICKUP_LIST_TASKS_PATH_RE = /^\/api\/v2\/list\/([^/]+)\/task$/;
 // ClickUp answers a team task search with 100 tasks per page, and a comment list with 25.
 const CLICKUP_TASKS_PAGE_SIZE = 100;
 const CLICKUP_COMMENTS_PAGE_SIZE = 25;
 const MAX_ERROR_MESSAGE_LENGTH = 1_000;
+// The statuses that close a task. A task takes any other status as open.
+const CLICKUP_CLOSED_STATUSES = new Set(['complete', 'closed']);
 
 /** A comment on a task the fake serves. */
 export interface ClickUpCommentFixture {
@@ -27,6 +30,8 @@ export interface ClickUpTaskFixture {
   list?: {id: string; name: string} | undefined;
   /** A closed task is left out of a task search unless it asks for closed tasks. */
   closed?: boolean | undefined;
+  /** The name of the status. A task without one is `complete` when closed and `to do` otherwise. */
+  status?: string | undefined;
   /** The ID of the parent task. A subtask is left out of a task search unless it asks for them. */
   parentId?: string | undefined;
   /** Newest first, like the real API. */
@@ -46,6 +51,13 @@ export interface StartClickUpApiMockOptions {
 }
 
 export type ClickUpApiMockCall =
+  | {
+      kind: 'create_task';
+      authorization: string | undefined;
+      listId: string;
+      query: Record<string, string>;
+      body: Record<string, unknown>;
+    }
   | {
       kind: 'get_task';
       authorization: string | undefined;
@@ -83,7 +95,10 @@ export interface ClickUpApiMock {
   /** The tasks the fake serves, by ID. Add to it to seed the fake after it started. */
   tasks: Map<string, ClickUpTaskFixture>;
   endpoint: URL;
-  /** Writes the fake accepted, in arrival order. */
+  /**
+   * The tasks created, the task updates, and the comments the fake accepted, in arrival order. Each
+   * change shows in the next read of the task.
+   */
   writes(): RecordedWrite[];
   stop(): Promise<void>;
 }
@@ -96,19 +111,26 @@ export async function startClickUpApiMock(
   const calls: ClickUpApiMockCall[] = [];
   const tasks = new Map((options.tasks ?? []).map((task) => [task.id, task]));
   let boundEndpoint = configuredEndpoint;
+  let createdCount = 0;
+  const nextId = (prefix: string) => `${prefix}-${++createdCount}`;
   const server = createServer((request, response) => {
-    void handleClickUpRequest({calls, tasks, endpoint: boundEndpoint, request, response}).catch(
-      (error) => {
-        const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-        process.stderr.write(
-          `ClickUp API mock request failed: ${message.slice(0, MAX_ERROR_MESSAGE_LENGTH)}\n`,
-        );
-        if (response.destroyed || response.writableEnded) return;
-        if (!response.headersSent)
-          sendJson(response, 400, {err: 'Invalid ClickUp request', ECODE: 'E2E_BAD_REQUEST'});
-        else response.end();
-      },
-    );
+    void handleClickUpRequest({
+      calls,
+      tasks,
+      nextId,
+      endpoint: boundEndpoint,
+      request,
+      response,
+    }).catch((error) => {
+      const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      process.stderr.write(
+        `ClickUp API mock request failed: ${message.slice(0, MAX_ERROR_MESSAGE_LENGTH)}\n`,
+      );
+      if (response.destroyed || response.writableEnded) return;
+      if (!response.headersSent)
+        sendJson(response, 400, {err: 'Invalid ClickUp request', ECODE: 'E2E_BAD_REQUEST'});
+      else response.end();
+    });
   });
 
   let listening: ListeningFake;
@@ -140,16 +162,19 @@ export async function startClickUpApiMock(
 }
 
 function clickUpWrites(calls: readonly ClickUpApiMockCall[]): RecordedWrite[] {
-  return calls.flatMap((call) =>
-    call.kind === 'add_comment' || call.kind === 'update_task'
-      ? [{kind: call.kind, target: call.taskId, payload: {...call.body}}]
-      : [],
-  );
+  return calls.flatMap((call): RecordedWrite[] => {
+    if (call.kind === 'create_task')
+      return [{kind: call.kind, target: call.listId, payload: {...call.body}}];
+    if (call.kind === 'add_comment' || call.kind === 'update_task')
+      return [{kind: call.kind, target: call.taskId, payload: {...call.body}}];
+    return [];
+  });
 }
 
 interface ClickUpTaskRequest {
   calls: ClickUpApiMockCall[];
-  tasks: ReadonlyMap<string, ClickUpTaskFixture>;
+  tasks: Map<string, ClickUpTaskFixture>;
+  nextId: (prefix: string) => string;
   request: IncomingMessage;
   response: ServerResponse;
   taskId: string;
@@ -159,26 +184,14 @@ interface ClickUpTaskRequest {
 
 async function handleClickUpRequest(params: {
   calls: ClickUpApiMockCall[];
-  tasks: ReadonlyMap<string, ClickUpTaskFixture>;
+  tasks: Map<string, ClickUpTaskFixture>;
+  nextId: (prefix: string) => string;
   endpoint: URL;
   request: IncomingMessage;
   response: ServerResponse;
 }): Promise<void> {
   const requestUrl = new URL(params.request.url ?? '/', params.endpoint);
-  if (CLICKUP_TEAM_TASKS_PATH_RE.test(requestUrl.pathname)) {
-    if (params.request.method !== 'GET') {
-      sendJson(params.response, 405, {err: 'Method not allowed', ECODE: 'E2E_METHOD_NOT_ALLOWED'});
-      return;
-    }
-    searchTasks({
-      calls: params.calls,
-      tasks: params.tasks,
-      response: params.response,
-      searchParams: requestUrl.searchParams,
-      authorization: params.request.headers.authorization,
-    });
-    return;
-  }
+  if (await handleCollectionRequest({...params, requestUrl})) return;
   const match = requestUrl.pathname.match(CLICKUP_TASK_PATH_RE);
   if (!match) {
     sendJson(params.response, 404, {err: 'Unknown ClickUp endpoint', ECODE: 'E2E_NOT_FOUND'});
@@ -188,6 +201,7 @@ async function handleClickUpRequest(params: {
   const task: ClickUpTaskRequest = {
     calls: params.calls,
     tasks: params.tasks,
+    nextId: params.nextId,
     request: params.request,
     response: params.response,
     taskId: decodeURIComponent(match[1] ?? ''),
@@ -203,6 +217,42 @@ async function handleClickUpRequest(params: {
   sendJson(params.response, 405, {err: 'Method not allowed', ECODE: 'E2E_METHOD_NOT_ALLOWED'});
 }
 
+/** Serves the task search of a team and the task creation in a List. False for any other path. */
+async function handleCollectionRequest(
+  params: Omit<ClickUpTaskRequest, 'taskId' | 'query' | 'authorization'> & {requestUrl: URL},
+): Promise<boolean> {
+  const {requestUrl, request, response} = params;
+  const isSearch = CLICKUP_TEAM_TASKS_PATH_RE.test(requestUrl.pathname);
+  const listMatch = requestUrl.pathname.match(CLICKUP_LIST_TASKS_PATH_RE);
+  if (!isSearch && !listMatch) return false;
+  if (request.method !== (isSearch ? 'GET' : 'POST')) {
+    sendJson(response, 405, {err: 'Method not allowed', ECODE: 'E2E_METHOD_NOT_ALLOWED'});
+    return true;
+  }
+  const authorization = request.headers.authorization;
+  if (isSearch) {
+    searchTasks({
+      calls: params.calls,
+      tasks: params.tasks,
+      response,
+      searchParams: requestUrl.searchParams,
+      authorization,
+    });
+    return true;
+  }
+  await createTask({
+    calls: params.calls,
+    tasks: params.tasks,
+    nextId: params.nextId,
+    request,
+    response,
+    listId: decodeURIComponent(listMatch?.[1] ?? ''),
+    query: Object.fromEntries(requestUrl.searchParams.entries()),
+    authorization,
+  });
+  return true;
+}
+
 function getTask({calls, tasks, response, taskId, query, authorization}: ClickUpTaskRequest): void {
   calls.push({kind: 'get_task', authorization, taskId, query});
   const task = tasks.get(taskId);
@@ -211,14 +261,24 @@ function getTask({calls, tasks, response, taskId, query, authorization}: ClickUp
     200,
     task === undefined
       ? {id: taskId, name: 'E2E ClickUp task', description: CLICKUP_TASK_RESULT_MARKER}
-      : {
-          id: task.id,
-          name: task.name,
-          url: task.url,
-          markdown_description: task.markdownDescription,
-          ...(task.list === undefined ? {} : {list: listBody(task.list)}),
-        },
+      : taskBody(task),
   );
+}
+
+function taskBody(task: ClickUpTaskFixture) {
+  return {
+    id: task.id,
+    name: task.name,
+    url: task.url,
+    markdown_description: task.markdownDescription,
+    status: statusBody(task),
+    ...(task.list === undefined ? {} : {list: listBody(task.list)}),
+  };
+}
+
+function statusBody(task: ClickUpTaskFixture): {status: string; type: 'open' | 'closed'} {
+  const closed = task.closed === true;
+  return {status: task.status ?? (closed ? 'complete' : 'to do'), type: closed ? 'closed' : 'open'};
 }
 
 function getTaskComments({
@@ -278,10 +338,7 @@ function searchTasks({
       name: task.name,
       url: task.url,
       text_content: task.markdownDescription,
-      status: {
-        status: task.closed === true ? 'complete' : 'to do',
-        type: task.closed === true ? 'closed' : 'open',
-      },
+      status: statusBody(task),
       parent: task.parentId ?? null,
       list: task.list === undefined ? undefined : listBody(task.list),
     })),
@@ -302,6 +359,53 @@ function queryOf(searchParams: URLSearchParams): Record<string, string | string[
   return query;
 }
 
+async function createTask({
+  calls,
+  tasks,
+  nextId,
+  request,
+  response,
+  listId,
+  query,
+  authorization,
+}: Omit<ClickUpTaskRequest, 'taskId'> & {listId: string}): Promise<void> {
+  const parsed = await readJsonBody(request);
+  const body = isJsonObject(parsed) ? parsed : {};
+  calls.push({kind: 'create_task', authorization, listId, query, body});
+  const id = nextId('e2e-clickup-task');
+  const task = applyTaskUpdate(
+    {
+      id,
+      name: '',
+      url: `https://app.clickup.com/t/${id}`,
+      markdownDescription: '',
+      list: {id: listId, name: listId},
+      parentId: typeof body.parent === 'string' ? body.parent : undefined,
+    },
+    body,
+  );
+  tasks.set(id, task);
+  sendJson(response, 200, taskBody(task));
+}
+
+/** Takes the fields a task create or update sets, and leaves the rest of the task as it was. */
+function applyTaskUpdate(
+  task: ClickUpTaskFixture,
+  body: Record<string, unknown>,
+): ClickUpTaskFixture {
+  const status = typeof body.status === 'string' ? body.status : undefined;
+  return {
+    ...task,
+    ...(typeof body.name === 'string' ? {name: body.name} : {}),
+    ...(typeof body.markdown_content === 'string'
+      ? {markdownDescription: body.markdown_content}
+      : {}),
+    ...(status === undefined
+      ? {}
+      : {status, closed: CLICKUP_CLOSED_STATUSES.has(status.toLowerCase())}),
+  };
+}
+
 async function updateTask({
   calls,
   tasks,
@@ -312,18 +416,22 @@ async function updateTask({
   authorization,
 }: ClickUpTaskRequest): Promise<void> {
   const body = await readJsonBody(request);
-  calls.push({
-    kind: 'update_task',
-    authorization,
-    taskId,
-    query,
-    body: isJsonObject(body) ? body : {},
-  });
-  sendJson(response, 200, {id: taskId, name: tasks.get(taskId)?.name ?? 'E2E ClickUp task'});
+  const update = isJsonObject(body) ? body : {};
+  calls.push({kind: 'update_task', authorization, taskId, query, body: update});
+  const task = tasks.get(taskId);
+  if (task === undefined) {
+    sendJson(response, 200, {id: taskId, name: 'E2E ClickUp task'});
+    return;
+  }
+  const updated = applyTaskUpdate(task, update);
+  tasks.set(taskId, updated);
+  sendJson(response, 200, taskBody(updated));
 }
 
 async function addComment({
   calls,
+  tasks,
+  nextId,
   request,
   response,
   taskId,
@@ -331,15 +439,19 @@ async function addComment({
   authorization,
 }: ClickUpTaskRequest): Promise<void> {
   const body = await readJsonBody(request);
-  calls.push({
-    kind: 'add_comment',
-    authorization,
-    taskId,
-    query,
-    body: isCommentBody(body) ? body : {},
-  });
+  const comment = isCommentBody(body) ? body : {};
+  calls.push({kind: 'add_comment', authorization, taskId, query, body: comment});
+  const id = nextId('e2e-clickup-comment');
+  const task = tasks.get(taskId);
+  if (task !== undefined && typeof comment.comment_text === 'string') {
+    // Newest first, like the real API.
+    tasks.set(taskId, {
+      ...task,
+      comments: [{id, text: comment.comment_text}, ...(task.comments ?? [])],
+    });
+  }
   sendJson(response, 200, {
-    id: 'e2e-clickup-comment',
+    id,
     hist_id: 'e2e-clickup-history',
     date: String(Date.now()),
     marker: CLICKUP_COMMENT_RESULT_MARKER,

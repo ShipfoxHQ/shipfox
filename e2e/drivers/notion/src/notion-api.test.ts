@@ -119,6 +119,149 @@ describe('Notion API mock', () => {
     });
   });
 
+  describe('with writes', () => {
+    interface Body {
+      id: string;
+      discussion_id: string;
+      results: Array<{id: string; rich_text: Array<{plain_text: string}>}>;
+    }
+
+    async function arrange() {
+      const mock = await startNotionApiMock({endpoint: new URL('http://127.0.0.1:0')});
+      mock.pages.set('parent-1', {id: 'parent-1', title: 'Write parent'});
+      const send = async (method: string, path: string, body: unknown) => {
+        const response = await fetch(new URL(path, mock.endpoint), {
+          method,
+          headers: {'content-type': 'application/json'},
+          body: JSON.stringify(body),
+        });
+        return {status: response.status, body: (await response.json()) as Body};
+      };
+      const read = async (path: string) =>
+        (await (await fetch(new URL(path, mock.endpoint))).json()) as Body;
+      const title = (text: string) => ({title: {title: [{text: {content: text}}]}});
+      return {mock, send, read, title};
+    }
+
+    it('creates a page under its parent that a read then shows', async () => {
+      const {mock, send, read, title} = await arrange();
+
+      try {
+        const created = await send('POST', '/v1/pages', {
+          parent: {page_id: 'parent-1'},
+          properties: title('Contract page'),
+          markdown: 'Created.',
+        });
+        const id = created.body.id;
+        const page = await read(`/v1/pages/${id}`);
+        const content = await read(`/v1/pages/${id}/markdown`);
+        const found = (await (
+          await fetch(new URL('/v1/search', mock.endpoint), {
+            method: 'POST',
+            headers: {'content-type': 'application/json'},
+            body: JSON.stringify({query: 'contract page'}),
+          })
+        ).json()) as Body;
+
+        expect(created.status).toBe(200);
+        expect(page).toMatchObject({
+          id,
+          parent: {type: 'page_id', page_id: 'parent-1'},
+          properties: {title: {type: 'title', title: [{plain_text: 'Contract page'}]}},
+        });
+        expect(content).toMatchObject({markdown: 'Created.'});
+        expect(found.results.map((result) => result.id)).toEqual([id]);
+        expect(mock.writes()).toEqual([
+          {
+            kind: 'create_page',
+            target: 'parent-1',
+            payload: {
+              parent: {page_id: 'parent-1'},
+              properties: title('Contract page'),
+              markdown: 'Created.',
+            },
+          },
+        ]);
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('renames a page, replaces and appends its content, and rejects what it cannot apply', async () => {
+      const {mock, send, read, title} = await arrange();
+
+      try {
+        const {body: created} = await send('POST', '/v1/pages', {
+          parent: {page_id: 'parent-1'},
+          properties: title('Contract page'),
+          markdown: 'Created.',
+        });
+        const id = created.id;
+        await send('PATCH', `/v1/pages/${id}`, {properties: title('Renamed')});
+        const replaced = await send('PATCH', `/v1/pages/${id}/markdown`, {
+          type: 'replace_content',
+          replace_content: {new_str: 'Updated.'},
+        });
+        await send('PATCH', `/v1/pages/${id}/markdown`, {
+          type: 'insert_content',
+          insert_content: {content: 'More.', position: {type: 'end'}},
+        });
+        const invalid = await send('PATCH', `/v1/pages/${id}/markdown`, {type: 'unknown'});
+        const missing = await send('PATCH', '/v1/pages/missing', {properties: title('Nope')});
+
+        expect(await read(`/v1/pages/${id}`)).toMatchObject({
+          properties: {title: {title: [{plain_text: 'Renamed'}]}},
+        });
+        expect(replaced.body).toMatchObject({object: 'page_markdown', markdown: 'Updated.'});
+        expect(await read(`/v1/pages/${id}/markdown`)).toMatchObject({markdown: 'Updated.\nMore.'});
+        expect(invalid.status).toBe(400);
+        expect(missing).toMatchObject({status: 404, body: {code: 'object_not_found'}});
+        expect(mock.writes().map((write) => write.kind)).toEqual([
+          'create_page',
+          'update_page',
+          'update_page_content',
+          'update_page_content',
+        ]);
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('adds a comment to a page and a reply to its discussion, oldest first', async () => {
+      const {mock, send, read} = await arrange();
+      const text = (content: string) => [{type: 'text', text: {content}}];
+
+      try {
+        const first = await send('POST', '/v1/comments', {
+          parent: {page_id: 'parent-1'},
+          rich_text: text('First'),
+        });
+        const reply = await send('POST', '/v1/comments', {
+          parent: {discussion_id: first.body.discussion_id},
+          rich_text: text('Reply'),
+        });
+        const missing = await send('POST', '/v1/comments', {
+          parent: {page_id: 'missing'},
+          rich_text: text('Nope'),
+        });
+        const comments = await read('/v1/comments?block_id=parent-1');
+
+        expect(reply.body.discussion_id).toBe(first.body.discussion_id);
+        expect(missing.status).toBe(404);
+        expect(comments.results.map((comment) => comment.rich_text[0]?.plain_text)).toEqual([
+          'First',
+          'Reply',
+        ]);
+        expect(mock.writes().map((write) => [write.kind, write.target])).toEqual([
+          ['add_comment', 'parent-1'],
+          ['add_comment', first.body.discussion_id],
+        ]);
+      } finally {
+        await mock.stop();
+      }
+    });
+  });
+
   describe('with a seeded data source', () => {
     async function arrange() {
       const mock = await startNotionApiMock({endpoint: new URL('http://127.0.0.1:0')});

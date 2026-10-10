@@ -63,6 +63,7 @@ describe('ClickUp API mock', () => {
         name: 'Add a --json flag',
         url: 'https://app.clickup.com/t/86abc',
         markdown_description: 'Scripts need JSON.',
+        status: {status: 'to do', type: 'open'},
       });
       expect(update.status).toBe(200);
       expect(mock.writes()).toEqual([
@@ -157,6 +158,100 @@ describe('ClickUp API mock', () => {
         expect(page.comments).toHaveLength(25);
         expect(page.comments[0]).toMatchObject({id: 'c0', comment_text: 'Comment 0'});
         expect(none).toEqual({comments: []});
+      } finally {
+        await mock.stop();
+      }
+    });
+  });
+
+  describe('with writes', () => {
+    interface Body {
+      id: string;
+      tasks: Array<{id: string}>;
+      comments: Array<{id: string; comment_text: string}>;
+    }
+
+    async function arrange() {
+      const mock = await startClickUpApiMock({endpoint: new URL('http://127.0.0.1:0')});
+      const send = async (method: string, path: string, body: unknown) =>
+        (await (
+          await fetch(new URL(`/api/v2${path}`, mock.endpoint), {
+            method,
+            headers: {'content-type': 'application/json'},
+            body: JSON.stringify(body),
+          })
+        ).json()) as Body;
+      const read = async (path: string) =>
+        (await (await fetch(new URL(`/api/v2${path}`, mock.endpoint))).json()) as Body;
+      return {mock, send, read};
+    }
+
+    it('creates a task that a read, a search, and a comment list then show', async () => {
+      const {mock, send, read} = await arrange();
+
+      try {
+        const created = await send('POST', '/list/list-1/task', {
+          name: 'Contract task',
+          markdown_content: 'Created.',
+          notify_all: false,
+        });
+        const task = await read(`/task/${created.id}`);
+        const found = await read('/team/team-1/task?list_ids[]=list-1');
+
+        expect(created).toMatchObject({name: 'Contract task', list: {id: 'list-1'}});
+        expect(task).toMatchObject({
+          id: created.id,
+          name: 'Contract task',
+          markdown_description: 'Created.',
+          list: {id: 'list-1'},
+          status: {status: 'to do', type: 'open'},
+        });
+        expect(found.tasks.map((entry) => entry.id)).toEqual([created.id]);
+        expect(mock.writes()).toEqual([
+          {
+            kind: 'create_task',
+            target: 'list-1',
+            payload: {name: 'Contract task', markdown_content: 'Created.', notify_all: false},
+          },
+        ]);
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('applies updates and comments, newest comment first, and closes a completed task', async () => {
+      const {mock, send, read} = await arrange();
+
+      try {
+        const {id} = await send('POST', '/list/list-1/task', {name: 'Contract task'});
+        await send('PUT', `/task/${id}`, {name: 'Renamed', markdown_content: 'Updated.'});
+        await send('POST', `/task/${id}/comment`, {comment_text: 'First', notify_all: false});
+        const second = await send('POST', `/task/${id}/comment`, {comment_text: 'Second'});
+        await send('PUT', `/task/${id}`, {status: 'complete'});
+        const task = await read(`/task/${id}`);
+        const comments = await read(`/task/${id}/comment`);
+        const open = await read('/team/team-1/task?list_ids[]=list-1');
+        const all = await read('/team/team-1/task?list_ids[]=list-1&include_closed=true');
+
+        expect(task).toMatchObject({
+          name: 'Renamed',
+          markdown_description: 'Updated.',
+          status: {status: 'complete', type: 'closed'},
+        });
+        expect(comments.comments.map((comment) => comment.comment_text)).toEqual([
+          'Second',
+          'First',
+        ]);
+        expect(comments.comments[0]?.id).toBe(second.id);
+        expect(open.tasks).toEqual([]);
+        expect(all.tasks).toHaveLength(1);
+        expect(mock.writes().map((write) => write.kind)).toEqual([
+          'create_task',
+          'update_task',
+          'add_comment',
+          'add_comment',
+          'update_task',
+        ]);
       } finally {
         await mock.stop();
       }
