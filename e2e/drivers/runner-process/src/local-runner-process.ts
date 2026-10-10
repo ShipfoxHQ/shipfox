@@ -31,8 +31,6 @@ export interface StartLocalRunnerParams {
   pollMaxDurationMs?: number | undefined;
   /** Extra environment variables for one runner process. */
   extraEnv?: Record<string, string> | undefined;
-  /** Overrides the resolved `@shipfox/runner` source entry (run via tsx). */
-  entryPath?: string | undefined;
   /**
    * A runner installation from `deployRunner`. The runner then runs its built entry
    * with plain Node, as the runner image does, instead of the source entry via tsx.
@@ -83,9 +81,6 @@ function runnerModuleFor(params: StartLocalRunnerParams): RunnerModule {
       entry: join(params.installDir, 'dist/index.js'),
       nodeArgs: [],
     };
-  }
-  if (params.entryPath !== undefined) {
-    return {cwd: dirname(params.entryPath), entry: params.entryPath, nodeArgs: SOURCE_NODE_ARGS};
   }
   return resolveRunnerModule();
 }

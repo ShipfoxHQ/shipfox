@@ -1,7 +1,7 @@
 import {runnersInterModuleContract} from './inter-module.js';
 
 describe('runnersInterModuleContract', () => {
-  test('carries the claim-time renewable inference snapshot with an active lease', () => {
+  test('parses an active lease', () => {
     const result = runnersInterModuleContract.methods.getLeaseState.output.parse({
       active: true,
     });

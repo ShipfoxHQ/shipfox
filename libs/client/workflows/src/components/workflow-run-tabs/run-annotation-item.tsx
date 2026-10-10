@@ -22,7 +22,8 @@ const ANNOTATION_ROW_CLASS =
   'items-start justify-start gap-cluster hover:bg-background-neutral-base';
 
 /**
- * The contexts the server mints itself, each rebuilt exactly as its producer builds it. The
+ * The contexts the server mints itself, or once minted, each rebuilt exactly as its producer
+ * builds it. A retired context stays so runs from before its removal keep their heading. The
  * server-provided emitting job names these rows.
  *
  * These are routing keys rather than something a reader chose, so they never become the heading.
@@ -43,7 +44,7 @@ const MINTED_CONTEXTS = [
     key: ({originStepId}: MintedContextSource) => `agent-tool-capability:${originStepId}`,
   },
   {
-    // No longer minted. Runs from before every runner renewed Git credentials still carry it.
+    // Retired: every runner renews Git credentials now.
     key: ({originStepId}: MintedContextSource) => `renewable-git-capability:${originStepId}`,
   },
 ] as const;
