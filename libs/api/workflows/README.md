@@ -42,7 +42,6 @@ const run = await runWorkflow(definitions, {
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `RUNNER_CATALOG_PATH` | empty | Optional path to a YAML file mapping runner catalog names to complete runner label sets. |
-| `WORKFLOWS_LEGACY_TRIGGER_EVENTS_WRITE_ENABLED` | `true` | Writes legacy trigger-event arrays alongside canonical rows for new listener executions. Keep `true` during mixed deployments. Set `false` after one normal compatibility window with canonical readers, then restart the API. |
 | `WORKFLOWS_TOOL_STEP_EXECUTOR_ENABLED` | `true` | Starts the server-side tool-step executor. Set `false` to stop claiming new tool invocations after an API restart. |
 | `WORKFLOWS_TOOL_STEP_POLL_INTERVAL_MS` | `1000` | Delay between scans for due server-executed tool-step invocations, in milliseconds. The value must be a safe whole number from `1` through `2147483647`. |
 | `WORKFLOWS_TOOL_STEP_EXECUTOR_CONCURRENCY` | `8` | Maximum number of tool-step invocations claimed in one executor pass. The value must be a safe whole number greater than `0`. |
@@ -76,16 +75,12 @@ display label and workflow expression value.
 
 Listener event rows are canonical for new execution context. The legacy
 execution array remains readable for retained executions and is not backfilled.
-The writer flag defaults to dual writes for mixed deployments. Set it to `false`
-after canonical readers complete one normal compatibility window. An array-only
-reader cannot recover event context from new executions after the flag changes.
-If rollback is needed, restore a release that reads canonical rows first. An
-array-only rollback requires a dual-write bridge.
+New executions no longer write the array.
 
 The duplicate-array storage gauge is transitional. Its cached refresh still
-scans retained execution history. Remove it after the compatibility window and
-legacy-array retention cleanup. The canonical listener-event gauges remain
-useful for retention operations.
+scans retained execution history. Remove it after legacy-array retention
+cleanup. The canonical listener-event gauges remain useful for retention
+operations.
 
 Run numbers are sequential within one workflow lineage, start at `1`, and are
 unique for `(definition_id, number)`. `workflow_runs.definition_id` carries the
