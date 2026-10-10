@@ -1,13 +1,14 @@
 import {type ChildProcess, execFile, spawn} from 'node:child_process';
+import {randomUUID} from 'node:crypto';
 import {closeSync, openSync, readFileSync} from 'node:fs';
-import {createRequire} from 'node:module';
-import {dirname, join} from 'node:path';
+import {dirname, join, resolve} from 'node:path';
 import {promisify} from 'node:util';
 import type {
   ActiveProvisionerDto,
   ListActiveProvisionersResponseDto,
 } from '@shipfox/api-runners-dto';
 import {config, createApiClient, pollUntil} from '@shipfox/e2e-core';
+import {resolveSourceAppDirectory} from './source-app.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -16,12 +17,33 @@ const execFileAsync = promisify(execFile);
  * (libs/provisioner/docker container identity). Used only as a teardown backstop,
  * so it is duplicated here rather than imported from the provider internals.
  */
-const WORKSPACE_ID_LABEL = 'shipfox.workspace_id';
+const PROVISIONER_ID_LABEL = 'shipfox.provisioner_id';
+
+const DOCKER_SOCKET = '/var/run/docker.sock';
+const CONTAINER_TEMPLATES_FILE = '/etc/shipfox/templates.yaml';
+const CONTAINER_HOST = 'host.docker.internal';
+const CONTAINER_HOST_MAPPING = `${CONTAINER_HOST}:host-gateway`;
+const IPV6_BRACKETS = /^\[|\]$/g;
+const TRAILING_SLASH = /\/$/;
 
 const DEFAULT_READINESS_TIMEOUT_MS = 30_000;
 const DEFAULT_SIGTERM_TIMEOUT_MS = 15_000;
 
+export type ProvisionerMode = 'source' | 'image';
+
 export interface StartProvisionerParams {
+  /**
+   * `source` runs `@shipfox/provisioner-docker` from the repository through tsx.
+   * `image` runs a released provisioner image with `docker run`. Defaults to `source`.
+   */
+  mode?: ProvisionerMode;
+  /** Provisioner image reference. Required in image mode. */
+  image?: string;
+  /**
+   * API URL the provisioner container uses, in image mode. Defaults to the host API URL
+   * with its host replaced by `host.docker.internal`. A loopback host is refused.
+   */
+  containerApiUrl?: string;
   workspaceId: string;
   /** User session bearer used to poll the workspace's active provisioners. */
   userToken: string;
@@ -31,13 +53,19 @@ export interface StartProvisionerParams {
   templatesFile: string;
   /** File that the child's stdout and stderr are appended to (a CI artifact). */
   logFile: string;
-  /** Provisioner control-plane URL. Defaults to the E2E API URL. */
+  /** Host API URL. Defaults to the E2E API URL. Source mode passes it to the provisioner. */
   apiUrl?: string;
-  /** URL injected into runner containers when they reach the API on a different host. */
+  /**
+   * URL injected into runner containers when they reach the API on a different host.
+   * Image mode defaults it to `containerApiUrl`.
+   */
   runnerApiUrl?: string;
   /** Docker network runner containers join. */
   dockerNetwork?: string;
-  /** Comma-separated extra host mappings for runner containers. */
+  /**
+   * Comma-separated extra host mappings for runner containers. Image mode defaults it
+   * to `host.docker.internal:host-gateway`.
+   */
   dockerExtraHosts?: string;
   /** Token prefix to match in the active list; falls back to the first provisioner. */
   tokenPrefix?: string;
@@ -47,18 +75,22 @@ export interface StartProvisionerParams {
 }
 
 export interface ProvisionerHandle {
+  mode: ProvisionerMode;
+  /** The provisioner process in source mode, the `docker run` client in image mode. */
   process: ChildProcess;
   pid: number;
   logFile: string;
   workspaceId: string;
   provisioner: ActiveProvisionerDto;
+  /** Name of the provisioner container, in image mode. */
+  containerName?: string;
 }
 
 export interface StopProvisionerOptions {
   sigtermTimeoutMs?: number;
 }
 
-function buildProvisionerEnv(params: StartProvisionerParams): Record<string, string> {
+export function buildProvisionerEnv(params: StartProvisionerParams): Record<string, string> {
   const env: Record<string, string> = {
     SHIPFOX_API_URL: params.apiUrl ?? config.API_URL,
     SHIPFOX_PROVISIONER_TOKEN: params.provisionerToken,
@@ -73,6 +105,76 @@ function buildProvisionerEnv(params: StartProvisionerParams): Record<string, str
   return env;
 }
 
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.replace(IPV6_BRACKETS, '').toLowerCase();
+  return (
+    host === 'localhost' || host.endsWith('.localhost') || host.startsWith('127.') || host === '::1'
+  );
+}
+
+function defaultContainerApiUrl(hostApiUrl: string): string {
+  const url = new URL(hostApiUrl);
+  url.hostname = CONTAINER_HOST;
+  return url.toString().replace(TRAILING_SLASH, '');
+}
+
+export interface ProvisionerContainerCommand {
+  /** Arguments of the `docker` command. */
+  args: string[];
+  /** Variables the container receives. They are passed by name, so no value is in `args`. */
+  env: Record<string, string>;
+}
+
+/**
+ * Builds the `docker run` invocation of image mode. The provisioner container and the
+ * runner containers it creates are siblings, so both get the container API URL and the
+ * `host.docker.internal` mapping.
+ */
+export function buildProvisionerContainerCommand(
+  params: StartProvisionerParams,
+  containerName: string,
+): ProvisionerContainerCommand {
+  if (params.image === undefined) {
+    throw new Error("startProvisioner needs `image` when mode is 'image'.");
+  }
+  const containerApiUrl =
+    params.containerApiUrl ?? defaultContainerApiUrl(params.apiUrl ?? config.API_URL);
+  if (isLoopbackHost(new URL(containerApiUrl).hostname)) {
+    throw new Error(
+      `containerApiUrl ${containerApiUrl} is a loopback address, which is the provisioner container itself. Use an address that reaches the host, such as http://${CONTAINER_HOST}:<port>.`,
+    );
+  }
+
+  const env: Record<string, string> = {
+    SHIPFOX_API_URL: containerApiUrl,
+    SHIPFOX_RUNNER_API_URL: params.runnerApiUrl ?? containerApiUrl,
+    SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS: params.dockerExtraHosts ?? CONTAINER_HOST_MAPPING,
+    SHIPFOX_PROVISIONER_TOKEN: params.provisionerToken,
+    SHIPFOX_PROVISIONER_TEMPLATES_FILE: CONTAINER_TEMPLATES_FILE,
+  };
+  if (params.dockerNetwork !== undefined) {
+    env.SHIPFOX_PROVISIONER_DOCKER_NETWORK = params.dockerNetwork;
+  }
+
+  return {
+    args: [
+      'run',
+      '--rm',
+      '--name',
+      containerName,
+      '--add-host',
+      CONTAINER_HOST_MAPPING,
+      '--volume',
+      `${DOCKER_SOCKET}:${DOCKER_SOCKET}`,
+      '--volume',
+      `${resolve(params.templatesFile)}:${CONTAINER_TEMPLATES_FILE}:ro`,
+      ...Object.keys(env).flatMap((name) => ['--env', name]),
+      params.image,
+    ],
+    env,
+  };
+}
+
 interface ProvisionerModule {
   /** Package directory used as the child's cwd for tsx and workspace-source resolution. */
   cwd: string;
@@ -83,10 +185,31 @@ interface ProvisionerModule {
 // The app's dist closure still contains `#*` imports whose package maps point at source.
 // Run the same source entry as `pnpm dev` so tsx resolves those imports consistently.
 function resolveProvisionerModule(): ProvisionerModule {
-  const require = createRequire(import.meta.url);
-  const packageJsonPath = require.resolve('@shipfox/provisioner-docker/package.json');
-  const cwd = dirname(packageJsonPath);
+  const cwd = resolveSourceAppDirectory('@shipfox/provisioner-docker');
   return {cwd, entry: join(cwd, 'src/index.ts')};
+}
+
+function spawnSourceProvisioner(params: StartProvisionerParams, logFd: number): ChildProcess {
+  const {cwd, entry} = params.entryPath
+    ? {cwd: dirname(params.entryPath), entry: params.entryPath}
+    : resolveProvisionerModule();
+  return spawn(process.execPath, ['--import', 'tsx', '--conditions=workspace-source', entry], {
+    cwd,
+    stdio: ['ignore', logFd, logFd],
+    env: {...process.env, ...buildProvisionerEnv(params)},
+  });
+}
+
+// `docker run` stays in the foreground: it streams the container output to the log file,
+// forwards SIGTERM to the container, and exits when the container does.
+function spawnProvisionerContainer(
+  command: ProvisionerContainerCommand,
+  logFd: number,
+): ChildProcess {
+  return spawn('docker', command.args, {
+    stdio: ['ignore', logFd, logFd],
+    env: {...process.env, ...command.env},
+  });
 }
 
 async function waitForActiveProvisioner(params: {
@@ -160,23 +283,26 @@ function logTail(path: string): string {
 }
 
 /**
- * Spawns `@shipfox/provisioner-docker` from source via tsx as a child process, streams its
- * output to `logFile`, and resolves once the provisioner reports as active for the
- * workspace. Rejects (after killing the child) if it exits before becoming active.
+ * Starts a Docker provisioner as a child process, streams its output to `logFile`, and
+ * resolves once the provisioner reports as active for the workspace. Source mode runs
+ * `@shipfox/provisioner-docker` from source via tsx. Image mode runs a released image
+ * with `docker run`. Rejects (after killing the child) if it exits before becoming active.
  */
 export async function startProvisioner(params: StartProvisionerParams): Promise<ProvisionerHandle> {
-  const {cwd, entry} = params.entryPath
-    ? {cwd: dirname(params.entryPath), entry: params.entryPath}
-    : resolveProvisionerModule();
+  const mode = params.mode ?? 'source';
+  const containerName = mode === 'image' ? `shipfox-e2e-provisioner-${randomUUID()}` : undefined;
+  // Built before the log file opens so a refused image-mode configuration starts nothing.
+  const containerCommand =
+    containerName === undefined
+      ? undefined
+      : buildProvisionerContainerCommand(params, containerName);
 
   const logFd = openSync(params.logFile, 'a');
   let child: ChildProcess;
   try {
-    child = spawn(process.execPath, ['--import', 'tsx', '--conditions=workspace-source', entry], {
-      cwd,
-      stdio: ['ignore', logFd, logFd],
-      env: {...process.env, ...buildProvisionerEnv(params)},
-    });
+    child = containerCommand
+      ? spawnProvisionerContainer(containerCommand, logFd)
+      : spawnSourceProvisioner(params, logFd);
   } finally {
     // The child inherits its own copy of the fd during spawn; the parent's is done.
     closeSync(logFd);
@@ -198,14 +324,17 @@ export async function startProvisioner(params: StartProvisionerParams): Promise<
       logFile: params.logFile,
     });
     return {
+      mode,
       process: child,
       pid,
       logFile: params.logFile,
       workspaceId: params.workspaceId,
       provisioner,
+      ...(containerName === undefined ? {} : {containerName}),
     };
   } catch (error) {
     child.kill('SIGKILL');
+    if (containerName !== undefined) await removeProvisionerContainer(containerName);
     throw error;
   }
 }
@@ -228,13 +357,22 @@ function terminate(child: ChildProcess, sigtermTimeoutMs: number): Promise<void>
   });
 }
 
-async function removeContainersByWorkspace(workspaceId: string): Promise<void> {
+// Killing the `docker run` client leaves its container running, so remove it by name.
+async function removeProvisionerContainer(containerName: string): Promise<void> {
+  try {
+    await execFileAsync('docker', ['rm', '--force', containerName]);
+  } catch {
+    // `--rm` already removed a container that exited on its own.
+  }
+}
+
+async function removeContainersByProvisioner(provisionerId: string): Promise<void> {
   try {
     const {stdout} = await execFileAsync('docker', [
       'ps',
       '-aq',
       '--filter',
-      `label=${WORKSPACE_ID_LABEL}=${workspaceId}`,
+      `label=${PROVISIONER_ID_LABEL}=${provisionerId}`,
     ]);
     const ids = stdout
       .split('\n')
@@ -245,20 +383,21 @@ async function removeContainersByWorkspace(workspaceId: string): Promise<void> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(
-      `e2e-helper-runners: container backstop cleanup failed for workspace ${workspaceId}: ${message}\n`,
+      `e2e-driver-runner-process: container backstop cleanup failed for provisioner ${provisionerId}: ${message}\n`,
     );
   }
 }
 
 /**
  * Stops a provisioner started by `startProvisioner`: SIGTERM (then SIGKILL after a
- * grace period) so it reaps its own containers, then removes any container that
- * still carries the workspace label as a backstop.
+ * grace period) so it reaps its own containers, then removes any runner container that
+ * still carries its `shipfox.provisioner_id` label as a backstop.
  */
 export async function stopProvisioner(
   handle: ProvisionerHandle,
   options: StopProvisionerOptions = {},
 ): Promise<void> {
   await terminate(handle.process, options.sigtermTimeoutMs ?? DEFAULT_SIGTERM_TIMEOUT_MS);
-  await removeContainersByWorkspace(handle.workspaceId);
+  if (handle.containerName !== undefined) await removeProvisionerContainer(handle.containerName);
+  await removeContainersByProvisioner(handle.provisioner.id);
 }

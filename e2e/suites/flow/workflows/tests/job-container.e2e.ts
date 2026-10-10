@@ -5,7 +5,6 @@ import {fileURLToPath} from 'node:url';
 import {createApiClient} from '@shipfox/e2e-core';
 import {getFileSha, grantBotRepoWrite} from '@shipfox/e2e-driver-gitea';
 import {
-  deployRunner,
   localRunnerLogTail,
   publishJobContainerImage,
   removePublishedJobContainerImage,
@@ -13,6 +12,7 @@ import {
 } from '@shipfox/e2e-driver-runner-process';
 import {fetchStepLogs} from '@shipfox/e2e-observe-logs';
 import type {WorkflowRunObservation, WorkflowStepObservation} from '@shipfox/e2e-observe-workflows';
+import {deployRunner} from '#deployed-runner.js';
 import {logText} from '#expect.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import {fireManualAndAwaitRun} from '#triggers.js';

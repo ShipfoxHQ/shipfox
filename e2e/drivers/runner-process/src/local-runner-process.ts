@@ -8,9 +8,9 @@ import {
   rmSync,
   symlinkSync,
 } from 'node:fs';
-import {createRequire} from 'node:module';
 import {delimiter, dirname, join, resolve} from 'node:path';
 import {config} from '@shipfox/e2e-core';
+import {resolveSourceAppDirectory} from './source-app.js';
 
 const DEFAULT_SIGTERM_TIMEOUT_MS = 15_000;
 
@@ -32,8 +32,9 @@ export interface StartLocalRunnerParams {
   /** Extra environment variables for one runner process. */
   extraEnv?: Record<string, string> | undefined;
   /**
-   * A runner installation from `deployRunner`. The runner then runs its built entry
-   * with plain Node, as the runner image does, instead of the source entry via tsx.
+   * A deployed runner installation: the runner and its production dependencies in one
+   * tree. The runner then runs its built entry with plain Node, as the runner image does,
+   * instead of the source entry via tsx.
    */
   installDir?: string | undefined;
 }
@@ -68,9 +69,7 @@ interface RunnerModule {
 const SOURCE_NODE_ARGS = ['--import', 'tsx', '--conditions=workspace-source'];
 
 function resolveRunnerModule(): RunnerModule {
-  const require = createRequire(import.meta.url);
-  const packageJsonPath = require.resolve('@shipfox/runner/package.json');
-  const cwd = dirname(packageJsonPath);
+  const cwd = resolveSourceAppDirectory('@shipfox/runner');
   return {cwd, entry: join(cwd, 'src/index.ts'), nodeArgs: SOURCE_NODE_ARGS};
 }
 

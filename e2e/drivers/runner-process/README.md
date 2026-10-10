@@ -1,93 +1,123 @@
-# @shipfox/e2e-driver-runner-process
+# E2E Runner Process Driver
 
-Runner capacity for an end-to-end suite. It mints a provisioner token and runs
-`@shipfox/provisioner-docker` as a child process, so a suite can provision real
-Docker runners the same way production does.
+Runner capacity for an end-to-end suite: provisioner tokens, a Docker provisioner, a local runner, and a job container image.
 
-This package owns the `@shipfox/provisioner-docker` workspace dependency. Other
-helpers (gitea, workflows) do not depend on it, so they never pull the provisioner
-and its Docker client into their graph.
+## What it does
+
+- **`mintProvisionerToken`** creates a workspace provisioner token.
+- **`startProvisioner` and `stopProvisioner`** run a Docker provisioner for the length of a suite. The provisioner starts real runner containers, the same way production does.
+- **`mintManualRegistrationToken`** creates a manual runner registration token.
+- **`startLocalRunner`, `stopLocalRunner`, `waitForLocalRunnerExit`, and `localRunnerLogTail`** run one runner as a host process.
+- **`publishJobContainerImage` and `removePublishedJobContainerImage`** build an image and serve it from a local registry, for a job `container`.
+
+`startProvisioner` has two modes:
+
+| Mode | Starts | Use it when |
+| --- | --- | --- |
+| `source` (default) | `@shipfox/provisioner-docker` from the repository, through `tsx` | The suite lives in the Shipfox repository and tests unreleased provisioner code. |
+| `image` | A released provisioner image, with `docker run` | The suite lives in another repository. |
+
+`startLocalRunner` runs from source only. A suite outside the Shipfox repository gets a self-hosted runner from a provisioner started in image mode.
+
+## Installation and setup
+
+Install the package in an E2E consumer:
+
+```sh
+pnpm add @shipfox/e2e-driver-runner-process
+```
+
+Image mode needs:
+
+- A Docker daemon with its socket at `/var/run/docker.sock`.
+- An API that listens on an address the Docker bridge reaches. On Linux, `host-gateway` is the bridge address, so an API bound to `127.0.0.1` refuses the connection. Bind `0.0.0.0`.
+- A provisioner image and a runner image built from the same revision as the API. The templates file names the runner image.
+
+Source mode needs `@shipfox/runner` or `@shipfox/provisioner-docker` in the `package.json` of the suite. This package does not depend on them, because they are not published. Turbo then builds them before `test:e2e`.
+
+## Usage
+
+Start a provisioner from a released image, run the suite, and stop it:
+
+```ts
+import {
+  mintProvisionerToken,
+  startProvisioner,
+  stopProvisioner,
+} from '@shipfox/e2e-driver-runner-process';
+
+const workspaceId = '<workspace id>';
+// A user session bearer. The shared E2E administrator key does not satisfy these routes.
+const userToken = '<session token>';
+
+const token = await mintProvisionerToken({workspaceId, userToken});
+const handle = await startProvisioner({
+  mode: 'image',
+  image: 'ghcr.io/shipfoxhq/provisioner-docker@sha256:<digest>',
+  workspaceId,
+  userToken,
+  provisionerToken: token.raw_token,
+  tokenPrefix: token.prefix,
+  templatesFile: '/abs/path/to/templates.e2e.yaml',
+  logFile: '/abs/path/to/provisioner.log',
+  // The first start pulls the image, which takes longer than the 30 s default.
+  readinessTimeoutMs: 120_000,
+});
+
+await stopProvisioner(handle);
+```
+
+## Environment
+
+| Variable | Purpose |
+| --- | --- |
+| `API_URL` | Host URL of the API under test. Read through `@shipfox/e2e-core`. |
 
 ## API
 
 ### `mintProvisionerToken(params)`
 
-Calls `POST /workspaces/:workspaceId/provisioners/tokens` and returns the created
-token. The `raw_token` field is the value to pass to `startProvisioner`; the API
-returns it only once.
-
-The provisioner-token route is user-authed, so `params.userToken` must be a user
-session bearer (the `token` from an E2E session), not the shared E2E admin key.
-
-```ts
-const token = await mintProvisionerToken({
-  workspaceId,
-  userToken: session.token,
-});
-```
+Calls `POST /workspaces/:workspaceId/provisioners/tokens` and returns the created token. Pass `raw_token` to `startProvisioner`. The API returns it only once.
 
 ### `startProvisioner(params)`
 
-Spawns the provisioner dist (`node .../provisioner-docker/dist/index.js`), appends
-its stdout and stderr to `logFile` (keep this file as a CI artifact), and resolves
-once the provisioner reports as active for the workspace. It rejects, after killing
-the child, if the process exits before it becomes active or the readiness budget
-(default 30 s) runs out.
+Starts the provisioner, appends its output to `logFile`, and resolves once the provisioner is active for the workspace. It rejects, after stopping the provisioner, when the process exits first or the readiness budget (default 30 s) runs out. Keep `logFile` as a CI artifact.
 
-```ts
-const handle = await startProvisioner({
-  workspaceId,
-  userToken: session.token,
-  provisionerToken: token.raw_token,
-  templatesFile: '/abs/path/to/templates.e2e.yaml',
-  logFile: '/abs/path/to/provisioner.log',
-  tokenPrefix: token.prefix, // match this provisioner in the active list
-  // Optional, for the compose topology the platform suite uses:
-  runnerApiUrl: 'http://host.docker.internal:16101',
-  dockerNetwork: 'shipfox_default',
-  dockerExtraHosts: 'host.docker.internal:host-gateway',
-});
-```
-
-The provisioner dist must be built first. Under Turbo this is automatic: `test:e2e`
-depends on `^build`, and this package depends on `@shipfox/provisioner-docker`.
+| Parameter | Mode | Purpose |
+| --- | --- | --- |
+| `mode` | both | `source` (default) or `image`. |
+| `workspaceId`, `userToken` | both | The workspace, and a user session bearer that polls its active provisioners. |
+| `provisionerToken`, `tokenPrefix` | both | The token, and its prefix to match in the active list. |
+| `templatesFile`, `logFile` | both | The templates YAML and the log file. |
+| `readinessTimeoutMs` | both | Readiness budget. |
+| `apiUrl` | both | Host API URL. Defaults to `API_URL`. |
+| `image` | image | Provisioner image reference. Required. |
+| `containerApiUrl` | image | API URL for the provisioner container. Defaults to the host API URL with its host replaced by `host.docker.internal`. |
+| `runnerApiUrl` | both | API URL for runner containers. Image mode defaults it to `containerApiUrl`. |
+| `dockerExtraHosts` | both | Host mappings for runner containers. Image mode defaults it to `host.docker.internal:host-gateway`. |
+| `dockerNetwork` | both | Docker network that runner containers join. |
+| `entryPath` | source | Overrides the provisioner source entry. |
 
 ### `stopProvisioner(handle, options?)`
 
-Sends `SIGTERM` (then `SIGKILL` after a grace period, default 15 s) so the
-provisioner reaps its own containers, then removes any container still carrying the
-`shipfox.workspace_id=<workspaceId>` label as a backstop. The backstop is
-best-effort: a Docker failure is written to stderr, not thrown.
+Sends `SIGTERM`, then `SIGKILL` after a grace period (default 15 s), so the provisioner removes its own containers. It then removes every container that still carries the `shipfox.provisioner_id=<id>` label. In image mode it also removes the provisioner container. The cleanup is best-effort: a Docker failure is written to stderr, not thrown.
+
+### `mintManualRegistrationToken(params)`
+
+Creates a manual registration token for `startLocalRunner`.
+
+### `startLocalRunner(params)`
+
+Runs `@shipfox/runner` as a host process, from source through `tsx`. Pass `installDir` to run a deployed runner with plain Node instead, as the runner image does.
 
 ```ts
-await stopProvisioner(handle);
-```
-
-### `deployRunner(params)`
-
-Deploys `@shipfox/runner` into `installDir`, which must not exist yet, and returns the
-directory. The result has the layout of the runner image: the runner and its production
-dependencies in one tree. It follows the image build: `turbo prune`, an overlay of the built `dist/`
-directories, then `pnpm deploy` from the pruned copy, so the workspace install is left
-alone. Build the runner first; under Turbo, `test:e2e` does it. Pass it to `startLocalRunner` as `installDir` to run the
-built runner with plain Node instead of the source entry through tsx.
-
-A container job needs this. The job container mounts the runner installation, and a
-runner started from source keeps its packages outside `apps/runner`, where the
-container cannot reach them.
-
-```ts
-const installDir = await deployRunner({installDir: '/abs/path/to/runner-install'});
-const runner = startLocalRunner({workspaceId, registrationToken, labels, logFile, installDir});
+const runner = startLocalRunner({workspaceId, registrationToken, labels, logFile});
+await stopLocalRunner(runner);
 ```
 
 ### `publishJobContainerImage(params)`
 
-Starts a `registry:2` container on a loopback port, builds the image from
-`contextDir`, pushes it, and returns the reference a job `container` names. The runner
-always pulls the job image, so an image that only exists in the local image store is
-not enough. `removePublishedJobContainerImage(published)` removes the registry and the
-local image.
+Starts a `registry:2` container on a loopback port, builds the image from `contextDir`, pushes it, and returns the reference a job `container` names. The runner always pulls the job image, so an image in the local image store alone is not enough. `removePublishedJobContainerImage(published)` removes the registry and the local image.
 
 ```ts
 const published = await publishJobContainerImage({
@@ -99,48 +129,41 @@ const published = await publishJobContainerImage({
 await removePublishedJobContainerImage(published);
 ```
 
-## Manual verification
+## Behavior notes
 
-Automated coverage lands with the E2E suite for the flow workflow, which composes these
-functions in its `global-setup` / `global-teardown`. There is no unit test for
-process spawning because the behavior depends on the provisioner dist, Docker,
-signals, and active-runner polling as one system. To verify this package on its own:
+### Networking in image mode
+
+The host and the containers reach the API at different addresses. Inside the provisioner container, `localhost` is the container itself. The runner containers are its siblings, created through the Docker socket, so they don't inherit its host mapping.
+
+Image mode sets four values:
+
+| Who | Reaches the API at | Set through |
+| --- | --- | --- |
+| The test process | `apiUrl` | Readiness polling. |
+| The provisioner container | `containerApiUrl` | `SHIPFOX_API_URL` and `--add-host host.docker.internal:host-gateway`. |
+| Each runner container | `runnerApiUrl` | `SHIPFOX_RUNNER_API_URL` and `SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS` on the provisioner. |
+
+- **A loopback `containerApiUrl` is refused before `docker run`.** This covers `localhost`, `*.localhost`, `127.0.0.0/8`, and `::1`.
+- The provisioner token reaches the container through the environment of `docker run`, so it does not appear in the process arguments.
+- The templates file is mounted read-only at `/etc/shipfox/templates.yaml`.
+
+### Source mode
+
+The app `dist` output still contains `#*` imports that resolve to source, so source mode runs the same entry as `pnpm dev`. The driver looks for the app from its own location, then from the working directory of the suite. It fails with a message that names the missing app.
+
+## Development
+
+Run the package checks from the repository root:
 
 ```sh
-# 1. Infra + a runner image the templates file references, then the API with E2E routes on.
-docker compose up -d
-turbo image --filter=@shipfox/runner        # loads runner:ci locally
-E2E_ENABLED=true pnpm --filter=@shipfox/api dev
-
-# 2. Build the provisioner dist this helper spawns.
-turbo build --filter=@shipfox/provisioner-docker
+turbo check --filter=@shipfox/e2e-driver-runner-process
+turbo type --filter=@shipfox/e2e-driver-runner-process
+turbo build --filter=@shipfox/e2e-driver-runner-process
+turbo test --filter=@shipfox/e2e-driver-runner-process
 ```
 
-Then, from a scratch script (run with the workspace conditions, for example `tsx`):
+The unit tests cover the `docker run` arguments and the environment of each mode. Process spawning, signals, and readiness are covered by the E2E suites that start capacity.
 
-```ts
-import {createUser, createSession} from '@shipfox/e2e-setup-auth';
-import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
-import {mintProvisionerToken, startProvisioner, stopProvisioner} from '@shipfox/e2e-driver-runner-process';
+## License
 
-const user = await createUser();
-const session = await createSession({user_id: user.user.id});
-const workspace = await createWorkspace({userId: user.user.id});
-
-const token = await mintProvisionerToken({workspaceId: workspace.workspace.id, userToken: session.token});
-const handle = await startProvisioner({
-  workspaceId: workspace.workspace.id,
-  userToken: session.token,
-  provisionerToken: token.raw_token,
-  tokenPrefix: token.prefix,
-  templatesFile: new URL('../../../apps/provisioner-docker/templates.example.yaml', import.meta.url).pathname,
-  logFile: '/tmp/provisioner.log',
-});
-console.log('active provisioner:', handle.provisioner);
-
-await stopProvisioner(handle);
-```
-
-Confirm the provisioner appeared in the resolved `handle.provisioner`, that
-`/tmp/provisioner.log` filled with output, and that after teardown
-`docker ps -a --filter label=shipfox.workspace_id=<workspaceId>` lists nothing.
+MIT

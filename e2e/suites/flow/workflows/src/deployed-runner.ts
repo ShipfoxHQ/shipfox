@@ -41,7 +41,7 @@ async function run(command: string, args: string[], cwd: string): Promise<void> 
  * `pnpm run` there would reinstall without development dependencies.
  *
  * The runner and its workspace dependencies must be built first. Under Turbo this is
- * automatic: `test:e2e` depends on `^build`, and this package depends on `@shipfox/runner`.
+ * automatic: `test:e2e` depends on `^build`, and this suite depends on `@shipfox/runner`.
  */
 export async function deployRunner(params: DeployRunnerParams): Promise<string> {
   const workspaceRoot = getWorkspaceRootPath();

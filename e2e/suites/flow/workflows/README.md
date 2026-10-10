@@ -151,8 +151,8 @@ sibling container, and a run step pushes to Gitea. The spec builds the image fro
 `fixtures/container-toolbox/` and pushes it to a registry it starts on a loopback port,
 because the runner always pulls the job image. It also deploys the runner to a directory,
 because the job container mounts the runner installation and a runner started from
-source keeps its packages outside it. Both helpers are in
-`@shipfox/e2e-driver-runner-process`.
+source keeps its packages outside it. The image helper is in
+`@shipfox/e2e-driver-runner-process`, and `deployRunner` is in `src/deployed-runner.ts`.
 
 The job container runs the Node binary of the runner, so the spec is skipped unless the
 host is Linux.

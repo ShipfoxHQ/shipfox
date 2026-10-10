@@ -6,6 +6,7 @@
   "linked": [
     [
       "@shipfox/e2e-core",
+      "@shipfox/e2e-driver-runner-process",
       "@shipfox/annotations",
       "@shipfox/annotations-dto",
       "@shipfox/api-agent",

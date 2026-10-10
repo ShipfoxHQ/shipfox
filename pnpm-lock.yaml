@@ -1528,15 +1528,6 @@ importers:
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../core
-      '@shipfox/provisioner-docker':
-        specifier: workspace:*
-        version: link:../../../apps/provisioner-docker
-      '@shipfox/runner':
-        specifier: workspace:*
-        version: link:../../../apps/runner
-      '@shipfox/tool-utils':
-        specifier: workspace:*
-        version: link:../../../tools/utils
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -1553,6 +1544,9 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../tools/vitest
 
   e2e/drivers/slack:
     dependencies:
@@ -2749,6 +2743,9 @@ importers:
       '@shipfox/runner':
         specifier: workspace:*
         version: link:../../../../apps/runner
+      '@shipfox/tool-utils':
+        specifier: workspace:*
+        version: link:../../../../tools/utils
       '@shipfox/ts-config':
         specifier: workspace:*
         version: link:../../../../tools/ts-config
