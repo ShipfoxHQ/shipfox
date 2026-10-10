@@ -387,12 +387,13 @@ function resolveStepName(
   };
 }
 
+type WorkflowModelFailureAction = NonNullable<
+  Extract<NonNullable<WorkflowModelStep['gate']>['onFailure'], {restartFrom: string}>
+>;
+
 function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<string, unknown> {
   const hasSuccess = gate.success !== undefined;
-  const hasOnFailure = gate.onFailure !== undefined;
-  const hasOnFailureFeedback = gate.onFailure?.feedback !== undefined;
-  const hasOnFailureFeedbackTemplate = gate.onFailure?.feedbackTemplate !== undefined;
-  const maxAttempts = gate.onFailure?.maxAttempts ?? DEFAULT_RESTART_ATTEMPT_CAP;
+  const onFailure = gate.onFailure;
 
   return {
     ...(hasSuccess
@@ -404,17 +405,28 @@ function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<st
           },
         }
       : {}),
-    ...(hasOnFailure
-      ? {
-          on_failure: {
-            restart_from: gate.onFailure.restartFrom,
-            max_attempts: maxAttempts,
-            ...(hasOnFailureFeedback ? {feedback: gate.onFailure.feedback} : {}),
-            ...(hasOnFailureFeedbackTemplate
-              ? {feedback_template: {segments: gate.onFailure.feedbackTemplate}}
-              : {}),
-          },
-        }
-      : {}),
+    ...(onFailure === undefined
+      ? {}
+      : {
+          // A single rule stays an object so replicas that predate rule lists keep
+          // reading definitions that never needed one.
+          on_failure: Array.isArray(onFailure)
+            ? onFailure.map(failureActionConfig)
+            : failureActionConfig(onFailure as WorkflowModelFailureAction),
+        }),
+  };
+}
+
+function failureActionConfig(action: WorkflowModelFailureAction): Record<string, unknown> {
+  return {
+    ...(action.if === undefined
+      ? {}
+      : {if: {language: action.if.language, check: action.if.check, source: action.if.source}}),
+    restart_from: action.restartFrom,
+    max_attempts: action.maxAttempts ?? DEFAULT_RESTART_ATTEMPT_CAP,
+    ...(action.feedback === undefined ? {} : {feedback: action.feedback}),
+    ...(action.feedbackTemplate === undefined
+      ? {}
+      : {feedback_template: {segments: action.feedbackTemplate}}),
   };
 }

@@ -2888,6 +2888,204 @@ describe('durable gate restart', () => {
     });
   });
 
+  describe('gate restart rule lists', () => {
+    const celRule = (source: string) => ({language: 'cel', check: 'syntax', source});
+    const transientRules = [
+      {
+        if: celRule('step.outputs.kind == "foreign"'),
+        restart_from: 'first',
+        feedback: 'Build on top of the new commits.',
+      },
+      {
+        if: celRule('step.outputs.kind == "transient"'),
+        restart_from: 'prepare',
+        feedback: 'Prepare again.',
+        max_attempts: 2,
+      },
+    ];
+
+    // first → prepare → publish (gated by `rules`, optionally with a `success`)
+    async function arrangeRuleListJob(params: {rules: unknown[]; success?: string}) {
+      const {jobId, steps} = await arrangeJobWithSteps(3);
+      const [first, prepare, publish] = steps.map((step) => step.id);
+      if (first === undefined || prepare === undefined || publish === undefined) {
+        throw new Error('Expected three steps');
+      }
+      await db().update(stepsTable).set({key: 'first'}).where(eq(stepsTable.id, first));
+      await db()
+        .update(stepsTable)
+        .set({
+          key: 'prepare',
+          configPlan: {
+            run: plannedField(
+              'run',
+              `prepare \${{ step.is_retry ? step.restart.from.key : 'fresh' }} / \${{ step.is_retry ? step.restart.feedback : 'none' }}`,
+            ),
+          },
+        })
+        .where(eq(stepsTable.id, prepare));
+      await db()
+        .update(stepsTable)
+        .set({
+          key: 'publish',
+          config: {
+            run: 'publish',
+            gate: {
+              ...(params.success === undefined ? {} : {success: celRule(params.success)}),
+              on_failure: params.rules,
+            },
+          },
+        })
+        .where(eq(stepsTable.id, publish));
+      return {jobId, first, prepare, publish};
+    }
+
+    async function failPublish(jobId: string, publish: string, output: Record<string, unknown>) {
+      await nextStepForJob(jobId);
+      return recordStepResult({
+        jobId,
+        stepId: publish,
+        status: 'failed',
+        error: {message: 'publish failed'},
+        output,
+        exitCode: 1,
+      });
+    }
+
+    test('restarts from the second rule with its feedback and records the decision', async () => {
+      const {jobId, first, prepare, publish} = await arrangeRuleListJob({
+        rules: transientRules,
+      });
+      await runStep(jobId, first, 0);
+      await runStep(jobId, prepare, 0);
+
+      const restart = await failPublish(jobId, publish, {kind: 'transient'});
+
+      expect(restart).toEqual({jobFinished: false});
+      expect((await getStepsByJobId(jobId)).map((step) => step.status)).toEqual([
+        'succeeded',
+        'pending',
+        'pending',
+      ]);
+      const attempt = (await getStepAttempts(jobId)).find((a) => a.stepId === publish);
+      expect(attempt?.restartFeedback).toBe('Prepare again.');
+      expect(attempt?.gateResult).toMatchObject({
+        exit_code: 1,
+        restart: {kind: 'restart', rule: 2, restart_from: 'prepare'},
+      });
+      const retry = await nextStepForJob(jobId);
+      if (retry.kind !== 'step') throw new Error('Expected the restarted step');
+      expect(retry.step.id).toBe(prepare);
+      expect(Object.values(retry.step.config.env as Record<string, string>)).toEqual(
+        expect.arrayContaining(['publish', 'Prepare again.']),
+      );
+    });
+
+    test('restarts without a success gate', async () => {
+      const {jobId, first, prepare, publish} = await arrangeRuleListJob({
+        rules: [{restart_from: 'first'}],
+      });
+      await runStep(jobId, first, 0);
+      await runStep(jobId, prepare, 0);
+
+      const restart = await failPublish(jobId, publish, {});
+
+      expect(restart).toEqual({jobFinished: false});
+      expect(await restartEventCount(jobId)).toBe(1);
+    });
+
+    test('fails the job with the reported error when no rule applies', async () => {
+      const {jobId, first, prepare, publish} = await arrangeRuleListJob({
+        rules: transientRules,
+      });
+      await runStep(jobId, first, 0);
+      await runStep(jobId, prepare, 0);
+
+      const failed = await failPublish(jobId, publish, {kind: 'fatal'});
+
+      expect(failed).toEqual({jobFinished: true, status: 'failed'});
+      expect(await restartEventCount(jobId)).toBe(0);
+      const attempt = (await getStepAttempts(jobId)).find((a) => a.stepId === publish);
+      expect(attempt).toMatchObject({
+        status: 'failed',
+        error: {message: 'publish failed'},
+        gateResult: {restart: {kind: 'none_applied'}},
+      });
+      expect(attempt?.error).not.toHaveProperty('restartFrom');
+      expect((await getStepsByJobId(jobId)).find((step) => step.id === publish)?.status).toBe(
+        'failed',
+      );
+    });
+
+    test('keeps gate_failed when success is false and no rule applies', async () => {
+      const {jobId, first, prepare, publish} = await arrangeRuleListJob({
+        rules: transientRules,
+        success: 'step.exit_code == 0',
+      });
+      await runStep(jobId, first, 0);
+      await runStep(jobId, prepare, 0);
+
+      const failed = await failPublish(jobId, publish, {kind: 'fatal'});
+
+      expect(failed).toEqual({jobFinished: true, status: 'failed'});
+      const attempt = (await getStepAttempts(jobId)).find((a) => a.stepId === publish);
+      expect(attempt).toMatchObject({
+        error: {kind: 'gate_failed'},
+        gateResult: {passed: false, restart: {kind: 'none_applied'}},
+      });
+    });
+
+    test('fails the job and names the rule when its condition cannot be evaluated', async () => {
+      const {jobId, first, prepare, publish} = await arrangeRuleListJob({
+        rules: [
+          {if: celRule('step.outputs.missing == "x"'), restart_from: 'first'},
+          {restart_from: 'prepare'},
+        ],
+      });
+      await runStep(jobId, first, 0);
+      await runStep(jobId, prepare, 0);
+
+      const failed = await failPublish(jobId, publish, {kind: 'transient'});
+
+      expect(failed).toEqual({jobFinished: true, status: 'failed'});
+      expect(await restartEventCount(jobId)).toBe(0);
+      const attempt = (await getStepAttempts(jobId)).find((a) => a.stepId === publish);
+      expect(attempt?.error).toMatchObject({message: 'publish failed'});
+      expect(attempt?.gateResult).toMatchObject({
+        restart: {
+          kind: 'evaluation_failed',
+          rule: 1,
+          source: 'step.outputs.missing == "x"',
+          error: {message: expect.any(String)},
+        },
+      });
+    });
+
+    test('compares the selected rule limit with the step total across rules', async () => {
+      const {jobId, first, prepare, publish} = await arrangeRuleListJob({
+        rules: transientRules,
+      });
+      await runStep(jobId, first, 0);
+      await runStep(jobId, prepare, 0);
+      const firstRestart = await failPublish(jobId, publish, {kind: 'foreign'});
+      await runStep(jobId, first, 0);
+      await runStep(jobId, prepare, 0);
+
+      const exhausted = await failPublish(jobId, publish, {kind: 'transient'});
+
+      expect(firstRestart).toEqual({jobFinished: false});
+      expect(exhausted).toEqual({jobFinished: true, status: 'failed'});
+      const attempt = (await getStepAttempts(jobId)).find(
+        (a) => a.stepId === publish && a.attempt === 2,
+      );
+      expect(attempt?.error).toMatchObject({
+        kind: 'restart_exhausted',
+        attemptCount: 2,
+        maxAttempts: 2,
+      });
+    });
+  });
+
   test('a passing rerun after a restart completes the job', async () => {
     const {jobId, producer, reviewer} = await arrangeGatedJob({source: 'step.exit_code == 0'});
 

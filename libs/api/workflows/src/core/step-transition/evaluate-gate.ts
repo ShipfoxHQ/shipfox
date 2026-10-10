@@ -6,7 +6,7 @@ import {
   type WorkflowExpression,
 } from '@shipfox/expression';
 import {WORKFLOW_GATE_MAX_ATTEMPTS_MAX} from '@shipfox/workflow-document';
-import type {StepType} from '../entities/step.js';
+import type {PersistedEvaluationTraceEntry, StepType} from '../entities/step.js';
 import {assembleGateContext} from '../step-config/assemble-run-context.js';
 import {completeStepField} from '../step-config/fields.js';
 import type {GateOutcome, StepReport} from './decide-step-transition.js';
@@ -20,12 +20,16 @@ export const GATE_EVALUATION_ERROR_REASON = 'gate expression evaluation failed';
 // The gate as parsed from a step's materialized `config.gate` (snake_case JSON).
 export interface StepGate {
   success?: WorkflowExpression;
-  onFailure?: {
-    restartFrom: string;
-    feedback?: string;
-    feedbackTemplate?: ResolvedField;
-    maxAttempts?: number;
-  };
+  // A single `on_failure` object reads as a one-rule list.
+  onFailure?: readonly StepGateRestartRule[];
+}
+
+export interface StepGateRestartRule {
+  if?: WorkflowExpression;
+  restartFrom: string;
+  feedback?: string;
+  feedbackTemplate?: ResolvedField;
+  maxAttempts?: number;
 }
 
 // Read the gate persisted on a step's config by the materializer. Returns
@@ -35,7 +39,7 @@ export function readStepGate(config: Record<string, unknown>): StepGate | undefi
   if (!gate || typeof gate !== 'object') return undefined;
   const raw = gate as Record<string, unknown>;
 
-  const success = readGateSuccess(raw.success);
+  const success = readGateExpression(raw.success);
   const onFailure = readGateOnFailure(raw.on_failure);
 
   if (!success && !onFailure) return undefined;
@@ -45,13 +49,28 @@ export function readStepGate(config: Record<string, unknown>): StepGate | undefi
   };
 }
 
-function readGateSuccess(value: unknown): WorkflowExpression | undefined {
+function readGateExpression(value: unknown): WorkflowExpression | undefined {
   if (!value || typeof value !== 'object') return undefined;
   if (typeof (value as Record<string, unknown>).source !== 'string') return undefined;
   return value as WorkflowExpression;
 }
 
+// One invalid rule drops the whole policy, as an invalid single rule always has: a
+// partially readable list could restart from a rule the author meant to guard.
 function readGateOnFailure(value: unknown): StepGate['onFailure'] {
+  const rawRules = Array.isArray(value) ? value : [value];
+  if (rawRules.length === 0) return undefined;
+
+  const rules: StepGateRestartRule[] = [];
+  for (const rawRule of rawRules) {
+    const rule = readGateRestartRule(rawRule);
+    if (rule === undefined) return undefined;
+    rules.push(rule);
+  }
+  return rules;
+}
+
+function readGateRestartRule(value: unknown): StepGateRestartRule | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const raw = value as Record<string, unknown>;
   if (typeof raw.restart_from !== 'string') return undefined;
@@ -59,8 +78,12 @@ function readGateOnFailure(value: unknown): StepGate['onFailure'] {
   const maxAttempts = readGateMaxAttempts(raw.max_attempts);
   if (maxAttempts === 'invalid') return undefined;
 
+  const condition = readGateExpression(raw.if);
+  if (raw.if !== undefined && condition === undefined) return undefined;
+
   const feedbackTemplate = readGateFeedbackTemplate(raw.feedback_template);
   return {
+    ...(condition === undefined ? {} : {if: condition}),
     restartFrom: raw.restart_from,
     ...(typeof raw.feedback === 'string' ? {feedback: raw.feedback} : {}),
     ...(feedbackTemplate === undefined ? {} : {feedbackTemplate}),
@@ -155,15 +178,97 @@ function toolStepGateError(result: StepReport): {code: string; status?: number} 
   };
 }
 
+// The restart decision for a failed step: which `on_failure` rule applies, if any.
+// Positions are 1-based, as the author reads them in the list.
+export type RestartRuleSelection =
+  | {
+      kind: 'selected';
+      position: number;
+      rule: StepGateRestartRule;
+      trace: readonly PersistedEvaluationTraceEntry[];
+    }
+  | {kind: 'none-applied'; trace: readonly PersistedEvaluationTraceEntry[]}
+  | {
+      kind: 'evaluation-failed';
+      position: number;
+      source: string;
+      error?: {message: string; path?: string};
+      trace: readonly PersistedEvaluationTraceEntry[];
+    };
+
+/**
+ * Walks the `on_failure` rules in order against the same context `success` reads.
+ * The first rule with no `if`, or whose `if` is true, is selected. A rule whose `if`
+ * cannot be evaluated stops the walk, so a later rule never restarts a failure the
+ * author could not classify. Returns undefined when nothing can restart: no rules,
+ * or a tool step, because provider calls may have side effects.
+ *
+ * Call only for a failed step. Like `evaluateGate`, this runs under step-row locks.
+ */
+export function selectRestartRule(params: {
+  readonly gate: StepGate | undefined;
+  readonly result: StepReport;
+  readonly vars?: Record<string, string> | undefined;
+  readonly stepType?: StepType;
+}): RestartRuleSelection | undefined {
+  const rules = params.gate?.onFailure;
+  if (rules === undefined || params.stepType === 'tool') return undefined;
+
+  const context = assembleGateContext({
+    status: params.result.status,
+    exitCode: params.result.exitCode ?? null,
+    output: params.result.output,
+    vars: params.vars,
+  });
+  const entries: PersistedEvaluationTraceEntry[] = [];
+  for (const [index, rule] of rules.entries()) {
+    const position = index + 1;
+    if (rule.if === undefined) {
+      return {kind: 'selected', position, rule, trace: capTraceEntries(entries)};
+    }
+
+    const outcome = evaluatePlannedPredicateAtSite({
+      expression: rule.if,
+      field: 'step.success',
+      site: context.site,
+      context: context.values,
+    });
+    entries.push({
+      ...predicateTraceEntry({
+        expression: rule.if.source,
+        route: outcome.route,
+        site: context.site,
+        value: outcome.value,
+        degraded: outcome.evaluationFailed,
+        ...(outcome.error === undefined ? {} : {error: outcome.error}),
+      }),
+      field: 'step.success',
+    });
+    if (outcome.evaluationFailed) {
+      return {
+        kind: 'evaluation-failed',
+        position,
+        source: rule.if.source,
+        ...(outcome.error === undefined ? {} : {error: outcome.error}),
+        trace: capTraceEntries(entries),
+      };
+    }
+    if (outcome.value) {
+      return {kind: 'selected', position, rule, trace: capTraceEntries(entries)};
+    }
+  }
+  return {kind: 'none-applied', trace: capTraceEntries(entries)};
+}
+
 export function evaluateGateFeedback(params: {
-  readonly gate: StepGate;
+  readonly rule: StepGateRestartRule;
   readonly result: StepReport;
   readonly definitionId: string;
   readonly vars?: Record<string, string> | undefined;
 }): string {
-  const feedbackTemplate = params.gate.onFailure?.feedbackTemplate;
+  const feedbackTemplate = params.rule.feedbackTemplate;
   if (feedbackTemplate === undefined) {
-    return params.gate.onFailure?.feedback ?? 'gate condition not met';
+    return params.rule.feedback ?? 'gate condition not met';
   }
 
   const context = assembleGateContext({
@@ -183,8 +288,45 @@ export function evaluateGateFeedback(params: {
 
 // Build the audit payload recorded on the step attempt for a gate evaluation.
 // Includes the evaluated `exit_code` so the gate decision is reconstructable from
-// the attempt row alone, independent of the column shape.
+// the attempt row alone, independent of the column shape. The restart decision is
+// recorded under `restart`, also when the gate has no `success`.
 export function gateResultPayload(
+  outcome: GateOutcome,
+  exitCode: number | null | undefined,
+  restart?: RestartRuleSelection,
+): Record<string, unknown> | null {
+  const payload = gateOutcomePayload(outcome, exitCode);
+  if (restart === undefined) return payload;
+  return {
+    ...(payload ?? {exit_code: exitCode ?? null}),
+    restart: restartDecisionPayload(restart),
+  };
+}
+
+function restartDecisionPayload(selection: RestartRuleSelection): Record<string, unknown> {
+  const trace = selection.trace.length === 0 ? {} : {trace: selection.trace};
+  switch (selection.kind) {
+    case 'selected':
+      return {
+        kind: 'restart',
+        rule: selection.position,
+        restart_from: selection.rule.restartFrom,
+        ...trace,
+      };
+    case 'none-applied':
+      return {kind: 'none_applied', ...trace};
+    case 'evaluation-failed':
+      return {
+        kind: 'evaluation_failed',
+        rule: selection.position,
+        source: selection.source,
+        ...(selection.error === undefined ? {} : {error: selection.error}),
+        ...trace,
+      };
+  }
+}
+
+function gateOutcomePayload(
   outcome: GateOutcome,
   exitCode: number | null | undefined,
 ): Record<string, unknown> | null {

@@ -223,11 +223,16 @@ function isIntOrNull(value: unknown): value is number | null {
   return value === null || (typeof value === 'number' && Number.isInteger(value));
 }
 
+// A gate without `success` records only its restart decision, so it has no result to show.
+function isRestartDecisionOnly(gateResult: Record<string, unknown>): boolean {
+  return gateResult.passed === undefined && 'restart' in gateResult;
+}
+
 export function toStepGateResultDto(
   gateResult: Record<string, unknown> | null,
   status: string,
 ): StepGateResultDto {
-  if (gateResult === null) {
+  if (gateResult === null || isRestartDecisionOnly(gateResult)) {
     return status === 'running' || status === 'pending' ? {kind: 'not_evaluated'} : {kind: 'none'};
   }
 

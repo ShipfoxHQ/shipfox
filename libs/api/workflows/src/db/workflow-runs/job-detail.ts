@@ -1385,7 +1385,9 @@ function toStepSummary(
   row: StepRow,
   attempts: WorkflowStepSummaryRead['attempts'],
 ): WorkflowStepSummaryRead {
-  const gateOnFailure = readStepGate(row.config)?.onFailure;
+  // The selected rule is only known per attempt, so a list shows no single limit.
+  const rules = readStepGate(row.config)?.onFailure;
+  const gateOnFailure = rules?.length === 1 ? rules[0] : undefined;
   return {
     id: row.id,
     key: row.key,

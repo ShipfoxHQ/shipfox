@@ -318,9 +318,12 @@ export type WorkflowStepSourceLocationMap = ReadonlyMap<
 >;
 export interface WorkflowModelStepGate {
   readonly success?: WorkflowExpression;
-  readonly onFailure?: WorkflowModelStepFailureAction;
+  /** One rule, or an ordered list where the first rule that applies restarts the job. */
+  readonly onFailure?: WorkflowModelStepFailureAction | readonly WorkflowModelStepFailureAction[];
 }
 export interface WorkflowModelStepFailureAction {
+  /** Selects the rule when it returns true. A rule with no condition always applies. */
+  readonly if?: WorkflowExpression;
   readonly restartFrom: string;
   readonly feedback?: string;
   readonly feedbackTemplate?: WorkflowFieldTemplate;

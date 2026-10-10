@@ -1108,11 +1108,21 @@ function restartProvenance(params: {
   return undefined;
 }
 
+// The target the attempt's gate decision recorded. Attempts that predate recorded
+// decisions fall back to the step config, where `on_failure` is a single rule.
 function restartFromStepKey(attempt: StepAttempt): string | undefined {
+  const decision = attempt.gateResult?.restart;
+  if (decision !== null && typeof decision === 'object') {
+    const restartFrom = (decision as Record<string, unknown>).restart_from;
+    return typeof restartFrom === 'string' ? restartFrom : undefined;
+  }
+
   const gate = attempt.config?.gate;
   if (gate === null || typeof gate !== 'object') return undefined;
   const onFailure = (gate as Record<string, unknown>).on_failure;
-  if (onFailure === null || typeof onFailure !== 'object') return undefined;
+  if (onFailure === null || typeof onFailure !== 'object' || Array.isArray(onFailure)) {
+    return undefined;
+  }
   const restartFrom = (onFailure as Record<string, unknown>).restart_from;
   return typeof restartFrom === 'string' ? restartFrom : undefined;
 }

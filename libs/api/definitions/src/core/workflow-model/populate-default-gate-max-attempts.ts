@@ -1,5 +1,5 @@
 import {WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS} from '@shipfox/workflow-document';
-import type {WorkflowModel} from '../entities/workflow-model.js';
+import type {WorkflowModel, WorkflowModelStepFailureAction} from '../entities/workflow-model.js';
 
 /** Fills the new-run default when a stored model predates the persisted limit. */
 export function populateDefaultGateMaxAttempts(model: WorkflowModel): WorkflowModel {
@@ -11,19 +11,18 @@ export function populateDefaultGateMaxAttempts(model: WorkflowModel): WorkflowMo
     let jobChanged = false;
     const steps = job.steps.map((step) => {
       const gate = step.gate;
-      if (gate?.onFailure === undefined || gate.onFailure.maxAttempts !== undefined) return step;
+      const onFailure = gate?.onFailure;
+      if (onFailure === undefined) return step;
 
+      const rules = Array.isArray(onFailure) ? onFailure : [onFailure];
+      if (rules.every((rule) => rule.maxAttempts !== undefined)) return step;
+
+      const populated = rules.map(populateRule);
       changed = true;
       jobChanged = true;
       return {
         ...step,
-        gate: {
-          ...gate,
-          onFailure: {
-            ...gate.onFailure,
-            maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS,
-          },
-        },
+        gate: {...gate, onFailure: Array.isArray(onFailure) ? populated : populated[0]},
       };
     });
 
@@ -31,4 +30,9 @@ export function populateDefaultGateMaxAttempts(model: WorkflowModel): WorkflowMo
   });
 
   return changed ? {...model, jobs: populatedJobs} : model;
+}
+
+function populateRule(rule: WorkflowModelStepFailureAction): WorkflowModelStepFailureAction {
+  if (rule.maxAttempts !== undefined) return rule;
+  return {...rule, maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS};
 }

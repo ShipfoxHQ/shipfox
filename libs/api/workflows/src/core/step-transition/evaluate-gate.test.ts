@@ -4,6 +4,7 @@ import {
   evaluateGateFeedback,
   gateResultPayload,
   readStepGate,
+  selectRestartRule,
 } from './evaluate-gate.js';
 
 function gateConfig(
@@ -71,13 +72,13 @@ describe('readStepGate', () => {
   test('parses success and on_failure', () => {
     const gate = readStepGate(gateConfig('step.exit_code == 0', 'producer'));
     expect(gate?.success?.source).toBe('step.exit_code == 0');
-    expect(gate?.onFailure).toEqual({restartFrom: 'producer'});
+    expect(gate?.onFailure).toEqual([{restartFrom: 'producer'}]);
   });
 
   test.each([1, 11, 1_000])('parses max_attempts: %s', (maxAttempts) => {
     const gate = readStepGate(gateConfig('step.exit_code == 0', 'producer', maxAttempts));
 
-    expect(gate?.onFailure).toMatchObject({restartFrom: 'producer', maxAttempts});
+    expect(gate?.onFailure).toMatchObject([{restartFrom: 'producer', maxAttempts}]);
   });
 
   test.each([
@@ -98,7 +99,7 @@ describe('readStepGate', () => {
   test('leaves a missing max_attempts for the legacy transition default', () => {
     const gate = readStepGate(gateConfig('step.exit_code == 0', 'producer'));
 
-    expect(gate?.onFailure).toEqual({restartFrom: 'producer'});
+    expect(gate?.onFailure).toEqual([{restartFrom: 'producer'}]);
   });
 
   test('parses feedback templates from on_failure', () => {
@@ -114,7 +115,7 @@ describe('readStepGate', () => {
       },
     });
 
-    expect(gate?.onFailure?.feedbackTemplate).toEqual(
+    expect(gate?.onFailure?.[0]?.feedbackTemplate).toEqual(
       feedbackTemplate(`failed: \${{ step.outputs.summary }}`),
     );
   });
@@ -404,10 +405,11 @@ describe('evaluateGateFeedback', () => {
         on_failure: {restart_from: 'producer', feedback: 'try again'},
       },
     });
-    if (!gate) throw new Error('Expected gate');
+    const rule = gate?.onFailure?.[0];
+    if (!rule) throw new Error('Expected rule');
 
     const result = evaluateGateFeedback({
-      gate,
+      rule,
       result: {status: 'failed', exitCode: 1, output: {summary: 'unit failed'}},
       definitionId: 'definition-1',
     });
@@ -427,10 +429,11 @@ describe('evaluateGateFeedback', () => {
         },
       },
     });
-    if (!gate) throw new Error('Expected gate');
+    const rule = gate?.onFailure?.[0];
+    if (!rule) throw new Error('Expected rule');
 
     const result = evaluateGateFeedback({
-      gate,
+      rule,
       result: {status: 'failed', exitCode: 1, output: {summary: 'unit failed'}},
       definitionId: 'definition-1',
     });
@@ -493,6 +496,172 @@ describe('gateResultPayload', () => {
       source: 'missing_var == 0',
       exit_code: 0,
       trace: degradedGateTrace('missing_var == 0', ['missing_var']),
+    });
+  });
+});
+
+function rule(restartFrom: string, source?: string, extra: Record<string, unknown> = {}) {
+  return {
+    restart_from: restartFrom,
+    ...(source === undefined ? {} : {if: {language: 'cel', check: 'syntax', source}}),
+    ...extra,
+  };
+}
+
+function ruleList(...rules: unknown[]) {
+  return readStepGate({run: 'echo hi', gate: {on_failure: rules}});
+}
+
+describe('readStepGate rule lists', () => {
+  test('reads a list in order with each rule condition', () => {
+    const gate = ruleList(
+      rule('a', 'step.exit_code == 1'),
+      rule('b', undefined, {max_attempts: 2}),
+    );
+
+    expect(gate?.onFailure).toEqual([
+      {
+        if: {language: 'cel', check: 'syntax', source: 'step.exit_code == 1'},
+        restartFrom: 'a',
+      },
+      {restartFrom: 'b', maxAttempts: 2},
+    ]);
+  });
+
+  test('reads a single object as a one-rule list', () => {
+    const gate = readStepGate({gate: {on_failure: rule('a')}});
+
+    expect(gate?.onFailure).toEqual([{restartFrom: 'a'}]);
+  });
+
+  test.each([
+    ['an empty list', []],
+    ['a rule without restart_from', [{if: {source: 'true'}}]],
+    ['a rule with a malformed condition', [rule('a'), {restart_from: 'b', if: 'true'}]],
+    ['a rule with a malformed max_attempts', [rule('a'), rule('b', undefined, {max_attempts: 0})]],
+  ])('drops the restart policy for %s', (_name, rules) => {
+    expect(ruleList(...rules)).toBeUndefined();
+  });
+});
+
+describe('selectRestartRule', () => {
+  const failed = {status: 'failed' as const, exitCode: 1, output: {kind: 'transient'}};
+
+  test('returns undefined without rules', () => {
+    expect(selectRestartRule({gate: undefined, result: failed})).toBeUndefined();
+  });
+
+  test('returns undefined for a tool step', () => {
+    const gate = ruleList(rule('a'));
+
+    expect(selectRestartRule({gate, result: failed, stepType: 'tool'})).toBeUndefined();
+  });
+
+  test('selects the first rule with no condition', () => {
+    const gate = ruleList(rule('a'), rule('b'));
+
+    expect(selectRestartRule({gate, result: failed})).toMatchObject({
+      kind: 'selected',
+      position: 1,
+      rule: {restartFrom: 'a'},
+      trace: [],
+    });
+  });
+
+  test('selects the first rule whose condition is true and keeps the trace', () => {
+    const gate = ruleList(
+      rule('a', 'step.outputs.kind == "fatal"'),
+      rule('b', 'step.outputs.kind == "transient"'),
+      rule('c'),
+    );
+
+    const selection = selectRestartRule({gate, result: failed});
+
+    expect(selection).toMatchObject({kind: 'selected', position: 2, rule: {restartFrom: 'b'}});
+    expect(selection?.trace.map((entry) => 'value' in entry && entry.value)).toEqual([
+      'false',
+      'true',
+    ]);
+  });
+
+  test('reports no rule applied when every condition is false', () => {
+    const gate = ruleList(rule('a', 'step.exit_code == 2'), rule('b', 'step.exit_code == 3'));
+
+    expect(selectRestartRule({gate, result: failed})).toMatchObject({kind: 'none-applied'});
+  });
+
+  test('stops at a condition that cannot be evaluated and never tries later rules', () => {
+    const gate = ruleList(rule('a', 'step.outputs.missing == "x"'), rule('b'));
+
+    const selection = selectRestartRule({gate, result: failed});
+
+    expect(selection).toMatchObject({
+      kind: 'evaluation-failed',
+      position: 1,
+      source: 'step.outputs.missing == "x"',
+      error: {message: expect.any(String)},
+    });
+  });
+
+  test('a has() guard turns a missing key into false', () => {
+    const gate = ruleList(
+      rule('a', 'has(step.outputs.missing) && step.outputs.missing == "x"'),
+      rule('b'),
+    );
+
+    expect(selectRestartRule({gate, result: failed})).toMatchObject({
+      kind: 'selected',
+      position: 2,
+    });
+  });
+});
+
+describe('gateResultPayload restart decision', () => {
+  test('records the decision even when the gate has no success', () => {
+    const payload = gateResultPayload({kind: 'no-gate'}, 1, {
+      kind: 'selected',
+      position: 2,
+      rule: {restartFrom: 'prepare'},
+      trace: [],
+    });
+
+    expect(payload).toEqual({
+      exit_code: 1,
+      restart: {kind: 'restart', rule: 2, restart_from: 'prepare'},
+    });
+  });
+
+  test('records that no rule applied beside the gate outcome', () => {
+    const payload = gateResultPayload({kind: 'failed', source: 'step.exit_code == 0'}, 1, {
+      kind: 'none-applied',
+      trace: [],
+    });
+
+    expect(payload).toEqual({
+      passed: false,
+      source: 'step.exit_code == 0',
+      exit_code: 1,
+      restart: {kind: 'none_applied'},
+    });
+  });
+
+  test('names the rule that could not be evaluated and the error', () => {
+    const payload = gateResultPayload({kind: 'no-gate'}, 1, {
+      kind: 'evaluation-failed',
+      position: 1,
+      source: 'step.outputs.kind == "x"',
+      error: {message: 'no such key', path: 'step.outputs.kind'},
+      trace: [],
+    });
+
+    expect(payload).toEqual({
+      exit_code: 1,
+      restart: {
+        kind: 'evaluation_failed',
+        rule: 1,
+        source: 'step.outputs.kind == "x"',
+        error: {message: 'no such key', path: 'step.outputs.kind'},
+      },
     });
   });
 });

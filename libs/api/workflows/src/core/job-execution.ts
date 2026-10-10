@@ -96,6 +96,8 @@ import {
   evaluateGateFeedback,
   gateResultPayload,
   readStepGate,
+  type StepGateRestartRule,
+  selectRestartRule,
 } from './step-transition/evaluate-gate.js';
 import {readStepOutputs} from './step-transition/read-step-outputs.js';
 import type {RuntimeCompletionStatus} from './workflow-scheduling/runtime-dag.js';
@@ -1357,9 +1359,18 @@ async function decideReportedStepTransition(params: {
   const gateOutcome = params.gateEvaluationAllowed
     ? evaluateGate(gate, params.result, vars, {stepType: params.target.type})
     : {kind: 'no-gate' as const};
+  // Rules are read only for a failure the gate allows to restart; the pure decision
+  // re-checks tool steps and uncheckable gates.
+  const stepFailed =
+    gateOutcome.kind === 'failed' ||
+    (gateOutcome.kind === 'no-gate' && params.result.status === 'failed');
+  const restartSelection = stepFailed
+    ? selectRestartRule({gate, result: params.result, vars, stepType: params.target.type})
+    : undefined;
+  const selectedRule = restartSelection?.kind === 'selected' ? restartSelection.rule : undefined;
   // The restart cap is bounded on the gating step's OWN attempts, not its
   // current_attempt (which a rewind inflates for downstream steps).
-  const gatingAttemptCount = gate?.onFailure?.restartFrom
+  const gatingAttemptCount = selectedRule
     ? await countStepAttempts(params.stepId, params.tx)
     : undefined;
   const decision = decideStepTransition({
@@ -1368,13 +1379,11 @@ async function decideReportedStepTransition(params: {
     reportedAttempt: params.reportedAttempt,
     result: params.result,
     gateOutcome,
-    ...(gate?.onFailure ? {gateOnFailure: gate.onFailure} : {}),
-    ...(gate?.onFailure?.maxAttempts !== undefined
-      ? {maxAttempts: gate.onFailure.maxAttempts}
-      : {}),
+    ...(selectedRule ? {gateOnFailure: selectedRule} : {}),
+    ...(selectedRule?.maxAttempts !== undefined ? {maxAttempts: selectedRule.maxAttempts} : {}),
     ...(gatingAttemptCount !== undefined ? {gatingAttemptCount} : {}),
   });
-  const gateResult = gateResultPayload(gateOutcome, params.result.exitCode);
+  const gateResult = gateResultPayload(gateOutcome, params.result.exitCode, restartSelection);
   try {
     assertWorkflowStepResultSize('gate_result', gateResult);
   } catch (error) {
@@ -1392,7 +1401,7 @@ async function decideReportedStepTransition(params: {
   return {
     decision: resolveRestartFeedback({
       decision,
-      gate,
+      rule: selectedRule,
       result: params.result,
       definitionId: params.jobId,
       vars,
@@ -1478,17 +1487,17 @@ function stepResultTooLargeStepError(
 
 function resolveRestartFeedback(params: {
   decision: StepTransitionDecision;
-  gate: ReturnType<typeof readStepGate>;
+  rule: StepGateRestartRule | undefined;
   result: ReportedStepResult;
   definitionId: string;
   vars?: Record<string, string> | undefined;
 }): StepTransitionDecision {
   if (params.decision.kind !== 'restart-job-from-step') return params.decision;
-  if (params.gate === undefined) return params.decision;
+  if (params.rule === undefined) return params.decision;
 
   try {
     const feedback = evaluateGateFeedback({
-      gate: params.gate,
+      rule: params.rule,
       result: params.result,
       definitionId: params.definitionId,
       vars: params.vars,

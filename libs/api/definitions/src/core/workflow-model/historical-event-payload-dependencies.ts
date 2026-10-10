@@ -9,6 +9,7 @@ import type {
   WorkflowModel,
   WorkflowModelJob,
   WorkflowModelStep,
+  WorkflowModelStepFailureAction,
 } from '../entities/workflow-model.js';
 import type {
   WorkflowModelValidationIssue,
@@ -200,6 +201,15 @@ export function historicalEventPayloadDependencyIssues(
   });
 }
 
+function scanFailureRule(
+  rule: WorkflowModelStepFailureAction,
+  path: readonly (string | number)[],
+  dependencies: HistoricalEventPayloadDependency[],
+): void {
+  scanExpression(rule.if, [...path, 'if'], dependencies);
+  scanTemplate(rule.feedbackTemplate, [...path, 'feedback'], dependencies);
+}
+
 function scanWorkflowStep(
   step: WorkflowModelStep,
   path: readonly (string | number)[],
@@ -211,11 +221,14 @@ function scanWorkflowStep(
   if (step.gate?.success !== undefined) {
     scanExpression(step.gate.success, [...path, 'gate', 'success'], dependencies);
   }
-  scanTemplate(
-    step.gate?.onFailure?.feedbackTemplate,
-    [...path, 'gate', 'on_failure', 'feedback'],
-    dependencies,
-  );
+  const onFailure = step.gate?.onFailure;
+  if (Array.isArray(onFailure)) {
+    onFailure.forEach((rule, index) => {
+      scanFailureRule(rule, [...path, 'gate', 'on_failure', index], dependencies);
+    });
+  } else if (onFailure !== undefined) {
+    scanFailureRule(onFailure, [...path, 'gate', 'on_failure'], dependencies);
+  }
 
   if (step.kind === 'agent' && step.session !== undefined) {
     scanTemplate(step.session.key, [...path, 'session'], dependencies);
