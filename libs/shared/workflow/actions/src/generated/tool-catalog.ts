@@ -347,7 +347,7 @@ export interface ProviderToolCatalog {
       structured: GithubCreateCommitResult;
     };
     /**
-     * Create a new pull request in a GitHub repository. Labels, assignees, and the milestone are applied after the pull request is created. When one of them fails, the call still succeeds and the result lists the failure under warnings, because the pull request already exists and a retry would open a duplicate. On failure, the error reason is one of: pull-request-exists, no-commits-between, branch-not-found, permission-denied, unprocessable.
+     * Create a new pull request in a GitHub repository. Reviewers, labels, assignees, and the milestone are applied after the pull request is created. When one of them fails, the call still succeeds and the result lists the failure under warnings, because the pull request already exists and a retry would open a duplicate. On failure, the error reason is one of: pull-request-exists, no-commits-between, branch-not-found, permission-denied, unprocessable.
      */
     create_pull_request: {
       arguments: GithubCreatePullRequestArguments;
@@ -683,7 +683,7 @@ export interface ProviderToolCatalog {
       structured: GithubSubIssueWriteResult;
     };
     /**
-     * Update an existing pull request in a GitHub repository. add_labels and add_assignees add to what the pull request already has and remove nothing. draft true converts an open pull request to a draft, and draft false marks it ready for review. These are applied after the update itself. When one of them fails, the call still succeeds and the result lists the failure under warnings. On failure, the error reason is one of: permission-denied, unprocessable.
+     * Update an existing pull request in a GitHub repository. add_labels and add_assignees add to what the pull request already has and remove nothing. milestone sets the milestone. draft true converts an open pull request to a draft, and draft false marks it ready for review. These and reviewers are applied after the update itself. When one of them fails, the call still succeeds and the result lists the failure under warnings. On failure, the error reason is one of: permission-denied, unprocessable.
      */
     update_pull_request: {
       arguments: GithubUpdatePullRequestArguments;
@@ -4762,6 +4762,10 @@ export interface GithubUpdatePullRequestArguments {
    * Items: GitHub username to assign
    */
   add_assignees?: string[];
+  /**
+   * Number of the milestone to set
+   */
+  milestone?: number;
   /**
    * Convert to a draft (true) or mark ready for review (false)
    */

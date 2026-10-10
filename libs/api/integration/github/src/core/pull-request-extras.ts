@@ -71,6 +71,7 @@ export function splitPullRequestExtras(
     extras: {
       labels: stringList(add_labels),
       assignees: stringList(add_assignees),
+      milestone: typeof milestone === 'number' ? milestone : undefined,
       draft: typeof draft === 'boolean' ? draft : undefined,
     },
   };

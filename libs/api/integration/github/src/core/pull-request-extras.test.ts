@@ -75,7 +75,7 @@ describe('create_pull_request settings', () => {
 describe('update_pull_request settings', () => {
   const updateArguments = {...repository, pull_number: 7};
 
-  it('adds labels and assignees without replacing the existing ones', async () => {
+  it('adds labels and assignees without replacing the existing ones, and sets the milestone', async () => {
     const request = vi.fn().mockResolvedValue({data: pullRequest});
 
     await callTool(
@@ -85,6 +85,7 @@ describe('update_pull_request settings', () => {
         ...updateArguments,
         add_labels: ['dependencies'],
         add_assignees: ['octocat'],
+        milestone: 3,
       },
     );
 
@@ -98,6 +99,7 @@ describe('update_pull_request settings', () => {
         'POST /repos/{owner}/{repo}/issues/{issue_number}/assignees',
         {...issue, assignees: ['octocat']},
       ],
+      ['PATCH /repos/{owner}/{repo}/issues/{issue_number}', {...issue, milestone: 3}],
     ]);
   });
 

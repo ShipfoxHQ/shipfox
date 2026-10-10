@@ -790,29 +790,33 @@ async function savePullRequest(
   if (typeof pullNumber !== 'number') {
     throw new GithubIntegrationProviderError(
       'malformed-provider-response',
-      'Pull request was saved but GitHub did not return its number, so reviewers were not requested',
+      'Pull request was saved but GitHub did not return its number, so its other settings were not applied',
     );
   }
-  const response =
-    requested === undefined
-      ? saved
-      : await requestReviewers(client, {
-          owner: pullRequestParameters.owner,
-          repo: pullRequestParameters.repo,
-          pullNumber,
-          requested,
-        });
-  if (!hasExtras) return response;
-
-  const {warnings, draft} = await applyPullRequestExtras(client, {
+  const target = {
     owner: pullRequestParameters.owner,
     repo: pullRequestParameters.repo,
     pullNumber,
+  };
+  const warnings: string[] = [];
+  let response = saved;
+  if (requested !== undefined) {
+    try {
+      response = await requestReviewers(client, {...target, requested});
+    } catch (error) {
+      warnings.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  const applied = await applyPullRequestExtras(client, {
+    ...target,
     pullRequest: isRecord(saved.data) ? saved.data : {},
     extras,
   });
+  warnings.push(...applied.warnings);
   const data =
-    draft === undefined || !isRecord(response.data) ? response.data : {...response.data, draft};
+    applied.draft === undefined || !isRecord(response.data)
+      ? response.data
+      : {...response.data, draft: applied.draft};
   return {...response, data, ...(warnings.length === 0 ? {} : {warnings})};
 }
 
@@ -841,8 +845,8 @@ async function requestReviewers(
   }
 }
 
-// Every failure after the save must carry the pull request number so the agent
-// does not retry the whole write and open a duplicate.
+// A failure after the save names the pull request, so the caller does not retry the whole
+// write and open a duplicate.
 function reviewerRequestFailure(
   pullNumber: number,
   error: unknown,

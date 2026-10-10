@@ -45,6 +45,7 @@ const supportingRoutes: Record<string, string[]> = {
     'POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers',
     'POST /repos/{owner}/{repo}/issues/{issue_number}/labels',
     'POST /repos/{owner}/{repo}/issues/{issue_number}/assignees',
+    'PATCH /repos/{owner}/{repo}/issues/{issue_number}',
     'POST /graphql',
   ],
   'pull_request_review_write.submit_pending': [

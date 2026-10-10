@@ -1915,11 +1915,13 @@ describe('github agent tool catalog', () => {
           reviewers: ['stranger'],
         },
       }),
-    ).rejects.toMatchObject({
-      reason: 'provider-rejected',
-      status: 422,
-      message:
-        'Pull request #7 was saved but requesting reviewers failed: Reviews may only be requested from collaborators.',
+    ).resolves.toMatchObject({
+      structuredContent: {
+        pull_request: {number: 7},
+        warnings: [
+          'Pull request #7 was saved but requesting reviewers failed: Reviews may only be requested from collaborators.',
+        ],
+      },
     });
   });
 
@@ -1949,13 +1951,15 @@ describe('github agent tool catalog', () => {
           reviewers: ['octocat'],
         },
       }),
-    ).rejects.toMatchObject({
-      reason: 'provider-unavailable',
-      message: 'Pull request #7 was saved but requesting reviewers failed: fetch failed',
+    ).resolves.toMatchObject({
+      structuredContent: {
+        pull_request: {number: 7},
+        warnings: ['Pull request #7 was saved but requesting reviewers failed: fetch failed'],
+      },
     });
   });
 
-  it('maps a reviewer request 404 to provider-rejected rather than a missing repository', async () => {
+  it('reports a reviewer request 404 as a warning on the saved pull request', async () => {
     const request = vi
       .fn()
       .mockResolvedValueOnce({data: {number: 7}})
@@ -1982,10 +1986,11 @@ describe('github agent tool catalog', () => {
         toolId: 'update_pull_request',
         arguments: {owner: 'shipfox', repo: 'platform', pull_number: 7, reviewers: ['octocat']},
       }),
-    ).rejects.toMatchObject({
-      reason: 'provider-rejected',
-      status: 404,
-      message: 'Pull request #7 was saved but requesting reviewers failed: Not Found',
+    ).resolves.toMatchObject({
+      structuredContent: {
+        pull_request: {number: 7},
+        warnings: ['Pull request #7 was saved but requesting reviewers failed: Not Found'],
+      },
     });
   });
 
@@ -2015,7 +2020,7 @@ describe('github agent tool catalog', () => {
     ).rejects.toMatchObject({
       reason: 'malformed-provider-response',
       message:
-        'Pull request was saved but GitHub did not return its number, so reviewers were not requested',
+        'Pull request was saved but GitHub did not return its number, so its other settings were not applied',
     });
     expect(request).toHaveBeenCalledOnce();
   });
