@@ -41,5 +41,5 @@ outputs:
 integrations:
   github:
     provider: github
-    include: [pull_request_read.get, create_commit]
+    include: [pull_request_read.get, create_blob, create_commit]
     allow_write: true

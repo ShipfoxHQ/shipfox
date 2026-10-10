@@ -1,7 +1,7 @@
 // This action runs in the job that holds the changes, next to whatever else that job executes.
 // It imports only its own files and Node built-ins, so no workspace package runs with its grants.
 import {defineAction, ToolCallError, type Tools} from '@shipfox/actions';
-import {collectChanges} from './changes.ts';
+import {collectChanges, type FileAddition} from './changes.ts';
 
 declare module '@shipfox/actions' {
   interface Aliases {
@@ -18,9 +18,8 @@ type Inputs = {
   paths?: string[];
 };
 
-// create_commit accepts at most this many decoded bytes of file contents per call.
+// This reference action publishes small changes only.
 const MAX_COMMIT_BYTES = 1_000_000;
-const STALE_HEAD_ERROR = /stale-head|Expected branch to point to/u;
 
 export default defineAction<Inputs>(async ({inputs, tools, log, signal}) => {
   const target = await resolveTarget({inputs, tools, signal});
@@ -45,21 +44,28 @@ export default defineAction<Inputs>(async ({inputs, tools, log, signal}) => {
       `deletions (${changes.bytes} bytes) to ${target.branch} on top of ${expectedHead}.`,
   );
 
-  const [headline = '', ...body] = inputs.message.split('\n');
+  // Uploads stay outside the handler below: a failed upload means no commit was attempted.
+  const additions = await uploadAdditions({
+    additions: changes.additions,
+    repository: inputs.repository,
+    tools,
+    signal,
+  });
+  const deletions = changes.deletions.map((deletion) => ({path: deletion.path, delete: true}));
+  const entries = [...additions, ...deletions];
   try {
     const result = await tools.github.call(
       'create_commit',
       {
         repository: inputs.repository,
         branch: target.branch,
-        expected_head_oid: expectedHead,
-        message: {headline, ...(body.length === 0 ? {} : {body: body.join('\n').trim()})},
-        additions: changes.additions,
-        deletions: changes.deletions,
+        parent_oid: expectedHead,
+        message: inputs.message,
+        entries,
       },
       {signal},
     );
-    const {commit} = result.structured as {commit: {oid: string; url: string}};
+    const {commit} = result.structured;
     return {
       outcome: 'committed',
       branch: target.branch,
@@ -75,12 +81,35 @@ export default defineAction<Inputs>(async ({inputs, tools, log, signal}) => {
         {cause: error},
       );
     }
-    if (STALE_HEAD_ERROR.test(error.message)) {
+    if (error.reason === 'stale-head') {
       throw staleHead(target.branch, expectedHead, error);
     }
     throw error;
   }
 });
+
+// Text goes inline in the commit call. Binary contents are uploaded first and referenced.
+async function uploadAdditions(params: {
+  additions: FileAddition[];
+  repository: string;
+  tools: Tools;
+  signal: AbortSignal;
+}): Promise<({path: string; contents: string} | {path: string; oid: string})[]> {
+  const entries: ({path: string; contents: string} | {path: string; oid: string})[] = [];
+  for (const {path, contents, encoding} of params.additions) {
+    if (encoding === 'utf8') {
+      entries.push({path, contents});
+      continue;
+    }
+    const blob = await params.tools.github.call(
+      'create_blob',
+      {repository: params.repository, contents, encoding},
+      {signal: params.signal},
+    );
+    entries.push({path, oid: (blob.structured as {oid: string}).oid});
+  }
+  return entries;
+}
 
 async function resolveTarget(params: {
   inputs: Inputs;

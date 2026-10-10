@@ -1,5 +1,11 @@
 import type {ToolResult} from '#tool-result.js';
-import type {AliasTools, ProviderToolArguments, Tools, ToolsFor} from '#tool-types.js';
+import type {
+  AliasTools,
+  ProviderToolArguments,
+  ProviderToolResult,
+  Tools,
+  ToolsFor,
+} from '#tool-types.js';
 
 describe('tool argument types', () => {
   it('types one tool of each provider from its catalog input schema', () => {
@@ -65,6 +71,12 @@ describe('tool argument types', () => {
       expectTypeOf(
         await tools.chat.call('read_user_profile', {user_id: 'U1'}),
       ).toEqualTypeOf<ToolResult>();
+      const created = await tools.code.call('create_branch', {
+        repository: 'o/r',
+        branch: 'b',
+        from: 'main',
+      });
+      expectTypeOf(created.structured).toEqualTypeOf<{branch: string; oid: string; url: string}>();
       await tools.chat.call('read_channel_info', {channel_id: 'C1'}, {signal: AbortSignal.abort()});
       await tools.code.call('issue_read.get', {owner: 'o', repo: 'r', issue_number: 1});
       await tools.ci.call('list_projects');
@@ -81,6 +93,17 @@ describe('tool argument types', () => {
       await tools.chat.download('read_user_profile', {user_id: 'U1'}, {destination: 'out/'});
     };
     expectTypeOf(typeOnly).toBeFunction();
+  });
+
+  it('types the structured result from the catalog output schema', () => {
+    expectTypeOf<ProviderToolResult<'github', 'create_commit'>>().toEqualTypeOf<{
+      commit: {oid: string; url: string; verified: boolean};
+      branch: string;
+    }>();
+    expectTypeOf<ProviderToolResult<'github', 'pull_request_read.get'>>().toEqualTypeOf<
+      ProviderToolResult<'github', 'pull_request_read'>
+    >();
+    expectTypeOf<ProviderToolResult<'slack', 'read_thread'>>().toBeUnknown();
   });
 
   it('falls back to untyped tools without declared aliases or for unknown providers', () => {

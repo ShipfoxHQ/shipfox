@@ -24,6 +24,13 @@ interface CallableTool {
   typeName: string;
   schema: JSONSchema;
   result: 'json' | 'file';
+  /** The type of the structured result, shared by every method of a family. */
+  structured: StructuredResult | undefined;
+}
+
+interface StructuredResult {
+  typeName: string;
+  schema: JSONSchema;
 }
 
 /** Renders the generated module, formatted as committed. */
@@ -35,7 +42,9 @@ export async function renderToolCatalogSource(
   const declarations: string[] = [];
   const typeNames = new Set<string>();
 
-  mapLines.push('/** Tool arguments and result kinds, by provider slug and tool name. */');
+  mapLines.push(
+    '/** Tool arguments, result kinds, and structured results, by provider slug and tool name. */',
+  );
   mapLines.push('export interface ProviderToolCatalog {');
   for (const {provider, tools} of providers) {
     mapLines.push(`${JSON.stringify(provider)}: {`);
@@ -44,11 +53,16 @@ export async function renderToolCatalogSource(
         throw new Error(`Two tools generate the type name ${tool.typeName}.`);
       }
       typeNames.add(tool.typeName);
+      const {structured} = tool;
+      if (structured && !typeNames.has(structured.typeName)) {
+        typeNames.add(structured.typeName);
+        declarations.push(await compileSchema(structured));
+      }
       mapLines.push(jsDoc(tool.description));
       mapLines.push(
-        `${JSON.stringify(tool.name)}: {arguments: ${tool.typeName}; result: ${JSON.stringify(tool.result)}};`,
+        `${JSON.stringify(tool.name)}: {arguments: ${tool.typeName}; result: ${JSON.stringify(tool.result)}; structured: ${structured?.typeName ?? 'unknown'}};`,
       );
-      declarations.push(await compileArguments(tool));
+      declarations.push(await compileSchema(tool));
     }
     mapLines.push('};');
   }
@@ -111,20 +125,30 @@ function callableTools(
   const callable: CallableTool[] = [];
   for (const entry of [...tools].sort((a, b) => a.id.localeCompare(b.id))) {
     const result = agentToolResultKind(entry);
+    // A file tool is downloaded, so its structured result never reaches the action.
+    const structured =
+      result === 'json' && entry.outputSchema !== undefined
+        ? {
+            typeName: `${typeName(provider, entry.id)}Result`,
+            schema: entry.outputSchema as JSONSchema,
+          }
+        : undefined;
     callable.push({
       name: entry.id,
       description: entry.description,
-      typeName: typeName(provider, entry.id),
+      typeName: `${typeName(provider, entry.id)}Arguments`,
       schema: entry.inputSchema as JSONSchema,
       result,
+      structured,
     });
     for (const method of [...(entry.methods ?? [])].sort((a, b) => a.id.localeCompare(b.id))) {
       callable.push({
         name: `${entry.id}.${method.id}`,
         description: method.description,
-        typeName: typeName(provider, `${entry.id}_${method.id}`),
+        typeName: `${typeName(provider, `${entry.id}_${method.id}`)}Arguments`,
         schema: methodSchema(entry.inputSchema as JSONSchema, method.id),
         result,
+        structured,
       });
     }
   }
@@ -150,10 +174,10 @@ function requiredNames(schema: JSONSchema | undefined): string[] {
   return Array.isArray(schema?.required) ? schema.required : [];
 }
 
-function compileArguments(tool: CallableTool): Promise<string> {
+function compileSchema(type: {typeName: string; schema: JSONSchema}): Promise<string> {
   // Titles would name nested types, which can collide across tools. Inline them instead.
-  const {description: _description, ...schema} = withoutTitles(tool.schema) as JSONSchema;
-  return compile(schema, tool.typeName, {
+  const {description: _description, ...schema} = withoutTitles(type.schema) as JSONSchema;
+  return compile(schema, type.typeName, {
     bannerComment: '',
     format: false,
     ignoreMinAndMaxItems: true,
@@ -184,7 +208,7 @@ function withoutTitles(schema: unknown): unknown {
 }
 
 function typeName(provider: string, name: string): string {
-  return `${pascalCase(provider)}${pascalCase(name)}Arguments`;
+  return `${pascalCase(provider)}${pascalCase(name)}`;
 }
 
 const WORD_SEPARATOR_RE = /[^A-Za-z0-9]+/;

@@ -428,54 +428,78 @@ describe('GitHub API mock', () => {
     }
   });
 
-  it('serves pull requests and lands a commit only on the expected branch head', async () => {
+  it('serves pull requests and lands a commit only on a branch that fast-forwards', async () => {
     const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
     const headers = {
       authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`,
       'content-type': 'application/json',
     };
-    const commit = (expectedHeadOid: string) =>
-      fetch(new URL('/graphql', mock.endpoint), {
-        method: 'POST',
+    const send = async (method: string, path: string, body: unknown) => {
+      const response = await fetch(new URL(`/repos/shipfox/e2e/git/${path}`, mock.endpoint), {
+        method,
         headers,
-        body: JSON.stringify({
-          query: 'mutation CreateCommitOnBranch { createCommitOnBranch { commit { oid } } }',
-          variables: {
-            input: {
-              branch: {repositoryNameWithOwner: 'shipfox/e2e', branchName: 'feature'},
-              expectedHeadOid,
-            },
-          },
-        }),
-      }).then((response) => response.json());
+        body: JSON.stringify(body),
+      });
+      return {status: response.status, body: (await response.json()) as Record<string, unknown>};
+    };
+    const parent = 'a'.repeat(40);
+    const commit = async (message: string) => {
+      const blob = await send('POST', 'blobs', {content: 'AAEC', encoding: 'base64'});
+      const tree = await send('POST', 'trees', {
+        base_tree: parent,
+        tree: [
+          {path: 'logo.bin', mode: '100644', type: 'blob', sha: blob.body.sha},
+          {path: 'notes.md', mode: '100644', type: 'blob', content: 'hi\n'},
+          {path: 'old.md', mode: '100644', type: 'blob', sha: null},
+        ],
+      });
+      const created = await send('POST', 'commits', {
+        message,
+        tree: tree.body.sha,
+        parents: [parent],
+      });
+      const moved = await send('PATCH', 'refs/heads/feature', {
+        sha: created.body.sha,
+        force: false,
+      });
+      return {created, moved};
+    };
 
     try {
-      mock.pullRequests.set(7, {repository: 'shipfox/e2e', ref: 'feature', sha: 'a'.repeat(40)});
-      mock.branchHeads.set('feature', 'a'.repeat(40));
+      mock.pullRequests.set(7, {repository: 'shipfox/e2e', ref: 'feature', sha: parent});
+      mock.branchHeads.set('feature', parent);
       const pullRequest = await fetch(new URL('/repos/shipfox/e2e/pulls/7', mock.endpoint), {
         headers,
       });
       const missing = await fetch(new URL('/repos/shipfox/e2e/pulls/8', mock.endpoint), {headers});
-      const landed = await commit('a'.repeat(40));
-      const stale = await commit('a'.repeat(40));
+      const landed = await commit('First');
+      const stale = await commit('Second');
 
       await expect(pullRequest.json()).resolves.toMatchObject({
         number: 7,
-        head: {ref: 'feature', sha: 'a'.repeat(40)},
+        head: {ref: 'feature', sha: parent},
       });
       expect(missing.status).toBe(404);
-      const oid = mock.branchHeads.get('feature');
-      expect(landed).toEqual({
-        data: {
-          createCommitOnBranch: {
-            commit: {oid, url: `https://github.com/shipfox/e2e/commit/${oid}`},
-          },
-        },
+      expect(landed.created.body).toMatchObject({
+        sha: mock.branchHeads.get('feature'),
+        verification: {verified: true},
       });
-      expect(stale).toMatchObject({data: null, errors: [{type: 'STALE_DATA'}]});
-      expect(
-        mock.calls.map((call) => (call.kind === 'create-commit' ? call.accepted : call.kind)),
-      ).toEqual(['read-pull-request', 'read-pull-request', true, false]);
+      expect(landed.moved.status).toBe(200);
+      expect(stale.moved).toEqual({status: 422, body: {message: 'Update is not a fast forward'}});
+      const commits = mock.calls.flatMap((call) => (call.kind === 'create-commit' ? [call] : []));
+      expect(commits.map((call) => call.accepted)).toEqual([true, false]);
+      expect(commits[0]?.commit).toEqual({
+        repository: 'shipfox/e2e',
+        branch: 'feature',
+        parentOid: parent,
+        message: 'First',
+        force: false,
+        additions: [
+          {path: 'logo.bin', mode: '100644', contents: 'AAEC'},
+          {path: 'notes.md', mode: '100644', contents: Buffer.from('hi\n').toString('base64')},
+        ],
+        deletions: [{path: 'old.md'}],
+      });
     } finally {
       await mock.stop();
     }

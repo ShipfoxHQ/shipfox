@@ -238,7 +238,7 @@ describe('agent tools gateway route', () => {
       new URL('/runs/jobs/current/integration-tools/mcp', address),
       {requestInit: {headers: {authorization: 'Bearer large-lease'}}},
     );
-    // Base64 of a file near create_commit's 1,000,000 decoded-byte limit.
+    // Base64 of a file near the agent request budget.
     const content = Buffer.alloc(990_000, 7).toString('base64');
 
     await client.connect(transport as unknown as Transport);
@@ -252,7 +252,7 @@ describe('agent tools gateway route', () => {
     expect(calls).toEqual([{toolId: 'issue_read', arguments: {method: 'get', content}}]);
   });
 
-  it('rejects requests above the 2 MiB body limit', async () => {
+  it('rejects agent requests above the 2 MiB agent limit', async () => {
     leases.set('valid-lease', leaseContext({workspaceId: 'workspace-1'}));
     const app = await createGatewayApp();
 
@@ -264,6 +264,29 @@ describe('agent tools gateway route', () => {
     });
 
     expect(res.statusCode).toBe(413);
+  });
+
+  it('lets an action request pass the agent limit', async () => {
+    leases.set('valid-lease', leaseContext({workspaceId: 'workspace-1'}));
+    const app = await createGatewayApp({
+      loadLeasedAgentStep: async () => ({
+        workspaceId: 'workspace-1',
+        stepType: 'action',
+        integrations: [],
+      }),
+    });
+
+    // A real socket: the MCP transport takes over the response, which an injected request lacks.
+    const address = await app.listen({port: 0, host: '127.0.0.1'});
+
+    const res = await fetch(new URL('/runs/jobs/current/integration-tools/mcp', address), {
+      method: 'POST',
+      headers: {authorization: 'Bearer valid-lease', 'content-type': 'application/json'},
+      body: JSON.stringify({content: 'a'.repeat(3 * 1024 * 1024)}),
+    });
+    await res.arrayBuffer();
+
+    expect(res.status).not.toBe(413);
   });
 
   it('returns bounded MCP errors when provider dispatch times out', async () => {

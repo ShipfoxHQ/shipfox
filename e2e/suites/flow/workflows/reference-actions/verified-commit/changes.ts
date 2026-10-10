@@ -20,7 +20,7 @@ export interface FileAddition {
 export interface ChangeSet {
   additions: FileAddition[];
   deletions: {path: string}[];
-  /** Decoded bytes across all additions, the unit of `create_commit`'s limit. */
+  /** Decoded bytes across all additions. */
   bytes: number;
 }
 

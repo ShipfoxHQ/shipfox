@@ -20,8 +20,8 @@ import {
   type GatewayMcpClient,
 } from '@shipfox/runner-protocol/gateway-mcp-client';
 
-// Fits a create_commit near its 1,000,000 decoded-byte file limit once base64 and JSON framing
-// are added. The gateway MCP route accepts the same size.
+// File contents an agent sends pass through the model, so agent calls keep a small budget. The
+// gateway enforces the same size for agent steps.
 const MAX_MCP_REQUEST_BYTES = 2 * 1024 * 1024;
 const MCP_REQUEST_TIMEOUT_MS = 30_000;
 

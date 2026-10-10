@@ -1,4 +1,4 @@
-ceiling: 45
+ceiling: 51
 entries:
   - {tool: github.actions_get, method: download_workflow_run_artifact, kind: read, issue: ENG-2818}
   - {tool: github.actions_get, method: get_workflow_job, kind: read, issue: ENG-2818}
@@ -17,10 +17,16 @@ entries:
   - {tool: github.add_reply_to_pull_request_comment, kind: write, issue: ENG-2834}
   - {tool: github.check_run_write, method: create, kind: write, issue: ENG-2828}
   - {tool: github.check_run_write, method: update, kind: write, issue: ENG-2828}
+  - {tool: github.compare_commits, kind: read, issue: ENG-2818}
+  - {tool: github.create_blob, kind: write, issue: ENG-2828}
   - {tool: github.create_branch, kind: write, issue: ENG-2828}
   - {tool: github.create_commit, kind: write, issue: ENG-2828}
   - {tool: github.create_pull_request, kind: write, issue: ENG-2834}
+  - {tool: github.delete_branch, kind: write, issue: ENG-2828}
+  - {tool: github.get_branch, kind: read, issue: ENG-2818}
+  - {tool: github.get_commit, kind: read, issue: ENG-2818}
   - {tool: github.get_job_logs, kind: read, issue: ENG-2818}
+  - {tool: github.get_repository, kind: read, issue: ENG-2818}
   - {tool: github.issue_write, method: create, kind: write, issue: ENG-2828}
   - {tool: github.issue_write, method: update, kind: write, issue: ENG-2828}
   - {tool: github.merge_pull_request, kind: write, issue: ENG-2834}

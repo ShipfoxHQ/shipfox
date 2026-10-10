@@ -217,7 +217,7 @@ describe('createIntegrationToolsBridge', () => {
     await client.connect(
       new StreamableHTTPClientTransport(endpoint, {requestInit}) as unknown as Transport,
     );
-    // Base64 of a file near create_commit's 1,000,000 decoded-byte limit.
+    // Base64 of a file near the agent request budget.
     const content = Buffer.alloc(990_000, 7).toString('base64');
 
     const result = await client.callTool(
