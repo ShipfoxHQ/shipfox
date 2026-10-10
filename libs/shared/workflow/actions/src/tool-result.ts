@@ -3,13 +3,15 @@ import type {DownloadedFileV1, ToolContentBlockV1} from '#contract.js';
 /**
  * The result of a tool call. Some providers return `structured` content; others, such as proxied
  * MCP tools, return JSON as text. `json()` is the explicit opt-in for the second case.
+ * `structured` is typed when the alias is declared and the tool's catalog has an output schema.
  */
-export class ToolResult {
-  readonly structured: unknown;
+export class ToolResult<Structured = unknown> {
+  readonly structured: Structured;
   readonly content: readonly ToolContentBlockV1[];
 
-  constructor(params: {structured: unknown; content: readonly ToolContentBlockV1[]}) {
-    this.structured = params.structured ?? null;
+  constructor(params: {structured: Structured; content: readonly ToolContentBlockV1[]}) {
+    // A tool whose catalog declares an output schema always returns structured content.
+    this.structured = (params.structured ?? null) as Structured;
     this.content = params.content;
   }
 

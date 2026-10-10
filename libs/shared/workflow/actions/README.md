@@ -13,10 +13,12 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
 - **`tools.<alias>.download(tool, args, {destination})`** calls a file tool. The runner writes the
   file into the workspace and returns a `DownloadedFile` with `path`, `bytes`, `sha256`,
   `mediaType`, and `filename`.
-- **`Aliases`** maps manifest aliases to provider slugs through module augmentation. Tool names
-  and arguments are then typed from the provider catalogs. Without it, any tool name and
-  `Record<string, unknown>` arguments are accepted. Results stay `unknown` either way.
-- **`ToolResult`** holds `structured` (or `null`) and the raw `content` blocks. `text()` joins
+- **`Aliases`** maps manifest aliases to provider slugs through module augmentation. Tool names,
+  arguments, and structured results are then typed from the provider catalogs. Without it, any
+  tool name and `Record<string, unknown>` arguments are accepted, and results are `unknown`.
+- **`ToolResult`** holds `structured` (or `null`) and the raw `content` blocks. `structured` is
+  typed when the alias is declared and the tool's catalog has an output schema, and `unknown`
+  otherwise. `ProviderToolResult<Provider, Tool>` names that type. `text()` joins
   the text blocks. `json()` parses that text and throws when it is not JSON. Text is never parsed
   silently.
 - **`ToolCallError`** is thrown for a failed call, with `code`, `reason`, `retryAfterSeconds`,
@@ -67,7 +69,10 @@ export default defineAction(async ({inputs, tools, log, signal}) => {
 });
 ```
 
-To type tool arguments, declare every alias of the manifest once, for example in the entry file:
+Slack tools declare no output schema, so this result is `unknown` and the action casts it.
+
+To type tool arguments and results, declare every alias of the manifest once, for example in the
+entry file:
 
 ```ts
 declare module '@shipfox/actions' {

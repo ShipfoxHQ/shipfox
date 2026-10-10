@@ -58,11 +58,44 @@ describe('renderToolCatalogSource', () => {
     ]);
 
     expect(source).toContain(
-      "'issue_read.get': {arguments: GithubIssueReadGetArguments; result: 'file'};",
+      "'issue_read.get': {arguments: GithubIssueReadGetArguments; result: 'file'; structured: unknown};",
     );
-    expect(source).toContain("read_thread: {arguments: SlackReadThreadArguments; result: 'json'};");
+    expect(source).toContain(
+      "read_thread: {arguments: SlackReadThreadArguments; result: 'json'; structured: unknown};",
+    );
     expect(source).toContain('Ends with *\\/ on purpose.');
     expect(source.indexOf('github: {')).toBeLessThan(source.indexOf('slack: {'));
+  });
+
+  it('types the structured result from the output schema, once per family', async () => {
+    const pullRequestRead: AgentToolCatalogEntry = {
+      ...issueRead,
+      id: 'pull_request_read',
+      result: 'json',
+      outputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {number: {type: 'integer'}, title: {type: 'string'}},
+        required: ['number'],
+      },
+    };
+
+    const source = await renderToolCatalogSource([{provider: 'github', tools: [pullRequestRead]}]);
+
+    expect(source).toContain('structured: GithubPullRequestReadResult;\n    };\n    /**');
+    expect(source).toContain("result: 'json';\n      structured: GithubPullRequestReadResult;");
+    expect(source.split('export interface GithubPullRequestReadResult {')).toHaveLength(2);
+    expect(declaration(source, 'GithubPullRequestReadResult')).toBe(
+      'export interface GithubPullRequestReadResult {\n  number: number;\n  title?: string;\n}',
+    );
+  });
+
+  it('leaves the structured result of a file tool unknown', async () => {
+    const source = await renderToolCatalogSource([
+      {provider: 'github', tools: [{...issueRead, outputSchema: {type: 'object'}}]},
+    ]);
+
+    expect(source).not.toContain('GithubIssueReadResult');
   });
 
   it('drops the method argument from family methods only', async () => {
