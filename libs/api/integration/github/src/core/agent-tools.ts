@@ -695,6 +695,11 @@ export function projectGithubOperationParameters(
   if (toolId === 'pull_request_read' && method === 'get_diff') {
     parameters.headers = {accept: 'application/vnd.github.diff'};
   }
+  // GitHub answers a dispatch with no body unless asked, which leaves the caller no way to find
+  // the run it started.
+  if (toolId === 'actions_run_trigger' && method === 'run_workflow') {
+    parameters.return_run_details = true;
+  }
   return parameters;
 }
 

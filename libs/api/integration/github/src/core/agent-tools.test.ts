@@ -2324,6 +2324,39 @@ describe('github agent tool catalog', () => {
     });
   });
 
+  it('asks GitHub for the run that run_workflow started', async () => {
+    const run = {
+      workflow_run_id: 7,
+      run_url: 'https://api.github.com/repos/shipfox/platform/actions/runs/7',
+      html_url: 'https://github.com/shipfox/platform/actions/runs/7',
+    };
+    const request = vi.fn(() => Promise.resolve({data: run}));
+
+    const result = await callGithubToolWithRequest(
+      'actions_run_trigger',
+      {
+        method: 'run_workflow',
+        owner: 'shipfox',
+        repo: 'platform',
+        workflow_id: 'ci.yml',
+        ref: 'main',
+      },
+      request,
+    );
+
+    expect(request).toHaveBeenCalledWith(
+      'POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches',
+      {
+        owner: 'shipfox',
+        repo: 'platform',
+        workflow_id: 'ci.yml',
+        ref: 'main',
+        return_run_details: true,
+      },
+    );
+    expect(result).toMatchObject({structuredContent: run});
+  });
+
   it('reads pull request review threads through GraphQL', async () => {
     const request = vi.fn();
     const data = {

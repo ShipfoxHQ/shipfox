@@ -523,7 +523,13 @@ const actionsGetMethods = [
 ] as const satisfies readonly GithubAgentToolCatalogMethod[];
 
 const actionsRunTriggerMethods = [
-  method('run_workflow', 'Trigger a workflow_dispatch run.', 'write', true, scopes.actionsWrite),
+  method(
+    'run_workflow',
+    'Trigger a workflow_dispatch run. Returns the workflow_run_id, run_url, and html_url of the run it started.',
+    'write',
+    true,
+    scopes.actionsWrite,
+  ),
   method('rerun_workflow_run', 'Rerun a workflow run.', 'write', false, scopes.actionsWrite),
   method(
     'rerun_failed_jobs',

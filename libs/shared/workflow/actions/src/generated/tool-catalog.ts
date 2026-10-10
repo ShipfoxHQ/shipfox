@@ -259,7 +259,7 @@ export interface ProviderToolCatalog {
       structured: GithubActionsRunTriggerResult;
     };
     /**
-     * Trigger a workflow_dispatch run.
+     * Trigger a workflow_dispatch run. Returns the workflow_run_id, run_url, and html_url of the run it started.
      */
     'actions_run_trigger.run_workflow': {
       arguments: GithubActionsRunTriggerRunWorkflowArguments;
