@@ -48,7 +48,6 @@ export async function detectAndExpireStuckJobs(
     thresholdSeconds: params.thresholdSeconds ?? STUCK_JOB_THRESHOLD_SECONDS,
     correlatedStaleMinCount: config.RUNNER_CORRELATED_STALE_MIN_COUNT,
     correlatedStaleRatio: config.RUNNER_CORRELATED_STALE_RATIO,
-    correlatedStaleMode: config.RUNNER_CORRELATED_STALE_LEASE_MODE as 'defer' | 'shadow',
     correlatedStaleOverride: config.RUNNER_CORRELATED_STALE_LEASE_OVERRIDE,
   });
   return {expired: reaped.length};

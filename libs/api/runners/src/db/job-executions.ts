@@ -46,7 +46,6 @@ import {
   recordJobExecutionQueueTime,
   recordProviderRunnerActivationToFirstClaim,
   recordRunnerReservationReleased,
-  recordShadowedJobLeaseExpiry,
   recordStaleJobCandidateRatio,
   runnerClaimsRefusedCount,
 } from '#metrics/instance.js';
@@ -1378,7 +1377,6 @@ export async function expireStuckJobExecutions(params: {
   noFirstHeartbeatGraceSeconds: number;
   correlatedStaleMinCount?: number;
   correlatedStaleRatio?: number;
-  correlatedStaleMode?: 'defer' | 'shadow';
   correlatedStaleOverride?: boolean;
   limit?: number;
 }): Promise<
@@ -1431,16 +1429,10 @@ export async function expireStuckJobExecutions(params: {
 
   recordStaleJobCandidateRatio(staleRatio);
 
-  const shouldDefer =
-    correlated && !params.correlatedStaleOverride && params.correlatedStaleMode !== 'shadow';
   if (correlated && !params.correlatedStaleOverride) {
-    if (params.correlatedStaleMode === 'shadow') {
-      recordShadowedJobLeaseExpiry();
-    } else {
-      recordDeferredJobLeaseExpiry();
-    }
+    recordDeferredJobLeaseExpiry();
+    return [];
   }
-  if (shouldDefer) return [];
 
   const reaped = await db().transaction(async (tx) => {
     const staleRows = await tx

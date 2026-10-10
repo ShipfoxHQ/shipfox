@@ -160,11 +160,6 @@ export const jobLeaseExpiryDeferredCount = meter.createCounter<{cause: 'correlat
   },
 );
 
-export const jobLeaseExpiryShadowCount = meter.createCounter<{cause: 'correlated-stale'}>(
-  'runners_job_lease_expiry_shadow',
-  {description: 'Stale job lease expiry batches that would be deferred by the circuit breaker'},
-);
-
 export const providerRunnerReportCount = meter.createCounter<{
   state: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
 }>('runners_provider_runner_reported', {
@@ -430,10 +425,6 @@ export function recordRunnerTerminationAuthorizationRejected(
   reason: RunnerTerminationAuthorizationRejectionReason,
 ): void {
   recordMetric(() => runnerTerminationAuthorizationRejectedCount.add(1, {reason}));
-}
-
-export function recordShadowedJobLeaseExpiry(): void {
-  recordMetric(() => jobLeaseExpiryShadowCount.add(1, {cause: 'correlated-stale'}));
 }
 
 export type RunnerReservationPromotionFailureReason =
