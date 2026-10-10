@@ -1,4 +1,5 @@
 import type {Definition, DefinitionSyncSummary} from '@shipfox/client-projects';
+import {badgeVariants} from '@shipfox/react-ui/badge';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {DataTable} from '@shipfox/react-ui/data-table';
@@ -7,9 +8,12 @@ import {Icon, type IconName} from '@shipfox/react-ui/icon';
 import {LoadErrorState} from '@shipfox/react-ui/load-error-state';
 import {RelativeTime} from '@shipfox/react-ui/relative-time';
 import {Code, Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import {createColumnHelper, metaHelper, tableFeatures, useTable} from '@tanstack/react-table';
 import type {ReactNode} from 'react';
 import type {IssueCopy} from '#core/run-issue-copy.js';
+import {summarizeNeedsSetup} from '#core/run-readiness.js';
+import type {RunReadiness} from '#hooks/api/run-readiness.js';
 import {RunIssueCallout} from './run-issue-callout.js';
 
 export interface WorkflowRunError {
@@ -22,6 +26,7 @@ interface WorkflowDefinitionsTableMeta {
   onRun: (definition: Definition) => void;
   onDismissRunError: () => void;
   onRefreshDefinitions: () => void;
+  readiness: RunReadiness;
   runError: WorkflowRunError | null;
   runningDefinitionId: string | null;
   workspaceSlug: string | undefined;
@@ -53,21 +58,37 @@ const workflowDefinitionColumns = workflowDefinitionColumnHelper.columns([
       const definition = row.original;
       const meta = table.options.meta;
       const runError = meta?.runError?.definitionId === definition.id ? meta.runError : null;
+      const needsSetup = summarizeNeedsSetup(meta?.readiness.get(definition.id) ?? []);
 
       return (
         <div className="flex min-w-0 flex-col gap-tight">
-          <button
-            type="button"
-            onClick={() => meta?.onOpenDefinition(definition)}
-            className="flex min-w-0 flex-col gap-tight rounded-4 text-left outline-none focus-visible:shadow-border-interactive-with-active"
-          >
-            <Text size="sm" bold className="truncate">
-              {definition.name}
-            </Text>
-            <Code className="truncate text-foreground-neutral-muted">
-              {definition.configPath ?? 'Manual definition'}
-            </Code>
-          </button>
+          <div className="flex min-w-0 items-center gap-cluster">
+            <button
+              type="button"
+              onClick={() => meta?.onOpenDefinition(definition)}
+              className="flex min-w-0 flex-col gap-tight rounded-4 text-left outline-none focus-visible:shadow-border-interactive-with-active"
+            >
+              <Text size="sm" bold className="truncate">
+                {definition.name}
+              </Text>
+              <Code className="truncate text-foreground-neutral-muted">
+                {definition.configPath ?? 'Manual definition'}
+              </Code>
+            </button>
+            {needsSetup ? (
+              <button
+                type="button"
+                aria-label={`${definition.name} needs setup: ${needsSetup.count} ${needsSetup.count === 1 ? 'issue' : 'issues'}`}
+                onClick={() => meta?.onOpenDefinition(definition)}
+                className={cn(
+                  badgeVariants({variant: needsSetup.blocksStart ? 'warning' : 'neutral'}),
+                  'cursor-pointer outline-none focus-visible:shadow-border-interactive-with-active',
+                )}
+              >
+                Needs setup
+              </button>
+            ) : null}
+          </div>
           {runError && meta ? (
             <RunIssueCallout
               copy={runError.copy}
@@ -126,6 +147,8 @@ export interface WorkflowDefinitionsTableProps {
   onRun: (definition: Definition) => void;
   onDismissRunError: () => void;
   onRefreshDefinitions: () => void;
+  /** Advisory only: an issue here never disables Run. */
+  readiness: RunReadiness;
   runError: WorkflowRunError | null;
   runningDefinitionId: string | null;
   sync: DefinitionSyncSummary | null;
@@ -146,6 +169,7 @@ export function WorkflowDefinitionsTable({
   onRun,
   onDismissRunError,
   onRefreshDefinitions,
+  readiness,
   runError,
   runningDefinitionId,
   sync,
@@ -161,6 +185,7 @@ export function WorkflowDefinitionsTable({
       onRun,
       onDismissRunError,
       onRefreshDefinitions,
+      readiness,
       runError,
       runningDefinitionId,
       workspaceSlug,
