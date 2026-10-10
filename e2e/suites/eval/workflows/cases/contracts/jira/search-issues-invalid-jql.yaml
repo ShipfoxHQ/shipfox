@@ -6,4 +6,4 @@ steps:
     with:
       jql: this is ((not jql
     expect:
-      error: provider-unavailable
+      error: provider-rejected
