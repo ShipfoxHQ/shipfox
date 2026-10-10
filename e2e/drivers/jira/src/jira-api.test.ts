@@ -263,4 +263,198 @@ describe('Jira API mock', () => {
       }
     });
   });
+
+  describe('stateful writes', () => {
+    async function arrange() {
+      const mock = await startJiraApiMock({endpoint: new URL('http://127.0.0.1:0')});
+      mock.seed({
+        projects: [{key: 'WRITE', id: '10002', name: 'Write project'}],
+        issues: [{key: 'WRITE-1', id: '10010', summary: 'Seeded issue'}],
+        users: [{accountId: 'acct-1', displayName: 'Seeded User'}],
+      });
+      const send = (method: string, path: string, body?: unknown) =>
+        fetch(new URL(`${REST}${path}`, mock.endpoint), {
+          method,
+          ...(body === undefined
+            ? {}
+            : {headers: {'content-type': 'application/json'}, body: JSON.stringify(body)}),
+        });
+      const get = async (path: string) => (await (await send('GET', path)).json()) as JiraJson;
+      return {mock, send, get};
+    }
+
+    interface JiraJson {
+      id: string;
+      key: string;
+      transitions: Array<{id: string}>;
+    }
+    const description = {
+      type: 'doc',
+      version: 1,
+      content: [{type: 'paragraph', content: [{type: 'text', text: 'Details'}]}],
+    };
+
+    it('serves a created issue by its key and its ID, in the project of the create', async () => {
+      const {mock, send, get} = await arrange();
+
+      try {
+        const created = (await (
+          await send('POST', '/issue', {
+            fields: {
+              project: {id: '10002'},
+              summary: 'Created',
+              description,
+              labels: ['one'],
+              issuetype: {name: 'Task'},
+            },
+          })
+        ).json()) as JiraJson;
+
+        expect(created).toMatchObject({key: 'WRITE-2'});
+        const expected = {
+          id: created.id,
+          key: 'WRITE-2',
+          fields: {
+            summary: 'Created',
+            description,
+            labels: ['one'],
+            assignee: null,
+            issuetype: {name: 'Task'},
+            project: {key: 'WRITE'},
+            status: {name: 'To Do', statusCategory: {key: 'new'}},
+          },
+        };
+        expect(await get('/issue/WRITE-2')).toEqual(expected);
+        expect(await get(`/issue/${created.id}`)).toEqual(expected);
+        const next = (await (
+          await send('POST', '/issue', {fields: {project: {key: 'WRITE'}}})
+        ).json()) as JiraJson;
+        expect(next.key).toBe('WRITE-3');
+        expect(next.id).not.toBe(created.id);
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('applies an update to the fields it sends and keeps the others', async () => {
+      const {mock, send, get} = await arrange();
+
+      try {
+        await send('PUT', '/issue/WRITE-1', {fields: {summary: 'Renamed', description}});
+        await send('PUT', '/issue/WRITE-1', {fields: {labels: ['two'], priority: {name: 'High'}}});
+
+        expect(await get('/issue/WRITE-1')).toMatchObject({
+          fields: {summary: 'Renamed', description, labels: ['two'], priority: {name: 'High'}},
+        });
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('lists the comments an issue received, as ADF documents', async () => {
+      const {mock, send, get} = await arrange();
+
+      try {
+        const comment = (await (
+          await send('POST', '/issue/WRITE-1/comment', {body: description})
+        ).json()) as JiraJson;
+
+        expect(comment).toMatchObject({body: description});
+        expect(await get('/issue/WRITE-1/comment')).toMatchObject({
+          total: 1,
+          comments: [{id: comment.id, body: description}],
+        });
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('assigns and unassigns an issue', async () => {
+      const {mock, send, get} = await arrange();
+
+      try {
+        await send('PUT', '/issue/WRITE-1/assignee', {accountId: 'acct-1'});
+        expect(await get('/issue/WRITE-1')).toMatchObject({
+          fields: {assignee: {accountId: 'acct-1', displayName: 'Seeded User'}},
+        });
+
+        await send('PUT', '/issue/WRITE-1/assignee', {accountId: null});
+        expect(await get('/issue/WRITE-1')).toMatchObject({fields: {assignee: null}});
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('moves the status with a transition and offers the other two from there', async () => {
+      const {mock, send, get} = await arrange();
+      const offered = async () =>
+        (await get('/issue/WRITE-1/transitions')).transitions.map(({id}) => id);
+
+      try {
+        expect(await offered()).toEqual(['21', '31']);
+
+        const response = await send('POST', '/issue/WRITE-1/transitions', {transition: {id: '31'}});
+
+        expect(response.status).toBe(204);
+        expect(await get('/issue/WRITE-1')).toMatchObject({
+          fields: {status: {name: 'Done', statusCategory: {key: 'done'}}},
+        });
+        expect(await offered()).toEqual(['11', '21']);
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('rejects a transition the issue cannot take, and keeps its status', async () => {
+      const {mock, send, get} = await arrange();
+
+      try {
+        const unknown = await send('POST', '/issue/WRITE-1/transitions', {transition: {id: '99'}});
+        const sameStatus = await send('POST', '/issue/WRITE-1/transitions', {
+          transition: {id: '11'},
+        });
+
+        expect([unknown.status, sameStatus.status]).toEqual([400, 400]);
+        expect(await get('/issue/WRITE-1')).toMatchObject({fields: {status: {name: 'To Do'}}});
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('accepts a write to an issue it does not keep, and changes nothing', async () => {
+      const {mock, send, get} = await arrange();
+
+      try {
+        const responses = await Promise.all([
+          send('PUT', '/issue/OTHER-1', {fields: {summary: 'Renamed'}}),
+          send('POST', '/issue/OTHER-1/transitions', {transition: {id: '31'}}),
+          send('PUT', '/issue/OTHER-1/assignee', {accountId: 'acct-1'}),
+        ]);
+
+        expect(responses.map(({status}) => status)).toEqual([204, 204, 204]);
+        expect(await get('/issue/OTHER-1')).toMatchObject({
+          fields: {summary: 'E2E Jira issue', status: {name: 'To Do'}},
+        });
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('searches the created issues after the seeded ones', async () => {
+      const {mock, send} = await arrange();
+
+      try {
+        await send('POST', '/issue', {fields: {project: {key: 'WRITE'}, summary: 'Created'}});
+        const search = (await (
+          await send('POST', '/search/jql', {jql: 'project = WRITE'})
+        ).json()) as {
+          issues: Array<{key: string}>;
+        };
+
+        expect(search.issues.map(({key}) => key)).toEqual(['WRITE-1', 'WRITE-2']);
+      } finally {
+        await mock.stop();
+      }
+    });
+  });
 });

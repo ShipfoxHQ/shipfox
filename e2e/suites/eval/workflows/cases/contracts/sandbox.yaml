@@ -594,6 +594,9 @@ jira:
         expect:
           values:
             comments[0].id: $fixture.jira.comment.id
+    # The transition that moves an issue of `write_project` to Done. Jira's default workflow numbers
+    # it 31.
+    done_transition: {id: '31'}
     user:
       account_id: '712020:f852ec40-ff63-415f-9dd3-1a681b8c9037'
       display_name: 'Noé Charmet'

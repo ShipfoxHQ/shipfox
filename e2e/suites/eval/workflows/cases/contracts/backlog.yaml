@@ -1,4 +1,4 @@
-ceiling: 27
+ceiling: 22
 entries:
   - {tool: github.add_comment_to_pending_review, kind: write, issue: ENG-2834}
   - {tool: github.add_issue_comment, kind: write, issue: ENG-2828}
@@ -22,8 +22,3 @@ entries:
   - {tool: github.sub_issue_write, method: reprioritize, kind: write, issue: ENG-2828}
   - {tool: github.update_pull_request, kind: write, issue: ENG-2834}
   - {tool: github.update_pull_request_branch, kind: write, issue: ENG-2834}
-  - {tool: jira.add_comment, kind: write, issue: ENG-2826}
-  - {tool: jira.assign_issue, kind: write, issue: ENG-2826}
-  - {tool: jira.create_issue, kind: write, issue: ENG-2826}
-  - {tool: jira.transition_issue, kind: write, issue: ENG-2826}
-  - {tool: jira.update_issue, kind: write, issue: ENG-2826}

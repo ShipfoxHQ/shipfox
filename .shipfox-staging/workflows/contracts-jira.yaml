@@ -150,6 +150,104 @@ jobs:
           value_displayName: '${{ has(result.displayName) ? result.displayName : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_accountId && step.outputs.shape_displayName && type(step.outputs.value_accountId) == type("") && step.outputs.value_accountId == "712020:f852ec40-ff63-415f-9dd3-1a681b8c9037" && type(step.outputs.value_displayName) == type("") && step.outputs.value_displayName == "Noé Charmet"
+  issue_round_trip:
+    checkout: false
+    steps:
+      - key: create
+        tool: create_issue
+        connection: jira_shipfox_sandbox
+        with:
+          projectKey: E2EW
+          issueType: Task
+          summary: Contract contract-${{ run.id }}
+          body: Created by a contract.
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+          shape_key: ${{ has(result.key) && type(result.key) == type("") }}
+          ref_key: '${{ has(result.key) ? result.key : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_key
+      - key: create_effect
+        tool: get_issue
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: ${{ steps.create.outputs.ref_key }}
+        outputs:
+          value_fields_project_key: '${{ has(result.fields) && has(result.fields.project) && has(result.fields.project.key) ? result.fields.project.key : "" }}'
+          value_fields_description_content_0_content_0_text: '${{ has(result.fields) && has(result.fields.description) && has(result.fields.description.content) && type(result.fields.description.content) == type([]) && size(result.fields.description.content) > 0 && [result.fields.description.content[0]].all(i0, has(i0.content) && type(i0.content) == type([]) && size(i0.content) > 0 && [i0.content[0]].all(i1, has(i1.text))) ? result.fields.description.content[0].content[0].text : "" }}'
+          matches_fields_summary: ${{ has(result.fields) && has(result.fields.summary) && type(result.fields.summary) == type("") && result.fields.summary.matches("^Contract contract-[0-9a-f-]+$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_fields_project_key) == type("") && step.outputs.value_fields_project_key == "E2EW" && type(step.outputs.value_fields_description_content_0_content_0_text) == type("") && step.outputs.value_fields_description_content_0_content_0_text == "Created by a contract." && step.outputs.matches_fields_summary
+      - key: update
+        tool: update_issue
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: ${{ steps.create.outputs.ref_key }}
+          summary: Contract issue updated
+          body: Updated by a contract.
+          labels:
+            - contract
+      - key: update_effect
+        tool: get_issue
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: ${{ steps.create.outputs.ref_key }}
+        outputs:
+          value_fields_summary: '${{ has(result.fields) && has(result.fields.summary) ? result.fields.summary : "" }}'
+          value_fields_description_content_0_content_0_text: '${{ has(result.fields) && has(result.fields.description) && has(result.fields.description.content) && type(result.fields.description.content) == type([]) && size(result.fields.description.content) > 0 && [result.fields.description.content[0]].all(i0, has(i0.content) && type(i0.content) == type([]) && size(i0.content) > 0 && [i0.content[0]].all(i1, has(i1.text))) ? result.fields.description.content[0].content[0].text : "" }}'
+          value_fields_labels_0: '${{ has(result.fields) && has(result.fields.labels) && type(result.fields.labels) == type([]) && size(result.fields.labels) > 0 ? result.fields.labels[0] : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_fields_summary) == type("") && step.outputs.value_fields_summary == "Contract issue updated" && type(step.outputs.value_fields_description_content_0_content_0_text) == type("") && step.outputs.value_fields_description_content_0_content_0_text == "Updated by a contract." && type(step.outputs.value_fields_labels_0) == type("") && step.outputs.value_fields_labels_0 == "contract"
+      - key: comment
+        tool: add_comment
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: ${{ steps.create.outputs.ref_key }}
+          body: Contract comment
+        outputs:
+          shape_id: ${{ has(result.id) && type(result.id) == type("") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id
+      - key: comment_effect
+        tool: get_issue_comments
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: ${{ steps.create.outputs.ref_key }}
+        outputs:
+          value_total: "${{ has(result.total) ? result.total : 2 }}"
+          includes_comments: ${{ has(result.comments) && type(result.comments) == type([]) && result.comments.exists(item, has(item.body) && has(item.body.content) && type(item.body.content) == type([]) && size(item.body.content) > 0 && [item.body.content[0]].all(i0, has(i0.content) && type(i0.content) == type([]) && size(i0.content) > 0 && [i0.content[0]].all(i1, has(i1.text) && type(i1.text) == type("") && i1.text == "Contract comment"))) }}
+        gate:
+          success: step.status == "succeeded" && (type(step.outputs.value_total) == type(1) || type(step.outputs.value_total) == type(1.0)) && step.outputs.value_total == 1 && step.outputs.includes_comments
+      - key: assign
+        tool: assign_issue
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: ${{ steps.create.outputs.ref_key }}
+          accountId: 712020:f852ec40-ff63-415f-9dd3-1a681b8c9037
+      - key: assign_effect
+        tool: get_issue
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: ${{ steps.create.outputs.ref_key }}
+        outputs:
+          value_fields_assignee_accountId: '${{ has(result.fields) && has(result.fields.assignee) && has(result.fields.assignee.accountId) ? result.fields.assignee.accountId : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_fields_assignee_accountId) == type("") && step.outputs.value_fields_assignee_accountId == "712020:f852ec40-ff63-415f-9dd3-1a681b8c9037"
+      - key: close
+        tool: transition_issue
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: ${{ steps.create.outputs.ref_key }}
+          transitionId: "31"
+      - key: close_effect
+        tool: get_issue
+        connection: jira_shipfox_sandbox
+        with:
+          idOrKey: ${{ steps.create.outputs.ref_key }}
+        outputs:
+          value_fields_status_statusCategory_key: '${{ has(result.fields) && has(result.fields.status) && has(result.fields.status.statusCategory) && has(result.fields.status.statusCategory.key) ? result.fields.status.statusCategory.key : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_fields_status_statusCategory_key) == type("") && step.outputs.value_fields_status_statusCategory_key == "done"
   search_issues:
     checkout: false
     steps:

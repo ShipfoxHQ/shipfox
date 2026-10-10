@@ -1,0 +1,85 @@
+provider: jira
+kind: round-trip
+modes: [real, fake]
+steps:
+  - key: create
+    tool: create_issue
+    with:
+      projectKey: $fixture.jira.write_project.key
+      issueType: Task
+      summary: Contract $marker
+      body: Created by a contract.
+    expect:
+      shape:
+        id: string
+        key: string
+    # The marker is in the summary, so a pattern checks it. The issue is this run's, so the values
+    # below can't come from an earlier run.
+    effect:
+      tool: get_issue
+      with:
+        idOrKey: $steps.create.key
+      expect:
+        values:
+          fields.project.key: $fixture.jira.write_project.key
+          fields.description.content[0].content[0].text: Created by a contract.
+        matches:
+          fields.summary: '^Contract contract-[0-9a-f-]+$'
+  - key: update
+    tool: update_issue
+    with:
+      idOrKey: $steps.create.key
+      summary: Contract issue updated
+      body: Updated by a contract.
+      labels: [contract]
+    effect:
+      tool: get_issue
+      with:
+        idOrKey: $steps.create.key
+      expect:
+        values:
+          fields.summary: Contract issue updated
+          fields.description.content[0].content[0].text: Updated by a contract.
+          fields.labels[0]: contract
+  - key: comment
+    tool: add_comment
+    with:
+      idOrKey: $steps.create.key
+      body: Contract comment
+    expect:
+      shape: {id: string}
+    effect:
+      tool: get_issue_comments
+      with:
+        idOrKey: $steps.create.key
+      expect:
+        values:
+          total: 1
+        includes:
+          comments:
+            body.content[0].content[0].text: Contract comment
+  - key: assign
+    tool: assign_issue
+    with:
+      idOrKey: $steps.create.key
+      accountId: $fixture.jira.user.account_id
+    effect:
+      tool: get_issue
+      with:
+        idOrKey: $steps.create.key
+      expect:
+        values:
+          fields.assignee.accountId: $fixture.jira.user.account_id
+  # The sandbox has no delete tool, so the issue ends in Done.
+  - key: close
+    tool: transition_issue
+    with:
+      idOrKey: $steps.create.key
+      transitionId: $fixture.jira.done_transition.id
+    effect:
+      tool: get_issue
+      with:
+        idOrKey: $steps.create.key
+      expect:
+        values:
+          fields.status.statusCategory.key: done

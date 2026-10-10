@@ -71,7 +71,14 @@ export async function startJiraApiMock(options: JiraApiMockOptions = {}): Promis
   const configuredEndpoint = options.endpoint ?? new URL(requiredJiraApiBaseUrl());
   validateEndpoint(configuredEndpoint);
   const calls: JiraApiMockCall[] = [];
-  const seeded: SeededJira = {projects: [], issues: [], comments: [], users: []};
+  const seeded: SeededJira = {
+    projects: [],
+    users: [],
+    issues: [],
+    comments: [],
+    nextIssueId: 20_000,
+    nextCommentId: 30_000,
+  };
   let boundEndpoint = configuredEndpoint;
   const server = createServer((request, response) => {
     void handleJiraRequest({
@@ -109,8 +116,16 @@ export async function startJiraApiMock(options: JiraApiMockOptions = {}): Promis
     endpoint: boundEndpoint,
     seed: (seed) => {
       seeded.projects.push(...(seed.projects ?? []));
-      seeded.issues.push(...(seed.issues ?? []));
-      seeded.comments.push(...(seed.comments ?? []));
+      seeded.issues.push(
+        ...(seed.issues ?? []).map(({key, id, summary}) => newStoredIssue({key, id, summary})),
+      );
+      seeded.comments.push(
+        ...(seed.comments ?? []).map(({issueKey, id, body}) => ({
+          id,
+          issueKey,
+          body: jiraTextDocument(body),
+        })),
+      );
       seeded.users.push(...(seed.users ?? []));
     },
     writes: () => jiraWrites(calls),
@@ -147,7 +162,54 @@ function createdIssueTarget(call: JiraCallBase & {body: JiraBody}): string {
   return typeof target === 'string' ? target : call.cloudId;
 }
 
-type SeededJira = Required<JiraSeed>;
+interface JiraStatus {
+  name: string;
+  category: 'new' | 'indeterminate' | 'done';
+}
+
+/** The three statuses of Jira's default workflow, each reachable from the other two. */
+const JIRA_TRANSITIONS = [
+  {id: '11', name: 'To Do', status: {name: 'To Do', category: 'new'}},
+  {
+    id: JIRA_IN_PROGRESS_TRANSITION_ID,
+    name: 'Start progress',
+    status: {name: 'In Progress', category: 'indeterminate'},
+  },
+  {id: '31', name: 'Done', status: {name: 'Done', category: 'done'}},
+] as const satisfies ReadonlyArray<{id: string; name: string; status: JiraStatus}>;
+
+const JIRA_INITIAL_STATUS: JiraStatus = JIRA_TRANSITIONS[0].status;
+
+/** An issue the fake keeps, seeded or created, so a write shows in the next read. */
+interface StoredIssue {
+  id: string;
+  key: string;
+  summary: string;
+  status: JiraStatus;
+  /** The ADF document, as Jira stores it. */
+  description?: unknown;
+  labels: string[];
+  assigneeAccountId: string | null;
+  priority?: string;
+  issueType?: string;
+}
+
+interface StoredComment {
+  id: string;
+  issueKey: string;
+  /** The ADF document. */
+  body: unknown;
+}
+
+interface SeededJira {
+  projects: NonNullable<JiraSeed['projects']>;
+  users: NonNullable<JiraSeed['users']>;
+  issues: StoredIssue[];
+  comments: StoredComment[];
+  /** The ids handed to created issues and comments. */
+  nextIssueId: number;
+  nextCommentId: number;
+}
 
 interface JiraRoute {
   method: string;
@@ -175,7 +237,9 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
       sendJson(
         context.response,
         200,
-        issue === undefined ? issueBody(context.idOrKey) : seededIssueBody(issue),
+        issue === undefined
+          ? issueBody(context.idOrKey)
+          : storedIssueBody({seeded: context.seeded, issue}),
       );
     },
   },
@@ -187,7 +251,7 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
       const issues =
         context.seeded.issues.length === 0
           ? [issueBody('E2E-1')]
-          : context.seeded.issues.map(seededIssueBody);
+          : context.seeded.issues.map((issue) => storedIssueBody({seeded: context.seeded, issue}));
       sendJson(context.response, 200, {issues, isLast: true});
     },
   },
@@ -199,7 +263,7 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
       const issue = findIssue({seeded: context.seeded, idOrKey: context.idOrKey});
       const comments = context.seeded.comments
         .filter((comment) => issue !== undefined && comment.issueKey === issue.key)
-        .map(seededCommentBody);
+        .map(({id, body}) => ({id, body}));
       sendJson(context.response, 200, {
         startAt: 0,
         maxResults: 50,
@@ -217,19 +281,11 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
         ...context.base,
         idOrKey: context.idOrKey,
       });
+      const current = findIssue({seeded: context.seeded, idOrKey: context.idOrKey})?.status;
       sendJson(context.response, 200, {
-        transitions: [
-          {
-            id: JIRA_IN_PROGRESS_TRANSITION_ID,
-            name: 'Start progress',
-            to: {name: 'In Progress', statusCategory: {key: 'indeterminate'}},
-          },
-          {
-            id: '31',
-            name: 'Done',
-            to: {name: 'Done', statusCategory: {key: 'done'}},
-          },
-        ],
+        transitions: JIRA_TRANSITIONS.filter(
+          ({status}) => status.name !== (current ?? JIRA_INITIAL_STATUS).name,
+        ).map(({id, name, status}) => ({id, name, to: statusBody(status)})),
       });
     },
   },
@@ -263,10 +319,11 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
     pattern: /^issue$/,
     handle: (context) => {
       context.calls.push({kind: 'create_issue', ...context.base, body: context.body});
+      const issue = createIssue({seeded: context.seeded, body: context.body});
       sendJson(context.response, 201, {
-        id: '10001',
-        key: 'E2E-2',
-        self: 'https://jira.example.test/rest/api/3/issue/10001',
+        id: issue.id,
+        key: issue.key,
+        self: `https://jira.example.test/rest/api/3/issue/${issue.id}`,
       });
     },
   },
@@ -280,6 +337,8 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
         idOrKey: context.idOrKey,
         body: context.body,
       });
+      const issue = findIssue({seeded: context.seeded, idOrKey: context.idOrKey});
+      if (issue !== undefined) applyIssueFields({issue, fields: context.body.fields});
       context.response.writeHead(204).end();
     },
   },
@@ -293,7 +352,17 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
         idOrKey: context.idOrKey,
         body: context.body,
       });
-      sendJson(context.response, 201, {id: '10100', marker: JIRA_COMMENT_RESULT_MARKER});
+      const issue = findIssue({seeded: context.seeded, idOrKey: context.idOrKey});
+      let id = '10100';
+      if (issue !== undefined) {
+        id = String(context.seeded.nextCommentId++);
+        context.seeded.comments.push({id, issueKey: issue.key, body: context.body.body});
+      }
+      sendJson(context.response, 201, {
+        id,
+        body: context.body.body,
+        marker: JIRA_COMMENT_RESULT_MARKER,
+      });
     },
   },
   {
@@ -306,6 +375,25 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
         idOrKey: context.idOrKey,
         body: context.body,
       });
+      const issue = findIssue({seeded: context.seeded, idOrKey: context.idOrKey});
+      if (issue === undefined) {
+        context.response.writeHead(204).end();
+        return;
+      }
+      const transitionId = isRecord(context.body.transition)
+        ? context.body.transition.id
+        : undefined;
+      const transition = JIRA_TRANSITIONS.find(
+        ({id, status}) => id === transitionId && status.name !== issue.status.name,
+      );
+      if (transition === undefined) {
+        sendJson(context.response, 400, {
+          errorMessages: [`Transition id '${String(transitionId)}' is not valid for this issue.`],
+          errors: {},
+        });
+        return;
+      }
+      issue.status = transition.status;
       context.response.writeHead(204).end();
     },
   },
@@ -319,6 +407,8 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
         idOrKey: context.idOrKey,
         body: context.body,
       });
+      const issue = findIssue({seeded: context.seeded, idOrKey: context.idOrKey});
+      if (issue !== undefined) issue.assigneeAccountId = accountIdOf(context.body.accountId);
       context.response.writeHead(204).end();
     },
   },
@@ -399,31 +489,113 @@ function findIssue({
 }: {
   seeded: SeededJira;
   idOrKey: string;
-}): SeededJira['issues'][number] | undefined {
+}): StoredIssue | undefined {
   return seeded.issues.find(({key, id}) => key === idOrKey || id === idOrKey);
 }
 
-function seededIssueBody(issue: SeededJira['issues'][number]): JiraBody {
-  const projectKey = issue.key.slice(0, issue.key.lastIndexOf('-'));
+function newStoredIssue({key, id, summary}: {key: string; id: string; summary: string}) {
+  const issue: StoredIssue = {
+    key,
+    id,
+    summary,
+    status: JIRA_INITIAL_STATUS,
+    labels: [],
+    assigneeAccountId: null,
+  };
+  return issue;
+}
+
+function projectKeyOf(issueKey: string): string {
+  return issueKey.slice(0, issueKey.lastIndexOf('-'));
+}
+
+/** The project a create names by key or by ID. Jira rejects a create without one; the fake does not. */
+function createdProjectKey({seeded, fields}: {seeded: SeededJira; fields: JiraBody}): string {
+  const project = isRecord(fields.project) ? fields.project : {};
+  const byId = seeded.projects.find(({id}) => id === project.id);
+  if (byId !== undefined) return byId.key;
+  return typeof project.key === 'string' ? project.key : 'E2E';
+}
+
+function createIssue({seeded, body}: {seeded: SeededJira; body: JiraBody}): StoredIssue {
+  const fields = isRecord(body.fields) ? body.fields : {};
+  const projectKey = createdProjectKey({seeded, fields});
+  // Past the highest key of the project, and past the generic E2E-1 an unseeded fake serves.
+  const highest = Math.max(
+    1,
+    ...seeded.issues
+      .filter(({key}) => projectKeyOf(key) === projectKey)
+      .map(({key}) => Number(key.slice(projectKey.length + 1))),
+  );
+  const issue = newStoredIssue({
+    key: `${projectKey}-${highest + 1}`,
+    id: String(seeded.nextIssueId++),
+    summary: '',
+  });
+  applyIssueFields({issue, fields});
+  seeded.issues.push(issue);
+  return issue;
+}
+
+/** Applies the fields a create or an update sends. A field left out keeps its value. */
+function applyIssueFields({issue, fields}: {issue: StoredIssue; fields: unknown}): void {
+  if (!isRecord(fields)) return;
+  if (typeof fields.summary === 'string') issue.summary = fields.summary;
+  if ('description' in fields) issue.description = fields.description;
+  if (Array.isArray(fields.labels)) {
+    issue.labels = fields.labels.filter((label): label is string => typeof label === 'string');
+  }
+  if ('assignee' in fields) {
+    issue.assigneeAccountId = isRecord(fields.assignee)
+      ? accountIdOf(fields.assignee.accountId)
+      : null;
+  }
+  if (isRecord(fields.priority) && typeof fields.priority.name === 'string') {
+    issue.priority = fields.priority.name;
+  }
+  if (isRecord(fields.issuetype) && typeof fields.issuetype.name === 'string') {
+    issue.issueType = fields.issuetype.name;
+  }
+}
+
+function accountIdOf(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function statusBody(status: JiraStatus): JiraBody {
+  return {name: status.name, statusCategory: {key: status.category}};
+}
+
+function storedIssueBody({seeded, issue}: {seeded: SeededJira; issue: StoredIssue}): JiraBody {
+  const assignee =
+    issue.assigneeAccountId === null
+      ? null
+      : {
+          accountId: issue.assigneeAccountId,
+          displayName: seeded.users.find(({accountId}) => accountId === issue.assigneeAccountId)
+            ?.displayName,
+        };
   return {
     id: issue.id,
     key: issue.key,
     fields: {
       summary: issue.summary,
-      status: {name: 'To Do', statusCategory: {key: 'new'}},
-      project: {key: projectKey},
+      status: statusBody(issue.status),
+      project: {key: projectKeyOf(issue.key)},
+      labels: issue.labels,
+      assignee,
+      ...(issue.description === undefined ? {} : {description: issue.description}),
+      ...(issue.priority === undefined ? {} : {priority: {name: issue.priority}}),
+      ...(issue.issueType === undefined ? {} : {issuetype: {name: issue.issueType}}),
     },
   };
 }
 
-function seededCommentBody(comment: SeededJira['comments'][number]): JiraBody {
+function jiraTextDocument(text: string): JiraBody {
   return {
-    id: comment.id,
-    body: {
-      type: 'doc',
-      version: 1,
-      content: [{type: 'paragraph', content: [{type: 'text', text: comment.body}]}],
-    },
+    type: 'doc',
+    version: 1,
+    content: [{type: 'paragraph', content: [{type: 'text', text}]}],
   };
 }
 
