@@ -9,7 +9,6 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {and, asc, count, eq, inArray, isNull, notInArray, sql} from 'drizzle-orm';
-import {config} from '#config.js';
 import {type AgentDefaultsResolver, createAgentDefaultsResolver} from '#core/agent-defaults.js';
 import {
   type AgentToolMaterializationContext,
@@ -97,13 +96,6 @@ const LISTENER_EVENT_SQL_BYTE_LIMIT =
 // Bound the metadata probe and payload hydration when the author did not set
 // a batch count. The application packer remains the byte authority.
 const LISTENER_EVENT_SQL_CANDIDATE_COUNT_LIMIT = 100;
-
-export function legacyTriggerEventsInsertValues(
-  triggerEvents: readonly WorkflowExecutionEvent[],
-  enabled = config.WORKFLOWS_LEGACY_TRIGGER_EVENTS_WRITE_ENABLED,
-): Partial<Record<'triggerEvents', WorkflowExecutionEvent[]>> {
-  return enabled ? {triggerEvents: [...triggerEvents]} : {};
-}
 
 function pendingListenerEventCondition() {
   return and(
@@ -963,7 +955,6 @@ async function persistMaterializedListenerExecution(
       runner: params.materialized.runner.length === 0 ? null : [...params.materialized.runner],
       status: params.materialized.status,
       statusReason: params.materialized.statusReason,
-      ...legacyTriggerEventsInsertValues(params.materialized.triggerEvents),
       evaluationTrace: params.materialized.evaluationTrace,
       ...(params.materialized.status === 'failed' ? {finishedAt: sql`now()`} : {}),
     })
