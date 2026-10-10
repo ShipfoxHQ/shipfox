@@ -1,3 +1,4 @@
+import {gateFailureRules} from '@shipfox/api-definitions-dto';
 import {
   analyzeHistoricalEventPayloadAccess,
   type HistoricalEventPayloadAccess,
@@ -222,13 +223,13 @@ function scanWorkflowStep(
     scanExpression(step.gate.success, [...path, 'gate', 'success'], dependencies);
   }
   const onFailure = step.gate?.onFailure;
-  if (Array.isArray(onFailure)) {
-    onFailure.forEach((rule, index) => {
-      scanFailureRule(rule, [...path, 'gate', 'on_failure', index], dependencies);
-    });
-  } else if (onFailure !== undefined) {
-    scanFailureRule(onFailure, [...path, 'gate', 'on_failure'], dependencies);
-  }
+  const isList = Array.isArray(onFailure);
+  gateFailureRules(onFailure).forEach((rule, index) => {
+    const rulePath = isList
+      ? [...path, 'gate', 'on_failure', index]
+      : [...path, 'gate', 'on_failure'];
+    scanFailureRule(rule, rulePath, dependencies);
+  });
 
   if (step.kind === 'agent' && step.session !== undefined) {
     scanTemplate(step.session.key, [...path, 'session'], dependencies);

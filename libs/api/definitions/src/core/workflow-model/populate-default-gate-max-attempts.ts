@@ -1,3 +1,4 @@
+import {gateFailureRules} from '@shipfox/api-definitions-dto';
 import {WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS} from '@shipfox/workflow-document';
 import type {WorkflowModel, WorkflowModelStepFailureAction} from '../entities/workflow-model.js';
 
@@ -14,15 +15,15 @@ export function populateDefaultGateMaxAttempts(model: WorkflowModel): WorkflowMo
       const onFailure = gate?.onFailure;
       if (onFailure === undefined) return step;
 
-      const rules = Array.isArray(onFailure) ? onFailure : [onFailure];
-      if (rules.every((rule) => rule.maxAttempts !== undefined)) return step;
+      if (gateFailureRules(onFailure).every((rule) => rule.maxAttempts !== undefined)) return step;
 
-      const populated = rules.map(populateRule);
+      const populated =
+        'restartFrom' in onFailure ? populateRule(onFailure) : onFailure.map(populateRule);
       changed = true;
       jobChanged = true;
       return {
         ...step,
-        gate: {...gate, onFailure: Array.isArray(onFailure) ? populated : populated[0]},
+        gate: {...gate, onFailure: populated},
       };
     });
 

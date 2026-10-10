@@ -2992,6 +2992,11 @@ describe('durable gate restart', () => {
 
       expect(restart).toEqual({jobFinished: false});
       expect(await restartEventCount(jobId)).toBe(1);
+      const attempt = (await getStepAttempts(jobId)).find((a) => a.stepId === publish);
+      expect(attempt?.gateResult).toEqual({
+        exit_code: 1,
+        restart: {kind: 'restart', rule: 1, restart_from: 'first'},
+      });
     });
 
     test('fails the job with the reported error when no rule applies', async () => {
