@@ -22,7 +22,7 @@ steps:
         owner: $fixture.github.repository.owner
         repo: $fixture.github.repository.name
         resource_id: $steps_text.dispatch.workflow_run_id
-      poll_seconds: 5
+      wait_seconds: 5
       expect:
         values:
           workflow_id: $fixture.github.trigger_workflow.id
@@ -45,7 +45,7 @@ steps:
         owner: $fixture.github.repository.owner
         repo: $fixture.github.repository.name
         resource_id: $steps_text.dispatch.workflow_run_id
-      poll_seconds: 15
+      wait_seconds: 45
       expect:
         values: {run_attempt: 1, status: completed, conclusion: cancelled}
   - key: rerun
@@ -62,7 +62,7 @@ steps:
         owner: $fixture.github.repository.owner
         repo: $fixture.github.repository.name
         resource_id: $steps_text.dispatch.workflow_run_id
-      poll_seconds: 5
+      wait_seconds: 15
       expect:
         values: {run_attempt: 2}
   # The second cancellation leaves the run completed.
@@ -80,6 +80,6 @@ steps:
         owner: $fixture.github.repository.owner
         repo: $fixture.github.repository.name
         resource_id: $steps_text.dispatch.workflow_run_id
-      poll_seconds: 15
+      wait_seconds: 45
       expect:
         values: {run_attempt: 2, status: completed, conclusion: cancelled}

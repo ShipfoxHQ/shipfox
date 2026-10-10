@@ -145,12 +145,12 @@ describe('contract case schema', () => {
     }
   });
 
-  it('loads an effect that polls', () => {
-    const steps = [{tool: 'save_issue', effect: {tool: 'get_issue', poll_seconds: 15}}];
+  it('loads an effect that waits', () => {
+    const steps = [{tool: 'save_issue', effect: {tool: 'get_issue', wait_seconds: 15}}];
 
     const parsed = parseContractCase({...getIssue, kind: 'round-trip', steps});
 
-    expect(parsed.steps[0]?.effect?.poll_seconds).toBe(15);
+    expect(parsed.steps[0]?.effect?.wait_seconds).toBe(15);
   });
 
   it('rejects an error in an effect', () => {

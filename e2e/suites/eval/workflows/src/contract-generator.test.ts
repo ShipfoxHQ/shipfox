@@ -357,27 +357,26 @@ describe('generateContractFiles', () => {
       );
     });
 
-    it('waits before a polled effect and restarts from the wait when the read fails', async () => {
+    it('waits before an effect that names a wait', async () => {
       await writeCase(
-        'linear/polled.yaml',
+        'linear/waited.yaml',
         roundTrip(
-          '  - key: a\n    tool: save_issue\n    effect:\n      tool: get_issue\n      with: {id: $steps.a.id}\n      poll_seconds: 15\n      expect:\n        values: {status: Done}\n',
+          '  - key: a\n    tool: save_issue\n    effect:\n      tool: get_issue\n      with: {id: $steps.a.id}\n      wait_seconds: 15\n      expect:\n        values: {status: Done}\n',
         ),
       );
 
       const files = generateContractFiles(await generate());
 
       const content = files.find(({name}) => name === 'contracts-linear.yaml')?.content ?? '';
-      const polled = content.slice(content.indexOf('  polled:'));
-      expect(polled).toContain('- key: a_wait\n        run: sleep 15\n      - key: a_effect\n');
-      expect(polled).toContain('on_failure:\n            restart_from: a_wait\n');
+      const waited = content.slice(content.indexOf('  waited:'));
+      expect(waited).toContain('- key: a_wait\n        run: sleep 15\n      - key: a_effect\n');
     });
 
     it('rejects a wait key that another step uses', async () => {
       await writeCase(
         'linear/clash.yaml',
         roundTrip(
-          '  - key: a\n    tool: save_issue\n    effect:\n      tool: get_issue\n      with: {id: $steps.a.id}\n      poll_seconds: 15\n      expect:\n        values: {status: Done}\n  - {key: a_wait, tool: get_issue}\n',
+          '  - key: a\n    tool: save_issue\n    effect:\n      tool: get_issue\n      with: {id: $steps.a.id}\n      wait_seconds: 15\n      expect:\n        values: {status: Done}\n  - {key: a_wait, tool: get_issue}\n',
         ),
       );
 

@@ -92,8 +92,8 @@ const readSchema = z
 const effectSchema = readSchema
   .extend({
     // For a write the provider applies later, such as the cancellation of a GitHub Actions run.
-    // The job waits this long before each read, and reads again until the effect shows.
-    poll_seconds: z.number().int().min(1).max(60).optional(),
+    // The job waits this long before the read.
+    wait_seconds: z.number().int().min(1).max(60).optional(),
   })
   .strict();
 

@@ -45,13 +45,13 @@ type Segment = {field: string} | {index: number};
 
 interface WorkflowStep {
   key: string;
-  // A step calls a tool, or runs the command that waits before a polled effect.
+  // A step calls a tool, or runs the command that waits before an effect.
   run?: string;
   tool?: string;
   connection?: string;
   with?: unknown;
   outputs?: Record<string, string>;
-  gate?: {success: string; on_failure?: {restart_from: string}};
+  gate?: {success: string};
 }
 
 /** A CEL expression in a workflow field. */
@@ -237,29 +237,26 @@ function caseJob({
     if (keys.includes(effectKey)) {
       throw new Error(`${origin}: the effect key "${effectKey}" is used by another step`);
     }
-    const effect = compileStep({
-      key: effectKey,
-      read: step.effect,
-      provider: definition.provider,
-      connection,
-      manifest,
-      origin: `${origin} effect`,
-      references,
-    });
-    const {poll_seconds: pollSeconds} = step.effect;
-    if (pollSeconds === undefined || effect.gate === undefined) {
-      steps.push(effect);
-      continue;
-    }
-    // The provider applies the write later. A failed read restarts the job from the wait, so the
-    // effect is read again until it shows or the gate runs out of attempts.
-    const waitKey = `${key}_wait`;
-    if (keys.includes(waitKey)) {
-      throw new Error(`${origin}: the wait key "${waitKey}" is used by another step`);
+    const {wait_seconds: waitSeconds} = step.effect;
+    if (waitSeconds !== undefined) {
+      // The provider applies the write later. The runtime never restarts a tool step, so the
+      // effect can't poll: the job waits once, then reads.
+      const waitKey = `${key}_wait`;
+      if (keys.includes(waitKey)) {
+        throw new Error(`${origin}: the wait key "${waitKey}" is used by another step`);
+      }
+      steps.push({key: waitKey, run: `sleep ${waitSeconds}`});
     }
     steps.push(
-      {key: waitKey, run: `sleep ${pollSeconds}`},
-      {...effect, gate: {...effect.gate, on_failure: {restart_from: waitKey}}},
+      compileStep({
+        key: effectKey,
+        read: step.effect,
+        provider: definition.provider,
+        connection,
+        manifest,
+        origin: `${origin} effect`,
+        references,
+      }),
     );
   }
   return {checkout: false, steps: withReferencedOutputs({steps, references, origin: loaded.id})};
