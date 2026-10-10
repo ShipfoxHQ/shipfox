@@ -253,7 +253,7 @@ function caseJob({
 /** The `$steps` references of a case, by the key of the step they read and the output they name. */
 interface StepReferences {
   keys: ReadonlySet<string>;
-  requests: Map<string, Map<string, Segment[]>>;
+  requests: Map<string, Map<string, {segments: Segment[]; text: boolean}>>;
 }
 
 /** Gives each step the outputs that later steps read through `$steps`. */
@@ -270,10 +270,13 @@ function withReferencedOutputs({
     const requested = references.requests.get(step.key);
     if (requested === undefined) return step;
     const outputs = {...step.outputs};
-    for (const [name, segments] of requested) {
+    for (const [name, {segments, text}] of requested) {
       if (outputs[name] !== undefined)
         throw new Error(`${origin}: two outputs are named "${name}"`);
-      outputs[name] = interpolation(`${presence({segments})} ? ${accessorOf(segments)} : ""`);
+      const accessor = accessorOf(segments);
+      outputs[name] = interpolation(
+        `${presence({segments})} ? ${text ? `string(${accessor})` : accessor} : ""`,
+      );
     }
     return {...step, outputs};
   });
@@ -453,14 +456,16 @@ function generationResolver({
     steps:
       references === undefined
         ? withOnly('$steps')
-        : ({key, path}) => {
+        : ({key, path, text = false}) => {
             if (!references.keys.has(key)) {
               throw new Error(`${origin}: $steps.${key} names a step key the case doesn't have`);
             }
             const segments = parsePath({path, origin});
-            const name = `ref_${segmentName(segments)}`;
-            const requested = references.requests.get(key) ?? new Map<string, Segment[]>();
-            requested.set(name, segments);
+            const name = `${text ? 'text' : 'ref'}_${segmentName(segments)}`;
+            const requested =
+              references.requests.get(key) ??
+              new Map<string, {segments: Segment[]; text: boolean}>();
+            requested.set(name, {segments, text});
             references.requests.set(key, requested);
             return interpolation(`steps.${key}.outputs.${name}`);
           },

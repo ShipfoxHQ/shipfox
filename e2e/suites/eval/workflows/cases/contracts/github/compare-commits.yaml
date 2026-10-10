@@ -1,0 +1,26 @@
+provider: github
+modes: [real]
+steps:
+  - tool: compare_commits
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      base: $fixture.github.commit.base_oid
+      head: $fixture.github.branch.name
+    expect:
+      shape:
+        status: string
+        ahead_by: number
+        behind_by: number
+        merge_base_oid: string
+        total_commits: number
+        commits: [{oid: string, message: string}]
+        truncated: boolean
+      values:
+        status: ahead
+        ahead_by: 1
+        behind_by: 0
+        merge_base_oid: $fixture.github.commit.base_oid
+        total_commits: 1
+        truncated: false
+      includes:
+        commits: {oid: $fixture.github.commit.oid, message: $fixture.github.commit.message}

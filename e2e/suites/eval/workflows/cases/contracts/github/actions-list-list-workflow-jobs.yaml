@@ -1,0 +1,29 @@
+provider: github
+modes: [real]
+steps:
+  # The second run, because the latest may still be running. The fixture workflow runs every day,
+  # so a completed run with its jobs and artifact is always there.
+  - key: runs
+    tool: actions_list
+    method: list_workflow_runs
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      resource_id: $fixture.github.workflow.file
+      per_page: 2
+    expect:
+      shape:
+        workflow_runs: [{id: number}]
+  - tool: actions_list
+    method: list_workflow_jobs
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      resource_id: $steps_text.runs.workflow_runs[1].id
+    expect:
+      shape:
+        total_count: number
+        jobs: [{id: number, name: string, status: string, conclusion: string, run_id: number}]
+      values: {total_count: 2}
+      includes:
+        jobs: {name: build, status: completed, conclusion: success}

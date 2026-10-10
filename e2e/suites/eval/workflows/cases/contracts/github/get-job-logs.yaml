@@ -1,0 +1,55 @@
+provider: github
+modes: [real]
+steps:
+  # The second run, because the latest may still be running. The fixture workflow runs every day,
+  # so a completed run with its jobs and artifact is always there.
+  - key: runs
+    tool: actions_list
+    method: list_workflow_runs
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      resource_id: $fixture.github.workflow.file
+      per_page: 2
+    expect:
+      shape:
+        workflow_runs: [{id: number}]
+  - key: jobs
+    tool: actions_list
+    method: list_workflow_jobs
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      resource_id: $steps_text.runs.workflow_runs[1].id
+    expect:
+      shape:
+        jobs: [{id: number}]
+  # The verify job is the second one, and it prints one line.
+  - tool: get_job_logs
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      job_id: $steps.jobs.jobs[1].id
+    # Without return_content the tool returns where the log can be downloaded.
+    expect:
+      shape: {job_id: number, logs_url: string, message: string}
+  - tool: get_job_logs
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      job_id: $steps.jobs.jobs[1].id
+      return_content: true
+      tail_lines: 5
+    expect:
+      shape: {job_id: number, logs_content: string, original_length: number}
+      matches: {logs_content: Verified}
+  # The fixture run has no failed job.
+  - tool: get_job_logs
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      run_id: $steps.runs.workflow_runs[1].id
+      failed_only: true
+    expect:
+      shape: {run_id: number, total_jobs: number, failed_jobs: number}
+      values: {total_jobs: 2, failed_jobs: 0}

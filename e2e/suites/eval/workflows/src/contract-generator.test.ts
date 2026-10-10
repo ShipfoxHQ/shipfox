@@ -244,6 +244,20 @@ describe('generateContractFiles', () => {
       );
     });
 
+    it('compiles $steps_text to the text of a number from an earlier step', async () => {
+      await writeCase(
+        'linear/steps-text.yaml',
+        `provider: linear\nmodes: [real]\nsteps:\n  - key: list\n    tool: list_issues\n  - tool: get_issue\n    with:\n      id: $steps_text.list.issues[0].number\n`,
+      );
+
+      const content = await generatedLinear();
+
+      expect(content).toContain(
+        `text_issues_0_number: '\${{ has(result.issues) && type(result.issues) == type([]) && size(result.issues) > 0 && [result.issues[0]].all(i0, has(i0.number)) ? string(result.issues[0].number) : "" }}'`,
+      );
+      expect(content).toContain(`id: \${{ steps.list.outputs.text_issues_0_number }}`);
+    });
+
     it('compiles expect.includes to exists() over the list', async () => {
       expect(await generatedLinear()).toContain(
         `includes_labels: \${{ has(result.labels) && type(result.labels) == type([]) && result.labels.exists(item, has(item.name) && type(item.name) == type("") && item.name == "contract") }}`,

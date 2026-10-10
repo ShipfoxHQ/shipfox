@@ -58,6 +58,7 @@ steps:
 - **`values`** pins exact values for known fixtures. A closed catalog `outputSchema` gets value checks only, through `VALUES_ONLY_TOOLS` in the generator.
 - **`matches`** gives a regular expression for a text value. Use it when the layout of the text is not part of the contract, such as the SQL results of PostHog.
 - **`text`** lists regular expressions for a result that is itself text, not a map. PostHog returns most reads as TOON text. Each expression must match somewhere in the result.
+- **`$steps.<key>.<path>`** passes a value from an earlier step of the case. Write `$steps_text` instead when the value is a number and the next tool takes a string, such as the `resource_id` of the GitHub Actions tools. A number in a string input fails the step.
 - **`modes`** lists `real`, `fake`, or both. List `fake` only when the E2E fake answers the tool with the same fields. The pending list reports the cases that lack it.
 
 Remove the case's backlog entry in the same change, and lower `ceiling` to the new entry count.

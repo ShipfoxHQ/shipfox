@@ -46,12 +46,22 @@ describe('parseContractReference', () => {
     expect(parseContractReference('$in_one_hour')).toEqual({kind: 'in_one_hour'});
   });
 
+  it('reads a steps reference that asks for text', () => {
+    expect(parseContractReference('$steps_text.runs.workflow_runs[1].id')).toEqual({
+      kind: 'steps',
+      key: 'runs',
+      path: 'workflow_runs[1].id',
+      text: true,
+    });
+  });
+
   it('returns undefined for an unknown form', () => {
     expect(parseContractReference('$fixtures.linear.issue.uuid')).toBeUndefined();
     expect(parseContractReference('$fixture.linear.issue')).toBeUndefined();
     expect(parseContractReference('$markers')).toBeUndefined();
     expect(parseContractReference('$in_one_hour.later')).toBeUndefined();
     expect(parseContractReference('$steps.send')).toBeUndefined();
+    expect(parseContractReference('$steps_text.send')).toBeUndefined();
   });
 });
 

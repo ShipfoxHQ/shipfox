@@ -115,6 +115,29 @@ github:
           resource_id: $fixture.github.workflow.file
         expect:
           values: {id: $fixture.github.workflow.id, name: $fixture.github.workflow.name}
+    # The default branch moves, so the repository cases pin the head of the open pull request branch.
+    # Its one commit sits on top of `base_oid`, so a comparison from there is a clean "ahead by 1".
+    branch:
+      name: fixture/open-pr
+      oid: 8c2d6bf2700044628216c6daf699870ef9e0915a
+      read:
+        tool: get_branch
+        with:
+          repository: $fixture.github.repository.owner/$fixture.github.repository.name
+          branch: $fixture.github.branch.name
+        expect:
+          values: {exists: true, oid: $fixture.github.branch.oid}
+    commit:
+      oid: 8c2d6bf2700044628216c6daf699870ef9e0915a
+      message: Extend the notes
+      base_oid: a7d8de632b46c87cb8d6df0377755825732e461e
+      read:
+        tool: get_commit
+        with:
+          repository: $fixture.github.repository.owner/$fixture.github.repository.name
+          ref: $fixture.github.commit.oid
+        expect:
+          values: {commit.oid: $fixture.github.commit.oid}
   targets:
     # The owner exists, so the call fails on the repository and not on the owner.
     missing_repository: {kind: absent, owner: ShipfoxSandbox, name: contract-absent-7f3a9c41}

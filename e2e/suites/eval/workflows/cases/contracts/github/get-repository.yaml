@@ -1,0 +1,12 @@
+provider: github
+modes: [real]
+steps:
+  - tool: get_repository
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+    expect:
+      shape: {full_name: string, default_branch: string, private: boolean, bot_login: string}
+      values:
+        full_name: ShipfoxSandbox/contract-tests
+        default_branch: main
+        private: true

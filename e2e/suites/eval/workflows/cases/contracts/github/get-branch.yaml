@@ -1,0 +1,22 @@
+provider: github
+modes: [real]
+steps:
+  - tool: get_branch
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: $fixture.github.branch.name
+    expect:
+      shape: {branch: string, exists: boolean, protected: boolean}
+      values:
+        branch: $fixture.github.branch.name
+        exists: true
+        oid: $fixture.github.branch.oid
+        protected: false
+  # A missing branch is a success with `exists: false`, not a failed call.
+  - tool: get_branch
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: fixture/does-not-exist
+    expect:
+      shape: {branch: string, exists: boolean}
+      values: {exists: false}

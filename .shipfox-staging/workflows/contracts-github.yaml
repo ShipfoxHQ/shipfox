@@ -105,6 +105,69 @@ jobs:
           value_name: '${{ has(result.name) ? result.name : "" }}'
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 375690478 && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Fixture"
+      - key: branch
+        tool: get_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: fixture/open-pr
+        outputs:
+          value_exists: '${{ has(result.exists) ? result.exists : "" }}'
+          value_oid: '${{ has(result.oid) ? result.oid : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == true && type(step.outputs.value_oid) == type("") && step.outputs.value_oid == "8c2d6bf2700044628216c6daf699870ef9e0915a"
+      - key: commit
+        tool: get_commit
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          ref: 8c2d6bf2700044628216c6daf699870ef9e0915a
+        outputs:
+          value_commit_oid: '${{ has(result.commit) && has(result.commit.oid) ? result.commit.oid : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_commit_oid) == type("") && step.outputs.value_commit_oid == "8c2d6bf2700044628216c6daf699870ef9e0915a"
+  actions_get_download_workflow_run_artifact:
+    checkout: false
+    steps:
+      - key: runs
+        tool: actions_list.list_workflow_runs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: fixture.yml
+          per_page: 2
+        outputs:
+          shape_workflow_runs_0_id: ${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 0 && [result.workflow_runs[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          text_workflow_runs_1_id: '${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 1 && [result.workflow_runs[1]].all(i0, has(i0.id)) ? string(result.workflow_runs[1].id) : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_workflow_runs_0_id
+      - key: artifacts
+        tool: actions_list.list_workflow_run_artifacts
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.runs.outputs.text_workflow_runs_1_id }}
+        outputs:
+          shape_artifacts_0_id: ${{ has(result.artifacts) && type(result.artifacts) == type([]) && size(result.artifacts) > 0 && [result.artifacts[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          text_artifacts_0_id: '${{ has(result.artifacts) && type(result.artifacts) == type([]) && size(result.artifacts) > 0 && [result.artifacts[0]].all(i0, has(i0.id)) ? string(result.artifacts[0].id) : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_artifacts_0_id
+      - key: actions_get_download_workflow_run_artifact_3
+        tool: actions_get.download_workflow_run_artifact
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.artifacts.outputs.text_artifacts_0_id }}
+        outputs:
+          shape_archive_format: ${{ has(result.archive_format) && type(result.archive_format) == type("") }}
+          shape_download_url: ${{ has(result.download_url) && type(result.download_url) == type("") }}
+          shape_artifact_id: ${{ has(result.artifact_id) && type(result.artifact_id) == type("") }}
+          value_archive_format: '${{ has(result.archive_format) ? result.archive_format : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_archive_format && step.outputs.shape_download_url && step.outputs.shape_artifact_id && type(step.outputs.value_archive_format) == type("") && step.outputs.value_archive_format == "zip"
   actions_get_get_workflow:
     checkout: false
     steps:
@@ -124,6 +187,213 @@ jobs:
           value_name: '${{ has(result.name) ? result.name : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_path && step.outputs.shape_state && (type(step.outputs.value_id) == type(1) || type(step.outputs.value_id) == type(1.0)) && step.outputs.value_id == 375690478 && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Fixture"
+  actions_get_get_workflow_job:
+    checkout: false
+    steps:
+      - key: runs
+        tool: actions_list.list_workflow_runs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: fixture.yml
+          per_page: 2
+        outputs:
+          shape_workflow_runs_0_id: ${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 0 && [result.workflow_runs[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          text_workflow_runs_1_id: '${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 1 && [result.workflow_runs[1]].all(i0, has(i0.id)) ? string(result.workflow_runs[1].id) : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_workflow_runs_0_id
+      - key: jobs
+        tool: actions_list.list_workflow_jobs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.runs.outputs.text_workflow_runs_1_id }}
+        outputs:
+          shape_jobs_0_id: ${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 0 && [result.jobs[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          text_jobs_0_id: '${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 0 && [result.jobs[0]].all(i0, has(i0.id)) ? string(result.jobs[0].id) : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_jobs_0_id
+      - key: actions_get_get_workflow_job_3
+        tool: actions_get.get_workflow_job
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.jobs.outputs.text_jobs_0_id }}
+        outputs:
+          shape_id: ${{ has(result.id) && (type(result.id) == type(1) || type(result.id) == type(1.0)) }}
+          shape_name: ${{ has(result.name) && type(result.name) == type("") }}
+          shape_status: ${{ has(result.status) && type(result.status) == type("") }}
+          shape_conclusion: ${{ has(result.conclusion) && type(result.conclusion) == type("") }}
+          shape_run_id: ${{ has(result.run_id) && (type(result.run_id) == type(1) || type(result.run_id) == type(1.0)) }}
+          shape_steps_0_name: ${{ has(result.steps) && type(result.steps) == type([]) && size(result.steps) > 0 && [result.steps[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+          value_status: '${{ has(result.status) ? result.status : "" }}'
+          value_conclusion: '${{ has(result.conclusion) ? result.conclusion : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_status && step.outputs.shape_conclusion && step.outputs.shape_run_id && step.outputs.shape_steps_0_name && type(step.outputs.value_name) == type("") && step.outputs.value_name == "build" && type(step.outputs.value_status) == type("") && step.outputs.value_status == "completed" && type(step.outputs.value_conclusion) == type("") && step.outputs.value_conclusion == "success"
+  actions_get_get_workflow_run:
+    checkout: false
+    steps:
+      - key: runs
+        tool: actions_list.list_workflow_runs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: fixture.yml
+          per_page: 2
+        outputs:
+          shape_workflow_runs_0_id: ${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 0 && [result.workflow_runs[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          text_workflow_runs_1_id: '${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 1 && [result.workflow_runs[1]].all(i0, has(i0.id)) ? string(result.workflow_runs[1].id) : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_workflow_runs_0_id
+      - key: actions_get_get_workflow_run_2
+        tool: actions_get.get_workflow_run
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.runs.outputs.text_workflow_runs_1_id }}
+        outputs:
+          shape_id: ${{ has(result.id) && (type(result.id) == type(1) || type(result.id) == type(1.0)) }}
+          shape_name: ${{ has(result.name) && type(result.name) == type("") }}
+          shape_status: ${{ has(result.status) && type(result.status) == type("") }}
+          shape_conclusion: ${{ has(result.conclusion) && type(result.conclusion) == type("") }}
+          shape_event: ${{ has(result.event) && type(result.event) == type("") }}
+          shape_run_number: ${{ has(result.run_number) && (type(result.run_number) == type(1) || type(result.run_number) == type(1.0)) }}
+          value_workflow_id: '${{ has(result.workflow_id) ? result.workflow_id : "" }}'
+          value_name: '${{ has(result.name) ? result.name : "" }}'
+          value_status: '${{ has(result.status) ? result.status : "" }}'
+          value_conclusion: '${{ has(result.conclusion) ? result.conclusion : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_name && step.outputs.shape_status && step.outputs.shape_conclusion && step.outputs.shape_event && step.outputs.shape_run_number && (type(step.outputs.value_workflow_id) == type(1) || type(step.outputs.value_workflow_id) == type(1.0)) && step.outputs.value_workflow_id == 375690478 && type(step.outputs.value_name) == type("") && step.outputs.value_name == "Fixture" && type(step.outputs.value_status) == type("") && step.outputs.value_status == "completed" && type(step.outputs.value_conclusion) == type("") && step.outputs.value_conclusion == "success"
+  actions_get_get_workflow_run_logs_url:
+    checkout: false
+    steps:
+      - key: runs
+        tool: actions_list.list_workflow_runs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: fixture.yml
+          per_page: 2
+        outputs:
+          shape_workflow_runs_0_id: ${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 0 && [result.workflow_runs[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          text_workflow_runs_1_id: '${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 1 && [result.workflow_runs[1]].all(i0, has(i0.id)) ? string(result.workflow_runs[1].id) : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_workflow_runs_0_id
+      - key: actions_get_get_workflow_run_logs_url_2
+        tool: actions_get.get_workflow_run_logs_url
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.runs.outputs.text_workflow_runs_1_id }}
+        outputs:
+          shape_archive_format: ${{ has(result.archive_format) && type(result.archive_format) == type("") }}
+          shape_download_url: ${{ has(result.download_url) && type(result.download_url) == type("") }}
+          value_archive_format: '${{ has(result.archive_format) ? result.archive_format : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_archive_format && step.outputs.shape_download_url && type(step.outputs.value_archive_format) == type("") && step.outputs.value_archive_format == "zip"
+  actions_get_get_workflow_run_usage:
+    checkout: false
+    steps:
+      - key: runs
+        tool: actions_list.list_workflow_runs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: fixture.yml
+          per_page: 2
+        outputs:
+          shape_workflow_runs_0_id: ${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 0 && [result.workflow_runs[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          text_workflow_runs_1_id: '${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 1 && [result.workflow_runs[1]].all(i0, has(i0.id)) ? string(result.workflow_runs[1].id) : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_workflow_runs_0_id
+      - key: actions_get_get_workflow_run_usage_2
+        tool: actions_get.get_workflow_run_usage
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.runs.outputs.text_workflow_runs_1_id }}
+        outputs:
+          shape_billable: ${{ has(result.billable) && type(result.billable) == type({}) }}
+          shape_run_duration_ms: ${{ has(result.run_duration_ms) && (type(result.run_duration_ms) == type(1) || type(result.run_duration_ms) == type(1.0)) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_billable && step.outputs.shape_run_duration_ms
+  actions_list_list_workflow_jobs:
+    checkout: false
+    steps:
+      - key: runs
+        tool: actions_list.list_workflow_runs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: fixture.yml
+          per_page: 2
+        outputs:
+          shape_workflow_runs_0_id: ${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 0 && [result.workflow_runs[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          text_workflow_runs_1_id: '${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 1 && [result.workflow_runs[1]].all(i0, has(i0.id)) ? string(result.workflow_runs[1].id) : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_workflow_runs_0_id
+      - key: actions_list_list_workflow_jobs_2
+        tool: actions_list.list_workflow_jobs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.runs.outputs.text_workflow_runs_1_id }}
+        outputs:
+          shape_total_count: ${{ has(result.total_count) && (type(result.total_count) == type(1) || type(result.total_count) == type(1.0)) }}
+          shape_jobs_0_id: ${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 0 && [result.jobs[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          shape_jobs_0_name: ${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 0 && [result.jobs[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          shape_jobs_0_status: ${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 0 && [result.jobs[0]].all(i0, has(i0.status) && type(i0.status) == type("")) }}
+          shape_jobs_0_conclusion: ${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 0 && [result.jobs[0]].all(i0, has(i0.conclusion) && type(i0.conclusion) == type("")) }}
+          shape_jobs_0_run_id: ${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 0 && [result.jobs[0]].all(i0, has(i0.run_id) && (type(i0.run_id) == type(1) || type(i0.run_id) == type(1.0))) }}
+          value_total_count: '${{ has(result.total_count) ? result.total_count : "" }}'
+          includes_jobs: ${{ has(result.jobs) && type(result.jobs) == type([]) && result.jobs.exists(item, has(item.name) && type(item.name) == type("") && item.name == "build" && has(item.status) && type(item.status) == type("") && item.status == "completed" && has(item.conclusion) && type(item.conclusion) == type("") && item.conclusion == "success") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_total_count && step.outputs.shape_jobs_0_id && step.outputs.shape_jobs_0_name && step.outputs.shape_jobs_0_status && step.outputs.shape_jobs_0_conclusion && step.outputs.shape_jobs_0_run_id && (type(step.outputs.value_total_count) == type(1) || type(step.outputs.value_total_count) == type(1.0)) && step.outputs.value_total_count == 2 && step.outputs.includes_jobs
+  actions_list_list_workflow_run_artifacts:
+    checkout: false
+    steps:
+      - key: runs
+        tool: actions_list.list_workflow_runs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: fixture.yml
+          per_page: 2
+        outputs:
+          shape_workflow_runs_0_id: ${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 0 && [result.workflow_runs[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          text_workflow_runs_1_id: '${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 1 && [result.workflow_runs[1]].all(i0, has(i0.id)) ? string(result.workflow_runs[1].id) : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_workflow_runs_0_id
+      - key: actions_list_list_workflow_run_artifacts_2
+        tool: actions_list.list_workflow_run_artifacts
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.runs.outputs.text_workflow_runs_1_id }}
+        outputs:
+          shape_total_count: ${{ has(result.total_count) && (type(result.total_count) == type(1) || type(result.total_count) == type(1.0)) }}
+          shape_artifacts_0_id: ${{ has(result.artifacts) && type(result.artifacts) == type([]) && size(result.artifacts) > 0 && [result.artifacts[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          shape_artifacts_0_name: ${{ has(result.artifacts) && type(result.artifacts) == type([]) && size(result.artifacts) > 0 && [result.artifacts[0]].all(i0, has(i0.name) && type(i0.name) == type("")) }}
+          shape_artifacts_0_size_in_bytes: ${{ has(result.artifacts) && type(result.artifacts) == type([]) && size(result.artifacts) > 0 && [result.artifacts[0]].all(i0, has(i0.size_in_bytes) && (type(i0.size_in_bytes) == type(1) || type(i0.size_in_bytes) == type(1.0))) }}
+          shape_artifacts_0_expired: ${{ has(result.artifacts) && type(result.artifacts) == type([]) && size(result.artifacts) > 0 && [result.artifacts[0]].all(i0, has(i0.expired) && type(i0.expired) == type(true)) }}
+          value_total_count: '${{ has(result.total_count) ? result.total_count : "" }}'
+          includes_artifacts: ${{ has(result.artifacts) && type(result.artifacts) == type([]) && result.artifacts.exists(item, has(item.name) && type(item.name) == type("") && item.name == "report" && has(item.expired) && type(item.expired) == type(true) && item.expired == false) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_total_count && step.outputs.shape_artifacts_0_id && step.outputs.shape_artifacts_0_name && step.outputs.shape_artifacts_0_size_in_bytes && step.outputs.shape_artifacts_0_expired && (type(step.outputs.value_total_count) == type(1) || type(step.outputs.value_total_count) == type(1.0)) && step.outputs.value_total_count == 1 && step.outputs.includes_artifacts
   actions_list_list_workflow_runs:
     checkout: false
     steps:
@@ -157,6 +427,178 @@ jobs:
           shape_workflows_0_state: ${{ has(result.workflows) && type(result.workflows) == type([]) && size(result.workflows) > 0 && [result.workflows[0]].all(i0, has(i0.state) && type(i0.state) == type("")) }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_total_count && step.outputs.shape_workflows_0_id && step.outputs.shape_workflows_0_name && step.outputs.shape_workflows_0_path && step.outputs.shape_workflows_0_state
+  compare_commits:
+    checkout: false
+    steps:
+      - key: compare_commits
+        tool: compare_commits
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          base: a7d8de632b46c87cb8d6df0377755825732e461e
+          head: fixture/open-pr
+        outputs:
+          shape_status: ${{ has(result.status) && type(result.status) == type("") }}
+          shape_ahead_by: ${{ has(result.ahead_by) && (type(result.ahead_by) == type(1) || type(result.ahead_by) == type(1.0)) }}
+          shape_behind_by: ${{ has(result.behind_by) && (type(result.behind_by) == type(1) || type(result.behind_by) == type(1.0)) }}
+          shape_merge_base_oid: ${{ has(result.merge_base_oid) && type(result.merge_base_oid) == type("") }}
+          shape_total_commits: ${{ has(result.total_commits) && (type(result.total_commits) == type(1) || type(result.total_commits) == type(1.0)) }}
+          shape_commits_0_oid: ${{ has(result.commits) && type(result.commits) == type([]) && size(result.commits) > 0 && [result.commits[0]].all(i0, has(i0.oid) && type(i0.oid) == type("")) }}
+          shape_commits_0_message: ${{ has(result.commits) && type(result.commits) == type([]) && size(result.commits) > 0 && [result.commits[0]].all(i0, has(i0.message) && type(i0.message) == type("")) }}
+          shape_truncated: ${{ has(result.truncated) && type(result.truncated) == type(true) }}
+          value_status: '${{ has(result.status) ? result.status : "" }}'
+          value_ahead_by: '${{ has(result.ahead_by) ? result.ahead_by : "" }}'
+          value_behind_by: '${{ has(result.behind_by) ? result.behind_by : "" }}'
+          value_merge_base_oid: '${{ has(result.merge_base_oid) ? result.merge_base_oid : "" }}'
+          value_total_commits: '${{ has(result.total_commits) ? result.total_commits : "" }}'
+          value_truncated: '${{ has(result.truncated) ? result.truncated : "" }}'
+          includes_commits: ${{ has(result.commits) && type(result.commits) == type([]) && result.commits.exists(item, has(item.oid) && type(item.oid) == type("") && item.oid == "8c2d6bf2700044628216c6daf699870ef9e0915a" && has(item.message) && type(item.message) == type("") && item.message == "Extend the notes") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_status && step.outputs.shape_ahead_by && step.outputs.shape_behind_by && step.outputs.shape_merge_base_oid && step.outputs.shape_total_commits && step.outputs.shape_commits_0_oid && step.outputs.shape_commits_0_message && step.outputs.shape_truncated && type(step.outputs.value_status) == type("") && step.outputs.value_status == "ahead" && (type(step.outputs.value_ahead_by) == type(1) || type(step.outputs.value_ahead_by) == type(1.0)) && step.outputs.value_ahead_by == 1 && (type(step.outputs.value_behind_by) == type(1) || type(step.outputs.value_behind_by) == type(1.0)) && step.outputs.value_behind_by == 0 && type(step.outputs.value_merge_base_oid) == type("") && step.outputs.value_merge_base_oid == "a7d8de632b46c87cb8d6df0377755825732e461e" && (type(step.outputs.value_total_commits) == type(1) || type(step.outputs.value_total_commits) == type(1.0)) && step.outputs.value_total_commits == 1 && type(step.outputs.value_truncated) == type(true) && step.outputs.value_truncated == false && step.outputs.includes_commits
+  get_branch:
+    checkout: false
+    steps:
+      - key: get_branch_1
+        tool: get_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: fixture/open-pr
+        outputs:
+          shape_branch: ${{ has(result.branch) && type(result.branch) == type("") }}
+          shape_exists: ${{ has(result.exists) && type(result.exists) == type(true) }}
+          shape_protected: ${{ has(result.protected) && type(result.protected) == type(true) }}
+          value_branch: '${{ has(result.branch) ? result.branch : "" }}'
+          value_exists: '${{ has(result.exists) ? result.exists : "" }}'
+          value_oid: '${{ has(result.oid) ? result.oid : "" }}'
+          value_protected: '${{ has(result.protected) ? result.protected : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_branch && step.outputs.shape_exists && step.outputs.shape_protected && type(step.outputs.value_branch) == type("") && step.outputs.value_branch == "fixture/open-pr" && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == true && type(step.outputs.value_oid) == type("") && step.outputs.value_oid == "8c2d6bf2700044628216c6daf699870ef9e0915a" && type(step.outputs.value_protected) == type(true) && step.outputs.value_protected == false
+      - key: get_branch_2
+        tool: get_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: fixture/does-not-exist
+        outputs:
+          shape_branch: ${{ has(result.branch) && type(result.branch) == type("") }}
+          shape_exists: ${{ has(result.exists) && type(result.exists) == type(true) }}
+          value_exists: '${{ has(result.exists) ? result.exists : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_branch && step.outputs.shape_exists && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == false
+  get_commit:
+    checkout: false
+    steps:
+      - key: get_commit
+        tool: get_commit
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          ref: 8c2d6bf2700044628216c6daf699870ef9e0915a
+        outputs:
+          shape_commit_oid: ${{ has(result.commit) && has(result.commit.oid) && type(result.commit.oid) == type("") }}
+          shape_commit_message: ${{ has(result.commit) && has(result.commit.message) && type(result.commit.message) == type("") }}
+          shape_commit_parents: ${{ has(result.commit) && has(result.commit.parents) && type(result.commit.parents) == type([]) }}
+          shape_commit_author: ${{ has(result.commit) && has(result.commit.author) && type(result.commit.author) == type({}) }}
+          shape_commit_committer: ${{ has(result.commit) && has(result.commit.committer) && type(result.commit.committer) == type({}) }}
+          shape_commit_verified: ${{ has(result.commit) && has(result.commit.verified) && type(result.commit.verified) == type(true) }}
+          value_commit_oid: '${{ has(result.commit) && has(result.commit.oid) ? result.commit.oid : "" }}'
+          value_commit_message: '${{ has(result.commit) && has(result.commit.message) ? result.commit.message : "" }}'
+          value_commit_parents_0: '${{ has(result.commit) && has(result.commit.parents) && type(result.commit.parents) == type([]) && size(result.commit.parents) > 0 ? result.commit.parents[0] : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_commit_oid && step.outputs.shape_commit_message && step.outputs.shape_commit_parents && step.outputs.shape_commit_author && step.outputs.shape_commit_committer && step.outputs.shape_commit_verified && type(step.outputs.value_commit_oid) == type("") && step.outputs.value_commit_oid == "8c2d6bf2700044628216c6daf699870ef9e0915a" && type(step.outputs.value_commit_message) == type("") && step.outputs.value_commit_message == "Extend the notes" && type(step.outputs.value_commit_parents_0) == type("") && step.outputs.value_commit_parents_0 == "a7d8de632b46c87cb8d6df0377755825732e461e"
+  get_job_logs:
+    checkout: false
+    steps:
+      - key: runs
+        tool: actions_list.list_workflow_runs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: fixture.yml
+          per_page: 2
+        outputs:
+          shape_workflow_runs_0_id: ${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 0 && [result.workflow_runs[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          text_workflow_runs_1_id: '${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 1 && [result.workflow_runs[1]].all(i0, has(i0.id)) ? string(result.workflow_runs[1].id) : "" }}'
+          ref_workflow_runs_1_id: '${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 1 && [result.workflow_runs[1]].all(i0, has(i0.id)) ? result.workflow_runs[1].id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_workflow_runs_0_id
+      - key: jobs
+        tool: actions_list.list_workflow_jobs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.runs.outputs.text_workflow_runs_1_id }}
+        outputs:
+          shape_jobs_0_id: ${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 0 && [result.jobs[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          ref_jobs_1_id: '${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 1 && [result.jobs[1]].all(i0, has(i0.id)) ? result.jobs[1].id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_jobs_0_id
+      - key: get_job_logs_3
+        tool: get_job_logs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          job_id: ${{ steps.jobs.outputs.ref_jobs_1_id }}
+        outputs:
+          shape_job_id: ${{ has(result.job_id) && (type(result.job_id) == type(1) || type(result.job_id) == type(1.0)) }}
+          shape_logs_url: ${{ has(result.logs_url) && type(result.logs_url) == type("") }}
+          shape_message: ${{ has(result.message) && type(result.message) == type("") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_job_id && step.outputs.shape_logs_url && step.outputs.shape_message
+      - key: get_job_logs_4
+        tool: get_job_logs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          job_id: ${{ steps.jobs.outputs.ref_jobs_1_id }}
+          return_content: true
+          tail_lines: 5
+        outputs:
+          shape_job_id: ${{ has(result.job_id) && (type(result.job_id) == type(1) || type(result.job_id) == type(1.0)) }}
+          shape_logs_content: ${{ has(result.logs_content) && type(result.logs_content) == type("") }}
+          shape_original_length: ${{ has(result.original_length) && (type(result.original_length) == type(1) || type(result.original_length) == type(1.0)) }}
+          matches_logs_content: ${{ has(result.logs_content) && type(result.logs_content) == type("") && result.logs_content.matches("Verified") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_job_id && step.outputs.shape_logs_content && step.outputs.shape_original_length && step.outputs.matches_logs_content
+      - key: get_job_logs_5
+        tool: get_job_logs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          run_id: ${{ steps.runs.outputs.ref_workflow_runs_1_id }}
+          failed_only: true
+        outputs:
+          shape_run_id: ${{ has(result.run_id) && (type(result.run_id) == type(1) || type(result.run_id) == type(1.0)) }}
+          shape_total_jobs: ${{ has(result.total_jobs) && (type(result.total_jobs) == type(1) || type(result.total_jobs) == type(1.0)) }}
+          shape_failed_jobs: ${{ has(result.failed_jobs) && (type(result.failed_jobs) == type(1) || type(result.failed_jobs) == type(1.0)) }}
+          value_total_jobs: '${{ has(result.total_jobs) ? result.total_jobs : "" }}'
+          value_failed_jobs: '${{ has(result.failed_jobs) ? result.failed_jobs : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_run_id && step.outputs.shape_total_jobs && step.outputs.shape_failed_jobs && (type(step.outputs.value_total_jobs) == type(1) || type(step.outputs.value_total_jobs) == type(1.0)) && step.outputs.value_total_jobs == 2 && (type(step.outputs.value_failed_jobs) == type(1) || type(step.outputs.value_failed_jobs) == type(1.0)) && step.outputs.value_failed_jobs == 0
+  get_repository:
+    checkout: false
+    steps:
+      - key: get_repository
+        tool: get_repository
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+        outputs:
+          shape_full_name: ${{ has(result.full_name) && type(result.full_name) == type("") }}
+          shape_default_branch: ${{ has(result.default_branch) && type(result.default_branch) == type("") }}
+          shape_private: ${{ has(result.private) && type(result.private) == type(true) }}
+          shape_bot_login: ${{ has(result.bot_login) && type(result.bot_login) == type("") }}
+          value_full_name: '${{ has(result.full_name) ? result.full_name : "" }}'
+          value_default_branch: '${{ has(result.default_branch) ? result.default_branch : "" }}'
+          value_private: '${{ has(result.private) ? result.private : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_full_name && step.outputs.shape_default_branch && step.outputs.shape_private && step.outputs.shape_bot_login && type(step.outputs.value_full_name) == type("") && step.outputs.value_full_name == "ShipfoxSandbox/contract-tests" && type(step.outputs.value_default_branch) == type("") && step.outputs.value_default_branch == "main" && type(step.outputs.value_private) == type(true) && step.outputs.value_private == true
   issue_read_get:
     checkout: false
     steps:

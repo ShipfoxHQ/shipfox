@@ -1,0 +1,20 @@
+provider: github
+modes: [real]
+steps:
+  - tool: get_commit
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      ref: $fixture.github.commit.oid
+    expect:
+      shape:
+        commit:
+          oid: string
+          message: string
+          parents: list
+          author: object
+          committer: object
+          verified: boolean
+      values:
+        commit.oid: $fixture.github.commit.oid
+        commit.message: $fixture.github.commit.message
+        commit.parents[0]: $fixture.github.commit.base_oid
