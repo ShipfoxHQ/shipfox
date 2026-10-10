@@ -161,6 +161,41 @@ export const slackAgentToolCatalog = [
     ),
   }),
   tool({
+    id: 'list_scheduled_messages',
+    description:
+      'List the messages scheduled for future delivery, optionally for one channel. Returns each scheduled message ID, channel, post_at, and text. Scheduled messages are not visible to read_channel until they are sent.',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: 'read',
+    inputSchema: objectSchema({
+      channel_id: stringSchema('Only list the messages scheduled in this channel'),
+      oldest: integerSchema('Start of the post_at range, as a Unix timestamp'),
+      latest: integerSchema('End of the post_at range, as a Unix timestamp'),
+      limit: integerSchema('Scheduled messages to return per page (default 100)'),
+      cursor: cursorSchema,
+    }),
+  }),
+  tool({
+    id: 'lookup_canvas_sections',
+    description:
+      'Find the sections of a Slack canvas that contain a text or have a section type. Returns the matching section IDs, and an empty list when nothing matches. Use it to check what a canvas holds.',
+    sensitivity: 'read',
+    sensitive: false,
+    requiredScope: 'read',
+    inputSchema: objectSchema(
+      {
+        canvas_id: stringSchema('Canvas ID, such as F0ABC12345'),
+        contains_text: stringSchema('Only sections that contain this text'),
+        section_types: {
+          type: 'array',
+          description: 'Only sections of these types, such as h1, h2, h3, any_header, or table',
+          items: {type: 'string'},
+        },
+      },
+      ['canvas_id'],
+    ),
+  }),
+  tool({
     id: 'send_message',
     description:
       'Send a message to a Slack channel or user. To send a direct message, pass the user ID as the channel ID. Supports standard Markdown: bold, italic, strikethrough, links, lists, blockquotes, inline code, and code blocks. Returns the posted message timestamp.',
@@ -309,6 +344,23 @@ export const SLACK_TOOL_OPERATIONS = {
       cursor,
     }),
     mapOutput: matchingChannels,
+  },
+  list_scheduled_messages: {
+    method: 'chat.scheduledMessages.list',
+    mapArguments: ({channel_id, oldest, latest, limit, cursor}) => ({
+      channel: channel_id,
+      oldest,
+      latest,
+      limit,
+      cursor,
+    }),
+  },
+  lookup_canvas_sections: {
+    method: 'canvases.sections.lookup',
+    mapArguments: ({canvas_id, contains_text, section_types}) => ({
+      canvas_id,
+      criteria: {contains_text, section_types},
+    }),
   },
   send_message: {
     method: 'chat.postMessage',

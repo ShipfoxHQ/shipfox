@@ -233,6 +233,17 @@ describe('generateContractFiles', () => {
       expect(await generatedLinear()).toContain(`title: Contract contract-\${{ run.id }}`);
     });
 
+    it('compiles $in_one_hour to a number an hour after the run was created', async () => {
+      await writeCase(
+        'linear/in-one-hour.yaml',
+        `provider: linear\nmodes: [real]\nsteps:\n  - tool: get_issue\n    with: {at: $in_one_hour}\n`,
+      );
+
+      expect(await generatedLinear()).toContain(
+        'at: ${{ (run.created_at - timestamp("1970-01-01T00:00:00Z")).getSeconds() + 3600 }}',
+      );
+    });
+
     it('compiles expect.includes to exists() over the list', async () => {
       expect(await generatedLinear()).toContain(
         `includes_labels: \${{ has(result.labels) && type(result.labels) == type([]) && result.labels.exists(item, has(item.name) && type(item.name) == type("") && item.name == "contract") }}`,

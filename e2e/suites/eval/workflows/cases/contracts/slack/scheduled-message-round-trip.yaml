@@ -1,0 +1,27 @@
+provider: slack
+kind: round-trip
+modes: [real]
+steps:
+  - key: schedule
+    tool: schedule_message
+    with:
+      channel_id: $fixture.slack.write_channel.id
+      message: Contract $marker scheduled
+      post_at: $in_one_hour
+    expect:
+      shape: {channel: string, scheduled_message_id: string, post_at: number}
+      values:
+        channel: $fixture.slack.write_channel.id
+    # The list is narrowed to this run's `post_at`, which no other run shares. Slack delivers the
+    # message into the write channel an hour later, and the tools cannot delete a scheduled message.
+    effect:
+      tool: list_scheduled_messages
+      with:
+        channel_id: $fixture.slack.write_channel.id
+        oldest: $steps.schedule.post_at
+        latest: $steps.schedule.post_at
+      expect:
+        includes:
+          scheduled_messages: {channel_id: $fixture.slack.write_channel.id}
+        matches:
+          scheduled_messages[0].text: '^Contract contract-[0-9a-f-]+ scheduled$'

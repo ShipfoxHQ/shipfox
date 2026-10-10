@@ -26,6 +26,7 @@ function authorization(overrides: Record<string, unknown> = {}) {
       'users:read',
       'reactions:read',
       'reactions:write',
+      'canvases:read',
       'canvases:write',
       'commands',
     ],

@@ -467,6 +467,14 @@ function generationResolver({
     // The run id makes every written object traceable to its run.
     marker:
       references === undefined ? withOnly('$marker') : () => `contract-${interpolation('run.id')}`,
+    // A Unix timestamp, for a tool that schedules something. It stays a number as a whole value.
+    inOneHour:
+      references === undefined
+        ? withOnly('$in_one_hour')
+        : () =>
+            interpolation(
+              '(run.created_at - timestamp("1970-01-01T00:00:00Z")).getSeconds() + 3600',
+            ),
   };
 }
 

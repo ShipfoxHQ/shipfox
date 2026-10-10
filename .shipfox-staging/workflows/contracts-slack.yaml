@@ -69,6 +69,44 @@ jobs:
           value_channel_name: '${{ has(result.channel) && has(result.channel.name) ? result.channel.name : "" }}'
         gate:
           success: step.status == "succeeded" && type(step.outputs.value_channel_id) == type("") && step.outputs.value_channel_id == "C0C6ZSXHEJ0" && type(step.outputs.value_channel_name) == type("") && step.outputs.value_channel_name == "test_contract-tests-write"
+  canvas_round_trip:
+    checkout: false
+    steps:
+      - key: create
+        tool: create_canvas
+        connection: slack_shipfox
+        with:
+          title: Contract canvas
+          content: |-
+            # Contract heading
+
+            Contract contract-${{ run.id }} canvas
+        outputs:
+          shape_canvas_id: ${{ has(result.canvas_id) && type(result.canvas_id) == type("") }}
+          ref_canvas_id: '${{ has(result.canvas_id) ? result.canvas_id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_canvas_id
+      - key: create_effect
+        tool: lookup_canvas_sections
+        connection: slack_shipfox
+        with:
+          canvas_id: ${{ steps.create.outputs.ref_canvas_id }}
+          contains_text: contract-${{ run.id }}
+        outputs:
+          matches_sections_0_id: ${{ has(result.sections) && type(result.sections) == type([]) && size(result.sections) > 0 && [result.sections[0]].all(i0, has(i0.id) && type(i0.id) == type("") && i0.id.matches("^temp:")) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.matches_sections_0_id
+      - key: canvas_round_trip_2
+        tool: lookup_canvas_sections
+        connection: slack_shipfox
+        with:
+          canvas_id: ${{ steps.create.outputs.ref_canvas_id }}
+          section_types:
+            - h1
+        outputs:
+          shape_sections_0_id: ${{ has(result.sections) && type(result.sections) == type([]) && size(result.sections) > 0 && [result.sections[0]].all(i0, has(i0.id) && type(i0.id) == type("")) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_sections_0_id
   get_permalink:
     checkout: false
     steps:
@@ -85,6 +123,18 @@ jobs:
           matches_permalink: ${{ has(result.permalink) && type(result.permalink) == type("") && result.permalink.matches("^https://[^/]+/archives/C0C7QHHBNNL/p1791226001009789") }}
         gate:
           success: step.status == "succeeded" && step.outputs.shape_channel && step.outputs.shape_permalink && type(step.outputs.value_channel) == type("") && step.outputs.value_channel == "C0C7QHHBNNL" && step.outputs.matches_permalink
+  list_scheduled_messages:
+    checkout: false
+    steps:
+      - key: list_scheduled_messages
+        tool: list_scheduled_messages
+        connection: slack_shipfox
+        with:
+          channel_id: C0C6ZSXHEJ0
+        outputs:
+          shape_scheduled_messages: ${{ has(result.scheduled_messages) && type(result.scheduled_messages) == type([]) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_scheduled_messages
   message_round_trip:
     checkout: false
     steps:
@@ -245,6 +295,36 @@ jobs:
           value_user_id: '${{ has(result.user) && has(result.user.id) ? result.user.id : "" }}'
         gate:
           success: step.status == "succeeded" && step.outputs.shape_user_id && step.outputs.shape_user_name && type(step.outputs.value_user_id) == type("") && step.outputs.value_user_id == "U06P0R4V877"
+  scheduled_message_round_trip:
+    checkout: false
+    steps:
+      - key: schedule
+        tool: schedule_message
+        connection: slack_shipfox
+        with:
+          channel_id: C0C6ZSXHEJ0
+          message: Contract contract-${{ run.id }} scheduled
+          post_at: ${{ (run.created_at - timestamp("1970-01-01T00:00:00Z")).getSeconds() + 3600 }}
+        outputs:
+          shape_channel: ${{ has(result.channel) && type(result.channel) == type("") }}
+          shape_scheduled_message_id: ${{ has(result.scheduled_message_id) && type(result.scheduled_message_id) == type("") }}
+          shape_post_at: ${{ has(result.post_at) && (type(result.post_at) == type(1) || type(result.post_at) == type(1.0)) }}
+          value_channel: '${{ has(result.channel) ? result.channel : "" }}'
+          ref_post_at: '${{ has(result.post_at) ? result.post_at : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_channel && step.outputs.shape_scheduled_message_id && step.outputs.shape_post_at && type(step.outputs.value_channel) == type("") && step.outputs.value_channel == "C0C6ZSXHEJ0"
+      - key: schedule_effect
+        tool: list_scheduled_messages
+        connection: slack_shipfox
+        with:
+          channel_id: C0C6ZSXHEJ0
+          oldest: ${{ steps.schedule.outputs.ref_post_at }}
+          latest: ${{ steps.schedule.outputs.ref_post_at }}
+        outputs:
+          includes_scheduled_messages: ${{ has(result.scheduled_messages) && type(result.scheduled_messages) == type([]) && result.scheduled_messages.exists(item, has(item.channel_id) && type(item.channel_id) == type("") && item.channel_id == "C0C6ZSXHEJ0") }}
+          matches_scheduled_messages_0_text: ${{ has(result.scheduled_messages) && type(result.scheduled_messages) == type([]) && size(result.scheduled_messages) > 0 && [result.scheduled_messages[0]].all(i0, has(i0.text) && type(i0.text) == type("") && i0.text.matches("^Contract contract-[0-9a-f-]+ scheduled$")) }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.includes_scheduled_messages && step.outputs.matches_scheduled_messages_0_text
   search_channels:
     checkout: false
     steps:
