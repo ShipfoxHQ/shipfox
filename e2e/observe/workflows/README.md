@@ -37,7 +37,7 @@ console.log(run.attempt.status, run.jobs.map((job) => job.status));
 
 ## Environment
 
-The package reads the variables listed in [E2E Core](../../core/README.md#environment).
+The package reads the variables listed in [E2E Core](https://github.com/ShipfoxHQ/shipfox/blob/main/e2e/core/README.md#environment).
 
 ## Development
 

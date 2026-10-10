@@ -13,7 +13,7 @@ E2E helper that creates projects.
 pnpm add @shipfox/e2e-setup-projects @shipfox/e2e-core
 ```
 
-The helper calls `/__e2e` routes with the administrator key from [`@shipfox/e2e-core`](../../core/README.md). The API under test must run with `E2E_ENABLED=true`.
+The helper calls `/__e2e` routes with the administrator key from [`@shipfox/e2e-core`](https://github.com/ShipfoxHQ/shipfox/blob/main/e2e/core/README.md). The API under test must run with `E2E_ENABLED=true` and an `E2E_ADMIN_API_KEY` that matches the key the suite sends.
 
 ## Usage
 
@@ -34,7 +34,7 @@ const project = await createProject({
 
 ## Environment
 
-The package reads the variables listed in [E2E Core](../../core/README.md#environment).
+The package reads the variables listed in [E2E Core](https://github.com/ShipfoxHQ/shipfox/blob/main/e2e/core/README.md#environment).
 
 ## Development
 

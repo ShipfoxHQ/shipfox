@@ -18,7 +18,7 @@ E2E helpers that configure model providers and read agent sessions.
 pnpm add @shipfox/e2e-setup-agent @shipfox/e2e-core
 ```
 
-The helpers call `/__e2e` routes with the administrator key from [`@shipfox/e2e-core`](../../core/README.md). The API under test must run with `E2E_ENABLED=true`.
+The helpers call `/__e2e` routes with the administrator key from [`@shipfox/e2e-core`](https://github.com/ShipfoxHQ/shipfox/blob/main/e2e/core/README.md). The API under test must run with `E2E_ENABLED=true` and an `E2E_ADMIN_API_KEY` that matches the key the suite sends.
 
 ## Usage
 
@@ -40,7 +40,7 @@ const provider = await createOllamaCustomProvider({
 | `OLLAMA_BASE_URL` | Ollama base URL. `SHIPFOX_OLLAMA_BASE_URL` is an alias. |
 | `SHIPFOX_OLLAMA_MODEL` | Ollama model the suite expects. |
 
-The package also reads the variables listed in [E2E Core](../../core/README.md#environment).
+The package also reads the variables listed in [E2E Core](https://github.com/ShipfoxHQ/shipfox/blob/main/e2e/core/README.md#environment).
 
 ## Development
 
