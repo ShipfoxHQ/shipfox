@@ -750,15 +750,14 @@ function usage() {
   printLine(`Usage: mise run e2e [options] [turbo args]
 
 Options:
-  --filter=<package>      Passed through to turbo, for example --filter=@shipfox/e2e-flow-workflows
+  --filter=<package>      Passed through to turbo
   --keep-open             Leave API and client dev servers running after tests
   --log-dir=<path>        Directory for API/client logs and failure diagnostics
   --task=<task>           Turbo task to run (default: test:e2e)
   --timeout-ms=<ms>       Readiness timeout for API and client (default: 60000)
 
-Examples:
-  mise run e2e -- --filter=@shipfox/e2e-flow-workflows
-  mise run e2e -- --filter=@shipfox/e2e-client-auth
+Example:
+  mise run e2e -- --filter=<package>
 `);
 }
 
