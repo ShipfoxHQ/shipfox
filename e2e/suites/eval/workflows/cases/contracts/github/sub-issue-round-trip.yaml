@@ -1,0 +1,191 @@
+provider: github
+kind: round-trip
+modes: [real]
+steps:
+  - key: parent
+    tool: issue_write
+    method: create
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      title: Contract $marker parent
+    expect:
+      shape: {id: number, number: number}
+    effect:
+      tool: issue_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.parent.number
+      expect:
+        values: {state: open}
+        matches:
+          title: '^Contract contract-[0-9a-f-]+ parent$'
+  # A sub-issue is named by its `id`, not its `number`.
+  - key: first
+    tool: issue_write
+    method: create
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      title: Contract sub-issue first
+    expect:
+      shape: {id: number, number: number}
+    effect:
+      tool: issue_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.first.number
+      expect:
+        values: {state: open, title: Contract sub-issue first}
+  - key: second
+    tool: issue_write
+    method: create
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      title: Contract sub-issue second
+    expect:
+      shape: {id: number, number: number}
+    effect:
+      tool: issue_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.second.number
+      expect:
+        values: {state: open, title: Contract sub-issue second}
+  - key: add_first
+    tool: sub_issue_write
+    method: add
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $steps.parent.number
+      sub_issue_id: $steps.first.id
+    effect:
+      tool: issue_read
+      method: get_sub_issues
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.parent.number
+      expect:
+        values:
+          result[0].title: Contract sub-issue first
+  # GitHub puts a new sub-issue last, which the reprioritize step then changes.
+  - key: add_second
+    tool: sub_issue_write
+    method: add
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $steps.parent.number
+      sub_issue_id: $steps.second.id
+    effect:
+      tool: issue_read
+      method: get_sub_issues
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.parent.number
+      expect:
+        values:
+          result[0].title: Contract sub-issue first
+          result[1].title: Contract sub-issue second
+  - key: reprioritize
+    tool: sub_issue_write
+    method: reprioritize
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $steps.parent.number
+      sub_issue_id: $steps.second.id
+      before_id: $steps.first.id
+    effect:
+      tool: issue_read
+      method: get_sub_issues
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.parent.number
+      expect:
+        values:
+          result[0].title: Contract sub-issue second
+          result[1].title: Contract sub-issue first
+  - key: remove
+    tool: sub_issue_write
+    method: remove
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $steps.parent.number
+      sub_issue_id: $steps.second.id
+    # The removed sub-issue was first in the list, so the other one takes its place. The
+    # `sub_issues_summary` of the parent lags behind the write, so it proves nothing here.
+    effect:
+      tool: issue_read
+      method: get_sub_issues
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.parent.number
+      expect:
+        values:
+          result[0].title: Contract sub-issue first
+  # The sandbox has no delete tool, so the three issues end closed.
+  - key: close_first
+    tool: issue_write
+    method: update
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $steps.first.number
+      state: closed
+    effect:
+      tool: issue_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.first.number
+      expect:
+        values: {state: closed}
+  - key: close_second
+    tool: issue_write
+    method: update
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $steps.second.number
+      state: closed
+    effect:
+      tool: issue_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.second.number
+      expect:
+        values: {state: closed}
+  - key: close_parent
+    tool: issue_write
+    method: update
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $steps.parent.number
+      state: closed
+    effect:
+      tool: issue_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.parent.number
+      expect:
+        values: {state: closed}

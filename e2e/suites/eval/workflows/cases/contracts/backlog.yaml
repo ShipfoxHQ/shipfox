@@ -1,24 +1,12 @@
-ceiling: 22
+ceiling: 10
 entries:
   - {tool: github.add_comment_to_pending_review, kind: write, issue: ENG-2834}
-  - {tool: github.add_issue_comment, kind: write, issue: ENG-2828}
   - {tool: github.add_reply_to_pull_request_comment, kind: write, issue: ENG-2834}
-  - {tool: github.check_run_write, method: create, kind: write, issue: ENG-2828}
-  - {tool: github.check_run_write, method: update, kind: write, issue: ENG-2828}
-  - {tool: github.create_blob, kind: write, issue: ENG-2828}
-  - {tool: github.create_branch, kind: write, issue: ENG-2828}
-  - {tool: github.create_commit, kind: write, issue: ENG-2828}
   - {tool: github.create_pull_request, kind: write, issue: ENG-2834}
-  - {tool: github.delete_branch, kind: write, issue: ENG-2828}
-  - {tool: github.issue_write, method: create, kind: write, issue: ENG-2828}
-  - {tool: github.issue_write, method: update, kind: write, issue: ENG-2828}
   - {tool: github.merge_pull_request, kind: write, issue: ENG-2834}
   - {tool: github.pull_request_review_thread_write, method: resolve, kind: write, issue: ENG-2834}
   - {tool: github.pull_request_review_write, method: create, kind: write, issue: ENG-2834}
   - {tool: github.pull_request_review_write, method: delete_pending, kind: write, issue: ENG-2834}
   - {tool: github.pull_request_review_write, method: submit_pending, kind: write, issue: ENG-2834}
-  - {tool: github.sub_issue_write, method: add, kind: write, issue: ENG-2828}
-  - {tool: github.sub_issue_write, method: remove, kind: write, issue: ENG-2828}
-  - {tool: github.sub_issue_write, method: reprioritize, kind: write, issue: ENG-2828}
   - {tool: github.update_pull_request, kind: write, issue: ENG-2834}
   - {tool: github.update_pull_request_branch, kind: write, issue: ENG-2834}

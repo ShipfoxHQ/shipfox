@@ -1,0 +1,90 @@
+provider: github
+kind: round-trip
+modes: [real]
+steps:
+  - key: create
+    tool: issue_write
+    method: create
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      title: Contract $marker
+      body: Created by a contract.
+    expect:
+      shape: {id: number, number: number, title: string, state: string, html_url: string}
+    # The marker is in the title, so a pattern checks it. The issue is this run's, so the values
+    # below can't come from an earlier run.
+    effect:
+      tool: issue_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.create.number
+      expect:
+        values:
+          state: open
+          body: Created by a contract.
+        matches:
+          title: '^Contract contract-[0-9a-f-]+$'
+  - key: update
+    tool: issue_write
+    method: update
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $steps.create.number
+      title: Contract issue updated
+      body: Updated by a contract.
+      labels: [$fixture.github.label.name]
+    effect:
+      tool: issue_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.create.number
+      expect:
+        values:
+          title: Contract issue updated
+          body: Updated by a contract.
+        includes:
+          labels: {name: $fixture.github.label.name}
+  - key: comment
+    tool: add_issue_comment
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $steps.create.number
+      body: Contract comment
+    expect:
+      shape: {id: number, body: string, html_url: string}
+    effect:
+      tool: issue_read
+      method: get_comments
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.create.number
+      expect:
+        values:
+          result[0].body: Contract comment
+  # The sandbox has no delete tool, so the issue ends closed.
+  - key: close
+    tool: issue_write
+    method: update
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      issue_number: $steps.create.number
+      state: closed
+      state_reason: completed
+    effect:
+      tool: issue_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        issue_number: $steps.create.number
+      expect:
+        values: {state: closed, state_reason: completed}

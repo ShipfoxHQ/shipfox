@@ -1,0 +1,130 @@
+provider: github
+kind: round-trip
+modes: [real]
+steps:
+  # The branch name holds the marker, so a read of that name can only find this run's branch.
+  - key: branch
+    tool: create_branch
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker
+      from: $fixture.github.commit.base_oid
+    expect:
+      shape: {branch: string, oid: string, url: string}
+      values: {oid: $fixture.github.commit.base_oid}
+    effect:
+      tool: get_branch
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        branch: contract/$marker
+      expect:
+        values: {exists: true, oid: $fixture.github.commit.base_oid}
+  # No read shows a blob until a commit names it, so the step has no effect: the commit below takes
+  # its oid, and GitHub rejects a commit entry whose blob does not exist. The oid is the Git hash of
+  # the contents, so it is the same on every run.
+  - key: blob
+    tool: create_blob
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      contents: Written by a contract.
+    expect:
+      values: {oid: b6fc916e187c0950c20930224ee399d663c65196}
+  - key: commit
+    tool: create_commit
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker
+      parent_oid: $steps.branch.oid
+      message: Contract commit
+      entries:
+        - path: contract/note.md
+          oid: $steps.blob.oid
+    expect:
+      shape:
+        commit: {oid: string, url: string, verified: boolean}
+        branch: string
+      values: {commit.verified: true}
+    effect:
+      tool: get_commit
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        ref: $steps.commit.commit.oid
+      expect:
+        values:
+          commit.message: Contract commit
+          commit.parents[0]: $fixture.github.commit.base_oid
+          commit.verified: true
+  # The check run sits on the commit this run made, so no other run's check shows in the read.
+  # `get_check_runs` reads a ref and needs a pull request number it does not use.
+  - key: check
+    tool: check_run_write
+    method: create
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      name: Contract check
+      head_sha: $steps.commit.commit.oid
+      status: in_progress
+    expect:
+      shape:
+        check_run: {id: number, name: string, head_sha: string, html_url: string, status: string}
+      values: {check_run.name: Contract check, check_run.status: in_progress}
+    effect:
+      tool: pull_request_read
+      method: get_check_runs
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        pull_number: $fixture.github.pull_request.number
+        ref: $steps.commit.commit.oid
+      expect:
+        values: {total_count: 1}
+        includes:
+          check_runs: {name: Contract check, status: in_progress}
+  - key: check_update
+    tool: check_run_write
+    method: update
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      check_run_id: $steps_number.check.check_run.id
+      status: completed
+      conclusion: success
+      output:
+        title: Contract check passed
+        summary: Updated by a contract.
+    expect:
+      values: {check_run.status: completed, check_run.conclusion: success}
+    effect:
+      tool: pull_request_read
+      method: get_check_runs
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        pull_number: $fixture.github.pull_request.number
+        ref: $steps.commit.commit.oid
+      expect:
+        values: {total_count: 1}
+        includes:
+          check_runs:
+            name: Contract check
+            status: completed
+            conclusion: success
+            output.title: Contract check passed
+  # The branch is deleted at the end, so `contract/*` branches don't build up in the sandbox.
+  - key: delete
+    tool: delete_branch
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker
+      expected_head_oid: $steps.commit.commit.oid
+    expect:
+      shape: {branch: string, existed: boolean}
+      values: {existed: true}
+    effect:
+      tool: get_branch
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        branch: contract/$marker
+      expect:
+        values: {exists: false}
