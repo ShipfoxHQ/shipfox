@@ -265,8 +265,11 @@ function caseJob({
 /** The `$steps` references of a case, by the key of the step they read and the output they name. */
 interface StepReferences {
   keys: ReadonlySet<string>;
-  requests: Map<string, Map<string, {segments: Segment[]; text: boolean}>>;
+  requests: Map<string, Map<string, {segments: Segment[]; form: StepsForm}>>;
 }
+
+// How a `$steps` reference reads its value: as it is, as the text of a number, or as a number.
+type StepsForm = 'ref' | 'text' | 'number';
 
 /** Gives each step the outputs that later steps read through `$steps`. */
 function withReferencedOutputs({
@@ -282,12 +285,14 @@ function withReferencedOutputs({
     const requested = references.requests.get(step.key);
     if (requested === undefined) return step;
     const outputs = {...step.outputs};
-    for (const [name, {segments, text}] of requested) {
+    for (const [name, {segments, form}] of requested) {
       if (outputs[name] !== undefined)
         throw new Error(`${origin}: two outputs are named "${name}"`);
       const accessor = accessorOf(segments);
+      // A tool with a typed output schema rejects a ternary whose branches have different types,
+      // so a number it declares falls back to a number.
       outputs[name] = interpolation(
-        `${presence({segments})} ? ${text ? `string(${accessor})` : accessor} : ""`,
+        `${presence({segments})} ? ${form === 'text' ? `string(${accessor})` : accessor} : ${form === 'number' ? '0' : '""'}`,
       );
     }
     return {...step, outputs};
@@ -468,16 +473,19 @@ function generationResolver({
     steps:
       references === undefined
         ? withOnly('$steps')
-        : ({key, path, text = false}) => {
+        : ({key, path, text = false, number = false}) => {
             if (!references.keys.has(key)) {
               throw new Error(`${origin}: $steps.${key} names a step key the case doesn't have`);
             }
             const segments = parsePath({path, origin});
-            const name = `${text ? 'text' : 'ref'}_${segmentName(segments)}`;
+            let form: StepsForm = 'ref';
+            if (text) form = 'text';
+            if (number) form = 'number';
+            const name = `${form}_${segmentName(segments)}`;
             const requested =
               references.requests.get(key) ??
-              new Map<string, {segments: Segment[]; text: boolean}>();
-            requested.set(name, {segments, text});
+              new Map<string, {segments: Segment[]; form: StepsForm}>();
+            requested.set(name, {segments, form});
             references.requests.set(key, requested);
             return interpolation(`steps.${key}.outputs.${name}`);
           },

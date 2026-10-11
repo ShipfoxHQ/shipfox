@@ -58,7 +58,8 @@ steps:
 - **`values`** pins exact values for known fixtures. A closed catalog `outputSchema` gets value checks only, through `VALUES_ONLY_TOOLS` in the generator.
 - **`matches`** gives a regular expression for a text value. Use it when the layout of the text is not part of the contract, such as the SQL results of PostHog.
 - **`text`** lists regular expressions for a result that is itself text, not a map. PostHog returns most reads as TOON text. Each expression must match somewhere in the result.
-- **`$steps.<key>.<path>`** passes a value from an earlier step of the case. Write `$steps_text` instead when the value is a number and the next tool takes a string, such as the `resource_id` of the GitHub Actions tools. A number in a string input fails the step.
+- **`$steps.<key>.<path>`** passes a value from an earlier step of the case. Write `$steps_text` instead when the value is a number and the next tool takes a string, such as the `resource_id` of the GitHub Actions tools. A number in a string input fails the step. Write `$steps_number` when the catalog `outputSchema` of the earlier tool declares the value as a number, such as the `check_run.id` of `check_run_write`. The compiler rejects a plain `$steps` there.
+- **`effect`** is the read that proves a write, and every write step needs one. The exception is a write that shows in no read until another write uses it, such as a GitHub blob before a commit names it. Leave its `effect` out, and pass its output through `$steps` to a later write that has an `effect`.
 - **`wait_seconds`** on an `effect` is for a write the provider applies later, such as the cancellation of a GitHub Actions run. The job waits that long, then reads once. The runtime never restarts a tool step, so an effect can't poll: give the wait enough margin.
 - **`modes`** lists `real`, `fake`, or both. List `fake` only when the E2E fake answers the tool with the same fields. The pending list reports the cases that lack it.
 

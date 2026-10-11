@@ -13,6 +13,8 @@ export interface StepsReference {
   path: string;
   /** Set by `$steps_text`, for a number that goes into a tool input that takes a string. */
   text?: true;
+  /** Set by `$steps_number`, for a number that a typed output schema declares. */
+  number?: true;
 }
 
 export interface MarkerReference {
@@ -46,11 +48,12 @@ export function parseContractReference(token: string): ContractReference | undef
     return rest.length === 0 ? {kind: head} : undefined;
   }
   if (head === 'fixture' || head === 'target') return parseManifestReference({kind: head, rest});
-  if (head === 'steps' || head === 'steps_text') {
+  if (head === 'steps' || head === 'steps_text' || head === 'steps_number') {
     const [key, ...path] = rest;
     if (key === undefined || !NAME.test(key) || path.length === 0) return undefined;
     const reference = {kind: 'steps', key, path: path.join('.')} as const;
-    return head === 'steps_text' ? {...reference, text: true} : reference;
+    if (head === 'steps_text') return {...reference, text: true};
+    return head === 'steps_number' ? {...reference, number: true} : reference;
   }
   return undefined;
 }

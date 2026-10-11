@@ -259,6 +259,20 @@ describe('generateContractFiles', () => {
       expect(content).toContain(`id: \${{ steps.list.outputs.text_issues_0_number }}`);
     });
 
+    it('compiles $steps_number to a number that falls back to a number', async () => {
+      await writeCase(
+        'linear/steps-number.yaml',
+        `provider: linear\nmodes: [real]\nsteps:\n  - key: create\n    tool: save_issue\n  - tool: get_issue\n    with:\n      id: $steps_number.create.issue.number\n`,
+      );
+
+      const content = await generatedLinear();
+
+      expect(content).toContain(
+        `number_issue_number: "\${{ has(result.issue) && has(result.issue.number) ? result.issue.number : 0 }}"`,
+      );
+      expect(content).toContain(`id: \${{ steps.create.outputs.number_issue_number }}`);
+    });
+
     it('maps an absent boolean or number to a different value of the same type', async () => {
       await writeCase(
         'linear/typed-values.yaml',

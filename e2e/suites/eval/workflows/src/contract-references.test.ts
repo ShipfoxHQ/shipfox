@@ -55,6 +55,15 @@ describe('parseContractReference', () => {
     });
   });
 
+  it('reads a steps reference that asks for a number', () => {
+    expect(parseContractReference('$steps_number.check.check_run.id')).toEqual({
+      kind: 'steps',
+      key: 'check',
+      path: 'check_run.id',
+      number: true,
+    });
+  });
+
   it('returns undefined for an unknown form', () => {
     expect(parseContractReference('$fixtures.linear.issue.uuid')).toBeUndefined();
     expect(parseContractReference('$fixture.linear.issue')).toBeUndefined();

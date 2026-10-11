@@ -115,14 +115,20 @@ function addId({map, key, id}: {map: Map<string, string[]>; key: string; id: str
  * run created, through `$steps`, or filters its read with `$marker`. Data left over from an earlier
  * run then can't satisfy it. A gate can't read the run id, so `$marker` filters the read and is
  * never asserted.
+ *
+ * Some writes show in no read until another write uses them, such as a GitHub blob before a commit
+ * names it. Such a step has no `effect`, and a later proved write that takes its output through
+ * `$steps` proves it.
  */
 function writeProblems({
   step,
+  laterSteps,
   provider,
   kind,
   units,
 }: {
   step: ContractStep;
+  laterSteps: readonly ContractStep[];
   provider: string;
   kind: ContractCase['kind'];
   units: ReadonlyMap<string, CatalogUnit>;
@@ -130,7 +136,24 @@ function writeProblems({
   const name = `write step "${step.tool}"`;
   if (kind !== 'round-trip') return [`${name} needs a case of kind \`round-trip\``];
   const {effect} = step;
-  if (effect === undefined) return [`${name} has no \`effect\``];
+  if (effect === undefined) {
+    const proved = laterSteps.some(
+      (later, index) =>
+        later.effect !== undefined &&
+        units.get(unitKey({provider, ...later}))?.kind === 'write' &&
+        findContractReferences(later.with).some(
+          ({reference}) => reference?.kind === 'steps' && reference.key === step.key,
+        ) &&
+        writeProblems({
+          step: later,
+          laterSteps: laterSteps.slice(index + 1),
+          provider,
+          kind,
+          units,
+        }).length === 0,
+    );
+    return proved ? [] : [`${name} has no \`effect\``];
+  }
   const problems: string[] = [];
   const effectUnit = units.get(unitKey({provider, ...effect}));
   if (effectUnit?.kind === 'write') problems.push(`the effect of ${name} must read, not write`);
@@ -166,12 +189,14 @@ function checkStep({
   provider,
   kind,
   step,
+  laterSteps,
   units,
 }: {
   grants: CatalogGrants;
   provider: string;
   kind: ContractCase['kind'];
   step: ContractStep;
+  laterSteps: readonly ContractStep[];
   units: ReadonlyMap<string, CatalogUnit>;
 }): {problems: string[]; covers: boolean} {
   const reasonOf = (reference: Reference) =>
@@ -184,7 +209,7 @@ function checkStep({
   const problems = effectReason ? [`effect "${step.effect?.tool}" names ${effectReason}`] : [];
   if (units.get(unitKey({provider, ...step}))?.kind !== 'write') return {problems, covers: true};
 
-  const writeFailures = writeProblems({step, provider, kind, units});
+  const writeFailures = writeProblems({step, laterSteps, provider, kind, units});
   return {
     problems: [...problems, ...writeFailures],
     covers: writeFailures.length === 0 && !effectReason,
@@ -205,8 +230,9 @@ function collectCaseCoverage({
   const problems: string[] = [];
   for (const {id, definition} of files.cases) {
     const {provider, kind} = definition;
-    for (const step of definition.steps) {
-      const checked = checkStep({grants, provider, kind, step, units: unitsByKey});
+    for (const [index, step] of definition.steps.entries()) {
+      const laterSteps = definition.steps.slice(index + 1);
+      const checked = checkStep({grants, provider, kind, step, laterSteps, units: unitsByKey});
       problems.push(...checked.problems.map((problem) => `case ${id}: ${problem}`));
       if (checked.covers) addId({map: covered, key: unitKey({provider, ...step}), id});
     }

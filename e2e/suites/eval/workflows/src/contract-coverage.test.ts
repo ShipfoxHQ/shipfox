@@ -286,6 +286,51 @@ describe('checkContractCoverage', () => {
       ]);
     });
 
+    const arrangeChain = (later: Record<string, unknown>) =>
+      arrange({
+        cases: [
+          getIssue,
+          issueReadGet,
+          {
+            id: 'linear/save',
+            provider: 'linear',
+            kind: 'round-trip',
+            steps: [
+              {key: 'draft', tool: 'save_issue'},
+              {key: 'save', tool: 'save_issue', ...later},
+            ],
+          },
+        ],
+        exemptions: [{id: 'gitea/all', provider: 'gitea'}],
+        backlog: [
+          {tool: 'github.issue_read', method: 'get_comments', kind: 'read', issue: 'ENG-1'},
+        ],
+      });
+
+    it('accepts a write without an effect that a later proved write uses', () => {
+      const files = arrangeChain({with: {parent: '$steps.draft.id'}, effect: savedIssue});
+
+      expect(problemsOf(files)).toEqual([]);
+    });
+
+    it('fails a write without an effect that no later write uses', () => {
+      const files = arrangeChain({effect: savedIssue});
+
+      expect(problemsOf(files)).toEqual([
+        'case linear/save: write step "save_issue" has no `effect`',
+      ]);
+    });
+
+    it('fails a write without an effect when the write that uses it is not proved', () => {
+      const files = arrangeChain({with: {parent: '$steps.draft.id'}});
+
+      expect(problemsOf(files)).toEqual([
+        'case linear/save: write step "save_issue" has no `effect`',
+        'case linear/save: write step "save_issue" has no `effect`',
+        'write linear.save_issue has no case, exemption, or backlog entry',
+      ]);
+    });
+
     it('keeps the backlog entry of a write whose effect is not valid', () => {
       expect(problemsOf(arrangeWrite({backlogged: true}))).toEqual([
         'case linear/save: write step "save_issue" has no `effect`',
