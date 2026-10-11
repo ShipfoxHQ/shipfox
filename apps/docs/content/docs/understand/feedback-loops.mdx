@@ -56,7 +56,7 @@ A gate has two parts. You write each part separately:
 - `on_failure` is the restart rule. It names the step that runs again when the
   check fails.
 
-Because the two parts are separate, you can choose what a failed check does:
+Because the two parts are separate, a failed check has two possible results:
 
 - **Stop the job.** Write only `success`. Do this when it is not safe to run
   the steps again.
