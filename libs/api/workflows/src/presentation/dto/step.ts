@@ -2,12 +2,14 @@ import {
   agentConfigIssueSchema,
   agentStepSessionDescriptorSchema,
   deriveStepErrorCategory,
+  type EvaluationTraceDto,
   type OversizedFieldDto,
   STEP_ERROR_MESSAGE_MAX_LENGTH,
   STEP_ERROR_PROVIDER_MESSAGE_MAX_LENGTH,
   type StepAttemptDetailResponseDto,
   type StepDto,
   type StepErrorDto,
+  type StepGateRestartDecisionDto,
   type StepGateResultDto,
   stepDiagnosticFieldSchema,
   stepErrorReasonSchema,
@@ -15,7 +17,7 @@ import {
   WORKFLOW_STEP_CONFIG_INLINE_MAX_BYTES,
 } from '@shipfox/api-workflows-dto';
 import {policyNoticeSchema} from '@shipfox/policy-notice';
-import type {Step, StepAttempt} from '#core/entities/step.js';
+import type {PersistedEvaluationTraceEntry, Step, StepAttempt} from '#core/entities/step.js';
 import {GATE_EVALUATION_ERROR_REASON} from '#core/step-transition/evaluate-gate.js';
 import type {StepAttemptDetailStep} from '#db/workflow-runs/steps.js';
 import {toEvaluationTraceDto} from './evaluation-trace.js';
@@ -223,19 +225,87 @@ function isIntOrNull(value: unknown): value is number | null {
   return value === null || (typeof value === 'number' && Number.isInteger(value));
 }
 
+function isPositiveInt(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0;
+}
+
+function toRestartTraceDto(trace: unknown): {trace?: EvaluationTraceDto} {
+  if (!Array.isArray(trace) || trace.length === 0) return {};
+  const dto = toEvaluationTraceDto(trace as PersistedEvaluationTraceEntry[]);
+  return dto === null ? {} : {trace: dto};
+}
+
+// The decision is read defensively: an unrecognized shape shows no decision rather than
+// failing the whole gate result.
+function toRestartDecisionDto(value: unknown): StepGateRestartDecisionDto | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const decision = value as Record<string, unknown>;
+  const ruleCount = isPositiveInt(decision.rule_count) ? {rule_count: decision.rule_count} : {};
+
+  if (decision.kind === 'none_applied') {
+    return {kind: 'none_applied', ...ruleCount, ...toRestartTraceDto(decision.trace)};
+  }
+  if (!isPositiveInt(decision.rule)) return undefined;
+
+  if (decision.kind === 'restart' && typeof decision.restart_from === 'string') {
+    return {
+      kind: 'restart',
+      rule: decision.rule,
+      ...ruleCount,
+      restart_from: truncateStepText(decision.restart_from, STEP_ERROR_MESSAGE_MAX_LENGTH),
+      ...toRestartTraceDto(decision.trace),
+    };
+  }
+  if (decision.kind === 'evaluation_failed' && typeof decision.source === 'string') {
+    const error = decision.error as Record<string, unknown> | undefined;
+    return {
+      kind: 'evaluation_failed',
+      rule: decision.rule,
+      ...ruleCount,
+      source: truncateStepText(decision.source, STEP_ERROR_MESSAGE_MAX_LENGTH),
+      ...(typeof error?.message === 'string'
+        ? {
+            error: {
+              message: truncateStepText(error.message, STEP_ERROR_MESSAGE_MAX_LENGTH),
+              ...(typeof error.path === 'string'
+                ? {path: truncateStepText(error.path, STEP_ERROR_MESSAGE_MAX_LENGTH)}
+                : {}),
+            },
+          }
+        : {}),
+      ...toRestartTraceDto(decision.trace),
+    };
+  }
+  return undefined;
+}
+
 // A gate without `success` records only its restart decision, so it has no result to show.
 function isRestartDecisionOnly(gateResult: Record<string, unknown>): boolean {
   return gateResult.passed === undefined && 'restart' in gateResult;
+}
+
+function isPendingStatus(status: string): boolean {
+  return status === 'running' || status === 'pending';
 }
 
 export function toStepGateResultDto(
   gateResult: Record<string, unknown> | null,
   status: string,
 ): StepGateResultDto {
-  if (gateResult === null || isRestartDecisionOnly(gateResult)) {
-    return status === 'running' || status === 'pending' ? {kind: 'not_evaluated'} : {kind: 'none'};
+  if (gateResult === null) {
+    return isPendingStatus(status) ? {kind: 'not_evaluated'} : {kind: 'none'};
+  }
+  const restart = toRestartDecisionDto(gateResult.restart);
+  if (isRestartDecisionOnly(gateResult)) {
+    if (isPendingStatus(status)) return {kind: 'not_evaluated'};
+    return restart === undefined ? {kind: 'none'} : {kind: 'none', restart};
   }
 
+  const outcome = toGateOutcomeDto(gateResult);
+  return outcome.kind === 'failed' && restart !== undefined ? {...outcome, restart} : outcome;
+}
+
+function toGateOutcomeDto(gateResult: Record<string, unknown>): NonNullable<StepGateResultDto> {
   const exitCode = gateResult.exit_code;
   const passed = gateResult.passed;
   const source = gateResult.source;

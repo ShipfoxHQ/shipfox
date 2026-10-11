@@ -43,6 +43,7 @@ import {
   type OversizedFieldDto,
   type StepAttemptDetailResponseDto,
   type StepAttemptInvocationDto,
+  type StepGateRestartDecisionDto,
   type StepGateResultDto,
   stepErrorCategorySchema,
   stepErrorReasonSchema,
@@ -625,7 +626,7 @@ function projectEvaluationTraceEntry(entry: EvaluationTraceEntryDto): Evaluation
   return {
     ...entry,
     expression: cap(entry.expression),
-    roots: entry.roots.map(cap),
+    roots: entry.roots.map((root) => cap(root)),
     fill_target: cap(entry.fill_target),
     evaluated_at: cap(entry.evaluated_at),
     field: cap(entry.field),
@@ -749,16 +750,24 @@ function projectGateResult(gate: StepGateResultDto): Record<string, unknown> | n
     };
   }
   switch (gate.kind) {
-    case 'none':
     case 'not_evaluated':
       return {kind: gate.kind};
+    case 'none':
+      return {kind: gate.kind, ...projectRestartDecision(gate.restart)};
     case 'passed':
+      return {
+        kind: gate.kind,
+        passed: gate.passed,
+        source: cap(gate.source),
+        exit_code: gate.exit_code,
+      };
     case 'failed':
       return {
         kind: gate.kind,
         passed: gate.passed,
         source: cap(gate.source),
         exit_code: gate.exit_code,
+        ...projectRestartDecision(gate.restart),
       };
     case 'uncheckable':
       return {
@@ -773,6 +782,49 @@ function projectGateResult(gate: StepGateResultDto): Record<string, unknown> | n
       return {kind: gate.kind, reason: cap(gate.reason), exit_code: gate.exit_code};
     case 'unknown':
       return {kind: gate.kind, data: gate.data};
+  }
+}
+
+function projectRestartDecision(decision: StepGateRestartDecisionDto | undefined): {
+  restart?: Record<string, unknown>;
+} {
+  if (decision === undefined) return {};
+  const trace =
+    decision.trace === undefined
+      ? {}
+      : {trace: decision.trace.map((entry) => projectEvaluationTraceEntry(entry))};
+  const ruleCount = decision.rule_count === undefined ? {} : {rule_count: decision.rule_count};
+  switch (decision.kind) {
+    case 'restart':
+      return {
+        restart: {
+          kind: decision.kind,
+          rule: decision.rule,
+          ...ruleCount,
+          restart_from: cap(decision.restart_from),
+          ...trace,
+        },
+      };
+    case 'none_applied':
+      return {restart: {kind: decision.kind, ...ruleCount, ...trace}};
+    case 'evaluation_failed':
+      return {
+        restart: {
+          kind: decision.kind,
+          rule: decision.rule,
+          ...ruleCount,
+          source: cap(decision.source),
+          ...(decision.error === undefined
+            ? {}
+            : {
+                error: {
+                  message: cap(decision.error.message),
+                  ...(decision.error.path === undefined ? {} : {path: cap(decision.error.path)}),
+                },
+              }),
+          ...trace,
+        },
+      };
   }
 }
 

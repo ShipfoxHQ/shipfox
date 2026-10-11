@@ -607,6 +607,35 @@ describe('workflow diagnostic agent-access tools', () => {
       },
       {kind: 'evaluation_error', reason: 'invalid expression', exit_code: null},
       {kind: 'unknown', data: {source: 'external'}},
+      {
+        kind: 'failed',
+        passed: false,
+        source: 'step.exit_code == 0',
+        exit_code: 1,
+        restart: {kind: 'restart', rule: 2, rule_count: 2, restart_from: 'select_branch'},
+      },
+      {kind: 'none', restart: {kind: 'none_applied', rule_count: 2}},
+      {
+        kind: 'none',
+        restart: {
+          kind: 'evaluation_failed',
+          rule: 1,
+          rule_count: 2,
+          source: 'step.outputs.kind == "x"',
+          error: {message: 'no such key: kind', path: 'step.outputs.kind'},
+          trace: [
+            {
+              expression: 'step.outputs.kind == "x"',
+              roots: ['step.outputs.kind'],
+              fill_target: 'step.success',
+              evaluated_at: 'step-report',
+              field: 'step.success',
+              degraded: true,
+              error: {message: 'no such key: kind'},
+            },
+          ],
+        },
+      },
     ] as const;
 
     for (const gate_result of gateResults) {

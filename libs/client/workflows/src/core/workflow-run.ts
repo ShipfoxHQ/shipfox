@@ -56,6 +56,7 @@ export type {
   StepAttemptDisplayDuration,
   StepAttemptInvocation,
   StepAttemptSession,
+  StepGateRestartDecision,
   StepGateResult,
 } from './entities/step-attempt.js';
 export {

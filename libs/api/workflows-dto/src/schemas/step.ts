@@ -207,10 +207,46 @@ export const stepDtoSchema = z.object({
 
 export type StepDto = z.infer<typeof stepDtoSchema>;
 
+// The `on_failure` decision recorded on a failed attempt. `rule` is the 1-based position in
+// the authored list and `rule_count` its length; attempts recorded before the count existed
+// omit it.
+export const stepGateRestartDecisionDtoSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('restart'),
+    rule: z.number().int().positive(),
+    rule_count: z.number().int().positive().optional(),
+    restart_from: z.string(),
+    trace: evaluationTraceSchema.optional(),
+  }),
+  z.object({
+    kind: z.literal('none_applied'),
+    rule_count: z.number().int().positive().optional(),
+    trace: evaluationTraceSchema.optional(),
+  }),
+  z.object({
+    kind: z.literal('evaluation_failed'),
+    rule: z.number().int().positive(),
+    rule_count: z.number().int().positive().optional(),
+    source: z.string().max(STEP_ERROR_MESSAGE_MAX_LENGTH),
+    error: z
+      .object({
+        message: z.string().max(STEP_ERROR_MESSAGE_MAX_LENGTH),
+        path: z.string().max(STEP_ERROR_MESSAGE_MAX_LENGTH).optional(),
+      })
+      .optional(),
+    trace: evaluationTraceSchema.optional(),
+  }),
+]);
+
+export type StepGateRestartDecisionDto = z.infer<typeof stepGateRestartDecisionDtoSchema>;
+
+const restartDecisionField = {restart: stepGateRestartDecisionDtoSchema.optional()};
+
 export const stepGateResultDtoSchema = z
   .discriminatedUnion('kind', [
     z.object({
       kind: z.literal('none'),
+      ...restartDecisionField,
     }),
     z.object({
       kind: z.literal('not_evaluated'),
@@ -226,6 +262,7 @@ export const stepGateResultDtoSchema = z
       passed: z.literal(false),
       source: z.string().max(STEP_ERROR_MESSAGE_MAX_LENGTH),
       exit_code: z.number().int().nullable(),
+      ...restartDecisionField,
     }),
     z.object({
       kind: z.literal('uncheckable'),

@@ -1,4 +1,8 @@
-import type {StepAttemptDetailResponseDto, StepAttemptDto} from '@shipfox/api-workflows-dto';
+import type {
+  StepAttemptDetailResponseDto,
+  StepAttemptDto,
+  StepGateResultDto,
+} from '@shipfox/api-workflows-dto';
 import {configureApiClient, resetApiClient} from '@shipfox/client-api';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {
@@ -30,6 +34,10 @@ const EXECUTION_ID = '77777777-7777-4777-8777-777777777777';
 const INSPECTOR_TRIGGER_NAME = 'Open inspector';
 const INVOCATION_LOG_DESCRIPTION = /The invocation log has the full result\./u;
 const MASKED_SECRET_INPUT = /\*\*\* \(secrets\.SLACK_TOKEN\)/u;
+
+const RESTARTED_FROM = /Restarted from/u;
+const RESTARTED_FROM_SINGLE_RULE = /^Restarted from select_branch$/u;
+const ANY_RESTART_DECISION = /Restarted from|restart rule/iu;
 
 const DEFINITE_CAUSE_ADVICE = /suspended|reconnect/iu;
 
@@ -761,6 +769,67 @@ describe('StepInspectorSheet', () => {
     ).toBeInTheDocument();
   });
 
+  describe('restart decision', () => {
+    async function openDecision(gateResult: StepGateResultDto) {
+      const user = userEvent.setup();
+      configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
+
+      await renderPanel({entry: stepEntry('agent_invocation_failed', undefined, {}, gateResult)});
+      await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+    }
+
+    it('names the rule and target of a restart taken through a list', async () => {
+      await openDecision({
+        kind: 'none',
+        restart: {kind: 'restart', rule: 2, rule_count: 2, restart_from: 'select_branch'},
+      });
+
+      expect(await screen.findByText(RESTARTED_FROM)).toHaveTextContent(
+        'Restarted from select_branch (rule 2)',
+      );
+    });
+
+    it('shows no rule number for a single-rule gate', async () => {
+      await openDecision({
+        kind: 'none',
+        restart: {kind: 'restart', rule: 1, rule_count: 1, restart_from: 'select_branch'},
+      });
+
+      expect(await screen.findByText(RESTARTED_FROM)).toHaveTextContent(RESTARTED_FROM_SINGLE_RULE);
+    });
+
+    it('shows that no rule applied next to the step error', async () => {
+      await openDecision({kind: 'none', restart: {kind: 'none_applied', rule_count: 2}});
+
+      expect(await screen.findByText('No restart rule applied')).toBeInTheDocument();
+      expect(screen.getByText('Agent dispatch failed')).toBeInTheDocument();
+    });
+
+    it('shows the rule that could not be evaluated and its error', async () => {
+      await openDecision({
+        kind: 'none',
+        restart: {
+          kind: 'evaluation_failed',
+          rule: 2,
+          rule_count: 2,
+          source: 'step.outputs.failure_kind == "transient"',
+          error: {message: 'no such key: failure_kind'},
+        },
+      });
+
+      expect(
+        await screen.findByText('Restart rule 2 could not be evaluated: no such key: failure_kind'),
+      ).toBeInTheDocument();
+    });
+
+    it('shows no decision line for an attempt without a recorded decision', async () => {
+      await openDecision({kind: 'none'});
+
+      await screen.findByText('The agent stopped with an error. Read the step logs for the cause.');
+      expect(screen.queryByText(ANY_RESTART_DECISION)).not.toBeInTheDocument();
+    });
+  });
+
   it('keeps useful fallback copy for an unknown future reason', async () => {
     const user = userEvent.setup();
     configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
@@ -1086,6 +1155,7 @@ function stepEntry(
   reason: StepErrorReason = 'agent_invocation_failed',
   code?: string,
   errorOverrides: Partial<NonNullable<WorkflowStepFixtureDto['error']>> = {},
+  gateResult: StepGateResultDto = null,
 ): StepListEntryModel {
   const jobId = '44444444-4444-4444-8444-444444444444';
   const job = workflowJob({
@@ -1128,6 +1198,7 @@ function stepEntry(
                 step_id: STEP_ID,
                 status: 'failed',
                 output: {result: 'failed'},
+                gate_result: gateResult,
                 finished_at: '2026-08-05T12:01:00.000Z',
               }),
             ],

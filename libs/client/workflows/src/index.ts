@@ -24,6 +24,7 @@ export type {
   StepError,
   StepErrorCategory,
   StepErrorReason,
+  StepGateRestartDecision,
   StepGateResult,
   StepSourceLocation,
   ToolStepConfig,

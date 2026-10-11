@@ -148,6 +148,82 @@ describe('selected workflow job routes', () => {
     expect(response.json().selected_execution.steps.items[0].gate_max_attempts).toBe(3);
   });
 
+  describe('with a list of restart rules', () => {
+    const rules = [
+      {restart_from: 'implement', max_attempts: 4},
+      {restart_from: 'prepare', max_attempts: 2},
+    ];
+
+    async function arrangeRuleList() {
+      const fixture = await createFixture();
+      await db()
+        .update(steps)
+        .set({config: {gate: {on_failure: rules}}})
+        .where(eq(steps.id, fixture.stepIds[0] as string));
+      return fixture;
+    }
+
+    test('returns the limit of the rule the latest restart used', async () => {
+      const fixture = await arrangeRuleList();
+      await db()
+        .update(stepAttempts)
+        .set({
+          gateResult: {
+            exit_code: 1,
+            restart: {
+              kind: 'restart',
+              rule: 2,
+              rule_count: 2,
+              restart_from: 'prepare',
+              trace: [
+                {
+                  expression: 'step.exit_code == 1',
+                  roots: ['step.exit_code'],
+                  fillTarget: 'step.success',
+                  evaluatedAt: 'step-report',
+                  field: 'step.success',
+                  value: 'true',
+                },
+              ],
+            },
+          },
+        })
+        .where(eq(stepAttempts.id, fixture.stepAttemptIds[1] as string));
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/workflows/runs/jobs/${fixture.jobIds[0]}`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(workflowJobDetailResponseSchema.safeParse(body).success).toBe(true);
+      const step = body.selected_execution.steps.items[0];
+      expect(step.gate_max_attempts).toBe(2);
+      const decided = step.attempts.items.find(
+        (item: {gate_result: {restart?: unknown}}) => item.gate_result.restart !== undefined,
+      );
+      expect(decided.gate_result).toEqual({
+        kind: 'none',
+        restart: {kind: 'restart', rule: 2, rule_count: 2, restart_from: 'prepare'},
+      });
+    });
+
+    test('shows no limit before any rule has been selected', async () => {
+      const fixture = await arrangeRuleList();
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/workflows/runs/jobs/${fixture.jobIds[0]}`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().selected_execution.steps.items[0]).not.toHaveProperty(
+        'gate_max_attempts',
+      );
+    });
+  });
+
   test('omits the gate attempt limit for tool steps that cannot restart', async () => {
     const fixture = await createFixture();
     await db()

@@ -38,6 +38,7 @@ import type {
   StepAttemptDetail,
   StepAttemptInvocation,
   StepError,
+  StepGateRestartDecision,
   WorkflowDiagnosticUnavailableField,
 } from '#core/workflow-run.js';
 import {presentStepAttemptDiagnostics} from '#core/workflow-run.js';
@@ -195,6 +196,7 @@ function StepFailureCallout({
               <span>{description}</span>
               <FailureMessage error={error} />
               <ProviderMessage error={error} />
+              <RestartDecisionLine decision={attempt.gateResult?.restart} />
             </div>
             <Code as="span" variant="label" className="text-tag-error-text">
               {failureCode}
@@ -897,6 +899,42 @@ function failureCodeForStep(step: Step, error: StepError | null, reason: string)
 function FailureMessage({error}: {error: StepError | null}): ReactNode {
   if (isProviderStreamFailure(error) || !error?.message) return null;
   return <span className="text-foreground-neutral-muted">{error.message}</span>;
+}
+
+// A single-rule gate has nothing to number, so the position shows only for a list.
+function ruleLabel(decision: {rule: number; ruleCount?: number | undefined}): string {
+  return decision.ruleCount !== undefined && decision.ruleCount > 1
+    ? ` (rule ${decision.rule})`
+    : '';
+}
+
+function RestartDecisionLine({
+  decision,
+}: {
+  decision: StepGateRestartDecision | undefined;
+}): ReactNode {
+  if (decision === undefined) return null;
+  switch (decision.kind) {
+    case 'restart':
+      return (
+        <span>
+          Restarted from <Code as="span">{decision.restartFrom}</Code>
+          {ruleLabel(decision)}
+        </span>
+      );
+    case 'none_applied':
+      return <span>No restart rule applied</span>;
+    case 'evaluation_failed': {
+      const rule =
+        decision.ruleCount !== undefined && decision.ruleCount > 1 ? ` ${decision.rule}` : '';
+      return (
+        <span>
+          Restart rule{rule} could not be evaluated
+          {decision.error ? `: ${decision.error.message}` : '.'}
+        </span>
+      );
+    }
+  }
 }
 
 function ProviderMessage({error}: {error: StepError | null}): ReactNode {

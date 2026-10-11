@@ -1,21 +1,47 @@
 import {type Duration, intervalToDuration} from 'date-fns';
 import type {WorkflowDiagnosticUnavailableField} from './workflow-diagnostics.js';
 
-export type StepGateResult =
-  | {kind: 'none'}
-  | {kind: 'not_evaluated'}
-  | {kind: 'passed'; passed: true; source: string; exitCode: number | null}
-  | {kind: 'failed'; passed: false; source: string; exitCode: number | null}
+// The `on_failure` decision recorded on a failed attempt. `rule` is the 1-based position in
+// the authored list; `ruleCount` is absent on attempts recorded before it was stored.
+export type StepGateRestartDecision =
   | {
-      kind: 'uncheckable';
-      passed: false;
-      uncheckable: true;
-      reason: string;
-      source?: string;
-      exitCode: number | null;
+      kind: 'restart';
+      rule: number;
+      ruleCount?: number | undefined;
+      restartFrom: string;
+      trace?: EvaluationTraceEntry[] | undefined;
     }
-  | {kind: 'evaluation_error'; reason: string; exitCode: number | null}
-  | {kind: 'unknown'; data: Record<string, unknown>}
+  | {
+      kind: 'none_applied';
+      ruleCount?: number | undefined;
+      trace?: EvaluationTraceEntry[] | undefined;
+    }
+  | {
+      kind: 'evaluation_failed';
+      rule: number;
+      ruleCount?: number | undefined;
+      source: string;
+      error?: {message: string; path?: string | undefined} | undefined;
+      trace?: EvaluationTraceEntry[] | undefined;
+    };
+
+export type StepGateResult =
+  | ((
+      | {kind: 'none'}
+      | {kind: 'not_evaluated'}
+      | {kind: 'passed'; passed: true; source: string; exitCode: number | null}
+      | {kind: 'failed'; passed: false; source: string; exitCode: number | null}
+      | {
+          kind: 'uncheckable';
+          passed: false;
+          uncheckable: true;
+          reason: string;
+          source?: string;
+          exitCode: number | null;
+        }
+      | {kind: 'evaluation_error'; reason: string; exitCode: number | null}
+      | {kind: 'unknown'; data: Record<string, unknown>}
+    ) & {restart?: StepGateRestartDecision | undefined})
   | null;
 export type StepAttemptDisplayDuration =
   | {state: 'fixed'; elapsed: Duration}

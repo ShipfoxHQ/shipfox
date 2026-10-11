@@ -1,4 +1,4 @@
-import type {StepAttemptDto} from '@shipfox/api-workflows-dto';
+import type {StepAttemptDto, StepGateResultDto} from '@shipfox/api-workflows-dto';
 import {stepLogsQueryKeys} from '@shipfox/client-logs';
 import type {Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
@@ -31,7 +31,42 @@ const CHECKOUT_FAILURE_CODES = [
 
 type CheckoutFailureCode = (typeof CHECKOUT_FAILURE_CODES)[number];
 
+const RESTART_DECISIONS = [
+  'restarted-from-list',
+  'restarted-single-rule',
+  'no-rule-applied',
+  'rule-not-evaluated',
+] as const;
+
+type RestartDecisionState = (typeof RESTART_DECISIONS)[number];
+
+const RESTART_DECISION_GATE_RESULTS: Record<RestartDecisionState, StepGateResultDto> = {
+  'restarted-from-list': {
+    kind: 'failed',
+    passed: false,
+    source: 'step.exit_code == 0',
+    exit_code: 1,
+    restart: {kind: 'restart', rule: 2, rule_count: 2, restart_from: 'select_branch'},
+  },
+  'restarted-single-rule': {
+    kind: 'none',
+    restart: {kind: 'restart', rule: 1, rule_count: 1, restart_from: 'select_branch'},
+  },
+  'no-rule-applied': {kind: 'none', restart: {kind: 'none_applied', rule_count: 2}},
+  'rule-not-evaluated': {
+    kind: 'none',
+    restart: {
+      kind: 'evaluation_failed',
+      rule: 2,
+      rule_count: 2,
+      source: 'step.outputs.failure_kind == "transient"',
+      error: {message: 'no such key: failure_kind', path: 'step.outputs.failure_kind'},
+    },
+  },
+};
+
 interface StepInspectorStoryArgs {
+  restartDecision: RestartDecisionState;
   checkoutFailureCode: CheckoutFailureCode;
   toolOutcome: ToolStepOutcome;
   runnerLossReason: RunnerLossReason;
@@ -55,11 +90,13 @@ const meta = {
     layout: 'fullscreen',
   },
   args: {
+    restartDecision: 'restarted-from-list',
     checkoutFailureCode: 'repository-not-granted',
     toolOutcome: 'succeeded',
     runnerLossReason: 'lease_expired',
   },
   argTypes: {
+    restartDecision: {control: 'select', options: RESTART_DECISIONS},
     checkoutFailureCode: {control: 'select', options: CHECKOUT_FAILURE_CODES},
     toolOutcome: {control: 'select', options: ['succeeded', 'failed', 'running']},
     runnerLossReason: {control: 'select', options: RUNNER_LOSS_REASONS},
@@ -71,6 +108,12 @@ type Story = StoryObj<typeof meta>;
 
 export const FailedStep: Story = {
   render: () => <FailedStepStory />,
+};
+
+export const RestartDecision: Story = {
+  render: ({restartDecision}) => (
+    <FailedStepStory entry={failedStepEntry(RESTART_DECISION_GATE_RESULTS[restartDecision])} />
+  ),
 };
 
 export const CheckoutFailureCauses: Story = {
@@ -425,7 +468,7 @@ function FailedStepStory({entry = failedStepEntry()}: {entry?: StepListEntryMode
   );
 }
 
-function failedStepEntry(): StepListEntryModel {
+function failedStepEntry(gateResult: StepGateResultDto = null): StepListEntryModel {
   const jobId = '44444444-4444-4444-8444-000000000001';
   const executionId = '77777777-7777-4777-8777-000000000001';
   const stepId = '55555555-5555-4555-8555-000000000001';
@@ -479,6 +522,7 @@ function failedStepEntry(): StepListEntryModel {
                   category: 'user',
                   exit_code: 1,
                 },
+                gate_result: gateResult,
                 finished_at: '2026-06-21T12:04:00.000Z',
               }),
             ],

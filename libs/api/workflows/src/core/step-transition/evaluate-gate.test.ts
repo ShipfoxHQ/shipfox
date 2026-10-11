@@ -563,6 +563,7 @@ describe('selectRestartRule', () => {
     expect(selectRestartRule({gate, result: failed})).toMatchObject({
       kind: 'selected',
       position: 1,
+      ruleCount: 2,
       rule: {restartFrom: 'a'},
       trace: [],
     });
@@ -621,19 +622,21 @@ describe('gateResultPayload restart decision', () => {
     const payload = gateResultPayload({kind: 'no-gate'}, 1, {
       kind: 'selected',
       position: 2,
+      ruleCount: 3,
       rule: {restartFrom: 'prepare'},
       trace: [],
     });
 
     expect(payload).toEqual({
       exit_code: 1,
-      restart: {kind: 'restart', rule: 2, restart_from: 'prepare'},
+      restart: {kind: 'restart', rule: 2, rule_count: 3, restart_from: 'prepare'},
     });
   });
 
   test('records that no rule applied beside the gate outcome', () => {
     const payload = gateResultPayload({kind: 'failed', source: 'step.exit_code == 0'}, 1, {
       kind: 'none-applied',
+      ruleCount: 2,
       trace: [],
     });
 
@@ -641,7 +644,7 @@ describe('gateResultPayload restart decision', () => {
       passed: false,
       source: 'step.exit_code == 0',
       exit_code: 1,
-      restart: {kind: 'none_applied'},
+      restart: {kind: 'none_applied', rule_count: 2},
     });
   });
 
@@ -649,6 +652,7 @@ describe('gateResultPayload restart decision', () => {
     const payload = gateResultPayload({kind: 'no-gate'}, 1, {
       kind: 'evaluation-failed',
       position: 1,
+      ruleCount: 1,
       source: 'step.outputs.kind == "x"',
       error: {message: 'no such key', path: 'step.outputs.kind'},
       trace: [],
@@ -659,6 +663,7 @@ describe('gateResultPayload restart decision', () => {
       restart: {
         kind: 'evaluation_failed',
         rule: 1,
+        rule_count: 1,
         source: 'step.outputs.kind == "x"',
         error: {message: 'no such key', path: 'step.outputs.kind'},
       },

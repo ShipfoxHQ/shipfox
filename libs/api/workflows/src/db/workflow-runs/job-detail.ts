@@ -33,7 +33,7 @@ import {
   toStepStatusReason,
 } from '#core/entities/step.js';
 import {DEFAULT_RESTART_ATTEMPT_CAP} from '#core/step-transition/decide-step-transition.js';
-import {readStepGate} from '#core/step-transition/evaluate-gate.js';
+import {readStepGate, type StepGateRestartRule} from '#core/step-transition/evaluate-gate.js';
 import {db, type Tx} from '../db.js';
 import {jobExecutions} from '../schema/job-executions.js';
 import {jobListenerEvents} from '../schema/job-listener-events.js';
@@ -1385,9 +1385,10 @@ function toStepSummary(
   row: StepRow,
   attempts: WorkflowStepSummaryRead['attempts'],
 ): WorkflowStepSummaryRead {
-  // The selected rule is only known per attempt, so a list shows no single limit.
-  const rules = readStepGate(row.config)?.onFailure;
-  const gateOnFailure = rules?.length === 1 ? rules[0] : undefined;
+  const gateOnFailure =
+    row.type === 'tool'
+      ? undefined
+      : selectedRestartRule(readStepGate(row.config)?.onFailure, attempts);
   return {
     id: row.id,
     key: row.key,
@@ -1399,12 +1400,28 @@ function toStepSummary(
     sourceLocation: row.sourceLocation,
     currentAttempt: row.currentAttempt,
     gateMaxAttempts:
-      row.type === 'tool' || gateOnFailure === undefined
+      gateOnFailure === undefined
         ? undefined
         : (gateOnFailure.maxAttempts ?? DEFAULT_RESTART_ATTEMPT_CAP),
     error: (row.error as Record<string, unknown> | null) ?? null,
     attempts,
   };
+}
+
+// A list holds several limits, so the step shows the one its latest restart used. The
+// attempts are newest first.
+function selectedRestartRule(
+  rules: readonly StepGateRestartRule[] | undefined,
+  attempts: WorkflowStepSummaryRead['attempts'],
+): StepGateRestartRule | undefined {
+  if (rules === undefined || rules.length <= 1) return rules?.[0];
+  for (const attempt of attempts.items) {
+    const restart = attempt.gateResult?.restart as Record<string, unknown> | undefined;
+    if (restart?.kind === 'restart' && typeof restart.rule === 'number') {
+      return rules[restart.rule - 1];
+    }
+  }
+  return undefined;
 }
 
 function toStepAttemptSummary(row: StepAttemptSummaryRow): WorkflowStepAttemptSummaryRead {

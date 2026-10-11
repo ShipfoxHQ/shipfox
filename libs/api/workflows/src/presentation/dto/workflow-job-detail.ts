@@ -130,8 +130,11 @@ function toStepGateResultSummaryDto(
   status: string,
 ): StepGateResultSummaryDto {
   const result = toStepGateResultDto(gateResult, status);
-  if (result === null) return {kind: 'unknown'};
-  return result.kind === 'unknown' ? {kind: 'unknown'} : result;
+  if (result === null || result.kind === 'unknown') return {kind: 'unknown'};
+  if (!('restart' in result) || result.restart === undefined) return result;
+  // The expression trace stays on the attempt detail; the summary carries the decision only.
+  const {trace: _trace, ...restart} = result.restart;
+  return {...result, restart};
 }
 
 function encodeStepCursor(cursor: {position: number; id: string}): string {

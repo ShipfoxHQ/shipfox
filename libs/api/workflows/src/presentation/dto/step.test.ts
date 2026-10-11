@@ -843,4 +843,115 @@ describe('toStepAttemptDetailResponseDto', () => {
 
     expect(result.gate_result).toEqual({kind: 'none'});
   });
+
+  describe('restart decision', () => {
+    const ancestry = {
+      workflowRunId: '33333333-3333-4333-8333-333333333333',
+      workflowRunAttempt: 2,
+      jobId: '44444444-4444-4444-8444-444444444444',
+      jobExecutionId: '55555555-5555-4555-8555-555555555555',
+    };
+
+    function gateResultFor(gateResult: Record<string, unknown>, status = 'failed') {
+      return toStepAttemptDetailResponseDto(
+        step({type: 'run'}),
+        {...baseAttempt, status: status as StepAttempt['status'], gateResult},
+        ancestry,
+      ).gate_result;
+    }
+
+    it('exposes the rule and target of a restart taken without a success gate', () => {
+      expect(
+        gateResultFor({
+          exit_code: 1,
+          restart: {kind: 'restart', rule: 2, rule_count: 2, restart_from: 'select_branch'},
+        }),
+      ).toEqual({
+        kind: 'none',
+        restart: {kind: 'restart', rule: 2, rule_count: 2, restart_from: 'select_branch'},
+      });
+    });
+
+    it('keeps the failed success gate beside the decision', () => {
+      expect(
+        gateResultFor({
+          passed: false,
+          source: 'step.exit_code == 0',
+          exit_code: 1,
+          restart: {kind: 'none_applied', rule_count: 2},
+        }),
+      ).toEqual({
+        kind: 'failed',
+        passed: false,
+        source: 'step.exit_code == 0',
+        exit_code: 1,
+        restart: {kind: 'none_applied', rule_count: 2},
+      });
+    });
+
+    it('names the rule that could not be evaluated with its error and trace', () => {
+      const result = gateResultFor({
+        exit_code: 1,
+        restart: {
+          kind: 'evaluation_failed',
+          rule: 1,
+          rule_count: 2,
+          source: 'step.outputs.kind == "x"',
+          error: {message: 'no such key: kind', path: 'step.outputs.kind'},
+          trace: [
+            {
+              expression: 'step.outputs.kind == "x"',
+              roots: ['step.outputs.kind'],
+              fillTarget: 'step.success',
+              evaluatedAt: 'step-report',
+              field: 'step.success',
+              degraded: true,
+              error: {message: 'no such key: kind'},
+            },
+          ],
+        },
+      });
+
+      expect(result).toEqual({
+        kind: 'none',
+        restart: {
+          kind: 'evaluation_failed',
+          rule: 1,
+          rule_count: 2,
+          source: 'step.outputs.kind == "x"',
+          error: {message: 'no such key: kind', path: 'step.outputs.kind'},
+          trace: [
+            {
+              expression: 'step.outputs.kind == "x"',
+              roots: ['step.outputs.kind'],
+              fill_target: 'step.success',
+              evaluated_at: 'step-report',
+              field: 'step.success',
+              degraded: true,
+              error: {message: 'no such key: kind'},
+            },
+          ],
+        },
+      });
+    });
+
+    it('shows a decision recorded before the rule count was stored', () => {
+      expect(
+        gateResultFor({exit_code: 1, restart: {kind: 'restart', rule: 1, restart_from: 'fix'}}),
+      ).toEqual({kind: 'none', restart: {kind: 'restart', rule: 1, restart_from: 'fix'}});
+    });
+
+    it('drops a decision it does not recognize', () => {
+      expect(gateResultFor({exit_code: 1, restart: {kind: 'future'}})).toEqual({kind: 'none'});
+    });
+
+    it('renders an attempt with no recorded decision as before', () => {
+      expect(gateResultFor({passed: false, source: 'step.exit_code == 0', exit_code: 1})).toEqual({
+        kind: 'failed',
+        passed: false,
+        source: 'step.exit_code == 0',
+        exit_code: 1,
+      });
+    });
+  });
 });

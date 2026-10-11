@@ -184,13 +184,15 @@ export type RestartRuleSelection =
   | {
       kind: 'selected';
       position: number;
+      ruleCount: number;
       rule: StepGateRestartRule;
       trace: readonly PersistedEvaluationTraceEntry[];
     }
-  | {kind: 'none-applied'; trace: readonly PersistedEvaluationTraceEntry[]}
+  | {kind: 'none-applied'; ruleCount: number; trace: readonly PersistedEvaluationTraceEntry[]}
   | {
       kind: 'evaluation-failed';
       position: number;
+      ruleCount: number;
       source: string;
       error?: {message: string; path?: string};
       trace: readonly PersistedEvaluationTraceEntry[];
@@ -220,11 +222,12 @@ export function selectRestartRule(params: {
     output: params.result.output,
     vars: params.vars,
   });
+  const ruleCount = rules.length;
   const entries: PersistedEvaluationTraceEntry[] = [];
   for (const [index, rule] of rules.entries()) {
     const position = index + 1;
     if (rule.if === undefined) {
-      return {kind: 'selected', position, rule, trace: capTraceEntries(entries)};
+      return {kind: 'selected', position, ruleCount, rule, trace: capTraceEntries(entries)};
     }
 
     const outcome = evaluatePlannedPredicateAtSite({
@@ -248,16 +251,17 @@ export function selectRestartRule(params: {
       return {
         kind: 'evaluation-failed',
         position,
+        ruleCount,
         source: rule.if.source,
         ...(outcome.error === undefined ? {} : {error: outcome.error}),
         trace: capTraceEntries(entries),
       };
     }
     if (outcome.value) {
-      return {kind: 'selected', position, rule, trace: capTraceEntries(entries)};
+      return {kind: 'selected', position, ruleCount, rule, trace: capTraceEntries(entries)};
     }
   }
-  return {kind: 'none-applied', trace: capTraceEntries(entries)};
+  return {kind: 'none-applied', ruleCount, trace: capTraceEntries(entries)};
 }
 
 export function evaluateGateFeedback(params: {
@@ -310,15 +314,17 @@ function restartDecisionPayload(selection: RestartRuleSelection): Record<string,
       return {
         kind: 'restart',
         rule: selection.position,
+        rule_count: selection.ruleCount,
         restart_from: selection.rule.restartFrom,
         ...trace,
       };
     case 'none-applied':
-      return {kind: 'none_applied', ...trace};
+      return {kind: 'none_applied', rule_count: selection.ruleCount, ...trace};
     case 'evaluation-failed':
       return {
         kind: 'evaluation_failed',
         rule: selection.position,
+        rule_count: selection.ruleCount,
         source: selection.source,
         ...(selection.error === undefined ? {} : {error: selection.error}),
         ...trace,

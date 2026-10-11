@@ -2971,7 +2971,7 @@ describe('durable gate restart', () => {
       expect(attempt?.restartFeedback).toBe('Prepare again.');
       expect(attempt?.gateResult).toMatchObject({
         exit_code: 1,
-        restart: {kind: 'restart', rule: 2, restart_from: 'prepare'},
+        restart: {kind: 'restart', rule: 2, rule_count: 2, restart_from: 'prepare'},
       });
       const retry = await nextStepForJob(jobId);
       if (retry.kind !== 'step') throw new Error('Expected the restarted step');
@@ -2995,7 +2995,7 @@ describe('durable gate restart', () => {
       const attempt = (await getStepAttempts(jobId)).find((a) => a.stepId === publish);
       expect(attempt?.gateResult).toEqual({
         exit_code: 1,
-        restart: {kind: 'restart', rule: 1, restart_from: 'first'},
+        restart: {kind: 'restart', rule: 1, rule_count: 1, restart_from: 'first'},
       });
     });
 

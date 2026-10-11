@@ -2,6 +2,7 @@ import type {
   EvaluationTraceDto,
   StepAttemptDto,
   StepErrorDto,
+  StepGateRestartDecisionDto,
   StepGateResultDto,
   StepGateResultSummaryDto,
   WorkflowExecutionEventDto,
@@ -10,6 +11,7 @@ import type {
   EvaluationTraceEntry,
   EvaluationTraceError,
   StepError,
+  StepGateRestartDecision,
   StepGateResult,
   WorkflowExecutionEvent,
 } from '#core/workflow-run.js';
@@ -39,12 +41,19 @@ export function toWorkflowJobStepError(dto: StepErrorDto): StepError | null {
 export function toWorkflowJobGateResult(dto: StepGateResultSummaryDto): StepGateResult {
   if (dto === null) return null;
   if (dto.kind === 'unknown') return {kind: 'unknown', data: {}};
-  if (dto.kind === 'none' || dto.kind === 'not_evaluated') return {kind: dto.kind};
+  if (dto.kind === 'not_evaluated') return {kind: dto.kind};
+  if (dto.kind === 'none') return {kind: dto.kind, ...toRestartField(dto.restart)};
   if (dto.kind === 'passed' && 'source' in dto) {
     return {kind: 'passed', passed: true, source: dto.source, exitCode: dto.exit_code};
   }
   if (dto.kind === 'failed' && 'source' in dto) {
-    return {kind: 'failed', passed: false, source: dto.source, exitCode: dto.exit_code};
+    return {
+      kind: 'failed',
+      passed: false,
+      source: dto.source,
+      exitCode: dto.exit_code,
+      ...toRestartField(dto.restart),
+    };
   }
   if (dto.kind === 'uncheckable' && 'uncheckable' in dto) {
     return {
@@ -60,6 +69,39 @@ export function toWorkflowJobGateResult(dto: StepGateResultSummaryDto): StepGate
     return {kind: 'evaluation_error', reason: dto.reason, exitCode: dto.exit_code};
   }
   return {kind: 'unknown', data: {}};
+}
+
+function toRestartField(
+  dto: StepGateRestartDecisionDto | undefined,
+): {restart: StepGateRestartDecision} | Record<string, never> {
+  if (dto === undefined) return {};
+  const ruleCount = dto.rule_count === undefined ? {} : {ruleCount: dto.rule_count};
+  const trace = dto.trace === undefined ? {} : {trace: toEvaluationTrace(dto.trace) ?? []};
+  switch (dto.kind) {
+    case 'restart':
+      return {
+        restart: {
+          kind: dto.kind,
+          rule: dto.rule,
+          ...ruleCount,
+          restartFrom: dto.restart_from,
+          ...trace,
+        },
+      };
+    case 'none_applied':
+      return {restart: {kind: dto.kind, ...ruleCount, ...trace}};
+    case 'evaluation_failed':
+      return {
+        restart: {
+          kind: dto.kind,
+          rule: dto.rule,
+          ...ruleCount,
+          source: dto.source,
+          ...(dto.error === undefined ? {} : {error: dto.error}),
+          ...trace,
+        },
+      };
+  }
 }
 
 export function toStepAttemptInvocation(invocation: StepAttemptDto['invocations'][number]) {
@@ -89,8 +131,13 @@ export function toWorkflowExecutionEvent(dto: WorkflowExecutionEventDto): Workfl
 }
 
 export function toStepGateResult(dto: StepGateResultDto): StepGateResult {
-  if (dto === null || dto.kind === 'none' || dto.kind === 'not_evaluated') return dto;
-  if (dto.kind === 'passed' || dto.kind === 'failed') return {...dto, exitCode: dto.exit_code};
+  if (dto === null || dto.kind === 'not_evaluated') return dto;
+  if (dto.kind === 'none') return {kind: dto.kind, ...toRestartField(dto.restart)};
+  if (dto.kind === 'passed') return {...dto, exitCode: dto.exit_code};
+  if (dto.kind === 'failed') {
+    const {restart, ...failed} = dto;
+    return {...failed, exitCode: dto.exit_code, ...toRestartField(restart)};
+  }
   if (dto.kind === 'uncheckable') {
     return {
       kind: dto.kind,

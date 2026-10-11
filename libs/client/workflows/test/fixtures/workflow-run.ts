@@ -608,9 +608,10 @@ function compactGateResult(
   gateResult: WorkflowJobExecutionFixtureDto['steps'][number]['attempts'][number]['gate_result'],
 ): StepGateResultSummaryDto {
   if (!gateResult || typeof gateResult.kind !== 'string') return {kind: 'unknown'};
-  if (gateResult.kind === 'none' || gateResult.kind === 'not_evaluated') {
-    return {kind: gateResult.kind};
-  }
+  if (gateResult.kind === 'not_evaluated') return {kind: gateResult.kind};
+  if (gateResult.kind === 'none') return gateResult;
+  // Only a recorded restart decision is worth carrying; the rest of a failed gate is not shown here.
+  if (gateResult.kind === 'failed' && gateResult.restart !== undefined) return gateResult;
   return {kind: 'unknown'};
 }
 

@@ -200,6 +200,37 @@ const stepErrorSchema = z
   .strict()
   .nullable();
 
+const ruleSchema = z.number().int().min(1);
+
+const gateRestartDecisionSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('restart'),
+      rule: ruleSchema,
+      rule_count: ruleSchema.optional(),
+      restart_from: textSchema,
+      trace: evaluationTraceSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('none_applied'),
+      rule_count: ruleSchema.optional(),
+      trace: evaluationTraceSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('evaluation_failed'),
+      rule: ruleSchema,
+      rule_count: ruleSchema.optional(),
+      source: textSchema,
+      error: z.object({message: textSchema, path: textSchema.optional()}).strict().optional(),
+      trace: evaluationTraceSchema.optional(),
+    })
+    .strict(),
+]);
+
 const gateResultSchema = z
   .object({
     kind: z.enum(gateKinds),
@@ -208,6 +239,7 @@ const gateResultSchema = z
     exit_code: z.number().int().nullable().optional(),
     uncheckable: z.boolean().optional(),
     reason: textSchema.optional(),
+    restart: gateRestartDecisionSchema.optional(),
     data: z.unknown().optional(),
   })
   .strict()
@@ -550,6 +582,51 @@ const stepErrorJson = {
   additionalProperties: false,
 } as const;
 
+const gateRestartDecisionJson = {
+  oneOf: [
+    {
+      type: 'object',
+      properties: {
+        kind: {const: 'restart'},
+        rule: {type: 'integer', minimum: 1},
+        rule_count: {type: 'integer', minimum: 1},
+        restart_from: text,
+        trace: evaluationTraceJson,
+      },
+      required: ['kind', 'rule', 'restart_from'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object',
+      properties: {
+        kind: {const: 'none_applied'},
+        rule_count: {type: 'integer', minimum: 1},
+        trace: evaluationTraceJson,
+      },
+      required: ['kind'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object',
+      properties: {
+        kind: {const: 'evaluation_failed'},
+        rule: {type: 'integer', minimum: 1},
+        rule_count: {type: 'integer', minimum: 1},
+        source: text,
+        error: {
+          type: 'object',
+          properties: {message: text, path: text},
+          required: ['message'],
+          additionalProperties: false,
+        },
+        trace: evaluationTraceJson,
+      },
+      required: ['kind', 'rule', 'source'],
+      additionalProperties: false,
+    },
+  ],
+} as const;
+
 const gateResultJson = {
   type: 'object',
   properties: {
@@ -559,6 +636,7 @@ const gateResultJson = {
     exit_code: nullable({type: 'integer'}),
     uncheckable: {type: 'boolean'},
     reason: text,
+    restart: gateRestartDecisionJson,
     data: dynamicJson,
   },
   required: ['kind'],

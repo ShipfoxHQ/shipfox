@@ -89,6 +89,7 @@ export {
   type StepErrorCategoryDto,
   type StepErrorDto,
   type StepErrorReasonDto,
+  type StepGateRestartDecisionDto,
   type StepGateResultDto,
   type StepStatusReasonDto,
   stepAttemptDetailDtoSchema,
@@ -98,6 +99,7 @@ export {
   stepErrorCategorySchema,
   stepErrorDtoSchema,
   stepErrorReasonSchema,
+  stepGateRestartDecisionDtoSchema,
   stepGateResultDtoSchema,
   stepStatusReasonSchema,
 } from './step.js';
