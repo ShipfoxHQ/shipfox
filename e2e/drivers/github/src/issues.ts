@@ -247,21 +247,21 @@ async function updateIssue(context: RouteContext): Promise<void> {
 // Pull requests take issue comments too, so their comments are listed here as GitHub does.
 function listIssueComments(context: RouteContext): void {
   const issue = findIssue(context.issues, context.repository, context.number);
-  const pullRequest = context.pullRequests.get(context.number);
-  const comments =
-    issue?.comments ??
-    (pullRequest !== undefined && sameRepository(pullRequest.repository, context.repository)
-      ? pullRequest.comments
-      : undefined);
-  if (issue === undefined && comments === undefined) {
+  const candidate = context.pullRequests.get(context.number);
+  const pullRequest =
+    candidate !== undefined && sameRepository(candidate.repository, context.repository)
+      ? candidate
+      : undefined;
+  if (issue === undefined && pullRequest === undefined) {
     sendJson(context.response, 404, {message: 'Not Found'});
     return;
   }
+  const comments = issue?.comments ?? pullRequest?.comments ?? [];
   sendJson(
     context.response,
     200,
     paginate(
-      (comments ?? []).map((comment) => commentPayload(context, comment)),
+      comments.map((comment) => commentPayload(context, comment)),
       context.requestUrl.searchParams,
     ),
   );

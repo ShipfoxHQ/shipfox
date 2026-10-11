@@ -80,6 +80,7 @@ function signature(login: string): Record<string, unknown> {
 function commitPayload(repository: string, {sha, commit}: Resolved): Record<string, unknown> {
   const login = commit.author ?? DEFAULT_AUTHOR;
   const api = `https://api.github.com/repos/${repository}`;
+  const treeSha = createHash('sha1').update(`tree:${sha}`).digest('hex');
   return {
     sha,
     node_id: `C_${sha}`,
@@ -90,10 +91,7 @@ function commitPayload(repository: string, {sha, commit}: Resolved): Record<stri
       author: signature(login),
       committer: signature(login),
       message: commit.message,
-      tree: {
-        sha: createHash('sha1').update(`tree:${sha}`).digest('hex'),
-        url: `${api}/git/trees/${sha}`,
-      },
+      tree: {sha: treeSha, url: `${api}/git/trees/${treeSha}`},
       comment_count: 0,
       verification: {verified: false, reason: 'unsigned', signature: null, payload: null},
     },
@@ -135,7 +133,7 @@ export function createCommitRoutes({commits, branchHeads}: CommitRoutesOptions):
   function getBranch(match: RegExpMatchArray, response: ServerResponse) {
     const repository = repositoryOf(match);
     const name = decodeURIComponent(match[3] ?? '');
-    const tip = branchHeads.has(name) ? resolve(repository, name) : undefined;
+    const tip = branchHeads.has(name) ? resolve(repository, match[3] ?? '') : undefined;
     if (tip === undefined) {
       sendJson(response, 404, {message: 'Branch not found', status: '404'});
       return;

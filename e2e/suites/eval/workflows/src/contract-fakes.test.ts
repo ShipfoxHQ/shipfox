@@ -83,6 +83,8 @@ type ApiClient = ReturnType<typeof createApiClient>;
 const token = `ghs_${'a'.repeat(40)}`;
 const missingRepositoryPattern = /issue fixture needs a repository fixture/u;
 const workflowNeedsRepositoryPattern = /workflow fixture needs a repository fixture/u;
+const branchNeedsRepositoryPattern = /branch fixture needs a repository fixture/u;
+const commitNeedsRepositoryPattern = /commit fixture needs a repository fixture/u;
 const missingTitlePattern = /fixture "page" has no "title"/u;
 const discordNeedsChannelPattern = /need a read_channel fixture/u;
 const missingCountPattern = /posthog fixture "event" has no "count"/u;
@@ -320,6 +322,10 @@ describe('githubContractFake', () => {
 
     await expect(fake.seed({issue: {number: 1}})).rejects.toThrow(missingRepositoryPattern);
     await expect(fake.seed({workflow: {id: 1}})).rejects.toThrow(workflowNeedsRepositoryPattern);
+    await expect(fake.seed({branch: {name: 'b', oid: 'a'}})).rejects.toThrow(
+      branchNeedsRepositoryPattern,
+    );
+    await expect(fake.seed({commit: {oid: 'a'}})).rejects.toThrow(commitNeedsRepositoryPattern);
     await expect(fake.seed({repository: {name: 'fixtures'}})).rejects.toThrow(missingOwnerPattern);
   });
 

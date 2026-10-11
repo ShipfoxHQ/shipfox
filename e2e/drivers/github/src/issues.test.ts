@@ -255,7 +255,9 @@ describe('GitHub API mock issues', () => {
       });
       const page = await request('GET', '/repos/acme/app/issues/1/comments?per_page=2&page=2');
       const pullRequest = await request('GET', '/repos/acme/app/issues/2/comments');
+      mock.pullRequests.set(4, {repository: 'acme/app', ref: 'quiet', sha: 'c'.repeat(40)});
       const missing = await request('GET', '/repos/acme/app/issues/3/comments');
+      const quiet = await request('GET', '/repos/acme/app/issues/4/comments');
 
       await expect(page.json()).resolves.toMatchObject([
         {id: 3, body: 'Comment 3', user: {login: 'octo'}},
@@ -264,6 +266,7 @@ describe('GitHub API mock issues', () => {
         {id: 9, body: 'A plain pull request comment.'},
       ]);
       expect(missing.status).toBe(404);
+      await expect(quiet.json()).resolves.toEqual([]);
     } finally {
       await mock.stop();
     }

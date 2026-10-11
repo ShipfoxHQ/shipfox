@@ -354,9 +354,13 @@ export const githubContractFake: ContractFakeAdapter = ({github, client, cleanup
     seed: async (fixtures) => {
       const repository = fixtures.repository;
       if (repository === undefined) {
-        const orphan = [...GITHUB_ISSUE_FIXTURES, ...GITHUB_PULL_REQUEST_FIXTURES, 'workflow'].find(
-          (fixtureName) => fixtures[fixtureName] !== undefined,
-        );
+        const orphan = [
+          ...GITHUB_ISSUE_FIXTURES,
+          ...GITHUB_PULL_REQUEST_FIXTURES,
+          'branch',
+          'commit',
+          'workflow',
+        ].find((fixtureName) => fixtures[fixtureName] !== undefined);
         if (orphan !== undefined) {
           throw new Error(`The github ${orphan} fixture needs a repository fixture.`);
         }

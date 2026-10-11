@@ -34,6 +34,10 @@ describe('GitHub API mock commits', () => {
         protected: false,
         commit: {sha: TIP, commit: {message: 'Extend the notes'}},
       });
+      mock.branchHeads.set('fix/100%', TIP);
+      const percent = await get('/repos/acme/app/branches/fix%2F100%25');
+
+      await expect(percent.json()).resolves.toMatchObject({name: 'fix/100%', commit: {sha: TIP}});
       expect(missing.status).toBe(404);
       await expect(missing.json()).resolves.toMatchObject({message: 'Branch not found'});
       expect(otherRepository.status).toBe(404);
