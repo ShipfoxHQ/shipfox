@@ -662,6 +662,12 @@ export const SupersededByConcurrency: Story = {
 export const Annotations: Story = {
   parameters: {annotations: RUN_ANNOTATIONS, explanations: RUN_JOB_EXPLANATIONS},
   args: {tab: 'annotations'},
+  // Shiki loads asynchronously, so the capture has to wait for the highlighted code block.
+  play: async ({canvasElement}) => {
+    await waitFor(() => expect(canvasElement.querySelector('.shiki-override')).not.toBeNull(), {
+      timeout: 10_000,
+    });
+  },
 };
 
 export const LargeWorkflow: Story = {

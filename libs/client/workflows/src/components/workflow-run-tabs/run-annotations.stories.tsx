@@ -1,6 +1,7 @@
 import {Panel, PanelHeader} from '@shipfox/react-ui/panel';
 import type {Meta, StoryObj} from '@storybook/react';
 import type {ReactNode} from 'react';
+import {expect, waitFor} from 'storybook/test';
 import {
   buildRunAnnotationList,
   type RunAnnotationRecord,
@@ -53,6 +54,12 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Playground: Story = {
+  // Shiki loads asynchronously, so the capture has to wait for the highlighted code block.
+  play: async ({canvasElement}) => {
+    await waitFor(() => expect(canvasElement.querySelector('.shiki-override')).not.toBeNull(), {
+      timeout: 10_000,
+    });
+  },
   render: () => {
     const annotations = [
       annotation({
