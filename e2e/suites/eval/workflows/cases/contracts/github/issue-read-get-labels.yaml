@@ -1,5 +1,5 @@
 provider: github
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: issue_read
     method: get_labels

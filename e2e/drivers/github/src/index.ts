@@ -1,5 +1,15 @@
 export type {RecordedWrite} from '@shipfox/e2e-core';
-export type {GithubWorkflowFixture, GithubWorkflowRunFixture} from './actions.js';
+export type {
+  GithubArtifactFixture,
+  GithubWorkflowFixture,
+  GithubWorkflowJobFixture,
+  GithubWorkflowRunFixture,
+} from './actions.js';
+export type {
+  GithubCheckRunFixture,
+  GithubCommitFixture,
+  GithubCommitStatusFixture,
+} from './commits.js';
 export type {
   AddGithubBranchParams,
   AddGithubRepositoryParams,
@@ -19,8 +29,10 @@ export {
 } from './github-api.js';
 export type {GithubIssueCommentFixture, GithubIssueFixture} from './issues.js';
 export type {
+  GithubPullRequestFileFixture,
   GithubPullRequestFixture,
   GithubReviewCommentFixture,
+  GithubReviewFixture,
   GithubReviewThreadFixture,
 } from './pull-requests.js';
 export {

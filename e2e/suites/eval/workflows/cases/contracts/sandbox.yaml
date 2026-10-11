@@ -17,6 +17,7 @@ github:
     issue:
       number: 1
       title: 'Fixture issue: markdown, unicode, long body'
+      comment_count: 32
       read:
         tool: issue_read
         method: get

@@ -5,7 +5,11 @@ import {join} from 'node:path';
 import type {createApiClient, RecordedWrite} from '@shipfox/e2e-core';
 import {type ClickUpTaskFixture, startClickUpApiMock} from '@shipfox/e2e-driver-clickup';
 import {type DiscordApiMock, startDiscordApiMock} from '@shipfox/e2e-driver-discord';
-import type {GithubApiMock} from '@shipfox/e2e-driver-github';
+import type {
+  GithubApiMock,
+  GithubIssueFixture,
+  GithubPullRequestFixture,
+} from '@shipfox/e2e-driver-github';
 import type {JiraSeed} from '@shipfox/e2e-driver-jira';
 import {loadLinearRecordings, startLinearMcpMock} from '@shipfox/e2e-driver-linear';
 import {startNotionApiMock} from '@shipfox/e2e-driver-notion';
@@ -113,6 +117,23 @@ const GITHUB_PULL_REQUEST_FIXTURES = [
   'merged_pull_request',
 ] as const;
 
+const GITHUB_PARENT_FIXTURE = 'parent_issue';
+const GITHUB_SUB_ISSUE_FIXTURE = 'sub_issue';
+const GITHUB_SANDBOX_AUTHOR = 'e2e-author';
+const GITHUB_SANDBOX_REVIEWER = 'e2e-reviewer';
+// The checks the sandbox workflow reports on the head of the open pull request: its two jobs.
+const GITHUB_OPEN_PULL_REQUEST_CHECK_RUNS = [{name: 'build'}, {name: 'verify'}];
+
+// What the sandbox's open pull request changes, which the pull request read cases assert on.
+const GITHUB_OPEN_PULL_REQUEST_FILES = [
+  {
+    filename: 'fixtures/notes.md',
+    status: 'modified',
+    patch: '@@ -1,3 +1,4 @@\n # Notes\n \n-Three notes.\n+Four notes.\n+Why four?',
+  },
+  {filename: 'fixtures/extra.txt', status: 'added', patch: '@@ -0,0 +1 @@\n+Extra file.'},
+] as const;
+
 function gitSha(seed: string): string {
   return createHash('sha1').update(seed).digest('hex');
 }
@@ -126,23 +147,130 @@ function seedGithubIssues({
   repository: string;
   fixtures: SandboxFixtures;
 }): void {
-  const label = field({fixture: fixtures.label ?? {}, name: 'name'});
   for (const fixtureName of GITHUB_ISSUE_FIXTURES) {
     const fixture = fixtures[fixtureName];
     if (fixture === undefined) continue;
     const number = Number(requiredField({fixture, fixtureName, name: 'number'}));
-    const title = field({fixture, name: 'title'});
-    const body = field({fixture, name: 'body'});
-    const state = field({fixture, name: 'state'});
-    mock.issues.set(number, {
+    mock.issues.set(number, githubIssue({repository, fixtures, fixtureName, fixture}));
+  }
+}
+
+function githubIssue({
+  repository,
+  fixtures,
+  fixtureName,
+  fixture,
+}: {
+  repository: string;
+  fixtures: SandboxFixtures;
+  fixtureName: (typeof GITHUB_ISSUE_FIXTURES)[number];
+  fixture: SandboxFixtures[string];
+}): GithubIssueFixture {
+  const number = Number(requiredField({fixture, fixtureName, name: 'number'}));
+  const title = field({fixture, name: 'title'});
+  const body = field({fixture, name: 'body'});
+  const label = field({fixture: fixtures.label ?? {}, name: 'name'});
+  const parent =
+    fixtureName === GITHUB_SUB_ISSUE_FIXTURE ? fixtures[GITHUB_PARENT_FIXTURE] : undefined;
+  const comments = githubIssueComments(fixture);
+  return {
+    repository,
+    title: title === undefined ? `Contract fixture issue ${number}` : String(title),
+    ...(body === undefined ? {} : {body: String(body)}),
+    ...(fixtureName === 'closed_issue' || field({fixture, name: 'state'}) === 'closed'
+      ? {state: 'closed'}
+      : {}),
+    // The sandbox puts its label on the first fixture issue.
+    ...(fixtureName === 'issue' && label !== undefined ? {labels: [String(label)]} : {}),
+    ...(parent === undefined
+      ? {}
+      : {
+          parent: Number(
+            requiredField({fixture: parent, fixtureName: GITHUB_PARENT_FIXTURE, name: 'number'}),
+          ),
+        }),
+    ...(comments.length === 0 ? {} : {comments}),
+  };
+}
+
+// The sandbox comments carry non-ASCII text from the first one, so a read proves the encoding.
+function githubIssueComments(fixture: SandboxFixtures[string]) {
+  const count = Number(field({fixture, name: 'comment_count'}) ?? 0);
+  return Array.from({length: count}, (_, index) => ({
+    id: index + 1,
+    body: `Comment ${index + 1}: café 日本語`,
+    author: GITHUB_SANDBOX_AUTHOR,
+  }));
+}
+
+// The branch and the commit fixtures. The sandbox pins their ids, so the fake reports those ids
+// and not the ones a git repository would give. The commit sits on top of its base commit.
+function seedGithubCommits({
+  mock,
+  repository,
+  fixtures,
+}: {
+  mock: GithubApiMock;
+  repository: string;
+  fixtures: SandboxFixtures;
+}): void {
+  const {commit, branch} = fixtures;
+  if (commit !== undefined) {
+    const oid = String(requiredField({fixture: commit, fixtureName: 'commit', name: 'oid'}));
+    const baseOid = field({fixture: commit, name: 'base_oid'});
+    if (baseOid !== undefined) {
+      mock.commits.set(String(baseOid), {repository, message: 'Seed the fixture repository'});
+    }
+    mock.commits.set(oid, {
       repository,
-      title: title === undefined ? `Contract fixture issue ${number}` : String(title),
-      ...(body === undefined ? {} : {body: String(body)}),
-      ...(fixtureName === 'closed_issue' || state === 'closed' ? {state: 'closed'} : {}),
-      // The sandbox puts its label on the first fixture issue.
-      ...(fixtureName === 'issue' && label !== undefined ? {labels: [String(label)]} : {}),
+      message: String(field({fixture: commit, name: 'message'}) ?? `Commit ${oid}`),
+      ...(baseOid === undefined ? {} : {parents: [String(baseOid)]}),
     });
   }
+  if (branch !== undefined) {
+    const name = String(requiredField({fixture: branch, fixtureName: 'branch', name: 'name'}));
+    const oid = String(requiredField({fixture: branch, fixtureName: 'branch', name: 'oid'}));
+    if (!mock.commits.has(oid)) mock.commits.set(oid, {repository, message: `Tip of ${name}`});
+    mock.branchHeads.set(name, oid);
+  }
+}
+
+// The review of the sandbox's open pull request: a plain comment, a review with two threads (one
+// answered, one resolved), and the check runs of its head commit.
+function seedGithubOpenPullRequest({
+  mock,
+  number,
+  pullRequest,
+}: {
+  mock: GithubApiMock;
+  number: number;
+  pullRequest: GithubPullRequestFixture;
+}): void {
+  const head = mock.commits.get(pullRequest.sha);
+  if (head !== undefined) {
+    head.checkRuns = [...GITHUB_OPEN_PULL_REQUEST_CHECK_RUNS];
+    pullRequest.commits = [pullRequest.sha];
+  }
+  pullRequest.files = GITHUB_OPEN_PULL_REQUEST_FILES.map((file) => ({...file}));
+  pullRequest.comments = [
+    {id: 9001, body: 'A plain pull request comment.', author: GITHUB_SANDBOX_AUTHOR},
+  ];
+  pullRequest.reviews = [{id: 8001, body: 'Review with threads.', author: GITHUB_SANDBOX_REVIEWER}];
+  const path = GITHUB_OPEN_PULL_REQUEST_FILES[0].filename;
+  mock.reviewThreads.set(`PRRT_contract_${number}_1`, {
+    pullNumber: number,
+    path,
+    comments: [
+      {id: 7001, body: 'First thread: why four?', author: GITHUB_SANDBOX_REVIEWER},
+      {id: 7002, body: 'Because four reads better.', author: GITHUB_SANDBOX_AUTHOR},
+    ],
+  });
+  mock.reviewThreads.set(`PRRT_contract_${number}_2`, {
+    pullNumber: number,
+    path,
+    isResolved: true,
+    comments: [{id: 7003, body: 'Second thread: a typo.', author: GITHUB_SANDBOX_REVIEWER}],
+  });
 }
 
 function seedGithubPullRequests({
@@ -158,16 +286,22 @@ function seedGithubPullRequests({
     const fixture = fixtures[fixtureName];
     if (fixture === undefined) continue;
     const number = Number(requiredField({fixture, fixtureName, name: 'number'}));
-    mock.pullRequests.set(number, {
+    const ref = String(field({fixture, name: 'head_ref'}) ?? `contract/pull-request-${number}`);
+    const pullRequest: GithubPullRequestFixture = {
       repository,
-      ref: `contract/pull-request-${number}`,
-      sha: gitSha(`${repository}#${number}`),
+      ref,
+      // A branch the sandbox pins reports its pinned tip, which the status and checks read.
+      sha: mock.branchHeads.get(ref) ?? gitSha(`${repository}#${number}`),
       title: String(requiredField({fixture, fixtureName, name: 'title'})),
       state: fixtureName === 'pull_request' ? 'open' : 'closed',
       merged: fixtureName === 'merged_pull_request',
-    });
+    };
+    mock.pullRequests.set(number, pullRequest);
+    if (fixtureName === 'pull_request') seedGithubOpenPullRequest({mock, number, pullRequest});
   }
 }
+
+const GITHUB_FIRST_RUN_ID = 25_000_000_000;
 
 function seedGithubWorkflow({
   mock,
@@ -186,15 +320,28 @@ function seedGithubWorkflow({
     name: String(required('name')),
     file: String(required('file')),
   });
-  // Runs expire in the sandbox, and the cases read the latest completed one.
-  mock.workflowRuns.set(id, {workflowId: id, sha: gitSha(`${repository}@${id}`)});
+  // Runs expire in the sandbox, and the cases read the second newest completed one, because the
+  // newest may still be running. Each run has the jobs and the artifact the sandbox workflow makes.
+  for (const offset of [1, 2]) {
+    mock.workflowRuns.set(GITHUB_FIRST_RUN_ID + offset, {
+      workflowId: id,
+      sha: gitSha(`${repository}@${id}`),
+      jobs: [
+        {name: 'build', steps: ['Set up job', 'Run actions/checkout', 'Build', 'Complete job']},
+        {name: 'verify', steps: ['Set up job', 'Verify', 'Complete job']},
+      ],
+      artifacts: [{name: 'report', sizeInBytes: 2048}],
+    });
+  }
 }
 
 /**
  * GitHub, whose fake the run already started for the project. It seeds the `repository` fixture as
  * a repository of the fake, the issue fixtures as its issues, the pull request fixtures as its pull
- * requests, and the `workflow` fixture as a workflow with one completed run. The `label` fixture
- * goes on the `issue` fixture.
+ * requests, the `branch` and `commit` fixtures as a branch tip and its commit, and the `workflow`
+ * fixture as a workflow with two completed runs. The `label` fixture goes on the `issue` fixture,
+ * the `issue` fixture gets its `comment_count` comments, and `sub_issue` is a sub-issue of
+ * `parent_issue`. The open pull request gets the files, review, and check runs the sandbox holds.
  *
  * The sandbox repository is not the project's repository, and a connection only reaches the
  * repositories of its projects until it is set to reach all of them. The sandbox connection is
@@ -233,6 +380,7 @@ export const githubContractFake: ContractFakeAdapter = ({github, client, cleanup
         },
       );
       seedGithubIssues({mock, repository: added.fullName, fixtures});
+      seedGithubCommits({mock, repository: added.fullName, fixtures});
       seedGithubPullRequests({mock, repository: added.fullName, fixtures});
       if (fixtures.workflow !== undefined) {
         seedGithubWorkflow({mock, repository: added.fullName, workflow: fixtures.workflow});

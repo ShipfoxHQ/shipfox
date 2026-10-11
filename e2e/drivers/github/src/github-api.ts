@@ -6,6 +6,7 @@ import {
   type GithubWorkflowFixture,
   type GithubWorkflowRunFixture,
 } from './actions.js';
+import {type CommitRoutes, createCommitRoutes, type GithubCommitFixture} from './commits.js';
 import {createGitDataRoutes, type GitDataCommit, type GitDataRoutes} from './git-data.js';
 import {
   type AddGithubBranchParams,
@@ -31,6 +32,7 @@ import {
   type GithubReviewThreadFixture,
   PULL_REQUEST_PATH,
   type PullRequestRoutes,
+  pullRequestDiff,
   pullRequestPayload,
 } from './pull-requests.js';
 import {searchIssues} from './search.js';
@@ -148,7 +150,12 @@ export interface GithubApiMock extends GithubWebhookSender {
   workflows: Map<number, GithubWorkflowFixture>;
   /** Workflow runs by id. A workflow with none answers an empty run list. */
   workflowRuns: Map<number, GithubWorkflowRunFixture>;
-  /** Branch tips a commit must fast-forward from, by branch name. */
+  /**
+   * Commits by id, which `GET /commits/:ref`, a branch, the combined status, the check runs, and a
+   * comparison read, and which a pull request lists by id. They are fixtures, not git objects.
+   */
+  commits: Map<string, GithubCommitFixture>;
+  /** Branch tips by branch name. A commit must fast-forward from the tip of its branch. */
   branchHeads: Map<string, string>;
   /** Creates a bare repository the fake serves over git and describes in its repository API. */
   addRepository(params: AddGithubRepositoryParams): Promise<GithubRepositoryFixture>;
@@ -200,6 +207,7 @@ export async function startGithubApiMock(
   const knownCheckRunIds = new Set<number>();
   const pullRequests = new Map<number, GithubPullRequestFixture>();
   const branchHeads = new Map<string, string>();
+  const commits = new Map<string, GithubCommitFixture>();
   const reviewThreads = new Map<string, GithubReviewThreadFixture>();
   const issues = new Map<number, GithubIssueFixture>();
   const workflows = new Map<number, GithubWorkflowFixture>();
@@ -214,11 +222,13 @@ export async function startGithubApiMock(
     pullRequests,
     reviewThreads,
     branchHeads,
+    commits,
     issues,
     recordWrite,
   });
   const issueRoutes = createIssueRoutes({issues, pullRequests, recordWrite});
   const actionsRoutes = createActionsRoutes({workflows, workflowRuns});
+  const commitRoutes = createCommitRoutes({commits, branchHeads});
   const gitDataRoutes = createGitDataRoutes({
     branchHeads,
     recordCommit: (commit, accepted, authorization) => {
@@ -256,6 +266,7 @@ export async function startGithubApiMock(
       issues,
       issueRoutes,
       actionsRoutes,
+      commitRoutes,
       gitDataRoutes,
       branchHeads,
       repositories,
@@ -288,6 +299,7 @@ export async function startGithubApiMock(
     issues,
     workflows,
     workflowRuns,
+    commits,
     branchHeads,
     addRepository: (params) => repositories.add(params),
     addBranch: async (params) => {
@@ -323,6 +335,7 @@ interface GithubRequestContext {
   issues: Map<number, GithubIssueFixture>;
   issueRoutes: IssueRoutes;
   actionsRoutes: ActionsRoutes;
+  commitRoutes: CommitRoutes;
   gitDataRoutes: GitDataRoutes;
   branchHeads: Map<string, string>;
   repositories: GitRepositories;
@@ -348,6 +361,7 @@ async function handleGithubRequest(params: {
   issues: Map<number, GithubIssueFixture>;
   issueRoutes: IssueRoutes;
   actionsRoutes: ActionsRoutes;
+  commitRoutes: CommitRoutes;
   gitDataRoutes: GitDataRoutes;
   branchHeads: Map<string, string>;
   repositories: GitRepositories;
@@ -436,6 +450,7 @@ async function handleRoutedRequest(
     issueRoutes: IssueRoutes;
     pullRequestRoutes: PullRequestRoutes;
     actionsRoutes: ActionsRoutes;
+    commitRoutes: CommitRoutes;
     gitDataRoutes: GitDataRoutes;
   },
   requestUrl: URL,
@@ -443,6 +458,7 @@ async function handleRoutedRequest(
   if (await params.issueRoutes.handle(params.request, params.response, requestUrl)) return;
   if (await params.pullRequestRoutes.handle(params.request, params.response, requestUrl)) return;
   if (params.actionsRoutes.handle(params.request, params.response, requestUrl)) return;
+  if (params.commitRoutes.handle(params.request, params.response, requestUrl)) return;
   if (await params.gitDataRoutes.handle(params.request, params.response, requestUrl)) return;
   sendJson(params.response, 404, {message: 'Not Found'});
 }
@@ -567,6 +583,13 @@ function handlePullRequestRequest(params: GithubRequestContext, match: RegExpMat
   const pullRequest = findPullRequest(params.pullRequests, `${owner}/${repo}`, pullNumber);
   if (pullRequest === undefined) {
     sendJson(params.response, 404, {message: 'Not Found'});
+    return;
+  }
+  // The diff media type answers the changes as text, which the diff tool asks for.
+  if (singleHeader(params.request.headers.accept)?.includes('application/vnd.github.diff')) {
+    params.response
+      .writeHead(200, {'content-type': 'application/vnd.github.diff; charset=utf-8'})
+      .end(pullRequestDiff(pullRequest));
     return;
   }
   sendJson(params.response, 200, pullRequestPayload(pullNumber, pullRequest));

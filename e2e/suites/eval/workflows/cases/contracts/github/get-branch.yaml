@@ -1,5 +1,5 @@
 provider: github
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: get_branch
     with:

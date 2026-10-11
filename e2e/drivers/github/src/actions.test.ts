@@ -149,4 +149,93 @@ describe('GitHub API mock actions', () => {
       await mock.stop();
     }
   });
+
+  it('reads a run with its jobs, artifacts, and timing, and not across repositories', async () => {
+    const {mock, get} = await startMock();
+
+    try {
+      mock.workflowRuns.set(10, {workflowId: 375_690_478, sha: 'a'.repeat(40)});
+      mock.workflowRuns.set(11, {
+        workflowId: 375_690_478,
+        sha: 'b'.repeat(40),
+        jobs: [{name: 'build'}, {name: 'verify', conclusion: 'failure'}],
+        artifacts: [{name: 'report'}],
+      });
+      const run = await get('/repos/acme/app/actions/runs/11');
+      const jobs = await get('/repos/acme/app/actions/runs/11/jobs');
+      const artifacts = await get('/repos/acme/app/actions/runs/11/artifacts');
+      const timing = await get('/repos/acme/app/actions/runs/11/timing');
+      const noJobs = await get('/repos/acme/app/actions/runs/10/jobs');
+      const otherRepository = await get('/repos/acme/other/actions/runs/11');
+
+      await expect(run.json()).resolves.toMatchObject({
+        id: 11,
+        run_number: 2,
+        workflow_id: 375_690_478,
+        status: 'completed',
+        conclusion: 'success',
+      });
+      await expect(jobs.json()).resolves.toMatchObject({
+        total_count: 2,
+        jobs: [
+          {id: 1101, run_id: 11, name: 'build', status: 'completed', conclusion: 'success'},
+          {
+            id: 1102,
+            run_id: 11,
+            name: 'verify',
+            conclusion: 'failure',
+            steps: [{name: 'Set up job'}, {}],
+          },
+        ],
+      });
+      await expect(artifacts.json()).resolves.toMatchObject({
+        total_count: 1,
+        artifacts: [{id: 1101, name: 'report', expired: false}],
+      });
+      await expect(timing.json()).resolves.toMatchObject({
+        billable: {UBUNTU: {jobs: 2}},
+        run_duration_ms: 4000,
+      });
+      await expect(noJobs.json()).resolves.toEqual({total_count: 0, jobs: []});
+      expect(otherRepository.status).toBe(404);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('reads a job by id and redirects the logs and artifact downloads', async () => {
+    const {mock, get} = await startMock();
+
+    try {
+      mock.workflowRuns.set(11, {
+        workflowId: 375_690_478,
+        sha: 'b'.repeat(40),
+        jobs: [{name: 'build'}, {name: 'verify'}],
+        artifacts: [{name: 'report'}],
+      });
+      const job = await get('/repos/acme/app/actions/jobs/1102');
+      const missingJob = await get('/repos/acme/app/actions/jobs/1103');
+      const noRedirect = {redirect: 'manual'} as const;
+      const follow = (path: string) =>
+        fetch(new URL(path, mock.endpoint), {headers: HEADERS, ...noRedirect});
+      const jobLogs = await follow('/repos/acme/app/actions/jobs/1102/logs');
+      const runLogs = await follow('/repos/acme/app/actions/runs/11/logs');
+      const artifact = await follow('/repos/acme/app/actions/artifacts/1101/zip');
+      const missingArtifact = await follow('/repos/acme/app/actions/artifacts/1102/zip');
+
+      await expect(job.json()).resolves.toMatchObject({id: 1102, name: 'verify', run_id: 11});
+      expect(missingJob.status).toBe(404);
+      expect(jobLogs.status).toBe(302);
+      expect(jobLogs.headers.get('location')).toBe(
+        new URL('/download/jobs/1102/logs.txt', mock.endpoint).toString(),
+      );
+      expect(runLogs.status).toBe(302);
+      expect(runLogs.headers.get('location')).toContain('/download/runs/11/logs.zip');
+      expect(artifact.status).toBe(302);
+      expect(artifact.headers.get('location')).toContain('/download/artifacts/1101.zip');
+      expect(missingArtifact.status).toBe(404);
+    } finally {
+      await mock.stop();
+    }
+  });
 });

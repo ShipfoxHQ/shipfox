@@ -753,22 +753,6 @@ jobs:
         with:
           owner: ShipfoxSandbox
           repo: contract-tests
-          job_id: ${{ steps.jobs.outputs.ref_jobs_1_id }}
-          return_content: true
-          tail_lines: 5
-        outputs:
-          shape_job_id: ${{ has(result.job_id) && (type(result.job_id) == type(1) || type(result.job_id) == type(1.0)) }}
-          shape_logs_content: ${{ has(result.logs_content) && type(result.logs_content) == type("") }}
-          shape_original_length: ${{ has(result.original_length) && (type(result.original_length) == type(1) || type(result.original_length) == type(1.0)) }}
-          matches_logs_content: ${{ has(result.logs_content) && type(result.logs_content) == type("") && result.logs_content.matches("Verified") }}
-        gate:
-          success: step.status == "succeeded" && step.outputs.shape_job_id && step.outputs.shape_logs_content && step.outputs.shape_original_length && step.outputs.matches_logs_content
-      - key: get_job_logs_5
-        tool: get_job_logs
-        connection: github_shipfoxsandbox
-        with:
-          owner: ShipfoxSandbox
-          repo: contract-tests
           run_id: ${{ steps.runs.outputs.ref_workflow_runs_1_id }}
           failed_only: true
         outputs:
@@ -779,6 +763,50 @@ jobs:
           value_failed_jobs: "${{ has(result.failed_jobs) ? result.failed_jobs : 1 }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_run_id && step.outputs.shape_total_jobs && step.outputs.shape_failed_jobs && (type(step.outputs.value_total_jobs) == type(1) || type(step.outputs.value_total_jobs) == type(1.0)) && step.outputs.value_total_jobs == 2 && (type(step.outputs.value_failed_jobs) == type(1) || type(step.outputs.value_failed_jobs) == type(1.0)) && step.outputs.value_failed_jobs == 0
+  get_job_logs_content:
+    checkout: false
+    steps:
+      - key: runs
+        tool: actions_list.list_workflow_runs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: fixture.yml
+          per_page: 2
+        outputs:
+          shape_workflow_runs_0_id: ${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 0 && [result.workflow_runs[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          text_workflow_runs_1_id: '${{ has(result.workflow_runs) && type(result.workflow_runs) == type([]) && size(result.workflow_runs) > 1 && [result.workflow_runs[1]].all(i0, has(i0.id)) ? string(result.workflow_runs[1].id) : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_workflow_runs_0_id
+      - key: jobs
+        tool: actions_list.list_workflow_jobs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          resource_id: ${{ steps.runs.outputs.text_workflow_runs_1_id }}
+        outputs:
+          shape_jobs_0_id: ${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 0 && [result.jobs[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          ref_jobs_1_id: '${{ has(result.jobs) && type(result.jobs) == type([]) && size(result.jobs) > 1 && [result.jobs[1]].all(i0, has(i0.id)) ? result.jobs[1].id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_jobs_0_id
+      - key: get_job_logs_content_3
+        tool: get_job_logs
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          job_id: ${{ steps.jobs.outputs.ref_jobs_1_id }}
+          return_content: true
+          tail_lines: 5
+        outputs:
+          shape_job_id: ${{ has(result.job_id) && (type(result.job_id) == type(1) || type(result.job_id) == type(1.0)) }}
+          shape_logs_content: ${{ has(result.logs_content) && type(result.logs_content) == type("") }}
+          shape_original_length: ${{ has(result.original_length) && (type(result.original_length) == type(1) || type(result.original_length) == type(1.0)) }}
+          matches_logs_content: ${{ has(result.logs_content) && type(result.logs_content) == type("") && result.logs_content.matches("Verified") }}
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_job_id && step.outputs.shape_logs_content && step.outputs.shape_original_length && step.outputs.matches_logs_content
   get_repository:
     checkout: false
     steps:

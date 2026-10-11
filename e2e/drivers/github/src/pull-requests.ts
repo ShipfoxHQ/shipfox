@@ -1,11 +1,17 @@
 import {createHash} from 'node:crypto';
 import type {IncomingMessage, ServerResponse} from 'node:http';
 import type {RecordedWrite} from '@shipfox/e2e-core';
+import type {GithubCommitFixture} from './commits.js';
 import {paginate, readJsonBodyOrReject, sendJson} from './http.js';
+import type {GithubIssueCommentFixture} from './issues.js';
 
 export const PULL_REQUEST_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)$/u;
 const PULL_REQUESTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls$/u;
 const PULL_REQUEST_MERGE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)\/merge$/u;
+const PULL_REQUEST_FILES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)\/files$/u;
+const PULL_REQUEST_COMMITS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)\/commits$/u;
+const PULL_REQUEST_REVIEWS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)\/reviews$/u;
+const PULL_REQUEST_COMMENTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)\/comments$/u;
 const REVIEW_COMMENT_REPLY_PATH =
   /^\/repos\/([^/]+)\/([^/]+)\/pulls\/(\d+)\/comments\/(\d+)\/replies$/u;
 
@@ -31,6 +37,30 @@ export interface GithubPullRequestFixture {
   /** Defaults to `open`. A merged pull request always reports `closed`. */
   state?: 'open' | 'closed' | undefined;
   merged?: boolean | undefined;
+  /** The files the pull request changes. The diff is built from them. */
+  files?: GithubPullRequestFileFixture[] | undefined;
+  /** Ids of the pull request's commits in the fake's `commits`, oldest first. */
+  commits?: string[] | undefined;
+  reviews?: GithubReviewFixture[] | undefined;
+  /** Comments on the conversation, as the issue comments route lists them. */
+  comments?: GithubIssueCommentFixture[] | undefined;
+}
+
+export interface GithubPullRequestFileFixture {
+  filename: string;
+  status: 'added' | 'modified' | 'removed';
+  /** The unified diff hunks of the file, without the header lines. */
+  patch: string;
+  additions?: number | undefined;
+  deletions?: number | undefined;
+}
+
+export interface GithubReviewFixture {
+  id: number;
+  /** Defaults to `COMMENTED`. */
+  state?: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING' | undefined;
+  body: string;
+  author: string;
 }
 
 export interface GithubReviewCommentFixture {
@@ -52,6 +82,8 @@ export interface PullRequestRoutesOptions {
   /** Review threads by GraphQL node id. */
   reviewThreads: Map<string, GithubReviewThreadFixture>;
   branchHeads: Map<string, string>;
+  /** Commits by id, which the pull requests list by id. */
+  commits: ReadonlyMap<string, GithubCommitFixture>;
   /** Issues share the numbering with pull requests, so a new pull request skips their numbers. */
   issues: ReadonlyMap<number, unknown>;
   /** Called for every accepted write, with the request's authorization header. */
@@ -87,6 +119,10 @@ interface Route {
 
 const ROUTES: Route[] = [
   {method: 'GET', path: PULL_REQUESTS_PATH, handle: listPullRequests},
+  {method: 'GET', path: PULL_REQUEST_FILES_PATH, handle: listPullRequestFiles},
+  {method: 'GET', path: PULL_REQUEST_COMMITS_PATH, handle: listPullRequestCommits},
+  {method: 'GET', path: PULL_REQUEST_REVIEWS_PATH, handle: listPullRequestReviews},
+  {method: 'GET', path: PULL_REQUEST_COMMENTS_PATH, handle: listReviewComments},
   {method: 'POST', path: PULL_REQUESTS_PATH, handle: createPullRequest},
   {method: 'PATCH', path: PULL_REQUEST_PATH, handle: updatePullRequest},
   {method: 'PUT', path: PULL_REQUEST_MERGE_PATH, handle: mergePullRequest},
@@ -158,6 +194,22 @@ export function pullRequestPayload(
   };
 }
 
+/**
+ * The pull request as the diff media type returns it: one `diff --git` block per changed file.
+ */
+export function pullRequestDiff(pullRequest: GithubPullRequestFixture): string {
+  return (pullRequest.files ?? []).map((file) => `${diffHeader(file)}${file.patch}\n`).join('');
+}
+
+function diffHeader({filename, status}: GithubPullRequestFileFixture): string {
+  const lines = [`diff --git a/${filename} b/${filename}`];
+  if (status === 'added') lines.push('new file mode 100644', '--- /dev/null', `+++ b/${filename}`);
+  else if (status === 'removed') {
+    lines.push('deleted file mode 100644', `--- a/${filename}`, '+++ /dev/null');
+  } else lines.push(`--- a/${filename}`, `+++ b/${filename}`);
+  return `${lines.join('\n')}\n`;
+}
+
 /** A pull request as the issue list and search return it: the issue it is, plus a `pull_request` link. */
 export function pullRequestIssuePayload(number: number, pullRequest: GithubPullRequestFixture) {
   const payload = pullRequestPayload(number, pullRequest);
@@ -211,6 +263,113 @@ function listPullRequests(context: RouteContext): void {
     .sort(([left], [right]) => right - left)
     .map(([number, pullRequest]) => pullRequestPayload(number, pullRequest));
   sendJson(context.response, 200, paginate(items, searchParams));
+}
+
+function requirePullRequest(context: RouteContext): GithubPullRequestFixture | undefined {
+  const pullRequest = findPullRequest(
+    context.pullRequests,
+    context.repository,
+    Number(context.match[3]),
+  );
+  if (pullRequest === undefined) sendJson(context.response, 404, {message: 'Not Found'});
+  return pullRequest;
+}
+
+function listPullRequestFiles(context: RouteContext): void {
+  const pullRequest = requirePullRequest(context);
+  if (pullRequest === undefined) return;
+  const base = `https://github.com/${context.repository}`;
+  const files = (pullRequest.files ?? []).map((file) => {
+    const sha = createHash('sha1').update(`${pullRequest.sha}:${file.filename}`).digest('hex');
+    const additions =
+      file.additions ?? file.patch.split('\n').filter((line) => line.startsWith('+')).length;
+    const deletions =
+      file.deletions ?? file.patch.split('\n').filter((line) => line.startsWith('-')).length;
+    return {
+      sha,
+      filename: file.filename,
+      status: file.status,
+      additions,
+      deletions,
+      changes: additions + deletions,
+      blob_url: `${base}/blob/${pullRequest.sha}/${file.filename}`,
+      raw_url: `${base}/raw/${pullRequest.sha}/${file.filename}`,
+      contents_url: `https://api.github.com/repos/${context.repository}/contents/${file.filename}?ref=${pullRequest.sha}`,
+      patch: file.patch,
+    };
+  });
+  sendJson(context.response, 200, paginate(files, context.requestUrl.searchParams));
+}
+
+function listPullRequestCommits(context: RouteContext): void {
+  const pullRequest = requirePullRequest(context);
+  if (pullRequest === undefined) return;
+  const commits = (pullRequest.commits ?? []).flatMap((sha) => {
+    const commit = context.commits.get(sha);
+    if (commit === undefined) return [];
+    const login = commit.author ?? DEFAULT_AUTHOR;
+    const signature = {
+      name: login,
+      email: `${login}@users.noreply.github.com`,
+      date: FIXTURE_TIMESTAMP,
+    };
+    return [
+      {
+        sha,
+        node_id: `C_${sha}`,
+        html_url: `https://github.com/${context.repository}/commit/${sha}`,
+        commit: {author: signature, committer: signature, message: commit.message},
+        author: {login},
+        committer: {login},
+        parents: (commit.parents ?? []).map((parent) => ({sha: parent})),
+      },
+    ];
+  });
+  sendJson(context.response, 200, paginate(commits, context.requestUrl.searchParams));
+}
+
+function listPullRequestReviews(context: RouteContext): void {
+  const pullRequest = requirePullRequest(context);
+  if (pullRequest === undefined) return;
+  const reviews = (pullRequest.reviews ?? []).map((review) => ({
+    id: review.id,
+    node_id: `PRR_${review.id}`,
+    user: {login: review.author},
+    body: review.body,
+    state: review.state ?? 'COMMENTED',
+    html_url: `https://github.com/${context.repository}/pull/${context.match[3]}#pullrequestreview-${review.id}`,
+    commit_id: pullRequest.sha,
+    submitted_at: FIXTURE_TIMESTAMP,
+    author_association: 'MEMBER',
+  }));
+  sendJson(context.response, 200, paginate(reviews, context.requestUrl.searchParams));
+}
+
+// The comments of every thread of the pull request. A reply points at the comment it answers.
+function listReviewComments(context: RouteContext): void {
+  const pullRequest = requirePullRequest(context);
+  if (pullRequest === undefined) return;
+  const pullNumber = Number(context.match[3]);
+  const comments = [...context.reviewThreads.values()]
+    .filter((thread) => thread.pullNumber === pullNumber)
+    .flatMap((thread) =>
+      thread.comments.map((comment, index) => ({
+        id: comment.id,
+        node_id: `PRRC_${comment.id}`,
+        path: thread.path,
+        body: comment.body,
+        user: {login: comment.author},
+        commit_id: pullRequest.sha,
+        ...(index === 0 ? {} : {in_reply_to_id: thread.comments[0]?.id}),
+        html_url: `https://github.com/${context.repository}/pull/${pullNumber}#discussion_r${comment.id}`,
+        pull_request_url: `https://api.github.com/repos/${context.repository}/pulls/${pullNumber}`,
+        created_at: FIXTURE_TIMESTAMP,
+        updated_at: FIXTURE_TIMESTAMP,
+        author_association: 'MEMBER',
+      })),
+    )
+    .sort((left, right) => left.id - right.id);
+  sendJson(context.response, 200, paginate(comments, context.requestUrl.searchParams));
 }
 
 async function createPullRequest(context: RouteContext): Promise<void> {

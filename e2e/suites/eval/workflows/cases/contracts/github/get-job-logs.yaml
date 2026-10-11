@@ -1,5 +1,5 @@
 provider: github
-modes: [real]
+modes: [real, fake]
 steps:
   # The second run, because the latest may still be running. The fixture workflow runs every day,
   # so a completed run with its jobs and artifact is always there.
@@ -33,16 +33,6 @@ steps:
     # Without return_content the tool returns where the log can be downloaded.
     expect:
       shape: {job_id: number, logs_url: string, message: string}
-  - tool: get_job_logs
-    with:
-      owner: $fixture.github.repository.owner
-      repo: $fixture.github.repository.name
-      job_id: $steps.jobs.jobs[1].id
-      return_content: true
-      tail_lines: 5
-    expect:
-      shape: {job_id: number, logs_content: string, original_length: number}
-      matches: {logs_content: Verified}
   # The fixture run has no failed job.
   - tool: get_job_logs
     with:

@@ -200,8 +200,102 @@ describe('githubContractFake', () => {
     expect(
       await read('/repos/contracts-sandbox/fixtures/actions/workflows/fixture.yml/runs'),
     ).toMatchObject({
+      total_count: 2,
+      workflow_runs: [
+        {status: 'completed', conclusion: 'success'},
+        {status: 'completed', conclusion: 'success'},
+      ],
+    });
+  });
+
+  it('seeds the sub-issue link, the comments, the pinned branch and commit, and the review of the open pull request', async () => {
+    const fake = await arrange();
+    const read = async (path: string) =>
+      (await (
+        await fetch(new URL(path, mock?.endpoint), {headers: {authorization: `token ${token}`}})
+      ).json()) as Record<string, unknown>;
+    const base = '/repos/contracts-sandbox/fixtures';
+    const oid = '8c2d6bf2700044628216c6daf699870ef9e0915a';
+    const baseOid = 'a7d8de632b46c87cb8d6df0377755825732e461e';
+
+    await fake.seed({
+      repository: {owner: 'contracts-sandbox', name: 'fixtures'},
+      issue: {number: 1, title: 'Fixture issue', comment_count: 3},
+      parent_issue: {number: 3, title: 'Parent'},
+      sub_issue: {number: 4, title: 'Sub-issue'},
+      pull_request: {number: 35, title: 'Fixture PR: open', head_ref: 'fixture/open-pr'},
+      branch: {name: 'fixture/open-pr', oid},
+      commit: {oid, message: 'Extend the notes', base_oid: baseOid},
+      workflow: {id: 375_690_478, file: 'fixture.yml', name: 'Fixture'},
+    });
+
+    expect(await read(`${base}/issues/1/comments`)).toMatchObject([
+      {body: 'Comment 1: café 日本語'},
+      {body: 'Comment 2: café 日本語'},
+      {body: 'Comment 3: café 日本語'},
+    ]);
+    expect(await read(`${base}/issues/3/sub_issues`)).toMatchObject([{number: 4}]);
+    expect(await read(`${base}/issues/4/parent`)).toMatchObject({number: 3});
+    expect(await read(`${base}/branches/fixture%2Fopen-pr`)).toMatchObject({
+      commit: {sha: oid},
+    });
+    expect(await read(`${base}/compare/${baseOid}...fixture%2Fopen-pr`)).toMatchObject({
+      status: 'ahead',
+      ahead_by: 1,
+      merge_base_commit: {sha: baseOid},
+    });
+    expect(await read(`${base}/pulls/35`)).toMatchObject({
+      head: {ref: 'fixture/open-pr', sha: oid},
+    });
+    expect(await read(`${base}/pulls/35/commits`)).toMatchObject([
+      {sha: oid, commit: {message: 'Extend the notes'}},
+    ]);
+    expect(await read(`${base}/pulls/35/files`)).toMatchObject([
+      {filename: 'fixtures/notes.md', status: 'modified'},
+      {filename: 'fixtures/extra.txt', status: 'added'},
+    ]);
+    expect(await read(`${base}/pulls/35/reviews`)).toMatchObject([
+      {state: 'COMMENTED', body: 'Review with threads.'},
+    ]);
+    expect(await read(`${base}/pulls/35/comments`)).toMatchObject([
+      {path: 'fixtures/notes.md', body: 'First thread: why four?'},
+      {in_reply_to_id: 7001},
+      {body: 'Second thread: a typo.'},
+    ]);
+    expect(await read(`${base}/commits/fixture%2Fopen-pr/check-runs`)).toMatchObject({
+      total_count: 2,
+      check_runs: [{name: 'build'}, {name: 'verify', conclusion: 'success'}],
+    });
+    expect(await read(`${base}/commits/fixture%2Fopen-pr/status`)).toMatchObject({
+      sha: oid,
+      total_count: 0,
+    });
+  });
+
+  it('gives each seeded run the jobs and the artifact the sandbox workflow makes', async () => {
+    const fake = await arrange();
+    const read = async (path: string) =>
+      (await (
+        await fetch(new URL(path, mock?.endpoint), {headers: {authorization: `token ${token}`}})
+      ).json()) as Record<string, unknown>;
+    const base = '/repos/contracts-sandbox/fixtures/actions';
+
+    await fake.seed({
+      repository: {owner: 'contracts-sandbox', name: 'fixtures'},
+      workflow: {id: 375_690_478, file: 'fixture.yml', name: 'Fixture'},
+    });
+    const runs = (await read(`${base}/workflows/fixture.yml/runs?per_page=2`)) as {
+      workflow_runs: Array<{id: number}>;
+    };
+    const runId = runs.workflow_runs[1]?.id;
+
+    expect(await read(`${base}/runs/${runId}/jobs`)).toMatchObject({
+      total_count: 2,
+      jobs: [{name: 'build'}, {name: 'verify'}],
+    });
+    expect(await read(`${base}/runs/${runId}/artifacts`)).toMatchObject({
       total_count: 1,
-      workflow_runs: [{status: 'completed', conclusion: 'success'}],
+      artifacts: [{name: 'report', expired: false}],
     });
   });
 

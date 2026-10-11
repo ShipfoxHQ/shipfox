@@ -1,5 +1,5 @@
 provider: github
-modes: [real]
+modes: [real, fake]
 steps:
   # The second run, because the latest may still be running. The fixture workflow runs every day,
   # so a completed run with its jobs and artifact is always there.

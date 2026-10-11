@@ -310,4 +310,63 @@ describe('GitHub API mock pull requests', () => {
       await mock.stop();
     }
   });
+
+  it('answers the files, commits, reviews, comments, and diff of a seeded pull request', async () => {
+    const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
+    const get = (path: string, headers: Record<string, string> = {}) =>
+      fetch(new URL(path, mock.endpoint), {headers: {...HEADERS, ...headers}});
+
+    try {
+      mock.commits.set('b'.repeat(40), {repository: 'acme/app', message: 'Extend the notes'});
+      mock.pullRequests.set(7, {
+        repository: 'acme/app',
+        ref: 'feature',
+        sha: 'b'.repeat(40),
+        commits: ['b'.repeat(40)],
+        files: [
+          {filename: 'notes.md', status: 'modified', patch: '@@ -1 +1,2 @@\n one\n+two'},
+          {filename: 'extra.txt', status: 'added', patch: '@@ -0,0 +1 @@\n+extra'},
+        ],
+        reviews: [{id: 11, body: 'Review with threads.', author: 'octo'}],
+      });
+      mock.reviewThreads.set('PRRT_1', {
+        pullNumber: 7,
+        path: 'notes.md',
+        comments: [
+          {id: 21, body: 'Why two?', author: 'octo'},
+          {id: 22, body: 'Because.', author: 'e2e-author'},
+        ],
+      });
+      const files = await get('/repos/acme/app/pulls/7/files');
+      const commits = await get('/repos/acme/app/pulls/7/commits');
+      const reviews = await get('/repos/acme/app/pulls/7/reviews');
+      const comments = await get('/repos/acme/app/pulls/7/comments');
+      const diff = await get('/repos/acme/app/pulls/7', {
+        accept: 'application/vnd.github.diff',
+      });
+      const missing = await get('/repos/acme/app/pulls/8/files');
+
+      await expect(files.json()).resolves.toMatchObject([
+        {filename: 'notes.md', status: 'modified', additions: 1, deletions: 0, changes: 1},
+        {filename: 'extra.txt', status: 'added', additions: 1},
+      ]);
+      await expect(commits.json()).resolves.toMatchObject([
+        {sha: 'b'.repeat(40), commit: {message: 'Extend the notes'}},
+      ]);
+      await expect(reviews.json()).resolves.toMatchObject([
+        {id: 11, state: 'COMMENTED', body: 'Review with threads.', user: {login: 'octo'}},
+      ]);
+      await expect(comments.json()).resolves.toMatchObject([
+        {id: 21, path: 'notes.md', body: 'Why two?'},
+        {id: 22, body: 'Because.', in_reply_to_id: 21},
+      ]);
+      expect(diff.headers.get('content-type')).toContain('diff');
+      const text = await diff.text();
+      expect(text).toContain('diff --git a/notes.md b/notes.md\n--- a/notes.md\n+++ b/notes.md\n');
+      expect(text).toContain('diff --git a/extra.txt b/extra.txt\nnew file mode 100644\n');
+      expect(missing.status).toBe(404);
+    } finally {
+      await mock.stop();
+    }
+  });
 });

@@ -237,4 +237,56 @@ describe('GitHub API mock issues', () => {
       await mock.stop();
     }
   });
+
+  it('pages the comments of an issue and lists the comments of a pull request', async () => {
+    const {mock, request} = await startMock();
+
+    try {
+      mock.issues.set(1, {
+        repository: 'acme/app',
+        title: 'Open',
+        comments: [1, 2, 3].map((id) => ({id, body: `Comment ${id}`, author: 'octo'})),
+      });
+      mock.pullRequests.set(2, {
+        repository: 'acme/app',
+        ref: 'feature',
+        sha: 'a'.repeat(40),
+        comments: [{id: 9, body: 'A plain pull request comment.', author: 'octo'}],
+      });
+      const page = await request('GET', '/repos/acme/app/issues/1/comments?per_page=2&page=2');
+      const pullRequest = await request('GET', '/repos/acme/app/issues/2/comments');
+      const missing = await request('GET', '/repos/acme/app/issues/3/comments');
+
+      await expect(page.json()).resolves.toMatchObject([
+        {id: 3, body: 'Comment 3', user: {login: 'octo'}},
+      ]);
+      await expect(pullRequest.json()).resolves.toMatchObject([
+        {id: 9, body: 'A plain pull request comment.'},
+      ]);
+      expect(missing.status).toBe(404);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('lists the sub-issues of an issue and reads the parent of a sub-issue', async () => {
+    const {mock, request} = await startMock();
+
+    try {
+      mock.issues.set(3, {repository: 'acme/app', title: 'Parent'});
+      mock.issues.set(4, {repository: 'acme/app', title: 'Child', parent: 3});
+      mock.issues.set(5, {repository: 'acme/other', title: 'Elsewhere', parent: 3});
+      const subIssues = await request('GET', '/repos/acme/app/issues/3/sub_issues');
+      const noSubIssues = await request('GET', '/repos/acme/app/issues/4/sub_issues');
+      const parent = await request('GET', '/repos/acme/app/issues/4/parent');
+      const noParent = await request('GET', '/repos/acme/app/issues/3/parent');
+
+      await expect(subIssues.json()).resolves.toMatchObject([{number: 4, title: 'Child'}]);
+      await expect(noSubIssues.json()).resolves.toEqual([]);
+      await expect(parent.json()).resolves.toMatchObject({number: 3, title: 'Parent'});
+      expect(noParent.status).toBe(404);
+    } finally {
+      await mock.stop();
+    }
+  });
 });

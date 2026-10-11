@@ -11,7 +11,8 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   serves installation tokens, repository and issue reads, pull request create,
   list, read, update, and merge, review comment replies, issue comments, issue
   list and search, issue types, GraphQL review threads, Git database commits, issue
-  creation, check runs, and the workflow and workflow run reads. The stack router sends the fake the token mints for
+  creation, check runs, the workflow, run, job, and artifact reads, and the branch, commit,
+  status, check run, and comparison reads. The stack router sends the fake the token mints for
   its `installationId` and the requests that carry its `installationToken`, so specs in other
   workers share the address; make both unique to the spec. Behind the router, `installationId` is
   required. `options.endpoint` listens directly instead, but the webhook senders below still need
@@ -31,11 +32,28 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   `labels` and paged by `per_page` and `page`. `GET /search/issues` matches the issues and pull
   requests of the `repo:` repository on `is:issue`, `is:pr`, `is:open`, `is:closed`, and the
   words of its title or body, and answers an empty result when nothing matches. `GET /repos/:owner/:repo/issue-types` lists the types an
-  organization starts with: Task, Bug, and Feature.
+  organization starts with: Task, Bug, and Feature. An issue's `parent` is the number of the
+  issue it is a sub-issue of: `GET /issues/:number/sub_issues` lists the children of an issue, and
+  `GET /issues/:number/parent` answers the parent or 404. The comments route pages by `per_page`
+  and `page`, and lists the `comments` of a seeded pull request for its number too.
 - `GithubApiMock.workflows` and `workflowRuns`: workflows by id and their runs by id, read
   through `GET /repos/:owner/:repo/actions/workflows`, the same path with an id or file name,
   and its `/runs`, newest run first. A workflow without runs, or one nobody seeded, has an
-  empty run list, as before the event that starts a case.
+  empty run list, as before the event that starts a case. A run reads at `/actions/runs/:id`
+  and has `/jobs`, `/artifacts`, `/timing`, and `/logs`. Its `jobs` and `artifacts` are ids under
+  the run id (`runId * 100 + position + 1`), so `/actions/jobs/:id` and
+  `/actions/artifacts/:id/zip` find them. The run logs, job logs, and artifact routes answer a
+  302 with a `location` on the fake, which the fake does not serve: the API downloads job log
+  text from `https://` URLs only.
+- `GithubApiMock.commits`: commits by id, with their repository, message, parents, check runs, and
+  statuses. They are fixtures, not git objects, so a test gives a branch the ids a real
+  repository holds. `branchHeads` maps a branch name to its tip. `GET /branches/:branch`,
+  `/commits/:ref` (an id or a branch name), its `/status` and `/check-runs`, and
+  `/compare/:base...:head` read them; a comparison follows first parents, so it answers the
+  commits the head has past the base, or 404 when the base is not on that line. A pull request
+  lists its `commits` by id, and its `files`, `reviews`, and `comments` as seeded: the diff media
+  type of `GET /pulls/:number` builds the diff from the files, and `/pulls/:number/comments`
+  lists the comments of its `reviewThreads`.
 - `GithubApiMock.addRepository(params)`: creates a bare repository, seeded from a
   directory, and serves it over git smart HTTP at
   `<endpoint>/github.com/<owner>/<repo>.git`. The repository API returns that URL as

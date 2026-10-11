@@ -12,6 +12,8 @@ export const ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues$/u;
 export const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/u;
 const ISSUE_COMMENTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/comments$/u;
 const ISSUE_LABELS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/labels$/u;
+const ISSUE_SUB_ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/sub_issues$/u;
+const ISSUE_PARENT_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/parent$/u;
 const ISSUE_LABEL_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/labels\/([^/]+)$/u;
 const ISSUE_TYPES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issue-types$/u;
 
@@ -48,6 +50,8 @@ export interface GithubIssueFixture {
   author?: string | undefined;
   /** In posting order. Comments posted through the API join them. */
   comments?: GithubIssueCommentFixture[] | undefined;
+  /** Number of the issue this one is a sub-issue of, in the same repository. */
+  parent?: number | undefined;
 }
 
 export interface IssueRoutesOptions {
@@ -87,6 +91,8 @@ const ROUTES: Route[] = [
   {method: 'PATCH', path: ISSUE_PATH, handle: updateIssue},
   {method: 'GET', path: ISSUE_COMMENTS_PATH, handle: listIssueComments},
   {method: 'POST', path: ISSUE_COMMENTS_PATH, handle: createIssueComment},
+  {method: 'GET', path: ISSUE_SUB_ISSUES_PATH, handle: listSubIssues},
+  {method: 'GET', path: ISSUE_PARENT_PATH, handle: getParentIssue},
   {method: 'GET', path: ISSUE_LABELS_PATH, handle: listLabels},
   {method: 'POST', path: ISSUE_LABELS_PATH, handle: addLabels},
   {method: 'DELETE', path: ISSUE_LABEL_PATH, handle: removeLabel},
@@ -238,14 +244,51 @@ async function updateIssue(context: RouteContext): Promise<void> {
   sendJson(context.response, 200, issuePayload(context.number, issue));
 }
 
+// Pull requests take issue comments too, so their comments are listed here as GitHub does.
 function listIssueComments(context: RouteContext): void {
-  const issue = requireIssue(context);
-  if (issue === undefined) return;
+  const issue = findIssue(context.issues, context.repository, context.number);
+  const pullRequest = context.pullRequests.get(context.number);
+  const comments =
+    issue?.comments ??
+    (pullRequest !== undefined && sameRepository(pullRequest.repository, context.repository)
+      ? pullRequest.comments
+      : undefined);
+  if (issue === undefined && comments === undefined) {
+    sendJson(context.response, 404, {message: 'Not Found'});
+    return;
+  }
   sendJson(
     context.response,
     200,
-    (issue.comments ?? []).map((comment) => commentPayload(context, comment)),
+    paginate(
+      (comments ?? []).map((comment) => commentPayload(context, comment)),
+      context.requestUrl.searchParams,
+    ),
   );
+}
+
+function listSubIssues(context: RouteContext): void {
+  if (requireIssue(context) === undefined) return;
+  const subIssues = [...context.issues.entries()]
+    .filter(([, issue]) => sameRepository(issue.repository, context.repository))
+    .filter(([, issue]) => issue.parent === context.number)
+    .sort(([left], [right]) => left - right)
+    .map(([number, issue]) => issuePayload(number, issue));
+  sendJson(context.response, 200, paginate(subIssues, context.requestUrl.searchParams));
+}
+
+function getParentIssue(context: RouteContext): void {
+  const issue = requireIssue(context);
+  if (issue === undefined) return;
+  const parent =
+    issue.parent === undefined
+      ? undefined
+      : findIssue(context.issues, context.repository, issue.parent);
+  if (issue.parent === undefined || parent === undefined) {
+    sendJson(context.response, 404, {message: 'Not Found'});
+    return;
+  }
+  sendJson(context.response, 200, issuePayload(issue.parent, parent));
 }
 
 async function createIssueComment(context: RouteContext): Promise<void> {
@@ -333,8 +376,11 @@ function commentPayload(
   return {
     id: comment.id,
     body: comment.body,
-    user: {login: comment.author},
+    user: actorPayload(comment.author),
     html_url: `https://github.com/${context.repository}/issues/${context.number}#issuecomment-${comment.id}`,
+    created_at: FIXTURE_TIMESTAMP,
+    updated_at: FIXTURE_TIMESTAMP,
+    author_association: 'MEMBER',
   };
 }
 
