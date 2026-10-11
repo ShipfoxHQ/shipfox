@@ -1,7 +1,7 @@
 ---
 title: "Build an Agent Feedback Loop"
 sidebarTitle: "Retry Until Checks Pass"
-description: "Route two objective checks to independent recovery steps until both checks pass or an attempt bound is reached."
+description: "Run two checks, each with its own recovery step, until both checks pass or the attempts run out."
 ---
 
 This guide builds a job where an agent fixes failing tests and lint errors. The
@@ -16,7 +16,6 @@ You need:
 - A repository with `npm test` and `npm run lint` commands.
 - Configured agent defaults for the project.
 - A safe branch where an agent can edit test and lint failures.
-- A Shipfox validator and runtime that support `step.restart.from.key`.
 
 ## Add the workflow
 
@@ -78,15 +77,16 @@ jobs:
             feedback: Lint still fails. Run it again and fix the reported issues.
 ```
 
-Replace the two check commands with commands that prove the required results.
-Keep an authored key on each checking step. The keys provide source identity
-for their recovery predicates.
+Replace `npm test` and `npm run lint` with the commands that check your work.
+Keep a `key` on each checking step. Each recovery step uses that key to know
+which check failed.
 
-`step.restart.from.log_path` points to a copy of the failed check's log on the
-runner. The field is absent when the check failed before it produced a log, so
-each handler guards it with `has()` and falls back to reproducing the failure.
-[Feedback loops](/understand/feedback-loops#give-the-next-attempt-the-failed-log)
-describes what the file holds.
+`step.restart.from.log_path` is the path of a copy of the failed check's log on
+the runner. The field is absent when the check failed before it wrote a log.
+For this reason, each recovery step tests the field with `has()`. When the
+field is absent, the prompt tells the agent to run the check again.
+[Feedback loops](/understand/feedback-loops#tell-the-next-attempt-what-failed)
+explains how to use the file.
 
 ## Run and inspect it
 
@@ -101,49 +101,50 @@ describes what the file holds.
 8. If `lint` fails, confirm only `lint_failure_handler` runs.
 9. Confirm the job finishes after both checks pass.
 
-The test cause stays visible after `test` passes. The lint handler still skips
-because its predicate compares the source key. `step.is_retry` cannot make this
-distinction.
+Each recovery step runs only for its own check, because its `if` condition
+compares the key of the failed step. `step.is_retry` cannot do this. It tells a
+step that a restart occurred, but not which check failed.
 
-Exact gate fields and validation rules live in [Gate
-fields](/reference/workflow-schema#gate-fields). The [Contexts
-reference](/reference/contexts#context-properties) owns the exact restart field
-shape and availability.
+[Gate fields](/reference/workflow-schema#gate-fields) lists the gate fields and
+their rules. The [Contexts reference](/reference/contexts#context-properties)
+lists the `step.restart` fields and when each one is available.
 
-## Migrate from feedback-prefix routing
+## Set the loop limits
 
-Confirm the deployed validator and runtime support `step.restart.from.key`
-before adopting the new predicates. A merged change or green CI is not runtime
-deployment evidence.
+Two limits stop a loop: the attempt limit and the job timeout.
 
-For each existing route:
+### Attempt limit
 
-1. Add an authored `key` to the checking step that owns the gate.
-2. Replace the handler's feedback-prefix test with the guarded source-key test.
-3. Keep useful diagnostic text in `gate.on_failure.feedback`.
-4. Remove the machine-readable prefix after no consumer parses it.
+`gate.on_failure.max_attempts` sets how many times the gating step can run. The
+first run counts as attempt 1.
 
-For example, replace a `verification_retry:` prefix check with this predicate
-on the existing verification recovery step:
+- Use a whole number from 1 through 1,000.
+- If you omit the field, the step can run five times.
+- You cannot remove the limit.
 
-```text
-has(step.restart) && has(step.restart.from.key) && step.restart.from.key == "verify"
-```
+When the step fails on its last attempt, the job fails with the status
+`restart_exhausted`.
 
-The `verify` key belongs on the failing check. It does not belong on the
-`restart_from` target.
+### Job timeout
 
-The optional `gate.on_failure.max_attempts` field sets the number of executions
-for one gate, including the first execution. Use an integer from 1 through
-1,000. There is no `unlimited` value.
+The job timeout sets how long the job can run. The time includes every attempt.
+The maximum is 24 hours.
 
-The job timeout is an outer wall-clock bound. It can be authored for up to 24
-hours and includes all gate restarts. A timeout reports `timed_out`; reaching
-the gate limit reports `restart_exhausted`.
+When the time ends, the job fails with the status `timed_out`. This can happen
+before the step uses all its attempts.
 
-The per-job log budget limits retained output, not execution. Long loops can
-have incomplete logs after the budget is reached. Keep writes inside the loop
-idempotent, or move them after the gate passes.
+### Logs
 
-See [Limits](/reference/limits) for canonical values. For the evaluation model,
-see [Feedback loops](/understand/feedback-loops).
+Each job can keep a limited amount of log output. A long loop can go over this
+amount. The job continues to run, but Shipfox does not keep the new log output.
+Later attempts can have incomplete logs or no logs.
+
+### Steps that write
+
+A restart runs the steps in the loop again. A step that writes outside the job,
+such as a push or a comment, can write more than one time. Put such a step
+after the gate. If it must stay in the loop, make sure that it is safe to run
+again.
+
+[Limits](/reference/limits) lists the exact values. [Feedback
+loops](/understand/feedback-loops) explains how a loop works.
