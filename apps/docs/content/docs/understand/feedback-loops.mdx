@@ -112,8 +112,8 @@ what happens when `publish` fails:
 
 - If the kind is `foreign-commits`, the job goes back to `select_branch` with
   the feedback message.
-- If the kind is `stale-head` or `transient`, the job goes back to `prepare`.
-  The step can run 2 times in total.
+- If the kind is `stale-head` or `transient`, the job goes back to `prepare`
+  while `publish` has run fewer than 2 times.
 - If the kind is anything else, no rule applies. The `publish` step stays
   `failed` with its own error, and the job fails. This is the fatal case.
 

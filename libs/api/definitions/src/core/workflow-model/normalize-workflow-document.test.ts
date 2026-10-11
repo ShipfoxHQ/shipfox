@@ -5693,7 +5693,12 @@ describe('normalizeWorkflowDocument', () => {
           maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS,
         },
         {
-          if: expect.objectContaining({check: 'typed', resultType: 'bool'}),
+          if: expect.objectContaining({
+            source:
+              'has(step.outputs.failure_kind) && step.outputs.failure_kind in ["stale-head", "transient"]',
+            check: 'typed',
+            resultType: 'bool',
+          }),
           restartFrom: 'prepare',
           maxAttempts: 2,
         },
