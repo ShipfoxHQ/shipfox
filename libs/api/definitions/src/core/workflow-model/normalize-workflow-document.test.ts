@@ -1,5 +1,5 @@
 import type {AgentValidationCatalogV2} from '@shipfox/api-agent-dto/inter-module';
-import type {WorkflowDocument} from '@shipfox/workflow-document';
+import type {WorkflowDocument, WorkflowDocumentGateFailureRule} from '@shipfox/workflow-document';
 import {
   InvalidWorkflowDocumentError,
   parseWorkflowDocument,
@@ -735,7 +735,7 @@ describe('normalizeWorkflowDocument', () => {
       provider: 'anthropic',
       thinking: 'low',
       gate: {
-        onFailure: {restartFrom: 'implement', maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS},
+        onFailure: [{restartFrom: 'implement', maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS}],
       },
     });
   });
@@ -3881,15 +3881,17 @@ describe('normalizeWorkflowDocument', () => {
           check: 'typed',
           resultType: 'bool',
         },
-        onFailure: {
-          restartFrom: 'producer',
-          feedback: reviewFeedback,
-          maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS,
-          feedbackTemplate: [
-            {kind: 'literal', value: 'Agent rejected the PR '},
-            expect.objectContaining({kind: 'deferred'}),
-          ],
-        },
+        onFailure: [
+          {
+            restartFrom: 'producer',
+            feedback: reviewFeedback,
+            maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS,
+            feedbackTemplate: [
+              {kind: 'literal', value: 'Agent rejected the PR '},
+              expect.objectContaining({kind: 'deferred'}),
+            ],
+          },
+        ],
       },
     });
   });
@@ -3916,10 +3918,9 @@ describe('normalizeWorkflowDocument', () => {
 
     const model = normalizeWorkflowDocument(document);
 
-    expect(model.jobs[0]?.steps[1]?.gate?.onFailure).toMatchObject({
-      restartFrom: 'producer',
-      maxAttempts: 25,
-    });
+    expect(model.jobs[0]?.steps[1]?.gate?.onFailure).toMatchObject([
+      {restartFrom: 'producer', maxAttempts: 25},
+    ]);
   });
 
   it('normalizes run step exit-code gates', () => {
@@ -5594,7 +5595,7 @@ describe('normalizeWorkflowDocument', () => {
     const model = normalizeWorkflowDocument(document);
 
     expect(model.jobs[0]?.steps[1]?.gate).toEqual({
-      onFailure: {restartFrom: 'install', maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS},
+      onFailure: [{restartFrom: 'install', maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS}],
     });
   });
 
@@ -5640,6 +5641,177 @@ describe('normalizeWorkflowDocument', () => {
         }),
       }),
     ]);
+  });
+
+  describe('gate restart rule lists', () => {
+    function listDocument(onFailure: WorkflowDocumentGateFailureRule[]): WorkflowDocument {
+      return {
+        name: 'conditional restarts',
+        jobs: {
+          build: {
+            steps: [
+              {key: 'select_branch', run: 'npm run select'},
+              {key: 'prepare', run: 'npm run prepare'},
+              {
+                key: 'publish',
+                run: 'npm run publish',
+                outputs: {failure_kind: {type: 'string'}},
+                gate: {on_failure: onFailure},
+              },
+            ],
+          },
+        },
+      };
+    }
+
+    it('stores each rule with its condition, target, feedback, and limit', () => {
+      const model = normalizeWorkflowDocument(
+        listDocument([
+          {
+            if: 'has(step.outputs.failure_kind) && step.outputs.failure_kind == "foreign-commits"',
+            restart_from: 'select_branch',
+            feedback: 'Someone committed to the branch.',
+          },
+          {
+            if: 'has(step.outputs.failure_kind) && step.outputs.failure_kind in ["stale-head", "transient"]',
+            restart_from: 'prepare',
+            max_attempts: 2,
+          },
+        ]),
+      );
+
+      expect(model.jobs[0]?.steps[2]?.gate?.onFailure).toEqual([
+        {
+          if: expect.objectContaining({
+            source:
+              'has(step.outputs.failure_kind) && step.outputs.failure_kind == "foreign-commits"',
+            check: 'typed',
+            resultType: 'bool',
+          }),
+          restartFrom: 'select_branch',
+          feedback: 'Someone committed to the branch.',
+          maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS,
+        },
+        {
+          if: expect.objectContaining({check: 'typed', resultType: 'bool'}),
+          restartFrom: 'prepare',
+          maxAttempts: 2,
+        },
+      ]);
+    });
+
+    it('stores an unconditional last rule without a condition', () => {
+      const model = normalizeWorkflowDocument(
+        listDocument([
+          {if: 'step.exit_code == 2', restart_from: 'select_branch'},
+          {restart_from: 'prepare'},
+        ]),
+      );
+
+      const rules = model.jobs[0]?.steps[2]?.gate?.onFailure;
+      expect(rules).toHaveLength(2);
+      expect(Array.isArray(rules) && rules[1]).toEqual({
+        restartFrom: 'prepare',
+        maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS,
+      });
+    });
+
+    it('reports a rule without a condition that is not the last rule', () => {
+      const error = expectInvalid(
+        listDocument([
+          {restart_from: 'select_branch'},
+          {if: 'step.exit_code == 2', restart_from: 'prepare'},
+        ]),
+      );
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'unreachable-step-gate-rule',
+          path: ['jobs', 'build', 'steps', 2, 'gate', 'on_failure', 0],
+        }),
+      ]);
+    });
+
+    it('reports a restart_from that is not an earlier keyed step at the rule path', () => {
+      const error = expectInvalid(
+        listDocument([
+          {if: 'step.exit_code == 2', restart_from: 'select_branch'},
+          {restart_from: 'publish'},
+        ]),
+      );
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-step-gate-restart-from',
+          path: ['jobs', 'build', 'steps', 2, 'gate', 'on_failure', 1],
+          details: {stepId: 'build-publish', restartFrom: 'publish'},
+        }),
+      ]);
+    });
+
+    it('reports a non-boolean condition at the rule condition path', () => {
+      const error = expectInvalid(
+        listDocument([
+          {if: 'step.exit_code + 1', restart_from: 'select_branch'},
+          {restart_from: 'prepare'},
+        ]),
+      );
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-step-gate-rule-condition',
+          path: ['jobs', 'build', 'steps', 2, 'gate', 'on_failure', 0, 'if'],
+          details: expect.objectContaining({reason: expect.stringContaining('must return bool')}),
+        }),
+      ]);
+    });
+
+    it('type-checks declared step outputs in a condition', () => {
+      const error = expectInvalid(
+        listDocument([
+          {if: 'step.outputs.failure_kind == 3', restart_from: 'select_branch'},
+          {restart_from: 'prepare'},
+        ]),
+      );
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({
+          code: 'invalid-step-gate-rule-condition',
+          path: ['jobs', 'build', 'steps', 2, 'gate', 'on_failure', 0, 'if'],
+        }),
+      ]);
+    });
+
+    it('reports an invalid feedback expression at the rule path', () => {
+      const error = expectInvalid(
+        listDocument([
+          {if: 'step.exit_code == 2', restart_from: 'select_branch'},
+          {restart_from: 'prepare', feedback: 'Failed: $' + '{{ nope( }}'},
+        ]),
+      );
+
+      expect(error.issues).toEqual([
+        expect.objectContaining({path: ['jobs', 'build', 'steps', 2, 'gate', 'on_failure', 1]}),
+      ]);
+    });
+
+    it('stores a single-object on_failure as a one-rule list', () => {
+      const model = normalizeWorkflowDocument({
+        name: 'single',
+        jobs: {
+          build: {
+            steps: [
+              {key: 'prepare', run: 'npm run prepare'},
+              {run: 'npm test', gate: {on_failure: {restart_from: 'prepare'}}},
+            ],
+          },
+        },
+      });
+
+      expect(model.jobs[0]?.steps[1]?.gate?.onFailure).toEqual([
+        {restartFrom: 'prepare', maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS},
+      ]);
+    });
   });
 
   it('reports gate restart_from references to unknown steps', () => {

@@ -8,7 +8,8 @@ Input shape for Shipfox workflow authoring.
 - `parseWorkflowDocument` parses unknown input into a typed `WorkflowDocument`.
 - `InvalidWorkflowDocumentError` reports invalid input with the original Zod error as `cause`.
 - `WorkflowDocumentRunStepGate` describes the step `gate` block with `success`
-  and `on_failure`.
+  and `on_failure`. `on_failure` is one restart rule or a non-empty list of
+  rules, and each rule can carry an `if` condition.
 - A job step is a **run step** (`run: <shell command>`), an inline **agent
   step** (`prompt`), a **checkout step** (`checkout`), a **tool step**
   (`tool`), or an **action step** (`uses`). A step carries one kind, never
@@ -278,8 +279,9 @@ const files = await decodeActionBundle({gzip: bundle.gzip, digest: bundle.digest
 - The `checkout` block is checked as input shape here. Default resolution,
   permission capping, credential minting, and runner checkout behavior belong to
   later layers.
-- The `gate` block is checked as input shape here. CEL parsing and restart
-  target checks belong to definitions-owned model code.
+- The `gate` block is checked as input shape here. CEL parsing, restart target
+  checks, and the order of rules in an `on_failure` list belong to
+  definitions-owned model code.
 - A step is discriminated by which keys it carries: `run` marks a run step;
   `prompt`, `model`, `harness`, `thinking`, `provider`, `tools`, or
   `integrations` mark an agent step; `checkout` marks a checkout step; and

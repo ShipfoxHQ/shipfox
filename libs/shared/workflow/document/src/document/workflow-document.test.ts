@@ -24,6 +24,20 @@ function interpolation(source: string): string {
   return `${interpolationOpen} ${source} ${interpolationClose}`;
 }
 
+function gateDocument(onFailure: unknown) {
+  return {
+    name: 'review loop',
+    jobs: {
+      review: {
+        steps: [
+          {key: 'producer', run: 'npm run build'},
+          {run: 'npm run review', gate: {on_failure: onFailure}},
+        ],
+      },
+    },
+  };
+}
+
 describe('workflowDocumentSchema', () => {
   it.each([
     [
@@ -1145,6 +1159,64 @@ describe('workflowDocumentSchema', () => {
     const result = workflowDocumentSchema.safeParse(workflowDocument);
 
     expect(result.success).toBe(true);
+  });
+
+  it('accepts a list of gate restart rules with conditions', () => {
+    const result = workflowDocumentSchema.safeParse(
+      gateDocument([
+        {
+          if: 'has(step.outputs.kind) && step.outputs.kind == "foreign"',
+          restart_from: 'producer',
+          feedback: `Build on top of ${interpolation('step.outputs.kind')}.`,
+        },
+        {restart_from: 'producer', max_attempts: 2},
+      ]),
+    );
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an empty gate restart rule list at the list path', () => {
+    const result = workflowDocumentSchema.safeParse(gateDocument([]));
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues).toMatchObject([
+      {path: ['jobs', 'review', 'steps', 1, 'gate', 'on_failure'], code: 'too_small'},
+    ]);
+  });
+
+  it('rejects an unknown field on a listed rule at the rule path', () => {
+    const result = workflowDocumentSchema.safeParse(
+      gateDocument([{restart_from: 'producer', bogus: true}]),
+    );
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues).toMatchObject([
+      {
+        code: 'unrecognized_keys',
+        path: ['jobs', 'review', 'steps', 1, 'gate', 'on_failure', 0],
+      },
+    ]);
+  });
+
+  it('rejects invalid max_attempts on a listed rule at the rule field path', () => {
+    const result = workflowDocumentSchema.safeParse(
+      gateDocument([
+        {if: 'step.exit_code == 1', restart_from: 'producer'},
+        {restart_from: 'producer', max_attempts: 0},
+      ]),
+    );
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues).toMatchObject([
+      {
+        path: ['jobs', 'review', 'steps', 1, 'gate', 'on_failure', 1, 'max_attempts'],
+        message: 'Expected a positive integer no greater than 1000.',
+      },
+    ]);
   });
 
   it.each([1, 11, 1_000])('accepts gate max_attempts: %s', (maxAttempts) => {

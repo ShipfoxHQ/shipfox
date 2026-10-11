@@ -51,7 +51,10 @@ least one of them:
   A tool step has no `step.exit_code`. It has `step.error`, which holds the
   `code` and the optional `status` of a failed call. `step.error` is null when
   the call did not fail.
-- `on_failure` restarts the job from an earlier step when the gate fails.
+- `on_failure` restarts the job from an earlier step when the gate fails. It is
+  one rule or a list of rules. `if` is an optional condition. A rule applies when
+  `if` returns `true`, and a rule with no `if` always applies. Shipfox uses the
+  first rule that applies. If no rule applies, the job fails.
   `restart_from` is the key of that step, which must be in the same job.
   `feedback` is an optional message that the restarted step can read.
   `max_attempts` is optional and sets how many times the step with the gate can

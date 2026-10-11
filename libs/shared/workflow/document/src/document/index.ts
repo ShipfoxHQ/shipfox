@@ -56,6 +56,7 @@ export {
   type WorkflowDocumentConcurrency,
   type WorkflowDocumentContainer,
   type WorkflowDocumentEnv,
+  type WorkflowDocumentGateFailureRule,
   type WorkflowDocumentJob,
   type WorkflowDocumentJobCheckout,
   type WorkflowDocumentRunStepGate,

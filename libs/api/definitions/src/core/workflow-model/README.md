@@ -9,8 +9,11 @@ Code that turns a checked workflow document into the model used by definitions.
 - **`normalizeWorkflowDocument(document)`**: Expands shorthand fields, assigns
   stable ids, validates explicit providers, and builds graph edges.
 - **Step gates**: Parse run-step `gate.success` as a server-evaluated CEL
-  predicate against context roots available at step reporting, and check
-  `gate.on_failure.restart_from` against earlier named steps in the same job.
+  predicate against context roots available at step reporting. Store
+  `gate.on_failure` as a rule list, whether the document holds one rule or a
+  list. Check each rule's `restart_from` against earlier named steps in the same
+  job, validate each rule's `if` as a boolean predicate in the same context as
+  `success`, and reject a rule with no `if` that is not the last rule.
   Tool-step gates validate against the no-`exit_code` report environment.
 - **Tool steps**: `normalizeToolStep` splits `family.method` tool ids, parses
   `with` interpolation trees and `outputs` mappings, types known closed catalog
@@ -125,9 +128,10 @@ an unknown shape produce `map` or `dyn` values, so mapped outputs are persisted
 as schema-less JSON while retaining numeric, boolean, and structured values at
 runtime. A tool without an output schema keeps its reserved `result` root open.
 
-`on_failure.restart_from` must name an earlier step in the same job. The runtime
-host does not execute restart semantics yet. This module only records the
-accepted meaning in the model.
+`on_failure.restart_from` must name an earlier step in the same job. This module
+only records the accepted meaning in the model. Workflows reads the stored rule
+list, or a single rule written before lists existed, and selects the first rule
+that applies.
 
 If a rule needs project data or database state, put that rule in another layer.
 This module should stay pure and easy to test.

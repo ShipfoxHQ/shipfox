@@ -1,0 +1,6 @@
+name: Publish
+description: Fails with a transient kind on the first run and with a fatal kind after a restart.
+main: index.ts
+outputs:
+  failure_kind:
+    description: The kind of failure, set before the action throws.

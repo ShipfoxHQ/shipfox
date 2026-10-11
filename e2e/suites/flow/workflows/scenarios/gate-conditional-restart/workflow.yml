@@ -1,0 +1,25 @@
+name: Gate conditional restart
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  publish:
+    steps:
+      - key: select_branch
+        run: echo "select_branch ran"
+      - key: prepare
+        env:
+          FEEDBACK: '${{ has(step.restart) ? step.restart.feedback : "none" }}'
+          FAILED_STEP: '${{ has(step.restart) ? step.restart.from.key : "none" }}'
+        run: echo "prepare feedback=$FEEDBACK from=$FAILED_STEP"
+      - key: publish
+        uses: ./.shipfox/actions/publish
+        gate:
+          on_failure:
+            - if: has(step.outputs.failure_kind) && step.outputs.failure_kind == "foreign-commits"
+              restart_from: select_branch
+            - if: has(step.outputs.failure_kind) && step.outputs.failure_kind in ["stale-head", "transient"]
+              restart_from: prepare
+              feedback: 'Retry after ${{ step.outputs.failure_kind }}.'
+              max_attempts: 3

@@ -186,7 +186,7 @@ describe('buildWorkflowJsonSchema', () => {
     const schema = buildWorkflowJsonSchema();
     const step = stepSchemaFor(schema);
     const gate = object(object(step.properties).gate);
-    const onFailure = object(object(gate.properties).on_failure);
+    const onFailure = object(objects(object(object(gate.properties).on_failure).anyOf)[0]);
     const maxAttempts = object(onFailure.properties).max_attempts;
 
     expect(maxAttempts).toMatchObject({
@@ -197,6 +197,23 @@ describe('buildWorkflowJsonSchema', () => {
         'Maximum number of executions of the gating step, including the first execution. Accepts integers from 1 through 1,000. Omit to use five attempts. There is no `unlimited` value.',
     });
     expect(strings(onFailure.required)).not.toContain('max_attempts');
+  });
+
+  it('publishes gate on_failure as one rule or a non-empty list of rules', () => {
+    const schema = buildWorkflowJsonSchema();
+    const step = stepSchemaFor(schema);
+    const gate = object(object(step.properties).gate);
+    const [single, list] = objects(object(object(gate.properties).on_failure).anyOf);
+    const rule = object(single);
+
+    expect(Object.keys(object(rule.properties))).toEqual([
+      'if',
+      'restart_from',
+      'feedback',
+      'max_attempts',
+    ]);
+    expect(strings(rule.required)).toEqual(['restart_from']);
+    expect(list).toMatchObject({type: 'array', minItems: 1, items: rule});
   });
 
   it('describes the session field with string and object forms', () => {

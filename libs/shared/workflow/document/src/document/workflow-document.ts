@@ -702,27 +702,71 @@ const workflowGateMaxAttemptsSchema = z
       'Maximum number of executions of the gating step, including the first execution. Accepts integers from 1 through 1,000. Omit to use five attempts. There is no `unlimited` value.',
   });
 
+const workflowDocumentGateFailureRuleSchema = z.strictObject({
+  if: z.string().min(1).optional().meta({
+    description:
+      'Selects this rule when the condition returns `true`. A rule with no `if` always applies, so only the last rule can omit it. The condition reads the same context as `success`, including `step.outputs`. Use `has()` before you read an output the step may not set. When no rule applies, the job fails with the error of the step.',
+  }),
+  restart_from: z.string().min(1).meta({
+    description: 'Selects the earlier step where the job restarts after the gate fails.',
+  }),
+  feedback: z.string().min(1).optional().meta({
+    description:
+      'Provides text that the repeated step can read after the gate fails. Supports workflow expressions.',
+  }),
+  max_attempts: workflowGateMaxAttemptsSchema,
+});
+
+const workflowDocumentGateFailureRuleJsonSchema = z.toJSONSchema(
+  workflowDocumentGateFailureRuleSchema,
+  {io: 'input', unrepresentable: 'any'},
+);
+delete (workflowDocumentGateFailureRuleJsonSchema as {$schema?: string}).$schema;
+
+// A union would report any rule error as one `invalid_union` issue at `on_failure`.
+// Dispatching on the array shape keeps each rule error at the field that caused it.
+const workflowDocumentGateFailureSchema = z
+  .unknown()
+  .superRefine((value, ctx) => {
+    const isList = Array.isArray(value);
+    if (isList && value.length === 0) {
+      ctx.addIssue({
+        code: 'too_small',
+        origin: 'array',
+        minimum: 1,
+        inclusive: true,
+        input: value,
+        message: 'Too small: expected array to have >=1 items',
+      });
+      return;
+    }
+    for (const [index, rule] of (isList ? value : [value]).entries()) {
+      const result = workflowDocumentGateFailureRuleSchema.safeParse(rule);
+      if (result.success) continue;
+      for (const issue of result.error.issues) {
+        ctx.addIssue({...issue, path: isList ? [index, ...issue.path] : issue.path});
+      }
+    }
+  })
+  .meta({
+    description:
+      'Restarts the job from an earlier step when the gate fails. Give one rule, or a list of rules where the first rule that applies restarts the job. See [Feedback loops](/understand/feedback-loops).',
+    anyOf: [
+      workflowDocumentGateFailureRuleJsonSchema,
+      {type: 'array', minItems: 1, items: workflowDocumentGateFailureRuleJsonSchema},
+    ],
+  }) as unknown as z.ZodType<
+  | z.infer<typeof workflowDocumentGateFailureRuleSchema>
+  | z.infer<typeof workflowDocumentGateFailureRuleSchema>[]
+>;
+
 const workflowDocumentStepGateSchema = z
   .strictObject({
     success: z.string().min(1).optional().meta({
       description:
         'Marks the step as successful when the condition returns `true`. See [Check and restart are separate](/understand/feedback-loops#check-and-restart-are-separate).',
     }),
-    on_failure: z
-      .strictObject({
-        restart_from: z.string().min(1).meta({
-          description: 'Selects the earlier step where the job restarts after the gate fails.',
-        }),
-        feedback: z.string().min(1).optional().meta({
-          description: 'Provides text that the repeated step can read after the gate fails.',
-        }),
-        max_attempts: workflowGateMaxAttemptsSchema,
-      })
-      .optional()
-      .meta({
-        description:
-          'Restarts the job from an earlier step when the gate fails. See [Feedback loops](/understand/feedback-loops).',
-      }),
+    on_failure: workflowDocumentGateFailureSchema.optional(),
   })
   .refine((value) => value.success !== undefined || value.on_failure !== undefined, {
     message: 'Expected success or on_failure',
@@ -1600,6 +1644,7 @@ export const workflowDocumentSchema = z.strictObject({
 });
 
 export type WorkflowDocumentStep = z.infer<typeof workflowDocumentStepSchema>;
+export type WorkflowDocumentGateFailureRule = z.infer<typeof workflowDocumentGateFailureRuleSchema>;
 export type WorkflowDocumentJob = z.infer<typeof workflowDocumentJobSchema>;
 export type WorkflowDocumentConcurrency = z.infer<typeof workflowDocumentConcurrencySchema>;
 export type WorkflowDocument = z.infer<typeof workflowDocumentSchema>;

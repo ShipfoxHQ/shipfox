@@ -121,6 +121,8 @@ first run counts as attempt 1.
 - Use a whole number from 1 through 1,000.
 - If you omit the field, the step can run five times.
 - You cannot remove the limit.
+- With a list of rules, each rule has its own value. The value counts every run
+  of the step. See [Restart or fail](/understand/feedback-loops#restart-or-fail).
 
 When the step fails on its last attempt, the job fails with the status
 `restart_exhausted`.

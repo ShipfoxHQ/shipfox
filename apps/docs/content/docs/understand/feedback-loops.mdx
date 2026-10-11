@@ -63,6 +63,82 @@ Because the two parts are separate, a failed check has two possible results:
 - **Go back to the step that can fix the problem.** Add `on_failure` and name
   that step. The job does not start again from its first step.
 
+## Restart or fail
+
+Some failures are worth another try, and some are not. A merge conflict that a
+fix step can resolve should restart the job. A missing credential should not,
+because no earlier step can fix it.
+
+`on_failure` can be a list of rules. Each rule can have an `if` condition. Shipfox
+reads the rules in order and uses the first rule that applies:
+
+```yaml title=".shipfox/workflows/publish-checkpoint.yml"
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Publish a checkpoint
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+
+jobs:
+  publish:
+    steps:
+      - key: select_branch
+        run: ./scripts/select-branch.sh
+
+      - key: prepare
+        run: ./scripts/prepare.sh
+
+      - key: publish
+        run: ./scripts/publish.sh
+        outputs:
+          failure_kind:
+            type: string
+            from_file: failure-kind.txt
+        gate:
+          on_failure:
+            - if: has(step.outputs.failure_kind) && step.outputs.failure_kind == "foreign-commits"
+              restart_from: select_branch
+              feedback: Someone committed to the branch. Build on top of it.
+
+            - if: has(step.outputs.failure_kind) && step.outputs.failure_kind in ["stale-head", "transient"]
+              restart_from: prepare
+              max_attempts: 2
+```
+
+The `publish` script writes the kind of failure to `failure-kind.txt`. This is
+what happens when `publish` fails:
+
+- If the kind is `foreign-commits`, the job goes back to `select_branch` with
+  the feedback message.
+- If the kind is `stale-head` or `transient`, the job goes back to `prepare`.
+  The step can run 2 times in total.
+- If the kind is anything else, no rule applies. The `publish` step stays
+  `failed` with its own error, and the job fails. This is the fatal case.
+
+A rule applies when its `if` condition returns `true`. A rule with no `if`
+always applies, so only the last rule can leave `if` out. Shipfox rejects a rule
+with no `if` that is followed by another rule, because the next rule could never
+apply.
+
+Keep these points in mind:
+
+- `if` reads the same context as `success`: `step.status`, `step.exit_code`,
+  `step.outputs`, and `vars`. Outputs that the step set before it failed are
+  readable.
+- A step that fails before it sets an output has no such key. Use `has()` to
+  test the output, as the example does. If a condition reads a missing key, the
+  job fails and the rules after it are not tried. This way, a failure that you
+  did not classify does not restart by accident.
+- Each rule has its own `restart_from`, `feedback`, and `max_attempts`.
+- A single object under `on_failure` is the same as a list with one rule.
+
+The rules do not change `success`. When a gate has `success` and it returns
+`true`, the step passes, even if the step itself failed. To route failures with
+rules only, leave `success` out. The status of the step then decides if the step
+passed.
+
 ## Use a separate check
 
 Do not ask the agent that did the work to also check the work. An agent that
@@ -163,6 +239,13 @@ The file is plain text, and secrets are masked. A long log keeps only its end.
 The [Contexts reference](/reference/contexts#context-properties) and
 [Limits](/reference/limits#logs) list the exact rules.
 
+`feedback` accepts `${{ }}` expressions. They read the same context as
+`success`. For example, this message gives the exit code to the restarted step:
+
+```yaml
+feedback: The tests failed with exit code ${{ step.exit_code }}.
+```
+
 ## Loop bounds
 
 Two limits stop a loop that does not pass its check:
@@ -198,6 +281,14 @@ jobs:
 - `execution_timeout` is the time that the job can run. The time includes every
   attempt. Here, if the job is not complete after 30 minutes, it fails with
   `timed_out`.
+
+With a list of rules, each rule has its own `max_attempts`. The number still
+counts every run of the gating step, whichever rule caused the earlier restarts.
+In the example in [Restart or fail](#restart-or-fail), `publish` fails with
+`foreign-commits` and runs again. It then fails with `transient`. This is the
+second run of `publish`, so the second rule does not restart the job, because it
+allows 2 runs in total. The job fails with `restart_exhausted`. Set each limit as
+the most times the step can run when that rule applies.
 
 The limit that the job reaches first stops the loop.
 

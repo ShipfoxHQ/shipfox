@@ -2,6 +2,8 @@ name: Fix until tests pass
 jobs:
   fix:
     steps:
+      - key: install
+        run: pnpm install
       - key: fix
         prompt: |
           Fix the failing test.
@@ -9,8 +11,15 @@ jobs:
           Test log: ${{ has(step.restart) && has(step.restart.from.log_path) ? step.restart.from.log_path : "None." }}
       - key: test
         run: pnpm test
+        outputs:
+          failure_kind:
+            type: string
+            from_file: failure-kind.txt
         gate:
-          success: step.exit_code == 0
           on_failure:
-            restart_from: fix
-            feedback: The tests still fail. Reproduce the failure first.
+            - if: has(step.outputs.failure_kind) && step.outputs.failure_kind == "assertion"
+              restart_from: fix
+              feedback: The tests still fail. Reproduce the failure first.
+            - if: has(step.outputs.failure_kind) && step.outputs.failure_kind == "flaky"
+              restart_from: install
+              max_attempts: 2

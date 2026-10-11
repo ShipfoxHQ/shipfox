@@ -487,9 +487,11 @@ function workflowJobIssues(
 
   issues.push(...outputReferenceIssues(job, stepIds, jobIds, needs, jobPrefix));
   for (const step of job.steps) {
-    const restartFrom = step.gate?.on_failure?.restart_from;
-    if (restartFrom !== undefined && !stepIds.has(restartFrom)) {
-      issues.push(`${jobPrefix}: restart_from references unknown step ${restartFrom}`);
+    const onFailure = step.gate?.on_failure ?? [];
+    for (const rule of Array.isArray(onFailure) ? onFailure : [onFailure]) {
+      if (!stepIds.has(rule.restart_from)) {
+        issues.push(`${jobPrefix}: restart_from references unknown step ${rule.restart_from}`);
+      }
     }
   }
   return issues;
