@@ -331,6 +331,19 @@ describe('checkContractCoverage', () => {
       ]);
     });
 
+    it('fails a write without an effect when the write that uses it has an unknown effect', () => {
+      const files = arrangeChain({
+        with: {parent: '$steps.draft.id'},
+        effect: {...savedIssue, tool: 'read_issue'},
+      });
+
+      expect(problemsOf(files)).toEqual([
+        'case linear/save: write step "save_issue" has no `effect`',
+        'case linear/save: effect "read_issue" names "linear.read_issue" is not in the catalog',
+        'write linear.save_issue has no case, exemption, or backlog entry',
+      ]);
+    });
+
     it('keeps the backlog entry of a write whose effect is not valid', () => {
       expect(problemsOf(arrangeWrite({backlogged: true}))).toEqual([
         'case linear/save: write step "save_issue" has no `effect`',

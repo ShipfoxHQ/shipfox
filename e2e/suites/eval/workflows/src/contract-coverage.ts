@@ -140,6 +140,8 @@ function writeProblems({
     const proved = laterSteps.some(
       (later, index) =>
         later.effect !== undefined &&
+        // An effect the catalog lacks proves nothing, so it can't prove an earlier write either.
+        units.get(unitKey({provider, ...later.effect}))?.kind === 'read' &&
         units.get(unitKey({provider, ...later}))?.kind === 'write' &&
         findContractReferences(later.with).some(
           ({reference}) => reference?.kind === 'steps' && reference.key === step.key,
