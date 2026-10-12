@@ -1,12 +1,2 @@
-ceiling: 10
-entries:
-  - {tool: github.add_comment_to_pending_review, kind: write, issue: ENG-2834}
-  - {tool: github.add_reply_to_pull_request_comment, kind: write, issue: ENG-2834}
-  - {tool: github.create_pull_request, kind: write, issue: ENG-2834}
-  - {tool: github.merge_pull_request, kind: write, issue: ENG-2834}
-  - {tool: github.pull_request_review_thread_write, method: resolve, kind: write, issue: ENG-2834}
-  - {tool: github.pull_request_review_write, method: create, kind: write, issue: ENG-2834}
-  - {tool: github.pull_request_review_write, method: delete_pending, kind: write, issue: ENG-2834}
-  - {tool: github.pull_request_review_write, method: submit_pending, kind: write, issue: ENG-2834}
-  - {tool: github.update_pull_request, kind: write, issue: ENG-2834}
-  - {tool: github.update_pull_request_branch, kind: write, issue: ENG-2834}
+ceiling: 0
+entries: []

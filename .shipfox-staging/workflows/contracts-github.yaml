@@ -1416,6 +1416,616 @@ jobs:
           value_total_count: "${{ has(result.total_count) ? result.total_count : 1 }}"
         gate:
           success: step.status == "succeeded" && step.outputs.shape_state && step.outputs.shape_sha && step.outputs.shape_total_count && (type(step.outputs.value_total_count) == type(1) || type(step.outputs.value_total_count) == type(1.0)) && step.outputs.value_total_count == 0
+  pull_request_review_round_trip:
+    checkout: false
+    steps:
+      - key: base
+        tool: create_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-review-base
+          from: a7d8de632b46c87cb8d6df0377755825732e461e
+        outputs:
+          ref_oid: '${{ has(result.oid) ? result.oid : "" }}'
+      - key: base_effect
+        tool: get_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-review-base
+        outputs:
+          value_exists: "${{ has(result.exists) ? result.exists : false }}"
+          value_oid: '${{ has(result.oid) ? result.oid : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == true && type(step.outputs.value_oid) == type("") && step.outputs.value_oid == "a7d8de632b46c87cb8d6df0377755825732e461e"
+      - key: head
+        tool: create_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-review-head
+          from: a7d8de632b46c87cb8d6df0377755825732e461e
+        outputs:
+          ref_oid: '${{ has(result.oid) ? result.oid : "" }}'
+      - key: head_effect
+        tool: get_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-review-head
+        outputs:
+          value_exists: "${{ has(result.exists) ? result.exists : false }}"
+          value_oid: '${{ has(result.oid) ? result.oid : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == true && type(step.outputs.value_oid) == type("") && step.outputs.value_oid == "a7d8de632b46c87cb8d6df0377755825732e461e"
+      - key: blob
+        tool: create_blob
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          contents: Reviewed by a contract.
+        outputs:
+          value_oid: '${{ has(result.oid) ? result.oid : "" }}'
+          ref_oid: '${{ has(result.oid) ? result.oid : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_oid) == type("") && step.outputs.value_oid == "c65bc995941b95fdccad02ad55d8a75b43a93676"
+      - key: commit
+        tool: create_commit
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-review-head
+          parent_oid: ${{ steps.head.outputs.ref_oid }}
+          message: Contract review commit
+          entries:
+            - path: contract/review.md
+              oid: ${{ steps.blob.outputs.ref_oid }}
+        outputs:
+          ref_commit_oid: '${{ has(result.commit) && has(result.commit.oid) ? result.commit.oid : "" }}'
+      - key: commit_effect
+        tool: get_commit
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          ref: ${{ steps.commit.outputs.ref_commit_oid }}
+        outputs:
+          value_commit_message: '${{ has(result.commit) && has(result.commit.message) ? result.commit.message : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_commit_message) == type("") && step.outputs.value_commit_message == "Contract review commit"
+      - key: open
+        tool: create_pull_request
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          title: Contract review contract-${{ run.id }}
+          body: Created by a contract.
+          head: contract/contract-${{ run.id }}-review-head
+          base: contract/contract-${{ run.id }}-review-base
+        outputs:
+          ref_pull_request_number: '${{ has(result.pull_request) && has(result.pull_request.number) ? result.pull_request.number : "" }}'
+      - key: open_effect
+        tool: pull_request_read.get
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+        outputs:
+          value_state: '${{ has(result.state) ? result.state : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_state) == type("") && step.outputs.value_state == "open"
+      - key: draft
+        tool: pull_request_review_write.create
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+          commit_id: ${{ steps.commit.outputs.ref_commit_oid }}
+          body: Contract review to delete
+        outputs:
+          shape_id: ${{ has(result.id) && (type(result.id) == type(1) || type(result.id) == type(1.0)) }}
+          shape_state: ${{ has(result.state) && type(result.state) == type("") }}
+          value_state: '${{ has(result.state) ? result.state : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_state && type(step.outputs.value_state) == type("") && step.outputs.value_state == "PENDING"
+      - key: draft_effect
+        tool: pull_request_read.get_reviews
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+        outputs:
+          value_result_0_state: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.state)) ? result.result[0].state : "" }}'
+          value_result_0_body: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.body)) ? result.result[0].body : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_result_0_state) == type("") && step.outputs.value_result_0_state == "PENDING" && type(step.outputs.value_result_0_body) == type("") && step.outputs.value_result_0_body == "Contract review to delete"
+      - key: discard
+        tool: pull_request_review_write.delete_pending
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+        outputs:
+          shape_id: ${{ has(result.id) && (type(result.id) == type(1) || type(result.id) == type(1.0)) }}
+          shape_commit_id: ${{ has(result.commit_id) && type(result.commit_id) == type("") }}
+          value_body: '${{ has(result.body) ? result.body : "" }}'
+          ref_commit_id: '${{ has(result.commit_id) ? result.commit_id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_commit_id && type(step.outputs.value_body) == type("") && step.outputs.value_body == "Contract review to delete"
+      - key: review
+        tool: pull_request_review_write.create
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+          commit_id: ${{ steps.discard.outputs.ref_commit_id }}
+          body: Contract review draft
+        outputs:
+          value_state: '${{ has(result.state) ? result.state : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_state) == type("") && step.outputs.value_state == "PENDING"
+      - key: review_effect
+        tool: pull_request_read.get_reviews
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+        outputs:
+          value_result_0_state: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.state)) ? result.result[0].state : "" }}'
+          value_result_0_body: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.body)) ? result.result[0].body : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_result_0_state) == type("") && step.outputs.value_result_0_state == "PENDING" && type(step.outputs.value_result_0_body) == type("") && step.outputs.value_result_0_body == "Contract review draft"
+      - key: comment
+        tool: add_comment_to_pending_review
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+          path: contract/review.md
+          line: 1
+          side: RIGHT
+          body: Contract thread
+        outputs:
+          shape_addPullRequestReviewThread_thread_id: ${{ has(result.addPullRequestReviewThread) && has(result.addPullRequestReviewThread.thread) && has(result.addPullRequestReviewThread.thread.id) && type(result.addPullRequestReviewThread.thread.id) == type("") }}
+          ref_addPullRequestReviewThread_thread_id: '${{ has(result.addPullRequestReviewThread) && has(result.addPullRequestReviewThread.thread) && has(result.addPullRequestReviewThread.thread.id) ? result.addPullRequestReviewThread.thread.id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_addPullRequestReviewThread_thread_id
+      - key: comment_effect
+        tool: pull_request_read.get_review_threads
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+        outputs:
+          value_repository_pullRequest_reviewThreads_nodes_0_path: '${{ has(result.repository) && has(result.repository.pullRequest) && has(result.repository.pullRequest.reviewThreads) && has(result.repository.pullRequest.reviewThreads.nodes) && type(result.repository.pullRequest.reviewThreads.nodes) == type([]) && size(result.repository.pullRequest.reviewThreads.nodes) > 0 && [result.repository.pullRequest.reviewThreads.nodes[0]].all(i0, has(i0.path)) ? result.repository.pullRequest.reviewThreads.nodes[0].path : "" }}'
+          value_repository_pullRequest_reviewThreads_nodes_0_isResolved: "${{ has(result.repository) && has(result.repository.pullRequest) && has(result.repository.pullRequest.reviewThreads) && has(result.repository.pullRequest.reviewThreads.nodes) && type(result.repository.pullRequest.reviewThreads.nodes) == type([]) && size(result.repository.pullRequest.reviewThreads.nodes) > 0 && [result.repository.pullRequest.reviewThreads.nodes[0]].all(i0, has(i0.isResolved)) ? result.repository.pullRequest.reviewThreads.nodes[0].isResolved : true }}"
+          value_repository_pullRequest_reviewThreads_nodes_0_comments_nodes_0_body: '${{ has(result.repository) && has(result.repository.pullRequest) && has(result.repository.pullRequest.reviewThreads) && has(result.repository.pullRequest.reviewThreads.nodes) && type(result.repository.pullRequest.reviewThreads.nodes) == type([]) && size(result.repository.pullRequest.reviewThreads.nodes) > 0 && [result.repository.pullRequest.reviewThreads.nodes[0]].all(i0, has(i0.comments) && has(i0.comments.nodes) && type(i0.comments.nodes) == type([]) && size(i0.comments.nodes) > 0 && [i0.comments.nodes[0]].all(i1, has(i1.body))) ? result.repository.pullRequest.reviewThreads.nodes[0].comments.nodes[0].body : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_repository_pullRequest_reviewThreads_nodes_0_path) == type("") && step.outputs.value_repository_pullRequest_reviewThreads_nodes_0_path == "contract/review.md" && type(step.outputs.value_repository_pullRequest_reviewThreads_nodes_0_isResolved) == type(true) && step.outputs.value_repository_pullRequest_reviewThreads_nodes_0_isResolved == false && type(step.outputs.value_repository_pullRequest_reviewThreads_nodes_0_comments_nodes_0_body) == type("") && step.outputs.value_repository_pullRequest_reviewThreads_nodes_0_comments_nodes_0_body == "Contract thread"
+      - key: submit
+        tool: pull_request_review_write.submit_pending
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+          event: COMMENT
+          body: Contract review
+        outputs:
+          value_state: '${{ has(result.state) ? result.state : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_state) == type("") && step.outputs.value_state == "COMMENTED"
+      - key: submit_effect
+        tool: pull_request_read.get_reviews
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+        outputs:
+          value_result_0_state: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.state)) ? result.result[0].state : "" }}'
+          value_result_0_body: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.body)) ? result.result[0].body : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_result_0_state) == type("") && step.outputs.value_result_0_state == "COMMENTED" && type(step.outputs.value_result_0_body) == type("") && step.outputs.value_result_0_body == "Contract review"
+      - key: comments
+        tool: pull_request_read.get_review_comments
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+        outputs:
+          shape_result_0_id: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.id) && (type(i0.id) == type(1) || type(i0.id) == type(1.0))) }}
+          shape_result_0_path: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.path) && type(i0.path) == type("")) }}
+          shape_result_0_body: ${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.body) && type(i0.body) == type("")) }}
+          value_result_0_body: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.body)) ? result.result[0].body : "" }}'
+          ref_result_0_id: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 0 && [result.result[0]].all(i0, has(i0.id)) ? result.result[0].id : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_result_0_id && step.outputs.shape_result_0_path && step.outputs.shape_result_0_body && type(step.outputs.value_result_0_body) == type("") && step.outputs.value_result_0_body == "Contract thread"
+      - key: reply
+        tool: add_reply_to_pull_request_comment
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+          comment_id: ${{ steps.comments.outputs.ref_result_0_id }}
+          body: Contract reply
+        outputs:
+          shape_id: ${{ has(result.id) && (type(result.id) == type(1) || type(result.id) == type(1.0)) }}
+          shape_body: ${{ has(result.body) && type(result.body) == type("") }}
+          shape_in_reply_to_id: ${{ has(result.in_reply_to_id) && (type(result.in_reply_to_id) == type(1) || type(result.in_reply_to_id) == type(1.0)) }}
+          value_body: '${{ has(result.body) ? result.body : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_id && step.outputs.shape_body && step.outputs.shape_in_reply_to_id && type(step.outputs.value_body) == type("") && step.outputs.value_body == "Contract reply"
+      - key: reply_effect
+        tool: pull_request_read.get_review_comments
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+        outputs:
+          value_result_1_body: '${{ has(result.result) && type(result.result) == type([]) && size(result.result) > 1 && [result.result[1]].all(i0, has(i0.body)) ? result.result[1].body : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_result_1_body) == type("") && step.outputs.value_result_1_body == "Contract reply"
+      - key: resolve
+        tool: pull_request_review_thread_write.resolve
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          thread_id: ${{ steps.comment.outputs.ref_addPullRequestReviewThread_thread_id }}
+        outputs:
+          value_resolveReviewThread_thread_isResolved: "${{ has(result.resolveReviewThread) && has(result.resolveReviewThread.thread) && has(result.resolveReviewThread.thread.isResolved) ? result.resolveReviewThread.thread.isResolved : false }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_resolveReviewThread_thread_isResolved) == type(true) && step.outputs.value_resolveReviewThread_thread_isResolved == true
+      - key: resolve_effect
+        tool: pull_request_read.get_review_threads
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+        outputs:
+          value_repository_pullRequest_reviewThreads_nodes_0_isResolved: "${{ has(result.repository) && has(result.repository.pullRequest) && has(result.repository.pullRequest.reviewThreads) && has(result.repository.pullRequest.reviewThreads.nodes) && type(result.repository.pullRequest.reviewThreads.nodes) == type([]) && size(result.repository.pullRequest.reviewThreads.nodes) > 0 && [result.repository.pullRequest.reviewThreads.nodes[0]].all(i0, has(i0.isResolved)) ? result.repository.pullRequest.reviewThreads.nodes[0].isResolved : false }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_repository_pullRequest_reviewThreads_nodes_0_isResolved) == type(true) && step.outputs.value_repository_pullRequest_reviewThreads_nodes_0_isResolved == true
+      - key: close
+        tool: update_pull_request
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+          state: closed
+      - key: close_effect
+        tool: pull_request_read.get
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.open.outputs.ref_pull_request_number }}
+        outputs:
+          value_state: '${{ has(result.state) ? result.state : "" }}'
+          value_merged: "${{ has(result.merged) ? result.merged : true }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_state) == type("") && step.outputs.value_state == "closed" && type(step.outputs.value_merged) == type(true) && step.outputs.value_merged == false
+      - key: delete_head
+        tool: delete_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-review-head
+          expected_head_oid: ${{ steps.commit.outputs.ref_commit_oid }}
+        outputs:
+          value_existed: "${{ has(result.existed) ? result.existed : false }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_existed) == type(true) && step.outputs.value_existed == true
+      - key: delete_head_effect
+        tool: get_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-review-head
+        outputs:
+          value_exists: "${{ has(result.exists) ? result.exists : true }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == false
+      - key: delete_base
+        tool: delete_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-review-base
+          expected_head_oid: ${{ steps.base.outputs.ref_oid }}
+        outputs:
+          value_existed: "${{ has(result.existed) ? result.existed : false }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_existed) == type(true) && step.outputs.value_existed == true
+      - key: delete_base_effect
+        tool: get_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-review-base
+        outputs:
+          value_exists: "${{ has(result.exists) ? result.exists : true }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == false
+  pull_request_round_trip:
+    checkout: false
+    steps:
+      - key: base
+        tool: create_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-pr-base
+          from: a7d8de632b46c87cb8d6df0377755825732e461e
+        outputs:
+          ref_oid: '${{ has(result.oid) ? result.oid : "" }}'
+      - key: base_effect
+        tool: get_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-pr-base
+        outputs:
+          value_exists: "${{ has(result.exists) ? result.exists : false }}"
+          value_oid: '${{ has(result.oid) ? result.oid : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == true && type(step.outputs.value_oid) == type("") && step.outputs.value_oid == "a7d8de632b46c87cb8d6df0377755825732e461e"
+      - key: head
+        tool: create_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-pr-head
+          from: a7d8de632b46c87cb8d6df0377755825732e461e
+        outputs:
+          ref_oid: '${{ has(result.oid) ? result.oid : "" }}'
+      - key: head_effect
+        tool: get_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-pr-head
+        outputs:
+          value_exists: "${{ has(result.exists) ? result.exists : false }}"
+          value_oid: '${{ has(result.oid) ? result.oid : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == true && type(step.outputs.value_oid) == type("") && step.outputs.value_oid == "a7d8de632b46c87cb8d6df0377755825732e461e"
+      - key: head_blob
+        tool: create_blob
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          contents: Head change by a contract.
+        outputs:
+          value_oid: '${{ has(result.oid) ? result.oid : "" }}'
+          ref_oid: '${{ has(result.oid) ? result.oid : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_oid) == type("") && step.outputs.value_oid == "bd39d38734c3134982432190b5a35c3a2ef2d456"
+      - key: head_commit
+        tool: create_commit
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-pr-head
+          parent_oid: ${{ steps.head.outputs.ref_oid }}
+          message: Contract head commit
+          entries:
+            - path: contract/head.md
+              oid: ${{ steps.head_blob.outputs.ref_oid }}
+        outputs:
+          ref_commit_oid: '${{ has(result.commit) && has(result.commit.oid) ? result.commit.oid : "" }}'
+      - key: head_commit_effect
+        tool: get_commit
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          ref: ${{ steps.head_commit.outputs.ref_commit_oid }}
+        outputs:
+          value_commit_message: '${{ has(result.commit) && has(result.commit.message) ? result.commit.message : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_commit_message) == type("") && step.outputs.value_commit_message == "Contract head commit"
+      - key: create
+        tool: create_pull_request
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          title: Contract contract-${{ run.id }}
+          body: Created by a contract.
+          head: contract/contract-${{ run.id }}-pr-head
+          base: contract/contract-${{ run.id }}-pr-base
+        outputs:
+          shape_pull_request_id: ${{ has(result.pull_request) && has(result.pull_request.id) && (type(result.pull_request.id) == type(1) || type(result.pull_request.id) == type(1.0)) }}
+          shape_pull_request_number: ${{ has(result.pull_request) && has(result.pull_request.number) && (type(result.pull_request.number) == type(1) || type(result.pull_request.number) == type(1.0)) }}
+          shape_pull_request_title: ${{ has(result.pull_request) && has(result.pull_request.title) && type(result.pull_request.title) == type("") }}
+          shape_pull_request_state: ${{ has(result.pull_request) && has(result.pull_request.state) && type(result.pull_request.state) == type("") }}
+          shape_pull_request_html_url: ${{ has(result.pull_request) && has(result.pull_request.html_url) && type(result.pull_request.html_url) == type("") }}
+          value_pull_request_state: '${{ has(result.pull_request) && has(result.pull_request.state) ? result.pull_request.state : "" }}'
+          ref_pull_request_number: '${{ has(result.pull_request) && has(result.pull_request.number) ? result.pull_request.number : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_pull_request_id && step.outputs.shape_pull_request_number && step.outputs.shape_pull_request_title && step.outputs.shape_pull_request_state && step.outputs.shape_pull_request_html_url && type(step.outputs.value_pull_request_state) == type("") && step.outputs.value_pull_request_state == "open"
+      - key: create_effect
+        tool: pull_request_read.get
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.create.outputs.ref_pull_request_number }}
+        outputs:
+          value_state: '${{ has(result.state) ? result.state : "" }}'
+          value_body: '${{ has(result.body) ? result.body : "" }}'
+          matches_title: ${{ has(result.title) && type(result.title) == type("") && result.title.matches("^Contract contract-[0-9a-f-]+$") }}
+          matches_head_ref: ${{ has(result.head) && has(result.head.ref) && type(result.head.ref) == type("") && result.head.ref.matches("^contract/contract-[0-9a-f-]+-pr-head$") }}
+          matches_base_ref: ${{ has(result.base) && has(result.base.ref) && type(result.base.ref) == type("") && result.base.ref.matches("^contract/contract-[0-9a-f-]+-pr-base$") }}
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_state) == type("") && step.outputs.value_state == "open" && type(step.outputs.value_body) == type("") && step.outputs.value_body == "Created by a contract." && step.outputs.matches_title && step.outputs.matches_head_ref && step.outputs.matches_base_ref
+      - key: update
+        tool: update_pull_request
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.create.outputs.ref_pull_request_number }}
+          title: Contract pull request updated
+          body: Updated by a contract.
+        outputs:
+          value_pull_request_title: '${{ has(result.pull_request) && has(result.pull_request.title) ? result.pull_request.title : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_pull_request_title) == type("") && step.outputs.value_pull_request_title == "Contract pull request updated"
+      - key: update_effect
+        tool: pull_request_read.get
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.create.outputs.ref_pull_request_number }}
+        outputs:
+          value_title: '${{ has(result.title) ? result.title : "" }}'
+          value_body: '${{ has(result.body) ? result.body : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_title) == type("") && step.outputs.value_title == "Contract pull request updated" && type(step.outputs.value_body) == type("") && step.outputs.value_body == "Updated by a contract."
+      - key: base_blob
+        tool: create_blob
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          contents: Base change by a contract.
+        outputs:
+          value_oid: '${{ has(result.oid) ? result.oid : "" }}'
+          ref_oid: '${{ has(result.oid) ? result.oid : "" }}'
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_oid) == type("") && step.outputs.value_oid == "0df65c12fba98e7ecfc79ca8e1be2b17c3789030"
+      - key: base_commit
+        tool: create_commit
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-pr-base
+          parent_oid: ${{ steps.base.outputs.ref_oid }}
+          message: Contract base commit
+          entries:
+            - path: contract/base.md
+              oid: ${{ steps.base_blob.outputs.ref_oid }}
+      - key: base_commit_effect
+        tool: compare_commits
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          base: contract/contract-${{ run.id }}-pr-base
+          head: contract/contract-${{ run.id }}-pr-head
+        outputs:
+          value_status: '${{ has(result.status) ? result.status : "" }}'
+          value_ahead_by: "${{ has(result.ahead_by) ? result.ahead_by : 2 }}"
+          value_behind_by: "${{ has(result.behind_by) ? result.behind_by : 2 }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_status) == type("") && step.outputs.value_status == "diverged" && (type(step.outputs.value_ahead_by) == type(1) || type(step.outputs.value_ahead_by) == type(1.0)) && step.outputs.value_ahead_by == 1 && (type(step.outputs.value_behind_by) == type(1) || type(step.outputs.value_behind_by) == type(1.0)) && step.outputs.value_behind_by == 1
+      - key: update_branch
+        tool: update_pull_request_branch
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.create.outputs.ref_pull_request_number }}
+          expected_head_sha: ${{ steps.head_commit.outputs.ref_commit_oid }}
+      - key: update_branch_wait
+        run: sleep 15
+      - key: update_branch_effect
+        tool: compare_commits
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          base: contract/contract-${{ run.id }}-pr-base
+          head: contract/contract-${{ run.id }}-pr-head
+        outputs:
+          value_status: '${{ has(result.status) ? result.status : "" }}'
+          value_ahead_by: "${{ has(result.ahead_by) ? result.ahead_by : 3 }}"
+          value_behind_by: "${{ has(result.behind_by) ? result.behind_by : 1 }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_status) == type("") && step.outputs.value_status == "ahead" && (type(step.outputs.value_ahead_by) == type(1) || type(step.outputs.value_ahead_by) == type(1.0)) && step.outputs.value_ahead_by == 2 && (type(step.outputs.value_behind_by) == type(1) || type(step.outputs.value_behind_by) == type(1.0)) && step.outputs.value_behind_by == 0
+      - key: merge
+        tool: merge_pull_request
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.create.outputs.ref_pull_request_number }}
+          merge_method: merge
+          commit_title: Contract merge
+        outputs:
+          shape_merge_sha: ${{ has(result.merge) && has(result.merge.sha) && type(result.merge.sha) == type("") }}
+          shape_merge_merged: ${{ has(result.merge) && has(result.merge.merged) && type(result.merge.merged) == type(true) }}
+          value_merge_merged: "${{ has(result.merge) && has(result.merge.merged) ? result.merge.merged : false }}"
+          ref_merge_sha: '${{ has(result.merge) && has(result.merge.sha) ? result.merge.sha : "" }}'
+        gate:
+          success: step.status == "succeeded" && step.outputs.shape_merge_sha && step.outputs.shape_merge_merged && type(step.outputs.value_merge_merged) == type(true) && step.outputs.value_merge_merged == true
+      - key: merge_effect
+        tool: pull_request_read.get
+        connection: github_shipfoxsandbox
+        with:
+          owner: ShipfoxSandbox
+          repo: contract-tests
+          pull_number: ${{ steps.create.outputs.ref_pull_request_number }}
+        outputs:
+          value_state: '${{ has(result.state) ? result.state : "" }}'
+          value_merged: "${{ has(result.merged) ? result.merged : false }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_state) == type("") && step.outputs.value_state == "closed" && type(step.outputs.value_merged) == type(true) && step.outputs.value_merged == true
+      - key: delete_head
+        tool: delete_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-pr-head
+        outputs:
+          value_existed: "${{ has(result.existed) ? result.existed : false }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_existed) == type(true) && step.outputs.value_existed == true
+      - key: delete_head_effect
+        tool: get_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-pr-head
+        outputs:
+          value_exists: "${{ has(result.exists) ? result.exists : true }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == false
+      - key: delete_base
+        tool: delete_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-pr-base
+          expected_head_oid: ${{ steps.merge.outputs.ref_merge_sha }}
+        outputs:
+          value_existed: "${{ has(result.existed) ? result.existed : false }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_existed) == type(true) && step.outputs.value_existed == true
+      - key: delete_base_effect
+        tool: get_branch
+        connection: github_shipfoxsandbox
+        with:
+          repository: ShipfoxSandbox/contract-tests
+          branch: contract/contract-${{ run.id }}-pr-base
+        outputs:
+          value_exists: "${{ has(result.exists) ? result.exists : true }}"
+        gate:
+          success: step.status == "succeeded" && type(step.outputs.value_exists) == type(true) && step.outputs.value_exists == false
   search_issues:
     checkout: false
     steps:

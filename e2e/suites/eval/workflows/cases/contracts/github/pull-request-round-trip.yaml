@@ -1,0 +1,203 @@
+provider: github
+kind: round-trip
+modes: [real]
+steps:
+  # The pull request merges into a base branch of this run, never into the sandbox default branch.
+  # Each case of a run has its own branch names, because every case shares the run's marker.
+  - key: base
+    tool: create_branch
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker-pr-base
+      from: $fixture.github.commit.base_oid
+    effect:
+      tool: get_branch
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        branch: contract/$marker-pr-base
+      expect:
+        values: {exists: true, oid: $fixture.github.commit.base_oid}
+  - key: head
+    tool: create_branch
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker-pr-head
+      from: $fixture.github.commit.base_oid
+    effect:
+      tool: get_branch
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        branch: contract/$marker-pr-head
+      expect:
+        values: {exists: true, oid: $fixture.github.commit.base_oid}
+  # A blob shows in no read until a commit names it, so the commit that takes its oid proves it.
+  - key: head_blob
+    tool: create_blob
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      contents: Head change by a contract.
+    expect:
+      values: {oid: bd39d38734c3134982432190b5a35c3a2ef2d456}
+  - key: head_commit
+    tool: create_commit
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker-pr-head
+      parent_oid: $steps.head.oid
+      message: Contract head commit
+      entries:
+        - path: contract/head.md
+          oid: $steps.head_blob.oid
+    effect:
+      tool: get_commit
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        ref: $steps.head_commit.commit.oid
+      expect:
+        values: {commit.message: Contract head commit}
+  - key: create
+    tool: create_pull_request
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      title: Contract $marker
+      body: Created by a contract.
+      head: contract/$marker-pr-head
+      base: contract/$marker-pr-base
+    expect:
+      shape:
+        pull_request: {id: number, number: number, title: string, state: string, html_url: string}
+      values: {pull_request.state: open}
+    # The marker is in the title, so a pattern checks it.
+    effect:
+      tool: pull_request_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        pull_number: $steps.create.pull_request.number
+      expect:
+        values:
+          state: open
+          body: Created by a contract.
+        matches:
+          title: '^Contract contract-[0-9a-f-]+$'
+          head.ref: '^contract/contract-[0-9a-f-]+-pr-head$'
+          base.ref: '^contract/contract-[0-9a-f-]+-pr-base$'
+  - key: update
+    tool: update_pull_request
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $steps.create.pull_request.number
+      title: Contract pull request updated
+      body: Updated by a contract.
+    expect:
+      values: {pull_request.title: Contract pull request updated}
+    effect:
+      tool: pull_request_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        pull_number: $steps.create.pull_request.number
+      expect:
+        values:
+          title: Contract pull request updated
+          body: Updated by a contract.
+  # A commit on the base branch puts the head branch behind it, so the branch update has work to do.
+  - key: base_blob
+    tool: create_blob
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      contents: Base change by a contract.
+    expect:
+      values: {oid: 0df65c12fba98e7ecfc79ca8e1be2b17c3789030}
+  - key: base_commit
+    tool: create_commit
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker-pr-base
+      parent_oid: $steps.base.oid
+      message: Contract base commit
+      entries:
+        - path: contract/base.md
+          oid: $steps.base_blob.oid
+    effect:
+      tool: compare_commits
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        base: contract/$marker-pr-base
+        head: contract/$marker-pr-head
+      expect:
+        values: {status: diverged, ahead_by: 1, behind_by: 1}
+  # GitHub merges the base branch into the head branch in the background, so the read waits. The
+  # head branch then holds its own commit and the merge commit, and lacks nothing from the base.
+  - key: update_branch
+    tool: update_pull_request_branch
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $steps.create.pull_request.number
+      expected_head_sha: $steps.head_commit.commit.oid
+    effect:
+      wait_seconds: 15
+      tool: compare_commits
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        base: contract/$marker-pr-base
+        head: contract/$marker-pr-head
+      expect:
+        values: {status: ahead, ahead_by: 2, behind_by: 0}
+  - key: merge
+    tool: merge_pull_request
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $steps.create.pull_request.number
+      merge_method: merge
+      commit_title: Contract merge
+    expect:
+      shape:
+        merge: {sha: string, merged: boolean}
+      values: {merge.merged: true}
+    effect:
+      tool: pull_request_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        pull_number: $steps.create.pull_request.number
+      expect:
+        values: {state: closed, merged: true}
+  # Both branches are deleted at the end, so `contract/*` branches don't build up in the sandbox.
+  - key: delete_head
+    tool: delete_branch
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker-pr-head
+    expect:
+      values: {existed: true}
+    effect:
+      tool: get_branch
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        branch: contract/$marker-pr-head
+      expect:
+        values: {exists: false}
+  # The merge commit is the head of the base branch, which proves where the pull request merged.
+  - key: delete_base
+    tool: delete_branch
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker-pr-base
+      expected_head_oid: $steps.merge.merge.sha
+    expect:
+      values: {existed: true}
+    effect:
+      tool: get_branch
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        branch: contract/$marker-pr-base
+      expect:
+        values: {exists: false}

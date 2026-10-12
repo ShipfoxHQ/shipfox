@@ -1,0 +1,281 @@
+provider: github
+kind: round-trip
+modes: [real]
+steps:
+  # The pull request sits on two branches of this run and is closed at the end, never merged.
+  - key: base
+    tool: create_branch
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker-review-base
+      from: $fixture.github.commit.base_oid
+    effect:
+      tool: get_branch
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        branch: contract/$marker-review-base
+      expect:
+        values: {exists: true, oid: $fixture.github.commit.base_oid}
+  - key: head
+    tool: create_branch
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker-review-head
+      from: $fixture.github.commit.base_oid
+    effect:
+      tool: get_branch
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        branch: contract/$marker-review-head
+      expect:
+        values: {exists: true, oid: $fixture.github.commit.base_oid}
+  # A blob shows in no read until a commit names it, so the commit that takes its oid proves it.
+  - key: blob
+    tool: create_blob
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      contents: Reviewed by a contract.
+    expect:
+      values: {oid: c65bc995941b95fdccad02ad55d8a75b43a93676}
+  - key: commit
+    tool: create_commit
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker-review-head
+      parent_oid: $steps.head.oid
+      message: Contract review commit
+      entries:
+        - path: contract/review.md
+          oid: $steps.blob.oid
+    effect:
+      tool: get_commit
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        ref: $steps.commit.commit.oid
+      expect:
+        values: {commit.message: Contract review commit}
+  - key: open
+    tool: create_pull_request
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      title: Contract review $marker
+      body: Created by a contract.
+      head: contract/$marker-review-head
+      base: contract/$marker-review-base
+    effect:
+      tool: pull_request_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        pull_number: $steps.open.pull_request.number
+      expect:
+        values: {state: open}
+  - key: draft
+    tool: pull_request_review_write
+    method: create
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $steps.open.pull_request.number
+      commit_id: $steps.commit.commit.oid
+      body: Contract review to delete
+    expect:
+      shape: {id: number, state: string}
+      values: {state: PENDING}
+    effect:
+      tool: pull_request_read
+      method: get_reviews
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        pull_number: $steps.open.pull_request.number
+      expect:
+        values:
+          result[0].state: PENDING
+          result[0].body: Contract review to delete
+  # No read shows that a review is gone, so the step has no effect: the review below takes its
+  # commit, and GitHub rejects a second pending review of one author on a pull request. The read
+  # after it finds the new review first in the list, where the deleted one was.
+  - key: discard
+    tool: pull_request_review_write
+    method: delete_pending
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $steps.open.pull_request.number
+    expect:
+      shape: {id: number, commit_id: string}
+      values: {body: Contract review to delete}
+  - key: review
+    tool: pull_request_review_write
+    method: create
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $steps.open.pull_request.number
+      commit_id: $steps.discard.commit_id
+      body: Contract review draft
+    expect:
+      values: {state: PENDING}
+    effect:
+      tool: pull_request_read
+      method: get_reviews
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        pull_number: $steps.open.pull_request.number
+      expect:
+        values:
+          result[0].state: PENDING
+          result[0].body: Contract review draft
+  - key: comment
+    tool: add_comment_to_pending_review
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $steps.open.pull_request.number
+      path: contract/review.md
+      line: 1
+      side: RIGHT
+      body: Contract thread
+    expect:
+      shape:
+        addPullRequestReviewThread: {thread: {id: string}}
+    effect:
+      tool: pull_request_read
+      method: get_review_threads
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        pull_number: $steps.open.pull_request.number
+      expect:
+        values:
+          repository.pullRequest.reviewThreads.nodes[0].path: contract/review.md
+          repository.pullRequest.reviewThreads.nodes[0].isResolved: false
+          repository.pullRequest.reviewThreads.nodes[0].comments.nodes[0].body: Contract thread
+  - key: submit
+    tool: pull_request_review_write
+    method: submit_pending
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $steps.open.pull_request.number
+      event: COMMENT
+      body: Contract review
+    expect:
+      values: {state: COMMENTED}
+    effect:
+      tool: pull_request_read
+      method: get_reviews
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        pull_number: $steps.open.pull_request.number
+      expect:
+        values:
+          result[0].state: COMMENTED
+          result[0].body: Contract review
+  # The pending comment returns the node id of its thread. A reply needs the number of the comment,
+  # which this read gives.
+  - key: comments
+    tool: pull_request_read
+    method: get_review_comments
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $steps.open.pull_request.number
+    expect:
+      shape:
+        result: [{id: number, path: string, body: string}]
+      values:
+        result[0].body: Contract thread
+  - key: reply
+    tool: add_reply_to_pull_request_comment
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $steps.open.pull_request.number
+      comment_id: $steps.comments.result[0].id
+      body: Contract reply
+    expect:
+      shape: {id: number, body: string, in_reply_to_id: number}
+      values: {body: Contract reply}
+    effect:
+      tool: pull_request_read
+      method: get_review_comments
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        pull_number: $steps.open.pull_request.number
+      expect:
+        values:
+          result[1].body: Contract reply
+  - key: resolve
+    tool: pull_request_review_thread_write
+    method: resolve
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      thread_id: $steps.comment.addPullRequestReviewThread.thread.id
+    expect:
+      values: {resolveReviewThread.thread.isResolved: true}
+    effect:
+      tool: pull_request_read
+      method: get_review_threads
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        pull_number: $steps.open.pull_request.number
+      expect:
+        values:
+          repository.pullRequest.reviewThreads.nodes[0].isResolved: true
+  # The sandbox has no delete tool for a pull request, so it ends closed.
+  - key: close
+    tool: update_pull_request
+    with:
+      owner: $fixture.github.repository.owner
+      repo: $fixture.github.repository.name
+      pull_number: $steps.open.pull_request.number
+      state: closed
+    effect:
+      tool: pull_request_read
+      method: get
+      with:
+        owner: $fixture.github.repository.owner
+        repo: $fixture.github.repository.name
+        pull_number: $steps.open.pull_request.number
+      expect:
+        values: {state: closed, merged: false}
+  # Both branches are deleted at the end, so `contract/*` branches don't build up in the sandbox.
+  - key: delete_head
+    tool: delete_branch
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker-review-head
+      expected_head_oid: $steps.commit.commit.oid
+    expect:
+      values: {existed: true}
+    effect:
+      tool: get_branch
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        branch: contract/$marker-review-head
+      expect:
+        values: {exists: false}
+  - key: delete_base
+    tool: delete_branch
+    with:
+      repository: $fixture.github.repository.owner/$fixture.github.repository.name
+      branch: contract/$marker-review-base
+      expected_head_oid: $steps.base.oid
+    expect:
+      values: {existed: true}
+    effect:
+      tool: get_branch
+      with:
+        repository: $fixture.github.repository.owner/$fixture.github.repository.name
+        branch: contract/$marker-review-base
+      expect:
+        values: {exists: false}
