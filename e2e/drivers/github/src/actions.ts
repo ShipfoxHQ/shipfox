@@ -13,6 +13,7 @@ const RUN_LOGS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/actions\/runs\/(\d+)\/logs$/u
 const JOB_PATH = /^\/repos\/([^/]+)\/([^/]+)\/actions\/jobs\/(\d+)$/u;
 const JOB_LOGS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/actions\/jobs\/(\d+)\/logs$/u;
 const ARTIFACT_ARCHIVE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/actions\/artifacts\/(\d+)\/zip$/u;
+const JOB_LOGS_DOWNLOAD_PATH = /^\/download\/jobs\/(\d+)\/logs\.txt$/u;
 
 const FIXTURE_TIMESTAMP = '2026-01-01T00:00:00Z';
 const FIXTURE_ACTOR_ID = 5_000_001;
@@ -54,6 +55,8 @@ export interface GithubWorkflowJobFixture {
   conclusion?: 'success' | 'failure' | 'cancelled' | undefined;
   /** Step names. Defaults to the steps every job has: set up, complete. */
   steps?: string[] | undefined;
+  /** The text of the job log. Defaults to an empty log. */
+  logs?: string | undefined;
 }
 
 export interface GithubArtifactFixture {
@@ -401,38 +404,62 @@ export function createActionsRoutes({
     );
   }
 
-  // GitHub answers a log or artifact download with a redirect to a short-lived archive.
+  // GitHub answers a log or artifact download with a redirect to a short-lived archive on another
+  // host, which takes no credentials. The fake redirects to the port it listens on, because the
+  // stack's router finds a fake by the credentials of the request.
   function redirectToArchive({
+    request,
     response,
-    requestUrl,
     path,
   }: {
+    request: IncomingMessage;
     response: ServerResponse;
-    requestUrl: URL;
     path: string;
   }) {
-    response.writeHead(302, {location: new URL(path, requestUrl).toString()}).end();
+    const location = `http://127.0.0.1:${request.socket.localPort}${path}`;
+    response.writeHead(302, {location}).end();
   }
 
-  function redirectRunLogs(match: RegExpMatchArray, response: ServerResponse, requestUrl: URL) {
+  function redirectRunLogs(
+    match: RegExpMatchArray,
+    response: ServerResponse,
+    request: IncomingMessage,
+  ) {
     const found = findRun(repositoryOf(match), match[3]);
     if (found === undefined) sendJson(response, 404, {message: 'Not Found'});
-    else redirectToArchive({response, requestUrl, path: `/download/runs/${found.runId}/logs.zip`});
+    else redirectToArchive({request, response, path: `/download/runs/${found.runId}/logs.zip`});
   }
 
-  function redirectJobLogs(match: RegExpMatchArray, response: ServerResponse, requestUrl: URL) {
+  function redirectJobLogs(
+    match: RegExpMatchArray,
+    response: ServerResponse,
+    request: IncomingMessage,
+  ) {
     const found = findJob(repositoryOf(match), match[3]);
     if (found === undefined) sendJson(response, 404, {message: 'Not Found'});
-    else redirectToArchive({response, requestUrl, path: `/download/jobs/${found.jobId}/logs.txt`});
+    else redirectToArchive({request, response, path: `/download/jobs/${found.jobId}/logs.txt`});
   }
 
-  function redirectArtifact(match: RegExpMatchArray, response: ServerResponse, requestUrl: URL) {
+  // The download URL names no repository, as the signed URL GitHub redirects to.
+  function downloadJobLogs(match: RegExpMatchArray, response: ServerResponse) {
+    const jobId = Number(match[1]);
+    const run = workflowRuns.get(Math.floor((jobId - 1) / CHILDREN_PER_RUN));
+    const job = run?.jobs?.[(jobId - 1) % CHILDREN_PER_RUN];
+    if (job === undefined) sendJson(response, 404, {message: 'Not Found'});
+    else response.writeHead(200, {'content-type': 'text/plain; charset=utf-8'}).end(job.logs ?? '');
+  }
+
+  function redirectArtifact(
+    match: RegExpMatchArray,
+    response: ServerResponse,
+    request: IncomingMessage,
+  ) {
     const artifactId = Number(match[3]);
     const runId = Math.floor((artifactId - 1) / CHILDREN_PER_RUN);
     const found = findRun(repositoryOf(match), String(runId));
     const artifact = found?.run.artifacts?.[(artifactId - 1) % CHILDREN_PER_RUN];
     if (artifact === undefined) sendJson(response, 404, {message: 'Not Found'});
-    else redirectToArchive({response, requestUrl, path: `/download/artifacts/${artifactId}.zip`});
+    else redirectToArchive({request, response, path: `/download/artifacts/${artifactId}.zip`});
   }
 
   function getWorkflow(match: RegExpMatchArray, response: ServerResponse) {
@@ -443,7 +470,12 @@ export function createActionsRoutes({
 
   const ROUTES: Array<{
     path: RegExp;
-    handle: (match: RegExpMatchArray, response: ServerResponse, requestUrl: URL) => void;
+    handle: (
+      match: RegExpMatchArray,
+      response: ServerResponse,
+      requestUrl: URL,
+      request: IncomingMessage,
+    ) => void;
   }> = [
     {path: WORKFLOWS_PATH, handle: (m, r, u) => listWorkflows(m, r, u.searchParams)},
     {path: WORKFLOW_RUNS_PATH, handle: (m, r, u) => listWorkflowRuns(m, r, u.searchParams)},
@@ -452,10 +484,11 @@ export function createActionsRoutes({
     {path: RUN_JOBS_PATH, handle: (m, r, u) => listRunJobs(m, r, u.searchParams)},
     {path: RUN_ARTIFACTS_PATH, handle: (m, r, u) => listRunArtifacts(m, r, u.searchParams)},
     {path: RUN_TIMING_PATH, handle: (m, r) => getRunTiming(m, r)},
-    {path: RUN_LOGS_PATH, handle: redirectRunLogs},
+    {path: RUN_LOGS_PATH, handle: (m, r, _u, q) => redirectRunLogs(m, r, q)},
     {path: JOB_PATH, handle: (m, r) => getJob(m, r)},
-    {path: JOB_LOGS_PATH, handle: redirectJobLogs},
-    {path: ARTIFACT_ARCHIVE_PATH, handle: redirectArtifact},
+    {path: JOB_LOGS_PATH, handle: (m, r, _u, q) => redirectJobLogs(m, r, q)},
+    {path: ARTIFACT_ARCHIVE_PATH, handle: (m, r, _u, q) => redirectArtifact(m, r, q)},
+    {path: JOB_LOGS_DOWNLOAD_PATH, handle: (m, r) => downloadJobLogs(m, r)},
   ];
 
   return {
@@ -464,7 +497,7 @@ export function createActionsRoutes({
       for (const route of ROUTES) {
         const match = requestUrl.pathname.match(route.path);
         if (match === null) continue;
-        route.handle(match, response, requestUrl);
+        route.handle(match, response, requestUrl, request);
         return true;
       }
       return false;

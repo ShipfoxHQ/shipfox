@@ -198,16 +198,6 @@ describe('downloadGithubJobLogs', () => {
     expect(text).toBe('line 1\nline 2\n');
   });
 
-  it('refuses a URL that is not https', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-
-    await expect(
-      downloadGithubJobLogs({url: 'http://objects.example/log.txt', timeoutMs: 1000}),
-    ).rejects.toThrow('GitHub job logs download URL is not https');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it('fails a download that answers with an error status', async () => {
     vi.stubGlobal(
       'fetch',

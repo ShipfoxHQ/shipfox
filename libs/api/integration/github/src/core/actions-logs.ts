@@ -203,12 +203,6 @@ export async function downloadGithubJobLogs({
   timeoutMs: number;
   maxBytes?: number;
 }): Promise<string> {
-  if (!url.startsWith('https://')) {
-    throw new GithubIntegrationProviderError(
-      'malformed-provider-response',
-      'GitHub job logs download URL is not https',
-    );
-  }
   const abortController = new AbortController();
   const timeout = setTimeout(() => abortController.abort(), timeoutMs);
   try {

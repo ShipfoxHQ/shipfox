@@ -43,8 +43,9 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   and has `/jobs`, `/artifacts`, `/timing`, and `/logs`. Its `jobs` and `artifacts` are ids under
   the run id (`runId * 100 + position + 1`), so `/actions/jobs/:id` and
   `/actions/artifacts/:id/zip` find them. The run logs, job logs, and artifact routes answer a
-  302 with a `location` on the fake, which the fake does not serve: the API downloads job log
-  text from `https://` URLs only.
+  302 with a `location` on the port the fake listens on, not on the stack's router: a download
+  carries no credentials for the router to route by. The fake serves the job logs one, with the
+  `logs` text of the job, and not the two archives.
 - `GithubApiMock.commits`: commits by id, with their repository, message, parents, check runs, and
   statuses. They are fixtures, not git objects, so a test gives a branch the ids a real
   repository holds. `branchHeads` maps a branch name to its tip. `GET /branches/:branch`,

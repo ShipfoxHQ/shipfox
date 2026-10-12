@@ -328,7 +328,7 @@ function seedGithubWorkflow({
       sha: gitSha(`${repository}@${id}`),
       jobs: [
         {name: 'build', steps: ['Set up job', 'Run actions/checkout', 'Build', 'Complete job']},
-        {name: 'verify', steps: ['Set up job', 'Verify', 'Complete job']},
+        {name: 'verify', steps: ['Set up job', 'Verify', 'Complete job'], logs: 'Verified\n'},
       ],
       artifacts: [{name: 'report', sizeInBytes: 2048}],
     });

@@ -210,7 +210,7 @@ describe('GitHub API mock actions', () => {
       mock.workflowRuns.set(11, {
         workflowId: 375_690_478,
         sha: 'b'.repeat(40),
-        jobs: [{name: 'build'}, {name: 'verify'}],
+        jobs: [{name: 'build'}, {name: 'verify', logs: 'Verified\n'}],
         artifacts: [{name: 'report'}],
       });
       const job = await get('/repos/acme/app/actions/jobs/1102');
@@ -219,6 +219,10 @@ describe('GitHub API mock actions', () => {
       const follow = (path: string) =>
         fetch(new URL(path, mock.endpoint), {headers: HEADERS, ...noRedirect});
       const jobLogs = await follow('/repos/acme/app/actions/jobs/1102/logs');
+      const jobLogsText = await fetch(jobLogs.headers.get('location') ?? '');
+      const missingJobLogsText = await fetch(
+        new URL('/download/jobs/1103/logs.txt', mock.endpoint),
+      );
       const runLogs = await follow('/repos/acme/app/actions/runs/11/logs');
       const artifact = await follow('/repos/acme/app/actions/artifacts/1101/zip');
       const missingArtifact = await follow('/repos/acme/app/actions/artifacts/1102/zip');
@@ -229,6 +233,8 @@ describe('GitHub API mock actions', () => {
       expect(jobLogs.headers.get('location')).toBe(
         new URL('/download/jobs/1102/logs.txt', mock.endpoint).toString(),
       );
+      await expect(jobLogsText.text()).resolves.toBe('Verified\n');
+      expect(missingJobLogsText.status).toBe(404);
       expect(runLogs.status).toBe(302);
       expect(runLogs.headers.get('location')).toContain('/download/runs/11/logs.zip');
       expect(artifact.status).toBe(302);
