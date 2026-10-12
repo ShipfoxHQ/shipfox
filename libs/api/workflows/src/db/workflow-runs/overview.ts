@@ -25,6 +25,7 @@ import type {
   WorkflowRunStatusReason,
   WorkflowRunTriggerReference,
 } from '#core/entities/workflow-run.js';
+import {type JobExecutionLimits, resolveJobExecutionDuration} from '#core/execution-limits.js';
 import {db, type Tx} from '../db.js';
 import {jobExecutions} from '../schema/job-executions.js';
 import {jobs} from '../schema/jobs.js';
@@ -81,6 +82,7 @@ export interface WorkflowRunJobExecutionSummary {
   timedOutAt: Date | null;
   durationCapped: boolean;
   durationNotice: PolicyNotice | null;
+  executionTimeoutMs?: number | undefined;
   waitReason?: string | null;
   waitDetail?: {
     inUse: number;
@@ -107,6 +109,9 @@ export interface WorkflowRunJobExecutionSummaryRow {
   timedOutAt: Date | null;
   durationCapped: boolean;
   durationNotice: PolicyNotice | null;
+  executionTimeoutMs: number | null;
+  provisionerScope: string | null;
+  durationLimits: JobExecutionLimits | null;
   waitReason?: string | null;
   waitDetail?: {
     inUse: number;
@@ -716,6 +721,9 @@ async function loadJobPresentation(
         timedOutAt: jobExecutions.timedOutAt,
         durationCapped: jobExecutions.durationCapped,
         durationNotice: jobExecutions.durationNotice,
+        executionTimeoutMs: jobs.executionTimeoutMs,
+        provisionerScope: jobExecutions.provisionerScope,
+        durationLimits: jobExecutions.durationLimits,
         updatedAt: jobExecutions.updatedAt,
         hasRunningStep: runningStepExists(jobExecutions.id).as('has_running_step'),
       })
@@ -755,6 +763,9 @@ async function loadJobPresentation(
       timedOutAt: selectedExecution.timedOutAt,
       durationCapped: selectedExecution.durationCapped,
       durationNotice: selectedExecution.durationNotice,
+      executionTimeoutMs: selectedExecution.executionTimeoutMs,
+      provisionerScope: selectedExecution.provisionerScope,
+      durationLimits: selectedExecution.durationLimits,
       updatedAt: selectedExecution.updatedAt,
       hasRunningStep: selectedExecution.hasRunningStep,
     })
@@ -868,8 +879,21 @@ export function toExecutionSummary(
     timedOutAt: row.timedOutAt,
     durationCapped: row.durationCapped,
     durationNotice: row.durationNotice ?? null,
+    executionTimeoutMs: effectiveExecutionTimeoutMs(row),
     updatedAt: row.updatedAt,
   };
+}
+
+function effectiveExecutionTimeoutMs(row: WorkflowRunJobExecutionSummaryRow): number | undefined {
+  if (row.status === 'pending' && row.provisionerScope === null && row.durationLimits !== null) {
+    return undefined;
+  }
+
+  return resolveJobExecutionDuration({
+    requestedMs: row.executionTimeoutMs,
+    provisionerScope: row.provisionerScope,
+    limits: row.durationLimits,
+  }).effectiveMs;
 }
 
 function createEmptyExecutionStatusCounts(): Record<JobExecutionStatus, BoundedExecutionCount> {

@@ -945,6 +945,91 @@ describe('waitForRunTerminal', () => {
     await assertions;
   });
 
+  test('adds limit fields from the selected job route', async () => {
+    const requiredAction = {reason: 'add-credits', message: 'Add credits', url: '/billing'};
+    const selectedJob = jobSummary({key: 'target'});
+    const responses = new Map<string, Response>([
+      [`/workflows/runs/${runId}/head`, response(head('failed'))],
+      [
+        `/workflows/runs/${runId}/overview?attempt=1`,
+        response(overview({status: 'failed', jobs: [selectedJob]})),
+      ],
+      [
+        `/workflows/runs/jobs/${jobId}`,
+        response({
+          workflow_run_id: runId,
+          workflow_run_attempt: 1,
+          job: selectedJob,
+          selected_execution: {
+            ...executionSummary({
+              status: 'failed',
+              status_reason: 'runner_not_allowed',
+              status_reason_notice: {
+                reason: 'runner-not_allowed',
+                message: 'This job needs a larger runner.',
+                requiredAction,
+              },
+              wait_reason: 'capacity',
+              wait_detail: {
+                in_use: 8,
+                capacity: 8,
+                unit_label: 'vCPU',
+                required_action: requiredAction,
+              },
+              execution_timeout_ms: 3_600_000,
+            }),
+            has_context: false,
+            steps: {items: [], next_cursor: null, total: 0},
+          },
+        }),
+      ],
+    ]);
+
+    const result = await observeRun({
+      fetch: (input) => {
+        const url = new URL(input);
+        const path = `${url.pathname}${url.search}`;
+        const next = responses.get(path);
+        if (next === undefined) throw new Error(`Unexpected request: ${path}`);
+        return next;
+      },
+      runId,
+      selection: {jobs: [{jobKey: 'target', includeDefaultExecution: true}]},
+      token: 'user-token',
+    });
+
+    expect(result.jobs[0]).toMatchObject({
+      wait_reason: 'capacity',
+      status_reason: 'runner_not_allowed',
+      notices: {required_action: requiredAction},
+      execution_timeout: 3_600_000,
+    });
+  });
+
+  test('omits absent limit fields', async () => {
+    const selectedJob = jobSummary({key: 'target'});
+    const result = await observeRun({
+      fetch: (input) => {
+        const url = new URL(input);
+        if (url.pathname.endsWith('/head')) return response(head('succeeded'));
+        if (url.pathname.endsWith('/overview')) {
+          return response(overview({jobs: [selectedJob]}));
+        }
+        throw new Error(`Unexpected request: ${url.pathname}${url.search}`);
+      },
+      runId,
+      selection: {jobs: [{jobKey: 'target'}]},
+      token: 'user-token',
+    });
+
+    const job = result.jobs[0];
+    if (job === undefined) throw new Error('Expected the selected job observation');
+    expect(job).not.toHaveProperty('wait_reason');
+    expect(job).not.toHaveProperty('notices');
+    expect(job).not.toHaveProperty('execution_timeout');
+    expect(job.status_reason).toBeNull();
+  });
+
   test('follows only the bounded pages needed for a selected execution and step', async () => {
     const paths: string[] = [];
     const otherJob = jobSummary({id: '99999999-9999-4999-8999-999999999999', key: 'other'});

@@ -84,6 +84,12 @@ export interface WorkflowExecutionObservation extends JobExecutionSummaryDto {
   steps: WorkflowStepObservation[];
 }
 
+export interface WorkflowJobObservationNotices {
+  required_action?: NonNullable<
+    NonNullable<JobExecutionSummaryDto['wait_detail']>['required_action']
+  >;
+}
+
 export interface WorkflowJobObservation {
   id: string;
   key: string;
@@ -97,6 +103,9 @@ export interface WorkflowJobObservation {
   execution_count: WorkflowRunJobOverviewDto['execution_count'];
   execution_status_counts: WorkflowRunJobOverviewDto['execution_status_counts'];
   default_execution: WorkflowRunJobOverviewDto['default_execution'];
+  wait_reason?: JobExecutionSummaryDto['wait_reason'];
+  notices?: WorkflowJobObservationNotices;
+  execution_timeout?: JobExecutionSummaryDto['execution_timeout_ms'];
   executions: WorkflowExecutionObservation[];
 }
 
@@ -557,6 +566,27 @@ async function readRunBase(options: {
   return {lineage, overview};
 }
 
+function toJobObservationFields(
+  execution: JobExecutionSummaryDto | null | undefined,
+): Partial<
+  Pick<WorkflowJobObservation, 'wait_reason' | 'status_reason' | 'notices' | 'execution_timeout'>
+> {
+  if (execution === null || execution === undefined) return {};
+
+  const notice = execution.status_reason_notice ?? execution.duration_notice;
+  const requiredAction = execution.wait_detail?.required_action ?? notice?.requiredAction;
+  return {
+    ...(execution.wait_reason === undefined ? {} : {wait_reason: execution.wait_reason}),
+    status_reason: execution.status_reason,
+    ...(notice === undefined && requiredAction === undefined
+      ? {}
+      : {notices: requiredAction === undefined ? {} : {required_action: requiredAction}}),
+    ...(execution.execution_timeout_ms === undefined
+      ? {}
+      : {execution_timeout: execution.execution_timeout_ms}),
+  };
+}
+
 function toJobObservation(
   job: WorkflowRunJobOverviewDto | WorkflowRunJobListSummaryDto,
 ): WorkflowJobObservation {
@@ -573,6 +603,7 @@ function toJobObservation(
     execution_count: job.execution_count,
     execution_status_counts: job.execution_status_counts,
     default_execution: job.default_execution,
+    ...toJobObservationFields(job.default_execution),
     executions: [],
   };
 }
@@ -1038,6 +1069,7 @@ async function readJobObservation(options: {
         selection.includeContext === true ||
         selection.stepAttempts !== undefined));
   const executions: WorkflowExecutionObservation[] = [];
+  let observedJob = options.job;
   let defaultExecutionId: string | undefined;
   let defaultExecution: WorkflowExecutionObservation | undefined;
 
@@ -1049,6 +1081,10 @@ async function readJobObservation(options: {
       tracker: options.tracker,
     });
     if (detail.selected_execution !== null) {
+      observedJob = {
+        ...observedJob,
+        ...toJobObservationFields(detail.selected_execution),
+      };
       defaultExecutionId = detail.selected_execution.id;
       defaultExecution = await readExecutionObservation({
         client: options.client,
@@ -1081,7 +1117,7 @@ async function readJobObservation(options: {
   const uniqueExecutions = new Map<string, WorkflowExecutionObservation>();
   for (const execution of executions) uniqueExecutions.set(execution.id, execution);
   return {
-    ...options.job,
+    ...observedJob,
     executions: [...uniqueExecutions.values()].sort(
       (left, right) => left.sequence - right.sequence,
     ),

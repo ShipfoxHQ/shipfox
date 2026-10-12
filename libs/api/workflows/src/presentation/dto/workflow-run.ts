@@ -422,6 +422,9 @@ export function toJobExecutionSummaryDto(
     timed_out_at: execution.timedOutAt?.toISOString() ?? null,
     duration_capped: execution.durationCapped,
     duration_notice: execution.durationNotice,
+    ...(execution.executionTimeoutMs === undefined
+      ? {}
+      : {execution_timeout_ms: execution.executionTimeoutMs}),
     ...(execution.waitReason !== undefined ? {wait_reason: execution.waitReason} : {}),
     ...(execution.waitDetail !== undefined
       ? {

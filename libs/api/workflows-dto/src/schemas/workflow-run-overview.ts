@@ -74,6 +74,8 @@ export const jobExecutionSummaryDtoSchema = z.object({
   timed_out_at: z.string().datetime().nullable(),
   duration_capped: z.boolean().optional(),
   duration_notice: policyNoticeSchema.nullable().optional(),
+  /** Effective timeout in milliseconds after runner-scope limits are applied. */
+  execution_timeout_ms: z.number().int().positive().optional(),
   wait_reason: z.string().nullable().optional(),
   wait_detail: capacityWaitDetailDtoSchema.nullable().optional(),
   updated_at: z.string().datetime(),
