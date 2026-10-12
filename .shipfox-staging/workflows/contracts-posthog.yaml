@@ -359,10 +359,9 @@ jobs:
           query:
             kind: events
         outputs:
-          text_0: ${{ type(result) == type("") && result.matches("^events:\\n- `All events`") }}
-          text_1: ${{ type(result) == type("") && result.matches("\\n- `[^`\\n]+`( - [^\\n]+)?\\n") }}
+          text_0: ${{ type(result) == type("") && result.matches("^events:\\n- `All events`[^\\n]*\\n- `[^`\\n]+`") }}
         gate:
-          success: step.status == "succeeded" && step.outputs.text_0 && step.outputs.text_1
+          success: step.status == "succeeded" && step.outputs.text_0
   survey_get:
     checkout: false
     steps:

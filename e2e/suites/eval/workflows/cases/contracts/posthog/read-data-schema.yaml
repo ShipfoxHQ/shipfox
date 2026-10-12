@@ -10,5 +10,4 @@ steps:
       # once the project has sent none for 30 days, and the fixture events are all dated, so the
       # contract is the list itself and no event name.
       text:
-        - '^events:\n- `All events`'
-        - '\n- `[^`\n]+`( - [^\n]+)?\n'
+        - '^events:\n- `All events`[^\n]*\n- `[^`\n]+`'
