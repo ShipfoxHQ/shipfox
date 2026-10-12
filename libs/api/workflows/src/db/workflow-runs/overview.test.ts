@@ -8,12 +8,15 @@ import {buildModel} from '#test/helpers/workflow-runs.js';
 import {createHighCardinalityWorkflowRun} from '#test/index.js';
 import {db} from '../db.js';
 import {jobExecutions} from '../schema/job-executions.js';
+import {jobs} from '../schema/jobs.js';
 import {steps} from '../schema/steps.js';
 import {
   createWorkflowRun,
   getJobsByWorkflowRunId,
   getWorkflowRunOverview,
   listWorkflowRunJobsPage,
+  queueJobExecution,
+  updateJobExecutionStatus,
 } from '../workflow-runs.js';
 
 describe('bounded workflow run overview reads', () => {
@@ -57,6 +60,63 @@ describe('bounded workflow run overview reads', () => {
       failed: 0,
       cancelled: 0,
     });
+  });
+
+  test('omits the effective timeout for an unclaimed terminal execution', async () => {
+    const projectId = crypto.randomUUID();
+    const run = await createWorkflowRun({
+      workspaceId: crypto.randomUUID(),
+      projectId,
+      definitionId: crypto.randomUUID(),
+      model: buildModel(),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+
+    const [job] = await getJobsByWorkflowRunId(run.id);
+    if (!job) throw new Error('Expected build job');
+    const [execution] = await db()
+      .select({id: jobExecutions.id})
+      .from(jobExecutions)
+      .where(eq(jobExecutions.jobId, job.id))
+      .limit(1);
+    if (!execution) throw new Error('Expected build execution');
+
+    await db()
+      .update(jobs)
+      .set({executionTimeoutMs: 2 * 60 * 60 * 1000})
+      .where(eq(jobs.id, job.id));
+    const queued = await queueJobExecution({jobExecutionId: execution.id});
+    await updateJobExecutionStatus({
+      jobExecutionId: execution.id,
+      status: 'failed',
+      expectedVersion: queued.version,
+      statusReason: 'unknown',
+      durationLimits: {
+        maxExecutionMs: 60 * 60 * 1000,
+        defaultExecutionMs: 60 * 60 * 1000,
+        mode: 'enforce',
+      },
+    });
+
+    const overview = await getWorkflowRunOverview({
+      workflowRunId: run.id,
+      projectId,
+      attempt: 1,
+    });
+
+    if (overview?.jobs.kind !== 'complete') throw new Error('Expected complete overview');
+    const executionSummary = overview.jobs.items[0]?.defaultExecution;
+    expect(executionSummary).toMatchObject({
+      id: execution.id,
+      status: 'failed',
+      startedAt: null,
+    });
+    expect(executionSummary?.executionTimeoutMs).toBeUndefined();
   });
 
   test('derives visible execution status and prioritizes a running execution', async () => {

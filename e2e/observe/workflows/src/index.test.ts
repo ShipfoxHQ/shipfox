@@ -1015,10 +1015,18 @@ describe('waitForRunTerminal', () => {
         if (url.pathname.endsWith('/overview')) {
           return response(overview({jobs: [selectedJob]}));
         }
+        if (url.pathname === `/workflows/runs/jobs/${jobId}`) {
+          return response({
+            workflow_run_id: runId,
+            workflow_run_attempt: 1,
+            job: selectedJob,
+            selected_execution: selectedExecutionDetail(),
+          });
+        }
         throw new Error(`Unexpected request: ${url.pathname}${url.search}`);
       },
       runId,
-      selection: {jobs: [{jobKey: 'target'}]},
+      selection: {jobs: [{jobKey: 'target', includeDefaultExecution: true}]},
       token: 'user-token',
     });
 

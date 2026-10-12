@@ -885,7 +885,7 @@ export function toExecutionSummary(
 }
 
 function effectiveExecutionTimeoutMs(row: WorkflowRunJobExecutionSummaryRow): number | undefined {
-  if (row.status === 'pending' && row.provisionerScope === null && row.durationLimits !== null) {
+  if (row.startedAt === null && row.provisionerScope === null && row.durationLimits !== null) {
     return undefined;
   }
 

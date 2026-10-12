@@ -578,9 +578,7 @@ function toJobObservationFields(
   return {
     ...(execution.wait_reason === undefined ? {} : {wait_reason: execution.wait_reason}),
     status_reason: execution.status_reason,
-    ...(notice === undefined && requiredAction === undefined
-      ? {}
-      : {notices: requiredAction === undefined ? {} : {required_action: requiredAction}}),
+    ...(requiredAction === undefined ? {} : {notices: {required_action: requiredAction}}),
     ...(execution.execution_timeout_ms === undefined
       ? {}
       : {execution_timeout: execution.execution_timeout_ms}),
