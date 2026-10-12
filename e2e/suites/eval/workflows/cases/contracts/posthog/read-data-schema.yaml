@@ -6,8 +6,9 @@ steps:
       query:
         kind: events
     expect:
-      # The events come as a Markdown list inside text, and a project that stopped sending an event
-      # lists it as "not seen", so only its name is part of the contract.
+      # The events come as a Markdown list inside text. PostHog drops a custom event from the list
+      # once the project has sent none for 30 days, and the fixture events are all dated, so the
+      # contract is the list itself and no event name.
       text:
-        - '(^|\n)- `$fixture.posthog.event.name`'
-        - '(^|\n)- `$fixture.posthog.purchase_event.name`'
+        - '^events:\n- `All events`'
+        - '\n- `[^`\n]+`( - [^\n]+)?\n'
