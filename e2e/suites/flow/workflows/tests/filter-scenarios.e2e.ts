@@ -13,6 +13,7 @@ import {
   createRepo,
 } from '@shipfox/e2e-driver-gitea';
 import {type LocalRunnerHandle, stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
+import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import {
   observeRun,
   type WorkflowRunObservation,
@@ -38,7 +39,6 @@ import {
   stopRunner,
 } from '#listener-jobs.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
-import type {SuiteContext} from '#suite-context.js';
 import {postWebhookDelivery} from '#webhook.js';
 import {seedAndWaitForDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';

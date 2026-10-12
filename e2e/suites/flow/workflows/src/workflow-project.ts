@@ -2,10 +2,10 @@ import type {DefinitionResponseDto} from '@shipfox/api-definitions-dto';
 import type {ProjectResponseDto} from '@shipfox/api-projects-dto';
 import {createApiClient} from '@shipfox/e2e-core';
 import {type CreatedIssue, commitFiles, createIssue, createRepo} from '@shipfox/e2e-driver-gitea';
+import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import {waitForDefinition} from '@shipfox/e2e-observe-definitions';
 import {createProject, giteaExternalRepositoryId} from './create-project.js';
 import {waitForDefinitionSyncTerminal} from './polling.js';
-import type {SuiteContext} from './suite-context.js';
 
 const GITEA_SOURCE_PLACEHOLDER = '__GITEA_SOURCE__';
 const GITEA_REPOSITORY_PLACEHOLDER = '__GITEA_REPOSITORY__';

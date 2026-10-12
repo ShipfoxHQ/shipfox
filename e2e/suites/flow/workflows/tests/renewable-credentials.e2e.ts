@@ -2,6 +2,7 @@ import {readFile} from 'node:fs/promises';
 import type {DefinitionResponseDto} from '@shipfox/api-definitions-dto';
 import {createApiClient, config as e2eConfig} from '@shipfox/e2e-core';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
+import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
 import {
   createTestVcsRepository,
@@ -18,7 +19,6 @@ import {
   RENEWABLE_INFERENCE_WORKFLOW,
 } from '#renewable-credentials-workflows.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
-import type {SuiteContext} from '#suite-context.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
 import {seedProjectWithApiDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';

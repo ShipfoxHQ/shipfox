@@ -4,6 +4,7 @@ import {createApiClient, pollUntil} from '@shipfox/e2e-core';
 import {type CreatedIssue, listIssueComments} from '@shipfox/e2e-driver-gitea';
 import {readFakeOpenAiModelProviderState} from '@shipfox/e2e-driver-model-provider';
 import {type LocalRunnerHandle, stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
+import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import {fetchStepLogs} from '@shipfox/e2e-observe-logs';
 import {
   type WorkflowRunObservationSelection,
@@ -31,7 +32,6 @@ import {waitForDefinitionSyncTerminal, waitForNoWorkflowRuns} from './polling.js
 import {evaluateRejection} from './reject.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from './runner.js';
 import type {Scenario} from './scenarios.js';
-import type {SuiteContext} from './suite-context.js';
 import {fireManualAndAwaitRun, triggerPushAndAwaitRun} from './triggers.js';
 import {
   attachWebhookTriggerDiagnostics,

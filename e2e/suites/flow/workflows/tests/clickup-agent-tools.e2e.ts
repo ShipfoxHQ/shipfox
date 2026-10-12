@@ -5,6 +5,7 @@ import {
 } from '@shipfox/e2e-driver-clickup';
 import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
+import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import {createAnthropicFakeModelProviderConfig} from '@shipfox/e2e-setup-agent';
 import {createClickUpConnection} from '@shipfox/e2e-setup-integrations';
 import {
@@ -14,7 +15,6 @@ import {
 } from '#attachments.js';
 import {triggerClickUpCommentAndAwaitRun} from '#clickup-events.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
-import type {SuiteContext} from '#suite-context.js';
 import {seedProjectWithApiDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 

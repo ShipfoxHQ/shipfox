@@ -66,6 +66,7 @@
       "@shipfox/api-workspaces",
       "@shipfox/api-workspaces-dto",
       "@shipfox/e2e-harness",
+      "@shipfox/e2e-kit",
       "@shipfox/e2e-setup-auth",
       "@shipfox/e2e-setup-workspaces",
       "@shipfox/e2e-setup-projects",

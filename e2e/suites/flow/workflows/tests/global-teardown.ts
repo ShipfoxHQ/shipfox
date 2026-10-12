@@ -1,6 +1,6 @@
 import {deleteOrg} from '@shipfox/e2e-driver-gitea';
 import {stopFakeOpenAiModelProvider} from '@shipfox/e2e-driver-model-provider';
-import {readSuiteContext, suiteFailed} from '#suite-context.js';
+import {readSuiteContext, suiteFailed} from '@shipfox/e2e-kit/suite-context';
 
 export default async function globalTeardown(): Promise<void> {
   const failed = suiteFailed();

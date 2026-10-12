@@ -5,6 +5,7 @@ import {type GithubApiMockCall, startGithubApiMock} from '@shipfox/e2e-driver-gi
 import {LINEAR_UPLOADS_PATH, startLinearMcpMock} from '@shipfox/e2e-driver-linear';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import {startSlackApiMock} from '@shipfox/e2e-driver-slack';
+import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import {fetchStepLogs} from '@shipfox/e2e-observe-logs';
 import type {WorkflowRunObservation, WorkflowStepObservation} from '@shipfox/e2e-observe-workflows';
 import {createSession, createUser} from '@shipfox/e2e-setup-auth';
@@ -32,7 +33,6 @@ import {
   SLACK_USERS,
 } from '#reference-actions.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
-import type {SuiteContext} from '#suite-context.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
 import {seedAndWaitForDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';

@@ -1,6 +1,7 @@
 import {createApiClient, preflightCheck} from '@shipfox/e2e-core';
 import {createConnectedOrg, deleteOrg} from '@shipfox/e2e-driver-gitea';
 import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
+import {resetSuiteRunDir, writeSuiteContext} from '@shipfox/e2e-kit/suite-context';
 import {
   createOpenAiCompatibleCustomProvider,
   deleteModelProviderConfig,
@@ -8,7 +9,6 @@ import {
 import {createSession, createUser} from '@shipfox/e2e-setup-auth';
 import {createTestVcsConnection} from '@shipfox/e2e-setup-integrations';
 import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
-import {resetSuiteRunDir, writeSuiteContext} from '#suite-context.js';
 
 const DETERMINISTIC_AGENT_MODEL = 'deterministic-output-agent';
 

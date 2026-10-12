@@ -1,5 +1,6 @@
 import {createApiClient} from '@shipfox/e2e-core';
 import {type LocalRunnerHandle, stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
+import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import {fetchStepLogs} from '@shipfox/e2e-observe-logs';
 import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
 import {observeRun} from '@shipfox/e2e-observe-workflows';
@@ -18,7 +19,6 @@ import {
 } from './listener-helpers.js';
 import {waitForRunObservationMatching} from './polling.js';
 import {startSuiteLocalRunner} from './runner.js';
-import type {SuiteContext} from './suite-context.js';
 import {fireManualAndAwaitRun} from './triggers.js';
 import {
   attachWebhookTriggerDiagnostics,

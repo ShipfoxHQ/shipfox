@@ -45,6 +45,15 @@ export class TopNav {
   userMenuTrigger(): AppLocator {
     return this.page.getByLabel('User menu');
   }
+
+  logoutMenuItem(): AppLocator {
+    return this.page.getByRole('menuitem', {name: 'Logout'});
+  }
+
+  async logout(): Promise<void> {
+    await this.userMenuTrigger().click();
+    await this.logoutMenuItem().click();
+  }
 }
 
 export class WorkspaceSwitcher {

@@ -10,8 +10,8 @@ import {
   listWorkflowRunsResultSchema,
 } from '@shipfox/api-agent-access-dto';
 import {config, pollUntil} from '@shipfox/e2e-core';
+import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import {authorizeAgentAccess} from '@shipfox/e2e-setup-auth';
-import type {SuiteContext} from './suite-context.js';
 
 const EVENT_PAGE_LIMIT = 10;
 const MCP_POLL_INTERVAL_MS = 5_000;

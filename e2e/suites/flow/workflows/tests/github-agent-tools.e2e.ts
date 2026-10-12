@@ -14,6 +14,7 @@ import {
 } from '@shipfox/e2e-driver-github';
 import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
+import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import {waitForStepLogsContaining} from '@shipfox/e2e-observe-logs';
 import type {WorkflowRunObservationSelection} from '@shipfox/e2e-observe-workflows';
 import {createAnthropicFakeModelProviderConfig} from '@shipfox/e2e-setup-agent';
@@ -28,7 +29,6 @@ import {
 } from '#attachments.js';
 import {waitForDefinitionSyncTerminal} from '#polling.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
-import type {SuiteContext} from '#suite-context.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
 import {renderWorkflowYaml} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';

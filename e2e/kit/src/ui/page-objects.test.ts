@@ -84,6 +84,23 @@ describe('ui page objects', () => {
     expect(pageObject.getByLabel).toHaveBeenCalledWith('User menu');
   });
 
+  it('logs out through the user menu', async () => {
+    const pageObject = page();
+    const menuTrigger = locator('menu-trigger');
+    const logout = locator('logout');
+    pageObject.getByLabel.mockReturnValue(menuTrigger);
+    pageObject.getByRole.mockReturnValue(logout);
+    const {TopNav} = await import('./page-objects.js');
+    const nav = new TopNav(pageObject as never);
+
+    await nav.logout();
+
+    expect(pageObject.getByLabel).toHaveBeenCalledWith('User menu');
+    expect(menuTrigger.click).toHaveBeenCalledOnce();
+    expect(pageObject.getByRole).toHaveBeenCalledWith('menuitem', {name: 'Logout'});
+    expect(logout.click).toHaveBeenCalledOnce();
+  });
+
   it('wires workspace switcher controls to stable selectors', async () => {
     const pageObject = page();
     const {WorkspaceSwitcher} = await import('./page-objects.js');

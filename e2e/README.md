@@ -148,12 +148,18 @@ Suites use config factories from `@shipfox/e2e-kit/config`:
 ```ts
 import {defineClientE2eConfig} from '@shipfox/e2e-kit/config';
 
-export default defineClientE2eConfig({buildName: 'e2e-client-secrets'});
+export default defineClientE2eConfig({
+  buildName: 'e2e-client-secrets',
+  globalSetup: './tests/global-setup.ts',
+  globalTeardown: './tests/global-teardown.ts',
+});
 ```
 
 Use `defineClientE2eConfig` for browser suites and `defineApiE2eConfig` for
-HTTP-only suites. Do not hand-roll a Playwright config unless the factory cannot
-express a real suite requirement; prefer adding a typed option to the factory.
+HTTP-only suites. Pass setup and teardown hooks from the consumer package. The
+factories do not resolve hook paths from the upstream repository. Do not hand-roll
+a Playwright config unless the factory cannot express a real suite requirement;
+prefer adding a typed option to the factory.
 
 Client suites compose the kit fixture presets instead of re-declaring the common
 fixture union:

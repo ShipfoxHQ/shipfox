@@ -1,4 +1,5 @@
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
+import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import {
   attachLocalRunnerLog,
   collectStepLogAttachmentRequests,
@@ -6,7 +7,6 @@ import {
 } from '#attachments.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import {triggerSlackAppMentionAndAwaitRun} from '#slack-events.js';
-import type {SuiteContext} from '#suite-context.js';
 import {seedProjectWithApiDefinition} from '#workflow-project.js';
 
 const TERMINAL_TIMEOUT_MS = 60_000;

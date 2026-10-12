@@ -1,3 +1,6 @@
 import {defineClientE2eConfig} from '@shipfox/e2e-kit/config';
 
-export default defineClientE2eConfig({buildName: 'e2e-client-integrations'});
+export default defineClientE2eConfig({
+  buildName: 'e2e-client-integrations',
+  globalSetup: './tests/global-setup.ts',
+});

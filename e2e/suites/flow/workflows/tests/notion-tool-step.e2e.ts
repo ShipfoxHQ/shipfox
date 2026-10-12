@@ -1,10 +1,10 @@
 import {PollTimeoutError} from '@shipfox/e2e-core';
 import {postNotionDelivery, startNotionApiMock} from '@shipfox/e2e-driver-notion';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
+import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import {waitForRunByDeliveryId} from '@shipfox/e2e-observe-workflows';
 import {createNotionConnection} from '@shipfox/e2e-setup-integrations';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
-import type {SuiteContext} from '#suite-context.js';
 import {seedProjectWithApiDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 

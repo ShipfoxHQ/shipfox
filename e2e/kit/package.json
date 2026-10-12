@@ -1,16 +1,24 @@
 {
   "name": "@shipfox/e2e-kit",
+  "version": "33.0.0",
+  "private": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
     "directory": "e2e/kit"
   },
   "license": "MIT",
-  "private": true,
   "type": "module",
   "imports": {
     "#test/*": "./test/*",
-    "#*": "./src/*"
+    "#*": {
+      "workspace-source": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "exports": {
     "./config": {
@@ -41,6 +49,16 @@
       "default": {
         "types": "./dist/ui/index.d.ts",
         "default": "./dist/ui/index.js"
+      }
+    },
+    "./suite-context": {
+      "workspace-source": {
+        "types": "./src/suite-context.ts",
+        "default": "./src/suite-context.ts"
+      },
+      "default": {
+        "types": "./dist/suite-context.d.ts",
+        "default": "./dist/suite-context.js"
       }
     },
     "./workspace-urls": {

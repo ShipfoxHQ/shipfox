@@ -1,5 +1,5 @@
+import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import {beforeEach, describe, expect, test, vi} from '@shipfox/vitest/vi';
-import type {SuiteContext} from './suite-context.js';
 
 const requestJson = vi.fn();
 const createApiClient = vi.fn(() => ({requestJson}));

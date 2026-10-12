@@ -1,11 +1,11 @@
 import {createApiClient} from '@shipfox/e2e-core';
+import {markSuiteFailed, readSuiteContext, type SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import {
   type CreateTestVcsConnectionParams,
   createTestVcsConnection,
   type IntegrationConnectionDto,
 } from '@shipfox/e2e-setup-integrations';
 import {test as base} from '@shipfox/playwright';
-import {markSuiteFailed, readSuiteContext, type SuiteContext} from '#suite-context.js';
 
 export interface SuiteFixtures {
   suite: SuiteContext;

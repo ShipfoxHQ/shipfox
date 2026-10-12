@@ -1,5 +1,5 @@
 import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
-import {fileURLToPath} from 'node:url';
+import {join} from 'node:path';
 
 /**
  * Everything a worker needs to drive scenarios against the shared suite arrangement.
@@ -24,9 +24,9 @@ export interface SuiteContext {
   fakeModelProviderScripts: Record<string, string>;
 }
 
-const runDir = fileURLToPath(new URL('../.e2e-run/', import.meta.url));
-const contextFile = `${runDir}suite-context.json`;
-const failureSentinelFile = `${runDir}failed`;
+const runDir = join(process.cwd(), '.e2e-run');
+const contextFile = join(runDir, 'suite-context.json');
+const failureSentinelFile = join(runDir, 'failed');
 
 export function suiteRunDir(): string {
   mkdirSync(runDir, {recursive: true});
@@ -48,7 +48,7 @@ export function readSuiteContext(): SuiteContext {
 
 // A test worker marks the run failed by touching a sentinel file (workers do not share
 // memory with the teardown process). Teardown reads it to decide whether to keep the
-// gitea org for inspection.
+// Gitea organization for inspection.
 export function markSuiteFailed(): void {
   suiteRunDir();
   writeFileSync(failureSentinelFile, '');

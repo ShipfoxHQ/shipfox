@@ -1,6 +1,7 @@
 import {createApiClient} from '@shipfox/e2e-core';
 import {message, startFakeOpenAiModelProvider} from '@shipfox/e2e-driver-model-provider';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
+import type {SuiteContext} from '@shipfox/e2e-kit/suite-context';
 import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
 import {
   createAnthropicFakeModelProviderConfig,
@@ -11,7 +12,6 @@ import {
 } from '@shipfox/e2e-setup-agent';
 import {attachLocalRunnerLog} from '#attachments.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
-import type {SuiteContext} from '#suite-context.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
 import {seedAndWaitForDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';

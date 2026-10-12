@@ -8,11 +8,11 @@ import {
   startLocalRunner,
   waitForLocalRunnerExit,
 } from '@shipfox/e2e-driver-runner-process';
+import {suiteRunDir} from '@shipfox/e2e-kit/suite-context';
 import {
   type WorkflowRunObservationSelection,
   waitForRunTerminal,
 } from '@shipfox/e2e-observe-workflows';
-import {suiteRunDir} from './suite-context.js';
 
 function isFailedRunnerExit(exit: LocalRunnerExit): boolean {
   return exit.code !== 0 || exit.signal !== null;
