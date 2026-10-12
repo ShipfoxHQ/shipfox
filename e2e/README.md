@@ -156,7 +156,8 @@ export default defineClientE2eConfig({
 ```
 
 Use `defineClientE2eConfig` for browser suites and `defineApiE2eConfig` for
-HTTP-only suites. Pass setup and teardown hooks from the consumer package. The
+HTTP-only suites. Both factories require a `globalSetup` hook, and
+`globalTeardown` is optional. Pass hook paths from the consumer package. The
 factories do not resolve hook paths from the upstream repository. Do not hand-roll
 a Playwright config unless the factory cannot express a real suite requirement;
 prefer adding a typed option to the factory.
