@@ -8,9 +8,6 @@ description: "Run the commands and agents of a job inside your own Docker image.
 your tools are already in an image. Commands and agents then use the same tool
 versions as your team.
 
-This guide runs `node --version` from the public `node:24-bookworm` image. Keep
-the `container` field. Replace the image and the commands with your own.
-
 ## Before you begin
 
 - Complete onboarding in [Shipfox](https://app.shipfox.io).
@@ -20,7 +17,8 @@ the `container` field. Replace the image and the commands with your own.
 
 ## Add the container
 
-This is a complete workflow. Commit it to the project's default branch.
+This complete workflow runs two commands in the public `node:24-bookworm`
+image. Commit it to the project's default branch.
 
 ```yaml
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
@@ -50,8 +48,8 @@ This is what happens when the job starts:
 
 The steps share the repository files, as they do in a job without a container.
 
-Each job that uses a container needs the `container` field. The two steps
-belong to the example only.
+For your own workflow, keep the `container` field. Replace the image and the
+two steps.
 
 ## Pull a private image
 
