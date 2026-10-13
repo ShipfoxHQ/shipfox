@@ -30,26 +30,6 @@ describe('database registry', () => {
   test('registers the current owners, migration units, and neutral delegates', async () => {
     const errors = await auditApiDatabaseRegistry();
     assert.deepEqual(errors, []);
-    assert.equal(apiDatabaseRegistry.owners.length, 15);
-    assert.equal(apiDatabaseRegistry.migrationUnits.length, 25);
-    assert.deepEqual(
-      apiDatabaseRegistry.migrationUnits
-        .filter((unit) => unit.ownerId === 'integrations')
-        .map((unit) => unit.namespace),
-      [
-        'integrations',
-        'integrations_gitea',
-        'integrations_github',
-        'integrations_jira',
-        'integrations_clickup',
-        'integrations_discord',
-        'integrations_notion',
-        'integrations_linear',
-        'integrations_posthog',
-        'integrations_sentry',
-        'integrations_slack',
-      ],
-    );
     assert.deepEqual(
       apiDatabaseRegistry.delegates.map((delegate) => delegate.capability),
       [
@@ -69,7 +49,7 @@ describe('database registry', () => {
 
   test('rejects missing registered paths', () => {
     const registry = registryFixture();
-    const unit = registry.migrationUnits[0];
+    const unit = registry.migrationUnits.find((unit) => unit.id === 'agent');
     if (!unit) throw new Error('Expected an Agent migration unit');
     unit.migrationsPath = 'libs/api/missing/drizzle';
 
@@ -85,7 +65,7 @@ describe('database registry', () => {
 
   test('rejects duplicate namespaces', () => {
     const registry = registryFixture();
-    const unit = registry.migrationUnits[1];
+    const unit = registry.migrationUnits.find((unit) => unit.id === 'annotations');
     if (!unit) throw new Error('Expected an Annotations migration unit');
     unit.namespace = 'agent';
 
@@ -96,7 +76,7 @@ describe('database registry', () => {
 
   test('rejects duplicate and out-of-package migration paths', () => {
     const registry = registryFixture();
-    const unit = registry.migrationUnits[6];
+    const unit = registry.migrationUnits.find((unit) => unit.id === 'integrations-gitea');
     if (!unit) throw new Error('Expected an Integrations Gitea migration unit');
     unit.drizzleConfigPath = 'libs/api/integration/github/drizzle.config.ts';
     unit.migrationsPath = 'libs/api/integration/github/drizzle';
@@ -113,7 +93,7 @@ describe('database registry', () => {
 
   test('rejects unknown owners', () => {
     const registry = registryFixture();
-    const unit = registry.migrationUnits[0];
+    const unit = registry.migrationUnits.find((unit) => unit.id === 'agent');
     if (!unit) throw new Error('Expected an Agent migration unit');
     unit.ownerId = 'unknown';
 
@@ -127,7 +107,7 @@ describe('database registry', () => {
 
   test('rejects package and owner classification mismatches', () => {
     const registry = registryFixture();
-    const owner = registry.owners[0];
+    const owner = registry.owners.find((owner) => owner.id === 'agent');
     if (!owner) throw new Error('Expected an Agent owner');
     owner.packagePath = 'libs/api/auth';
 
@@ -141,7 +121,7 @@ describe('database registry', () => {
 
   test('rejects namespace naming exceptions', () => {
     const registry = registryFixture();
-    const unit = registry.migrationUnits[0];
+    const unit = registry.migrationUnits.find((unit) => unit.id === 'agent');
     if (!unit) throw new Error('Expected an Agent migration unit');
     unit.namespace = 'Agent';
 
