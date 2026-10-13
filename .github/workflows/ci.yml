@@ -1406,7 +1406,11 @@ jobs:
   publish-application-release:
     name: Publish application release
     needs: [release-mode, publish-images]
-    if: github.ref == 'refs/heads/main' && needs.publish-images.result == 'success'
+    # always() replaces the implicit success(), which a skipped ancestor fails.
+    if: >-
+      always() && github.ref == 'refs/heads/main' &&
+      needs.release-mode.result == 'success' &&
+      needs.publish-images.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

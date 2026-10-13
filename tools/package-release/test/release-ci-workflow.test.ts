@@ -167,6 +167,18 @@ describe('generated release CI path', () => {
     assert.ok(steps.every((step) => !npmPublicationPattern.test(step.run ?? '')));
   });
 
+  test('publishes the application release when a classification ancestor is skipped', async () => {
+    const parsedWorkflow = parse(await readWorkflow());
+    const release = parsedWorkflow.jobs['publish-application-release'];
+
+    assert.deepEqual(release.needs, ['release-mode', 'publish-images']);
+    assert.ok(release.if.startsWith('always() &&'));
+    assert.match(release.if, mainRefConditionPattern);
+    for (const job of release.needs) {
+      assert.ok(release.if.includes(`needs.${job}.result == 'success'`), job);
+    }
+  });
+
   test('reports the E2E suite matrix through one required check', async () => {
     const parsedWorkflow = parse(await readWorkflow());
     const e2eCheck = parsedWorkflow.jobs.e2e;
