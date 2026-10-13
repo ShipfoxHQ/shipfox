@@ -455,6 +455,9 @@ describe('executeRunStep', () => {
     expect(result.error).toEqual({message: 'Command exited with code 7', exit_code: 7});
     expect(result.exit_code).toBe(7);
     expect(result.outputs).toBeUndefined();
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings?.[0]).toContain('invalid key');
+    expect(result.warnings?.[0]).toContain('No outputs were read from $SHIPFOX_OUTPUT.');
   });
 
   it('fails a succeeded step that writes invalid output without echoing content', async () => {
@@ -1263,6 +1266,9 @@ describe('executeRunStep output sources', () => {
     expect(result.success).toBe(false);
     expect(result.exit_code).toBe(3);
     expect(result.error?.message).toBe('Command exited with code 3');
+    expect(result.warnings).toEqual([
+      'Output "leak" reads "../nowhere.txt", which is outside the job workspace. No outputs were read from the output sources of the step.',
+    ]);
   });
 
   it('fails a succeeded step whose file exceeds the per-value cap', async () => {
@@ -1413,6 +1419,22 @@ describe('executeRunStep carried env', () => {
     expect(result.carriedEnv).toEqual({env: {FOO: '1'}, path: ['/opt/bin']});
   });
 
+  it('keeps the original failure and warns when a failed step writes an invalid env file', async () => {
+    const step = buildStep({
+      config: {
+        run: 'echo "FOO=1" >> "$SHIPFOX_ENV"\necho "PATH=/x" >> "$SHIPFOX_ENV"\necho /opt/bin >> "$SHIPFOX_PATH"\nexit 3',
+      },
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.error).toEqual({message: 'Command exited with code 3', exit_code: 3});
+    expect(result.carriedEnv).toBeUndefined();
+    expect(result.warnings).toEqual([
+      'Env file cannot set "PATH". Write the directories to $SHIPFOX_PATH instead. No values were carried to later steps.',
+    ]);
+  });
+
   it('returns no carried env when the step wrote nothing', async () => {
     const result = await executeRunStep(buildStep({config: {run: 'true'}}));
 
@@ -1428,6 +1450,7 @@ describe('executeRunStep carried env', () => {
       expect(result.success).toBe(false);
       expect(result.error?.message).toContain(`"${name}"`);
       expect(result.carriedEnv).toBeUndefined();
+      expect(result.warnings).toBeUndefined();
     }
   });
 

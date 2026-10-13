@@ -2715,6 +2715,39 @@ describe('runJobSteps', () => {
     expect(events.indexOf(`line:${run.id}`)).toBeLessThan(events.indexOf(`close:${run.id}`));
   });
 
+  it('writes the warnings of a failed run step to its log without reporting them', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    const error = {message: 'Command exited with code 1', exit_code: 1};
+    const warning = 'SHIPFOX_ENV contains a malformed line. No values were carried to later steps.';
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1));
+    executeRunStepMock.mockResolvedValueOnce({
+      success: false,
+      error,
+      exit_code: 1,
+      warnings: [warning],
+    });
+    reportStepMock
+      .mockResolvedValueOnce({ok: true, cancel: false})
+      .mockResolvedValueOnce({ok: true, cancel: true});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(streamFor(run.id).writeOutputLine).toHaveBeenCalledWith(warning, 'stderr');
+    expect(reportStepMock).toHaveBeenCalledWith(leaseClient, {
+      stepId: run.id,
+      attempt: 1,
+      status: 'failed',
+      error,
+      exitCode: 1,
+      logOutcome: 'drained',
+      signal: ac.signal,
+    });
+  });
+
   it('attributes a broker auth failure to a failed agent result', async () => {
     const setup = buildSetupStep();
     const agent = buildAgentStep();

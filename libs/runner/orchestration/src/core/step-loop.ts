@@ -2300,6 +2300,7 @@ function writeCommandMetadata(
 function writeRunFailureContext(stream: StepLogStream | undefined, result: StepResult): void {
   if (result.success) return;
   stream?.writeOutputLine(runFailureContext(result), 'stderr');
+  for (const warning of result.warnings ?? []) stream?.writeOutputLine(warning, 'stderr');
 }
 
 function runFailureContext(result: StepResult): string {

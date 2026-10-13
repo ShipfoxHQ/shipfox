@@ -192,7 +192,8 @@ The runner sets two files for the steps that follow, as it does for run steps:
   working directory. Later steps get these directories at the front of `PATH`, latest first.
 
 The runner reads both files after the process exits, whatever its exit code, so a failing action
-still hands its values on. `runAction` does not set them.
+still hands its values on. An invalid file hands nothing on. When the action also failed, the
+step log names the invalid file. `runAction` does not set them.
 
 The loader decides by importer:
 

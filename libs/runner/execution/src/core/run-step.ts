@@ -549,12 +549,7 @@ async function finalizeStepOutput(result: StepResult, outputPath: string): Promi
     raw = await readBoundedStepOutput(outputPath);
   } catch (error) {
     if (errorCode(error) === 'ENOENT') return result;
-    if (!result.success) return result;
-    return {
-      success: false,
-      error: {message: stepOutputErrorMessage(error)},
-      exit_code: null,
-    };
+    return rejectStepFile(result, stepOutputErrorMessage(error), OUTPUT_FILE_DROPPED);
   }
 
   if (raw === undefined || raw === '') return result;
@@ -564,13 +559,21 @@ async function finalizeStepOutput(result: StepResult, outputPath: string): Promi
     if (Object.keys(outputs).length === 0) return result;
     return {...result, outputs};
   } catch (error) {
-    if (!result.success) return result;
-    return {
-      success: false,
-      error: {message: stepOutputErrorMessage(error)},
-      exit_code: null,
-    };
+    return rejectStepFile(result, stepOutputErrorMessage(error), OUTPUT_FILE_DROPPED);
   }
+}
+
+const OUTPUT_FILE_DROPPED = 'No outputs were read from $SHIPFOX_OUTPUT.';
+const OUTPUT_SOURCES_DROPPED = 'No outputs were read from the output sources of the step.';
+const CARRIED_ENV_DROPPED = 'No values were carried to later steps.';
+
+// A file the step broke fails a step that otherwise succeeded. A step that already failed keeps
+// its own failure, which is the more useful error, and gets a warning naming what was dropped.
+function rejectStepFile(result: StepResult, reason: string, dropped: string): StepResult {
+  if (!result.success) {
+    return {...result, warnings: [...(result.warnings ?? []), `${reason} ${dropped}`]};
+  }
+  return {success: false, error: {message: reason}, exit_code: null};
 }
 
 // The step is done: read what it left in its files and output sources.
@@ -608,12 +611,7 @@ async function applyOutputSources(
     assertTotalOutputSize(outputs);
     return {...result, outputs};
   } catch (error) {
-    if (!result.success) return result;
-    return {
-      success: false,
-      error: {message: stepOutputErrorMessage(error)},
-      exit_code: null,
-    };
+    return rejectStepFile(result, stepOutputErrorMessage(error), OUTPUT_SOURCES_DROPPED);
   }
 }
 
@@ -678,8 +676,7 @@ async function readBoundedFile(
   }
 }
 
-// Reads what the step left in `$SHIPFOX_ENV` and `$SHIPFOX_PATH`, whatever its exit status. A
-// file the step broke fails a step that otherwise succeeded, like a bad output file does.
+// Reads what the step left in `$SHIPFOX_ENV` and `$SHIPFOX_PATH`, whatever its exit status.
 async function finalizeCarriedEnv(
   result: StepResult,
   files: StepFiles,
@@ -695,15 +692,9 @@ async function finalizeCarriedEnv(
     if (Object.keys(env).length === 0 && path.length === 0) return result;
     return {...result, carriedEnv: {env, path}};
   } catch (error) {
-    if (!result.success) return result;
-    return {
-      success: false,
-      error: {
-        message:
-          error instanceof StepOutputError ? error.message : 'Carried env files could not be read.',
-      },
-      exit_code: null,
-    };
+    const reason =
+      error instanceof StepOutputError ? error.message : 'Carried env files could not be read.';
+    return rejectStepFile(result, reason, CARRIED_ENV_DROPPED);
   }
 }
 
