@@ -82,10 +82,14 @@ These rules apply in a job container:
 
 ## Use Docker inside the job
 
-A step can use Docker when the image has the `docker` command. Add this step
-to the job:
+A step can use Docker when the image has the `docker` command. The
+`docker:cli` image has it.
+
+In the example, replace the `container` line and the steps with these lines:
 
 ```yaml
+    container: docker:cli
+    steps:
       - key: hello
         run: docker run --rm hello-world
 ```
