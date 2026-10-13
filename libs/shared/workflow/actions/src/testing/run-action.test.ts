@@ -219,6 +219,30 @@ describe('runAction', () => {
     expect(result.logs).toContain('The probe failed on purpose.');
   });
 
+  it('returns what the action carried and masked for later steps', async () => {
+    const dir = await writeAction({
+      'action.yml': 'name: Carry\nmain: index.mjs\n',
+      'index.mjs': [
+        "import {defineAction} from '@shipfox/actions';",
+        'export default defineAction(({setEnv, addPath, addMask}) => {',
+        "  addMask('runtime-token');",
+        "  setEnv('TOKEN', 'runtime-token');",
+        "  setEnv('NOTES', 'line one\\nline two');",
+        "  addPath('tool-bin');",
+        '});',
+      ].join('\n'),
+    });
+
+    const result = await runAction(dir);
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      carriedEnv: {TOKEN: 'runtime-token', NOTES: 'line one\nline two'},
+      carriedPath: ['tool-bin'],
+      masks: ['runtime-token'],
+    });
+  });
+
   it('kills an action that runs past the timeout', async () => {
     const result = await runAction(probe, {inputs: {sleep_ms: 60_000}, timeoutMs: 500});
 

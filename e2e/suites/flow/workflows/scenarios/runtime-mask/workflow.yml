@@ -1,0 +1,48 @@
+name: Runtime mask
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  mask:
+    steps:
+      - key: fetch
+        run: |
+          # Built at run time, so the workflow file and the command log never hold the value.
+          TOKEN="runtime-mask-$(printf 'e2e')-value"
+          echo "$TOKEN" >> "$SHIPFOX_MASK"
+          echo "TOKEN=$TOKEN" >> "$SHIPFOX_ENV"
+          echo "token=$TOKEN" >> "$SHIPFOX_OUTPUT"
+          echo "fetch-done"
+      - key: print
+        env:
+          TOKEN_OUTPUT: ${{ steps.fetch.outputs.token }}
+        run: |
+          if [ "$TOKEN_OUTPUT" != "***" ]; then
+            echo "the output of the masking step was not masked"
+            exit 1
+          fi
+          echo "carried token=$TOKEN"
+  masked_after_restart:
+    steps:
+      - key: once
+        if: ${{ step.attempt == 1 }}
+        run: |
+          echo "runtime-mask-$(printf 'e2e')-restart" >> "$SHIPFOX_MASK"
+      - key: review
+        run: |
+          if [ -f .review-failed-once ]; then
+            echo "review passes after restart"
+            exit 0
+          fi
+          touch .review-failed-once
+          echo "review fails once"
+          exit 1
+        gate:
+          success: step.exit_code == 0
+          on_failure:
+            restart_from: once
+            feedback: retrying from once
+      - key: verify
+        run: |
+          echo "token after restart=runtime-mask-$(printf 'e2e')-restart"

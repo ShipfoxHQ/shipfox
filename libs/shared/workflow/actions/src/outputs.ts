@@ -49,10 +49,17 @@ export function encodeOutputValue(params: {
   throw typeMismatch({name, declaration, value});
 }
 
-/** Formats one entry of the `SHIPFOX_OUTPUT` file. Multi-line values use the heredoc form. */
-export function formatOutputEntry(name: string, encoded: string): string {
+/**
+ * Formats one entry of the `SHIPFOX_OUTPUT` file, or of `SHIPFOX_ENV`, which shares its grammar.
+ * Multi-line values use the heredoc form.
+ */
+export function formatOutputEntry(
+  name: string,
+  encoded: string,
+  delimiterPrefix = 'SHIPFOX_OUTPUT',
+): string {
   if (!LINE_BREAK_RE.test(encoded)) return `${name}=${encoded}\n`;
-  const delimiter = `SHIPFOX_OUTPUT_${randomUUID()}`;
+  const delimiter = `${delimiterPrefix}_${randomUUID()}`;
   return `${name}<<${delimiter}\n${encoded}\n${delimiter}\n`;
 }
 

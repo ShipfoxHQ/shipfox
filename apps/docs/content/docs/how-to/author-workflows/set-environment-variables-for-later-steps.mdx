@@ -72,12 +72,49 @@ When one of the two files is invalid, Shipfox gives no values from that step to
 the later steps. If the step also failed for another reason, the step keeps
 that failure, and the end of the step log names the invalid file.
 
-<Callout title="Values in $SHIPFOX_ENV are not masked" type="warn">
-  Shipfox masks only the secrets it stores. A token that a command fetches and
-  writes to `$SHIPFOX_ENV` appears in the logs of any later step that prints
-  it. Don't print this token in a later step. If the token doesn't change
-  between runs, store it as a
-  [secret](/how-to/set-up-work/secrets-and-variables) instead.
+## Mask a value that a step fetches
+
+Shipfox masks the secrets it stores. It doesn't know a value that a command
+fetches during the run, such as a short-lived cloud token. A later step that
+prints this value shows it in the logs.
+
+To mask the value, write it to the file `$SHIPFOX_MASK` before you write it to
+`$SHIPFOX_ENV`:
+
+```yaml
+steps:
+  - name: Get a registry token
+    run: |
+      TOKEN="$(aws ecr get-login-password)"
+
+      # Masks the token in the later steps. Write one value on each line.
+      echo "$TOKEN" >> "$SHIPFOX_MASK"
+
+      # Sets the variable REGISTRY_TOKEN for the later steps.
+      echo "REGISTRY_TOKEN=$TOKEN" >> "$SHIPFOX_ENV"
+
+  # The log of this step shows *** in place of the token.
+  - run: docker login --username AWS --password "$REGISTRY_TOKEN" registry.example.com
+```
+
+Shipfox reads `$SHIPFOX_MASK` when the step ends, even if the step fails. It
+then replaces each value with `***` in the logs, outputs, and annotations of
+every later step of the job. The values stay masked after a gate restart.
+
+These limits apply:
+
+- The step that writes the file isn't masked while it runs. Don't print the
+  value in this step. Shipfox does mask the outputs of this step.
+- Each value needs at least 8 characters. A shorter value fails the step,
+  because it would also hide ordinary text in the logs.
+- Each line is one value. For a value that has several lines, write each line
+  of at least 8 characters as its own value.
+- Other jobs don't get the masks.
+
+<Callout title="Values in $SHIPFOX_ENV are not masked by default" type="warn">
+  A value that a step writes only to `$SHIPFOX_ENV` appears in the logs of any
+  later step that prints it. If the value doesn't change between runs, store
+  it as a [secret](/how-to/set-up-work/secrets-and-variables) instead.
 </Callout>
 
 ## Check which value a step gets
@@ -113,7 +150,8 @@ steps then get the values from the last time each step ran:
 | Add a directory inside the repository | Write a relative path to `$SHIPFOX_PATH`. Shipfox resolves it against the working directory of the step. |
 | Use another value in one step only | Set the variable in the `env` of that step. See [Environment variables](/reference/workflow-schema#environment-variables). |
 | Send a value to another job | Use an output. See [Pass values between jobs](/how-to/author-workflows/pass-outputs). |
-| Use a credential | Bind a secret in `env` instead of writing it to `$SHIPFOX_ENV`. See [Add secrets and variables](/how-to/set-up-work/secrets-and-variables). |
+| Use a credential that doesn't change between runs | Bind a secret in `env` instead of writing it to `$SHIPFOX_ENV`. See [Add secrets and variables](/how-to/set-up-work/secrets-and-variables). |
+| Use a credential that a step fetches | Write it to `$SHIPFOX_MASK`, then to `$SHIPFOX_ENV`. See [Mask a value that a step fetches](#mask-a-value-that-a-step-fetches). |
 
 ## Verify the values
 

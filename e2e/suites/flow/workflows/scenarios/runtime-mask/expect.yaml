@@ -1,0 +1,34 @@
+trigger: manual
+run:
+  status: succeeded
+jobs:
+  mask:
+    status: succeeded
+    steps:
+      fetch:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["fetch-done"]
+          exclude: ["runtime-mask-e2e-value"]
+      print:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["carried token=***"]
+          exclude: ["runtime-mask-e2e-value"]
+  masked_after_restart:
+    status: succeeded
+    steps:
+      once:
+        status: skipped
+      verify:
+        status: succeeded
+        exit_code: 0
+        logs:
+          include: ["token after restart=***"]
+          exclude: ["runtime-mask-e2e-restart"]
+runner_log:
+  exclude:
+    - "runtime-mask-e2e-value"
+    - "runtime-mask-e2e-restart"

@@ -25,6 +25,8 @@ import {parseOutputFile} from '#testing/output-file.js';
 
 export const DEFAULT_RUN_ACTION_TIMEOUT_MS = 30_000;
 
+const LINE_SPLIT_RE = /\r?\n/;
+
 export interface RunActionOptions {
   /** The `with:` values. Defaults apply and types are checked as at dispatch. */
   inputs?: Readonly<Record<string, unknown>>;
@@ -56,6 +58,12 @@ export interface ActionRunResult {
   readonly logs: string;
   /** What the action wrote to `SHIPFOX_STEP_SUMMARY`. */
   readonly summary: string;
+  /** What the action set with `setEnv`, or wrote to `SHIPFOX_ENV`. */
+  readonly carriedEnv: Readonly<Record<string, string>>;
+  /** The directories the action added with `addPath`, as written, in call order. */
+  readonly carriedPath: readonly string[];
+  /** The `SHIPFOX_MASK` lines: one per `addMask` value, or per line of a multi-line value. */
+  readonly masks: readonly string[];
   readonly workspace: ActionTestWorkspace;
 }
 
@@ -82,6 +90,9 @@ export async function runAction(
     context: join(stepTemp, 'context.json'),
     result: join(stepTemp, 'result.json'),
     output: join(stepTemp, 'output'),
+    env: join(stepTemp, 'env'),
+    path: join(stepTemp, 'path'),
+    mask: join(stepTemp, 'mask'),
     summary: join(stepTemp, 'summary.md'),
   };
   const context: ActionContextFileV1 = {
@@ -101,6 +112,9 @@ export async function runAction(
     writeFile(paths.inputs, JSON.stringify(inputs), {mode: 0o600}),
     writeFile(paths.context, JSON.stringify(context)),
     writeFile(paths.output, ''),
+    writeFile(paths.env, ''),
+    writeFile(paths.path, ''),
+    writeFile(paths.mask, ''),
     writeFile(paths.summary, ''),
   ]);
 
@@ -122,6 +136,9 @@ export async function runAction(
         ...options.env,
         [ACTION_ENV.workspace]: workspace,
         [ACTION_ENV.output]: paths.output,
+        [ACTION_ENV.env]: paths.env,
+        [ACTION_ENV.path]: paths.path,
+        [ACTION_ENV.mask]: paths.mask,
         SHIPFOX_STEP_SUMMARY: paths.summary,
         [ACTION_ENV.actionPath]: actionPath,
         [ACTION_ENV.actionMain]: manifest.main,
@@ -132,12 +149,15 @@ export async function runAction(
         [ACTION_ENV.actionsToken]: endpoint.token,
       },
     });
-    const [status, rawOutputs, summary] = await Promise.all([
+    const [status, rawOutputs, summary, rawEnv, rawPath, rawMask] = await Promise.all([
       readResultStatus(paths.result),
       readFile(paths.output, 'utf8'),
       readFile(paths.summary, 'utf8'),
+      readFile(paths.env, 'utf8'),
+      readFile(paths.path, 'utf8'),
+      readFile(paths.mask, 'utf8'),
     ]);
-    run = {...exit, status, rawOutputs, summary};
+    run = {...exit, status, rawOutputs, summary, rawEnv, rawPath, rawMask};
   } finally {
     await endpoint.close();
     await rm(stepTemp, {recursive: true, force: true});
@@ -157,6 +177,9 @@ export async function runAction(
     calls: endpoint.calls,
     logs: run.logs,
     summary: run.summary,
+    carriedEnv: parseOutputFile(run.rawEnv),
+    carriedPath: nonEmptyLines(run.rawPath),
+    masks: nonEmptyLines(run.rawMask),
     workspace: testWorkspace(workspace),
   };
 }
@@ -172,6 +195,9 @@ interface CompletedRun extends ProcessExit {
   status: ActionResultFileV1['status'] | undefined;
   rawOutputs: string;
   summary: string;
+  rawEnv: string;
+  rawPath: string;
+  rawMask: string;
 }
 
 async function runProcess(params: {
@@ -271,6 +297,10 @@ function decodeOutputs(
     output,
   });
   return result.ok ? {outputs: result.output} : {outputs: {}, error: result.error.message};
+}
+
+function nonEmptyLines(content: string): string[] {
+  return content.split(LINE_SPLIT_RE).filter((line) => line.trim() !== '');
 }
 
 async function readResultStatus(path: string): Promise<ActionResultFileV1['status'] | undefined> {

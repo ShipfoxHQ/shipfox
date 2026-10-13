@@ -21,6 +21,7 @@ import {
   parseCarriedPath,
   prependPath,
 } from '#core/carried-env.js';
+import {parseMaskedValues} from '#core/masked-values.js';
 import {readOomKillCount} from '#core/out-of-memory.js';
 import {
   assertTotalOutputSize,
@@ -161,8 +162,8 @@ export function executeRunStep(
 
 /**
  * Runs a script or an argv command with the run step supervision: process group,
- * cancellation, output streaming, the `SHIPFOX_OUTPUT`, `SHIPFOX_ENV` and `SHIPFOX_PATH`
- * files, and the annotation spool.
+ * cancellation, output streaming, the `SHIPFOX_OUTPUT`, `SHIPFOX_ENV`, `SHIPFOX_PATH` and
+ * `SHIPFOX_MASK` files, and the annotation spool.
  */
 export function executeStepProcess(
   command: StepCommand,
@@ -175,6 +176,7 @@ interface StepFiles {
   readonly output: string;
   readonly env: string;
   readonly path: string;
+  readonly mask: string;
 }
 
 interface ProcessLaunch {
@@ -196,6 +198,7 @@ async function runStepProcess(
     output: join(tempDir, `shipfox-output-${randomUUID()}`),
     env: join(tempDir, `shipfox-env-${randomUUID()}`),
     path: join(tempDir, `shipfox-path-${randomUUID()}`),
+    mask: join(tempDir, `shipfox-mask-${randomUUID()}`),
   };
   if (launch.metadata) {
     notifyCommandStart(options.onCommandStart, cloneCommandStartMetadata(launch.metadata));
@@ -248,9 +251,7 @@ async function runStepProcess(
     }
     if (annotationSpool) await disposeAnnotationSpool(annotationSpool);
     if (launch.scriptFile) await unlink(launch.scriptFile.path).catch(() => undefined);
-    await Promise.all(
-      [files.output, files.env, files.path].map((file) => unlink(file).catch(() => undefined)),
-    );
+    await Promise.all(Object.values(files).map((file) => unlink(file).catch(() => undefined)));
   }
 }
 
@@ -262,7 +263,7 @@ async function createScratchFiles(
 ): Promise<AnnotationSpool | undefined> {
   const mode = options.shareScratchFiles ? 0o666 : 0o600;
   await Promise.all(
-    [files.output, files.env, files.path].map(async (file) => {
+    Object.values(files).map(async (file) => {
       await writeFile(file, '', {mode});
       await chmod(file, mode);
     }),
@@ -446,6 +447,7 @@ function spawnRunStepProcess(
         SHIPFOX_OUTPUT: files.output,
         SHIPFOX_ENV: files.env,
         SHIPFOX_PATH: files.path,
+        SHIPFOX_MASK: files.mask,
         ...(annotationSpool?.env ?? {}),
         ...(options.shipfoxEnv ?? {}),
       },
@@ -588,7 +590,10 @@ async function finalizeFiles(
     options,
     stdoutCapture,
   );
-  return finalizeCarriedEnv(withOutputs, files, options.cwd ?? process.cwd());
+  const masked = await finalizeMaskedValues(withOutputs, files);
+  // A broken mask file may name values the step also carried, so nothing is carried.
+  if (!masked.ok) return masked.result;
+  return finalizeCarriedEnv(masked.result, files, options.cwd ?? process.cwd());
 }
 
 async function applyOutputSources(
@@ -647,6 +652,12 @@ const PATH_FILE_MESSAGES: BoundedFileMessages = {
     `SHIPFOX_PATH exceeds the size limit of ${MAX_OUTPUT_TOTAL_BYTES} bytes (measured ${measuredBytes} bytes).`,
 };
 
+const MASK_FILE_MESSAGES: BoundedFileMessages = {
+  notRegularFile: 'SHIPFOX_MASK is not a regular file.',
+  tooLarge: (measuredBytes) =>
+    `SHIPFOX_MASK exceeds the size limit of ${MAX_OUTPUT_TOTAL_BYTES} bytes (measured ${measuredBytes} bytes).`,
+};
+
 function readBoundedStepOutput(outputPath: string): Promise<string | undefined> {
   return readBoundedFile(outputPath, OUTPUT_FILE_MESSAGES);
 }
@@ -673,6 +684,22 @@ async function readBoundedFile(
     return buffer.subarray(0, bytesRead).toString('utf8');
   } finally {
     await handle.close();
+  }
+}
+
+// Reads what the step left in `$SHIPFOX_MASK`, whatever its exit status.
+async function finalizeMaskedValues(
+  result: StepResult,
+  files: StepFiles,
+): Promise<{ok: boolean; result: StepResult}> {
+  try {
+    const raw = await readOptionalFile(files.mask, MASK_FILE_MESSAGES);
+    const maskedValues = raw === undefined ? [] : parseMaskedValues(raw);
+    return {ok: true, result: maskedValues.length === 0 ? result : {...result, maskedValues}};
+  } catch (error) {
+    const reason =
+      error instanceof StepOutputError ? error.message : 'Mask file could not be read.';
+    return {ok: false, result: rejectStepFile(result, reason, CARRIED_ENV_DROPPED)};
   }
 }
 

@@ -1,8 +1,8 @@
-import {appendFileSync, chmodSync, mkdirSync, writeFileSync} from 'node:fs';
+import {chmodSync, mkdirSync, writeFileSync} from 'node:fs';
 import {delimiter, join} from 'node:path';
 import {defineAction} from '@shipfox/actions';
 
-export default defineAction(({log}) => {
+export default defineAction(({log, setEnv, addPath}) => {
   const workspace = process.env.SHIPFOX_WORKSPACE ?? '';
   if (process.env.SEED !== 'from-seed') throw new Error(`SEED is ${process.env.SEED}`);
   // The step env wins over the carried value.
@@ -18,7 +18,7 @@ export default defineAction(({log}) => {
   const tool = join(workspace, 'action-bin', 'action-tool');
   writeFileSync(tool, '#!/bin/sh\necho "action-tool ran"\n');
   chmodSync(tool, 0o755);
-  appendFileSync(process.env.SHIPFOX_ENV ?? '', 'ACTION_VAR=from-action\n');
-  appendFileSync(process.env.SHIPFOX_PATH ?? '', `${join(workspace, 'action-bin')}\n`);
+  setEnv('ACTION_VAR', 'from-action');
+  addPath(join(workspace, 'action-bin'));
   throw new Error('failing after writing the carried env');
 });

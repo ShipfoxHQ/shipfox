@@ -1674,9 +1674,14 @@ function finishProcessStep(
   stepStream: StepLogStream | undefined,
   processResult: StepResult,
 ): StepExecution {
+  const {maskedValues = [], ...unmaskedResult} = processResult;
+  // Registered for the job before this step's own outputs are masked, so the values stay masked
+  // in every later step, even when a gate restart skips the step that wrote them.
+  if (maskedValues.length > 0) params.params.registerSecrets?.(maskedValues);
   const result = maskRunStepOutputs(
-    processResult,
+    unmaskedResult,
     buildSecretVariants([
+      ...maskedValues,
       ...params.secretState.crashSecrets,
       ...params.secretState.inferenceSecrets,
       ...params.secretState.subscribedSecrets,

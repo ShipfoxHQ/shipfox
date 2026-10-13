@@ -12,6 +12,7 @@ import {type ActionDefinition, type ActionInputs, isActionDefinition} from '#def
 import {trackInFlightCalls} from '#in-flight-calls.js';
 import {createActionLog} from '#log.js';
 import {ActionOutputError, createActionOutputs} from '#outputs.js';
+import {createStepFiles} from '#step-files.js';
 import {createToolsClient} from '#tools-client.js';
 
 /** A failure the bootstrap explains itself; its stack would only show bootstrap internals. */
@@ -60,6 +61,11 @@ async function run(): Promise<void> {
       inputs: readJson<ActionInputs>(env.inputsPath),
       tools: calls.tools,
       setOutput: (name, value) => appendFileSync(env.outputPath, outputs.set(name, value)),
+      ...createStepFiles({
+        env: process.env[ACTION_ENV.env],
+        path: process.env[ACTION_ENV.path],
+        mask: process.env[ACTION_ENV.mask],
+      }),
       log: createActionLog(),
       signal: controller.signal,
       context,

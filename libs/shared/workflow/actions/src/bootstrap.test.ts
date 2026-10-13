@@ -70,7 +70,10 @@ describe('bootstrap', () => {
       'SHIPFOX_ACTION_MAIN',
       'SHIPFOX_ACTION_PATH',
       'SHIPFOX_ACTION_RESULT',
+      'SHIPFOX_ENV',
+      'SHIPFOX_MASK',
       'SHIPFOX_OUTPUT',
+      'SHIPFOX_PATH',
       'SHIPFOX_WORKSPACE',
     ];
 
@@ -146,6 +149,47 @@ describe('bootstrap', () => {
       outputs: {progress: 'halfway'},
     });
     expect(run.stderr).toMatch(PROVIDER_ERROR_STACK_RE);
+  });
+
+  it('writes the env, path, and mask files right away, so they survive a later throw', async () => {
+    await writeFiles(sandbox.bundle, {
+      'index.js': `
+        import {defineAction} from '@shipfox/actions';
+
+        export default defineAction(({setEnv, addPath, addMask}) => {
+          addMask('runtime-token');
+          setEnv('TOKEN', 'runtime-token');
+          addPath('tool-bin');
+          throw new Error('provider said no');
+        });
+      `,
+    });
+
+    const run = await runActionProcess({sandbox});
+
+    expect(run).toMatchObject({
+      exitCode: 1,
+      stepFiles: {env: 'TOKEN=runtime-token\n', path: 'tool-bin\n', mask: 'runtime-token\n'},
+    });
+  });
+
+  it('fails a helper that needs a file an older runner does not set', async () => {
+    await writeFiles(sandbox.bundle, {
+      'index.js': `
+        import {defineAction} from '@shipfox/actions';
+
+        export default defineAction(({addMask}) => {
+          addMask('runtime-token');
+        });
+      `,
+    });
+
+    const run = await runActionProcess({sandbox, withoutStepFiles: true});
+
+    expect(run).toMatchObject({exitCode: 1, result: {status: 'failed'}});
+    expect(run.stderr).toContain(
+      'SHIPFOX_MASK is not set, so addMask cannot work. Update the runner.',
+    );
   });
 
   it('fails on an unhandled rejection without waiting for the handler', async () => {

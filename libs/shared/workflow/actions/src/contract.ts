@@ -21,6 +21,9 @@ export const MAX_DOWNLOAD_FILE_BYTES = 100 * 1024 * 1024;
 /** All downloads of one step together, counted as bytes arrive. */
 export const MAX_STEP_DOWNLOAD_BYTES = 1024 * 1024 * 1024;
 
+/** A shorter value in `SHIPFOX_MASK` fails the step: it would hide ordinary text in later logs. */
+export const MIN_MASKED_VALUE_LENGTH = 8;
+
 export const ACTION_ENV = {
   actionsUrl: 'SHIPFOX_ACTIONS_URL',
   actionsToken: 'SHIPFOX_ACTIONS_TOKEN',
@@ -31,6 +34,9 @@ export const ACTION_ENV = {
   actionContext: 'SHIPFOX_ACTION_CONTEXT',
   actionResult: 'SHIPFOX_ACTION_RESULT',
   output: 'SHIPFOX_OUTPUT',
+  env: 'SHIPFOX_ENV',
+  path: 'SHIPFOX_PATH',
+  mask: 'SHIPFOX_MASK',
   workspace: 'SHIPFOX_WORKSPACE',
 } as const;
 

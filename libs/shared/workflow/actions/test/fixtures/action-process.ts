@@ -85,6 +85,8 @@ export interface RunActionProcessParams {
   inputs?: Record<string, unknown>;
   outputs?: ActionOutputDeclarations;
   actionsUrl?: string;
+  /** Leaves out `SHIPFOX_ENV`, `SHIPFOX_PATH`, and `SHIPFOX_MASK`, as an older runner does. */
+  withoutStepFiles?: boolean;
   /** Called with each stdout chunk, with the child to signal. */
   onStdout?: (chunk: string, child: {kill(signal: NodeJS.Signals): boolean}) => void;
 }
@@ -95,6 +97,8 @@ export interface ActionProcessResult {
   stderr: string;
   result: ActionResultFileV1 | null;
   outputs: Record<string, string>;
+  /** The raw `SHIPFOX_ENV`, `SHIPFOX_PATH`, and `SHIPFOX_MASK` files. */
+  stepFiles: {env: string; path: string; mask: string};
 }
 
 export async function runActionProcess(
@@ -106,6 +110,9 @@ export async function runActionProcess(
     context: join(sandbox.stepTemp, 'context.json'),
     result: join(sandbox.stepTemp, 'result.json'),
     output: join(sandbox.stepTemp, 'output'),
+    env: join(sandbox.stepTemp, 'env'),
+    path: join(sandbox.stepTemp, 'path'),
+    mask: join(sandbox.stepTemp, 'mask'),
   };
   const context: ActionContextFileV1 = {
     context: {
@@ -124,6 +131,9 @@ export async function runActionProcess(
     writeFile(paths.inputs, JSON.stringify(params.inputs ?? {}), {mode: 0o600}),
     writeFile(paths.context, JSON.stringify(context)),
     writeFile(paths.output, ''),
+    writeFile(paths.env, ''),
+    writeFile(paths.path, ''),
+    writeFile(paths.mask, ''),
     rm(paths.result, {force: true}),
   ]);
 
@@ -142,6 +152,9 @@ export async function runActionProcess(
         HOME: process.env.HOME,
         SHIPFOX_WORKSPACE: sandbox.workspace,
         SHIPFOX_OUTPUT: paths.output,
+        ...(params.withoutStepFiles
+          ? {}
+          : {SHIPFOX_ENV: paths.env, SHIPFOX_PATH: paths.path, SHIPFOX_MASK: paths.mask}),
         SHIPFOX_ACTION_PATH: sandbox.bundle,
         SHIPFOX_ACTION_MAIN: params.main ?? 'index.js',
         ...(params.origin ? {SHIPFOX_ACTION_ORIGIN: params.origin} : {}),
@@ -177,6 +190,11 @@ export async function runActionProcess(
       ? (JSON.parse(await readFile(paths.result, 'utf8')) as ActionResultFileV1)
       : null,
     outputs: parseOutputFile(await readFile(paths.output, 'utf8')),
+    stepFiles: {
+      env: await readFile(paths.env, 'utf8'),
+      path: await readFile(paths.path, 'utf8'),
+      mask: await readFile(paths.mask, 'utf8'),
+    },
   };
 }
 

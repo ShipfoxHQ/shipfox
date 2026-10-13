@@ -118,9 +118,10 @@ The runner sets these variables on run steps and action steps. A step `env` entr
 | `SHIPFOX_RUN_URL` | Link to the run in the Shipfox dashboard. |
 | `SHIPFOX_ENV` | Path of a file. Each `NAME=value` line, or `NAME<<DELIMITER` block, sets an environment variable for later steps of the job. `PATH` and names that start with `SHIPFOX_` fail the step. |
 | `SHIPFOX_PATH` | Path of a file. Each line names a directory that later steps of the job get at the front of `PATH`. A relative directory resolves against the step working directory. |
+| `SHIPFOX_MASK` | Path of a file. Each line names a value that the runner replaces with `***` in the logs, outputs, and annotations of later steps of the job. A value shorter than 8 characters fails the step. |
 
-The runner reads `SHIPFOX_ENV` and `SHIPFOX_PATH` when the step exits, whatever
-its exit code. See [Set environment variables for later
+The runner reads `SHIPFOX_ENV`, `SHIPFOX_PATH`, and `SHIPFOX_MASK` when the step
+exits, whatever its exit code. See [Set environment variables for later
 steps](/how-to/author-workflows/set-environment-variables-for-later-steps).
 
 ## Related pages

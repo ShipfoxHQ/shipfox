@@ -6,8 +6,10 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
 ## What it does
 
 - **`defineAction(handler)`** declares an action. The entry file default-exports the result. The
-  handler receives `inputs`, `tools`, `setOutput`, `log`, `signal`, and `context`, and may return
-  an object of outputs.
+  handler receives `inputs`, `tools`, `setOutput`, `setEnv`, `addPath`, `addMask`, `log`,
+  `signal`, and `context`, and may return an object of outputs.
+- **`setEnv(name, value)`** and **`addPath(directory)`** hand an environment variable or a `PATH`
+  directory to the later steps of the job. **`addMask(value)`** masks a value in those steps.
 - **`tools.<alias>.call(tool, args, {signal})`** calls a tool granted to a manifest alias and
   returns a `ToolResult`. `tool` is a tool id or `family.method`.
 - **`tools.<alias>.download(tool, args, {destination})`** calls a file tool. The runner writes the
@@ -129,7 +131,8 @@ test('collects every page of a thread', async () => {
   with `no-fake-for-tool`. A fake that throws anything else, such as a failed assertion, makes
   `runAction` reject with that error.
 - **The result** holds `status`, `exitCode`, `outputs` (typed as later steps see them), `error`,
-  every `calls` entry, the interleaved `logs`, the `summary`, and the `workspace`.
+  every `calls` entry, the interleaved `logs`, the `summary`, the `carriedEnv`, `carriedPath`,
+  and `masks` the action wrote for later steps, and the `workspace`.
 - **The workspace** is a new temporary directory unless `workspace` names one. Call
   `result.workspace.remove()` to delete it. It deletes a named workspace too, so name only a
   disposable directory.
@@ -183,17 +186,24 @@ The bootstrap:
   or an unhandled rejection prints the stack and exits 1. An action that calls `process.exit`
   before the handler settles leaves no result, so the runner cannot count it as a success.
 
-The runner sets two files for the steps that follow, as it does for run steps:
+The runner sets three files for the steps that follow, as it does for run steps. `setEnv`,
+`addPath`, and `addMask` append to them right away, so the values survive a later throw:
 
 - `SHIPFOX_ENV` holds environment variables, one `NAME=value` per line or `NAME<<DELIMITER`
   blocks for multi-line values. Later run, action, and agent steps in the job see them. Step
   `env` overrides them. `PATH` and names starting with `SHIPFOX_` fail the step.
 - `SHIPFOX_PATH` holds one directory per line. A relative directory resolves against the step
   working directory. Later steps get these directories at the front of `PATH`, latest first.
+- `SHIPFOX_MASK` holds one value per line. The runner replaces each value with `***` in the
+  logs, outputs, and annotations of later steps, and in the outputs of this step. Logs the action
+  already wrote stay as they are. A value shorter than 8 characters fails the step, so `addMask`
+  throws for one. For a multi-line value, `addMask` writes each line of at least 8 characters.
 
-The runner reads both files after the process exits, whatever its exit code, so a failing action
-still hands its values on. If either file is invalid, no values from the step are handed on. When
-the action also failed, the step log names the invalid file. `runAction` does not set them.
+The runner reads the files after the process exits, whatever its exit code, so a failing action
+still hands its values on. If a file is invalid, no values from the step are handed on. When the
+action also failed, the step log names the invalid file. A runner that does not set a file makes
+its helper throw. `runAction` sets the files and returns them as `carriedEnv`, `carriedPath`, and
+`masks`.
 
 The loader decides by importer:
 

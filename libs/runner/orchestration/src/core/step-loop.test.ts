@@ -1233,6 +1233,31 @@ describe('runJobSteps', () => {
     });
   });
 
+  describe('runtime masks', () => {
+    it('registers the values a step masked for the job and masks its own outputs', async () => {
+      const step = buildRunStep({id: '00000000-0000-0000-0000-0000000000f1', position: 1});
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(step, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeRunStepMock.mockResolvedValueOnce({
+        success: true,
+        error: null,
+        exit_code: 0,
+        outputs: {token: 'runtime-token-value'},
+        maskedValues: ['runtime-token-value'],
+      });
+      const registerSecrets = vi.fn();
+
+      await runLoop({signal: new AbortController().signal, registerSecrets});
+
+      expect(registerSecrets).toHaveBeenCalledWith(['runtime-token-value']);
+      const report = reportStepMock.mock.calls.at(-1)?.[1];
+      expect(report).toMatchObject({outputs: {token: '***'}});
+      expect(report).not.toHaveProperty('maskedValues');
+    });
+  });
+
   describe('text log path', () => {
     let logsDir: string;
 

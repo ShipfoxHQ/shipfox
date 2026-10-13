@@ -20,6 +20,8 @@ export interface StepResult {
   // Step files the runner rejected on a step that had already failed. Written to the step log;
   // never reported.
   warnings?: string[];
+  // What the step wrote to `$SHIPFOX_MASK`. Stays on the runner; never reported.
+  maskedValues?: string[];
   // Resolved checkout details reported by setup or an explicit checkout step.
   checkout?: CheckoutResult;
   // Populated when success is false. Null on success.

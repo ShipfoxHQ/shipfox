@@ -1381,6 +1381,62 @@ describe('executeRunStep output sources', () => {
   });
 });
 
+describe('executeRunStep masked values', () => {
+  it('returns the values the step wrote to SHIPFOX_MASK, one per line', async () => {
+    const step = buildStep({
+      config: {
+        run: [
+          'echo "first-runtime-token" >> "$SHIPFOX_MASK"',
+          'echo "" >> "$SHIPFOX_MASK"',
+          'echo "second-runtime-token" >> "$SHIPFOX_MASK"',
+          'echo "first-runtime-token" >> "$SHIPFOX_MASK"',
+        ].join('\n'),
+      },
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(true);
+    expect(result.maskedValues).toEqual(['first-runtime-token', 'second-runtime-token']);
+  });
+
+  it('returns the values even when the step exits nonzero', async () => {
+    const step = buildStep({
+      config: {run: 'echo "runtime-token" >> "$SHIPFOX_MASK"\nexit 3'},
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result).toMatchObject({success: false, exit_code: 3});
+    expect(result.maskedValues).toEqual(['runtime-token']);
+  });
+
+  it('returns no masked values when the step wrote nothing', async () => {
+    const result = await executeRunStep(buildStep({config: {run: 'true'}}));
+
+    expect(result.maskedValues).toBeUndefined();
+  });
+
+  it('fails a successful step that masks a short value, without quoting it or carrying env', async () => {
+    const step = buildStep({
+      config: {
+        run: [
+          'echo "long-enough-token" >> "$SHIPFOX_MASK"',
+          'echo "short" >> "$SHIPFOX_MASK"',
+          'echo "TOKEN=short" >> "$SHIPFOX_ENV"',
+        ].join('\n'),
+      },
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toBe('Mask file line 2 is shorter than 8 characters.');
+    expect(result.maskedValues).toBeUndefined();
+    expect(result.carriedEnv).toBeUndefined();
+  });
+});
+
 describe('executeRunStep carried env', () => {
   it('returns what the step wrote to SHIPFOX_ENV and SHIPFOX_PATH', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'shipfox-carried-env-'));
