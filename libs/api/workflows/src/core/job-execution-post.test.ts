@@ -55,6 +55,7 @@ async function runNext(jobId: string, status: 'succeeded' | 'failed' = 'succeede
     jobId,
     stepId: next.step.id,
     status,
+    exitCode: status === 'succeeded' ? 0 : 1,
     ...(status === 'failed' ? {error: {message: 'boom'}} : {}),
   });
   return {step: next.step, outcome};
@@ -516,7 +517,7 @@ describe('action post steps', () => {
           config: {
             env: {ROUND: 'one'},
             state_source: {position: 1, attempt: 1},
-            post_context: {main_status: 'succeeded'},
+            post_context: {execution_failed: false, main_status: 'succeeded'},
           },
         },
       });

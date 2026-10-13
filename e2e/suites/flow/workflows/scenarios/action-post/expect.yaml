@@ -16,6 +16,7 @@ jobs:
             - "post token=***"
             - "post env=***"
             - "post execution.failed=false main=succeeded"
+            - "post build-ran=true"
           exclude:
             - "post-input-e2e-secret"
             - "post-env-e2e-secret"

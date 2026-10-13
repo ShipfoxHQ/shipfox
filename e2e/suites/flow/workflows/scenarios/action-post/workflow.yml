@@ -14,7 +14,7 @@ jobs:
         env:
           POST_ENV_SECRET: ${{ secrets.POST_ENV_SECRET }}
       - key: build
-        run: echo "build runs between the main entry and the post"
+        run: touch .post-probe-build-ran
   authored_failure:
     steps:
       - key: probe

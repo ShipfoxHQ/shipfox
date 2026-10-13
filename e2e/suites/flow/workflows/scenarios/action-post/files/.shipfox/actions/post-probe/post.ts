@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {existsSync} from 'node:fs';
 import {delimiter, resolve} from 'node:path';
 import {defineAction} from '@shipfox/actions';
 
@@ -32,6 +33,7 @@ export default defineAction<{token: string; fail_post: string}>(({inputs, state,
   log.info(`post env=${process.env.POST_ENV_SECRET}`);
   log.info(`post execution.failed=${context.execution?.failed} main=${context.main?.status}`);
   log.info('post path=ok');
+  log.info(`post build-ran=${existsSync('.post-probe-build-ran')}`);
   if (inputs.fail_post === 'true') throw new Error('The post was asked to fail.');
   return undefined;
 });
