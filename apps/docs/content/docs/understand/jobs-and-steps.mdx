@@ -230,9 +230,10 @@ In this workflow:
 
 ### Read outputs after a failure
 
-A skipped step has no outputs. A step or job that runs after a failure can
-read an output that has no value. Shipfox then cannot evaluate the condition,
-and it skips the step or job. Check the output with `has()` first:
+A skipped step sets no outputs. An output without a `default` then has no
+value. A step or job that runs after a failure can read such an output. Shipfox
+then cannot evaluate the condition, and it skips the step or job. Check the
+output with `has()` first:
 
 ```yaml
 if: ${{ has(steps.test.outputs.report) }}
