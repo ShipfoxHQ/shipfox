@@ -268,21 +268,8 @@ export interface FindOpenImpersonationWindowForWorkspaceParams {
 export async function findOpenImpersonationWindowForWorkspace(
   params: FindOpenImpersonationWindowForWorkspaceParams,
 ): Promise<ImpersonationWindow | undefined> {
-  const rows = await db()
-    .select()
-    .from(impersonationWindows)
-    .where(
-      and(
-        eq(impersonationWindows.actorId, params.actorId),
-        eq(impersonationWindows.workspaceId, params.workspaceId),
-        isNull(impersonationWindows.endedAt),
-        gt(impersonationWindows.deadlineAt, params.now),
-      ),
-    )
-    .orderBy(desc(impersonationWindows.startedAt), desc(impersonationWindows.id))
-    .limit(1);
-  const row = rows[0];
-  return row ? toImpersonationWindow(row) : undefined;
+  const [newest] = await listOpenImpersonationWindowsForWorkspace(params);
+  return newest;
 }
 
 /** Returns every open window the actor has on a workspace, newest first. */
