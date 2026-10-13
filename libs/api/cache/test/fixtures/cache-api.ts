@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import {CACHE_PART_SIZE_BYTES} from '@shipfox/api-cache-dto';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import type {LightMyRequestResponse} from 'fastify';
+import {type CacheStoragePolicy, createWorkspaceStorageLimits} from '#core/storage-policy.js';
 import {createCacheRoutes} from '#presentation/routes/index.js';
 import {fakeLeaseTokenAuthMethod, mintLeaseToken} from './lease-token.js';
 
@@ -23,7 +24,9 @@ export interface TestApp {
   close(): Promise<void>;
 }
 
-export async function createCacheTestApp(): Promise<TestApp> {
+export async function createCacheTestApp(
+  options: {storagePolicy?: CacheStoragePolicy} = {},
+): Promise<TestApp> {
   const origins = new Map<string, RunOrigin | null>();
   const workflows: TestWorkflows = {
     getWorkflowRunOrigin: ({workflowRunId}) =>
@@ -33,7 +36,7 @@ export async function createCacheTestApp(): Promise<TestApp> {
   };
   const app = await createApp({
     auth: [fakeLeaseTokenAuthMethod],
-    routes: createCacheRoutes(workflows),
+    routes: createCacheRoutes(workflows, createWorkspaceStorageLimits(options.storagePolicy)),
     swagger: false,
   });
   await app.ready();

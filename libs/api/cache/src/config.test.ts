@@ -11,6 +11,7 @@ describe('cache config', () => {
     expect(config.CACHE_MAX_RETENTION_DAYS).toBe(90);
     expect(config.CACHE_URL_TTL_SECONDS).toBe(3600);
     expect(config.CACHE_STORAGE_S3_PREFIX).toBe('cache');
+    expect(config.CACHE_WORKSPACE_MAX_BYTES).toBeUndefined();
   });
 
   it.each([
@@ -22,6 +23,7 @@ describe('cache config', () => {
     ['CACHE_DEFAULT_RETENTION_DAYS', '0'],
     ['CACHE_DEFAULT_RETENTION_DAYS', '91'],
     ['CACHE_MAX_RETENTION_DAYS', '1.5'],
+    ['CACHE_WORKSPACE_MAX_BYTES', '0'],
   ])('rejects %s=%s', async (name, value) => {
     vi.stubEnv(name, value);
 

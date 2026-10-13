@@ -1,8 +1,10 @@
-import {and, eq, like, sql} from 'drizzle-orm';
+import {and, asc, eq, like, notInArray, sql} from 'drizzle-orm';
 import type {CacheDeletionReason, CacheEntry} from '#core/entities/cache-entry.js';
+import {cacheDeletionCount} from '#metrics/instance.js';
 import {db} from './db.js';
 import {cacheDeletions} from './schema/deletions.js';
 import {cacheEntries, toCacheEntry} from './schema/entries.js';
+import {cacheWorkspaceSettings} from './schema/workspace-settings.js';
 
 export interface EntryIdentity {
   projectId: string;
@@ -123,24 +125,30 @@ export async function touchEntry(id: string): Promise<void> {
     );
 }
 
-export async function deleteUploadingEntry(id: string): Promise<void> {
-  await db()
+/** Returns whether a row was deleted. An entry that became ready meanwhile stays. */
+export async function deleteUploadingEntry(id: string): Promise<boolean> {
+  const deleted = await db()
     .delete(cacheEntries)
-    .where(and(eq(cacheEntries.id, id), eq(cacheEntries.status, 'uploading')));
+    .where(and(eq(cacheEntries.id, id), eq(cacheEntries.status, 'uploading')))
+    .returning({id: cacheEntries.id});
+  return deleted.length > 0;
 }
 
-/** Deletes the row and records why, together, so the history never disagrees with the index. */
+/**
+ * Deletes the row and records why, together, so the history never disagrees with the index.
+ * Returns whether this call deleted the row.
+ */
 export async function deleteReadyEntry(params: {
   entry: CacheEntry;
   reason: CacheDeletionReason;
-}): Promise<void> {
+}): Promise<boolean> {
   const {entry, reason} = params;
-  await db().transaction(async (tx) => {
-    const deleted = await tx
+  const deleted = await db().transaction(async (tx) => {
+    const rows = await tx
       .delete(cacheEntries)
       .where(and(eq(cacheEntries.id, entry.id), eq(cacheEntries.status, 'ready')))
       .returning({id: cacheEntries.id});
-    if (deleted.length === 0) return;
+    if (rows.length === 0) return false;
     await tx.insert(cacheDeletions).values({
       workspaceId: entry.workspaceId,
       projectId: entry.projectId,
@@ -149,7 +157,103 @@ export async function deleteReadyEntry(params: {
       sizeBytes: entry.sizeBytes,
       reason,
     });
+    return true;
   });
+  if (deleted) cacheDeletionCount.add(1, {reason});
+  return deleted;
+}
+
+export interface ListForSweepParams {
+  limit: number;
+  /** Entries a deletion already failed on in this pass, left for the next one. */
+  excludeIds: readonly string[];
+}
+
+/** Ready entries idle for longer than their workspace's retention, oldest first. */
+export async function listExpiredEntries(
+  params: ListForSweepParams & {defaultRetentionDays: number},
+): Promise<CacheEntry[]> {
+  const rows = await db()
+    .select({entry: cacheEntries})
+    .from(cacheEntries)
+    .leftJoin(
+      cacheWorkspaceSettings,
+      eq(cacheWorkspaceSettings.workspaceId, cacheEntries.workspaceId),
+    )
+    .where(
+      and(
+        eq(cacheEntries.status, 'ready'),
+        sql`${cacheEntries.lastAccessedAt} < now() - make_interval(days => coalesce(${cacheWorkspaceSettings.retentionDays}, ${params.defaultRetentionDays}::int))`,
+        excludeCondition(params.excludeIds),
+      ),
+    )
+    .orderBy(asc(cacheEntries.lastAccessedAt))
+    .limit(params.limit);
+  return rows.map((row) => toCacheEntry(row.entry));
+}
+
+export async function listStaleUploadingEntries(
+  params: ListForSweepParams & {olderThanSeconds: number},
+): Promise<CacheEntry[]> {
+  const rows = await db()
+    .select()
+    .from(cacheEntries)
+    .where(
+      and(
+        eq(cacheEntries.status, 'uploading'),
+        sql`${cacheEntries.createdAt} < now() - make_interval(secs => ${params.olderThanSeconds})`,
+        excludeCondition(params.excludeIds),
+      ),
+    )
+    .orderBy(asc(cacheEntries.createdAt))
+    .limit(params.limit);
+  return rows.map(toCacheEntry);
+}
+
+export async function listLeastRecentlyUsedEntries(
+  params: ListForSweepParams & {workspaceId: string},
+): Promise<CacheEntry[]> {
+  const rows = await db()
+    .select()
+    .from(cacheEntries)
+    .where(
+      and(
+        eq(cacheEntries.workspaceId, params.workspaceId),
+        eq(cacheEntries.status, 'ready'),
+        excludeCondition(params.excludeIds),
+      ),
+    )
+    .orderBy(asc(cacheEntries.lastAccessedAt))
+    .limit(params.limit);
+  return rows.map(toCacheEntry);
+}
+
+const storedBytes = sql<string>`coalesce(sum(${cacheEntries.sizeBytes}), 0)`;
+
+/** Stored bytes are the committed entries only. Uploads in flight count for nothing. */
+export async function sumStoredBytes(workspaceId?: string): Promise<number> {
+  const [row] = await db()
+    .select({storedBytes})
+    .from(cacheEntries)
+    .where(
+      and(
+        eq(cacheEntries.status, 'ready'),
+        workspaceId ? eq(cacheEntries.workspaceId, workspaceId) : undefined,
+      ),
+    );
+  return Number(row?.storedBytes ?? 0);
+}
+
+export async function listWorkspacesWithEntries(): Promise<string[]> {
+  const rows = await db()
+    .selectDistinct({workspaceId: cacheEntries.workspaceId})
+    .from(cacheEntries)
+    .where(eq(cacheEntries.status, 'ready'));
+  return rows.map((row) => row.workspaceId);
+}
+
+function excludeCondition(ids: readonly string[]) {
+  return ids.length > 0 ? notInArray(cacheEntries.id, [...ids]) : undefined;
 }
 
 function identityCondition(params: EntryIdentity) {

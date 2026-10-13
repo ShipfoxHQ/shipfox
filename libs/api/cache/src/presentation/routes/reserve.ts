@@ -25,6 +25,7 @@ export function createReserveRoute(context: CacheRequestContext) {
         version: body.version,
         sizeBytes: body.size_bytes,
         sha256: body.sha256,
+        limits: context.limits,
       });
       if (result.status !== 'reserved') return {status: result.status};
 

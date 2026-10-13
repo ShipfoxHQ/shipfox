@@ -15,10 +15,12 @@ import {
 import type {CacheLease} from '#core/lease.js';
 import {createRunOriginResolver} from '#core/run-origin.js';
 import {assertScopeNotReserved, createScopeView, type ScopeView} from '#core/scopes.js';
+import type {WorkspaceStorageLimits} from '#core/storage-policy.js';
 
 type RequestWithLease = Parameters<typeof requireLeasedJobContext>[0];
 
 export interface CacheRequestContext {
+  limits: WorkspaceStorageLimits;
   lease(request: RequestWithLease): CacheLease;
   /** Rejects reserved scopes, then maps the run's authored scopes to its stored scopes. */
   scopes(request: RequestWithLease, authoredScopes: string[]): Promise<ScopeView>;
@@ -27,10 +29,12 @@ export interface CacheRequestContext {
 /** Workspace and project always come from the lease, never from a body. */
 export function createCacheRequestContext(
   workflows: Pick<WorkflowsModuleClient, 'getWorkflowRunOrigin'>,
+  limits: WorkspaceStorageLimits,
 ): CacheRequestContext {
   const origins = createRunOriginResolver(workflows);
 
   return {
+    limits,
     lease(request) {
       const claims = requireLeasedJobContext(request);
       return {

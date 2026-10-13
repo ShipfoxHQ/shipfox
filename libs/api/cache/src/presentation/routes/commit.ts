@@ -24,6 +24,7 @@ export function createCommitRoute(context: CacheRequestContext) {
         lease: context.lease(request),
         entryId: request.params.entryId,
         parts: request.body.parts,
+        limits: context.limits,
       });
       return {status: 'ready' as const};
     },

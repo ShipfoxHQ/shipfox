@@ -3,6 +3,7 @@ import type {CacheDeletionReason, CacheEntry} from '#core/entities/cache-entry.j
 import {db} from '#db/db.js';
 import {cacheDeletions} from '#db/schema/deletions.js';
 import {cacheEntries, toCacheEntry} from '#db/schema/entries.js';
+import {cacheWorkspaceSettings} from '#db/schema/workspace-settings.js';
 
 export async function findEntryRow(params: {
   projectId: string;
@@ -48,4 +49,27 @@ export async function setCommittedAt(params: {id: string; at: Date}): Promise<vo
     .update(cacheEntries)
     .set({committedAt: params.at})
     .where(eq(cacheEntries.id, params.id));
+}
+
+export async function setCreatedAt(params: {id: string; at: Date}): Promise<void> {
+  await db().update(cacheEntries).set({createdAt: params.at}).where(eq(cacheEntries.id, params.id));
+}
+
+export async function setRetentionDays(params: {
+  workspaceId: string;
+  retentionDays: number;
+}): Promise<void> {
+  await db().insert(cacheWorkspaceSettings).values(params);
+}
+
+export async function insertDeletion(params: {projectId: string; deletedAt: Date}): Promise<void> {
+  await db().insert(cacheDeletions).values({
+    workspaceId: crypto.randomUUID(),
+    projectId: params.projectId,
+    scope: 'default',
+    key: 'old',
+    sizeBytes: 1,
+    reason: 'expired',
+    deletedAt: params.deletedAt,
+  });
 }

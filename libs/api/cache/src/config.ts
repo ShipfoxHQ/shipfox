@@ -50,6 +50,10 @@ export const config = createConfig({
     desc: 'Longest retention, in days, that a workspace may set for its cache entries. Must be a whole number of days, 1 or greater. Defaults to 90 days.',
     default: 90,
   }),
+  CACHE_WORKSPACE_MAX_BYTES: num({
+    desc: 'Most bytes of cache entries one workspace may store. Above it, the least recently used entries are evicted, and a larger single entry is not saved. Must be a whole number, 1 or greater. Leave it unset for no limit. Ignored when the application composes its own storage policy.',
+    default: undefined,
+  }),
 });
 
 const MAX_PRESIGN_TTL_SECONDS = 604_800;
@@ -88,5 +92,14 @@ if (
 ) {
   throw new Error(
     `CACHE_DEFAULT_RETENTION_DAYS (${config.CACHE_DEFAULT_RETENTION_DAYS}) must be a whole number of days between 1 and CACHE_MAX_RETENTION_DAYS (${config.CACHE_MAX_RETENTION_DAYS}).`,
+  );
+}
+
+if (
+  config.CACHE_WORKSPACE_MAX_BYTES !== undefined &&
+  (!Number.isInteger(config.CACHE_WORKSPACE_MAX_BYTES) || config.CACHE_WORKSPACE_MAX_BYTES < 1)
+) {
+  throw new Error(
+    `CACHE_WORKSPACE_MAX_BYTES (${config.CACHE_WORKSPACE_MAX_BYTES}) must be a whole number of bytes >= 1.`,
   );
 }

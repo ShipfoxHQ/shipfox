@@ -4,6 +4,7 @@ export {
   type DefaultAgentModuleOptions,
   type DefaultAuthModuleFactory,
   type DefaultAuthModuleOptions,
+  type DefaultCacheModuleOptions,
   type DefaultModulesExtension,
   type DefaultModulesOptions,
   type DefaultRunnersModuleFactory,

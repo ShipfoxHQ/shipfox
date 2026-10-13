@@ -12,6 +12,7 @@ import {
 import {cacheSaveCount} from '#metrics/instance.js';
 import type {CacheEntry} from './entities/cache-entry.js';
 import type {CacheLease} from './lease.js';
+import type {WorkspaceStorageLimits} from './storage-policy.js';
 
 export interface ReserveCacheEntryParams {
   lease: CacheLease;
@@ -20,6 +21,7 @@ export interface ReserveCacheEntryParams {
   version: string;
   sizeBytes: number;
   sha256: string;
+  limits: WorkspaceStorageLimits;
 }
 
 export type ReserveCacheEntryResult =
@@ -36,9 +38,7 @@ const MAX_ATTEMPTS = 3;
 export async function reserveCacheEntry(
   params: ReserveCacheEntryParams,
 ): Promise<ReserveCacheEntryResult> {
-  if (params.sizeBytes > config.CACHE_MAX_ENTRY_BYTES) {
-    return record({status: 'too_large'});
-  }
+  if (await exceedsSizeLimits(params)) return record({status: 'too_large'});
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const inserted = await insertUploadingEntry({
@@ -81,6 +81,13 @@ export async function reserveCacheEntry(
     return record({status: 'in_progress'});
   }
   return record({status: 'in_progress'});
+}
+
+async function exceedsSizeLimits(params: ReserveCacheEntryParams): Promise<boolean> {
+  if (params.sizeBytes > config.CACHE_MAX_ENTRY_BYTES) return true;
+  // An entry over the whole workspace limit could only be saved by evicting everything else.
+  const maxStoredBytes = await params.limits.maxStoredBytes(params.lease.workspaceId);
+  return maxStoredBytes !== null && params.sizeBytes > maxStoredBytes;
 }
 
 async function startUpload(entry: CacheEntry): Promise<ReserveCacheEntryResult> {

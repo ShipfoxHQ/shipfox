@@ -9,6 +9,7 @@ Runs a Shipfox API server.
 - **`DefaultAgentModuleOptions`**: Configures the standard Agent module while `defaultModules()` supplies its Secrets and Workflows clients.
 - **`DefaultAuthModuleOptions`**: Configures the standard Auth module while `defaultModules()` supplies its Workspaces client.
 - **`DefaultRunnersModuleOptions`**: Configures the standard Runners module while `defaultModules()` supplies its Auth client.
+- **`DefaultCacheModuleOptions`**: Configures the standard Cache module while `defaultModules()` supplies its Workflows client.
 - **`DefaultAgentModuleFactory`**, **`DefaultAuthModuleFactory`**, and **`DefaultRunnersModuleFactory`**: Full module replacement escape hatches.
 - **`createServer()`**: Builds an API server. The caller owns process signals.
 - **`runServer()`**: Starts the server. It listens for SIGTERM and SIGINT.
@@ -69,6 +70,15 @@ To configure installation provisioning in the standard Runners module, use
 ```ts
 const modules = await defaultModules({
   runnersModuleOptions: {installationProvisioning: {policy}},
+});
+```
+
+To bound cache storage per workspace in the standard Cache module, use
+`cacheModuleOptions`:
+
+```ts
+const modules = await defaultModules({
+  cacheModuleOptions: {storage: {policy}},
 });
 ```
 

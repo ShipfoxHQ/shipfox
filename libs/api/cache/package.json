@@ -31,7 +31,7 @@
     }
   },
   "scripts": {
-    "build": "shipfox-swc",
+    "build": "shipfox-swc && shipfox-temporal-bundle dist/temporal/workflows/index.js",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "depcruise": "shipfox-depcruise",
@@ -52,6 +52,9 @@
     "@shipfox/node-object-storage": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
+    "@shipfox/node-temporal": "workspace:*",
+    "@temporalio/activity": "catalog:",
+    "@temporalio/workflow": "catalog:",
     "drizzle-orm": "catalog:",
     "zod": "catalog:"
   },
@@ -64,6 +67,7 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
+    "@temporalio/testing": "catalog:",
     "drizzle-kit": "catalog:",
     "fastify": "catalog:",
     "fastify-type-provider-zod": "catalog:",

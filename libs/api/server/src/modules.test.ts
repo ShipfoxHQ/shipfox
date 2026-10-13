@@ -979,6 +979,16 @@ describe('defaultModules', () => {
     });
   });
 
+  it('composes Cache storage options', async () => {
+    const policy = {resolve: vi.fn().mockResolvedValue({maxStoredBytes: null})};
+
+    await defaultModules({cacheModuleOptions: {storage: {policy}}});
+
+    expect(mocks.createCacheModule).toHaveBeenCalledWith(
+      expect.objectContaining({storage: {policy}}),
+    );
+  });
+
   it('composes Workflows admission options', async () => {
     const policy = {admit: vi.fn().mockResolvedValue({allowed: true})};
     const options: DefaultWorkflowsModuleOptions = {admission: {policy}};

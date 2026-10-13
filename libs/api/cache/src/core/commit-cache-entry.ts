@@ -1,3 +1,5 @@
+import {reportError} from '@shipfox/node-error-monitoring';
+import {logger} from '@shipfox/node-opentelemetry';
 import {entryObjectKey, objectStore} from '#api/object-storage.js';
 import {config} from '#config.js';
 import {deleteUploadingEntry, findEntryById, markEntryReady} from '#db/entries.js';
@@ -10,19 +12,23 @@ import {
   UploadObjectMissingError,
   UploadSizeMismatchError,
 } from './errors.js';
+import {evictWorkspace} from './evict-workspace.js';
 import {findOwnedEntry} from './find-owned-entry.js';
 import type {CacheLease} from './lease.js';
+import type {WorkspaceStorageLimits} from './storage-policy.js';
 
 export interface CommitCacheEntryParams {
   lease: CacheLease;
   entryId: string;
   parts: {number: number; etag: string}[];
+  limits: WorkspaceStorageLimits;
 }
 
 /**
  * Completes the multipart upload, then trusts nothing the runner declared: the stored object must
  * exist and match the reserved size, or the object and the row go. A repeated commit finds the
- * entry ready, or finds the upload already completed and falls through to the same checks.
+ * entry ready, or finds the upload already completed and falls through to the same checks. A new
+ * entry can push the workspace over its limit, so eviction runs before the answer.
  */
 export async function commitCacheEntry(params: CommitCacheEntryParams): Promise<void> {
   const entry = await findOwnedEntry(params);
@@ -65,6 +71,11 @@ export async function commitCacheEntry(params: CommitCacheEntryParams): Promise<
 
   if (await markEntryReady(entry.id)) {
     cacheSaveCount.add(1, {result: 'committed'});
+    await evictAfterCommit({
+      workspaceId: entry.workspaceId,
+      entryId: entry.id,
+      limits: params.limits,
+    });
     return;
   }
 
@@ -73,4 +84,22 @@ export async function commitCacheEntry(params: CommitCacheEntryParams): Promise<
   if (current?.status === 'ready') return;
   await objectStore().deleteObject(key);
   throw new UploadAbortedError(entry.id);
+}
+
+// The entry is saved either way, and the sweeper evicts on its next pass.
+async function evictAfterCommit(params: {
+  workspaceId: string;
+  entryId: string;
+  limits: WorkspaceStorageLimits;
+}): Promise<void> {
+  try {
+    await evictWorkspace({
+      workspaceId: params.workspaceId,
+      limits: params.limits,
+      keepEntryId: params.entryId,
+    });
+  } catch (error) {
+    logger().error({err: error, entryId: params.entryId}, 'Cache eviction after a commit failed');
+    reportError(error, {boundary: 'cache.maintenance', extra: {entryId: params.entryId}});
+  }
 }
