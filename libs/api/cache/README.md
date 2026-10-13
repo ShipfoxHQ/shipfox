@@ -101,7 +101,7 @@ These routes use a user session. A project route answers `404 project-not-found`
 | `GET /projects/:projectId/cache/scopes` | Member | Scopes with entry count, bytes, and last use. A dev sandbox carries `dev_sandbox` with its user. |
 | `GET /projects/:projectId/cache/entries` | Member | Committed entries, newest first, filtered by `scope` and `key_prefix`, paged with `cursor` and `limit`. |
 | `DELETE /projects/:projectId/cache/entries/:entryId` | Member | Delete one committed entry and its archive. |
-| `DELETE /projects/:projectId/cache/scopes/:scope` | Member | Delete every committed entry of a stored scope. The scope is the rest of the path, encoded or not. A dev sandbox scope reads `dev/{user_id}/{scope}`. |
+| `DELETE /projects/:projectId/cache/scopes/:scope` | Member | Delete every committed entry of a stored scope. The scope is the rest of the path, encoded or not. A dev sandbox scope reads `dev/{user_id}/{scope}`, or `dev/shared/{scope}` for dev runs with no recorded user, whose `dev_sandbox.user_id` is null. |
 | `GET /workspaces/:workspaceId/cache/usage` | Member | Stored bytes, limit, bytes per project, and the latest 100 deletions. It reads the current entries, not usage records. |
 | `GET /workspaces/:workspaceId/cache/settings` | Member | Retention in days, with the default and the maximum. |
 | `PUT /workspaces/:workspaceId/cache/settings` | Workspace admin | Set the retention, from 1 day to `CACHE_MAX_RETENTION_DAYS`. |

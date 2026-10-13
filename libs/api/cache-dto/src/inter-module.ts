@@ -28,7 +28,7 @@ export const cacheInterModuleContract = defineInterModuleContract({
         workspaceId: idSchema,
         projectId: idSchema,
         scope: cacheStoredScopeSchema.optional(),
-        keyPrefix: z.string().min(1).max(512).optional(),
+        keyPrefix: cacheKeySchema.optional(),
         cursor: z.string().min(1).optional(),
         limit: z
           .number()
@@ -84,7 +84,10 @@ export const cacheInterModuleContract = defineInterModuleContract({
       input: z.object({
         workspaceId: idSchema,
         projectId: idSchema,
-        target: z.union([z.object({entryId: idSchema}), z.object({scope: cacheStoredScopeSchema})]),
+        target: z.union([
+          z.strictObject({entryId: idSchema}),
+          z.strictObject({scope: cacheStoredScopeSchema}),
+        ]),
       }),
       output: z.object({deletedCount: z.number().int().min(0), deletedBytes: bytesSchema}),
       errors: {

@@ -66,7 +66,7 @@ row uploading for a retry or an abort.
 
 **Members manage the cache through user routes and an inter-module contract.** Routes under
 `/projects/:projectId/cache` and `/workspaces/:workspaceId/cache` list and delete entries, read
-the stored bytes, and set the retention. Any member of the workspace deletes entries, and a
+cache usage, and set the retention. Any member of the workspace deletes entries, and a
 workspace admin changes the retention. A project route resolves the workspace through Projects and
 answers a non-member with the same 404 as a missing project. The usage route reads the current
 `cache_entries`, not usage records. The Cache contract exposes the same three operations to the

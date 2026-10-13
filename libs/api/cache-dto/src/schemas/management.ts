@@ -64,7 +64,7 @@ export type ListCacheScopesResponseDto = z.infer<typeof listCacheScopesResponseS
 
 export const listCacheEntriesQuerySchema = z.object({
   scope: cacheStoredScopeSchema.optional(),
-  key_prefix: z.string().min(1).max(512).optional(),
+  key_prefix: cacheKeySchema.optional(),
   cursor: z.string().min(1).optional(),
   limit: z.coerce
     .number()

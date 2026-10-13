@@ -19,6 +19,11 @@ const scopeSchema = z
   .min(1)
   .max(CACHE_STORED_SCOPE_MAX_LENGTH)
   .regex(new RegExp(SCOPE_PATTERN));
+const keyPrefixSchema = z
+  .string()
+  .min(1)
+  .max(CACHE_KEY_MAX_LENGTH)
+  .refine((prefix) => !prefix.includes('\u0000'), 'A key prefix cannot contain a NUL character.');
 const bytesSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 const authoredScopeJson = {
@@ -41,7 +46,7 @@ export const listCacheEntriesInputSchema = z
   .object({
     project_id: idSchema,
     scope: scopeSchema.optional(),
-    key_prefix: z.string().min(1).max(CACHE_KEY_MAX_LENGTH).optional(),
+    key_prefix: keyPrefixSchema.optional(),
     limit: z
       .number()
       .int()
@@ -121,7 +126,12 @@ export const listCacheEntriesInputJsonSchema = {
   properties: {
     project_id: uuidJson,
     scope: scopeJson,
-    key_prefix: {type: 'string', minLength: 1, maxLength: CACHE_KEY_MAX_LENGTH},
+    key_prefix: {
+      type: 'string',
+      minLength: 1,
+      maxLength: CACHE_KEY_MAX_LENGTH,
+      pattern: '^[^\\u0000]+$',
+    },
     limit: {
       type: 'integer',
       minimum: 1,

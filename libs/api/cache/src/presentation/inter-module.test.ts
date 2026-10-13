@@ -166,6 +166,22 @@ describe('cache inter-module presentation', () => {
     expect(await findEntryRowById(entryId)).toBeDefined();
   });
 
+  it('refuses a delete that names both an entry and a scope', async () => {
+    const job = await startOwnedJob();
+    const entryId = await saveEntry(testApp.app, job, {key: 'k', body: archiveOf('x')});
+
+    const error = await cache
+      .deleteCacheEntries({
+        workspaceId: job.workspaceId,
+        projectId: job.projectId,
+        target: {entryId, scope: 'default'} as never,
+      })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(await findEntryRowById(entryId)).toBeDefined();
+  });
+
   it('reports the usage of the workspace with its limit', async () => {
     const job = await startOwnedJob();
     await saveEntry(testApp.app, job, {key: 'k', body: archiveOf('1234')});

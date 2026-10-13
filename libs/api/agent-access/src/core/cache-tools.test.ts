@@ -94,6 +94,37 @@ describe('list_cache_entries', () => {
     expect(result.entries[1]?.dev_sandbox).toEqual({user_id: 'user-1', scope: 'main'});
   });
 
+  test('carries a dev sandbox of the longest authored scope', async () => {
+    const authored = 'x'.repeat(128);
+    const stored = `dev/${crypto.randomUUID()}/${authored}`;
+    const listCacheEntries = vi.fn().mockResolvedValue({
+      entries: [entry({scope: stored, devSandbox: {userId: null, scope: authored}})],
+      nextCursor: null,
+    });
+    const tool = toolNamed('list_cache_entries', {listCacheEntries});
+
+    const response = await tool.execute({
+      context,
+      arguments: {project_id: projectId, scope: stored},
+    });
+
+    expect(tool.validateInput?.({project_id: projectId, scope: stored})).toBe(true);
+    expect(tool.validateResult?.(response.result)).toBe(true);
+  });
+
+  test('rejects a key prefix with a NUL character', async () => {
+    const listCacheEntries = vi.fn();
+    const tool = toolNamed('list_cache_entries', {listCacheEntries});
+
+    const response = await tool.execute({
+      context,
+      arguments: {project_id: projectId, key_prefix: 'a\u0000b'},
+    });
+
+    expect(response).toMatchObject({ok: false, error: {code: 'invalid-request'}});
+    expect(listCacheEntries).not.toHaveBeenCalled();
+  });
+
   test('answers not found for a project of another workspace', async () => {
     const listCacheEntries = vi
       .fn()

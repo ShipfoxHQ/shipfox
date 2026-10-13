@@ -16,6 +16,10 @@ describe('listCacheEntriesQuerySchema', () => {
     expect(listCacheEntriesQuerySchema.safeParse({limit}).success).toBe(false);
   });
 
+  it('rejects a key prefix that holds a NUL character', () => {
+    expect(listCacheEntriesQuerySchema.safeParse({key_prefix: 'a\u0000b'}).success).toBe(false);
+  });
+
   it('accepts a dev sandbox scope as the stored scope', () => {
     const query = listCacheEntriesQuerySchema.parse({
       scope: 'dev/user-1/main',
