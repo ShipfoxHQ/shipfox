@@ -145,12 +145,15 @@ reference](/reference/workflow-schema#job-fields) defines the dependency syntax.
 
 ## When a step or job runs
 
-By default, a failure stops the work that follows it. A step is skipped when an
-earlier step in the same job failed. A job is skipped unless every job in its
-`needs` succeeded. This default protects writes: a step that pushes a branch
-doesn't run after the tests before it failed.
+A failure stops the work that comes after it. This is the default:
 
-The `run_after` field changes the default on one step or job.
+- Shipfox skips a step when an earlier step in the same job failed.
+- Shipfox skips a job when a job in its `needs` did not succeed.
+
+The default protects writes. For example, a step that pushes a branch does not
+run when the tests before it failed.
+
+Set `run_after` on a step or a job to change the default.
 
 | `run_after` | A step runs when | A job runs when |
 | --- | --- | --- |
@@ -158,14 +161,24 @@ The `run_after` field changes the default on one step or job.
 | `failure` | An earlier step in the job failed. | At least one job in `needs` failed. |
 | `always` | Whatever earlier steps did. | Whatever the status of `needs`. |
 
-A job waits until every job in its `needs` has finished, whatever its
-`run_after`. A job with `run_after: failure` looks only at the jobs it names in
-`needs`, not at the jobs before those.
+A job always waits until every job in its `needs` has finished. With
+`run_after: failure`, a job looks only at the jobs in its own `needs`. It does
+not look at the jobs that those jobs need.
 
-An `if` adds to `run_after`. It doesn't replace it. Shipfox checks `run_after`
-first and evaluates the `if` only when `run_after` lets the step or job run.
-Both must pass. A step with an `if` and no `run_after` is still skipped after an
-earlier failure.
+### How `if` works with `run_after`
+
+An `if` does not replace `run_after`. Shipfox checks the two fields in this
+order:
+
+1. Shipfox checks `run_after`. If it does not pass, Shipfox skips the step or
+   job.
+2. Shipfox checks the `if`. If it is false, Shipfox skips the step or job.
+
+A step or job runs only when both checks pass. A step with an `if` and no
+`run_after` uses the default, so Shipfox still skips it after an earlier
+failure.
+
+This workflow shows the default, `always`, and `failure`:
 
 ```yaml title=".shipfox/workflows/fix-and-report.yml"
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
@@ -202,19 +215,37 @@ jobs:
       - run: echo "The fix job failed."
 ```
 
-Use `failure` for a handler that only makes sense after something broke, such
-as a failure report. Use `always` for work that must happen either way, such as
-a summary or a cleanup. With `always`, the `if` can still read a status to
-choose between the two cases.
+In this workflow:
 
-A step or job that runs after a failure can read values that were never set. A
-skipped step reports no outputs. Guard an optional output with `has()`, as in
-`has(steps.test.outputs.report)`, before a condition reads it.
+- `push` has an `if` and no `run_after`. Shipfox skips it when `test` fails.
+- `summary` runs when `test` passes and when `test` fails.
+- `report_failure` runs only when the `fix` job fails.
 
-When `run_after` skips a step or a job, the run page says so and shows the
-check that rejected it. A workflow synced before `run_after` existed keeps its
-earlier behavior until its file next changes: an `if` on such a step or job
-still replaces the default.
+### Which value to use
+
+- Use `failure` for work that is useful only after a failure, such as a failure
+  report.
+- Use `always` for work that must run in both cases, such as a summary or a
+  cleanup. Its `if` can read a status to do different work in each case.
+
+### Read outputs after a failure
+
+A skipped step has no outputs. A step or job that runs after a failure can
+read an output that has no value. Shipfox then cannot evaluate the condition,
+and it skips the step or job. Check the output with `has()` first:
+
+```yaml
+if: ${{ has(steps.test.outputs.report) }}
+```
+
+### Find out why Shipfox skipped a step or job
+
+The run page tells you when `run_after` skipped a step or a job. It also shows
+the check that did not pass.
+
+Workflows that Shipfox synced before `run_after` existed keep the old
+behavior: an `if` replaces the default. The new behavior starts the next time
+the workflow file changes.
 
 The [step fields](/reference/workflow-schema#step-fields) and [job
 fields](/reference/workflow-schema#job-fields) references define the field.

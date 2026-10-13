@@ -34,17 +34,22 @@ one `${{ }}` and nothing else:
 if: ${{ trigger.event == "push" }}
 ```
 
-An `if` does not decide whether a step or job runs after a failure. The
-`run_after` field decides that, and the `if` is evaluated only after `run_after`
-lets the step or job run. To handle a failure, set `run_after: failure`
-instead of reading a status in the `if`. Use `run_after: always` for work that
-must run either way. Its `if` can still read a status to choose between the two
-cases. See [When a step or job
-runs](/understand/jobs-and-steps#when-a-step-or-job-runs).
+Shipfox checks two fields before it runs a step or a job:
 
-`vars` and `secrets` accept a literal key only. `vars["API_URL"]` is valid and a
-computed key such as `vars[inputs.name]` is not. `secrets.local.KEY` is the
-explicit form of `secrets.KEY`; `local` names the built-in secret store.
+1. `run_after` looks at earlier failures. The default value is `success`. With
+   this value, Shipfox skips the step or job after a failure.
+2. `if` is checked only when `run_after` lets the step or job run.
+
+An `if` cannot make a step or job run after a failure. Use `run_after` for
+that:
+
+| To run a step or job | Set |
+| --- | --- |
+| Only after a failure | `run_after: failure` |
+| After a success and after a failure | `run_after: always` |
+
+See [When a step or job
+runs](/understand/jobs-and-steps#when-a-step-or-job-runs).
 
 ## Run identifiers
 
