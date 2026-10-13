@@ -15,4 +15,12 @@ process.env.OBJECT_STORAGE_S3_SECRET_ACCESS_KEY =
   '0000000000000000000000000000000000000000000000000000000000000000';
 process.env.OBJECT_STORAGE_S3_FORCE_PATH_STYLE = 'true';
 
+// The test setup deletes every object under the cache prefix, so an inherited override must never
+// point it at another store.
+for (const name of Object.keys(process.env)) {
+  if (name.startsWith('CACHE_STORAGE_S3_') || name === 'CACHE_STORAGE_PUBLIC_ENDPOINT') {
+    delete process.env[name];
+  }
+}
+
 process.env.TZ = 'UTC';
