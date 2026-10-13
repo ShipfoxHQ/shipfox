@@ -73,8 +73,8 @@ This module owns tables with the `cache_` prefix.
 
 ## Behavior notes
 
-- **Reserve:** The unique index on the entry identity decides concurrent reserves. The loser skips its upload. The job execution that holds an `uploading` row gets its reservation back with fresh URLs.
-- **Commit:** Commit completes the multipart upload, then reads the object size. A size that differs from the reservation deletes the object and the row. A repeated commit answers `ready`.
+- **Reserve:** The unique index on the entry identity decides concurrent reserves. The loser skips its upload. The job execution that holds an `uploading` row gets its reservation back with fresh URLs. When it reserves again with another size or hash, the old upload is aborted and a new reservation starts.
+- **Commit:** Commit completes the multipart upload, then reads the object size. A size that differs from the reservation, or an entry over `CACHE_MAX_ENTRY_BYTES`, deletes the object and the row (`size-mismatch`, `entry-too-large`). An abort that wins the race against a commit answers `upload-aborted` and removes the object. A repeated commit answers `ready`.
 - **Ownership:** Only the job execution that reserved an upload can commit or abort it. Any other caller gets `entry-not-found` on commit and a no-op on abort.
 - **Dev runs:** A dev run started by user `U` writes scope `X` to `dev/U/X` and reads `dev/U/X` before `X`. A run without a user uses `dev/shared/X`. A body that names a `dev/` scope fails with `reserved-scope`.
 - **Missing objects:** When `head` finds no object, or one of another size, the row is deleted with reason `missing` and the lookup continues. When `head` fails, the module trusts the row and a dead URL becomes a miss in the SDK.

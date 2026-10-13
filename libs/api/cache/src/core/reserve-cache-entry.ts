@@ -1,4 +1,5 @@
 import {CACHE_PART_SIZE_BYTES} from '@shipfox/api-cache-dto';
+import {logger} from '@shipfox/node-opentelemetry';
 import {entryObjectKey, objectStore} from '#api/object-storage.js';
 import {config} from '#config.js';
 import {
@@ -66,7 +67,16 @@ export async function reserveCacheEntry(
       return record({status: 'exists'});
     }
     if (existing.createdByJobExecutionId === params.lease.jobExecutionId && existing.uploadId) {
-      return record(await signedReservation(existing, existing.uploadId));
+      if (existing.sizeBytes === params.sizeBytes && existing.sha256 === params.sha256) {
+        return record(await signedReservation(existing, existing.uploadId));
+      }
+      // The job re-archived, so the old upload can never match what it will commit.
+      await objectStore().abortMultipartUpload({
+        key: entryObjectKey(existing),
+        uploadId: existing.uploadId,
+      });
+      await deleteUploadingEntry(existing.id);
+      continue;
     }
     return record({status: 'in_progress'});
   }
@@ -74,15 +84,34 @@ export async function reserveCacheEntry(
 }
 
 async function startUpload(entry: CacheEntry): Promise<ReserveCacheEntryResult> {
-  let uploadId: string;
+  let uploadId: string | undefined;
   try {
     uploadId = await objectStore().createMultipartUpload({key: entryObjectKey(entry)});
     await setUploadId({id: entry.id, uploadId});
   } catch (error) {
-    await deleteUploadingEntry(entry.id);
+    await releaseFailedStart({entry, uploadId});
     throw error;
   }
   return await signedReservation(entry, uploadId);
+}
+
+// Each cleanup step runs on its own, so one failure doesn't leave the other undone. A row that
+// survives without an upload id is reaped by the sweeper.
+async function releaseFailedStart(params: {
+  entry: CacheEntry;
+  uploadId: string | undefined;
+}): Promise<void> {
+  const {entry, uploadId} = params;
+  if (uploadId) {
+    await objectStore()
+      .abortMultipartUpload({key: entryObjectKey(entry), uploadId})
+      .catch((error: unknown) => {
+        logger().warn({err: error, entryId: entry.id}, 'Failed to abort a cache upload');
+      });
+  }
+  await deleteUploadingEntry(entry.id).catch((error: unknown) => {
+    logger().warn({err: error, entryId: entry.id}, 'Failed to delete a cache entry row');
+  });
 }
 
 async function signedReservation(

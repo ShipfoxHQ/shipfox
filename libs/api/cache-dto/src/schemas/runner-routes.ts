@@ -22,7 +22,11 @@ export const cacheScopeSchema = z
     'Author-chosen namespace inside the project, made of letters, digits, and . _ - /. The dev/ prefix is reserved.',
   );
 
-export const cacheKeySchema = z.string().min(1).max(CACHE_KEY_MAX_LENGTH);
+export const cacheKeySchema = z
+  .string()
+  .min(1)
+  .max(CACHE_KEY_MAX_LENGTH)
+  .refine((key) => !key.includes('\u0000'), 'A key cannot contain a NUL character.');
 
 export const cacheVersionSchema = z
   .string()

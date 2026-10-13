@@ -1,11 +1,12 @@
 import {entryObjectKey, objectStore} from '#api/object-storage.js';
 import {config} from '#config.js';
-import {deleteUploadingEntry, markEntryReady} from '#db/entries.js';
+import {deleteUploadingEntry, findEntryById, markEntryReady} from '#db/entries.js';
 import {cacheSaveCount} from '#metrics/instance.js';
-import type {CacheEntry} from './entities/cache-entry.js';
 import {
   CacheEntryNotCommittableError,
+  EntryTooLargeError,
   InvalidUploadError,
+  UploadAbortedError,
   UploadObjectMissingError,
   UploadSizeMismatchError,
 } from './errors.js';
@@ -29,7 +30,16 @@ export async function commitCacheEntry(params: CommitCacheEntryParams): Promise<
   if (!entry.uploadId) throw new CacheEntryNotCommittableError(entry.id);
 
   const key = entryObjectKey(entry);
-  await completeUpload({entry, uploadId: entry.uploadId, parts: params.parts});
+  const completion = await objectStore().completeMultipartUpload({
+    key,
+    uploadId: entry.uploadId,
+    parts: params.parts,
+  });
+  // A retried commit finds the upload already completed. The object check decides what to do.
+  if (completion.status === 'rejected') {
+    cacheSaveCount.add(1, {result: 'invalid_upload'});
+    throw new InvalidUploadError(entry.id);
+  }
 
   const stored = await objectStore().head(key);
   if (stored === null) {
@@ -37,45 +47,30 @@ export async function commitCacheEntry(params: CommitCacheEntryParams): Promise<
     cacheSaveCount.add(1, {result: 'object_missing'});
     throw new UploadObjectMissingError(entry.id);
   }
-  if (stored.contentLength !== entry.sizeBytes || entry.sizeBytes > config.CACHE_MAX_ENTRY_BYTES) {
+  if (stored.contentLength === undefined) {
+    throw new Error(`Object store returned no size for cache entry ${entry.id}`);
+  }
+  if (stored.contentLength !== entry.sizeBytes) {
     await objectStore().deleteObject(key);
     await deleteUploadingEntry(entry.id);
     cacheSaveCount.add(1, {result: 'size_mismatch'});
     throw new UploadSizeMismatchError(entry.id, entry.sizeBytes, stored.contentLength);
   }
-
-  const ready = await markEntryReady(entry.id);
-  if (ready) cacheSaveCount.add(1, {result: 'committed'});
-}
-
-async function completeUpload(params: {
-  entry: CacheEntry;
-  uploadId: string;
-  parts: CommitCacheEntryParams['parts'];
-}): Promise<void> {
-  try {
-    await objectStore().completeMultipartUpload({
-      key: entryObjectKey(params.entry),
-      uploadId: params.uploadId,
-      parts: params.parts,
-    });
-  } catch (error) {
-    // A retried commit finds the upload already completed. The object check decides what to do.
-    if (errorName(error) === 'NoSuchUpload') return;
-    if (isClientRejection(error)) {
-      cacheSaveCount.add(1, {result: 'invalid_upload'});
-      throw new InvalidUploadError(params.entry.id);
-    }
-    throw error;
+  if (entry.sizeBytes > config.CACHE_MAX_ENTRY_BYTES) {
+    await objectStore().deleteObject(key);
+    await deleteUploadingEntry(entry.id);
+    cacheSaveCount.add(1, {result: 'too_large'});
+    throw new EntryTooLargeError(entry.id, entry.sizeBytes);
   }
-}
 
-function errorName(error: unknown): string | undefined {
-  return typeof error === 'object' && error !== null ? (error as {name?: string}).name : undefined;
-}
+  if (await markEntryReady(entry.id)) {
+    cacheSaveCount.add(1, {result: 'committed'});
+    return;
+  }
 
-function isClientRejection(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false;
-  const status = (error as {$metadata?: {httpStatusCode?: number}}).$metadata?.httpStatusCode;
-  return status !== undefined && status >= 400 && status < 500;
+  // An abort deleted the row while the upload completed. Another commit may also have won.
+  const current = await findEntryById({id: entry.id, projectId: entry.projectId});
+  if (current?.status === 'ready') return;
+  await objectStore().deleteObject(key);
+  throw new UploadAbortedError(entry.id);
 }

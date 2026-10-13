@@ -10,7 +10,6 @@ import {
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
-  S3Client,
   UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import {Upload} from '@aws-sdk/lib-storage';
@@ -59,6 +58,13 @@ export interface CompleteMultipartUploadParams {
   readonly uploadId: string;
   readonly parts: readonly CompletedUploadPart[];
 }
+
+export type CompleteMultipartUploadResult =
+  | {readonly status: 'completed'}
+  /** The upload id is gone: aborted, expired, or already completed by an earlier call. */
+  | {readonly status: 'upload-not-found'}
+  /** The store refused the parts: a wrong ETag, a wrong order, or a part that is too small. */
+  | {readonly status: 'rejected'; readonly code: string};
 
 export interface AbortMultipartUploadParams {
   readonly key: string;
@@ -112,11 +118,17 @@ export interface PresignedObjectGet {
   readonly expiresAt: Date;
 }
 
+const REJECTED_PARTS_CODES = new Set([
+  'InvalidPart',
+  'InvalidPartOrder',
+  'EntityTooSmall',
+  'MalformedXML',
+]);
+
 export class S3ObjectStore {
   readonly #bucket: string;
   readonly #prefix: string;
   readonly #clients: ObjectStorageS3Clients;
-  readonly #presigner: S3Client;
 
   constructor({
     profile,
@@ -127,10 +139,9 @@ export class S3ObjectStore {
     assertObjectStoragePrefix(prefix);
     this.#bucket = profile.bucket;
     this.#prefix = prefix;
-    this.#clients = createObjectStorageS3Clients(profile, {transferRequestTimeoutMs});
-    this.#presigner = createPresignClient({
-      ...profile,
-      endpoint: publicEndpoint ?? profile.endpoint,
+    this.#clients = createObjectStorageS3Clients(profile, {
+      transferRequestTimeoutMs,
+      publicEndpoint,
     });
   }
 
@@ -323,7 +334,7 @@ export class S3ObjectStore {
     this.#assertInScope(key);
     const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
     const url = await getSignedUrl(
-      this.#presigner,
+      this.#clients.presign,
       new GetObjectCommand({Bucket: this.#bucket, Key: key}),
       {expiresIn: expiresInSeconds},
     );
@@ -348,7 +359,7 @@ export class S3ObjectStore {
     this.#assertInScope(params.key);
     const expiresAt = new Date(Date.now() + params.expiresInSeconds * 1000);
     const url = await getSignedUrl(
-      this.#presigner,
+      this.#clients.presign,
       new UploadPartCommand({
         Bucket: this.#bucket,
         Key: params.key,
@@ -362,21 +373,32 @@ export class S3ObjectStore {
 
   /**
    * Completing a few hundred parts can outlast the control timeout, so this uses the transfer
-   * client. Set `transferRequestTimeoutMs` on the store to bound it.
+   * client. Set `transferRequestTimeoutMs` on the store to bound it. The outcomes the caller
+   * can act on are results; any other failure, such as a denied or timed-out request, throws.
    */
-  async completeMultipartUpload(params: CompleteMultipartUploadParams): Promise<void> {
+  async completeMultipartUpload(
+    params: CompleteMultipartUploadParams,
+  ): Promise<CompleteMultipartUploadResult> {
     this.#assertInScope(params.key);
     const parts = [...params.parts]
       .sort((left, right) => left.number - right.number)
       .map((part) => ({PartNumber: part.number, ETag: part.etag}));
-    await this.#clients.transfer.send(
-      new CompleteMultipartUploadCommand({
-        Bucket: this.#bucket,
-        Key: params.key,
-        UploadId: params.uploadId,
-        MultipartUpload: {Parts: parts},
-      }),
-    );
+    try {
+      await this.#clients.transfer.send(
+        new CompleteMultipartUploadCommand({
+          Bucket: this.#bucket,
+          Key: params.key,
+          UploadId: params.uploadId,
+          MultipartUpload: {Parts: parts},
+        }),
+      );
+      return {status: 'completed'};
+    } catch (error) {
+      const code = errorName(error);
+      if (code === 'NoSuchUpload') return {status: 'upload-not-found'};
+      if (code && REJECTED_PARTS_CODES.has(code)) return {status: 'rejected', code};
+      throw error;
+    }
   }
 
   /** Resolves when the upload is gone, including when it never existed or already completed. */
@@ -399,7 +421,7 @@ export class S3ObjectStore {
   close(): void {
     this.#clients.control.destroy();
     this.#clients.transfer.destroy();
-    this.#presigner.destroy();
+    this.#clients.presign.destroy();
   }
 
   #assertInScope(key: string): void {
@@ -424,19 +446,6 @@ export function assertObjectStoragePrefix(prefix: string): void {
       'Object-storage prefix must be non-empty without leading, trailing, repeated, or parent-directory segments.',
     );
   }
-}
-
-// The SDK's default checksum calculation puts the CRC32 of an empty body into a presigned PUT's
-// query string, so the real part body fails S3's checksum check. Signing without it leaves the
-// body unconstrained.
-function createPresignClient(profile: ObjectStorageS3Profile): S3Client {
-  return new S3Client({
-    endpoint: profile.endpoint,
-    region: profile.region,
-    forcePathStyle: profile.forcePathStyle,
-    requestChecksumCalculation: 'WHEN_REQUIRED',
-    ...(profile.credentials ? {credentials: profile.credentials} : {}),
-  });
 }
 
 function errorName(error: unknown): string | undefined {

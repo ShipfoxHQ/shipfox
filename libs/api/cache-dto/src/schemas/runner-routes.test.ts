@@ -39,6 +39,25 @@ describe('cacheRestoreBodySchema', () => {
   });
 });
 
+describe('cacheKeySchema', () => {
+  it('rejects a NUL character, which Postgres cannot store', () => {
+    const parsed = cacheRestoreBodySchema.safeParse({
+      scope: 'default',
+      key: 'pnpm-\u0000-abc',
+      version: 'v1',
+    });
+    const inRestoreKeys = cacheRestoreBodySchema.safeParse({
+      scope: 'default',
+      key: 'k',
+      restore_keys: ['pnpm-\u0000'],
+      version: 'v1',
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(inRestoreKeys.success).toBe(false);
+  });
+});
+
 describe('cacheReserveBodySchema', () => {
   it('requires a positive size and a lowercase sha256', () => {
     const base = {scope: 'default', key: 'k', version: 'v1'};

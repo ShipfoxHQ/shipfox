@@ -52,7 +52,7 @@ The schema in `src/config.ts` owns the shared S3 variables and their defaults. C
 
 ## Behavior notes
 
-Presigned URLs are signed without the SDK's default request checksum, because that checksum is computed for an empty body and fails the real part upload. Set `publicEndpoint` when clients reach the store by another name than the server does: the host is part of the signature. `completeMultipartUpload` uses the transfer client, so set `transferRequestTimeoutMs` when a store completes large uploads. `abortMultipartUpload` resolves when the upload no longer exists.
+Presigned URLs are signed without the SDK's default request checksum, because that checksum is computed for an empty body and fails the real part upload. Set `publicEndpoint` when clients reach the store by another name than the server does: the host is part of the signature. `completeMultipartUpload` uses the transfer client, so set `transferRequestTimeoutMs` when a store completes large uploads. It returns `completed`, `upload-not-found`, or `rejected` for parts the store refuses, and throws for any other failure. `abortMultipartUpload` resolves when the upload no longer exists.
 
 Every store requires a non-empty prefix. List and delete operations reject keys outside that prefix.
 

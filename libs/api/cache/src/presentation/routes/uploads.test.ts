@@ -187,6 +187,71 @@ describe('cache uploads', () => {
     expect((await findEntryRowById(reserved.entry_id))?.status).toBe('uploading');
   });
 
+  it('restarts the upload when the same job execution reserves a key with a new archive', async () => {
+    const job = await startJob();
+    const client = cacheClient(testApp.app, job);
+    const first = (
+      await client.reserve({key: 'rebuilt', body: archiveOf('first archive')})
+    ).json() as Reservation;
+    const rebuilt = archiveOf('a different, longer archive');
+
+    const second = (await client.reserve({key: 'rebuilt', body: rebuilt})).json() as Reservation;
+
+    expect(second.status).toBe('reserved');
+    expect(second.entry_id).not.toBe(first.entry_id);
+    expect(await findEntryRowById(first.entry_id)).toBeUndefined();
+    const committed = await client.commit(second.entry_id, await uploadParts(second, rebuilt));
+    expect(committed.json()).toEqual({status: 'ready'});
+    expect((await findEntryRowById(second.entry_id))?.sizeBytes).toBe(rebuilt.length);
+  });
+
+  it('does not report ready when an abort deleted the row during the commit', async () => {
+    const job = await startJob();
+    const client = cacheClient(testApp.app, job);
+    const body = archiveOf('racing');
+    const reservation = (await client.reserve({key: 'race-abort', body})).json() as Reservation;
+    const parts = await uploadParts(reservation, body);
+    const store = objectStore();
+    const head = store.head.bind(store);
+    vi.spyOn(store, 'head').mockImplementation(async (key) => {
+      await client.abort(reservation.entry_id);
+      return await head(key);
+    });
+
+    const res = await client.commit(reservation.entry_id, parts);
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('upload-aborted');
+    vi.restoreAllMocks();
+    expect(await findEntryRowById(reservation.entry_id)).toBeUndefined();
+    expect(
+      await store.head(
+        entryObjectKey({
+          id: reservation.entry_id,
+          workspaceId: job.workspaceId,
+          projectId: job.projectId,
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it('answers 500, not a client error, when storage fails the completion for its own reasons', async () => {
+    const job = await startJob();
+    const client = cacheClient(testApp.app, job);
+    const body = archiveOf('denied');
+    const reservation = (await client.reserve({key: 'denied', body})).json() as Reservation;
+    const parts = await uploadParts(reservation, body);
+    vi.spyOn(objectStore(), 'completeMultipartUpload').mockRejectedValue(
+      Object.assign(new Error('Access Denied'), {name: 'AccessDenied'}),
+    );
+
+    const res = await client.commit(reservation.entry_id, parts);
+
+    expect(res.statusCode).toBe(500);
+    vi.restoreAllMocks();
+    expect((await findEntryRowById(reservation.entry_id))?.status).toBe('uploading');
+  });
+
   it('does not record a deletion for an upload that never became ready', async () => {
     const job = await startJob();
     const client = cacheClient(testApp.app, job);

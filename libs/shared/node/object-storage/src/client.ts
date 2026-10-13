@@ -4,11 +4,15 @@ import type {ObjectStorageS3Profile} from './config.js';
 export interface ObjectStorageS3Clients {
   readonly control: S3Client;
   readonly transfer: S3Client;
+  /** Signs URLs only. It never sends a request. */
+  readonly presign: S3Client;
 }
 
 export interface ObjectStorageS3ClientOptions {
   /** Maximum duration of one data-transfer request. Zero leaves it unbounded. */
   readonly transferRequestTimeoutMs?: number | undefined;
+  /** Endpoint written into presigned URLs when callers reach the store by another name. */
+  readonly publicEndpoint?: string | undefined;
 }
 
 export function createObjectStorageS3Clients(
@@ -45,6 +49,13 @@ export function createObjectStorageS3Clients(
         requestTimeout: transferRequestTimeoutMs,
         throwOnRequestTimeout: transferRequestTimeoutMs > 0,
       },
+    }),
+    // The SDK's default checksum calculation puts the CRC32 of an empty body into a presigned
+    // PUT's query string, so the real part body fails the store's checksum check.
+    presign: new S3Client({
+      ...connection,
+      endpoint: options.publicEndpoint ?? profile.endpoint,
+      requestChecksumCalculation: 'WHEN_REQUIRED',
     }),
   };
 }

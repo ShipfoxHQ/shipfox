@@ -25,6 +25,8 @@ export async function verifyEntryObject(entry: CacheEntry): Promise<EntryObjectS
     await deleteReadyEntry({entry, reason: 'missing'});
     return 'missing';
   }
+  // A store that omits the size can't confirm or deny it, so the row stays.
+  if (stored.contentLength === undefined) return 'unknown';
   if (stored.contentLength !== entry.sizeBytes) {
     await objectStore().deleteObject(key);
     await deleteReadyEntry({entry, reason: 'missing'});

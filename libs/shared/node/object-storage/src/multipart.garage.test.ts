@@ -64,7 +64,7 @@ describe('S3ObjectStore multipart uploads against Garage', () => {
 
     const firstEtag = await uploadPart(store, {key, uploadId, partNumber: 1, body: first});
     const secondEtag = await uploadPart(store, {key, uploadId, partNumber: 2, body: second});
-    await store.completeMultipartUpload({
+    const completed = await store.completeMultipartUpload({
       key,
       uploadId,
       parts: [
@@ -73,6 +73,7 @@ describe('S3ObjectStore multipart uploads against Garage', () => {
       ],
     });
 
+    expect(completed).toEqual({status: 'completed'});
     const head = await store.head(key);
     expect(head?.contentLength).toBe(first.length + second.length);
     const {url} = await store.presignGet(key, 60);
@@ -92,8 +93,23 @@ describe('S3ObjectStore multipart uploads against Garage', () => {
 
     await expect(
       store.completeMultipartUpload({key, uploadId, parts: [{number: 1, etag}]}),
-    ).rejects.toMatchObject({name: 'NoSuchUpload'});
+    ).resolves.toEqual({status: 'upload-not-found'});
     expect(await store.head(key)).toBeNull();
+  });
+
+  it('reports parts the store refuses instead of throwing', async () => {
+    const key = testKey();
+    const uploadId = await store.createMultipartUpload({key});
+    await uploadPart(store, {key, uploadId, partNumber: 1, body: new TextEncoder().encode('part')});
+
+    const result = await store.completeMultipartUpload({
+      key,
+      uploadId,
+      parts: [{number: 1, etag: '"deadbeef"'}],
+    });
+
+    expect(result).toMatchObject({status: 'rejected'});
+    await store.abortMultipartUpload({key, uploadId});
   });
 
   it('signs URLs for the public endpoint', async () => {
@@ -111,7 +127,9 @@ describe('S3ObjectStore multipart uploads against Garage', () => {
       partNumber: 1,
       body: new TextEncoder().encode('only part'),
     });
-    await publicStore.completeMultipartUpload({key, uploadId, parts: [{number: 1, etag}]});
+    expect(
+      await publicStore.completeMultipartUpload({key, uploadId, parts: [{number: 1, etag}]}),
+    ).toEqual({status: 'completed'});
 
     const {url} = await publicStore.presignGet(key, 60);
     expect(new URL(url).hostname).toBe('127.0.0.1');

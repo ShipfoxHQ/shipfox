@@ -154,6 +154,14 @@ describe('cache for dev runs', () => {
     expect(res.json().code).toBe('reserved-scope');
   });
 
+  it('rejects a key with a NUL character before it reaches the database', async () => {
+    const job = await startJob();
+
+    const res = await cacheClient(testApp.app, job).restore({key: 'bad\u0000key'});
+
+    expect(res.statusCode).toBe(400);
+  });
+
   it('allows a scope that merely starts with the letters dev', async () => {
     const job = await startJob();
     const sibling = await startSiblingJob(job);

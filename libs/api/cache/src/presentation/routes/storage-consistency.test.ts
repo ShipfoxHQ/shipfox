@@ -73,6 +73,19 @@ describe('cache consistency with object storage', () => {
     expect(await objectStore().head(objectKeyOf(job, entryId))).toBeNull();
   });
 
+  it('keeps an entry when the store does not report an object size', async () => {
+    const job = await startJob();
+    const entryId = await saveEntry(testApp.app, job, {key: 'sizeless', body: archiveOf('x')});
+    vi.spyOn(objectStore(), 'head').mockResolvedValue({metadata: {}});
+
+    const restore = await cacheClient(testApp.app, job).restore({key: 'sizeless'});
+    const check = await cacheClient(testApp.app, job).check({key: 'sizeless'});
+
+    expect(restore.json().hit).toMatchObject({entry_id: entryId});
+    expect(check.json()).toEqual({exists: true});
+    expect(await findEntryRowById(entryId)).toBeDefined();
+  });
+
   it('answers check from the object, not only the row', async () => {
     const job = await startJob();
     const client = cacheClient(testApp.app, job);

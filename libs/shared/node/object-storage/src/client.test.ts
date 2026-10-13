@@ -38,6 +38,7 @@ describe('createObjectStorageS3Clients', () => {
     ]);
     clients.control.destroy();
     clients.transfer.destroy();
+    clients.presign.destroy();
   });
 
   it('enforces the control timeout and a configured transfer timeout', async () => {
@@ -55,6 +56,7 @@ describe('createObjectStorageS3Clients', () => {
     });
     clients.control.destroy();
     clients.transfer.destroy();
+    clients.presign.destroy();
   });
 
   it.each([

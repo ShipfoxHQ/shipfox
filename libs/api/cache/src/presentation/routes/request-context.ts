@@ -4,9 +4,11 @@ import {ClientError} from '@shipfox/node-fastify';
 import {
   CacheEntryNotCommittableError,
   CacheEntryNotFoundError,
+  EntryTooLargeError,
   InvalidUploadError,
   ReservedScopeError,
   RunNotFoundError,
+  UploadAbortedError,
   UploadObjectMissingError,
   UploadSizeMismatchError,
 } from '#core/errors.js';
@@ -67,6 +69,12 @@ export function translateCacheError(error: unknown): never {
   }
   if (error instanceof InvalidUploadError) {
     throw new ClientError(error.message, 'invalid-upload', {status: 409});
+  }
+  if (error instanceof EntryTooLargeError) {
+    throw new ClientError(error.message, 'entry-too-large', {status: 409});
+  }
+  if (error instanceof UploadAbortedError) {
+    throw new ClientError(error.message, 'upload-aborted', {status: 409});
   }
   if (error instanceof UploadObjectMissingError) {
     throw new ClientError(error.message, 'object-missing', {status: 409});

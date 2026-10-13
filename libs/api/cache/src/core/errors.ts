@@ -52,3 +52,20 @@ export class UploadSizeMismatchError extends Error {
     this.name = 'UploadSizeMismatchError';
   }
 }
+
+export class EntryTooLargeError extends Error {
+  constructor(
+    public readonly entryId: string,
+    public readonly sizeBytes: number,
+  ) {
+    super(`Cache entry ${entryId} of ${sizeBytes} bytes exceeds the entry maximum`);
+    this.name = 'EntryTooLargeError';
+  }
+}
+
+export class UploadAbortedError extends Error {
+  constructor(public readonly entryId: string) {
+    super(`Cache entry ${entryId} was aborted while its upload was being committed`);
+    this.name = 'UploadAbortedError';
+  }
+}
