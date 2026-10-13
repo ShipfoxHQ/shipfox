@@ -5,7 +5,12 @@ import type {LinearWorkspaceFixture} from '@shipfox/e2e-driver-linear';
 import type {SlackThreadPage} from '@shipfox/e2e-driver-slack';
 import type {WorkflowProjectFile} from './workflow-project.js';
 
-export type ReferenceActionName = 'slack-thread' | 'verified-commit' | 'linear-context';
+export type ReferenceActionName =
+  | 'slack-thread'
+  | 'verified-commit'
+  | 'linear-context'
+  | 'cache-restore'
+  | 'cache-save';
 
 const referenceActionsDir = fileURLToPath(new URL('../reference-actions/', import.meta.url));
 

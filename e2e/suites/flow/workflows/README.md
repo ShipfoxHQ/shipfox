@@ -140,6 +140,12 @@ Each recipe also has an `index.test.ts` beside it, written with `runAction` and 
 `@shipfox/actions/testing`. The package's Vitest run includes them, and the docs publish them
 with the recipes.
 
+`cache-restore` and `cache-save` are the exception: they are the registry actions of the cache,
+kept here while they are tested. `tests/cache.e2e.ts` runs both as repository actions, then as a dev
+run, against Garage. It covers a miss, a save, an exact hit in another working directory and home, a
+prefix hit, two jobs saving one key, and the dev-run sandbox. Moving them to
+`libs/shared/workflow/catalog/actions/` is what publishes them, so do it only at launch.
+
 Keep the recipes readable as user code: they import only their own files, Node built-ins, and
 `@shipfox/actions`, and they use only erasable TypeScript syntax, since Node strips the types.
 

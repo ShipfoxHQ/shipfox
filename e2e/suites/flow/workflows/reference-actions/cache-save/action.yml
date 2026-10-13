@@ -1,0 +1,20 @@
+name: Cache save
+description: Saves files so that a later job of the project can restore them.
+main: index.ts
+
+inputs:
+  paths:
+    description: Files, directories, or glob patterns to save, one per line. Use the same value as the restore step.
+    required: true
+  key:
+    description: Key to save under. Pass the key output of the restore step.
+    required: true
+  scope:
+    description: Scope to write.
+    default: default
+
+outputs:
+  saved:
+    description: True when this step created the entry. False when the key already existed or the save was skipped.
+    type: boolean
+    required: true

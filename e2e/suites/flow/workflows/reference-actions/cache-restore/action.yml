@@ -1,0 +1,40 @@
+name: Cache restore
+description: Restores files that an earlier job saved with the cache.
+main: index.ts
+
+inputs:
+  paths:
+    description: Files, directories, or glob patterns to restore, one per line. Use the same value as the save step.
+    required: true
+  key:
+    description: Primary key of the entry. The hash of key_files is appended to it.
+    required: true
+  key_files:
+    description: Glob patterns, one per line. The action hashes the matched files and appends the hash to the key.
+    default: ''
+  restore_keys:
+    description: Key prefixes, one per line, tried in order when the primary key misses. The newest matching entry wins.
+    default: ''
+  scope:
+    description: Scope to read first.
+    default: default
+  fallback_scopes:
+    description: More scopes to read, one per line, in order after the scope.
+    default: ''
+  fail_on_miss:
+    description: Fails the step when nothing is restored.
+    type: boolean
+    default: false
+
+outputs:
+  key:
+    description: The primary key after hashing key_files. Pass it to the save step.
+    required: true
+  hit:
+    description: True when the primary key matched exactly.
+    type: boolean
+    required: true
+  matched_key:
+    description: Key of the restored entry. Absent on a miss.
+  matched_scope:
+    description: Scope of the restored entry. Absent on a miss.
