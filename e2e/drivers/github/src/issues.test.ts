@@ -1,4 +1,4 @@
-import {mkdtemp} from 'node:fs/promises';
+import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {
@@ -429,14 +429,11 @@ describe('GitHub API mock issues', () => {
 
   it('answers 404 for a repository it was told to deny or, once asked, one it was not seeded with', async () => {
     const {mock, request} = await startMock();
+    const seedDirectory = await mkdtemp(join(tmpdir(), 'github-access-'));
 
     try {
       mock.issues.set(5, {repository: 'acme/app', title: 'Seeded'});
-      await mock.addRepository({
-        owner: 'acme',
-        name: 'app',
-        seedDirectory: await mkdtemp(join(tmpdir(), 'github-access-')),
-      });
+      await mock.addRepository({owner: 'acme', name: 'app', seedDirectory});
       mock.access.denied.add('acme/app');
       const denied = await request('GET', '/repos/acme/app/issues/5');
       const unseededByDefault = await request('GET', '/repos/acme/other/issues/5');
@@ -452,6 +449,7 @@ describe('GitHub API mock issues', () => {
       expect(unseeded.status).toBe(404);
     } finally {
       await mock.stop();
+      await rm(seedDirectory, {recursive: true, force: true});
     }
   });
 });

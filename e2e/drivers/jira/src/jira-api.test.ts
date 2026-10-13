@@ -476,11 +476,13 @@ describe('Jira API mock', () => {
         });
       const valid = await search('project = E2ER');
       const invalid = await search('this is ((not jql');
+      const quoted = await search('summary ~ "("');
 
       expect(seeded.status).toBe(200);
       expect(missing.status).toBe(404);
       await expect(missing.json()).resolves.toMatchObject({errors: {}});
       expect(valid.status).toBe(200);
+      expect(quoted.status).toBe(200);
       expect(invalid.status).toBe(400);
       await expect(invalid.json()).resolves.toMatchObject({
         errorMessages: [expect.stringContaining('JQL')],

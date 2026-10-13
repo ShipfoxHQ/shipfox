@@ -479,11 +479,16 @@ async function handleJiraRequest(params: {
   else sendJson(params.response, 404, {errorMessages: ['Unknown Jira endpoint']});
 }
 
-/** A message like Jira's for a query whose parentheses do not pair up, the one error it checks. */
+const QUOTED_JQL_RE = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/gu;
+
+/**
+ * A message like Jira's for a query whose parentheses do not pair up, the one error it checks.
+ * Parentheses inside a quoted value are text.
+ */
 function invalidJql(jql: unknown): string | undefined {
   if (typeof jql !== 'string') return undefined;
   let depth = 0;
-  for (const character of jql) {
+  for (const character of jql.replace(QUOTED_JQL_RE, '""')) {
     if (character === '(') depth++;
     if (character === ')') depth--;
     if (depth < 0) break;

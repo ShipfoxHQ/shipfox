@@ -29,8 +29,8 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   `/labels` routes read them. An issue read for a number not listed answers a synthetic
   issue with `GITHUB_READ_RESULT_MARKER`. `GithubApiMock.access` changes that for whole
   repositories: a request under `/repos/:owner/:repo` answers 404 for a repository in
-  `access.denied` (`owner/name`), and, with `access.rejectUnseeded`, for one `addRepository` did
-  not register. Issues and pull requests share the numbering,
+  `access.denied` (`owner/name`), and, with `access.rejectUnseeded`, for a repository that
+  `addRepository` did not register. Issues and pull requests share the numbering,
   so a created pull request skips the numbers issues use, and so does a created issue, which
   `POST /repos/:owner/:repo/issues` adds to `issues` and answers with `GITHUB_WRITE_RESULT_MARKER`
   next to its fields. A new comment takes an id past the ids of every seeded comment. `GET /repos/:owner/:repo/issues`

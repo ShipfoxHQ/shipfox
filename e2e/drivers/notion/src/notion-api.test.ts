@@ -362,11 +362,13 @@ describe('Notion API mock', () => {
       const seeded = await read('3f0c6baa-a59e-8196-b7be-c029ce003cdb');
       const missing = await read('00000000-0000-4000-8000-000000000000');
       const malformed = await read('not-a-uuid');
+      const mixed = await read('aaaaaaaa-bbbbcccc-dddd-eeee-ffffffffffff');
 
       expect(seeded.status).toBe(200);
       expect(missing.status).toBe(404);
       await expect(missing.json()).resolves.toMatchObject({code: 'object_not_found'});
       expect(malformed.status).toBe(400);
+      expect(mixed.status).toBe(400);
       await expect(malformed.json()).resolves.toMatchObject({code: 'validation_error'});
     } finally {
       await mock.stop();

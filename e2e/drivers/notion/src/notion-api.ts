@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
 import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-core';
 
-const UUID_RE = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/iu;
+const UUID_RE = /^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/iu;
 
 export const NOTION_PAGE_RESULT_MARKER = 'notion-page-result-marker';
 
