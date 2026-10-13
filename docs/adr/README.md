@@ -32,6 +32,7 @@ documentation model and other engineering sources, start with the
 | [0020: Header actions chrome slot](0020-header-actions-chrome-slot.md) | Accepted; amends ADR 0001 | The optional routed application-header action slot and its error isolation. |
 | [0021: Required action rendering and intent slot](0021-required-action-rendering-and-intent-slot.md) | Accepted; amends ADR 0001 | The shared required action component, its URL rule, and the optional intent chrome slot. |
 | [0022: Feature flags seam](0022-feature-flags-seam.md) | Accepted; amends ADR 0004 | The two feature flag packages, the root-owned `FeatureFlags` instance, the resolution order, and the private OpenFeature boundary. |
+| [0023: Cache context](0023-cache-context.md) | Accepted; amends ADR 0015 | The Cache bounded context, signed multipart uploads, the dev-run sandbox, the storage usage record, the `describeStorage` pricing operation, and the storage policy seam. |
 
 When a decision changes, add a new ADR that supersedes or amends the earlier
 record. Keep the original record intact so readers can understand why the

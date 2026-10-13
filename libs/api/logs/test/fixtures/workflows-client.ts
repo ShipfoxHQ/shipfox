@@ -40,6 +40,7 @@ export function createTestWorkflowsClient(): WorkflowsModuleClient {
       getStepAttemptDetail: vi.fn(),
       getLatestRunAttempt: vi.fn(),
       getLatestStepAttempt: vi.fn(),
+      getWorkflowRunOrigin: vi.fn(),
     }),
   }).workflows;
 }

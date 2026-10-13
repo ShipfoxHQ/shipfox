@@ -166,6 +166,17 @@ describe('workflowsInterModuleContract', () => {
     ).toBe(false);
   });
 
+  test('defines a nullable run origin read', () => {
+    const method = workflowsInterModuleContract.methods.getWorkflowRunOrigin;
+
+    expect(method.output.parse(null)).toBeNull();
+    expect(method.output.parse({origin: 'synced', initiatedByUserId: null})).toEqual({
+      origin: 'synced',
+      initiatedByUserId: null,
+    });
+    expect(method.output.safeParse({origin: 'other', initiatedByUserId: null}).success).toBe(false);
+  });
+
   test('defines bounded nullable workflow diagnostic reads with deterministic defaults', () => {
     const workspaceId = '00000000-0000-4000-8000-000000000001';
     const workflowRunId = '00000000-0000-4000-8000-000000000002';

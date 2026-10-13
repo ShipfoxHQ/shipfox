@@ -66,6 +66,7 @@ const workflows = {
   getStepAttemptDetail: async () => ({detail: null}),
   getLatestRunAttempt: async () => ({attempt: null}),
   getLatestStepAttempt: async () => ({attempt: null}),
+  getWorkflowRunOrigin: async () => null,
 };
 
 describe('dispatchIntegrationEvent resilience to history-write failure', () => {

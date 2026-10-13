@@ -17,8 +17,13 @@ export {
   ObjectStorageUploadAbortedError,
 } from './errors.js';
 export type {
+  AbortMultipartUploadParams,
+  CompletedUploadPart,
+  CompleteMultipartUploadParams,
+  CreateMultipartUploadParams,
   CreateS3ObjectStoreOptions,
   PresignedObjectGet,
+  PresignUploadPartParams,
   PutMultipartObjectParams,
   PutObjectBytesParams,
   StoredObjectBytes,

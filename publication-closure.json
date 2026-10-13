@@ -63,6 +63,8 @@
     "@shipfox/api-auth",
     "@shipfox/api-auth-context",
     "@shipfox/api-auth-dto",
+    "@shipfox/api-cache",
+    "@shipfox/api-cache-dto",
     "@shipfox/api-common-dto",
     "@shipfox/api-definitions",
     "@shipfox/api-definitions-dto",

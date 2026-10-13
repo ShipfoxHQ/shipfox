@@ -1,5 +1,8 @@
 import {Readable} from 'node:stream';
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
@@ -7,6 +10,8 @@ import {
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
+  S3Client,
+  UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import {Upload} from '@aws-sdk/lib-storage';
 import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
@@ -23,6 +28,41 @@ export interface CreateS3ObjectStoreOptions {
   readonly prefix: string;
   /** Maximum duration of one data-transfer request. Zero leaves it unbounded. */
   readonly transferRequestTimeoutMs?: number | undefined;
+  /**
+   * Endpoint written into presigned URLs when callers reach the store by another name than this
+   * process does. The host is part of the signature, so it must be chosen at signing time.
+   */
+  readonly publicEndpoint?: string | undefined;
+}
+
+export interface CreateMultipartUploadParams {
+  readonly key: string;
+  readonly contentType?: string | undefined;
+  readonly metadata?: Record<string, string> | undefined;
+}
+
+export interface PresignUploadPartParams {
+  readonly key: string;
+  readonly uploadId: string;
+  /** 1-based, at most 10000. */
+  readonly partNumber: number;
+  readonly expiresInSeconds: number;
+}
+
+export interface CompletedUploadPart {
+  readonly number: number;
+  readonly etag: string;
+}
+
+export interface CompleteMultipartUploadParams {
+  readonly key: string;
+  readonly uploadId: string;
+  readonly parts: readonly CompletedUploadPart[];
+}
+
+export interface AbortMultipartUploadParams {
+  readonly key: string;
+  readonly uploadId: string;
 }
 
 export interface PutObjectBytesParams {
@@ -76,12 +116,22 @@ export class S3ObjectStore {
   readonly #bucket: string;
   readonly #prefix: string;
   readonly #clients: ObjectStorageS3Clients;
+  readonly #presigner: S3Client;
 
-  constructor({profile, prefix, transferRequestTimeoutMs}: CreateS3ObjectStoreOptions) {
+  constructor({
+    profile,
+    prefix,
+    transferRequestTimeoutMs,
+    publicEndpoint,
+  }: CreateS3ObjectStoreOptions) {
     assertObjectStoragePrefix(prefix);
     this.#bucket = profile.bucket;
     this.#prefix = prefix;
     this.#clients = createObjectStorageS3Clients(profile, {transferRequestTimeoutMs});
+    this.#presigner = createPresignClient({
+      ...profile,
+      endpoint: publicEndpoint ?? profile.endpoint,
+    });
   }
 
   async checkReachable(): Promise<boolean> {
@@ -273,16 +323,83 @@ export class S3ObjectStore {
     this.#assertInScope(key);
     const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
     const url = await getSignedUrl(
-      this.#clients.control,
+      this.#presigner,
       new GetObjectCommand({Bucket: this.#bucket, Key: key}),
       {expiresIn: expiresInSeconds},
     );
     return {url, expiresAt};
   }
 
+  async createMultipartUpload(params: CreateMultipartUploadParams): Promise<string> {
+    this.#assertInScope(params.key);
+    const created = await this.#clients.control.send(
+      new CreateMultipartUploadCommand({
+        Bucket: this.#bucket,
+        Key: params.key,
+        ContentType: params.contentType,
+        Metadata: params.metadata,
+      }),
+    );
+    if (!created.UploadId) throw new Error('Object store returned no multipart upload id.');
+    return created.UploadId;
+  }
+
+  async presignUploadPart(params: PresignUploadPartParams): Promise<PresignedObjectGet> {
+    this.#assertInScope(params.key);
+    const expiresAt = new Date(Date.now() + params.expiresInSeconds * 1000);
+    const url = await getSignedUrl(
+      this.#presigner,
+      new UploadPartCommand({
+        Bucket: this.#bucket,
+        Key: params.key,
+        UploadId: params.uploadId,
+        PartNumber: params.partNumber,
+      }),
+      {expiresIn: params.expiresInSeconds},
+    );
+    return {url, expiresAt};
+  }
+
+  /**
+   * Completing a few hundred parts can outlast the control timeout, so this uses the transfer
+   * client. Set `transferRequestTimeoutMs` on the store to bound it.
+   */
+  async completeMultipartUpload(params: CompleteMultipartUploadParams): Promise<void> {
+    this.#assertInScope(params.key);
+    const parts = [...params.parts]
+      .sort((left, right) => left.number - right.number)
+      .map((part) => ({PartNumber: part.number, ETag: part.etag}));
+    await this.#clients.transfer.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: this.#bucket,
+        Key: params.key,
+        UploadId: params.uploadId,
+        MultipartUpload: {Parts: parts},
+      }),
+    );
+  }
+
+  /** Resolves when the upload is gone, including when it never existed or already completed. */
+  async abortMultipartUpload(params: AbortMultipartUploadParams): Promise<void> {
+    this.#assertInScope(params.key);
+    try {
+      await this.#clients.control.send(
+        new AbortMultipartUploadCommand({
+          Bucket: this.#bucket,
+          Key: params.key,
+          UploadId: params.uploadId,
+        }),
+      );
+    } catch (error) {
+      if (errorName(error) === 'NoSuchUpload') return;
+      throw error;
+    }
+  }
+
   close(): void {
     this.#clients.control.destroy();
     this.#clients.transfer.destroy();
+    this.#presigner.destroy();
   }
 
   #assertInScope(key: string): void {
@@ -309,8 +426,26 @@ export function assertObjectStoragePrefix(prefix: string): void {
   }
 }
 
-function isNotFoundError(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false;
+// The SDK's default checksum calculation puts the CRC32 of an empty body into a presigned PUT's
+// query string, so the real part body fails S3's checksum check. Signing without it leaves the
+// body unconstrained.
+function createPresignClient(profile: ObjectStorageS3Profile): S3Client {
+  return new S3Client({
+    endpoint: profile.endpoint,
+    region: profile.region,
+    forcePathStyle: profile.forcePathStyle,
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    ...(profile.credentials ? {credentials: profile.credentials} : {}),
+  });
+}
+
+function errorName(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
   const name = (error as {name?: unknown}).name;
+  return typeof name === 'string' ? name : undefined;
+}
+
+function isNotFoundError(error: unknown): boolean {
+  const name = errorName(error);
   return name === 'NoSuchKey' || name === 'NotFound';
 }

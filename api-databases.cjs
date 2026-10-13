@@ -6,6 +6,7 @@ const databaseOwners = freezeEntries([
   {id: 'agent', packagePath: 'libs/api/agent'},
   {id: 'annotations', packagePath: 'libs/api/annotations'},
   {id: 'auth', packagePath: 'libs/api/auth'},
+  {id: 'cache', packagePath: 'libs/api/cache'},
   {id: 'definitions', packagePath: 'libs/api/definitions'},
   {id: 'email-challenges', packagePath: 'libs/api/email-challenges'},
   {id: 'integrations', packagePath: 'libs/api/integration/core'},
@@ -44,6 +45,14 @@ const databaseMigrationUnits = freezeEntries([
     packagePath: 'libs/api/auth',
     drizzleConfigPath: 'libs/api/auth/drizzle.config.ts',
     migrationsPath: 'libs/api/auth/drizzle',
+  },
+  {
+    id: 'cache',
+    ownerId: 'cache',
+    namespace: 'cache',
+    packagePath: 'libs/api/cache',
+    drizzleConfigPath: 'libs/api/cache/drizzle.config.ts',
+    migrationsPath: 'libs/api/cache/drizzle',
   },
   {
     id: 'definitions',

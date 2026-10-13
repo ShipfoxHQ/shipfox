@@ -49,6 +49,7 @@ records the map as of its date and the decision behind it.
 | Agent access | `@shipfox/api-agent-access`, `@shipfox/api-agent-access-dto`. |
 | Annotations | `@shipfox/annotations`, `@shipfox/annotations-dto`. |
 | Auth | `@shipfox/api-auth`, `@shipfox/api-auth-dto`. |
+| Cache | `@shipfox/api-cache`, `@shipfox/api-cache-dto`. Decided in ADR 0023; the packages land with the Cache context delivery. |
 | Definitions | `@shipfox/api-definitions`, `@shipfox/api-definitions-dto`. |
 | Integrations | `@shipfox/api-integration-core`, all provider packages, and their DTO packages. |
 | Logs | `@shipfox/api-logs`, `@shipfox/api-logs-dto`. |

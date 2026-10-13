@@ -7,6 +7,7 @@ Shared Node infrastructure for scoped S3-compatible object storage.
 - **Shared S3 profile**: Loads common endpoint, region, credentials, and addressing mode, with an optional default bucket.
 - **`S3ObjectStore`**: Restricts object operations to one non-empty key prefix.
 - **Object operations**: Uploads and reads bytes, streams multipart uploads, signs reads, lists keys, and deletes objects.
+- **Signed multipart uploads**: Creates, signs the parts of, completes, and aborts a multipart upload, so a client can upload parts straight to the store.
 - **Client policies**: Uses enforced short timeouts for control operations and lets each consumer bound data-transfer requests when needed.
 
 ## Installation and setup
@@ -50,6 +51,8 @@ sessions.close();
 The schema in `src/config.ts` owns the shared S3 variables and their defaults. Consumers resolve package-specific overrides with `resolveObjectStorageS3Profile`. Resolution fails when neither the consumer nor the shared profile selects a bucket.
 
 ## Behavior notes
+
+Presigned URLs are signed without the SDK's default request checksum, because that checksum is computed for an empty body and fails the real part upload. Set `publicEndpoint` when clients reach the store by another name than the server does: the host is part of the signature. `completeMultipartUpload` uses the transfer client, so set `transferRequestTimeoutMs` when a store completes large uploads. `abortMultipartUpload` resolves when the upload no longer exists.
 
 Every store requires a non-empty prefix. List and delete operations reject keys outside that prefix.
 

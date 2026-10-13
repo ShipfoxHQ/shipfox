@@ -262,6 +262,7 @@ describe('appendLogs', () => {
           getStepAttemptDetail: vi.fn(),
           getLatestRunAttempt: vi.fn(),
           getLatestStepAttempt: vi.fn(),
+          getWorkflowRunOrigin: vi.fn(),
         }),
       }).workflows;
       const body = ndjsonBody(
@@ -335,6 +336,7 @@ describe('appendLogs', () => {
           getStepAttemptDetail: vi.fn(),
           getLatestRunAttempt: vi.fn(),
           getLatestStepAttempt: vi.fn(),
+          getWorkflowRunOrigin: vi.fn(),
         }),
       }).workflows;
       const init = sessionLine(
@@ -443,6 +445,7 @@ describe('appendLogs', () => {
           getStepAttemptDetail: vi.fn(),
           getLatestRunAttempt: vi.fn(),
           getLatestStepAttempt: vi.fn(),
+          getWorkflowRunOrigin: vi.fn(),
         }),
       }).workflows;
       const init = sessionLine(
@@ -528,6 +531,7 @@ describe('appendLogs', () => {
           getStepAttemptDetail: vi.fn(),
           getLatestRunAttempt: vi.fn(),
           getLatestStepAttempt: vi.fn(),
+          getWorkflowRunOrigin: vi.fn(),
         }),
       }).workflows;
       const first = ndjsonBody(

@@ -29,6 +29,7 @@ interface TestWorkflowsClient {
     listFailedStepAttempts: WorkflowHandlerMock;
     getLatestRunAttempt: WorkflowHandlerMock;
     getLatestStepAttempt: WorkflowHandlerMock;
+    getWorkflowRunOrigin: WorkflowHandlerMock;
   };
 }
 
@@ -53,6 +54,7 @@ export function createTestWorkflowsClient(): TestWorkflowsClient {
     listFailedStepAttempts: vi.fn(),
     getLatestRunAttempt: vi.fn(),
     getLatestStepAttempt: vi.fn(),
+    getWorkflowRunOrigin: vi.fn(),
   };
   const workflows = createFakeInterModuleClients({
     workflows: defineInterModulePresentation(workflowsInterModuleContract, {
@@ -88,6 +90,7 @@ export function createTestWorkflowsClient(): TestWorkflowsClient {
       getStepAttemptDetail: vi.fn(),
       getLatestRunAttempt: (input) => handlers.getLatestRunAttempt(input),
       getLatestStepAttempt: (input) => handlers.getLatestStepAttempt(input),
+      getWorkflowRunOrigin: (input) => handlers.getWorkflowRunOrigin(input),
     }),
   }).workflows;
 

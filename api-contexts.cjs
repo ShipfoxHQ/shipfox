@@ -6,6 +6,7 @@ const architecturePackages = {
     'agent-access': ['libs/api/agent-access'],
     annotations: ['libs/api/annotations'],
     auth: ['libs/api/auth'],
+    cache: ['libs/api/cache'],
     definitions: ['libs/api/definitions'],
     integrations: [
       'libs/api/integration/core',
@@ -37,6 +38,7 @@ const architecturePackages = {
     'agent-access': ['libs/api/agent-access-dto'],
     annotations: ['libs/api/annotations-dto'],
     auth: ['libs/api/auth-dto'],
+    cache: ['libs/api/cache-dto'],
     common: ['libs/api/common-dto'],
     definitions: ['libs/api/definitions-dto'],
     integrations: [

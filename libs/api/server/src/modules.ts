@@ -9,6 +9,7 @@ import {
   type AuthInterModuleClient,
   authInterModuleContract,
 } from '@shipfox/api-auth-dto/inter-module';
+import {createCacheModule} from '@shipfox/api-cache';
 import {createDefinitionsModule} from '@shipfox/api-definitions';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {dispatcherModule} from '@shipfox/api-dispatcher';
@@ -501,6 +502,7 @@ export async function defaultModules(
       workflows: workflowsClient,
       jobLeaseTokenTtlSeconds: durationToSeconds(authConfig.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN),
     }),
+    createCacheModule({workflows: workflowsClient}),
     createUsageModule(),
     createTriggersModule({
       workflows: workflowsClient,

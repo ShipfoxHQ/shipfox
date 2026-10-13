@@ -216,6 +216,11 @@ existing `ChromeSlots.SessionBanner` and `ChromeSlots.WorkspaceSetupChecklist` s
 
 ### Amendments
 
+**2026-10-13: storage becomes a third usage record.** [ADR 0023](0023-cache-context.md) adds
+the storage sample for stored bytes, recorded once an hour by the Cache context. The `usagePricing`
+seam gains the optional `describeStorage` operation, so a client can show an allowance and an
+estimate for storage without knowing a rate. Usage still holds quantities, never amounts.
+
 **2026-09-30: a required action can carry an `intent`.** `RequiredAction` gains an optional
 `intent` string. It names a behavior the composing application may provide in place of opening
 `url`, such as `contact-support`. `url` stays required and always stays a working fallback, so a

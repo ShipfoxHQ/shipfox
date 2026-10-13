@@ -106,6 +106,7 @@ import {
   getWorkflowRunAccessScopeById,
   getWorkflowRunAnnotationOrigins,
   getWorkflowRunAttemptIdForScope,
+  getWorkflowRunById,
   getWorkflowRunOverview,
   getWorkflowRunSource,
   getWorkflowStepReadScope,
@@ -954,6 +955,11 @@ export function createWorkflowsInterModulePresentation(params: {
         (await getLatestStepAttempt({stepId: input.stepId, workspaceId: input.workspaceId})) ??
         null,
     }),
+    getWorkflowRunOrigin: async (input) => {
+      const run = await getWorkflowRunById(input.workflowRunId, input.workspaceId);
+      if (!run) return null;
+      return {origin: run.origin, initiatedByUserId: run.devSource?.initiatedByUserId ?? null};
+    },
     getLeasedAgentToolContext: async (input) => {
       const method = workflowsInterModuleContract.methods.getLeasedAgentToolContext;
       const {step, scope} = await resolveLeasedAgentStep({

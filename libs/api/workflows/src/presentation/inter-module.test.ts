@@ -63,6 +63,7 @@ const mocks = vi.hoisted(() => ({
   getWorkflowRunAccessScopeById: vi.fn(),
   getWorkflowRunAnnotationOrigins: vi.fn(),
   getWorkflowRunAttemptIdForScope: vi.fn(),
+  getWorkflowRunById: vi.fn(),
   getWorkflowRunOverview: vi.fn(),
   getWorkflowRunSource: vi.fn(),
   listWorkflowRunConcurrencyByAttemptIds: vi.fn(),
@@ -509,6 +510,7 @@ describe('Workflows inter-module presentation', () => {
     mocks.getWorkflowRunAccessScopeById.mockReset();
     mocks.getWorkflowRunAnnotationOrigins.mockReset();
     mocks.getWorkflowRunAttemptIdForScope.mockReset();
+    mocks.getWorkflowRunById.mockReset();
     mocks.getWorkflowRunOverview.mockReset();
     mocks.getWorkflowRunSource.mockReset();
     mocks.listWorkflowRunConcurrencyByAttemptIds.mockReset();
@@ -638,6 +640,59 @@ describe('Workflows inter-module presentation', () => {
           workflow_run_attempt_id: concurrency.affectedAttempts[0]?.workflowRunAttemptId,
         },
       ],
+    });
+  });
+
+  describe('getWorkflowRunOrigin', () => {
+    function createPresentation() {
+      return createWorkflowsInterModulePresentation({
+        agent: {} as never,
+        definitions: {} as never,
+        integrations: {} as never,
+        projects: {} as never,
+        runners: {} as never,
+        secrets: {} as never,
+        workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
+      });
+    }
+
+    it('reports the user who started a dev run', async () => {
+      const workflowRunId = crypto.randomUUID();
+      const initiatedByUserId = crypto.randomUUID();
+      mocks.getWorkflowRunById.mockResolvedValue({
+        origin: 'dev',
+        devSource: {initiatedByUserId},
+      });
+
+      const result = await createPresentation().handlers.getWorkflowRunOrigin(
+        {workspaceId: input.workspaceId, workflowRunId},
+        {signal: new AbortController().signal},
+      );
+
+      expect(result).toEqual({origin: 'dev', initiatedByUserId});
+      expect(mocks.getWorkflowRunById).toHaveBeenCalledWith(workflowRunId, input.workspaceId);
+    });
+
+    it('reports a synced run without a user', async () => {
+      mocks.getWorkflowRunById.mockResolvedValue({origin: 'synced', devSource: null});
+
+      const result = await createPresentation().handlers.getWorkflowRunOrigin(
+        {workspaceId: input.workspaceId, workflowRunId: crypto.randomUUID()},
+        {signal: new AbortController().signal},
+      );
+
+      expect(result).toEqual({origin: 'synced', initiatedByUserId: null});
+    });
+
+    it('returns null for a run outside the workspace', async () => {
+      mocks.getWorkflowRunById.mockResolvedValue(undefined);
+
+      const result = await createPresentation().handlers.getWorkflowRunOrigin(
+        {workspaceId: input.workspaceId, workflowRunId: crypto.randomUUID()},
+        {signal: new AbortController().signal},
+      );
+
+      expect(result).toBeNull();
     });
   });
 

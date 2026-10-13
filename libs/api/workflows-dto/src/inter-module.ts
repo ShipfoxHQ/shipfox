@@ -831,6 +831,16 @@ export const workflowsInterModuleContract = defineInterModuleContract({
       input: z.object({workspaceId: idSchema, stepId: idSchema}),
       output: z.object({attempt: attemptSchema.nullable()}),
     },
+    /** What started a run: its origin and, for a dev run, the user who started it. */
+    getWorkflowRunOrigin: {
+      input: z.object({workspaceId: idSchema, workflowRunId: idSchema}),
+      output: z
+        .object({
+          origin: workflowRunOriginSchema,
+          initiatedByUserId: idSchema.nullable(),
+        })
+        .nullable(),
+    },
   },
 });
 

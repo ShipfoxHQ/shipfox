@@ -44,6 +44,7 @@ const mocks = vi.hoisted(() => ({
   createAuthModule: vi.fn(),
   createDefinitionsModule: vi.fn(),
   createIntegrationsContext: vi.fn(),
+  createCacheModule: vi.fn(),
   createLogsModule: vi.fn(),
   createProjectsModule: vi.fn(),
   createRegistryModule: vi.fn(),
@@ -110,6 +111,7 @@ vi.mock('@shipfox/api-integration-core', () => ({
   createWorkspaceConnectionSnapshotLoader: mocks.createWorkspaceConnectionSnapshotLoader,
   getIntegrationConnectionById: mocks.getIntegrationConnectionById,
 }));
+vi.mock('@shipfox/api-cache', () => ({createCacheModule: mocks.createCacheModule}));
 vi.mock('@shipfox/api-logs', () => ({createLogsModule: mocks.createLogsModule}));
 vi.mock('@shipfox/api-projects', () => ({createProjectsModule: mocks.createProjectsModule}));
 vi.mock('@shipfox/api-registry', () => ({createRegistryModule: mocks.createRegistryModule}));
@@ -138,6 +140,7 @@ describe('defaultModules', () => {
     mocks.createAuthModule.mockReset();
     mocks.createDefinitionsModule.mockReset();
     mocks.createIntegrationsContext.mockReset();
+    mocks.createCacheModule.mockReset();
     mocks.createLogsModule.mockReset();
     mocks.createProjectsModule.mockReset();
     mocks.createRegistryModule.mockReset();
@@ -190,6 +193,7 @@ describe('defaultModules', () => {
       readStepLogTail: vi.fn(),
       appendServerRecords: vi.fn(),
     };
+    mocks.createCacheModule.mockReturnValue({name: 'cache'});
     mocks.createLogsModule.mockReturnValue({
       name: 'logs',
       interModulePresentations: [
@@ -368,6 +372,7 @@ describe('defaultModules', () => {
             getStepAttemptDetail: vi.fn(),
             getLatestRunAttempt: vi.fn(),
             getLatestStepAttempt: vi.fn(),
+            getWorkflowRunOrigin: vi.fn(),
             getLeasedAgentSessionContext: vi.fn(),
             getLeasedAgentToolContext: vi.fn(),
             getStepLogContext: vi.fn(),
@@ -445,6 +450,7 @@ describe('defaultModules', () => {
       'annotations',
       'runners',
       'logs',
+      'cache',
       'usage',
       'triggers',
       'dispatcher',
@@ -690,6 +696,7 @@ describe('defaultModules', () => {
       'annotations',
       'runners',
       'logs',
+      'cache',
       'usage',
       'triggers',
       'dispatcher',
@@ -952,6 +959,7 @@ describe('defaultModules', () => {
       'annotations',
       'runners',
       'logs',
+      'cache',
       'usage',
       'triggers',
       'dispatcher',
@@ -1236,6 +1244,9 @@ describe('defaultModules', () => {
     expect(integrationsOptions.agentTools.workflows).toEqual(
       expect.objectContaining({getLeasedAgentToolContext: expect.any(Function)}),
     );
+    expect(mocks.createCacheModule).toHaveBeenCalledWith({
+      workflows: expect.objectContaining({getWorkflowRunOrigin: expect.any(Function)}),
+    });
     expect(mocks.createLogsModule).toHaveBeenCalledWith({
       workflows: expect.objectContaining({getStepLogContext: expect.any(Function)}),
       jobLeaseTokenTtlSeconds: 5400,
