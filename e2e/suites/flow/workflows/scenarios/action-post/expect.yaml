@@ -1,0 +1,61 @@
+trigger: manual
+run:
+  status: failed
+jobs:
+  state_and_secrets:
+    status: succeeded
+    steps:
+      Probe:
+        type: action
+        status: succeeded
+      Post Probe:
+        type: post
+        status: succeeded
+        logs:
+          include:
+            - "post token=***"
+            - "post env=***"
+            - "post execution.failed=false main=succeeded"
+          exclude:
+            - "post-input-e2e-secret"
+            - "post-env-e2e-secret"
+  authored_failure:
+    status: failed
+    steps:
+      break:
+        status: failed
+      Post Probe:
+        type: post
+        status: succeeded
+        logs:
+          include: ["post execution.failed=true main=succeeded"]
+  post_warn:
+    status: succeeded
+    steps:
+      Post Probe:
+        type: post
+        status: failed
+        logs:
+          include: ["The post was asked to fail."]
+  post_fail:
+    status: failed
+    steps:
+      Post Fail:
+        type: post
+        status: failed
+        logs:
+          include: ["The post fails the job."]
+  gate_restart:
+    status: succeeded
+    steps:
+      Probe:
+        status: skipped
+      Post Probe:
+        type: post
+        status: succeeded
+        logs:
+          include: ["post path=ok"]
+runner_log:
+  exclude:
+    - "post-input-e2e-secret"
+    - "post-env-e2e-secret"

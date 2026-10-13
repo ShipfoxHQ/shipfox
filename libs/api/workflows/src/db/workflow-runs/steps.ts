@@ -889,6 +889,8 @@ export interface RewindStepsToPendingParams {
 // guard used everywhere else. It is the one place that resurrects terminal steps,
 // so it must only be called from the durable-restart path, never the ordinary
 // report path. It must run in the same transaction as the failed-attempt write.
+// Post rows are left alone: they are still pending, and bumping their attempt would
+// number their first attempt 2 or more.
 export async function rewindStepsToPending(
   params: RewindStepsToPendingParams,
   tx: Tx,
@@ -907,6 +909,7 @@ export async function rewindStepsToPending(
       and(
         eq(steps.jobExecutionId, params.jobExecutionId),
         gte(steps.position, params.fromPosition),
+        ne(steps.type, 'post'),
       ),
     );
 }

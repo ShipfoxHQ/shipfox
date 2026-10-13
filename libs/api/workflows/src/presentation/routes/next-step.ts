@@ -16,6 +16,7 @@ import {warnAgentToolCapabilityMismatchOnDispatch} from '#core/agent-tool-capabi
 import type {Step} from '#core/entities/step.js';
 import {JobNotFoundError} from '#core/errors.js';
 import {nextStepForLeasedJobExecution} from '#core/job-execution.js';
+import {withPostMainAttempt} from '#core/step-config/post-step.js';
 import {runIdentityEnv, stepReceivesShipfoxEnv} from '#core/step-config/shipfox-env.js';
 import {getWorkflowRunById, listStepEnvSources} from '#db/workflow-runs.js';
 import {
@@ -46,14 +47,18 @@ function nextStepOverflowKey(jobExecutionId: string, response: NextStepRouteResp
   return `${jobExecutionId}:${response.step.id}:${response.attempt}`;
 }
 
-const ENV_SOURCE_STEP_TYPES: readonly Step['type'][] = ['run', 'action', 'agent'];
+const ENV_SOURCE_STEP_TYPES: readonly Step['type'][] = ['run', 'action', 'agent', 'post'];
 
 // The server skips steps before dispatch and rewinds them on a gate restart, so
 // only it knows which earlier attempts the runner executed and still count.
 // Read on every delivery, so a re-delivered step gets the same list.
-function envSourcesForStep(step: Step): Promise<StepEnvSourceDto[] | undefined> {
-  if (!ENV_SOURCE_STEP_TYPES.includes(step.type)) return Promise.resolve(undefined);
-  return listStepEnvSources({jobExecutionId: step.jobExecutionId, beforePosition: step.position});
+async function envSourcesForStep(step: Step): Promise<StepEnvSourceDto[] | undefined> {
+  if (!ENV_SOURCE_STEP_TYPES.includes(step.type)) return undefined;
+  const sources = await listStepEnvSources({
+    jobExecutionId: step.jobExecutionId,
+    beforePosition: step.position,
+  });
+  return step.type === 'post' ? withPostMainAttempt(sources, step) : sources;
 }
 
 // Added at delivery rather than persisted in the step config, so a step created before this

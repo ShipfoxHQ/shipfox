@@ -21,7 +21,7 @@ export function createGetActionBundleRoute(params: {
     method: 'GET',
     path: '/steps/:stepId/action-bundle',
     description:
-      "Returns the gzipped action bundle for the runner's currently leased action step. The digest comes from the step config, never from the runner.",
+      "Returns the gzipped action bundle for the runner's currently leased action or post step. The digest comes from the step config, never from the runner.",
     schema: {
       params: z.object({stepId: z.string().uuid()}),
       response: {
@@ -54,8 +54,10 @@ export function createGetActionBundleRoute(params: {
         stepId,
         attempt: leasedJob.currentStepAttempt,
       });
-      if (step.type !== 'action') {
-        throw new ClientError('Step is not an action step', 'step-not-action', {status: 409});
+      if (step.type !== 'action' && step.type !== 'post') {
+        throw new ClientError('Step is not an action or post step', 'step-not-action', {
+          status: 409,
+        });
       }
 
       const config = actionStepConfigSchema.safeParse(step.config);

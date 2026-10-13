@@ -8,6 +8,7 @@ export const STEP_STATUS_REASONS = [
   'default_gate_rejected',
   'condition_rejected',
   'condition_errored',
+  'main_not_started',
   'timed_out',
   'run_cancelled',
   'runner_lost',

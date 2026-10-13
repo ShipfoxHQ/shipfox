@@ -50,6 +50,7 @@ import type {JobExecution} from './entities/job-execution.js';
 import type {
   PersistedEvaluationTraceEntry,
   Step,
+  StepAttempt,
   StepAttemptInvocation,
   StepStatusReason,
 } from './entities/step.js';
@@ -79,6 +80,7 @@ import {
   completeStepDispatchConfig,
   planReadsContext,
 } from './step-config/complete-step-dispatch-config.js';
+import {buildPostDispatchConfig, selectPostMainAttempt} from './step-config/post-step.js';
 import type {WorkflowEvaluationContext} from './step-config/workflow-evaluation-context.js';
 import {
   applyStepTransition,
@@ -154,6 +156,8 @@ interface PendingStepDispatchParams {
   readonly tx: Tx;
   readonly agent?: AgentInterModuleClient | undefined;
   readonly workflowContext: Awaited<ReturnType<typeof getWorkflowContextForJob>>;
+  readonly steps: readonly Step[];
+  readonly attempts: Awaited<ReturnType<typeof getStepAttemptsByJobExecutionId>>;
 }
 
 interface ResolvePendingStepParams {
@@ -333,7 +337,12 @@ async function resolveNextPendingStep({
       jobs,
       vars,
     });
-    const condition = evaluateStepCondition({step: pending, context});
+    const condition = pendingStepCondition({
+      pending,
+      steps: currentSteps,
+      attempts,
+      context,
+    });
     if (condition.kind === 'run') {
       return dispatchPendingStep({
         jobExecutionId,
@@ -343,6 +352,8 @@ async function resolveNextPendingStep({
         workflowContext,
         tx,
         agent,
+        steps: currentSteps,
+        attempts,
       });
     }
 
@@ -383,7 +394,65 @@ async function resolveNextPendingStep({
   }
 }
 
+function pendingStepCondition(params: {
+  readonly pending: Step;
+  readonly steps: readonly Step[];
+  readonly attempts: readonly StepAttempt[];
+  readonly context: WorkflowEvaluationContext;
+}): StepConditionOutcome {
+  if (params.pending.type !== 'post') {
+    return evaluateStepCondition({step: params.pending, context: params.context});
+  }
+  // A post runs after every authored step, unless its main entry never reached the runner.
+  const start = selectPostMainAttempt({
+    post: params.pending,
+    steps: params.steps,
+    attempts: params.attempts,
+  });
+  return start.kind === 'run'
+    ? {kind: 'run'}
+    : {kind: 'skip', statusReason: 'main_not_started', evaluationTrace: []};
+}
+
+async function dispatchPendingPostStep({
+  jobExecutionId,
+  pending,
+  context,
+  steps,
+  attempts,
+  tx,
+}: PendingStepDispatchParams): Promise<NextStepResolution> {
+  const start = selectPostMainAttempt({post: pending, steps, attempts});
+  if (start.kind !== 'run') throw new Error(`Post step ${pending.id} has no main attempt to run`);
+
+  const execution = context.values.execution as {failed?: unknown} | undefined;
+  const config = buildPostDispatchConfig({
+    post: pending,
+    mainAttempt: start.mainAttempt,
+    mainPosition: start.mainStep.position,
+    executionFailed: execution?.failed === true,
+  });
+  const stepAttemptId = await insertRunningStepAttempt(
+    {jobExecutionId, stepId: pending.id, attempt: pending.currentAttempt},
+    tx,
+  );
+  const marked = await dispatchStepWithCompletedConfig(
+    {
+      jobExecutionId,
+      stepId: pending.id,
+      attempt: pending.currentAttempt,
+      stepAttemptId,
+      config,
+      evaluationTrace: null,
+    },
+    tx,
+  );
+  return {kind: 'step', step: marked ?? {...pending, config}, dispatched: true};
+}
+
 async function dispatchPendingStep(params: PendingStepDispatchParams): Promise<NextStepResolution> {
+  if (params.pending.type === 'post') return dispatchPendingPostStep(params);
+
   const pending = pendingStepForDispatch(params.pending);
   const dispatchParams = pending === params.pending ? params : {...params, pending};
   const hasConfigPlan = pending.configPlan !== null || pending.type === 'tool';

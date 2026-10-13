@@ -26,7 +26,7 @@ export interface MaterializedWorkflowStep {
   readonly name: string;
   readonly sourceLocation: WorkflowSourceLocation | null;
   readonly status: 'pending';
-  readonly type: WorkflowModelStep['kind'] | 'setup';
+  readonly type: WorkflowModelStep['kind'] | 'setup' | 'post';
   readonly config: Readonly<Record<string, unknown>>;
   readonly condition?: WorkflowExpression;
   readonly runAfter: StepRunAfter;
@@ -79,69 +79,125 @@ export async function materializeJobExecutionSteps(
     agentToolSnapshot,
   } = params;
 
+  const authored = await Promise.all(
+    job.steps.map(async (step, stepPosition) => {
+      const stepContext = {
+        ...context.values,
+        job: {key: job.key, name: job.name ?? job.key},
+      };
+      const resolved = await resolveStepConfig({
+        jobKey: job.key,
+        step,
+        workflowEnv: model.env,
+        workflowEnvTemplates: model.templates?.env,
+        jobEnv: job.env,
+        jobEnvTemplates: job.templates?.env,
+        context: stepContext,
+        site: context.site,
+        resolveAgentDefaults: resolveAgentDefaultsForStep?.(stepPosition) ?? resolveAgentDefaults,
+        definitionId,
+        agentToolContext,
+        agentToolSnapshot,
+      }).catch((error: unknown) => {
+        if (
+          !(
+            error instanceof AgentConfigUnresolvableError ||
+            error instanceof AgentIntegrationMaterializationError ||
+            error instanceof InterpolationUnresolvableError
+          )
+        ) {
+          throw error;
+        }
+        throw error.at({
+          jobKey: job.key,
+          step: {
+            key: step.key,
+            name: step.name,
+            index: stepPosition + 1,
+            line: step.sourceLocation?.startLine,
+          },
+        });
+      });
+      return {
+        key: step.key ?? null,
+        name: resolved.name ?? stepDisplayName(step, resolved.config),
+        sourceLocation: step.sourceLocation ?? null,
+        status: 'pending' as const,
+        type: step.kind,
+        config: materializedStepConfig({
+          config: resolved.config,
+          step,
+          stepPosition,
+        }),
+        ...(step.if === undefined ? {} : {condition: step.if}),
+        // Models stored before `run_after` keep their old gate: an `if` replaced it.
+        runAfter: step.runAfter ?? (step.if === undefined ? 'success' : 'always'),
+        authoredConfig: resolved.authoredConfig,
+        ...materializedConfigPlan(resolved.configPlan, resolved.trace),
+        ...(resolved.diagnostics.length === 0 ? {} : {diagnostics: resolved.diagnostics}),
+        position: stepPosition + 1,
+      };
+    }),
+  );
+
   return [
     setupStepForJob({job, context, definitionId}),
-    ...(await Promise.all(
-      job.steps.map(async (step, stepPosition) => {
-        const stepContext = {
-          ...context.values,
-          job: {key: job.key, name: job.name ?? job.key},
-        };
-        const resolved = await resolveStepConfig({
-          jobKey: job.key,
-          step,
-          workflowEnv: model.env,
-          workflowEnvTemplates: model.templates?.env,
-          jobEnv: job.env,
-          jobEnvTemplates: job.templates?.env,
-          context: stepContext,
-          site: context.site,
-          resolveAgentDefaults: resolveAgentDefaultsForStep?.(stepPosition) ?? resolveAgentDefaults,
-          definitionId,
-          agentToolContext,
-          agentToolSnapshot,
-        }).catch((error: unknown) => {
-          if (
-            !(
-              error instanceof AgentConfigUnresolvableError ||
-              error instanceof AgentIntegrationMaterializationError ||
-              error instanceof InterpolationUnresolvableError
-            )
-          ) {
-            throw error;
-          }
-          throw error.at({
-            jobKey: job.key,
-            step: {
-              key: step.key,
-              name: step.name,
-              index: stepPosition + 1,
-              line: step.sourceLocation?.startLine,
-            },
-          });
-        });
-        return {
-          key: step.key ?? null,
-          name: resolved.name ?? stepDisplayName(step, resolved.config),
-          sourceLocation: step.sourceLocation ?? null,
-          status: 'pending' as const,
-          type: step.kind,
-          config: materializedStepConfig({
-            config: resolved.config,
-            step,
-            stepPosition,
-          }),
-          ...(step.if === undefined ? {} : {condition: step.if}),
-          // Models stored before `run_after` keep their old gate: an `if` replaced it.
-          runAfter: step.runAfter ?? (step.if === undefined ? 'success' : 'always'),
-          authoredConfig: resolved.authoredConfig,
-          ...materializedConfigPlan(resolved.configPlan, resolved.trace),
-          ...(resolved.diagnostics.length === 0 ? {} : {diagnostics: resolved.diagnostics}),
-          position: stepPosition + 1,
-        };
-      }),
-    )),
+    ...authored,
+    ...postStepsForJob({job, authored}),
   ];
+}
+
+// One post row per action step that declares `post`, last authored action first. The rows exist
+// from the start so positions stay dense; a post whose main entry never reached the runner is
+// skipped at dispatch.
+function postStepsForJob(params: {
+  readonly job: WorkflowModelJob;
+  readonly authored: readonly MaterializedWorkflowStep[];
+}): MaterializedWorkflowStep[] {
+  const posts: MaterializedWorkflowStep[] = [];
+  for (let index = params.job.steps.length - 1; index >= 0; index -= 1) {
+    const step = params.job.steps[index];
+    const main = params.authored[index];
+    if (step?.kind !== 'action' || main === undefined || step.action.post === undefined) continue;
+    posts.push(
+      postStepForAction({
+        step,
+        main,
+        position: params.authored.length + 1 + posts.length,
+      }),
+    );
+  }
+  return posts;
+}
+
+function postStepForAction(params: {
+  readonly step: Extract<WorkflowModelStep, {kind: 'action'}>;
+  readonly main: MaterializedWorkflowStep;
+  readonly position: number;
+}): MaterializedWorkflowStep {
+  const {step, main, position} = params;
+  const {action, job_key: jobKey, integrations} = main.config;
+  if (step.action.post === undefined || action === null || typeof action !== 'object') {
+    throw new Error('Action step config is missing its action');
+  }
+  return {
+    key: null,
+    name: `Post ${main.name}`,
+    sourceLocation: main.sourceLocation,
+    status: 'pending',
+    type: 'post',
+    config: {
+      post: {main_position: main.position, failure: step.action.postFailure ?? 'warn'},
+      // The runner starts the post entry where it would start `main`.
+      action: {...action, main: step.action.post},
+      job_key: jobKey,
+      // The post reaches the same tools as its main entry.
+      integrations,
+    },
+    runAfter: 'always',
+    authoredConfig: null,
+    position,
+  };
 }
 
 function setupStepForJob(params: {

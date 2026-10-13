@@ -35,6 +35,7 @@ async function actionStep(
   params: {
     config?: Record<string, unknown>;
     origin?: 'local' | 'registry';
+    main?: string;
     extraFiles?: ActionBundleFile[];
   } = {},
 ): Promise<{step: StepDto; gzip: Uint8Array; digest: string}> {
@@ -55,7 +56,7 @@ async function actionStep(
         uses: './.shipfox/actions/greeter',
         ...(params.origin ? {origin: params.origin} : {}),
         digest: bundle.digest,
-        main: 'index.js',
+        main: params.main ?? 'index.js',
         name: 'Greeter',
       },
       job_key: 'build',
@@ -464,5 +465,141 @@ export default defineAction(() => ({value: help()}));
     const result = await run(step);
 
     expect(result).toMatchObject({success: true, outputs: {code: 'tools-unavailable'}});
+  });
+
+  describe('state', () => {
+    const STATE_ENTRY = '{"name":"cache_key","value":"abc"}\n';
+
+    function postStep(body: string, mainStatus: 'succeeded' | 'failed' = 'succeeded') {
+      return actionStep(action('async () => {}'), {
+        main: 'post.js',
+        extraFiles: [{path: 'post.js', content: action(body)}],
+        config: {
+          post: {main_position: 1, failure: 'warn'},
+          post_context: {execution_failed: true, main_status: mainStatus},
+        },
+      });
+    }
+
+    it('returns the state the action set', async () => {
+      const step = await actionStep(
+        action("async ({state}) => { state.set('cache_key', 'abc'); }"),
+      );
+
+      const result = await run(step);
+
+      expect(result).toMatchObject({success: true, actionState: STATE_ENTRY});
+    });
+
+    it('returns the state set before the action failed', async () => {
+      const step = await actionStep(
+        action("async ({state}) => { state.set('cache_key', 'abc'); throw new Error('boom'); }"),
+      );
+
+      const result = await run(step);
+
+      expect(result).toMatchObject({success: false, actionState: STATE_ENTRY});
+    });
+
+    it('returns no state for an action that set none', async () => {
+      const step = await actionStep(action('async () => {}'));
+
+      const result = await run(step);
+
+      expect(result.success).toBe(true);
+      expect(result).not.toHaveProperty('actionState');
+    });
+
+    it('starts the post from the state of the main attempt and appends to it', async () => {
+      const step = await postStep(
+        "async ({state}) => { console.log('SEEN=' + state.get('cache_key')); state.set('saved', 'yes'); }",
+      );
+
+      const pending = run(step, {stateSeed: STATE_ENTRY});
+      const result = await pending;
+
+      expect(pending.output()).toContain('SEEN=abc');
+      expect(result).toMatchObject({
+        success: true,
+        actionState: `${STATE_ENTRY}{"name":"saved","value":"yes"}\n`,
+      });
+    });
+
+    it('gives the post its phase, the job result, and how the main entry ended', async () => {
+      const step = await postStep(
+        'async ({context}) => { console.log("CTX=" + JSON.stringify({phase: context.phase, execution: context.execution, main: context.main})); }',
+        'failed',
+      );
+
+      const pending = run(step);
+      await pending;
+
+      expect(pending.output()).toContain(
+        'CTX={"phase":"post","execution":{"failed":true},"main":{"status":"failed"}}',
+      );
+    });
+
+    it('runs the main entry in the main phase', async () => {
+      const step = await actionStep(
+        action("async ({context}) => { console.log('PHASE=' + context.phase); }"),
+      );
+
+      const pending = run(step);
+      await pending;
+
+      expect(pending.output()).toContain('PHASE=main');
+    });
+
+    it('fails a successful action that grows the state file past the limit', async () => {
+      const step = await actionStep(
+        action(
+          "async () => { const {appendFileSync} = await import('node:fs'); appendFileSync(process.env.SHIPFOX_STATE, 'x'.repeat(256 * 1024 + 1)); }",
+        ),
+      );
+
+      const result = await run(step);
+
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain('size limit');
+      expect(result).not.toHaveProperty('actionState');
+    });
+
+    it('keeps the failure of an action that also broke the state file and warns', async () => {
+      const step = await actionStep(
+        action(
+          "async () => { const {appendFileSync} = await import('node:fs'); appendFileSync(process.env.SHIPFOX_STATE, 'not json\\n'); throw new Error('boom'); }",
+        ),
+      );
+
+      const result = await run(step);
+
+      expect(result.success).toBe(false);
+      expect(result.error?.message).not.toContain('SHIPFOX_STATE');
+      expect(result.warnings?.[0]).toContain('SHIPFOX_STATE is not a list');
+      expect(result).not.toHaveProperty('actionState');
+    });
+
+    it('fails a successful action whose state file holds an invalid entry', async () => {
+      const step = await actionStep(
+        action(
+          "async () => { const {appendFileSync} = await import('node:fs'); appendFileSync(process.env.SHIPFOX_STATE, JSON.stringify({name: 'bad name', value: 'x'}) + '\\n'); }",
+        ),
+      );
+
+      const result = await run(step);
+
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain('SHIPFOX_STATE');
+    });
+
+    it('keeps the state file out of the step files after the action exits', async () => {
+      const step = await actionStep(
+        action("async ({state}) => { state.set('cache_key', 'abc'); }"),
+      );
+
+      await run(step);
+
+      expect(await readdir(join(sandbox.jobTempDir, 'steps'))).toEqual([]);
+    });
   });
 });

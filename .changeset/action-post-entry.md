@@ -6,7 +6,7 @@
 "@shipfox/registry-format": minor
 ---
 
-An action can declare a `post` entry in `action.yml`. Shipfox accepts it and does not run it yet.
+An action can declare a `post` entry in `action.yml`, which Shipfox runs at the end of the job.
 
 - **Manifest:** `post` follows the path rules of `main` and must differ from it. `post_failure` is `warn` (the default) or `fail`, and needs `post`. A repository action must contain the `post` file.
 - **Workflow model:** an action step carries `post` and `postFailure`. Models stored before this change omit both.

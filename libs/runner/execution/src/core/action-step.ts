@@ -25,6 +25,7 @@ import {
   type ActionToolsUpstream,
   startActionEndpoint,
 } from '#core/action-endpoint.js';
+import {type ActionStateRead, readActionState, rejectActionState} from '#core/action-state.js';
 import {executeStepProcess, readShipfoxEnv, type StepProcessOptions} from '#core/run-step.js';
 import type {StepResult} from '#core/step-result.js';
 
@@ -75,6 +76,11 @@ const actionStepConfigSchema = z.object({
   inputs: z.record(z.string(), z.unknown()).default({}),
   env: z.record(z.string(), z.string()).default({}),
   integrations: actionIntegrationsSchema,
+  // Set on post steps, which run the post entry in `action.main` for a main entry that ran earlier.
+  post: z.object({main_position: z.number().int(), failure: z.enum(['warn', 'fail'])}).optional(),
+  post_context: z
+    .object({execution_failed: z.boolean(), main_status: z.enum(['succeeded', 'failed'])})
+    .optional(),
   outputs: z
     .record(
       z.string(),
@@ -130,6 +136,8 @@ export interface ActionStepOptions
   secretEnv?: Readonly<Record<string, string>>;
   /** Secret input values. They reach the inputs file only, never the environment. */
   secretInputs?: Readonly<Record<string, string>>;
+  /** The state file text of the main attempt a post runs for. Empty for a main entry. */
+  stateSeed?: string;
   /** Receives the lines the runner writes to the step log. */
   onLogLine?: (line: string) => void;
   /** Receives the per-step endpoint token, so the step log can mask it. */
@@ -195,21 +203,7 @@ export async function executeActionStep(
   });
   options.onSecret?.(endpoint.token);
   try {
-    const paths = {
-      inputs: join(stepTemp, 'inputs.json'),
-      context: join(stepTemp, 'context.json'),
-      result: join(stepTemp, 'result.json'),
-    };
-    await host.writeFile(
-      paths.inputs,
-      Buffer.from(JSON.stringify({...config.inputs, ...options.secretInputs})),
-      {mode: PRIVATE_FILE_MODE},
-    );
-    await host.writeFile(
-      paths.context,
-      Buffer.from(JSON.stringify(contextFile(step, config, options))),
-      {mode: PRIVATE_FILE_MODE},
-    );
+    const paths = await writeStepFiles({host, stepTemp, step, config, options});
 
     const result = await executeStepProcess(
       {
@@ -237,6 +231,7 @@ export async function executeActionStep(
           [ACTION_ENV.actionInputs]: paths.inputs,
           [ACTION_ENV.actionContext]: paths.context,
           [ACTION_ENV.actionResult]: paths.result,
+          [ACTION_ENV.state]: paths.state,
           [ACTION_ENV.actionsUrl]: endpoint.url,
           [ACTION_ENV.actionsToken]: endpoint.token,
         },
@@ -251,11 +246,43 @@ export async function executeActionStep(
         ...(options.onOutput ? {onOutput: options.onOutput} : {}),
       },
     );
-    return actionResult(result, await readResultStatus(host, paths.result));
+    // Read whatever the exit status, so a post can undo the work a failed main entry began.
+    const state = await readActionState(host, paths.state);
+    return withActionState(actionResult(result, await readResultStatus(host, paths.result)), state);
   } finally {
     await endpoint.close();
     await rm(stepTemp, {recursive: true, force: true});
   }
+}
+
+async function writeStepFiles(params: {
+  host: ExecutionHost;
+  stepTemp: string;
+  step: StepDto;
+  config: ActionStepConfig;
+  options: ActionStepOptions;
+}) {
+  const {host, stepTemp, step, config, options} = params;
+  const paths = {
+    inputs: join(stepTemp, 'inputs.json'),
+    context: join(stepTemp, 'context.json'),
+    result: join(stepTemp, 'result.json'),
+    state: join(stepTemp, 'state.jsonl'),
+  };
+  const writeOptions = {mode: PRIVATE_FILE_MODE};
+  await host.writeFile(
+    paths.inputs,
+    Buffer.from(JSON.stringify({...config.inputs, ...options.secretInputs})),
+    writeOptions,
+  );
+  await host.writeFile(
+    paths.context,
+    Buffer.from(JSON.stringify(contextFile(step, config, options))),
+    writeOptions,
+  );
+  // The seed is the state of the main attempt a post runs for. A main entry starts empty.
+  await host.writeFile(paths.state, Buffer.from(options.stateSeed ?? ''), writeOptions);
+  return paths;
 }
 
 interface ActionRuntime {
@@ -321,7 +348,13 @@ function contextFile(
       actionPath: config.action.uses,
       digest: config.action.digest,
       workspace: options.workspace,
-      phase: 'main',
+      ...(config.post === undefined || config.post_context === undefined
+        ? {phase: 'main' as const}
+        : {
+            phase: 'post' as const,
+            execution: {failed: config.post_context.execution_failed},
+            main: {status: config.post_context.main_status},
+          }),
     },
     outputs: outputDeclarations(config.outputs),
   };
@@ -368,6 +401,11 @@ function actionResult(
       ? `The action failed with exit code ${exitCode}.`
       : 'The action exited before it finished.';
   return {...result, success: false, error: {message, exit_code: exitCode}};
+}
+
+function withActionState(result: StepResult, state: ActionStateRead): StepResult {
+  if (!state.ok) return rejectActionState(result, state.message);
+  return state.content === '' ? result : {...result, actionState: state.content};
 }
 
 function failure(error: NonNullable<StepResult['error']>): StepResult {

@@ -1234,6 +1234,164 @@ describe('runJobSteps', () => {
     });
   });
 
+  describe('action state', () => {
+    const MAIN_STATE = '{"name":"cache_key","value":"abc"}\n';
+    const FIRST_ATTEMPT_STATE = '{"name":"cache_key","value":"first"}\n';
+
+    function actionStepAt(position: number, id: string) {
+      return buildStep({id, type: 'action', config: {}, position});
+    }
+
+    function postStepFor(
+      source: {position: number; attempt: number},
+      overrides: {secretBindings?: unknown[]} = {},
+    ) {
+      return buildStep({
+        id: '00000000-0000-0000-0000-0000000000a9',
+        type: 'post',
+        position: 3,
+        config: {
+          post: {main_position: source.position, failure: 'warn'},
+          state_source: source,
+          ...(overrides.secretBindings ? {secret_bindings: overrides.secretBindings} : {}),
+        },
+      });
+    }
+
+    function stateSeedOf(call: number) {
+      return (executeActionStepMock.mock.calls[call]?.[1] as {stateSeed?: string}).stateSeed;
+    }
+
+    it('seeds a post with the state its main attempt wrote and never reports it', async () => {
+      const main = actionStepAt(1, '00000000-0000-0000-0000-0000000000a1');
+      const post = postStepFor({position: 1, attempt: 1});
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(main, 1))
+        .mockResolvedValueOnce(stepResponse(post, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeActionStepMock
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0, actionState: MAIN_STATE})
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0});
+      requestActionBundleMock.mockResolvedValue(new Uint8Array());
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(executeRunStepMock).not.toHaveBeenCalled();
+      expect(stateSeedOf(0)).toBeUndefined();
+      expect(stateSeedOf(1)).toBe(MAIN_STATE);
+      for (const [, report] of reportStepMock.mock.calls) {
+        expect(report).not.toHaveProperty('actionState');
+      }
+    });
+
+    it('seeds a post with the state of the attempt the server names, not the latest', async () => {
+      const main = actionStepAt(1, '00000000-0000-0000-0000-0000000000a1');
+      const post = postStepFor({position: 1, attempt: 1});
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(main, 1))
+        .mockResolvedValueOnce(stepResponse(main, 2))
+        .mockResolvedValueOnce(stepResponse(post, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeActionStepMock
+        .mockResolvedValueOnce({
+          success: true,
+          error: null,
+          exit_code: 0,
+          actionState: FIRST_ATTEMPT_STATE,
+        })
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0, actionState: MAIN_STATE})
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0});
+      requestActionBundleMock.mockResolvedValue(new Uint8Array());
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(stateSeedOf(2)).toBe(FIRST_ATTEMPT_STATE);
+    });
+
+    it('seeds a post with nothing when its main attempt wrote no state', async () => {
+      const main = actionStepAt(1, '00000000-0000-0000-0000-0000000000a1');
+      const post = postStepFor({position: 1, attempt: 1});
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(main, 1))
+        .mockResolvedValueOnce(stepResponse(post, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeActionStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+      requestActionBundleMock.mockResolvedValue(new Uint8Array());
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(stateSeedOf(1)).toBeUndefined();
+    });
+
+    it('keeps the state of a main attempt that failed', async () => {
+      const main = actionStepAt(1, '00000000-0000-0000-0000-0000000000a1');
+      const post = postStepFor({position: 1, attempt: 1});
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(main, 1))
+        .mockResolvedValueOnce(stepResponse(post, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'failed'});
+      executeActionStepMock
+        .mockResolvedValueOnce({
+          success: false,
+          error: {message: 'boom'},
+          exit_code: 1,
+          actionState: MAIN_STATE,
+        })
+        .mockResolvedValueOnce({success: true, error: null, exit_code: 0});
+      requestActionBundleMock.mockResolvedValue(new Uint8Array());
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(stateSeedOf(1)).toBe(MAIN_STATE);
+    });
+
+    it('gives a post the secret inputs and env its main attempt bound', async () => {
+      const post = postStepFor(
+        {position: 1, attempt: 1},
+        {
+          secretBindings: [
+            {
+              target: {kind: 'input', name: 'token'},
+              segments: [{kind: 'secret', store: 'local', key: 'NPM_TOKEN'}],
+            },
+            {
+              target: 'REGISTRY_AUTH',
+              segments: [{kind: 'secret', store: 'local', key: 'NPM_TOKEN'}],
+            },
+          ],
+        },
+      );
+      requestStepSecretsMock.mockResolvedValueOnce({
+        secrets: [{store: 'local', key: 'NPM_TOKEN', value: 'npm-secret'}],
+      });
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(post, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeActionStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+      requestActionBundleMock.mockResolvedValue(new Uint8Array());
+
+      await runLoop({signal: new AbortController().signal});
+
+      expect(requestStepSecretsMock).toHaveBeenCalledWith(
+        leaseClient,
+        expect.objectContaining({stepId: post.id}),
+      );
+      expect(executeActionStepMock).toHaveBeenCalledWith(
+        post,
+        expect.objectContaining({
+          secretInputs: {token: 'npm-secret'},
+          secretEnv: {REGISTRY_AUTH: 'npm-secret'},
+          secretValues: ['npm-secret'],
+        }),
+      );
+    });
+  });
+
   describe('runtime masks', () => {
     it('registers the values a step masked for the job and masks its own outputs', async () => {
       const step = buildRunStep({id: '00000000-0000-0000-0000-0000000000f1', position: 1});

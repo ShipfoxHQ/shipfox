@@ -86,6 +86,7 @@ import {
   checkVariableReadiness,
   collectSecretInputReferences,
 } from '#core/run-readiness.js';
+import {readPostStepConfig} from '#core/step-config/post-step.js';
 import {
   assertWorkspaceAdmitsNewJobs,
   type WorkflowAdmissionPolicy,
@@ -959,11 +960,11 @@ export function createWorkflowsInterModulePresentation(params: {
       const {step, scope} = await resolveLeasedAgentStep({
         method,
         input,
-        stepTypes: ['agent', 'action'],
+        stepTypes: ['agent', 'action', 'post'],
       });
 
-      if (step.type === 'action') {
-        const integrations = await loadFrozenActionIntegrations(step.id);
+      if (step.type === 'action' || step.type === 'post') {
+        const integrations = await loadFrozenActionIntegrations(step);
         if (integrations === undefined) {
           throw createInterModuleKnownError(method, 'agent-step-config-invalid', {});
         }
@@ -1014,16 +1015,18 @@ export function createWorkflowsInterModulePresentation(params: {
   });
 }
 
+// A post is not in the authored model; it reaches the tools its main entry was granted.
 async function loadFrozenActionIntegrations(
-  stepId: string,
+  step: Pick<Step, 'id' | 'type' | 'config'>,
 ): Promise<LeasedToolIntegration[] | undefined> {
-  const source = await getStepToolMaterializationSource(stepId);
+  const source = await getStepToolMaterializationSource(step.id);
   if (source?.model == null) return undefined;
   const grants = findFrozenActionIntegrations({
     model: source.model,
     snapshot: source.agentToolMaterialization,
     jobKey: source.jobKey,
-    stepPosition: source.stepPosition,
+    stepPosition:
+      step.type === 'post' ? readPostStepConfig(step.config).main_position : source.stepPosition,
   });
   return grants === undefined
     ? undefined

@@ -25,6 +25,41 @@ function step(overrides: Partial<Step> & {id: string; position: number}): Step {
   };
 }
 
+describe('deriveCompletion with post steps', () => {
+  const postStep = (failure: 'warn' | 'fail', status: Step['status']) =>
+    step({
+      id: `post-${failure}`,
+      position: 2,
+      type: 'post',
+      status,
+      config: {post: {main_position: 1, failure}},
+    });
+
+  test('ignores a failed post that warns', () => {
+    const steps = [step({id: 's1', position: 1, status: 'succeeded'}), postStep('warn', 'failed')];
+
+    expect(deriveCompletion(steps)).toBe('succeeded');
+  });
+
+  test('fails the job for a failed post that fails the job', () => {
+    const steps = [step({id: 's1', position: 1, status: 'succeeded'}), postStep('fail', 'failed')];
+
+    expect(deriveCompletion(steps)).toBe('failed');
+  });
+
+  test('still fails the job for an authored failure when the post warns', () => {
+    const steps = [step({id: 's1', position: 1, status: 'failed'}), postStep('warn', 'failed')];
+
+    expect(deriveCompletion(steps)).toBe('failed');
+  });
+
+  test('reads a post without settings as one that fails the job', () => {
+    const post = step({id: 'p', position: 2, type: 'post', status: 'failed', config: {}});
+
+    expect(deriveCompletion([post])).toBe('failed');
+  });
+});
+
 describe('decideStepTransition', () => {
   test('a succeeded step with pending siblings advances the step', () => {
     const target = step({id: 's0', position: 0, status: 'running'});

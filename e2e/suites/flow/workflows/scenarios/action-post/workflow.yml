@@ -1,0 +1,67 @@
+name: Action post
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  state_and_secrets:
+    steps:
+      - key: probe
+        name: Probe
+        uses: ./.shipfox/actions/post-probe
+        with:
+          token: ${{ secrets.POST_INPUT_SECRET }}
+        env:
+          POST_ENV_SECRET: ${{ secrets.POST_ENV_SECRET }}
+      - key: build
+        run: echo "build runs between the main entry and the post"
+  authored_failure:
+    steps:
+      - key: probe
+        name: Probe
+        uses: ./.shipfox/actions/post-probe
+        with:
+          token: ${{ secrets.POST_INPUT_SECRET }}
+        env:
+          POST_ENV_SECRET: ${{ secrets.POST_ENV_SECRET }}
+      - key: break
+        run: exit 1
+  post_warn:
+    steps:
+      - key: probe
+        name: Probe
+        uses: ./.shipfox/actions/post-probe
+        with:
+          token: ${{ secrets.POST_INPUT_SECRET }}
+          fail_post: "true"
+        env:
+          POST_ENV_SECRET: ${{ secrets.POST_ENV_SECRET }}
+  post_fail:
+    steps:
+      - key: fail
+        name: Fail
+        uses: ./.shipfox/actions/post-fail
+  gate_restart:
+    steps:
+      - key: probe
+        name: Probe
+        if: ${{ step.attempt == 1 }}
+        uses: ./.shipfox/actions/post-probe
+        with:
+          token: ${{ secrets.POST_INPUT_SECRET }}
+        env:
+          POST_ENV_SECRET: ${{ secrets.POST_ENV_SECRET }}
+      - key: review
+        run: |
+          if [ -f .review-failed-once ]; then
+            echo "review passes after restart"
+            exit 0
+          fi
+          touch .review-failed-once
+          echo "review fails once"
+          exit 1
+        gate:
+          success: step.exit_code == 0
+          on_failure:
+            restart_from: probe
+            feedback: retrying from probe

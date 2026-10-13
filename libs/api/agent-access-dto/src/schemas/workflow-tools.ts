@@ -123,11 +123,12 @@ const jobModeSchema = z.enum(['one_shot', 'listening']);
 const listenerStatusSchema = z.enum(['inactive', 'listening', 'resolved']);
 const executionStatusSchema = z.enum(['pending', 'running', 'succeeded', 'failed', 'cancelled']);
 const stepStatusSchema = jobStatusSchema;
-const stepTypeSchema = z.enum(['setup', 'run', 'agent', 'checkout', 'tool', 'action']);
+const stepTypeSchema = z.enum(['setup', 'run', 'agent', 'checkout', 'tool', 'action', 'post']);
 const stepStatusReasonSchema = z.enum([
   'default_gate_rejected',
   'condition_rejected',
   'condition_errored',
+  'main_not_started',
   'timed_out',
   'run_cancelled',
   'runner_lost',
@@ -708,7 +709,7 @@ const stepsJsonSchema = {
     id: uuid,
     key: nullable(text),
     name: text,
-    type: {type: 'string', enum: ['setup', 'run', 'agent', 'checkout', 'tool', 'action']},
+    type: {type: 'string', enum: ['setup', 'run', 'agent', 'checkout', 'tool', 'action', 'post']},
     position: {type: 'integer', minimum: 0},
     status: jobStatusJsonSchema,
     status_reason: nullable({
@@ -717,6 +718,7 @@ const stepsJsonSchema = {
         'default_gate_rejected',
         'condition_rejected',
         'condition_errored',
+        'main_not_started',
         'timed_out',
         'run_cancelled',
         'runner_lost',

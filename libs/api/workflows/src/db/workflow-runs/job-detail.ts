@@ -14,6 +14,7 @@ import {
   timestampIdCursorWhere,
 } from '@shipfox/node-drizzle';
 import {and, asc, count, desc, eq, gt, inArray, lt, lte, or, sql} from 'drizzle-orm';
+import {alias} from 'drizzle-orm/pg-core';
 import {
   normalizeWorkflowExecutionEvent,
   type WorkflowExecutionEvent,
@@ -32,7 +33,10 @@ import {
   type StepType,
   toStepStatusReason,
 } from '#core/entities/step.js';
-import {DEFAULT_RESTART_ATTEMPT_CAP} from '#core/step-transition/decide-step-transition.js';
+import {
+  DEFAULT_RESTART_ATTEMPT_CAP,
+  stepAffectsConclusion,
+} from '#core/step-transition/decide-step-transition.js';
 import {readStepGate, type StepGateRestartRule} from '#core/step-transition/evaluate-gate.js';
 import {db, type Tx} from '../db.js';
 import {jobExecutions} from '../schema/job-executions.js';
@@ -120,6 +124,10 @@ export interface WorkflowStepSummaryRead {
   sourceLocation: StepSourceLocation | null;
   currentAttempt: number;
   gateMaxAttempts: number | undefined;
+  /** Set on post rows only. */
+  mainStepId: string | undefined;
+  /** Set on post rows only. False when a failed post leaves the job result unchanged. */
+  affectsJob: boolean | undefined;
   error: Record<string, unknown> | null;
   attempts: {
     items: WorkflowStepAttemptSummaryRead[];
@@ -1033,6 +1041,7 @@ interface StepRow {
   sourceLocation: StepSourceLocation | null;
   currentAttempt: number;
   config: Record<string, unknown>;
+  mainStepId: string | null;
   error: Record<string, unknown> | null;
 }
 
@@ -1214,6 +1223,8 @@ function toJobDetailRead(
   };
 }
 
+const mainStep = alias(steps, 'main_step');
+
 async function loadStepPage(
   tx: Tx,
   jobExecutionId: string,
@@ -1244,11 +1255,20 @@ async function loadStepPage(
       sourceLocation: steps.sourceLocation,
       currentAttempt: steps.currentAttempt,
       config: sql<Record<string, unknown>>`jsonb_build_object(
-        'gate', ${steps.config} -> 'gate'
+        'gate', ${steps.config} -> 'gate',
+        'post', ${steps.config} -> 'post'
       )`,
+      mainStepId: mainStep.id,
       error: steps.error,
     })
     .from(steps)
+    .leftJoin(
+      mainStep,
+      and(
+        eq(mainStep.jobExecutionId, steps.jobExecutionId),
+        eq(mainStep.position, sql`(${steps.config} #>> '{post,main_position}')::int`),
+      ),
+    )
     .where(and(...conditions))
     .orderBy(asc(steps.position), asc(steps.id))
     .limit(params.limit + 1);
@@ -1409,6 +1429,8 @@ function toStepSummary(
       gateOnFailure === undefined
         ? undefined
         : (gateOnFailure.maxAttempts ?? DEFAULT_RESTART_ATTEMPT_CAP),
+    mainStepId: row.type === 'post' ? (row.mainStepId ?? undefined) : undefined,
+    affectsJob: row.type === 'post' ? stepAffectsConclusion(row) : undefined,
     error: (row.error as Record<string, unknown> | null) ?? null,
     attempts,
   };

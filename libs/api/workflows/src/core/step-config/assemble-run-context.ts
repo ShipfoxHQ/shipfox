@@ -25,6 +25,7 @@ import type {
   WorkflowRun,
   WorkflowRunTriggerReference,
 } from '#core/entities/workflow-run.js';
+import {hasFailedStep} from '#core/step-transition/decide-step-transition.js';
 import {readStepOutputs} from '#core/step-transition/read-step-outputs.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
@@ -999,7 +1000,7 @@ function buildStepAttemptContext(params: {
 
   return {
     stepsContext,
-    stepsFailed: params.steps.some((step) => step.status === 'failed'),
+    stepsFailed: hasFailedStep(params.steps),
     orderedAttempts,
     stepsById,
     stepsByKey,

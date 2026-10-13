@@ -103,6 +103,8 @@ function toStepSummaryDto(step: WorkflowStepSummaryRead): StepSummaryDto {
       : null,
     current_attempt: step.currentAttempt,
     ...(step.gateMaxAttempts === undefined ? {} : {gate_max_attempts: step.gateMaxAttempts}),
+    ...(step.mainStepId === undefined ? {} : {main_step_id: step.mainStepId}),
+    ...(step.affectsJob === undefined ? {} : {affects_job: step.affectsJob}),
     error: toStepErrorDto(step.error, step.type),
     attempts: toStepAttemptPageDto(step.attempts, step.type),
   };

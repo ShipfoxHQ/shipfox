@@ -1,0 +1,10 @@
+name: Post probe
+description: Checks in the post entry that the main entry's state, the secrets, and the PATH export arrived.
+main: index.ts
+post: post.ts
+post_failure: warn
+inputs:
+  token:
+    required: true
+  fail_post:
+    default: "false"

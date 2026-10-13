@@ -167,6 +167,7 @@ export async function runJobSteps(params: {
     checkoutDestinations: new Map(),
     annotationContexts: createAnnotationContextRegistry(),
     carriedEnv: new Map(),
+    actionState: new Map(),
     activeStream: undefined,
     checkoutRef: undefined,
   };
@@ -196,6 +197,8 @@ interface JobStepLoopState {
   annotationContexts: AnnotationContextRegistry;
   /** What each step attempt that ran in this job wrote to `$SHIPFOX_ENV` and `$SHIPFOX_PATH`. */
   carriedEnv: Map<string, CarriedEnv>;
+  /** What each action attempt wrote to `$SHIPFOX_STATE`, for the post of the same step. */
+  actionState: Map<string, string>;
   activeStream: LogStreamLifecycle | undefined;
   checkoutRef: string | undefined;
 }
@@ -215,6 +218,7 @@ async function runJobStepIteration(
   params.onLeaseTokenAdopted?.(pulled.leaseToken);
   const {step, attempt} = pulled;
   const carriedEnv = carriedEnvForStep(state.carriedEnv, pulled.envSources);
+  const stateSeed = postStateSeed(state.actionState, step);
   const credentialFailureCursor =
     isCredentialFailureAttributionStep(step) && params.credentialFailureEvents !== undefined
       ? params.credentialFailureEvents.getFailureEventCursor()
@@ -269,6 +273,7 @@ async function runJobStepIteration(
       ? {onJobContainerRequested: params.onJobContainerRequested}
       : {}),
     ...(carriedEnv ? {carriedEnv} : {}),
+    stateSeed,
     ...(params.credentialHelper ? {credentialHelper: params.credentialHelper} : {}),
     ...preparation,
   };
@@ -344,6 +349,9 @@ function applyStepExecutionState(
   state.activeStream = execution.stream;
   if (execution.result.carriedEnv) {
     state.carriedEnv.set(carriedEnvKey(step.position, attempt), execution.result.carriedEnv);
+  }
+  if (execution.result.actionState !== undefined) {
+    state.actionState.set(carriedEnvKey(step.position, attempt), execution.result.actionState);
   }
   if (execution.preparedWorkspace) state.workspacePrepared = true;
   if (execution.container) {
@@ -607,6 +615,25 @@ function carriedEnvKey(position: number, attempt: number): string {
   return `${position}:${attempt}`;
 }
 
+// The server names the main attempt a post runs for. Its state is read back from memory, so a
+// post only works on the runner that ran the main entry.
+function postStateSeed(stored: ReadonlyMap<string, string>, step: StepDto): string | undefined {
+  if (step.type !== 'post') return undefined;
+  const source = stepStateSource(step);
+  return source === undefined
+    ? undefined
+    : stored.get(carriedEnvKey(source.position, source.attempt));
+}
+
+function stepStateSource(step: StepDto): {position: number; attempt: number} | undefined {
+  const source = step.config.state_source;
+  if (source === null || typeof source !== 'object') return undefined;
+  const {position, attempt} = source as Record<string, unknown>;
+  return typeof position === 'number' && typeof attempt === 'number'
+    ? {position, attempt}
+    : undefined;
+}
+
 // The server names the earlier attempts that still count, in position order. A skipped or
 // rewound step is not listed, and anything the runner stored for it is left out.
 function carriedEnvForStep(
@@ -779,6 +806,8 @@ export async function executeStep(params: {
   onJobContainerRequested?: (() => void) | undefined;
   /** What the steps listed in `env_sources` carried. */
   carriedEnv?: CarriedEnv | undefined;
+  /** The state file text a post starts from. */
+  stateSeed?: string | undefined;
   jobId: string;
   stepLabel: string;
   prepareLogs?: (() => Promise<void>) | undefined;
@@ -906,7 +935,7 @@ export async function executeStep(params: {
       return {...execution, credentialScopes};
     }
 
-    if (step.type === 'action') {
+    if (step.type === 'action' || step.type === 'post') {
       const execution = await executeActionStepBranch({
         params: {...stepParams, step},
         stepCwd,
@@ -1847,6 +1876,7 @@ async function executeActionStepBranch(params: ProcessStepBranchParams): Promise
     ...(input.container ? await containerActionOptions(input.container) : {}),
     ...gitConfigGlobalOption(input),
     ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
+    ...(input.stateSeed === undefined ? {} : {stateSeed: input.stateSeed}),
     ...(secretMaterial
       ? {secretEnv: secretMaterial.secretEnv, secretInputs: secretMaterial.secretInputs}
       : {}),
@@ -1945,7 +1975,9 @@ async function loadStepSecretMaterial(params: {
   attempt: number;
   signal: AbortSignal;
 }): Promise<StepSecretMaterial | undefined> {
-  if (params.step.type !== 'run' && params.step.type !== 'action') return undefined;
+  if (params.step.type !== 'run' && params.step.type !== 'action' && params.step.type !== 'post') {
+    return undefined;
+  }
   const bindings = parseStepSecretBindings(params.step);
   if (bindings.length === 0) return undefined;
 
@@ -2017,13 +2049,16 @@ function maskSetupFailure(result: StepResult, secrets: string[]): StepResult {
   };
 }
 
-// Environment variables are the only target of run steps; input targets belong to action steps.
+// Environment variables are the only target of run steps; input targets belong to action and post steps.
 // Container targets belong to the setup step, which this loader does not pull for yet.
 function parseStepSecretBindings(step: StepDto): MaterializedSecretBindingDto[] {
   const parsed = stepSecretBindingsSchema.safeParse(step.config.secret_bindings ?? []);
   if (
     !parsed.success ||
-    parsed.data.some((binding) => !bindingTargetAllowed(binding.target, step.type === 'action'))
+    parsed.data.some(
+      (binding) =>
+        !bindingTargetAllowed(binding.target, step.type === 'action' || step.type === 'post'),
+    )
   ) {
     throw new Error('Step secret bindings are invalid.');
   }

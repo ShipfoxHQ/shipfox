@@ -50,7 +50,7 @@ const stepStatusSchema = z.enum([
   'skipped',
   'cancelled',
 ]);
-const stepTypeSchema = z.enum(['setup', 'run', 'agent', 'checkout', 'tool', 'action']);
+const stepTypeSchema = z.enum(['setup', 'run', 'agent', 'checkout', 'tool', 'action', 'post']);
 const stepErrorReasonSchema = z.enum([
   'checkout_failed',
   'checkout_auth_failed',

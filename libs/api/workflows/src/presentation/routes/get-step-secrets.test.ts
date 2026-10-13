@@ -376,6 +376,61 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
     });
   });
 
+  test('returns the secrets a running post step binds to its inputs and env', async () => {
+    const {run, job, step} = await createRunningRunStep();
+    await db()
+      .update(stepsTable)
+      .set({
+        type: 'post',
+        config: {
+          post: {main_position: 1, failure: 'warn'},
+          secret_bindings: [
+            {target: 'SLACK_TOKEN', segments: [{kind: 'secret', store: 'local', key: 'SLACK'}]},
+            {
+              target: {kind: 'input', name: 'token'},
+              segments: [{kind: 'secret', store: 'local', key: 'NPM_TOKEN'}],
+            },
+          ],
+        },
+      })
+      .where(eq(stepsTable.id, step.id));
+    await secrets.setSecrets({
+      workspaceId: run.workspaceId,
+      projectId: run.projectId,
+      values: {SLACK: 'slack-secret', NPM_TOKEN: 'npm-secret'},
+    });
+    const token = await mintActiveLeaseToken({jobId: job.id});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: stepSecretsUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      secrets: [
+        {store: 'local', key: 'SLACK', value: 'slack-secret'},
+        {store: 'local', key: 'NPM_TOKEN', value: 'npm-secret'},
+      ],
+    });
+  });
+
+  test('rejects a post step that is not running', async () => {
+    const {job, step} = await createRunningRunStep({status: 'pending'});
+    await db().update(stepsTable).set({type: 'post'}).where(eq(stepsTable.id, step.id));
+    const token = await mintActiveLeaseToken({jobId: job.id});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: stepSecretsUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('step-not-running');
+  });
+
   test('returns the secrets a setup step binds for its job container', async () => {
     const {run, job, step} = await createRunningRunStep();
     await db()

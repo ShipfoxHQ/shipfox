@@ -40,7 +40,7 @@ const stepStatusSchema = z.enum([
   'skipped',
 ]);
 
-const stepTypeSchema = z.enum(['setup', 'run', 'agent', 'checkout', 'tool', 'action']);
+const stepTypeSchema = z.enum(['setup', 'run', 'agent', 'checkout', 'tool', 'action', 'post']);
 
 const stepGateResultSummarySchema = z
   .union([stepGateResultDtoSchema.unwrap(), z.object({kind: z.literal('unknown')})])
@@ -76,6 +76,10 @@ export const stepSummaryDtoSchema = z.object({
   source_location: stepSourceLocationSchema.nullable(),
   current_attempt: z.number().int().positive(),
   gate_max_attempts: z.number().int().positive().optional(),
+  /** The step whose action declared this post. Set on post rows only. */
+  main_step_id: z.string().uuid().optional(),
+  /** False when a failed post leaves the job result unchanged. Set on post rows only. */
+  affects_job: z.boolean().optional(),
   error: stepErrorDtoSchema,
   attempts: cursorPageSchema(stepAttemptSummaryDtoSchema),
 });

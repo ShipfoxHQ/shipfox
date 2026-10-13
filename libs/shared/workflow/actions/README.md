@@ -127,7 +127,12 @@ export default defineAction(({state, context}) => {
 - **A post has no outputs.** `setOutput` throws in a post, and a post that returns outputs fails.
 - **State stays on the runner**, in a file any step of the job can read. It is not a secret store.
 
-Shipfox accepts an action that declares `post`, and does not run it yet.
+Shipfox runs the post after every authored step of the job, once per step and in reverse step
+order, when the main entry reached the runner. A step skipped by an `if` or by an earlier failure
+gets no post. A post does not run after a cancellation, a timeout, or a lost runner. With a
+gate `restart_from`, the post receives the inputs, secrets, state, and exported environment of
+the last attempt that ran, even when a restart later skipped the step. State stays in the memory
+of the runner that ran the main entry.
 
 ## Testing an action
 

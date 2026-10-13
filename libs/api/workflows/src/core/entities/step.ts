@@ -17,7 +17,7 @@ import type {InterpolationUnresolvableField} from '../errors.js';
 
 export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'skipped';
 
-export const STEP_TYPES = ['setup', 'run', 'agent', 'checkout', 'tool', 'action'] as const;
+export const STEP_TYPES = ['setup', 'run', 'agent', 'checkout', 'tool', 'action', 'post'] as const;
 
 export type StepType = (typeof STEP_TYPES)[number];
 
@@ -25,6 +25,7 @@ export const STEP_STATUS_REASONS = [
   'default_gate_rejected',
   'condition_rejected',
   'condition_errored',
+  'main_not_started',
   'timed_out',
   'run_cancelled',
   'runner_lost',

@@ -1446,13 +1446,13 @@ describe('Workflows inter-module presentation', () => {
       });
     }
 
-    function arrangeRunningStep(type: string) {
+    function arrangeRunningStep(type: string, config: Record<string, unknown> = {}) {
       mocks.getStepByIdForJobExecution.mockResolvedValue({
         id: input.stepId,
         currentAttempt: input.attempt,
         status: 'running',
         type,
-        config: {},
+        config,
       });
       mocks.getJobScope.mockResolvedValue({workspaceId: '00000000-0000-4000-8000-000000000010'});
     }
@@ -1487,6 +1487,28 @@ describe('Workflows inter-module presentation', () => {
         integrations: [grant],
       });
       expect(mocks.getStepToolMaterializationSource).toHaveBeenCalledWith(input.stepId);
+    });
+
+    it('returns the grants of the main step for a post, which is not in the authored model', async () => {
+      arrangeRunningStep('post', {post: {main_position: 1, failure: 'warn'}});
+      mocks.getStepToolMaterializationSource.mockResolvedValue({
+        jobKey: 'build',
+        stepPosition: 2,
+        model,
+        agentToolMaterialization: {
+          steps: [{jobKey: 'build', stepId: 'build-thread', actionIntegrations: {slack: grant}}],
+        },
+      });
+
+      const result = await presentation().handlers.getLeasedAgentToolContext(input, {
+        signal: new AbortController().signal,
+      });
+
+      expect(result).toEqual({
+        workspaceId: '00000000-0000-4000-8000-000000000010',
+        stepType: 'action',
+        integrations: [grant],
+      });
     });
 
     it('rejects an action step without frozen grants', async () => {

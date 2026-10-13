@@ -1,0 +1,5 @@
+name: Post fail
+description: Does nothing in main and fails in the post, to check that post_failure fail fails the job.
+main: index.ts
+post: post.ts
+post_failure: fail

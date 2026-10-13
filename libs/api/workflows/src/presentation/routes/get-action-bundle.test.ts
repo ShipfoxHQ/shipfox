@@ -101,6 +101,32 @@ describe('GET /runs/jobs/current/steps/:stepId/action-bundle', () => {
     });
   });
 
+  test('serves the bundle to a post step', async () => {
+    const bundle = await encodeActionBundle({
+      files: [{path: 'post.ts', content: 'export default {};'}],
+    });
+    const {run, job, step} = await createRunningStep({
+      uses: './actions/hello',
+      action: {digest: bundle.digest},
+    });
+    await db().update(stepsTable).set({type: 'post'}).where(eq(stepsTable.id, step.id));
+    snapshots.set(bundle.digest, {workspaceId: run.workspaceId, gzip: bundle.gzip});
+    const token = await mintStepToken({
+      jobId: job.id,
+      stepId: step.id,
+      attempt: step.currentAttempt,
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: actionBundleUrl(step.id),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.rawPayload).toEqual(Buffer.from(bundle.gzip));
+  });
+
   test('rejects a step that is not the current leased step', async () => {
     const {job, step} = await createRunningStep({uses: './actions/hello'});
     const token = await mintStepToken({

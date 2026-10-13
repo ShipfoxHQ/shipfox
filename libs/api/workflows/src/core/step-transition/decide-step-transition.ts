@@ -11,8 +11,24 @@ export function isTerminal(status: StepStatus): boolean {
   return TERMINAL_STATUSES.has(status);
 }
 
+/**
+ * False for a post whose action declared `post_failure: warn`. The post still fails, but the job
+ * keeps the result of its authored steps.
+ */
+export function stepAffectsConclusion(step: Pick<Step, 'type' | 'config'>): boolean {
+  if (step.type !== 'post') return true;
+  const post = step.config.post;
+  if (post === null || typeof post !== 'object') return true;
+  return (post as {failure?: unknown}).failure === 'fail';
+}
+
+/** Whether any step that counts toward the job result has failed. */
+export function hasFailedStep(steps: readonly Step[]): boolean {
+  return steps.some((step) => step.status === 'failed' && stepAffectsConclusion(step));
+}
+
 export function deriveCompletion(steps: Step[]): 'succeeded' | 'failed' {
-  return steps.some((step) => step.status === 'failed') ? 'failed' : 'succeeded';
+  return hasFailedStep(steps) ? 'failed' : 'succeeded';
 }
 
 // The report the runner sent for the step being decided.
