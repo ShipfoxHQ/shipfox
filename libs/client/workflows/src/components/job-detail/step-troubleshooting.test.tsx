@@ -164,8 +164,9 @@ describe('StepInspectorSheet', () => {
   it.each([
     {
       reason: 'default_gate_rejected',
-      title: 'run_after skipped this step',
-      description: '`run_after` did not let this run.',
+      title: 'Shipfox skipped this step',
+      description:
+        'An earlier step in this job failed, so Shipfox skipped this step. To run it after a failure, set `run_after: always` or `run_after: failure` on the step.',
     },
     {
       reason: 'condition_rejected',

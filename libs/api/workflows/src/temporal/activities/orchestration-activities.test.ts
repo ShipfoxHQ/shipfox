@@ -218,4 +218,38 @@ describe('setJobStatus', () => {
       },
     ]);
   });
+
+  test('a job skipped by run_after: failure records the check that rejected it', async () => {
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model: workflowModel({
+        jobs: {
+          build: {steps: [{run: 'npm run build'}]},
+        },
+      }),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const [job] = await getJobsByWorkflowRunId(run.id);
+    if (!job) throw new Error('Expected job');
+
+    await setJobStatus({
+      jobId: job.id,
+      status: 'skipped',
+      version: job.version,
+      statusReason: 'default_gate_rejected',
+      runAfter: 'failure',
+    });
+
+    const [skipped] = await getJobsByWorkflowRunId(run.id);
+    expect(skipped?.evaluationTrace).toMatchObject([
+      {expression: 'needs.exists(n, n.status == "failed")', field: 'job.default_gate'},
+    ]);
+  });
 });

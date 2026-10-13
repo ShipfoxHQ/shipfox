@@ -3,8 +3,36 @@ import type {EvaluationTraceEntry, EvaluationTraceError} from './entities/step-a
 const CONDITION_FIELDS = new Set(['job.if', 'step.if']);
 const OUTPUT_PATH = /^(?:steps|jobs)\.[^.]+\.outputs\.([^.]+)$/;
 
-/** One sentence for steps and jobs: `run_after` rejects on success as well as on failure. */
-export const RUN_AFTER_SKIP_DESCRIPTION = '`run_after` did not let this run.';
+// The trace expressions the API stores when `run_after: failure` rejects.
+const FAILURE_GATE_EXPRESSIONS = new Set([
+  'execution.failed',
+  'needs.exists(n, n.status == "failed")',
+]);
+
+/**
+ * Says why `run_after` skipped a step or job and which value changes that. The trace tells
+ * the default apart from `run_after: failure`, which skips because nothing failed.
+ */
+export function runAfterSkipDescription(
+  kind: 'step' | 'job',
+  trace: readonly EvaluationTraceEntry[] | null | undefined,
+): string {
+  const waitsForFailure = trace?.some(
+    (entry) =>
+      !('dropped' in entry) &&
+      entry.field.endsWith('.default_gate') &&
+      FAILURE_GATE_EXPRESSIONS.has(entry.expression),
+  );
+
+  if (kind === 'step') {
+    return waitsForFailure
+      ? 'This step has `run_after: failure`, so it runs only after an earlier step fails. No earlier step failed.'
+      : 'An earlier step in this job failed, so Shipfox skipped this step. To run it after a failure, set `run_after: always` or `run_after: failure` on the step.';
+  }
+  return waitsForFailure
+    ? 'This job has `run_after: failure`, so it runs only after a job in its `needs` fails. None of them failed.'
+    : 'A job in the `needs` of this job did not succeed, so Shipfox skipped this job. To run it after a failure, set `run_after: always` or `run_after: failure` on the job.';
+}
 
 /**
  * Names the value an errored `if` condition could not read, or returns null when the trace

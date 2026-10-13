@@ -5,7 +5,10 @@ import {presentRunJobExplanation} from './run-job-explanation.js';
 describe('presentRunJobExplanation', () => {
   test.each([
     ['dependency_not_completed', 'A required job did not complete, so this job did not run.'],
-    ['default_gate_rejected', '`run_after` did not let this run.'],
+    [
+      'default_gate_rejected',
+      'A job in the `needs` of this job did not succeed, so Shipfox skipped this job. To run it after a failure, set `run_after: always` or `run_after: failure` on the job.',
+    ],
     ['condition_false', 'Its condition evaluated to false, so this job did not run.'],
     ['condition_rejected', 'Its condition evaluated to false, so this job did not run.'],
   ] as const)('presents the expected %s skip neutrally', (statusReason, body) => {

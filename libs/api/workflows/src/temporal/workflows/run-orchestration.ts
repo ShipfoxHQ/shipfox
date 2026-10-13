@@ -316,6 +316,7 @@ async function skipJob(
     status: 'skipped',
     version,
     statusReason,
+    ...(job.runAfter === 'failure' ? {runAfter: 'failure' as const} : {}),
   });
   recordSkippedRuntimeJob(job, progress, newVersion);
 }

@@ -10,7 +10,8 @@ import {
 } from '@shipfox/expression';
 import type {PersistedEvaluationTraceEntry} from './entities/step.js';
 
-const DEFAULT_JOB_CONDITION_SOURCE = 'needs.all(n, n.status == "succeeded")';
+const SUCCESS_JOB_CONDITION_SOURCE = 'needs.all(n, n.status == "succeeded")';
+const FAILURE_JOB_CONDITION_SOURCE = 'needs.exists(n, n.status == "failed")';
 const SUCCESS_STEP_CONDITION_SOURCE = '!execution.failed';
 const FAILURE_STEP_CONDITION_SOURCE = 'execution.failed';
 /** Reported when a condition cannot be filled at its site, so no evaluation error exists. */
@@ -47,11 +48,14 @@ export function explicitConditionTrace(params: {
   ]);
 }
 
-export function defaultJobConditionTrace(): readonly PersistedEvaluationTraceEntry[] {
+export function defaultJobConditionTrace(
+  runAfter: 'success' | 'failure' = 'success',
+): readonly PersistedEvaluationTraceEntry[] {
   return capTraceEntries([
     {
       ...evaluationTraceEntry({
-        expression: DEFAULT_JOB_CONDITION_SOURCE,
+        expression:
+          runAfter === 'success' ? SUCCESS_JOB_CONDITION_SOURCE : FAILURE_JOB_CONDITION_SOURCE,
         roots: ['needs'],
         fillTarget: 'job-activation',
         evaluatedAt: 'job-activation',

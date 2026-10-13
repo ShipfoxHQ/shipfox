@@ -172,6 +172,8 @@ export async function setJobStatus(params: {
   version: number;
   statusReason?: JobStatusReason | null | undefined;
   evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | null | undefined;
+  /** The gate that skipped the job, so the trace shows the check that rejected it. */
+  runAfter?: 'success' | 'failure' | undefined;
 }): Promise<{newVersion: number; status: JobStatus}> {
   const updated = await updateJobStatus({
     jobId: params.jobId,
@@ -187,10 +189,11 @@ function jobStatusEvaluationTrace(params: {
   status: JobStatus;
   statusReason?: JobStatusReason | null | undefined;
   evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | null | undefined;
+  runAfter?: 'success' | 'failure' | undefined;
 }): readonly PersistedEvaluationTraceEntry[] | null | undefined {
   if (params.evaluationTrace !== undefined) return params.evaluationTrace;
   return params.status === 'skipped' && params.statusReason === 'default_gate_rejected'
-    ? defaultJobConditionTrace()
+    ? defaultJobConditionTrace(params.runAfter)
     : undefined;
 }
 

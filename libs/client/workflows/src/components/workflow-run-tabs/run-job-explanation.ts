@@ -1,4 +1,4 @@
-import {conditionErrorDescription, RUN_AFTER_SKIP_DESCRIPTION} from '#core/condition-error.js';
+import {conditionErrorDescription, runAfterSkipDescription} from '#core/condition-error.js';
 import type {RunAnnotationStyle, RunJobExplanation} from '#core/run-annotation.js';
 
 export interface RunJobExplanationPresentation {
@@ -45,7 +45,7 @@ function skippedJobSummary(
     case 'dependency_not_completed':
       return 'A required job did not complete, so this job did not run.';
     case 'default_gate_rejected':
-      return RUN_AFTER_SKIP_DESCRIPTION;
+      return runAfterSkipDescription('job', trace);
     case 'condition_false':
     case 'condition_rejected':
       return 'Its condition evaluated to false, so this job did not run.';

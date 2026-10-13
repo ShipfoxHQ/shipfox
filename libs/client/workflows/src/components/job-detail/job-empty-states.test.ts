@@ -155,9 +155,26 @@ describe('skippedJobDescription', () => {
     );
   });
 
-  test('does not blame a needed job when run_after skipped the job', () => {
+  test('says which run_after value runs a job after a needed job did not succeed', () => {
     expect(skippedJobDescription('default_gate_rejected')).toBe(
-      '`run_after` did not let this run.',
+      'A job in the `needs` of this job did not succeed, so Shipfox skipped this job. To run it after a failure, set `run_after: always` or `run_after: failure` on the job.',
+    );
+  });
+
+  test('does not blame a needed job when run_after: failure skipped the job', () => {
+    const description = skippedJobDescription('default_gate_rejected', [
+      {
+        expression: 'needs.exists(n, n.status == "failed")',
+        roots: ['needs'],
+        fillTarget: 'job-activation',
+        evaluatedAt: 'job-activation',
+        field: 'job.default_gate',
+        value: 'false',
+      },
+    ]);
+
+    expect(description).toBe(
+      'This job has `run_after: failure`, so it runs only after a job in its `needs` fails. None of them failed.',
     );
   });
 
