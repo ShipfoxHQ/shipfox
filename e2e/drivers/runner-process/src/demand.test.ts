@@ -81,13 +81,20 @@ describe('pollDemand', () => {
 });
 
 describe('pollDemandUntil', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  beforeEach(() => {
+    vi.useFakeTimers({now: 0});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   it('repeats empty polls until the predicate observes the outcome', async () => {
     const fetch = fetchMock(NO_DEMAND, NO_DEMAND);
     let observed = 0;
 
-    const result = await pollDemandUntil({
+    const polling = pollDemandUntil({
       provisionerToken: 'provisioner-token',
       templates: [{name: 'xl', labels: ['cpu.16']}],
       intervalMs: 0,
@@ -97,6 +104,8 @@ describe('pollDemandUntil', () => {
         return observed === 2;
       },
     });
+    await vi.advanceTimersByTimeAsync(0);
+    const result = await polling;
 
     expect(result).toEqual(NO_DEMAND);
     expect(fetch).toHaveBeenCalledTimes(2);
@@ -107,18 +116,21 @@ describe('pollDemandUntil', () => {
     fetchMock(NO_DEMAND, GRANT);
     let observed = 0;
 
-    await expect(
-      pollDemandUntil({
-        provisionerToken: 'provisioner-token',
-        templates: [{name: 'xl', labels: ['cpu.16']}],
-        intervalMs: 0,
-        timeoutMs: 100,
-        until: () => {
-          observed += 1;
-          return false;
-        },
-      }),
-    ).rejects.toBeInstanceOf(DemandReservationError);
+    const polling = pollDemandUntil({
+      provisionerToken: 'provisioner-token',
+      templates: [{name: 'xl', labels: ['cpu.16']}],
+      intervalMs: 0,
+      timeoutMs: 100,
+      until: () => {
+        observed += 1;
+        return false;
+      },
+    });
+    const rejection = expect(polling).rejects.toBeInstanceOf(DemandReservationError);
+    await vi.advanceTimersByTimeAsync(0);
+
+    await rejection;
+    expect(fetch).toHaveBeenCalledTimes(2);
     expect(observed).toBe(1);
   });
 

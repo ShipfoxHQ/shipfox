@@ -273,6 +273,11 @@ async function waitForActiveProvisioner(params: {
           'get',
           '/provisioners/me',
         );
+        if (identity.scope !== 'installation') {
+          throw new Error(
+            `Provisioner token scope mismatch: expected installation scope, received ${identity.scope} scope.`,
+          );
+        }
         return {
           id: identity.id,
           name: null,

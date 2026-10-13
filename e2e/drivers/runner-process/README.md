@@ -44,6 +44,8 @@ Source mode needs the app each helper runs in the `package.json` of the suite:
 
 This package does not depend on them, because they are not published. Turbo then builds them before `test:e2e`.
 
+Installation-scope demand polling requires the API to run with `E2E_ENABLED=true` and `E2E_ADMIN_API_KEY` set. Without this E2E installation policy, the demand route returns `403`.
+
 ## Usage
 
 Start a provisioner from a released image, run the suite, and stop it:
