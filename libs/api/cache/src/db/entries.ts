@@ -265,7 +265,7 @@ function identityCondition(params: EntryIdentity) {
   );
 }
 
-function escapeLikePattern(value: string): string {
+export function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`);
 }
 

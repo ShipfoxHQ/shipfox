@@ -71,3 +71,27 @@ export class UploadAbortedError extends Error {
     this.name = 'UploadAbortedError';
   }
 }
+
+export class ManagedEntryNotFoundError extends Error {
+  constructor(public readonly entryId: string) {
+    super(`Cache entry ${entryId} not found in this project`);
+    this.name = 'ManagedEntryNotFoundError';
+  }
+}
+
+export class RetentionOutOfRangeError extends Error {
+  constructor(
+    public readonly retentionDays: number,
+    public readonly maxRetentionDays: number,
+  ) {
+    super(`Retention must be between 1 and ${maxRetentionDays} days; got ${retentionDays}`);
+    this.name = 'RetentionOutOfRangeError';
+  }
+}
+
+export class InvalidCursorError extends Error {
+  constructor() {
+    super('The page cursor is not valid');
+    this.name = 'InvalidCursorError';
+  }
+}

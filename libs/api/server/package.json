@@ -68,6 +68,7 @@
     "@shipfox/api-auth": "workspace:*",
     "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/api-cache": "workspace:*",
+    "@shipfox/api-cache-dto": "workspace:*",
     "@shipfox/api-definitions": "workspace:*",
     "@shipfox/api-definitions-dto": "workspace:*",
     "@shipfox/api-dispatcher": "workspace:*",

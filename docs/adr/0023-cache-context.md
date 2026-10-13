@@ -35,8 +35,9 @@ without the shell knowing a rate.
 | Cache | `@shipfox/api-cache`, `@shipfox/api-cache-dto`, and later `@shipfox/client-cache`. |
 
 The database namespace is `cache` and tables use the `cache_` prefix under ADR 0006. The module
-has no outbox. It calls two peers through their inter-module contracts: Workflows, for a run's
-origin and the user who started it, and Usage, for storage samples.
+has no outbox. It calls three peers through their inter-module contracts: Workflows, for a run's
+origin and the user who started it, Usage, for storage samples, and Projects, for the workspace a
+project belongs to.
 
 **The database is the index.** Lookup, retention, eviction, and usage read `cache_entries`.
 Object storage holds opaque archives under generated keys, so no user string reaches an object
@@ -62,6 +63,15 @@ call trusts the row, because a dead URL is a miss on the runner. At commit, `hea
 upload instead: a missing object or a size that differs from the reservation deletes the
 uploading row and fails the save without a deletion record, and a failing `head` call leaves the
 row uploading for a retry or an abort.
+
+**Members manage the cache through user routes and an inter-module contract.** Routes under
+`/projects/:projectId/cache` and `/workspaces/:workspaceId/cache` list and delete entries, read
+the stored bytes, and set the retention. Any member of the workspace deletes entries, and a
+workspace admin changes the retention. A project route resolves the workspace through Projects and
+answers a non-member with the same 404 as a missing project. The usage route reads the current
+`cache_entries`, not usage records. The Cache contract exposes the same three operations to the
+Shipfox MCP server, which acts for the workspace of its credential. A manual deletion removes the
+object, then the row, and writes a `manual` deletion record.
 
 ### The object store gains signed multipart uploads
 

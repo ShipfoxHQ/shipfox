@@ -62,6 +62,14 @@ export async function setRetentionDays(params: {
   await db().insert(cacheWorkspaceSettings).values(params);
 }
 
+export async function findWorkspaceRetention(workspaceId: string): Promise<number | undefined> {
+  const [row] = await db()
+    .select({retentionDays: cacheWorkspaceSettings.retentionDays})
+    .from(cacheWorkspaceSettings)
+    .where(eq(cacheWorkspaceSettings.workspaceId, workspaceId));
+  return row?.retentionDays;
+}
+
 export async function insertDeletion(params: {projectId: string; deletedAt: Date}): Promise<void> {
   await db().insert(cacheDeletions).values({
     workspaceId: crypto.randomUUID(),

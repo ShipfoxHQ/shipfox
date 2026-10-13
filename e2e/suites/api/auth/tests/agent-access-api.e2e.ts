@@ -58,6 +58,9 @@ const EXPECTED_TOOL_NAMES = [
   'diff_registry_action',
   'get_workflow_authoring_context',
   'list_workspace_models',
+  'list_cache_entries',
+  'get_cache_usage',
+  'delete_cache_entries',
   'search_docs',
 ] as const;
 

@@ -1,6 +1,6 @@
 # Shipfox API Cache DTO
 
-Cache DTOs define the HTTP schemas of the routes a runner calls to save and restore a job cache.
+Cache DTOs define the HTTP schemas of the routes a runner calls to save and restore a job cache, the routes members use to manage it, and the inter-module contract of the Cache module.
 
 ## What it does
 
@@ -9,6 +9,8 @@ Cache DTOs define the HTTP schemas of the routes a runner calls to save and rest
 - **Restore**: `cacheRestoreBodySchema` and `cacheRestoreResponseSchema` describe the lookup and its hit.
 - **Save**: `cacheReserveBodySchema`, `cacheReserveResponseSchema`, `cacheCommitBodySchema`, and `cacheCommitResponseSchema` describe reserve and commit.
 - **Check**: `cacheCheckBodySchema` and `cacheCheckResponseSchema` describe the existence check.
+- **Management**: `listCacheScopesResponseSchema`, `listCacheEntriesQuerySchema`, `listCacheEntriesResponseSchema`, `deleteCacheScopeResponseSchema`, `cacheUsageResponseSchema`, `cacheSettingsResponseSchema`, and `updateCacheSettingsBodySchema` describe the member routes.
+- **Inter-module**: `cacheInterModuleContract` and `CacheModuleClient`, from `@shipfox/api-cache-dto/inter-module`, list and delete entries and read usage for a workspace.
 
 ## Installation and setup
 
@@ -36,6 +38,7 @@ console.log(body.fallback_scopes);
 
 - **Scopes:** A scope uses letters, digits, and `. _ - /`. The scope `dev` and the `dev/` prefix are reserved for dev-run sandboxes. The API rejects it with `reserved-scope`, not the schema.
 - **Reserve results:** A reserve answers `reserved` with one signed PUT URL per part in part order, or `exists`, `in_progress`, or `too_large`. Every part except the last has `part_size` bytes.
+- **Stored scope:** The management schemas carry the stored scope. A dev sandbox reads `dev/{user_id}/{scope}`, and `dev_sandbox` holds its parts. Pass the stored scope back to filter or delete by scope.
 - **Restore hit:** `scope` is the scope the author wrote, even when the entry came from a dev sandbox. `url` accepts `Range` headers.
 
 ## Development

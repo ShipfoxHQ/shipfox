@@ -9,6 +9,7 @@ import {
   requireAgentAccessContext,
 } from '@shipfox/api-auth-context';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
+import type {CacheModuleClient} from '@shipfox/api-cache-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {LogsModuleClient} from '@shipfox/api-logs-dto/inter-module';
@@ -45,6 +46,7 @@ import {
   createAgentAccessAdminWorkspaceTools,
 } from '#core/admin-tools.js';
 import {createAgentAccessAuthoringContextTools} from '#core/authoring-context.js';
+import {createAgentAccessCacheTools} from '#core/cache-tools.js';
 import {createAgentAccessDiagnosticTools} from '#core/diagnostic-tools.js';
 import {createDocsCache, type DocsCache} from '#core/docs.js';
 import {createSearchDocsTool} from '#core/docs-tools.js';
@@ -94,6 +96,7 @@ export interface CreateAgentAccessRoutesOptions {
   secrets?: SecretsInterModuleClient | undefined;
   templates?: TemplateLoader | undefined;
   registry?: RegistryInterModuleClient | undefined;
+  cache?: CacheModuleClient | undefined;
 }
 
 export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions = {}): RouteGroup {
@@ -351,10 +354,14 @@ function toolsFromProducerClients(
     options.agent === undefined
       ? withRegistry
       : [...withRegistry, ...createAgentAccessWorkspaceModelTools(options.agent)];
+  const withCache =
+    options.cache === undefined
+      ? withWorkspaceModels
+      : [...withWorkspaceModels, ...createAgentAccessCacheTools(options.cache)];
   return options.agent === undefined || secrets === undefined
-    ? withWorkspaceModels
+    ? withCache
     : [
-        ...withWorkspaceModels,
+        ...withCache,
         ...createAgentAccessAuthoringContextTools({agent: options.agent, workflows, secrets}),
       ];
 }

@@ -9,7 +9,7 @@ export const CACHE_PART_SIZE_BYTES = 32 * 1024 * 1024;
 /** S3 allows at most 10000 parts in one multipart upload. */
 export const CACHE_MAX_PARTS = 10_000;
 
-const SCOPE_PATTERN = /^[A-Za-z0-9._/-]+$/;
+export const CACHE_SCOPE_PATTERN = /^[A-Za-z0-9._/-]+$/;
 const VERSION_PATTERN = /^[A-Za-z0-9._-]+$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 
@@ -17,7 +17,7 @@ export const cacheScopeSchema = z
   .string()
   .min(1)
   .max(CACHE_SCOPE_MAX_LENGTH)
-  .regex(SCOPE_PATTERN)
+  .regex(CACHE_SCOPE_PATTERN)
   .describe(
     'Author-chosen namespace inside the project, made of letters, digits, and . _ - /. The dev/ prefix is reserved.',
   );

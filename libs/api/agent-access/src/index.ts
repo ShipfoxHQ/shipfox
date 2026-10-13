@@ -25,6 +25,7 @@ export {
   type AgentAccessAuthoringContextToolsOptions,
   createAgentAccessAuthoringContextTools,
 } from '#core/authoring-context.js';
+export {createAgentAccessCacheTools} from '#core/cache-tools.js';
 export {
   type AgentAccessDiagnosticToolsOptions,
   createAgentAccessDiagnosticTools,

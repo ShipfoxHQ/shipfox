@@ -17,6 +17,7 @@ import {
   AGENT_ACCESS_TOOL_CALL_WINDOW_MS,
   createAgentAccessActionTools,
   createAgentAccessAuthoringContextTools,
+  createAgentAccessCacheTools,
   createAgentAccessDiagnosticTools,
   createAgentAccessIntegrationTools,
   createAgentAccessLogTools,
@@ -461,6 +462,7 @@ const mcpToolGroups = [
     title: 'Trigger events',
     tools: ['list_trigger_events', 'get_trigger_event', 'get_trigger_event_facets'],
   },
+  {title: 'Cache', tools: ['list_cache_entries', 'get_cache_usage', 'delete_cache_entries']},
 ];
 
 function listMcpTools() {
@@ -495,6 +497,7 @@ function listMcpTools() {
     ...createAgentAccessRegistryTools({registry: stub}),
     ...createAgentAccessAuthoringContextTools({agent: stub, workflows: stub, secrets: stub}),
     ...createAgentAccessWorkspaceModelTools(stub),
+    ...createAgentAccessCacheTools(stub),
     createSearchDocsTool(createDocsCache({baseUrl: 'https://www.shipfox.io/docs'})),
   ];
 }

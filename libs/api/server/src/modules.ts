@@ -10,6 +10,7 @@ import {
   authInterModuleContract,
 } from '@shipfox/api-auth-dto/inter-module';
 import {type CreateCacheModuleOptions, createCacheModule} from '@shipfox/api-cache';
+import {cacheInterModuleContract} from '@shipfox/api-cache-dto/inter-module';
 import {createDefinitionsModule} from '@shipfox/api-definitions';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {dispatcherModule} from '@shipfox/api-dispatcher';
@@ -171,6 +172,7 @@ export async function defaultModules(
   const usageClient = interModuleTransport.createClient(usageInterModuleContract);
   const integrationsClient = interModuleTransport.createClient(integrationsInterModuleContract);
   const logsClient = interModuleTransport.createClient(logsInterModuleContract);
+  const cacheClient = interModuleTransport.createClient(cacheInterModuleContract);
   const registryClient = interModuleTransport.createClient(registryInterModuleContract);
   const triggersClient = interModuleTransport.createClient(triggersInterModuleContract);
   const integrations = await createIntegrationsContext({
@@ -463,6 +465,7 @@ export async function defaultModules(
       apiPublicUrl: authConfig.API_PUBLIC_URL,
       clientBaseUrl: authConfig.CLIENT_BASE_URL,
       auth: authClient,
+      cache: cacheClient,
       definitions: definitionsClient,
       logs: logsClient,
       projects: projectsClient,
@@ -510,6 +513,7 @@ export async function defaultModules(
       ...options.cacheModuleOptions,
       workflows: workflowsClient,
       usage: usageClient,
+      projects: projectsClient,
     }),
     createUsageModule(),
     createTriggersModule({

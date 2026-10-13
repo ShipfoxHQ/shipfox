@@ -4,7 +4,7 @@
 
 ## What it does
 
-- **`createCacheModule`**: Declares the `cache` module: its database, the lease-authed routes under `/runs/jobs/current/cache`, and the sweep cron.
+- **`createCacheModule`**: Declares the `cache` module: its database, the lease-authed routes under `/runs/jobs/current/cache`, the member routes that manage the cache, the cron jobs, and the `cache` inter-module contract.
 - **Reserve and commit**: A save reserves a key, uploads the archive straight to object storage through signed part URLs, and commits. The API never carries archive bytes.
 - **Restore**: A restore walks the scopes in order. Per scope it tries the exact key, then each restore key by newest entry, and answers a signed download URL that accepts `Range` headers.
 - **Dev-run sandbox**: A dev run saves into a sandbox of the user who started it and reads that sandbox before the shared scope. Synced runs and other users never see it.
@@ -12,6 +12,7 @@
 - **Sweeper**: Every 10 minutes a Temporal cron expires idle entries, removes stale uploads, and evicts the least recently used entries of a workspace over its storage limit.
 - **`CacheStoragePolicy`**: Lets the composing application set the storage limit of each workspace.
 - **Storage samples**: An hourly job records the stored bytes of each project as a Usage storage sample.
+- **Management**: Members list the scopes and entries of a project, delete an entry or a scope, and read the stored bytes of a workspace. Workspace admins set the retention.
 - **`checkBucketReachable`**: Reports whether the cache bucket answers.
 
 ## Installation and setup
@@ -26,27 +27,33 @@ pnpm add @shipfox/api-cache
 
 ## Usage
 
-The module takes the Workflows inter-module client, which it uses to read a run's origin and the user who started it, and the Usage client, which receives the storage samples.
+The module takes the Workflows inter-module client, which it uses to read a run's origin and the user who started it, the Usage client, which receives the storage samples, and the Projects client, which tells the workspace of a project.
 
 ```ts
 import {createCacheModule} from '@shipfox/api-cache';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {UsageModuleClient} from '@shipfox/api-usage-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {initializeModules} from '@shipfox/node-module';
 
 declare const workflows: WorkflowsModuleClient;
 declare const usage: UsageModuleClient;
+declare const projects: ProjectsModuleClient;
 
-await initializeModules({modules: [createCacheModule({workflows, usage})]});
+await initializeModules({modules: [createCacheModule({workflows, usage, projects})]});
 ```
 
 Pass a storage policy to set the limit of each workspace. Without one, `CACHE_WORKSPACE_MAX_BYTES` applies to every workspace.
 
 ```ts
 import {type CacheStoragePolicy, createCacheModule} from '@shipfox/api-cache';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {UsageModuleClient} from '@shipfox/api-usage-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 
 declare const workflows: WorkflowsModuleClient;
+declare const usage: UsageModuleClient;
+declare const projects: ProjectsModuleClient;
 
 const policy: CacheStoragePolicy = {
   resolve: async ({workspaceId}) => ({
@@ -54,7 +61,7 @@ const policy: CacheStoragePolicy = {
   }),
 };
 
-const cacheModule = createCacheModule({workflows, storage: {policy}});
+const cacheModule = createCacheModule({workflows, usage, projects, storage: {policy}});
 console.log(cacheModule.name);
 ```
 
@@ -73,7 +80,9 @@ console.log(cacheModule.name);
 
 ## Routes
 
-All routes use the job lease. Workspace and project come from the lease claims, never from the body.
+### Runner routes
+
+These routes use the job lease. Workspace and project come from the lease claims, never from the body.
 
 | Route | Purpose |
 | --- | --- |
@@ -83,7 +92,25 @@ All routes use the job lease. Workspace and project come from the lease claims, 
 | `DELETE /runs/jobs/current/cache/entries/:entryId` | Abort an upload of this job execution and free its key. |
 | `POST /runs/jobs/current/cache/entries/check` | Tell whether a key is saved in the scope a save would write. |
 
+### Management routes
+
+These routes use a user session. A project route answers `404 project-not-found` to a user who is not a member of the project's workspace, the same as for a project that does not exist. A workspace route answers `403` to a non-member.
+
+| Route | Who | Purpose |
+| --- | --- | --- |
+| `GET /projects/:projectId/cache/scopes` | Member | Scopes with entry count, bytes, and last use. A dev sandbox carries `dev_sandbox` with its user. |
+| `GET /projects/:projectId/cache/entries` | Member | Committed entries, newest first, filtered by `scope` and `key_prefix`, paged with `cursor` and `limit`. |
+| `DELETE /projects/:projectId/cache/entries/:entryId` | Member | Delete one committed entry and its archive. |
+| `DELETE /projects/:projectId/cache/scopes/:scope` | Member | Delete every committed entry of a stored scope. The scope is the rest of the path, encoded or not. A dev sandbox scope reads `dev/{user_id}/{scope}`. |
+| `GET /workspaces/:workspaceId/cache/usage` | Member | Stored bytes, limit, bytes per project, and the latest 100 deletions. It reads the current entries, not usage records. |
+| `GET /workspaces/:workspaceId/cache/settings` | Member | Retention in days, with the default and the maximum. |
+| `PUT /workspaces/:workspaceId/cache/settings` | Workspace admin | Set the retention, from 1 day to `CACHE_MAX_RETENTION_DAYS`. |
+
 The schemas live in `@shipfox/api-cache-dto`.
+
+### Inter-module contract
+
+`@shipfox/api-cache-dto/inter-module` exposes `listCacheEntries`, `getCacheUsage`, and `deleteCacheEntries` for callers that act for a workspace, such as the Shipfox MCP server. A project of another workspace answers the known error `project-not-found`.
 
 ## Data model
 
@@ -109,6 +136,7 @@ This module owns tables with the `cache_` prefix.
 - **Storage limit:** Stored bytes are the sum of `ready` entries of a workspace. Over the limit, the least recently used entries are evicted until the workspace fits. Eviction runs in the sweep and at commit, where it never removes the newly committed entry. A reserve for an entry larger than the limit answers `too_large`.
 - **Storage policy:** A resolved limit is cached for 60 seconds. A policy that throws applies no limit for that call: the sweep skips eviction for the workspace and a save proceeds.
 - **Storage samples:** A Temporal cron runs at minute 5 of every hour. It sums the `ready` entries per project and calls `recordStorageSamples` in Usage with the key `cache:{projectId}:{windowStart}`, the stored bytes, and the object count. A repeated run for the same hour is counted as a duplicate by Usage. A project with no entries produces no sample, and a missed hour is not backfilled.
+- **Manual deletion:** A deletion removes the object first, then the row, and writes a `manual` record. A storage failure stops a scope deletion and leaves the remaining entries listed, so a retry finishes it. An upload in flight is not an entry, so a deletion leaves it to its job or to the sweeper.
 - **Metrics:** `cache_restores` counts lookups by result (`exact`, `prefix`, `miss`). `cache_saves` counts reserve outcomes, commits, aborts, and failed commits. `cache_deletions` counts deleted entries by reason, with `stale_upload` for a reaped upload. `cache_sweep_duration` records the length of a sweep pass. `cache_stored_bytes` is a service gauge of the bytes of all `ready` entries.
 
 ## Development

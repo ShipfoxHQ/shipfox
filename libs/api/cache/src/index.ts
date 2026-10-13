@@ -1,5 +1,6 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {UsageModuleClient} from '@shipfox/api-usage-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {ShipfoxModule} from '@shipfox/node-module';
@@ -7,7 +8,9 @@ import {type CacheStoragePolicy, createWorkspaceStorageLimits} from '#core/stora
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/index.js';
 import {registerCacheServiceMetrics} from '#metrics/service.js';
+import {createCacheInterModulePresentation} from '#presentation/inter-module.js';
 import {createCacheRoutes} from '#presentation/routes/index.js';
+import {createCacheManagementRoutes} from '#presentation/routes/management/index.js';
 import {createCacheActivities} from '#temporal/activities/index.js';
 import {
   CACHE_MAINTENANCE_TASK_QUEUE,
@@ -29,10 +32,12 @@ export interface CreateCacheModuleOptions {
 export function createCacheModule({
   workflows,
   usage,
+  projects,
   storage,
 }: CreateCacheModuleOptions & {
   workflows: WorkflowsModuleClient;
   usage: UsageModuleClient;
+  projects: Pick<ProjectsModuleClient, 'getProjectById' | 'requireProjectForWorkspace'>;
 }): ShipfoxModule {
   // One instance, so the routes and the sweeper share the resolved limits.
   const limits = createWorkspaceStorageLimits(storage?.policy);
@@ -40,7 +45,11 @@ export function createCacheModule({
   return {
     name: 'cache',
     database: {db, migrationsPath, databaseNamespace: 'cache'},
-    routes: createCacheRoutes(workflows, limits),
+    routes: [
+      ...createCacheRoutes(workflows, limits),
+      ...createCacheManagementRoutes({projects, limits}),
+    ],
+    interModulePresentations: [createCacheInterModulePresentation({projects, limits})],
     metrics: registerCacheServiceMetrics,
     workers: [
       {

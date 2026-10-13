@@ -5,6 +5,7 @@ import {
   type AuthInterModuleClient,
   authInterModuleContract,
 } from '@shipfox/api-auth-dto/inter-module';
+import {cacheInterModuleContract} from '@shipfox/api-cache-dto/inter-module';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {logsInterModuleContract} from '@shipfox/api-logs-dto/inter-module';
@@ -193,7 +194,16 @@ describe('defaultModules', () => {
       readStepLogTail: vi.fn(),
       appendServerRecords: vi.fn(),
     };
-    mocks.createCacheModule.mockReturnValue({name: 'cache'});
+    mocks.createCacheModule.mockReturnValue({
+      name: 'cache',
+      interModulePresentations: [
+        defineInterModulePresentation(cacheInterModuleContract, {
+          listCacheEntries: vi.fn(),
+          getCacheUsage: vi.fn(),
+          deleteCacheEntries: vi.fn(),
+        }),
+      ],
+    });
     mocks.createLogsModule.mockReturnValue({
       name: 'logs',
       interModulePresentations: [
@@ -468,6 +478,7 @@ describe('defaultModules', () => {
       agentInterModuleContract,
       annotationsInterModuleContract,
       authInterModuleContract,
+      cacheInterModuleContract,
       definitionsInterModuleContract,
       integrationsInterModuleContract,
       logsInterModuleContract,
@@ -507,6 +518,7 @@ describe('defaultModules', () => {
       apiPublicUrl: 'https://api.example.test',
       clientBaseUrl: 'https://client.example.test',
       auth: expect.any(Object),
+      cache: expect.any(Object),
       definitions: expect.any(Object),
       integrations: expect.any(Object),
       logs: expect.any(Object),
@@ -552,6 +564,7 @@ describe('defaultModules', () => {
       apiPublicUrl: 'https://api.example.test',
       clientBaseUrl: 'https://client.example.test',
       auth: expect.any(Object),
+      cache: expect.any(Object),
       definitions: expect.any(Object),
       integrations: expect.any(Object),
       logs: expect.any(Object),
@@ -1259,6 +1272,7 @@ describe('defaultModules', () => {
     expect(mocks.createCacheModule).toHaveBeenCalledWith({
       workflows: expect.objectContaining({getWorkflowRunOrigin: expect.any(Function)}),
       usage: expect.objectContaining({recordStorageSamples: expect.any(Function)}),
+      projects: expect.objectContaining({requireProjectForWorkspace: expect.any(Function)}),
     });
     expect(mocks.createLogsModule).toHaveBeenCalledWith({
       workflows: expect.objectContaining({getStepLogContext: expect.any(Function)}),
