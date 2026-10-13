@@ -1,0 +1,27 @@
+name: Cache probe
+description: Saves, restores, or hashes through ctx.cache and reports the result.
+main: index.ts
+
+inputs:
+  mode:
+    type: string
+    required: true
+  paths:
+    type: json
+    default: []
+  key:
+    type: string
+    default: ''
+  restore_keys:
+    type: json
+    default: []
+  scope:
+    type: string
+    default: default
+  fallback_scopes:
+    type: json
+    default: []
+
+outputs:
+  result:
+    type: json

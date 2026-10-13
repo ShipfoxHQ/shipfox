@@ -16,6 +16,7 @@ import {
 } from '#contract.js';
 import {ACTION_BOOTSTRAP_PATH, ACTION_LOADER_PATH} from '#runtime-files.js';
 import {parseStateFile} from '#state.js';
+import {type CacheFake, createCacheFake} from '#testing/cache-fake.js';
 import {type RecordedToolCall, startFakeEndpoint} from '#testing/fake-endpoint.js';
 import type {ToolFakes} from '#testing/fakes.js';
 import {
@@ -38,7 +39,12 @@ export interface RunActionOptions {
   tools?: ToolFakes;
   /** The step working directory. A new temporary directory when omitted. */
   workspace?: string;
-  /** The step's `env:` values. */
+  /**
+   * The cache the action saves to and restores from. Pass the same fake to several runs to move
+   * files between them. A new empty one, removed after the run, when omitted.
+   */
+  cache?: CacheFake;
+  /** The step's `env:` values. Set `HOME` to give the action another home directory. */
   env?: Readonly<Record<string, string>>;
   /** Runs the `main` entry or, with `post`, the `post` entry. Defaults to `main`. */
   phase?: 'main' | 'post';
@@ -136,11 +142,14 @@ export async function runAction(
     writeFile(paths.state, stateFileContent(options.state ?? {}), {mode: 0o600}),
   ]);
 
+  const ownedCache = options.cache === undefined ? createCacheFake() : undefined;
+  const cache = (options.cache ?? ownedCache) as ReturnType<typeof createCacheFake>;
   const endpoint = await startFakeEndpoint({
     grants,
     fakes: options.tools ?? {},
     cwd: workspace,
     workspace,
+    cache: cache.handler,
   });
   let run: CompletedRun;
   try {
@@ -158,6 +167,7 @@ export async function runAction(
         [ACTION_ENV.path]: paths.path,
         [ACTION_ENV.mask]: paths.mask,
         [ACTION_ENV.state]: paths.state,
+        [ACTION_ENV.temp]: stepTemp,
         SHIPFOX_STEP_SUMMARY: paths.summary,
         [ACTION_ENV.actionPath]: actionPath,
         [ACTION_ENV.actionMain]: entry,
@@ -189,6 +199,7 @@ export async function runAction(
     };
   } finally {
     await endpoint.close();
+    await ownedCache?.dispose();
     await rm(stepTemp, {recursive: true, force: true});
   }
 

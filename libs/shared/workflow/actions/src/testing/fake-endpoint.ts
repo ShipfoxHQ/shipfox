@@ -18,6 +18,7 @@ import {
   resolveDownloadTarget,
   writeDownloadedFile,
 } from '#download-writer.js';
+import type {CacheFakeHandler} from '#testing/cache-fake.js';
 import {
   FakeToolError,
   type FakeToolFile,
@@ -76,6 +77,7 @@ export async function startFakeEndpoint(params: {
   fakes: ToolFakes;
   cwd: string;
   workspace: string;
+  cache: CacheFakeHandler;
 }): Promise<FakeEndpoint> {
   const token = randomBytes(32).toString('base64url');
   const calls: RecordedToolCall[] = [];
@@ -147,12 +149,14 @@ export async function startFakeEndpoint(params: {
   };
 
   const handle = async (request: IncomingMessage, response: ServerResponse) => {
-    if (request.headers.authorization !== `Bearer ${token}`) {
+    const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+    // Signed storage URLs carry no bearer token, as in production.
+    if (!params.cache.isStoragePath(path) && request.headers.authorization !== `Bearer ${token}`) {
       request.resume();
       response.writeHead(401).end();
       return;
     }
-    const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+    if (await params.cache.handle(request, response, path)) return;
     const kind = own(ROUTE_KINDS, path);
     if (kind === undefined || request.method !== 'POST') {
       request.resume();

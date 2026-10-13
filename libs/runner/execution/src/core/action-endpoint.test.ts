@@ -8,6 +8,7 @@ import type {
   ToolListResponseV1,
 } from '@shipfox/actions/contract';
 import {LocalExecutionHost} from '@shipfox/runner-container';
+import type {ActionCacheRequest, ActionCacheUpstream} from '#core/action-cache-forward.js';
 import {
   ACTION_TOOL_DOWNLOAD_TIMEOUT_MS,
   type ActionEndpoint,
@@ -805,6 +806,180 @@ describe('startActionEndpoint', () => {
         isError: false,
       },
     ]);
+  });
+
+  describe('cache', () => {
+    const ENTRY_ID = '0198c1f0-7b1d-7a3e-9c1a-2f6f1c1b5e11';
+
+    function fakeCache(answer: {status: number; body: unknown} = {status: 200, body: {}}) {
+      const requests: ActionCacheRequest[] = [];
+      const upstream: ActionCacheUpstream = {
+        request: (request) => {
+          requests.push(request);
+          return Promise.resolve(answer);
+        },
+      };
+      return {upstream, requests};
+    }
+
+    function cache(target: ActionEndpoint, path: string, body: unknown, token = target.token) {
+      return fetch(`${target.url}/v1/cache/${path}`, {
+        method: 'POST',
+        headers: {authorization: `Bearer ${token}`, 'content-type': 'application/json'},
+        body: JSON.stringify(body),
+      });
+    }
+
+    it.each([
+      ['restore', {scope: 'default'}, 'POST', 'restore', {scope: 'default'}],
+      ['entries', {key: 'k'}, 'POST', 'entries', {key: 'k'}],
+      ['entries/check', {key: 'k'}, 'POST', 'entries/check', {key: 'k'}],
+      [
+        'entries/commit',
+        {entry_id: ENTRY_ID, parts: [{number: 1, etag: '"a"'}]},
+        'POST',
+        `entries/${ENTRY_ID}/commit`,
+        {parts: [{number: 1, etag: '"a"'}]},
+      ],
+      ['entries/abort', {entry_id: ENTRY_ID}, 'DELETE', `entries/${ENTRY_ID}`, undefined],
+    ] as const)('forwards %s to the cache module', async (route, body, method, path, forwarded) => {
+      const {upstream, requests} = fakeCache({status: 200, body: {exists: true}});
+      const target = await start({cache: upstream});
+
+      const response = await cache(target, route, body);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({exists: true});
+      expect(requests).toEqual([
+        expect.objectContaining({
+          method,
+          path,
+          ...(forwarded === undefined ? {} : {body: forwarded}),
+        }),
+      ]);
+    });
+
+    it('answers with the status and body of the cache module', async () => {
+      const failure = {code: 'entry-not-found', message: 'Cache entry not found'};
+      const {upstream} = fakeCache({status: 404, body: failure});
+      const target = await start({cache: upstream});
+
+      const response = await cache(target, 'entries/commit', {entry_id: ENTRY_ID, parts: []});
+
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual(failure);
+    });
+
+    it('passes an empty answer through', async () => {
+      const {upstream} = fakeCache({status: 204, body: undefined});
+      const target = await start({cache: upstream});
+
+      const response = await cache(target, 'entries/abort', {entry_id: ENTRY_ID});
+
+      expect(response.status).toBe(204);
+      expect(await response.text()).toBe('');
+    });
+
+    it('rejects a commit or abort whose entry id is not a UUID', async () => {
+      const {upstream, requests} = fakeCache();
+      const target = await start({cache: upstream});
+
+      const commit = await cache(target, 'entries/commit', {entry_id: '../x', parts: []});
+      const abort = await cache(target, 'entries/abort', {});
+
+      expect([commit.status, abort.status]).toEqual([400, 400]);
+      expect(requests).toEqual([]);
+    });
+
+    it('rejects a body that is not a JSON object', async () => {
+      const {upstream} = fakeCache();
+      const target = await start({cache: upstream});
+
+      const response = await fetch(`${target.url}/v1/cache/restore`, {
+        method: 'POST',
+        headers: {authorization: `Bearer ${target.token}`},
+        body: 'not json',
+      });
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({code: 'invalid-request'});
+    });
+
+    it('answers 503 when the runner has no cache module', async () => {
+      const target = await start();
+
+      const response = await cache(target, 'restore', {});
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({code: 'cache-unavailable'});
+    });
+
+    it('needs the step token', async () => {
+      const {upstream, requests} = fakeCache();
+      const target = await start({cache: upstream});
+
+      const response = await cache(target, 'restore', {}, 'wrong');
+
+      expect(response.status).toBe(401);
+      expect(requests).toEqual([]);
+    });
+
+    it('answers 502 when the cache module cannot be reached', async () => {
+      const target = await start({
+        cache: {request: () => Promise.reject(new Error('connect ECONNREFUSED'))},
+      });
+
+      const response = await cache(target, 'restore', {});
+
+      expect(response.status).toBe(502);
+      expect(await response.json()).toMatchObject({code: 'upstream-unavailable'});
+    });
+
+    it('cancels the call to the cache module when the step ends', async () => {
+      const controller = new AbortController();
+      let seen: AbortSignal | undefined;
+      const target = await start({
+        signal: controller.signal,
+        cache: {
+          request: ({signal}) =>
+            new Promise((_resolve, reject) => {
+              seen = signal;
+              signal.addEventListener('abort', () => reject(signal.reason), {once: true});
+            }),
+        },
+      });
+
+      const pending = cache(target, 'restore', {});
+      await vi.waitFor(() => expect(seen).toBeDefined());
+      controller.abort();
+      const response = await pending;
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({code: 'cancelled'});
+    });
+
+    it('refuses new calls once the step has ended', async () => {
+      const {upstream, requests} = fakeCache();
+      const controller = new AbortController();
+      const target = await start({cache: upstream, signal: controller.signal});
+      controller.abort();
+
+      const response = await cache(target, 'restore', {});
+
+      expect(response.status).toBe(503);
+      expect(requests).toEqual([]);
+    });
+
+    it('answers only POST', async () => {
+      const {upstream} = fakeCache();
+      const target = await start({cache: upstream});
+
+      const response = await fetch(`${target.url}/v1/cache/restore`, {
+        headers: {authorization: `Bearer ${target.token}`},
+      });
+
+      expect(response.status).toBe(405);
+    });
   });
 
   it('finishes the rows of in-flight calls before close resolves', async () => {

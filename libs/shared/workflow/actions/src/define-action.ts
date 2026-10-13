@@ -1,3 +1,4 @@
+import type {ActionCache} from '#cache/types.js';
 import type {ActionRunContext} from '#contract.js';
 import type {ActionLog} from '#log.js';
 import type {ActionOutputValues} from '#outputs.js';
@@ -10,6 +11,11 @@ export interface ActionContext<Inputs extends ActionInputs = ActionInputs> {
   /** Input values from `with:`, with defaults applied and types checked. */
   readonly inputs: Inputs;
   readonly tools: Tools;
+  /**
+   * Saves files from this job and restores them in a later job of the same project. The file work
+   * runs in this process. Await every call before the handler returns.
+   */
+  readonly cache: ActionCache;
   /**
    * Sets a declared output right away, so it survives a later throw. The returned object is merged
    * over these values. Throws in the post phase, which has no outputs.

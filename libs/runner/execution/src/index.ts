@@ -1,3 +1,8 @@
+export type {
+  ActionCacheRequest,
+  ActionCacheResponse,
+  ActionCacheUpstream,
+} from '#core/action-cache-forward.js';
 export type {ActionToolRow, ActionToolsUpstream} from '#core/action-endpoint.js';
 export {
   type ActionContainerRuntime,

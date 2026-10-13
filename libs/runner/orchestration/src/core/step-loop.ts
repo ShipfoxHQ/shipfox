@@ -63,6 +63,7 @@ import {
   reportStep,
   requestActionBundle,
   requestAgentRuntimeConfigWithTiming,
+  requestCacheRoute,
   requestNextStep,
   requestSessionTranscript,
   requestStepSecrets,
@@ -1890,6 +1891,7 @@ async function executeActionStepBranch(params: ProcessStepBranchParams): Promise
     },
     onOutput: (chunk, source) => stepStream?.write(chunk, source),
     toolsUpstream,
+    cacheUpstream: {request: (request) => requestCacheRoute(input.leaseClient, request)},
     onToolRow: (row) => stepStream?.writeToolRow(row),
   }).finally(() => gatewayClient.close().catch(() => undefined));
   return finishProcessStep(params, stepStream, result);

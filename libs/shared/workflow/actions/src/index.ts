@@ -1,3 +1,12 @@
+export {CacheArgumentError, CacheExtractionError} from '#cache/errors.js';
+export type {
+  ActionCache,
+  CacheRestoreOptions,
+  CacheRestoreResult,
+  CacheSaveOptions,
+  CacheSaveResult,
+  CacheSkipReason,
+} from '#cache/types.js';
 export type {
   ActionOutputDeclaration,
   ActionOutputDeclarations,

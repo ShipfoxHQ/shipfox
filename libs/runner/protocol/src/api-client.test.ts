@@ -37,6 +37,7 @@ import {
   requestActionBundle,
   requestAgentRuntimeConfig,
   requestAgentRuntimeConfigWithTiming,
+  requestCacheRoute,
   requestCheckoutToken,
   requestJob,
   requestNextStep,
@@ -1022,6 +1023,53 @@ describe('action bundle transport', () => {
       'Action bundle load failed with status 404 (action-snapshot-not-found)',
     );
     expect(calls).toHaveLength(1);
+  });
+});
+
+describe('cache routes', () => {
+  it('posts the body to the leased job cache route and returns the status and body', async () => {
+    stubFetch(() => jsonResponse({exists: true}));
+    const leaseClient = createLeaseClient('lease-cache');
+
+    const answer = await requestCacheRoute(leaseClient, {
+      method: 'POST',
+      path: 'entries/check',
+      body: {scope: 'default', key: 'k', version: 'v'},
+    });
+
+    expect(answer).toEqual({status: 200, body: {exists: true}});
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      method: 'POST',
+      authorization: 'Bearer lease-cache',
+      body: JSON.stringify({scope: 'default', key: 'k', version: 'v'}),
+    });
+    expect(calls[0]?.url).toContain('runs/jobs/current/cache/entries/check');
+  });
+
+  it('hands a failure back as a value and does not retry it', async () => {
+    stubFetch(() => jsonResponse({code: 'unavailable', message: 'down'}, 503));
+    const leaseClient = createLeaseClient('lease-cache');
+
+    const answer = await requestCacheRoute(leaseClient, {
+      method: 'POST',
+      path: 'restore',
+      body: {},
+    });
+
+    expect(answer).toEqual({status: 503, body: {code: 'unavailable', message: 'down'}});
+    expect(calls).toHaveLength(1);
+  });
+
+  it('sends a DELETE without a body and returns an empty answer as undefined', async () => {
+    stubFetch(() => new Response(null, {status: 204}));
+    const leaseClient = createLeaseClient('lease-cache');
+
+    const answer = await requestCacheRoute(leaseClient, {method: 'DELETE', path: 'entries/abc'});
+
+    expect(answer).toEqual({status: 204, body: undefined});
+    expect(calls[0]).toMatchObject({method: 'DELETE', body: undefined});
+    expect(calls[0]?.url).toContain('runs/jobs/current/cache/entries/abc');
   });
 });
 

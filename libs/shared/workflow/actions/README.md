@@ -6,8 +6,8 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
 ## What it does
 
 - **`defineAction(handler)`** declares an action. The entry file default-exports the result. The
-  handler receives `inputs`, `tools`, `setOutput`, `setEnv`, `addPath`, `addMask`, `state`, `log`,
-  `signal`, and `context`, and may return an object of outputs.
+  handler receives `inputs`, `tools`, `cache`, `setOutput`, `setEnv`, `addPath`, `addMask`,
+  `state`, `log`, `signal`, and `context`, and may return an object of outputs.
 - **`setEnv(name, value)`** and **`addPath(directory)`** hand an environment variable or a `PATH`
   directory to the later steps of the job. **`addMask(value)`** masks a value in those steps.
 - **`state.set(name, value)` and `state.get(name)`** pass string values from the `main` entry to
@@ -17,6 +17,8 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
 - **`tools.<alias>.download(tool, args, {destination})`** calls a file tool. The runner writes the
   file into the workspace and returns a `DownloadedFile` with `path`, `bytes`, `sha256`,
   `mediaType`, and `filename`.
+- **`cache.hashFiles(patterns)`, `cache.restore(options)`, and `cache.save(options)`** keep files
+  between jobs of the same project. See [Cache](#cache).
 - **`Aliases`** maps manifest aliases to provider slugs through module augmentation. Tool names,
   arguments, and structured results are then typed from the provider catalogs. Without it, any
   tool name and `Record<string, unknown>` arguments are accepted, and results are `unknown`.
@@ -47,8 +49,10 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
   tool by provider slug and tool id, and the `ToolGrant` type. A grant has `sensitivity` (`read` or
   `write`), `result` (`json` or `file`), and, for a family tool, `methods` with the sensitivity of
   each method.
-- **`@shipfox/actions/testing`** runs an action from a unit test with fake tools. It exports
-  `runAction`, `toolResult`, and `toolError`. See [Testing an action](#testing-an-action).
+- **`@shipfox/actions/testing`** runs an action from a unit test with fake tools and a fake cache.
+  It exports `runAction`, `toolResult`, `toolError`, and `createCacheFake`. See [Testing an action](#testing-an-action).
+- **`CacheArgumentError`** is thrown for `paths`, a key, or a scope that can never work.
+  **`CacheExtractionError`** is thrown when a restore fails while writing files.
 - **`ActionStateError`** is thrown when a state name is not an identifier, a value is not a string,
   the state file would pass 256 KiB, or the runner provided no state file.
 
@@ -90,6 +94,79 @@ declare module '@shipfox/actions' {
   }
 }
 ```
+
+## Cache
+
+`ctx.cache` saves files from a job and restores them in a later job of the same project. All file
+work runs in the action process, which is inside the container for a container job. The archive
+goes straight to object storage through signed URLs, not through the runner or the API.
+
+```ts
+export default defineAction(async ({cache}) => {
+  const key = `tools-${await cache.hashFiles(['tools.lock'])}`;
+  const restored = await cache.restore({paths: ['.tools', '~/.cache/tools'], key, restoreKeys: ['tools-']});
+  if (!restored.hit) {
+    await installTools();
+    await cache.save({paths: ['.tools', '~/.cache/tools'], key});
+  }
+});
+```
+
+- **`hashFiles(patterns)`** expands the glob patterns, sorts the matched files, and hashes each
+  path and its content with SHA-256. It returns the first 32 hex characters. It throws
+  `CacheArgumentError` when nothing matches, so a missing lock file cannot give every run the same key.
+- **`restore({paths, key, restoreKeys, scope, fallbackScopes})`** resolves with `hit`, which is true
+  when an entry with exactly `key` was restored, and with `matchedKey` and `matchedScope` when
+  anything was restored. A prefix match restores the files and reports `hit: false`, so the action
+  saves under the exact key afterwards. `scope` defaults to `default`.
+- **`save({paths, key, scope})`** resolves with `saved`, and with a `reason` when it is false:
+  `exists`, `in-progress`, `no-match`, `too-large`, `cancelled`, or `failed`. The first save of a key
+  wins. A repeated save checks first and costs one request.
+- **Paths** are anchored by how they are written. `node_modules` is relative to the step working
+  directory, `~/.npm` to the home directory, and `/opt/tools` is absolute. Entries hold names
+  relative to their anchor, so an entry saved from one checkout path and home directory restores
+  into another. A relative path that leaves the working directory through `..` throws
+  `CacheArgumentError`. Glob characters (`* ? [ ] { }`) always mean a pattern.
+- **The version** hashes `paths` as written, the platform, the architecture, and the archive
+  format, so a restore with other paths or on another architecture is a miss.
+- **Best effort.** `restore` and `save` do not throw on a miss, a full workspace, or a storage
+  failure. They log a warning and resolve. Everything before extraction is a miss: the SDK
+  downloads and checks the size and SHA-256 of the whole archive before it writes outside the
+  job temp directory. Extraction merges into existing directories and cannot roll back, so a
+  failure there throws `CacheExtractionError`, which names the directory.
+- **Await every call.** The handler's `signal` stops transfers and `tar`, and a save that was
+  cancelled or failed tells the API to drop its reservation.
+- **Requirements.** The image needs `tar`. Archives live in `SHIPFOX_TEMP`, a directory the runner
+  creates for the step, or in the system temporary directory without it. Save and restore each
+  need free disk there equal to the archive. An absolute path that passes through a
+  symlinked directory, such as `/tmp` on macOS, cannot be restored by BSD `tar`. Name the real path.
+
+### Archive format
+
+Format `segments-1` is one line of JSON padded to 4096 bytes, then one zstd-compressed `tar`
+per anchor in use:
+
+```text
+{"format":"segments-1","segments":[{"anchor":"cwd","bytes":123},{"anchor":"home","bytes":456}]}
+<zstd(tar of cwd members)><zstd(tar of home members)>
+```
+
+Each anchor is one `tar -c -f - -C <anchor directory> -T <member list>` call, and restore runs
+`tar -x -f - -C <anchor directory>`. No archive holds an absolute path, and `tar -P` is never used.
+Symlinks inside a saved directory are stored as symlinks. GNU, BSD, and BusyBox `tar` all work.
+
+### Transfers
+
+- A save checks the key, archives to a temp file, reserves the entry with the size and hash, uploads
+  32 MiB parts eight at a time, and commits.
+- A restore downloads 32 MiB ranges eight at a time into a temp file of the final size, checks it, and
+  extracts each segment.
+- A part or range is tried up to 4 times, waiting about 0.5 s, 2 s, and 8 s plus jitter, on a
+  network error, a stall of 30 s without bytes, 408, 429, and 5xx. Only that part is sent again.
+  A 403 or 404 is not retried, and a 404 on a download is a miss at once. A part that runs out of
+  attempts stops the transfer.
+- A control call to the runner is tried up to 3 times on a network error, 429, and 5xx.
+- Signed URLs are not refreshed. They last one hour.
 
 ## Post entry
 
@@ -137,7 +214,7 @@ runner that ran the main entry.
 
 ## Testing an action
 
-`runAction(actionDir, {inputs, tools, workspace, env, phase, state, timeoutMs})` runs the action in its own
+`runAction(actionDir, {inputs, tools, cache, workspace, env, phase, state, timeoutMs})` runs the action in its own
 Node process, started the way a runner starts it, with the real loader and bootstrap. It works
 under any test runner, including Vitest's `threads` and `forks` pools, Jest, and `node:test`.
 
@@ -185,6 +262,11 @@ test('collects every page of a thread', async () => {
   `result.state` returns it after the run, so a test passes the state of the main run to the post
   run. `executionFailed` and `mainStatus` set `context.execution.failed` and `context.main.status`
   for the post.
+- **The cache** is an empty fake unless `cache` names one. `createCacheFake({partSizeBytes})` keeps
+  the index in memory and the archives in a temporary directory, and serves the signed URLs from
+  the same local endpoint, so `ctx.cache` runs its real code. Pass one fake to several `runAction`
+  calls to save in one and restore in another, each with its own `workspace` and its own `HOME` in
+  `env`. `fake.entries` lists what was saved, and `fake.dispose()` removes the archives.
 - **The workspace** is a new temporary directory unless `workspace` names one. Call
   `result.workspace.remove()` to delete it. It deletes a named workspace too, so name only a
   disposable directory.

@@ -10,6 +10,12 @@ export const TOOLS_CALL_PATH = '/v1/tools/call';
 export const TOOLS_DOWNLOAD_PATH = '/v1/tools/download';
 export const TOOLS_LIST_PATH = '/v1/tools';
 
+export const CACHE_RESTORE_PATH = '/v1/cache/restore';
+export const CACHE_RESERVE_PATH = '/v1/cache/entries';
+export const CACHE_COMMIT_PATH = '/v1/cache/entries/commit';
+export const CACHE_ABORT_PATH = '/v1/cache/entries/abort';
+export const CACHE_CHECK_PATH = '/v1/cache/entries/check';
+
 /**
  * Encoded request body limit, sized so the 40 MiB file GitHub accepts in one `create_blob` still
  * fits after base64. The gateway enforces the same limit.
@@ -39,6 +45,8 @@ export const ACTION_ENV = {
   mask: 'SHIPFOX_MASK',
   state: 'SHIPFOX_STATE',
   workspace: 'SHIPFOX_WORKSPACE',
+  /** A writable directory that lives as long as the step, for archives and downloads. */
+  temp: 'SHIPFOX_TEMP',
 } as const;
 
 /** The state file of one step, seed included. The runner enforces the same limit. */
@@ -191,4 +199,79 @@ export interface GrantedToolV1 {
 
 export interface ToolListResponseV1 {
   readonly aliases: Readonly<Record<string, {readonly tools: readonly GrantedToolV1[]}>>;
+}
+
+/**
+ * The cache routes forward to the API with the lease token, so bodies and answers use the API's
+ * snake_case shapes. A failure answers with the API's status and a `{code, message}` body.
+ */
+export interface CacheRestoreRequestV1 {
+  readonly scope: string;
+  readonly fallback_scopes: readonly string[];
+  readonly key: string;
+  readonly restore_keys: readonly string[];
+  readonly version: string;
+}
+
+export interface CacheRestoreHitV1 {
+  readonly entry_id: string;
+  readonly scope: string;
+  readonly key: string;
+  readonly exact: boolean;
+  readonly size_bytes: number;
+  readonly sha256: string;
+  /** Signed GET URL for the archive. It accepts `Range` headers. */
+  readonly url: string;
+}
+
+export interface CacheRestoreResponseV1 {
+  readonly hit: CacheRestoreHitV1 | null;
+}
+
+export interface CacheReserveRequestV1 {
+  readonly scope: string;
+  readonly key: string;
+  readonly version: string;
+  readonly size_bytes: number;
+  readonly sha256: string;
+}
+
+export type CacheReserveResponseV1 =
+  | {
+      readonly status: 'reserved';
+      readonly entry_id: string;
+      readonly part_size: number;
+      /** Signed PUT URLs in part order. The last part is the remainder. */
+      readonly part_urls: readonly string[];
+    }
+  | {readonly status: 'exists'}
+  | {readonly status: 'in_progress'}
+  | {readonly status: 'too_large'};
+
+export interface CacheCommitRequestV1 {
+  readonly entry_id: string;
+  readonly parts: readonly {readonly number: number; readonly etag: string}[];
+}
+
+export interface CacheCommitResponseV1 {
+  readonly status: 'ready';
+}
+
+export interface CacheAbortRequestV1 {
+  readonly entry_id: string;
+}
+
+export interface CacheCheckRequestV1 {
+  readonly scope: string;
+  readonly key: string;
+  readonly version: string;
+}
+
+export interface CacheCheckResponseV1 {
+  readonly exists: boolean;
+}
+
+export interface CacheErrorResponseV1 {
+  readonly code: string;
+  readonly message: string;
 }

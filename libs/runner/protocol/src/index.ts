@@ -32,6 +32,7 @@ export {
   requestActionBundle,
   requestAgentRuntimeConfig,
   requestAgentRuntimeConfigWithTiming,
+  requestCacheRoute,
   requestCheckoutToken,
   requestJob,
   requestNextStep,

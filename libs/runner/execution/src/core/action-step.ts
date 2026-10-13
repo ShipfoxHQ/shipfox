@@ -19,6 +19,7 @@ import {
 import {actionBundleDigestSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {prepareActionBundle} from '#core/action-bundle.js';
+import type {ActionCacheUpstream} from '#core/action-cache-forward.js';
 import {
   type ActionIntegrationGrant,
   type ActionToolRow,
@@ -146,6 +147,8 @@ export interface ActionStepOptions
   toolsUpstream?: ActionToolsUpstream;
   /** Receives the tool call and result rows for the step log. */
   onToolRow?: (row: ActionToolRow) => void;
+  /** The cache module of the API. Without it, the action's cache calls fail. */
+  cacheUpstream?: ActionCacheUpstream;
 }
 
 /**
@@ -198,6 +201,7 @@ export async function executeActionStep(
     cwd: options.cwd,
     workspace: options.workspace,
     upstream: options.toolsUpstream,
+    cache: options.cacheUpstream,
     signal: options.signal,
     onToolRow: options.onToolRow,
   });
@@ -234,6 +238,7 @@ export async function executeActionStep(
           [ACTION_ENV.state]: paths.state,
           [ACTION_ENV.actionsUrl]: endpoint.url,
           [ACTION_ENV.actionsToken]: endpoint.token,
+          [ACTION_ENV.temp]: stepTemp,
         },
         shipfoxEnv: readShipfoxEnv(step.config.shipfox_env),
         secretValues: [...(options.secretValues ?? []), endpoint.token],

@@ -709,6 +709,42 @@ export async function requestActionBundle(
   return bundle;
 }
 
+/**
+ * Calls a cache route of the leased job as the action asked and hands back the API's own status
+ * and body. The action's SDK decides what to retry, so ky neither retries nor throws here, and
+ * the caller's signal is the only deadline.
+ */
+export async function requestCacheRoute(
+  leaseClient: KyInstance,
+  params: {
+    method: 'POST' | 'DELETE';
+    /** Relative to `runs/jobs/current/cache`. */
+    path: string;
+    body?: unknown;
+    signal?: AbortSignal;
+  },
+): Promise<{status: number; body: unknown}> {
+  const response = await leaseClient(`runs/jobs/current/cache/${params.path}`, {
+    method: params.method,
+    ...(params.body === undefined ? {} : {json: params.body}),
+    throwHttpErrors: false,
+    retry: 0,
+    timeout: false,
+    ...(params.signal ? {signal: params.signal} : {}),
+  });
+  const text = await response.text();
+  return {status: response.status, body: parseJsonOrUndefined(text)};
+}
+
+function parseJsonOrUndefined(text: string): unknown {
+  if (text === '') return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function commitSessionTranscript(
   leaseClient: KyInstance,
   params: {

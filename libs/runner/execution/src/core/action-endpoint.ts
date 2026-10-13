@@ -25,6 +25,14 @@ import {
   writeDownloadedFile,
 } from '@shipfox/actions/download-writer';
 import {type ExecutionHost, localExecutionHost} from '@shipfox/runner-container';
+import {
+  type ActionCacheUpstream,
+  cacheFailure,
+  forwardCacheCall,
+  isCachePath,
+  MAX_CACHE_REQUEST_BYTES,
+  planCacheForward,
+} from '#core/action-cache-forward.js';
 
 export const ACTION_TOOL_CALL_TIMEOUT_MS = 120_000;
 // Under the 300 s response header timeout of the SDK's fetch, so the action gets `timeout`.
@@ -115,6 +123,8 @@ export interface StartActionEndpointParams {
   workspace: string;
   /** Without it, every call fails with `tools-unavailable`. */
   upstream?: ActionToolsUpstream | undefined;
+  /** The cache module of the API. Without it, every cache call fails with `cache-unavailable`. */
+  cache?: ActionCacheUpstream | undefined;
   /** Step cancellation. It stops new calls and aborts the ones in flight. */
   signal?: AbortSignal | undefined;
   onToolRow?: ((row: ActionToolRow) => void) | undefined;
@@ -288,6 +298,44 @@ export async function startActionEndpoint(
     );
   };
 
+  // Forwards a cache call to the API as it is: the SDK reads the status and retries on its own.
+  const handleCache = async (request: IncomingMessage, response: ServerResponse, path: string) => {
+    const admitted = await admitCache(request, path);
+    if ('status' in admitted) {
+      sendRaw(response, admitted);
+      return;
+    }
+    const controller = new AbortController();
+    inFlight.add(controller);
+    response.once('close', () => {
+      if (!response.writableFinished) controller.abort(new Error('The action disconnected.'));
+    });
+    try {
+      sendRaw(response, await forwardCacheCall({...admitted, controller}));
+    } finally {
+      inFlight.delete(controller);
+    }
+  };
+
+  const admitCache = async (request: IncomingMessage, path: string) => {
+    const raw = await readBody(request, MAX_CACHE_REQUEST_BYTES);
+    if (raw === 'too-large') {
+      return cacheFailure(413, 'request-too-large', 'The cache request is too large.');
+    }
+    if (!accepting) {
+      return cacheFailure(503, 'cancelled', 'The step is ending, so no new calls start.');
+    }
+    if (params.cache === undefined) {
+      return cacheFailure(
+        503,
+        'cache-unavailable',
+        'This runner does not serve the cache to actions.',
+      );
+    }
+    const plan = planCacheForward(path, parseJson(raw));
+    return 'status' in plan ? plan : {plan, upstream: params.cache};
+  };
+
   const handle = async (request: IncomingMessage, response: ServerResponse) => {
     if (!isLoopbackHost(request.headers.host, port)) {
       request.resume();
@@ -301,13 +349,11 @@ export async function startActionEndpoint(
     }
     const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
     const route = routeFor(path, request.method);
+    if (route === 'cache') return await handleCache(request, response, path);
     if (route === 'call') return await handleCall(request, response);
     if (route === 'download') return await handleDownload(request, response);
     request.resume();
-    if (route === 'list') send(response, 200, toolList);
-    else if (route === 'method-not-allowed') {
-      send(response, 405, failure('method-not-allowed', `${request.method} is not allowed here.`));
-    } else send(response, 404, failure('not-found', `${path} is not a tool endpoint route.`));
+    send(response, ...answerWithoutCall({route, method: request.method, path, toolList}));
   };
 
   const server = createServer((request, response) => {
@@ -709,10 +755,24 @@ function listTools(integrations: readonly ActionIntegrationGrant[]): ToolListRes
   };
 }
 
+function answerWithoutCall(params: {
+  route: 'list' | 'method-not-allowed' | 'not-found';
+  method: string | undefined;
+  path: string;
+  toolList: ToolListResponseV1;
+}): [number, JsonBody] {
+  if (params.route === 'list') return [200, params.toolList];
+  if (params.route === 'method-not-allowed') {
+    return [405, failure('method-not-allowed', `${params.method} is not allowed here.`)];
+  }
+  return [404, failure('not-found', `${params.path} is not a tool endpoint route.`)];
+}
+
 function routeFor(
   path: string,
   method: string | undefined,
-): 'call' | 'list' | 'download' | 'method-not-allowed' | 'not-found' {
+): 'call' | 'list' | 'download' | 'cache' | 'method-not-allowed' | 'not-found' {
+  if (isCachePath(path)) return method === 'POST' ? 'cache' : 'method-not-allowed';
   const routes: Record<string, ['call' | 'list' | 'download', string]> = {
     [TOOLS_CALL_PATH]: ['call', 'POST'],
     [TOOLS_LIST_PATH]: ['list', 'GET'],
@@ -729,15 +789,18 @@ function isLoopbackHost(host: string | undefined, port: number): boolean {
 }
 
 // An oversized body is still read to the end, so the client gets the 413 instead of a reset.
-async function readBody(request: IncomingMessage): Promise<string | 'too-large' | undefined> {
-  let tooLarge = Number(request.headers['content-length']) > MAX_TOOL_REQUEST_BYTES;
+async function readBody(
+  request: IncomingMessage,
+  limit = MAX_TOOL_REQUEST_BYTES,
+): Promise<string | 'too-large' | undefined> {
+  let tooLarge = Number(request.headers['content-length']) > limit;
   const chunks: Buffer[] = [];
   let size = 0;
   try {
     for await (const chunk of request) {
       if (tooLarge) continue;
       size += (chunk as Buffer).length;
-      tooLarge = size > MAX_TOOL_REQUEST_BYTES;
+      tooLarge = size > limit;
       if (!tooLarge) chunks.push(chunk as Buffer);
     }
   } catch {
@@ -790,6 +853,26 @@ function parseToolRequest(body: string, kind: 'json' | 'file'): ToolRequest | un
   const {destination} = value;
   if (typeof destination !== 'string' || destination === '') return undefined;
   return {alias, tool, arguments: args, destination};
+}
+
+function parseJson(raw: string | undefined): unknown {
+  if (raw === undefined) return undefined;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+}
+
+function sendRaw(response: ServerResponse, answer: {status: number; body: unknown}): void {
+  if (response.destroyed || response.headersSent) return;
+  if (answer.status === 204 || answer.body === undefined) {
+    response.writeHead(answer.status).end();
+    return;
+  }
+  response
+    .writeHead(answer.status, {'content-type': 'application/json'})
+    .end(JSON.stringify(answer.body));
 }
 
 function send(response: ServerResponse, status: number, body: JsonBody): void {

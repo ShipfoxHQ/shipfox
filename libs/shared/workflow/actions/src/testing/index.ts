@@ -1,3 +1,9 @@
+export {
+  type CacheFake,
+  type CacheFakeEntry,
+  type CacheFakeOptions,
+  createCacheFake,
+} from '#testing/cache-fake.js';
 export type {RecordedToolCall, RecordedToolError} from '#testing/fake-endpoint.js';
 export {
   FakeToolError,
