@@ -339,23 +339,11 @@ jobs:
 
       - name: Prepare external package contracts
         run: |
+          # The closure roots are the packages the external consumers install.
           turbo build type:emit \
             --filter=@shipfox/application-release... \
             --filter=@shipfox/api... \
-            --filter=@shipfox/api-integration-notion-dto... \
-            --filter=@shipfox/api-integration-discord-dto... \
-            --filter=@shipfox/actions... \
-            --filter=@shipfox/client-shell... \
-            --filter=@shipfox/client-features... \
-            --filter=@shipfox/e2e-core... \
-            --filter=@shipfox/e2e-kit... \
-            --filter=@shipfox/e2e-driver-runner-process... \
-            --filter=@shipfox/e2e-setup-auth... \
-            --filter=@shipfox/e2e-setup-workspaces... \
-            --filter=@shipfox/e2e-setup-projects... \
-            --filter=@shipfox/e2e-setup-integrations... \
-            --filter=@shipfox/e2e-setup-agent... \
-            --filter=@shipfox/e2e-observe-workflows... \
+            $(jq -r '.roots[] | "--filter=\(.)..."' publication-closure.json) \
             --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
       - name: Verify packed API runtime closure
@@ -1327,10 +1315,13 @@ jobs:
         uses: ./.github/actions/setup-pnpm
         with:
           # The publication closure also contains the published E2E packages.
-          filter: "./{e2e/core,e2e/kit,e2e/drivers/runner-process,e2e/setup/auth,e2e/setup/workspaces,e2e/setup/projects,e2e/setup/integrations,e2e/setup/agent,e2e/observe/workflows,libs,tools}/**"
+          filter: "./{e2e/core,e2e/harness,e2e/kit,e2e/drivers/runner-process,e2e/setup/auth,e2e/setup/workspaces,e2e/setup/projects,e2e/setup/integrations,e2e/setup/agent,e2e/observe/workflows,libs,tools}/**"
 
       - name: Build publication closure
-        run: turbo type build type:emit --filter=@shipfox/e2e-kit... --filter=@shipfox/e2e-driver-runner-process... --filter=@shipfox/e2e-setup-auth... --filter=@shipfox/e2e-setup-workspaces... --filter=@shipfox/e2e-setup-projects... --filter=@shipfox/e2e-setup-integrations... --filter=@shipfox/e2e-setup-agent... --filter=@shipfox/e2e-observe-workflows... --filter='./libs/**' --filter='./tools/**'
+        run: |
+          turbo type build type:emit \
+            $(jq -r '.roots[] | "--filter=\(.)..."' publication-closure.json) \
+            --filter='./libs/**' --filter='./tools/**'
 
       - name: Pack candidate bundle
         run: |
