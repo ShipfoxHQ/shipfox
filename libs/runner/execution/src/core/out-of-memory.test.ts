@@ -45,11 +45,11 @@ describe('reportOutOfMemoryKills', () => {
     expect(result).toEqual(FAILURE);
   });
 
-  it('adds the kills to the message of a failed step', async () => {
+  it('puts the kills first in the message of a failed step', async () => {
     const result = await report(FAILURE, 4);
 
     expect(result.error?.message).toBe(
-      'Process exited with code 137. The runner ran out of memory during this step and the system killed 2 processes. Reduce the memory the step uses or run it on a runner with more memory.',
+      'The runner ran out of memory during this step and the system killed 2 processes. Reduce the memory the step uses or run it on a runner with more memory. Process exited with code 137.',
     );
     expect(result.annotations).toBeUndefined();
   });

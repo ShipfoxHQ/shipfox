@@ -56,6 +56,7 @@ export async function reportOutOfMemoryKills(params: {
   const killed = after - before;
   const processes = killed === 1 ? '1 process' : `${killed} processes`;
   const advice = 'Reduce the memory the step uses or run it on a runner with more memory.';
+  const report = `The runner ran out of memory during this step and the system killed ${processes}.`;
   if (result.success || result.error === null || result.error === undefined) {
     return {
       ...result,
@@ -65,7 +66,7 @@ export async function reportOutOfMemoryKills(params: {
           op: 'replace',
           context: params.annotationContext,
           style: 'warning',
-          body: `The runner ran out of memory during this step and the system killed ${processes}. The step still finished. ${advice}`,
+          body: `${report} The step still finished. ${advice}`,
         },
       ],
     };
@@ -75,7 +76,8 @@ export async function reportOutOfMemoryKills(params: {
     ...result,
     error: {
       ...result.error,
-      message: `${result.error.message} The runner ran out of memory during this step and the system killed ${processes}. ${advice}`,
+      // The report comes first so the length limit on a reported message cannot cut it off.
+      message: `${report} ${advice} ${result.error.message}`,
     },
   };
 }
