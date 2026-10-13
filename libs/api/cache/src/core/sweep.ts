@@ -13,8 +13,8 @@ import type {CacheEntry} from './entities/cache-entry.js';
 import {evictWorkspace} from './evict-workspace.js';
 import type {WorkspaceStorageLimits} from './storage-policy.js';
 
-// Signed URLs last one hour at most by default, so no live upload is this old.
-const STALE_UPLOAD_AFTER_SECONDS = 2 * 60 * 60;
+// An upload can be live for as long as its signed URLs, so the cutoff stays past their lifetime.
+const STALE_UPLOAD_AFTER_SECONDS = Math.max(2 * 60 * 60, config.CACHE_URL_TTL_SECONDS + 60 * 60);
 const DELETION_RECORD_RETENTION_DAYS = 30;
 
 export interface CacheSweepResult {

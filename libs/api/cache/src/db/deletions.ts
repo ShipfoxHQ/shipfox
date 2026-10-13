@@ -8,7 +8,6 @@ export async function pruneDeletions(params: {olderThanDays: number}): Promise<n
     .delete(cacheDeletions)
     .where(
       sql`${cacheDeletions.deletedAt} < now() - make_interval(days => ${params.olderThanDays}::int)`,
-    )
-    .returning({id: cacheDeletions.id});
-  return pruned.length;
+    );
+  return pruned.rowCount ?? 0;
 }

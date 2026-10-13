@@ -85,7 +85,7 @@ export async function reserveCacheEntry(
 
 async function exceedsSizeLimits(params: ReserveCacheEntryParams): Promise<boolean> {
   if (params.sizeBytes > config.CACHE_MAX_ENTRY_BYTES) return true;
-  // An entry over the whole workspace limit could only be saved by evicting everything else.
+  // An entry over the whole workspace limit cannot fit, even after evicting everything else.
   const maxStoredBytes = await params.limits.maxStoredBytes(params.lease.workspaceId);
   return maxStoredBytes !== null && params.sizeBytes > maxStoredBytes;
 }

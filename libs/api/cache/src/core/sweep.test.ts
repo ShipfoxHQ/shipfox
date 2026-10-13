@@ -54,7 +54,18 @@ describe('runCacheSweep', () => {
     const body = archiveOf(`upload of ${key}`);
     const reservation = (await cacheClient(testApp.app, job).reserve({key, body})).json();
     const parts = await uploadParts(reservation as Reservation, body);
-    return {entryId: (reservation as Reservation).entry_id, parts};
+    const entryId = (reservation as Reservation).entry_id;
+    const uploadId = (await findEntryRowById(entryId))?.uploadId;
+    if (!uploadId) throw new Error(`Entry ${entryId} has no multipart upload`);
+    return {
+      entryId,
+      parts,
+      upload: {
+        key: entryObjectKey({id: entryId, workspaceId: job.workspaceId, projectId: job.projectId}),
+        uploadId,
+        parts,
+      },
+    };
   }
 
   beforeAll(async () => {
@@ -145,19 +156,16 @@ describe('runCacheSweep', () => {
       expect(await findEntryRowById(stale.entryId)).toBeUndefined();
       expect(await findEntryRowById(live.entryId)).toBeDefined();
       expect(result.reaped).toBe(1);
-      const commit = await cacheClient(testApp.app, job).commit(stale.entryId, stale.parts);
-      expect(commit.statusCode).toBe(404);
+      expect(await objectStore().completeMultipartUpload(stale.upload)).toEqual({
+        status: 'upload-not-found',
+      });
     });
 
     it('removes the object of an upload that completed without its row turning ready', async () => {
       const job = await startJob();
-      const {entryId, parts} = await reserveAndUpload(job, 'completed');
-      const row = await findEntryRowById(entryId);
-      await objectStore().completeMultipartUpload({
-        key: entryObjectKey({id: entryId, workspaceId: job.workspaceId, projectId: job.projectId}),
-        uploadId: row?.uploadId ?? '',
-        parts,
-      });
+      const {entryId, upload} = await reserveAndUpload(job, 'completed');
+      const completion = await objectStore().completeMultipartUpload(upload);
+      expect(completion.status).toBe('completed');
       await setCreatedAt({id: entryId, at: ago(3 * HOUR_MS)});
 
       await sweep();
