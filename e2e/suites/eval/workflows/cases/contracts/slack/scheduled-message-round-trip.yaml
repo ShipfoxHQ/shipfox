@@ -1,6 +1,6 @@
 provider: slack
 kind: round-trip
-modes: [real]
+modes: [real, fake]
 steps:
   - key: schedule
     tool: schedule_message

@@ -28,7 +28,7 @@ describe('slackContractFake', () => {
   const cleanups: Array<() => Promise<void>> = [];
   const seeded = {seedChannel: vi.fn(), seedUser: vi.fn(), seedThread: vi.fn()};
   const stop = vi.fn(() => Promise.resolve());
-  const startMock = vi.fn((_options: {botToken: string}) =>
+  const startMock = vi.fn((_options: {botToken: string; botUserId: string}) =>
     Promise.resolve({...seeded, stop, writes: () => []} as unknown as SlackApiMock),
   );
   const createConnection = vi.fn(
@@ -59,7 +59,7 @@ describe('slackContractFake', () => {
     const fake = await arrange();
 
     expect(fake.connectionSlug).toBe('slack_fake');
-    expect(startMock).toHaveBeenCalledWith({botToken: 'xoxb-contracts-abc'});
+    expect(startMock).toHaveBeenCalledWith({botToken: 'xoxb-contracts-abc', botUserId: 'Ubotabc'});
     expect(createConnection).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceId: 'workspace-1',

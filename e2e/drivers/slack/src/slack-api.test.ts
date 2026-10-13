@@ -1,4 +1,9 @@
-import {startSlackApiMock} from './slack-api.js';
+import {SLACK_POSTED_TS, startSlackApiMock} from './slack-api.js';
+
+// The tests read what the fake answers by field, so the body is untyped.
+// biome-ignore lint/suspicious/noExplicitAny: a response body of any shape
+type SlackBody = Record<string, any>;
+const TEMP_SECTION_ID = /^temp:/u;
 
 describe('Slack API mock', () => {
   it('serves thread pages by cursor, known users, and permalinks', async () => {
@@ -241,6 +246,185 @@ describe('Slack API mock', () => {
           ok: true,
           user: {id: 'U1', name: 'one'},
         });
+      } finally {
+        await mock.stop();
+      }
+    });
+  });
+  describe('stateful writes', () => {
+    async function arrange() {
+      const mock = await startSlackApiMock({
+        endpoint: new URL('http://127.0.0.1:0'),
+        botUserId: 'UBOT',
+      });
+      mock.seedChannel({id: 'C1', name: 'write', members: ['UBOT']});
+      const post = (method: string, form: Record<string, unknown>) =>
+        fetch(new URL(`/api/${method}`, mock.endpoint), {
+          method: 'POST',
+          headers: {authorization: 'Bearer xoxb-test'},
+          body: new URLSearchParams(
+            Object.entries(form).map(([key, value]): [string, string] => [
+              key,
+              typeof value === 'string' ? value : JSON.stringify(value),
+            ]),
+          ),
+        }).then((response) => response.json() as Promise<SlackBody>);
+      return {mock, post};
+    }
+
+    it('reads back a posted message, its update, and its reaction', async () => {
+      const {mock, post} = await arrange();
+
+      try {
+        const posted = await post('chat.postMessage', {channel: 'C1', text: 'hello'});
+        const ts = posted.ts as string;
+        await post('chat.update', {channel: 'C1', ts, text: 'hello again'});
+        await post('reactions.add', {channel: 'C1', timestamp: ts, name: 'white_check_mark'});
+
+        expect(ts).toBe(SLACK_POSTED_TS);
+        expect(await post('conversations.replies', {channel: 'C1', ts})).toMatchObject({
+          ok: true,
+          messages: [
+            {
+              type: 'message',
+              user: 'UBOT',
+              ts,
+              text: 'hello again',
+              reactions: [{name: 'white_check_mark', count: 1, users: ['UBOT']}],
+            },
+          ],
+        });
+        expect(await post('conversations.history', {channel: 'C1'})).toMatchObject({
+          messages: [{ts, text: 'hello again'}],
+        });
+        expect(mock.writes().map((write) => [write.kind, write.target])).toEqual([
+          ['chat.postMessage', 'C1'],
+          ['chat.update', `C1/${ts}`],
+          ['reactions.add', `C1/${ts}`],
+        ]);
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('gives each message its own ts and keeps thread replies out of the history', async () => {
+      const {mock, post} = await arrange();
+
+      try {
+        const parent = await post('chat.postMessage', {channel: 'C1', text: 'parent'});
+        const reply = await post('chat.postMessage', {
+          channel: 'C1',
+          text: 'reply',
+          thread_ts: parent.ts,
+        });
+
+        expect(reply.ts).not.toBe(parent.ts);
+        expect(await post('conversations.replies', {channel: 'C1', ts: parent.ts})).toMatchObject({
+          messages: [
+            {ts: parent.ts, reply_count: 1, latest_reply: reply.ts},
+            {ts: reply.ts, thread_ts: parent.ts},
+          ],
+        });
+        expect(
+          ((await post('conversations.history', {channel: 'C1'})).messages as unknown[]).length,
+        ).toBe(1);
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('answers the Slack errors for a missing channel or message and a repeated reaction', async () => {
+      const {mock, post} = await arrange();
+
+      try {
+        const {ts} = await post('chat.postMessage', {channel: 'C1', text: 'hello'});
+        await post('reactions.add', {channel: 'C1', timestamp: ts, name: 'eyes'});
+
+        expect(await post('chat.update', {channel: 'C9', ts, text: 'x'})).toEqual({
+          ok: false,
+          error: 'channel_not_found',
+        });
+        expect(await post('chat.update', {channel: 'C1', ts: '1.000100', text: 'x'})).toEqual({
+          ok: false,
+          error: 'message_not_found',
+        });
+        expect(await post('reactions.add', {channel: 'C1', timestamp: ts, name: 'eyes'})).toEqual({
+          ok: false,
+          error: 'already_reacted',
+        });
+        expect(mock.writes()).toHaveLength(2);
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('lists a scheduled message in its post_at range and leaves other ranges out', async () => {
+      const {mock, post} = await arrange();
+
+      try {
+        const scheduled = await post('chat.scheduleMessage', {
+          channel: 'C1',
+          text: 'later',
+          post_at: '2000000000',
+        });
+
+        expect(scheduled).toMatchObject({ok: true, channel: 'C1', post_at: 2_000_000_000});
+        expect(
+          await post('chat.scheduledMessages.list', {
+            channel: 'C1',
+            oldest: '2000000000',
+            latest: '2000000000',
+          }),
+        ).toMatchObject({
+          ok: true,
+          scheduled_messages: [
+            {
+              id: scheduled.scheduled_message_id,
+              channel_id: 'C1',
+              post_at: 2_000_000_000,
+              text: 'later',
+            },
+          ],
+          response_metadata: {next_cursor: ''},
+        });
+        expect(
+          (await post('chat.scheduledMessages.list', {channel: 'C1', latest: '1999999999'}))
+            .scheduled_messages,
+        ).toEqual([]);
+        expect(mock.writes().map((write) => write.kind)).toEqual(['chat.scheduleMessage']);
+      } finally {
+        await mock.stop();
+      }
+    });
+
+    it('finds the sections of a created canvas by text and type', async () => {
+      const {mock, post} = await arrange();
+
+      try {
+        const created = await post('canvases.create', {
+          title: 'Canvas',
+          document_content: {type: 'markdown', markdown: '# Heading\n\nBody marker-1'},
+        });
+        const byText = await post('canvases.sections.lookup', {
+          canvas_id: created.canvas_id,
+          criteria: {contains_text: 'marker-1'},
+        });
+        const byType = await post('canvases.sections.lookup', {
+          canvas_id: created.canvas_id,
+          criteria: {section_types: ['h1']},
+        });
+
+        expect(byText.sections).toHaveLength(1);
+        expect(byType.sections).toHaveLength(1);
+        expect(byText.sections[0].id).toMatch(TEMP_SECTION_ID);
+        expect(byText.sections[0].id).not.toBe(byType.sections[0].id);
+        expect(await post('canvases.sections.lookup', {canvas_id: 'F9', criteria: {}})).toEqual({
+          ok: false,
+          error: 'canvas_not_found',
+        });
+        expect(mock.writes()).toEqual([
+          expect.objectContaining({kind: 'canvases.create', target: created.canvas_id}),
+        ]);
       } finally {
         await mock.stop();
       }

@@ -800,7 +800,7 @@ export function createSlackContractFake({
   startMock,
   createConnection,
 }: {
-  startMock: (options: {botToken: string}) => Promise<SlackApiMock>;
+  startMock: (options: {botToken: string; botUserId: string}) => Promise<SlackApiMock>;
   createConnection: (
     params: Parameters<typeof createSlackConnection>[0],
   ) => Promise<{slug: string}>;
@@ -809,7 +809,7 @@ export function createSlackContractFake({
     const botToken = `xoxb-contracts-${uniqueId}`;
     const botUserId = `Ubot${uniqueId}`;
     const teamId = `T${uniqueId}`;
-    const mock = await startMock({botToken});
+    const mock = await startMock({botToken, botUserId});
     cleanups.push(() => mock.stop());
     const connection = await createConnection({
       workspaceId,
@@ -824,6 +824,9 @@ export function createSlackContractFake({
         'channels:read',
         'chat:write',
         'users:read',
+        'reactions:write',
+        'canvases:read',
+        'canvases:write',
       ],
     });
 
