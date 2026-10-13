@@ -86,8 +86,8 @@ A step can use Docker when the image has the `docker` command. Add this step
 to the job:
 
 ```yaml
-      - key: files
-        run: docker run --rm -v "$PWD:/src" busybox ls /src
+      - key: hello
+        run: docker run --rm hello-world
 ```
 
 Shipfox does not remove the containers that your steps start. Use `--rm`, or
