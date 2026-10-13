@@ -39,6 +39,10 @@ jobs:
 The runner starts one container from the image. All run steps and agent steps
 of the job run in that container.
 
+To verify, start the workflow from the **Workflows** tab and open the run.
+**Set up job** says that the job container is running. The `node` step prints
+a version that starts with `v24`.
+
 For your own workflow, change the image and the steps.
 
 ## Pull a private image
@@ -119,21 +123,3 @@ The `options` field adds flags to the `docker create` command:
 | Run the job without Docker access | Set `docker_socket: false` under `container`. |
 | Let an agent use the tools of the image | Add an agent step to the job. See [Add an agent step](/how-to/author-workflows/add-agent-steps). |
 | Push commits from the job | Use a glibc image that has `git`. See [Push repository changes](/integrations/github/guides/push-repository-changes). |
-
-## Verify the container
-
-Start the workflow from the **Workflows** tab, then open the run.
-
-1. Open **Set up job**. Confirm that a line says the job container is running.
-2. Open a run step. Confirm that its output comes from the image.
-
-In the example, the `node` step prints a version that starts with `v24`.
-
-## If the container does not start
-
-**Set up job** fails with the message **The job container did not start**. Its
-log shows the error from Docker. Check the image name, the registry
-credentials, and the `options` value.
-
-If you manage the runner, it needs Docker. See [Job
-containers](/reference/runner#job-containers).
