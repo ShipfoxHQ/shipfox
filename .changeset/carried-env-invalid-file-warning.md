@@ -2,4 +2,4 @@
 "@shipfox/actions": patch
 ---
 
-Documents that an invalid `SHIPFOX_ENV` or `SHIPFOX_PATH` file hands nothing to later steps, and that the step log names the file when the action also failed.
+When an action fails and also leaves an invalid `SHIPFOX_ENV` or `SHIPFOX_PATH` file, the step log now has a line naming the rejected file. The original failure stays the step result.
