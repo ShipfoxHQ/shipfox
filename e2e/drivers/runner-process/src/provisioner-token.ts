@@ -1,4 +1,8 @@
-import type {CreateProvisionerTokenResponseDto} from '@shipfox/api-runners-dto';
+import {randomUUID} from 'node:crypto';
+import type {
+  CreateAdministratorProvisionerTokenResponseDto,
+  CreateProvisionerTokenResponseDto,
+} from '@shipfox/api-runners-dto';
 import {createApiClient} from '@shipfox/e2e-core';
 
 export interface MintProvisionerTokenParams {
@@ -26,5 +30,42 @@ export async function mintProvisionerToken(
     'post',
     `/workspaces/${params.workspaceId}/provisioners/tokens`,
     {json: {name: params.name, ttl_seconds: params.ttlSeconds}},
+  );
+}
+
+export interface MintInstallationProvisionerTokenParams {
+  /** Administrator bearer allowed to create installation provisioner tokens. */
+  adminToken: string;
+  /** Human-readable token name shown in administrator settings. */
+  name?: string | undefined;
+  /** Why the administrator token is being created. */
+  reason?: string | undefined;
+  /** Token lifetime in seconds. Omitted uses the API default. */
+  ttlSeconds?: number | undefined;
+  /** Stable key for retrying the same create command. Defaults to a new UUID. */
+  idempotencyKey?: string | undefined;
+}
+
+/**
+ * Mints an installation-wide provisioner token through the administrator route.
+ * The API requires an idempotency key because this command creates a durable token.
+ */
+export async function mintInstallationProvisionerToken(
+  params: MintInstallationProvisionerTokenParams,
+): Promise<CreateAdministratorProvisionerTokenResponseDto> {
+  const client = createApiClient({token: params.adminToken});
+  const body = {
+    reason: params.reason ?? 'E2E installation provisioner',
+    ...(params.name !== undefined ? {name: params.name} : {}),
+    ...(params.ttlSeconds !== undefined ? {ttl_seconds: params.ttlSeconds} : {}),
+  };
+
+  return await client.requestJson<CreateAdministratorProvisionerTokenResponseDto>(
+    'post',
+    '/admin/runners/provisioner-tokens',
+    {
+      headers: {'Idempotency-Key': params.idempotencyKey ?? randomUUID()},
+      json: body,
+    },
   );
 }

@@ -6,7 +6,8 @@ import {config as apiConfig} from './config.js';
 
 const STARTUP_ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS = 2_000;
 try {
-  const e2eManagedProviderBaseUrl = shouldMountE2eRoutes(apiServerConfig)
+  const e2eRoutesEnabled = shouldMountE2eRoutes(apiServerConfig);
+  const e2eManagedProviderBaseUrl = e2eRoutesEnabled
     ? apiConfig.E2E_MANAGED_PROVIDER_BASE_URL
     : undefined;
   const e2eManagedInference =
@@ -20,8 +21,8 @@ try {
             : {},
         );
   await runServer({
-    modules: await defaultModules(
-      e2eManagedInference === undefined
+    modules: await defaultModules({
+      ...(e2eManagedInference === undefined
         ? {}
         : {
             agentModuleOptions: {managedProvider: e2eManagedInference.provider},
@@ -29,8 +30,20 @@ try {
               e2eManagedInference.bindUsage(usage);
               return [e2eManagedInference.module];
             },
-          },
-    ),
+          }),
+      ...(e2eRoutesEnabled
+        ? {
+            runnersModuleOptions: {
+              installationProvisioning: {
+                policy: {
+                  filterEligibleWorkspaceIds: async (workspaceIds: readonly string[]) =>
+                    new Set(workspaceIds),
+                },
+              },
+            },
+          }
+        : {}),
+    }),
     onStartupFailure: (error) => {
       reportError(error, {boundary: 'api.startup'});
     },

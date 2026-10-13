@@ -2,10 +2,20 @@ export type {
   ActiveProvisionerDto,
   ActiveRunnerDto,
   ActiveRunnersResponseDto,
+  AdminRunnerCapacityResponseDto,
   CreateManualRegistrationTokenResponseDto,
   CreateProvisionerTokenResponseDto,
   ListActiveProvisionersResponseDto,
 } from '@shipfox/api-runners-dto';
+export {
+  type DemandPollTemplate,
+  DemandPollTimeoutError,
+  DemandReservationError,
+  type PollDemandParams,
+  type PollDemandUntilParams,
+  pollDemand,
+  pollDemandUntil,
+} from './demand.js';
 export {
   type PublishedJobContainerImage,
   type PublishJobContainerImageParams,
@@ -29,9 +39,15 @@ export {
 export {
   type ProvisionerHandle,
   type ProvisionerMode,
+  type ProvisionerScope,
   type StartProvisionerParams,
   type StopProvisionerOptions,
   startProvisioner,
   stopProvisioner,
 } from './provisioner-process.js';
-export {type MintProvisionerTokenParams, mintProvisionerToken} from './provisioner-token.js';
+export {
+  type MintInstallationProvisionerTokenParams,
+  type MintProvisionerTokenParams,
+  mintInstallationProvisionerToken,
+  mintProvisionerToken,
+} from './provisioner-token.js';

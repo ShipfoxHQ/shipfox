@@ -65,6 +65,19 @@ describe('createDockerLifecycle', () => {
     expect(engine.created[0]?.labels['shipfox.provider_runner_id']).toBe('runner-1');
   });
 
+  it('launches an installation runner without a workspace label', async () => {
+    const engine = fakeEngine();
+    const lifecycle = makeLifecycle({engine, workspaceId: null});
+
+    await lifecycle.launch(launch());
+
+    expect(engine.created[0]?.labels).toMatchObject({
+      'shipfox.provisioner_id': '00000000-0000-4000-8000-000000000001',
+      'shipfox.template_key': 'small',
+    });
+    expect(engine.created[0]?.labels).not.toHaveProperty('shipfox.workspace_id');
+  });
+
   it('reports failed and rethrows when the engine fails to launch', async () => {
     const engine = fakeEngine({
       createError: new DockerEngineError('start-failed', 'cannot start'),
@@ -1594,6 +1607,7 @@ function makeLifecycle(
     registrationDeadlineMs?: number;
     failedContainerRetentionMs?: number;
     maxRetainedFailedContainers?: number;
+    workspaceId?: string | null;
   } = {},
 ) {
   return createDockerLifecycle({
@@ -1601,7 +1615,8 @@ function makeLifecycle(
     client: args.client ?? fakeClient(),
     identity: {
       id: '00000000-0000-4000-8000-000000000001',
-      workspaceId: '00000000-0000-4000-8000-000000000002',
+      workspaceId:
+        args.workspaceId === undefined ? '00000000-0000-4000-8000-000000000002' : args.workspaceId,
     },
     tracker: args.tracker ?? testTracker(),
     templates: [template],

@@ -5,7 +5,9 @@ import {dirname, join, resolve} from 'node:path';
 import {promisify} from 'node:util';
 import type {
   ActiveProvisionerDto,
+  AdminRunnerCapacityResponseDto,
   ListActiveProvisionersResponseDto,
+  ProvisionerIdentityResponseDto,
 } from '@shipfox/api-runners-dto';
 import {config, createApiClient, pollUntil} from '@shipfox/e2e-core';
 import {resolveSourceAppDirectory} from './source-app.js';
@@ -30,6 +32,7 @@ const DEFAULT_READINESS_TIMEOUT_MS = 30_000;
 const DEFAULT_SIGTERM_TIMEOUT_MS = 15_000;
 
 export type ProvisionerMode = 'source' | 'image';
+export type ProvisionerScope = 'workspace' | 'installation';
 
 export interface StartProvisionerParams {
   /**
@@ -44,9 +47,14 @@ export interface StartProvisionerParams {
    * with its host replaced by `host.docker.internal`. A loopback host is refused.
    */
   containerApiUrl?: string;
-  workspaceId: string;
+  /** Workspace used for workspace-scoped readiness and installation capacity reads. */
+  workspaceId?: string;
   /** User session bearer used to poll the workspace's active provisioners. */
-  userToken: string;
+  userToken?: string;
+  /** Administrator bearer used for installation-scoped readiness. */
+  adminToken?: string;
+  /** Provisioner token scope. Defaults to `workspace`. */
+  scope?: ProvisionerScope;
   /** `raw_token` from `mintProvisionerToken`. */
   provisionerToken: string;
   /** Path to the provisioner templates YAML. */
@@ -80,7 +88,7 @@ export interface ProvisionerHandle {
   process: ChildProcess;
   pid: number;
   logFile: string;
-  workspaceId: string;
+  workspaceId?: string;
   provisioner: ActiveProvisionerDto;
   /** Name of the provisioner container, in image mode. */
   containerName?: string;
@@ -213,15 +221,18 @@ function spawnProvisionerContainer(
 }
 
 async function waitForActiveProvisioner(params: {
+  scope: ProvisionerScope;
   workspaceId: string;
-  userToken: string;
   tokenPrefix: string | undefined;
+  authToken: string;
+  provisionerToken: string;
   timeoutMs: number;
   child: ChildProcess;
   logFile: string;
 }): Promise<ActiveProvisionerDto> {
-  let lastSeen: ActiveProvisionerDto[] = [];
-  const client = createApiClient({token: params.userToken});
+  let lastSeen: ActiveProvisionerDto[] | AdminRunnerCapacityResponseDto | undefined;
+  const client = createApiClient({token: params.authToken});
+  const provisionerClient = createApiClient({token: params.provisionerToken});
   const abortController = new AbortController();
 
   let onError: ((error: Error) => void) | undefined;
@@ -243,29 +254,48 @@ async function waitForActiveProvisioner(params: {
     params.child.once('exit', onExit);
   });
 
-  const poll = pollUntil<ActiveProvisionerDto>(
+  const readiness = pollUntil<ActiveProvisionerDto>(
     {
       timeoutMs: params.timeoutMs,
       signal: abortController.signal,
       describe: () =>
-        `provisioner ${params.tokenPrefix ?? '(any)'} to become active for workspace ${params.workspaceId} (last active list: ${JSON.stringify(lastSeen)})`,
+        params.scope === 'installation'
+          ? `installation provisioner capacity read for workspace ${params.workspaceId} (last response: ${JSON.stringify(lastSeen)})`
+          : `provisioner ${params.tokenPrefix ?? '(any)'} to become active for workspace ${params.workspaceId} (last active list: ${JSON.stringify(lastSeen)})`,
     },
     async () => {
-      const {provisioners} = await client.requestJson<ListActiveProvisionersResponseDto>(
+      if (params.scope === 'installation') {
+        lastSeen = await client.requestJson<AdminRunnerCapacityResponseDto>(
+          'get',
+          `/admin/runners/workspaces/${params.workspaceId}/capacity`,
+        );
+        const identity = await provisionerClient.requestJson<ProvisionerIdentityResponseDto>(
+          'get',
+          '/provisioners/me',
+        );
+        return {
+          id: identity.id,
+          name: null,
+          prefix: params.tokenPrefix ?? 'installation',
+          last_seen_at: new Date().toISOString(),
+        };
+      }
+
+      const response = await client.requestJson<ListActiveProvisionersResponseDto>(
         'get',
         `/workspaces/${params.workspaceId}/provisioners/active`,
       );
-      lastSeen = provisioners;
+      lastSeen = response.provisioners;
       const match =
         params.tokenPrefix === undefined
-          ? provisioners[0]
-          : provisioners.find((provisioner) => provisioner.prefix === params.tokenPrefix);
+          ? response.provisioners[0]
+          : response.provisioners.find((provisioner) => provisioner.prefix === params.tokenPrefix);
       return match ?? null;
     },
   );
 
   try {
-    return await Promise.race([poll, failed]);
+    return await Promise.race([readiness, failed]);
   } finally {
     if (onError) params.child.removeListener('error', onError);
     if (onExit) params.child.removeListener('exit', onExit);
@@ -282,6 +312,22 @@ function logTail(path: string): string {
   }
 }
 
+function resolveProvisionerReadiness(params: StartProvisionerParams): {
+  scope: ProvisionerScope;
+  workspaceId: string;
+  authToken: string;
+} {
+  const scope = params.scope ?? 'workspace';
+  if (!params.workspaceId) throw new Error('startProvisioner needs `workspaceId` for readiness.');
+  const authToken = scope === 'installation' ? params.adminToken : params.userToken;
+  if (!authToken) {
+    throw new Error(
+      `startProvisioner needs \`${scope === 'installation' ? 'adminToken' : 'userToken'}\` for readiness.`,
+    );
+  }
+  return {scope, workspaceId: params.workspaceId, authToken};
+}
+
 /**
  * Starts a Docker provisioner as a child process, streams its output to `logFile`, and
  * resolves once the provisioner reports as active for the workspace. Source mode runs
@@ -296,7 +342,7 @@ export async function startProvisioner(params: StartProvisionerParams): Promise<
     containerName === undefined
       ? undefined
       : buildProvisionerContainerCommand(params, containerName);
-
+  const {scope, workspaceId, authToken} = resolveProvisionerReadiness(params);
   const logFd = openSync(params.logFile, 'a');
   let child: ChildProcess;
   try {
@@ -316,8 +362,10 @@ export async function startProvisioner(params: StartProvisionerParams): Promise<
 
   try {
     const provisioner = await waitForActiveProvisioner({
-      workspaceId: params.workspaceId,
-      userToken: params.userToken,
+      scope,
+      workspaceId,
+      authToken,
+      provisionerToken: params.provisionerToken,
       tokenPrefix: params.tokenPrefix,
       timeoutMs: params.readinessTimeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS,
       child,
@@ -328,7 +376,7 @@ export async function startProvisioner(params: StartProvisionerParams): Promise<
       process: child,
       pid,
       logFile: params.logFile,
-      workspaceId: params.workspaceId,
+      workspaceId,
       provisioner,
       ...(containerName === undefined ? {} : {containerName}),
     };
