@@ -181,7 +181,9 @@ be removed or forged by a client.
   (`admin-role-required`) and none returns a token. Start runs the browser's start
   command, keeps its audit event and idempotency key, and returns the actor's open
   window on that workspace if there is one. Start and stop apply the actor bucket
-  of the `impersonate` and `impersonate-stop` rate limits (`rate-limited`). A
+  of the `impersonate` and `impersonate-stop` rate limits (`rate-limited`). Stop
+  ends every open window the actor has on the workspace, each with its own stop
+  audit event, because the browser start never deduplicates. A
   stopped, expired, or missing window is `impersonation-window-closed`.
 - **Lifetime:** TTL is `min(AUTH_JWT_EXPIRES_IN, 15 minutes)`. The mint,
   replay, and renewal responses carry `expires_at` and a `server_time` anchor

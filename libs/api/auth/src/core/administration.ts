@@ -58,6 +58,7 @@ import {
   getEffectiveImpersonationWindow,
   listAllOpenImpersonationWindows,
   listOpenImpersonationWindows,
+  listOpenImpersonationWindowsForWorkspace,
 } from '#db/impersonation-windows.js';
 import {
   recordImpersonationContinuationOutcome,
@@ -356,12 +357,34 @@ export async function findActorOpenImpersonationWindow(params: {
   return await findOpenImpersonationWindowForWorkspace({...params, now: new Date()});
 }
 
+/**
+ * Ends every open window the actor has on the workspace, each with its own stop
+ * audit event, and returns the newest one. An actor can hold several because
+ * the browser start never deduplicates and concurrent starts can both miss the
+ * open-window lookup.
+ */
 export async function stopActorImpersonationWindow(
   params: AdministrationMutationContext & {workspaceId: string},
 ): Promise<ImpersonationWindowStopResult> {
-  const open = await findActorOpenImpersonationWindow(params);
-  if (!open) throw new ImpersonationWindowNotFoundError();
-  return await stopImpersonationWindow({...params, windowId: open.id});
+  await requireAdminRole({userId: params.actorId, minimumRole: ADMIN_OPERATOR_ROLE});
+  const open = await listOpenImpersonationWindowsForWorkspace({
+    actorId: params.actorId,
+    workspaceId: params.workspaceId,
+    now: new Date(),
+  });
+  const [newest, ...older] = open;
+  if (!newest) throw new ImpersonationWindowNotFoundError();
+
+  // The stop command fingerprints its window, so each one needs its own key.
+  const stopWindow = (windowId: string) =>
+    stopImpersonationWindow({
+      ...params,
+      windowId,
+      idempotencyKey: `${params.idempotencyKey}:${windowId}`,
+    });
+  const result = await stopWindow(newest.id);
+  for (const window of older) await stopWindow(window.id);
+  return result;
 }
 
 export interface ImpersonationWindowView {

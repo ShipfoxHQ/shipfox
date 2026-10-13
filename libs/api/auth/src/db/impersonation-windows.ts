@@ -285,6 +285,25 @@ export async function findOpenImpersonationWindowForWorkspace(
   return row ? toImpersonationWindow(row) : undefined;
 }
 
+/** Returns every open window the actor has on a workspace, newest first. */
+export async function listOpenImpersonationWindowsForWorkspace(
+  params: FindOpenImpersonationWindowForWorkspaceParams,
+): Promise<ImpersonationWindow[]> {
+  const rows = await db()
+    .select()
+    .from(impersonationWindows)
+    .where(
+      and(
+        eq(impersonationWindows.actorId, params.actorId),
+        eq(impersonationWindows.workspaceId, params.workspaceId),
+        isNull(impersonationWindows.endedAt),
+        gt(impersonationWindows.deadlineAt, params.now),
+      ),
+    )
+    .orderBy(desc(impersonationWindows.startedAt), desc(impersonationWindows.id));
+  return rows.map(toImpersonationWindow);
+}
+
 export async function listImpersonationWindowsByTarget(
   params: ListImpersonationWindowsByTargetParams,
   executor?: ImpersonationWindowExecutor,

@@ -185,6 +185,52 @@ describe('Auth inter-module impersonation windows', () => {
     expect(await windowAuditEvents('auth.impersonation.window.stop')).toHaveLength(1);
   });
 
+  test('stops every open window the actor has on the workspace', async () => {
+    const operator = await createOperator('contract-stop-all');
+    const workspaceId = crypto.randomUUID();
+    const otherWorkspaceId = crypto.randomUUID();
+    const older = await impersonationWindowFactory.create({
+      actorId: operator.userId,
+      workspaceId,
+      startedAt: new Date(Date.now() - 60 * 1000),
+    });
+    const newer = await impersonationWindowFactory.create({
+      actorId: operator.userId,
+      workspaceId,
+    });
+    const elsewhere = await impersonationWindowFactory.create({
+      actorId: operator.userId,
+      workspaceId: otherWorkspaceId,
+    });
+
+    const stopped = await client.stopImpersonationWindow(
+      mutation({actorId: operator.userId, workspaceId}),
+    );
+
+    expect(stopped.windowId).toBe(newer.id);
+    expect(
+      await knownErrorCode(
+        authInterModuleContract.methods.findOpenImpersonationWindow,
+        client.findOpenImpersonationWindow({actorId: operator.userId, workspaceId}),
+      ),
+    ).toBe('impersonation-window-closed');
+    const rows = await db().select().from(impersonationWindows);
+    const endedIds = rows.filter((row) => row.endedAt !== null).map((row) => row.id);
+    expect(endedIds.sort()).toEqual([older.id, newer.id].sort());
+    expect(
+      (
+        await client.findOpenImpersonationWindow({
+          actorId: operator.userId,
+          workspaceId: otherWorkspaceId,
+        })
+      ).windowId,
+    ).toBe(elsewhere.id);
+    const events = await windowAuditEvents('auth.impersonation.window.stop');
+    expect(events.map((event) => (event.payload as {targetId?: string}).targetId).sort()).toEqual(
+      [older.id, newer.id].sort(),
+    );
+  });
+
   test('fails the lookup after the deadline', async () => {
     const operator = await createOperator('contract-deadline');
     const workspaceId = crypto.randomUUID();
