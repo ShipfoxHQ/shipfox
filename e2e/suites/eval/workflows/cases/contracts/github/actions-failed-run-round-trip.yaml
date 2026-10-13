@@ -1,6 +1,6 @@
 provider: github
 kind: round-trip
-modes: [real]
+modes: [real, fake]
 steps:
   # With `outcome: fail` the trigger workflow fails at once, which gives a run with a failed job
   # to rerun and with logs to delete.

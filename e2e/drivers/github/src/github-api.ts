@@ -6,6 +6,7 @@ import {
   type GithubWorkflowFixture,
   type GithubWorkflowRunFixture,
 } from './actions.js';
+import {type CheckRunStore, createCheckRunStore} from './check-runs.js';
 import {type CommitRoutes, createCommitRoutes, type GithubCommitFixture} from './commits.js';
 import {createGitDataRoutes, type GitDataCommit, type GitDataRoutes} from './git-data.js';
 import {
@@ -21,10 +22,10 @@ import {
   findIssue,
   type GithubIssueFixture,
   ISSUE_PATH,
-  ISSUES_PATH,
   type IssueRoutes,
   issuePayload,
 } from './issues.js';
+import {GITHUB_WRITE_RESULT_MARKER} from './markers.js';
 import {
   createPullRequestRoutes,
   findPullRequest,
@@ -46,8 +47,8 @@ export const GITHUB_STATELESS_INSTALLATION_TOKEN =
   `.${'b'.repeat(JWT_SEGMENT_LENGTH)}` +
   `.${'c'.repeat(JWT_SEGMENT_LENGTH)}`;
 export const GITHUB_STATEFUL_INSTALLATION_TOKEN = `ghs_${'d'.repeat(36)}`;
+export {GITHUB_WRITE_RESULT_MARKER};
 export const GITHUB_READ_RESULT_MARKER = 'github-read-result-marker';
-export const GITHUB_WRITE_RESULT_MARKER = 'github-write-result-marker';
 export const GITHUB_GRAPHQL_RESULT_MARKER = 'github-graphql-result-marker';
 
 const INSTALLATION_TOKEN_PATH = /^\/app\/installations\/(\d+)\/access_tokens$/u;
@@ -226,11 +227,25 @@ export async function startGithubApiMock(
     issues,
     recordWrite,
   });
-  const issueRoutes = createIssueRoutes({issues, pullRequests, recordWrite});
-  const actionsRoutes = createActionsRoutes({workflows, workflowRuns});
+  const issueRoutes = createIssueRoutes({
+    issues,
+    pullRequests,
+    recordWrite,
+    onCreateRequest: ({repository, body, authorization}) => {
+      if (!isCurrentInstallationAuthorization({installationId, installationToken, authorization})) {
+        return;
+      }
+      const [owner = '', repo = ''] = repository.split('/');
+      calls.push({kind: 'create-issue', authorization, owner, repo, body});
+    },
+  });
+  const actionsRoutes = createActionsRoutes({workflows, workflowRuns, branchHeads, recordWrite});
   const commitRoutes = createCommitRoutes({commits, branchHeads});
+  const checkRuns = createCheckRunStore(commits);
   const gitDataRoutes = createGitDataRoutes({
     branchHeads,
+    commits,
+    recordWrite,
     recordCommit: (commit, accepted, authorization) => {
       if (isCurrentInstallationAuthorization({installationId, installationToken, authorization})) {
         calls.push({kind: 'create-commit', authorization, commit, accepted});
@@ -261,6 +276,9 @@ export async function startGithubApiMock(
       checkRunCreateFailure,
       checkRunUpdateFailure,
       knownCheckRunIds,
+      checkRuns,
+      recordWrite,
+      recordPush: (write) => writes.push(write),
       pullRequests,
       pullRequestRoutes,
       issues,
@@ -270,7 +288,6 @@ export async function startGithubApiMock(
       gitDataRoutes,
       branchHeads,
       repositories,
-      recordWrite: (write) => writes.push(write),
       request,
       response,
     });
@@ -330,6 +347,7 @@ interface GithubRequestContext {
   checkRunCreateFailure: GithubApiMockFailure | undefined;
   checkRunUpdateFailure: GithubApiMockFailure | undefined;
   knownCheckRunIds: Set<number>;
+  checkRuns: CheckRunStore;
   pullRequests: Map<number, GithubPullRequestFixture>;
   pullRequestRoutes: PullRequestRoutes;
   issues: Map<number, GithubIssueFixture>;
@@ -339,7 +357,8 @@ interface GithubRequestContext {
   gitDataRoutes: GitDataRoutes;
   branchHeads: Map<string, string>;
   repositories: GitRepositories;
-  recordWrite: (write: RecordedWrite) => void;
+  recordWrite: (write: RecordedWrite, authorization: string | undefined) => void;
+  recordPush: (write: RecordedWrite) => void;
   request: IncomingMessage;
   response: ServerResponse;
   requestUrl: URL;
@@ -356,6 +375,7 @@ async function handleGithubRequest(params: {
   checkRunCreateFailure: GithubApiMockFailure | undefined;
   checkRunUpdateFailure: GithubApiMockFailure | undefined;
   knownCheckRunIds: Set<number>;
+  checkRuns: CheckRunStore;
   pullRequests: Map<number, GithubPullRequestFixture>;
   pullRequestRoutes: PullRequestRoutes;
   issues: Map<number, GithubIssueFixture>;
@@ -365,7 +385,8 @@ async function handleGithubRequest(params: {
   gitDataRoutes: GitDataRoutes;
   branchHeads: Map<string, string>;
   repositories: GitRepositories;
-  recordWrite: (write: RecordedWrite) => void;
+  recordWrite: (write: RecordedWrite, authorization: string | undefined) => void;
+  recordPush: (write: RecordedWrite) => void;
   request: IncomingMessage;
   response: ServerResponse;
 }): Promise<void> {
@@ -381,7 +402,7 @@ async function handleGithubRequest(params: {
       response: params.response,
       requestUrl,
       installationToken: params.installationToken,
-      onWrite: params.recordWrite,
+      onWrite: params.recordPush,
     });
     return;
   }
@@ -408,11 +429,6 @@ async function handleGithubRequest(params: {
   const pullRequestMatch = requestUrl.pathname.match(PULL_REQUEST_PATH);
   if (requestMatches(params.request, 'GET', pullRequestMatch)) {
     handlePullRequestRequest(context, pullRequestMatch);
-    return;
-  }
-  const createIssueMatch = requestUrl.pathname.match(ISSUES_PATH);
-  if (requestMatches(params.request, 'POST', createIssueMatch)) {
-    await handleCreateIssueRequest(context, createIssueMatch);
     return;
   }
   const checkRunCreateMatch = requestUrl.pathname.match(CHECK_RUN_CREATE_PATH);
@@ -457,7 +473,7 @@ async function handleRoutedRequest(
 ): Promise<void> {
   if (await params.issueRoutes.handle(params.request, params.response, requestUrl)) return;
   if (await params.pullRequestRoutes.handle(params.request, params.response, requestUrl)) return;
-  if (params.actionsRoutes.handle(params.request, params.response, requestUrl)) return;
+  if (await params.actionsRoutes.handle(params.request, params.response, requestUrl)) return;
   if (params.commitRoutes.handle(params.request, params.response, requestUrl)) return;
   if (await params.gitDataRoutes.handle(params.request, params.response, requestUrl)) return;
   sendJson(params.response, 404, {message: 'Not Found'});
@@ -595,26 +611,6 @@ function handlePullRequestRequest(params: GithubRequestContext, match: RegExpMat
   sendJson(params.response, 200, pullRequestPayload(pullNumber, pullRequest));
 }
 
-async function handleCreateIssueRequest(
-  params: GithubRequestContext,
-  match: RegExpMatchArray,
-): Promise<void> {
-  const body = await readJsonBody(params.request);
-  if (isCurrentInstallationAuthorization(params)) {
-    params.calls.push({
-      kind: 'create-issue',
-      authorization: params.authorization,
-      owner: decodeURIComponent(match[1] ?? ''),
-      repo: decodeURIComponent(match[2] ?? ''),
-      body,
-    });
-  }
-  sendJson(params.response, 201, {
-    number: 2,
-    marker: GITHUB_WRITE_RESULT_MARKER,
-  });
-}
-
 async function handleCreateCheckRunRequest(
   params: GithubRequestContext,
   match: RegExpMatchArray,
@@ -636,6 +632,23 @@ async function handleCreateCheckRunRequest(
       params.checkRunCreateFailure.status,
       params.checkRunCreateFailure.body ?? {message: 'Check-run creation rejected'},
     );
+    return;
+  }
+  // A suite that configures a response gets it. Without one, the check run joins its commit.
+  if (Object.keys(params.checkRunCreateResponse).length === 0) {
+    const repository = `${decodeURIComponent(match[1] ?? '')}/${decodeURIComponent(match[2] ?? '')}`;
+    const created = params.checkRuns.create({repository, body});
+    if (created.status === 201) {
+      params.recordWrite(
+        {
+          kind: 'github.create_check_run',
+          target: `${repository}:${created.sha}`,
+          payload: {check_run_id: created.id, ...body},
+        },
+        params.authorization,
+      );
+    }
+    sendJson(params.response, created.status, created.body);
     return;
   }
   addConfiguredCheckRunId(params.knownCheckRunIds, params.checkRunCreateResponse);
@@ -665,6 +678,22 @@ async function handleUpdateCheckRunRequest(
       params.checkRunUpdateFailure.status,
       params.checkRunUpdateFailure.body ?? {message: 'Check-run update rejected'},
     );
+    return;
+  }
+  const repository = `${decodeURIComponent(match[1] ?? '')}/${decodeURIComponent(match[2] ?? '')}`;
+  if (params.checkRuns.has({repository, id: checkRunId})) {
+    const updated = params.checkRuns.update({repository, id: checkRunId, body});
+    if (updated.status === 200) {
+      params.recordWrite(
+        {
+          kind: 'github.update_check_run',
+          target: `${repository}:${updated.sha}`,
+          payload: {check_run_id: checkRunId, ...body},
+        },
+        params.authorization,
+      );
+    }
+    sendJson(params.response, updated.status, updated.body);
     return;
   }
   if (!params.knownCheckRunIds.has(checkRunId)) {
@@ -741,6 +770,10 @@ async function handleGraphqlRequest(params: GithubRequestContext): Promise<void>
     });
     return;
   }
+  if (query.includes('addPullRequestReviewThread')) {
+    handleAddReviewThread(params, variables);
+    return;
+  }
   if (query.includes('reviewThreads')) {
     sendJson(params.response, 200, {
       data: {
@@ -760,6 +793,35 @@ async function handleGraphqlRequest(params: GithubRequestContext): Promise<void>
     return;
   }
   sendJson(params.response, 200, {data: {}});
+}
+
+function handleAddReviewThread(
+  params: GithubRequestContext,
+  variables: Record<string, unknown>,
+): void {
+  const input = isRecord(variables.input) ? variables.input : {};
+  const threadId = params.pullRequestRoutes.addReviewThread({
+    reviewNodeId: String(input.pullRequestReviewId),
+    path: String(input.path),
+    body: String(input.body),
+    line: typeof input.line === 'number' ? input.line : undefined,
+    side: typeof input.side === 'string' ? input.side : undefined,
+    authorization: params.authorization,
+  });
+  if (threadId === undefined) {
+    sendJson(params.response, 200, {
+      data: {addPullRequestReviewThread: null},
+      errors: [
+        {
+          type: 'NOT_FOUND',
+          path: ['addPullRequestReviewThread'],
+          message: `Could not resolve to a node with the global id of '${String(input.pullRequestReviewId)}'`,
+        },
+      ],
+    });
+    return;
+  }
+  sendJson(params.response, 200, {data: {addPullRequestReviewThread: {thread: {id: threadId}}}});
 }
 
 function isCurrentInstallationAuthorization(

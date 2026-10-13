@@ -1,5 +1,9 @@
 import {GITHUB_STATELESS_INSTALLATION_TOKEN, startGithubApiMock} from './github-api.js';
 
+const ROOT = 'a'.repeat(40);
+const HEAD_TIP = 'b'.repeat(40);
+const BASE_TIP = 'c'.repeat(40);
+
 const HEADERS = {
   authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`,
   'content-type': 'application/json',
@@ -365,6 +369,181 @@ describe('GitHub API mock pull requests', () => {
       expect(text).toContain('diff --git a/notes.md b/notes.md\n--- a/notes.md\n+++ b/notes.md\n');
       expect(text).toContain('diff --git a/extra.txt b/extra.txt\nnew file mode 100644\n');
       expect(missing.status).toBe(404);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('puts a head branch behind its base back in line with a merge commit', async () => {
+    const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
+    const request = (method: string, path: string, body?: Record<string, unknown>) =>
+      fetch(new URL(path, mock.endpoint), {
+        method,
+        headers: HEADERS,
+        ...(body === undefined ? {} : {body: JSON.stringify(body)}),
+      });
+
+    try {
+      mock.commits.set(ROOT, {repository: 'acme/app', message: 'Root'});
+      mock.commits.set(HEAD_TIP, {repository: 'acme/app', message: 'Head', parents: [ROOT]});
+      mock.commits.set(BASE_TIP, {repository: 'acme/app', message: 'Base', parents: [ROOT]});
+      mock.branchHeads.set('feature', HEAD_TIP);
+      mock.branchHeads.set('base', BASE_TIP);
+      await request('POST', '/repos/acme/app/pulls', {
+        title: 'Change',
+        head: 'feature',
+        base: 'base',
+      });
+      const stale = await request('PUT', '/repos/acme/app/pulls/1/update-branch', {
+        expected_head_sha: BASE_TIP,
+      });
+      const before = await request('GET', '/repos/acme/app/compare/base...feature');
+      const updated = await request('PUT', '/repos/acme/app/pulls/1/update-branch', {
+        expected_head_sha: HEAD_TIP,
+      });
+      const after = await request('GET', '/repos/acme/app/compare/base...feature');
+      const again = await request('PUT', '/repos/acme/app/pulls/1/update-branch', {});
+      const pull = await request('GET', '/repos/acme/app/pulls/1');
+
+      expect(stale.status).toBe(422);
+      await expect(before.json()).resolves.toMatchObject({
+        status: 'diverged',
+        ahead_by: 1,
+        behind_by: 1,
+      });
+      expect(updated.status).toBe(202);
+      await expect(after.json()).resolves.toMatchObject({
+        status: 'ahead',
+        ahead_by: 2,
+        behind_by: 0,
+      });
+      expect(again.status).toBe(422);
+      await expect(pull.json()).resolves.toMatchObject({
+        head: {sha: mock.branchHeads.get('feature')},
+      });
+      expect(mock.writes().map((write) => write.kind)).toEqual([
+        'github.create_pull_request',
+        'github.update_pull_request_branch',
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('merges into the base branch with a commit that becomes its tip', async () => {
+    const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
+    const request = (method: string, path: string, body?: Record<string, unknown>) =>
+      fetch(new URL(path, mock.endpoint), {
+        method,
+        headers: HEADERS,
+        ...(body === undefined ? {} : {body: JSON.stringify(body)}),
+      });
+
+    try {
+      mock.commits.set(ROOT, {repository: 'acme/app', message: 'Root'});
+      mock.commits.set(HEAD_TIP, {repository: 'acme/app', message: 'Head', parents: [ROOT]});
+      mock.branchHeads.set('feature', HEAD_TIP);
+      mock.branchHeads.set('base', ROOT);
+      await request('POST', '/repos/acme/app/pulls', {
+        title: 'Change',
+        head: 'feature',
+        base: 'base',
+      });
+      const merged = await request('PUT', '/repos/acme/app/pulls/1/merge', {
+        merge_method: 'merge',
+        commit_title: 'Contract merge',
+      });
+      const {sha} = (await merged.json()) as {sha: string};
+      const commit = await request('GET', `/repos/acme/app/commits/${sha}`);
+
+      expect(mock.branchHeads.get('base')).toBe(sha);
+      await expect(commit.json()).resolves.toMatchObject({
+        commit: {message: 'Contract merge'},
+        parents: [{sha: ROOT}, {sha: HEAD_TIP}],
+      });
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('drafts a review with a thread, discards it, and submits another', async () => {
+    const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
+    const request = (method: string, path: string, body?: Record<string, unknown>) =>
+      fetch(new URL(path, mock.endpoint), {
+        method,
+        headers: HEADERS,
+        ...(body === undefined ? {} : {body: JSON.stringify(body)}),
+      });
+    const graphql = (query: string, variables: Record<string, unknown>) =>
+      request('POST', '/graphql', {query, variables});
+
+    try {
+      mock.pullRequests.set(1, {repository: 'acme/app', ref: 'feature', sha: HEAD_TIP});
+      const draft = await request('POST', '/repos/acme/app/pulls/1/reviews', {
+        commit_id: HEAD_TIP,
+        body: 'Draft',
+      });
+      const second = await request('POST', '/repos/acme/app/pulls/1/reviews', {body: 'Another'});
+      const {id: draftId, node_id: draftNode} = (await draft.json()) as {
+        id: number;
+        node_id: string;
+      };
+      const thread = await graphql('mutation { addPullRequestReviewThread(input: $input) }', {
+        input: {
+          pullRequestReviewId: draftNode,
+          path: 'note.md',
+          body: 'Thread',
+          line: 1,
+          side: 'RIGHT',
+        },
+      });
+      const discarded = await request('DELETE', `/repos/acme/app/pulls/1/reviews/${draftId}`);
+      const afterDiscard = await graphql('query { reviewThreads }', {
+        owner: 'acme',
+        repo: 'app',
+        pullNumber: 1,
+      });
+      const missing = await graphql('mutation { addPullRequestReviewThread(input: $input) }', {
+        input: {pullRequestReviewId: draftNode, path: 'note.md', body: 'Thread'},
+      });
+
+      expect(draft.status).toBe(200);
+      expect(second.status).toBe(422);
+      await expect(thread.json()).resolves.toMatchObject({
+        data: {addPullRequestReviewThread: {thread: {id: expect.any(String)}}},
+      });
+      await expect(discarded.json()).resolves.toMatchObject({id: draftId, state: 'PENDING'});
+      await expect(afterDiscard.json()).resolves.toMatchObject({
+        data: {repository: {pullRequest: {reviewThreads: {nodes: []}}}},
+      });
+      await expect(missing.json()).resolves.toMatchObject({
+        data: {addPullRequestReviewThread: null},
+        errors: [{type: 'NOT_FOUND'}],
+      });
+
+      const review = await request('POST', '/repos/acme/app/pulls/1/reviews', {body: 'Draft'});
+      const {id, node_id: nodeId} = (await review.json()) as {id: number; node_id: string};
+      await graphql('mutation { addPullRequestReviewThread(input: $input) }', {
+        input: {pullRequestReviewId: nodeId, path: 'note.md', body: 'Thread', line: 3},
+      });
+      const submitted = await request('POST', `/repos/acme/app/pulls/1/reviews/${id}/events`, {
+        event: 'COMMENT',
+        body: 'Done',
+      });
+      const resubmitted = await request('POST', `/repos/acme/app/pulls/1/reviews/${id}/events`, {
+        event: 'COMMENT',
+      });
+      const reviews = await request('GET', '/repos/acme/app/pulls/1/reviews');
+      const comments = await request('GET', '/repos/acme/app/pulls/1/comments');
+
+      await expect(submitted.json()).resolves.toMatchObject({state: 'COMMENTED', body: 'Done'});
+      expect(resubmitted.status).toBe(422);
+      await expect(reviews.json()).resolves.toMatchObject([
+        {id, state: 'COMMENTED', body: 'Done', user: {login: 'shipfox-e2e[bot]'}},
+      ]);
+      await expect(comments.json()).resolves.toMatchObject([
+        {body: 'Thread', pull_request_review_id: id},
+      ]);
     } finally {
       await mock.stop();
     }

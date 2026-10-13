@@ -1,6 +1,6 @@
 provider: github
 kind: round-trip
-modes: [real]
+modes: [real, fake]
 steps:
   # With `outcome: wait` the trigger workflow sleeps three minutes, so each attempt of the run is
   # still going when it is cancelled. The workflow puts the marker in the title of the run.

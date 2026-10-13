@@ -1,6 +1,6 @@
 provider: github
 kind: round-trip
-modes: [real]
+modes: [real, fake]
 steps:
   - key: create
     tool: issue_write

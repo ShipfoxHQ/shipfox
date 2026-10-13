@@ -1,6 +1,7 @@
 import {
   GITHUB_READ_RESULT_MARKER,
   GITHUB_STATELESS_INSTALLATION_TOKEN,
+  GITHUB_WRITE_RESULT_MARKER,
   startGithubApiMock,
 } from './github-api.js';
 
@@ -288,6 +289,136 @@ describe('GitHub API mock issues', () => {
       await expect(noSubIssues.json()).resolves.toEqual([]);
       await expect(parent.json()).resolves.toMatchObject({number: 3, title: 'Parent'});
       expect(noParent.status).toBe(404);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('creates an issue that reads back, and numbers it past the pull requests', async () => {
+    const {mock, request} = await startMock();
+
+    try {
+      mock.pullRequests.set(3, {repository: 'acme/app', ref: 'feature', sha: 'a'.repeat(40)});
+      const created = await request('POST', '/repos/acme/app/issues', {
+        title: 'Contract issue',
+        body: 'Created by a contract.',
+        labels: ['bug'],
+      });
+      const rejected = await request('POST', '/repos/acme/app/issues', {body: 'No title'});
+      const read = await request('GET', '/repos/acme/app/issues/4');
+
+      expect(created.status).toBe(201);
+      await expect(created.json()).resolves.toMatchObject({
+        number: 4,
+        title: 'Contract issue',
+        state: 'open',
+        labels: [{name: 'bug'}],
+        user: {login: 'shipfox-e2e[bot]'},
+        marker: GITHUB_WRITE_RESULT_MARKER,
+      });
+      expect(rejected.status).toBe(422);
+      await expect(read.json()).resolves.toMatchObject({number: 4, body: 'Created by a contract.'});
+      expect(mock.writes()).toEqual([
+        {
+          kind: 'github.create_issue',
+          target: 'acme/app#4',
+          payload: {title: 'Contract issue', body: 'Created by a contract.', labels: ['bug']},
+        },
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('keeps comment ids unique past the ids of the seeded comments', async () => {
+    const {mock, request} = await startMock();
+
+    try {
+      mock.issues.set(1, {
+        repository: 'acme/app',
+        title: 'Seeded',
+        comments: [
+          {id: 1, body: 'one', author: 'a'},
+          {id: 32, body: 'thirty-two', author: 'a'},
+        ],
+      });
+      const first = await request('POST', '/repos/acme/app/issues/1/comments', {body: 'new'});
+      const second = await request('POST', '/repos/acme/app/issues/1/comments', {body: 'newer'});
+
+      await expect(first.json()).resolves.toMatchObject({id: 33});
+      await expect(second.json()).resolves.toMatchObject({id: 34});
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('reports why a closed issue closed', async () => {
+    const {mock, request} = await startMock();
+
+    try {
+      mock.issues.set(1, {repository: 'acme/app', title: 'Seeded'});
+      const closed = await request('PATCH', '/repos/acme/app/issues/1', {
+        state: 'closed',
+        state_reason: 'not_planned',
+      });
+      const defaulted = await request('PATCH', '/repos/acme/app/issues/1', {state: 'closed'});
+      const reopened = await request('PATCH', '/repos/acme/app/issues/1', {state: 'open'});
+
+      await expect(closed.json()).resolves.toMatchObject({state_reason: 'not_planned'});
+      await expect(defaulted.json()).resolves.toMatchObject({state_reason: 'completed'});
+      await expect(reopened.json()).resolves.toMatchObject({state: 'open', state_reason: null});
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('adds, orders, and removes sub-issues', async () => {
+    const {mock, request} = await startMock();
+    const ids = async (number: number) => {
+      const response = await request('GET', `/repos/acme/app/issues/${number}/sub_issues`);
+      return ((await response.json()) as Array<{number: number}>).map((issue) => issue.number);
+    };
+
+    try {
+      for (const number of [1, 2, 3]) {
+        mock.issues.set(number, {repository: 'acme/app', title: `Issue ${number}`});
+      }
+      const add = (subIssue: number) =>
+        request('POST', '/repos/acme/app/issues/1/sub_issues', {
+          sub_issue_id: 1_000_000 + subIssue,
+        });
+
+      const first = await add(3);
+      await add(2);
+      const duplicate = await add(2);
+      const order = await ids(1);
+      const reprioritized = await request('PATCH', '/repos/acme/app/issues/1/sub_issues/priority', {
+        sub_issue_id: 1_000_002,
+        before_id: 1_000_003,
+      });
+      const reordered = await ids(1);
+      const removed = await request('DELETE', '/repos/acme/app/issues/1/sub_issue', {
+        sub_issue_id: 1_000_002,
+      });
+      const parent = await request('GET', '/repos/acme/app/issues/2/parent');
+      const unknown = await add(9);
+
+      expect(first.status).toBe(201);
+      await expect(first.json()).resolves.toMatchObject({number: 1});
+      expect(duplicate.status).toBe(422);
+      expect(order).toEqual([3, 2]);
+      expect(reprioritized.status).toBe(200);
+      expect(reordered).toEqual([2, 3]);
+      expect(removed.status).toBe(200);
+      expect(await ids(1)).toEqual([3]);
+      expect(parent.status).toBe(404);
+      expect(unknown.status).toBe(404);
+      expect(mock.writes().map((write) => write.kind)).toEqual([
+        'github.add_sub_issue',
+        'github.add_sub_issue',
+        'github.reprioritize_sub_issue',
+        'github.remove_sub_issue',
+      ]);
     } finally {
       await mock.stop();
     }

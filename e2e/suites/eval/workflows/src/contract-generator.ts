@@ -172,7 +172,7 @@ function providerWorkflow({
     addJob({
       key,
       origin: loaded.id,
-      job: caseJob({jobKey: key, loaded, connection: sandbox.connection, manifest}),
+      job: caseJob({jobKey: key, loaded, connection: sandbox.connection, manifest, mode}),
     });
   }
 
@@ -197,11 +197,13 @@ function caseJob({
   loaded,
   connection,
   manifest,
+  mode,
 }: {
   jobKey: string;
   loaded: LoadedContractCase;
   connection: string;
   manifest: SandboxManifest;
+  mode: ContractGenerationMode;
 }) {
   const {definition} = loaded;
   const keys = definition.steps.map(
@@ -238,7 +240,8 @@ function caseJob({
       throw new Error(`${origin}: the effect key "${effectKey}" is used by another step`);
     }
     const {wait_seconds: waitSeconds} = step.effect;
-    if (waitSeconds !== undefined) {
+    // A fake applies the write before it answers, so only the provider needs the wait.
+    if (waitSeconds !== undefined && mode === 'real') {
       // The provider applies the write later. The runtime never restarts a tool step, so the
       // effect can't poll: the job waits once, then reads.
       const waitKey = `${key}_wait`;

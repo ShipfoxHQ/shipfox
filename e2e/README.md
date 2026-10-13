@@ -493,7 +493,8 @@ a time, because the Slack, ClickUp, and Linear fakes listen on fixed
 addresses. Each job maps to its case. A job that fails means the fake answers
 differently from the provider, and any failed case makes the exit code
 non-zero. A provider can have `fake` cases only once it has an adapter. The
-generated fake workflows have no `fixtures` job and no agent jobs. `--case`
+generated fake workflows have no `fixtures` job, no agent jobs, and no waits before an effect,
+because a fake applies a write before it answers. `--case`
 filters by case id, provider, or workflow file name. `test:e2e` runs it.
 
 ```sh

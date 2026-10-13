@@ -1,6 +1,8 @@
 import type {IncomingMessage, ServerResponse} from 'node:http';
 import type {RecordedWrite} from '@shipfox/e2e-core';
+import {botLogin} from './bot.js';
 import {isRecord, paginate, readJsonBodyOrReject, sendJson} from './http.js';
+import {GITHUB_WRITE_RESULT_MARKER} from './markers.js';
 import {
   effectiveState,
   type GithubPullRequestFixture,
@@ -13,15 +15,19 @@ export const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/u;
 const ISSUE_COMMENTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/comments$/u;
 const ISSUE_LABELS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/labels$/u;
 const ISSUE_SUB_ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/sub_issues$/u;
+const ISSUE_SUB_ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/sub_issue$/u;
+const ISSUE_SUB_ISSUES_PRIORITY_PATH =
+  /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/sub_issues\/priority$/u;
 const ISSUE_PARENT_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/parent$/u;
 const ISSUE_LABEL_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/labels\/([^/]+)$/u;
 const ISSUE_TYPES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issue-types$/u;
 
-const BOT_LOGIN = 'shipfox-e2e[bot]';
 const DEFAULT_AUTHOR = 'e2e-author';
 const FIXTURE_TIMESTAMP = '2026-01-01T00:00:00Z';
 const FIXTURE_LABEL_ID = 208_045_946;
 const FIXTURE_USER_ID = 5_000_001;
+// The id of an issue is its number past this base, which is how a sub-issue is named.
+const ISSUE_ID_BASE = 1_000_000;
 // The types a GitHub organization starts with.
 const DEFAULT_ISSUE_TYPES = [
   {id: 1, name: 'Task', description: 'A specific piece of work', color: 'yellow'},
@@ -52,6 +58,10 @@ export interface GithubIssueFixture {
   comments?: GithubIssueCommentFixture[] | undefined;
   /** Number of the issue this one is a sub-issue of, in the same repository. */
   parent?: number | undefined;
+  /** Why the issue closed. A closed issue reads `completed` unless the update said otherwise. */
+  stateReason?: string | undefined;
+  /** Where the issue sits among the sub-issues of its parent. Defaults to its number. */
+  position?: number | undefined;
 }
 
 export interface IssueRoutesOptions {
@@ -61,6 +71,14 @@ export interface IssueRoutesOptions {
   pullRequests: ReadonlyMap<number, GithubPullRequestFixture>;
   /** Called for every accepted write, with the request's authorization header. */
   recordWrite: (write: RecordedWrite, authorization: string | undefined) => void;
+  /** Called for every request to create an issue, accepted or not. */
+  onCreateRequest?:
+    | ((params: {
+        repository: string;
+        body: Record<string, unknown>;
+        authorization: string | undefined;
+      }) => void)
+    | undefined;
 }
 
 export interface IssueRoutes {
@@ -87,11 +105,15 @@ interface Route {
 
 const ROUTES: Route[] = [
   {method: 'GET', path: ISSUES_PATH, handle: listIssues},
+  {method: 'POST', path: ISSUES_PATH, handle: createIssue},
   {method: 'GET', path: ISSUE_TYPES_PATH, handle: listIssueTypes},
   {method: 'PATCH', path: ISSUE_PATH, handle: updateIssue},
   {method: 'GET', path: ISSUE_COMMENTS_PATH, handle: listIssueComments},
   {method: 'POST', path: ISSUE_COMMENTS_PATH, handle: createIssueComment},
   {method: 'GET', path: ISSUE_SUB_ISSUES_PATH, handle: listSubIssues},
+  {method: 'POST', path: ISSUE_SUB_ISSUES_PATH, handle: addSubIssue},
+  {method: 'DELETE', path: ISSUE_SUB_ISSUE_PATH, handle: removeSubIssue},
+  {method: 'PATCH', path: ISSUE_SUB_ISSUES_PRIORITY_PATH, handle: reprioritizeSubIssue},
   {method: 'GET', path: ISSUE_PARENT_PATH, handle: getParentIssue},
   {method: 'GET', path: ISSUE_LABELS_PATH, handle: listLabels},
   {method: 'POST', path: ISSUE_LABELS_PATH, handle: addLabels},
@@ -100,7 +122,14 @@ const ROUTES: Route[] = [
 
 export function createIssueRoutes(options: IssueRoutesOptions): IssueRoutes {
   let commentId = 0;
-  const nextCommentId = () => ++commentId;
+  // Seeded comments hold ids too, so a new one starts past the highest id in the repository.
+  const nextCommentId = () => {
+    const seeded = [...options.issues.values(), ...options.pullRequests.values()].flatMap(
+      (issue) => issue.comments ?? [],
+    );
+    commentId = Math.max(commentId, ...seeded.map((comment) => comment.id)) + 1;
+    return commentId;
+  };
 
   return {
     async handle(request, response, requestUrl) {
@@ -139,11 +168,12 @@ export function findIssue(
 export function issuePayload(number: number, issue: GithubIssueFixture): Record<string, unknown> {
   const assignees = (issue.assignees ?? []).map((login) => actorPayload(login));
   return {
-    id: 1_000_000 + number,
+    id: ISSUE_ID_BASE + number,
     number,
     title: issue.title,
     body: issue.body ?? null,
     state: issue.state ?? 'open',
+    state_reason: issue.state === 'closed' ? (issue.stateReason ?? 'completed') : null,
     locked: false,
     url: `https://api.github.com/repos/${issue.repository}/issues/${number}`,
     html_url: `https://github.com/${issue.repository}/issues/${number}`,
@@ -230,7 +260,10 @@ async function updateIssue(context: RouteContext): Promise<void> {
 
   if (typeof body.title === 'string') issue.title = body.title;
   if (typeof body.body === 'string') issue.body = body.body;
-  if (body.state === 'open' || body.state === 'closed') issue.state = body.state;
+  if (body.state === 'open' || body.state === 'closed') {
+    issue.state = body.state;
+    issue.stateReason = typeof body.state_reason === 'string' ? body.state_reason : undefined;
+  }
   // GitHub replaces the whole label and assignee sets.
   if (labels !== undefined) issue.labels = labels;
   if (Array.isArray(body.assignees)) {
@@ -269,12 +302,163 @@ function listIssueComments(context: RouteContext): void {
 
 function listSubIssues(context: RouteContext): void {
   if (requireIssue(context) === undefined) return;
-  const subIssues = [...context.issues.entries()]
+  const subIssues = subIssuesOf(context).map(([number, issue]) => issuePayload(number, issue));
+  sendJson(context.response, 200, paginate(subIssues, context.requestUrl.searchParams));
+}
+
+// A parent lists its sub-issues in the order they were added or moved to.
+function subIssuesOf(context: RouteContext): [number, GithubIssueFixture][] {
+  return [...context.issues.entries()]
     .filter(([, issue]) => sameRepository(issue.repository, context.repository))
     .filter(([, issue]) => issue.parent === context.number)
-    .sort(([left], [right]) => left - right)
-    .map(([number, issue]) => issuePayload(number, issue));
-  sendJson(context.response, 200, paginate(subIssues, context.requestUrl.searchParams));
+    .sort(([left, a], [right, b]) => (a.position ?? left) - (b.position ?? right));
+}
+
+async function createIssue(context: RouteContext): Promise<void> {
+  const body = await readJsonBodyOrReject(context.request, context.response);
+  if (body === undefined) return;
+  context.onCreateRequest?.({
+    repository: context.repository,
+    body,
+    authorization: context.request.headers.authorization,
+  });
+  if (typeof body.title !== 'string' || body.title === '') {
+    sendValidationFailed(context.response, [
+      {resource: 'Issue', field: 'title', code: 'missing_field'},
+    ]);
+    return;
+  }
+  const labels = body.labels === undefined ? [] : labelNames(body.labels);
+  if (labels === undefined) {
+    sendValidationFailed(context.response, [{resource: 'Issue', field: 'labels', code: 'invalid'}]);
+    return;
+  }
+
+  const number = Math.max(0, ...context.pullRequests.keys(), ...context.issues.keys()) + 1;
+  const issue: GithubIssueFixture = {
+    repository: context.repository,
+    title: body.title,
+    body: typeof body.body === 'string' ? body.body : undefined,
+    state: 'open',
+    labels,
+    assignees: Array.isArray(body.assignees)
+      ? body.assignees.filter((login): login is string => typeof login === 'string')
+      : [],
+    author: botLogin(),
+    comments: [],
+  };
+  context.issues.set(number, issue);
+  context.recordWrite({
+    kind: 'github.create_issue',
+    target: `${context.repository}#${number}`,
+    payload: body,
+  });
+  sendJson(context.response, 201, {
+    ...issuePayload(number, issue),
+    marker: GITHUB_WRITE_RESULT_MARKER,
+  });
+}
+
+// A sub-issue is named by its id, which is the number of the issue past the id base.
+function findSubIssue(
+  context: RouteContext,
+  body: Record<string, unknown>,
+): [number, GithubIssueFixture] | undefined {
+  const number = Number(body.sub_issue_id) - ISSUE_ID_BASE;
+  const issue = findIssue(context.issues, context.repository, number);
+  return issue === undefined || number === context.number ? undefined : [number, issue];
+}
+
+async function addSubIssue(context: RouteContext): Promise<void> {
+  const body = await readJsonBodyOrReject(context.request, context.response);
+  if (body === undefined) return;
+  const parent = requireIssue(context);
+  if (parent === undefined) return;
+  const found = findSubIssue(context, body);
+  if (found === undefined) {
+    sendJson(context.response, 404, {message: 'Not Found'});
+    return;
+  }
+  const [number, subIssue] = found;
+  if (subIssue.parent !== undefined && body.replace_parent !== true) {
+    sendValidationFailed(context.response, [
+      {
+        resource: 'Issue',
+        field: 'sub_issue_id',
+        code: 'custom',
+        message: 'Sub-issue already has a parent.',
+      },
+    ]);
+    return;
+  }
+
+  const siblings = subIssuesOf(context);
+  const last = Math.max(0, ...siblings.map(([sibling, issue]) => issue.position ?? sibling));
+  subIssue.parent = context.number;
+  subIssue.position = last + 1;
+  context.recordWrite({
+    kind: 'github.add_sub_issue',
+    target: `${context.repository}#${context.number}`,
+    payload: {sub_issue: number},
+  });
+  sendJson(context.response, 201, issuePayload(context.number, parent));
+}
+
+async function removeSubIssue(context: RouteContext): Promise<void> {
+  const body = await readJsonBodyOrReject(context.request, context.response);
+  if (body === undefined) return;
+  const parent = requireIssue(context);
+  if (parent === undefined) return;
+  const found = findSubIssue(context, body);
+  if (found === undefined || found[1].parent !== context.number) {
+    sendJson(context.response, 404, {message: 'Not Found'});
+    return;
+  }
+  const [number, subIssue] = found;
+  subIssue.parent = undefined;
+  subIssue.position = undefined;
+  context.recordWrite({
+    kind: 'github.remove_sub_issue',
+    target: `${context.repository}#${context.number}`,
+    payload: {sub_issue: number},
+  });
+  sendJson(context.response, 200, issuePayload(context.number, parent));
+}
+
+async function reprioritizeSubIssue(context: RouteContext): Promise<void> {
+  const body = await readJsonBodyOrReject(context.request, context.response);
+  if (body === undefined) return;
+  const parent = requireIssue(context);
+  if (parent === undefined) return;
+  const found = findSubIssue(context, body);
+  const anchorId = body.before_id ?? body.after_id;
+  const anchor = Number(anchorId) - ISSUE_ID_BASE;
+  const siblings = subIssuesOf(context);
+  if (
+    found === undefined ||
+    found[1].parent !== context.number ||
+    !siblings.some(([number]) => number === anchor)
+  ) {
+    sendJson(context.response, 404, {message: 'Not Found'});
+    return;
+  }
+
+  const [moved, subIssue] = found;
+  const order = siblings.filter(([number]) => number !== moved);
+  const at = order.findIndex(([number]) => number === anchor);
+  order.splice(body.before_id === undefined ? at + 1 : at, 0, [moved, subIssue]);
+  order.forEach(([, issue], index) => {
+    issue.position = index + 1;
+  });
+  context.recordWrite({
+    kind: 'github.reprioritize_sub_issue',
+    target: `${context.repository}#${context.number}`,
+    payload: {
+      sub_issue: moved,
+      ...(body.before_id === undefined ? {after_id: anchorId} : {before_id: anchorId}),
+    },
+  });
+  sendJson(context.response, 200, issuePayload(context.number, parent));
 }
 
 function getParentIssue(context: RouteContext): void {
@@ -306,7 +490,7 @@ async function createIssueComment(context: RouteContext): Promise<void> {
   const comment: GithubIssueCommentFixture = {
     id: context.nextCommentId(),
     body: body.body,
-    author: BOT_LOGIN,
+    author: botLogin(),
   };
   if (issue !== undefined) issue.comments = [...(issue.comments ?? []), comment];
   context.recordWrite({

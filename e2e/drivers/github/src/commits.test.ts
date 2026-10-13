@@ -103,7 +103,7 @@ describe('GitHub API mock commits', () => {
     }
   });
 
-  it('compares a base with a branch along the first parents', async () => {
+  it('compares a base with a branch, ahead, behind, or diverged', async () => {
     const {mock, get} = await startMock();
 
     try {
@@ -120,7 +120,26 @@ describe('GitHub API mock commits', () => {
         commits: [{sha: TIP, commit: {message: 'Extend the notes'}}],
       });
       await expect(identical.json()).resolves.toMatchObject({status: 'identical', commits: []});
-      expect(behind.status).toBe(404);
+      await expect(behind.json()).resolves.toMatchObject({
+        status: 'behind',
+        ahead_by: 0,
+        behind_by: 1,
+        merge_base_commit: {sha: BASE},
+      });
+
+      const SIDE = 'c'.repeat(40);
+      mock.commits.set(SIDE, {repository: 'acme/app', message: 'Edit the side', parents: [BASE]});
+      const diverged = await get(`/repos/acme/app/compare/${SIDE}...${TIP}`);
+      mock.commits.set('d'.repeat(40), {repository: 'acme/app', message: 'Unrelated root'});
+      const unrelated = await get(`/repos/acme/app/compare/${'d'.repeat(40)}...${TIP}`);
+
+      await expect(diverged.json()).resolves.toMatchObject({
+        status: 'diverged',
+        ahead_by: 1,
+        behind_by: 1,
+        merge_base_commit: {sha: BASE},
+      });
+      expect(unrelated.status).toBe(404);
     } finally {
       await mock.stop();
     }

@@ -1,6 +1,6 @@
 provider: github
 kind: round-trip
-modes: [real]
+modes: [real, fake]
 steps:
   # The branch name holds the marker, so a read of that name can only find this run's branch.
   - key: branch

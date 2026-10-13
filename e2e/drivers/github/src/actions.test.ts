@@ -1,5 +1,10 @@
 import {GITHUB_STATELESS_INSTALLATION_TOKEN, startGithubApiMock} from './github-api.js';
 
+const POST_HEADERS = {
+  ...{authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`},
+  'content-type': 'application/json',
+};
+
 const HEADERS = {authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`};
 
 async function startMock() {
@@ -240,6 +245,107 @@ describe('GitHub API mock actions', () => {
       expect(artifact.status).toBe(302);
       expect(artifact.headers.get('location')).toContain('/download/artifacts/1101.zip');
       expect(missingArtifact.status).toBe(404);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('dispatches a workflow that waits, and cancels and reruns its run', async () => {
+    const {mock, get} = await startMock();
+    const post = (path: string, body: Record<string, unknown> = {}) =>
+      fetch(new URL(path, mock.endpoint), {
+        method: 'POST',
+        headers: POST_HEADERS,
+        body: JSON.stringify(body),
+      });
+
+    try {
+      mock.workflows.set(7, {
+        repository: 'acme/app',
+        name: 'Trigger',
+        file: 'trigger.yml',
+        runName: `Trigger \${{ inputs.marker }}`,
+        outcomeInput: 'outcome',
+      });
+      const dispatched = await post('/repos/acme/app/actions/workflows/trigger.yml/dispatches', {
+        ref: 'main',
+        inputs: {marker: 'contract-1', outcome: 'wait'},
+        return_run_details: true,
+      });
+      const {workflow_run_id: runId} = (await dispatched.json()) as {workflow_run_id: number};
+      const run = () => get(`/repos/acme/app/actions/runs/${runId}`);
+      const early = await post(`/repos/acme/app/actions/runs/${runId}/rerun`);
+      const cancelled = await post(`/repos/acme/app/actions/runs/${runId}/cancel`);
+      const cancelledAgain = await post(`/repos/acme/app/actions/runs/${runId}/cancel`);
+      const afterCancel = await (await run()).json();
+      const rerun = await post(`/repos/acme/app/actions/runs/${runId}/rerun`);
+      const afterRerun = await (await run()).json();
+
+      expect(dispatched.status).toBe(200);
+      expect(early.status).toBe(403);
+      expect(cancelled.status).toBe(202);
+      expect(cancelledAgain.status).toBe(409);
+      expect(afterCancel).toMatchObject({
+        workflow_id: 7,
+        event: 'workflow_dispatch',
+        display_title: 'Trigger contract-1',
+        run_attempt: 1,
+        status: 'completed',
+        conclusion: 'cancelled',
+      });
+      expect(rerun.status).toBe(201);
+      expect(afterRerun).toMatchObject({run_attempt: 2, status: 'in_progress', conclusion: null});
+      expect(mock.writes().map((write) => write.kind)).toEqual([
+        'github.dispatch_workflow',
+        'github.cancel_workflow_run',
+        'github.rerun_workflow_run',
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('fails a dispatched run at once, reruns its failed jobs, and deletes its logs', async () => {
+    const {mock, get} = await startMock();
+    const send = (method: string, path: string, body: Record<string, unknown> = {}) =>
+      fetch(new URL(path, mock.endpoint), {
+        method,
+        headers: POST_HEADERS,
+        ...(method === 'DELETE' ? {} : {body: JSON.stringify(body)}),
+      });
+
+    try {
+      mock.workflows.set(7, {
+        repository: 'acme/app',
+        name: 'Trigger',
+        file: 'trigger.yml',
+        outcomeInput: 'outcome',
+      });
+      const noContent = await send('POST', '/repos/acme/app/actions/workflows/7/dispatches', {
+        ref: 'main',
+        inputs: {outcome: 'fail'},
+      });
+      const [runId] = [...mock.workflowRuns.keys()];
+      const rerun = await send('POST', `/repos/acme/app/actions/runs/${runId}/rerun-failed-jobs`);
+      const jobs = await (await get(`/repos/acme/app/actions/runs/${runId}/jobs`)).json();
+      const [job] = (jobs as {jobs: Array<{id: number}>}).jobs;
+      const logsBefore = await fetch(
+        new URL(`/repos/acme/app/actions/jobs/${job?.id}/logs`, mock.endpoint),
+        {headers: POST_HEADERS, redirect: 'manual'},
+      );
+      const deleted = await send('DELETE', `/repos/acme/app/actions/runs/${runId}/logs`);
+      const logsAfter = await get(`/repos/acme/app/actions/jobs/${job?.id}/logs`);
+      const missingRef = await send('POST', '/repos/acme/app/actions/workflows/7/dispatches', {});
+
+      expect(noContent.status).toBe(204);
+      expect(rerun.status).toBe(201);
+      expect(jobs).toMatchObject({
+        jobs: [{name: 'Trigger', run_attempt: 2, status: 'completed', conclusion: 'failure'}],
+      });
+      expect(logsBefore.status).toBe(302);
+      expect(deleted.status).toBe(204);
+      expect(logsAfter.status).toBe(404);
+      expect(missingRef.status).toBe(422);
     } finally {
       await mock.stop();
     }

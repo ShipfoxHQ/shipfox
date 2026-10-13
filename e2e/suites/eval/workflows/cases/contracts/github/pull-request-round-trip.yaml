@@ -1,6 +1,6 @@
 provider: github
 kind: round-trip
-modes: [real]
+modes: [real, fake]
 steps:
   # The pull request merges into a base branch of this run, never into the sandbox default branch.
   # Each case of a run has its own branch names, because every case shares the run's marker.

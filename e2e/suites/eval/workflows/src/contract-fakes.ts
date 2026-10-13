@@ -335,11 +335,34 @@ function seedGithubWorkflow({
   }
 }
 
+// The sandbox's trigger workflow runs only when a case dispatches it. Its run is titled with the
+// `marker` input, and its `outcome` input picks whether the run fails at once or keeps running.
+function seedGithubTriggerWorkflow({
+  mock,
+  repository,
+  workflow,
+}: {
+  mock: GithubApiMock;
+  repository: string;
+  workflow: SandboxFixtures[string];
+}): void {
+  const required = (name: string) =>
+    requiredField({fixture: workflow, fixtureName: 'trigger_workflow', name});
+  mock.workflows.set(Number(required('id')), {
+    repository,
+    name: String(required('name')),
+    file: String(required('file')),
+    runName: `${String(required('name'))} \${{ inputs.marker }}`,
+    outcomeInput: 'outcome',
+  });
+}
+
 /**
  * GitHub, whose fake the run already started for the project. It seeds the `repository` fixture as
  * a repository of the fake, the issue fixtures as its issues, the pull request fixtures as its pull
  * requests, the `branch` and `commit` fixtures as a branch tip and its commit, and the `workflow`
- * fixture as a workflow with two completed runs. The `label` fixture goes on the `issue` fixture,
+ * fixture as a workflow with two completed runs, and the `trigger_workflow` fixture as a workflow
+ * with none, which a dispatch starts. The `label` fixture goes on the `issue` fixture,
  * the `issue` fixture gets its `comment_count` comments, and `sub_issue` is a sub-issue of
  * `parent_issue`. The open pull request gets the files, review, and check runs the sandbox holds.
  *
@@ -360,6 +383,7 @@ export const githubContractFake: ContractFakeAdapter = ({github, client, cleanup
           'branch',
           'commit',
           'workflow',
+          'trigger_workflow',
         ].find((fixtureName) => fixtures[fixtureName] !== undefined);
         if (orphan !== undefined) {
           throw new Error(`The github ${orphan} fixture needs a repository fixture.`);
@@ -388,6 +412,13 @@ export const githubContractFake: ContractFakeAdapter = ({github, client, cleanup
       seedGithubPullRequests({mock, repository: added.fullName, fixtures});
       if (fixtures.workflow !== undefined) {
         seedGithubWorkflow({mock, repository: added.fullName, workflow: fixtures.workflow});
+      }
+      if (fixtures.trigger_workflow !== undefined) {
+        seedGithubTriggerWorkflow({
+          mock,
+          repository: added.fullName,
+          workflow: fixtures.trigger_workflow,
+        });
       }
     },
     writes: () => mock.writes(),

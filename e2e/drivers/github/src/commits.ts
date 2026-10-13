@@ -16,11 +16,20 @@ const FIXTURE_CHECK_RUN_ID_BASE = 3_000_000;
 const DEFAULT_AUTHOR = 'e2e-author';
 
 export interface GithubCheckRunFixture {
+  /** Set by the fake to a number of its own. A seeded check run needs none. */
+  id?: number | undefined;
   name: string;
   /** Defaults to `completed`. */
   status?: 'queued' | 'in_progress' | 'completed' | undefined;
   /** Defaults to `success` for a completed check run. */
   conclusion?: 'success' | 'failure' | 'neutral' | 'cancelled' | undefined;
+  output?: GithubCheckRunOutputFixture | undefined;
+}
+
+export interface GithubCheckRunOutputFixture {
+  title?: string | null | undefined;
+  summary?: string | null | undefined;
+  text?: string | null | undefined;
 }
 
 export interface GithubCommitStatusFixture {
@@ -36,6 +45,8 @@ export interface GithubCommitFixture {
   parents?: string[] | undefined;
   /** Login of the author and committer. Defaults to `e2e-author`. */
   author?: string | undefined;
+  /** Whether GitHub verifies the signature of the commit. Defaults to false. */
+  verified?: boolean | undefined;
   /** Check runs that report on this commit. */
   checkRuns?: GithubCheckRunFixture[] | undefined;
   /** Commit statuses that report on this commit. */
@@ -93,7 +104,9 @@ function commitPayload(repository: string, {sha, commit}: Resolved): Record<stri
       message: commit.message,
       tree: {sha: treeSha, url: `${api}/git/trees/${treeSha}`},
       comment_count: 0,
-      verification: {verified: false, reason: 'unsigned', signature: null, payload: null},
+      verification: commit.verified
+        ? {verified: true, reason: 'valid', signature: null, payload: null}
+        : {verified: false, reason: 'unsigned', signature: null, payload: null},
     },
     author: actor(login),
     committer: actor(login),
@@ -103,6 +116,61 @@ function commitPayload(repository: string, {sha, commit}: Resolved): Record<stri
       html_url: `https://github.com/${repository}/commit/${parent}`,
     })),
   };
+}
+
+/** The commit and every commit it descends from, following all parents. */
+export function ancestorsOf(
+  commits: ReadonlyMap<string, GithubCommitFixture>,
+  sha: string,
+): Set<string> {
+  const seen = new Set<string>();
+  const pending = [sha];
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    if (seen.has(next)) continue;
+    seen.add(next);
+    pending.push(...(commits.get(next)?.parents ?? []));
+  }
+  return seen;
+}
+
+/** A check run as the REST API returns it. */
+export function checkRunPayload({
+  repository,
+  sha,
+  id,
+  checkRun,
+}: {
+  repository: string;
+  sha: string;
+  id: number;
+  checkRun: GithubCheckRunFixture;
+}): Record<string, unknown> {
+  const status = checkRun.status ?? 'completed';
+  return {
+    id,
+    node_id: `CR_${id}`,
+    head_sha: sha,
+    name: checkRun.name,
+    status,
+    conclusion: status === 'completed' ? (checkRun.conclusion ?? 'success') : null,
+    started_at: FIXTURE_TIMESTAMP,
+    completed_at: status === 'completed' ? FIXTURE_TIMESTAMP : null,
+    output: {
+      title: checkRun.output?.title ?? null,
+      summary: checkRun.output?.summary ?? null,
+      text: checkRun.output?.text ?? null,
+      annotations_count: 0,
+    },
+    url: `https://api.github.com/repos/${repository}/check-runs/${id}`,
+    html_url: `https://github.com/${repository}/runs/${id}`,
+    app: {slug: 'github-actions', name: 'GitHub Actions'},
+  };
+}
+
+function comparisonStatus({ahead, behind}: {ahead: number; behind: number}): string {
+  if (ahead === 0 && behind === 0) return 'identical';
+  if (behind === 0) return 'ahead';
+  return ahead === 0 ? 'behind' : 'diverged';
 }
 
 function combinedState(statuses: readonly GithubCommitStatusFixture[]): string {
@@ -200,32 +268,23 @@ export function createCommitRoutes({commits, branchHeads}: CommitRoutesOptions):
       sendJson(response, 404, {message: 'Not Found'});
       return;
     }
-    const checkRuns = (found.commit.checkRuns ?? []).map((checkRun, index) => {
-      const status = checkRun.status ?? 'completed';
-      const id = checkRunId(found.sha, index);
-      return {
-        id,
-        node_id: `CR_${id}`,
-        head_sha: found.sha,
-        name: checkRun.name,
-        status,
-        conclusion: status === 'completed' ? (checkRun.conclusion ?? 'success') : null,
-        started_at: FIXTURE_TIMESTAMP,
-        completed_at: status === 'completed' ? FIXTURE_TIMESTAMP : null,
-        url: `https://api.github.com/repos/${repository}/check-runs/${id}`,
-        html_url: `https://github.com/${repository}/runs/${id}`,
-        app: {slug: 'github-actions', name: 'GitHub Actions'},
-      };
-    });
+    const checkRuns = (found.commit.checkRuns ?? []).map((checkRun, index) =>
+      checkRunPayload({
+        repository,
+        sha: found.sha,
+        id: checkRun.id ?? checkRunId(found.sha, index),
+        checkRun,
+      }),
+    );
     sendJson(response, 200, {
       total_count: checkRuns.length,
       check_runs: paginate(checkRuns, searchParams),
     });
   }
 
-  // The commits the head has and the base does not, oldest first, along the first parents. It is
-  // undefined when the base is not on that line.
-  function commitsAhead({
+  // The commits the head has and the base does not, parents before children, and the nearest
+  // commit both sides share. The history may hold merge commits, so it follows every parent.
+  function diverge({
     repository,
     base,
     head,
@@ -233,15 +292,44 @@ export function createCommitRoutes({commits, branchHeads}: CommitRoutesOptions):
     repository: string;
     base: Resolved;
     head: Resolved;
-  }): Resolved[] | undefined {
+  }): {ahead: Resolved[]; behind: number; mergeBase: Resolved} | undefined {
+    const baseAncestors = ancestorsOf(commits, base.sha);
+    const headAncestors = ancestorsOf(commits, head.sha);
     const ahead: Resolved[] = [];
-    let cursor: Resolved | undefined = head;
-    while (cursor !== undefined && cursor.sha !== base.sha) {
-      ahead.unshift(cursor);
-      const parent: string | undefined = cursor.commit.parents?.[0];
-      cursor = parent === undefined ? undefined : resolve(repository, parent);
+    const visited = new Set<string>();
+    const visit = (sha: string) => {
+      const commit = commits.get(sha);
+      if (visited.has(sha) || baseAncestors.has(sha) || commit === undefined) return;
+      visited.add(sha);
+      for (const parent of commit.parents ?? []) visit(parent);
+      ahead.push({sha, commit});
+    };
+    visit(head.sha);
+
+    const mergeBase = nearestShared({repository, head, shared: baseAncestors});
+    if (mergeBase === undefined) return undefined;
+    const behind = [...baseAncestors].filter((ancestor) => !headAncestors.has(ancestor)).length;
+    return {ahead, behind, mergeBase};
+  }
+
+  // The nearest commit of the head's history that the other side has too, walking breadth first.
+  function nearestShared({
+    repository,
+    head,
+    shared,
+  }: {
+    repository: string;
+    head: Resolved;
+    shared: ReadonlySet<string>;
+  }): Resolved | undefined {
+    const queue = [head.sha];
+    for (const sha of queue) {
+      if (shared.has(sha)) return resolve(repository, sha);
+      for (const parent of commits.get(sha)?.parents ?? []) {
+        if (!queue.includes(parent)) queue.push(parent);
+      }
     }
-    return cursor === undefined ? undefined : ahead;
+    return undefined;
   }
 
   function compare(
@@ -255,24 +343,22 @@ export function createCommitRoutes({commits, branchHeads}: CommitRoutesOptions):
     );
     const base = baseReference === undefined ? undefined : resolve(repository, baseReference);
     const head = headReference === undefined ? undefined : resolve(repository, headReference);
-    if (base === undefined || head === undefined) {
+    const diverged =
+      base === undefined || head === undefined ? undefined : diverge({repository, base, head});
+    if (base === undefined || head === undefined || diverged === undefined) {
       sendJson(response, 404, {message: 'Not Found'});
       return;
     }
-    const ahead = commitsAhead({repository, base, head});
-    if (ahead === undefined) {
-      sendJson(response, 404, {message: 'Not Found'});
-      return;
-    }
+    const {ahead, behind, mergeBase} = diverged;
     sendJson(response, 200, {
       url: `https://api.github.com/repos/${repository}/compare/${base.sha}...${head.sha}`,
       html_url: `https://github.com/${repository}/compare/${base.sha}...${head.sha}`,
-      status: ahead.length === 0 ? 'identical' : 'ahead',
+      status: comparisonStatus({ahead: ahead.length, behind}),
       ahead_by: ahead.length,
-      behind_by: 0,
+      behind_by: behind,
       total_commits: ahead.length,
       base_commit: commitPayload(repository, base),
-      merge_base_commit: commitPayload(repository, base),
+      merge_base_commit: commitPayload(repository, mergeBase),
       commits: paginate(
         ahead.map((commit) => commitPayload(repository, commit)),
         searchParams,

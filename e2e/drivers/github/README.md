@@ -12,7 +12,8 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   list, read, update, and merge, review comment replies, issue comments, issue
   list and search, issue types, GraphQL review threads, Git database commits, issue
   creation, check runs, the workflow, run, job, and artifact reads, and the branch, commit,
-  status, check run, and comparison reads. The stack router sends the fake the token mints for
+  status, check run, and comparison reads. Writes change the state the reads serve: a
+  created issue, branch, commit, check run, review, or workflow run reads back. The stack router sends the fake the token mints for
   its `installationId` and the requests that carry its `installationToken`, so specs in other
   workers share the address; make both unique to the spec. Behind the router, `installationId` is
   required. `options.endpoint` listens directly instead, but the webhook senders below still need
@@ -27,14 +28,20 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   and comments. `GET /repos/:owner/:repo/issues/:number` and its `/comments` and
   `/labels` routes read them. An issue read for a number not listed answers a synthetic
   issue with `GITHUB_READ_RESULT_MARKER`. Issues and pull requests share the numbering,
-  so a created pull request skips the numbers issues use. `GET /repos/:owner/:repo/issues`
+  so a created pull request skips the numbers issues use, and so does a created issue, which
+  `POST /repos/:owner/:repo/issues` adds to `issues` and answers with `GITHUB_WRITE_RESULT_MARKER`
+  next to its fields. A new comment takes an id past the ids of every seeded comment. `GET /repos/:owner/:repo/issues`
   lists them, with the pull requests of `pullRequests` as GitHub does, filtered by `state` and
   `labels` and paged by `per_page` and `page`. `GET /search/issues` matches the issues and pull
   requests of the `repo:` repository on `is:issue`, `is:pr`, `is:open`, `is:closed`, and the
   words of its title or body, and answers an empty result when nothing matches. `GET /repos/:owner/:repo/issue-types` lists the types an
   organization starts with: Task, Bug, and Feature. An issue's `parent` is the number of the
   issue it is a sub-issue of: `GET /issues/:number/sub_issues` lists the children of an issue, and
-  `GET /issues/:number/parent` answers the parent or 404. The comments route pages by `per_page`
+  `GET /issues/:number/parent` answers the parent or 404. A sub-issue is named by the `id` of its
+  issue (1000000 plus the number): `POST /issues/:number/sub_issues` adds it last,
+  `DELETE /issues/:number/sub_issue` removes it, and `PATCH /issues/:number/sub_issues/priority`
+  moves it before or after a sibling. A closed issue reads `state_reason`, `completed` unless the
+  update said otherwise. The comments route pages by `per_page`
   and `page`, and lists the `comments` of a seeded pull request for its number too.
 - `GithubApiMock.workflows` and `workflowRuns`: workflows by id and their runs by id, read
   through `GET /repos/:owner/:repo/actions/workflows`, the same path with an id or file name,
@@ -45,16 +52,33 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   `/actions/artifacts/:id/zip` find them. The run logs, job logs, and artifact routes answer a
   302 with a `location` on the port the fake listens on, not on the stack's router: a download
   carries no credentials for the router to route by. The fake serves the job logs one, with the
-  `logs` text of the job, and not the two archives.
+  `logs` text of the job, and not the two archives. The fake runs no workflow, but it starts
+  runs: a dispatch (`POST /actions/workflows/:id/dispatches`) adds a `workflow_dispatch` run
+  to `workflowRuns`, titled by the workflow's `runName`, with one job. The workflow's
+  `outcomeInput` names the dispatch input that picks the outcome: `fail` ends the run as failed,
+  `wait` leaves it in progress, and anything else ends it as succeeded. Cancel, rerun, rerun of
+  the failed jobs (each adds an attempt and applies the outcome again), and deletion of the run
+  logs (the log routes then answer 404) change the run the same way.
 - `GithubApiMock.commits`: commits by id, with their repository, message, parents, check runs, and
   statuses. They are fixtures, not git objects, so a test gives a branch the ids a real
   repository holds. `branchHeads` maps a branch name to its tip. `GET /branches/:branch`,
   `/commits/:ref` (an id or a branch name), its `/status` and `/check-runs`, and
   `/compare/:base...:head` read them; a comparison follows first parents, so it answers the
-  commits the head has past the base, or 404 when the base is not on that line. A pull request
+  commits the head has past the base, or 404 when the two share no commit. A history with merge
+  commits compares as `ahead`, `behind`, or `diverged`. A pull request
   lists its `commits` by id, and its `files`, `reviews`, and `comments` as seeded: the diff media
   type of `GET /pulls/:number` builds the diff from the files, and `/pulls/:number/comments`
-  lists the comments of its `reviewThreads`.
+  lists the comments of its `reviewThreads`. The Git database writes join the same state:
+  `POST /git/refs` creates a branch in `branchHeads`, `DELETE /git/refs/heads/:branch` removes it,
+  `GET /git/ref/heads/:branch` reads it, and a commit made with `POST /git/commits` is a verified
+  commit of `commits`, whose blob ids are the real Git hashes. Merging a pull request makes a commit
+  on its base branch, and `PUT /pulls/:number/update-branch` merges the base into the head branch,
+  when both tips are in `commits`. A check run created with `POST /check-runs` joins the
+  `checkRuns` of its commit, and `PATCH /check-runs/:id` changes it, unless the fake was given
+  a `checkRunCreateResponse`, which it answers instead. A review created with
+  `POST /pulls/:number/reviews` is `PENDING` without an `event`, and the app has one at a time;
+  `POST /reviews/:id/events` submits it and `DELETE /reviews/:id` discards it with its threads.
+  GraphQL's `addPullRequestReviewThread` starts a thread on a pending review.
 - `GithubApiMock.addRepository(params)`: creates a bare repository, seeded from a
   directory, and serves it over git smart HTTP at
   `<endpoint>/github.com/<owner>/<repo>.git`. The repository API returns that URL as
@@ -71,7 +95,14 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   request writes. It records these kinds:
   `github.create_pull_request`, `github.update_pull_request`,
   `github.merge_pull_request`, `github.reply_to_review_comment`,
-  `github.create_issue_comment`, and `github.resolve_review_thread`. Issue writes are
+  `github.create_issue_comment`, and `github.resolve_review_thread`, plus
+  `github.update_pull_request_branch`, `github.create_review`, `github.submit_review`,
+  `github.delete_review`, and `github.add_review_thread`. The other writes are `github.create_issue`,
+  `github.add_sub_issue`, `github.remove_sub_issue`, `github.reprioritize_sub_issue`,
+  `github.create_branch` (`owner/repo:branch`), `github.delete_branch`, `github.create_commit`
+  (when the branch moves), `github.create_check_run`, `github.update_check_run`,
+  `github.dispatch_workflow`, `github.cancel_workflow_run`, `github.rerun_workflow_run`,
+  `github.rerun_failed_jobs`, and `github.delete_workflow_run_logs`. Issue writes are
   `github.update_issue` (`PATCH /issues/:number`, where `labels` replaces the whole set),
   `github.add_labels` (`POST /issues/:number/labels`), and `github.remove_label`
   (`DELETE /issues/:number/labels/:name`, `payload.name` is the label); each targets

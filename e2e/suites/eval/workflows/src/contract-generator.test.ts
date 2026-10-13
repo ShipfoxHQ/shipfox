@@ -206,8 +206,8 @@ describe('generateContractFiles', () => {
   });
 
   describe('round-trip cases', () => {
-    const roundTrip = (steps: string) =>
-      `provider: linear\nkind: round-trip\nmodes: [real]\nsteps:\n${steps}`;
+    const roundTrip = (steps: string, modes = 'real') =>
+      `provider: linear\nkind: round-trip\nmodes: [${modes}]\nsteps:\n${steps}`;
 
     async function generatedLinear(): Promise<string> {
       const files = generateContractFiles(await generate());
@@ -384,6 +384,22 @@ describe('generateContractFiles', () => {
       const content = files.find(({name}) => name === 'contracts-linear.yaml')?.content ?? '';
       const waited = content.slice(content.indexOf('  waited:'));
       expect(waited).toContain('- key: a_wait\n        run: sleep 15\n      - key: a_effect\n');
+    });
+
+    it('skips the wait in fake mode, where the write is applied before the answer', async () => {
+      await writeCase(
+        'linear/waited.yaml',
+        roundTrip(
+          '  - key: a\n    tool: save_issue\n    effect:\n      tool: get_issue\n      with: {id: $steps.a.id}\n      wait_seconds: 15\n      expect:\n        values: {status: Done}\n',
+          'real, fake',
+        ),
+      );
+
+      const files = generateContractFiles(await generate(), {mode: 'fake'});
+
+      const content = files.find(({name}) => name === 'contracts-linear.yaml')?.content ?? '';
+      expect(content).toContain('- key: a_effect');
+      expect(content).not.toContain('sleep');
     });
 
     it('rejects a wait key that another step uses', async () => {

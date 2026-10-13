@@ -1,6 +1,6 @@
 provider: github
 kind: round-trip
-modes: [real]
+modes: [real, fake]
 steps:
   # The pull request sits on two branches of this run and is closed at the end, never merged.
   - key: base
