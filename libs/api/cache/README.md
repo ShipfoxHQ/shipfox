@@ -11,6 +11,7 @@
 - **Storage checks**: The module checks the stored object at commit, before it signs a download, and when a save asks whether a key exists. A missing object removes its row and the lookup moves on.
 - **Sweeper**: Every 10 minutes a Temporal cron expires idle entries, removes stale uploads, and evicts the least recently used entries of a workspace over its storage limit.
 - **`CacheStoragePolicy`**: Lets the composing application set the storage limit of each workspace.
+- **Storage samples**: An hourly job records the stored bytes of each project as a Usage storage sample.
 - **`checkBucketReachable`**: Reports whether the cache bucket answers.
 
 ## Installation and setup
@@ -25,16 +26,18 @@ pnpm add @shipfox/api-cache
 
 ## Usage
 
-The module takes the Workflows inter-module client, which it uses to read a run's origin and the user who started it.
+The module takes the Workflows inter-module client, which it uses to read a run's origin and the user who started it, and the Usage client, which receives the storage samples.
 
 ```ts
 import {createCacheModule} from '@shipfox/api-cache';
+import type {UsageModuleClient} from '@shipfox/api-usage-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {initializeModules} from '@shipfox/node-module';
 
 declare const workflows: WorkflowsModuleClient;
+declare const usage: UsageModuleClient;
 
-await initializeModules({modules: [createCacheModule({workflows})]});
+await initializeModules({modules: [createCacheModule({workflows, usage})]});
 ```
 
 Pass a storage policy to set the limit of each workspace. Without one, `CACHE_WORKSPACE_MAX_BYTES` applies to every workspace.
@@ -105,6 +108,7 @@ This module owns tables with the `cache_` prefix.
 - **Deletion order:** The object goes first, then the row. A storage failure leaves the row for the next pass. A stale upload has its multipart upload ended and its object deleted before its row goes. It leaves no `cache_deletions` row, because it was never a visible entry.
 - **Storage limit:** Stored bytes are the sum of `ready` entries of a workspace. Over the limit, the least recently used entries are evicted until the workspace fits. Eviction runs in the sweep and at commit, where it never removes the newly committed entry. A reserve for an entry larger than the limit answers `too_large`.
 - **Storage policy:** A resolved limit is cached for 60 seconds. A policy that throws applies no limit for that call: the sweep skips eviction for the workspace and a save proceeds.
+- **Storage samples:** A Temporal cron runs at minute 5 of every hour. It sums the `ready` entries per project and calls `recordStorageSamples` in Usage with the key `cache:{projectId}:{windowStart}`, the stored bytes, and the object count. A repeated run for the same hour is counted as a duplicate by Usage. A project with no entries produces no sample, and a missed hour is not backfilled.
 - **Metrics:** `cache_restores` counts lookups by result (`exact`, `prefix`, `miss`). `cache_saves` counts reserve outcomes, commits, aborts, and failed commits. `cache_deletions` counts deleted entries by reason, with `stale_upload` for a reaped upload. `cache_sweep_duration` records the length of a sweep pass. `cache_stored_bytes` is a service gauge of the bytes of all `ready` entries.
 
 ## Development

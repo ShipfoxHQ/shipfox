@@ -25,3 +25,8 @@ export const usageInferenceSegmentRecorded = meter.createCounter<{outcome: Usage
   'usage_inference_segment_recorded',
   {description: 'Usage inference segment capture attempts by outcome'},
 );
+
+export const usageStorageSampleRecorded = meter.createCounter<{outcome: UsageRecordOutcome}>(
+  'usage_storage_sample_recorded',
+  {description: 'Usage storage sample capture attempts by outcome'},
+);

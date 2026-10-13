@@ -3,8 +3,14 @@ import {pgClient} from '@shipfox/node-postgres';
 import {usageInferenceSegments} from './schema/inference-segments.js';
 import {usageJobExecutions} from './schema/job-executions.js';
 import {usageOutbox} from './schema/outbox.js';
+import {usageStorageSamples} from './schema/storage-samples.js';
 
-export const schema = {usageJobExecutions, usageInferenceSegments, usageOutbox};
+export const schema = {
+  usageJobExecutions,
+  usageInferenceSegments,
+  usageStorageSamples,
+  usageOutbox,
+};
 
 export type Database = NodePgDatabase<typeof schema>;
 export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];

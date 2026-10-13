@@ -5,8 +5,8 @@ by the Usage bounded context and its consumers.
 
 ## What it does
 
-- **Usage record schemas** describe job execution and inference segment quantities without prices.
-- **`usageInterModuleContract`** defines segment capture and durable replay cursors.
+- **Usage record schemas** describe job execution, inference segment, and storage sample quantities without prices.
+- **`usageInterModuleContract`** defines segment and storage sample capture and durable replay cursors.
 - **Usage events** define the strict version 1 publication payloads and ordering contracts.
 - **HTTP schemas** define the snake_case run and job-execution responses.
 

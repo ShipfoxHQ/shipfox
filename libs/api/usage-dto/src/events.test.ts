@@ -1,10 +1,12 @@
 import {
   USAGE_INFERENCE_SEGMENT_RECORDED,
   USAGE_JOB_EXECUTION_RECORDED,
+  USAGE_STORAGE_SAMPLE_RECORDED,
   type UsageEventMap,
   usageEventSchemas,
   usageInferenceSegmentRecordedEventSchema,
   usageJobExecutionRecordedEventSchema,
+  usageStorageSampleRecordedEventSchema,
 } from './events.js';
 import {inferenceSegmentInputSchema} from './schemas/usage.js';
 
@@ -76,13 +78,31 @@ const validSegment = {
   recordedAt: '2026-09-04T10:01:00.000Z',
 };
 
+const validStorageSample = {
+  id: crypto.randomUUID(),
+  sampleKey: `cache:${ids.projectId}:2026-09-04T10:00:00.000Z`,
+  source: 'cache' as const,
+  workspaceId: ids.workspaceId,
+  projectId: ids.projectId,
+  windowStart: '2026-09-04T10:00:00.000Z',
+  windowEnd: '2026-09-04T11:00:00.000Z',
+  storedBytes: 4_096,
+  objectCount: 3,
+  recordedAt: '2026-09-04T10:05:00.000Z',
+};
+
 describe('Usage event contracts', () => {
   it('registers the strict v1 event map', () => {
     expect(Object.keys(usageEventSchemas).sort()).toEqual(
-      [USAGE_INFERENCE_SEGMENT_RECORDED, USAGE_JOB_EXECUTION_RECORDED].sort() satisfies Array<
-        keyof UsageEventMap
-      >,
+      [
+        USAGE_INFERENCE_SEGMENT_RECORDED,
+        USAGE_JOB_EXECUTION_RECORDED,
+        USAGE_STORAGE_SAMPLE_RECORDED,
+      ].sort() satisfies Array<keyof UsageEventMap>,
     );
+    expect(
+      usageStorageSampleRecordedEventSchema.parse({...validStorageSample, version: 1}),
+    ).toEqual({...validStorageSample, version: 1});
 
     expect(usageJobExecutionRecordedEventSchema.parse({...validJobExecution, version: 1})).toEqual({
       ...validJobExecution,
@@ -108,6 +128,19 @@ describe('Usage event contracts', () => {
     ).toThrow();
     expect(() =>
       usageInferenceSegmentRecordedEventSchema.parse({...validSegment, version: 1, extra: true}),
+    ).toThrow();
+  });
+
+  it('rejects a storage sample that carries an amount or spans more than a clock hour', () => {
+    expect(() =>
+      usageStorageSampleRecordedEventSchema.parse({...validStorageSample, version: 1, price: 1}),
+    ).toThrow();
+    expect(() =>
+      usageStorageSampleRecordedEventSchema.parse({
+        ...validStorageSample,
+        windowEnd: '2026-09-04T12:00:00.000Z',
+        version: 1,
+      }),
     ).toThrow();
   });
 

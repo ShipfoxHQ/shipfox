@@ -25,3 +25,9 @@ export {dropExpiredUsagePartitions} from './retention.js';
 export {usageInferenceSegments} from './schema/inference-segments.js';
 export {usageJobExecutions} from './schema/job-executions.js';
 export {usageOutbox} from './schema/outbox.js';
+export {usageStorageSamples} from './schema/storage-samples.js';
+export {
+  listStorageSamples,
+  recordStorageSamples,
+  toStorageSampleUsage,
+} from './storage-samples.js';

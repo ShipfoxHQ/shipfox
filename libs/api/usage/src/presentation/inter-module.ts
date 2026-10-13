@@ -6,7 +6,16 @@ import {
   toInferenceSegmentUsage,
 } from '#db/inference-segments.js';
 import {listJobExecutionUsage, toJobExecutionUsage} from '#db/job-executions.js';
-import {addUsageMetric, usageInferenceSegmentRecorded} from '#metrics/instance.js';
+import {
+  listStorageSamples,
+  recordStorageSamples,
+  toStorageSampleUsage,
+} from '#db/storage-samples.js';
+import {
+  addUsageMetric,
+  usageInferenceSegmentRecorded,
+  usageStorageSampleRecorded,
+} from '#metrics/instance.js';
 
 export function createUsageInterModulePresentation(): InterModulePresentation<
   typeof usageInterModuleContract
@@ -19,6 +28,16 @@ export function createUsageInterModulePresentation(): InterModulePresentation<
       }
       if (result.duplicates > 0) {
         addUsageMetric(usageInferenceSegmentRecorded, result.duplicates, 'duplicate');
+      }
+      return result;
+    },
+    recordStorageSamples: async (input) => {
+      const result = await recordStorageSamples(input);
+      if (result.recorded > 0) {
+        addUsageMetric(usageStorageSampleRecorded, result.recorded, 'recorded');
+      }
+      if (result.duplicates > 0) {
+        addUsageMetric(usageStorageSampleRecorded, result.duplicates, 'duplicate');
       }
       return result;
     },
@@ -55,6 +74,22 @@ export function createUsageInterModulePresentation(): InterModulePresentation<
       });
       return {
         segments: result.segments.map(toInferenceSegmentUsage),
+        nextCursor: result.nextCursor
+          ? {recordedAt: result.nextCursor.recordedAt.toISOString(), id: result.nextCursor.id}
+          : null,
+      };
+    },
+    listStorageSamples: async (input) => {
+      const result = await listStorageSamples({
+        workspaceId: input.workspaceId,
+        since: input.since ? new Date(input.since) : undefined,
+        cursor: input.cursor
+          ? {recordedAt: new Date(input.cursor.recordedAt), id: input.cursor.id}
+          : undefined,
+        limit: input.limit,
+      });
+      return {
+        samples: result.samples.map(toStorageSampleUsage),
         nextCursor: result.nextCursor
           ? {recordedAt: result.nextCursor.recordedAt.toISOString(), id: result.nextCursor.id}
           : null,

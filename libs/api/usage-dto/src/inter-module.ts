@@ -5,7 +5,10 @@ import {
   inferenceSegmentUsageSchema,
   jobExecutionUsageSchema,
   MAX_INFERENCE_SEGMENTS_BATCH_SIZE,
+  MAX_STORAGE_SAMPLES_BATCH_SIZE,
   MAX_USAGE_REPLAY_LIMIT,
+  storageSampleInputSchema,
+  storageSampleUsageSchema,
 } from './schemas/usage.js';
 
 const idSchema = z.string().uuid();
@@ -23,12 +26,27 @@ export const inferenceSegmentUsageCursorSchema = z.object({
 });
 export type InferenceSegmentUsageCursor = z.infer<typeof inferenceSegmentUsageCursorSchema>;
 
+export const storageSampleUsageCursorSchema = z.object({
+  recordedAt: dateTimeSchema,
+  id: idSchema,
+});
+export type StorageSampleUsageCursor = z.infer<typeof storageSampleUsageCursorSchema>;
+
 export const usageInterModuleContract = defineInterModuleContract({
   module: 'usage',
   methods: {
     recordInferenceSegments: {
       input: z.object({
         segments: z.array(inferenceSegmentInputSchema).max(MAX_INFERENCE_SEGMENTS_BATCH_SIZE),
+      }),
+      output: z.object({
+        recorded: z.number().int().nonnegative(),
+        duplicates: z.number().int().nonnegative(),
+      }),
+    },
+    recordStorageSamples: {
+      input: z.object({
+        samples: z.array(storageSampleInputSchema).max(MAX_STORAGE_SAMPLES_BATCH_SIZE),
       }),
       output: z.object({
         recorded: z.number().int().nonnegative(),
@@ -57,6 +75,18 @@ export const usageInterModuleContract = defineInterModuleContract({
       output: z.object({
         segments: z.array(inferenceSegmentUsageSchema),
         nextCursor: inferenceSegmentUsageCursorSchema.nullable(),
+      }),
+    },
+    listStorageSamples: {
+      input: z.object({
+        workspaceId: idSchema.optional(),
+        since: dateTimeSchema.optional(),
+        cursor: storageSampleUsageCursorSchema.optional(),
+        limit: z.number().int().min(1).max(MAX_USAGE_REPLAY_LIMIT).default(MAX_USAGE_REPLAY_LIMIT),
+      }),
+      output: z.object({
+        samples: z.array(storageSampleUsageSchema),
+        nextCursor: storageSampleUsageCursorSchema.nullable(),
       }),
     },
   },

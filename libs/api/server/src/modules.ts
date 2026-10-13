@@ -506,7 +506,11 @@ export async function defaultModules(
       workflows: workflowsClient,
       jobLeaseTokenTtlSeconds: durationToSeconds(authConfig.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN),
     }),
-    createCacheModule({...options.cacheModuleOptions, workflows: workflowsClient}),
+    createCacheModule({
+      ...options.cacheModuleOptions,
+      workflows: workflowsClient,
+      usage: usageClient,
+    }),
     createUsageModule(),
     createTriggersModule({
       workflows: workflowsClient,

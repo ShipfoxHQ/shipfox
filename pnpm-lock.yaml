@@ -3414,6 +3414,9 @@ importers:
       '@shipfox/api-cache-dto':
         specifier: workspace:*
         version: link:../cache-dto
+      '@shipfox/api-usage-dto':
+        specifier: workspace:*
+        version: link:../usage-dto
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../workflows-dto

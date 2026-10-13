@@ -8,6 +8,7 @@ const usageCountSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTE
 
 export const MAX_USAGE_REPLAY_LIMIT = 500;
 export const MAX_INFERENCE_SEGMENTS_BATCH_SIZE = 1_000;
+export const MAX_STORAGE_SAMPLES_BATCH_SIZE = 1_000;
 export const MAX_WEB_SEARCH_REQUESTS = 2_147_483_647;
 
 export const inferenceSegmentDialects = [
@@ -120,6 +121,32 @@ const inferenceSegmentUsageObjectSchema = inferenceSegmentInputObjectSchema
 export const inferenceSegmentUsageSchema =
   inferenceSegmentUsageObjectSchema.superRefine(validateInferenceWindow);
 export type InferenceSegmentUsageDto = z.infer<typeof inferenceSegmentUsageSchema>;
+
+const HOUR_MS = 60 * 60 * 1_000;
+
+const storageSampleInputObjectSchema = z
+  .object({
+    sampleKey: nonEmptyStringSchema.max(512),
+    source: z.literal('cache'),
+    workspaceId: idSchema,
+    projectId: idSchema,
+    windowStart: inferenceWindowDateTimeSchema,
+    windowEnd: inferenceWindowDateTimeSchema,
+    storedBytes: usageCountSchema,
+    objectCount: usageCountSchema,
+  })
+  .strict();
+
+/** A sample covers one clock hour: it starts on the hour and ends exactly one hour later. */
+export const storageSampleInputSchema =
+  storageSampleInputObjectSchema.superRefine(validateStorageWindow);
+export type StorageSampleInputDto = z.infer<typeof storageSampleInputSchema>;
+
+export const storageSampleUsageSchema = storageSampleInputObjectSchema
+  .extend({id: idSchema, recordedAt: dateTimeSchema})
+  .strict()
+  .superRefine(validateStorageWindow);
+export type StorageSampleUsageDto = z.infer<typeof storageSampleUsageSchema>;
 
 export const jobExecutionUsageHttpSchema = z
   .object({
@@ -252,6 +279,22 @@ function validateWindow(
       code: z.ZodIssueCode.custom,
       path,
       message: 'Inference segment windows cannot exceed one hour',
+    });
+  }
+}
+
+function validateStorageWindow(
+  value: {windowStart: string; windowEnd: string},
+  context: z.RefinementCtx,
+): void {
+  const start = Date.parse(value.windowStart);
+  const end = Date.parse(value.windowEnd);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+  if (start % HOUR_MS !== 0 || end - start !== HOUR_MS) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['windowStart'],
+      message: 'Storage sample windows must be one clock hour',
     });
   }
 }

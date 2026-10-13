@@ -3,7 +3,8 @@ import {config} from '#config.js';
 import {db} from './db.js';
 
 const MS_PER_DAY = 86_400_000;
-const PARTITION_NAME = /^usage_(?:job_executions|inference_segments)_(\d{4})_(\d{2})$/;
+const PARTITION_NAME =
+  /^usage_(?:job_executions|inference_segments|storage_samples)_(\d{4})_(\d{2})$/;
 
 export interface DropExpiredUsagePartitionsParams {
   retentionDays?: number;
@@ -30,7 +31,7 @@ export function dropExpiredUsagePartitions(
       from pg_inherits
       join pg_class parent on parent.oid = pg_inherits.inhparent
       join pg_class child on child.oid = pg_inherits.inhrelid
-      where parent.relname in ('usage_job_executions', 'usage_inference_segments')
+      where parent.relname in ('usage_job_executions', 'usage_inference_segments', 'usage_storage_samples')
         and child.relname like 'usage_%'
     `);
     const partitions = result.rows

@@ -1,5 +1,6 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import type {UsageModuleClient} from '@shipfox/api-usage-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {type CacheStoragePolicy, createWorkspaceStorageLimits} from '#core/storage-policy.js';
@@ -8,7 +9,11 @@ import {migrationsPath} from '#db/index.js';
 import {registerCacheServiceMetrics} from '#metrics/service.js';
 import {createCacheRoutes} from '#presentation/routes/index.js';
 import {createCacheActivities} from '#temporal/activities/index.js';
-import {CACHE_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
+import {
+  CACHE_MAINTENANCE_TASK_QUEUE,
+  CACHE_STORAGE_SAMPLER_CRON_ID,
+  CACHE_STORAGE_SAMPLER_CRON_SCHEDULE,
+} from '#temporal/constants.js';
 
 export {checkBucketReachable} from '#api/object-storage.js';
 export type {CacheStorageLimits, CacheStoragePolicy} from '#core/storage-policy.js';
@@ -23,8 +28,12 @@ export interface CreateCacheModuleOptions {
 
 export function createCacheModule({
   workflows,
+  usage,
   storage,
-}: CreateCacheModuleOptions & {workflows: WorkflowsModuleClient}): ShipfoxModule {
+}: CreateCacheModuleOptions & {
+  workflows: WorkflowsModuleClient;
+  usage: UsageModuleClient;
+}): ShipfoxModule {
   // One instance, so the routes and the sweeper share the resolved limits.
   const limits = createWorkspaceStorageLimits(storage?.policy);
 
@@ -37,8 +46,15 @@ export function createCacheModule({
       {
         taskQueue: CACHE_MAINTENANCE_TASK_QUEUE,
         workflowsPath,
-        activities: () => createCacheActivities({limits}),
-        workflows: [{name: 'cacheSweepCron', id: 'cache-sweep', cronSchedule: '*/10 * * * *'}],
+        activities: () => createCacheActivities({limits, usage}),
+        workflows: [
+          {name: 'cacheSweepCron', id: 'cache-sweep', cronSchedule: '*/10 * * * *'},
+          {
+            name: 'cacheStorageSamplerCron',
+            id: CACHE_STORAGE_SAMPLER_CRON_ID,
+            cronSchedule: CACHE_STORAGE_SAMPLER_CRON_SCHEDULE,
+          },
+        ],
       },
     ],
   };

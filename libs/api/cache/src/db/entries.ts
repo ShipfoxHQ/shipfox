@@ -268,3 +268,30 @@ function identityCondition(params: EntryIdentity) {
 function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`);
 }
+
+export interface ProjectStorage {
+  workspaceId: string;
+  projectId: string;
+  storedBytes: number;
+  objectCount: number;
+}
+
+/** Only `ready` rows count: parts of an unfinished upload are invisible until commit. */
+export async function sumReadyStorageByProject(): Promise<ProjectStorage[]> {
+  const rows = await db()
+    .select({
+      workspaceId: cacheEntries.workspaceId,
+      projectId: cacheEntries.projectId,
+      storedBytes: sql<string>`sum(${cacheEntries.sizeBytes})`,
+      objectCount: sql<string>`count(*)`,
+    })
+    .from(cacheEntries)
+    .where(eq(cacheEntries.status, 'ready'))
+    .groupBy(cacheEntries.workspaceId, cacheEntries.projectId);
+  return rows.map((row) => ({
+    workspaceId: row.workspaceId,
+    projectId: row.projectId,
+    storedBytes: Number(row.storedBytes),
+    objectCount: Number(row.objectCount),
+  }));
+}

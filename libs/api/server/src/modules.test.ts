@@ -409,6 +409,8 @@ describe('defaultModules', () => {
             recordInferenceSegments: mocks.recordInferenceSegments,
             listJobExecutionUsage: vi.fn(),
             listInferenceSegments: vi.fn(),
+            recordStorageSamples: vi.fn(),
+            listStorageSamples: vi.fn(),
           },
         },
       ],
@@ -1256,6 +1258,7 @@ describe('defaultModules', () => {
     );
     expect(mocks.createCacheModule).toHaveBeenCalledWith({
       workflows: expect.objectContaining({getWorkflowRunOrigin: expect.any(Function)}),
+      usage: expect.objectContaining({recordStorageSamples: expect.any(Function)}),
     });
     expect(mocks.createLogsModule).toHaveBeenCalledWith({
       workflows: expect.objectContaining({getStepLogContext: expect.any(Function)}),

@@ -22,8 +22,11 @@ import {
 } from './job-executions.js';
 import {dropExpiredUsagePartitions} from './retention.js';
 import {usageOutbox} from './schema/outbox.js';
+import {listStorageSamples, recordStorageSamples} from './storage-samples.js';
 
-const monthlyPartitionPattern = /usage_(job_executions|inference_segments)_\d{4}_\d{2}/;
+const jobExecutionPartitionPattern = /^usage_job_executions_\d{4}_\d{2}$/;
+const monthlyPartitionPattern =
+  /usage_(job_executions|inference_segments|storage_samples)_\d{4}_\d{2}/;
 
 interface JobEventSet {
   queued: WorkflowsJobExecutionQueuedEventDto;
@@ -145,6 +148,23 @@ function inferenceSegment(
     cacheReadTokens: 4,
     reasoningTokens: 6,
     webSearchRequests: 3,
+  };
+}
+
+function storageSample(
+  overrides: {projectId?: string; windowStart?: string; windowEnd?: string} = {},
+) {
+  const projectId = overrides.projectId ?? crypto.randomUUID();
+  const windowStart = overrides.windowStart ?? '2026-10-13T10:00:00.000Z';
+  return {
+    sampleKey: `cache:${projectId}:${windowStart}`,
+    source: 'cache' as const,
+    workspaceId: crypto.randomUUID(),
+    projectId,
+    windowStart,
+    windowEnd: overrides.windowEnd ?? '2026-10-13T11:00:00.000Z',
+    storedBytes: 5_000_000_000,
+    objectCount: 4,
   };
 }
 
@@ -426,45 +446,136 @@ describe('Usage projections', () => {
     expect(nextPage.nextCursor).toBeNull();
   });
 
-  it('creates monthly range children and drops only expired complete months', async () => {
-    const partitions = await db().execute(sql`
-      select count(*)::int as count
-      from pg_inherits
-      join pg_class parent on parent.oid = pg_inherits.inhparent
-      where parent.relname = ${'usage_job_executions'}
-         or parent.relname = ${'usage_inference_segments'}
-    `);
-    expect(Number(partitions.rows[0]?.count)).toBeGreaterThan(200);
+  it('records storage samples idempotently and publishes one event per sample', async () => {
+    const sample = storageSample();
 
-    const futureEvents = jobEvents();
-    const future = inferenceSegment(futureEvents.queued);
-    await recordJobExecutionQueued(futureEvents.queued);
-    await recordInferenceSegments({
-      segments: [future],
-      now: new Date('2032-02-15T00:00:00.000Z'),
+    await expect(recordStorageSamples({samples: [sample]})).resolves.toEqual({
+      recorded: 1,
+      duplicates: 0,
     });
+    await expect(recordStorageSamples({samples: [sample, sample]})).resolves.toEqual({
+      recorded: 0,
+      duplicates: 2,
+    });
+
+    const {samples} = await listStorageSamples({workspaceId: sample.workspaceId});
+    expect(samples).toHaveLength(1);
+    expect(samples[0]).toMatchObject({
+      sampleKey: sample.sampleKey,
+      projectId: sample.projectId,
+      storedBytes: 5_000_000_000,
+      objectCount: 4,
+    });
+    const events = await db()
+      .select()
+      .from(usageOutbox)
+      .where(eq(usageOutbox.eventType, 'usage.storage_sample.recorded'));
+    expect(
+      events.filter((row) => (row.payload as {sampleKey: string}).sampleKey === sample.sampleKey),
+    ).toHaveLength(1);
+  });
+
+  it('counts a repeated key inside one batch as a duplicate', async () => {
+    const sample = storageSample();
+    await expect(recordStorageSamples({samples: [sample, sample]})).resolves.toEqual({
+      recorded: 1,
+      duplicates: 1,
+    });
+  });
+
+  it('records a new sample for each hour of a project', async () => {
+    const first = storageSample();
+    const second = storageSample({
+      projectId: first.projectId,
+      windowStart: '2026-10-13T11:00:00.000Z',
+      windowEnd: '2026-10-13T12:00:00.000Z',
+    });
+    await expect(
+      recordStorageSamples({samples: [first, {...second, workspaceId: first.workspaceId}]}),
+    ).resolves.toEqual({recorded: 2, duplicates: 0});
+  });
+
+  it('replays storage samples by a stable timestamp and id cursor', async () => {
+    const workspaceId = crypto.randomUUID();
+    const samples = [storageSample(), storageSample()].map((sample) => ({...sample, workspaceId}));
+    await recordStorageSamples({samples});
+
+    const page = await listStorageSamples({workspaceId, limit: 1});
+    expect(page.samples).toHaveLength(1);
+    expect(page.nextCursor).not.toBeNull();
+    const cursor = page.nextCursor;
+    if (!cursor) throw new Error('Expected a storage sample replay cursor');
+    const nextPage = await listStorageSamples({workspaceId, cursor, limit: 1});
+    expect(nextPage.samples).toHaveLength(1);
+    expect(nextPage.nextCursor).toBeNull();
+    expect(nextPage.samples[0]?.id).not.toBe(page.samples[0]?.id);
+  });
+
+  it('creates monthly range children on demand and drops only expired complete months', async () => {
+    const sample = (month: string) =>
+      storageSample({
+        windowStart: `${month}-15T10:00:00.000Z`,
+        windowEnd: `${month}-15T11:00:00.000Z`,
+      });
+    const events = jobEvents();
+    await recordJobExecutionQueued(events.queued);
+    await recordJobExecutionTerminated(events.terminated);
+    const january = inferenceSegment(events.queued);
+    const february = inferenceSegment(events.queued);
+    await recordInferenceSegments({
+      segments: [january],
+      now: new Date('2020-01-15T00:00:00.000Z'),
+    });
+    await recordInferenceSegments({
+      segments: [february],
+      now: new Date('2020-02-15T00:00:00.000Z'),
+    });
+    await recordStorageSamples({
+      samples: [sample('2020-01')],
+      now: new Date('2020-01-15T00:00:00.000Z'),
+    });
+    await recordStorageSamples({
+      samples: [sample('2020-02')],
+      now: new Date('2020-02-15T00:00:00.000Z'),
+    });
+
     const provisioned = await dropExpiredUsagePartitions({
       retentionDays: 100_000,
-      now: new Date('2032-02-15T00:00:00.000Z'),
+      now: new Date('2020-03-02T00:00:00.000Z'),
     });
     expect(provisioned.dropped).toBe(0);
-    const futurePartition = await db().execute(sql`
+    const placement = await db().execute(sql`
       select tableoid::regclass::text as name
       from usage_inference_segments
-      where segment_key = ${future.segmentKey}
+      where segment_key in (${january.segmentKey}, ${february.segmentKey})
+      order by recorded_at
     `);
-    expect(futurePartition.rows[0]?.name).toBe('usage_inference_segments_2032_02');
+    expect(placement.rows.map((row) => row.name)).toEqual([
+      'usage_inference_segments_2020_01',
+      'usage_inference_segments_2020_02',
+    ]);
+    const jobPlacement = await db().execute(sql`
+      select tableoid::regclass::text as name
+      from usage_job_executions
+      where job_execution_id = ${events.terminated.jobExecutionId}
+    `);
+    expect(jobPlacement.rows[0]?.name).toMatch(jobExecutionPartitionPattern);
 
     const result = await dropExpiredUsagePartitions({
       retentionDays: 29,
       now: new Date('2020-03-02T00:00:00.000Z'),
     });
-    expect(result.dropped).toBeGreaterThan(0);
     expect(result.partitions).toEqual(
-      expect.arrayContaining(['usage_job_executions_2020_01', 'usage_inference_segments_2020_01']),
+      expect.arrayContaining(['usage_inference_segments_2020_01', 'usage_storage_samples_2020_01']),
     );
-    expect(result.partitions).not.toContain('usage_job_executions_2020_02');
     expect(result.partitions).not.toContain('usage_inference_segments_2020_02');
+    expect(result.partitions).not.toContain('usage_storage_samples_2020_02');
     expect(result.partitions.every((name) => monthlyPartitionPattern.test(name))).toBe(true);
+    await expect(
+      getJobExecutionUsage({
+        workspaceId: events.queued.workspaceId,
+        jobExecutionId: events.terminated.jobExecutionId,
+      }),
+    ).resolves.not.toBeNull();
   });
 });
