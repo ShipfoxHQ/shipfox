@@ -26,11 +26,11 @@ export function runAfterSkipDescription(
 
   if (kind === 'step') {
     return waitsForFailure
-      ? 'This step has `run_after: failure`, so it runs only after an earlier step fails. No earlier step failed.'
+      ? 'No earlier step failed, so this step did not run.'
       : 'An earlier step in this job failed, so Shipfox skipped this step. To run it after a failure, set `run_after: always` or `run_after: failure` on the step.';
   }
   return waitsForFailure
-    ? 'This job has `run_after: failure`, so it runs only after a job in its `needs` fails. None of them failed.'
+    ? 'No job in `needs` failed, so this job did not run.'
     : 'A job in the `needs` of this job did not succeed, so Shipfox skipped this job. To run it after a failure, set `run_after: always` or `run_after: failure` on the job.';
 }
 

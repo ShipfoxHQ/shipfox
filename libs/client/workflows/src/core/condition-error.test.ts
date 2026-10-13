@@ -13,9 +13,7 @@ describe('runAfterSkipDescription', () => {
   test('explains a step that waits for a failure when no step failed', () => {
     const description = runAfterSkipDescription('step', [gateTrace('execution.failed')]);
 
-    expect(description).toBe(
-      'This step has `run_after: failure`, so it runs only after an earlier step fails. No earlier step failed.',
-    );
+    expect(description).toBe('No earlier step failed, so this step did not run.');
   });
 
   test('explains a job that waits for a failure when no needed job failed', () => {
@@ -23,9 +21,7 @@ describe('runAfterSkipDescription', () => {
       gateTrace('needs.exists(n, n.status == "failed")', 'job.default_gate'),
     ]);
 
-    expect(description).toBe(
-      'This job has `run_after: failure`, so it runs only after a job in its `needs` fails. None of them failed.',
-    );
+    expect(description).toBe('No job in `needs` failed, so this job did not run.');
   });
 
   test('uses the default explanation when the job has no trace', () => {

@@ -173,9 +173,7 @@ describe('skippedJobDescription', () => {
       },
     ]);
 
-    expect(description).toBe(
-      'This job has `run_after: failure`, so it runs only after a job in its `needs` fails. None of them failed.',
-    );
+    expect(description).toBe('No job in `needs` failed, so this job did not run.');
   });
 
   test('explains when materialized output exceeds the configured size limit', () => {
