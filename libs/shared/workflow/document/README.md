@@ -203,8 +203,8 @@ or an object with `image`, `credentials` (`username` and `password`), `env`,
 `options`, and `docker_socket`. `volumes` and `ports` are rejected. The
 `options` string is not validated. `parseWorkflowDocument` accepts the field by
 default; pass `{jobContainers: false}` to reject it with "Job containers
-(`container`) are not supported yet." `buildWorkflowJsonSchema()` includes the
-field unless called with `{containers: false}`.
+(`container`) are not supported yet." `buildWorkflowJsonSchema()` always
+includes the field.
 
 ```ts
 parseWorkflowDocument({

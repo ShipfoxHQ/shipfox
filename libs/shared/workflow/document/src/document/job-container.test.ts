@@ -141,12 +141,6 @@ describe('buildWorkflowJsonSchema containers', () => {
     });
   });
 
-  it('strips the container field when disabled', () => {
-    expect(jobProperties(buildWorkflowJsonSchema({containers: false}))).not.toHaveProperty(
-      'container',
-    );
-  });
-
   it('keeps every container property described', () => {
     const container = jobProperties(buildWorkflowJsonSchema()).container as {
       description?: string;

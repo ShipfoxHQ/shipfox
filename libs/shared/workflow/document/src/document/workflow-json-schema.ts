@@ -17,14 +17,11 @@ export interface BuildWorkflowJsonSchemaOptions {
   id?: string;
   /** Includes action step fields (`uses`, `connections`). Defaults to `false`. */
   actions?: boolean;
-  /** Includes the job `container` field. Defaults to `true`. */
-  containers?: boolean;
 }
 
 export function buildWorkflowJsonSchema({
   id = 'https://www.shipfox.io/docs/workflow.schema.json',
   actions = false,
-  containers = true,
 }: BuildWorkflowJsonSchemaOptions = {}): JsonSchema {
   const schema = z.toJSONSchema(workflowDocumentSchema, {
     io: 'input',
@@ -46,8 +43,6 @@ export function buildWorkflowJsonSchema({
     delete stepProperties.uses;
     delete stepProperties.connections;
   }
-  if (!containers)
-    delete propertiesOf(object(object(propertiesOf(schema).jobs).additionalProperties)).container;
   projectWorkflowValidation(schema, stepSchema, actions);
   const thinkingConditionals = (['pi', 'claude'] as const).map((harness) => {
     const conditional: JsonSchema = {
