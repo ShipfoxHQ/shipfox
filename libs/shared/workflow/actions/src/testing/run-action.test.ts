@@ -82,7 +82,8 @@ describe('runAction', () => {
     const postAction = () =>
       writeAction({
         'action.yml': 'name: Cache\nmain: index.mjs\npost: post.mjs\noutputs:\n  restored: {}\n',
-        'index.mjs': `${SDK}export default defineAction(({state}) => {
+        'index.mjs': `${SDK}export default defineAction(({state, context, log}) => {
+          log.info('main phase=' + context.phase);
           state.set('cache_key', 'abc');
           return {restored: 'yes'};
         });\n`,
@@ -126,7 +127,7 @@ describe('runAction', () => {
 
       const main = await runAction(dir);
 
-      expect(main.logs).not.toContain('"phase":"post"');
+      expect(main.logs).toContain('main phase=main');
       expect(main.outputs).toEqual({restored: 'yes'});
     });
 

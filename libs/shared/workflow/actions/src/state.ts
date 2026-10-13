@@ -49,11 +49,12 @@ export function createActionState(path: string | undefined): ActionState {
         throw new ActionStateError(`State "${name}" must be a string, not ${typeof value}.`);
       }
       const line = `${JSON.stringify({name, value})}\n`;
-      bytes += Buffer.byteLength(line);
-      if (bytes > MAX_STATE_BYTES) {
+      const nextBytes = bytes + Buffer.byteLength(line);
+      if (nextBytes > MAX_STATE_BYTES) {
         throw new ActionStateError(`State is limited to ${MAX_STATE_BYTES} bytes.`);
       }
       appendFileSync(path, line);
+      bytes = nextBytes;
       values.set(name, value);
     },
     get: (name) => values.get(name),

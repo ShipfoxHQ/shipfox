@@ -35,6 +35,26 @@ describe('createActionState', () => {
     expect(readFileSync(path, 'utf8')).toBe('{"name":"key","value":"line\\nbreak"}\n');
   });
 
+  it('writes one line per set', () => {
+    const state = createActionState(path);
+
+    state.set('key', 'one');
+    state.set('key', 'two');
+
+    expect(readFileSync(path, 'utf8')).toBe(
+      '{"name":"key","value":"one"}\n{"name":"key","value":"two"}\n',
+    );
+  });
+
+  it('accepts a later write that fits after a rejected one', () => {
+    const state = createActionState(path);
+
+    expect(() => state.set('big', 'x'.repeat(MAX_STATE_BYTES))).toThrow(ActionStateError);
+    state.set('small', 'ok');
+
+    expect(state.get('small')).toBe('ok');
+  });
+
   it('answers from the seeded file', () => {
     writeFileSync(path, '{"name":"seed","value":"v"}\n');
 
