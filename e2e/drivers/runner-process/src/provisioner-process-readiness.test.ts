@@ -59,6 +59,53 @@ describe('startProvisioner installation readiness', () => {
     mocks.createApiClient.mockReturnValue({requestJson: mocks.requestJson});
   });
 
+  it('starts an installation-scoped provisioner when readiness succeeds', async () => {
+    const child = createChild();
+    mocks.spawn.mockReset().mockReturnValue(child);
+    mocks.requestJson.mockImplementation((_method: string, path: string) => {
+      if (path === `/admin/runners/workspaces/${WORKSPACE_ID}/capacity`) return {};
+      if (path === '/provisioners/me') {
+        return {
+          id: 'provisioner-installation-1',
+          scope: 'installation',
+        };
+      }
+      throw new Error(`Unexpected request path: ${path}`);
+    });
+
+    const handle = await startProvisioner({
+      mode: 'source',
+      scope: 'installation',
+      workspaceId: WORKSPACE_ID,
+      adminToken: 'admin-token',
+      provisionerToken: 'provisioner-token',
+      templatesFile: '/suite/templates.yaml',
+      logFile: '/suite/provisioner.log',
+      entryPath: '/suite/provisioner.ts',
+    });
+
+    expect(handle).toMatchObject({
+      mode: 'source',
+      pid: 1234,
+      logFile: '/suite/provisioner.log',
+      workspaceId: WORKSPACE_ID,
+      provisioner: {
+        id: 'provisioner-installation-1',
+        name: null,
+        prefix: 'installation',
+        last_seen_at: expect.any(String),
+      },
+    });
+    expect(mocks.requestJson).toHaveBeenNthCalledWith(
+      1,
+      'get',
+      `/admin/runners/workspaces/${WORKSPACE_ID}/capacity`,
+    );
+    expect(mocks.requestJson).toHaveBeenNthCalledWith(2, 'get', '/provisioners/me');
+    expect(mocks.spawn).toHaveBeenCalled();
+    expect(child.kill).not.toHaveBeenCalled();
+  });
+
   it('rejects a workspace-scoped token for installation readiness', async () => {
     const child = createChild();
     mocks.spawn.mockReset().mockReturnValue(child);
