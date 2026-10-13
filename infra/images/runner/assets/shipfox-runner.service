@@ -19,6 +19,8 @@ KillSignal=SIGTERM
 KillMode=control-group
 # Step processes reset their inherited score, so the kernel kills a runaway step before the runner.
 OOMScoreAdjust=-900
+# The default policy stops the whole service, and so the instance, when the kernel kills a step.
+OOMPolicy=continue
 TimeoutStopSec=90s
 StandardOutput=journal+console
 StandardError=journal

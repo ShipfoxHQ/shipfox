@@ -11,7 +11,7 @@ export {
   type CheckoutStepExecution,
   executeCheckoutStep,
 } from '#core/checkout-step.js';
-export {resolveCgroupMemoryEventsPath} from '#core/out-of-memory.js';
+export {reportOutOfMemoryKills, resolveCgroupMemoryEventsPath} from '#core/out-of-memory.js';
 export {
   type CommandShellMetadata,
   type CommandStartMetadata,

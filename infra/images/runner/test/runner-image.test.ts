@@ -1075,6 +1075,12 @@ describe('systemd boot activation', () => {
     expect(systemdDirective(unit, 'Service', 'OOMScoreAdjust')).toBe('-900');
   });
 
+  it('keeps the runner running when the kernel kills a step for memory', async () => {
+    const unit = await readUnit('shipfox-runner.service');
+
+    expect(systemdDirective(unit, 'Service', 'OOMPolicy')).toBe('continue');
+  });
+
   it('forwards only the marked boot timeline to the EC2 console', async () => {
     const unit = await readUnit('shipfox-runner.service');
     const script = new URL('../scripts/runtime/run-runner.sh', import.meta.url);

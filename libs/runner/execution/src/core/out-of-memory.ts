@@ -1,5 +1,6 @@
 import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
+import type {StepResult} from '#core/step-result.js';
 
 const CGROUP_ROOT = '/sys/fs/cgroup';
 const OOM_KILL_LINE_REGEX = /^oom_kill (\d+)$/m;
@@ -29,4 +30,52 @@ export async function readOomKillCount(memoryEventsPath: string): Promise<number
   } catch {
     return undefined;
   }
+}
+
+const OUT_OF_MEMORY_MESSAGE = /out of memory/iu;
+
+/**
+ * Runs a step and reports the processes the system killed for memory while it ran. The kill
+ * often hits a descendant, so the step can fail with an ordinary exit code or still succeed.
+ * The counter belongs to the whole runner, so it also counts kills in a step running alongside.
+ */
+export async function reportOutOfMemoryKills(params: {
+  memoryEventsPath: string | undefined;
+  annotationContext: string;
+  signal?: AbortSignal;
+  run: () => Promise<StepResult>;
+}): Promise<StepResult> {
+  const {memoryEventsPath} = params;
+  if (memoryEventsPath === undefined) return await params.run();
+  const before = await readOomKillCount(memoryEventsPath);
+  const result = await params.run();
+  if (before === undefined || params.signal?.aborted) return result;
+  const after = await readOomKillCount(memoryEventsPath);
+  if (after === undefined || after <= before) return result;
+
+  const killed = after - before;
+  const processes = killed === 1 ? '1 process' : `${killed} processes`;
+  const advice = 'Reduce the memory the step uses or run it on a runner with more memory.';
+  if (result.success || result.error === null || result.error === undefined) {
+    return {
+      ...result,
+      annotations: [
+        ...(result.annotations ?? []),
+        {
+          op: 'replace',
+          context: params.annotationContext,
+          style: 'warning',
+          body: `The runner ran out of memory during this step and the system killed ${processes}. The step still finished. ${advice}`,
+        },
+      ],
+    };
+  }
+  if (OUT_OF_MEMORY_MESSAGE.test(result.error.message)) return result;
+  return {
+    ...result,
+    error: {
+      ...result.error,
+      message: `${result.error.message} The runner ran out of memory during this step and the system killed ${processes}. ${advice}`,
+    },
+  };
 }

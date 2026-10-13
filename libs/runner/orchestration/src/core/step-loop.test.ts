@@ -134,6 +134,7 @@ vi.mock('@shipfox/runner-execution', () => ({
   executeRunStep: (...args: unknown[]) => executeRunStepMock(...args),
   executeActionStep: (...args: unknown[]) => executeActionStepMock(...args),
   resolveCgroupMemoryEventsPath: () => Promise.resolve('/sys/fs/cgroup/runner/memory.events'),
+  reportOutOfMemoryKills: ({run}: {run: () => unknown}) => run(),
   executeSetupStep: (...args: unknown[]) => executeSetupStepMock(...args),
   executeCheckoutStep: (...args: unknown[]) => executeCheckoutStepMock(...args),
 }));

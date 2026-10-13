@@ -31,6 +31,7 @@ import {
   executeCheckoutStep,
   executeRunStep,
   executeSetupStep,
+  reportOutOfMemoryKills,
   resolveCgroupMemoryEventsPath,
   type SetupContainerSecrets,
   type SetupJobContext,
@@ -1258,29 +1259,37 @@ async function executeAgentStepBranch(params: {
     });
     const resumePrompt = buildResumePrompt(session, params.checkoutRef, input.step.config.prompt);
     const placement = await agentPlacementOptions(input);
-    const result = await executeAgentStep(input.step, {
-      signal: input.signal,
-      cwd: params.stepCwd,
-      agentStateDir: input.agentStateDir,
-      ...(session.invocation === undefined ? {} : {session: session.invocation}),
-      ...(resumePrompt === undefined ? {} : {prompt: resumePrompt}),
-      ...placement,
-      ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
-      runtime: {
-        harness: runtimeConfig.harness,
-        provider: runtimeConfig.provider_id,
-        model: runtimeConfig.model,
-        thinking: runtimeConfig.thinking,
-        credentials: runtimeConfig.credentials,
-        ...(runtimeConfig.custom_provider ? {custom_provider: runtimeConfig.custom_provider} : {}),
-        ...(runtimeConfig.claude !== undefined ? {claude: runtimeConfig.claude} : {}),
-      },
-      ...(inferenceCredentialSource === undefined
-        ? {}
-        : {credentialSource: inferenceCredentialSource}),
-      leaseToken: input.leaseToken,
-      integrationToolsGatewayUrl: integrationToolsGatewayUrl(),
-      ...(sessionStream ? {onSessionEntry: (line: string) => sessionStream.writeEntry(line)} : {}),
+    const result = await reportOutOfMemoryKills({
+      ...(await outOfMemoryReportOptions(input)),
+      run: () =>
+        executeAgentStep(input.step, {
+          signal: input.signal,
+          cwd: params.stepCwd,
+          agentStateDir: input.agentStateDir,
+          ...(session.invocation === undefined ? {} : {session: session.invocation}),
+          ...(resumePrompt === undefined ? {} : {prompt: resumePrompt}),
+          ...placement,
+          ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
+          runtime: {
+            harness: runtimeConfig.harness,
+            provider: runtimeConfig.provider_id,
+            model: runtimeConfig.model,
+            thinking: runtimeConfig.thinking,
+            credentials: runtimeConfig.credentials,
+            ...(runtimeConfig.custom_provider
+              ? {custom_provider: runtimeConfig.custom_provider}
+              : {}),
+            ...(runtimeConfig.claude !== undefined ? {claude: runtimeConfig.claude} : {}),
+          },
+          ...(inferenceCredentialSource === undefined
+            ? {}
+            : {credentialSource: inferenceCredentialSource}),
+          leaseToken: input.leaseToken,
+          integrationToolsGatewayUrl: integrationToolsGatewayUrl(),
+          ...(sessionStream
+            ? {onSessionEntry: (line: string) => sessionStream.writeEntry(line)}
+            : {}),
+        }),
     });
     return {
       sessionCommit:
@@ -1706,22 +1715,38 @@ async function executeRunStepBranch(params: ProcessStepBranchParams): Promise<St
   const opening = await openProcessStep(params);
   if (!opening.ok) return opening.execution;
   const {secretMaterial, stepSecrets, stepStream} = opening.opened;
-  const result = await executeRunStep(input.step, {
-    signal: input.signal,
-    tempDir: input.jobTempDir,
-    cwd: params.stepCwd,
-    workspace: input.cwd,
-    ...(input.container ? await containerRunStepOptions(input.container) : {}),
-    // The Git config on the runner points at helpers on the runner, so a container gets its own.
-    ...gitConfigGlobalOption(input),
-    ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
-    ...(secretMaterial ? {secretEnv: secretMaterial.secretEnv} : {}),
-    ...(stepSecrets.length > 0 ? {secretValues: [...stepSecrets]} : {}),
-    ...(input.subscribeSecrets ? {subscribeSecrets: input.subscribeSecrets} : {}),
-    onCommandStart: (metadata) => writeCommandMetadata(stepStream, metadata),
-    onOutput: (chunk, source) => stepStream?.write(chunk, source),
+  const result = await reportOutOfMemoryKills({
+    ...(await outOfMemoryReportOptions(input)),
+    run: async () =>
+      executeRunStep(input.step, {
+        signal: input.signal,
+        tempDir: input.jobTempDir,
+        cwd: params.stepCwd,
+        workspace: input.cwd,
+        ...(input.container ? await containerRunStepOptions(input.container) : {}),
+        // The Git config on the runner points at helpers on the runner, so a container gets its own.
+        ...gitConfigGlobalOption(input),
+        ...(input.carriedEnv ? {carriedEnv: input.carriedEnv} : {}),
+        ...(secretMaterial ? {secretEnv: secretMaterial.secretEnv} : {}),
+        ...(stepSecrets.length > 0 ? {secretValues: [...stepSecrets]} : {}),
+        ...(input.subscribeSecrets ? {subscribeSecrets: input.subscribeSecrets} : {}),
+        onCommandStart: (metadata) => writeCommandMetadata(stepStream, metadata),
+        onOutput: (chunk, source) => stepStream?.write(chunk, source),
+      }),
   });
   return finishProcessStep(params, stepStream, result);
+}
+
+async function outOfMemoryReportOptions(input: {
+  step: StepDto;
+  signal: AbortSignal;
+}): Promise<Omit<Parameters<typeof reportOutOfMemoryKills>[0], 'run'>> {
+  return {
+    memoryEventsPath: await resolveCgroupMemoryEventsPath(),
+    // One annotation per step, so a later step does not replace an earlier report.
+    annotationContext: `out-of-memory-${input.step.id}`,
+    signal: input.signal,
+  };
 }
 
 function gitConfigGlobalOption(input: {
