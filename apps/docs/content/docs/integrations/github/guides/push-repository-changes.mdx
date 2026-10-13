@@ -80,6 +80,10 @@ fields](/reference/workflow-schema#checkout-fields).
 
 The runner renews persisted Git credentials during long jobs.
 
-Git commands inside a container started by a user step do not receive the host
-runner's credential helper or Unix socket. Supply a credential explicitly to
-that container when it needs authenticated Git access.
+The credential also works in a [job
+container](/how-to/author-workflows/run-job-in-container). When a job has a
+`container` field, its steps can push with the same credential.
+
+The credential does not work in a container that a step starts, for example
+with `docker run`. Git in that container has no credential. Pass a token to
+that container when it must push or pull.

@@ -392,8 +392,7 @@ function renderWorkflowSchemaData() {
 let cachedWorkflowSchemaDocument;
 function workflowSchemaDocument() {
   cachedWorkflowSchemaDocument ??= buildWorkflowSchemaDocument({
-    // The reference gets its job container section with the job containers docs.
-    schema: buildWorkflowJsonSchema({containers: false}),
+    schema: buildWorkflowJsonSchema(),
     examples: readWorkflowSchemaExamples(),
     parseYaml: (code) => load(code),
     validate: parseWorkflowDocument,

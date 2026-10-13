@@ -11,6 +11,7 @@ const requiredAnchors = new Set([
   'concurrency-fields',
   'trigger-fields',
   'job-fields',
+  'job-container-fields',
   'job-checkout-fields',
   'listening-fields',
   'listening-batch-fields',

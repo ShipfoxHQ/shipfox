@@ -20,6 +20,10 @@ export const WORKFLOW_FIELD_YAML_KEYS = {
   'agent.thinking': 'jobs.<job_id>.steps[*].thinking',
   'agent.session': 'jobs.<job_id>.steps[*].session',
   'job.runner': 'jobs.<job_id>.runner',
+  'job.container.image': 'jobs.<job_id>.container.image',
+  'job.container.credentials': 'jobs.<job_id>.container.credentials.<field>',
+  'job.container.env.value': 'jobs.<job_id>.container.env.<name>',
+  'job.container.options': 'jobs.<job_id>.container.options',
   'job.outputs': 'jobs.<job_id>.outputs.<name>',
   'workflow.run_name': 'run_name',
   'workflow.concurrency.group': 'concurrency.group',
@@ -37,14 +41,8 @@ export const WORKFLOW_FIELD_YAML_KEYS = {
   'tool.outputs': 'jobs.<job_id>.steps[*].outputs.<name>',
 };
 
-// Action steps and job containers stay out of the docs until they launch.
-export const UNDOCUMENTED_WORKFLOW_FIELDS = new Set([
-  'action.with',
-  'job.container.image',
-  'job.container.options',
-  'job.container.credentials',
-  'job.container.env.value',
-]);
+// Action steps stay out of the docs until they launch.
+export const UNDOCUMENTED_WORKFLOW_FIELDS = new Set(['action.with']);
 
 // Keep the shape lookup here so generation and drift checking traverse the same
 // typed registry.

@@ -1,0 +1,15 @@
+name: Lint with the toolbox image
+jobs:
+  lint:
+    runner: shipfox
+    container:
+      image: ghcr.io/acme/toolbox:2026.10
+      credentials:
+        username: acme-bot
+        password: ${{ secrets.GHCR_TOKEN }}
+      env:
+        LICENSE_KEY: ${{ secrets.TOOLBOX_LICENSE }}
+      options: --cpus 4 --memory 12g
+      docker_socket: false
+    steps:
+      - run: acme-lint --strict

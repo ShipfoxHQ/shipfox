@@ -1544,7 +1544,8 @@ const workflowDocumentJobOutputsSchema = outputsMappingSchema('Job');
 // written, so it is not validated here.
 const workflowDocumentContainerObjectSchema = z.strictObject({
   image: z.string().min(1).meta({
-    description: 'Names the Docker image the job runs in. Supports workflow expressions.',
+    description:
+      'Names the Docker image the job runs in. The `ENTRYPOINT` and `CMD` of the image do not run. Supports workflow expressions, but cannot read secrets.',
   }),
   credentials: z
     .strictObject({
@@ -1558,10 +1559,10 @@ const workflowDocumentContainerObjectSchema = z.strictObject({
   }),
   options: z.string().optional().meta({
     description:
-      'Passes extra flags to `docker create`, as written. Supports workflow expressions.',
+      'Passes extra flags to `docker create`, as written. Do not set `--network` or `--entrypoint`: the runner sets them. Supports workflow expressions, but cannot read secrets.',
   }),
   docker_socket: z.boolean().optional().meta({
-    description: 'Mounts the host Docker socket into the container. Defaults to `true`.',
+    description: 'Mounts the Docker socket of the runner into the container.',
   }),
 });
 

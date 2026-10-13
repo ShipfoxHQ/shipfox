@@ -75,10 +75,41 @@ The runner configures Git to call the `git-credential-shipfox` helper, so that
 command must be on the runner's `PATH`. Runner images install it. A runner started
 another way needs the helper from the runner package on its `PATH`.
 
-Git commands started inside a container from a user step do not inherit the host
-runner's helper or Unix socket. Supply an explicit credential to that container
-when it needs authenticated Git access. Mounting the job workspace alone does not
-change this boundary.
+The credential also works in a [job container](#job-containers). The steps of a
+job that has a `container` field can use it.
+
+The credential does not work in a container that a step starts, for example
+with `docker run`. Git in that container has no credential, even when the job
+workspace is mounted. Pass a token to that container when it must use Git with
+authentication.
+
+## Job containers
+
+A job can have a [`container`](/reference/workflow-schema#job-container-fields)
+field. The runner then starts a Docker container and runs the steps of the job
+in it.
+
+The runner needs two things:
+
+- The `docker` command.
+- A local Docker daemon that the runner user can use.
+
+If one is missing, **Set up job** fails and shows the error from Docker.
+
+The runner pulls the image for its own platform: `linux/amd64` or
+`linux/arm64`. The job workspace has the same path in the container and on the
+runner. The runner also mounts its own files under `/__shipfox`. The container
+cannot change them.
+
+A step in a job container runs as the default user of the image. If that user
+is `root`, the job can leave files that the runner user cannot delete. The
+runner deletes them with `sudo`. The runner images allow `sudo` without a
+password. On a runner where `sudo` asks for a password, delete those files
+yourself.
+
+An old runner does not know the `container` field. It ignores the field and
+runs the job on the runner itself. Upgrade your self-hosted runners when you
+upgrade the API.
 
 ## Renewable inference credentials
 

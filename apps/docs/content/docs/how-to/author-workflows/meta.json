@@ -15,6 +15,7 @@
     "run-shell-commands",
     "set-environment-variables-for-later-steps",
     "choose-runners",
+    "run-job-in-container",
     "group-command-logs",
     "---Use agents---",
     "add-agent-steps",

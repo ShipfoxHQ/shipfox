@@ -1,0 +1,166 @@
+---
+title: "Run a Job in a Container"
+sidebarTitle: "Run Jobs in Containers"
+description: "Run the steps of a job inside a Docker image that holds your tools. The example runs a Node.js command from the public `node:24-bookworm` image."
+---
+
+**Use the `container` field to run a job inside a Docker image.** Use it when
+your tools are already in an image. Commands and agents then use the same tool
+versions as your team.
+
+This guide runs `node --version` from the public `node:24-bookworm` image. Keep
+the `container` field. Replace the image and the commands with your own.
+
+## Before you begin
+
+- Complete onboarding in [Shipfox](https://app.shipfox.io).
+- For a private image, [create a
+  secret](/how-to/set-up-work/secrets-and-variables) that holds the registry
+  password or token.
+
+## Add the container
+
+This is a complete workflow. Commit it to the project's default branch.
+
+```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Run in a container
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+
+jobs:
+  versions:
+    container: node:24-bookworm
+    steps:
+      - key: node
+        run: node --version
+      - key: system
+        run: cat /etc/os-release
+```
+
+This is what happens when the job starts:
+
+1. In **Set up job**, the runner pulls the image and starts one container.
+2. Each run step runs in that container.
+3. An agent step also runs its shell commands in that container. It reads and
+   edits files there too.
+
+The steps share the repository files, as they do in a job without a container.
+
+Each job that uses a container needs the `container` field. The two steps
+belong to the example only.
+
+## Pull a private image
+
+Replace the `container` line of the example with this fragment. The runner
+signs in to the registry before it pulls the image. The registry is the host at
+the start of the image name. An image name without a host uses Docker Hub.
+
+```yaml
+    container:
+      image: ghcr.io/acme/toolbox:2026.10
+      credentials:
+        username: acme-bot
+        password: ${{ secrets.GHCR_TOKEN }}
+```
+
+Read the password from a secret. The username can be plain text or a secret.
+The `image` field cannot read a secret.
+
+## Choose an image that works
+
+The image must match the platform of the runner. Shipfox-hosted runners use
+`linux/amd64`. See [Hosted runners](/reference/runner-labels).
+
+The image must also have the tools that the job uses:
+
+| The job uses | The image needs |
+| --- | --- |
+| Run steps | `sh` and the basic core utilities. Alpine images work. A run step uses `bash` if the image has it. If not, it uses `sh`. |
+| Agent steps with the `pi` harness | The same as run steps. |
+| Agent steps with the `claude` harness | A glibc image, such as Debian or Ubuntu. Alpine images do not work. |
+| Git commands that use the checkout credential, such as `git push` | `git` and a glibc image. |
+| Docker commands | The `docker` command. |
+
+The `claude` harness and the Git credential use programs from the runner. These
+programs need glibc. On an Alpine image, the step fails when it starts.
+
+Three more rules apply in a job container:
+
+- The `ENTRYPOINT` and `CMD` of the image do not run. If the job needs a
+  service, start it from a step.
+- Steps run as the default user of the image. `PATH` and `HOME` come from the
+  image.
+- The `pi` harness has no `grep` tool and no `find` tool. The agent searches
+  with shell commands. Put the search tools that you want in the image.
+
+## Use Docker inside the job
+
+A step in a job container can use Docker. It can build images and start other
+containers. The image must have the `docker` command.
+
+Add this step to the `versions` job of the example. Use an image that has the
+`docker` command.
+
+```yaml
+      - key: files
+        run: docker run --rm -v "$PWD:/src" busybox ls /src
+```
+
+The step lists the repository files. You can mount `$PWD` because the
+repository has the same path in the job container and on the runner.
+
+Shipfox removes the job container when the job ends. It does not remove the
+containers that your steps start. Use `--rm`, or remove them in a later step.
+
+## Pass Docker options
+
+The `options` field adds flags to the `docker create` command. Shipfox does not
+check the flags. This fragment sets a CPU limit and a memory limit, and mounts
+a named volume:
+
+```yaml
+    container:
+      image: ghcr.io/acme/toolbox:2026.10
+      options: --cpus 4 --memory 12g -v cargo-cache:/usr/local/cargo/registry
+```
+
+Do not set `--network` or `--entrypoint`. Shipfox sets these two flags. If you
+change them, the job can fail.
+
+The container uses the network of the runner. You do not need to publish a
+port. The `options` field cannot read a secret.
+
+## Adapt it to your workflow
+
+| To... | Change this |
+| --- | --- |
+| Set a variable for every step of the job | Add `env` under `container`. A value can read a secret. See [Container fields](/reference/workflow-schema#job-container-fields). |
+| Run the job without Docker access | Set `docker_socket: false` under `container`. |
+| Let an agent use the tools of the image | Add an agent step to the job. See [Add an agent step](/how-to/author-workflows/add-agent-steps). |
+| Push commits from the job | Use a glibc image that has `git`. See [Push repository changes](/integrations/github/guides/push-repository-changes). |
+| Use one image for some jobs only | Set `container` on each of those jobs. The other jobs run on the runner. |
+
+## Verify the container
+
+Start the workflow from the **Workflows** tab, then open the run.
+
+1. Open **Set up job**. Confirm that the log shows the image pull. Confirm that
+   a line says the job container is running.
+2. Open a run step. Confirm that its output comes from the image.
+
+In the example, the `node` step prints a version that starts with `v24`. The
+`system` step prints a Debian release. The hosted runner uses Ubuntu, so this
+output comes from the image.
+
+## If the container does not start
+
+**Set up job** fails with the message **The job container did not start**. Its
+log shows the error from Docker. Check the image name, the registry
+credentials, and the `options` value. Then start a new run.
+
+If you manage the runner, it needs Docker. See [Job
+containers](/reference/runner#job-containers) in the runner reference.
