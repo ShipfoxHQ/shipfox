@@ -9,6 +9,7 @@ import {
 } from '@shipfox/actions/testing';
 
 const save = new URL('./', import.meta.url);
+const restore = new URL('../cache-restore/', import.meta.url);
 
 describe('cache-save', () => {
   let cache: CacheFake;
@@ -37,10 +38,10 @@ describe('cache-save', () => {
     return path;
   }
 
-  async function run(inputs: Record<string, unknown>, workspace: string) {
+  async function run(inputs: Record<string, unknown>, workspace: string, action = save) {
     const home = await realpath(await mkdtemp(join(tmpdir(), 'cache-save-home-')));
     directories.push(home);
-    const result = await runAction(save, {inputs, cache, workspace, env: {HOME: home}});
+    const result = await runAction(action, {inputs, cache, workspace, env: {HOME: home}});
     workspaces.push(result.workspace);
     return result;
   }
@@ -59,6 +60,11 @@ describe('cache-save', () => {
     expect(second.status).toBe('succeeded');
     expect(second.outputs.saved).toBe(false);
     expect(cache.entries).toHaveLength(1);
+
+    // The first archive is untouched: a restore still brings back the first content.
+    const restored = await run({paths: 'node_modules', key: 'deps'}, await checkout({}), restore);
+    expect(restored.outputs.hit).toBe(true);
+    expect(await restored.workspace.read('node_modules/a.txt')).toBe('first');
   });
 
   it('succeeds with saved false when no path matches', async () => {
