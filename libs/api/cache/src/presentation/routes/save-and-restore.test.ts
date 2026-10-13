@@ -103,15 +103,21 @@ describe('cache save and restore', () => {
 
   it('prefers the exact key over a restore key that also matches', async () => {
     const job = await startJob();
-    await saveEntry(testApp.app, job, {key: 'pnpm-1', body: archiveOf('old')});
-    await saveEntry(testApp.app, job, {key: 'pnpm-2', body: archiveOf('exact')});
+    const exactId = await saveEntry(testApp.app, job, {key: 'pnpm-2', body: archiveOf('exact')});
+    const newerId = await saveEntry(testApp.app, job, {key: 'pnpm-3', body: archiveOf('newer')});
+    await setCommittedAt({id: exactId, at: new Date(Date.now() - 60_000)});
+    await setCommittedAt({id: newerId, at: new Date(Date.now() - 1_000)});
 
     const res = await cacheClient(testApp.app, job).restore({
       key: 'pnpm-2',
       restore_keys: ['pnpm-'],
     });
 
-    expect((res.json() as {hit: Hit}).hit).toMatchObject({key: 'pnpm-2', exact: true});
+    expect((res.json() as {hit: Hit}).hit).toMatchObject({
+      entry_id: exactId,
+      key: 'pnpm-2',
+      exact: true,
+    });
   });
 
   it('falls back to the newest entry matching a restore key', async () => {
@@ -148,15 +154,32 @@ describe('cache save and restore', () => {
 
   it('reads the scopes in order and reports the scope that matched', async () => {
     const job = await startJob();
-    await saveEntry(testApp.app, job, {scope: 'main', key: 'k', body: archiveOf('from main')});
-
-    const res = await cacheClient(testApp.app, job).restore({
-      scope: 'pr-12',
-      fallback_scopes: ['other', 'main'],
+    const mainId = await saveEntry(testApp.app, job, {
+      scope: 'main',
       key: 'k',
+      body: archiveOf('from main'),
     });
+    const otherId = await saveEntry(testApp.app, job, {
+      scope: 'other',
+      key: 'k',
+      body: archiveOf('from other'),
+    });
+    const request = {scope: 'pr-12', fallback_scopes: ['other', 'main'], key: 'k'};
 
-    expect((res.json() as {hit: Hit}).hit).toMatchObject({scope: 'main', key: 'k'});
+    const fromFallbacks = await cacheClient(testApp.app, job).restore(request);
+    const prId = await saveEntry(testApp.app, job, {
+      scope: 'pr-12',
+      key: 'k',
+      body: archiveOf('from the pr'),
+    });
+    const fromPrimary = await cacheClient(testApp.app, job).restore(request);
+
+    expect((fromFallbacks.json() as {hit: Hit}).hit).toMatchObject({
+      entry_id: otherId,
+      scope: 'other',
+    });
+    expect((fromFallbacks.json() as {hit: Hit}).hit.entry_id).not.toBe(mainId);
+    expect((fromPrimary.json() as {hit: Hit}).hit).toMatchObject({entry_id: prId, scope: 'pr-12'});
   });
 
   it('treats restore keys as literal prefixes', async () => {

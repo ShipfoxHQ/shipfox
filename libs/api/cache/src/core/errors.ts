@@ -1,6 +1,8 @@
 export class ReservedScopeError extends Error {
   constructor(public readonly scope: string) {
-    super(`Scope ${scope} uses the reserved dev/ prefix`);
+    super(
+      `Scope ${scope} is reserved: the scope dev and the dev/ prefix belong to dev-run sandboxes`,
+    );
     this.name = 'ReservedScopeError';
   }
 }

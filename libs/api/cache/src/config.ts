@@ -54,9 +54,13 @@ export const config = createConfig({
 
 const MAX_PRESIGN_TTL_SECONDS = 604_800;
 
-if (config.CACHE_URL_TTL_SECONDS < 1 || config.CACHE_URL_TTL_SECONDS > MAX_PRESIGN_TTL_SECONDS) {
+if (
+  !Number.isInteger(config.CACHE_URL_TTL_SECONDS) ||
+  config.CACHE_URL_TTL_SECONDS < 1 ||
+  config.CACHE_URL_TTL_SECONDS > MAX_PRESIGN_TTL_SECONDS
+) {
   throw new Error(
-    `CACHE_URL_TTL_SECONDS must be between 1 and ${MAX_PRESIGN_TTL_SECONDS}; got ${config.CACHE_URL_TTL_SECONDS}`,
+    `CACHE_URL_TTL_SECONDS must be a whole number between 1 and ${MAX_PRESIGN_TTL_SECONDS}; got ${config.CACHE_URL_TTL_SECONDS}`,
   );
 }
 

@@ -2,7 +2,8 @@ import './env.js';
 import {runMigrations} from '@shipfox/node-drizzle';
 import {closePostgresClient, createPostgresClient} from '@shipfox/node-postgres';
 import {sql} from 'drizzle-orm';
-import {checkBucketReachable, closeS3Client} from '#api/object-storage.js';
+import {checkBucketReachable, closeS3Client, objectStore} from '#api/object-storage.js';
+import {config} from '#config.js';
 import {closeDb, db} from '#db/db.js';
 import {migrationsPath} from '#db/index.js';
 
@@ -35,5 +36,8 @@ export async function setup() {
   await closePostgresClient();
 
   await waitForBucketReachable(BUCKET_READY_TIMEOUT_MS);
+  // The rows are truncated above, so the objects of earlier runs are unreachable. Dropping them
+  // keeps the 1 GB test bucket from filling up.
+  await objectStore().deleteByPrefix(`${config.CACHE_STORAGE_S3_PREFIX}/`);
   closeS3Client();
 }

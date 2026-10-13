@@ -34,7 +34,7 @@ console.log(body.fallback_scopes);
 
 ## Behavior notes
 
-- **Scopes:** A scope uses letters, digits, and `. _ - /`. The `dev/` prefix is reserved for dev-run sandboxes. The API rejects it with `reserved-scope`, not the schema.
+- **Scopes:** A scope uses letters, digits, and `. _ - /`. The scope `dev` and the `dev/` prefix are reserved for dev-run sandboxes. The API rejects it with `reserved-scope`, not the schema.
 - **Reserve results:** A reserve answers `reserved` with one signed PUT URL per part in part order, or `exists`, `in_progress`, or `too_large`. Every part except the last has `part_size` bytes.
 - **Restore hit:** `scope` is the scope the author wrote, even when the entry came from a dev sandbox. `url` accepts `Range` headers.
 

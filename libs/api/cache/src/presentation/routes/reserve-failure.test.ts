@@ -35,6 +35,7 @@ describe('cache reserve when recording the upload id fails', () => {
 
     expect(res.statusCode).toBe(500);
     expect(abort).toHaveBeenCalledTimes(1);
+    await expect(abort.mock.results[0]?.value).resolves.toBeUndefined();
     expect(
       await findEntryRow({projectId: job.projectId, scope: 'default', key: 'half-started'}),
     ).toBeUndefined();

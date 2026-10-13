@@ -55,10 +55,13 @@ the job execution that reserved an upload can commit or abort it.
 prefix is reserved, and a body that names it is rejected. A dev run cannot change what a synced
 run, or another user's dev run, restores.
 
-**The module checks the object before it trusts the row.** It calls `head` at commit, before it
-signs a download, and when a save asks whether a key exists. A missing object, or one of another
-size, deletes the row with reason `missing` and the lookup continues. A failing `head` call
-trusts the row, because a dead URL is a miss on the runner.
+**The module checks the object before it trusts the row.** Before it signs a download, and when
+a save asks whether a key exists, it calls `head` on the ready entry. A missing object, or one of
+another size, deletes the row with reason `missing` and the lookup continues. A failing `head`
+call trusts the row, because a dead URL is a miss on the runner. At commit, `head` checks the
+upload instead: a missing object or a size that differs from the reservation deletes the
+uploading row and fails the save without a deletion record, and a failing `head` call leaves the
+row uploading for a retry or an abort.
 
 ### The object store gains signed multipart uploads
 

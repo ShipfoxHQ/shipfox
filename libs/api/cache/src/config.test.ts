@@ -16,6 +16,7 @@ describe('cache config', () => {
   it.each([
     ['CACHE_URL_TTL_SECONDS', '0'],
     ['CACHE_URL_TTL_SECONDS', '604801'],
+    ['CACHE_URL_TTL_SECONDS', '0.5'],
     ['CACHE_MAX_ENTRY_BYTES', '0'],
     ['CACHE_MAX_ENTRY_BYTES', String(10_001 * 32 * 1024 * 1024)],
     ['CACHE_DEFAULT_RETENTION_DAYS', '0'],
