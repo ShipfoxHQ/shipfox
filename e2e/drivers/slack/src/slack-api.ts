@@ -564,6 +564,7 @@ function handleScheduleMessage(context: SlackRequestContext): void {
     sendJson(context.response, 200, {ok: false, error: 'invalid_time'});
     return;
   }
+  if (knownChannel(context, channel) === undefined) return;
   const scheduled: ScheduledMessage = {
     id: `Q${String(++context.state.sequence.scheduled).padStart(10, '0')}`,
     channelId: channel ?? '',
@@ -739,7 +740,7 @@ function existingMessages(
   {channel, ts}: {channel: string | undefined; ts: string | undefined},
 ): Record<string, unknown>[] | undefined {
   const stored = context.state.messages.get(channel ?? '');
-  if (stored === undefined && !context.state.channels.has(channel ?? '')) {
+  if (!context.state.channels.has(channel ?? '')) {
     sendJson(context.response, 200, {ok: false, error: 'channel_not_found'});
     return undefined;
   }

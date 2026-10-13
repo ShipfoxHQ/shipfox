@@ -17,11 +17,12 @@ A fake Slack Web API and Events sender for E2E suites. The fake stands in for `s
   the read methods serve. Channel methods answer `channel_not_found` for a channel that is not
   seeded, and page by cursor like Slack does. `SlackChannelSeed` describes a channel.
 - `SlackApiMock.calls`: every request the fake handled, as `SlackApiMockCall` entries.
-- Writes change the fake's state, so reads return them: a posted message is in the channel history
-  and its thread, an update replaces its text, a reaction is in its `reactions`, a scheduled message
-  is in `chat.scheduledMessages.list` within its `post_at`, and a created canvas answers section
-  lookups. Each posted message gets the next `ts`, starting at `SLACK_POSTED_TS`. A channel that
-  is not seeded still accepts posts, but not updates or reactions.
+- Writes change the fake's state, so reads return them: a top-level post to a seeded channel is in
+  its history and thread, a thread reply is in its thread only, an update replaces the text, a
+  reaction is in `reactions`, a scheduled message is in `chat.scheduledMessages.list` within its
+  `post_at`, and a created canvas answers section lookups. Messages get increasing `ts` values,
+  starting at `SLACK_POSTED_TS`. A channel that is not seeded still accepts posts, but answers
+  `channel_not_found` to updates, reactions, scheduled messages, and reads.
 - `SlackApiMock.writes()`: the writes the fake accepted, as `RecordedWrite` entries. A post targets
   its channel, an update or reaction its `channel/ts`, a scheduled message its channel, and a
   canvas its ID. A post made to fail with `setPostMessageError` is in `calls` but not in

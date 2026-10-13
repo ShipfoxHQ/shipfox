@@ -352,7 +352,20 @@ describe('Slack API mock', () => {
           ok: false,
           error: 'already_reacted',
         });
-        expect(mock.writes()).toHaveLength(2);
+        // A post to a channel that is not seeded is accepted, but nothing else reaches it.
+        const unseeded = await post('chat.postMessage', {channel: 'C9', text: 'hello'});
+        expect(await post('chat.update', {channel: 'C9', ts: unseeded.ts, text: 'x'})).toEqual({
+          ok: false,
+          error: 'channel_not_found',
+        });
+        expect(
+          await post('chat.scheduleMessage', {channel: 'C9', text: 'x', post_at: '2000000000'}),
+        ).toEqual({ok: false, error: 'channel_not_found'});
+        expect(mock.writes().map((write) => write.kind)).toEqual([
+          'chat.postMessage',
+          'reactions.add',
+          'chat.postMessage',
+        ]);
       } finally {
         await mock.stop();
       }
