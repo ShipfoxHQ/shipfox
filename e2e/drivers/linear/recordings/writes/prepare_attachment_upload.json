@@ -1,0 +1,18 @@
+{
+  "tool": "prepare_attachment_upload",
+  "arguments": {
+    "issue": "SAW-35",
+    "title": "Contract upload",
+    "filename": "contract.txt",
+    "contentType": "text/plain",
+    "size": 5
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"issueId\":\"d8288107-13d5-4c9f-a023-268bb478ef0e\",\"assetUrl\":\"https://uploads.linear.app/e484a79e-8b9a-4a38-a993-d4c2b102f0ad/b8ccdb07-6586-43e4-95bc-4a435995b35c/148a09c4-1c4d-4bfd-b4f6-3979d1df50b5\",\"expiresInSeconds\":60,\"nextAction\":\"Immediately upload this file with uploadRequest, then call create_attachment_from_upload. If uploading multiple files, finish prepare -> PUT -> create_attachment_from_upload for one file before preparing the next.\",\"uploadRequest\":{\"method\":\"PUT\",\"url\":\"https://storage.googleapis.com/linear-uploads-europe-west1/e484a79e-8b9a-4a38-a993-d4c2b102f0ad/b8ccdb07-6586-43e4-95bc-4a435995b35c/148a09c4-1c4d-4bfd-b4f6-3979d1df50b5?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=linear-server%40linear-1.iam.gserviceaccount.com%2F20261013%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20261013T154802Z&X-Goog-Expires=60&X-Goog-SignedHeaders=content-type%3Bhost%3Bx-goog-content-length-range&X-Goog-Signature=a0c7f355e95a2fb03d87464b8342ff9e33bdc402c67078b3843b79dc09585aa78ad0d1bfb9f3f7dc801124d852c72642c8e4bb1ca1f9561759e65cdb2a1c3258dd04d1718d9e2e3b38c2821e6f73b6906a1ed60233b7b7b2291c9535bbc2a4202091a459bbb566d16f1166ef78f00b4f0203a29c3aac63bc8f8c16f0de00a61fe87585d51032475f05604a4bf8a6d4afaa2bb832935800c02da045f7a20594b8fe521fb1715f0dfc0e7406247c1cb7ff093627939a7ff0e4ff745ba0b6227c91f4e60aee116d706b2f30fa6ff363daff6c87e12f0771af078057f52aed0397d85f78d4758e182c6f793ad2fb503ba0d7eae3ddc8a4700d1c6c55e1b8e0cc93d0\",\"headers\":{\"content-type\":\"text/plain\",\"cache-control\":\"public, max-age=31536000\",\"x-goog-content-length-range\":\"5,5\",\"Content-Disposition\":\"attachment; filename=\\\"contract.txt\\\"\"}},\"finalize\":{\"tool\":\"create_attachment_from_upload\",\"input\":{\"issue\":\"SAW-35\",\"assetUrl\":\"https://uploads.linear.app/e484a79e-8b9a-4a38-a993-d4c2b102f0ad/b8ccdb07-6586-43e4-95bc-4a435995b35c/148a09c4-1c4d-4bfd-b4f6-3979d1df50b5\",\"title\":\"Contract upload\"}}}"
+      }
+    ]
+  }
+}

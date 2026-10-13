@@ -1,6 +1,6 @@
 provider: linear
 kind: round-trip
-modes: [real]
+modes: [real, fake]
 steps:
   - key: create
     tool: save_issue

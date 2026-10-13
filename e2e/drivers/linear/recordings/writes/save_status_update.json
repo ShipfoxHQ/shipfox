@@ -1,0 +1,17 @@
+{
+  "tool": "save_status_update",
+  "arguments": {
+    "type": "project",
+    "project": "bc802839-f87c-4a06-9a36-389c081c98ec",
+    "body": "Created by a contract.",
+    "health": "onTrack"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"b18d5938-446e-443a-9151-7aa8267d1f05\",\"body\":\"Created by a contract.\",\"health\":\"onTrack\",\"url\":\"https://linear.app/shipfox-sandbox/project/contract-contract-a02d57f9-d249-4631-adc2-a23b8e57928a-126197060482/activity#project-update-b18d5938\",\"createdAt\":\"2026-10-13T15:48:36.249Z\",\"updatedAt\":\"2026-10-13T15:48:36.249Z\",\"editedAt\":null,\"archivedAt\":null,\"diffMarkdown\":\"**Status**: Backlog\",\"isDiffHidden\":false,\"user\":{\"id\":\"6bb15791-3a74-424e-837f-4c9618732360\",\"name\":\"Noé Charmet\"},\"type\":\"project\",\"project\":{\"id\":\"bc802839-f87c-4a06-9a36-389c081c98ec\",\"name\":\"Contract contract-a02d57f9-d249-4631-adc2-a23b8e57928a\"}}"
+      }
+    ]
+  }
+}

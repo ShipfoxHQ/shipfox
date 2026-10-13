@@ -1,0 +1,16 @@
+{
+  "tool": "create_issue_label",
+  "arguments": {
+    "name": "Contract contract-8592ba03-8b2b-4940-9676-4ca6403d2ef2",
+    "color": "#4EA7FC",
+    "description": "Created by a contract."
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"db1c5668-41c3-416a-a572-1618a7e5b16a\",\"name\":\"Contract contract-8592ba03-8b2b-4940-9676-4ca6403d2ef2\",\"color\":\"#4EA7FC\",\"description\":\"Created by a contract.\",\"isGroup\":false}"
+      }
+    ]
+  }
+}

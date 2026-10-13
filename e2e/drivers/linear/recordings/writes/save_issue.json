@@ -1,0 +1,16 @@
+{
+  "tool": "save_issue",
+  "arguments": {
+    "team": "9356e9c7-94d5-444d-83eb-d54b22c8082c",
+    "title": "Contract contract-391f6e38-d853-4413-888e-da5bc5c0cef7",
+    "description": "Holds the attachment of a contract."
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"SAW-34\",\"uuid\":\"9128c860-aa51-44c8-8eeb-8a58e50cadfc\",\"title\":\"Contract contract-391f6e38-d853-4413-888e-da5bc5c0cef7\",\"description\":\"Holds the attachment of a contract.\",\"priority\":{\"value\":0,\"name\":\"No priority\"},\"url\":\"https://linear.app/shipfox-sandbox/issue/SAW-34/contract-contract-391f6e38-d853-4413-888e-da5bc5c0cef7\",\"gitBranchName\":\"noecharmet/saw-34-contract-contract-391f6e38-d853-4413-888e-da5bc5c0cef7\",\"createdAt\":\"2026-10-13T15:47:53.707Z\",\"updatedAt\":\"2026-10-13T15:47:53.707Z\",\"archivedAt\":null,\"completedAt\":null,\"startedAt\":null,\"canceledAt\":null,\"dueDate\":null,\"slaStartedAt\":null,\"slaMediumRiskAt\":null,\"slaHighRiskAt\":null,\"slaBreachesAt\":null,\"status\":\"Backlog\",\"statusType\":\"backlog\",\"labels\":[],\"attachments\":[],\"documents\":[],\"createdBy\":\"Noé Charmet\",\"createdById\":\"6bb15791-3a74-424e-837f-4c9618732360\",\"team\":\"sandbox-write\",\"teamId\":\"9356e9c7-94d5-444d-83eb-d54b22c8082c\"}"
+      }
+    ]
+  }
+}

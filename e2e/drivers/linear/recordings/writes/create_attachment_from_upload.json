@@ -1,0 +1,16 @@
+{
+  "tool": "create_attachment_from_upload",
+  "arguments": {
+    "issue": "SAW-35",
+    "assetUrl": "https://uploads.linear.app/e484a79e-8b9a-4a38-a993-d4c2b102f0ad/b8ccdb07-6586-43e4-95bc-4a435995b35c/148a09c4-1c4d-4bfd-b4f6-3979d1df50b5",
+    "title": "Contract upload"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"0c3977da-a621-410e-bd01-d1cba13fadd7\",\"title\":\"Contract upload\",\"url\":\"https://uploads.linear.app/e484a79e-8b9a-4a38-a993-d4c2b102f0ad/b8ccdb07-6586-43e4-95bc-4a435995b35c/148a09c4-1c4d-4bfd-b4f6-3979d1df50b5?signature=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXRoIjoiL2U0ODRhNzllLThiOWEtNGEzOC1hOTkzLWQ0YzJiMTAyZjBhZC9iOGNjZGIwNy02NTg2LTQzZTQtOTViYy00YTQzNTk5NWIzNWMvMTQ4YTA5YzQtMWM0ZC00YmZkLWI0ZjYtMzk3OWQxZGY1MGI1IiwiaWF0IjoxNzkxOTA2NDgzLCJleHAiOjE3OTE5MDY3ODN9.mIL511NFQzY5R-veNJfOlCeuWm_vmMr8IhJBWgnIPXM\"}"
+      }
+    ]
+  }
+}

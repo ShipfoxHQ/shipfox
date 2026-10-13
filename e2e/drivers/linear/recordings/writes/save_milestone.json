@@ -1,0 +1,16 @@
+{
+  "tool": "save_milestone",
+  "arguments": {
+    "project": "28bfeb6c-3785-4034-a802-434b36e0829b",
+    "name": "Contract milestone",
+    "description": "Created by a contract."
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"de83920e-6f80-4b32-ade8-e0a6e48435d9\",\"name\":\"Contract milestone\",\"description\":\"Created by a contract.\",\"progress\":0,\"sortOrder\":0}"
+      }
+    ]
+  }
+}

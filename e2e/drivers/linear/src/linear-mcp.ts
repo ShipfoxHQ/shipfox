@@ -5,6 +5,8 @@ import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
 import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-core';
 import {z} from 'zod';
 import {type LinearRecording, linearArgumentsKey} from './linear-recordings.js';
+import {jsonResult, notFound} from './linear-results.js';
+import {createLinearState, LINEAR_STATE_READ_TOOLS, type LinearState} from './linear-state.js';
 
 export const LINEAR_READ_RESULT_MARKER = 'linear-read-result-marker';
 export const LINEAR_WRITE_RESULT_MARKER = 'linear-write-result-marker';
@@ -90,6 +92,13 @@ export interface LinearMcpMockOptions {
    * match, and fails when none does.
    */
   recordings?: readonly LinearRecording[] | undefined;
+  /**
+   * The recorded answer of each write tool, one recording per tool. With these the fake applies
+   * writes to a state of its own and answers the reads that name an object it holds from that
+   * state, so a read after a write returns the change. Reads of any other object replay
+   * `recordings`. It replaces the fixed write answers and `workspace`.
+   */
+  writeRecordings?: readonly LinearRecording[] | undefined;
 }
 
 export interface LinearMcpMock {
@@ -108,7 +117,15 @@ export async function startLinearMcpMock(
   const calls: LinearMcpCall[] = [];
   const uploads: LinearUploadRequest[] = [];
   const createdIssues = {count: 0};
+  const rejected = new WeakSet<LinearMcpCall>();
   let boundEndpoint = new URL('http://127.0.0.1');
+  const state =
+    options.writeRecordings === undefined
+      ? undefined
+      : createLinearState({
+          recordings: options.writeRecordings,
+          uploadsUrl: () => new URL(LINEAR_UPLOADS_PATH, boundEndpoint),
+        });
   const server = createServer((request, response) => {
     const path = new URL(request.url ?? '/', boundEndpoint).pathname;
     if (path.startsWith(LINEAR_UPLOADS_PATH)) {
@@ -119,6 +136,8 @@ export async function startLinearMcpMock(
       calls,
       workspace: options.workspace,
       recordings: options.recordings,
+      state,
+      rejected,
       createdIssues,
       endpoint: boundEndpoint,
       request,
@@ -144,7 +163,7 @@ export async function startLinearMcpMock(
     uploads,
     endpoint: boundEndpoint,
     uploadsUrl: new URL(LINEAR_UPLOADS_PATH, boundEndpoint),
-    writes: () => linearWrites(calls),
+    writes: () => linearWrites(calls, state?.writeTools ?? FIXED_WRITE_TOOLS, rejected),
     stop: async () => {
       try {
         await listening.close();
@@ -155,26 +174,42 @@ export async function startLinearMcpMock(
   };
 }
 
-// `save_comment` names its issue `issueId`, and `save_issue` names it `id`. A `save_issue` without
-// an `id` creates an issue, so its target is the team that owns it.
-const WRITE_TOOLS: Readonly<Record<string, 'issueId' | 'id'>> = {
-  save_comment: 'issueId',
-  save_issue: 'id',
+// A write names its target by the argument below. A `save_issue` without an `id` creates an issue,
+// so its target is the team that owns it.
+const WRITE_TARGETS: Readonly<Record<string, readonly string[]>> = {
+  save_comment: ['issueId'],
+  save_issue: ['id', 'team'],
+  delete_comment: ['id'],
+  create_attachment: ['issue'],
+  prepare_attachment_upload: ['issue'],
+  create_attachment_from_upload: ['issue'],
+  delete_attachment: ['id'],
+  create_issue_label: ['name'],
+  save_document: ['id', 'team'],
+  save_project: ['id', 'name'],
+  save_milestone: ['project'],
+  save_status_update: ['project'],
+  delete_status_update: ['id'],
 };
+const FIXED_WRITE_TOOLS: ReadonlySet<string> = new Set(['save_comment', 'save_issue']);
 
-function writeTarget(call: LinearMcpCall, targetField: 'issueId' | 'id'): string {
-  const target = call.arguments[targetField];
-  if (target === undefined && call.toolName === 'save_issue') {
-    return String(call.arguments.team ?? LINEAR_DEFAULT_TEAM_KEY);
+function writeTarget(call: LinearMcpCall, fields: readonly string[]): string {
+  const field = fields.find((name) => call.arguments[name] !== undefined);
+  if (field === undefined) {
+    return call.toolName === 'save_issue' ? LINEAR_DEFAULT_TEAM_KEY : 'undefined';
   }
-  return String(target);
+  return String(call.arguments[field]);
 }
 
-function linearWrites(calls: readonly LinearMcpCall[]): RecordedWrite[] {
+function linearWrites(
+  calls: readonly LinearMcpCall[],
+  writeTools: ReadonlySet<string>,
+  rejected: WeakSet<LinearMcpCall>,
+): RecordedWrite[] {
   return calls.flatMap((call) => {
-    const targetField = WRITE_TOOLS[call.toolName];
-    if (targetField === undefined) return [];
-    return [{kind: call.toolName, target: writeTarget(call, targetField), payload: call.arguments}];
+    const fields = WRITE_TARGETS[call.toolName];
+    if (fields === undefined || !writeTools.has(call.toolName) || rejected.has(call)) return [];
+    return [{kind: call.toolName, target: writeTarget(call, fields), payload: call.arguments}];
   });
 }
 
@@ -182,6 +217,8 @@ async function handleMcpRequest(params: {
   calls: LinearMcpCall[];
   workspace: LinearWorkspaceFixture | undefined;
   recordings: readonly LinearRecording[] | undefined;
+  state: LinearState | undefined;
+  rejected: WeakSet<LinearMcpCall>;
   createdIssues: {count: number};
   endpoint: URL;
   request: IncomingMessage;
@@ -201,14 +238,24 @@ async function handleMcpRequest(params: {
     const body = await readJsonBody(params.request);
     const mcp = new McpServer({name: 'linear-e2e-mock', version: '0.0.0'});
     const record = (toolName: string, arguments_: Record<string, unknown>) => {
-      params.calls.push({
+      const call = {
         authorization: params.request.headers.authorization,
         arguments: arguments_,
         toolName,
-      });
+      };
+      params.calls.push(call);
+      return call;
     };
-    if (params.recordings !== undefined) {
-      registerRecordedTools(mcp, params.recordings, record);
+    if (params.state !== undefined) {
+      registerRecordedTools({
+        mcp,
+        recordings: params.recordings ?? [],
+        state: params.state,
+        record,
+      });
+      registerStateWriteTools({mcp, state: params.state, rejected: params.rejected, record});
+    } else if (params.recordings !== undefined) {
+      registerRecordedTools({mcp, recordings: params.recordings, record});
     } else if (params.workspace === undefined) {
       mcp.registerTool(
         'get_issue',
@@ -224,47 +271,7 @@ async function handleMcpRequest(params: {
     } else {
       registerWorkspaceTools(mcp, params.workspace, record);
     }
-    mcp.registerTool(
-      'save_comment',
-      {
-        description: 'Save a deterministic Linear comment.',
-        inputSchema: {issueId: z.string(), body: z.string()},
-      },
-      (arguments_) => {
-        record('save_comment', arguments_);
-        return {content: [{type: 'text', text: LINEAR_WRITE_RESULT_MARKER}]};
-      },
-    );
-    mcp.registerTool(
-      'save_issue',
-      {
-        description: 'Create or update a deterministic Linear issue.',
-        inputSchema: {
-          id: z.string().optional(),
-          team: z.string().optional(),
-          project: z.string().optional(),
-          state: z.string().optional(),
-          title: z.string().optional(),
-          description: z.string().optional(),
-          assignee: z.string().optional(),
-          links: z.array(z.object({title: z.string(), url: z.string()})).optional(),
-        },
-      },
-      (arguments_) => {
-        record('save_issue', arguments_);
-        if (arguments_.id !== undefined) {
-          return {content: [{type: 'text', text: LINEAR_WRITE_RESULT_MARKER}]};
-        }
-        // The hosted MCP names an issue by its identifier, and so does the result.
-        params.createdIssues.count += 1;
-        const id = `${arguments_.team ?? LINEAR_DEFAULT_TEAM_KEY}-${LINEAR_CREATED_ISSUE_FIRST_NUMBER + params.createdIssues.count - 1}`;
-        return jsonResult({
-          id,
-          title: arguments_.title,
-          url: `https://linear.app/e2e/issue/${id}`,
-        });
-      },
-    );
+    if (params.state === undefined) registerFixedWriteTools(mcp, params.createdIssues, record);
     const transport = new StreamableHTTPServerTransport();
     await mcp.connect(transport as unknown as Transport);
     params.response.once('close', () => {
@@ -278,33 +285,92 @@ async function handleMcpRequest(params: {
   }
 }
 
-function registerRecordedTools(
+function registerFixedWriteTools(
   mcp: McpServer,
-  recordings: readonly LinearRecording[],
-  record: (toolName: string, arguments_: Record<string, unknown>) => void,
+  createdIssues: {count: number},
+  record: (toolName: string, arguments_: Record<string, unknown>) => unknown,
 ): void {
+  mcp.registerTool(
+    'save_comment',
+    {
+      description: 'Save a deterministic Linear comment.',
+      inputSchema: {issueId: z.string(), body: z.string()},
+    },
+    (arguments_) => {
+      record('save_comment', arguments_);
+      return {content: [{type: 'text', text: LINEAR_WRITE_RESULT_MARKER}]};
+    },
+  );
+  mcp.registerTool(
+    'save_issue',
+    {
+      description: 'Create or update a deterministic Linear issue.',
+      inputSchema: {
+        id: z.string().optional(),
+        team: z.string().optional(),
+        project: z.string().optional(),
+        state: z.string().optional(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        assignee: z.string().optional(),
+        links: z.array(z.object({title: z.string(), url: z.string()})).optional(),
+      },
+    },
+    (arguments_) => {
+      record('save_issue', arguments_);
+      if (arguments_.id !== undefined) {
+        return {content: [{type: 'text', text: LINEAR_WRITE_RESULT_MARKER}]};
+      }
+      // The hosted MCP names an issue by its identifier, and so does the result.
+      createdIssues.count += 1;
+      const id = `${arguments_.team ?? LINEAR_DEFAULT_TEAM_KEY}-${LINEAR_CREATED_ISSUE_FIRST_NUMBER + createdIssues.count - 1}`;
+      return jsonResult({
+        id,
+        title: arguments_.title,
+        url: `https://linear.app/e2e/issue/${id}`,
+      });
+    },
+  );
+}
+
+function registerRecordedTools(params: {
+  mcp: McpServer;
+  recordings: readonly LinearRecording[];
+  state?: LinearState | undefined;
+  record: (toolName: string, arguments_: Record<string, unknown>) => unknown;
+}): void {
   const byTool = new Map<string, LinearRecording[]>();
-  for (const recording of recordings) {
+  for (const recording of params.recordings) {
     byTool.set(recording.tool, [...(byTool.get(recording.tool) ?? []), recording]);
   }
+  if (params.state !== undefined) {
+    for (const tool of LINEAR_STATE_READ_TOOLS) byTool.set(tool, byTool.get(tool) ?? []);
+  }
   for (const [tool, toolRecordings] of byTool) {
+    const readsState =
+      params.state !== undefined && LINEAR_STATE_READ_TOOLS.includes(tool as never);
     // The recorded arguments name the inputs. The fake accepts any value for them and leaves the
     // match to the recording. The schema is strict, because a field it doesn't name would
-    // otherwise be dropped before the match, and a call with other arguments would replay.
-    const inputSchema = z
-      .object(
-        Object.fromEntries(
-          toolRecordings.flatMap((recording) =>
-            Object.keys(recording.arguments).map((name) => [name, z.any().optional()] as const),
-          ),
+    // otherwise be dropped before the match, and a call with other arguments would replay. A read
+    // of the state takes the arguments of its tool, so its schema keeps every field and the match
+    // fails on one the recordings don't name.
+    const fields = z.object(
+      Object.fromEntries(
+        toolRecordings.flatMap((recording) =>
+          Object.keys(recording.arguments).map((name) => [name, z.any().optional()] as const),
         ),
-      )
-      .strict();
-    mcp.registerTool(
+      ),
+    );
+    params.mcp.registerTool(
       tool,
-      {description: `Replay the recorded Linear ${tool} response.`, inputSchema},
+      {
+        description: `Replay the recorded Linear ${tool} response.`,
+        inputSchema: readsState ? fields.loose() : fields.strict(),
+      },
       (arguments_: Record<string, unknown>) => {
-        record(tool, arguments_);
+        params.record(tool, arguments_);
+        const fromState = readsState ? params.state?.read(tool, arguments_) : undefined;
+        if (fromState !== undefined) return fromState;
         const key = linearArgumentsKey(arguments_);
         const match = toolRecordings.find((item) => linearArgumentsKey(item.arguments) === key);
         if (match === undefined) {
@@ -324,10 +390,33 @@ function registerRecordedTools(
   }
 }
 
+function registerStateWriteTools(params: {
+  mcp: McpServer;
+  state: LinearState;
+  rejected: WeakSet<LinearMcpCall>;
+  record: (toolName: string, arguments_: Record<string, unknown>) => LinearMcpCall;
+}): void {
+  for (const tool of params.state.writeTools) {
+    params.mcp.registerTool(
+      tool,
+      {
+        description: `Apply the Linear ${tool} write to the fake's state.`,
+        inputSchema: z.looseObject({}),
+      },
+      (arguments_: Record<string, unknown>) => {
+        const call = params.record(tool, arguments_);
+        const result = params.state.write(tool, arguments_);
+        if (result.isError) params.rejected.add(call);
+        return result;
+      },
+    );
+  }
+}
+
 function registerWorkspaceTools(
   mcp: McpServer,
   workspace: LinearWorkspaceFixture,
-  record: (toolName: string, arguments_: Record<string, unknown>) => void,
+  record: (toolName: string, arguments_: Record<string, unknown>) => unknown,
 ): void {
   const page = z.object({cursor: z.string().optional(), limit: z.number().optional()}).shape;
   mcp.registerTool(
@@ -427,26 +516,6 @@ function paged(
     [key]: items.slice(start, end),
     hasNextPage,
     ...(hasNextPage ? {cursor: String(end)} : {}),
-  };
-}
-
-function jsonResult(value: unknown) {
-  return {content: [{type: 'text' as const, text: JSON.stringify(value)}]};
-}
-
-function notFound(entity: string) {
-  return {
-    isError: true,
-    content: [
-      {
-        type: 'text' as const,
-        text: JSON.stringify({
-          error: 'invalid_request',
-          message: `Could not find referenced ${entity}.`,
-          status: 400,
-        }),
-      },
-    ],
   };
 }
 

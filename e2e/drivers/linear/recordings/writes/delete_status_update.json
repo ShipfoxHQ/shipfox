@@ -1,0 +1,15 @@
+{
+  "tool": "delete_status_update",
+  "arguments": {
+    "type": "project",
+    "id": "b18d5938-446e-443a-9151-7aa8267d1f05"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"deleted\":true,\"id\":\"b18d5938-446e-443a-9151-7aa8267d1f05\"}"
+      }
+    ]
+  }
+}

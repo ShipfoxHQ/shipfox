@@ -1,0 +1,14 @@
+{
+  "tool": "delete_comment",
+  "arguments": {
+    "id": "8a6a5cc6-0072-4c55-84d0-b29f3f59b34e"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true}"
+      }
+    ]
+  }
+}

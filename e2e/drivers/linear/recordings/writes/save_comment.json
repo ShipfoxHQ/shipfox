@@ -1,0 +1,15 @@
+{
+  "tool": "save_comment",
+  "arguments": {
+    "issueId": "SAW-36",
+    "body": "Contract comment"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"8a6a5cc6-0072-4c55-84d0-b29f3f59b34e\",\"body\":\"Contract comment\",\"attachments\":[],\"createdAt\":\"2026-10-13T15:48:09.312Z\",\"updatedAt\":\"2026-10-13T15:48:09.302Z\",\"parentId\":null,\"resolvedAt\":null,\"quotedText\":null,\"author\":{\"id\":\"6bb15791-3a74-424e-837f-4c9618732360\",\"name\":\"Noé Charmet\"},\"onBehalfOf\":null}"
+      }
+    ]
+  }
+}

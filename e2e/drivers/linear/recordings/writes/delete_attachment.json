@@ -1,0 +1,14 @@
+{
+  "tool": "delete_attachment",
+  "arguments": {
+    "id": "e55939a0-45d8-4b59-a823-2d8558e9a24e"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"e55939a0-45d8-4b59-a823-2d8558e9a24e\",\"deleted\":true}"
+      }
+    ]
+  }
+}

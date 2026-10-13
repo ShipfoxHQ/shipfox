@@ -1,6 +1,6 @@
 provider: linear
 kind: round-trip
-modes: [real]
+modes: [real, fake]
 steps:
   # The tools cannot delete or archive a document, so it stays in the write team.
   - key: create

@@ -22,13 +22,25 @@ export interface LinearRecording {
 const RECORDINGS_DIRECTORY = new URL('../recordings/', import.meta.url);
 
 export async function loadLinearRecordings(): Promise<LinearRecording[]> {
-  const files = (await readdir(RECORDINGS_DIRECTORY)).filter((file) => file.endsWith('.json'));
+  return await readRecordings(RECORDINGS_DIRECTORY);
+}
+
+async function readRecordings(directory: URL): Promise<LinearRecording[]> {
+  const files = (await readdir(directory)).filter((file) => file.endsWith('.json'));
   return await Promise.all(
     files.sort().map(async (file) => {
-      const text = await readFile(new URL(file, RECORDINGS_DIRECTORY), 'utf8');
+      const text = await readFile(new URL(file, directory), 'utf8');
       return JSON.parse(text) as LinearRecording;
     }),
   );
+}
+
+/**
+ * The first call to each write tool in the sandbox workspace, recorded once by hand with the same
+ * script, from the round-trip cases. They sit in `recordings/writes/`, one file per tool.
+ */
+export async function loadLinearWriteRecordings(): Promise<LinearRecording[]> {
+  return await readRecordings(new URL('writes/', RECORDINGS_DIRECTORY));
 }
 
 /** The same string for arguments that differ only in key order. */

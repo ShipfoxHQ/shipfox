@@ -1,0 +1,16 @@
+{
+  "tool": "save_project",
+  "arguments": {
+    "name": "Contract contract-38d7ee6f-cd79-4a8e-8896-2b5b17fde860",
+    "addTeams": ["9356e9c7-94d5-444d-83eb-d54b22c8082c"],
+    "summary": "Holds the milestone of a contract."
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"P-SAW-15\",\"uuid\":\"28bfeb6c-3785-4034-a802-434b36e0829b\",\"icon\":null,\"color\":\"#bec2c8\",\"name\":\"Contract contract-38d7ee6f-cd79-4a8e-8896-2b5b17fde860\",\"summary\":\"Holds the milestone of a contract.\",\"description\":\"\",\"url\":\"https://linear.app/shipfox-sandbox/project/contract-contract-38d7ee6f-cd79-4a8e-8896-2b5b17fde860-94595ded63eb\",\"resourceCount\":0,\"createdAt\":\"2026-10-13T15:48:24.009Z\",\"updatedAt\":\"2026-10-13T15:48:24.009Z\",\"startedAt\":null,\"completedAt\":null,\"canceledAt\":null,\"startDate\":null,\"startDateResolution\":null,\"targetDate\":null,\"targetDateResolution\":null,\"priority\":{\"value\":0,\"name\":\"No priority\"},\"labels\":[],\"initiatives\":[],\"lead\":{},\"leadTeam\":{\"id\":\"9356e9c7-94d5-444d-83eb-d54b22c8082c\",\"name\":\"sandbox-write\",\"key\":\"SAW\"},\"status\":{\"id\":\"55cd8a13-cae4-4f73-9925-1ddaf3dd4031\",\"name\":\"Backlog\",\"type\":\"backlog\"},\"teams\":[{\"id\":\"9356e9c7-94d5-444d-83eb-d54b22c8082c\",\"name\":\"sandbox-write\",\"key\":\"SAW\"}],\"milestones\":[]}"
+      }
+    ]
+  }
+}

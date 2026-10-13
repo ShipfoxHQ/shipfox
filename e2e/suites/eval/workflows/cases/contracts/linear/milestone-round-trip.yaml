@@ -1,6 +1,6 @@
 provider: linear
 kind: round-trip
-modes: [real]
+modes: [real, fake]
 steps:
   - key: project
     tool: save_project

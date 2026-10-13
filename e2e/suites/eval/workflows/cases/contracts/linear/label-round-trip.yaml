@@ -1,6 +1,6 @@
 provider: linear
 kind: round-trip
-modes: [real]
+modes: [real, fake]
 steps:
   # The connection cannot create a label in a team (403), so the label belongs to the sandbox
   # workspace. The tools cannot delete or archive a label, so it stays there.

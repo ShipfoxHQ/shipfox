@@ -26,4 +26,5 @@ export {
   type LinearRecordedResult,
   type LinearRecording,
   loadLinearRecordings,
+  loadLinearWriteRecordings,
 } from './linear-recordings.js';

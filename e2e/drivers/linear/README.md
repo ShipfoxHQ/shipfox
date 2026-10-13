@@ -17,12 +17,24 @@ A fake Linear hosted MCP server and signed webhook sender for E2E suites. The se
   and come from the sandbox workspace through
   `e2e/suites/eval/workflows/scripts/record-linear-responses.mjs`, a manual one-off. The hosted
   MCP answers with text or image blocks and no `structuredContent`, and so does the fake. The request id of an error is zeros, so the file is the same on every recording.
+  `options.writeRecordings` makes the fake stateful: the 13 recordings in `recordings/writes/`
+  are the first call to each write tool in a round-trip case, and the fake answers each write
+  with that object, changed as the call asks, and applies it to a state of its own. The reads
+  that name an object the state holds answer from it (`get_issue`, `list_comments`,
+  `get_document`, `get_project`, `get_milestone`, `get_status_updates`, and `list_issue_labels`
+  by name), so a read after a write returns the change. Any other read replays `options.recordings`.
+  The state leaves out `stateHistory` on issues and pages on lists, and a write with an argument
+  it cannot apply, such as an assignee, fails and stays out of `writes()`. Created issues are
+  numbered from `SAW-101` and projects from `P-SAW-101`, past the sandbox's own.
+- `loadLinearWriteRecordings()`: read the files in `recordings/writes/` as `LinearRecording`
+  entries.
 - `loadLinearRecordings()`: read the files in `recordings/` as `LinearRecording` entries.
 - `LinearMcpMock.calls` and `uploads`: every tool call and upload request, in arrival order.
 - `LinearMcpMock.writes()`: the accepted state-changing tool calls as `RecordedWrite` entries
-  (`kind`, `target`, `payload`). Today that is `save_comment` and `save_issue`, targeted at their
-  issue. A `save_issue` without an `id` creates an issue, numbered from `ENG-101` for team `ENG`,
-  and its write targets the team.
+  (`kind`, `target`, `payload`). Without `writeRecordings` that is `save_comment` and `save_issue`,
+  targeted at their issue. A `save_issue` without an `id` creates an issue, numbered from `ENG-101`
+  for team `ENG`, and its write targets the team. With them, every write tool the state applies
+  is recorded, targeted at the object it names, and a write the state refuses is left out.
 - `postLinearIssueUpdate(params)` and `postLinearAgentSession(params)`: post a signed `Issue`
   update or `AgentSessionEvent` (`created` or `prompted`) delivery to the API's Linear webhook
   route and return its `Linear-Delivery` ID, for correlating a run when a matching trigger starts

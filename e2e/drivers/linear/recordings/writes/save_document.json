@@ -1,0 +1,16 @@
+{
+  "tool": "save_document",
+  "arguments": {
+    "team": "9356e9c7-94d5-444d-83eb-d54b22c8082c",
+    "title": "Contract contract-c4562cbc-bdef-4022-955f-8dbf92772610",
+    "content": "Created by a contract."
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"7eb570cc-5a2e-49cc-b743-658dcffe9c09\",\"title\":\"Contract contract-c4562cbc-bdef-4022-955f-8dbf92772610\",\"content\":\"Created by a contract.\",\"icon\":null,\"color\":null,\"url\":\"https://linear.app/shipfox-sandbox/document/contract-contract-c4562cbc-bdef-4022-955f-8dbf92772610-77aa633afb7a\",\"slugId\":\"77aa633afb7a\",\"createdAt\":\"2026-10-13T15:48:14.644Z\",\"updatedAt\":\"2026-10-13T15:48:14.644Z\",\"archivedAt\":null,\"creator\":{\"id\":\"6bb15791-3a74-424e-837f-4c9618732360\",\"name\":\"Noé Charmet\"},\"updatedBy\":{\"id\":\"6bb15791-3a74-424e-837f-4c9618732360\",\"name\":\"Noé Charmet\"},\"project\":null,\"initiative\":null,\"team\":{\"id\":\"9356e9c7-94d5-444d-83eb-d54b22c8082c\",\"name\":\"sandbox-write\"},\"issue\":null}"
+      }
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "tool": "create_attachment",
+  "arguments": {
+    "issue": "SAW-34",
+    "title": "Contract attachment",
+    "filename": "contract.txt",
+    "contentType": "text/plain",
+    "base64Content": "aGVsbG8=",
+    "sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"id\":\"e55939a0-45d8-4b59-a823-2d8558e9a24e\",\"title\":\"Contract attachment\",\"url\":\"https://uploads.linear.app/e484a79e-8b9a-4a38-a993-d4c2b102f0ad/f1fd0702-1db0-450f-942d-64b823a838e1/e029648f-2b65-45ff-9eec-13462c7baa71?signature=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXRoIjoiL2U0ODRhNzllLThiOWEtNGEzOC1hOTkzLWQ0YzJiMTAyZjBhZC9mMWZkMDcwMi0xZGIwLTQ1MGYtOTQyZC02NGI4MjNhODM4ZTEvZTAyOTY0OGYtMmI2NS00NWZmLTllZWMtMTM0NjJjN2JhYTcxIiwiaWF0IjoxNzkxOTA2NDc2LCJleHAiOjE3OTE5MDY3NzZ9.rjVwYOBlDVuNzjTnBQshyXIAOkCNTDCN3j9IxM3JVxs\"}"
+      }
+    ]
+  }
+}
