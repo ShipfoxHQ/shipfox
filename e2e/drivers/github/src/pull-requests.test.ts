@@ -548,4 +548,44 @@ describe('GitHub API mock pull requests', () => {
       await mock.stop();
     }
   });
+
+  it('rejects a review event that is no event, and keeps the line of a thread comment', async () => {
+    const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
+    const request = (method: string, path: string, body?: Record<string, unknown>) =>
+      fetch(new URL(path, mock.endpoint), {
+        method,
+        headers: HEADERS,
+        ...(body === undefined ? {} : {body: JSON.stringify(body)}),
+      });
+
+    try {
+      mock.pullRequests.set(1, {repository: 'acme/app', ref: 'feature', sha: HEAD_TIP});
+      const inherited = await request('POST', '/repos/acme/app/pulls/1/reviews', {
+        event: 'toString',
+      });
+      const draft = await request('POST', '/repos/acme/app/pulls/1/reviews', {body: 'Draft'});
+      const {node_id: nodeId} = (await draft.json()) as {node_id: string};
+      await request('POST', '/graphql', {
+        query: 'mutation { addPullRequestReviewThread(input: $input) }',
+        variables: {input: {pullRequestReviewId: nodeId, path: 'note.md', body: 'Thread', line: 3}},
+      });
+      const threads = await request('POST', '/graphql', {
+        query: 'query { reviewThreads }',
+        variables: {owner: 'acme', repo: 'app', pullNumber: 1},
+      });
+
+      expect(inherited.status).toBe(422);
+      await expect(threads.json()).resolves.toMatchObject({
+        data: {
+          repository: {
+            pullRequest: {
+              reviewThreads: {nodes: [{line: 3, comments: {nodes: [{line: 3}]}}]},
+            },
+          },
+        },
+      });
+    } finally {
+      await mock.stop();
+    }
+  });
 });

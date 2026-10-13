@@ -9,7 +9,16 @@ import {sameRepository} from './pull-requests.js';
 
 const FIRST_CHECK_RUN_ID = 4_000_000;
 const STATUSES = ['queued', 'in_progress', 'completed'] as const;
-const CONCLUSIONS = ['success', 'failure', 'neutral', 'cancelled'] as const;
+const CONCLUSIONS = [
+  'success',
+  'failure',
+  'neutral',
+  'cancelled',
+  'skipped',
+  'timed_out',
+  'action_required',
+  'stale',
+] as const;
 
 export type CheckRunResult =
   | {status: 200 | 201; body: Record<string, unknown>; sha: string; id: number}

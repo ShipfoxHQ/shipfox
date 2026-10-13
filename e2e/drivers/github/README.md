@@ -63,7 +63,7 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   statuses. They are fixtures, not git objects, so a test gives a branch the ids a real
   repository holds. `branchHeads` maps a branch name to its tip. `GET /branches/:branch`,
   `/commits/:ref` (an id or a branch name), its `/status` and `/check-runs`, and
-  `/compare/:base...:head` read them; a comparison follows first parents, so it answers the
+  `/compare/:base...:head` read them; a comparison follows every parent, so it answers the
   commits the head has past the base, or 404 when the two share no commit. A history with merge
   commits compares as `ahead`, `behind`, or `diverged`. A pull request
   lists its `commits` by id, and its `files`, `reviews`, and `comments` as seeded: the diff media
@@ -76,7 +76,7 @@ external system under integration, exactly like Gitea for `@shipfox/e2e-driver-g
   when both tips are in `commits`. A check run created with `POST /check-runs` joins the
   `checkRuns` of its commit, and `PATCH /check-runs/:id` changes it, unless the fake was given
   a `checkRunCreateResponse`, which it answers instead. A review created with
-  `POST /pulls/:number/reviews` is `PENDING` without an `event`, and the app has one at a time;
+  `POST /pulls/:number/reviews` is `PENDING` without an `event`, and a pull request holds one pending review of the app at a time;
   `POST /reviews/:id/events` submits it and `DELETE /reviews/:id` discards it with its threads.
   GraphQL's `addPullRequestReviewThread` starts a thread on a pending review.
 - `GithubApiMock.addRepository(params)`: creates a bare repository, seeded from a

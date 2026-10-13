@@ -29,6 +29,9 @@ describe('GitHub API mock check runs', () => {
         conclusion: 'success',
         output: {title: 'Passed', summary: 'All good'},
       });
+      const skipped = await request('PATCH', `/repos/acme/app/check-runs/${id}`, {
+        conclusion: 'skipped',
+      });
       const missing = await request('PATCH', '/repos/acme/app/check-runs/1', {name: 'x'});
       const unknownCommit = await request('POST', '/repos/acme/app/check-runs', {
         name: 'Orphan',
@@ -46,6 +49,7 @@ describe('GitHub API mock check runs', () => {
         conclusion: 'success',
         output: {title: 'Passed', summary: 'All good'},
       });
+      expect(skipped.status).toBe(200);
       expect(missing.status).toBe(404);
       expect(unknownCommit.status).toBe(422);
       expect(incomplete.status).toBe(422);
@@ -58,6 +62,7 @@ describe('GitHub API mock check runs', () => {
       });
       expect(mock.writes().map((write) => write.kind)).toEqual([
         'github.create_check_run',
+        'github.update_check_run',
         'github.update_check_run',
       ]);
     } finally {
@@ -72,6 +77,7 @@ describe('GitHub API mock check runs', () => {
     });
 
     try {
+      mock.commits.set(TIP, {repository: 'acme/app', message: 'Tip'});
       const response = await fetch(new URL('/repos/acme/app/check-runs', mock.endpoint), {
         method: 'POST',
         headers: HEADERS,
@@ -79,7 +85,30 @@ describe('GitHub API mock check runs', () => {
       });
 
       await expect(response.json()).resolves.toEqual({id: 7, status: 'in_progress'});
+      expect(mock.commits.get(TIP)?.checkRuns).toBeUndefined();
       expect(mock.writes()).toEqual([]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('answers an empty configured response as given', async () => {
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      checkRunCreateResponse: {},
+    });
+
+    try {
+      mock.commits.set(TIP, {repository: 'acme/app', message: 'Tip'});
+      const response = await fetch(new URL('/repos/acme/app/check-runs', mock.endpoint), {
+        method: 'POST',
+        headers: HEADERS,
+        body: JSON.stringify({name: 'x', head_sha: TIP}),
+      });
+
+      expect(response.status).toBe(201);
+      await expect(response.json()).resolves.toEqual({});
+      expect(mock.commits.get(TIP)?.checkRuns).toBeUndefined();
     } finally {
       await mock.stop();
     }

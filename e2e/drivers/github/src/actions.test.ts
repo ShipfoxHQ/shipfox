@@ -331,7 +331,7 @@ describe('GitHub API mock actions', () => {
       const [job] = (jobs as {jobs: Array<{id: number}>}).jobs;
       const logsBefore = await fetch(
         new URL(`/repos/acme/app/actions/jobs/${job?.id}/logs`, mock.endpoint),
-        {headers: POST_HEADERS, redirect: 'manual'},
+        {headers: HEADERS, redirect: 'manual'},
       );
       const deleted = await send('DELETE', `/repos/acme/app/actions/runs/${runId}/logs`);
       const logsAfter = await get(`/repos/acme/app/actions/jobs/${job?.id}/logs`);

@@ -22,7 +22,16 @@ export interface GithubCheckRunFixture {
   /** Defaults to `completed`. */
   status?: 'queued' | 'in_progress' | 'completed' | undefined;
   /** Defaults to `success` for a completed check run. */
-  conclusion?: 'success' | 'failure' | 'neutral' | 'cancelled' | undefined;
+  conclusion?:
+    | 'success'
+    | 'failure'
+    | 'neutral'
+    | 'cancelled'
+    | 'skipped'
+    | 'timed_out'
+    | 'action_required'
+    | 'stale'
+    | undefined;
   output?: GithubCheckRunOutputFixture | undefined;
 }
 

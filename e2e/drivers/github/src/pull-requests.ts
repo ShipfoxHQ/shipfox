@@ -724,10 +724,7 @@ async function submitReview(context: RouteContext): Promise<void> {
     sendJson(context.response, 404, {message: 'Not Found'});
     return;
   }
-  const state =
-    typeof body.event === 'string'
-      ? REVIEW_EVENT_STATES[body.event as keyof typeof REVIEW_EVENT_STATES]
-      : undefined;
+  const state = typeof body.event === 'string' ? submittedStateOf(body.event) : undefined;
   if (state === undefined) {
     sendValidationFailed(context.response, [
       {resource: 'PullRequestReview', field: 'event', code: 'invalid'},
@@ -793,7 +790,12 @@ function deleteReview(context: RouteContext): void {
 
 function reviewStateOf(event: unknown): GithubReviewFixture['state'] | undefined {
   if (event === undefined) return 'PENDING';
-  return typeof event === 'string'
+  return typeof event === 'string' ? submittedStateOf(event) : undefined;
+}
+
+// The events are looked up as own keys, so `toString` is no event.
+function submittedStateOf(event: string): GithubReviewFixture['state'] | undefined {
+  return Object.hasOwn(REVIEW_EVENT_STATES, event)
     ? REVIEW_EVENT_STATES[event as keyof typeof REVIEW_EVENT_STATES]
     : undefined;
 }
@@ -885,7 +887,7 @@ function reviewThreadPayload(
         body: comment.body,
         author: {login: comment.author},
         path: thread.path,
-        line: null,
+        line: thread.line ?? null,
         startLine: null,
         createdAt: FIXTURE_TIMESTAMP,
         updatedAt: FIXTURE_TIMESTAMP,

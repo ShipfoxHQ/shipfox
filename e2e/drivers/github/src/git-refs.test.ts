@@ -76,6 +76,8 @@ describe('GitHub API mock branches', () => {
       await request('POST', '/repos/acme/app/git/refs', {ref: 'refs/heads/work', sha: BASE});
       const blob = await request('POST', '/repos/acme/app/git/blobs', {content: 'Hello'});
       const {sha: blobSha} = (await blob.json()) as {sha: string};
+      // The Git hash of the text `Hello`.
+      expect(blobSha).toBe('5ab2f8a4323abafb10abb68657d9d39f1a775057');
       const tree = await request('POST', '/repos/acme/app/git/trees', {
         base_tree: 'x',
         tree: [{path: 'note.md', mode: '100644', type: 'blob', sha: blobSha}],

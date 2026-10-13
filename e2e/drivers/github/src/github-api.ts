@@ -201,6 +201,7 @@ export async function startGithubApiMock(
   const calls: GithubApiMockCall[] = [];
   const installationId = options.installationId;
   const installationToken = options.installationToken ?? GITHUB_STATELESS_INSTALLATION_TOKEN;
+  const checkRunCreateConfigured = options.checkRunCreateResponse !== undefined;
   const checkRunCreateResponse = options.checkRunCreateResponse ?? {};
   const checkRunUpdateResponse = options.checkRunUpdateResponse ?? {};
   const checkRunCreateFailure = options.checkRunCreateFailure;
@@ -271,6 +272,7 @@ export async function startGithubApiMock(
       endpoint: boundEndpoint,
       installationId,
       installationToken,
+      checkRunCreateConfigured,
       checkRunCreateResponse,
       checkRunUpdateResponse,
       checkRunCreateFailure,
@@ -342,6 +344,7 @@ interface GithubRequestContext {
   endpoint: URL;
   installationId: number | undefined;
   installationToken: string;
+  checkRunCreateConfigured: boolean;
   checkRunCreateResponse: Record<string, unknown>;
   checkRunUpdateResponse: Record<string, unknown>;
   checkRunCreateFailure: GithubApiMockFailure | undefined;
@@ -370,6 +373,7 @@ async function handleGithubRequest(params: {
   endpoint: URL;
   installationId: number | undefined;
   installationToken: string;
+  checkRunCreateConfigured: boolean;
   checkRunCreateResponse: Record<string, unknown>;
   checkRunUpdateResponse: Record<string, unknown>;
   checkRunCreateFailure: GithubApiMockFailure | undefined;
@@ -635,7 +639,7 @@ async function handleCreateCheckRunRequest(
     return;
   }
   // A suite that configures a response gets it. Without one, the check run joins its commit.
-  if (Object.keys(params.checkRunCreateResponse).length === 0) {
+  if (!params.checkRunCreateConfigured) {
     const repository = `${decodeURIComponent(match[1] ?? '')}/${decodeURIComponent(match[2] ?? '')}`;
     const created = params.checkRuns.create({repository, body});
     if (created.status === 201) {
