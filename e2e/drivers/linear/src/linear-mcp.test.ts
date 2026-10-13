@@ -503,6 +503,10 @@ describe('Linear MCP mock with write recordings', () => {
         type: 'project',
         project: project.body.uuid,
       });
+      const initiativeDelete = await call('delete_status_update', {
+        type: 'initiative',
+        id: update.body.id,
+      });
       await call('delete_status_update', {type: 'project', id: update.body.id});
       const canceled = await call('save_project', {id: project.body.uuid, state: 'canceled'});
 
@@ -517,6 +521,7 @@ describe('Linear MCP mock with write recordings', () => {
       expect(
         (await call('get_milestone', {project: project.body.uuid, query: milestone.body.id})).body,
       ).toMatchObject({name: 'Milestone updated'});
+      expect(initiativeDelete.isError).toBe(true);
       expect(listed.body.statusUpdates).toEqual([
         expect.objectContaining({body: 'On track.', health: 'atRisk'}),
       ]);

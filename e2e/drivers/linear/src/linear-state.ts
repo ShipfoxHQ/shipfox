@@ -547,6 +547,14 @@ export function createLinearState(params: {
   }
 
   function deleteStatusUpdate(arguments_: Json): LinearToolResult {
+    const refused = rejectArguments({
+      tool: 'delete_status_update',
+      arguments_,
+      allowed: ['type', 'id'],
+    });
+    if (refused !== undefined) return refused;
+    if (arguments_.type !== 'project')
+      return unsupportedArguments('delete_status_update', ['type']);
     for (const updates of statusUpdates.values()) {
       const index = updates.findIndex((update) => update.id === arguments_.id);
       if (index >= 0) {
