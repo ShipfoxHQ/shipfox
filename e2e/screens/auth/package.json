@@ -6,12 +6,21 @@
     "directory": "e2e/screens/auth"
   },
   "license": "MIT",
-  "private": true,
+  "version": "33.0.0",
+  "private": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "imports": {
-    "#*": "./src/*"
+    "#test/*": "./test/*",
+    "#*": {
+      "workspace-source": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "exports": {
     ".": {
