@@ -17,7 +17,8 @@ Input shape for Shipfox workflow authoring.
 - `parseWorkflowActionRef` classifies an action step's `uses` as a repository
   path or a registry reference.
 - `actionManifestSchema` defines the `action.yml` manifest of a repository
-  action. `buildActionManifestJsonSchema` projects it for editors.
+  action, including the optional `post` entry and `post_failure`.
+  `buildActionManifestJsonSchema` projects it for editors.
 - `encodeActionBundle` and `decodeActionBundle` store an action directory as
   one content-addressed bundle, so the API and the runner agree on its digest.
 

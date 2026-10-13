@@ -12,6 +12,7 @@ export {
 } from '#define-action.js';
 export type {ActionLog} from '#log.js';
 export {ActionOutputError, type ActionOutputValues} from '#outputs.js';
+export {type ActionState, ActionStateError} from '#state.js';
 export {
   PROVIDER_ERROR_REASONS,
   type ProviderErrorReason,

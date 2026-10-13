@@ -155,6 +155,9 @@ function createModelAction(
     digest: resolved.digest,
     name: resolved.manifest.name,
     main: resolved.manifest.main,
+    ...(resolved.manifest.post === undefined
+      ? {}
+      : {post: resolved.manifest.post, postFailure: resolved.manifest.post_failure ?? 'warn'}),
     inputs,
     integrations,
   };

@@ -536,6 +536,35 @@ describe('PUT /v1/packages/:namespace/:name/versions/:version', () => {
       expect(response.statusCode).toBe(422);
     });
 
+    it('accepts an action with a post entry', async () => {
+      const files = actionFiles({post: 'post.mjs', post_failure: 'fail'});
+
+      const response = await publishAction({
+        content: await bundleOf({...files, 'post.mjs': 'export default async function run() {}\n'}),
+      });
+
+      expect(response.statusCode).toBe(201);
+    });
+
+    it('refuses an action whose post is not post.mjs', async () => {
+      const response = await publishAction({
+        content: await bundleOf(actionFiles({post: 'cleanup.mjs'})),
+      });
+
+      expect(response.statusCode).toBe(422);
+      expect(response.json()).toMatchObject({code: 'invalid-manifest'});
+    });
+
+    it.each([
+      ['declares a post without the file', actionFiles({post: 'post.mjs'})],
+      ['carries post.mjs without declaring it', {...actionFiles(), 'post.mjs': 'export {}\n'}],
+    ])('refuses a bundle that %s', async (_name, files) => {
+      const response = await publishAction({content: await bundleOf(files)});
+
+      expect(response.statusCode).toBe(422);
+      expect(response.json()).toMatchObject({code: 'invalid-bundle'});
+    });
+
     it('refuses a source archive that carries node_modules', async () => {
       const source = await sourceArchive({'node_modules/left-pad/index.js': 'x'});
 

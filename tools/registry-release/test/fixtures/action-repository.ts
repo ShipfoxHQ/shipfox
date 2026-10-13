@@ -79,6 +79,7 @@ export function duration(value: number): string {
 name: Example
 description: Formats a duration.
 main: src/main.ts
+post: src/post.ts
 outputs:
   text:
     description: The formatted duration.
@@ -87,6 +88,10 @@ outputs:
 import {defineAction} from '@shipfox/actions';
 
 export default defineAction(() => ({text: duration(90_000)}));
+`,
+  [`${ACTION_PATH}/src/post.ts`]: `import {defineAction} from '@shipfox/actions';
+
+export default defineAction(() => undefined);
 `,
   [`${ACTION_PATH}/LICENSE`]: 'MIT License\n',
   [`${ACTION_PATH}/README.md`]: 'Formats a duration.\n',

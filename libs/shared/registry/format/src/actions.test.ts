@@ -149,6 +149,52 @@ describe('computeActionBump', () => {
       bump: 'patch',
     },
     {
+      rule: 'a post entry is added',
+      next: {post: 'post.mjs'},
+      bump: 'minor',
+    },
+    {
+      rule: 'a post entry is removed',
+      previous: {post: 'post.mjs'},
+      next: {},
+      bump: 'minor',
+    },
+    {
+      rule: '`post_failure` goes from the default to `fail`',
+      previous: {post: 'post.mjs'},
+      next: {post: 'post.mjs', post_failure: 'fail'},
+      bump: 'major',
+    },
+    {
+      rule: '`post_failure` goes from `warn` to `fail`',
+      previous: {post: 'post.mjs', post_failure: 'warn'},
+      next: {post: 'post.mjs', post_failure: 'fail'},
+      bump: 'major',
+    },
+    {
+      rule: '`post_failure` goes from `fail` to `warn`',
+      previous: {post: 'post.mjs', post_failure: 'fail'},
+      next: {post: 'post.mjs', post_failure: 'warn'},
+      bump: 'patch',
+    },
+    {
+      rule: '`post_failure` goes from `fail` to the default',
+      previous: {post: 'post.mjs', post_failure: 'fail'},
+      next: {post: 'post.mjs'},
+      bump: 'patch',
+    },
+    {
+      rule: '`post_failure` goes from `warn` to the default',
+      previous: {post: 'post.mjs', post_failure: 'warn'},
+      next: {post: 'post.mjs'},
+      bump: 'patch',
+    },
+    {
+      rule: 'a post entry with `fail` is added',
+      next: {post: 'post.mjs', post_failure: 'fail'},
+      bump: 'minor',
+    },
+    {
       rule: 'a required input gains a default',
       next: {
         inputs: {

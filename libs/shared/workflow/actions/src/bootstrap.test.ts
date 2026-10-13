@@ -50,6 +50,103 @@ describe('bootstrap', () => {
     });
   });
 
+  describe('state', () => {
+    const save = `
+      import {defineAction} from '@shipfox/actions';
+      export default defineAction(({state}) => {
+        state.set('first', 'one');
+        state.set('first', 'two');
+        state.set('multi', 'a\\nb');
+      });
+    `;
+
+    it('appends one JSON line per set and a later set wins', async () => {
+      await writeFiles(sandbox.bundle, {'index.js': save});
+
+      const run = await runActionProcess({sandbox, state: {}});
+
+      expect(run).toMatchObject({
+        exitCode: 0,
+        state: {first: 'two', multi: 'a\nb'},
+      });
+    });
+
+    it('reads seeded values, then values set in the process', async () => {
+      await writeFiles(sandbox.bundle, {
+        'index.js': `
+          import {defineAction} from '@shipfox/actions';
+          export default defineAction(({state, setOutput}) => {
+            const seeded = state.get('seed');
+            state.set('seed', 'changed');
+            setOutput('seeded', seeded);
+            setOutput('after', state.get('seed'));
+            setOutput('missing', String(state.get('nope')));
+          });
+        `,
+      });
+
+      const run = await runActionProcess({
+        sandbox,
+        state: {seed: 'original'},
+        outputs: {seeded: {type: 'string'}, after: {type: 'string'}, missing: {type: 'string'}},
+      });
+
+      expect(run).toMatchObject({
+        exitCode: 0,
+        outputs: {seeded: 'original', after: 'changed', missing: 'undefined'},
+        state: {seed: 'changed'},
+      });
+    });
+
+    it('keeps the state written before the handler failed', async () => {
+      await writeFiles(sandbox.bundle, {
+        'index.js': `
+          import {defineAction} from '@shipfox/actions';
+          export default defineAction(({state}) => {
+            state.set('partial', 'yes');
+            throw new Error('boom');
+          });
+        `,
+      });
+
+      const run = await runActionProcess({sandbox, state: {}});
+
+      expect(run).toMatchObject({exitCode: 1, result: {status: 'failed'}, state: {partial: 'yes'}});
+    });
+
+    it('fails set when the runner provides no state file', async () => {
+      await writeFiles(sandbox.bundle, {'index.js': save});
+
+      const run = await runActionProcess({sandbox});
+
+      expect(run.exitCode).toBe(1);
+      expect(run.stderr).toContain('the runner did not set SHIPFOX_STATE');
+    });
+
+    it('exposes the post phase context and rejects setOutput', async () => {
+      await writeFiles(sandbox.bundle, {
+        'index.js': `
+          import {defineAction} from '@shipfox/actions';
+          export default defineAction(({context, setOutput}) => {
+            console.log(JSON.stringify([context.phase, context.execution, context.main]));
+            setOutput('late', 'x');
+          });
+        `,
+      });
+
+      const run = await runActionProcess({
+        sandbox,
+        state: {},
+        post: {execution: {failed: true}, main: {status: 'failed'}},
+        outputs: {late: {type: 'string'}},
+      });
+
+      expect(run.stdout).toContain('["post",{"failed":true},{"status":"failed"}]');
+      expect(run).toMatchObject({exitCode: 1, outputs: {}});
+      expect(run.stderr).toContain('a post has no outputs');
+    });
+  });
+
   it('removes the endpoint token and the inputs path from process.env before user code loads', async () => {
     await writeFiles(sandbox.bundle, {
       'index.js': `

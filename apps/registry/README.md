@@ -103,7 +103,7 @@ names one namespace, and `{namespace}` must be that one.
 | Part | Content |
 | --- | --- |
 | `draft` | JSON: `kind`, `license` (an SPDX expression), `builder`, `path`, `changelog` when present, and by kind `dependencies` (actions) or `composition` (templates). Unknown fields are refused. |
-| `content` | The gzip content bundle: `action-bundle@1` (`action.yml`, `index.mjs`, and `LICENSE` when present) or `template-bundle@1` (`template.yaml`, `workflow.yml`, `GUIDE.md`, `parts/<role>/<provider>.yml`). |
+| `content` | The gzip content bundle: `action-bundle@1` (`action.yml`, `index.mjs`, `post.mjs` when the manifest sets `post`, and `LICENSE` when present) or `template-bundle@1` (`template.yaml`, `workflow.yml`, `GUIDE.md`, `parts/<role>/<provider>.yml`). |
 | `source` | The gzip source archive that rebuilds the version. It holds no `node_modules` or `.npmrc`. |
 | `readme` | Optional README text, UTF-8, at most 64 KiB. |
 

@@ -12,6 +12,7 @@ import {type ActionDefinition, type ActionInputs, isActionDefinition} from '#def
 import {trackInFlightCalls} from '#in-flight-calls.js';
 import {createActionLog} from '#log.js';
 import {ActionOutputError, createActionOutputs} from '#outputs.js';
+import {createActionState} from '#state.js';
 import {createStepFiles} from '#step-files.js';
 import {createToolsClient} from '#tools-client.js';
 
@@ -55,12 +56,23 @@ async function run(): Promise<void> {
   const outputs = createActionOutputs(declarations);
   const calls = trackInFlightCalls(createToolsClient({url: env.actionsUrl, token: env.token}));
 
+  const state = createActionState(env.statePath);
+
   let returned: unknown;
   try {
     returned = await definition.handler({
       inputs: readJson<ActionInputs>(env.inputsPath),
       tools: calls.tools,
-      setOutput: (name, value) => appendFileSync(env.outputPath, outputs.set(name, value)),
+      setOutput: (name, value) => {
+        if (context.phase === 'post') {
+          throw new ActionOutputError({
+            output: name,
+            message: `Output "${name}" cannot be set: a post has no outputs.`,
+          });
+        }
+        appendFileSync(env.outputPath, outputs.set(name, value));
+      },
+      state,
       ...createStepFiles({
         env: process.env[ACTION_ENV.env],
         path: process.env[ACTION_ENV.path],
@@ -94,6 +106,8 @@ interface ActionEnvironment {
   inputsPath: string;
   contextPath: string;
   outputPath: string;
+  /** Absent when the runner provides no state file; `ctx.state.set` then fails. */
+  statePath: string | undefined;
   actionPath: string;
   actionMain: string;
 }
@@ -112,6 +126,7 @@ function takeEnvironment(): ActionEnvironment {
     inputsPath: required(ACTION_ENV.actionInputs, inputsPath),
     contextPath: required(ACTION_ENV.actionContext, process.env[ACTION_ENV.actionContext]),
     outputPath: required(ACTION_ENV.output, process.env[ACTION_ENV.output]),
+    statePath: process.env[ACTION_ENV.state],
     actionPath: required(ACTION_ENV.actionPath, process.env[ACTION_ENV.actionPath]),
     actionMain: required(ACTION_ENV.actionMain, process.env[ACTION_ENV.actionMain]),
   };

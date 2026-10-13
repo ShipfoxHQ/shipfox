@@ -6,6 +6,7 @@ import {dirname, join, relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {ActionContextFileV1, ActionOutputDeclarations, ActionResultFileV1} from '#contract.js';
 import {ACTION_BOOTSTRAP_PATH, ACTION_LOADER_PATH} from '#runtime-files.js';
+import {parseStateFile} from '#state.js';
 
 export const sdkEntryPath = fileURLToPath(new URL('../../dist/index.js', import.meta.url));
 
@@ -84,6 +85,10 @@ export interface RunActionProcessParams {
   origin?: 'local' | 'registry' | undefined;
   inputs?: Record<string, unknown>;
   outputs?: ActionOutputDeclarations;
+  /** The context the runner writes for a post. Omitted means the main phase. */
+  post?: {execution: {failed: boolean}; main: {status: 'succeeded' | 'failed'}};
+  /** Creates the state file with these lines. Omitted means the runner set no state file. */
+  state?: Record<string, string>;
   actionsUrl?: string;
   /** Leaves out `SHIPFOX_ENV`, `SHIPFOX_PATH`, and `SHIPFOX_MASK`, as an older runner does. */
   withoutStepFiles?: boolean;
@@ -99,6 +104,8 @@ export interface ActionProcessResult {
   outputs: Record<string, string>;
   /** The raw `SHIPFOX_ENV`, `SHIPFOX_PATH`, and `SHIPFOX_MASK` files. */
   stepFiles: {env: string; path: string; mask: string};
+  /** The state file after the run. Empty when the run had no state file. */
+  state: Record<string, string>;
 }
 
 export async function runActionProcess(
@@ -113,6 +120,7 @@ export async function runActionProcess(
     env: join(sandbox.stepTemp, 'env'),
     path: join(sandbox.stepTemp, 'path'),
     mask: join(sandbox.stepTemp, 'mask'),
+    state: join(sandbox.stepTemp, 'state'),
   };
   const context: ActionContextFileV1 = {
     context: {
@@ -124,6 +132,8 @@ export async function runActionProcess(
       actionPath: './.shipfox/actions/test',
       digest: 'sha256:test',
       workspace: sandbox.workspace,
+      phase: params.post ? 'post' : 'main',
+      ...params.post,
     },
     outputs: params.outputs ?? {},
   };
@@ -135,6 +145,16 @@ export async function runActionProcess(
     writeFile(paths.path, ''),
     writeFile(paths.mask, ''),
     rm(paths.result, {force: true}),
+    ...(params.state === undefined
+      ? []
+      : [
+          writeFile(
+            paths.state,
+            Object.entries(params.state)
+              .map(([name, value]) => `${JSON.stringify({name, value})}\n`)
+              .join(''),
+          ),
+        ]),
   ]);
 
   const child = spawn(
@@ -155,6 +175,7 @@ export async function runActionProcess(
         ...(params.withoutStepFiles
           ? {}
           : {SHIPFOX_ENV: paths.env, SHIPFOX_PATH: paths.path, SHIPFOX_MASK: paths.mask}),
+        ...(params.state === undefined ? {} : {SHIPFOX_STATE: paths.state}),
         SHIPFOX_ACTION_PATH: sandbox.bundle,
         SHIPFOX_ACTION_MAIN: params.main ?? 'index.js',
         ...(params.origin ? {SHIPFOX_ACTION_ORIGIN: params.origin} : {}),
@@ -195,6 +216,10 @@ export async function runActionProcess(
       path: await readFile(paths.path, 'utf8'),
       mask: await readFile(paths.mask, 'utf8'),
     },
+    state:
+      params.state === undefined
+        ? {}
+        : Object.fromEntries(parseStateFile(await readFile(paths.state, 'utf8'))),
   };
 }
 

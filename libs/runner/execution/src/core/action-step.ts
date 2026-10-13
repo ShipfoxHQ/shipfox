@@ -321,6 +321,7 @@ function contextFile(
       actionPath: config.action.uses,
       digest: config.action.digest,
       workspace: options.workspace,
+      phase: 'main',
     },
     outputs: outputDeclarations(config.outputs),
   };

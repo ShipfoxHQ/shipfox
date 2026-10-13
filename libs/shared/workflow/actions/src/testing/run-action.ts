@@ -5,17 +5,21 @@ import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {coerceStepOutputs} from '@shipfox/expression';
+import type {ActionManifest} from '@shipfox/workflow-document';
 import {
   ACTION_ENV,
   type ActionContextFileV1,
   type ActionOutputDeclarations,
   type ActionResultFileV1,
+  type ActionRunContext,
   inheritedActionEnv,
 } from '#contract.js';
 import {ACTION_BOOTSTRAP_PATH, ACTION_LOADER_PATH} from '#runtime-files.js';
+import {parseStateFile} from '#state.js';
 import {type RecordedToolCall, startFakeEndpoint} from '#testing/fake-endpoint.js';
 import type {ToolFakes} from '#testing/fakes.js';
 import {
+  ActionTestSetupError,
   coerceActionInputs,
   outputDeclarations,
   readActionManifest,
@@ -36,6 +40,14 @@ export interface RunActionOptions {
   workspace?: string;
   /** The step's `env:` values. */
   env?: Readonly<Record<string, string>>;
+  /** Runs the `main` entry or, with `post`, the `post` entry. Defaults to `main`. */
+  phase?: 'main' | 'post';
+  /** The state the runner seeds before the process starts. Pass `result.state` of the main run. */
+  state?: Readonly<Record<string, string>>;
+  /** Sets `context.execution.failed` in the post phase. Defaults to `false`. */
+  executionFailed?: boolean;
+  /** Sets `context.main.status` in the post phase. Defaults to `succeeded`. */
+  mainStatus?: 'succeeded' | 'failed';
   timeoutMs?: number;
 }
 
@@ -52,6 +64,8 @@ export interface ActionRunResult {
   readonly exitCode: number | null;
   /** Typed as later steps see them. A failed run keeps the outputs set before it failed. */
   readonly outputs: Readonly<Record<string, unknown>>;
+  /** The state after the run: the seeded values and the ones the action set. */
+  readonly state: Readonly<Record<string, string>>;
   readonly error?: {readonly message: string};
   readonly calls: readonly RecordedToolCall[];
   /** Standard output and standard error, interleaved as written. */
@@ -80,7 +94,8 @@ export async function runAction(
   const manifest = await readActionManifest(actionPath);
   const inputs = coerceActionInputs(manifest, options.inputs ?? {});
   const grants = resolveGrants(manifest);
-  const declarations = outputDeclarations(manifest);
+  const phase = options.phase ?? 'main';
+  const {entry, declarations} = phaseEntry(manifest, phase);
   const timeoutMs = options.timeoutMs ?? DEFAULT_RUN_ACTION_TIMEOUT_MS;
 
   const workspace = await prepareWorkspace(options.workspace);
@@ -94,6 +109,7 @@ export async function runAction(
     path: join(stepTemp, 'path'),
     mask: join(stepTemp, 'mask'),
     summary: join(stepTemp, 'summary.md'),
+    state: join(stepTemp, 'state'),
   };
   const context: ActionContextFileV1 = {
     context: {
@@ -105,6 +121,7 @@ export async function runAction(
       actionPath,
       digest: 'test',
       workspace,
+      ...phaseContext(phase, options),
     },
     outputs: declarations,
   };
@@ -116,6 +133,7 @@ export async function runAction(
     writeFile(paths.path, ''),
     writeFile(paths.mask, ''),
     writeFile(paths.summary, ''),
+    writeFile(paths.state, stateFileContent(options.state ?? {}), {mode: 0o600}),
   ]);
 
   const endpoint = await startFakeEndpoint({
@@ -139,9 +157,10 @@ export async function runAction(
         [ACTION_ENV.env]: paths.env,
         [ACTION_ENV.path]: paths.path,
         [ACTION_ENV.mask]: paths.mask,
+        [ACTION_ENV.state]: paths.state,
         SHIPFOX_STEP_SUMMARY: paths.summary,
         [ACTION_ENV.actionPath]: actionPath,
-        [ACTION_ENV.actionMain]: manifest.main,
+        [ACTION_ENV.actionMain]: entry,
         [ACTION_ENV.actionInputs]: paths.inputs,
         [ACTION_ENV.actionContext]: paths.context,
         [ACTION_ENV.actionResult]: paths.result,
@@ -149,15 +168,25 @@ export async function runAction(
         [ACTION_ENV.actionsToken]: endpoint.token,
       },
     });
-    const [status, rawOutputs, summary, rawEnv, rawPath, rawMask] = await Promise.all([
+    const [status, rawOutputs, summary, rawEnv, rawPath, rawMask, rawState] = await Promise.all([
       readResultStatus(paths.result),
       readFile(paths.output, 'utf8'),
       readFile(paths.summary, 'utf8'),
       readFile(paths.env, 'utf8'),
       readFile(paths.path, 'utf8'),
       readFile(paths.mask, 'utf8'),
+      readFile(paths.state, 'utf8'),
     ]);
-    run = {...exit, status, rawOutputs, summary, rawEnv, rawPath, rawMask};
+    run = {
+      ...exit,
+      status,
+      rawOutputs,
+      summary,
+      rawEnv,
+      rawPath,
+      rawMask,
+      state: Object.fromEntries(parseStateFile(rawState)),
+    };
   } finally {
     await endpoint.close();
     await rm(stepTemp, {recursive: true, force: true});
@@ -173,6 +202,7 @@ export async function runAction(
     status: error === undefined ? 'succeeded' : 'failed',
     exitCode: run.exitCode,
     outputs: decoded.outputs,
+    state: run.state,
     ...(error === undefined ? {} : {error: {message: error}}),
     calls: endpoint.calls,
     logs: run.logs,
@@ -182,6 +212,36 @@ export async function runAction(
     masks: nonEmptyLines(run.rawMask),
     workspace: testWorkspace(workspace),
   };
+}
+
+function phaseEntry(
+  manifest: ActionManifest,
+  phase: 'main' | 'post',
+): {entry: string; declarations: ActionOutputDeclarations} {
+  if (phase === 'main') return {entry: manifest.main, declarations: outputDeclarations(manifest)};
+  if (manifest.post === undefined) {
+    throw new ActionTestSetupError('The post phase needs a `post` entry in the action manifest.');
+  }
+  // A post has no outputs.
+  return {entry: manifest.post, declarations: {}};
+}
+
+function phaseContext(
+  phase: 'main' | 'post',
+  options: RunActionOptions,
+): Pick<ActionRunContext, 'phase' | 'execution' | 'main'> {
+  if (phase === 'main') return {phase};
+  return {
+    phase,
+    execution: {failed: options.executionFailed ?? false},
+    main: {status: options.mainStatus ?? 'succeeded'},
+  };
+}
+
+function stateFileContent(state: Readonly<Record<string, string>>): string {
+  return Object.entries(state)
+    .map(([name, value]) => `${JSON.stringify({name, value})}\n`)
+    .join('');
 }
 
 interface ProcessExit {
@@ -198,6 +258,7 @@ interface CompletedRun extends ProcessExit {
   rawEnv: string;
   rawPath: string;
   rawMask: string;
+  state: Record<string, string>;
 }
 
 async function runProcess(params: {

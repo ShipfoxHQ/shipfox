@@ -282,6 +282,10 @@ export interface WorkflowModelAction {
   readonly digest: string;
   readonly name: string;
   readonly main: string;
+  /** Entry file for the end of the job. Models stored before posts omit it, and no post runs. */
+  readonly post?: string;
+  /** What a failed post does to the job. Set when `post` is set. */
+  readonly postFailure?: 'warn' | 'fail';
   readonly inputs: Readonly<Record<string, WorkflowModelActionInput>>;
   /** Keyed by manifest alias. Each alias is bound to a connection slug by the step. */
   readonly integrations: Readonly<Record<string, WorkflowModelActionIntegration>>;

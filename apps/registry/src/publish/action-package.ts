@@ -9,9 +9,13 @@ import {describeIssues} from '#publish/issues.js';
 
 const ACTION_MANIFEST_PATH = 'action.yml';
 const ACTION_MAIN = 'index.mjs';
-const ACTION_FILES = [ACTION_MANIFEST_PATH, ACTION_MAIN, 'LICENSE'];
+const ACTION_POST = 'post.mjs';
+const ACTION_FILES = [ACTION_MANIFEST_PATH, ACTION_MAIN, ACTION_POST, 'LICENSE'];
 
-/** Reads an `action-bundle@1`: the manifest, the entry file, and a license when present. */
+/**
+ * Reads an `action-bundle@1`: the manifest, the entry file, the post entry file when the
+ * manifest declares one, and a license when present.
+ */
 export function readActionBundle(files: readonly ActionBundleFile[]): {manifest: ActionManifest} {
   const unexpected = files.find(({path}) => !ACTION_FILES.includes(path));
   if (unexpected) {
@@ -45,6 +49,16 @@ export function readActionBundle(files: readonly ActionBundleFile[]): {manifest:
   }
   if (manifest.data.main !== ACTION_MAIN) {
     throw new VersionRefusedError('invalid-manifest', `An action's main must be ${ACTION_MAIN}`);
+  }
+  const {post} = manifest.data;
+  if (post !== undefined && post !== ACTION_POST) {
+    throw new VersionRefusedError('invalid-manifest', `An action's post must be ${ACTION_POST}`);
+  }
+  if ((post !== undefined) !== files.some(({path}) => path === ACTION_POST)) {
+    throw new VersionRefusedError(
+      'invalid-bundle',
+      `An action bundle holds ${ACTION_POST} if and only if its manifest sets post`,
+    );
   }
   return {manifest: manifest.data};
 }

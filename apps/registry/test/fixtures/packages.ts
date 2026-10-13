@@ -24,6 +24,8 @@ export interface ActionManifestFixture {
   integrations?: Record<string, unknown>;
   keywords?: string[];
   related?: string[];
+  post?: string;
+  post_failure?: string;
 }
 
 /** The files of an `action-bundle@1`. */

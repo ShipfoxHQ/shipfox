@@ -1,6 +1,7 @@
 import type {ActionRunContext} from '#contract.js';
 import type {ActionLog} from '#log.js';
 import type {ActionOutputValues} from '#outputs.js';
+import type {ActionState} from '#state.js';
 import type {Tools} from '#tool-types.js';
 
 export type ActionInputs = Readonly<Record<string, unknown>>;
@@ -11,7 +12,7 @@ export interface ActionContext<Inputs extends ActionInputs = ActionInputs> {
   readonly tools: Tools;
   /**
    * Sets a declared output right away, so it survives a later throw. The returned object is merged
-   * over these values.
+   * over these values. Throws in the post phase, which has no outputs.
    */
   readonly setOutput: (name: string, value: unknown) => void;
   /**
@@ -28,6 +29,8 @@ export interface ActionContext<Inputs extends ActionInputs = ActionInputs> {
    * line by line, and a line shorter than 8 characters is not masked.
    */
   readonly addMask: (value: string) => void;
+  /** Passes values from the main entry to the post entry of the same step. */
+  readonly state: ActionState;
   readonly log: ActionLog;
   /** Fires on cancellation or timeout. */
   readonly signal: AbortSignal;

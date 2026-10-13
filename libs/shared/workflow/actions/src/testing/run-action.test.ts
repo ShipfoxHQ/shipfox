@@ -77,6 +77,79 @@ describe('runAction', () => {
     expect(result).toMatchObject({status: 'succeeded', outputs: {greeting: 'hi'}});
   });
 
+  describe('post phase', () => {
+    const SDK = "import {defineAction} from '@shipfox/actions';\n";
+    const postAction = () =>
+      writeAction({
+        'action.yml': 'name: Cache\nmain: index.mjs\npost: post.mjs\noutputs:\n  restored: {}\n',
+        'index.mjs': `${SDK}export default defineAction(({state}) => {
+          state.set('cache_key', 'abc');
+          return {restored: 'yes'};
+        });\n`,
+        'post.mjs': `${SDK}export default defineAction(({state, context, log}) => {
+          log.info(JSON.stringify({
+            key: state.get('cache_key'),
+            phase: context.phase,
+            failed: context.execution?.failed,
+            main: context.main?.status,
+          }));
+          state.set('saved', 'true');
+        });\n`,
+      });
+
+    it('returns the state the main entry set and seeds it into the post', async () => {
+      const dir = await postAction();
+
+      const main = await runAction(dir);
+      const post = await runAction(dir, {phase: 'post', state: main.state});
+
+      expect(main).toMatchObject({status: 'succeeded', state: {cache_key: 'abc'}});
+      expect(post.status).toBe('succeeded');
+      expect(post.state).toEqual({cache_key: 'abc', saved: 'true'});
+      expect(post.logs).toContain('{"key":"abc","phase":"post","failed":false,"main":"succeeded"}');
+    });
+
+    it('passes the execution and main results to the post', async () => {
+      const dir = await postAction();
+
+      const post = await runAction(dir, {
+        phase: 'post',
+        executionFailed: true,
+        mainStatus: 'failed',
+      });
+
+      expect(post.logs).toContain('"failed":true,"main":"failed"');
+    });
+
+    it('runs the main entry in the main phase', async () => {
+      const dir = await postAction();
+
+      const main = await runAction(dir);
+
+      expect(main.logs).not.toContain('"phase":"post"');
+      expect(main.outputs).toEqual({restored: 'yes'});
+    });
+
+    it('fails a post that sets an output', async () => {
+      const dir = await writeAction({
+        'action.yml': 'name: Cache\nmain: index.mjs\npost: post.mjs\noutputs:\n  restored: {}\n',
+        'index.mjs': `${SDK}export default defineAction(() => ({restored: 'yes'}));\n`,
+        'post.mjs': `${SDK}export default defineAction(({setOutput}) => setOutput('restored', 'late'));\n`,
+      });
+
+      const post = await runAction(dir, {phase: 'post'});
+
+      expect(post.status).toBe('failed');
+      expect(post.logs).toContain('a post has no outputs');
+    });
+
+    it('rejects the post phase for an action without a post entry', async () => {
+      const run = runAction(probe, {phase: 'post'});
+
+      await expect(run).rejects.toThrow(ActionTestSetupError);
+    });
+  });
+
   it('fails an output above the runner size limit', async () => {
     const dir = await writeAction({
       'action.yml': 'name: Big\nmain: index.mjs\noutputs:\n  big: {}\n',

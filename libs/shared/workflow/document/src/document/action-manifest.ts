@@ -14,6 +14,7 @@ import {
 } from './workflow-document.js';
 
 export const ACTION_MANIFEST_RUNTIMES = ['node24'] as const;
+const ACTION_MANIFEST_POST_FAILURES = ['warn', 'fail'] as const;
 export const ACTION_MANIFEST_VALUES_MAX_ENTRIES = WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES;
 export const ACTION_MANIFEST_KEYWORDS_MAX_ENTRIES = 10;
 
@@ -90,6 +91,17 @@ const actionManifestIntegrationSchema = z.strictObject({
   }),
 });
 
+function actionManifestEntrySchema(field: string) {
+  return z
+    .string()
+    .regex(actionManifestMainPattern, {
+      message: `\`${field}\` must be a .ts, .mts, .js, or .mjs file.`,
+    })
+    .refine(isNormalizedRelativePath, {
+      message: `\`${field}\` must be a path inside the action directory, such as \`index.ts\`, without \`./\`, \`..\`, or a leading \`/\`.`,
+    });
+}
+
 function valueRecordSchema<ValueSchema extends z.ZodType>(valueSchema: ValueSchema) {
   return z
     .record(actionManifestValueNameSchema, valueSchema)
@@ -98,53 +110,71 @@ function valueRecordSchema<ValueSchema extends z.ZodType>(valueSchema: ValueSche
     });
 }
 
-export const actionManifestSchema = z.strictObject({
-  name: z.string().min(1).max(128).meta({description: 'Names the action.'}),
-  description: z.string().max(1024).optional().meta({description: 'Describes the action.'}),
-  runtime: z.enum(ACTION_MANIFEST_RUNTIMES).optional().meta({
-    description: 'Selects the runtime. Only `node24` is supported.',
-  }),
-  main: z
-    .string()
-    .regex(actionManifestMainPattern, {
-      message: '`main` must be a .ts, .mts, .js, or .mjs file.',
-    })
-    .refine(isNormalizedRelativePath, {
-      message:
-        '`main` must be a path inside the action directory, such as `index.ts`, without `./`, `..`, or a leading `/`.',
-    })
-    .meta({description: 'Sets the entry file, relative to the action directory.'}),
-  inputs: valueRecordSchema(actionManifestInputSchema).optional().meta({
-    description: 'Declares the inputs that steps provide with `with`.',
-  }),
-  outputs: valueRecordSchema(actionManifestOutputSchema).optional().meta({
-    description: 'Declares the outputs that later steps can read.',
-  }),
-  integrations: z
-    .record(workflowDocumentActionAliasSchema, actionManifestIntegrationSchema)
-    .optional()
-    .meta({
-      description:
-        'Declares integration aliases. Each step that uses the action binds every alias with `connections`.',
+export const actionManifestSchema = z
+  .strictObject({
+    name: z.string().min(1).max(128).meta({description: 'Names the action.'}),
+    description: z.string().max(1024).optional().meta({description: 'Describes the action.'}),
+    runtime: z.enum(ACTION_MANIFEST_RUNTIMES).optional().meta({
+      description: 'Selects the runtime. Only `node24` is supported.',
     }),
-  keywords: z
-    .array(
-      z.string().refine(isWorkflowRegistrySlug, {
-        message: 'Keywords use 2 to 40 lowercase letters, digits, and single hyphens.',
+    main: actionManifestEntrySchema('main').meta({
+      description: 'Sets the entry file, relative to the action directory.',
+    }),
+    post: actionManifestEntrySchema('post').optional().meta({
+      description:
+        'Sets the entry file that runs at the end of the job, relative to the action directory. It must differ from `main`.',
+    }),
+    post_failure: z.enum(ACTION_MANIFEST_POST_FAILURES).optional().meta({
+      description:
+        'Decides what a failed `post` does. `warn` (the default) keeps the job result. `fail` fails the job. Requires `post`.',
+    }),
+    inputs: valueRecordSchema(actionManifestInputSchema).optional().meta({
+      description: 'Declares the inputs that steps provide with `with`.',
+    }),
+    outputs: valueRecordSchema(actionManifestOutputSchema).optional().meta({
+      description: 'Declares the outputs that later steps can read.',
+    }),
+    integrations: z
+      .record(workflowDocumentActionAliasSchema, actionManifestIntegrationSchema)
+      .optional()
+      .meta({
+        description:
+          'Declares integration aliases. Each step that uses the action binds every alias with `connections`.',
       }),
-    )
-    .max(ACTION_MANIFEST_KEYWORDS_MAX_ENTRIES)
-    .optional()
-    .meta({description: 'Lists search keywords for the registry page.'}),
-  related: z
-    .array(
-      z.string().refine(isWorkflowRegistryPackageName, {
-        message: 'Related packages are registry names, such as `shipfox/slack-thread-digest`.',
-      }),
-    )
-    .optional()
-    .meta({description: 'Links other registry packages from the registry page.'}),
-});
+    keywords: z
+      .array(
+        z.string().refine(isWorkflowRegistrySlug, {
+          message: 'Keywords use 2 to 40 lowercase letters, digits, and single hyphens.',
+        }),
+      )
+      .max(ACTION_MANIFEST_KEYWORDS_MAX_ENTRIES)
+      .optional()
+      .meta({description: 'Lists search keywords for the registry page.'}),
+    related: z
+      .array(
+        z.string().refine(isWorkflowRegistryPackageName, {
+          message: 'Related packages are registry names, such as `shipfox/slack-thread-digest`.',
+        }),
+      )
+      .optional()
+      .meta({description: 'Links other registry packages from the registry page.'}),
+  })
+  .superRefine((manifest, ctx) => {
+    if (manifest.post === undefined && manifest.post_failure !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['post_failure'],
+        message: '`post_failure` requires `post`.',
+      });
+    }
+    if (manifest.post !== undefined && manifest.post === manifest.main) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['post'],
+        message: '`post` must differ from `main`.',
+      });
+    }
+  });
 
 export type ActionManifest = z.infer<typeof actionManifestSchema>;
 export type ActionManifestInput = z.input<typeof actionManifestSchema>;

@@ -15,6 +15,7 @@ import {readDirectoryTextFiles, readOptional} from './source-archive.js';
 export const ACTION_RECIPE = 1;
 
 const ACTION_MAIN = 'index.mjs';
+const ACTION_POST = 'post.mjs';
 const ACTIONS_PACKAGE = '@shipfox/actions';
 
 // esbuild leaves these calls in place and logs them at debug level, even in
@@ -36,7 +37,10 @@ const actionPackageJsonSchema = z.object({
 
 export interface ActionBuild {
   manifest: ActionManifest;
-  /** The files of the `action-bundle@1`: `action.yml`, `index.mjs`, and `LICENSE` when present. */
+  /**
+   * The files of the `action-bundle@1`: `action.yml`, `index.mjs`, `post.mjs` when the action
+   * declares a post, and `LICENSE` when present.
+   */
   files: ActionBundleFile[];
   /** The build tree without `node_modules`, for the `source-archive@1`. */
   sourceFiles: ActionBundleFile[];
@@ -67,7 +71,7 @@ export async function buildAction({
 
   const tree = await prepareBuildTree({root, workspaceName});
   try {
-    const actionYml = withBundledMain(manifestText);
+    const actionYml = withBundledEntries(manifestText, sourceManifest.post !== undefined);
     const license = await readOptional(join(tree.directory, path, 'LICENSE'));
     return {
       manifest: actionManifestSchema.parse(parseDocument(actionYml).toJS()),
@@ -80,6 +84,17 @@ export async function buildAction({
             main: sourceManifest.main,
           }),
         },
+        ...(sourceManifest.post === undefined
+          ? []
+          : [
+              {
+                path: ACTION_POST,
+                content: await bundleAction({
+                  directory: join(tree.directory, path),
+                  main: sourceManifest.post,
+                }),
+              },
+            ]),
         ...(license === undefined ? [] : [{path: 'LICENSE', content: license}]),
       ],
       sourceFiles: await readDirectoryTextFiles(tree.directory),
@@ -135,10 +150,11 @@ export async function bundleAction({
   return output.text;
 }
 
-/** The action manifest with `main` pointing at the bundle, keeping the author's formatting. */
-function withBundledMain(manifestText: string): string {
+/** The action manifest with the entries pointing at the bundle, keeping the author's formatting. */
+function withBundledEntries(manifestText: string, hasPost: boolean): string {
   const document = parseDocument(manifestText);
   document.set('main', ACTION_MAIN);
+  if (hasPost) document.set('post', ACTION_POST);
   return document.toString();
 }
 

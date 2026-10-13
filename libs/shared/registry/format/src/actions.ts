@@ -77,6 +77,7 @@ export function computeActionBump({previous, next}: ActionManifestChange): Regis
     ...diffActionCapabilities({previous, next}).map(
       (change) => CAPABILITY_CHANGE_BUMP[change.type],
     ),
+    ...postBumps(previous, next),
   ];
   return bumps.reduce<RegistryBump>(
     (highest, bump) => (BUMP_RANK[bump] > BUMP_RANK[highest] ? bump : highest),
@@ -177,6 +178,18 @@ function outputBumps(
   for (const name of after.keys()) {
     if (!before.has(name)) bumps.push('minor');
   }
+  return bumps;
+}
+
+function postBumps(previous: ActionManifest, next: ActionManifest): RegistryBump[] {
+  const bumps: RegistryBump[] = [];
+  if ((previous.post === undefined) !== (next.post === undefined)) bumps.push('minor');
+  const before = previous.post === undefined ? undefined : (previous.post_failure ?? 'warn');
+  const after = next.post === undefined ? undefined : (next.post_failure ?? 'warn');
+  // A post that can now fail the job breaks workflows that passed with it. Adding a `fail` post is
+  // the `minor` above.
+  if (before === 'warn' && after === 'fail') bumps.push('major');
+  if (before === 'fail' && after === 'warn') bumps.push('patch');
   return bumps;
 }
 

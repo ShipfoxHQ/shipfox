@@ -271,6 +271,38 @@ describe('readActionDirectory', () => {
     ]);
   });
 
+  it('rejects a manifest whose post file is missing', async () => {
+    const context = sourceContext({
+      '.shipfox/actions/slack/action.yml': {
+        content: 'name: Slack\nmain: index.ts\npost: post.ts\n',
+      },
+      '.shipfox/actions/slack/index.ts': {content: 'export default 1;\n'},
+    });
+
+    const error = await captureError(
+      readActionDirectory({...context, uses: './.shipfox/actions/slack'}),
+    );
+
+    expect(error.code).toBe('action-invalid');
+    expect(error.details).toEqual([
+      {message: 'Action post file post.ts is not in ./.shipfox/actions/slack', path: 'post'},
+    ]);
+  });
+
+  it('accepts a manifest whose post file exists', async () => {
+    const context = sourceContext({
+      '.shipfox/actions/slack/action.yml': {
+        content: 'name: Slack\nmain: index.ts\npost: post.ts\npost_failure: fail\n',
+      },
+      '.shipfox/actions/slack/index.ts': {content: 'export default 1;\n'},
+      '.shipfox/actions/slack/post.ts': {content: 'export default 1;\n'},
+    });
+
+    const action = await readActionDirectory({...context, uses: './.shipfox/actions/slack'});
+
+    expect(action.manifest).toMatchObject({post: 'post.ts', post_failure: 'fail'});
+  });
+
   it.each([{type: 'symlink' as const}, {type: 'submodule' as const}])('rejects a $type', async ({
     type,
   }) => {

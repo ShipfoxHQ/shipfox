@@ -34,8 +34,10 @@ release tool, Shipfox instances, and the docs build.
   | Output removed or type changed | major |
   | Integration alias added or removed, or its provider changed | major |
   | `allow_write` turned on | major |
+  | `post_failure` changed from `warn` to `fail` | major |
   | Optional input, output, or selectors added | minor |
-  | Anything else, including selectors removed and `allow_write` turned off | patch |
+  | `post` added or removed | minor |
+  | Anything else, including selectors removed, `allow_write` turned off, and `post_failure` changed from `fail` to `warn` | patch |
 
 - **`diffActionCapabilities({previous, next})`** lists what changed in the
   integration aliases: `alias_added`, `alias_removed`, `provider_changed`,

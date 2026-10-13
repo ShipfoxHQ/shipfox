@@ -35,7 +35,7 @@ The `shipfox-registry-release` command runs the deterministic recipe that turns 
    - `turbo.json`, `turbo.jsonc`, and `.gitignore` are removed, because the install and the bundle never read them.
 4. Runs `pnpm install --frozen-lockfile --ignore-scripts --prod` in the tree. pnpm enforces `minimumReleaseAge` from the copied `pnpm-workspace.yaml` on frozen installs, so a dependency published less than 2 days ago fails the build.
 5. Bundles `main` with the pinned esbuild: `platform: node`, `format: esm`, `target: node24`, the `workspace-source` condition, `@shipfox/actions` external, legal comments at the end, no minify or source maps, and a `createRequire` banner. No tsconfig file is read. A `require` or `import()` esbuild cannot resolve fails the build, and so does a native `.node` file.
-6. Encodes the `action-bundle@1` from `action.yml` with `main: index.mjs`, `index.mjs`, and `LICENSE` when present, and the `source-archive@1` from the build tree without `node_modules`. The resolved production dependencies are recorded from the trimmed lockfile.
+6. Encodes the `action-bundle@1` from `action.yml` with `main: index.mjs` (and `post: post.mjs` when the action declares a `post`), `index.mjs`, `post.mjs` when present, and `LICENSE` when present, and the `source-archive@1` from the build tree without `node_modules`. The resolved production dependencies are recorded from the trimmed lockfile.
 
 The source digest depends on the action's path, on the bundled workspace packages, and on the root install settings the tree keeps, such as `overrides` and `packageExtensions`. A change to any of them needs a changeset for the action.
 

@@ -238,12 +238,14 @@ async function assembleAction(params: {
 
   const manifestPath = `${prefix}${manifestFile.path}`;
   const manifest = parseActionManifest({manifestPath, content: manifestFile.content});
-  if (!files.some((file) => file.path === manifest.main)) {
-    const message = `Action main file ${manifest.main} is not in ${uses}`;
+  for (const field of ['main', 'post'] as const) {
+    const entry = manifest[field];
+    if (entry === undefined || files.some((file) => file.path === entry)) continue;
+    const message = `Action ${field} file ${entry} is not in ${uses}`;
     throw new ActionResolutionError({
       code: 'action-invalid',
       message,
-      details: [{message, path: 'main'}],
+      details: [{message, path: field}],
       filePath: manifestPath,
     });
   }

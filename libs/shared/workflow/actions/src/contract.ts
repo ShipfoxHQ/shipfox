@@ -37,8 +37,12 @@ export const ACTION_ENV = {
   env: 'SHIPFOX_ENV',
   path: 'SHIPFOX_PATH',
   mask: 'SHIPFOX_MASK',
+  state: 'SHIPFOX_STATE',
   workspace: 'SHIPFOX_WORKSPACE',
 } as const;
+
+/** The state file of one step, seed included. The runner enforces the same limit. */
+export const MAX_STATE_BYTES = 256 * 1024;
 
 /** Runner variables an action inherits. Everything else in the runner environment stays out. */
 export const ACTION_INHERITED_ENV_KEYS: ReadonlySet<string> = new Set([
@@ -95,6 +99,18 @@ export interface ActionRunContext {
   readonly actionPath: string;
   readonly digest: string;
   readonly workspace: string;
+  /** `post` runs at the end of the job, after every authored step. */
+  readonly phase: 'main' | 'post';
+  /** Set in the post phase only. */
+  readonly execution?: {
+    /** True when the job has failed at this point. */
+    readonly failed: boolean;
+  };
+  /** Set in the post phase only. */
+  readonly main?: {
+    /** How the main entry ended. */
+    readonly status: 'succeeded' | 'failed';
+  };
 }
 
 /** The JSON file named by `SHIPFOX_ACTION_CONTEXT`. */

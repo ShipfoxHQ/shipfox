@@ -6,10 +6,12 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
 ## What it does
 
 - **`defineAction(handler)`** declares an action. The entry file default-exports the result. The
-  handler receives `inputs`, `tools`, `setOutput`, `setEnv`, `addPath`, `addMask`, `log`,
+  handler receives `inputs`, `tools`, `setOutput`, `setEnv`, `addPath`, `addMask`, `state`, `log`,
   `signal`, and `context`, and may return an object of outputs.
 - **`setEnv(name, value)`** and **`addPath(directory)`** hand an environment variable or a `PATH`
   directory to the later steps of the job. **`addMask(value)`** masks a value in those steps.
+- **`state.set(name, value)` and `state.get(name)`** pass string values from the `main` entry to
+  the `post` entry of the same step. See [Post entry](#post-entry).
 - **`tools.<alias>.call(tool, args, {signal})`** calls a tool granted to a manifest alias and
   returns a `ToolResult`. `tool` is a tool id or `family.method`.
 - **`tools.<alias>.download(tool, args, {destination})`** calls a file tool. The runner writes the
@@ -47,6 +49,8 @@ runs with `uses: ./path`, calling Shipfox integration tools through the runner.
   each method.
 - **`@shipfox/actions/testing`** runs an action from a unit test with fake tools. It exports
   `runAction`, `toolResult`, and `toolError`. See [Testing an action](#testing-an-action).
+- **`ActionStateError`** is thrown when a state name is not an identifier, a value is not a string,
+  the state file would pass 256 KiB, or the runner provided no state file.
 
 ## Installation and setup
 
@@ -87,9 +91,47 @@ declare module '@shipfox/actions' {
 }
 ```
 
+## Post entry
+
+An action can declare a second entry in `action.yml` that runs at the end of the job:
+
+```yaml
+main: index.ts
+post: post.ts
+post_failure: warn # or `fail`; the default is `warn`
+```
+
+`post` follows the path rules of `main` and must differ from it. `post_failure` needs `post`. With
+`fail`, a failed post fails the job. Each entry default-exports its own `defineAction` handler and
+runs in a fresh process, so `state` is the only channel between them:
+
+```ts
+// index.ts
+export default defineAction(({state}) => {
+  state.set('cache_key', 'abc');
+});
+
+// post.ts
+export default defineAction(({state, context}) => {
+  if (context.execution?.failed) return;
+  const key = state.get('cache_key'); // 'abc', or undefined when main never set it
+});
+```
+
+- **`state.set(name, value)`** takes an identifier and a string, and appends one JSON line to the
+  file named by `SHIPFOX_STATE`. **`state.get(name)`** reads the values the file held at start,
+  then the values set in this process. The file holds up to 256 KiB.
+- **`context.phase`** is `main` or `post`. In a post, `context.execution.failed` tells whether the
+  job has failed and `context.main.status` tells how the main entry ended. Both are absent in
+  `main`.
+- **A post has no outputs.** `setOutput` throws in a post, and a post that returns outputs fails.
+- **State stays on the runner**, in a file any step of the job can read. It is not a secret store.
+
+Shipfox accepts an action that declares `post`, and does not run it yet.
+
 ## Testing an action
 
-`runAction(actionDir, {inputs, tools, workspace, env, timeoutMs})` runs the action in its own
+`runAction(actionDir, {inputs, tools, workspace, env, phase, state, timeoutMs})` runs the action in its own
 Node process, started the way a runner starts it, with the real loader and bootstrap. It works
 under any test runner, including Vitest's `threads` and `forks` pools, Jest, and `node:test`.
 
@@ -130,9 +172,13 @@ test('collects every page of a thread', async () => {
   tool without `allow_write`, fails with `tool-not-granted`. A granted tool without a fake fails
   with `no-fake-for-tool`. A fake that throws anything else, such as a failed assertion, makes
   `runAction` reject with that error.
-- **The result** holds `status`, `exitCode`, `outputs` (typed as later steps see them), `error`,
-  every `calls` entry, the interleaved `logs`, the `summary`, the `carriedEnv`, `carriedPath`,
-  and `masks` the action wrote for later steps, and the `workspace`.
+- **The result** holds `status`, `exitCode`, `outputs` (typed as later steps see them), `state`,
+  `error`, every `calls` entry, the interleaved `logs`, the `summary`, the `carriedEnv`,
+  `carriedPath`, and `masks` the action wrote for later steps, and the `workspace`.
+- **Phases.** `phase: 'post'` runs the `post` entry. `state` seeds the state file, and
+  `result.state` returns it after the run, so a test passes the state of the main run to the post
+  run. `executionFailed` and `mainStatus` set `context.execution.failed` and `context.main.status`
+  for the post.
 - **The workspace** is a new temporary directory unless `workspace` names one. Call
   `result.workspace.remove()` to delete it. It deletes a named workspace too, so name only a
   disposable directory.
@@ -185,6 +231,8 @@ The bootstrap:
 - writes `{"status": "succeeded"}` or `{"status": "failed"}` to `SHIPFOX_ACTION_RESULT`. A throw
   or an unhandled rejection prints the stack and exits 1. An action that calls `process.exit`
   before the handler settles leaves no result, so the runner cannot count it as a success.
+
+The runner will set a state file in `SHIPFOX_STATE` for the post entry once post execution is implemented; see [Post entry](#post-entry).
 
 The runner sets three files for the steps that follow, as it does for run steps. `setEnv`,
 `addPath`, and `addMask` append to them right away, so the values survive a later throw:

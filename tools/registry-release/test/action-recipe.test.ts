@@ -41,17 +41,16 @@ describe('buildPackage for an action', () => {
   }, BUILD_TIMEOUT);
   afterAll(() => repository.remove());
 
-  it('bundles the manifest, the entry file, and the license', async () => {
+  it('bundles the manifest, the entry files, and the license', async () => {
     const files = await contentFiles(built);
 
-    expect(Object.keys(files).sort()).toEqual(['LICENSE', 'action.yml', 'index.mjs']);
+    expect(Object.keys(files).sort()).toEqual(['LICENSE', 'action.yml', 'index.mjs', 'post.mjs']);
     expect(files['action.yml']).toBe(
-      ACTION_REPOSITORY_FILES[`${ACTION_PATH}/action.yml`]?.replace(
-        'main: src/main.ts',
-        'main: index.mjs',
-      ),
+      ACTION_REPOSITORY_FILES[`${ACTION_PATH}/action.yml`]
+        ?.replace('main: src/main.ts', 'main: index.mjs')
+        .replace('post: src/post.ts', 'post: post.mjs'),
     );
-    expect(built.manifest).toMatchObject({name: 'Example', main: 'index.mjs'});
+    expect(built.manifest).toMatchObject({name: 'Example', main: 'index.mjs', post: 'post.mjs'});
     expect(built.content.format).toBe('action-bundle@1');
   });
 
@@ -73,6 +72,7 @@ describe('buildPackage for an action', () => {
       `${ACTION_PATH}/action.yml`,
       `${ACTION_PATH}/package.json`,
       `${ACTION_PATH}/src/main.ts`,
+      `${ACTION_PATH}/src/post.ts`,
       'libs/format/package.json',
       'libs/format/src/index.ts',
       'package.json',

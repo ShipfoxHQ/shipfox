@@ -81,6 +81,55 @@ describe('actionManifestSchema', () => {
     expect(issues).toEqual([{path: 'main', message: expect.stringContaining(message)}]);
   });
 
+  it('accepts a post entry with a failure mode', () => {
+    const manifest = actionManifestSchema.parse({
+      ...slackThreadManifest,
+      post: 'post.ts',
+      post_failure: 'fail',
+    });
+
+    expect(manifest.post).toBe('post.ts');
+    expect(manifest.post_failure).toBe('fail');
+  });
+
+  it('leaves post_failure unset when it is omitted', () => {
+    const manifest = actionManifestSchema.parse({...slackThreadManifest, post: 'post.ts'});
+
+    expect(manifest.post_failure).toBeUndefined();
+  });
+
+  it.each([
+    ['index.py', '`post` must be a .ts, .mts, .js, or .mjs file.'],
+    ['./post.ts', 'without `./`'],
+    ['../post.ts', 'without `./`'],
+  ])('rejects post %s', (post, message) => {
+    const issues = manifestIssues({...slackThreadManifest, post});
+
+    expect(issues).toEqual([{path: 'post', message: expect.stringContaining(message)}]);
+  });
+
+  it('rejects a post that equals main', () => {
+    const issues = manifestIssues({...slackThreadManifest, post: slackThreadManifest.main});
+
+    expect(issues).toEqual([{path: 'post', message: '`post` must differ from `main`.'}]);
+  });
+
+  it('rejects post_failure without post', () => {
+    const issues = manifestIssues({...slackThreadManifest, post_failure: 'warn'});
+
+    expect(issues).toEqual([{path: 'post_failure', message: '`post_failure` requires `post`.'}]);
+  });
+
+  it('rejects an unknown post_failure', () => {
+    const issues = manifestIssues({
+      ...slackThreadManifest,
+      post: 'post.ts',
+      post_failure: 'ignore',
+    });
+
+    expect(issues).toEqual([expect.objectContaining({path: 'post_failure'})]);
+  });
+
   it.each([['*'], ['issue_read.*']])('rejects the %s selector', (selector) => {
     const issues = manifestIssues({
       ...slackThreadManifest,
@@ -239,12 +288,15 @@ describe('buildActionManifestJsonSchema', () => {
       'description',
       'runtime',
       'main',
+      'post',
+      'post_failure',
       'inputs',
       'outputs',
       'integrations',
       'keywords',
       'related',
     ]);
+    expect(schema.properties).toMatchObject({post_failure: {enum: ['warn', 'fail']}});
   });
 
   it('accepts a custom id', () => {

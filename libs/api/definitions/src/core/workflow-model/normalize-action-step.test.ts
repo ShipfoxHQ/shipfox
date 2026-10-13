@@ -212,6 +212,31 @@ describe('normalizeWorkflowDocument action steps', () => {
     expect(model.jobs[0]?.steps[0]?.outputs).toEqual({});
   });
 
+  test('carries the post entry with the warn default', () => {
+    const model = normalize(document(actionStep()), actions(manifest({post: 'post.ts'})));
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      action: {main: 'index.ts', post: 'post.ts', postFailure: 'warn'},
+    });
+  });
+
+  test('carries an explicit post_failure', () => {
+    const model = normalize(
+      document(actionStep()),
+      actions(manifest({post: 'post.ts', post_failure: 'fail'})),
+    );
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({action: {post: 'post.ts', postFailure: 'fail'}});
+  });
+
+  test('leaves post and postFailure out when the manifest has no post', () => {
+    const model = normalize(document(actionStep()));
+
+    const action = (model.jobs[0]?.steps[0] as {action: object}).action;
+    expect(action).not.toHaveProperty('post');
+    expect(action).not.toHaveProperty('postFailure');
+  });
+
   test('exports every manifest output as a typed job output', () => {
     const model = normalize(document(actionStep({export: true})));
 
