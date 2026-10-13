@@ -457,4 +457,36 @@ describe('Jira API mock', () => {
       }
     });
   });
+
+  it('answers like Jira for an unknown issue and an unparsable query when asked to', async () => {
+    const mock = await startJiraApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      rejectUnseeded: true,
+    });
+    mock.seed({issues: [{key: 'E2ER-1', id: '10010', summary: 'Seeded'}]});
+
+    try {
+      const seeded = await fetch(new URL(`${REST}/issue/E2ER-1`, mock.endpoint));
+      const missing = await fetch(new URL(`${REST}/issue/E2ER-999999`, mock.endpoint));
+      const search = (jql: string) =>
+        fetch(new URL(`${REST}/search/jql`, mock.endpoint), {
+          method: 'POST',
+          headers: {'content-type': 'application/json'},
+          body: JSON.stringify({jql}),
+        });
+      const valid = await search('project = E2ER');
+      const invalid = await search('this is ((not jql');
+
+      expect(seeded.status).toBe(200);
+      expect(missing.status).toBe(404);
+      await expect(missing.json()).resolves.toMatchObject({errors: {}});
+      expect(valid.status).toBe(200);
+      expect(invalid.status).toBe(400);
+      await expect(invalid.json()).resolves.toMatchObject({
+        errorMessages: [expect.stringContaining('JQL')],
+      });
+    } finally {
+      await mock.stop();
+    }
+  });
 });

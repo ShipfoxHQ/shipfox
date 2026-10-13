@@ -1,3 +1,6 @@
+import {mkdtemp} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {
   GITHUB_READ_RESULT_MARKER,
   GITHUB_STATELESS_INSTALLATION_TOKEN,
@@ -419,6 +422,34 @@ describe('GitHub API mock issues', () => {
         'github.reprioritize_sub_issue',
         'github.remove_sub_issue',
       ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('answers 404 for a repository it was told to deny or, once asked, one it was not seeded with', async () => {
+    const {mock, request} = await startMock();
+
+    try {
+      mock.issues.set(5, {repository: 'acme/app', title: 'Seeded'});
+      await mock.addRepository({
+        owner: 'acme',
+        name: 'app',
+        seedDirectory: await mkdtemp(join(tmpdir(), 'github-access-')),
+      });
+      mock.access.denied.add('acme/app');
+      const denied = await request('GET', '/repos/acme/app/issues/5');
+      const unseededByDefault = await request('GET', '/repos/acme/other/issues/5');
+      mock.access.denied.clear();
+      mock.access.rejectUnseeded = true;
+      const registered = await request('GET', '/repos/acme/app/issues/5');
+      const unseeded = await request('GET', '/repos/acme/other/issues/5');
+
+      expect(denied.status).toBe(404);
+      await expect(denied.json()).resolves.toMatchObject({message: 'Not Found'});
+      expect(unseededByDefault.status).toBe(200);
+      expect(registered.status).toBe(200);
+      expect(unseeded.status).toBe(404);
     } finally {
       await mock.stop();
     }

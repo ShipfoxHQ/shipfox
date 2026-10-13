@@ -344,4 +344,32 @@ describe('Notion API mock', () => {
       startNotionApiMock({endpoint: new URL('http://127.0.0.1:9000/notion')}),
     ).rejects.toThrow('NOTION_API_BASE_URL must not include a path for the Notion API mock');
   });
+
+  it('answers a page read like Notion when asked to reject what no seed names', async () => {
+    const mock = await startNotionApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      rejectUnseeded: true,
+    });
+    mock.pages.set('3f0c6baa-a59e-8196-b7be-c029ce003cdb', {
+      id: '3f0c6baa-a59e-8196-b7be-c029ce003cdb',
+      title: 'Fixture page',
+      markdown: '',
+      comments: [],
+    });
+
+    try {
+      const read = (pageId: string) => fetch(new URL(`/v1/pages/${pageId}`, mock.endpoint));
+      const seeded = await read('3f0c6baa-a59e-8196-b7be-c029ce003cdb');
+      const missing = await read('00000000-0000-4000-8000-000000000000');
+      const malformed = await read('not-a-uuid');
+
+      expect(seeded.status).toBe(200);
+      expect(missing.status).toBe(404);
+      await expect(missing.json()).resolves.toMatchObject({code: 'object_not_found'});
+      expect(malformed.status).toBe(400);
+      await expect(malformed.json()).resolves.toMatchObject({code: 'validation_error'});
+    } finally {
+      await mock.stop();
+    }
+  });
 });

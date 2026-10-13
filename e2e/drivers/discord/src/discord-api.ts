@@ -207,10 +207,47 @@ function handleListMessages(
   {state, url, response}: RouteContext,
   [channelId = '']: string[],
 ): void {
+  for (const name of PAGING_SNOWFLAKES) {
+    const value = url.searchParams.get(name);
+    if (value !== null && !isSnowflake(value)) {
+      sendInvalidFormBody({response, field: name, value});
+      return;
+    }
+  }
   const limit = Number(url.searchParams.get('limit') ?? DEFAULT_MESSAGE_LIMIT);
   // Discord answers newest first.
   const newestFirst = [...(state.messages.get(channelId) ?? [])].reverse();
   sendJson(response, 200, newestFirst.slice(0, limit));
+}
+
+// The query parameters of a message list that name a message.
+const PAGING_SNOWFLAKES = ['before', 'after', 'around'];
+const MAX_SNOWFLAKE = 2n ** 64n - 1n;
+const DIGITS_RE = /^\d+$/u;
+
+/** A snowflake is an unsigned 64-bit integer, which Discord takes as a string of digits. */
+function isSnowflake(value: string): boolean {
+  return DIGITS_RE.test(value) && BigInt(value) <= MAX_SNOWFLAKE;
+}
+
+function sendInvalidFormBody({
+  response,
+  field,
+  value,
+}: {
+  response: ServerResponse;
+  field: string;
+  value: string;
+}): void {
+  sendJson(response, 400, {
+    message: 'Invalid Form Body',
+    code: 50_035,
+    errors: {
+      [field]: {
+        _errors: [{code: 'NUMBER_TYPE_COERCE', message: `Value "${value}" is not snowflake.`}],
+      },
+    },
+  });
 }
 
 function handleGetMessage(

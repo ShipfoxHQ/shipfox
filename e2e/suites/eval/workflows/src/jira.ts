@@ -56,13 +56,16 @@ export async function arrangeJiraTracker({
   workspaceId,
   uniqueId,
   cleanups,
+  rejectUnseeded,
 }: {
   workspaceId: string;
   uniqueId: string;
   cleanups: Array<() => Promise<void>>;
+  /** Makes the fake answer like Jira for an issue or a query it was not seeded with. */
+  rejectUnseeded?: boolean;
 }): Promise<JiraTracker> {
   const accessToken = `jira-access-token-${uniqueId}`;
-  const mock = await startJiraApiMock({accessToken});
+  const mock = await startJiraApiMock({accessToken, rejectUnseeded});
   cleanups.push(() => mock.stop());
 
   const siteUrl = `https://eval-${uniqueId}.atlassian.example.test`;

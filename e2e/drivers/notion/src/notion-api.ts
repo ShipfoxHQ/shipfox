@@ -2,6 +2,8 @@ import {randomUUID} from 'node:crypto';
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
 import {type ListeningFake, listenFake, type RecordedWrite} from '@shipfox/e2e-core';
 
+const UUID_RE = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/iu;
+
 export const NOTION_PAGE_RESULT_MARKER = 'notion-page-result-marker';
 
 const NOTION_PAGES_PATH = '/v1/pages';
@@ -96,6 +98,11 @@ export interface NotionApiMockOptions {
   accessToken?: string | undefined;
   /** Listens here directly instead of behind the stack's router. Unit tests pass port 0. */
   endpoint?: URL | undefined;
+  /**
+   * Answers a page read as Notion does: 400 for an id that is not a UUID, and 404 for a page no
+   * seed names, instead of a placeholder page.
+   */
+  rejectUnseeded?: boolean | undefined;
 }
 
 export async function startNotionApiMock(
@@ -112,6 +119,7 @@ export async function startNotionApiMock(
       calls,
       pages,
       dataSources,
+      rejectUnseeded: options.rejectUnseeded === true,
       endpoint: boundEndpoint,
       request,
       response,
@@ -192,6 +200,7 @@ async function handleNotionRequest(params: {
   calls: NotionApiMockCall[];
   pages: Map<string, NotionPageFixture>;
   dataSources: ReadonlyMap<string, NotionDataSourceFixture>;
+  rejectUnseeded: boolean;
   endpoint: URL;
   request: IncomingMessage;
   response: ServerResponse;
@@ -247,6 +256,7 @@ async function handleNotionRequest(params: {
 async function handlePageRequest({
   calls,
   pages,
+  rejectUnseeded,
   request,
   response,
   authorization,
@@ -254,6 +264,7 @@ async function handlePageRequest({
 }: {
   calls: NotionApiMockCall[];
   pages: Map<string, NotionPageFixture>;
+  rejectUnseeded: boolean;
   request: IncomingMessage;
   response: ServerResponse;
   authorization: string | undefined;
@@ -292,6 +303,18 @@ async function handlePageRequest({
   const seeded = pages.get(pageId);
   if (seeded !== undefined) {
     sendJson(response, 200, pageBody(seeded));
+    return;
+  }
+  if (rejectUnseeded) {
+    if (UUID_RE.test(pageId)) sendPageNotFound(response, pageId);
+    else {
+      sendNotionError(
+        response,
+        400,
+        'validation_error',
+        `path failed validation: path.page_id should be a valid uuid, instead was \`"${pageId}"\`.`,
+      );
+    }
     return;
   }
   sendJson(response, 200, {

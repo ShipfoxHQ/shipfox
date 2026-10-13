@@ -25,6 +25,7 @@ export {
   type GithubApiMockCall,
   type GithubApiMockFailure,
   type GithubApiMockOptions,
+  type GithubRepositoryAccess,
   startGithubApiMock,
 } from './github-api.js';
 export type {GithubIssueCommentFixture, GithubIssueFixture} from './issues.js';

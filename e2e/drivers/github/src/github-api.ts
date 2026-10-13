@@ -54,6 +54,7 @@ export const GITHUB_GRAPHQL_RESULT_MARKER = 'github-graphql-result-marker';
 const INSTALLATION_TOKEN_PATH = /^\/app\/installations\/(\d+)\/access_tokens$/u;
 const REPOSITORY_PATH = /^\/repositories\/(\d+)$/u;
 const REPOSITORY_BY_NAME_PATH = /^\/repos\/([^/]+)\/([^/]+)$/u;
+const REPOSITORY_SCOPED_PATH = /^\/repos\/([^/]+)\/([^/]+)(?:\/|$)/u;
 const CHECK_RUN_CREATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs$/u;
 const CHECK_RUN_UPDATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs\/(\d+)$/u;
 const USER_PATH = /^\/users\/([^/]+)$/u;
@@ -134,9 +135,25 @@ export type GithubApiMockCall =
       body: Record<string, unknown>;
     };
 
+/** What decides that the fake answers a repository the way GitHub answers one it cannot see. */
+export interface GithubRepositoryAccess {
+  /**
+   * Answers 404 for a repository that `addRepository` did not register, as GitHub does for one
+   * that does not exist. Off by default: the fake then reads a repository nobody seeded as a
+   * synthetic one, which the specs that never register a repository rely on.
+   */
+  rejectUnseeded: boolean;
+  /**
+   * Repositories, as `owner/name`, that answer 404 even when registered. GitHub answers an
+   * installation the same way for a repository it was not installed on, whether it exists or not.
+   */
+  denied: Set<string>;
+}
+
 export interface GithubApiMock extends GithubWebhookSender {
   calls: GithubApiMockCall[];
   endpoint: URL;
+  access: GithubRepositoryAccess;
   /** Pull requests by number. Tests fill it once they know the commits; created ones land here. */
   pullRequests: Map<number, GithubPullRequestFixture>;
   /** Review threads by GraphQL node id. Replies join them and resolution marks them. */
@@ -215,6 +232,7 @@ export async function startGithubApiMock(
   const workflows = new Map<number, GithubWorkflowFixture>();
   const workflowRuns = new Map<number, GithubWorkflowRunFixture>();
   const writes: RecordedWrite[] = [];
+  const access: GithubRepositoryAccess = {rejectUnseeded: false, denied: new Set()};
   const recordWrite = (write: RecordedWrite, authorization: string | undefined) => {
     if (isCurrentInstallationAuthorization({installationId, installationToken, authorization})) {
       writes.push(write);
@@ -290,6 +308,7 @@ export async function startGithubApiMock(
       gitDataRoutes,
       branchHeads,
       repositories,
+      access,
       request,
       response,
     });
@@ -313,6 +332,7 @@ export async function startGithubApiMock(
   return {
     calls,
     endpoint: boundEndpoint,
+    access,
     pullRequests,
     reviewThreads,
     issues,
@@ -360,6 +380,7 @@ interface GithubRequestContext {
   gitDataRoutes: GitDataRoutes;
   branchHeads: Map<string, string>;
   repositories: GitRepositories;
+  access: GithubRepositoryAccess;
   recordWrite: (write: RecordedWrite, authorization: string | undefined) => void;
   recordPush: (write: RecordedWrite) => void;
   request: IncomingMessage;
@@ -389,6 +410,7 @@ async function handleGithubRequest(params: {
   gitDataRoutes: GitDataRoutes;
   branchHeads: Map<string, string>;
   repositories: GitRepositories;
+  access: GithubRepositoryAccess;
   recordWrite: (write: RecordedWrite, authorization: string | undefined) => void;
   recordPush: (write: RecordedWrite) => void;
   request: IncomingMessage;
@@ -407,6 +429,14 @@ async function handleGithubRequest(params: {
       requestUrl,
       installationToken: params.installationToken,
       onWrite: params.recordPush,
+    });
+    return;
+  }
+  if (hidesRepository(context)) {
+    sendJson(params.response, 404, {
+      message: 'Not Found',
+      documentation_url: 'https://docs.github.com/rest',
+      status: '404',
     });
     return;
   }
@@ -516,6 +546,15 @@ async function handleMintRequest(
     repository_selection: 'all',
     ...(repositories === undefined ? {} : {repositories}),
   });
+}
+
+function hidesRepository({requestUrl, repositories, access}: GithubRequestContext): boolean {
+  const match = requestUrl.pathname.match(REPOSITORY_SCOPED_PATH);
+  if (match === null) return false;
+  const owner = decodeURIComponent(match[1] ?? '');
+  const name = decodeURIComponent(match[2] ?? '');
+  if (access.denied.has(`${owner}/${name}`)) return true;
+  return access.rejectUnseeded && repositories.findByName({owner, name}) === undefined;
 }
 
 function handleRepositoryRequest(params: GithubRequestContext, match: RegExpMatchArray): void {

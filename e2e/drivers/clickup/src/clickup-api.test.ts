@@ -283,4 +283,44 @@ describe('ClickUp API mock', () => {
       await mock.stop();
     }
   });
+
+  it("answers a task no seed names with ClickUp's 401 when asked to reject it", async () => {
+    const mock = await startClickUpApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      rejectUnseeded: true,
+      tasks: [
+        {
+          id: '86abc',
+          name: 'Seeded',
+          url: 'https://app.clickup.com/t/86abc',
+          markdownDescription: '',
+        },
+      ],
+    });
+
+    try {
+      const seeded = await fetch(new URL('/api/v2/task/86abc', mock.endpoint));
+      const missing = await fetch(new URL('/api/v2/task/86zzz', mock.endpoint));
+
+      expect(seeded.status).toBe(200);
+      expect(missing.status).toBe(401);
+      await expect(missing.json()).resolves.toMatchObject({ECODE: 'ITEM_015'});
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('fails a task search for a page it cannot count from', async () => {
+    const mock = await startClickUpApiMock({endpoint: new URL('http://127.0.0.1:0')});
+
+    try {
+      const response = await fetch(
+        new URL('/api/v2/team/1/task?page=-1&list_ids[]=901', mock.endpoint),
+      );
+
+      expect(response.status).toBe(500);
+    } finally {
+      await mock.stop();
+    }
+  });
 });

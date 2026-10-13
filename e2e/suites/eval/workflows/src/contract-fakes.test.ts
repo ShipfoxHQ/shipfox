@@ -329,6 +329,28 @@ describe('githubContractFake', () => {
     await expect(fake.seed({repository: {name: 'fixtures'}})).rejects.toThrow(missingOwnerPattern);
   });
 
+  it('answers 404 for a repository the sandbox does not have, and for an inaccessible target', async () => {
+    const fake = await arrange();
+    const read = async (name: string) =>
+      (
+        await fetch(new URL(`/repos/contracts-sandbox/${name}/issues/1`, mock?.endpoint), {
+          headers: {authorization: `token ${token}`},
+        })
+      ).status;
+
+    await fake.seed({
+      repository: {owner: 'contracts-sandbox', name: 'fixtures'},
+      issue: {number: 1},
+    });
+    fake.deny?.({
+      private_repository: {kind: 'inaccessible', owner: 'contracts-sandbox', name: 'private'},
+    });
+
+    expect(await read('fixtures')).toBe(200);
+    expect(await read('absent')).toBe(404);
+    expect(await read('private')).toBe(404);
+  });
+
   it('is the adapter of the github provider', () => {
     expect(CONTRACT_FAKE_ADAPTERS.github).toBe(githubContractFake);
   });

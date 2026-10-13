@@ -12,7 +12,8 @@ A fake Notion API and event sender for E2E suites. The fake stands in for `api.n
   The token is required unless `options.endpoint` is set, which listens directly instead.
 - `NotionApiMock.pages`: the pages the fake serves, by ID, with their title, parent, Markdown, and
   comments. Add to it to seed the fake. A page that was not seeded gets a placeholder on a read,
-  and answers not found to a write.
+  and answers not found to a write. With `options.rejectUnseeded`, a read answers Notion's 404
+  for a page that was not seeded, and 400 for an id that is not a UUID.
 - `NotionApiMock.dataSources`: the data sources the fake serves, by ID, with their rows as pages.
   A query pages the rows by cursor. A data source that was not seeded answers not found.
 - `NotionApiMock.calls`: every request the fake served, as `NotionApiMockCall` entries. A write it

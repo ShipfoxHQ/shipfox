@@ -1,6 +1,6 @@
 provider: notion
 kind: error
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: get_page
     with:

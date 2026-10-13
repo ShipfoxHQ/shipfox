@@ -13,7 +13,8 @@ A fake Jira REST API and signed webhook sender for E2E suites. The fake stands i
 - `JiraApiMock.seed(seed)`: make the fake answer for given projects, issues, comments, and users with
   their ids and fields, as `JiraSeed` entries. An issue is served by its key or ID, its comments as
   ADF documents, and search returns the seeded issues. Anything not seeded keeps the generic
-  answer.
+  answer, unless `options.rejectUnseeded` is set: an issue read then answers Jira's 404, and a
+  search with unbalanced parentheses in its JQL answers 400.
 - `JiraApiMock.calls`: every recognized request the fake handled, as `JiraApiMockCall` entries. Unknown paths and
   methods get a 404 or 405 and are not recorded.
 - Writes change what the fake serves. A created issue gets the next key of its project and is read

@@ -285,4 +285,22 @@ describe('Discord API mock', () => {
       await mock.stop();
     }
   });
+
+  it('rejects a message list that pages from something other than a snowflake', async () => {
+    const {mock, call} = await arrange();
+
+    try {
+      const tooLarge = await call(
+        'GET',
+        `/channels/${CHANNEL_ID}/messages?before=99999999999999999999`,
+      );
+      const valid = await call('GET', `/channels/${CHANNEL_ID}/messages?before=${MESSAGE_ID}`);
+
+      expect(tooLarge.status).toBe(400);
+      expect(tooLarge.body).toMatchObject({message: 'Invalid Form Body', code: 50_035});
+      expect(valid.status).toBe(200);
+    } finally {
+      await mock.stop();
+    }
+  });
 });

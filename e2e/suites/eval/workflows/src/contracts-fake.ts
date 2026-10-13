@@ -246,6 +246,7 @@ async function arrangeFakeStack({
         cleanups,
       });
       await fake.seed(files.manifest[provider]?.fixtures ?? {});
+      fake.deny?.(files.manifest[provider]?.targets ?? {});
       fakes.set(provider, fake);
     } catch (error) {
       fakes.set(provider, `The ${provider} fake could not be seeded: ${failureMessage(error)}`);

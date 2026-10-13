@@ -48,6 +48,11 @@ export interface StartClickUpApiMockOptions {
   endpoint?: URL | undefined;
   /** Tasks the fake serves by ID. Any other task gets a placeholder. */
   tasks?: readonly ClickUpTaskFixture[];
+  /**
+   * Answers a task no seed names the way ClickUp answers one that does not exist (401, as ClickUp
+   * does for a task the token cannot see), instead of with a placeholder.
+   */
+  rejectUnseeded?: boolean | undefined;
 }
 
 export type ClickUpApiMockCall =
@@ -118,6 +123,7 @@ export async function startClickUpApiMock(
       calls,
       tasks,
       nextId,
+      rejectUnseeded: options.rejectUnseeded === true,
       endpoint: boundEndpoint,
       request,
       response,
@@ -175,6 +181,7 @@ interface ClickUpTaskRequest {
   calls: ClickUpApiMockCall[];
   tasks: Map<string, ClickUpTaskFixture>;
   nextId: (prefix: string) => string;
+  rejectUnseeded: boolean;
   request: IncomingMessage;
   response: ServerResponse;
   taskId: string;
@@ -186,6 +193,7 @@ async function handleClickUpRequest(params: {
   calls: ClickUpApiMockCall[];
   tasks: Map<string, ClickUpTaskFixture>;
   nextId: (prefix: string) => string;
+  rejectUnseeded: boolean;
   endpoint: URL;
   request: IncomingMessage;
   response: ServerResponse;
@@ -202,6 +210,7 @@ async function handleClickUpRequest(params: {
     calls: params.calls,
     tasks: params.tasks,
     nextId: params.nextId,
+    rejectUnseeded: params.rejectUnseeded,
     request: params.request,
     response: params.response,
     taskId: decodeURIComponent(match[1] ?? ''),
@@ -244,6 +253,7 @@ async function handleCollectionRequest(
     calls: params.calls,
     tasks: params.tasks,
     nextId: params.nextId,
+    rejectUnseeded: params.rejectUnseeded,
     request,
     response,
     listId: decodeURIComponent(listMatch?.[1] ?? ''),
@@ -253,9 +263,21 @@ async function handleCollectionRequest(
   return true;
 }
 
-function getTask({calls, tasks, response, taskId, query, authorization}: ClickUpTaskRequest): void {
+function getTask({
+  calls,
+  tasks,
+  rejectUnseeded,
+  response,
+  taskId,
+  query,
+  authorization,
+}: ClickUpTaskRequest): void {
   calls.push({kind: 'get_task', authorization, taskId, query});
   const task = tasks.get(taskId);
+  if (task === undefined && rejectUnseeded) {
+    sendJson(response, 401, {err: 'Task not found, deleted, or access denied.', ECODE: 'ITEM_015'});
+    return;
+  }
   sendJson(
     response,
     200,
@@ -324,6 +346,11 @@ function searchTasks({
   const includeClosed = searchParams.get('include_closed') === 'true';
   const includeSubtasks = searchParams.get('subtasks') === 'true';
   const page = Number(searchParams.get('page') ?? 0);
+  // ClickUp fails on a page it cannot count from, instead of rejecting the request.
+  if (!Number.isInteger(page) || page < 0) {
+    sendJson(response, 500, {err: 'Internal server error'});
+    return;
+  }
   const matching = [...tasks.values()].filter(
     (task) =>
       task.list !== undefined &&

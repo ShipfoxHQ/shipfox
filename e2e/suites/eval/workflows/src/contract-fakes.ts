@@ -38,6 +38,9 @@ import {arrangeJiraTracker} from './jira.js';
 /** The `fixtures` of one provider in `sandbox.yaml`. */
 export type SandboxFixtures = SandboxManifest[string]['fixtures'];
 
+/** The `targets` of one provider in `sandbox.yaml`. */
+export type SandboxTargets = SandboxManifest[string]['targets'];
+
 /** A provider fake that the contracts suite has started, with its connection in the workspace. */
 export interface ContractFake {
   /** The slug of the workspace's connection to the fake. */
@@ -48,6 +51,13 @@ export interface ContractFake {
    * doesn't know is left out, and the cases that read it fail on the fake.
    */
   seed(fixtures: SandboxFixtures): Promise<void>;
+  /**
+   * Puts the provider's `inaccessible` targets on the fake's deny list, so it answers them with
+   * the status and body the provider returned. An `absent` target is never seeded, so the fake
+   * answers it like any unknown id and needs nothing here. A fake without the method has no
+   * `inaccessible` target.
+   */
+  deny?(targets: SandboxTargets): void;
   /** Every write the fake accepted. Read before the fake stops. */
   writes(): RecordedWrite[];
 }
@@ -92,6 +102,11 @@ function requiredField({
     throw new Error(`The ${provider} fixture "${fixtureName}" has no "${name}".`);
   }
   return value;
+}
+
+/** The targets that exist outside the connection's reach, which a fake must refuse. */
+function inaccessibleTargets(targets: SandboxTargets): Array<SandboxTargets[string]> {
+  return Object.values(targets).filter((target) => target.kind === 'inaccessible');
 }
 
 /** Runs a seeding that needs no await, and fails the returned promise instead of throwing. */
@@ -376,8 +391,18 @@ function seedGithubTriggerWorkflow({
  */
 export const githubContractFake: ContractFakeAdapter = ({github, client, cleanups}) => {
   const {mock} = github;
+  // GitHub answers 404 for a repository that does not exist, and so does the fake once the
+  // sandbox repository is the only one it knows.
+  mock.access.rejectUnseeded = true;
   return Promise.resolve({
     connectionSlug: github.connectionSlug,
+    deny: (targets) => {
+      for (const target of inaccessibleTargets(targets)) {
+        const owner = field({fixture: target, name: 'owner'});
+        const name = field({fixture: target, name: 'name'});
+        if (owner !== undefined && name !== undefined) mock.access.denied.add(`${owner}/${name}`);
+      }
+    },
     seed: async (fixtures) => {
       const repository = fixtures.repository;
       if (repository === undefined) {
@@ -499,7 +524,7 @@ export const clickupContractFake: ContractFakeAdapter = async ({
   cleanups,
 }) => {
   const accessToken = `clickup-access-token-${uniqueId}`;
-  const mock = await startClickUpApiMock({accessToken});
+  const mock = await startClickUpApiMock({accessToken, rejectUnseeded: true});
   cleanups.push(() => mock.stop());
   const connection = await createClickUpConnection({
     workspaceId,
@@ -544,7 +569,7 @@ export const notionContractFake: ContractFakeAdapter = async ({
   cleanups,
 }) => {
   const accessToken = `notion-access-token-${uniqueId}`;
-  const mock = await startNotionApiMock({accessToken});
+  const mock = await startNotionApiMock({accessToken, rejectUnseeded: true});
   cleanups.push(() => mock.stop());
   const connection = await createNotionConnection({
     workspaceId,
@@ -939,7 +964,12 @@ export function createJiraContractFake({
   arrange?: typeof arrangeJiraTracker;
 } = {}): ContractFakeAdapter {
   return async ({workspaceId, uniqueId, cleanups}) => {
-    const {mock, connectionSlug, writes} = await arrange({workspaceId, uniqueId, cleanups});
+    const {mock, connectionSlug, writes} = await arrange({
+      workspaceId,
+      uniqueId,
+      cleanups,
+      rejectUnseeded: true,
+    });
     return {
       connectionSlug,
       seed: (fixtures) => rejectingSeed(() => mock.seed(jiraSeed(fixtures))),

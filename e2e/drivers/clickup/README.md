@@ -12,7 +12,9 @@ A fake ClickUp API and event sender for E2E suites. The fake stands in for `api.
   is set, which listens directly instead.
   `options.tasks` lists the tasks it serves
   by ID, with their name, URL, and Markdown description. A task can also name its List, be closed
-  or a subtask, and hold comments. Any other task gets a placeholder.
+  or a subtask, and hold comments. Any other task gets a placeholder, unless
+  `options.rejectUnseeded` is set: a read then answers 401, as ClickUp does for a task it cannot
+  find. A task search for a negative or fractional `page` answers 500.
 - `ClickUpApiMock.tasks`: the tasks the fake serves, by ID. Add to it to seed the fake after it
   started. A task search answers 100 tasks a page for the Lists it names, and leaves out closed
   tasks and subtasks unless the search asks for them. A comment list answers the first 25 comments.

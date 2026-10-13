@@ -1,6 +1,6 @@
 provider: jira
 kind: error
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: search_issues
     with:

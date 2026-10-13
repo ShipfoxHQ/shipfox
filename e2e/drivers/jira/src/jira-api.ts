@@ -65,6 +65,11 @@ export interface JiraApiMockOptions {
   accessToken?: string | undefined;
   /** Listens here directly instead of behind the stack's router. Unit tests pass port 0. */
   endpoint?: URL | undefined;
+  /**
+   * Answers a read of an issue no seed names with Jira's 404, and a search with a JQL query that
+   * does not parse with its 400, instead of a placeholder issue and a list.
+   */
+  rejectUnseeded?: boolean | undefined;
 }
 
 export async function startJiraApiMock(options: JiraApiMockOptions = {}): Promise<JiraApiMock> {
@@ -84,6 +89,7 @@ export async function startJiraApiMock(options: JiraApiMockOptions = {}): Promis
     void handleJiraRequest({
       calls,
       seeded,
+      rejectUnseeded: options.rejectUnseeded === true,
       endpoint: boundEndpoint,
       request,
       response,
@@ -220,6 +226,7 @@ interface JiraRoute {
 interface JiraRouteContext {
   calls: JiraApiMockCall[];
   seeded: SeededJira;
+  rejectUnseeded: boolean;
   response: ServerResponse;
   base: JiraCallBase;
   /** Capture group 1 of the route pattern, decoded. */
@@ -234,6 +241,13 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
     handle: (context) => {
       context.calls.push({kind: 'get_issue', ...context.base, idOrKey: context.idOrKey});
       const issue = findIssue({seeded: context.seeded, idOrKey: context.idOrKey});
+      if (issue === undefined && context.rejectUnseeded) {
+        sendJson(context.response, 404, {
+          errorMessages: ['Issue does not exist or you do not have permission to see it.'],
+          errors: {},
+        });
+        return;
+      }
       sendJson(
         context.response,
         200,
@@ -248,6 +262,11 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
     pattern: /^search\/jql$/,
     handle: (context) => {
       context.calls.push({kind: 'search_issues', ...context.base, body: context.body});
+      const jqlError = context.rejectUnseeded ? invalidJql(context.body.jql) : undefined;
+      if (jqlError !== undefined) {
+        sendJson(context.response, 400, {errorMessages: [jqlError], errors: {}});
+        return;
+      }
       const issues =
         context.seeded.issues.length === 0
           ? [issueBody('E2E-1')]
@@ -417,6 +436,7 @@ const JIRA_ROUTES: readonly JiraRoute[] = [
 async function handleJiraRequest(params: {
   calls: JiraApiMockCall[];
   seeded: SeededJira;
+  rejectUnseeded: boolean;
   endpoint: URL;
   request: IncomingMessage;
   response: ServerResponse;
@@ -442,6 +462,7 @@ async function handleJiraRequest(params: {
     route.handle({
       calls: params.calls,
       seeded: params.seeded,
+      rejectUnseeded: params.rejectUnseeded,
       response: params.response,
       base: {
         authorization: params.request.headers.authorization,
@@ -456,6 +477,20 @@ async function handleJiraRequest(params: {
 
   if (pathMatched) sendJson(params.response, 405, {errorMessages: ['Method not allowed']});
   else sendJson(params.response, 404, {errorMessages: ['Unknown Jira endpoint']});
+}
+
+/** A message like Jira's for a query whose parentheses do not pair up, the one error it checks. */
+function invalidJql(jql: unknown): string | undefined {
+  if (typeof jql !== 'string') return undefined;
+  let depth = 0;
+  for (const character of jql) {
+    if (character === '(') depth++;
+    if (character === ')') depth--;
+    if (depth < 0) break;
+  }
+  return depth === 0
+    ? undefined
+    : "Error in the JQL Query: Expecting ')' before the end of the query.";
 }
 
 function firstQueryValue(value: string | string[] | undefined): string | undefined {

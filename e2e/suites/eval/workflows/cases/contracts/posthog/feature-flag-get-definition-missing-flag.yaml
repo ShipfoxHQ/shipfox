@@ -1,6 +1,6 @@
 provider: posthog
 kind: error
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: feature-flag-get-definition
     with:

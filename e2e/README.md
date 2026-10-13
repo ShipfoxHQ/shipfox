@@ -494,7 +494,8 @@ file path. `--case` filters by file name. `test:e2e` runs it.
 against the E2E fakes, and `--mode fake` is its default. It arranges one
 workspace and GitHub project, a local runner, and a connection to each fake.
 It seeds each fake from the `fixtures` of `cases/contracts/sandbox.yaml`
-through the provider's adapter in `src/contract-fakes.ts`, generates the
+through the provider's adapter in `src/contract-fakes.ts`, puts the
+`inaccessible` `targets` on the adapter's deny list, generates the
 provider workflows from the `fake` cases, and starts each one manually, one at
 a time, because the Slack, ClickUp, and Linear fakes listen on fixed
 addresses. Each job maps to its case. A job that fails means the fake answers
