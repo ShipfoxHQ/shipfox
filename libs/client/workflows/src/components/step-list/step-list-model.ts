@@ -135,15 +135,12 @@ function toStepModel(step: Step, index: number): StepModel {
       : Math.max(0, (step.attemptTotal ?? sortedAttempts.length) - sortedAttempts.length);
   const attempts = sortedAttempts.map((attempt, attemptIndex) => {
     const failureIgnored = isIgnoredPostFailure(step, attempt.status);
-    const statusVisual = getStepStatusVisual(attempt.status);
     return {
       ...attempt,
       attemptOrdinal:
         gateAttemptOffset === undefined ? attempt.attempt : gateAttemptOffset + attemptIndex + 1,
       displayDuration: attempt.displayDuration,
-      statusVisual: failureIgnored
-        ? {...statusVisual, dot: 'warning' as const, badge: 'warning' as const}
-        : statusVisual,
+      statusVisual: entryStatusVisual(attempt.status, failureIgnored),
       carriedOver: false,
       failureIgnored,
     };
@@ -157,8 +154,13 @@ function toStepModel(step: Step, index: number): StepModel {
   };
 }
 
-function isIgnoredPostFailure(step: Step, status: string): boolean {
+function isIgnoredPostFailure(step: Pick<Step, 'type' | 'affectsJob'>, status: string): boolean {
   return step.type === 'post' && step.affectsJob === false && normalizeStatus(status) === 'failed';
+}
+
+function entryStatusVisual(status: string, failureIgnored: boolean): StepStatusVisual {
+  const visual = getStepStatusVisual(status);
+  return failureIgnored ? {...visual, dot: 'warning', badge: 'warning'} : visual;
 }
 
 function withMainStepLabels(steps: StepModel[]): StepModel[] {
@@ -188,6 +190,8 @@ function toStepEntries(step: StepModel, carriedOverJob: boolean): StepListEntryM
 
   if (!carriedOverJob) return [];
 
+  const failureIgnored = isIgnoredPostFailure(step, step.status);
+
   return [
     {
       id: `carried-over:${step.id}`,
@@ -208,9 +212,9 @@ function toStepEntries(step: StepModel, carriedOverJob: boolean): StepListEntryM
       startedAt: step.createdAt,
       finishedAt: null,
       displayDuration: null,
-      statusVisual: getStepStatusVisual(step.status),
+      statusVisual: entryStatusVisual(step.status, failureIgnored),
       carriedOver: true,
-      failureIgnored: false,
+      failureIgnored,
       step,
     },
   ];

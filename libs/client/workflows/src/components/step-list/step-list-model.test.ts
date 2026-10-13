@@ -285,6 +285,25 @@ describe('buildStepListModel', () => {
     expect(result.entries[2]?.statusVisual).toMatchObject({dot: 'error', badge: 'error'});
   });
 
+  test('keeps the warning for a carried-over post that left the job result unchanged', () => {
+    const post = makeStep({
+      name: 'Post Set up Node',
+      type: 'post',
+      status: 'failed',
+      affects_job: false,
+      attempts: [],
+    });
+
+    const result = buildStepListModel({job: makeJob({carried_over: true, steps: [post]})});
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]).toMatchObject({
+      carriedOver: true,
+      failureIgnored: true,
+      statusVisual: {kind: 'failed', dot: 'warning', badge: 'warning'},
+    });
+  });
+
   test('numbers gate attempts by their displayed position instead of stored attempt', () => {
     const step = makeStep({
       gate_max_attempts: 5,

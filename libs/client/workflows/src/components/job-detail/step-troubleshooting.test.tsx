@@ -1102,7 +1102,7 @@ describe('StepInspectorSheet for action steps', () => {
     const user = userEvent.setup();
     configureActionDetailResponse();
 
-    await renderPanel({entry: postStepEntry()});
+    await renderPanel({entry: postStepEntry(), onViewLogs: () => undefined});
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
     const action = await screen.findByRole('region', {name: 'Action'});
@@ -1116,6 +1116,7 @@ describe('StepInspectorSheet for action steps', () => {
     expect(
       within(alert).getByText('This step failed. The job result is unchanged.'),
     ).toBeInTheDocument();
+    expect(within(alert).getByRole('button', {name: 'View logs'})).toBeInTheDocument();
   });
 });
 
