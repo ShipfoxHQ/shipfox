@@ -567,7 +567,19 @@ describe('posthogContractFake', () => {
       purchase_event: {name: 'contract_purchase', count: 10},
       feature_flag: {id: 301243, key: 'contract-flag'},
       disabled_feature_flag: {id: 301244, key: 'contract-flag-disabled'},
-      insight: {id: 6355500},
+      insight: {id: 6355500, short_id: 'wTSHwcPR', name: 'Contract fixture insight'},
+      dashboard: {id: 999696, name: 'Contract fixture dashboard'},
+      experiment: {id: 99531, name: 'Contract fixture experiment'},
+      experiment_results: {
+        id: 99702,
+        name: 'Contract results experiment',
+        feature_flag_key: 'contract-results-experiment',
+        exposures_per_variant: 30,
+        control_sum: 30,
+        test_sum: 45,
+      },
+      survey: {id: 'survey-1', name: 'Contract fixture survey', question: 'What do you think?'},
+      error_issue: {id: 'issue-1', name: 'ContractError'},
     });
 
     expect(fake.connectionSlug).toBe('posthog_fake');
@@ -585,6 +597,28 @@ describe('posthogContractFake', () => {
           {id: 301243, key: 'contract-flag'},
           {id: 301244, key: 'contract-flag-disabled', active: false},
         ],
+        insights: [
+          {
+            id: 6355500,
+            short_id: 'wTSHwcPR',
+            name: 'Contract fixture insight',
+            event: 'contract_event',
+          },
+        ],
+        dashboards: [{id: 999696, name: 'Contract fixture dashboard'}],
+        experiments: [
+          {id: 99531, name: 'Contract fixture experiment'},
+          {
+            id: 99702,
+            name: 'Contract results experiment',
+            feature_flag_key: 'contract-results-experiment',
+            results: {exposures: 30, control_sum: 30, test_sum: 45},
+          },
+        ],
+        surveys: [
+          {id: 'survey-1', name: 'Contract fixture survey', questions: ['What do you think?']},
+        ],
+        error_issues: [{id: 'issue-1', name: 'ContractError'}],
       },
     });
     expect(fake.writes()).toEqual([]);
@@ -599,7 +633,15 @@ describe('posthogContractFake', () => {
     expect(seedPosthogMock).toHaveBeenCalledTimes(1);
     expect(seedPosthogMock).toHaveBeenCalledWith({
       apiKey: 'phx_contracts_unique',
-      seed: {events: [], feature_flags: []},
+      seed: {
+        events: [],
+        feature_flags: [],
+        insights: [],
+        dashboards: [],
+        experiments: [],
+        surveys: [],
+        error_issues: [],
+      },
     });
   });
 

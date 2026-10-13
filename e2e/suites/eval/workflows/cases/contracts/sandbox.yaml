@@ -524,15 +524,20 @@ posthog:
       id: 99702
       name: Contract results experiment
       feature_flag_key: contract-results-experiment
+      exposures_per_variant: 30
+      control_sum: 30
+      test_sum: 45
       read:
         tool: experiment-get
         with: {id: $fixture.posthog.experiment_results.id}
         expect:
           values:
             id: $fixture.posthog.experiment_results.id
+    # The survey has one question, and has never been shown or answered.
     survey:
       id: 01a10dad-d398-0000-5b35-0c6a08cd8ee8
       name: Contract fixture survey
+      question: What do you think? café 日本語
       read:
         tool: survey-get
         with: {id: $fixture.posthog.survey.id}

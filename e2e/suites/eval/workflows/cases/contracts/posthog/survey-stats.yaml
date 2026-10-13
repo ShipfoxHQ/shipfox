@@ -1,5 +1,5 @@
 provider: posthog
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: survey-stats
     with:
@@ -16,5 +16,5 @@ steps:
         survey_id: $fixture.posthog.survey.id
         rates.response_rate: 0
         rates.dismissal_rate: 0
-        per_question_stats[0].question_text: What do you think? café 日本語
+        per_question_stats[0].question_text: $fixture.posthog.survey.question
         per_question_stats[0].response_count: 0

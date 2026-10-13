@@ -1,5 +1,5 @@
 provider: posthog
-modes: [real]
+modes: [real, fake]
 steps:
   - tool: experiment-results-get
     with:
@@ -14,10 +14,10 @@ steps:
       values:
         experiment.id: $fixture.posthog.experiment_results.id
         experiment.name: $fixture.posthog.experiment_results.name
-        exposures.total_exposures.control: 30
-        exposures.total_exposures.test: 30
+        exposures.total_exposures.control: $fixture.posthog.experiment_results.exposures_per_variant
+        exposures.total_exposures.test: $fixture.posthog.experiment_results.exposures_per_variant
         metrics.primary.count: 1
         metrics.primary.results[0].data.baseline.key: control
-        metrics.primary.results[0].data.baseline.sum: 30
+        metrics.primary.results[0].data.baseline.sum: $fixture.posthog.experiment_results.control_sum
         metrics.primary.results[0].data.variant_results[0].key: test
-        metrics.primary.results[0].data.variant_results[0].sum: 45
+        metrics.primary.results[0].data.variant_results[0].sum: $fixture.posthog.experiment_results.test_sum

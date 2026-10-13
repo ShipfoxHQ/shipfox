@@ -49,11 +49,25 @@ export interface PosthogMockSeed {
   /** Events the SQL tool can count, by `event` name. */
   events: Array<{name: string; count: number}>;
   feature_flags: Array<{id: number; key: string; name?: string; active?: boolean}>;
+  /** `event` names the seeded event whose count the insight's query returns. */
+  insights?: Array<{id: number; short_id: string; name: string; event?: string}>;
+  /** A seeded dashboard holds no tile. */
+  dashboards?: Array<{id: number; name: string}>;
+  /** An experiment with `results` is stopped. One without is a draft, and has no results. */
+  experiments?: Array<{
+    id: number;
+    name: string;
+    feature_flag_key?: string;
+    results?: {exposures: number; control_sum: number; test_sum: number};
+  }>;
+  /** `questions` holds the text of each question. A seeded survey has no response. */
+  surveys?: Array<{id: string; name: string; questions?: string[]}>;
+  error_issues?: Array<{id: string; name: string}>;
 }
 
 /**
- * Makes the fake answer `execute-sql` and `feature-flag-get-all` for a key with the results of
- * the seed. A key without a seed keeps the marker answers.
+ * Makes the fake answer the PostHog read tools for a key with the results of the seed. A key
+ * without a seed keeps the marker answers.
  */
 export async function seedPosthogMock({
   apiKey,

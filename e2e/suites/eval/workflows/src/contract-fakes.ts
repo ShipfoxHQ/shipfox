@@ -919,9 +919,9 @@ export const jiraContractFake = createJiraContractFake();
 
 /**
  * PostHog, whose fake the harness runs for the whole stack and answers by API key. The adapter
- * connects the workspace to it with a key of its own, then seeds that key with the `event` and
- * `purchase_event` counts, and the `feature_flag` and `disabled_feature_flag` flags. It reads no
- * other fixture, so a case that reads one fails on the fake.
+ * connects the workspace to it with a key of its own, then seeds that key with the events, the
+ * feature flags, the insight, the dashboard, the experiments, the survey, and the error-tracking
+ * issue of the sandbox. The insight counts the `event` fixture, as the sandbox insight does.
  */
 export const posthogContractFake: ContractFakeAdapter = async ({workspaceId, uniqueId}) => {
   const apiKey = `phx_contracts_${uniqueId}`;
@@ -936,27 +936,84 @@ export const posthogContractFake: ContractFakeAdapter = async ({workspaceId, uni
   return {
     connectionSlug: connection.slug,
     seed: async (fixtures) => {
-      const events = ['event', 'purchase_event'].flatMap((fixtureName) => {
-        const fixture = fixtures[fixtureName];
-        if (fixture === undefined) return [];
-        const required = (name: string) =>
-          requiredField({provider: 'posthog', fixture, fixtureName, name});
-        return [{name: String(required('name')), count: Number(required('count'))}];
-      });
-      const featureFlags = ['feature_flag', 'disabled_feature_flag'].flatMap((fixtureName) => {
-        const fixture = fixtures[fixtureName];
-        if (fixture === undefined) return [];
-        const required = (name: string) =>
-          requiredField({provider: 'posthog', fixture, fixtureName, name});
-        return [
-          {
+      // Reads the named fixtures the sandbox has, each through a getter that rejects a missing field.
+      const seeded = <T>(
+        fixtureNames: string[],
+        build: (fixture: {
+          fixtureName: string;
+          required: (name: string) => string | number | boolean;
+          optional: (name: string) => string | number | boolean | undefined;
+        }) => T,
+      ): T[] =>
+        fixtureNames.flatMap((fixtureName) => {
+          const fixture = fixtures[fixtureName];
+          if (fixture === undefined) return [];
+          return [
+            build({
+              fixtureName,
+              required: (name) => requiredField({provider: 'posthog', fixture, fixtureName, name}),
+              optional: (name) => field({fixture, name}),
+            }),
+          ];
+        });
+      const events = seeded(['event', 'purchase_event'], ({required}) => ({
+        name: String(required('name')),
+        count: Number(required('count')),
+      }));
+      const countedEvent = fixtures.event === undefined ? undefined : events[0]?.name;
+      await seedPosthogMock({
+        apiKey,
+        seed: {
+          events,
+          feature_flags: seeded(
+            ['feature_flag', 'disabled_feature_flag'],
+            ({fixtureName, required}) => ({
+              id: Number(required('id')),
+              key: String(required('key')),
+              ...(fixtureName === 'disabled_feature_flag' ? {active: false} : {}),
+            }),
+          ),
+          insights: seeded(['insight'], ({required}) => ({
             id: Number(required('id')),
-            key: String(required('key')),
-            ...(fixtureName === 'disabled_feature_flag' ? {active: false} : {}),
-          },
-        ];
+            short_id: String(required('short_id')),
+            name: String(required('name')),
+            ...(countedEvent === undefined ? {} : {event: countedEvent}),
+          })),
+          dashboards: seeded(['dashboard'], ({required}) => ({
+            id: Number(required('id')),
+            name: String(required('name')),
+          })),
+          experiments: seeded(
+            ['experiment', 'experiment_results'],
+            ({fixtureName, required, optional}) => {
+              const flagKey = optional('feature_flag_key');
+              return {
+                id: Number(required('id')),
+                name: String(required('name')),
+                ...(flagKey === undefined ? {} : {feature_flag_key: String(flagKey)}),
+                ...(fixtureName === 'experiment_results'
+                  ? {
+                      results: {
+                        exposures: Number(required('exposures_per_variant')),
+                        control_sum: Number(required('control_sum')),
+                        test_sum: Number(required('test_sum')),
+                      },
+                    }
+                  : {}),
+              };
+            },
+          ),
+          surveys: seeded(['survey'], ({required}) => ({
+            id: String(required('id')),
+            name: String(required('name')),
+            questions: [String(required('question'))],
+          })),
+          error_issues: seeded(['error_issue'], ({required}) => ({
+            id: String(required('id')),
+            name: String(required('name')),
+          })),
+        },
       });
-      await seedPosthogMock({apiKey, seed: {events, feature_flags: featureFlags}});
     },
     // PostHog is read-only for Shipfox.
     writes: () => [],

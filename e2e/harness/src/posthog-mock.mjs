@@ -26,6 +26,16 @@ const REQUIRED_SCOPES = [
 const QUERY_PATH_RE = /^\/api\/projects\/([^/]+)\/query\/$/u;
 const EXEC_JSON_CALL_RE = /^call --json (\S+)(?: (.*))?$/su;
 const SQL_EVENT_COUNT_RE = /^\s*select\s+count\(\)\s+from\s+events\s+where\s+event\s*=\s*'([^']*)'/iu;
+// The lists a seed can hold, by their key in the seed request.
+const SEED_LISTS = {
+  events: 'events',
+  feature_flags: 'featureFlags',
+  insights: 'insights',
+  dashboards: 'dashboards',
+  experiments: 'experiments',
+  surveys: 'surveys',
+  error_issues: 'errorIssues',
+};
 
 /** The E2E deployment's PostHog double serves both REST and MCP traffic. */
 export async function startPosthogMock(endpoint) {
@@ -126,10 +136,15 @@ async function handleSeed({seeds, request, response}) {
     sendJson(response, 400, {error: 'api_key is required'});
     return;
   }
-  seeds.set(body.api_key, {
-    events: Array.isArray(body.events) ? body.events : [],
-    featureFlags: Array.isArray(body.feature_flags) ? body.feature_flags : [],
-  });
+  seeds.set(
+    body.api_key,
+    Object.fromEntries(
+      Object.entries(SEED_LISTS).map(([field, name]) => [
+        name,
+        Array.isArray(body[field]) ? body[field] : [],
+      ]),
+    ),
+  );
   sendJson(response, 200, {ok: true});
 }
 
@@ -236,7 +251,11 @@ async function handleMcp({calls, mcpRequestCounts, pending, seeds, request, resp
   }
   if (body?.method === 'tools/list') {
     sendMcpResult(response, body.id, {
-      tools: [{name: 'execute-sql', description: 'E2E query', inputSchema: {type: 'object'}}],
+      tools: Object.keys(SEEDED_TOOLS).map((name) => ({
+        name,
+        description: `E2E ${name}`,
+        inputSchema: {type: 'object'},
+      })),
     });
     return;
   }
@@ -283,8 +302,9 @@ function mcpToolResult({params, seed}) {
   return seeded;
 }
 
-// A seeded tool answers in the shape PostHog returned in the nightly contract runs. `execute-sql`
-// formats its rows as text, and `feature-flag-get-all` returns the flags as a list.
+// A seeded tool answers in the shape PostHog returned in the nightly contract runs, with the
+// fields the contract cases read. An id the seed doesn't hold fails the call, so a case never
+// passes on a guess.
 function seededResult({tool, rawArguments, seed}) {
   let args;
   try {
@@ -292,9 +312,110 @@ function seededResult({tool, rawArguments, seed}) {
   } catch {
     return toolError(`Error: [${tool}]: arguments are not JSON`);
   }
-  if (tool === 'execute-sql') return seededSql({query: args.query, seed});
-  if (tool === 'feature-flag-get-all') return seededFeatureFlags({key: args.key, seed});
-  return undefined;
+  return SEEDED_TOOLS[tool]?.({args, seed, tool});
+}
+
+const SEEDED_TOOLS = {
+  'execute-sql': ({args, seed}) => seededSql({query: args.query, seed}),
+  'read-data-schema': seededDataSchema,
+  'feature-flag-get-all': ({args, seed}) => seededFeatureFlags({key: args.key, seed}),
+  'feature-flag-get-definition': ({args, seed, tool}) =>
+    seededOne({tool, list: seed.featureFlags, id: args.id, render: featureFlag}),
+  'insights-list': ({args, seed}) =>
+    seededSearch({list: seed.insights, search: args.search, render: insight}),
+  'insight-get': ({args, seed, tool}) =>
+    seededOne({tool, list: seed.insights, id: args.id, render: insight}),
+  'insight-query': ({args, seed, tool}) =>
+    seededOne({
+      tool,
+      list: seed.insights,
+      id: args.insightId,
+      render: (found) => ({
+        insight: insight(found),
+        results: seed.events
+          .filter((event) => event.name === found.event)
+          .map((event) => ({count: event.count, label: event.name})),
+      }),
+    }),
+  'dashboards-get-all': ({args, seed}) =>
+    seededSearch({list: seed.dashboards, search: args.search, render: dashboard}),
+  // PostHog returns a dashboard as JSON inside a block of text.
+  'dashboard-get': ({args, seed, tool}) =>
+    seededOne({
+      tool,
+      list: seed.dashboards,
+      id: args.id,
+      render: (found) => ({
+        content: `Dashboard:\n\`\`\`json\n${JSON.stringify({...dashboard(found), tiles: []})}\n\`\`\``,
+      }),
+    }),
+  // A seeded dashboard holds no tile, so it has no insight to run.
+  'dashboard-insights-run': ({args, seed, tool}) =>
+    seededOne({
+      tool,
+      list: seed.dashboards,
+      id: args.id,
+      render: (found) => ({
+        results: [],
+        _posthogUrl: `https://posthog.e2e.test/dashboard/${found.id}`,
+      }),
+    }),
+  'query-error-tracking-issues-list': ({seed}) =>
+    jsonResult({hasMore: false, results: seed.errorIssues.map(errorIssue)}),
+  'query-error-tracking-issue': ({args, seed, tool}) =>
+    seededOne({tool, list: seed.errorIssues, id: args.issueId, render: errorIssue}),
+  'experiment-list': ({args, seed}) =>
+    seededSearch({list: seed.experiments, search: args.search, render: experimentSummary}),
+  'experiment-get': ({args, seed, tool}) =>
+    seededOne({
+      tool,
+      list: seed.experiments,
+      id: args.id,
+      render: (found) => ({
+        ...experimentSummary(found),
+        feature_flag_key: found.feature_flag_key ?? '',
+      }),
+    }),
+  'experiment-results-get': ({args, seed, tool}) =>
+    seededOne({
+      tool,
+      // Only an experiment that ran has results.
+      list: seed.experiments.filter((experiment) => experiment.results !== undefined),
+      id: args.id,
+      render: experimentResults,
+    }),
+  'surveys-get-all': ({args, seed}) =>
+    seededSearch({list: seed.surveys, search: args.search, render: surveySummary}),
+  'survey-get': ({args, seed, tool}) =>
+    seededOne({
+      tool,
+      list: seed.surveys,
+      id: args.id,
+      render: (found) => ({...surveySummary(found), questions: surveyQuestions(found)}),
+    }),
+  'survey-stats': ({args, seed, tool}) =>
+    seededOne({tool, list: seed.surveys, id: args.id, render: surveyStats}),
+  'docs-search': () =>
+    jsonResult({
+      content:
+        'Found 1 relevant documentation page:\n\n1. Feature flags (https://posthog.com/docs/feature-flags)',
+    }),
+};
+
+function seededOne({tool, list, id, render}) {
+  const found = list.find((candidate) => String(candidate.id) === String(id));
+  if (found === undefined) return toolError(`Error: [${tool}]: Not found.`);
+  return jsonResult(render(found));
+}
+
+function seededSearch({list, search, render}) {
+  const results = list
+    .filter(
+      (candidate) =>
+        typeof search !== 'string' || candidate.name.toLowerCase().includes(search.toLowerCase()),
+    )
+    .map(render);
+  return jsonResult({count: results.length, results});
 }
 
 function seededSql({query, seed}) {
@@ -306,18 +427,90 @@ function seededSql({query, seed}) {
   return jsonResult({results: `count()\n${event.count}`});
 }
 
+// The schema comes as a Markdown list in plain text, even in a JSON call.
+function seededDataSchema({args, seed}) {
+  if (args.query?.kind !== 'events') {
+    return toolError('Error: [read-data-schema]: the PostHog fake only lists events.');
+  }
+  const names = ['All events', ...seed.events.map((event) => event.name)];
+  return {
+    content: [{type: 'text', text: `events:\n${names.map((name) => `- \`${name}\``).join('\n')}`}],
+  };
+}
+
 function seededFeatureFlags({key, seed}) {
   const flags = seed.featureFlags.filter(
     (flag) => typeof key !== 'string' || flag.key.toLowerCase() === key.toLowerCase(),
   );
-  return jsonResult({
-    results: flags.map((flag) => ({
-      name: '',
-      active: true,
-      deleted: false,
-      ...flag,
+  return jsonResult({results: flags.map(featureFlag)});
+}
+
+function featureFlag(flag) {
+  return {name: '', active: true, deleted: false, ...flag};
+}
+
+function insight({id, short_id, name}) {
+  return {id, short_id, name};
+}
+
+function dashboard({id, name}) {
+  return {id, name};
+}
+
+function errorIssue({id, name, status = 'active'}) {
+  return {id, name, status};
+}
+
+function experimentSummary({id, name, results}) {
+  return {id, name, status: results === undefined ? 'draft' : 'stopped'};
+}
+
+// One mean metric, with `control` as the baseline and `test` as the one variant.
+function experimentResults(experiment) {
+  const {exposures, control_sum, test_sum} = experiment.results;
+  return {
+    experiment: experimentSummary(experiment),
+    exposures: {total_exposures: {control: exposures, test: exposures}},
+    metrics: {
+      primary: {
+        count: 1,
+        results: [
+          {
+            index: 0,
+            data: {
+              baseline: {key: 'control', sum: control_sum},
+              variant_results: [{key: 'test', sum: test_sum}],
+            },
+          },
+        ],
+      },
+    },
+  };
+}
+
+function surveySummary({id, name, type = 'popover'}) {
+  return {id, name, type};
+}
+
+function surveyQuestions(survey) {
+  return (survey.questions ?? []).map((question, index) => ({
+    id: `${survey.id}-question-${index}`,
+    question,
+  }));
+}
+
+// A seeded survey has never been shown or answered, so its counts stay at zero.
+function surveyStats(survey) {
+  return {
+    survey_id: survey.id,
+    rates: {response_rate: 0, dismissal_rate: 0},
+    stats: {},
+    per_question_stats: surveyQuestions(survey).map(({id, question}) => ({
+      question_id: id,
+      question_text: question,
+      response_count: 0,
     })),
-  });
+  };
 }
 
 function jsonResult(body) {
