@@ -14,7 +14,8 @@ const HASH_HEX_LENGTH = 32;
 
 /**
  * SHA-256 over the matched regular files, sorted by anchor and path, each hashed as path plus
- * content. Directories and unreadable symlinks are skipped.
+ * content. Directories and dangling symlinks are skipped. A file that cannot be read fails the call, since
+ * a key built from fewer files would differ silently.
  */
 export async function hashFiles(params: {
   patterns: readonly string[];

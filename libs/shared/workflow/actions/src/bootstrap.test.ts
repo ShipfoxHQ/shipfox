@@ -483,7 +483,31 @@ describe('bootstrap', () => {
       expect(run.exitCode).toBe(1);
       expect(run.result).toEqual({status: 'failed'});
       expect(run.stderr.trim()).toBe(
-        'The action finished while tool calls were still running: slack.read_thread, github.create_commit. Await every tool call before the handler returns.',
+        'The action finished while calls were still running: slack.read_thread, github.create_commit. Await every tool and cache call before the handler returns.',
+      );
+    });
+
+    it('fails and names the cache calls still running when the handler returns', async () => {
+      server.removeAllListeners('request');
+      server.on('request', () => undefined);
+      await writeFiles(sandbox.bundle, {
+        'index.js': `
+          import {defineAction} from '@shipfox/actions';
+
+          export default defineAction(async ({cache}) => {
+            void cache.restore({paths: ['dist'], key: 'k'});
+            void cache.save({paths: ['dist'], key: 'k'});
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          });
+        `,
+      });
+
+      const run = await runActionProcess({sandbox, actionsUrl: url});
+
+      expect(run.exitCode).toBe(1);
+      expect(run.result).toEqual({status: 'failed'});
+      expect(run.stderr).toContain(
+        'The action finished while calls were still running: cache.restore, cache.save.',
       );
     });
   });

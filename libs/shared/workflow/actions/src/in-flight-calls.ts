@@ -1,13 +1,15 @@
+import type {ActionCache} from '#cache/types.js';
 import type {AliasTools, Tools} from '#tool-types.js';
 
 export interface InFlightCalls {
   readonly tools: Tools;
-  /** Labels (`alias.tool`) of the calls still running, one per call. */
+  readonly cache: ActionCache;
+  /** Labels (`alias.tool` or `cache.method`) of the calls still running, one per call. */
   pending(): string[];
 }
 
-/** Wraps a tools client so the bootstrap can name the calls a handler left running. */
-export function trackInFlightCalls(tools: Tools): InFlightCalls {
+/** Wraps the tools client and the cache so the bootstrap can name the calls a handler left running. */
+export function trackInFlightCalls(tools: Tools, cache: ActionCache): InFlightCalls {
   const running = new Map<number, string>();
   const aliases = new Map<string, AliasTools>();
   let nextId = 0;
@@ -41,5 +43,11 @@ export function trackInFlightCalls(tools: Tools): InFlightCalls {
     },
   });
 
-  return {tools: tracked, pending: () => [...running.values()]};
+  const trackedCache: ActionCache = {
+    hashFiles: (patterns) => track('cache.hashFiles', () => cache.hashFiles(patterns)),
+    restore: (options) => track('cache.restore', () => cache.restore(options)),
+    save: (options) => track('cache.save', () => cache.save(options)),
+  };
+
+  return {tools: tracked, cache: trackedCache, pending: () => [...running.values()]};
 }

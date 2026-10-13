@@ -55,23 +55,25 @@ async function run(): Promise<void> {
   const definition = await importAction(env.actionPath, env.actionMain);
   const {context, outputs: declarations} = readJson<ActionContextFileV1>(env.contextPath);
   const outputs = createActionOutputs(declarations);
-  const calls = trackInFlightCalls(createToolsClient({url: env.actionsUrl, token: env.token}));
-
   const state = createActionState(env.statePath);
   const log = createActionLog();
+  const calls = trackInFlightCalls(
+    createToolsClient({url: env.actionsUrl, token: env.token}),
+    createActionCache({
+      url: env.actionsUrl,
+      token: env.token,
+      log,
+      signal: controller.signal,
+      ...(env.tempDir ? {tempDir: env.tempDir} : {}),
+    }),
+  );
 
   let returned: unknown;
   try {
     returned = await definition.handler({
       inputs: readJson<ActionInputs>(env.inputsPath),
       tools: calls.tools,
-      cache: createActionCache({
-        url: env.actionsUrl,
-        token: env.token,
-        log,
-        signal: controller.signal,
-        ...(env.tempDir ? {tempDir: env.tempDir} : {}),
-      }),
+      cache: calls.cache,
       setOutput: (name, value) => {
         if (context.phase === 'post') {
           throw new ActionOutputError({
@@ -147,7 +149,7 @@ function takeEnvironment(): ActionEnvironment {
 function abandonedCallsMessage(pending: readonly string[]): string | undefined {
   if (pending.length === 0) return undefined;
   const names = [...new Set(pending)].join(', ');
-  return `The action finished while tool calls were still running: ${names}. Await every tool call before the handler returns.`;
+  return `The action finished while calls were still running: ${names}. Await every tool and cache call before the handler returns.`;
 }
 
 function required(name: string, value: string | undefined): string {

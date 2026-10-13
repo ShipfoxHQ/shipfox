@@ -41,7 +41,7 @@ export interface CacheControlOptions {
   delaysMs?: readonly number[];
 }
 
-/** Longer than the runner's own deadline for a forwarded call, so its error arrives first. */
+/** Abort runs while a failure is handled, so it gets a short deadline. The reaper catches a miss. */
 const ABORT_TIMEOUT_MS = 15_000;
 
 export function createCacheControl(options: CacheControlOptions): CacheControl {

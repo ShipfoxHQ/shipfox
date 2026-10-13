@@ -126,7 +126,8 @@ export default defineAction(async ({cache}) => {
   directory, `~/.npm` to the home directory, and `/opt/tools` is absolute. Entries hold names
   relative to their anchor, so an entry saved from one checkout path and home directory restores
   into another. A relative path that leaves the working directory through `..` throws
-  `CacheArgumentError`. Glob characters (`* ? [ ] { }`) always mean a pattern.
+  `CacheArgumentError`. Glob characters (`* ? [ ] { }` and the `!(` `@(` `+(` openers) always mean a pattern, and a
+  matched name with a line break fails the save.
 - **The version** hashes `paths` as written, the platform, the architecture, and the archive
   format, so a restore with other paths or on another architecture is a miss.
 - **Best effort.** `restore` and `save` do not throw on a miss, a full workspace, or a storage
@@ -314,7 +315,7 @@ The bootstrap:
 - imports `SHIPFOX_ACTION_MAIN` and fails with the expected shape when its default export was not
   made by `defineAction`;
 - aborts the handler's `signal` on `SIGTERM`;
-- fails, naming the calls, when tool calls are still running after the handler settles;
+- fails, naming the calls, when tool or cache calls are still running after the handler settles;
 - fails when the handler waits on a promise that nothing is left to settle;
 - writes `{"status": "succeeded"}` or `{"status": "failed"}` to `SHIPFOX_ACTION_RESULT`. A throw
   or an unhandled rejection prints the stack and exits 1. An action that calls `process.exit`

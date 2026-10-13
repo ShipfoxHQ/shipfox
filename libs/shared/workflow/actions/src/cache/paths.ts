@@ -15,7 +15,7 @@ export interface AnchoredPath {
   readonly pattern: string;
 }
 
-const GLOB_CHARACTERS_RE = /[*?[\]{}]/;
+const GLOB_CHARACTERS_RE = /[*?[\]{}]|[!@+]\(/;
 const HOME_PREFIX_RE = /^~(?:\/|$)/;
 const LEADING_SLASHES_RE = /^\/+/;
 const TRAILING_SLASH_RE = /\/$/;
@@ -107,7 +107,13 @@ async function expand(
   const matches: string[] = [];
   for await (const match of glob(pattern, {cwd: directory})) {
     signal?.throwIfAborted();
-    matches.push(match.split('\\').join('/'));
+    // The member list is one name per line, so a name with a line break would split in two.
+    if (match.includes('\n')) {
+      throw new CacheArgumentError(
+        `${directory}: a path matching ${pattern} contains a line break.`,
+      );
+    }
+    matches.push(match);
   }
   return matches;
 }

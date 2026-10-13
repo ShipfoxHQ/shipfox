@@ -75,6 +75,32 @@ describe('expandAnchoredPaths', () => {
     expect(all.get('cwd')).toEqual(['node_modules', 'node_modules/pkg/index.js']);
   });
 
+  it('reads extglob openers as patterns', async () => {
+    const parsed = parseAnchoredPaths(['+(a|b).log', '!(a).log']);
+
+    const members = await expandAnchoredPaths(parsed, directories(), {pruneCovered: true});
+
+    expect(members.get('cwd')).toEqual(['a.log', 'b.log']);
+  });
+
+  it('keeps a backslash in a matched name', async () => {
+    await writeFile(join(root, 'work/with\\slash.tmp'), '');
+
+    const members = await expandAnchoredPaths(parseAnchoredPaths(['with*.tmp']), directories(), {
+      pruneCovered: true,
+    });
+
+    expect(members.get('cwd')).toEqual(['with\\slash.tmp']);
+  });
+
+  it('rejects a matched name with a line break, which would split the member list', async () => {
+    await writeFile(join(root, 'work/x\ny.tmp'), '');
+
+    await expect(
+      expandAnchoredPaths(parseAnchoredPaths(['x*.tmp']), directories(), {pruneCovered: true}),
+    ).rejects.toThrow(CacheArgumentError);
+  });
+
   it('matches nothing for a missing path and keeps a dangling symlink', async () => {
     const parsed = parseAnchoredPaths(['missing', 'dangling', '*.nothing']);
 
