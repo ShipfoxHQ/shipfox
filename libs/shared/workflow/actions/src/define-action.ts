@@ -23,8 +23,9 @@ export interface ActionContext<Inputs extends ActionInputs = ActionInputs> {
   readonly addPath: (directory: string) => void;
   /**
    * Masks a value in the logs, outputs, and annotations of the later steps of the job, and in the
-   * outputs of this step. Logs this step already wrote stay as they are, so do not print the
-   * value. Needs at least 8 characters.
+   * outputs, annotations, and error message of this step. Logs this step already wrote stay as
+   * they are, so do not print the value. Needs at least 8 characters. A multi-line value is masked
+   * line by line, and a line shorter than 8 characters is not masked.
    */
   readonly addMask: (value: string) => void;
   readonly log: ActionLog;

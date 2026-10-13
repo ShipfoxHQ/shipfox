@@ -1417,7 +1417,7 @@ describe('executeRunStep masked values', () => {
     expect(result.maskedValues).toBeUndefined();
   });
 
-  it('fails a successful step that masks a short value, without quoting it or carrying env', async () => {
+  it('fails a successful step that masks a short value, keeping the valid values and carrying no env', async () => {
     const step = buildStep({
       config: {
         run: [
@@ -1432,8 +1432,27 @@ describe('executeRunStep masked values', () => {
 
     expect(result.success).toBe(false);
     expect(result.error?.message).toBe('Mask file line 2 is shorter than 8 characters.');
-    expect(result.maskedValues).toBeUndefined();
+    expect(result.maskedValues).toEqual(['long-enough-token']);
     expect(result.carriedEnv).toBeUndefined();
+  });
+
+  it('keeps the valid values of a failed step whose mask file has a short line', async () => {
+    const step = buildStep({
+      config: {
+        run: [
+          'echo "long-enough-token" >> "$SHIPFOX_MASK"',
+          'echo "short" >> "$SHIPFOX_MASK"',
+          'echo "token=long-enough-token" >> "$SHIPFOX_OUTPUT"',
+          'exit 3',
+        ].join('\n'),
+      },
+    });
+
+    const result = await executeRunStep(step);
+
+    expect(result).toMatchObject({success: false, exit_code: 3});
+    expect(result.outputs).toEqual({token: 'long-enough-token'});
+    expect(result.maskedValues).toEqual(['long-enough-token']);
   });
 });
 

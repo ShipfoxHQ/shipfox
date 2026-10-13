@@ -692,15 +692,26 @@ async function finalizeMaskedValues(
   result: StepResult,
   files: StepFiles,
 ): Promise<{ok: boolean; result: StepResult}> {
+  // The valid lines of a file with a short line are kept, so they stay masked in this step's
+  // outputs and in later steps.
+  let maskedValues: string[] = [];
+  let failure: unknown;
   try {
     const raw = await readOptionalFile(files.mask, MASK_FILE_MESSAGES);
-    const maskedValues = raw === undefined ? [] : parseMaskedValues(raw);
-    return {ok: true, result: maskedValues.length === 0 ? result : {...result, maskedValues}};
+    const parsed = raw === undefined ? {values: []} : parseMaskedValues(raw);
+    maskedValues = parsed.values;
+    failure = parsed.error;
   } catch (error) {
-    const reason =
-      error instanceof StepOutputError ? error.message : 'Mask file could not be read.';
-    return {ok: false, result: rejectStepFile(result, reason, CARRIED_ENV_DROPPED)};
+    failure = error;
   }
+  const masked = maskedValues.length === 0 ? {} : {maskedValues};
+  if (failure === undefined) return {ok: true, result: {...result, ...masked}};
+  const reason =
+    failure instanceof StepOutputError ? failure.message : 'Mask file could not be read.';
+  return {
+    ok: false,
+    result: {...rejectStepFile(result, reason, CARRIED_ENV_DROPPED), ...masked},
+  };
 }
 
 // Reads what the step left in `$SHIPFOX_ENV` and `$SHIPFOX_PATH`, whatever its exit status.

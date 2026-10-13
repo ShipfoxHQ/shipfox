@@ -93,8 +93,8 @@ steps:
       # Sets the variable REGISTRY_TOKEN for the later steps.
       echo "REGISTRY_TOKEN=$TOKEN" >> "$SHIPFOX_ENV"
 
-  # The log of this step shows *** in place of the token.
-  - run: docker login --username AWS --password "$REGISTRY_TOKEN" registry.example.com
+  # If this step prints the token, its log shows *** in place of it.
+  - run: printf '%s' "$REGISTRY_TOKEN" | docker login --username AWS --password-stdin registry.example.com
 ```
 
 Shipfox reads `$SHIPFOX_MASK` when the step ends, even if the step fails. It
