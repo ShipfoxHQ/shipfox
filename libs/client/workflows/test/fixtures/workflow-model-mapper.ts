@@ -23,6 +23,8 @@ import {
 
 export type WorkflowStepModelDto = StepDto & {
   gate_max_attempts?: number;
+  main_step_id?: string;
+  affects_job?: boolean;
   exit_code: number | null;
   outputs: Record<string, unknown> | null;
   response: string | null;
@@ -142,6 +144,8 @@ export function toWorkflowStepModel(dto: WorkflowStepModelDto): Step {
     position: dto.position,
     currentAttempt: dto.current_attempt,
     ...(dto.gate_max_attempts === undefined ? {} : {gateMaxAttempts: dto.gate_max_attempts}),
+    ...(dto.main_step_id === undefined ? {} : {mainStepId: dto.main_step_id}),
+    ...(dto.affects_job === undefined ? {} : {affectsJob: dto.affects_job}),
     attemptTotal: dto.attempts.length,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,

@@ -78,6 +78,27 @@ export function ActionSections({details}: {details: ActionDetails}) {
         </Section>
       ) : null}
 
+      {details.post ? (
+        <Section title="Post step">
+          <RowList>
+            <Row>
+              <span className="flex items-center gap-inline">
+                <CodeName>post_failure</CodeName>
+                <span className="font-code text-xs text-foreground-neutral-muted">
+                  {details.post.failure}
+                </span>
+              </span>
+              <span className="text-foreground-neutral-subtle">
+                Runs at the end of the job, after every other step.{' '}
+                {details.post.failure === 'fail'
+                  ? 'If it fails, the job fails.'
+                  : 'If it fails, the job result is unchanged.'}
+              </span>
+            </Row>
+          </RowList>
+        </Section>
+      ) : null}
+
       {details.dependencies.length > 0 ? (
         <Section title="Bundled dependencies">
           <RowList>

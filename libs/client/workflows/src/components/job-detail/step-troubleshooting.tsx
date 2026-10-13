@@ -26,7 +26,7 @@ import {
 import {TimeTickerProvider, useTimeTick} from '@shipfox/react-ui/time-ticker';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {Code} from '@shipfox/react-ui/typography';
-import {formatDuration} from '@shipfox/react-ui/utils';
+import {cn, formatDuration} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import {Fragment, type ReactNode} from 'react';
 import {readActionStepConfig} from '#core/action-step.js';
@@ -43,9 +43,13 @@ import type {
 } from '#core/workflow-run.js';
 import {presentStepAttemptDiagnostics} from '#core/workflow-run.js';
 import {useStepAttemptDetailQuery} from '#hooks/api/step-attempt-detail.js';
-import {workflowRunSearchParams} from '#routes/inputs.js';
+import {workflowJobSearchParams, workflowRunSearchParams} from '#routes/inputs.js';
 import {EvaluationTraceList} from '../evaluation-trace-list.js';
-import {humanizeStatus, type StepListEntryModel} from '../step-list/step-list-model.js';
+import {
+  humanizeStatus,
+  IGNORED_POST_FAILURE_TEXT,
+  type StepListEntryModel,
+} from '../step-list/step-list-model.js';
 import {ActionStepDetails} from './action-step-details.js';
 import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
 import {DiagnosticUnavailableAnnouncement, diagnosticFieldLabel} from './diagnostic-unavailable.js';
@@ -108,6 +112,26 @@ export function StepInspectorSheet({
           error={error}
           jobStatusReason={jobStatusReason}
           showFailure={entry.statusVisual.kind === 'failed' || entry.error !== null}
+          failureIgnored={entry.failureIgnored}
+          mainStepLink={
+            entry.step.mainStepId === undefined ? undefined : (
+              <Link
+                to="/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId/jobs/$jobId"
+                params={{workspaceSlug, projectSlug, workflowRunId, jobId}}
+                search={
+                  workflowJobSearchParams({
+                    jobExecutionId: entry.step.jobExecutionId,
+                    stepId: entry.step.mainStepId,
+                    runAttempt,
+                  }) as never
+                }
+                onClick={() => onOpenChange(false)}
+                className="font-medium text-foreground-highlight-interactive underline-offset-2 hover:underline"
+              >
+                {entry.step.mainStepLabel ?? 'View main step'}
+              </Link>
+            )
+          }
           query={inspectorQuery}
           workspaceSlug={workspaceSlug}
           projectSlug={projectSlug}
@@ -123,10 +147,10 @@ export function StepInspectorSheet({
 }
 
 function StepKindBadge({step}: {step: Step}) {
-  if (step.type === 'action') {
+  if (isActionStep(step)) {
     return (
       <Badge variant="neutral" size="2xs" radius="rounded">
-        Action
+        {step.type === 'post' ? 'Action post' : 'Action'}
       </Badge>
     );
   }
@@ -140,10 +164,33 @@ function StepKindBadge({step}: {step: Step}) {
   return null;
 }
 
+/** A post runs the same action code as its main step, so both share the action treatment. */
+function isActionStep(step: Step): boolean {
+  return step.type === 'action' || step.type === 'post';
+}
+
+const FAILURE_TONES = {
+  error: {type: 'error', border: 'border-tag-error-border', code: 'text-tag-error-text'},
+  warning: {type: 'warning', border: 'border-tag-warning-border', code: 'text-tag-warning-text'},
+} as const;
+
+function failureTone(failureIgnored: boolean) {
+  return FAILURE_TONES[failureIgnored ? 'warning' : 'error'];
+}
+
+function actionConfigForStep(step: Step, config: Record<string, unknown> | null) {
+  return isActionStep(step) ? readActionStepConfig(config) : null;
+}
+
+function actionPhase(step: Step): 'main' | 'post' {
+  return step.type === 'post' ? 'post' : 'main';
+}
+
 function StepFailureCallout({
   step,
   attempt,
   error,
+  failureIgnored,
   jobStatusReason,
   workspaceSlug,
   projectSlug,
@@ -154,6 +201,7 @@ function StepFailureCallout({
   step: Step;
   attempt: StepAttempt;
   error: StepError | null;
+  failureIgnored: boolean;
   jobStatusReason: string | null | undefined;
   workspaceSlug: string;
   projectSlug: string;
@@ -161,6 +209,7 @@ function StepFailureCallout({
   runAttempt: number;
   onViewLogs: (() => void) | undefined;
 }) {
+  const tone = failureTone(failureIgnored);
   const reason = failureReason(step, error, jobStatusReason);
   const toolGuidance =
     toolFailureGuidance(reason, step, attempt, error) ?? actionFailureGuidance(reason, step, error);
@@ -184,9 +233,9 @@ function StepFailureCallout({
   return (
     <Callout
       role="alert"
-      type="error"
+      type={tone.type}
       variant="secondary"
-      className="rounded-8 border border-tag-error-border p-panel-compact shadow-none"
+      className={cn('rounded-8 border p-panel-compact shadow-none', tone.border)}
     >
       <CalloutContent>
         <CalloutTitle>{title}</CalloutTitle>
@@ -194,11 +243,12 @@ function StepFailureCallout({
           <div className="flex min-w-0 flex-wrap items-center gap-x-inline gap-y-tight">
             <div className="flex min-w-0 flex-col gap-tight">
               <span>{description}</span>
+              {failureIgnored && <span>{IGNORED_POST_FAILURE_TEXT}</span>}
               <FailureMessage error={error} />
               <ProviderMessage error={error} />
               <RestartDecisionLine decision={attempt.gateResult?.restart} />
             </div>
-            <Code as="span" variant="label" className="text-tag-error-text">
+            <Code as="span" variant="label" className={tone.code}>
               {failureCode}
             </Code>
             <ProviderStreamDetails step={step} error={error} />
@@ -229,7 +279,7 @@ function StepFailureCallout({
           </div>
         </CalloutDescription>
       </CalloutContent>
-      {(step.type === 'tool' || step.type === 'action') &&
+      {(step.type === 'tool' || isActionStep(step)) &&
       reason !== 'config_unresolvable' &&
       onViewLogs ? (
         <CalloutActions>
@@ -266,6 +316,8 @@ function StepInspector({
   error,
   jobStatusReason,
   showFailure,
+  failureIgnored,
+  mainStepLink,
   query,
   workspaceSlug,
   projectSlug,
@@ -280,6 +332,8 @@ function StepInspector({
   error: StepError | null;
   jobStatusReason: string | null | undefined;
   showFailure: boolean;
+  failureIgnored: boolean;
+  mainStepLink: ReactNode;
   query: ReturnType<typeof useStepAttemptDetailQuery>;
   workspaceSlug: string;
   projectSlug: string;
@@ -300,6 +354,7 @@ function StepInspector({
             step={step}
             attempt={attempt}
             error={error}
+            failureIgnored={failureIgnored}
             jobStatusReason={jobStatusReason}
             workspaceSlug={workspaceSlug}
             projectSlug={projectSlug}
@@ -318,6 +373,7 @@ function StepInspector({
         hasAnnotations={hasAnnotations}
         workflowRunId={workflowRunId}
         runAttempt={runAttempt}
+        mainStepLink={mainStepLink}
       />
       {hasAnnotations ? (
         <InspectorSection
@@ -351,7 +407,9 @@ function InspectorQueryContent({
   hasAnnotations,
   workflowRunId,
   runAttempt,
+  mainStepLink,
 }: {
+  mainStepLink: ReactNode;
   query: ReturnType<typeof useStepAttemptDetailQuery>;
   detail: ReturnType<typeof useStepAttemptDetailQuery>['data'];
   step: Step;
@@ -408,6 +466,7 @@ function InspectorQueryContent({
         hasAnnotations={hasAnnotations}
         workflowRunId={workflowRunId}
         runAttempt={runAttempt}
+        mainStepLink={mainStepLink}
       />
     </>
   );
@@ -435,7 +494,9 @@ function InspectorDetailContent({
   hasAnnotations,
   workflowRunId,
   runAttempt,
+  mainStepLink,
 }: {
+  mainStepLink: ReactNode;
   detail: NonNullable<ReturnType<typeof useStepAttemptDetailQuery>['data']>;
   step: Step;
   attempt: StepAttempt;
@@ -449,7 +510,7 @@ function InspectorDetailContent({
   const presentedAttempt = presentStepAttemptDiagnostics(attempt, detail);
   const unavailableFields = detail.oversizedFields ?? [];
   const isToolStep = step.type === 'tool';
-  const actionConfig = step.type === 'action' ? readActionStepConfig(resolvedConfig) : null;
+  const actionConfig = actionConfigForStep(step, resolvedConfig);
   const hasInputValues = inspectorHasInputValues(detail.authoredConfig, resolvedConfig);
   const hasOutputValues = inspectorHasOutputValues(presentedAttempt);
   const hasDetails =
@@ -467,6 +528,8 @@ function InspectorDetailContent({
       {actionConfig ? (
         <ActionStepDetails
           config={actionConfig}
+          phase={actionPhase(step)}
+          mainStepLink={mainStepLink}
           stepLabel={step.name}
           stepId={step.id}
           attempt={attempt.attempt}
@@ -889,7 +952,7 @@ function failureCodeForStep(step: Step, error: StepError | null, reason: string)
   if (isProviderStreamFailure(error)) return error?.category ?? 'provider';
   if (step.type === 'tool') return error?.code ?? reason;
   // A crashed or killed action process has no reason; its signal or exit code says more.
-  if (step.type === 'action' && reason === 'unknown') {
+  if (isActionStep(step) && reason === 'unknown') {
     if (error?.signal) return error.signal;
     if (error?.exitCode !== null && error?.exitCode !== undefined) return `exit ${error.exitCode}`;
   }
@@ -1335,7 +1398,7 @@ function actionFailureGuidance(
   step: Step,
   error: StepError | null,
 ): ToolFailureGuidance | null {
-  if (step.type !== 'action') return null;
+  if (!isActionStep(step)) return null;
   if (reason === 'output_invalid') return ACTION_OUTPUT_INVALID_GUIDANCE;
   if (reason === 'step_result_too_large') return ACTION_OUTPUT_TOO_LARGE_GUIDANCE;
   const message = error?.message ?? '';

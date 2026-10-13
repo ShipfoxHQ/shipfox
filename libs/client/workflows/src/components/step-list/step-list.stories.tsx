@@ -267,6 +267,53 @@ export const ContentVariants: Story = {
   },
 };
 
+export const ActionPosts: Story = {
+  args: {
+    job: makeJob({
+      name: 'build',
+      status: 'failed',
+      steps: [
+        makeStep({
+          name: 'Set up Node',
+          type: 'action',
+          status: 'succeeded',
+          attempts: [makeAttempt({status: 'succeeded', execution_order: 1})],
+        }),
+        makeStep({
+          name: 'pnpm test',
+          position: 1,
+          status: 'succeeded',
+          attempts: [makeAttempt({status: 'succeeded', execution_order: 2})],
+        }),
+        makeStep({
+          name: 'Post Upload report',
+          type: 'post',
+          position: 2,
+          status: 'failed',
+          affects_job: true,
+          attempts: [makeAttempt({status: 'failed', exit_code: 1, execution_order: 3})],
+        }),
+        makeStep({
+          name: 'Post Save cache',
+          type: 'post',
+          position: 3,
+          status: 'failed',
+          affects_job: false,
+          attempts: [makeAttempt({status: 'failed', exit_code: 1, execution_order: 4})],
+        }),
+        makeStep({
+          name: 'Post Set up Node',
+          type: 'post',
+          position: 4,
+          status: 'succeeded',
+          affects_job: true,
+          attempts: [makeAttempt({status: 'succeeded', execution_order: 5})],
+        }),
+      ],
+    }),
+  },
+};
+
 export const DataStates: Story = {
   render: () => (
     <div className="grid gap-16">

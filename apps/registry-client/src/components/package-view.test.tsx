@@ -186,7 +186,24 @@ describe('package page', () => {
       expect(html).toContain('channel_id');
       expect(html).toContain('uses: shipfox/slack-thread-digest@1.0.0');
       expect(html).toContain('mdast-util-to-markdown');
+      expect(html).not.toContain('Post step');
       expect(requests.some((path) => path.endsWith('/readme'))).toBe(false);
+    });
+
+    it('shows the post entry and its post_failure value', async () => {
+      const {html} = await renderPackage(
+        {
+          ...routes,
+          '/v1/packages/shipfox/slack-thread-digest/versions/1.0.0': {
+            body: envelope(actionDocument({version: '1.0.0', postFailure: 'fail'})),
+          },
+        },
+        'slack-thread-digest',
+      );
+
+      expect(html).toContain('Post step');
+      expect(html).toContain('post_failure');
+      expect(html).toContain('If it fails, the job fails.');
     });
   });
 

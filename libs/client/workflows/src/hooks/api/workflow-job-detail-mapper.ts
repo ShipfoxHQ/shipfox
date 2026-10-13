@@ -130,6 +130,8 @@ export function toWorkflowJobStepSummary(
       : null,
     currentAttempt: dto.current_attempt,
     ...(dto.gate_max_attempts === undefined ? {} : {gateMaxAttempts: dto.gate_max_attempts}),
+    ...(dto.main_step_id === undefined ? {} : {mainStepId: dto.main_step_id}),
+    ...(dto.affects_job === undefined ? {} : {affectsJob: dto.affects_job}),
     error: toWorkflowJobStepError(dto.error),
     attempts: {
       items: dto.attempts.items.map((attempt) =>
@@ -288,6 +290,8 @@ function toStepForJobDetail(
     position: step.position,
     currentAttempt: step.currentAttempt,
     ...(step.gateMaxAttempts === undefined ? {} : {gateMaxAttempts: step.gateMaxAttempts}),
+    ...(step.mainStepId === undefined ? {} : {mainStepId: step.mainStepId}),
+    ...(step.affectsJob === undefined ? {} : {affectsJob: step.affectsJob}),
     ...(attemptTotal === undefined ? {} : {attemptTotal}),
     createdAt: firstAttempt?.startedAt ?? fallbackUpdatedAt,
     updatedAt,

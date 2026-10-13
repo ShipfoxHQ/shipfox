@@ -138,6 +138,10 @@ export interface Step {
   position: number;
   currentAttempt: number;
   gateMaxAttempts?: number | undefined;
+  /** The step whose action declared this post. Set on post rows only. */
+  mainStepId?: string | undefined;
+  /** False when a failed post leaves the job result unchanged. Set on post rows only. */
+  affectsJob?: boolean | undefined;
   attemptTotal?: number | undefined;
   createdAt: string;
   updatedAt: string;

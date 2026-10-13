@@ -32,6 +32,7 @@ import {
   buildStepListModel,
   defaultStepListJobExecution,
   humanizeStatus,
+  IGNORED_POST_FAILURE_TEXT,
   type StepAttemptModel,
   type StepListEntryModel,
   type StepListModel,
@@ -420,6 +421,11 @@ function StepRow({
           {entry.step.attempts.length > 1 ? <StepAttemptChip attempt={entry} /> : null}
           {entry.carriedOver ? <CarriedOverBadge /> : null}
         </div>
+        {entry.failureIgnored ? (
+          <Text as="span" size="xs" className="block truncate text-foreground-neutral-muted">
+            {IGNORED_POST_FAILURE_TEXT}
+          </Text>
+        ) : null}
       </div>
       <StepAttemptDurationLabel attempt={entry} />
     </>
@@ -536,6 +542,22 @@ function nextSelectedAttemptId(
 }
 
 function StepStatusIcon({entry}: {entry: StepListEntryModel}) {
+  if (entry.failureIgnored) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            role="img"
+            aria-label="Failed, job result unchanged"
+            className="inline-flex size-14 shrink-0 items-center justify-center text-tag-warning-icon"
+          >
+            <Icon name="errorWarningFill" size={15} />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>Failed, job result unchanged</TooltipContent>
+      </Tooltip>
+    );
+  }
   if (isWorkflowStatus(entry.statusVisual.kind)) {
     return (
       <WorkflowStatusIcon
@@ -558,7 +580,7 @@ function StepStatusIcon({entry}: {entry: StepListEntryModel}) {
 }
 
 function ToolProviderIcon({entry}: {entry: StepListEntryModel}) {
-  if (entry.step.type === 'action') {
+  if (entry.step.type === 'action' || entry.step.type === 'post') {
     return (
       <Icon
         name="codeBoxLine"
@@ -608,6 +630,8 @@ function StepAttemptChip({attempt}: {attempt: StepAttemptModel}) {
 function entryAccessibleLabel(entry: StepListEntryModel): string {
   const parts = [entry.step.label, entry.statusVisual.label, `attempt ${entry.attemptOrdinal}`];
   if (entry.step.type === 'action') parts.push('action');
+  if (entry.step.type === 'post') parts.push('action post');
+  if (entry.failureIgnored) parts.push('job result unchanged');
   if (entry.step.toolConfig?.provider) {
     const provider = entry.step.toolConfig.provider;
     parts.push(

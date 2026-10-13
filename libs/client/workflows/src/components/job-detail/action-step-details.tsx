@@ -9,6 +9,7 @@ import {
   PropertyList,
   PropertyRow,
 } from '@shipfox/react-ui/inspector';
+import type {ReactNode} from 'react';
 import {
   type ActionStepConfig,
   actionSourceLabel,
@@ -20,6 +21,8 @@ import {useWorkflowRunOverviewQuery} from '#hooks/api/workflow-run-overview.js';
 
 export function ActionStepDetails({
   config,
+  phase,
+  mainStepLink,
   stepLabel,
   stepId,
   attempt,
@@ -27,6 +30,9 @@ export function ActionStepDetails({
   runAttempt,
 }: {
   config: ActionStepConfig;
+  phase: 'main' | 'post';
+  /** Link to the step that declared this post. Set for the post phase only. */
+  mainStepLink?: ReactNode;
   stepLabel: string;
   stepId: string;
   attempt: number;
@@ -39,6 +45,8 @@ export function ActionStepDetails({
     <>
       <ActionIdentitySection
         config={config}
+        phase={phase}
+        mainStepLink={mainStepLink}
         stepLabel={stepLabel}
         stepId={stepId}
         attempt={attempt}
@@ -108,6 +116,8 @@ export function ActionStepDetails({
 
 function ActionIdentitySection({
   config,
+  phase,
+  mainStepLink,
   stepLabel,
   stepId,
   attempt,
@@ -115,6 +125,8 @@ function ActionIdentitySection({
   runAttempt,
 }: {
   config: ActionStepConfig;
+  phase: 'main' | 'post';
+  mainStepLink: ReactNode;
   stepLabel: string;
   stepId: string;
   attempt: number;
@@ -131,6 +143,10 @@ function ActionIdentitySection({
         {/* The step label is usually the action name; show the name only when it adds something. */}
         {config.name && config.name !== stepLabel ? (
           <PropertyRow label="Name">{config.name}</PropertyRow>
+        ) : null}
+        <PropertyRow label="Phase">{phase === 'post' ? 'Post' : 'Main'}</PropertyRow>
+        {phase === 'post' && mainStepLink ? (
+          <PropertyRow label="Main step">{mainStepLink}</PropertyRow>
         ) : null}
         <PropertyRow label="Uses" copyValue={config.uses} copyLabel="Copy uses path">
           <span className="break-all font-code">{config.uses}</span>

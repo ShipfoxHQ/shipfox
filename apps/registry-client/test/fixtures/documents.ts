@@ -131,7 +131,18 @@ const ACTION_MANIFEST = actionManifestSchema.parse({
   integrations: {slack: {provider: 'slack', include: ['conversations'], allow_write: false}},
 });
 
-export function actionDocument({version}: {version: string}): RegistryActionVersionDocument {
+export function actionDocument({
+  version,
+  postFailure,
+}: {
+  version: string;
+  /** Declares a post entry with this `post_failure` value. */
+  postFailure?: 'warn' | 'fail';
+}): RegistryActionVersionDocument {
+  const manifest =
+    postFailure === undefined
+      ? ACTION_MANIFEST
+      : {...ACTION_MANIFEST, post: 'post.mjs', post_failure: postFailure};
   return {
     schema: 'shipfox.registry/version@1',
     package: 'shipfox/slack-thread-digest',
@@ -143,10 +154,10 @@ export function actionDocument({version}: {version: string}): RegistryActionVers
     license: 'MIT',
     content: {digest: digest('a'), bytes: 48213, format: 'action-bundle@1'},
     source: {digest: digest('b'), bytes: 91022, format: 'source-archive@1'},
-    manifest: ACTION_MANIFEST,
+    manifest,
     derived: deriveActionMetadata({
       reference: {namespace: 'shipfox', name: 'slack-thread-digest', version},
-      manifest: ACTION_MANIFEST,
+      manifest,
       contentBytes: 48213,
     }),
     dependencies: [{name: 'mdast-util-to-markdown', version: '2.1.2'}],

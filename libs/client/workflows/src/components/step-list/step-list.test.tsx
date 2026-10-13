@@ -806,6 +806,56 @@ describe('StepList', () => {
       screen.getByRole('button', {name: 'Save Slack thread, Succeeded, attempt 1, action'}),
     ).toBeInTheDocument();
   });
+
+  test('says that a failed post left the job result unchanged', () => {
+    render(
+      <StepList
+        job={makeJob({
+          steps: [
+            makeStep({
+              name: 'Post Set up Node',
+              type: 'post',
+              status: 'failed',
+              affects_job: false,
+              attempts: [makeAttempt({status: 'failed', exit_code: 1})],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', {
+        name: 'Post Set up Node, Failed, attempt 1, action post, job result unchanged',
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('This step failed. The job result is unchanged.')).toBeInTheDocument();
+  });
+
+  test('shows a failed post that fails the job as a plain failure', () => {
+    render(
+      <StepList
+        job={makeJob({
+          steps: [
+            makeStep({
+              name: 'Post Upload report',
+              type: 'post',
+              status: 'failed',
+              affects_job: true,
+              attempts: [makeAttempt({status: 'failed', exit_code: 1})],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', {name: 'Post Upload report, Failed, attempt 1, action post'}),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('This step failed. The job result is unchanged.'),
+    ).not.toBeInTheDocument();
+  });
 });
 
 function makeJob(overrides: JobDtoOverrides = {}): Job {

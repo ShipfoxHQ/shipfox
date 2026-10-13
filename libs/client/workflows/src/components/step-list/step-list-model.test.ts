@@ -250,6 +250,41 @@ describe('buildStepListModel', () => {
     });
   });
 
+  test('marks a failed post that leaves the job result unchanged as a warning', () => {
+    const main = makeStep({
+      name: 'Set up Node',
+      type: 'action',
+      position: 1,
+      attempts: [makeAttempt({execution_order: 1, status: 'succeeded'})],
+    });
+    const warnPost = makeStep({
+      name: 'Post Set up Node',
+      type: 'post',
+      position: 2,
+      status: 'failed',
+      main_step_id: main.id,
+      affects_job: false,
+      attempts: [makeAttempt({execution_order: 2, status: 'failed', exit_code: 1})],
+    });
+    const failPost = makeStep({
+      name: 'Post Upload report',
+      type: 'post',
+      position: 3,
+      status: 'failed',
+      affects_job: true,
+      attempts: [makeAttempt({execution_order: 3, status: 'failed', exit_code: 1})],
+    });
+
+    const result = buildStepListModel({job: makeJob({steps: [main, warnPost, failPost]})});
+
+    expect(result.entries.map((entry) => entry.failureIgnored)).toEqual([false, true, false]);
+    expect(result.entries[1]).toMatchObject({
+      statusVisual: {kind: 'failed', dot: 'warning', badge: 'warning'},
+      step: {mainStepLabel: 'Set up Node'},
+    });
+    expect(result.entries[2]?.statusVisual).toMatchObject({dot: 'error', badge: 'error'});
+  });
+
   test('numbers gate attempts by their displayed position instead of stored attempt', () => {
     const step = makeStep({
       gate_max_attempts: 5,

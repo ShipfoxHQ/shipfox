@@ -1097,7 +1097,83 @@ describe('StepInspectorSheet for action steps', () => {
     expect(within(alert).getByText(code)).toBeInTheDocument();
     expect(within(alert).getByRole('button', {name: 'View logs'})).toBeInTheDocument();
   });
+
+  it('shows the post phase, links to the main step, and says the job result is unchanged', async () => {
+    const user = userEvent.setup();
+    configureActionDetailResponse();
+
+    await renderPanel({entry: postStepEntry()});
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    const action = await screen.findByRole('region', {name: 'Action'});
+    expect(within(action).getByText('Post')).toBeInTheDocument();
+    expect(within(action).getByRole('link', {name: 'Save the thread'})).toHaveAttribute(
+      'href',
+      expect.stringContaining('step=55555555-5555-4555-8555-000000000009'),
+    );
+    expect(screen.getByText('Attempt #1').nextElementSibling).toHaveTextContent('Action post');
+    const alert = screen.getByRole('alert');
+    expect(
+      within(alert).getByText('This step failed. The job result is unchanged.'),
+    ).toBeInTheDocument();
+  });
 });
+
+function postStepEntry(): StepListEntryModel {
+  // The detail response is served for STEP_ID, so the post is the step under inspection.
+  const mainStepId = '55555555-5555-4555-8555-000000000009';
+  const error = {message: 'Post failed', exit_code: 1};
+  const job = workflowJob({
+    status: 'succeeded',
+    job_executions: [
+      workflowJobExecutionDto({
+        id: EXECUTION_ID,
+        status: 'succeeded',
+        steps: [
+          workflowStepDto({
+            id: mainStepId,
+            job_execution_id: EXECUTION_ID,
+            name: 'Save the thread',
+            type: 'action',
+            status: 'succeeded',
+            attempts: [
+              workflowStepAttemptDto({
+                step_id: mainStepId,
+                status: 'succeeded',
+                execution_order: 1,
+              }),
+            ],
+          }),
+          workflowStepDto({
+            id: STEP_ID,
+            job_execution_id: EXECUTION_ID,
+            name: 'Post Save the thread',
+            type: 'post',
+            position: 1,
+            status: 'failed',
+            main_step_id: mainStepId,
+            affects_job: false,
+            error,
+            attempts: [
+              workflowStepAttemptDto({
+                id: ATTEMPT_ID,
+                step_id: STEP_ID,
+                status: 'failed',
+                execution_order: 2,
+                error,
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+  const execution = job.jobExecutions[0];
+  if (!execution) throw new Error('Test fixture is missing an execution.');
+  const entry = buildStepListModel({job, jobExecution: execution}).entries[1];
+  if (!entry) throw new Error('Test fixture is missing the post attempt.');
+  return entry;
+}
 
 async function renderPanel({
   annotationCount,
