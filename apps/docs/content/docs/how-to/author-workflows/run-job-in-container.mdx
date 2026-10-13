@@ -53,9 +53,10 @@ two steps.
 
 ## Pull a private image
 
-Replace the `container` line of the example with this fragment. The runner
-signs in to the registry before it pulls the image. The registry is the host at
-the start of the image name. An image name without a host uses Docker Hub.
+A private image needs a username and a password. Put them in the `credentials`
+field.
+
+In the example, replace the `container` line with these lines:
 
 ```yaml
     container:
@@ -65,7 +66,16 @@ the start of the image name. An image name without a host uses Docker Hub.
         password: ${{ secrets.GHCR_TOKEN }}
 ```
 
-Read the password from a secret. The username can be plain text or a secret.
+Change these three values:
+
+- `image`: the full name of your image. The name starts with the address of
+  the registry. In the example, the address is `ghcr.io`. If the name has no
+  registry address, the runner uses Docker Hub.
+- `username`: your username for the registry. You can write it in the file or
+  read it from a secret.
+- `password`: the secret that holds your password or token. Do not write the
+  password in the workflow file.
+
 The `image` field cannot read a secret.
 
 ## Choose an image that works
