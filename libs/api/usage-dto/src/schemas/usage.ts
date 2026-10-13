@@ -290,11 +290,17 @@ function validateStorageWindow(
   const start = Date.parse(value.windowStart);
   const end = Date.parse(value.windowEnd);
   if (!Number.isFinite(start) || !Number.isFinite(end)) return;
-  if (start % HOUR_MS !== 0 || end - start !== HOUR_MS) {
+  if (start % HOUR_MS !== 0) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['windowStart'],
-      message: 'Storage sample windows must be one clock hour',
+      message: 'Storage sample windows must start on the hour',
+    });
+  } else if (end - start !== HOUR_MS) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['windowEnd'],
+      message: 'Storage sample windows must last one hour',
     });
   }
 }

@@ -8,7 +8,7 @@ import {
   usageJobExecutionRecordedEventSchema,
   usageStorageSampleRecordedEventSchema,
 } from './events.js';
-import {inferenceSegmentInputSchema} from './schemas/usage.js';
+import {inferenceSegmentInputSchema, storageSampleInputSchema} from './schemas/usage.js';
 
 const ids = {
   workspaceId: crypto.randomUUID(),
@@ -91,6 +91,15 @@ const validStorageSample = {
   recordedAt: '2026-09-04T10:05:00.000Z',
 };
 
+const validStorageSampleInput = {
+  sampleKey: validStorageSample.sampleKey,
+  source: validStorageSample.source,
+  workspaceId: validStorageSample.workspaceId,
+  projectId: validStorageSample.projectId,
+  storedBytes: validStorageSample.storedBytes,
+  objectCount: validStorageSample.objectCount,
+};
+
 describe('Usage event contracts', () => {
   it('registers the strict v1 event map', () => {
     expect(Object.keys(usageEventSchemas).sort()).toEqual(
@@ -131,10 +140,36 @@ describe('Usage event contracts', () => {
     ).toThrow();
   });
 
-  it('rejects a storage sample that carries an amount or spans more than a clock hour', () => {
-    expect(() =>
-      usageStorageSampleRecordedEventSchema.parse({...validStorageSample, version: 1, price: 1}),
-    ).toThrow();
+  it('rejects a storage sample that carries a price or an amount', () => {
+    for (const field of ['price', 'amount']) {
+      expect(() =>
+        usageStorageSampleRecordedEventSchema.parse({
+          ...validStorageSample,
+          version: 1,
+          [field]: 1,
+        }),
+      ).toThrow();
+    }
+  });
+
+  it('reports a storage sample window on the field that is wrong', () => {
+    const issuePath = (windowStart: string, windowEnd: string) => {
+      const result = storageSampleInputSchema.safeParse({
+        ...validStorageSampleInput,
+        windowStart,
+        windowEnd,
+      });
+      return result.success ? null : result.error.issues.map((issue) => issue.path.join('.'));
+    };
+    expect(issuePath('2026-09-04T10:05:00.000Z', '2026-09-04T11:05:00.000Z')).toEqual([
+      'windowStart',
+    ]);
+    expect(issuePath('2026-09-04T10:00:00.000Z', '2026-09-04T12:00:00.000Z')).toEqual([
+      'windowEnd',
+    ]);
+  });
+
+  it('rejects a storage sample that spans more than a clock hour', () => {
     expect(() =>
       usageStorageSampleRecordedEventSchema.parse({
         ...validStorageSample,
