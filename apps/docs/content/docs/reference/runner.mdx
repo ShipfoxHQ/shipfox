@@ -94,12 +94,11 @@ The runner needs two things:
 - The `docker` command.
 - A local Docker daemon that the runner user can use.
 
-If one is missing, **Set up job** fails and shows the error from Docker.
+If one is missing, **Set up job** fails and shows the error.
 
 The runner pulls the image for its own platform: `linux/amd64` or
 `linux/arm64`. The job workspace has the same path in the container and on the
-runner. The runner also mounts its own files under `/__shipfox`. The container
-cannot change them.
+runner. The runner also mounts its own files under `/__shipfox`.
 
 A step in a job container runs as the default user of the image. If that user
 is `root`, the job can leave files that the runner user cannot delete. The

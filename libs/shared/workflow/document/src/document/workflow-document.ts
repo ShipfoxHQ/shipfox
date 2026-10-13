@@ -1562,7 +1562,7 @@ const workflowDocumentContainerObjectSchema = z.strictObject({
       'Passes extra flags to `docker create`, as written. Do not set `--network` or `--entrypoint`: the runner sets them. Supports workflow expressions, but cannot read secrets.',
   }),
   docker_socket: z.boolean().optional().meta({
-    description: 'Mounts the Docker socket of the runner into the container.',
+    description: 'Mounts the Docker socket of the runner into the container. Defaults to `true`.',
   }),
 });
 
