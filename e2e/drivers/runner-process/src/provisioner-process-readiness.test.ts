@@ -102,6 +102,8 @@ describe('startProvisioner installation readiness', () => {
       `/admin/runners/workspaces/${WORKSPACE_ID}/capacity`,
     );
     expect(mocks.requestJson).toHaveBeenNthCalledWith(2, 'get', '/provisioners/me');
+    expect(mocks.createApiClient).toHaveBeenNthCalledWith(1, {token: 'admin-token'});
+    expect(mocks.createApiClient).toHaveBeenNthCalledWith(2, {token: 'provisioner-token'});
     expect(mocks.spawn).toHaveBeenCalled();
     expect(child.kill).not.toHaveBeenCalled();
   });

@@ -110,6 +110,8 @@ describe('pollDemandUntil', () => {
     expect(result).toEqual(NO_DEMAND);
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(observed).toBe(2);
+    const [, init] = fetch.mock.calls[0] ?? [];
+    expect(JSON.parse(String(init?.body))).toMatchObject({wait_seconds: 0});
   });
 
   it('throws on a reservation found by a later poll', async () => {

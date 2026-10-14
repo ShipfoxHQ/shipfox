@@ -106,7 +106,8 @@ export async function pollDemandUntil(
   let lastResponse: PollDemandResponseDto | undefined;
 
   while (true) {
-    lastResponse = await pollDemand(pollParams);
+    // The route long-polls by default, which would hold one request for the whole budget.
+    lastResponse = await pollDemand({...pollParams, waitSeconds: pollParams.waitSeconds ?? 0});
     pollCount += 1;
     if (await until(lastResponse, pollCount)) return lastResponse;
 

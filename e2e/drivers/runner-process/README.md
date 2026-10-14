@@ -100,11 +100,11 @@ Installation readiness uses `adminToken` and the administrator runner-capacity r
 
 `pollDemand` sends one request to `POST /provisioners/demand/poll` using the provisioner bearer. Templates use `{name, labels}` and advertise one available slot by default. A reservation grant throws immediately because this driver has no runner to claim it.
 
-`pollDemandUntil` repeats the request every `intervalMs` (default 1 second), calls the async `until` predicate after each response, and rejects with `DemandPollTimeoutError` containing the last response and `pollCount` after `timeoutMs` (default 30 seconds). An early poll may find no demand because run creation is asynchronous.
+`pollDemandUntil` repeats the request every `intervalMs` (default 1 second), calls the async `until` predicate after each response, and rejects with `DemandPollTimeoutError` containing the last response and `pollCount` after `timeoutMs` (default 30 seconds). Each request returns immediately (`waitSeconds` defaults to `0` here) so the timeout is not spent inside one long poll. An early poll may find no demand because run creation is asynchronous.
 
 ### `startProvisioner(params)`
 
-Starts the provisioner, appends its output to `logFile`, and resolves once the provisioner is active for the workspace. It rejects, after stopping the provisioner, when the process exits first or the readiness budget (default 30 s) runs out. Keep `logFile` as a CI artifact.
+Starts the provisioner, appends its output to `logFile`, and resolves once the provisioner is active for the workspace. In installation scope it resolves once the API is reachable and the token has installation scope, which does not prove the process is polling. It rejects, after stopping the provisioner, when the process exits first or the readiness budget (default 30 s) runs out. Keep `logFile` as a CI artifact.
 
 | Parameter | Mode | Purpose |
 | --- | --- | --- |
