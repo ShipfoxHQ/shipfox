@@ -321,8 +321,8 @@ steps:
 Here, a restart runs `fix` and `test` again. `push` is after the gate, so it
 runs only when `test` passes.
 
-Only a tool step that reads data can send the job back to an earlier step. If
-the gate of a tool step that writes data fails, the job fails. For an example,
+A tool step can send the job back to an earlier step only when it reads data.
+If the gate of a tool step that writes data fails, the job fails. For an example,
 see [Wait for a change to
 apply](/how-to/author-workflows/call-integration-tool#wait-for-a-change-to-apply).
 

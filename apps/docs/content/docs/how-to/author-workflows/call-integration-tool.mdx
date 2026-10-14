@@ -183,8 +183,8 @@ This is what happens:
 The job reads the run a maximum of 12 times. If the run is still not complete,
 the job fails with `restart_exhausted`.
 
-Only a tool step that reads data can send the job back to an earlier step. If
-the gate of a tool step that writes data fails, the job fails.
+A tool step can send the job back to an earlier step only when it reads data.
+If the gate of a tool step that writes data fails, the job fails.
 
 To pass a tool result to a later step, read it as `steps.<key>.outputs`. To
 let an agent choose operations, [post a pull-request
