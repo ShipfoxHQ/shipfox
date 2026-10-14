@@ -1,0 +1,8 @@
+{
+  "extends": "@shipfox/ts-config/node",
+  "compilerOptions": {
+    "noEmit": true,
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["playwright.config.ts", "tests"]
+}

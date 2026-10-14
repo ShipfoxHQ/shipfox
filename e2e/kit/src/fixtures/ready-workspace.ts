@@ -1,3 +1,5 @@
+/// <reference lib="dom" />
+
 import type {Page} from '@shipfox/playwright';
 import type {WorkspaceFixtures} from './workspace.js';
 

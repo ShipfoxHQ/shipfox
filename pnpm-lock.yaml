@@ -1841,6 +1841,27 @@ importers:
         specifier: workspace:*
         version: link:../../../tools/typescript
 
+  e2e/screens/workflows:
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../tools/playwright
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../tools/typescript
+
   e2e/screens/workspaces:
     dependencies:
       '@shipfox/e2e-kit':
@@ -2409,6 +2430,57 @@ importers:
       '@shipfox/e2e-setup-secrets':
         specifier: workspace:*
         version: link:../../../setup/secrets
+      '@shipfox/e2e-setup-workspaces':
+        specifier: workspace:*
+        version: link:../../../setup/workspaces
+      '@shipfox/playwright':
+        specifier: workspace:*
+        version: link:../../../../tools/playwright
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+
+  e2e/suites/client/workflows:
+    devDependencies:
+      '@shipfox/api-server':
+        specifier: workspace:*
+        version: link:../../../../libs/api/server
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/client-features':
+        specifier: workspace:*
+        version: link:../../../../libs/client/features
+      '@shipfox/client-workflows':
+        specifier: workspace:*
+        version: link:../../../../libs/client/workflows
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
+      '@shipfox/e2e-core':
+        specifier: workspace:*
+        version: link:../../../core
+      '@shipfox/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../harness
+      '@shipfox/e2e-kit':
+        specifier: workspace:*
+        version: link:../../../kit
+      '@shipfox/e2e-observe-workflows':
+        specifier: workspace:*
+        version: link:../../../observe/workflows
+      '@shipfox/e2e-screens-workflows':
+        specifier: workspace:*
+        version: link:../../../screens/workflows
+      '@shipfox/e2e-setup-auth':
+        specifier: workspace:*
+        version: link:../../../setup/auth
+      '@shipfox/e2e-setup-projects':
+        specifier: workspace:*
+        version: link:../../../setup/projects
       '@shipfox/e2e-setup-workspaces':
         specifier: workspace:*
         version: link:../../../setup/workspaces
