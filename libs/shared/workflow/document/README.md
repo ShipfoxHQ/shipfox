@@ -131,7 +131,8 @@ An `mcp_servers` block starts stdio MCP servers for an agent step. Each entry is
 keyed by a server name that starts with a lowercase letter and uses only
 lowercase letters, numbers, and single underscores, with at most 20 characters.
 `command`, `args`, and `include` are literal. `env` values may use workflow
-expressions, including `secrets`, which later layers resolve.
+expressions, including `secrets`, which later layers resolve. `include` is
+optional; without it, the agent gets every tool of the server.
 
 ```ts
 parseWorkflowDocument({

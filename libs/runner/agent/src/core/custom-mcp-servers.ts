@@ -219,12 +219,10 @@ async function startServer(params: {
 
   let stderrTail = '';
   child.stderr.setEncoding('utf8');
+  // Only the tail is kept, masked as a whole in the start failure: masking chunk by chunk could
+  // miss a secret split across two chunks.
   child.stderr.on('data', (chunk: string) => {
     stderrTail = `${stderrTail}${chunk}`.slice(-STDERR_TAIL_BYTES);
-    for (const line of chunk.split('\n')) {
-      if (line.trim() !== '')
-        logger().info({server: server.name, line: redact(line)}, 'MCP server stderr');
-    }
   });
 
   const started: StartedServer = {
