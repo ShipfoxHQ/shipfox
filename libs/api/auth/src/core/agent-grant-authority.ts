@@ -4,11 +4,14 @@ import {
 } from '@shipfox/api-workspaces-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {findAgentGrant} from '#db/agent-access.js';
+import {findImpersonationWindow} from '#db/impersonation-windows.js';
 import {findUserById} from '#db/users.js';
+import {requireAdminRole} from './admin-role.js';
 import {
   type AgentGrantAuthorityRevocationReason,
   AgentGrantAuthorityRevokedError,
   AuthDependencyUnavailableError,
+  ImpersonationWindowNotFoundError,
 } from './errors.js';
 
 export interface CheckAgentGrantAuthorityParams {
@@ -28,18 +31,25 @@ function workspaceInactiveRevocationReason(
   return status === 'deleted' ? 'workspace-deleted' : 'workspace-suspended';
 }
 
-async function assertActiveGrantAndUser(params: CheckAgentGrantAuthorityParams): Promise<void> {
+async function findActiveGrant(params: {grantId: string; userId: string}) {
   const grant = await findAgentGrant({id: params.grantId});
-  const grantMatchesRequest =
+  const active =
     grant &&
     grant.revokedAt === null &&
     grant.terminalAt === null &&
-    grant.userId === params.userId &&
-    grant.workspaceId === params.workspaceId;
-  if (!grantMatchesRequest) revoked('grant-revoked');
+    grant.userId === params.userId;
+  return active ? grant : revoked('grant-revoked');
+}
 
-  const user = await findUserById({id: params.userId});
+async function assertActiveUser(userId: string): Promise<void> {
+  const user = await findUserById({id: userId});
   if (user?.status !== 'active') revoked('user-inactive');
+}
+
+async function assertActiveGrantAndUser(params: CheckAgentGrantAuthorityParams): Promise<void> {
+  const grant = await findActiveGrant(params);
+  if (grant.workspaceId !== params.workspaceId) revoked('grant-revoked');
+  await assertActiveUser(params.userId);
 }
 
 async function assertActiveWorkspaceMembership(
@@ -85,4 +95,33 @@ export async function checkAgentGrantAuthority(
   await assertActiveGrantAndUser(params);
   await assertActiveWorkspaceMembership(params);
   return {ok: true};
+}
+
+export interface CheckImpersonatedAgentGrantAuthorityParams {
+  grantId: string;
+  userId: string;
+  workspaceId: string;
+  windowId: string;
+}
+
+/**
+ * An administrator reads a customer workspace through an impersonation window,
+ * not a membership, and their grant belongs to their own workspace. The window
+ * replaces the workspace and membership checks.
+ */
+export async function checkImpersonatedAgentGrantAuthority(
+  params: CheckImpersonatedAgentGrantAuthorityParams,
+): Promise<void> {
+  await findActiveGrant(params);
+  await assertActiveUser(params.userId);
+  await requireAdminRole({userId: params.userId, minimumRole: 'admin-operator'});
+
+  const window = await findImpersonationWindow({id: params.windowId});
+  const open =
+    window !== undefined &&
+    window.actorId === params.userId &&
+    window.workspaceId === params.workspaceId &&
+    window.endedAt === null &&
+    window.deadlineAt.getTime() > Date.now();
+  if (!open) throw new ImpersonationWindowNotFoundError();
 }

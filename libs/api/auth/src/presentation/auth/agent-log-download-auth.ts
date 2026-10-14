@@ -2,9 +2,17 @@ import {AUTH_AGENT_LOG_DOWNLOAD, setAgentLogDownloadContext} from '@shipfox/api-
 import type {AgentLogDownloadTokenClaims} from '@shipfox/api-auth-dto';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {type AuthMethod, ClientError, type FastifyRequest} from '@shipfox/node-fastify';
-import {checkAgentGrantAuthority} from '#core/agent-grant-authority.js';
+import {
+  checkAgentGrantAuthority,
+  checkImpersonatedAgentGrantAuthority,
+} from '#core/agent-grant-authority.js';
 import {verifyAgentLogDownloadToken} from '#core/agent-log-download-token.js';
-import {AgentGrantAuthorityRevokedError, AuthDependencyUnavailableError} from '#core/errors.js';
+import {
+  AdminRoleRequiredError,
+  AgentGrantAuthorityRevokedError,
+  AuthDependencyUnavailableError,
+  ImpersonationWindowNotFoundError,
+} from '#core/errors.js';
 import {createBearerTokenAuthMethod} from './bearer-token-auth.js';
 
 const MAX_PRESENTED_TOKEN_BYTES = 8 * 1024;
@@ -30,14 +38,29 @@ async function verifyAgentLogDownloadCredential(
   if (!claims) return invalidCredential();
 
   try {
-    await checkAgentGrantAuthority({
-      grantId: claims.grantId,
-      userId: claims.sub,
-      workspaceId: claims.workspaceId,
-      workspaces,
-    });
+    if (claims.impersonationWindowId === undefined) {
+      await checkAgentGrantAuthority({
+        grantId: claims.grantId,
+        userId: claims.sub,
+        workspaceId: claims.workspaceId,
+        workspaces,
+      });
+    } else {
+      await checkImpersonatedAgentGrantAuthority({
+        grantId: claims.grantId,
+        userId: claims.sub,
+        workspaceId: claims.workspaceId,
+        windowId: claims.impersonationWindowId,
+      });
+    }
   } catch (error) {
-    if (error instanceof AgentGrantAuthorityRevokedError) return invalidCredential();
+    if (
+      error instanceof AgentGrantAuthorityRevokedError ||
+      error instanceof AdminRoleRequiredError ||
+      error instanceof ImpersonationWindowNotFoundError
+    ) {
+      return invalidCredential();
+    }
     if (error instanceof AuthDependencyUnavailableError) {
       throw new ClientError(
         'Authentication dependency unavailable',

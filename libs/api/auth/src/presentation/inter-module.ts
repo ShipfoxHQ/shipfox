@@ -253,6 +253,9 @@ export function createAuthInterModulePresentation(
         grantId: claims.grantId,
         clientId: claims.clientId,
         streamId: claims.streamId,
+        ...(claims.impersonationWindowId === undefined
+          ? {}
+          : {impersonationWindowId: claims.impersonationWindowId}),
       });
       return {token: result.token, expiresAt: result.expiresAt.toISOString()};
     },

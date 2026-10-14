@@ -9,10 +9,11 @@ import {createApp, defineRoute, type FastifyInstance} from '@shipfox/node-fastif
 import {eq} from 'drizzle-orm';
 import {issueAgentAccessToken} from '#core/agent-access-token.js';
 import {mintAgentLogDownloadToken} from '#core/agent-log-download-token.js';
+import {createAdminGrant} from '#db/admin-grants.js';
 import {createAgentClient, createAgentGrant} from '#db/agent-access.js';
 import {db} from '#db/db.js';
 import {agentGrants} from '#db/schema/agent-access.js';
-import {userFactory} from '#test/index.js';
+import {impersonationWindowFactory, userFactory} from '#test/index.js';
 import {createAgentAccessAuthMethod} from './agent-access-auth.js';
 import {createAgentLogDownloadAuthMethod} from './agent-log-download-auth.js';
 
@@ -72,6 +73,48 @@ async function createCredential(outage = false) {
     token: minted.token,
     grantId: grant.id,
     workspaces: createWorkspaces({userId: user.id, workspaceId, outage}),
+  };
+}
+
+async function createImpersonatedCredential(
+  params: {
+    role?: 'admin-observer' | 'admin-operator';
+    windowWorkspaceId?: string;
+    windowEndedAt?: Date;
+  } = {},
+) {
+  const administrator = await userFactory.create();
+  await createAdminGrant({userId: administrator.id, role: params.role ?? 'admin-operator'});
+  const homeWorkspaceId = crypto.randomUUID();
+  const customerWorkspaceId = crypto.randomUUID();
+  const client = await createAgentClient({
+    clientId: `https://client.example.test/${crypto.randomUUID()}`,
+    name: 'Test client',
+    redirectUris: ['https://client.example.test/callback'],
+    kind: 'registered',
+  });
+  const grant = await createAgentGrant({
+    userId: administrator.id,
+    workspaceId: homeWorkspaceId,
+    clientId: client.id,
+  });
+  const window = await impersonationWindowFactory.create({
+    actorId: administrator.id,
+    workspaceId: params.windowWorkspaceId ?? customerWorkspaceId,
+    ...(params.windowEndedAt ? {endedAt: params.windowEndedAt, endedReason: 'stopped'} : {}),
+  });
+  const minted = await mintAgentLogDownloadToken({
+    sub: administrator.id,
+    workspaceId: customerWorkspaceId,
+    grantId: grant.id,
+    clientId: client.clientId,
+    streamId: crypto.randomUUID(),
+    impersonationWindowId: window.id,
+  });
+  return {
+    token: minted.token,
+    customerWorkspaceId,
+    workspaces: createWorkspaces({userId: administrator.id, workspaceId: homeWorkspaceId}),
   };
 }
 
@@ -188,5 +231,52 @@ describe('agent log download auth method', () => {
     } finally {
       await app.close();
     }
+  });
+
+  describe('through an impersonation window', () => {
+    test('accepts an administrator who is not a member of the workspace', async () => {
+      const credential = await createImpersonatedCredential();
+      const app = await openApp(credential.workspaces);
+
+      try {
+        const response = await app.inject({
+          method: 'GET',
+          url: '/step-log-downloads/current',
+          headers: {authorization: `Bearer ${credential.token}`},
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toEqual(
+          expect.objectContaining({workspaceId: credential.customerWorkspaceId}),
+        );
+      } finally {
+        await app.close();
+      }
+    });
+
+    test.each([
+      {name: 'the window has ended', params: {windowEndedAt: new Date()}},
+      {
+        name: 'the window is on another workspace',
+        params: {windowWorkspaceId: crypto.randomUUID()},
+      },
+      {name: 'the administrator lost the operator role', params: {role: 'admin-observer' as const}},
+    ])('rejects the credential when $name', async ({params}) => {
+      const credential = await createImpersonatedCredential(params);
+      const app = await openApp(credential.workspaces);
+
+      try {
+        const response = await app.inject({
+          method: 'GET',
+          url: '/step-log-downloads/current',
+          headers: {authorization: `Bearer ${credential.token}`},
+        });
+
+        expect(response.statusCode).toBe(401);
+        expect(response.json()).toEqual({code: 'unauthorized'});
+      } finally {
+        await app.close();
+      }
+    });
   });
 });

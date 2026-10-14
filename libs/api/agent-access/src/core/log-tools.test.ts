@@ -186,6 +186,34 @@ describe('bounded step-log agent-access tool', () => {
     expect(getStepLogDownloadResultSchema.safeParse(result).success).toBe(true);
   });
 
+  test('ties the download token to the impersonation window on admin calls', async () => {
+    const mocks = clients();
+    mocks.workflowHandlers.getWorkflowStepAttemptDetail.mockResolvedValue(stepDetail(3));
+    mocks.logs.describeStepLogStream.mockResolvedValue({
+      streamId: uuid(50),
+      state: 'open',
+      compacted: false,
+      committedLength: 120,
+      totalBytes: 140,
+      truncated: false,
+    });
+    mocks.auth.mintAgentLogDownloadToken.mockResolvedValue({
+      token: 'download-token',
+      expiresAt: '2026-09-11T10:05:00.000Z',
+    });
+    const adminContext = {...context, admin: {actorId: context.userId, windowId: uuid(60)}};
+
+    await downloadTool(mocks).execute({context: adminContext, arguments: {step_id: stepId}});
+
+    expect(mocks.auth.mintAgentLogDownloadToken).toHaveBeenCalledWith(
+      expect.objectContaining({streamId: uuid(50), impersonationWindowId: uuid(60)}),
+    );
+    expect(auditLog.info).toHaveBeenCalledWith(
+      expect.objectContaining({impersonationWindowId: uuid(60)}),
+      'Agent-access log download token minted',
+    );
+  });
+
   test('includes line count for compacted downloads', async () => {
     const mocks = clients();
     mocks.workflowHandlers.getWorkflowStepAttemptDetail.mockResolvedValue(stepDetail(2));

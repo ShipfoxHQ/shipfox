@@ -151,6 +151,7 @@ function createGetStepLogDownloadTool({
         grantId: context.credential.grantId,
         clientId: context.credential.clientId,
         streamId: stream.streamId,
+        ...optionalField('impersonationWindowId', context.admin?.windowId),
       });
       logger().info(
         {
@@ -161,6 +162,7 @@ function createGetStepLogDownloadTool({
           credentialId: context.credential.grantId,
           clientId: context.credential.clientId,
           streamId: stream.streamId,
+          ...optionalField('impersonationWindowId', context.admin?.windowId),
         },
         'Agent-access log download token minted',
       );

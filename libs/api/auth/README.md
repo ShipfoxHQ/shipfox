@@ -313,7 +313,10 @@ with the user, workspace, grant, and stream identity.
   request authentication stateless.
 - **Log-download token:** lasts five minutes, re-checks grant authority on every
   request, and returns `auth-dependency-unavailable` (`503`) when Workspaces is
-  unavailable.
+  unavailable. A token minted on the admin MCP endpoint carries the
+  impersonation window instead. Each request then checks that the grant is
+  active, the administrator still holds `admin-operator`, and that window is
+  still open on the token's workspace. Workspace membership is not checked.
 - **Tool-call rate limit:** each API instance applies a process-local fixed
   window of 60 calls per credential per minute. Rejections increment the
   bounded `agent_access_tool_calls` metric with outcome `rate-limited`.

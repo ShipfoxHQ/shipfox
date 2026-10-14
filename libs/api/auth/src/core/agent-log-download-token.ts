@@ -30,6 +30,9 @@ export async function mintAgentLogDownloadToken(
       grantId: claims.grantId,
       clientId: claims.clientId,
       streamId: claims.streamId,
+      ...(claims.impersonationWindowId === undefined
+        ? {}
+        : {impersonationWindowId: claims.impersonationWindowId}),
     },
     secret,
     expiresIn: AGENT_LOG_DOWNLOAD_TOKEN_EXPIRES_IN,

@@ -471,13 +471,9 @@ describe('admin MCP endpoint', () => {
   });
 
   describe('workspace read tools', () => {
-    const tools = [
-      createWhoAmITool(),
-      createActionTool(),
-      createWhoAmITool('get_step_log_download'),
-    ];
+    const tools = [createWhoAmITool(), createActionTool()];
 
-    test('lists read tools with a required workspace_id and no action or download tool', async () => {
+    test('lists read tools with a required workspace_id and no action tool', async () => {
       const {client, close} = await connect({auth: createAuthClient('admin-operator'), tools});
 
       const listed = await client.listTools();
@@ -725,6 +721,7 @@ describe('admin MCP endpoint', () => {
         "get_registry_package",
         "get_run_annotations",
         "get_step_attempt",
+        "get_step_log_download",
         "get_step_logs",
         "get_trigger_event",
         "get_trigger_event_facets",

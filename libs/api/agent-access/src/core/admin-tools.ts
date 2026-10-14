@@ -31,13 +31,6 @@ export const AGENT_ACCESS_ADMIN_TOOL_NAMES = [
   'stop_impersonation',
 ] as const;
 
-/**
- * Read-only tools the admin endpoint never serves. `get_step_log_download`
- * mints a credential tied to the caller's grant, which an administrator does
- * not hold on the customer's workspace.
- */
-export const AGENT_ACCESS_ADMIN_DENIED_TOOL_NAMES: readonly string[] = ['get_step_log_download'];
-
 export const AGENT_ACCESS_ADMIN_WORKSPACE_ID_PROPERTY = 'workspace_id';
 
 export interface AgentAccessAdminToolsOptions {
@@ -205,17 +198,13 @@ function knownErrorEnvelope(error: {code: string; details: unknown}) {
 
 /**
  * Derives the admin endpoint's copy of each customer read tool: same name and
- * behavior, plus a required `workspace_id`. Action tools and denied tools are
- * left out, so a new tool needs a conscious decision to reach this endpoint.
+ * behavior, plus a required `workspace_id`. Action tools are left out.
  */
 export function createAgentAccessAdminWorkspaceTools(
   tools: readonly AgentAccessTool[],
 ): readonly AgentAccessTool[] {
   return tools
-    .filter(
-      (tool) =>
-        tool.annotations.readOnlyHint && !AGENT_ACCESS_ADMIN_DENIED_TOOL_NAMES.includes(tool.name),
-    )
+    .filter((tool) => tool.annotations.readOnlyHint)
     .map((tool) => {
       const properties = tool.inputSchema.properties;
       if (
