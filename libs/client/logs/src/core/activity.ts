@@ -1,3 +1,4 @@
+import {withoutClaudeIntegrationPrefix} from './integration-action.js';
 import type {SessionViewRow} from './log-model.js';
 import type {
   GroupLogNode,
@@ -215,12 +216,7 @@ export function genericActionPresentation(action: PairedAction): ActionPresentat
   const input = action.request?.input?.trim();
   const target = summary || input || null;
   return {
-    label: humanizeActionLabel(
-      (name.startsWith('mcp__shipfox_integration_tools__')
-        ? name.slice('mcp__shipfox_integration_tools__'.length)
-        : name
-      ).replace('__', ' · '),
-    ),
+    label: humanizeActionLabel(withoutClaudeIntegrationPrefix(name).replace('__', ' · ')),
     target,
     iconKind: action.request === null || name.includes('__') ? 'unknown' : 'tool',
     detailKind: 'code',

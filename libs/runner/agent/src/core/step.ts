@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
 import {
+  AGENT_TOOLS_MCP_SERVER_ID,
   type AgentIntegrationMcpServerConfigDto,
   agentIntegrationMcpServerSchema,
   agentRepositoryContextConfigSchema,
@@ -563,12 +564,15 @@ function integrationToolsBridgesFromConfig(
   }
   if (leaseToken === undefined || integrationToolsGatewayUrl === undefined) return 'invalid';
 
-  return mcpServers.map((mcpServer) =>
+  return mcpServers.map(() =>
     createIntegrationToolsBridge({
-      name: mcpServer.name,
+      name: AGENT_TOOLS_MCP_SERVER_ID,
       url: integrationToolsGatewayUrl,
       fetch: createIntegrationToolsGatewayFetch(leaseToken, integrationToolsGatewayUrl),
-      preferredPort: stableIntegrationToolsBridgePort(options.stablePortSeed, mcpServer.name),
+      preferredPort: stableIntegrationToolsBridgePort(
+        options.stablePortSeed,
+        AGENT_TOOLS_MCP_SERVER_ID,
+      ),
     }),
   );
 }

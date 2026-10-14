@@ -43,7 +43,7 @@ test.each(providers)('resolves %s with an arbitrary connection slug', (provider)
   const lookup = createIntegrationActionPresentationLookup([tool]);
   const presentation = lookup(
     action(
-      'mcp__shipfox_integration_tools__customer_primary__issue_read',
+      'mcp__shipfox__customer_primary__issue_read',
       '{"owner":"shipfox","repo":"platform","issue_number":42}',
     ),
   );
@@ -61,7 +61,7 @@ test.each(providers)('resolves %s with an arbitrary connection slug', (provider)
       methodId: null,
     },
   });
-  expect(lookup(action(`mcp__shipfox_integration_tools__${provider}__issue_read`))).toBeUndefined();
+  expect(lookup(action(`mcp__shipfox__${provider}__issue_read`))).toBeUndefined();
 });
 
 test('uses the selected method sensitivity, not the family sensitivity or sensitive flag', () => {
@@ -121,13 +121,30 @@ test('leaves absent and colliding identities unresolved', () => {
       action('my_tool__read'),
     ),
   ).toBeUndefined();
-  expect(
-    genericActionPresentation(action('mcp__shipfox_integration_tools__my_tool__read')),
-  ).toMatchObject({
+  expect(genericActionPresentation(action('mcp__shipfox__my_tool__read'))).toMatchObject({
     iconKind: 'unknown',
     label: 'My Tool · Read',
     readClassification: 'unknown',
   });
+});
+
+test.each([
+  'mcp__shipfox__customer_primary__issue_read',
+  'mcp__shipfox_integration_tools__customer_primary__issue_read',
+])('resolves the Claude name %s', (name) => {
+  const lookup = createIntegrationActionPresentationLookup([
+    {
+      provider: 'github',
+      connectionId: 'connection-id',
+      connectionSlug: 'customer-primary',
+      toolId: 'issue_read',
+      sensitivity: 'read',
+    },
+  ]);
+
+  const presentation = lookup(action(name));
+
+  expect(presentation).toMatchObject({label: 'Issue Read', iconKind: 'integration'});
 });
 
 describe('action step calls', () => {

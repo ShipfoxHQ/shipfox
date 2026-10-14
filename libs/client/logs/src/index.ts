@@ -19,6 +19,7 @@ export {
 export {
   createIntegrationActionPresentationLookup,
   type IntegrationActionTool,
+  withoutClaudeIntegrationPrefix,
 } from '#core/integration-action.js';
 export type {
   LogRecord,

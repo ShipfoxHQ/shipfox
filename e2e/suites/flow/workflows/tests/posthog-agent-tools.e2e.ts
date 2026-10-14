@@ -35,7 +35,7 @@ test('runs PostHog agent and tool steps through the regional MCP fake', async ({
     projectName: `PostHog flow ${uniqueId}`,
     organizationId: `organization-${uniqueId}`,
   });
-  const toolName = `mcp__shipfox_integration_tools__${connection.slug}__execute-sql`;
+  const toolName = `mcp__shipfox__${connection.slug}__execute-sql`;
   const fakeModelProvider = await startFakeOpenAiModelProvider({
     runId: `${suite.runId}-posthog-${uniqueId}`,
   });
@@ -148,7 +148,7 @@ test('marks a revoked PostHog key and fails the next call fast', async ({suite},
   let localRunner: Awaited<ReturnType<typeof startSuiteLocalRunner>> | undefined;
 
   try {
-    const toolName = `mcp__shipfox_integration_tools__${connection.slug}__execute-sql`;
+    const toolName = `mcp__shipfox__${connection.slug}__execute-sql`;
     const fakeAnthropic = await createAnthropicFakeModelProviderConfig({
       workspaceId: suite.workspaceId,
       fakeModelProvider,

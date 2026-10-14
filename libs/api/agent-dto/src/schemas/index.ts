@@ -125,6 +125,7 @@ export {
   AGENT_OUTPUT_MCP_SERVER_NAME,
   AGENT_OUTPUT_TOOL_NAME,
   AGENT_OUTPUT_TOOL_NAMES,
+  AGENT_TOOLS_MCP_SERVER_ID,
   type AgentIntegrationMcpServerConfigDto,
   agentIntegrationMcpServerSchema,
   agentIntegrationMcpToolName,

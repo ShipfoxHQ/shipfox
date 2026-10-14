@@ -4,6 +4,7 @@ import {
   LogView,
   LogViewSkeleton,
   useStepAttemptLogsQuery,
+  withoutClaudeIntegrationPrefix,
 } from '@shipfox/client-logs';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -73,7 +74,7 @@ export function StepAttemptLogPanel({
     (record) =>
       record.type === 'agent_session' &&
       record.row.kind === 'tool-call' &&
-      (record.row.name.startsWith('mcp__shipfox_integration_tools__') ||
+      (withoutClaudeIntegrationPrefix(record.row.name) !== record.row.name ||
         (!record.row.name.startsWith('mcp__') && record.row.name.includes('__'))),
   );
   const detailQuery = useStepAttemptDetailQuery(stepId, attempt, {enabled: hasIntegrationCalls});

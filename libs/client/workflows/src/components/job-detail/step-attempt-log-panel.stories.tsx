@@ -59,18 +59,8 @@ const records: LogRecord[] = [
   },
   ...read('claude-one', 'Read', {file_path: 'src/view.tsx'}, 5),
   ...read('claude-two', 'Read', {file_path: 'src/panel.tsx'}, 7),
-  ...read(
-    'linear-one',
-    'mcp__shipfox_integration_tools__tickets_main__get_issue',
-    {id: 'ENG-2311'},
-    9,
-  ),
-  ...read(
-    'linear-two',
-    'mcp__shipfox_integration_tools__tickets_main__get_issue',
-    {id: 'ENG-2312'},
-    11,
-  ),
+  ...read('linear-one', 'mcp__shipfox__tickets_main__get_issue', {id: 'ENG-2311'}, 9),
+  ...read('linear-two', 'mcp__shipfox__tickets_main__get_issue', {id: 'ENG-2312'}, 11),
 ];
 
 function snapshot(value: readonly LogRecord[], complete: boolean): StepLogSnapshot {

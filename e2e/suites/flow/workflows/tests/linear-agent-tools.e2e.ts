@@ -38,8 +38,8 @@ test('runs Linear read and write tools through the agent-step MCP path', async (
       displayName: `Linear E2E ${uniqueId}`,
       accessToken,
     });
-    const getIssueTool = `mcp__shipfox_integration_tools__${connection.slug}__get_issue`;
-    const saveCommentTool = `mcp__shipfox_integration_tools__${connection.slug}__save_comment`;
+    const getIssueTool = `mcp__shipfox__${connection.slug}__get_issue`;
+    const saveCommentTool = `mcp__shipfox__${connection.slug}__save_comment`;
     const fakeAnthropic = await createAnthropicFakeModelProviderConfig({
       workspaceId: suite.workspaceId,
       fakeModelProvider,

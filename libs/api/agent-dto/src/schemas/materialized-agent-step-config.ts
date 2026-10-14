@@ -40,7 +40,13 @@ export const materializedAgentIntegrationSchema = z.strictObject({
   tools: z.array(materializedAgentIntegrationToolSchema).min(1),
 });
 
+/** Names the gateway descriptor in persisted configs; older runners require this exact value. */
 export const AGENT_INTEGRATION_MCP_SERVER_NAME = 'shipfox_integration_tools';
+/**
+ * The MCP server ID harnesses see for the runner's tools bridge. Claude names each tool
+ * `mcp__<id>__<prefix>__<tool>` within a 64-character limit, so the ID stays short.
+ */
+export const AGENT_TOOLS_MCP_SERVER_ID = 'shipfox';
 export const AGENT_OUTPUT_MCP_SERVER_NAME = 'shipfox_outputs';
 export const AGENT_OUTPUT_TOOL_NAME = 'set_output';
 /** Every exposed name of the step output tool: Pi calls it directly, Claude through its MCP server. */

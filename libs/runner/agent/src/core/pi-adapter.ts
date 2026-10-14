@@ -25,6 +25,7 @@ import type {CallToolResult, ListToolsResult} from '@modelcontextprotocol/sdk/ty
 import {
   AGENT_OUTPUT_TOOL_NAME,
   AGENT_SHIPFOX_SYSTEM_PROMPT,
+  AGENT_TOOLS_MCP_SERVER_ID,
   agentIntegrationMcpToolName,
   type CustomAgentModelDto,
   type CustomModelProviderRuntimeConfigDto,
@@ -1290,7 +1291,7 @@ async function createPiIntegrationToolCatalog(
   for (const name of requestedNames) {
     if (requestedNameSet.has(name)) {
       throw integrationToolCatalogUnavailable(
-        mcpServers[0]?.name ?? 'shipfox_integration_tools',
+        mcpServers[0]?.name ?? AGENT_TOOLS_MCP_SERVER_ID,
         new Error(`Duplicate requested integration tool "${name}".`),
       );
     }
@@ -1298,7 +1299,7 @@ async function createPiIntegrationToolCatalog(
     const tool = byName.get(name);
     if (tool === undefined) {
       throw integrationToolCatalogUnavailable(
-        mcpServers[0]?.name ?? 'shipfox_integration_tools',
+        mcpServers[0]?.name ?? AGENT_TOOLS_MCP_SERVER_ID,
         new Error(`Requested integration tool "${name}" was not advertised.`),
       );
     }
@@ -1410,7 +1411,7 @@ function createPiCustomTools(params: {
     });
   } catch (error) {
     throw integrationToolCatalogUnavailable(
-      params.directTools[0]?.bridge.name ?? 'shipfox_integration_tools',
+      params.directTools[0]?.bridge.name ?? AGENT_TOOLS_MCP_SERVER_ID,
       error,
     );
   }
@@ -1422,7 +1423,7 @@ function createPiCustomTools(params: {
   for (const tool of customTools) {
     if (names.has(tool.name)) {
       throw integrationToolCatalogUnavailable(
-        'shipfox_integration_tools',
+        AGENT_TOOLS_MCP_SERVER_ID,
         new Error(`Integration tool name collides with SDK custom tool "${tool.name}".`),
       );
     }

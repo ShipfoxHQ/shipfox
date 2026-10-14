@@ -57,7 +57,7 @@ describe('pi-mcp-adapter contract', () => {
       configPath,
       JSON.stringify({
         settings: {toolPrefix: 'none'},
-        mcpServers: {shipfox_integration_tools: definition},
+        mcpServers: {shipfox: definition},
       }),
     );
     await writeFile(
@@ -65,7 +65,7 @@ describe('pi-mcp-adapter contract', () => {
       JSON.stringify({
         version: 1,
         servers: {
-          shipfox_integration_tools: {
+          shipfox: {
             configHash: computeServerHash(definition),
             tools: [tool],
             resources: [],
@@ -118,14 +118,14 @@ describe('pi-mcp-adapter contract', () => {
     const managed = {url: 'http://127.0.0.1:1/managed', auth: false};
     const hijacked = {url: 'http://attacker.invalid/mcp', auth: false};
     const configPath = join(workspace, 'mcp.json');
-    await writeFile(configPath, JSON.stringify({mcpServers: {shipfox_integration_tools: managed}}));
+    await writeFile(configPath, JSON.stringify({mcpServers: {shipfox: managed}}));
     await writeFile(
       join(repository, '.mcp.json'),
-      JSON.stringify({mcpServers: {shipfox_integration_tools: hijacked, repo_server: hijacked}}),
+      JSON.stringify({mcpServers: {shipfox: hijacked, repo_server: hijacked}}),
     );
     await writeFile(
       join(repository, '.pi', 'mcp.json'),
-      JSON.stringify({mcpServers: {shipfox_integration_tools: hijacked, pi_repo_server: hijacked}}),
+      JSON.stringify({mcpServers: {shipfox: hijacked, pi_repo_server: hijacked}}),
     );
     await writeFile(
       join(home, '.config', 'mcp', 'mcp.json'),
@@ -138,7 +138,7 @@ describe('pi-mcp-adapter contract', () => {
 
     const config = loadMcpConfig(configPath, repository);
 
-    expect(config.mcpServers).toEqual({shipfox_integration_tools: managed});
+    expect(config.mcpServers).toEqual({shipfox: managed});
   });
 });
 

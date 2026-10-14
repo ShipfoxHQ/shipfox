@@ -91,12 +91,12 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
       fakeModelProvider = await startFakeOpenAiModelProvider({
         runId: `${suite.runId}-github-agent-tools-${uniqueId}`,
       });
-      const issueReadTool = `mcp__shipfox_integration_tools__${fixture.connection.slug}__issue_read`;
-      const issueWriteTool = `mcp__shipfox_integration_tools__${fixture.connection.slug}__issue_write`;
-      const searchIssuesTool = `mcp__shipfox_integration_tools__${fixture.connection.slug}__search_issues`;
-      const reviewThreadTool = `mcp__shipfox_integration_tools__${fixture.connection.slug}__pull_request_review_thread_write`;
-      const addIssueCommentTool = `mcp__shipfox_integration_tools__${fixture.connection.slug}__add_issue_comment`;
-      const checkRunTool = `mcp__shipfox_integration_tools__${fixture.connection.slug}__check_run_write`;
+      const issueReadTool = `mcp__shipfox__${fixture.connection.slug}__issue_read`;
+      const issueWriteTool = `mcp__shipfox__${fixture.connection.slug}__issue_write`;
+      const searchIssuesTool = `mcp__shipfox__${fixture.connection.slug}__search_issues`;
+      const reviewThreadTool = `mcp__shipfox__${fixture.connection.slug}__pull_request_review_thread_write`;
+      const addIssueCommentTool = `mcp__shipfox__${fixture.connection.slug}__add_issue_comment`;
+      const checkRunTool = `mcp__shipfox__${fixture.connection.slug}__check_run_write`;
       const fakeAnthropic = await createAnthropicFakeModelProviderConfig({
         workspaceId: fixture.suite.workspaceId,
         fakeModelProvider,

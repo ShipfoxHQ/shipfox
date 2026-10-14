@@ -233,7 +233,7 @@ describe('AgentSessionDiagnostics', () => {
     const record = diagnostics({
       catalogFailures:
         failureClass === 'integration_tool_catalog_unavailable'
-          ? [{server: 'shipfox_integration_tools', errorClass: 'timeout'}]
+          ? [{server: 'shipfox', errorClass: 'timeout'}]
           : undefined,
     });
     if (failureClass === 'output_conflict') {

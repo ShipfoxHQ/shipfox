@@ -25,7 +25,7 @@ describe('createIntegrationToolsBridge', () => {
     let leaseToken = 'lease-initial';
     gateway = await startFakeGateway(() => leaseToken);
     const bridge = createIntegrationToolsBridge({
-      name: 'shipfox_integration_tools',
+      name: 'shipfox',
       url: gateway.url,
       fetch: leaseFetch(() => leaseToken),
     });
@@ -66,7 +66,7 @@ describe('createIntegrationToolsBridge', () => {
     gateway = await startFakeGateway(() => 'lease');
     let failNextRequest = true;
     const bridge = createIntegrationToolsBridge({
-      name: 'shipfox_integration_tools',
+      name: 'shipfox',
       url: gateway.url,
       fetch: (input, init) => {
         if (failNextRequest) {
@@ -89,7 +89,7 @@ describe('createIntegrationToolsBridge', () => {
     let failNextListRequest = true;
     const fallbackFetch = leaseFetch(() => 'lease');
     const bridge = createIntegrationToolsBridge({
-      name: 'shipfox_integration_tools',
+      name: 'shipfox',
       url: gateway.url,
       fetch: (input, init) => {
         const body =
@@ -117,7 +117,7 @@ describe('createIntegrationToolsBridge', () => {
     let leaseToken = 'lease-initial';
     gateway = await startFakeGateway(() => leaseToken);
     const bridge = createIntegrationToolsBridge({
-      name: 'shipfox_integration_tools',
+      name: 'shipfox',
       url: gateway.url,
       fetch: leaseFetch(() => leaseToken),
     });
@@ -153,7 +153,7 @@ describe('createIntegrationToolsBridge', () => {
     gateway = await startFakeGateway(() => leaseToken);
     const authToken = 'claude-invocation-secret';
     const bridge = createIntegrationToolsBridge({
-      name: 'shipfox_integration_tools',
+      name: 'shipfox',
       url: gateway.url,
       fetch: leaseFetch(() => leaseToken),
     });
@@ -207,7 +207,7 @@ describe('createIntegrationToolsBridge', () => {
     gateway = await startFakeGateway(() => 'lease');
     const authToken = 'invocation-secret';
     const bridge = createIntegrationToolsBridge({
-      name: 'shipfox_integration_tools',
+      name: 'shipfox',
       url: gateway.url,
       fetch: leaseFetch(() => 'lease'),
     });
@@ -240,7 +240,7 @@ describe('createIntegrationToolsBridge', () => {
   it('cancels activation and releases the HTTP bridge resources', async () => {
     gateway = await startFakeGateway(() => 'lease');
     const bridge = createIntegrationToolsBridge({
-      name: 'shipfox_integration_tools',
+      name: 'shipfox',
       url: gateway.url,
       fetch: leaseFetch(() => 'lease'),
     });
@@ -256,7 +256,7 @@ describe('createIntegrationToolsBridge', () => {
   it('cancels an in-flight activation before closing the bridge', async () => {
     gateway = await startFakeGateway(() => 'lease');
     const bridge = createIntegrationToolsBridge({
-      name: 'shipfox_integration_tools',
+      name: 'shipfox',
       url: gateway.url,
       fetch: leaseFetch(() => 'lease'),
     });
@@ -280,7 +280,7 @@ describe('createIntegrationToolsBridge', () => {
 
   it('does not cancel a shared activation while another caller is waiting', async () => {
     const bridge = createIntegrationToolsBridge({
-      name: 'shipfox_integration_tools',
+      name: 'shipfox',
       url: new URL('http://127.0.0.1:43124/mcp'),
       fetch: fetch,
     });
@@ -314,7 +314,7 @@ describe('createIntegrationToolsBridge', () => {
   it('reuses a preferred loopback port after a bridge is recreated', async () => {
     gateway = await startFakeGateway(() => 'lease');
     const first = createIntegrationToolsBridge({
-      name: 'shipfox_integration_tools',
+      name: 'shipfox',
       url: gateway.url,
       fetch: leaseFetch(() => 'lease'),
     });
@@ -322,7 +322,7 @@ describe('createIntegrationToolsBridge', () => {
     await first.close();
 
     const second = createIntegrationToolsBridge({
-      name: 'shipfox_integration_tools',
+      name: 'shipfox',
       url: gateway.url,
       fetch: leaseFetch(() => 'lease'),
       preferredPort: Number(firstEndpoint.port),
@@ -336,7 +336,7 @@ describe('createIntegrationToolsBridge', () => {
   it('allows repeated close before activation', async () => {
     gateway = await startFakeGateway(() => 'lease');
     const bridge = createIntegrationToolsBridge({
-      name: 'shipfox_integration_tools',
+      name: 'shipfox',
       url: gateway.url,
       fetch: leaseFetch(() => 'lease'),
     });

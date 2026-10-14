@@ -50,8 +50,8 @@ test('runs a Jira read tool and a comment tool against the Jira fake', async ({
       displayName: `Jira E2E ${uniqueId}`,
       accessToken,
     });
-    const getIssueTool = `mcp__shipfox_integration_tools__${connection.slug}__get_issue`;
-    const addCommentTool = `mcp__shipfox_integration_tools__${connection.slug}__add_comment`;
+    const getIssueTool = `mcp__shipfox__${connection.slug}__get_issue`;
+    const addCommentTool = `mcp__shipfox__${connection.slug}__add_comment`;
     const fakeAnthropic = await createAnthropicFakeModelProviderConfig({
       workspaceId: suite.workspaceId,
       fakeModelProvider,

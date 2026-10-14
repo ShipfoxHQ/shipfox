@@ -10,6 +10,7 @@ export {
   AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES,
   AGENT_REPOSITORY_SKILL_DIRECTORIES,
   AGENT_SHIPFOX_SYSTEM_PROMPT,
+  AGENT_TOOLS_MCP_SERVER_ID,
   type AgentConfigInvalidReason,
   type AgentIntegrationMcpServerConfigDto,
   type AgentModelOptionDto,

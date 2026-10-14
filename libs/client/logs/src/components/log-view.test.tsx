@@ -225,7 +225,7 @@ describe('LogView', () => {
             kind: 'tool-call',
             timestamp: ts,
             id: 'a',
-            name: 'mcp__shipfox_integration_tools__tickets_main__list_teams',
+            name: 'mcp__shipfox__tickets_main__list_teams',
             input: '{"workspace":"shipfox"}',
           }),
           agentSession(

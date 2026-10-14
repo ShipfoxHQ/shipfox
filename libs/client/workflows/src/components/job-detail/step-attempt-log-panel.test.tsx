@@ -99,7 +99,7 @@ describe('StepAttemptLogPanel', () => {
             id: 'tool-1',
             name:
               kind === 'agent'
-                ? 'mcp__shipfox_integration_tools__tickets_main__list_teams'
+                ? 'mcp__shipfox__tickets_main__list_teams'
                 : 'tickets_main__list_teams',
             input: '{"workspace":"shipfox"}',
           },

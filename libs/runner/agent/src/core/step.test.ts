@@ -42,6 +42,7 @@ import {
   AGENT_INTEGRATION_MCP_ENDPOINT,
   AGENT_INTEGRATION_MCP_SERVER_NAME,
   AGENT_INTEGRATION_MCP_TRANSPORT,
+  AGENT_TOOLS_MCP_SERVER_ID,
 } from '@shipfox/api-agent-dto';
 import type {StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -378,7 +379,7 @@ describe('executeAgentStep', () => {
     expect(createIntegrationToolsGatewayFetchMock).toHaveBeenCalledWith(leaseToken, gatewayUrl);
     expect(createIntegrationToolsBridgeMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: AGENT_INTEGRATION_MCP_SERVER_NAME,
+        name: AGENT_TOOLS_MCP_SERVER_ID,
         url: gatewayUrl,
         fetch: gatewayFetch,
         preferredPort: expect.any(Number),
@@ -386,7 +387,7 @@ describe('executeAgentStep', () => {
     );
     expect(runAgentMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        mcpServers: [expect.objectContaining({name: AGENT_INTEGRATION_MCP_SERVER_NAME})],
+        mcpServers: [expect.objectContaining({name: AGENT_TOOLS_MCP_SERVER_ID})],
         requestedIntegrationTools: [{connectionSlug: 'github_main', toolId: 'issue_read'}],
       }),
     );

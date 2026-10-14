@@ -1,7 +1,4 @@
-import {
-  AGENT_INTEGRATION_MCP_SERVER_NAME,
-  agentIntegrationMcpToolName,
-} from '@shipfox/api-agent-dto';
+import {AGENT_TOOLS_MCP_SERVER_ID, agentIntegrationMcpToolName} from '@shipfox/api-agent-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
   type AgentSessionCatalogFailure,
@@ -444,7 +441,7 @@ export function integrationToolName(tool: RequestedIntegrationTool): string {
 }
 
 export function claudeSdkToolName(integrationName: string): string {
-  return `mcp__${AGENT_INTEGRATION_MCP_SERVER_NAME}__${integrationName}`;
+  return `mcp__${AGENT_TOOLS_MCP_SERVER_ID}__${integrationName}`;
 }
 
 function catalogFailureForSession(failure: ClaudeToolCatalogFailure): AgentSessionCatalogFailure {

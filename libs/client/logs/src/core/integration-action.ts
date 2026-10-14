@@ -16,7 +16,17 @@ export interface IntegrationActionTool {
   result?: 'json' | 'file' | undefined;
 }
 
-const CLAUDE_PREFIX = 'mcp__shipfox_integration_tools__';
+// Transcripts recorded before the bridge was renamed keep the legacy server ID.
+export const CLAUDE_INTEGRATION_TOOL_PREFIXES = [
+  'mcp__shipfox__',
+  'mcp__shipfox_integration_tools__',
+] as const;
+
+/** Strip the Claude MCP prefix from an integration tool name; other names pass through. */
+export function withoutClaudeIntegrationPrefix(name: string): string {
+  const prefix = CLAUDE_INTEGRATION_TOOL_PREFIXES.find((value) => name.startsWith(value));
+  return prefix === undefined ? name : name.slice(prefix.length);
+}
 
 /** Exact exposed names avoid mistaking an arbitrary connection slug for a provider. */
 export function createIntegrationActionPresentationLookup(
@@ -32,9 +42,7 @@ export function createIntegrationActionPresentationLookup(
   return (action): ActionPresentation | undefined => {
     if (!action.request) return undefined;
     const exposedName = action.request.name;
-    const name = exposedName.startsWith(CLAUDE_PREFIX)
-      ? exposedName.slice(CLAUDE_PREFIX.length)
-      : exposedName;
+    const name = withoutClaudeIntegrationPrefix(exposedName);
     const tool = byName.get(name);
     if (tool) {
       return isActionTool(tool)

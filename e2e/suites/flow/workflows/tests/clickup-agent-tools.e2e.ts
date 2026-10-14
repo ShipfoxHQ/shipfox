@@ -53,8 +53,8 @@ test('starts a run from an authorizing user ClickUp comment and calls ClickUp ag
       webhookSecret,
       displayName: `ClickUp E2E ${uniqueId}`,
     });
-    const getTaskTool = `mcp__shipfox_integration_tools__${connection.slug}__get_task`;
-    const addCommentTool = `mcp__shipfox_integration_tools__${connection.slug}__add_comment`;
+    const getTaskTool = `mcp__shipfox__${connection.slug}__get_task`;
+    const addCommentTool = `mcp__shipfox__${connection.slug}__add_comment`;
     const fakeAnthropic = await createAnthropicFakeModelProviderConfig({
       workspaceId: suite.workspaceId,
       fakeModelProvider,

@@ -268,7 +268,7 @@ function customProvider(
 
 function mcpBridge(overrides: Partial<IntegrationToolsBridge> = {}): IntegrationToolsBridge {
   return {
-    name: 'shipfox_integration_tools',
+    name: 'shipfox',
     server: {} as IntegrationToolsBridge['server'],
     listTools: vi.fn().mockResolvedValue({tools: []}),
     callTool: vi.fn(),
@@ -738,7 +738,7 @@ describe('piHarnessAdapter', () => {
     expect(config).toEqual({
       settings: {toolPrefix: 'none'},
       mcpServers: {
-        shipfox_integration_tools: {
+        shipfox: {
           url: 'http://127.0.0.1:43123/mcp',
           auth: false,
           lifecycle: 'eager',
@@ -1359,7 +1359,7 @@ describe('piHarnessAdapter', () => {
       name: 'AgentInvocationError',
       failurePhase: 'integration_tool_catalog_unavailable',
       message:
-        'Pi integration tool catalog unavailable for "shipfox_integration_tools": Integration tool name collides with SDK custom tool "set_output".',
+        'Pi integration tool catalog unavailable for "shipfox": Integration tool name collides with SDK custom tool "set_output".',
     });
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
@@ -1379,7 +1379,7 @@ describe('piHarnessAdapter', () => {
       name: 'AgentInvocationError',
       failurePhase: 'integration_tool_catalog_unavailable',
       message:
-        'Pi integration tool catalog unavailable for "shipfox_integration_tools": Integration tool name collides with Pi built-in tool "mcp".',
+        'Pi integration tool catalog unavailable for "shipfox": Integration tool name collides with Pi built-in tool "mcp".',
     });
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
@@ -1402,7 +1402,7 @@ describe('piHarnessAdapter', () => {
       name: 'AgentInvocationError',
       failurePhase: 'integration_tool_catalog_unavailable',
       message:
-        'Pi integration tool catalog unavailable for "shipfox_integration_tools": invalid direct tool definition',
+        'Pi integration tool catalog unavailable for "shipfox": invalid direct tool definition',
     });
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
@@ -1656,7 +1656,7 @@ describe('piHarnessAdapter', () => {
           result: {
             details: {
               mode: 'call',
-              server: 'shipfox_integration_tools',
+              server: 'shipfox',
               tool: 'github__pull_request_read',
             },
             content: [],
