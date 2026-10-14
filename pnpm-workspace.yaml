@@ -249,3 +249,6 @@ packages:
   - "!e2e/suites/eval/workflows/cases/**"
   - "!**/vite/types/**"
   - "!**/node_modules/**"
+
+patchedDependencies:
+  pi-mcp-adapter@2.11.0: patches/pi-mcp-adapter@2.11.0.patch

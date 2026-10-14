@@ -327,6 +327,24 @@ and run focused checks for those consumers.
 Shipfox database packages use the catalog release. The override affects only
 types. Focused OpenTelemetry and PostgreSQL checks cover both uses.
 
+## Patched dependencies
+
+A pnpm patch changes an upstream package when the package offers no option for
+a behavior the repository must control. Patches apply only to private
+applications and packages. A published package does not carry the patch to its
+consumers.
+
+Declare the patch in `patchedDependencies` in `pnpm-workspace.yaml`. Keep the
+patch file in `patches/`, named after the exact package version. Pin the
+patched package to that exact version. Document the reason and the removal
+condition in the pull request, and cover the patched behavior with a test.
+
+`pi-mcp-adapter` is patched so that, when the runner passes `--mcp-config`, the
+adapter reads only that file. Without the patch, it also merges
+`~/.config/mcp/mcp.json`, `<cwd>/.mcp.json`, and `<cwd>/.pi/mcp.json`, so a
+checked-out repository could add or replace MCP servers. Remove the patch when
+the adapter offers an option to read only the given config file.
+
 ## Deterministic pull-request checks
 
 Pull-request dependency-policy checks read committed repository files only. The

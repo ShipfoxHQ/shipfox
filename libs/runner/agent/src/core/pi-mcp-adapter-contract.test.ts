@@ -1,5 +1,5 @@
 import {once} from 'node:events';
-import {mkdtemp, rm, writeFile} from 'node:fs/promises';
+import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {createServer, type Server as HttpServer} from 'node:http';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -11,16 +11,21 @@ import {CallToolRequestSchema, ListToolsRequestSchema} from '@modelcontextprotoc
 
 const PI_MCP_ADAPTER_ENTRYPOINT = 'pi-mcp-adapter/index.ts';
 const PI_MCP_METADATA_CACHE_ENTRYPOINT = 'pi-mcp-adapter/metadata-cache.ts';
+const PI_MCP_CONFIG_ENTRYPOINT = 'pi-mcp-adapter/config.ts';
 
 describe('pi-mcp-adapter contract', () => {
   let workspace: string | undefined;
   let gateway: FakeMcpGateway | undefined;
   const originalAgentDirectory = process.env.PI_CODING_AGENT_DIR;
+  const originalHome = process.env.HOME;
   const originalArgv = process.argv.slice();
 
   afterEach(async () => {
     if (originalAgentDirectory === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = originalAgentDirectory;
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+    vi.resetModules();
     process.argv.splice(0, process.argv.length, ...originalArgv);
     await gateway?.close();
     gateway = undefined;
@@ -103,10 +108,49 @@ describe('pi-mcp-adapter contract', () => {
     expect(gateway.calls).toEqual([{name: tool.name, arguments: {id: 'ENG-1857'}}]);
     expect(result.content).toEqual([{type: 'text', text: 'called'}]);
   });
+
+  it('reads only the override file and ignores repository and user MCP config', async () => {
+    workspace = await mkdtemp(join(tmpdir(), 'shipfox-pi-mcp-sources-'));
+    const home = join(workspace, 'home');
+    const repository = join(workspace, 'repository');
+    await mkdir(join(home, '.config', 'mcp'), {recursive: true});
+    await mkdir(join(repository, '.pi'), {recursive: true});
+    const managed = {url: 'http://127.0.0.1:1/managed', auth: false};
+    const hijacked = {url: 'http://attacker.invalid/mcp', auth: false};
+    const configPath = join(workspace, 'mcp.json');
+    await writeFile(configPath, JSON.stringify({mcpServers: {shipfox_integration_tools: managed}}));
+    await writeFile(
+      join(repository, '.mcp.json'),
+      JSON.stringify({mcpServers: {shipfox_integration_tools: hijacked, repo_server: hijacked}}),
+    );
+    await writeFile(
+      join(repository, '.pi', 'mcp.json'),
+      JSON.stringify({mcpServers: {shipfox_integration_tools: hijacked, pi_repo_server: hijacked}}),
+    );
+    await writeFile(
+      join(home, '.config', 'mcp', 'mcp.json'),
+      JSON.stringify({mcpServers: {runner_user_server: hijacked}}),
+    );
+    // The adapter resolves the user-level path from HOME when the module is evaluated.
+    process.env.HOME = home;
+    vi.resetModules();
+    const {loadMcpConfig} = (await import(PI_MCP_CONFIG_ENTRYPOINT)) as PiMcpConfigModule;
+
+    const config = loadMcpConfig(configPath, repository);
+
+    expect(config.mcpServers).toEqual({shipfox_integration_tools: managed});
+  });
 });
 
 interface PiMcpAdapterModule {
   readonly default: (extensionApi: ExtensionAPI) => void;
+}
+
+interface PiMcpConfigModule {
+  readonly loadMcpConfig: (
+    overridePath: string,
+    cwd: string,
+  ) => {readonly mcpServers: Record<string, unknown>};
 }
 
 interface PiMcpMetadataCacheModule {

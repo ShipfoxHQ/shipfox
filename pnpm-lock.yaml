@@ -592,6 +592,9 @@ overrides:
 
 packageExtensionsChecksum: sha256-Ie/5S1HhK5kj0qf0lN/bweqmE3eGPxPYbewx9kiOM4A=
 
+patchedDependencies:
+  pi-mcp-adapter@2.11.0: 19adba46b189f6ae9f1ebf4f87fc5b187485b5f19dd6530729d75ab0e4607e89
+
 importers:
 
   .:
@@ -8927,7 +8930,7 @@ importers:
         version: link:../workspace
       pi-mcp-adapter:
         specifier: 'catalog:'
-        version: 2.11.0(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(ws@8.21.0)(zod@4.4.3)
+        version: 2.11.0(patch_hash=19adba46b189f6ae9f1ebf4f87fc5b187485b5f19dd6530729d75ab0e4607e89)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(ws@8.21.0)(zod@4.4.3)
       pi-web-access:
         specifier: 'catalog:'
         version: 0.13.0(@earendil-works/pi-ai@0.84.2(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.84.2(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-tui@0.84.2)(typebox@1.1.38)
@@ -30163,7 +30166,7 @@ snapshots:
     dependencies:
       split2: 4.2.0
 
-  pi-mcp-adapter@2.11.0(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(ws@8.21.0)(zod@4.4.3):
+  pi-mcp-adapter@2.11.0(patch_hash=19adba46b189f6ae9f1ebf4f87fc5b187485b5f19dd6530729d75ab0e4607e89)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(ws@8.21.0)(zod@4.4.3):
     dependencies:
       '@earendil-works/pi-ai': 0.74.2(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(@opentelemetry/api@1.9.1)(ws@8.21.0)(zod@4.4.3)
       '@earendil-works/pi-tui': 0.74.2
