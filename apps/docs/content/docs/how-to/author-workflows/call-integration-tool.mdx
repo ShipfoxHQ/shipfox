@@ -143,9 +143,9 @@ have no status.
 
 ## Wait for a change to apply
 
-Some providers apply a change some time after they answer. For example, GitHub
-cancels a workflow run some seconds after it accepts the cancellation. To wait
-for the change, read the state again until it is there:
+Some providers apply a change after they answer. For example, GitHub cancels a
+workflow run some seconds after it accepts the request. To wait for the change,
+read the data again until the change is there:
 
 ```yaml
 - key: cancel
@@ -173,14 +173,18 @@ for the change, read the state again until it is there:
       max_attempts: 12
 ```
 
-When the run is not complete, the job goes back to `wait`. It waits 10 seconds
-and reads the run again. It reads the run at most 12 times. After that, the job
-fails with `restart_exhausted`. The `cancel` step is before `restart_from`, so
-it runs one time.
+This is what happens:
 
-Only a tool step that reads data can restart the job. The provider's tools page
-shows whether an operation reads or writes. A failed gate on a tool step that
-writes fails the job, because a restart would apply the write again.
+1. `cancel` cancels the run. This step runs one time.
+2. `wait` waits 10 seconds.
+3. `check_run` reads the run.
+4. If the run is not complete, the job goes back to `wait`.
+
+The job reads the run a maximum of 12 times. If the run is still not complete,
+the job fails with `restart_exhausted`.
+
+Only a tool step that reads data can send the job back to an earlier step. If
+the gate of a tool step that writes data fails, the job fails.
 
 To pass a tool result to a later step, read it as `steps.<key>.outputs`. To
 let an agent choose operations, [post a pull-request
