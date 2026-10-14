@@ -174,8 +174,9 @@ for the change, read the state again until it is there:
 ```
 
 When the run is not complete, the job goes back to `wait`. It waits 10 seconds
-and reads the run again, at most 12 times. The `cancel` step is before
-`restart_from`, so it runs one time.
+and reads the run again. It reads the run at most 12 times. After that, the job
+fails with `restart_exhausted`. The `cancel` step is before `restart_from`, so
+it runs one time.
 
 Only a tool step that reads data can restart the job. The provider's tools page
 shows whether an operation reads or writes. A failed gate on a tool step that

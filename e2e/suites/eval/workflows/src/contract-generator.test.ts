@@ -416,7 +416,10 @@ describe('generateContractFiles', () => {
       const files = generateContractFiles(await generate(), {mode: 'fake'});
 
       const content = files.find(({name}) => name === 'contracts-linear.yaml')?.content ?? '';
-      expect(content).not.toContain('on_failure');
+      const polled = content.slice(content.indexOf('  polled:'));
+      expect(content).toContain('  polled:');
+      expect(polled).toContain('- key: a_effect');
+      expect(polled).not.toContain('on_failure');
     });
 
     it('skips the wait in fake mode, where the write is applied before the answer', async () => {
