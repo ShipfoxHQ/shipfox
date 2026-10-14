@@ -141,6 +141,46 @@ This step passes when the issue does not exist and fails for any other error.
 Guard `step.error.status` with `has(step.error.status)`, because some failures
 have no status.
 
+## Wait for a change to apply
+
+Some providers apply a change some time after they answer. For example, GitHub
+cancels a workflow run some seconds after it accepts the cancellation. To wait
+for the change, read the state again until it is there:
+
+```yaml
+- key: cancel
+  tool: actions_run_trigger.cancel_workflow_run
+  connection: github_acme
+  with:
+    owner: acme
+    repo: api
+    run_id: ${{ inputs.run_id }}
+
+- key: wait
+  run: sleep 10
+
+- key: check_run
+  tool: actions_get.get_workflow_run
+  connection: github_acme
+  with:
+    owner: acme
+    repo: api
+    resource_id: ${{ string(inputs.run_id) }}
+  gate:
+    success: step.status == "succeeded" && step.outputs.result.status == "completed"
+    on_failure:
+      restart_from: wait
+      max_attempts: 12
+```
+
+When the run is not complete, the job goes back to `wait`. It waits 10 seconds
+and reads the run again, at most 12 times. The `cancel` step is before
+`restart_from`, so it runs one time.
+
+Only a tool step that reads data can restart the job. The provider's tools page
+shows whether an operation reads or writes. A failed gate on a tool step that
+writes fails the job, because a restart would apply the write again.
+
 To pass a tool result to a later step, read it as `steps.<key>.outputs`. To
 let an agent choose operations, [post a pull-request
 review](/integrations/github/guides/post-pull-request-review).

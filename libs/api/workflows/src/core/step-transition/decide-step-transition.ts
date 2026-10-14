@@ -22,6 +22,18 @@ export function stepAffectsConclusion(step: Pick<Step, 'type' | 'config'>): bool
   return (post as {failure?: unknown}).failure === 'fail';
 }
 
+/**
+ * Whether a failure of this step may restart the job. A tool step restarts only when its call reads,
+ * because a write the provider already applied would apply again. A tool step with no recorded
+ * sensitivity counts as a write.
+ */
+export function stepCanRestart(step: Pick<Step, 'type' | 'config'>): boolean {
+  if (step.type !== 'tool') return true;
+  const tool = step.config.tool;
+  if (tool === null || typeof tool !== 'object') return false;
+  return (tool as {sensitivity?: unknown}).sensitivity === 'read';
+}
+
 /** Whether any step that counts toward the job result has failed. */
 export function hasFailedStep(steps: readonly Step[]): boolean {
   return steps.some((step) => step.status === 'failed' && stepAffectsConclusion(step));
@@ -44,8 +56,8 @@ export interface StepReport {
 // Precomputed gate evaluation (the CEL engine runs in evaluate-gate.ts, never
 // here). `passed`/`failed` are clean evaluations; `uncheckable` means the gate
 // could not be evaluated (a required exit code is missing, or an evaluation
-// error) and is treated as a plain command failure. Tool-step failures are also
-// plain failures because provider calls may have side effects. Neither restarts.
+// error) and is treated as a plain command failure, which never restarts. Nor
+// does the failure of a tool step whose call writes (see `stepCanRestart`).
 export type GateOutcome =
   | {kind: 'no-gate'}
   | {kind: 'passed'; source: string; trace?: readonly PersistedEvaluationTraceEntry[]}
@@ -142,9 +154,9 @@ function fail(
 
 // Pure: maps a step report (and its precomputed gate outcome) to a transition
 // decision. No DB, no expression engine. A passing gate succeeds; a checkable
-// runner-step failure with a resolvable `restart_from` rewinds (until the per-step
-// attempt cap is hit); everything else fails the job. An `uncheckable` failure (a
-// required exit code is missing or evaluation errors) and every tool-step failure
+// failure with a resolvable `restart_from` rewinds (until the per-step attempt cap
+// is hit); everything else fails the job. An `uncheckable` failure (a required exit
+// code is missing or evaluation errors) and the failure of a tool step that writes
 // are always plain failures, never restarts.
 export function decideStepTransition(input: DecideStepTransitionInput): StepTransitionDecision {
   const {steps, target, reportedAttempt, result, gateOnFailure} = input;
@@ -158,8 +170,7 @@ export function decideStepTransition(input: DecideStepTransitionInput): StepTran
   }
 
   // 2. It failed. Classify the failure error and whether it is restartable.
-  //    Tool provider calls can have side effects, so a tool step never rewinds.
-  const restartAllowed = target.type !== 'tool' && gate.kind !== 'uncheckable';
+  const restartAllowed = stepCanRestart(target) && gate.kind !== 'uncheckable';
   const failureError = stepFailureError(gate, result, gateOnFailure?.restartFrom);
 
   // 3. Restart when a policy is configured and the failure is checkable.

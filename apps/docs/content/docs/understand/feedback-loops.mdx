@@ -321,6 +321,11 @@ steps:
 Here, a restart runs `fix` and `test` again. `push` is after the gate, so it
 runs only when `test` passes.
 
+A tool step can restart the job only when it reads data. A failed gate on a
+tool step that writes, such as one that posts a comment, fails the job. To wait
+for a provider to apply a change, see [Wait for a change to
+apply](/how-to/author-workflows/call-integration-tool#wait-for-a-change-to-apply).
+
 If a step that writes must stay in the loop, make it safe to run again. For
 example, a push step must use the branch that an earlier attempt created, and
 not fail because the branch exists. [Turn a Sentry issue into a verified pull

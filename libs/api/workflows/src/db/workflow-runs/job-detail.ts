@@ -36,6 +36,7 @@ import {
 import {
   DEFAULT_RESTART_ATTEMPT_CAP,
   stepAffectsConclusion,
+  stepCanRestart,
 } from '#core/step-transition/decide-step-transition.js';
 import {readStepGate, type StepGateRestartRule} from '#core/step-transition/evaluate-gate.js';
 import {db, type Tx} from '../db.js';
@@ -1256,7 +1257,8 @@ async function loadStepPage(
       currentAttempt: steps.currentAttempt,
       config: sql<Record<string, unknown>>`jsonb_build_object(
         'gate', ${steps.config} -> 'gate',
-        'post', ${steps.config} -> 'post'
+        'post', ${steps.config} -> 'post',
+        'tool', jsonb_build_object('sensitivity', ${steps.config} #> '{tool,sensitivity}')
       )`,
       mainStepId: mainStep.id,
       error: steps.error,
@@ -1411,10 +1413,9 @@ function toStepSummary(
   row: StepRow,
   attempts: WorkflowStepSummaryRead['attempts'],
 ): WorkflowStepSummaryRead {
-  const gateOnFailure =
-    row.type === 'tool'
-      ? undefined
-      : selectedRestartRule(readStepGate(row.config)?.onFailure, attempts);
+  const gateOnFailure = stepCanRestart(row)
+    ? selectedRestartRule(readStepGate(row.config)?.onFailure, attempts)
+    : undefined;
   return {
     id: row.id,
     key: row.key,

@@ -224,13 +224,14 @@ describe('selected workflow job routes', () => {
     });
   });
 
-  test('omits the gate attempt limit for tool steps that cannot restart', async () => {
+  test('omits the gate attempt limit for tool steps that write', async () => {
     const fixture = await createFixture();
     await db()
       .update(steps)
       .set({
         type: 'tool',
         config: {
+          tool: {sensitivity: 'write'},
           gate: {on_failure: {restart_from: 'implement', max_attempts: 5}},
         },
       })
@@ -245,6 +246,28 @@ describe('selected workflow job routes', () => {
     expect(response.json().selected_execution.steps.items[0]).not.toHaveProperty(
       'gate_max_attempts',
     );
+  });
+
+  test('returns the gate attempt limit for tool steps that read', async () => {
+    const fixture = await createFixture();
+    await db()
+      .update(steps)
+      .set({
+        type: 'tool',
+        config: {
+          tool: {sensitivity: 'read'},
+          gate: {on_failure: {restart_from: 'implement', max_attempts: 5}},
+        },
+      })
+      .where(eq(steps.id, fixture.stepIds[0] as string));
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/jobs/${fixture.jobIds[0]}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().selected_execution.steps.items[0].gate_max_attempts).toBe(5);
   });
 
   test('loads diagnostic context only from the selected execution', async () => {

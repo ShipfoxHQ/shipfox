@@ -2669,6 +2669,53 @@ describe('durable gate restart', () => {
   });
 
   test.each([
+    ['read', {jobFinished: false}, 1],
+    ['write', {jobFinished: true, status: 'failed'}, 0],
+  ])('a failing gate on a tool step that calls a %s tool restarts only a read', async (sensitivity, expected, restarts) => {
+    const {jobId, steps} = await arrangeJobWithSteps(2);
+    const wait = steps[0]?.id as string;
+    const read = steps[1]?.id as string;
+    await db().update(stepsTable).set({key: 'wait'}).where(eq(stepsTable.id, wait));
+    await db()
+      .update(stepsTable)
+      .set({
+        type: 'tool',
+        config: {
+          tool: {
+            connection_id: 'connection-1',
+            id: 'get_run',
+            sensitivity,
+            input_schema: {type: 'object', additionalProperties: false},
+            with: {},
+          },
+          outputs: {status: {type: 'json'}},
+          gate: {
+            success: {
+              language: 'cel',
+              check: 'syntax',
+              source: 'step.outputs.status == "completed"',
+            },
+            on_failure: {restart_from: 'wait', max_attempts: 5},
+          },
+        },
+        configPlan: null,
+      })
+      .where(eq(stepsTable.id, read));
+    await runStep(jobId, wait, 0);
+    await nextStepForJob(jobId);
+
+    const outcome = await recordStepResult({
+      jobId,
+      stepId: read,
+      status: 'succeeded',
+      output: {status: 'in_progress'},
+    });
+
+    expect(outcome).toEqual(expected);
+    expect(await restartEventCount(jobId)).toBe(restarts);
+  });
+
+  test.each([
     11, 1_000,
   ])('passes an explicit max_attempts of %s to the transition', async (maxAttempts) => {
     const {jobId, producer, reviewer} = await arrangeGatedJob({

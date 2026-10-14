@@ -1429,12 +1429,12 @@ async function decideReportedStepTransition(params: {
     ? evaluateGate(gate, params.result, vars, {stepType: params.target.type})
     : {kind: 'no-gate' as const};
   // Rules are read only for a failure the gate allows to restart; the pure decision
-  // re-checks tool steps and uncheckable gates.
+  // re-checks steps that cannot restart and uncheckable gates.
   const stepFailed =
     gateOutcome.kind === 'failed' ||
     (gateOutcome.kind === 'no-gate' && params.result.status === 'failed');
   const restartSelection = stepFailed
-    ? selectRestartRule({gate, result: params.result, vars, stepType: params.target.type})
+    ? selectRestartRule({gate, result: params.result, vars, step: params.target})
     : undefined;
   const selectedRule = restartSelection?.kind === 'selected' ? restartSelection.rule : undefined;
   // The restart cap is bounded on the gating step's OWN attempts, not its

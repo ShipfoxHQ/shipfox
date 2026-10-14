@@ -6,10 +6,10 @@ import {
   type WorkflowExpression,
 } from '@shipfox/expression';
 import {WORKFLOW_GATE_MAX_ATTEMPTS_MAX} from '@shipfox/workflow-document';
-import type {PersistedEvaluationTraceEntry, StepType} from '../entities/step.js';
+import type {PersistedEvaluationTraceEntry, Step, StepType} from '../entities/step.js';
 import {assembleGateContext} from '../step-config/assemble-run-context.js';
 import {completeStepField} from '../step-config/fields.js';
-import type {GateOutcome, StepReport} from './decide-step-transition.js';
+import {type GateOutcome, type StepReport, stepCanRestart} from './decide-step-transition.js';
 
 // The exact `uncheckable` reason recorded when the gate's CEL expression itself
 // throws (as opposed to a missing exit code). The DTO mapper keys on this string to
@@ -118,7 +118,7 @@ function readGateFeedbackTemplate(value: unknown): ResolvedField | undefined {
  * evaluation error is `uncheckable` (a plain command failure), never a gate
  * failure that can restart. Tool steps intentionally have no exit code, so
  * their gates evaluate against the step status and outputs instead. Tool-step
- * failures remain non-restartable because provider calls may have side effects.
+ * failures restart only when the call reads (see `stepCanRestart`).
  *
  * Callers hold step-row locks while this runs. Keep the CEL context bounded
  * unless evaluation gets a budget outside the lock. The materializer only
@@ -137,13 +137,7 @@ export function evaluateGate(
     return {kind: 'uncheckable', reason: 'step produced no exit code', source};
   }
 
-  const context = assembleGateContext({
-    status: result.status,
-    exitCode: result.exitCode ?? null,
-    output: result.output,
-    ...(options?.stepType === 'tool' ? {error: toolStepGateError(result)} : {}),
-    vars,
-  });
+  const context = stepReportGateContext({result, vars, stepType: options?.stepType});
   const outcome = evaluatePlannedPredicateAtSite({
     expression: gate.success,
     field: 'step.success',
@@ -166,6 +160,21 @@ export function evaluateGate(
     return {kind: 'uncheckable', reason: GATE_EVALUATION_ERROR_REASON, source, trace};
   }
   return outcome.value ? {kind: 'passed', source, trace} : {kind: 'failed', source, trace};
+}
+
+// What a gate and its restart rules read. A tool step also reads `step.error`.
+function stepReportGateContext(params: {
+  readonly result: StepReport;
+  readonly vars?: Record<string, string> | undefined;
+  readonly stepType?: StepType | undefined;
+}) {
+  return assembleGateContext({
+    status: params.result.status,
+    exitCode: params.result.exitCode ?? null,
+    output: params.result.output,
+    ...(params.stepType === 'tool' ? {error: toolStepGateError(params.result)} : {}),
+    vars: params.vars,
+  });
 }
 
 // The recorded tool error as the gate reads it, or null when the call did not fail.
@@ -203,7 +212,7 @@ export type RestartRuleSelection =
  * The first rule with no `if`, or whose `if` is true, is selected. A rule whose `if`
  * cannot be evaluated stops the walk, so a later rule never restarts a failure the
  * author could not classify. Returns undefined when nothing can restart: no rules,
- * or a tool step, because provider calls may have side effects.
+ * or a step that `stepCanRestart` rejects.
  *
  * Call only for a failed step. Like `evaluateGate`, this runs under step-row locks.
  */
@@ -211,16 +220,16 @@ export function selectRestartRule(params: {
   readonly gate: StepGate | undefined;
   readonly result: StepReport;
   readonly vars?: Record<string, string> | undefined;
-  readonly stepType?: StepType;
+  readonly step?: Pick<Step, 'type' | 'config'>;
 }): RestartRuleSelection | undefined {
   const rules = params.gate?.onFailure;
-  if (rules === undefined || params.stepType === 'tool') return undefined;
+  if (rules === undefined) return undefined;
+  if (params.step !== undefined && !stepCanRestart(params.step)) return undefined;
 
-  const context = assembleGateContext({
-    status: params.result.status,
-    exitCode: params.result.exitCode ?? null,
-    output: params.result.output,
+  const context = stepReportGateContext({
+    result: params.result,
     vars: params.vars,
+    stepType: params.step?.type,
   });
   const ruleCount = rules.length;
   const entries: PersistedEvaluationTraceEntry[] = [];

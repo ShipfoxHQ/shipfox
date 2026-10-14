@@ -551,10 +551,23 @@ describe('selectRestartRule', () => {
     expect(selectRestartRule({gate: undefined, result: failed})).toBeUndefined();
   });
 
-  test('returns undefined for a tool step', () => {
+  test('returns undefined for a tool step that writes', () => {
     const gate = ruleList(rule('a'));
+    const step = {type: 'tool' as const, config: {tool: {sensitivity: 'write'}}};
 
-    expect(selectRestartRule({gate, result: failed, stepType: 'tool'})).toBeUndefined();
+    expect(selectRestartRule({gate, result: failed, step})).toBeUndefined();
+  });
+
+  test('reads the error of a tool step that reads', () => {
+    const gate = ruleList(rule('a', 'step.error.code == "rate-limited"'), rule('b'));
+    const step = {type: 'tool' as const, config: {tool: {sensitivity: 'read'}}};
+    const result = {status: 'failed' as const, error: {code: 'rate-limited'}, output: null};
+
+    expect(selectRestartRule({gate, result, step})).toMatchObject({
+      kind: 'selected',
+      position: 1,
+      rule: {restartFrom: 'a'},
+    });
   });
 
   test('selects the first rule with no condition', () => {

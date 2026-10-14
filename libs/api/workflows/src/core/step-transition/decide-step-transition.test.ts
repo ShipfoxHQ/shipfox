@@ -184,9 +184,12 @@ describe('decideStepTransition', () => {
     });
   });
 
-  test('a failing tool-step gate never rewinds a provider call', () => {
+  test.each([
+    ['writes', {tool: {sensitivity: 'write'}}],
+    ['has no recorded sensitivity', {}],
+  ])('a failing gate on a tool step that %s never rewinds a provider call', (_name, config) => {
     const restartTarget = step({id: 's0', key: 'producer', position: 0, status: 'succeeded'});
-    const target = step({id: 's1', position: 1, status: 'running', type: 'tool'});
+    const target = step({id: 's1', position: 1, status: 'running', type: 'tool', config});
 
     const decision = decideStepTransition({
       steps: [restartTarget, target],
@@ -209,6 +212,34 @@ describe('decideStepTransition', () => {
         source: 'step.outputs.result.ok == true',
         restartFrom: 'producer',
       },
+    });
+  });
+
+  test('a failing gate on a tool step that reads rewinds to restart_from', () => {
+    const restartTarget = step({id: 's0', key: 'wait', position: 0, status: 'succeeded'});
+    const target = step({
+      id: 's1',
+      position: 1,
+      status: 'running',
+      type: 'tool',
+      config: {tool: {sensitivity: 'read'}},
+    });
+
+    const decision = decideStepTransition({
+      steps: [restartTarget, target],
+      target,
+      reportedAttempt: 1,
+      result: {status: 'succeeded', exitCode: null},
+      gateOutcome: {kind: 'failed', source: 'step.outputs.status == "completed"'},
+      gateOnFailure: {restartFrom: 'wait'},
+    });
+
+    expect(decision).toMatchObject({
+      kind: 'restart-job-from-step',
+      failedStepId: 's1',
+      restartFromStepId: 's0',
+      restartFromPosition: 0,
+      attempt: 1,
     });
   });
 

@@ -322,7 +322,7 @@ export type WorkflowStepSourceLocationMap = ReadonlyMap<
 >;
 export interface WorkflowModelStepGate {
   readonly success?: WorkflowExpression;
-  /** One rule, or an ordered list where the first rule that applies drives a restart. Tool steps never restart. */
+  /** One rule, or an ordered list where the first rule that applies drives a restart. A tool step restarts only when its call reads. */
   readonly onFailure?: WorkflowModelStepFailureAction | readonly WorkflowModelStepFailureAction[];
 }
 /** Reads `onFailure` as a rule list; one rule is a one-rule list. */
