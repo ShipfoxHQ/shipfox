@@ -528,7 +528,7 @@ function renderRepositoryContextFiles() {
     '|---|---|---|',
     ...Object.entries(AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES).map(
       ([harness, fileNames]) =>
-        `| Instructions, \`${harness}\` harness | The first non-empty file of ${code(fileNames)}, in that order, in each directory from the repository root down to the working directory | ${AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES / 1024} KiB in total. Files after the limit are not read. |`,
+        `| Instructions, \`${harness}\` harness | The first non-empty file of ${code(fileNames)}, in that order, in each directory from the repository root down to the working directory | ${AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES / 1024} KiB in total. The file that reaches the limit is truncated, and later files are not read. |`,
     ),
     `| Skills | Each directory with a \`SKILL.md\` file inside ${code(AGENT_REPOSITORY_SKILL_DIRECTORIES)}, in each directory from the repository root down to the working directory | None |`,
   ].join('\n');

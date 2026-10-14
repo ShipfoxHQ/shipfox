@@ -71,7 +71,7 @@ that an agent step also reads. A file outside the last column is ignored.
 
 | Coding agent | Instruction files | Skill directories | An agent step reads |
 | --- | --- | --- | --- |
-| Claude Code | `CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`, `.claude/rules/`. `AGENTS.md` when no `CLAUDE.md` exists. | `.claude/skills` | `CLAUDE.md` and `.claude/skills` |
+| Claude Code | `CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`, `.claude/rules/`. `AGENTS.md` when no `CLAUDE.md` exists. | `.claude/skills` | `CLAUDE.md`, `AGENTS.md`, and `.claude/skills` |
 | Codex | `AGENTS.override.md`, then `AGENTS.md` | `.agents/skills` | `AGENTS.md` and `.agents/skills` |
 | OpenCode | `AGENTS.md`, or `CLAUDE.md` when no `AGENTS.md` exists | `.opencode/skills`, `.claude/skills`, `.agents/skills` | `AGENTS.md`, `CLAUDE.md`, `.claude/skills`, and `.agents/skills` |
 | Cursor | `.cursor/rules/`, `AGENTS.md` | `.cursor/skills`, `.agents/skills`, `.claude/skills`, `.codex/skills` | `AGENTS.md`, `.agents/skills`, and `.claude/skills` |

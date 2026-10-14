@@ -299,6 +299,7 @@ describe('piHarnessAdapter', () => {
     });
     sessionManagerForkFromMock.mockReset();
     sessionManagerForkFromMock.mockReturnValue({});
+    settingsManagerCreateMock.mockClear();
     findMock.mockReset();
     getAllMock.mockReset();
     hasConfiguredAuthMock.mockReset();

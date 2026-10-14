@@ -43,7 +43,11 @@ function skillsDetail(entry: RepositoryContextEntry): string {
   return entry.skills.join(', ');
 }
 
+// The runner serializes the entry with `type` first, so other entries skip the second parse.
+const REPOSITORY_CONTEXT_ENTRY_PREFIX = `{"type":"${REPOSITORY_CONTEXT_SESSION_ENTRY_TYPE}"`;
+
 function parseRepositoryContextEntry(data: string): RepositoryContextEntry | undefined {
+  if (!data.startsWith(REPOSITORY_CONTEXT_ENTRY_PREFIX)) return undefined;
   let value: unknown;
   try {
     value = JSON.parse(data);

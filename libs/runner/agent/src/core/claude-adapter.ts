@@ -78,6 +78,7 @@ const REQUESTED_PERMISSION_MODE = 'bypassPermissions';
 const CLAUDE_REPOSITORY_SKILLS_PLUGIN_NAME = 'repository';
 const CLAUDE_SKILL_TOOL_NAME = 'Skill';
 const CLAUDE_PLUGIN_DIRECTORY_SAFE_PATTERN = /[^A-Za-z0-9._-]/gu;
+const CLAUDE_PLUGIN_DIRECTORY_DOTS_PATTERN = /^\.\.?$/u;
 const CLAUDE_THINKING_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max', 'default'] as const;
 const CLAUDE_SESSION_FILE_NAME = 'claude-session.jsonl';
 const CLAUDE_SESSION_LINE_SEPARATOR = /\r?\n/u;
@@ -1491,7 +1492,10 @@ async function createClaudeRepositorySkillsPlugin(params: {
 }
 
 function claudePluginSkillDirectory(name: string): string {
-  return name.replace(CLAUDE_PLUGIN_DIRECTORY_SAFE_PATTERN, '-');
+  // `.` and `..` would resolve to the plugin root and overwrite its manifest.
+  return name
+    .replace(CLAUDE_PLUGIN_DIRECTORY_SAFE_PATTERN, '-')
+    .replace(CLAUDE_PLUGIN_DIRECTORY_DOTS_PATTERN, '-');
 }
 
 async function createClaudeConfigDir(agentStateDir: string, shared: boolean): Promise<string> {

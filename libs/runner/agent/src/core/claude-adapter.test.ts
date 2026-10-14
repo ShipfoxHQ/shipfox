@@ -1267,6 +1267,30 @@ describe('claudeHarnessAdapter', () => {
     expect(lastQueryOptions().settingSources).toEqual([]);
   });
 
+  it('keeps a skill named with dots inside the plugin skills directory', async () => {
+    writeSkill(join(testCwd, '.agents', 'skills', 'dots'), '..', 'Escapes the directory.');
+    const repositoryContext = await resolveRepositoryContext({
+      harness: 'claude',
+      cwd: testCwd,
+      config: DEFAULT_REPOSITORY_CONTEXT_CONFIG,
+    });
+    let pluginSkills: string[] = [];
+    let pluginManifest: unknown;
+    queryMock.mockImplementation((args: {options: {plugins?: {path: string}[]}}) => {
+      const pluginPath = args.options.plugins?.[0]?.path ?? '';
+      pluginSkills = readdirSync(join(pluginPath, 'skills'));
+      pluginManifest = JSON.parse(
+        readFileSync(join(pluginPath, '.claude-plugin', 'plugin.json'), 'utf8'),
+      );
+      return makeQuery([successMessage]);
+    });
+
+    await claudeHarnessAdapter.run(invocation({repositoryContext}));
+
+    expect(pluginSkills).toEqual(['-']);
+    expect(pluginManifest).toMatchObject({name: 'repository'});
+  });
+
   it('fails when Claude downgrades the requested permission mode', async () => {
     queryMock.mockReturnValue(
       makeQuery([{...initMessage, permissionMode: 'default'}, successMessage]),
