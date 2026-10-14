@@ -105,9 +105,9 @@ describe('users db', () => {
 
     const user = await provisionUser({
       email,
-      name: 'Ada Lovelace',
-      givenName: 'Ada',
-      familyName: 'Lovelace',
+      name: 'Margaret Hamilton',
+      givenName: 'Margaret',
+      familyName: 'Hamilton',
       viaInvitation: false,
     });
     const events = await db()
@@ -120,8 +120,8 @@ describe('users db', () => {
         ),
       );
 
-    expect(user).toMatchObject({givenName: 'Ada', familyName: 'Lovelace'});
-    expect(events[0]?.payload).toMatchObject({givenName: 'Ada', familyName: 'Lovelace'});
+    expect(user).toMatchObject({givenName: 'Margaret', familyName: 'Hamilton'});
+    expect(events[0]?.payload).toMatchObject({givenName: 'Margaret', familyName: 'Hamilton'});
   });
 
   test('updateUserPassword updates the hashed password', async () => {

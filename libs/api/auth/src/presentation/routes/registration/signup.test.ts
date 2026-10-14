@@ -104,16 +104,16 @@ describe('POST /auth/signup', () => {
     const res = await signup(app, {
       email,
       password,
-      name: 'Ada Lovelace',
-      given_name: '  Ada ',
-      family_name: 'Lovelace',
+      name: 'Margaret Hamilton',
+      given_name: '  Margaret ',
+      family_name: 'Hamilton',
     });
 
     expect(res.statusCode).toBe(201);
     expect(res.json().user).toMatchObject({
-      name: 'Ada Lovelace',
-      given_name: 'Ada',
-      family_name: 'Lovelace',
+      name: 'Margaret Hamilton',
+      given_name: 'Margaret',
+      family_name: 'Hamilton',
     });
   });
 
@@ -121,7 +121,7 @@ describe('POST /auth/signup', () => {
     const res = await signup(app, {
       email: uniqueEmail('signup-no-split-name'),
       password,
-      name: 'Ada',
+      name: 'Margaret',
     });
 
     expect(res.statusCode).toBe(201);
