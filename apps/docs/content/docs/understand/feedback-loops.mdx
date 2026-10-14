@@ -199,7 +199,7 @@ The previous attempt did not pass the check on step `test`.
 - The agent gets the path of the log, not its content. The agent reads the file
   on the runner.
 - `Feedback` is the message that you write in `feedback`. Without it, the
-  message names the check that returned false.
+  message names the failed check, or says the step failed when no check ran.
 - A line is left out when the failed attempt has no value for it. For example,
   a step that fails before it starts its command has no log.
 
