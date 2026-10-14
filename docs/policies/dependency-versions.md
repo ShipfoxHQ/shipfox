@@ -209,6 +209,9 @@ Exact pins need a clear reason. Use an exact version only in these cases.
   tests pin, so every update needs its own review. `@discordjs/ws` is pinned
   because the Discord Gateway checkpoint depends on when the library calls its
   session hooks.
+- A package carries a pnpm patch. The patch file is keyed to that version, so
+  the version changes only together with the patch. See
+  [Patched dependencies](#patched-dependencies).
 
 The policy entry and Renovate rule must state which condition applies. Exact pins
 are not the default for published packages.
