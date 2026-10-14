@@ -102,6 +102,36 @@ export function createTestRun(scope: {
   });
 }
 
+export function createTestDevRun(scope: {
+  workspaceId: string;
+  projectId: string;
+  definitionId: string;
+}) {
+  const initiatedByUserId = crypto.randomUUID();
+  return createWorkflowRun({
+    workspaceId: scope.workspaceId,
+    projectId: scope.projectId,
+    definitionId: scope.definitionId,
+    model: buildModel(),
+    origin: 'dev',
+    devSource: {
+      ref: 'refs/heads/feature',
+      commit: 'a'.repeat(40),
+      definitionSource: 'ref',
+      localActions: [],
+      configPath: '.shipfox/workflows.yml',
+      initiatedByUserId,
+      replayOfEventId: null,
+    },
+    triggerPayload: {
+      source: 'manual',
+      event: 'fire',
+      subscriptionId: crypto.randomUUID(),
+      userId: initiatedByUserId,
+    },
+  });
+}
+
 export async function workflowRunAttemptId(workflowRunId: string): Promise<string> {
   const [attempt] = await db()
     .select()
@@ -214,6 +244,7 @@ export async function runTerminatedEvents(workflowRunId: string) {
         statusReason?: string | null;
         startedAt?: string | null;
         finishedAt?: string | null;
+        origin?: string;
       },
   );
 }
@@ -255,6 +286,7 @@ export async function runAttemptCreatedEvents(workflowRunId: string) {
         definitionId: string;
         actorUserId?: string;
         carryOverFromWorkflowRunAttemptId?: string;
+        origin?: string;
       },
   );
 }

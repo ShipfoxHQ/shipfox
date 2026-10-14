@@ -262,6 +262,7 @@ async function terminateRunAttempt(
       statusReason: spec.workflowRunStatusReason,
       startedAt: isoOrNull(terminatedAttempt?.startedAt ?? lockedAttempt.startedAt),
       finishedAt: isoOrNull(terminatedAttempt?.finishedAt ?? run.finishedAt),
+      origin: run.origin,
     },
   });
   if (spec.emitCancelledEvent) {
@@ -691,6 +692,7 @@ async function writeRunTerminatedIfNeeded(
       statusReason: attempt.statusReason ?? null,
       startedAt: isoOrNull(attempt.startedAt),
       finishedAt: isoOrNull(attempt.finishedAt),
+      origin: run.origin,
     },
   });
 }

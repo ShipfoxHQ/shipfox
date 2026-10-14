@@ -38,7 +38,7 @@ export interface MaterializedRunGraphJob {
 export async function persistMaterializedRunGraph(
   tx: Tx,
   params: {
-    readonly run: Pick<WorkflowRun, 'id' | 'workspaceId' | 'projectId' | 'definitionId'>;
+    readonly run: Pick<WorkflowRun, 'id' | 'workspaceId' | 'projectId' | 'definitionId' | 'origin'>;
     readonly workflowRunAttempt: {readonly id: string; readonly attempt: number};
     readonly materializedJobs: readonly MaterializedRunGraphJob[];
     readonly actorUserId?: string | undefined;
@@ -144,6 +144,7 @@ export async function persistMaterializedRunGraph(
       projectId: params.run.projectId,
       definitionId: params.run.definitionId,
       status: 'pending',
+      origin: params.run.origin,
       ...(params.actorUserId === undefined ? {} : {actorUserId: params.actorUserId}),
       ...(params.carryOverFromWorkflowRunAttemptId === undefined
         ? {}

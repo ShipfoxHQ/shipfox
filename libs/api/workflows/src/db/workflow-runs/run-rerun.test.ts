@@ -11,6 +11,7 @@ import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {listTestRunAttempts} from '#test/helpers/run-attempts.js';
 import {
   buildModel,
+  createTestDevRun,
   expression,
   jobExecutionStartedEvents,
   runAttemptCreatedEvents,
@@ -1621,6 +1622,24 @@ describe('workflow run queries', () => {
       expect(events.find((event) => event.attempt === 2)).not.toHaveProperty(
         'carryOverFromWorkflowRunAttemptId',
       );
+    });
+
+    test('reports the dev origin on the attempt-created event for a rerun of a dev run', async () => {
+      const source = await createTestDevRun({workspaceId, projectId, definitionId});
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: source.version,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const events = await runAttemptCreatedEvents(rerun.id);
+      expect(events.find((event) => event.attempt === 2)).toMatchObject({origin: 'dev'});
     });
 
     test('failed mode carries succeeded jobs and resets every non-succeeded job', async () => {

@@ -2,7 +2,7 @@ import {z} from 'zod';
 import {jobStatusReasonSchema} from './schemas/job.js';
 import {listeningTriggerSchema} from './schemas/job-listening.js';
 import {logOutcomeSchema} from './schemas/log-outcome.js';
-import {workflowRunStatusSchema} from './schemas/workflow-run.js';
+import {workflowRunOriginSchema, workflowRunStatusSchema} from './schemas/workflow-run.js';
 
 const nonEmptyStringSchema = z.string().nonempty();
 
@@ -55,8 +55,9 @@ export const workflowsWorkflowRunAttemptCreatedSchema = z.object({
   // Failed reruns carry sessions from this attempt before orchestration starts.
   // Optional for ordinary runs and events written before session carry-over existed.
   carryOverFromWorkflowRunAttemptId: nonEmptyStringSchema.optional(),
-  // Optional so consumers can continue to read events written before this field existed.
+  // Optional so consumers can continue to read events written before these fields existed.
   status: workflowRunStatusSchema.optional(),
+  origin: workflowRunOriginSchema.optional(),
 });
 export type WorkflowsWorkflowRunAttemptCreatedEventDto = z.infer<
   typeof workflowsWorkflowRunAttemptCreatedSchema
@@ -124,6 +125,8 @@ export const workflowsWorkflowRunTerminatedSchema = z.object({
   statusReason: workflowRunStatusReasonSchema.nullable().optional(),
   startedAt: z.string().datetime().nullable().optional(),
   finishedAt: z.string().datetime().nullable().optional(),
+  // Optional so consumers can continue to read events written before this field existed.
+  origin: workflowRunOriginSchema.optional(),
 });
 export type WorkflowsWorkflowRunTerminatedEventDto = z.infer<
   typeof workflowsWorkflowRunTerminatedSchema

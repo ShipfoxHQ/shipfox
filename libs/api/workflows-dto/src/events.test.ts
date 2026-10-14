@@ -423,6 +423,16 @@ describe('workflowsWorkflowRunTerminatedSchema', () => {
     });
   });
 
+  it.each(['synced', 'dev'] as const)('accepts the %s run origin', (origin) => {
+    expect(workflowsWorkflowRunTerminatedSchema.parse({...validRunTerminated, origin}).origin).toBe(
+      origin,
+    );
+  });
+
+  it('keeps the origin optional for events written before it existed', () => {
+    expect(workflowsWorkflowRunTerminatedSchema.parse(validRunTerminated).origin).toBeUndefined();
+  });
+
   it('rejects a payload missing a required field', () => {
     const {projectId: _projectId, ...withoutProjectId} = validRunTerminated;
 
@@ -600,6 +610,16 @@ describe('workflowsWorkflowRunAttemptCreatedSchema', () => {
     const result = workflowsWorkflowRunAttemptCreatedSchema.parse(validRunCreated);
 
     expect(result.actorUserId).toBeUndefined();
+  });
+
+  it.each(['synced', 'dev'] as const)('accepts the %s run origin', (origin) => {
+    expect(
+      workflowsWorkflowRunAttemptCreatedSchema.parse({...validRunCreated, origin}).origin,
+    ).toBe(origin);
+  });
+
+  it('keeps the origin optional for events written before it existed', () => {
+    expect(workflowsWorkflowRunAttemptCreatedSchema.parse(validRunCreated).origin).toBeUndefined();
   });
 
   it('accepts the source attempt used for failed-rerun session carry-over', () => {

@@ -1801,6 +1801,7 @@ describe('workflow run queries', () => {
         projectId: run.projectId,
         definitionId: run.definitionId,
         actorUserId,
+        origin: 'synced',
       });
       expect(matchingRow?.orderingKey).toBe(run.id);
       expect(matchingRow?.dispatchedAt).toBeNull();
@@ -1851,7 +1852,9 @@ describe('workflow run queries', () => {
 
       expect((await runAttemptCreatedEvents(devRun.id))[0]).toMatchObject({
         actorUserId: developerUserId,
+        origin: 'dev',
       });
+      expect((await runAttemptCreatedEvents(cronRun.id))[0]).toMatchObject({origin: 'synced'});
       expect((await runAttemptCreatedEvents(cronRun.id))[0]).not.toHaveProperty('actorUserId');
       expect((await runAttemptCreatedEvents(integrationRun.id))[0]).not.toHaveProperty(
         'actorUserId',

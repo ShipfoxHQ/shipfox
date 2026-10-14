@@ -4,6 +4,7 @@ import {nextStepForJob} from '#core/job-execution.js';
 import {listTestRunAttempts} from '#test/helpers/run-attempts.js';
 import {
   buildModel,
+  createTestDevRun,
   createTestRun,
   jobExecutionTerminatedEvents,
   jobTerminatedEvents,
@@ -217,7 +218,22 @@ describe('workflow run queries', () => {
         statusReason: null,
         startedAt: null,
         finishedAt: expect.any(String),
+        origin: 'synced',
       });
+    });
+
+    test('reports the dev origin on the run-terminated event for a dev run', async () => {
+      const run = await createTestDevRun({workspaceId, projectId, definitionId});
+
+      await updateWorkflowRunStatus({
+        workflowRunId: run.id,
+        status: 'succeeded',
+        expectedVersion: run.version,
+      });
+
+      expect(await runTerminatedEvents(run.id)).toEqual([
+        expect.objectContaining({status: 'succeeded', origin: 'dev'}),
+      ]);
     });
 
     test('persists and emits the failed-job status reason', async () => {
@@ -370,6 +386,19 @@ describe('workflow run queries', () => {
   });
 
   describe('cancelWorkflowRun', () => {
+    test.each([
+      ['synced', createTestRun],
+      ['dev', createTestDevRun],
+    ] as const)('reports the %s origin on the run-terminated event', async (origin, createRun) => {
+      const run = await createRun({workspaceId, projectId, definitionId});
+
+      await cancelWorkflowRun({workflowRunId: run.id});
+
+      expect(await runTerminatedEvents(run.id)).toEqual([
+        expect.objectContaining({status: 'cancelled', origin}),
+      ]);
+    });
+
     test('rejects a stale expected attempt without changing the run', async () => {
       const run = await createWorkflowRun({
         workspaceId,
