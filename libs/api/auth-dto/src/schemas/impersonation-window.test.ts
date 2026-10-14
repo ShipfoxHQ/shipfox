@@ -50,6 +50,8 @@ const tokenResponse = {
     id: target.id,
     email: target.email,
     name: target.name,
+    given_name: null,
+    family_name: null,
     status: target.status,
     email_verified_at: target.email_verified_at,
     created_at: target.created_at,
