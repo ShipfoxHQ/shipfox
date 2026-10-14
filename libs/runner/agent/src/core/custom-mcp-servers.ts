@@ -236,8 +236,6 @@ async function startServer(params: {
     closing: false,
   };
   let spawnError: unknown;
-  // `processExited` carries the same start failure.
-  child.exited.catch(() => undefined);
   child.processExited.then(
     (exit) => {
       started.exit = exit;
@@ -342,7 +340,8 @@ class HostProcessTransport implements Transport {
     });
     this.child.stdout.on('error', (error: Error) => this.onerror?.(error));
     this.child.stdin?.on('error', (error: Error) => this.onerror?.(error));
-    this.child.processExited.then(
+    // `exited` settles once stdout closed, so a response written just before the exit is read.
+    this.child.exited.then(
       () => this.handleClose(),
       () => this.handleClose(),
     );
@@ -364,7 +363,7 @@ class HostProcessTransport implements Transport {
     if (this.closed) return;
     this.child.stdin?.end();
     await Promise.race([
-      this.child.processExited.catch(() => undefined),
+      this.child.exited.catch(() => undefined),
       new Promise((resolve) => setTimeout(resolve, CLOSE_GRACE_MS).unref()),
     ]);
     this.handleClose();

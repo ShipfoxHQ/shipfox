@@ -889,10 +889,14 @@ export const workflowDocumentAgentMcpServerSchema = z.strictObject({
     description:
       'Sets environment variables for the server. Values support workflow expressions, including `secrets`.',
   }),
-  include: workflowDocumentStepIntegrationSelectionSchema.optional().meta({
-    description:
-      'Lists the tools to give the agent, named as the server lists them. Defaults to every tool.',
-  }),
+  include: z
+    .array(agentMcpServerLiteralSchema('MCP server tool names must be literal.').min(1))
+    .min(1)
+    .optional()
+    .meta({
+      description:
+        'Lists the tools to give the agent, named as the server lists them. Defaults to every tool.',
+    }),
 });
 
 export const workflowDocumentAgentMcpServersSchema = z

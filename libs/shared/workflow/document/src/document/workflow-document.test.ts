@@ -1627,6 +1627,10 @@ describe('workflowDocumentSchema', () => {
       {prompt: 'Fix.', mcp_servers: {db: {command: 'x', url: 'http://x'}}},
     ],
     ['MCP server empty include', {prompt: 'Fix.', mcp_servers: {db: {command: 'x', include: []}}}],
+    [
+      'MCP server include with interpolation',
+      {prompt: 'Fix.', mcp_servers: {db: {command: 'x', include: [interpolation('vars.TOOL')]}}},
+    ],
     ['empty integration include', {prompt: 'Fix.', integrations: [{include: []}]}],
     [
       'empty integration include name',

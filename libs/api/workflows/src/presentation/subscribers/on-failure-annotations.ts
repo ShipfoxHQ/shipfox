@@ -148,7 +148,7 @@ const STEP_FAILURE_COPY: Readonly<
     description: 'Rerun the failed jobs. If it fails again, use a new session.',
   },
   agent_mcp_server_unavailable: {
-    title: 'An MCP server did not start',
+    title: 'An MCP server is unavailable',
     description:
       'Read the server error in the step details. Fix the server in `mcp_servers`, then rerun the job.',
   },

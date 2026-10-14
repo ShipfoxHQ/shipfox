@@ -41,6 +41,7 @@ describe('startCustomMcpServers', () => {
       secretEnv: {other: {FAKE_SECRET: 'from-a-secret'}},
     });
 
+    const literal = await servers.callTool({name: 'fake__secret_length', arguments: {}});
     const result = await servers.callTool({name: 'other__secret_length', arguments: {}});
 
     expect(servers.tools.map((tool) => tool.name)).toEqual([
@@ -50,6 +51,7 @@ describe('startCustomMcpServers', () => {
       'other__crash',
     ]);
     expect(servers.requestedTools).toContainEqual({connectionSlug: 'fake', toolId: 'crash'});
+    expect(literal.content).toEqual([{type: 'text', text: 'length:7'}]);
     expect(result.content).toEqual([{type: 'text', text: 'length:13'}]);
   });
 

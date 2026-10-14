@@ -1097,7 +1097,7 @@ function failureTitle(reason: string | JobStatusReason, error: StepError | null)
     case 'agent_session_unavailable':
       return 'Shipfox cannot load the session';
     case 'agent_mcp_server_unavailable':
-      return 'An MCP server did not start';
+      return 'An MCP server is unavailable';
     case 'tool_error':
       return 'The integration returned an error';
     case 'tool_config_invalid':

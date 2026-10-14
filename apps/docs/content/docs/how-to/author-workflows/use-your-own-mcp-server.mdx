@@ -72,9 +72,10 @@ Commit and push the file to the default branch of the project.
 
 ## If the step fails before the agent starts
 
-The step fails with **An MCP server did not start** when the server exits,
-does not answer within 120 seconds, or does not list a tool from `include`.
-The message shows the end of what the server wrote to its error output.
+The step fails with **An MCP server is unavailable** when the server exits,
+does not answer within 120 seconds, does not list a tool from `include`, or
+lists a tool that the agent cannot use. When the server did not start, the
+message shows the end of what the server wrote to its error output.
 
 - Check that the command exists on the runner, or in the image of the job
   container.
