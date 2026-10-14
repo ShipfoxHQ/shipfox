@@ -143,7 +143,7 @@ export const authInterModuleContract = defineInterModuleContract({
         grantId: agentLogDownloadTokenIdSchema,
         clientId: z.string().min(1).max(2048),
         streamId: agentLogDownloadTokenIdSchema,
-        impersonationWindowId: agentLogDownloadTokenIdSchema.optional(),
+        impersonationWindowId: idSchema.optional(),
       }),
       output: z.object({token: z.string().min(1), expiresAt: z.string().datetime()}),
     },

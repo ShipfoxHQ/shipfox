@@ -81,6 +81,8 @@ async function createImpersonatedCredential(
     role?: 'admin-observer' | 'admin-operator';
     windowWorkspaceId?: string;
     windowEndedAt?: Date;
+    windowDeadlineAt?: Date;
+    windowOwnedByAnotherAdministrator?: boolean;
   } = {},
 ) {
   const administrator = await userFactory.create();
@@ -98,10 +100,19 @@ async function createImpersonatedCredential(
     workspaceId: homeWorkspaceId,
     clientId: client.id,
   });
+  const windowActorId = params.windowOwnedByAnotherAdministrator
+    ? (await userFactory.create()).id
+    : administrator.id;
   const window = await impersonationWindowFactory.create({
-    actorId: administrator.id,
+    actorId: windowActorId,
     workspaceId: params.windowWorkspaceId ?? customerWorkspaceId,
     ...(params.windowEndedAt ? {endedAt: params.windowEndedAt, endedReason: 'stopped'} : {}),
+    ...(params.windowDeadlineAt
+      ? {
+          startedAt: new Date(params.windowDeadlineAt.getTime() - 30 * 60 * 1000),
+          deadlineAt: params.windowDeadlineAt,
+        }
+      : {}),
   });
   const minted = await mintAgentLogDownloadToken({
     sub: administrator.id,
@@ -256,6 +267,14 @@ describe('agent log download auth method', () => {
 
     test.each([
       {name: 'the window has ended', params: {windowEndedAt: new Date()}},
+      {
+        name: 'the window has passed its deadline',
+        params: {windowDeadlineAt: new Date(Date.now() - 60 * 1000)},
+      },
+      {
+        name: 'the window belongs to another administrator',
+        params: {windowOwnedByAnotherAdministrator: true},
+      },
       {
         name: 'the window is on another workspace',
         params: {windowWorkspaceId: crypto.randomUUID()},
