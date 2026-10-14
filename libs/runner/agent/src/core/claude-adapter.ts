@@ -414,7 +414,8 @@ async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessRes
         ...thinkingOptions,
         abortController: controller,
         ...toolContext.selectedToolOptions,
-        systemPrompt: AGENT_SHIPFOX_SYSTEM_PROMPT,
+        // Keep Claude Code's own prompt and its tool guidance; Shipfox only adds to it.
+        systemPrompt: {type: 'preset', preset: 'claude_code', append: AGENT_SHIPFOX_SYSTEM_PROMPT},
         ...pluginOptions,
         ...claudeExecutableOptions(container),
         spawnClaudeCodeProcess: processSpawner.spawn,

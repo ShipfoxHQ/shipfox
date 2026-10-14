@@ -1201,7 +1201,7 @@ describe('claudeHarnessAdapter', () => {
     expect(lastQueryOptions()).not.toHaveProperty('effort');
   });
 
-  it('sends the Shipfox system prompt and appends repository instructions to the user prompt', async () => {
+  it('appends the Shipfox system prompt to the Claude Code prompt and repository instructions to the user prompt', async () => {
     writeFileSync(join(testCwd, 'AGENTS.md'), 'repository-instruction-marker');
     const repositoryContext = await resolveRepositoryContext({
       harness: 'claude',
@@ -1221,7 +1221,11 @@ describe('claudeHarnessAdapter', () => {
           'From AGENTS.md:\n\nrepository-instruction-marker',
       },
     });
-    expect(lastQueryOptions().systemPrompt).toBe(AGENT_SHIPFOX_SYSTEM_PROMPT);
+    expect(lastQueryOptions().systemPrompt).toEqual({
+      type: 'preset',
+      preset: 'claude_code',
+      append: AGENT_SHIPFOX_SYSTEM_PROMPT,
+    });
   });
 
   it('does not read repository files without a resolved repository context', async () => {

@@ -15,7 +15,7 @@ export const AGENT_REPOSITORY_SKILL_DIRECTORIES = ['.agents/skills', '.claude/sk
 export const AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES = 64 * 1024;
 
 /**
- * Trusted Shipfox guidance that every harness adds to its system prompt. It stays static so
+ * Trusted Shipfox guidance that every harness appends to its default system prompt. It stays static so
  * providers can cache it across runs, and the documentation publishes it verbatim.
  */
 export const AGENT_SHIPFOX_SYSTEM_PROMPT = `You are running as a step in a Shipfox workflow, not in an interactive session.
