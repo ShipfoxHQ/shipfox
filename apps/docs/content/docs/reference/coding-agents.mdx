@@ -36,6 +36,7 @@ If there is no `.git`, Shipfox looks only in the working directory.
   working directory. In the same directory, `.agents/skills` has priority over
   `.claude/skills`.
 - A skill that two paths link to loads one time.
+- If a skill listed in `repository_context` does not exist, the step fails.
 
 ## Files that agent steps ignore
 
@@ -65,30 +66,13 @@ system prompt. Shipfox does not read the home directory of the runner.
 
 Shipfox adds this text to the end of the default system prompt of the harness.
 
-<ShipfoxSystemPrompt />
+<ShipfoxSystemPrompt components={props.components} />
 
-## Turn off repository files
+## `repository_context`
 
-Set `repository_context` on an agent step. Instructions and skills are on by
-default. See
-[`steps[*].repository_context`](/reference/workflow-schema#agent-repository-context-fields)
-for all values.
-
-Turn off both for pull requests from forks:
-
-```yaml
-repository_context: ${{ event.pull_request.head.repo.full_name == event.repository.full_name }}
-```
-
-Keep the instructions and load only the `code-review` skill:
-
-```yaml
-repository_context:
-  instructions: true
-  skills: [code-review]
-```
-
-If a listed skill does not exist, the step fails.
+The `repository_context` field of an agent step turns instructions and skills
+on or off. Both are on by default. See
+[`steps[*].repository_context`](/reference/workflow-schema#agent-repository-context-fields).
 
 ## Session
 
