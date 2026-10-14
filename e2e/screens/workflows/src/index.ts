@@ -29,7 +29,7 @@ export class WorkflowRunJobScreen {
 
   private jobNavigationLink(): Locator {
     return this.page.getByRole('link', {
-      name: new RegExp(`^${escapeRegExp(this.name)}(?:,|$)`, 'u'),
+      name: new RegExp(`^${escapeRegExp(this.name)}(?:,|\\s|$)`, 'u'),
     });
   }
 
@@ -52,7 +52,7 @@ export class RequiredActionScreen {
   }
 
   href(): Locator {
-    return this.page.locator('[data-appearance="link"]');
+    return this.page.locator('a[data-appearance="link"], a[data-appearance="button"]');
   }
 
   async click(): Promise<void> {
