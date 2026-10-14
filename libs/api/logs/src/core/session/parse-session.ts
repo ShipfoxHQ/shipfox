@@ -3,6 +3,7 @@ import type {Harness} from '@shipfox/workflow-document';
 import type {ClaudeParseContext} from './claude-parser.js';
 import {parseClaudeSessionRecord} from './claude-parser.js';
 import {parsePiSessionRecord} from './pi-parser.js';
+import {repositoryContextRows} from './repository-context.js';
 import type {AgentSessionRecord} from './session-record.js';
 
 export interface SessionParseContext {
@@ -16,6 +17,8 @@ export function parseSessionRecord(
   context?: SessionParseContext,
 ): readonly SessionViewRow[] {
   try {
+    const repositoryContext = repositoryContextRows(record);
+    if (repositoryContext !== undefined) return repositoryContext;
     return harness === 'claude'
       ? parseClaudeSessionRecord(record, context?.claude, context?.isFinalResult ?? true)
       : parsePiSessionRecord(record);

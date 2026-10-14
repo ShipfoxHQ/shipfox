@@ -70,10 +70,20 @@ files or logs. A [named session](/understand/agent-sessions) can pass an
 earlier agent's whole conversation to a later agent step, again without its
 files.
 
+The checkout also brings the team's own guidance for coding agents. Shipfox
+reads the repository's `AGENTS.md` or `CLAUDE.md` files and its skills, the same
+files a developer's local agent uses. They are added to the prompt as advice
+that the step's prompt overrides. Settings, hooks, and other files that could
+run code or change permissions are never read. [Coding agent
+files](/reference/coding-agents) lists what Shipfox reads and the guidance it
+adds to every agent step.
+
 Context can also be malicious. An issue body or a review comment can contain
 instructions written for the agent. Treat external text in the prompt as data,
 not as instructions. Give the step only the authority it needs, so a misleading
-field can't extend its reach.
+field can't extend its reach. Repository instructions come from the checked-out
+code, so the author of a pull request from a fork controls them. Turn off
+`repository_context` for code you don't trust.
 
 ## What the agent can change
 

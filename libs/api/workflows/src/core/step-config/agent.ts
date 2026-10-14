@@ -4,6 +4,7 @@ import {
   AGENT_INTEGRATION_MCP_SERVER_NAME,
   AGENT_INTEGRATION_MCP_TRANSPORT,
   type AgentIntegrationMcpServerConfigDto,
+  type AgentRepositoryContextConfigDto,
   type MaterializedAgentIntegrationConfigDto,
 } from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
@@ -23,7 +24,7 @@ import {
   materializeAgentIntegrations,
 } from '#core/agent-tools.js';
 import type {PersistedEvaluationTraceEntry, StepConfigDispatchPlan} from '#core/entities/step.js';
-import {AgentConfigUnresolvableError} from '#core/errors.js';
+import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {
   completeStepFieldWithTrace,
   literalField,
@@ -40,6 +41,23 @@ type StepConfigMode = 'effective' | 'authored';
 type FieldResolution =
   | {readonly kind: 'frozen'; readonly value: string}
   | {readonly kind: 'residual'; readonly field: ResolvedField};
+type AgentFieldName =
+  | 'agent.prompt'
+  | 'agent.model'
+  | 'agent.provider'
+  | 'agent.thinking'
+  | 'agent.session'
+  | 'agent.repository_context';
+type RepositoryContextToggleResolution =
+  | {readonly kind: 'literal'; readonly value: boolean}
+  | {readonly kind: 'template'; readonly source: string; readonly field: FieldResolution};
+interface RepositoryContextResolution {
+  readonly instructions: RepositoryContextToggleResolution;
+  readonly skills: RepositoryContextToggleResolution | readonly string[];
+}
+type RepositoryContextDispatchPlan = NonNullable<
+  NonNullable<StepConfigDispatchPlan['agent']>['repositoryContext']
+>;
 
 interface AgentFieldResolutions {
   readonly diagnostics: WorkflowStepTemplateDiagnostic[];
@@ -49,6 +67,7 @@ interface AgentFieldResolutions {
   readonly provider: FieldResolution | undefined;
   readonly thinking: FieldResolution | undefined;
   readonly session: {readonly key: FieldResolution; readonly mode: 'resume' | 'fork'} | undefined;
+  readonly repositoryContext: RepositoryContextResolution | undefined;
   readonly hasTemplates: boolean;
 }
 
@@ -83,7 +102,8 @@ export async function resolveAgentStepConfig(
     fields.model?.kind === 'residual' ||
     fields.provider?.kind === 'residual' ||
     fields.thinking?.kind === 'residual' ||
-    fields.session?.key.kind === 'residual';
+    fields.session?.key.kind === 'residual' ||
+    repositoryContextIsDeferred(fields.repositoryContext);
   if (hasDeferredAgentField) return deferredAgentStepConfig(params, fields);
 
   return await agentStepConfigWithDefaults(params.step, params, fields);
@@ -151,6 +171,9 @@ export async function completeAgentConfig(params: {
       mode: agent.session.mode,
     } satisfies AgentStepSessionIntentDto;
     params.config.session = sessionIntent;
+  }
+  if (agent.repositoryContext !== undefined) {
+    params.config.repositoryContext = completeRepositoryContext(agent.repositoryContext, params);
   }
   if (agent.tools !== undefined) params.config.tools = [...agent.tools];
   if (agent.toolSurface !== undefined) params.config.toolSurface = agent.toolSurface;
@@ -243,12 +266,7 @@ export function restoreAgentSessionIntentForRedispatch(params: {
 }
 
 function completeAgentField(args: {
-  readonly field:
-    | 'agent.prompt'
-    | 'agent.model'
-    | 'agent.provider'
-    | 'agent.thinking'
-    | 'agent.session';
+  readonly field: AgentFieldName;
   readonly template: ResolvedField;
   readonly params: {
     readonly context: WorkflowEvaluationContext;
@@ -367,15 +385,41 @@ function resolveAgentFields(params: ResolveAgentStepConfigParams): AgentFieldRes
           }),
           mode: params.step.session.mode,
         };
+  const repositoryContext = resolveRepositoryContextFields({
+    step: params.step,
+    resolveTemplate: (args) =>
+      resolveAgentField({
+        field: 'agent.repository_context',
+        value: args.source,
+        template: args.template,
+        context: params.context,
+        mode: params.mode,
+        diagnostics,
+        trace,
+        definitionId: params.definitionId,
+      }),
+  });
   const hasTemplates =
     params.step.harness !== undefined ||
     params.step.templates?.prompt !== undefined ||
     params.step.templates?.model !== undefined ||
     params.step.templates?.provider !== undefined ||
     params.step.templates?.thinking !== undefined ||
+    params.step.templates?.repositoryContextInstructions !== undefined ||
+    params.step.templates?.repositoryContextSkills !== undefined ||
     params.step.session !== undefined;
 
-  return {diagnostics, trace, prompt, model, provider, thinking, session, hasTemplates};
+  return {
+    diagnostics,
+    trace,
+    prompt,
+    model,
+    provider,
+    thinking,
+    session,
+    repositoryContext,
+    hasTemplates,
+  };
 }
 
 function authoredAgentStepConfig(
@@ -389,6 +433,7 @@ function authoredAgentStepConfig(
       ...(step.harness === undefined ? {} : {harness: step.harness}),
       ...(step.thinking === undefined ? {} : {thinking: step.thinking}),
       ...(step.session === undefined ? {} : {session: authoredSession(step.session)}),
+      ...(step.repositoryContext === undefined ? {} : {repositoryContext: step.repositoryContext}),
       ...agentToolsConfig(step),
       ...agentToolSurfaceConfig(step),
       ...authoredAgentIntegrationsConfig(step),
@@ -418,6 +463,14 @@ function deferredAgentStepConfig(
         ...(fields.session === undefined
           ? {}
           : {session: {key: dispatchPlanField(fields.session.key), mode: fields.session.mode}}),
+        ...(fields.repositoryContext === undefined
+          ? {}
+          : {
+              repositoryContext: repositoryContextDispatchPlan(
+                fields.repositoryContext,
+                params.definitionId,
+              ),
+            }),
         ...agentToolsConfig(step),
         ...agentToolSurfaceConfig(step),
         ...materializedAgentIntegrationsConfig(params),
@@ -456,6 +509,7 @@ async function agentStepConfigWithDefaults(
         ...(fields.session === undefined
           ? {}
           : {session: {key: frozenFieldValue(fields.session.key), mode: fields.session.mode}}),
+        ...materializedRepositoryContextConfig(fields.repositoryContext, params.definitionId),
       },
       configPlan: {
         agent: {
@@ -489,6 +543,7 @@ async function agentStepConfigWithDefaults(
       ...(fields.session === undefined
         ? {}
         : {session: {key: frozenFieldValue(fields.session.key), mode: fields.session.mode}}),
+      ...materializedRepositoryContextConfig(fields.repositoryContext, params.definitionId),
       ...agentToolsConfig(step),
       ...agentToolSurfaceConfig(step),
       ...materializedAgentIntegrationsConfig(params),
@@ -576,12 +631,7 @@ function frozenFieldValue(field: FieldResolution | undefined): string | undefine
 }
 
 function resolveAgentField(params: {
-  readonly field:
-    | 'agent.prompt'
-    | 'agent.model'
-    | 'agent.provider'
-    | 'agent.thinking'
-    | 'agent.session';
+  readonly field: AgentFieldName;
   readonly value: string;
   readonly template: ResolvedField['segments'] | undefined;
   readonly context: WorkflowEvaluationContext;
@@ -611,12 +661,7 @@ function resolveAgentField(params: {
 }
 
 function resolveOptionalAgentField(params: {
-  readonly field:
-    | 'agent.prompt'
-    | 'agent.model'
-    | 'agent.provider'
-    | 'agent.thinking'
-    | 'agent.session';
+  readonly field: AgentFieldName;
   readonly value: string | undefined;
   readonly template: ResolvedField['segments'] | undefined;
   readonly context: WorkflowEvaluationContext;
@@ -649,6 +694,162 @@ function authoredSession(session: NonNullable<WorkflowModelAgentStep['session']>
   mode: 'resume' | 'fork';
 } {
   return {key: sessionKeySource(session.key), mode: session.mode};
+}
+
+function resolveRepositoryContextFields(params: {
+  readonly step: WorkflowModelAgentStep;
+  readonly resolveTemplate: (args: {
+    readonly source: string;
+    readonly template: ResolvedField['segments'] | undefined;
+  }) => FieldResolution;
+}): RepositoryContextResolution | undefined {
+  const authored = params.step.repositoryContext;
+  if (authored === undefined) return undefined;
+  const templates = params.step.templates;
+  const {skills} = authored;
+  return {
+    instructions: resolveRepositoryContextToggle({
+      value: authored.instructions,
+      template: templates?.repositoryContextInstructions,
+      resolveTemplate: params.resolveTemplate,
+    }),
+    skills:
+      typeof skills === 'object'
+        ? skills
+        : resolveRepositoryContextToggle({
+            value: skills,
+            template: templates?.repositoryContextSkills,
+            resolveTemplate: params.resolveTemplate,
+          }),
+  };
+}
+
+function resolveRepositoryContextToggle(params: {
+  readonly value: boolean | string | undefined;
+  readonly template: ResolvedField['segments'] | undefined;
+  readonly resolveTemplate: Parameters<typeof resolveRepositoryContextFields>[0]['resolveTemplate'];
+}): RepositoryContextToggleResolution {
+  if (params.value === undefined) return {kind: 'literal', value: true};
+  if (typeof params.value === 'boolean') return {kind: 'literal', value: params.value};
+  return {
+    kind: 'template',
+    source: params.value,
+    field: params.resolveTemplate({source: params.value, template: params.template}),
+  };
+}
+
+function repositoryContextIsDeferred(resolution: RepositoryContextResolution | undefined): boolean {
+  if (resolution === undefined) return false;
+  return [resolution.instructions, resolution.skills].some(
+    (toggle) => isRepositoryContextToggle(toggle) && toggleIsResidual(toggle),
+  );
+}
+
+function repositoryContextDispatchPlan(
+  resolution: RepositoryContextResolution,
+  definitionId: string,
+): RepositoryContextDispatchPlan {
+  return {
+    instructions: repositoryContextTogglePlan(resolution.instructions, definitionId),
+    skills: isRepositoryContextToggle(resolution.skills)
+      ? repositoryContextTogglePlan(resolution.skills, definitionId)
+      : resolution.skills,
+  };
+}
+
+function repositoryContextTogglePlan(
+  toggle: RepositoryContextToggleResolution,
+  definitionId: string,
+): boolean | ResolvedField {
+  if (toggle.kind === 'template' && toggle.field.kind === 'residual') return toggle.field.field;
+  return frozenRepositoryContextToggle(toggle, definitionId);
+}
+
+function materializedRepositoryContextConfig(
+  resolution: RepositoryContextResolution | undefined,
+  definitionId: string,
+): {readonly repositoryContext: AgentRepositoryContextConfigDto} | Record<string, never> {
+  if (resolution === undefined) return {};
+  return {
+    repositoryContext: {
+      instructions: frozenRepositoryContextToggle(resolution.instructions, definitionId),
+      skills: isRepositoryContextToggle(resolution.skills)
+        ? frozenRepositoryContextToggle(resolution.skills, definitionId)
+        : [...resolution.skills],
+    },
+  };
+}
+
+function completeRepositoryContext(
+  plan: RepositoryContextDispatchPlan,
+  params: Parameters<typeof completeAgentField>[0]['params'],
+): AgentRepositoryContextConfigDto {
+  const completeToggle = (toggle: boolean | ResolvedField): boolean => {
+    if (typeof toggle === 'boolean') return toggle;
+    const value = completeAgentField({field: 'agent.repository_context', template: toggle, params});
+    return parseRepositoryContextToggle({
+      value,
+      source: resolvedFieldSource(toggle),
+      definitionId: params.definitionId,
+    });
+  };
+  return {
+    instructions: completeToggle(plan.instructions),
+    skills: isSkillList(plan.skills) ? [...plan.skills] : completeToggle(plan.skills),
+  };
+}
+
+function frozenRepositoryContextToggle(
+  toggle: RepositoryContextToggleResolution,
+  definitionId: string,
+): boolean {
+  if (toggle.kind === 'literal') return toggle.value;
+  if (toggle.field.kind === 'residual') {
+    throw new Error('Repository context template is still deferred');
+  }
+  return parseRepositoryContextToggle({
+    value: toggle.field.value,
+    source: toggle.source,
+    definitionId,
+  });
+}
+
+function parseRepositoryContextToggle(params: {
+  readonly value: string;
+  readonly source: string;
+  readonly definitionId: string;
+}): boolean {
+  if (params.value === 'true') return true;
+  if (params.value === 'false') return false;
+  throw new InterpolationUnresolvableError(params.definitionId, {
+    field: 'agent.repository_context',
+    source: params.source,
+    invalidValueReason: 'It must resolve to `true` or `false`',
+  });
+}
+
+function isRepositoryContextToggle(
+  value: RepositoryContextToggleResolution | readonly string[],
+): value is RepositoryContextToggleResolution {
+  return !Array.isArray(value);
+}
+
+function toggleIsResidual(toggle: RepositoryContextToggleResolution): boolean {
+  return toggle.kind === 'template' && toggle.field.kind === 'residual';
+}
+
+function isSkillList(
+  value: boolean | readonly string[] | ResolvedField,
+): value is readonly string[] {
+  return Array.isArray(value);
+}
+
+function resolvedFieldSource(field: ResolvedField): string {
+  return field.segments
+    .map((segment) =>
+      segment.kind === 'literal' ? segment.value : `\${{ ${segment.expression.source} }}`,
+    )
+    .join('');
 }
 
 function readConfigString(config: Record<string, unknown>, key: string): string | undefined {

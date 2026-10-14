@@ -18,11 +18,13 @@ import {
   defineTool,
   ModelRuntime,
   SessionManager,
+  SettingsManager,
   type ToolDefinition,
 } from '@earendil-works/pi-coding-agent';
 import type {CallToolResult, ListToolsResult} from '@modelcontextprotocol/sdk/types.js';
 import {
   AGENT_OUTPUT_TOOL_NAME,
+  AGENT_SHIPFOX_SYSTEM_PROMPT,
   agentIntegrationMcpToolName,
   type CustomAgentModelDto,
   type CustomModelProviderRuntimeConfigDto,
@@ -74,6 +76,7 @@ import {
   PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE,
   wrapManagedProviderStream,
 } from '#core/provider-stream-recovery.js';
+import {withRepositoryInstructions} from '#core/repository-context.js';
 import {type SessionForwarder, startSessionForwarder} from '#core/session-forwarder.js';
 import {toolSelectionOption} from '#core/tool-selection.js';
 import {recordPiProviderRetryOutcome} from '#metrics/instance.js';
@@ -411,11 +414,15 @@ async function runPiOutputTurns(
   let managedInferenceRetryUsed = false;
   const sessionArtifact = resumablePiSessionArtifact(params.sessionInvocation, params.session);
   try {
+    const prompt =
+      params.invocation.repositoryContext === undefined
+        ? params.prompt
+        : withRepositoryInstructions(params.prompt, params.invocation.repositoryContext);
     await runOutputTurnLoop({
       signal: params.signal,
       prompt: params.hasDeclaredOutputs
-        ? withOutputGuidance(params.prompt, params.collector.guidanceText())
-        : params.prompt,
+        ? withOutputGuidance(prompt, params.collector.guidanceText())
+        : prompt,
       runTurn: async (message) => {
         let turn = await promptPiTurn(params.session, message);
         const managedAuthFailure =
@@ -793,7 +800,7 @@ async function preparePiModelRuntime(invocation: HarnessInvocation): Promise<{
 }
 
 async function preparePiSessionServices(params: {
-  invocation: HarnessInvocation;
+  invocation: HarnessInvocation & {agentStateDir: string};
   mcpConfig: PiMcpConfig | undefined;
   modelRuntime: ModelRuntimeInstance;
   hasDirectTools: boolean;
@@ -814,14 +821,26 @@ async function preparePiSessionServices(params: {
     thinking,
     extensionPackageNames,
   });
+  // An empty agent directory and an untrusted project keep the runner's home directory and the
+  // repository's pi settings, extensions, and prompts out of the session. Shipfox resolves
+  // repository instructions and skills itself so that every harness reads the same files.
+  const agentDir = join(params.invocation.agentStateDir, 'pi-agent');
   const services = await withPiMcpConfigArg(mcpConfig?.path, params.invocation.signal, () =>
     createAgentSessionServices({
       cwd,
+      agentDir,
+      settingsManager: SettingsManager.create(cwd, agentDir, {projectTrusted: false}),
       modelRuntime: params.modelRuntime,
       ...(mcpConfig === undefined
         ? {}
         : {extensionFlagValues: new Map([['mcp-config', mcpConfig.path]])}),
       resourceLoaderOptions: {
+        noContextFiles: true,
+        noSkills: true,
+        additionalSkillPaths: (params.invocation.repositoryContext?.skills ?? []).map(
+          (skill) => skill.directory,
+        ),
+        appendSystemPrompt: [AGENT_SHIPFOX_SYSTEM_PROMPT],
         additionalExtensionPaths: extensionDirectories,
         extensionFactories: [
           ...(mcpConfig === undefined && !params.hasDirectTools

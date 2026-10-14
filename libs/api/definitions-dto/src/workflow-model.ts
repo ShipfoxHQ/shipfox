@@ -216,6 +216,11 @@ export interface WorkflowModelRunStep extends WorkflowModelStepBase {
     readonly env?: WorkflowEnvTemplates;
   };
 }
+/** Each toggle is authored as a boolean, or as a template source resolved when the step dispatches. */
+export interface WorkflowModelAgentRepositoryContext {
+  readonly instructions?: boolean | string;
+  readonly skills?: boolean | string | readonly string[];
+}
 export interface WorkflowModelAgentStep extends WorkflowModelStepBase {
   readonly kind: 'agent';
   readonly harness?: Harness;
@@ -228,11 +233,14 @@ export interface WorkflowModelAgentStep extends WorkflowModelStepBase {
   readonly integrations?: readonly WorkflowModelStepIntegration[];
   readonly prompt: string;
   readonly session?: WorkflowModelAgentStepSession;
+  readonly repositoryContext?: WorkflowModelAgentRepositoryContext;
   readonly templates?: {
     readonly prompt?: WorkflowFieldTemplate;
     readonly model?: WorkflowFieldTemplate;
     readonly provider?: WorkflowFieldTemplate;
     readonly thinking?: WorkflowFieldTemplate;
+    readonly repositoryContextInstructions?: WorkflowFieldTemplate;
+    readonly repositoryContextSkills?: WorkflowFieldTemplate;
     readonly workingDirectory?: WorkflowFieldTemplate;
     readonly name?: WorkflowFieldTemplate;
   };

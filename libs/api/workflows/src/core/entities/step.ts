@@ -123,6 +123,11 @@ export interface StepConfigDispatchPlan {
       key: ResolvedField;
       mode: 'resume' | 'fork';
     };
+    // Literal toggles are stored as booleans; only templates left for dispatch are fields.
+    repositoryContext?: {
+      instructions: boolean | ResolvedField;
+      skills: boolean | readonly string[] | ResolvedField;
+    };
     tools?: readonly string[];
     toolSurface?: 'strict-direct' | 'discovery';
     integrations?: readonly MaterializedAgentIntegrationConfigDto[];

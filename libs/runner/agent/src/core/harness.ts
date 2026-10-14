@@ -7,6 +7,7 @@ import type {ExecutionHost} from '@shipfox/runner-container';
 import type {CarriedEnv} from '@shipfox/runner-execution/carried-env';
 import type {IntegrationToolsBridge} from '#core/integration-tools-bridge.js';
 import type {AgentPrerequisiteContract} from '#core/prerequisite-ledger.js';
+import type {RepositoryContext} from '#core/repository-context.js';
 
 // The invocation shape is still pi-oriented because v1 only has two harnesses.
 // Revisit this shared contract if a third harness needs materially different inputs.
@@ -70,6 +71,8 @@ export interface HarnessInvocation {
   readonly provider: string;
   readonly thinking: string;
   readonly prompt: string;
+  /** Repository instructions and skills resolved for this step. Omitted means none. */
+  readonly repositoryContext?: RepositoryContext | undefined;
   readonly tools?: readonly string[] | undefined;
   readonly mcpServers?: readonly IntegrationToolsBridge[] | undefined;
   /** Defaults to strict direct tools; discovery keeps the generic `mcp` proxy. */

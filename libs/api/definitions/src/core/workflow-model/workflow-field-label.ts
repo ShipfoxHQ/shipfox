@@ -18,6 +18,8 @@ export function workflowFieldLabel(
       return 'Agent thinking';
     case 'agent.session':
       return 'Agent session key interpolation';
+    case 'agent.repository_context':
+      return 'Agent repository context';
     case 'job.runner':
       return 'Job runner interpolation';
     case 'job.container.image':

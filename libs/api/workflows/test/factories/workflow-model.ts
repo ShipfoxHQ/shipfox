@@ -47,6 +47,7 @@ interface TestAgentStep extends TestWorkflowStepBase {
   readonly toolSurface?: AgentToolSurface | undefined;
   readonly integrations?: Extract<ModelStep, {kind: 'agent'}>['integrations'] | undefined;
   readonly session?: string | {key: string; mode?: 'resume' | 'fork'} | undefined;
+  readonly repositoryContext?: Extract<ModelStep, {kind: 'agent'}>['repositoryContext'] | undefined;
 }
 
 interface TestCheckoutStep extends TestWorkflowStepBase {
@@ -305,6 +306,7 @@ function normalizeAgentStep(step: TestAgentStep, base: ReturnType<typeof stepBas
     ...(step.toolSurface === undefined ? {} : {toolSurface: step.toolSurface}),
     ...(step.integrations === undefined ? {} : {integrations: step.integrations}),
     ...(step.session === undefined ? {} : {session: testAgentStepSession(step.session)}),
+    ...(step.repositoryContext === undefined ? {} : {repositoryContext: step.repositoryContext}),
     prompt: step.prompt,
     ...optionalAgentTemplates(step),
   };
@@ -422,6 +424,10 @@ function optionalRunTemplates(step: TestRunStep) {
   };
 }
 
+function repositoryContextTemplate(value: boolean | string | readonly string[] | undefined) {
+  return typeof value === 'string' ? fieldTemplate('agent.repository_context', value) : undefined;
+}
+
 function optionalAgentTemplates(step: TestAgentStep) {
   const prompt = fieldTemplate('agent.prompt', step.prompt);
   const model = step.model === undefined ? undefined : fieldTemplate('agent.model', step.model);
@@ -429,6 +435,10 @@ function optionalAgentTemplates(step: TestAgentStep) {
     step.provider === undefined ? undefined : fieldTemplate('agent.provider', step.provider);
   const thinking =
     step.thinking === undefined ? undefined : fieldTemplate('agent.thinking', step.thinking);
+  const repositoryContextInstructions = repositoryContextTemplate(
+    step.repositoryContext?.instructions,
+  );
+  const repositoryContextSkills = repositoryContextTemplate(step.repositoryContext?.skills);
   const name = step.name === undefined ? undefined : fieldTemplate('step.name', step.name);
   const workingDirectory =
     step.workingDirectory === undefined
@@ -439,6 +449,8 @@ function optionalAgentTemplates(step: TestAgentStep) {
     model === undefined &&
     provider === undefined &&
     thinking === undefined &&
+    repositoryContextInstructions === undefined &&
+    repositoryContextSkills === undefined &&
     name === undefined &&
     workingDirectory === undefined
   ) {
@@ -447,6 +459,8 @@ function optionalAgentTemplates(step: TestAgentStep) {
   return {
     templates: {
       ...(prompt === undefined ? {} : {prompt}),
+      ...(repositoryContextInstructions === undefined ? {} : {repositoryContextInstructions}),
+      ...(repositoryContextSkills === undefined ? {} : {repositoryContextSkills}),
       ...(model === undefined ? {} : {model}),
       ...(provider === undefined ? {} : {provider}),
       ...(thinking === undefined ? {} : {thinking}),

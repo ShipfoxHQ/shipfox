@@ -437,6 +437,56 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
+  it('materializes literal repository context into resolved config', async () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {
+          steps: [
+            {
+              harness: 'pi',
+              model: 'claude-opus-4-8',
+              provider: 'anthropic',
+              thinking: 'high',
+              repositoryContext: {instructions: false, skills: ['review']},
+              prompt: 'Fix the failing tests.',
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = await materializeWorkflowModel({model});
+
+    expect(rows[0]?.steps[1]?.config).toMatchObject({
+      repositoryContext: {instructions: false, skills: ['review']},
+    });
+  });
+
+  it('defaults an omitted repository context toggle to on', async () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {
+          steps: [
+            {
+              harness: 'pi',
+              model: 'claude-opus-4-8',
+              provider: 'anthropic',
+              thinking: 'high',
+              repositoryContext: {skills: false},
+              prompt: 'Fix the failing tests.',
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = await materializeWorkflowModel({model});
+
+    expect(rows[0]?.steps[1]?.config).toMatchObject({
+      repositoryContext: {instructions: true, skills: false},
+    });
+  });
+
   it('materializes provider-only agent steps with that provider catalog default model', async () => {
     const model = workflowModel({
       jobs: {
@@ -908,6 +958,41 @@ describe('materializeWorkflowModel', () => {
           },
         ],
       },
+    });
+  });
+
+  it('defers repository context templates until step dispatch', async () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [
+            {
+              harness: 'pi',
+              prompt: 'Review the change.',
+              repositoryContext: {
+                instructions: template('steps.previous.outputs.trusted'),
+                skills: true,
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = await materializeWorkflowModel({model, context: creationContext()});
+
+    expect(rows[0]?.steps[1]?.config).toEqual({});
+    expect(rows[0]?.steps[1]?.configPlan?.agent?.repositoryContext).toMatchObject({
+      instructions: {
+        segments: [
+          {
+            kind: 'deferred',
+            expression: {source: 'steps.previous.outputs.trusted'},
+            fillTarget: 'step-dispatch',
+          },
+        ],
+      },
+      skills: true,
     });
   });
 

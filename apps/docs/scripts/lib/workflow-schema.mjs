@@ -197,16 +197,20 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
       'integrations',
       'tool_surface',
       'session',
+      'repository_context',
     ],
     required: ['prompt'],
     nested: {
       integrations: '#agent-integration-fields',
       session: '#agent-session-fields',
+      repository_context: '#agent-repository-context-fields',
     },
+    defaults: {repository_context: 'true'},
     types: {
       prompt: 'string | PromptPart[]',
       integrations: 'Integration[]',
       session: 'string | Session',
+      repository_context: 'boolean | string | RepositoryContext',
     },
   },
   {
@@ -228,6 +232,16 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
     required: ['key'],
     defaults: {mode: 'resume'},
     types: {key: 'string'},
+  },
+  {
+    id: 'agent-repository-context-fields',
+    component: 'AgentRepositoryContextFields',
+    path: 'jobs.<job_id>.steps[*].repository_context',
+    example: 'agent-repository-context.yml',
+    fields: ['instructions', 'skills'],
+    select: (schema) => properties(objectSchemaFor(stepProperties(schema).repository_context)),
+    defaults: {instructions: 'true', skills: 'true'},
+    types: {instructions: 'boolean | string', skills: 'boolean | string | string[]'},
   },
   {
     id: 'tool-step-fields',

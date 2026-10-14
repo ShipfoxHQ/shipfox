@@ -34,6 +34,9 @@ vi.mock('@shipfox/runner-protocol', () => ({
   createIntegrationToolsGatewayFetch: createIntegrationToolsGatewayFetchMock,
 }));
 
+import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {
   AGENT_INTEGRATION_MCP_AUTH,
   AGENT_INTEGRATION_MCP_ENDPOINT,
@@ -113,6 +116,100 @@ describe('executeAgentStep', () => {
         prompt: 'Fix the failing tests.',
       }),
     );
+  });
+
+  describe('repository context', () => {
+    let repository = '';
+
+    beforeEach(() => {
+      repository = mkdtempSync(join(tmpdir(), 'shipfox-step-repository-'));
+      mkdirSync(join(repository, '.git'));
+      writeFileSync(join(repository, 'AGENTS.md'), 'repository-instruction-marker');
+      mkdirSync(join(repository, '.agents', 'skills', 'review'), {recursive: true});
+      writeFileSync(
+        join(repository, '.agents', 'skills', 'review', 'SKILL.md'),
+        '---\ndescription: Reviews changes.\n---\n',
+      );
+    });
+
+    afterEach(() => {
+      rmSync(repository, {recursive: true, force: true});
+    });
+
+    it('resolves instructions and skills by default and records them in the session', async () => {
+      runAgentMock.mockResolvedValue({});
+      const entries: string[] = [];
+
+      await executeAgentStep(buildAgentStep(), {
+        cwd: repository,
+        runtime: RUNTIME,
+        onSessionEntry: (line) => entries.push(line),
+      });
+
+      const invocation = runAgentMock.mock.calls[0]?.[0] as HarnessInvocation;
+      expect(invocation.repositoryContext?.instructionFiles.map((file) => file.content)).toEqual([
+        'repository-instruction-marker',
+      ]);
+      expect(invocation.repositoryContext?.skills.map((skill) => skill.name)).toEqual(['review']);
+      expect(JSON.parse(entries[0] ?? '{}')).toMatchObject({
+        type: 'shipfox_repository_context',
+        instructions: [{path: 'AGENTS.md'}],
+        skills: [{name: 'review', path: '.agents/skills/review'}],
+      });
+    });
+
+    it('applies the step configuration', async () => {
+      runAgentMock.mockResolvedValue({});
+
+      await executeAgentStep(
+        buildAgentStep({
+          config: {
+            prompt: 'Fix the failing tests.',
+            repositoryContext: {instructions: true, skills: false},
+          },
+        }),
+        {cwd: repository, runtime: RUNTIME},
+      );
+
+      const invocation = runAgentMock.mock.calls[0]?.[0] as HarnessInvocation;
+      expect(invocation.repositoryContext?.instructionFiles).toHaveLength(1);
+      expect(invocation.repositoryContext?.skills).toEqual([]);
+    });
+
+    it('rejects an invalid repository context configuration', async () => {
+      const result = await executeAgentStep(
+        buildAgentStep({
+          config: {prompt: 'Fix the failing tests.', repositoryContext: {skills: 'all'}},
+        }),
+        {cwd: repository, runtime: RUNTIME},
+      );
+
+      expect(result.error).toMatchObject({
+        message: 'Agent step config has invalid repository context.',
+        reason: 'agent_config_invalid',
+        agent_config_issue: 'step_config_invalid',
+      });
+      expect(runAgentMock).not.toHaveBeenCalled();
+    });
+
+    it('fails as a configuration error when a listed skill is missing', async () => {
+      const result = await executeAgentStep(
+        buildAgentStep({
+          config: {
+            prompt: 'Fix the failing tests.',
+            repositoryContext: {instructions: true, skills: ['deploy']},
+          },
+        }),
+        {cwd: repository, runtime: RUNTIME},
+      );
+
+      expect(result.error).toMatchObject({
+        message: 'Repository skills not found: deploy. Available skills: review.',
+        reason: 'agent_config_invalid',
+        agent_config_issue: 'step_config_invalid',
+      });
+      expect(runAgentMock).not.toHaveBeenCalled();
+    });
   });
 
   it('forwards the runner-owned agent-state directory to the harness', async () => {

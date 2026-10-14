@@ -4,6 +4,7 @@
     "workflow-schema",
     "contexts",
     "expressions",
+    "coding-agents",
     "runner-labels",
     "cloud-models",
     "limits",

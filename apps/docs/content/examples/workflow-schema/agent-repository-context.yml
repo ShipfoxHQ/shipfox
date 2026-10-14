@@ -1,0 +1,8 @@
+name: Review
+jobs:
+  review:
+    steps:
+      - prompt: Review the pull request and list the main risks.
+        repository_context:
+          instructions: true
+          skills: [code-review]

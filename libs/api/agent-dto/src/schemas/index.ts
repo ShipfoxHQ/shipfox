@@ -177,6 +177,14 @@ export {
   modelReferencesSchema,
 } from './model-reference.js';
 export {
+  AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES,
+  AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES,
+  AGENT_REPOSITORY_SKILL_DIRECTORIES,
+  AGENT_SHIPFOX_SYSTEM_PROMPT,
+  type AgentRepositoryContextConfigDto,
+  agentRepositoryContextConfigSchema,
+} from './repository-context.js';
+export {
   type AgentRuntimeCredentialsResponseDto,
   agentRuntimeCredentialsResponseSchema,
   type ClaudeRuntimeConfigDto,

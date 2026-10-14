@@ -740,6 +740,41 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
+  it('expands repository context into instructions and skills', () => {
+    const model = normalizeWorkflowDocument({
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [
+            {key: 'off', prompt: 'Fix it.', repository_context: false},
+            {key: 'trusted', prompt: 'Fix it.', repository_context: interpolation('event.trusted')},
+            {
+              key: 'selected',
+              prompt: 'Fix it.',
+              repository_context: {skills: ['review', 'review']},
+            },
+          ],
+        },
+      },
+    });
+
+    const [off, trusted, selected] = model.jobs[0]?.steps ?? [];
+    expect(off).toMatchObject({repositoryContext: {instructions: false, skills: false}});
+    expect(off).not.toHaveProperty('templates');
+    expect(trusted).toMatchObject({
+      repositoryContext: {
+        instructions: interpolation('event.trusted'),
+        skills: interpolation('event.trusted'),
+      },
+      templates: {
+        repositoryContextInstructions: [{kind: 'deferred', expression: {source: 'event.trusted'}}],
+        repositoryContextSkills: [{kind: 'deferred', expression: {source: 'event.trusted'}}],
+      },
+    });
+    expect(selected).toMatchObject({repositoryContext: {skills: ['review']}});
+    expect(selected).not.toHaveProperty('repositoryContext.instructions');
+  });
+
   it('writes run_after on jobs and steps, defaulting to success', () => {
     const model = normalizeWorkflowDocument({
       name: 'handlers',

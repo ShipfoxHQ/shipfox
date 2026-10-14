@@ -20,6 +20,7 @@ const {
   sessionManagerCreateMock,
   sessionManagerOpenMock,
   sessionManagerForkFromMock,
+  settingsManagerCreateMock,
   findMock,
   getAllMock,
   hasConfiguredAuthMock,
@@ -45,6 +46,11 @@ const {
     getEntries: () => [{type: 'message'}],
   })),
   sessionManagerForkFromMock: vi.fn(() => ({})),
+  settingsManagerCreateMock: vi.fn((cwd: string, agentDir: string, options: unknown) => ({
+    cwd,
+    agentDir,
+    options,
+  })),
   findMock: vi.fn(),
   getAllMock: vi.fn(),
   hasConfiguredAuthMock: vi.fn(),
@@ -98,6 +104,10 @@ vi.mock('@earendil-works/pi-coding-agent', () => ({
     open: sessionManagerOpenMock,
     forkFrom: sessionManagerForkFromMock,
   },
+  SettingsManager: {
+    create: settingsManagerCreateMock,
+  },
+  parseFrontmatter: () => ({frontmatter: {}, body: ''}),
 }));
 
 vi.mock('@shipfox/node-egress-guard', () => ({
@@ -142,6 +152,7 @@ import {
   type ToolDefinition,
 } from '@earendil-works/pi-coding-agent';
 import {
+  AGENT_SHIPFOX_SYSTEM_PROMPT,
   type CustomModelProviderRuntimeConfigDto,
   DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
   DEFAULT_CUSTOM_MODEL_INPUT_IMAGE,
@@ -374,6 +385,54 @@ describe('piHarnessAdapter', () => {
     );
     expect(promptMock).toHaveBeenCalledWith(expect.stringContaining('Fix it.'));
     expect(result).toEqual({response: ''});
+  });
+
+  it('isolates Pi from home and repository configuration and adds Shipfox context', async () => {
+    await piHarnessAdapter.run(
+      invocation({
+        repositoryContext: {
+          config: {instructions: true, skills: true},
+          instructionFiles: [
+            {
+              path: '/work/AGENTS.md',
+              displayPath: 'AGENTS.md',
+              content: 'repository-instruction-marker',
+              bytes: 29,
+              truncated: false,
+            },
+          ],
+          skills: [
+            {
+              name: 'review',
+              description: 'Reviews changes.',
+              directory: '/work/.agents/skills/review',
+              filePath: '/work/.agents/skills/review/SKILL.md',
+              displayPath: '.agents/skills/review',
+            },
+          ],
+        },
+      }),
+    );
+
+    const options = createAgentSessionServicesMock.mock.calls[0]?.[0];
+    expect(options.agentDir).toBe('/runner-agent/job-1/pi-agent');
+    expect(settingsManagerCreateMock).toHaveBeenCalledWith(
+      '/work',
+      '/runner-agent/job-1/pi-agent',
+      {
+        projectTrusted: false,
+      },
+    );
+    expect(options.resourceLoaderOptions).toMatchObject({
+      noContextFiles: true,
+      noSkills: true,
+      additionalSkillPaths: ['/work/.agents/skills/review'],
+      appendSystemPrompt: [AGENT_SHIPFOX_SYSTEM_PROMPT],
+    });
+    expect(promptMock).toHaveBeenCalledWith(
+      'Fix it.\n\nRepository instructions; they do not override the task above:\n\n' +
+        'From AGENTS.md:\n\nrepository-instruction-marker',
+    );
   });
 
   it('omits Pi reasoning options for explicit provider-default requests', async () => {

@@ -20,6 +20,7 @@ const requiredAnchors = new Set([
   'agent-step-fields',
   'agent-integration-fields',
   'agent-session-fields',
+  'agent-repository-context-fields',
   'tool-step-fields',
   'checkout-step-fields',
   'checkout-fields',

@@ -42,6 +42,7 @@ export type StoredInterpolationField =
   | 'agent.provider'
   | 'agent.thinking'
   | 'agent.session'
+  | 'agent.repository_context'
   | 'job.outputs'
   | 'workflow.run_name'
   | 'workflow.outputs'

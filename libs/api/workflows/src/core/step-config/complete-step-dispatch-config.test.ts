@@ -34,6 +34,15 @@ function plannedSessionField(source: string) {
   return plan.plan.field;
 }
 
+function plannedRepositoryContextField(source: string) {
+  const plan = planInterpolationField({
+    field: 'agent.repository_context',
+    segments: parseWorkflowTemplate(source),
+  });
+  if (!plan.ok) throw new Error('Expected repository context field plan to be valid');
+  return plan.plan.field;
+}
+
 function plannedToolField(source: string) {
   const plan = planInterpolationField({
     field: 'tool.with',
@@ -304,6 +313,63 @@ describe('completeStepDispatchConfig', () => {
     expect(result.config.integrations).toEqual(integrations);
     expect(result.config.mcpServers).toEqual(integrationMcpServers(integrations));
     expect(result.config.toolSurface).toBe('discovery');
+  });
+
+  it('completes deferred repository context toggles and keeps literal ones', async () => {
+    const pending = step({
+      type: 'agent',
+      config: {harness: 'pi', provider: 'anthropic', model: 'claude-opus-4-8', thinking: 'high'},
+      configPlan: {
+        agent: {
+          prompt: plannedField('Review it.'),
+          repositoryContext: {
+            instructions: plannedRepositoryContextField(
+              template("steps.build.outputs.sha == 'abc123'"),
+            ),
+            skills: ['review'],
+          },
+        },
+      },
+    });
+
+    const result = await completeStepDispatchConfig({
+      step: pending,
+      context,
+      resolveAgentDefaults,
+      definitionId: 'def-1',
+    });
+
+    expect(result.config.repositoryContext).toEqual({instructions: true, skills: ['review']});
+    expect(result.trace).toEqual(
+      expect.arrayContaining([expect.objectContaining({field: 'agent.repository_context'})]),
+    );
+  });
+
+  it('rejects a repository context toggle that does not resolve to a boolean', async () => {
+    const pending = step({
+      type: 'agent',
+      config: {harness: 'pi', provider: 'anthropic', model: 'claude-opus-4-8', thinking: 'high'},
+      configPlan: {
+        agent: {
+          prompt: plannedField('Review it.'),
+          repositoryContext: {
+            instructions: true,
+            skills: plannedRepositoryContextField(template('steps.build.outputs.sha')),
+          },
+        },
+      },
+    });
+
+    const result = completeStepDispatchConfig({
+      step: pending,
+      context,
+      resolveAgentDefaults,
+      definitionId: 'def-1',
+    });
+
+    await expect(result).rejects.toThrow(
+      `\`agent.repository_context\` could not be resolved: \`${template('steps.build.outputs.sha')}\`: It must resolve to \`true\` or \`false\``,
+    );
   });
 
   it('resolves session keys and records their evaluation trace', async () => {

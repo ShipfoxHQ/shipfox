@@ -196,6 +196,7 @@ export type InterpolationUnresolvableField =
   | 'agent.provider'
   | 'agent.thinking'
   | 'agent.session'
+  | 'agent.repository_context'
   | 'job.if'
   | 'job.success'
   | 'job.listening.filter'
@@ -238,6 +239,8 @@ interface InterpolationUnresolvableParams {
   readonly envKey?: string | undefined;
   /** Set when the failure is a `vars.*` key that does not exist. */
   readonly variableKey?: string | undefined;
+  /** Set when the value resolved but is not one the field accepts. */
+  readonly invalidValueReason?: string | undefined;
   readonly jobKey?: string | undefined;
   readonly step?: InterpolationUnresolvableStep | undefined;
 }
@@ -288,6 +291,7 @@ function interpolationUnresolvableSummary(
   },
 ): string | undefined {
   if (params.variableKey !== undefined) return `Variable \`${params.variableKey}\` is not set`;
+  if (params.invalidValueReason !== undefined) return params.invalidValueReason;
   if (params.contextUnavailable === true) {
     return 'It reads a context that is not available where this field is filled';
   }

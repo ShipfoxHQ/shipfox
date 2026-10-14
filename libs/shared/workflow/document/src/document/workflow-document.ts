@@ -910,6 +910,45 @@ export const workflowDocumentSessionSchema = z
       'Continues an agent conversation across steps in one workflow run. See [Agent sessions](/understand/agent-sessions).',
   });
 
+// Repository context controls which repository files the agent reads. Each toggle is a boolean
+// or a template that resolves to one when the step is dispatched, so a workflow can turn the
+// context off for untrusted refs.
+const workflowRepositoryContextToggleSchema = z.union([
+  z.boolean(),
+  z.string().regex(WORKFLOW_INTERPOLATED_VALUE_PATTERN, {
+    message: 'Repository context must be `true`, `false`, or a $' + '{{ }} expression.',
+  }),
+]);
+
+export const workflowDocumentRepositoryContextSchema = z
+  .union([
+    workflowRepositoryContextToggleSchema,
+    z.strictObject({
+      instructions: workflowRepositoryContextToggleSchema.optional().meta({
+        description:
+          'Reads `AGENTS.md` or `CLAUDE.md` from the repository root down to the working directory. Supports a $' +
+          '{{ }} expression.',
+      }),
+      skills: z
+        .union([
+          workflowRepositoryContextToggleSchema,
+          z
+            .array(literalNameSchema('Skill names must be literal. Interpolation is rejected.'))
+            .min(1),
+        ])
+        .optional()
+        .meta({
+          description:
+            'Loads skills from `.agents/skills` and `.claude/skills`. Use `true`, `false`, a $' +
+            '{{ }} expression, or a list of skill names.',
+        }),
+    }),
+  ])
+  .meta({
+    description:
+      'Controls the repository instructions and skills that the agent reads. Set to `false` to turn both off, or set `instructions` and `skills` separately. See [Coding agents](/reference/coding-agents).',
+  });
+
 export function isValidWorkflowSessionKeyTemplateLiteralParts(source: string): boolean {
   let cursor = 0;
   let expressionSeen = false;
@@ -1043,6 +1082,7 @@ export const workflowDocumentAgentStepFields = [
   'tool_surface',
   'integrations',
   'session',
+  'repository_context',
 ] as const;
 
 const runAfterSchema = z.enum(['success', 'failure', 'always']);
@@ -1094,6 +1134,7 @@ const workflowDocumentStepBaseSchema = z.strictObject({
   }),
   thinking: agentThinkingFieldSchema.optional(),
   session: workflowDocumentSessionSchema.optional(),
+  repository_context: workflowDocumentRepositoryContextSchema.optional(),
   provider: z.string().min(1).optional().meta({
     description:
       'Selects the model provider for this step. See [Model providers](/reference/model-providers).',
@@ -1661,6 +1702,9 @@ export type WorkflowDocumentStepOutputs = z.infer<typeof workflowDocumentStepOut
 export type WorkflowDocumentToolStepOutputs = z.infer<typeof workflowDocumentToolStepOutputsSchema>;
 export type WorkflowDocumentToolWith = z.infer<typeof workflowDocumentToolStepWithSchema>;
 export type WorkflowDocumentSession = z.infer<typeof workflowDocumentSessionSchema>;
+export type WorkflowDocumentRepositoryContext = z.infer<
+  typeof workflowDocumentRepositoryContextSchema
+>;
 export type WorkflowDocumentTrigger = z.infer<typeof workflowDocumentTriggerSchema>;
 
 type JsonDepthTask =

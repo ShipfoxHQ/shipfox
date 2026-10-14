@@ -171,6 +171,12 @@ function collectStepReferences(step: WorkflowModelStep, scope: Scope): void {
       collectFieldReferences(step.templates?.provider, scope, {field: 'agent.provider'});
       collectFieldReferences(step.templates?.thinking, scope, {field: 'agent.thinking'});
       collectFieldReferences(step.session?.key, scope, {field: 'agent.session'});
+      collectFieldReferences(step.templates?.repositoryContextInstructions, scope, {
+        field: 'agent.repository_context',
+      });
+      collectFieldReferences(step.templates?.repositoryContextSkills, scope, {
+        field: 'agent.repository_context',
+      });
       return;
     case 'tool':
       collectToolStepReferences(step, scope);

@@ -1180,6 +1180,7 @@ describe('workflow interpolation field policies', () => {
       'agent.provider',
       'agent.thinking',
       'agent.session',
+      'agent.repository_context',
       'job.runner',
       'job.container.image',
       'job.container.options',

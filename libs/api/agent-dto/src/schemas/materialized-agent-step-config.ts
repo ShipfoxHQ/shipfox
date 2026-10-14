@@ -6,6 +6,7 @@ import {
 } from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {modelProviderRefSchema} from './model-provider-id.js';
+import {agentRepositoryContextConfigSchema} from './repository-context.js';
 import {agentSessionDescriptorSchema} from './session-transcript.js';
 
 const agentToolSensitivitySchema = z.enum(['read', 'write']);
@@ -80,6 +81,7 @@ export const materializedAgentStepConfigSchema = z
     mcpServers: z.array(agentIntegrationMcpServerSchema).length(1).optional(),
     prompt: z.string(),
     session: agentSessionDescriptorSchema.optional(),
+    repositoryContext: agentRepositoryContextConfigSchema.optional(),
   })
   .strip();
 

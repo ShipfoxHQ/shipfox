@@ -1487,6 +1487,19 @@ describe('workflowDocumentSchema', () => {
       'agent step with discovery tool surface',
       {harness: 'pi', prompt: 'Discover tools.', tool_surface: 'discovery'},
     ],
+    ['agent step without repository context', {prompt: 'Fix it.', repository_context: false}],
+    [
+      'agent step with repository context from an expression',
+      {prompt: 'Fix it.', repository_context: interpolation('event.trusted')},
+    ],
+    [
+      'agent step with repository instructions only',
+      {prompt: 'Fix it.', repository_context: {skills: false}},
+    ],
+    [
+      'agent step with selected repository skills',
+      {prompt: 'Fix it.', repository_context: {instructions: true, skills: ['review']}},
+    ],
     [
       'agent step with integrations',
       {
@@ -1587,6 +1600,14 @@ describe('workflowDocumentSchema', () => {
     ['unknown harness value', {model: 'claude-opus-4-8', prompt: 'Fix.', harness: 'codex'}],
     ['unknown thinking value', {model: 'claude-opus-4-8', prompt: 'Fix.', thinking: 'ultra'}],
     ['unknown tool surface value', {prompt: 'Fix.', tool_surface: 'proxy'}],
+    ['repository context string', {prompt: 'Fix.', repository_context: 'off'}],
+    ['repository context unknown key', {prompt: 'Fix.', repository_context: {settings: true}}],
+    ['empty repository skills list', {prompt: 'Fix.', repository_context: {skills: []}}],
+    [
+      'interpolated repository skill name',
+      {prompt: 'Fix.', repository_context: {skills: [interpolation('vars.skill')]}},
+    ],
+    ['repository context on a run step', {run: 'make', repository_context: false}],
     ['unknown session mode', {prompt: 'Fix.', session: {key: 'main', mode: 'parallel'}}],
     ['empty session string', {prompt: 'Fix.', session: ''}],
     ['empty session key', {prompt: 'Fix.', session: {key: ''}}],

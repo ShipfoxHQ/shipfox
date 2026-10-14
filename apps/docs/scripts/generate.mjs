@@ -47,7 +47,14 @@ import {
   AGENT_ACCESS_WORKFLOW_DIAGNOSTIC_VALUE_MAX_BYTES,
   AGENT_ACCESS_WORKFLOW_SOURCE_MAX_BYTES,
 } from '@shipfox/api-agent-access-dto';
-import {listHarnessDescriptors, MODEL_PROVIDER_CATALOG_SEED} from '@shipfox/api-agent-dto';
+import {
+  AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES,
+  AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES,
+  AGENT_REPOSITORY_SKILL_DIRECTORIES,
+  AGENT_SHIPFOX_SYSTEM_PROMPT,
+  listHarnessDescriptors,
+  MODEL_PROVIDER_CATALOG_SEED,
+} from '@shipfox/api-agent-dto';
 import {
   clickupAgentToolCatalog,
   clickupAgentToolSelectionCatalog,
@@ -230,6 +237,14 @@ const regions = [
     render: renderMcpToolReference,
   },
   {file: 'content/generated/reference/mcp-server-limits.mdx', render: renderMcpToolLimits},
+  {
+    file: 'content/generated/reference/repository-context-files.mdx',
+    render: renderRepositoryContextFiles,
+  },
+  {
+    file: 'content/generated/reference/shipfox-system-prompt.mdx',
+    render: renderShipfoxSystemPrompt,
+  },
   {
     file: 'content/generated/reference/mcp-server-resources.mdx',
     render: () => renderSkillResourceTable(skillResources, skillPages),
@@ -504,6 +519,23 @@ function listMcpTools() {
 
 function formatNumber(value) {
   return value.toLocaleString('en-US');
+}
+
+function renderRepositoryContextFiles() {
+  const code = (values) => values.map((value) => `\`${value}\``).join(', ');
+  return [
+    '| What | Where Shipfox looks | Limit |',
+    '|---|---|---|',
+    ...Object.entries(AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES).map(
+      ([harness, fileNames]) =>
+        `| Instructions, \`${harness}\` harness | The first non-empty file of ${code(fileNames)}, in that order, in each directory from the repository root down to the working directory | ${AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES / 1024} KiB in total. Files after the limit are not read. |`,
+    ),
+    `| Skills | Each directory with a \`SKILL.md\` file inside ${code(AGENT_REPOSITORY_SKILL_DIRECTORIES)}, in each directory from the repository root down to the working directory | None |`,
+  ].join('\n');
+}
+
+function renderShipfoxSystemPrompt() {
+  return ['```text', AGENT_SHIPFOX_SYSTEM_PROMPT, '```'].join('\n');
 }
 
 function renderMcpToolLimits() {

@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import {
   type AgentIntegrationMcpServerConfigDto,
   agentIntegrationMcpServerSchema,
+  agentRepositoryContextConfigSchema,
   type ClaudeRuntimeConfigDto,
   type CustomModelProviderRuntimeConfigDto,
   type Harness,
@@ -41,6 +42,13 @@ import {
 import {piPackageVersions} from '#core/package-versions.js';
 import {piHarnessAdapter} from '#core/pi-adapter.js';
 import type {AgentPrerequisiteContract} from '#core/prerequisite-ledger.js';
+import {
+  DEFAULT_REPOSITORY_CONTEXT_CONFIG,
+  logRepositoryContext,
+  type RepositoryContextConfig,
+  repositoryContextSessionEntry,
+  resolveRepositoryContext,
+} from '#core/repository-context.js';
 
 const MAX_HARNESS_DIAGNOSTICS = 5;
 const MAX_HARNESS_DIAGNOSTIC_MESSAGE_LENGTH = 500;
@@ -117,6 +125,14 @@ export async function executeAgentStep(
       'step_config_invalid',
     );
   }
+  const repositoryContext = repositoryContextFromConfig(step.config.repositoryContext);
+  if (repositoryContext === 'invalid') {
+    return agentFailure(
+      'Agent step config has invalid repository context.',
+      'agent_config_invalid',
+      'step_config_invalid',
+    );
+  }
 
   const integrationToolsBridges = integrationToolsBridgesFromConfig(mcpServers, {
     leaseToken: options.leaseToken,
@@ -143,6 +159,7 @@ export async function executeAgentStep(
       model: options.runtime.model,
       outputs: outputDeclarationsFromConfig(step.config.outputs),
       prompt,
+      repositoryContext,
       tools,
       mcpServers: integrationToolsBridges,
       requestedIntegrationTools: requestedIntegrationToolsFromConfig(mcpServers),
@@ -184,6 +201,7 @@ async function runSelectedHarness(params: {
   model: string;
   outputs: OutputDeclarations | undefined;
   prompt: string;
+  repositoryContext: RepositoryContextConfig;
   tools: readonly string[] | undefined;
   mcpServers: readonly IntegrationToolsBridge[] | undefined;
   requestedIntegrationTools: readonly RequestedIntegrationTool[] | undefined;
@@ -231,6 +249,13 @@ async function runSelectedHarness(params: {
   const signal = params.signal ?? new AbortController().signal;
 
   try {
+    const repositoryContext = await resolveRepositoryContext({
+      cwd,
+      harness,
+      config: params.repositoryContext,
+    });
+    logRepositoryContext({context: repositoryContext, harness, stepId, attempt});
+    forwardSessionEntry(onSessionEntry, repositoryContextSessionEntry(repositoryContext));
     const adapter = await selectHarnessAdapter(harness);
     const harnessResult = await raceAbort(
       adapter.run({
@@ -244,6 +269,7 @@ async function runSelectedHarness(params: {
         provider,
         thinking,
         prompt,
+        repositoryContext,
         ...(tools === undefined ? {} : {tools}),
         ...(mcpServers === undefined ? {} : {mcpServers}),
         ...(requestedIntegrationTools === undefined ? {} : {requestedIntegrationTools}),
@@ -475,6 +501,24 @@ function requestedIntegrationToolsFromConfig(
       })),
     ),
   );
+}
+
+function repositoryContextFromConfig(value: unknown): RepositoryContextConfig | 'invalid' {
+  if (value === undefined) return DEFAULT_REPOSITORY_CONTEXT_CONFIG;
+  const parsed = agentRepositoryContextConfigSchema.safeParse(value);
+  return parsed.success ? parsed.data : 'invalid';
+}
+
+function forwardSessionEntry(
+  onSessionEntry: ((line: string) => void) | undefined,
+  line: string,
+): void {
+  if (onSessionEntry === undefined) return;
+  try {
+    onSessionEntry(line);
+  } catch {
+    // Session forwarding is best-effort and must not affect the agent step.
+  }
 }
 
 function toolSurfaceFromConfig(value: unknown): HarnessToolSurface | undefined | 'invalid' {

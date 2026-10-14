@@ -52,6 +52,7 @@ import type {
 import {buildActionStep, normalizeActionFields} from './normalize-action-step.js';
 import {normalizeAgentIntegrations} from './normalize-agent-integrations.js';
 import {normalizeAgentPrompt} from './normalize-agent-prompt.js';
+import {normalizeAgentRepositoryContext} from './normalize-agent-repository-context.js';
 import {normalizeEnv} from './normalize-env.js';
 import {normalizeIfCondition} from './normalize-if-condition.js';
 import {
@@ -1307,6 +1308,15 @@ function normalizeAgentStep(params: {
       params.step.provider !== undefined && !hasInterpolationSyntax(params.step.provider),
     agentValidationCatalog: params.context.agentValidationCatalog,
   });
+  const repositoryContext = normalizeAgentRepositoryContext({
+    repositoryContext: params.step.repository_context,
+    sourceName: params.sourceName,
+    stepIndex: params.stepIndex,
+    issues: params.issues,
+    fillSite: params.fillSite,
+    allowedJobReferences: params.allowedJobReferences,
+    typeOverlay: params.typeOverlay,
+  });
   const integrations = normalizeAgentIntegrations({
     integrations: params.step.integrations,
     sourceName: params.sourceName,
@@ -1319,6 +1329,8 @@ function normalizeAgentStep(params: {
     model: modelTemplate,
     provider: providerTemplate,
     thinking: thinkingTemplate,
+    repositoryContextInstructions: repositoryContext.instructionsTemplate,
+    repositoryContextSkills: repositoryContext.skillsTemplate,
     name: params.name,
     workingDirectory: params.workingDirectory,
   });
@@ -1332,6 +1344,7 @@ function normalizeAgentStep(params: {
     prompt,
     ...(params.step.thinking === undefined ? {} : {thinking: params.step.thinking}),
     ...(session === undefined ? {} : {session}),
+    ...repositoryContext.stepFields,
     ...(params.step.tools === undefined ? {} : {tools: params.step.tools}),
     ...(params.step.tool_surface === undefined ? {} : {toolSurface: params.step.tool_surface}),
     ...(integrations === undefined ? {} : {integrations}),
@@ -2067,34 +2080,24 @@ function optionalAgentStepTemplates(params: {
   model: WorkflowFieldTemplate | undefined;
   provider: WorkflowFieldTemplate | undefined;
   thinking: WorkflowFieldTemplate | undefined;
+  repositoryContextInstructions: WorkflowFieldTemplate | undefined;
+  repositoryContextSkills: WorkflowFieldTemplate | undefined;
   name: WorkflowFieldTemplate | undefined;
   workingDirectory: WorkflowFieldTemplate | undefined;
-}):
-  | {
-      prompt?: WorkflowFieldTemplate;
-      model?: WorkflowFieldTemplate;
-      provider?: WorkflowFieldTemplate;
-      thinking?: WorkflowFieldTemplate;
-      name?: WorkflowFieldTemplate;
-      workingDirectory?: WorkflowFieldTemplate;
-    }
-  | undefined {
-  if (
-    params.prompt === undefined &&
-    params.model === undefined &&
-    params.provider === undefined &&
-    params.thinking === undefined &&
-    params.name === undefined &&
-    params.workingDirectory === undefined
-  ) {
-    return undefined;
-  }
+}): WorkflowModelAgentStep['templates'] {
+  if (Object.values(params).every((template) => template === undefined)) return undefined;
 
   return {
     ...(params.prompt === undefined ? {} : {prompt: params.prompt}),
     ...(params.model === undefined ? {} : {model: params.model}),
     ...(params.provider === undefined ? {} : {provider: params.provider}),
     ...(params.thinking === undefined ? {} : {thinking: params.thinking}),
+    ...(params.repositoryContextInstructions === undefined
+      ? {}
+      : {repositoryContextInstructions: params.repositoryContextInstructions}),
+    ...(params.repositoryContextSkills === undefined
+      ? {}
+      : {repositoryContextSkills: params.repositoryContextSkills}),
     ...(params.name === undefined ? {} : {name: params.name}),
     ...(params.workingDirectory === undefined ? {} : {workingDirectory: params.workingDirectory}),
   };

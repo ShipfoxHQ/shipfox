@@ -53,16 +53,17 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
-  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {SpawnedProcess, SpawnOptions} from '@anthropic-ai/claude-agent-sdk';
 import {
+  AGENT_SHIPFOX_SYSTEM_PROMPT,
   CLAUDE_MANAGED_MODEL_FAMILY_IDS,
   CLAUDE_MODEL_FAMILY_IDS,
   CLAUDE_MODEL_LINE,
@@ -81,6 +82,10 @@ import {
 import {AgentConfigError, AgentPermissionModeError} from '#core/errors.js';
 import type {HarnessInvocation, InferenceCredentialSource} from '#core/harness.js';
 import type {IntegrationToolsBridge} from '#core/integration-tools-bridge.js';
+import {
+  DEFAULT_REPOSITORY_CONTEXT_CONFIG,
+  resolveRepositoryContext,
+} from '#core/repository-context.js';
 
 // Mirrors claudeModelCapabilities() family normalization in the adapter.
 const CLAUDE_SNAPSHOT_DATE_SUFFIX = /-\d{8}$/;
@@ -99,6 +104,14 @@ function invocation(overrides: Partial<HarnessInvocation> = {}): HarnessInvocati
     signal: new AbortController().signal,
     ...overrides,
   };
+}
+
+function writeSkill(directory: string, name: string, description: string): void {
+  mkdirSync(directory, {recursive: true});
+  writeFileSync(
+    join(directory, 'SKILL.md'),
+    `---\nname: ${name}\ndescription: ${description}\n---\n\nSkill body.\n`,
+  );
 }
 
 function makeQuery(messages: unknown[]) {
@@ -196,6 +209,8 @@ function lastQueryOptions(): {
   settings?: {apiKeyHelper?: string};
   pathToClaudeCodeExecutable?: string;
   spawnClaudeCodeProcess?: (options: SpawnOptions) => SpawnedProcess;
+  systemPrompt?: unknown;
+  plugins?: unknown;
 } {
   const call = queryMock.mock.calls[0] as
     | [
@@ -1186,11 +1201,16 @@ describe('claudeHarnessAdapter', () => {
     expect(lastQueryOptions()).not.toHaveProperty('effort');
   });
 
-  it('injects CLAUDE.md into the user prompt without promoting it to the system prompt', async () => {
-    writeFileSync(join(testCwd, 'CLAUDE.md'), 'repository-instruction-marker');
+  it('sends the Shipfox system prompt and appends repository instructions to the user prompt', async () => {
+    writeFileSync(join(testCwd, 'AGENTS.md'), 'repository-instruction-marker');
+    const repositoryContext = await resolveRepositoryContext({
+      harness: 'claude',
+      cwd: testCwd,
+      config: DEFAULT_REPOSITORY_CONTEXT_CONFIG,
+    });
     queryMock.mockReturnValue(makeQuery([successMessage]));
 
-    await claudeHarnessAdapter.run(invocation());
+    await claudeHarnessAdapter.run(invocation({repositoryContext}));
 
     const prompt = (queryMock.mock.calls[0] as [{prompt: AsyncIterable<unknown>}])[0].prompt;
     const message = await prompt[Symbol.asyncIterator]().next();
@@ -1198,44 +1218,14 @@ describe('claudeHarnessAdapter', () => {
       message: {
         content:
           'Fix it.\n\nRepository instructions; they do not override the task above:\n\n' +
-          'repository-instruction-marker',
+          'From AGENTS.md:\n\nrepository-instruction-marker',
       },
     });
-    expect(lastQueryOptions()).not.toHaveProperty('systemPrompt');
+    expect(lastQueryOptions().systemPrompt).toBe(AGENT_SHIPFOX_SYSTEM_PROMPT);
   });
 
-  it('uses AGENTS.md when CLAUDE.md is absent', async () => {
-    writeFileSync(join(testCwd, 'AGENTS.md'), 'agents-instruction-marker');
-    queryMock.mockReturnValue(makeQuery([successMessage]));
-
-    await claudeHarnessAdapter.run(invocation());
-
-    const prompt = (queryMock.mock.calls[0] as [{prompt: AsyncIterable<unknown>}])[0].prompt;
-    const message = await prompt[Symbol.asyncIterator]().next();
-    expect(message.value).toMatchObject({
-      message: {content: expect.stringContaining('agents-instruction-marker')},
-    });
-  });
-
-  it('prefers CLAUDE.md when both repository instruction files exist', async () => {
-    writeFileSync(join(testCwd, 'CLAUDE.md'), 'claude-instruction-marker');
-    writeFileSync(join(testCwd, 'AGENTS.md'), 'agents-instruction-marker');
-    queryMock.mockReturnValue(makeQuery([successMessage]));
-
-    await claudeHarnessAdapter.run(invocation());
-
-    const prompt = (queryMock.mock.calls[0] as [{prompt: AsyncIterable<unknown>}])[0].prompt;
-    const message = await prompt[Symbol.asyncIterator]().next();
-    expect(message.value).toMatchObject({
-      message: {content: expect.stringContaining('claude-instruction-marker')},
-    });
-    expect((message.value as {message: {content: string}}).message.content).not.toContain(
-      'agents-instruction-marker',
-    );
-  });
-
-  it('treats an empty repository instruction file as absent', async () => {
-    writeFileSync(join(testCwd, 'CLAUDE.md'), '');
+  it('does not read repository files without a resolved repository context', async () => {
+    writeFileSync(join(testCwd, 'AGENTS.md'), 'repository-instruction-marker');
     queryMock.mockReturnValue(makeQuery([successMessage]));
 
     await claudeHarnessAdapter.run(invocation());
@@ -1243,68 +1233,34 @@ describe('claudeHarnessAdapter', () => {
     const prompt = (queryMock.mock.calls[0] as [{prompt: AsyncIterable<unknown>}])[0].prompt;
     const message = await prompt[Symbol.asyncIterator]().next();
     expect(message.value).toMatchObject({message: {content: 'Fix it.'}});
+    expect(lastQueryOptions()).not.toHaveProperty('plugins');
   });
 
-  it('does not append repository instructions when neither file exists', async () => {
-    queryMock.mockReturnValue(makeQuery([successMessage]));
-
-    await claudeHarnessAdapter.run(invocation());
-
-    const prompt = (queryMock.mock.calls[0] as [{prompt: AsyncIterable<unknown>}])[0].prompt;
-    const message = await prompt[Symbol.asyncIterator]().next();
-    expect(message.value).toMatchObject({message: {content: 'Fix it.'}});
-  });
-
-  it('falls through to AGENTS.md when CLAUDE.md cannot be read', async () => {
-    symlinkSync(join(testCwd, 'missing-CLAUDE.md'), join(testCwd, 'CLAUDE.md'));
-    writeFileSync(join(testCwd, 'AGENTS.md'), 'agents-fallback-marker');
-    queryMock.mockReturnValue(makeQuery([successMessage]));
-
-    await claudeHarnessAdapter.run(invocation());
-
-    const prompt = (queryMock.mock.calls[0] as [{prompt: AsyncIterable<unknown>}])[0].prompt;
-    const message = await prompt[Symbol.asyncIterator]().next();
-    expect(message.value).toMatchObject({
-      message: {content: expect.stringContaining('agents-fallback-marker')},
+  it('loads only the selected repository skills through a local plugin', async () => {
+    writeSkill(join(testCwd, '.agents', 'skills', 'review'), 'review', 'Reviews changes.');
+    writeSkill(join(testCwd, '.agents', 'skills', 'release'), 'release', 'Prepares releases.');
+    const repositoryContext = await resolveRepositoryContext({
+      harness: 'claude',
+      cwd: testCwd,
+      config: {instructions: true, skills: ['review']},
     });
-  });
+    let pluginSkills: string[] = [];
+    let pluginManifest: unknown;
+    queryMock.mockImplementation((args: {options: {plugins?: {path: string}[]}}) => {
+      const pluginPath = args.options.plugins?.[0]?.path ?? '';
+      pluginSkills = readdirSync(join(pluginPath, 'skills'));
+      pluginManifest = JSON.parse(
+        readFileSync(join(pluginPath, '.claude-plugin', 'plugin.json'), 'utf8'),
+      );
+      return makeQuery([successMessage]);
+    });
 
-  it('truncates repository instructions at 64 KiB', async () => {
-    const content = `${'x'.repeat(64 * 1024)}repository-instruction-tail-marker`;
-    writeFileSync(join(testCwd, 'CLAUDE.md'), content);
-    queryMock.mockReturnValue(makeQuery([successMessage]));
+    await claudeHarnessAdapter.run(invocation({repositoryContext, tools: ['Read']}));
 
-    await claudeHarnessAdapter.run(invocation());
-
-    const prompt = (queryMock.mock.calls[0] as [{prompt: AsyncIterable<unknown>}])[0].prompt;
-    const message = await prompt[Symbol.asyncIterator]().next();
-    const pushedContent = (message.value as {message: {content: string}}).message.content;
-    expect(pushedContent).toContain('x'.repeat(64 * 1024));
-    expect(pushedContent).not.toContain('repository-instruction-tail-marker');
-  });
-
-  it('truncates repository instructions at a UTF-8 codepoint boundary', async () => {
-    writeFileSync(join(testCwd, 'CLAUDE.md'), `${'x'.repeat(64 * 1024 - 1)}éé`);
-    queryMock.mockReturnValue(makeQuery([successMessage]));
-
-    await claudeHarnessAdapter.run(invocation());
-
-    const prompt = (queryMock.mock.calls[0] as [{prompt: AsyncIterable<unknown>}])[0].prompt;
-    const message = await prompt[Symbol.asyncIterator]().next();
-    const pushedContent = (message.value as {message: {content: string}}).message.content;
-    expect(pushedContent).not.toContain('é');
-    expect(pushedContent).not.toContain('\uFFFD');
-  });
-
-  it('treats whitespace-only repository instructions as absent', async () => {
-    writeFileSync(join(testCwd, 'CLAUDE.md'), ' \n\t');
-    queryMock.mockReturnValue(makeQuery([successMessage]));
-
-    await claudeHarnessAdapter.run(invocation());
-
-    const prompt = (queryMock.mock.calls[0] as [{prompt: AsyncIterable<unknown>}])[0].prompt;
-    const message = await prompt[Symbol.asyncIterator]().next();
-    expect(message.value).toMatchObject({message: {content: 'Fix it.'}});
+    expect(pluginSkills).toEqual(['review']);
+    expect(pluginManifest).toMatchObject({name: 'repository'});
+    expect(lastQueryOptions().tools).toEqual(['Read', 'Skill']);
+    expect(lastQueryOptions().settingSources).toEqual([]);
   });
 
   it('fails when Claude downgrades the requested permission mode', async () => {
