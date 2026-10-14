@@ -8,7 +8,8 @@ import RepositoryContextFiles from '../../generated/reference/repository-context
 import ShipfoxSystemPrompt from '../../generated/reference/shipfox-system-prompt.mdx';
 
 Agent steps read the instruction files and the skills in your repository. The
-`pi` and `claude` harnesses use the same rules.
+`pi` and `claude` harnesses use the same rules. Turn them off with
+[`repository_context`](/reference/workflow-schema#agent-repository-context-fields).
 
 ## Files that agent steps read
 
@@ -67,15 +68,3 @@ system prompt. Shipfox does not read the home directory of the runner.
 Shipfox adds this text to the end of the default system prompt of the harness.
 
 <ShipfoxSystemPrompt components={props.components} />
-
-## `repository_context`
-
-The `repository_context` field of an agent step turns instructions and skills
-on or off. Both are on by default. See
-[`steps[*].repository_context`](/reference/workflow-schema#agent-repository-context-fields).
-
-## Session
-
-Each agent step shows a **Repository context** row in its session. The row
-lists the files and the skills that the step loaded. It shows `off` if you
-turned them off. It shows `none found` if the repository has none.
