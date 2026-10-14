@@ -1522,6 +1522,24 @@ describe('workflowDocumentSchema', () => {
         integrations: [{include: ['issue_read', 'actions_run_trigger'], allow_write: true}],
       },
     ],
+    [
+      'agent step with MCP servers',
+      {
+        prompt: 'Find slow queries.',
+        mcp_servers: {
+          mongodb: {
+            command: 'npx',
+            args: ['-y', 'mongodb-mcp-server@1.2.0'],
+            env: {
+              MDB_MCP_CONNECTION_STRING: interpolation('secrets.MONGO_URI'),
+              MDB_MCP_READ_ONLY: true,
+            },
+            include: ['find', 'aggregate'],
+          },
+          docs_v2: {command: 'docs-mcp'},
+        },
+      },
+    ],
     ['agent step with name', {name: 'fix', model: 'claude-opus-4-8', prompt: 'Fix it.'}],
     ['agent step with session shorthand', {prompt: 'Fix it.', session: 'main'}],
     [
@@ -1583,6 +1601,32 @@ describe('workflowDocumentSchema', () => {
     ['empty tools array', {prompt: 'Fix.', tools: []}],
     ['empty tool name', {prompt: 'Fix.', tools: ['']}],
     ['empty integrations array', {prompt: 'Fix.', integrations: []}],
+    ['MCP servers on a run step', {run: 'npm test', mcp_servers: {db: {command: 'db-mcp'}}}],
+    ['empty MCP servers', {prompt: 'Fix.', mcp_servers: {}}],
+    ['MCP server name with a hyphen', {prompt: 'Fix.', mcp_servers: {'my-db': {command: 'x'}}}],
+    [
+      'MCP server name with a double underscore',
+      {prompt: 'Fix.', mcp_servers: {my__db: {command: 'x'}}},
+    ],
+    ['MCP server name with a capital', {prompt: 'Fix.', mcp_servers: {Db: {command: 'x'}}}],
+    [
+      'MCP server name that is too long',
+      {prompt: 'Fix.', mcp_servers: {['a'.repeat(21)]: {command: 'x'}}},
+    ],
+    ['MCP server without command', {prompt: 'Fix.', mcp_servers: {db: {args: ['x']}}}],
+    [
+      'MCP server command with interpolation',
+      {prompt: 'Fix.', mcp_servers: {db: {command: interpolation('vars.BIN')}}},
+    ],
+    [
+      'MCP server args with interpolation',
+      {prompt: 'Fix.', mcp_servers: {db: {command: 'x', args: [interpolation('secrets.TOKEN')]}}},
+    ],
+    [
+      'MCP server unknown field',
+      {prompt: 'Fix.', mcp_servers: {db: {command: 'x', url: 'http://x'}}},
+    ],
+    ['MCP server empty include', {prompt: 'Fix.', mcp_servers: {db: {command: 'x', include: []}}}],
     ['empty integration include', {prompt: 'Fix.', integrations: [{include: []}]}],
     [
       'empty integration include name',

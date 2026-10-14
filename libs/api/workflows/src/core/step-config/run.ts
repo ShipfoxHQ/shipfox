@@ -197,7 +197,8 @@ export function completeDispatchField(params: {
     | 'env.value'
     | 'action.with'
     | 'job.container.credentials'
-    | 'job.container.env.value';
+    | 'job.container.env.value'
+    | 'agent.mcp_servers.env.value';
   readonly traceField: StepConfigField;
   readonly errorField: StepConfigField;
   readonly template: ResolvedField;
@@ -230,7 +231,9 @@ export function completeDispatchField(params: {
 
 function bindingEnvKey(target: MaterializedSecretBindingDto['target']): string | undefined {
   if (typeof target === 'string') return target;
-  return target.kind === 'container_env' ? target.name : undefined;
+  return target.kind === 'container_env' || target.kind === 'mcp_server_env'
+    ? target.name
+    : undefined;
 }
 
 function containsOnlyRunnerSecretSegments(field: ResolvedField): boolean {

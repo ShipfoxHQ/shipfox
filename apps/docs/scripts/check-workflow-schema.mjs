@@ -19,6 +19,7 @@ const requiredAnchors = new Set([
   'run-step-fields',
   'agent-step-fields',
   'agent-integration-fields',
+  'agent-mcp-server-fields',
   'agent-session-fields',
   'agent-repository-context-fields',
   'tool-step-fields',

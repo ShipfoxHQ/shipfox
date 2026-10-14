@@ -7,6 +7,7 @@ export const agentIntegrationMaterializationReasonSchema = z.enum([
   'source-connection-missing',
   'tool-unknown',
   'no-tools-selected',
+  'mcp-server-name-collision',
 ]);
 
 export type AgentIntegrationMaterializationReason = z.infer<

@@ -9,6 +9,7 @@ export type WorkflowModelValidationIssueCode =
   | 'action-manifest-invalid'
   | 'action-not-resolved'
   | 'action-secret-input-invalid'
+  | 'agent-mcp-server-name-collision'
   | 'agent-session-harness-mismatch'
   | 'agent-session-parallel-resume'
   | 'context-unavailable-at-fill-site'

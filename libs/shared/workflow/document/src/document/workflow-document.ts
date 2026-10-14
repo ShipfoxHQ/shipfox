@@ -864,6 +864,58 @@ export const workflowDocumentStepIntegrationSchema = z.strictObject({
   }),
 });
 
+// The agent sees each tool as `<name>__<tool>`, so a name has single underscores only.
+export const WORKFLOW_AGENT_MCP_SERVER_NAME_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
+export const WORKFLOW_AGENT_MCP_SERVER_NAME_MAX_LENGTH = 20;
+
+const agentMcpServerLiteralSchema = (message: string) =>
+  z.string().regex(WORKFLOW_LITERAL_NAME_PATTERN, {message});
+
+// `command` and `args` stay literal so secrets never reach argv; dynamic values go through `env`.
+export const workflowDocumentAgentMcpServerSchema = z.strictObject({
+  command: agentMcpServerLiteralSchema('MCP server command must be literal. Use "env" for values.')
+    .min(1)
+    .meta({
+      description: 'Names the program that starts the server. It runs without a shell.',
+    }),
+  args: z
+    .array(agentMcpServerLiteralSchema('MCP server args must be literal. Use "env" for values.'))
+    .optional()
+    .meta({
+      description:
+        'Passes these arguments to `command`. Workflow expressions are not allowed; use `env` for values.',
+    }),
+  env: workflowDocumentEnvSchema.optional().meta({
+    description:
+      'Sets environment variables for the server. Values support workflow expressions, including `secrets`.',
+  }),
+  include: workflowDocumentStepIntegrationSelectionSchema.optional().meta({
+    description:
+      'Lists the tools to give the agent, named as the server lists them. Defaults to every tool.',
+  }),
+});
+
+export const workflowDocumentAgentMcpServersSchema = z
+  .record(
+    z
+      .string()
+      .max(WORKFLOW_AGENT_MCP_SERVER_NAME_MAX_LENGTH, {
+        message: `MCP server names can have at most ${WORKFLOW_AGENT_MCP_SERVER_NAME_MAX_LENGTH} characters.`,
+      })
+      .regex(WORKFLOW_AGENT_MCP_SERVER_NAME_PATTERN, {
+        message:
+          'MCP server names must start with a lowercase letter and contain only lowercase letters, numbers, and single underscores.',
+      }),
+    workflowDocumentAgentMcpServerSchema,
+  )
+  .refine((servers) => Object.keys(servers).length > 0, {
+    message: 'Define at least one MCP server.',
+  })
+  .meta({
+    description:
+      'Starts MCP servers for this agent step and gives the agent their tools as `<name>__<tool>`. Each key is a server name: a lowercase letter, then lowercase letters, numbers, and single underscores, with at most 20 characters. See [Use your own MCP server](/how-to/author-workflows/use-your-own-mcp-server).',
+  });
+
 // A session names an agent conversation that continues across steps of one run.
 // The shorthand string form names the session and resumes it; the long form
 // adds an explicit mode. The key is a field template, evaluated at step
@@ -1081,6 +1133,7 @@ export const workflowDocumentAgentStepFields = [
   'tools',
   'tool_surface',
   'integrations',
+  'mcp_servers',
   'session',
   'repository_context',
 ] as const;
@@ -1147,6 +1200,7 @@ const workflowDocumentStepBaseSchema = z.strictObject({
     description:
       'Adds tools from integration connections to this agent step. See [integrations and tools](/understand/integrations-connections-and-tools).',
   }),
+  mcp_servers: workflowDocumentAgentMcpServersSchema.optional(),
   agent: z.unknown().optional().meta({
     description: 'Reserved keyword. It is rejected; use `prompt` to define an agent step.',
   }),
@@ -1697,6 +1751,7 @@ export type WorkflowDocumentEnv = z.infer<typeof workflowDocumentEnvSchema>;
 export type WorkflowDocumentJobListening = z.infer<typeof workflowDocumentListeningSchema>;
 export type WorkflowDocumentRunStepGate = z.infer<typeof workflowDocumentStepGateSchema>;
 export type WorkflowDocumentStepIntegration = z.infer<typeof workflowDocumentStepIntegrationSchema>;
+export type WorkflowDocumentAgentMcpServer = z.infer<typeof workflowDocumentAgentMcpServerSchema>;
 export type WorkflowDocumentStepOutputType = (typeof workflowDocumentStepOutputTypes)[number];
 export type WorkflowDocumentStepOutputs = z.infer<typeof workflowDocumentStepOutputsSchema>;
 export type WorkflowDocumentToolStepOutputs = z.infer<typeof workflowDocumentToolStepOutputsSchema>;

@@ -1,0 +1,13 @@
+name: Investigate slow queries
+jobs:
+  investigate:
+    steps:
+      - prompt: Find the slowest queries on the orders collection.
+        mcp_servers:
+          mongodb:
+            command: npx
+            args: [-y, mongodb-mcp-server@1.2.0]
+            env:
+              MDB_MCP_CONNECTION_STRING: ${{ secrets.MONGO_URI }}
+              MDB_MCP_READ_ONLY: "true"
+            include: [find, aggregate, list-collections, explain]

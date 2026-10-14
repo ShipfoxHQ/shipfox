@@ -4,10 +4,14 @@ import type {
   WorkflowModelValidationIssue,
   WorkflowModelValidationIssuePathSegment,
 } from './invalid-workflow-model-error.js';
-import {parseInterpolationField} from './parse-interpolation-field.js';
+import {
+  parseInterpolationField,
+  type StoredInterpolationField,
+} from './parse-interpolation-field.js';
 
 export function normalizeEnv(params: {
   env: Readonly<Record<string, string | number | boolean>> | undefined;
+  field?: Extract<StoredInterpolationField, 'env.value' | 'agent.mcp_servers.env.value'>;
   path: readonly WorkflowModelValidationIssuePathSegment[];
   issues: WorkflowModelValidationIssue[];
   fillSite?: AvailabilitySite;
@@ -28,7 +32,7 @@ export function normalizeEnv(params: {
     if (typeof value !== 'string') continue;
 
     const template = parseInterpolationField({
-      field: 'env.value',
+      field: params.field ?? 'env.value',
       source: value,
       path: [...params.path, key],
       issues: params.issues,

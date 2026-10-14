@@ -20,6 +20,8 @@ export function workflowFieldLabel(
       return 'Agent session key interpolation';
     case 'agent.repository_context':
       return 'Agent repository context';
+    case 'agent.mcp_servers.env.value':
+      return 'Agent MCP server env value interpolation';
     case 'job.runner':
       return 'Job runner interpolation';
     case 'job.container.image':

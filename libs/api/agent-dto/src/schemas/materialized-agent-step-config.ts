@@ -75,6 +75,18 @@ export const agentIntegrationMcpServerSchema = z.strictObject({
   integrations: z.array(materializedAgentIntegrationSchema).min(1),
 });
 
+/**
+ * A stdio MCP server that the runner starts for the step. `env` holds the values known at
+ * dispatch; values that read secrets arrive as `mcp_server_env` secret bindings instead.
+ */
+export const materializedAgentMcpServerSchema = z.strictObject({
+  name: z.string().min(1),
+  command: z.string().min(1),
+  args: z.array(z.string()),
+  env: z.record(z.string(), z.string()),
+  include: z.array(z.string().min(1)).min(1).optional(),
+});
+
 export const materializedAgentStepConfigSchema = z
   .object({
     harness: harnessSchema.default(DEFAULT_HARNESS),
@@ -85,6 +97,7 @@ export const materializedAgentStepConfigSchema = z
     toolSurface: agentToolSurfaceSchema.optional(),
     integrations: z.array(materializedAgentIntegrationSchema).min(1).optional(),
     mcpServers: z.array(agentIntegrationMcpServerSchema).length(1).optional(),
+    customMcpServers: z.array(materializedAgentMcpServerSchema).min(1).optional(),
     prompt: z.string(),
     session: agentSessionDescriptorSchema.optional(),
     repositoryContext: agentRepositoryContextConfigSchema.optional(),
@@ -98,4 +111,5 @@ export type MaterializedAgentIntegrationConfigDto = z.infer<
 export type MaterializedAgentIntegrationToolConfigDto = z.infer<
   typeof materializedAgentIntegrationToolSchema
 >;
+export type MaterializedAgentMcpServerConfigDto = z.infer<typeof materializedAgentMcpServerSchema>;
 export type AgentIntegrationMcpServerConfigDto = z.infer<typeof agentIntegrationMcpServerSchema>;

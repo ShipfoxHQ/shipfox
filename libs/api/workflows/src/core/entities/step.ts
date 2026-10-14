@@ -1,6 +1,7 @@
 import type {
   AgentIntegrationMcpServerConfigDto,
   MaterializedAgentIntegrationConfigDto,
+  MaterializedAgentMcpServerConfigDto,
 } from '@shipfox/api-agent-dto';
 import type {
   WorkflowJsonTemplateTree,
@@ -132,6 +133,9 @@ export interface StepConfigDispatchPlan {
     toolSurface?: 'strict-direct' | 'discovery';
     integrations?: readonly MaterializedAgentIntegrationConfigDto[];
     mcpServers?: readonly AgentIntegrationMcpServerConfigDto[];
+    customMcpServers?: readonly MaterializedAgentMcpServerConfigDto[];
+    // Env values of custom MCP servers that dispatch fills, by server name then env name.
+    customMcpServerEnv?: Readonly<Record<string, Readonly<Record<string, ResolvedField>>>>;
   };
   trace?: readonly (StepConfigEvaluationTraceEntry | EvaluationTraceLimitEntry)[];
 }

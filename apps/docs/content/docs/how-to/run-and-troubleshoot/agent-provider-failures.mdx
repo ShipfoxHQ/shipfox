@@ -74,6 +74,14 @@ reason.
 [Agent session fields](/reference/workflow-schema#agent-session-fields) lists
 the exact rules behind each reason.
 
+## Check an MCP server failure
+
+If a step with `mcp_servers` fails with `agent_mcp_server_unavailable`, a server
+did not start, did not list a tool from `include`, or listed a tool whose full
+name is longer than 64 characters. The error message names the server and
+shows the end of its error output. See [Use your own MCP
+server](/how-to/author-workflows/use-your-own-mcp-server#if-the-step-fails-before-the-agent-starts).
+
 ## Check provider invocation failures
 
 An invocation failure means the setup resolved but the provider call failed.

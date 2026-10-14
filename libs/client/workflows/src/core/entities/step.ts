@@ -22,6 +22,7 @@ export type StepErrorReason =
   | 'agent_session_held'
   | 'agent_session_harness_mismatch'
   | 'agent_session_unavailable'
+  | 'agent_mcp_server_unavailable'
   | 'execution_payload_too_large'
   | 'step_result_too_large'
   | 'diagnostic_too_large'
@@ -62,6 +63,7 @@ export const STEP_ERROR_REASONS = new Set<StepErrorReason>([
   'agent_session_held',
   'agent_session_harness_mismatch',
   'agent_session_unavailable',
+  'agent_mcp_server_unavailable',
   'execution_payload_too_large',
   'step_result_too_large',
   'diagnostic_too_large',

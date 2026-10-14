@@ -131,9 +131,11 @@ export {
   agentIntegrationMcpToolName,
   type MaterializedAgentIntegrationConfigDto,
   type MaterializedAgentIntegrationToolConfigDto,
+  type MaterializedAgentMcpServerConfigDto,
   type MaterializedAgentStepConfigDto,
   materializedAgentIntegrationSchema,
   materializedAgentIntegrationToolSchema,
+  materializedAgentMcpServerSchema,
   materializedAgentStepConfigSchema,
   sanitizeAgentIntegrationConnectionSlug,
 } from './materialized-agent-step-config.js';

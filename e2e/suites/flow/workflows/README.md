@@ -165,6 +165,14 @@ source keeps its packages outside it. The image helper is in
 The job container runs the Node binary of the runner, so the spec is skipped unless the
 host is Linux.
 
+## Custom MCP servers
+
+`tests/custom-mcp-servers.e2e.ts` runs a pi agent step with an `mcp_servers` entry. The spec
+commits `fixtures/mcp-server/fake-stdio-mcp-server.sh`, a stdio MCP server in POSIX sh, and
+passes it a secret through `env`. A scripted model calls its tool. The spec checks that the
+model received the value derived from the secret, and that the step transcript masks the
+secret itself.
+
 ## Local run
 
 Each scenario starts a local runner process from `apps/runner/src/index.ts` through

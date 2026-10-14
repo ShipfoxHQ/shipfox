@@ -147,6 +147,11 @@ const STEP_FAILURE_COPY: Readonly<
     title: 'Shipfox cannot load the session',
     description: 'Rerun the failed jobs. If it fails again, use a new session.',
   },
+  agent_mcp_server_unavailable: {
+    title: 'An MCP server did not start',
+    description:
+      'Read the server error in the step details. Fix the server in `mcp_servers`, then rerun the job.',
+  },
   tool_error: {
     title: 'The integration returned an error',
     description: 'Read the error in the step details. Fix the cause, then rerun the job.',

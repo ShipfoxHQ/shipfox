@@ -1268,6 +1268,21 @@ async function executeAgentStepBranch(params: {
       preparedWorkspace: false,
     };
   }
+  // MCP server secrets are pulled before the session stream opens, so it masks them from the
+  // first entry.
+  let secretMaterial: StepSecretMaterial | undefined;
+  try {
+    secretMaterial = await loadStepSecretMaterial({
+      step: input.step,
+      leaseClient: input.leaseClient,
+      attempt: input.attempt,
+      signal: input.signal,
+    });
+  } catch (error) {
+    return {result: stepSecretsFailure(error), logOutcome: 'drained', preparedWorkspace: false};
+  }
+  const mcpServerSecrets = secretMaterial?.secretValues ?? [];
+  if (mcpServerSecrets.length > 0) input.registerSecrets?.(mcpServerSecrets);
   const runtimeSecretValues = Object.values(runtimeConfig.credentials);
   let inferenceCredentialSource: ReturnType<typeof createInferenceCredentialSource>;
   try {
@@ -1275,8 +1290,8 @@ async function executeAgentStepBranch(params: {
     if (inferenceCredentialSource === undefined) {
       input.replaceInferenceSecrets?.(runtimeSecretValues);
     }
-    const agentSecrets = [...input.secrets, ...runtimeSecretValues];
-    params.secretState.crashSecrets = [...input.secrets];
+    const agentSecrets = [...input.secrets, ...mcpServerSecrets, ...runtimeSecretValues];
+    params.secretState.crashSecrets = [...input.secrets, ...mcpServerSecrets];
     params.secretState.inferenceSecrets = [...new Set(runtimeSecretValues)];
     const sessionStream = createAgentSessionLogStream(input, agentSecrets, params.append);
     params.onStream(sessionStream);
@@ -1289,6 +1304,10 @@ async function executeAgentStepBranch(params: {
     });
     const resumePrompt = buildResumePrompt(session, params.checkoutRef, input.step.config.prompt);
     const placement = await agentPlacementOptions(input);
+    const mcpServerOptions = customMcpServerOptions(secretMaterial, [
+      ...input.secrets,
+      ...mcpServerSecrets,
+    ]);
     const result = await reportOutOfMemoryKills({
       ...(await outOfMemoryReportOptions(input)),
       run: () =>
@@ -1316,6 +1335,7 @@ async function executeAgentStepBranch(params: {
             : {credentialSource: inferenceCredentialSource}),
           leaseToken: input.leaseToken,
           integrationToolsGatewayUrl: integrationToolsGatewayUrl(),
+          ...mcpServerOptions,
           ...(sessionStream
             ? {onSessionEntry: (line: string) => sessionStream.writeEntry(line)}
             : {}),
@@ -1347,6 +1367,17 @@ async function executeAgentStepBranch(params: {
   } finally {
     inferenceCredentialSource?.close();
   }
+}
+
+function customMcpServerOptions(
+  secretMaterial: StepSecretMaterial | undefined,
+  secrets: string[],
+): {customMcpServerSecretEnv?: StepSecretMaterial['mcpServerEnv']; redactions?: string[]} {
+  if (secretMaterial === undefined) return {};
+  return {
+    customMcpServerSecretEnv: secretMaterial.mcpServerEnv,
+    redactions: buildSecretVariants(secrets),
+  };
 }
 
 interface AgentSessionState {
@@ -1966,6 +1997,8 @@ interface StepSecretMaterial {
   secretEnv: Record<string, string>;
   /** Action inputs filled from secrets. Always empty for run steps. */
   secretInputs: Record<string, string>;
+  /** Env of an agent step's MCP servers, by server name. Empty for other steps. */
+  mcpServerEnv: Record<string, Record<string, string>>;
   secretValues: string[];
 }
 
@@ -1977,7 +2010,12 @@ async function loadStepSecretMaterial(params: {
   attempt: number;
   signal: AbortSignal;
 }): Promise<StepSecretMaterial | undefined> {
-  if (params.step.type !== 'run' && params.step.type !== 'action' && params.step.type !== 'post') {
+  if (
+    params.step.type !== 'run' &&
+    params.step.type !== 'action' &&
+    params.step.type !== 'post' &&
+    params.step.type !== 'agent'
+  ) {
     return undefined;
   }
   const bindings = parseStepSecretBindings(params.step);
@@ -1991,16 +2029,22 @@ async function loadStepSecretMaterial(params: {
   const values = new Map(pulled.secrets.map((secret) => [secretReferenceId(secret), secret.value]));
   const secretEnv: Record<string, string> = {};
   const secretInputs: Record<string, string> = {};
+  const mcpServerEnv: Record<string, Record<string, string>> = {};
 
   for (const binding of bindings) {
     const value = assembleSecretBinding(binding, values);
-    if (typeof binding.target === 'string') secretEnv[binding.target] = value;
-    else if (binding.target.kind === 'input') secretInputs[binding.target.name] = value;
+    const {target} = binding;
+    if (typeof target === 'string') secretEnv[target] = value;
+    else if (target.kind === 'input') secretInputs[target.name] = value;
+    else if (target.kind === 'mcp_server_env') {
+      mcpServerEnv[target.server] = {...mcpServerEnv[target.server], [target.name]: value};
+    }
   }
 
   return {
     secretEnv,
     secretInputs,
+    mcpServerEnv,
     secretValues: pulled.secrets.map((secret) => secret.value),
   };
 }
@@ -2051,16 +2095,14 @@ function maskSetupFailure(result: StepResult, secrets: string[]): StepResult {
   };
 }
 
-// Environment variables are the only target of run steps; input targets belong to action and post steps.
-// Container targets belong to the setup step, which this loader does not pull for yet.
+// Environment variables are the target of run, action, and post steps; input targets belong to
+// action and post steps, and MCP server env targets to agent steps. Container targets belong to
+// the setup step, which this loader does not pull for yet.
 function parseStepSecretBindings(step: StepDto): MaterializedSecretBindingDto[] {
   const parsed = stepSecretBindingsSchema.safeParse(step.config.secret_bindings ?? []);
   if (
     !parsed.success ||
-    parsed.data.some(
-      (binding) =>
-        !bindingTargetAllowed(binding.target, step.type === 'action' || step.type === 'post'),
-    )
+    parsed.data.some((binding) => !bindingTargetAllowed(binding.target, step.type))
   ) {
     throw new Error('Step secret bindings are invalid.');
   }
@@ -2069,10 +2111,11 @@ function parseStepSecretBindings(step: StepDto): MaterializedSecretBindingDto[] 
 
 function bindingTargetAllowed(
   target: MaterializedSecretBindingDto['target'],
-  allowsInputs: boolean,
+  stepType: StepDto['type'],
 ): boolean {
+  if (stepType === 'agent') return typeof target !== 'string' && target.kind === 'mcp_server_env';
   if (typeof target === 'string') return true;
-  return allowsInputs && target.kind === 'input';
+  return (stepType === 'action' || stepType === 'post') && target.kind === 'input';
 }
 
 function assembleSecretBinding(

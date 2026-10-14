@@ -46,8 +46,16 @@ interface TestAgentStep extends TestWorkflowStepBase {
   readonly tools?: readonly string[] | undefined;
   readonly toolSurface?: AgentToolSurface | undefined;
   readonly integrations?: Extract<ModelStep, {kind: 'agent'}>['integrations'] | undefined;
+  readonly mcpServers?: Readonly<Record<string, TestAgentMcpServer>> | undefined;
   readonly session?: string | {key: string; mode?: 'resume' | 'fork'} | undefined;
   readonly repositoryContext?: Extract<ModelStep, {kind: 'agent'}>['repositoryContext'] | undefined;
+}
+
+export interface TestAgentMcpServer {
+  readonly command: string;
+  readonly args?: readonly string[] | undefined;
+  readonly env?: Readonly<Record<string, string>> | undefined;
+  readonly include?: readonly string[] | undefined;
 }
 
 interface TestCheckoutStep extends TestWorkflowStepBase {
@@ -305,10 +313,32 @@ function normalizeAgentStep(step: TestAgentStep, base: ReturnType<typeof stepBas
     ...(step.tools === undefined ? {} : {tools: step.tools}),
     ...(step.toolSurface === undefined ? {} : {toolSurface: step.toolSurface}),
     ...(step.integrations === undefined ? {} : {integrations: step.integrations}),
+    ...(step.mcpServers === undefined
+      ? {}
+      : {customMcpServers: Object.entries(step.mcpServers).map(normalizeMcpServer)}),
     ...(step.session === undefined ? {} : {session: testAgentStepSession(step.session)}),
     ...(step.repositoryContext === undefined ? {} : {repositoryContext: step.repositoryContext}),
     prompt: step.prompt,
     ...optionalAgentTemplates(step),
+  };
+}
+
+function normalizeMcpServer([name, server]: [string, TestAgentMcpServer]): NonNullable<
+  Extract<ModelStep, {kind: 'agent'}>['customMcpServers']
+>[number] {
+  const envTemplates = Object.fromEntries(
+    Object.entries(server.env ?? {}).flatMap(([key, value]) => {
+      const template = fieldTemplate('agent.mcp_servers.env.value', value);
+      return template === undefined ? [] : [[key, template]];
+    }),
+  );
+  return {
+    name,
+    command: server.command,
+    args: server.args ?? [],
+    ...(server.env === undefined ? {} : {env: server.env}),
+    ...(server.include === undefined ? {} : {include: server.include}),
+    ...(Object.keys(envTemplates).length === 0 ? {} : {templates: {env: envTemplates}}),
   };
 }
 

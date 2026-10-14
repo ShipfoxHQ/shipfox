@@ -502,8 +502,48 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
     expect(res.json().code).toBe('step-not-run');
   });
 
-  test('returns 409 when the leased step is not a run or action step', async () => {
-    const {job, step} = await createRunningAgentStep();
+  test('returns the secrets an agent step binds for its MCP servers', async () => {
+    const {run, job, step} = await createRunningAgentStep();
+    await db()
+      .update(stepsTable)
+      .set({
+        config: {
+          ...step.config,
+          secret_bindings: [
+            {
+              target: {
+                kind: 'mcp_server_env',
+                server: 'mongodb',
+                name: 'MDB_MCP_CONNECTION_STRING',
+              },
+              segments: [{kind: 'secret', store: 'local', key: 'MONGO_URI'}],
+            },
+          ],
+        },
+      })
+      .where(eq(stepsTable.id, step.id));
+    await secrets.setSecrets({
+      workspaceId: run.workspaceId,
+      projectId: run.projectId,
+      values: {MONGO_URI: 'mongodb://reader:pw@db'},
+    });
+    const token = await mintActiveLeaseToken({jobId: job.id});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: stepSecretsUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      secrets: [{store: 'local', key: 'MONGO_URI', value: 'mongodb://reader:pw@db'}],
+    });
+  });
+
+  test('returns 409 when the leased step cannot bind secrets', async () => {
+    const {job, step} = await createRunningRunStep();
+    await db().update(stepsTable).set({type: 'checkout'}).where(eq(stepsTable.id, step.id));
     const token = await mintActiveLeaseToken({
       jobId: job.id,
     });

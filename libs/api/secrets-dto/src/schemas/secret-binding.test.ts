@@ -65,7 +65,8 @@ describe('secret binding schema', () => {
     {kind: 'container_credential', field: 'username'},
     {kind: 'container_credential', field: 'password'},
     {kind: 'container_env', name: 'LICENSE_KEY'},
-  ])('validates bindings that target the job container %j', (target) => {
+    {kind: 'mcp_server_env', server: 'mongodb', name: 'MDB_MCP_CONNECTION_STRING'},
+  ])('validates bindings that target a job container or MCP server %j', (target) => {
     const result = materializedSecretBindingSchema.safeParse({
       target,
       segments: [{kind: 'secret', store: 'local', key: 'REGISTRY_TOKEN'}],
@@ -79,6 +80,8 @@ describe('secret binding schema', () => {
     {kind: 'file', name: 'token'},
     {kind: 'container_credential', field: 'token'},
     {kind: 'container_env', name: 'bad-name'},
+    {kind: 'mcp_server_env', server: '', name: 'TOKEN'},
+    {kind: 'mcp_server_env', server: 'mongodb', name: 'bad-name'},
   ])('rejects binding target %j', (target) => {
     const result = materializedSecretBindingSchema.safeParse({target, segments: []});
 

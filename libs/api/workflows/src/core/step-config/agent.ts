@@ -6,9 +6,13 @@ import {
   type AgentIntegrationMcpServerConfigDto,
   type AgentRepositoryContextConfigDto,
   type MaterializedAgentIntegrationConfigDto,
+  type MaterializedAgentMcpServerConfigDto,
+  materializedAgentMcpServerSchema,
+  sanitizeAgentIntegrationConnectionSlug,
 } from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
+import type {MaterializedSecretBindingDto} from '@shipfox/api-secrets-dto';
 import {
   type AgentStepSessionIntentDto,
   agentStepSessionDescriptorSchema,
@@ -24,7 +28,11 @@ import {
   materializeAgentIntegrations,
 } from '#core/agent-tools.js';
 import type {PersistedEvaluationTraceEntry, StepConfigDispatchPlan} from '#core/entities/step.js';
-import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
+import {
+  AgentConfigUnresolvableError,
+  AgentIntegrationMaterializationError,
+  InterpolationUnresolvableError,
+} from '#core/errors.js';
 import {
   completeStepFieldWithTrace,
   literalField,
@@ -32,6 +40,7 @@ import {
   type WorkflowStepEvaluationTraceEntry,
   type WorkflowStepTemplateDiagnostic,
 } from './fields.js';
+import {completeDispatchField} from './run.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
@@ -58,6 +67,14 @@ interface RepositoryContextResolution {
 type RepositoryContextDispatchPlan = NonNullable<
   NonNullable<StepConfigDispatchPlan['agent']>['repositoryContext']
 >;
+type CustomMcpServerEnvPlan = NonNullable<
+  NonNullable<StepConfigDispatchPlan['agent']>['customMcpServerEnv']
+>;
+
+interface CustomMcpServerResolution {
+  readonly servers: readonly MaterializedAgentMcpServerConfigDto[];
+  readonly envPlan: CustomMcpServerEnvPlan | undefined;
+}
 
 interface AgentFieldResolutions {
   readonly diagnostics: WorkflowStepTemplateDiagnostic[];
@@ -68,6 +85,7 @@ interface AgentFieldResolutions {
   readonly thinking: FieldResolution | undefined;
   readonly session: {readonly key: FieldResolution; readonly mode: 'resume' | 'fork'} | undefined;
   readonly repositoryContext: RepositoryContextResolution | undefined;
+  readonly customMcpServers: CustomMcpServerResolution | undefined;
   readonly hasTemplates: boolean;
 }
 
@@ -183,7 +201,61 @@ export async function completeAgentConfig(params: {
     agent.mcpServers ??
     (integrations === undefined ? undefined : agentIntegrationMcpServers(integrations));
   if (mcpServers !== undefined) params.config.mcpServers = [...mcpServers];
+  completeCustomMcpServers({...params, agent});
   return sessionIntent;
+}
+
+/** Fills the env values that dispatch can know; values that read secrets become bindings. */
+function completeCustomMcpServers(params: {
+  readonly config: Record<string, unknown>;
+  readonly agent: NonNullable<StepConfigDispatchPlan['agent']>;
+  readonly context: WorkflowEvaluationContext;
+  readonly definitionId: string;
+  readonly trace: PersistedEvaluationTraceEntry[];
+}): void {
+  if (params.agent.customMcpServers !== undefined) {
+    params.config.customMcpServers = params.agent.customMcpServers.map(copyCustomMcpServer);
+  }
+  const envPlan = params.agent.customMcpServerEnv;
+  if (envPlan === undefined) return;
+  const servers = materializedAgentMcpServerSchema
+    .array()
+    .parse(params.config.customMcpServers)
+    .map(copyCustomMcpServer);
+  const bindings: MaterializedSecretBindingDto[] = [];
+  for (const server of servers) {
+    for (const [name, template] of Object.entries(envPlan[server.name] ?? {})) {
+      const completed = completeDispatchField({
+        field: 'agent.mcp_servers.env.value',
+        traceField: 'agent.mcp_servers.env.value',
+        errorField: 'agent.mcp_servers.env.value',
+        template,
+        context: params.context,
+        definitionId: params.definitionId,
+        target: {kind: 'mcp_server_env', server: server.name, name},
+        trace: params.trace,
+      });
+      if (completed.kind === 'binding') bindings.push(completed.binding);
+      else server.env[name] = completed.value;
+    }
+  }
+  params.config.customMcpServers = servers;
+  if (bindings.length === 0) return;
+  const existing = Array.isArray(params.config.secret_bindings)
+    ? params.config.secret_bindings
+    : [];
+  params.config.secret_bindings = [...existing, ...bindings];
+}
+
+function copyCustomMcpServer(
+  server: MaterializedAgentMcpServerConfigDto,
+): MaterializedAgentMcpServerConfigDto {
+  return {
+    ...server,
+    args: [...server.args],
+    env: {...server.env},
+    ...(server.include === undefined ? {} : {include: [...server.include]}),
+  };
 }
 
 async function applyAgentDefaultsForDispatch(params: {
@@ -399,6 +471,7 @@ function resolveAgentFields(params: ResolveAgentStepConfigParams): AgentFieldRes
         definitionId: params.definitionId,
       }),
   });
+  const customMcpServers = resolveCustomMcpServers({...params, diagnostics, trace});
   const hasTemplates =
     params.step.harness !== undefined ||
     params.step.templates?.prompt !== undefined ||
@@ -407,7 +480,8 @@ function resolveAgentFields(params: ResolveAgentStepConfigParams): AgentFieldRes
     params.step.templates?.thinking !== undefined ||
     params.step.templates?.repositoryContextInstructions !== undefined ||
     params.step.templates?.repositoryContextSkills !== undefined ||
-    params.step.session !== undefined;
+    params.step.session !== undefined ||
+    (params.step.customMcpServers ?? []).some((server) => server.templates?.env !== undefined);
 
   return {
     diagnostics,
@@ -418,8 +492,66 @@ function resolveAgentFields(params: ResolveAgentStepConfigParams): AgentFieldRes
     thinking,
     session,
     repositoryContext,
+    customMcpServers,
     hasTemplates,
   };
+}
+
+function resolveCustomMcpServers(
+  params: ResolveAgentStepConfigParams & {
+    readonly diagnostics: WorkflowStepTemplateDiagnostic[];
+    readonly trace: WorkflowStepEvaluationTraceEntry[];
+  },
+): CustomMcpServerResolution | undefined {
+  const authoredServers = params.step.customMcpServers;
+  if (authoredServers === undefined) return undefined;
+
+  const envPlan: Record<string, Record<string, ResolvedField>> = {};
+  const servers = authoredServers.map((server): MaterializedAgentMcpServerConfigDto => {
+    const env: Record<string, string> = {};
+    for (const [name, value] of Object.entries(server.env ?? {})) {
+      const template = server.templates?.env?.[name];
+      if (template === undefined || params.mode === 'authored') {
+        env[name] = value;
+        continue;
+      }
+      const resolved = resolveStepField({
+        field: 'agent.mcp_servers.env.value',
+        template: {segments: template},
+        context: params.context,
+        definitionId: params.definitionId,
+        errorField: 'agent.mcp_servers.env.value',
+        envKey: name,
+      });
+      params.diagnostics.push(
+        ...resolved.diagnostics.map((diagnostic) => ({
+          ...diagnostic,
+          field: 'agent.mcp_servers.env.value' as const,
+          envKey: name,
+        })),
+      );
+      params.trace.push(
+        ...resolved.trace.map((entry) => ({
+          ...entry,
+          field: 'agent.mcp_servers.env.value' as const,
+          envKey: name,
+        })),
+      );
+      if (resolved.kind === 'residual') {
+        envPlan[server.name] = {...envPlan[server.name], [name]: resolved.field};
+      } else {
+        env[name] = resolved.value;
+      }
+    }
+    return {
+      name: server.name,
+      command: server.command,
+      args: [...server.args],
+      env,
+      ...(server.include === undefined ? {} : {include: [...server.include]}),
+    };
+  });
+  return {servers, envPlan: Object.keys(envPlan).length === 0 ? undefined : envPlan};
 }
 
 function authoredAgentStepConfig(
@@ -437,6 +569,7 @@ function authoredAgentStepConfig(
       ...agentToolsConfig(step),
       ...agentToolSurfaceConfig(step),
       ...authoredAgentIntegrationsConfig(step),
+      ...customMcpServersConfig(fields),
       prompt: step.prompt,
     },
     configPlan: null,
@@ -473,7 +606,9 @@ function deferredAgentStepConfig(
             }),
         ...agentToolsConfig(step),
         ...agentToolSurfaceConfig(step),
-        ...materializedAgentIntegrationsConfig(params),
+        ...materializedAgentIntegrationsConfig(params, fields),
+        ...customMcpServersConfig(fields),
+        ...customMcpServerEnvPlan(fields),
       },
     },
     diagnostics: fields.diagnostics,
@@ -524,7 +659,9 @@ async function agentStepConfigWithDefaults(
               }),
           ...agentToolsConfig(step),
           ...agentToolSurfaceConfig(step),
-          ...materializedAgentIntegrationsConfig(params),
+          ...materializedAgentIntegrationsConfig(params, fields),
+          ...customMcpServersConfig(fields),
+          ...customMcpServerEnvPlan(fields),
         },
       },
       diagnostics: fields.diagnostics,
@@ -534,6 +671,17 @@ async function agentStepConfigWithDefaults(
   }
 
   const promptValue = frozenFieldValue(fields.prompt) ?? step.prompt;
+  const agentPlan = {
+    ...(fields.session === undefined
+      ? {}
+      : {
+          session: {
+            key: dispatchPlanField(fields.session.key),
+            mode: fields.session.mode,
+          },
+        }),
+    ...customMcpServerEnvPlan(fields),
+  };
   return {
     config: {
       provider: resolved.provider,
@@ -546,20 +694,11 @@ async function agentStepConfigWithDefaults(
       ...materializedRepositoryContextConfig(fields.repositoryContext, params.definitionId),
       ...agentToolsConfig(step),
       ...agentToolSurfaceConfig(step),
-      ...materializedAgentIntegrationsConfig(params),
+      ...materializedAgentIntegrationsConfig(params, fields),
+      ...customMcpServersConfig(fields),
       prompt: promptValue,
     },
-    configPlan:
-      fields.session === undefined
-        ? null
-        : {
-            agent: {
-              session: {
-                key: dispatchPlanField(fields.session.key),
-                mode: fields.session.mode,
-              },
-            },
-          },
+    configPlan: Object.keys(agentPlan).length === 0 ? null : {agent: agentPlan},
     diagnostics: fields.diagnostics,
     trace: fields.trace,
     hasTemplates: fields.hasTemplates,
@@ -588,7 +727,10 @@ function authoredAgentIntegrationsConfig(
   return step.integrations === undefined ? {} : {integrations: step.integrations};
 }
 
-function materializedAgentIntegrationsConfig(params: ResolveAgentStepConfigParams):
+function materializedAgentIntegrationsConfig(
+  params: ResolveAgentStepConfigParams,
+  fields: AgentFieldResolutions,
+):
   | {
       readonly integrations: readonly MaterializedAgentIntegrationConfigDto[];
       readonly mcpServers: readonly AgentIntegrationMcpServerConfigDto[];
@@ -601,9 +743,42 @@ function materializedAgentIntegrationsConfig(params: ResolveAgentStepConfigParam
     context: params.agentToolContext,
     snapshot: params.agentToolSnapshot,
   });
-  return integrations === undefined
+  if (integrations === undefined) return {};
+  assertNoCustomMcpServerPrefixCollision(integrations, fields.customMcpServers);
+  return {integrations, mcpServers: agentIntegrationMcpServers(integrations)};
+}
+
+// Authoring cannot know the default connection's slug, so the check repeats once it is resolved.
+function assertNoCustomMcpServerPrefixCollision(
+  integrations: readonly MaterializedAgentIntegrationConfigDto[],
+  customMcpServers: CustomMcpServerResolution | undefined,
+): void {
+  const names = new Set(customMcpServers?.servers.map((server) => server.name));
+  const collision = integrations.find((integration) =>
+    names.has(sanitizeAgentIntegrationConnectionSlug(integration.connectionSlug)),
+  );
+  if (collision === undefined) return;
+  throw new AgentIntegrationMaterializationError(
+    `MCP server "${sanitizeAgentIntegrationConnectionSlug(collision.connectionSlug)}" has the same tool prefix as integration connection ${collision.connectionSlug}`,
+    {reason: 'mcp-server-name-collision', connection: collision.connectionSlug},
+  );
+}
+
+function customMcpServersConfig(
+  fields: AgentFieldResolutions,
+):
+  | {readonly customMcpServers: readonly MaterializedAgentMcpServerConfigDto[]}
+  | Record<string, never> {
+  return fields.customMcpServers === undefined
     ? {}
-    : {integrations, mcpServers: agentIntegrationMcpServers(integrations)};
+    : {customMcpServers: fields.customMcpServers.servers};
+}
+
+function customMcpServerEnvPlan(
+  fields: AgentFieldResolutions,
+): {readonly customMcpServerEnv: CustomMcpServerEnvPlan} | Record<string, never> {
+  const envPlan = fields.customMcpServers?.envPlan;
+  return envPlan === undefined ? {} : {customMcpServerEnv: envPlan};
 }
 
 function agentIntegrationMcpServers(

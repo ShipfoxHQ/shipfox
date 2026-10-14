@@ -221,6 +221,19 @@ export interface WorkflowModelAgentRepositoryContext {
   readonly instructions?: boolean | string;
   readonly skills?: boolean | string | readonly string[];
 }
+/**
+ * A stdio MCP server that the runner starts for an agent step. `command` and `args` are literal.
+ * An `env` value with `${{ }}` interpolation also has a template under `templates`, filled at
+ * dispatch or, for secrets, on the runner.
+ */
+export interface WorkflowModelAgentMcpServer {
+  readonly name: string;
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly env?: Readonly<Record<string, string>>;
+  readonly include?: readonly string[];
+  readonly templates?: {readonly env?: WorkflowEnvTemplates};
+}
 export interface WorkflowModelAgentStep extends WorkflowModelStepBase {
   readonly kind: 'agent';
   readonly harness?: Harness;
@@ -231,6 +244,7 @@ export interface WorkflowModelAgentStep extends WorkflowModelStepBase {
   readonly tools?: readonly string[];
   readonly toolSurface?: AgentToolSurface;
   readonly integrations?: readonly WorkflowModelStepIntegration[];
+  readonly customMcpServers?: readonly WorkflowModelAgentMcpServer[];
   readonly prompt: string;
   readonly session?: WorkflowModelAgentStepSession;
   readonly repositoryContext?: WorkflowModelAgentRepositoryContext;

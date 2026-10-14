@@ -11,14 +11,17 @@ import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
   CallToolRequestSchema,
   type CallToolResult,
+  ErrorCode,
   ListToolsRequestSchema,
   type ListToolsResult,
+  McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
   createGatewayMcpClient,
   type GatewayMcpClient,
 } from '@shipfox/runner-protocol/gateway-mcp-client';
+import type {CustomMcpServers} from '#core/custom-mcp-servers.js';
 
 // File contents an agent sends pass through the model, so agent calls keep a small budget. The
 // gateway enforces the same size for agent steps.
@@ -45,17 +48,24 @@ export interface IntegrationToolsBridge {
   close(): Promise<void>;
 }
 
+/**
+ * Serves one MCP server to the harness. It forwards to the integration tools gateway, which
+ * prefixes and filters its own tools, and to the step's custom MCP servers, whose tools are
+ * listed once at start.
+ */
 export function createIntegrationToolsBridge(params: {
-  url: URL;
-  fetch: typeof fetch;
   name: string;
+  /** Absent when the step has custom MCP servers but no integrations. */
+  gateway?: {readonly url: URL; readonly fetch: typeof fetch} | undefined;
+  customServers?: CustomMcpServers | undefined;
   preferredPort?: number;
 }): IntegrationToolsBridge {
-  const upstream = createGatewayMcpClient({
-    url: params.url,
-    fetch: params.fetch,
-    name: params.name,
-  });
+  const upstream = createToolsUpstream(
+    params.gateway === undefined
+      ? undefined
+      : createGatewayMcpClient({...params.gateway, name: params.name}),
+    params.customServers,
+  );
   const server = new McpServer({name: params.name, version: '0.0.0'}, {capabilities: {tools: {}}});
   let activationPromise: Promise<URL> | undefined;
   let cancelActivation: ((reason: unknown) => void) | undefined;
@@ -150,6 +160,34 @@ export function createIntegrationToolsBridge(params: {
   installForwardingHandlers(server.server, assertOpen, upstream);
 
   return bridge;
+}
+
+function createToolsUpstream(
+  gateway: GatewayMcpClient | undefined,
+  customServers: CustomMcpServers | undefined,
+): GatewayMcpClient {
+  return {
+    async listTools(listParams, options) {
+      const customTools = listParams?.cursor === undefined ? (customServers?.tools ?? []) : [];
+      if (gateway === undefined) return {tools: [...customTools]};
+      const result = await gateway.listTools(listParams, options);
+      return customTools.length === 0
+        ? result
+        : {...result, tools: [...result.tools, ...customTools]};
+    },
+    async callTool(callParams, options) {
+      if (customServers?.has(callParams.name)) {
+        return await customServers.callTool(callParams, options);
+      }
+      if (gateway === undefined) {
+        throw new McpError(ErrorCode.InvalidParams, `Unknown tool: ${callParams.name}`);
+      }
+      return await gateway.callTool(callParams, options);
+    },
+    async close() {
+      await gateway?.close();
+    },
+  };
 }
 
 async function activateBridgeHttp(params: {

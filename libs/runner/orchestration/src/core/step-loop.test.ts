@@ -4555,6 +4555,74 @@ describe('runJobSteps', () => {
     expect(sessionStream.dispose).toHaveBeenCalled();
   });
 
+  it('pulls MCP server secrets for an agent step and masks them in its session stream', async () => {
+    const setup = buildSetupStep();
+    const agent = buildAgentStep({
+      config: {
+        prompt: 'Fix it.',
+        secret_bindings: [
+          {
+            target: {kind: 'mcp_server_env', server: 'mongodb', name: 'MDB_MCP_CONNECTION_STRING'},
+            segments: [{kind: 'secret', store: 'local', key: 'MONGO_URI'}],
+          },
+        ],
+      },
+    });
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    requestStepSecretsMock.mockResolvedValueOnce({
+      secrets: [{store: 'local', key: 'MONGO_URI', value: 'mongodb://user:pw@db'}],
+    });
+    executeAgentStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    const registerSecrets = vi.fn();
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal, secrets: ['s3cr3t'], registerSecrets});
+
+    expect(registerSecrets).toHaveBeenCalledWith(['mongodb://user:pw@db']);
+    expect(createSessionLogStreamMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepId: agent.id,
+        secrets: ['s3cr3t', 'mongodb://user:pw@db', 'sk-runtime-secret'],
+      }),
+    );
+    expect(executeAgentStepMock).toHaveBeenCalledWith(
+      agent,
+      expect.objectContaining({
+        customMcpServerSecretEnv: {mongodb: {MDB_MCP_CONNECTION_STRING: 'mongodb://user:pw@db'}},
+        redactions: expect.arrayContaining(['s3cr3t', 'mongodb://user:pw@db']),
+      }),
+    );
+  });
+
+  it('fails an agent step whose secret bindings target a plain env variable', async () => {
+    const setup = buildSetupStep();
+    const agent = buildAgentStep({
+      config: {
+        prompt: 'Fix it.',
+        secret_bindings: [
+          {target: 'TOKEN', segments: [{kind: 'secret', store: 'local', key: 'TOKEN'}]},
+        ],
+      },
+    });
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'failed'});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal});
+
+    expect(requestStepSecretsMock).not.toHaveBeenCalled();
+    expect(executeAgentStepMock).not.toHaveBeenCalled();
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({stepId: agent.id, status: 'failed'}),
+    );
+  });
+
   it('runs and reports an agent step when opening the session stream fails (capture abandoned)', async () => {
     const setup = buildSetupStep();
     const agent = buildAgentStep();

@@ -195,6 +195,7 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
       'thinking',
       'tools',
       'integrations',
+      'mcp_servers',
       'tool_surface',
       'session',
       'repository_context',
@@ -202,6 +203,7 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
     required: ['prompt'],
     nested: {
       integrations: '#agent-integration-fields',
+      mcp_servers: '#agent-mcp-server-fields',
       session: '#agent-session-fields',
       repository_context: '#agent-repository-context-fields',
     },
@@ -209,6 +211,7 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
     types: {
       prompt: 'string | PromptPart[]',
       integrations: 'Integration[]',
+      mcp_servers: 'Record<string, McpServer>',
       session: 'string | Session',
       repository_context: 'boolean | string | RepositoryContext',
     },
@@ -221,6 +224,17 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
     fields: ['connection', 'include', 'exclude', 'allow_write'],
     select: (schema) => properties(object(stepProperties(schema).integrations).items),
     required: ['include'],
+  },
+  {
+    id: 'agent-mcp-server-fields',
+    component: 'AgentMcpServerFields',
+    path: 'jobs.<job_id>.steps[*].mcp_servers.<name>',
+    example: 'agent-mcp-servers.yml',
+    fields: ['command', 'args', 'env', 'include'],
+    select: (schema) => properties(object(stepProperties(schema).mcp_servers).additionalProperties),
+    required: ['command'],
+    nested: {env: '#environment-variables'},
+    types: {env: 'Environment'},
   },
   {
     id: 'agent-session-fields',

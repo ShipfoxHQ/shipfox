@@ -21,6 +21,7 @@
     "add-agent-steps",
     "use-structured-agent-outputs",
     "share-agent-sessions",
+    "use-your-own-mcp-server",
     "inspect-other-runs",
     "---Pass data and call tools---",
     "pass-outputs",

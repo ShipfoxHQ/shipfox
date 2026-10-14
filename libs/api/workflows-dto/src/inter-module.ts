@@ -114,6 +114,7 @@ const interpolationFieldSchema = z.enum([
   'agent.thinking',
   'agent.session',
   'agent.repository_context',
+  'agent.mcp_servers.env.value',
   'job.if',
   'job.success',
   'job.listening.filter',

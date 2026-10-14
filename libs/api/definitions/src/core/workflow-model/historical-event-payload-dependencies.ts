@@ -234,6 +234,15 @@ function scanWorkflowStep(
   if (step.kind === 'agent' && step.session !== undefined) {
     scanTemplate(step.session.key, [...path, 'session'], dependencies);
   }
+  if (step.kind === 'agent') {
+    for (const server of step.customMcpServers ?? []) {
+      scanTemplateRecord(
+        server.templates?.env,
+        [...path, 'mcp_servers', server.name, 'env'],
+        dependencies,
+      );
+    }
+  }
 
   if (step.kind === 'checkout') {
     for (const [key, template] of Object.entries(step.checkout.templates ?? {})) {

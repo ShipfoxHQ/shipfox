@@ -51,6 +51,7 @@ import type {
 } from './invalid-workflow-model-error.js';
 import {buildActionStep, normalizeActionFields} from './normalize-action-step.js';
 import {normalizeAgentIntegrations} from './normalize-agent-integrations.js';
+import {normalizeAgentMcpServers} from './normalize-agent-mcp-servers.js';
 import {normalizeAgentPrompt} from './normalize-agent-prompt.js';
 import {normalizeAgentRepositoryContext} from './normalize-agent-repository-context.js';
 import {normalizeEnv} from './normalize-env.js';
@@ -1324,6 +1325,17 @@ function normalizeAgentStep(params: {
     issues: params.issues,
     integrationValidationContext: params.context.integrationValidationContext,
   });
+  const customMcpServers = normalizeAgentMcpServers({
+    servers: params.step.mcp_servers,
+    integrations,
+    sourceName: params.sourceName,
+    stepIndex: params.stepIndex,
+    issues: params.issues,
+    fillSite: params.fillSite,
+    allowedJobReferences: params.allowedJobReferences,
+    typeOverlay: params.typeOverlay,
+    integrationValidationContext: params.context.integrationValidationContext,
+  });
   const templates = optionalAgentStepTemplates({
     prompt: promptTemplate,
     model: modelTemplate,
@@ -1348,6 +1360,7 @@ function normalizeAgentStep(params: {
     ...(params.step.tools === undefined ? {} : {tools: params.step.tools}),
     ...(params.step.tool_surface === undefined ? {} : {toolSurface: params.step.tool_surface}),
     ...(integrations === undefined ? {} : {integrations}),
+    ...customMcpServers,
     ...(templates === undefined ? {} : {templates}),
   };
 }

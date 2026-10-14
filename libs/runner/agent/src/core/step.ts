@@ -3,10 +3,13 @@ import {
   AGENT_TOOLS_MCP_SERVER_ID,
   type AgentIntegrationMcpServerConfigDto,
   agentIntegrationMcpServerSchema,
+  agentIntegrationMcpToolName,
   agentRepositoryContextConfigSchema,
   type ClaudeRuntimeConfigDto,
   type CustomModelProviderRuntimeConfigDto,
   type Harness,
+  type MaterializedAgentMcpServerConfigDto,
+  materializedAgentMcpServerSchema,
 } from '@shipfox/api-agent-dto';
 import type {
   AgentConfigIssueDto,
@@ -16,11 +19,16 @@ import type {
 } from '@shipfox/api-workflows-dto';
 import type {OutputDeclarations} from '@shipfox/expression';
 import {logger} from '@shipfox/node-opentelemetry';
-import type {ExecutionHost} from '@shipfox/runner-container';
+import {type ExecutionHost, localExecutionHost} from '@shipfox/runner-container';
 import type {StepResult} from '@shipfox/runner-execution';
-import type {CarriedEnv} from '@shipfox/runner-execution/carried-env';
+import {type CarriedEnv, prependPath} from '@shipfox/runner-execution/carried-env';
 import {createIntegrationToolsGatewayFetch, type LeaseTokenSource} from '@shipfox/runner-protocol';
 import {z} from 'zod';
+import {
+  type CustomMcpServers,
+  CustomMcpServerUnavailableError,
+  startCustomMcpServers,
+} from '#core/custom-mcp-servers.js';
 import {
   AgentConfigError,
   AgentHarnessUnavailableError,
@@ -87,6 +95,10 @@ export async function executeAgentStep(
     leaseToken?: LeaseTokenSource | undefined;
     integrationToolsGatewayUrl?: URL | undefined;
     prerequisites?: AgentPrerequisiteContract | undefined;
+    /** Env values of custom MCP servers that read secrets, by server name. */
+    customMcpServerSecretEnv?: Readonly<Record<string, Readonly<Record<string, string>>>>;
+    /** Secret forms masked in what custom MCP servers write to stderr. */
+    redactions?: readonly string[] | undefined;
   },
 ): Promise<StepResult> {
   if (step.type !== 'agent') {
@@ -102,58 +114,33 @@ export async function executeAgentStep(
       'step_config_invalid',
     );
   }
-  const tools = toolsFromConfig(step.config.tools);
-  if (tools === 'invalid') {
-    return agentFailure(
-      'Agent step config has invalid tools.',
-      'agent_config_invalid',
-      'step_config_invalid',
-    );
-  }
-  const mcpServers = mcpServersFromConfig(step.config.mcpServers);
-  if (mcpServers === 'invalid') {
-    return agentFailure(
-      'Agent step config has invalid integration tools.',
-      'agent_config_invalid',
-      'step_config_invalid',
-    );
-  }
-  const toolSurface = toolSurfaceFromConfig(step.config.toolSurface);
-  if (toolSurface === 'invalid') {
-    return agentFailure(
-      'Agent step config has invalid tool surface.',
-      'agent_config_invalid',
-      'step_config_invalid',
-    );
-  }
-  const repositoryContext = repositoryContextFromConfig(step.config.repositoryContext);
-  if (repositoryContext === 'invalid') {
-    return agentFailure(
-      'Agent step config has invalid repository context.',
-      'agent_config_invalid',
-      'step_config_invalid',
-    );
-  }
+  const toolConfig = agentStepConfig(step, options);
+  if ('failure' in toolConfig) return toolConfig.failure;
+  const {tools, toolSurface, repositoryContext, gateway, requestedGatewayTools} = toolConfig;
 
-  const integrationToolsBridges = integrationToolsBridgesFromConfig(mcpServers, {
-    leaseToken: options.leaseToken,
-    integrationToolsGatewayUrl: options.integrationToolsGatewayUrl,
-    stablePortSeed: step.job_execution_id,
+  const cwd = options.cwd ?? process.cwd();
+  const started = await startStepCustomMcpServers({
+    servers: toolConfig.customMcpServers,
+    requestedGatewayTools,
+    cwd,
+    options,
   });
-  if (integrationToolsBridges === 'invalid') {
-    return agentFailure(
-      'Agent step config has invalid integration tools.',
-      'agent_config_invalid',
-      'step_config_invalid',
-    );
-  }
+  if ('failure' in started) return started.failure;
+  const {customServers} = started;
+
+  const {integrationToolsBridge, requestedIntegrationTools} = stepTools({
+    gateway,
+    customServers,
+    requestedGatewayTools,
+    jobExecutionId: step.job_execution_id,
+  });
 
   try {
     return await runSelectedHarness({
       jobExecutionId: step.job_execution_id,
       stepId: step.id,
       attempt: step.current_attempt,
-      cwd: options.cwd ?? process.cwd(),
+      cwd,
       agentStateDir: options.agentStateDir,
       session: options.session,
       harness: options.runtime.harness,
@@ -162,8 +149,8 @@ export async function executeAgentStep(
       prompt,
       repositoryContext,
       tools,
-      mcpServers: integrationToolsBridges,
-      requestedIntegrationTools: requestedIntegrationToolsFromConfig(mcpServers),
+      mcpServers: integrationToolsBridge === undefined ? undefined : [integrationToolsBridge],
+      requestedIntegrationTools,
       credentialSource: options.credentialSource,
       ...(toolSurface === undefined ? {} : {toolSurface}),
       prerequisites: options.prerequisites,
@@ -179,8 +166,131 @@ export async function executeAgentStep(
       onSessionEntry: options.onSessionEntry,
     });
   } finally {
-    await closeIntegrationToolsBridges(integrationToolsBridges);
+    await closeIntegrationToolsBridge(integrationToolsBridge);
+    await customServers?.close();
   }
+}
+
+function agentStepConfig(
+  step: StepDto,
+  options: {
+    leaseToken?: LeaseTokenSource | undefined;
+    integrationToolsGatewayUrl?: URL | undefined;
+  },
+):
+  | {
+      tools: readonly string[] | undefined;
+      toolSurface: HarnessToolSurface | undefined;
+      repositoryContext: RepositoryContextConfig;
+      gateway: {url: URL; fetch: typeof fetch} | undefined;
+      requestedGatewayTools: readonly RequestedIntegrationTool[] | undefined;
+      customMcpServers: readonly MaterializedAgentMcpServerConfigDto[] | undefined;
+    }
+  | {failure: StepResult} {
+  const invalid = (message: string) => ({
+    failure: agentFailure(message, 'agent_config_invalid', 'step_config_invalid'),
+  });
+  const tools = toolsFromConfig(step.config.tools);
+  if (tools === 'invalid') return invalid('Agent step config has invalid tools.');
+  const mcpServers = mcpServersFromConfig(step.config.mcpServers);
+  if (mcpServers === 'invalid') return invalid('Agent step config has invalid integration tools.');
+  const customMcpServers = customMcpServersFromConfig(step.config.customMcpServers);
+  if (customMcpServers === 'invalid') return invalid('Agent step config has invalid MCP servers.');
+  const toolSurface = toolSurfaceFromConfig(step.config.toolSurface);
+  if (toolSurface === 'invalid') return invalid('Agent step config has invalid tool surface.');
+  const repositoryContext = repositoryContextFromConfig(step.config.repositoryContext);
+  if (repositoryContext === 'invalid') {
+    return invalid('Agent step config has invalid repository context.');
+  }
+  const gateway = integrationToolsGateway(mcpServers, options);
+  if (gateway === 'invalid') return invalid('Agent step config has invalid integration tools.');
+  return {
+    tools,
+    toolSurface,
+    repositoryContext,
+    gateway,
+    requestedGatewayTools: requestedIntegrationToolsFromConfig(mcpServers),
+    customMcpServers,
+  };
+}
+
+// The gateway and the custom servers share one bridge, so harnesses always see one tool server.
+function stepTools(params: {
+  gateway: {url: URL; fetch: typeof fetch} | undefined;
+  customServers: CustomMcpServers | undefined;
+  requestedGatewayTools: readonly RequestedIntegrationTool[] | undefined;
+  jobExecutionId: string;
+}): {
+  integrationToolsBridge: IntegrationToolsBridge | undefined;
+  requestedIntegrationTools: readonly RequestedIntegrationTool[] | undefined;
+} {
+  const {gateway, customServers, requestedGatewayTools} = params;
+  if (gateway === undefined && customServers === undefined) {
+    return {integrationToolsBridge: undefined, requestedIntegrationTools: requestedGatewayTools};
+  }
+  return {
+    integrationToolsBridge: createIntegrationToolsBridge({
+      name: AGENT_TOOLS_MCP_SERVER_ID,
+      gateway,
+      customServers,
+      preferredPort: stableIntegrationToolsBridgePort(
+        params.jobExecutionId,
+        AGENT_TOOLS_MCP_SERVER_ID,
+      ),
+    }),
+    requestedIntegrationTools: [
+      ...(requestedGatewayTools ?? []),
+      ...(customServers?.requestedTools ?? []),
+    ],
+  };
+}
+
+async function startStepCustomMcpServers(params: {
+  servers: readonly MaterializedAgentMcpServerConfigDto[] | undefined;
+  requestedGatewayTools: readonly RequestedIntegrationTool[] | undefined;
+  cwd: string;
+  options: Parameters<typeof executeAgentStep>[1];
+}): Promise<{customServers: CustomMcpServers | undefined} | {failure: StepResult}> {
+  const {servers, options} = params;
+  if (servers === undefined) return {customServers: undefined};
+  try {
+    const customServers = await startCustomMcpServers({
+      servers,
+      secretEnv: options.customMcpServerSecretEnv,
+      host: options.host ?? localExecutionHost,
+      cwd: params.cwd,
+      baseEnv: customMcpServerBaseEnv(options),
+      redactions: options.redactions ?? [],
+      reservedToolNames: new Set(
+        (params.requestedGatewayTools ?? []).map((tool) =>
+          agentIntegrationMcpToolName(tool.connectionSlug, tool.toolId),
+        ),
+      ),
+      signal: options.signal,
+    });
+    return {customServers};
+  } catch (error) {
+    if (error instanceof CustomMcpServerUnavailableError) {
+      return {failure: agentFailure(error.message, 'agent_mcp_server_unavailable')};
+    }
+    throw error;
+  }
+}
+
+// Like the harness's own processes: a container never inherits the runner's environment.
+function customMcpServerBaseEnv(options: {
+  container?: AgentJobContainer | undefined;
+  carriedEnv?: CarriedEnv | undefined;
+}): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [name, value] of Object.entries(options.container?.env ?? process.env)) {
+    if (value !== undefined) env[name] = value;
+  }
+  Object.assign(env, options.carriedEnv?.env);
+  if (options.carriedEnv !== undefined && options.carriedEnv.path.length > 0) {
+    env.PATH = prependPath(options.carriedEnv.path, env.PATH);
+  }
+  return env;
 }
 
 function agentPlacement(
@@ -550,31 +660,28 @@ function mcpServersFromConfig(
   return parsed.success ? parsed.data : 'invalid';
 }
 
-function integrationToolsBridgesFromConfig(
+function customMcpServersFromConfig(
+  value: unknown,
+): readonly MaterializedAgentMcpServerConfigDto[] | undefined | 'invalid' {
+  if (value === undefined) return undefined;
+  const parsed = z.array(materializedAgentMcpServerSchema).min(1).safeParse(value);
+  return parsed.success ? parsed.data : 'invalid';
+}
+
+function integrationToolsGateway(
   mcpServers: readonly AgentIntegrationMcpServerConfigDto[] | undefined,
   options: {
     leaseToken?: LeaseTokenSource | undefined;
     integrationToolsGatewayUrl?: URL | undefined;
-    stablePortSeed: string;
   },
-): readonly IntegrationToolsBridge[] | undefined | 'invalid' {
+): {url: URL; fetch: typeof fetch} | undefined | 'invalid' {
   const {leaseToken, integrationToolsGatewayUrl} = options;
-  if (mcpServers === undefined) {
-    return undefined;
-  }
+  if (mcpServers === undefined) return undefined;
   if (leaseToken === undefined || integrationToolsGatewayUrl === undefined) return 'invalid';
-
-  return mcpServers.map(() =>
-    createIntegrationToolsBridge({
-      name: AGENT_TOOLS_MCP_SERVER_ID,
-      url: integrationToolsGatewayUrl,
-      fetch: createIntegrationToolsGatewayFetch(leaseToken, integrationToolsGatewayUrl),
-      preferredPort: stableIntegrationToolsBridgePort(
-        options.stablePortSeed,
-        AGENT_TOOLS_MCP_SERVER_ID,
-      ),
-    }),
-  );
+  return {
+    url: integrationToolsGatewayUrl,
+    fetch: createIntegrationToolsGatewayFetch(leaseToken, integrationToolsGatewayUrl),
+  };
 }
 
 function stableIntegrationToolsBridgePort(seed: string, serverName: string): number {
@@ -584,13 +691,12 @@ function stableIntegrationToolsBridgePort(seed: string, serverName: string): num
   return MCP_BRIDGE_PORT_START + (digest.readUInt16BE(0) % MCP_BRIDGE_PORT_RANGE);
 }
 
-async function closeIntegrationToolsBridges(
-  bridges: readonly IntegrationToolsBridge[] | undefined,
+async function closeIntegrationToolsBridge(
+  bridge: IntegrationToolsBridge | undefined,
 ): Promise<void> {
-  const results = await Promise.allSettled(bridges?.map((bridge) => bridge.close()) ?? []);
-  for (const result of results) {
-    if (result.status === 'rejected') {
-      logger().warn({err: result.reason}, 'Failed to close integration tools bridge');
-    }
+  try {
+    await bridge?.close();
+  } catch (error) {
+    logger().warn({err: error}, 'Failed to close integration tools bridge');
   }
 }

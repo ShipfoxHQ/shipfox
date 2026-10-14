@@ -1096,6 +1096,8 @@ function failureTitle(reason: string | JobStatusReason, error: StepError | null)
       return 'This session uses another harness';
     case 'agent_session_unavailable':
       return 'Shipfox cannot load the session';
+    case 'agent_mcp_server_unavailable':
+      return 'An MCP server did not start';
     case 'tool_error':
       return 'The integration returned an error';
     case 'tool_config_invalid':
@@ -1219,6 +1221,8 @@ function failureDescription(
       return 'A session works with one harness only. Use the harness of the first step, or use a new session.';
     case 'agent_session_unavailable':
       return 'Rerun the failed jobs. If it fails again, use a new session.';
+    case 'agent_mcp_server_unavailable':
+      return 'Read the server error below. Fix the server in mcp_servers, then rerun the job.';
     case 'tool_error':
       return 'Read the error below. Fix the cause, then rerun the job.';
     case 'tool_config_invalid':

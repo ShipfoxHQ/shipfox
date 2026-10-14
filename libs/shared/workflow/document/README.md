@@ -127,6 +127,34 @@ parseWorkflowDocument({
 });
 ```
 
+An `mcp_servers` block starts stdio MCP servers for an agent step. Each entry is
+keyed by a server name of lowercase letters, numbers, and single underscores,
+with at most 20 characters. `command` and `args` are literal, `env` follows the
+env map rules, and `include` optionally limits the tools.
+
+```ts
+parseWorkflowDocument({
+  name: 'investigate',
+  jobs: {
+    db: {
+      steps: [
+        {
+          prompt: 'Find the slowest queries.',
+          mcp_servers: {
+            mongodb: {
+              command: 'npx',
+              args: ['-y', 'mongodb-mcp-server@1.2.0'],
+              env: {MDB_MCP_READ_ONLY: 'true'},
+              include: ['find', 'aggregate'],
+            },
+          },
+        },
+      ],
+    },
+  },
+});
+```
+
 A tool step invokes an integration tool by literal id. Use `family.method` for
 a method in a tool family. Tool input strings can use workflow expressions, and
 tool output values map names to one expression over `result` or `vars`:

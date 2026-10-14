@@ -25,6 +25,13 @@ export const secretBindingContainerEnvTargetSchema = z.object({
   name: secretBindingTargetSchema,
 });
 
+// An env variable of one MCP server that an agent step starts. Only that server's process gets it.
+export const secretBindingMcpServerEnvTargetSchema = z.object({
+  kind: z.literal('mcp_server_env'),
+  server: z.string().min(1),
+  name: secretBindingTargetSchema,
+});
+
 export const secretBindingSegmentSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('literal'),
@@ -43,6 +50,7 @@ export const materializedSecretBindingSchema = z.object({
     secretBindingInputTargetSchema,
     secretBindingContainerCredentialTargetSchema,
     secretBindingContainerEnvTargetSchema,
+    secretBindingMcpServerEnvTargetSchema,
   ]),
   segments: z.array(secretBindingSegmentSchema),
 });
@@ -54,5 +62,8 @@ export type SecretBindingContainerCredentialTargetDto = z.infer<
 >;
 export type SecretBindingContainerEnvTargetDto = z.infer<
   typeof secretBindingContainerEnvTargetSchema
+>;
+export type SecretBindingMcpServerEnvTargetDto = z.infer<
+  typeof secretBindingMcpServerEnvTargetSchema
 >;
 export type MaterializedSecretBindingDto = z.infer<typeof materializedSecretBindingSchema>;

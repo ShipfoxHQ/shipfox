@@ -177,6 +177,11 @@ function collectStepReferences(step: WorkflowModelStep, scope: Scope): void {
       collectFieldReferences(step.templates?.repositoryContextSkills, scope, {
         field: 'agent.repository_context',
       });
+      for (const server of step.customMcpServers ?? []) {
+        for (const [envKey, template] of Object.entries(server.templates?.env ?? {})) {
+          collectFieldReferences(template, scope, {field: 'agent.mcp_servers.env.value', envKey});
+        }
+      }
       return;
     case 'tool':
       collectToolStepReferences(step, scope);
