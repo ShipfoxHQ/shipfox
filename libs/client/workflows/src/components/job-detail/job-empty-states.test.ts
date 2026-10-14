@@ -181,6 +181,30 @@ describe('skippedJobDescription', () => {
   });
 });
 
+describe('skipped job empty states', () => {
+  test('explains a skipped job when its pending execution is only a placeholder', () => {
+    const job = workflowJob({
+      status: 'skipped',
+      status_reason: 'condition_rejected',
+      job_executions: [
+        workflowJobExecutionDto({
+          status: 'pending',
+          status_reason: null,
+          steps: [],
+        }),
+      ],
+    });
+    const execution = job.jobExecutions[0];
+    if (!execution) throw new Error('Expected a job execution');
+
+    expect(emptyStateForJob(job, execution)).toMatchObject({
+      title: 'This job was skipped',
+      description: 'The if condition of this job is false.',
+      status: 'skipped',
+    });
+  });
+});
+
 describe('runner-loss failure descriptions', () => {
   test.each([
     {

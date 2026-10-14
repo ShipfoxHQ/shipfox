@@ -68,6 +68,24 @@ export function emptyStateForJob(
     job.mode === 'listening'
       ? deriveJobExecutionDisplayStatus(jobExecution)
       : deriveJobDisplayStatus(job);
+  if (displayStatus === 'skipped') return skippedJobEmptyState(job);
+
+  return emptyStateForNonSkippedJob(job, jobExecution, displayStatus);
+}
+
+function skippedJobEmptyState(job: Job): StepListEmptyState {
+  return {
+    title: 'This job was skipped',
+    description: skippedJobDescription(job.statusReason, job.evaluationTrace),
+    status: 'skipped',
+  };
+}
+
+function emptyStateForNonSkippedJob(
+  job: Job,
+  jobExecution: JobExecution,
+  displayStatus: Exclude<StepListEmptyState['status'], 'skipped'>,
+): StepListEmptyState | undefined {
   const runner = jobExecution.runner?.length ? jobExecution.runner : job.runner;
 
   if (jobExecution.status === 'running' && displayStatus === 'pending') {

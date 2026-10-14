@@ -29,7 +29,7 @@ export class WorkflowRunJobScreen {
 
   private jobNavigationLink(): Locator {
     return this.page.getByRole('link', {
-      name: new RegExp(`^${escapeRegExp(this.name)}(?:,|\\s|$)`, 'u'),
+      name: new RegExp(`(?:^|\\s)${escapeRegExp(this.name)}(?:,|\\s|$)`, 'iu'),
     });
   }
 

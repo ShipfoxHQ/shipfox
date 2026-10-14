@@ -872,6 +872,33 @@ describe('waitForRunTerminal', () => {
     vi.useRealTimers();
   });
 
+  test('preserves a job status reason when its pending execution has no reason', async () => {
+    const skippedJob = jobSummary({
+      status: 'skipped',
+      status_reason: 'condition_rejected',
+      default_execution: executionSummary({
+        status: 'pending',
+        display_status: 'pending',
+        status_reason: null,
+      }),
+    });
+    const result = await observeRun({
+      fetch: (input) => {
+        const url = new URL(input);
+        if (url.pathname.endsWith('/head')) return response(head('succeeded'));
+        if (url.pathname.endsWith('/overview')) {
+          return response(overview({jobs: [skippedJob]}));
+        }
+        throw new Error(`Unexpected request: ${url.pathname}${url.search}`);
+      },
+      runId,
+      selection: {jobs: [{jobKey: 'build'}]},
+      token: 'user-token',
+    });
+
+    expect(result.jobs[0]?.status_reason).toBe('condition_rejected');
+  });
+
   test.each([
     'succeeded',
     'failed',

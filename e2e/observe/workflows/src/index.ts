@@ -588,20 +588,23 @@ function toJobObservationFields(
 function toJobObservation(
   job: WorkflowRunJobOverviewDto | WorkflowRunJobListSummaryDto,
 ): WorkflowJobObservation {
+  const executionFields = toJobObservationFields(job.default_execution);
   return {
     id: job.id,
     key: job.key,
     name: job.name,
     position: job.position,
     status: job.status,
-    status_reason: job.status_reason,
     mode: job.mode,
     listener_status: job.listener_status,
     carried_over: job.carried_over,
     execution_count: job.execution_count,
     execution_status_counts: job.execution_status_counts,
     default_execution: job.default_execution,
-    ...toJobObservationFields(job.default_execution),
+    ...executionFields,
+    // A skipped job can have a pending execution placeholder with no reason. Do not let that
+    // placeholder erase the job-level reason that explains why the job was skipped.
+    status_reason: executionFields.status_reason ?? job.status_reason,
     executions: [],
   };
 }
