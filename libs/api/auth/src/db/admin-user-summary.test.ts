@@ -75,14 +75,15 @@ describe('administrator user summaries db', () => {
   });
 
   test('uses exact UUID search and case-insensitive multi-term literal matching', async () => {
+    const marker = crypto.randomUUID();
     const actor = await userFactory.create({email: `actor-${crypto.randomUUID()}@example.com`});
     const user = await userFactory.create({
       email: `literal%_\\${crypto.randomUUID()}@Example.com`,
-      name: 'Ada Lovelace',
+      name: `Ada Lovelace ${marker}`,
     });
     await userFactory.create({
       email: `control-${crypto.randomUUID()}@example.com`,
-      name: 'Ada Byron',
+      name: `Ada Byron ${marker}`,
     });
 
     const exact = await listAdministratorUserSummaries(db(), {
@@ -94,7 +95,7 @@ describe('administrator user summaries db', () => {
 
     const matching = await listAdministratorUserSummaries(db(), {
       actorId: actor.id,
-      search: '  ADA   LOVELACE  ',
+      search: `  ADA   LOVELACE  ${marker.toUpperCase()} `,
       limit: 10,
     });
     expect(matching.rows.map(({id}) => id)).toEqual([user.id]);
