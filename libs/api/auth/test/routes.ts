@@ -236,7 +236,13 @@ export async function createAuthTestApp(params?: {
 
 export async function signup(
   app: FastifyInstance,
-  params: {email: string; password: string; name?: string},
+  params: {
+    email: string;
+    password: string;
+    name?: string;
+    given_name?: string;
+    family_name?: string;
+  },
 ): Promise<InjectResponse> {
   const result = await app.inject({
     method: 'POST',

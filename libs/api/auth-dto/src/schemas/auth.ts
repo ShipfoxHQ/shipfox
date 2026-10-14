@@ -22,6 +22,8 @@ export const signupBodySchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   name: displayNameSchema,
+  given_name: displayNameSchema.optional(),
+  family_name: displayNameSchema.optional(),
   invitation_token: z.string().min(1).max(256).optional(),
 });
 

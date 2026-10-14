@@ -100,6 +100,30 @@ describe('users db', () => {
     expect(events).toHaveLength(1);
   });
 
+  test('provisionUser stores given and family names and publishes them on signed-up', async () => {
+    const email = emailFor('provision-split-name');
+
+    const user = await provisionUser({
+      email,
+      name: 'Ada Lovelace',
+      givenName: 'Ada',
+      familyName: 'Lovelace',
+      viaInvitation: false,
+    });
+    const events = await db()
+      .select()
+      .from(authOutbox)
+      .where(
+        and(
+          eq(authOutbox.eventType, AUTH_USER_SIGNED_UP),
+          sql`${authOutbox.payload}->>'email' = ${email}`,
+        ),
+      );
+
+    expect(user).toMatchObject({givenName: 'Ada', familyName: 'Lovelace'});
+    expect(events[0]?.payload).toMatchObject({givenName: 'Ada', familyName: 'Lovelace'});
+  });
+
   test('updateUserPassword updates the hashed password', async () => {
     const user = await createUser({email: emailFor('pwbump'), hashedPassword: 'old'});
 

@@ -358,7 +358,7 @@ The core auth routes are mounted under `/auth`.
 
 | Method | Path | Auth | Result |
 | --- | --- | --- | --- |
-| `POST` | `/signup` | none | Creates a user and sends an eight-digit email verification code. A denied new signup returns `403` with error code `signup-not-allowed` and the policy message. |
+| `POST` | `/signup` | none | Creates a user and sends an eight-digit email verification code. Accepts an optional `given_name` and `family_name` next to `name`. A denied new signup returns `403` with error code `signup-not-allowed` and the policy message. |
 | `POST` | `/verify-email/confirm` | none | Confirms a verification code, returns an access token, and sets the refresh cookie. |
 | `POST` | `/verify-email/resend` | none | Sends a new verification code when the account is eligible. |
 | `POST` | `/login` | none | Returns an access token and sets the refresh cookie. |
@@ -538,7 +538,13 @@ export const callbackRoutePlugins = [authCookiePlugin];
 
 export async function completeProviderCallback(
   reply: FastifyReply,
-  profile: {email: string; name?: string; viaInvitation: boolean},
+  profile: {
+    email: string;
+    name?: string;
+    givenName?: string;
+    familyName?: string;
+    viaInvitation: boolean;
+  },
 ): Promise<string> {
   const user = await provisionUser(profile);
   const session = await createSessionForUser({userId: user.id});
@@ -566,12 +572,14 @@ Add `authCookiePlugin` to the callback route group before calling a cookie
 helper. `getRefreshTokenCookie`, `setRefreshTokenCookie`, and
 `clearRefreshTokenCookie` use the configured cookie name and the `/auth` path.
 
-`provisionUser({email, name?, viaInvitation})` uses the same email schema as the
-auth routes. It makes an active, verified user with no password hash. It also
+`provisionUser({email, name?, givenName?, familyName?, viaInvitation})` uses the
+same email schema as the auth routes. Pass `givenName` and `familyName` only when
+the provider returns them as separate claims, such as Google's `given_name` and
+`family_name`. Do not split `name` to fill them. It makes an active, verified user with no password hash. It also
 writes one `auth.user.signed_up` event with the user in the same transaction.
 Set `viaInvitation` when the external signup completes through an invitation.
 If the email already exists, the function returns that user unchanged and
-writes no signup event. It does not change the name, email, status, verification
+writes no signup event. It does not change the names, email, status, verification
 state, or password. Repeated and concurrent callbacks are safe.
 
 This pre-verified user state lets an external login method create a session when password login and email-verification routes are disabled.

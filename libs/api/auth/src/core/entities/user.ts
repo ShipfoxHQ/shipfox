@@ -5,6 +5,8 @@ export interface User {
   email: string;
   hashedPassword: string | null;
   name: string | null;
+  givenName: string | null;
+  familyName: string | null;
   emailVerifiedAt: Date | null;
   status: UserStatus;
   createdAt: Date;

@@ -1,4 +1,8 @@
-import {AUTH_USER_SIGNED_UP, type AuthEventMap} from '@shipfox/api-auth-dto';
+import {
+  AUTH_USER_SIGNED_UP,
+  type AuthEventMap,
+  type AuthUserSignedUpEvent,
+} from '@shipfox/api-auth-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {eq} from 'drizzle-orm';
 import type {User} from '#core/entities/user.js';
@@ -11,6 +15,8 @@ export interface CreateUserParams {
   email: string;
   hashedPassword: string | null;
   name?: string | null;
+  givenName?: string | null;
+  familyName?: string | null;
   emailVerifiedAt?: Date | null;
   signedUp?: {viaInvitation: boolean};
 }
@@ -18,6 +24,8 @@ export interface CreateUserParams {
 export interface ProvisionUserParams {
   email: string;
   name?: string | null;
+  givenName?: string | null;
+  familyName?: string | null;
   viaInvitation: boolean;
 }
 
@@ -33,6 +41,17 @@ function isAuthUsersEmailUniqueViolation(error: unknown): boolean {
   return false;
 }
 
+function toSignedUpPayload(user: User, viaInvitation: boolean): AuthUserSignedUpEvent {
+  return {
+    userId: user.id,
+    email: user.email,
+    ...(user.name ? {name: user.name} : {}),
+    ...(user.givenName ? {givenName: user.givenName} : {}),
+    ...(user.familyName ? {familyName: user.familyName} : {}),
+    viaInvitation,
+  };
+}
+
 export async function createUser(params: CreateUserParams): Promise<User> {
   try {
     return await db().transaction(async (tx) => {
@@ -42,6 +61,8 @@ export async function createUser(params: CreateUserParams): Promise<User> {
           email: params.email,
           hashedPassword: params.hashedPassword,
           name: params.name ?? null,
+          givenName: params.givenName ?? null,
+          familyName: params.familyName ?? null,
           emailVerifiedAt: params.emailVerifiedAt ?? null,
         })
         .returning();
@@ -53,12 +74,7 @@ export async function createUser(params: CreateUserParams): Promise<User> {
       if (params.signedUp) {
         await writeOutboxEvent<AuthEventMap>(tx, authOutbox, {
           type: AUTH_USER_SIGNED_UP,
-          payload: {
-            userId: user.id,
-            email: user.email,
-            ...(user.name ? {name: user.name} : {}),
-            viaInvitation: params.signedUp.viaInvitation,
-          },
+          payload: toSignedUpPayload(user, params.signedUp.viaInvitation),
         });
       }
       return user;
@@ -79,6 +95,8 @@ export async function provisionUser(params: ProvisionUserParams): Promise<User> 
         email: params.email,
         hashedPassword: null,
         name: params.name ?? null,
+        givenName: params.givenName ?? null,
+        familyName: params.familyName ?? null,
         emailVerifiedAt: new Date(),
       })
       .onConflictDoNothing({target: users.email})
@@ -89,12 +107,7 @@ export async function provisionUser(params: ProvisionUserParams): Promise<User> 
       const user = toUser(row);
       await writeOutboxEvent<AuthEventMap>(tx, authOutbox, {
         type: AUTH_USER_SIGNED_UP,
-        payload: {
-          userId: user.id,
-          email: user.email,
-          ...(user.name ? {name: user.name} : {}),
-          viaInvitation: params.viaInvitation,
-        },
+        payload: toSignedUpPayload(user, params.viaInvitation),
       });
       return user;
     }

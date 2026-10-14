@@ -9,6 +9,8 @@ export const pageUserFactory = Factory.define<UserDto>(() => {
     id: faker.string.uuid(),
     email: faker.internet.email().toLowerCase(),
     name: faker.person.fullName(),
+    given_name: null,
+    family_name: null,
     email_verified_at: faker.helpers.maybe(() => faker.date.recent().toISOString()) ?? null,
     status: 'active',
     created_at: createdAt.toISOString(),

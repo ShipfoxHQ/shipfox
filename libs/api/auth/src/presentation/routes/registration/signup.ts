@@ -83,13 +83,15 @@ export function createSignupRoute(
     },
     errorHandler: handleSignupError,
     handler: async (request, reply) => {
-      const {email, password, name, invitation_token} = request.body;
+      const {email, password, name, given_name, family_name, invitation_token} = request.body;
 
       if (invitation_token === undefined) {
         const result = await signup({
           email,
           password,
           name,
+          givenName: given_name,
+          familyName: family_name,
           sourceIp: request.ip,
           signupPolicy,
         });
@@ -107,6 +109,8 @@ export function createSignupRoute(
         email,
         password,
         name,
+        givenName: given_name,
+        familyName: family_name,
         invitationToken: invitation_token,
         workspaces,
       });

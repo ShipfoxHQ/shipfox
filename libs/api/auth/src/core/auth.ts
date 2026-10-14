@@ -243,12 +243,16 @@ export interface SignupParams {
   email: string;
   password: string;
   name?: string | undefined;
+  givenName?: string | undefined;
+  familyName?: string | undefined;
   signupPolicy?: SignupPolicy | undefined;
 }
 
 export interface ProvisionUserParams {
   email: string;
   name?: string | null | undefined;
+  givenName?: string | null | undefined;
+  familyName?: string | null | undefined;
   viaInvitation: boolean;
   signupPolicy?: SignupPolicy | undefined;
 }
@@ -272,6 +276,8 @@ export async function provisionUser(params: ProvisionUserParams): Promise<User> 
   return await provisionDbUser({
     email,
     name: params.name ?? null,
+    givenName: params.givenName ?? null,
+    familyName: params.familyName ?? null,
     viaInvitation: params.viaInvitation,
   });
 }
@@ -314,6 +320,8 @@ export async function signup(params: SignupParams & {sourceIp?: string}): Promis
     email,
     hashedPassword,
     name: params.name ?? null,
+    givenName: params.givenName ?? null,
+    familyName: params.familyName ?? null,
     signedUp: {viaInvitation: false},
   });
 
@@ -364,6 +372,8 @@ export async function signupWithInvitation(
     email: params.email,
     hashedPassword,
     name: params.name ?? null,
+    givenName: params.givenName ?? null,
+    familyName: params.familyName ?? null,
     emailVerifiedAt: new Date(),
     signedUp: {viaInvitation: true},
   });
@@ -426,6 +436,8 @@ export async function createUser(params: CreateUserParams): Promise<User> {
     email: params.email,
     hashedPassword,
     name: params.name ?? null,
+    givenName: params.givenName ?? null,
+    familyName: params.familyName ?? null,
     emailVerifiedAt: params.verified ? new Date() : null,
   });
 

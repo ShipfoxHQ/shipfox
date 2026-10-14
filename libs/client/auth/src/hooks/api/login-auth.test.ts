@@ -24,6 +24,8 @@ describe('loginAuth', () => {
           id: '11111111-1111-4111-8111-111111111111',
           email: 'login@example.com',
           name: null,
+          given_name: null,
+          family_name: null,
           email_verified_at: '2026-04-27T00:00:00.000Z',
           status: 'active',
           created_at: '2026-04-27T00:00:00.000Z',

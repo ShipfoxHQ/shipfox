@@ -6,6 +6,8 @@ export const userDtoSchema = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
   name: z.string().nullable(),
+  given_name: z.string().nullable(),
+  family_name: z.string().nullable(),
   email_verified_at: z.string().nullable(),
   status: userStatusSchema,
   created_at: z.string(),

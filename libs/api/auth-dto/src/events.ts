@@ -19,6 +19,8 @@ export const authUserSignedUpSchema = z.object({
   userId: z.string(),
   email: z.string().email(),
   name: z.string().optional(),
+  givenName: z.string().optional(),
+  familyName: z.string().optional(),
   viaInvitation: z.boolean(),
 });
 export type AuthUserSignedUpEvent = z.infer<typeof authUserSignedUpSchema>;

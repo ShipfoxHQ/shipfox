@@ -98,6 +98,36 @@ describe('POST /auth/signup', () => {
     expect(capturedMail()).toHaveLength(1);
   });
 
+  test('stores optional given and family names', async () => {
+    const email = uniqueEmail('signup-split-name');
+
+    const res = await signup(app, {
+      email,
+      password,
+      name: 'Ada Lovelace',
+      given_name: '  Ada ',
+      family_name: 'Lovelace',
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json().user).toMatchObject({
+      name: 'Ada Lovelace',
+      given_name: 'Ada',
+      family_name: 'Lovelace',
+    });
+  });
+
+  test('returns null given and family names when omitted', async () => {
+    const res = await signup(app, {
+      email: uniqueEmail('signup-no-split-name'),
+      password,
+      name: 'Ada',
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json().user).toMatchObject({given_name: null, family_name: null});
+  });
+
   test.each([
     ['missing', undefined],
     ['blank after trimming', '   '],

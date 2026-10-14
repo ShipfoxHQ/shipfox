@@ -13,6 +13,8 @@ export const userFactory = Factory.define<User & {plainPassword: string}>(
         email: user.email,
         hashedPassword,
         name: user.name,
+        givenName: user.givenName,
+        familyName: user.familyName,
       });
       if (user.emailVerifiedAt) {
         const verified = await markEmailVerified({userId: created.id});
@@ -26,6 +28,8 @@ export const userFactory = Factory.define<User & {plainPassword: string}>(
       email: `user-${sequence}-${crypto.randomUUID()}@example.com`,
       hashedPassword: 'placeholder',
       name: `User ${sequence}`,
+      givenName: null,
+      familyName: null,
       emailVerifiedAt: null,
       status: 'active',
       createdAt: new Date(),

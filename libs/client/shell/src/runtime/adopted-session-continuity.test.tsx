@@ -48,6 +48,8 @@ function sessionResponse(session: AuthenticatedSession): Response {
       id: session.user.id,
       email: session.user.email,
       name: null,
+      given_name: null,
+      family_name: null,
       email_verified_at: null,
       status: 'active',
       created_at: '2026-08-25T08:00:00.000Z',

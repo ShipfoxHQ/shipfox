@@ -6,6 +6,8 @@ export function toUserDto(user: User): UserDto {
     id: user.id,
     email: user.email,
     name: user.name,
+    given_name: user.givenName,
+    family_name: user.familyName,
     email_verified_at: user.emailVerifiedAt ? user.emailVerifiedAt.toISOString() : null,
     status: user.status,
     created_at: user.createdAt.toISOString(),
