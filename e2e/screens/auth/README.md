@@ -14,7 +14,7 @@ Typed browser page objects for Shipfox authentication and guest redirects.
 Install the screen package with the E2E test tools:
 
 ```sh
-pnpm add @shipfox/e2e-screens-auth @shipfox/e2e-core
+pnpm add @shipfox/e2e-screens-auth @shipfox/e2e-kit @shipfox/e2e-core
 ```
 
 The consumer must configure its API and client URLs through the E2E kit before running a suite.
