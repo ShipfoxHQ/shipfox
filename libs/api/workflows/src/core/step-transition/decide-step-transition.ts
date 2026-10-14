@@ -69,6 +69,13 @@ export type GateOutcome =
       trace?: readonly PersistedEvaluationTraceEntry[];
     };
 
+/** The restart feedback when the author wrote none. */
+export function defaultRestartFeedback(gate: GateOutcome | undefined): string {
+  return gate?.kind === 'failed'
+    ? `The check \`${gate.source}\` returned false.`
+    : 'The step failed.';
+}
+
 export interface DecideStepTransitionInput {
   // Full job projection, position-ordered (as returned by getStepsByJobIdForUpdate).
   steps: Step[];
@@ -288,7 +295,8 @@ function restartStepTransition(
     restartFromStepId: restartStep.id,
     restartFromPosition: restartStep.position,
     attempt: reportedAttempt,
-    feedback: input.restartFeedback ?? gateOnFailure.feedback ?? 'gate condition not met',
+    feedback:
+      input.restartFeedback ?? gateOnFailure.feedback ?? defaultRestartFeedback(input.gateOutcome),
     failureError,
   };
 }

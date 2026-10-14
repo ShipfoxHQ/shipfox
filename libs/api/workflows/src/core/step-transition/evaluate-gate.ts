@@ -9,7 +9,12 @@ import {WORKFLOW_GATE_MAX_ATTEMPTS_MAX} from '@shipfox/workflow-document';
 import type {PersistedEvaluationTraceEntry, Step, StepType} from '../entities/step.js';
 import {assembleGateContext} from '../step-config/assemble-run-context.js';
 import {completeStepField} from '../step-config/fields.js';
-import {type GateOutcome, type StepReport, stepCanRestart} from './decide-step-transition.js';
+import {
+  defaultRestartFeedback,
+  type GateOutcome,
+  type StepReport,
+  stepCanRestart,
+} from './decide-step-transition.js';
 
 // The exact `uncheckable` reason recorded when the gate's CEL expression itself
 // throws (as opposed to a missing exit code). The DTO mapper keys on this string to
@@ -276,12 +281,13 @@ export function selectRestartRule(params: {
 export function evaluateGateFeedback(params: {
   readonly rule: StepGateRestartRule;
   readonly result: StepReport;
+  readonly gate: GateOutcome;
   readonly definitionId: string;
   readonly vars?: Record<string, string> | undefined;
 }): string {
   const feedbackTemplate = params.rule.feedbackTemplate;
   if (feedbackTemplate === undefined) {
-    return params.rule.feedback ?? 'gate condition not met';
+    return params.rule.feedback ?? defaultRestartFeedback(params.gate);
   }
 
   const context = assembleGateContext({

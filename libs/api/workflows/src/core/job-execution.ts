@@ -81,6 +81,7 @@ import {
   planReadsContext,
 } from './step-config/complete-step-dispatch-config.js';
 import {buildPostDispatchConfig, selectPostMainAttempt} from './step-config/post-step.js';
+import {readStepRestart} from './step-config/restart-failure-block.js';
 import type {WorkflowEvaluationContext} from './step-config/workflow-evaluation-context.js';
 import {
   applyStepTransition,
@@ -90,6 +91,7 @@ import {
 import {
   decideStepTransition,
   deriveCompletion,
+  type GateOutcome,
   isTerminal,
   type StepTransitionDecision,
 } from './step-transition/decide-step-transition.js';
@@ -464,6 +466,11 @@ async function dispatchPendingStep(params: PendingStepDispatchParams): Promise<N
   const hasSessionIntent = pending.type === 'agent' && pending.config.session !== undefined;
   if (hasSessionIntent) return dispatchPendingStepWithConfigPlan(dispatchParams);
 
+  // A restarted agent step is told why its gate failed, which completes its prompt at dispatch.
+  const isRestartedAgent =
+    pending.type === 'agent' && readStepRestart(params.context) !== undefined;
+  if (isRestartedAgent) return dispatchPendingStepWithConfigPlan(dispatchParams);
+
   const marked = await markStepRunning(
     {jobExecutionId: params.jobExecutionId, stepId: pending.id},
     params.tx,
@@ -488,13 +495,19 @@ async function dispatchPendingStepWithConfigPlan({
   workflowContext,
   tx,
   agent,
+  attempts,
 }: PendingStepDispatchParams): Promise<NextStepResolution> {
   try {
+    const firstAttempt = attempts.find(
+      (attempt) => attempt.stepId === pending.id && attempt.attempt === 1,
+    );
+    const firstAttemptPrompt = firstAttempt?.config?.prompt;
     const completed = await completeStepDispatchConfig({
       step: pending,
       context,
       resolveAgentDefaults: agent ? createAgentDefaultsResolver(agent, null) : undefined,
       definitionId: jobExecution.jobId,
+      firstAttemptPrompt: typeof firstAttemptPrompt === 'string' ? firstAttemptPrompt : undefined,
     });
     const session = completed.sessionIntent;
     const dispatchAt = new Date();
@@ -1472,6 +1485,7 @@ async function decideReportedStepTransition(params: {
       decision,
       rule: selectedRule,
       result: params.result,
+      gate: gateOutcome,
       definitionId: params.jobId,
       vars,
     }),
@@ -1558,6 +1572,7 @@ function resolveRestartFeedback(params: {
   decision: StepTransitionDecision;
   rule: StepGateRestartRule | undefined;
   result: ReportedStepResult;
+  gate: GateOutcome;
   definitionId: string;
   vars?: Record<string, string> | undefined;
 }): StepTransitionDecision {
@@ -1568,6 +1583,7 @@ function resolveRestartFeedback(params: {
     const feedback = evaluateGateFeedback({
       rule: params.rule,
       result: params.result,
+      gate: params.gate,
       definitionId: params.definitionId,
       vars: params.vars,
     });

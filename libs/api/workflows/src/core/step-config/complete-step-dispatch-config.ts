@@ -17,6 +17,7 @@ import {completeActionConfig} from './action.js';
 import {completeAgentConfig, readAgentStepSessionIntent} from './agent.js';
 import {completeSetupContainerConfig} from './container.js';
 import {completeStepFieldWithTrace} from './fields.js';
+import {withRestartFailureBlock} from './restart-failure-block.js';
 import {completeRunDispatchConfig} from './run.js';
 import {assertSecretInputDestinations, completeWith} from './tool.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
@@ -40,6 +41,8 @@ export async function completeStepDispatchConfig(params: {
   readonly context: WorkflowEvaluationContext;
   readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
   readonly definitionId: string;
+  /** The prompt this agent step ran with first, before any restart added a failure block. */
+  readonly firstAttemptPrompt?: string | undefined;
 }): Promise<{
   readonly config: Record<string, unknown>;
   readonly trace: readonly PersistedEvaluationTraceEntry[];
@@ -59,7 +62,12 @@ export async function completeStepDispatchConfig(params: {
     }
     assertWorkingDirectoryIfPresent(params.step.config.working_directory);
     return {
-      config: params.step.config,
+      config: withRestartFailureBlock({
+        step: params.step,
+        config: params.step.config,
+        context: params.context,
+        firstAttemptPrompt: params.firstAttemptPrompt,
+      }),
       trace: [],
       sessionIntent: validateSessionConfig(params.step.config),
     };
@@ -122,7 +130,12 @@ export async function completeStepDispatchConfig(params: {
   assertWorkingDirectoryIfPresent(config.working_directory);
 
   return {
-    config,
+    config: withRestartFailureBlock({
+      step: params.step,
+      config,
+      context: params.context,
+      firstAttemptPrompt: params.firstAttemptPrompt,
+    }),
     trace: capTraceEntries(trace),
     sessionIntent: validateSessionConfig(config) ?? completedSessionIntent,
   };

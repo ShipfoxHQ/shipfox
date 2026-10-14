@@ -181,6 +181,7 @@ describe('decideStepTransition', () => {
       restartFromStepId: 's0',
       restartFromPosition: 0,
       attempt: 1,
+      feedback: 'The check `exit_code == 0` returned false.',
     });
   });
 

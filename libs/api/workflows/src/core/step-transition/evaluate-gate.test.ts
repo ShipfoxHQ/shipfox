@@ -411,10 +411,33 @@ describe('evaluateGateFeedback', () => {
     const result = evaluateGateFeedback({
       rule,
       result: {status: 'failed', exitCode: 1, output: {summary: 'unit failed'}},
+      gate: {kind: 'failed', source: 'step.exit_code == 0'},
       definitionId: 'definition-1',
     });
 
     expect(result).toBe('try again');
+  });
+
+  test.each([
+    [
+      {kind: 'failed', source: 'step.exit_code == 0'},
+      'The check `step.exit_code == 0` returned false.',
+    ],
+    [{kind: 'no-gate'}, 'The step failed.'],
+  ] as const)('describes the failure when the author wrote no feedback', (gate, expected) => {
+    const rule = readStepGate({
+      gate: {on_failure: {restart_from: 'producer'}},
+    })?.onFailure?.[0];
+    if (!rule) throw new Error('Expected rule');
+
+    const result = evaluateGateFeedback({
+      rule,
+      result: {status: 'failed', exitCode: 1},
+      gate,
+      definitionId: 'definition-1',
+    });
+
+    expect(result).toBe(expected);
   });
 
   test('evaluates feedback templates against the reported step self-root', () => {
@@ -435,6 +458,7 @@ describe('evaluateGateFeedback', () => {
     const result = evaluateGateFeedback({
       rule,
       result: {status: 'failed', exitCode: 1, output: {summary: 'unit failed'}},
+      gate: {kind: 'failed', source: 'step.exit_code == 0'},
       definitionId: 'definition-1',
     });
 
