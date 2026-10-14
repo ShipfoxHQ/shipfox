@@ -143,9 +143,9 @@ have no status.
 
 ## Wait for a change to apply
 
-Some providers apply a change after they answer. For example, GitHub cancels a
-workflow run some seconds after it accepts the request. To wait for the change,
-read the data again until the change is there:
+A provider can apply a change after a delay. For example, GitHub can take some
+seconds to cancel a workflow run. To wait for the change, read the data again
+until the change is there:
 
 ```yaml
 - key: cancel
