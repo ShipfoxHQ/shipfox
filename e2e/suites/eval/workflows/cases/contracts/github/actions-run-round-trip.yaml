@@ -30,7 +30,8 @@ steps:
           run_attempt: 1
         matches:
           display_title: '^Trigger contract-'
-  # GitHub cancels a run some seconds after it accepts the call.
+  # GitHub cancels a run some time after it accepts the call, from 15 seconds to more than a
+  # minute, so the read repeats until the run is cancelled.
   - key: cancel
     tool: actions_run_trigger
     method: cancel_workflow_run
@@ -45,7 +46,8 @@ steps:
         owner: $fixture.github.repository.owner
         repo: $fixture.github.repository.name
         resource_id: $steps_text.dispatch.workflow_run_id
-      wait_seconds: 45
+      wait_seconds: 10
+      attempts: 12
       expect:
         values: {run_attempt: 1, status: completed, conclusion: cancelled}
   - key: rerun
@@ -80,6 +82,7 @@ steps:
         owner: $fixture.github.repository.owner
         repo: $fixture.github.repository.name
         resource_id: $steps_text.dispatch.workflow_run_id
-      wait_seconds: 45
+      wait_seconds: 10
+      attempts: 12
       expect:
         values: {run_attempt: 2, status: completed, conclusion: cancelled}

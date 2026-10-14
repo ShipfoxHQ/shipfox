@@ -94,8 +94,14 @@ const effectSchema = readSchema
     // For a write the provider applies later, such as the cancellation of a GitHub Actions run.
     // The job waits this long before the read.
     wait_seconds: z.number().int().min(1).max(60).optional(),
+    // How many times the job waits and reads before the effect fails.
+    attempts: z.number().int().min(1).max(30).default(1),
   })
-  .strict();
+  .strict()
+  .refine((effect) => effect.attempts === 1 || effect.wait_seconds !== undefined, {
+    message: 'an effect that reads more than once needs a `wait_seconds`',
+    path: ['attempts'],
+  });
 
 const stepSchema = z
   .object({

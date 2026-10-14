@@ -386,6 +386,39 @@ describe('generateContractFiles', () => {
       expect(waited).toContain('- key: a_wait\n        run: sleep 15\n      - key: a_effect\n');
     });
 
+    it('sends a failed effect back to its wait when the effect reads more than once', async () => {
+      await writeCase(
+        'linear/polled.yaml',
+        roundTrip(
+          '  - key: a\n    tool: save_issue\n    effect:\n      tool: get_issue\n      with: {id: $steps.a.id}\n      wait_seconds: 10\n      attempts: 6\n      expect:\n        values: {status: Done}\n',
+        ),
+      );
+
+      const files = generateContractFiles(await generate());
+
+      const content = files.find(({name}) => name === 'contracts-linear.yaml')?.content ?? '';
+      const polled = content.slice(content.indexOf('  polled:'));
+      expect(polled).toContain('- key: a_wait\n        run: sleep 10\n      - key: a_effect\n');
+      expect(polled).toContain(
+        '          on_failure:\n            restart_from: a_wait\n            max_attempts: 6\n',
+      );
+    });
+
+    it('reads once in fake mode, where the write is applied before the answer', async () => {
+      await writeCase(
+        'linear/polled.yaml',
+        roundTrip(
+          '  - key: a\n    tool: save_issue\n    effect:\n      tool: get_issue\n      with: {id: $steps.a.id}\n      wait_seconds: 10\n      attempts: 6\n      expect:\n        values: {status: Done}\n',
+          'real, fake',
+        ),
+      );
+
+      const files = generateContractFiles(await generate(), {mode: 'fake'});
+
+      const content = files.find(({name}) => name === 'contracts-linear.yaml')?.content ?? '';
+      expect(content).not.toContain('on_failure');
+    });
+
     it('skips the wait in fake mode, where the write is applied before the answer', async () => {
       await writeCase(
         'linear/waited.yaml',

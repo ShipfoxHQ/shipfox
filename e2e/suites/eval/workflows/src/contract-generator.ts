@@ -9,6 +9,7 @@ import type {
   ContractRead,
   ContractScalar,
   ContractShape,
+  ContractStep,
   SandboxManifest,
 } from './contract-schema.js';
 import type {ContractFiles, LoadedContractCase} from './contracts.js';
@@ -51,7 +52,7 @@ interface WorkflowStep {
   connection?: string;
   with?: unknown;
   outputs?: Record<string, string>;
-  gate?: {success: string};
+  gate?: {success?: string; on_failure?: {restart_from: string; max_attempts: number}};
 }
 
 /** A CEL expression in a workflow field. */
@@ -234,35 +235,75 @@ function caseJob({
     if (definition.kind !== 'round-trip') {
       throw new Error(`${origin}: a step \`effect\` is only for cases of kind \`round-trip\``);
     }
-    // The effect is its own step right after the write, so a failed write fails before its read.
-    const effectKey = `${key}_effect`;
-    if (keys.includes(effectKey)) {
-      throw new Error(`${origin}: the effect key "${effectKey}" is used by another step`);
-    }
-    const {wait_seconds: waitSeconds} = step.effect;
-    // A fake applies the write before it answers, so only the provider needs the wait.
-    if (waitSeconds !== undefined && mode === 'real') {
-      // The provider applies the write later. The runtime never restarts a tool step, so the
-      // effect can't poll: the job waits once, then reads.
-      const waitKey = `${key}_wait`;
-      if (keys.includes(waitKey)) {
-        throw new Error(`${origin}: the wait key "${waitKey}" is used by another step`);
-      }
-      steps.push({key: waitKey, run: `sleep ${waitSeconds}`});
-    }
     steps.push(
-      compileStep({
-        key: effectKey,
-        read: step.effect,
+      ...effectSteps({
+        key,
+        effect: step.effect,
+        keys,
+        origin,
         provider: definition.provider,
         connection,
         manifest,
-        origin: `${origin} effect`,
+        mode,
         references,
       }),
     );
   }
   return {checkout: false, steps: withReferencedOutputs({steps, references, origin: loaded.id})};
+}
+
+/** The read that proves a write, after the wait the provider needs before it shows the write. */
+function effectSteps({
+  key,
+  effect,
+  keys,
+  origin,
+  provider,
+  connection,
+  manifest,
+  mode,
+  references,
+}: {
+  key: string;
+  effect: NonNullable<ContractStep['effect']>;
+  keys: readonly string[];
+  origin: string;
+  provider: string;
+  connection: string;
+  manifest: SandboxManifest;
+  mode: ContractGenerationMode;
+  references: StepReferences;
+}): WorkflowStep[] {
+  // The effect is its own step right after the write, so a failed write fails before its read.
+  const effectKey = `${key}_effect`;
+  if (keys.includes(effectKey)) {
+    throw new Error(`${origin}: the effect key "${effectKey}" is used by another step`);
+  }
+  const read = compileStep({
+    key: effectKey,
+    read: effect,
+    provider,
+    connection,
+    manifest,
+    origin: `${origin} effect`,
+    references,
+  });
+  // A fake applies the write before it answers, so only the provider needs the wait.
+  if (effect.wait_seconds === undefined || mode !== 'real') return [read];
+
+  const waitKey = `${key}_wait`;
+  if (keys.includes(waitKey)) {
+    throw new Error(`${origin}: the wait key "${waitKey}" is used by another step`);
+  }
+  // The effect reads, so a failed read can send the job back to the wait. The write is before the
+  // wait and runs once.
+  if (effect.attempts > 1) {
+    read.gate = {
+      ...read.gate,
+      on_failure: {restart_from: waitKey, max_attempts: effect.attempts},
+    };
+  }
+  return [{key: waitKey, run: `sleep ${effect.wait_seconds}`}, read];
 }
 
 /** The `$steps` references of a case, by the key of the step they read and the output they name. */

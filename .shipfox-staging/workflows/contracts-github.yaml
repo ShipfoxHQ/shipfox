@@ -161,7 +161,7 @@ jobs:
         gate:
           success: step.status == "succeeded" && step.outputs.shape_workflow_run_id && step.outputs.shape_run_url && step.outputs.shape_html_url
       - key: dispatch_wait
-        run: sleep 45
+        run: sleep 10
       - key: dispatch_effect
         tool: actions_get.get_workflow_run
         connection: github_shipfoxsandbox
@@ -178,6 +178,9 @@ jobs:
           matches_display_title: ${{ has(result.display_title) && type(result.display_title) == type("") && result.display_title.matches("^Trigger contract-") }}
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_workflow_id) == type(1) || type(step.outputs.value_workflow_id) == type(1.0)) && step.outputs.value_workflow_id == 380752213 && type(step.outputs.value_event) == type("") && step.outputs.value_event == "workflow_dispatch" && (type(step.outputs.value_run_attempt) == type(1) || type(step.outputs.value_run_attempt) == type(1.0)) && step.outputs.value_run_attempt == 1 && type(step.outputs.value_status) == type("") && step.outputs.value_status == "completed" && type(step.outputs.value_conclusion) == type("") && step.outputs.value_conclusion == "failure" && step.outputs.matches_display_title
+          on_failure:
+            restart_from: dispatch_wait
+            max_attempts: 12
       - key: rerun
         tool: actions_run_trigger.rerun_failed_jobs
         connection: github_shipfoxsandbox
@@ -186,7 +189,7 @@ jobs:
           repo: contract-tests
           run_id: ${{ steps.dispatch.outputs.ref_workflow_run_id }}
       - key: rerun_wait
-        run: sleep 45
+        run: sleep 10
       - key: rerun_effect
         tool: actions_get.get_workflow_run
         connection: github_shipfoxsandbox
@@ -200,6 +203,9 @@ jobs:
           value_conclusion: '${{ has(result.conclusion) ? result.conclusion : "" }}'
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_run_attempt) == type(1) || type(step.outputs.value_run_attempt) == type(1.0)) && step.outputs.value_run_attempt == 2 && type(step.outputs.value_status) == type("") && step.outputs.value_status == "completed" && type(step.outputs.value_conclusion) == type("") && step.outputs.value_conclusion == "failure"
+          on_failure:
+            restart_from: rerun_wait
+            max_attempts: 12
       - key: delete_logs
         tool: actions_run_trigger.delete_workflow_run_logs
         connection: github_shipfoxsandbox
@@ -569,7 +575,7 @@ jobs:
           repo: contract-tests
           run_id: ${{ steps.dispatch.outputs.ref_workflow_run_id }}
       - key: cancel_wait
-        run: sleep 45
+        run: sleep 10
       - key: cancel_effect
         tool: actions_get.get_workflow_run
         connection: github_shipfoxsandbox
@@ -583,6 +589,9 @@ jobs:
           value_conclusion: '${{ has(result.conclusion) ? result.conclusion : "" }}'
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_run_attempt) == type(1) || type(step.outputs.value_run_attempt) == type(1.0)) && step.outputs.value_run_attempt == 1 && type(step.outputs.value_status) == type("") && step.outputs.value_status == "completed" && type(step.outputs.value_conclusion) == type("") && step.outputs.value_conclusion == "cancelled"
+          on_failure:
+            restart_from: cancel_wait
+            max_attempts: 12
       - key: rerun
         tool: actions_run_trigger.rerun_workflow_run
         connection: github_shipfoxsandbox
@@ -611,7 +620,7 @@ jobs:
           repo: contract-tests
           run_id: ${{ steps.dispatch.outputs.ref_workflow_run_id }}
       - key: cancel_rerun_wait
-        run: sleep 45
+        run: sleep 10
       - key: cancel_rerun_effect
         tool: actions_get.get_workflow_run
         connection: github_shipfoxsandbox
@@ -625,6 +634,9 @@ jobs:
           value_conclusion: '${{ has(result.conclusion) ? result.conclusion : "" }}'
         gate:
           success: step.status == "succeeded" && (type(step.outputs.value_run_attempt) == type(1) || type(step.outputs.value_run_attempt) == type(1.0)) && step.outputs.value_run_attempt == 2 && type(step.outputs.value_status) == type("") && step.outputs.value_status == "completed" && type(step.outputs.value_conclusion) == type("") && step.outputs.value_conclusion == "cancelled"
+          on_failure:
+            restart_from: cancel_rerun_wait
+            max_attempts: 12
   branch_commit_round_trip:
     checkout: false
     steps:

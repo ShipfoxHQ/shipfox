@@ -22,7 +22,8 @@ steps:
         owner: $fixture.github.repository.owner
         repo: $fixture.github.repository.name
         resource_id: $steps_text.dispatch.workflow_run_id
-      wait_seconds: 45
+      wait_seconds: 10
+      attempts: 12
       expect:
         values:
           workflow_id: $fixture.github.trigger_workflow.id
@@ -46,7 +47,8 @@ steps:
         owner: $fixture.github.repository.owner
         repo: $fixture.github.repository.name
         resource_id: $steps_text.dispatch.workflow_run_id
-      wait_seconds: 45
+      wait_seconds: 10
+      attempts: 12
       expect:
         values: {run_attempt: 2, status: completed, conclusion: failure}
   - key: delete_logs

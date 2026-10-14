@@ -10,6 +10,7 @@ const repeatedKeyPattern = /used twice/iu;
 const onlyErrorPattern = /only a case of kind `error`/iu;
 const needsErrorPattern = /needs a step with `expect.error`/iu;
 const noOutputPattern = /no output to check/iu;
+const needsWaitPattern = /needs a `wait_seconds`/iu;
 const shapePattern = /shape/iu;
 const methodPattern = /method needs its tool/iu;
 const targetKindPattern = /kind/iu;
@@ -151,6 +152,14 @@ describe('contract case schema', () => {
     const parsed = parseContractCase({...getIssue, kind: 'round-trip', steps});
 
     expect(parsed.steps[0]?.effect?.wait_seconds).toBe(15);
+  });
+
+  it('rejects an effect that reads more than once without a wait', () => {
+    const steps = [{tool: 'save_issue', effect: {tool: 'get_issue', attempts: 3}}];
+
+    expect(() => parseContractCase({...getIssue, kind: 'round-trip', steps})).toThrow(
+      needsWaitPattern,
+    );
   });
 
   it('rejects an error in an effect', () => {
