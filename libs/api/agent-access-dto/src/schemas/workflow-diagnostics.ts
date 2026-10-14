@@ -7,9 +7,11 @@ import {AGENT_ACCESS_WORKFLOW_ATTEMPT_MAX} from './workflow-tools.js';
 /** Smaller per-value allowance used by Agent Access before the common response ceiling. */
 export const AGENT_ACCESS_WORKFLOW_DIAGNOSTIC_VALUE_MAX_BYTES = 16 * 1024;
 
-/** Source is text, but it still needs enough room to be useful in a diagnostic response. */
-export const AGENT_ACCESS_WORKFLOW_SOURCE_MAX_BYTES =
-  AGENT_ACCESS_WORKFLOW_DIAGNOSTIC_VALUE_MAX_BYTES;
+/**
+ * Budget for one source page, counted as JSON-escaped bytes so a full page still fits under the
+ * response ceiling with its envelope.
+ */
+export const AGENT_ACCESS_WORKFLOW_SOURCE_MAX_BYTES = 96 * 1024;
 
 const textSchema = utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES);
 const sourceTextSchema = utf8CappedString(AGENT_ACCESS_WORKFLOW_SOURCE_MAX_BYTES);
@@ -269,7 +271,11 @@ const invocationSchema = z
   .strict();
 
 export const getWorkflowRunSourceInputSchema = z
-  .object({run_id: idSchema, attempt: attemptSchema.optional()})
+  .object({
+    run_id: idSchema,
+    attempt: attemptSchema.optional(),
+    from_line: z.number().int().min(1).optional(),
+  })
   .strict();
 
 export const getWorkflowExecutionContextInputSchema = z
@@ -309,6 +315,10 @@ export const getWorkflowRunSourceResultSchema = z.discriminatedUnion('kind', [
       workflow_run_id: idSchema,
       workflow_run_attempt: attemptSchema,
       source_snapshot: sourceSnapshotSchema,
+      start_line: z.number().int().min(1),
+      end_line: z.number().int().nonnegative(),
+      total_lines: z.number().int().nonnegative(),
+      next_from_line: z.number().int().min(1).optional(),
       source_snapshot_truncated: z.literal(true).optional(),
       source_snapshot_total_bytes: z.number().int().nonnegative().optional(),
     })
@@ -418,6 +428,11 @@ export const getWorkflowRunSourceInputJsonSchema = {
   properties: {
     run_id: uuid,
     attempt: {type: 'integer', minimum: 1, maximum: AGENT_ACCESS_WORKFLOW_ATTEMPT_MAX},
+    from_line: {
+      type: 'integer',
+      minimum: 1,
+      description: 'First line to return. Pass next_from_line from the previous reply.',
+    },
   },
   required: ['run_id'],
   additionalProperties: false,
@@ -685,6 +700,10 @@ export const getWorkflowRunSourceResultJsonSchema = {
     workflow_run_id: uuid,
     workflow_run_attempt: {type: 'integer', minimum: 1, maximum: AGENT_ACCESS_WORKFLOW_ATTEMPT_MAX},
     source_snapshot: sourceSnapshotJson,
+    start_line: {type: 'integer', minimum: 1},
+    end_line: {type: 'integer', minimum: 0},
+    total_lines: {type: 'integer', minimum: 0},
+    next_from_line: {type: 'integer', minimum: 1},
     source_snapshot_truncated: {const: true},
     source_snapshot_total_bytes: {type: 'integer', minimum: 0},
     reason: {type: 'string', enum: sourceUnavailableReasons},
@@ -694,7 +713,7 @@ export const getWorkflowRunSourceResultJsonSchema = {
   oneOf: [
     {
       properties: {kind: {const: 'available'}},
-      required: ['source_snapshot'],
+      required: ['source_snapshot', 'start_line', 'end_line', 'total_lines'],
       not: {required: ['reason']},
     },
     {

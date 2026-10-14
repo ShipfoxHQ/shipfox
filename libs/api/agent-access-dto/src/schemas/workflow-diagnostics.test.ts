@@ -30,6 +30,15 @@ describe('workflow diagnostic Agent Access schemas', () => {
     expect(getWorkflowRunSourceInputJsonSchema.required).toEqual(['run_id']);
   });
 
+  test('accepts a positive source line to read from', () => {
+    expect(getWorkflowRunSourceInputSchema.safeParse({run_id: runId, from_line: 400}).success).toBe(
+      true,
+    );
+    expect(getWorkflowRunSourceInputSchema.safeParse({run_id: runId, from_line: 0}).success).toBe(
+      false,
+    );
+  });
+
   test('accepts canonical source, context, step, and explanation values', () => {
     expect(getWorkflowRunSourceResultSchema.safeParse(sourceAvailable()).success).toBe(true);
     expect(getWorkflowRunSourceResultSchema.safeParse(sourceUnavailable()).success).toBe(true);
@@ -251,6 +260,9 @@ function sourceAvailable() {
     workflow_run_id: runId,
     workflow_run_attempt: 1,
     source_snapshot: {content: 'name: build', format: 'yaml' as const},
+    start_line: 1,
+    end_line: 1,
+    total_lines: 1,
   };
 }
 

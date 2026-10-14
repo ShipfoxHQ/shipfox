@@ -11,6 +11,7 @@ import {
   AGENT_ACCESS_RESPONSE_MAX_BYTES,
   AGENT_ACCESS_TEXT_MAX_BYTES,
   AGENT_ACCESS_WORKFLOW_DIAGNOSTIC_VALUE_MAX_BYTES,
+  AGENT_ACCESS_WORKFLOW_SOURCE_MAX_BYTES,
   agentAccessEnvelopeSchema,
   getStepAttemptResultSchema,
   getWorkflowExecutionContextResultSchema,
@@ -653,37 +654,104 @@ describe('workflow diagnostic agent-access tools', () => {
     }
   });
 
-  test('caps source text at a character boundary and records its original byte size', async () => {
+  test('returns a short source whole, with its line range', async () => {
     const mocks = clients();
-    const source = `name: ${'é'.repeat(20_000)}`;
-    mocks.getWorkflowRunSource.mockResolvedValue({
-      kind: 'available',
-      workflow_run_id: runId,
-      workflow_run_attempt: 1,
-      source_snapshot: {content: source, format: 'yaml'},
-    });
+    mockSource(mocks, 'name: build\njobs: {}\n');
 
-    const response = await tool(mocks, 'get_workflow_run_source').execute({
-      context,
-      arguments: {run_id: runId, attempt: 1},
-    });
-    const result = success<GetWorkflowRunSourceResultDto>(response);
+    const result = await readSource(mocks, {run_id: runId, attempt: 1});
 
     expect(mocks.getWorkflowRunSource.mock.calls[0]?.[0]).toStrictEqual({
       workspaceId,
       workflowRunId: runId,
       attempt: 1,
     });
-    expect(result.kind).toBe('available');
+    expect(result).toEqual({
+      kind: 'available',
+      workflow_run_id: runId,
+      workflow_run_attempt: 1,
+      source_snapshot: {content: 'name: build\njobs: {}\n', format: 'yaml'},
+      start_line: 1,
+      end_line: 2,
+      total_lines: 2,
+    });
+    expect(getWorkflowRunSourceResultSchema.safeParse(result).success).toBe(true);
+  });
+
+  test('pages a long source by whole lines until every line is read', async () => {
+    const mocks = clients();
+    const lines = Array.from(
+      {length: 4_000},
+      (_, index) => `  - step_${index}: "${'x'.repeat(40)}"\n`,
+    );
+    const source = lines.join('');
+    mockSource(mocks, source);
+
+    const first = await readSource(mocks, {run_id: runId});
+    if (first.kind !== 'available') throw new Error('Expected source');
+    expect(first.start_line).toBe(1);
+    expect(first.end_line).toBeLessThan(4_000);
+    expect(first.next_from_line).toBe(first.end_line + 1);
+    expect(first.total_lines).toBe(4_000);
+    expect(first.source_snapshot_truncated).toBe(true);
+    expect(first.source_snapshot_total_bytes).toBe(new TextEncoder().encode(source).byteLength);
+    expect(first.source_snapshot.content.endsWith('\n')).toBe(true);
+    expect(JSON.stringify(first.source_snapshot.content).length - 2).toBeLessThanOrEqual(
+      AGENT_ACCESS_WORKFLOW_SOURCE_MAX_BYTES,
+    );
+    expect(getWorkflowRunSourceResultSchema.safeParse(first).success).toBe(true);
+
+    let content = first.source_snapshot.content;
+    let next = first.next_from_line;
+    while (next !== undefined) {
+      const page = await readSource(mocks, {run_id: runId, from_line: next});
+      if (page.kind !== 'available') throw new Error('Expected source');
+      expect(page.start_line).toBe(next);
+      content += page.source_snapshot.content;
+      next = page.next_from_line;
+    }
+    expect(content).toBe(source);
+  });
+
+  test('cuts a single line over the page budget so the next call moves on', async () => {
+    const mocks = clients();
+    mockSource(mocks, `name: ${'é'.repeat(60_000)}\njobs: {}\n`);
+
+    const result = await readSource(mocks, {run_id: runId});
+
     if (result.kind !== 'available') throw new Error('Expected source');
+    expect(result.end_line).toBe(1);
+    expect(result.next_from_line).toBe(2);
     expect(result.source_snapshot_truncated).toBe(true);
-    expect(result.source_snapshot_total_bytes).toBeGreaterThan(
-      AGENT_ACCESS_WORKFLOW_DIAGNOSTIC_VALUE_MAX_BYTES,
-    );
     expect(new TextEncoder().encode(result.source_snapshot.content).byteLength).toBeLessThanOrEqual(
-      AGENT_ACCESS_WORKFLOW_DIAGNOSTIC_VALUE_MAX_BYTES,
+      AGENT_ACCESS_WORKFLOW_SOURCE_MAX_BYTES,
     );
-    expect(result.source_snapshot.content.endsWith('�')).toBe(false);
+    expect(result.source_snapshot.content.endsWith('\uFFFD')).toBe(false);
+  });
+
+  test('rejects a start line past the end of the source', async () => {
+    const mocks = clients();
+    mockSource(mocks, 'name: build\n');
+
+    const response = await tool(mocks, 'get_workflow_run_source').execute({
+      context,
+      arguments: {run_id: runId, from_line: 2},
+    });
+
+    expect(response).toMatchObject({ok: false, error: {code: 'invalid-request'}});
+  });
+
+  test('answers the first line of an empty source with an empty page', async () => {
+    const mocks = clients();
+    mockSource(mocks, '');
+
+    const result = await readSource(mocks, {run_id: runId});
+
+    expect(result).toMatchObject({
+      source_snapshot: {content: ''},
+      start_line: 1,
+      end_line: 0,
+      total_lines: 0,
+    });
     expect(getWorkflowRunSourceResultSchema.safeParse(result).success).toBe(true);
   });
 
@@ -888,6 +956,26 @@ describe('workflow diagnostic agent-access tools', () => {
     expect(response).toEqual({ok: false, error: {code: 'not-found'}});
   });
 });
+
+function mockSource(fixture: ReturnType<typeof clients>, content: string) {
+  fixture.getWorkflowRunSource.mockResolvedValue({
+    kind: 'available',
+    workflow_run_id: runId,
+    workflow_run_attempt: 1,
+    source_snapshot: {content, format: 'yaml'},
+  });
+}
+
+async function readSource(
+  fixture: ReturnType<typeof clients>,
+  input: Record<string, unknown>,
+): Promise<GetWorkflowRunSourceResultDto> {
+  const response = await tool(fixture, 'get_workflow_run_source').execute({
+    context,
+    arguments: input,
+  });
+  return success<GetWorkflowRunSourceResultDto>(response);
+}
 
 function stepAttemptDetail(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
