@@ -27,6 +27,10 @@ interface ManualLaunchResponse {
   workflow_run_id: string;
 }
 
+type ManualLaunchProbeResult =
+  | {kind: 'launched'; response: ManualLaunchResponse}
+  | {kind: 'failed'; error: unknown};
+
 test('reads a job status reason from the workflow run page', async ({
   createReadyWorkspace,
   page,
@@ -39,7 +43,7 @@ test('reads a job status reason from the workflow run page', async ({
   const definition = await client.requestJson<DefinitionResponse>('post', '/definitions', {
     json: {project_id: projectId, source: 'manual', yaml: WORKFLOW_YAML},
   });
-  const launch = await pollUntil<ManualLaunchResponse>(
+  const launchResult = await pollUntil<ManualLaunchProbeResult>(
     {
       timeoutMs: 60_000,
       intervalMs: 250,
@@ -49,17 +53,22 @@ test('reads a job status reason from the workflow run page', async ({
     },
     async () => {
       try {
-        return await client.requestJson<ManualLaunchResponse>(
-          'post',
-          `/workflow-definitions/${definition.id}/fire-manual`,
-          {json: {}},
-        );
+        return {
+          kind: 'launched',
+          response: await client.requestJson<ManualLaunchResponse>(
+            'post',
+            `/workflow-definitions/${definition.id}/fire-manual`,
+            {json: {}},
+          ),
+        };
       } catch (error) {
-        if (!(error instanceof E2eApiError) || error.status !== 404) throw error;
-        return null;
+        if (error instanceof E2eApiError && error.status === 404) return null;
+        return {kind: 'failed', error};
       }
     },
   );
+  if (launchResult.kind === 'failed') throw launchResult.error;
+  const launch = launchResult.response;
 
   const run = await waitForRunTerminal({
     runId: launch.workflow_run_id,
