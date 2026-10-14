@@ -522,15 +522,15 @@ function formatNumber(value) {
 }
 
 function renderRepositoryContextFiles() {
-  const code = (values) => values.map((value) => `\`${value}\``).join(', ');
+  const order = (values) => values.map((value) => `\`${value}\``).join(', then ');
+  const limit = `${AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES / 1024} KiB for all files. Shipfox cuts the file at the limit and reads no more files.`;
   return [
-    '| What | Where Shipfox looks | Limit |',
+    '| Item | Files | Limit |',
     '|---|---|---|',
     ...Object.entries(AGENT_REPOSITORY_INSTRUCTION_FILE_NAMES).map(
-      ([harness, fileNames]) =>
-        `| Instructions, \`${harness}\` harness | The first non-empty file of ${code(fileNames)}, in that order, in each directory from the repository root down to the working directory | ${AGENT_REPOSITORY_INSTRUCTIONS_MAX_BYTES / 1024} KiB in total. The file that reaches the limit is truncated, and later files are not read. |`,
+      ([harness, fileNames]) => `| Instructions, \`${harness}\` | ${order(fileNames)} | ${limit} |`,
     ),
-    `| Skills | Each directory with a \`SKILL.md\` file inside ${code(AGENT_REPOSITORY_SKILL_DIRECTORIES)}, in each directory from the repository root down to the working directory | None |`,
+    `| Skills | ${AGENT_REPOSITORY_SKILL_DIRECTORIES.map((directory) => `\`${directory}/<name>/SKILL.md\``).join(', ')} | None |`,
   ].join('\n');
 }
 
