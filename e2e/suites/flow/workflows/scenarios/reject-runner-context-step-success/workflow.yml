@@ -11,4 +11,4 @@ jobs:
       - key: gated
         run: echo ok
         gate:
-          success: runner.os == "linux"
+          success: secrets.TOKEN == "x"

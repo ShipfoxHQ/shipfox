@@ -42,6 +42,7 @@ test('the cache actions save and restore across jobs, checkouts, homes, and dev 
   const raceKey = `race-${uniqueId}`;
   // The key prefix is unique per test, so a rerun never meets entries of an earlier one.
   const depsKey = `deps-${uniqueId}`;
+  const hashKey = `hash-${uniqueId}`;
 
   const localRunner = await startSuiteLocalRunner({
     workspaceId: suite.workspaceId,
@@ -91,7 +92,7 @@ test('the cache actions save and restore across jobs, checkouts, homes, and dev 
       name,
       repo: name,
       runnerLabel,
-      workflowYaml: synced({runnerLabel, homeRoot, depsKey, raceKey}),
+      workflowYaml: synced({runnerLabel, homeRoot, depsKey, raceKey, hashKey}),
       configPath: `.shipfox/workflows/${name}.yml`,
       extraFiles: [
         ...actionFiles,
@@ -123,6 +124,9 @@ test('the cache actions save and restore across jobs, checkouts, homes, and dev 
         prefix: ['restore', 'verify'],
         race_a: ['save'],
         race_b: ['save'],
+        hash_restore: ['restore'],
+        hash_save: ['save'],
+        hash_reverse: ['restore'],
       },
     );
     expect(run.status).toBe('succeeded');
@@ -145,6 +149,13 @@ test('the cache actions save and restore across jobs, checkouts, homes, and dev 
     // The first save of a key wins, whether the two jobs overlapped or ran one after the other.
     const saved = [outputs(run, 'race_a', 'save').saved, outputs(run, 'race_b', 'save').saved];
     expect(saved.sort()).toEqual([false, true]);
+    // hashFiles() in the workflow builds the key key_files builds in the action, both ways.
+    expect(outputs(run, 'hash_restore', 'restore')).toMatchObject({key: missKey.key, hit: true});
+    const hashSaved = outputs(run, 'hash_reverse', 'restore');
+    expect(hashSaved).toMatchObject({hit: true});
+    expect(String(hashSaved.key)).toMatch(
+      new RegExp(`^${hashKey}-(linux|darwin)-(x64|arm64)-[0-9a-f]{32}$`),
+    );
 
     // A dev run reads the synced entries, but what it saves goes to the sandbox of its user.
     const devRun = async (content: string) => {
@@ -254,8 +265,10 @@ function synced(params: {
   homeRoot: string;
   depsKey: string;
   raceKey: string;
+  hashKey: string;
 }): string {
-  const {runnerLabel, homeRoot, depsKey, raceKey} = params;
+  const {runnerLabel, homeRoot, depsKey, raceKey, hashKey} = params;
+  const platformKey = `${hashKey}-\${{ runner.os }}-\${{ runner.arch }}`;
   // The restoring jobs find nothing on disk before the restore, so a passing verify step
   // proves that the files came from the cache.
   const verify = (directory: string) => `set -eu
@@ -368,6 +381,55 @@ jobs:
           paths: |
             ${PATHS.replaceAll('\n', '\n            ')}
           key: ${raceKey}
+  hash_restore:
+    needs: [seed]
+    env:
+      HOME: ${homeRoot}/hash-restore
+    steps:
+      - key: mkhome
+        run: mkdir -p "$HOME"
+      - key: lock
+        run: echo '${LOCK_V1}' > lock.txt
+      - key: restore
+        uses: ./.shipfox/actions/cache-restore
+        with:
+          paths: |
+            ${PATHS.replaceAll('\n', '\n            ')}
+          key: ${depsKey}-\${{ hashFiles('lock.txt') }}
+          fail_on_miss: true
+  hash_save:
+    needs: [seed]
+    env:
+      HOME: ${homeRoot}/hash-save
+    steps:
+      - key: mkhome
+        run: mkdir -p "$HOME"
+      - key: layout
+        run: |
+          ${indent(layout({directory: '.', lock: LOCK_V2}))}
+      - key: save
+        uses: ./.shipfox/actions/cache-save
+        with:
+          paths: |
+            ${PATHS.replaceAll('\n', '\n            ')}
+          key: ${platformKey}-\${{ hashFiles('lock.txt') }}
+  hash_reverse:
+    needs: [hash_save]
+    env:
+      HOME: ${homeRoot}/hash-reverse
+    steps:
+      - key: mkhome
+        run: mkdir -p "$HOME"
+      - key: lock
+        run: echo '${LOCK_V2}' > lock.txt
+      - key: restore
+        uses: ./.shipfox/actions/cache-restore
+        with:
+          paths: |
+            ${PATHS.replaceAll('\n', '\n            ')}
+          key: ${platformKey}
+          key_files: lock.txt
+          fail_on_miss: true
 `;
 }
 
