@@ -12,7 +12,7 @@ export function readStepRestart(
 /**
  * Appends why the gate failed to a restarted agent's prompt. The block is added to the prompt
  * without any earlier block: a prompt resolved again at dispatch, or the prompt of the step's
- * first attempt. A prompt that reads `step` already chooses what the agent sees.
+ * first attempt.
  */
 export function withRestartFailureBlock(params: {
   readonly step: Step;
@@ -25,16 +25,11 @@ export function withRestartFailureBlock(params: {
   if (restart === undefined) return params.config;
 
   const plannedPrompt = params.step.configPlan?.agent?.prompt;
-  if (plannedPrompt?.segments.some((segment) => readsStep(segment))) return params.config;
   const basePrompt =
     plannedPrompt === undefined ? params.firstAttemptPrompt : stringValue(params.config.prompt);
   if (basePrompt === undefined) return params.config;
 
   return {...params.config, prompt: `${basePrompt}\n\n${restartFailureBlock(restart)}`};
-}
-
-function readsStep(segment: {readonly kind: string; readonly roots?: readonly string[]}): boolean {
-  return segment.kind === 'deferred' && (segment.roots ?? []).includes('step');
 }
 
 export function restartFailureBlock(restart: Record<string, unknown>): string {

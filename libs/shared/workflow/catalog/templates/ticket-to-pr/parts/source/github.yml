@@ -175,7 +175,6 @@ respond: |
       Set decisions to one entry per review comment, with the thread_id of its
       review thread and a concise reply. Leave reply empty for ignore. Do not
       commit, push, reply, or resolve threads. Later steps own those writes.
-      ${{ step.is_retry ? step.restart.feedback : "" }}
     integrations:
       - connection: github_source # bind:source
         include:
