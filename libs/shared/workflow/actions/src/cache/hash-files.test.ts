@@ -84,7 +84,7 @@ describe('hashFiles', () => {
 
     await expect(failure).rejects.toMatchObject({name: 'HashFilesLimitError', limit: 'files'});
     await expect(failure).rejects.toThrow(
-      'hashFiles matched more than 1 files, the files limit, for **/*.lock. Use a narrower pattern',
+      'hashFiles matched more than 1 files, the files limit, for **/*.lock. Use a more specific path',
     );
   });
 

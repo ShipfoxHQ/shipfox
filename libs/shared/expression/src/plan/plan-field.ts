@@ -146,7 +146,7 @@ function planRunnerCall(
       reason: 'runner-call-arity',
       source,
       function: fn,
-      hint: `pass from 1 to ${HASH_FILES_MAX_PATTERNS} patterns`,
+      hint: `pass from 1 to ${HASH_FILES_MAX_PATTERNS} paths`,
     });
     return undefined;
   }
@@ -155,7 +155,7 @@ function planRunnerCall(
       reason: 'runner-call-argument-not-literal',
       source,
       function: fn,
-      hint: `pass each ${fn}() pattern as a quoted string`,
+      hint: `put each ${fn}() path in quotes`,
     });
     return undefined;
   }
@@ -186,8 +186,8 @@ function patternViolation(
         pattern,
         hint:
           parsed.reason === 'empty'
-            ? 'a pattern cannot be empty'
-            : 'a pattern cannot contain a line break or NUL',
+            ? 'a path cannot be empty'
+            : 'a path cannot contain a line break or NUL',
       },
     ];
   }
@@ -198,7 +198,7 @@ function patternViolation(
         source,
         function: fn,
         pattern,
-        hint: 'patterns must name files inside the step working directory, without ~, a leading /, or ..',
+        hint: 'a path must name files in the step working directory, without ~, a leading /, or ..',
       },
     ];
   }

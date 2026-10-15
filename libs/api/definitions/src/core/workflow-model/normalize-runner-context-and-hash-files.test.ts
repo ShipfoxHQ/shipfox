@@ -124,9 +124,9 @@ describe('hashFiles()', () => {
       'hash-files-argument-not-literal',
     ],
     [
-      'with a pattern outside the workspace',
+      'with a path outside the workspace',
       {env: {KEY: interpolation('hashFiles("~/.npmrc")')}, run: 'echo ok'},
-      'hash-files-pattern-outside-workspace',
+      'hash-files-path-outside-workspace',
     ],
   ] as const)('rejects a call %s', (_label, step, code) => {
     const issues = issuesOf(workflowWithJob({steps: [step]}));

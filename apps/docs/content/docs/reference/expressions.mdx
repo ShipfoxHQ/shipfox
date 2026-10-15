@@ -153,15 +153,17 @@ content of a file changes.
 
 ### Write the call
 
-A pattern is a file path, or a path with wildcards that can match many files.
-The path starts from the step working directory. Put each pattern in quotes,
-and separate patterns with commas. You can give up to 16 patterns:
+Give the paths of the files to hash. A path starts from the step working
+directory. Put each path in quotes, and separate paths with commas. You can
+give up to 16 paths:
 
 ```yaml
 key: deps-${{ hashFiles('package-lock.json') }}
 key: deps-${{ hashFiles('package-lock.json', 'pnpm-workspace.yaml') }}
 key: deps-${{ hashFiles('packages/*/package.json') }}
 ```
+
+A path can contain wildcards to match many files:
 
 | Wildcard | Matches | Example |
 | --- | --- | --- |
@@ -173,8 +175,8 @@ key: deps-${{ hashFiles('packages/*/package.json') }}
 
 Rules:
 
-- A pattern must name files in the step working directory. Do not start a
-  pattern with `~` or `/`. Do not use `..`.
+- A path must name files in the step working directory. Do not start a path
+  with `~` or `/`. Do not use `..`.
 - Put the call alone in its `${{ }}`. Write `npm-${{ hashFiles('x') }}`. Do
   not write `${{ 'npm-' + hashFiles('x') }}`.
 
@@ -208,12 +210,12 @@ In other fields, such as `if`, the workflow does not sync and shows an error.
 
 The step fails before it starts when:
 
-- No file matches the patterns. GitHub Actions gives an empty string instead.
+- No file matches the paths. GitHub Actions gives an empty string instead.
 - The call matches more than 10,000 files.
 - The call reads more than 1 GiB.
 - The call takes more than 60 seconds.
 
-If the step fails on a limit, use a narrower pattern. For example, use
+If the step fails on a limit, use a more specific path. For example, use
 `package-lock.json`, not `**/package-lock.json`.
 
 ### Step log

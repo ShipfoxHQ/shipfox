@@ -545,7 +545,7 @@ function runnerCallViolationIssue(
     case 'runner-call-arity':
       return issue({
         code: 'hash-files-argument-not-literal',
-        message: `${fieldLabel(params.field)} interpolation calls hashFiles() with the wrong number of patterns; ${violation.hint}.`,
+        message: `${fieldLabel(params.field)} interpolation calls hashFiles() with the wrong number of paths; ${violation.hint}.`,
         path: params.path,
         details,
       });
@@ -558,14 +558,14 @@ function runnerCallViolationIssue(
       });
     case 'runner-call-pattern-invalid':
       return issue({
-        code: 'hash-files-pattern-invalid',
-        message: `${fieldLabel(params.field)} interpolation calls hashFiles() with an invalid pattern: ${violation.hint}.`,
+        code: 'hash-files-path-invalid',
+        message: `${fieldLabel(params.field)} interpolation calls hashFiles() with an invalid path: ${violation.hint}.`,
         path: params.path,
         details: {...details, pattern: violation.pattern},
       });
     case 'runner-call-pattern-outside-workspace':
       return issue({
-        code: 'hash-files-pattern-outside-workspace',
+        code: 'hash-files-path-outside-workspace',
         message: `${fieldLabel(params.field)} interpolation calls hashFiles() with "${violation.pattern}"; ${violation.hint}.`,
         path: params.path,
         details: {...details, pattern: violation.pattern},

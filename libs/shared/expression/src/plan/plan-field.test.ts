@@ -183,7 +183,7 @@ describe('planInterpolationField', () => {
     ["hashFiles('/etc/hosts')", '/etc/hosts'],
     ["hashFiles('../lock.json')", '../lock.json'],
     ["hashFiles('a', 'src/../../b')", 'src/../../b'],
-  ])('rejects a hashFiles() pattern outside the workspace: %s', (source, pattern) => {
+  ])('rejects a hashFiles() path outside the workspace: %s', (source, pattern) => {
     const segments = parseWorkflowTemplate(templateExpression(source));
 
     const result = planInterpolationField({field: 'env.value', segments});
@@ -194,7 +194,7 @@ describe('planInterpolationField', () => {
     });
   });
 
-  it('rejects an empty hashFiles() pattern', () => {
+  it('rejects an empty hashFiles() path', () => {
     const segments = parseWorkflowTemplate(templateExpression("hashFiles(' ')"));
 
     const result = planInterpolationField({field: 'env.value', segments});

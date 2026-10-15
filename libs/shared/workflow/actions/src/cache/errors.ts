@@ -31,7 +31,7 @@ export class HashFilesLimitError extends Error {
         ? `matched more than ${params.max} files, the files limit`
         : `read more than ${formatBytes(params.max)}, the bytes limit`;
     super(
-      `hashFiles ${exceeded}, for ${params.patterns.join(', ')}. Use a narrower pattern, such as package-lock.json instead of **/package-lock.json.`,
+      `hashFiles ${exceeded}, for ${params.patterns.join(', ')}. Use a more specific path, such as package-lock.json instead of **/package-lock.json.`,
     );
     this.name = 'HashFilesLimitError';
     this.limit = params.limit;

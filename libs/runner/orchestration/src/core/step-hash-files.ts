@@ -89,7 +89,7 @@ async function hashPatterns(params: {
   } catch (error) {
     if (timeout.aborted && !params.signal.aborted) {
       throw new StepHashFilesError(
-        `${callLabel(params.patterns)} took more than ${HASH_FILES_TIMEOUT_MS / 1000} seconds. Use a narrower pattern.`,
+        `${callLabel(params.patterns)} took more than ${HASH_FILES_TIMEOUT_MS / 1000} seconds. Use a more specific path.`,
       );
     }
     throw error;
