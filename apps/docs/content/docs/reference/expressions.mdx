@@ -183,52 +183,25 @@ Rules:
 
 ### Where to use it
 
-Use `hashFiles()` only in these fields:
+Use `hashFiles()` in `run`, in `env` values, and in the `with` of an action.
+Other fields, such as `if`, cannot use it.
 
-- `run`
-- `env` values
-- A top-level input in the `with` of an action
-
-In other fields, such as `if`, the workflow does not sync and shows an error.
-
-### When the runner calculates it
-
-- The runner calculates the hash when the step starts. The hash includes the
-  files that earlier steps wrote.
-- When a step runs again, the runner calculates the hash again.
-- The post step of an action uses the hash of its main step.
-- In a job container, the runner hashes the files in the container.
-
-### Which files count
-
-- Only regular files count. The runner follows symbolic links.
-- Paths use `/` on all platforms. Files with the same paths and the same
-  content give the same hash on all runners.
-- `hashFiles()` gives the same hash as the `key_files` input of the cache
-  actions. A key from one restores an entry that the other saved.
+The hash includes the files that earlier steps of the job created or changed.
 
 ### Errors
 
-The step fails before it starts when:
+The step fails when:
 
-- No file matches the paths. GitHub Actions gives an empty string instead.
+- No file matches the paths. GitHub Actions does not fail in this case.
 - The paths match more than 10,000 files.
 - The files are larger than 1 GiB in total.
 - Hashing takes more than 60 seconds.
 
-If the step fails on a limit, use a more specific path. For example, use
-`package-lock.json`, not `**/package-lock.json`.
+If the step fails because of a limit, use a more specific path. For example,
+use `package-lock.json`, not `**/package-lock.json`.
 
-### Step log
-
-The step log shows one line for each `hashFiles()`:
-
-```text
-hashFiles(package-lock.json) = 2a51dd96c0e7a1b34f1c0d6e9b8a7f21 (1 file)
-```
-
-When the cache misses, compare these lines in two runs. The hash is not a
-secret, so the log does not hide it.
+When the cache misses, look at the step log. It shows the hash of each
+`hashFiles()`, so you can compare two runs.
 
 ## Related pages
 
