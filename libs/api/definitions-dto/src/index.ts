@@ -42,6 +42,7 @@ export {
   packageUpdateSchema,
   packageUpdatesResponseSchema,
   type TriggerDto,
+  triggerDtoSchema,
 } from '#schemas/index.js';
 export {
   DEFINITION_DELETED,

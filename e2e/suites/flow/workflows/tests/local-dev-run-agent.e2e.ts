@@ -1,5 +1,6 @@
 import type {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {
+  checkWorkflowResultSchema,
   createDevRunResultSchema,
   getWorkflowRunSourceResultSchema,
   listWorkflowDefinitionsResultSchema,
@@ -246,6 +247,50 @@ jobs:
       throw new Error('Filtered local workflow did not return an MCP error');
     }
     expect(filtered.envelope.error.details?.reason).toBeTruthy();
+
+    const runIdsBeforeCheck = (await getRuns(client, seeded.project.id)).map(({id}) => id);
+    const invalidCheck = await callTool(client, 'check_workflow', {
+      project_id: seeded.project.id,
+      content: 'name: [invalid',
+      config_path: configPath,
+      ref: MAIN_REF,
+    });
+    expect(invalidCheck.call.isError).not.toBe(true);
+    if (!invalidCheck.envelope.ok) throw new Error('Invalid check returned an MCP error');
+    expect(checkWorkflowResultSchema.parse(invalidCheck.envelope.result)).toMatchObject({
+      valid: false,
+      errors: expect.arrayContaining([expect.objectContaining({message: expect.any(String)})]),
+      triggers: [],
+    });
+
+    const eventCheck = await callTool(client, 'check_workflow', {
+      project_id: seeded.project.id,
+      content: workflowYaml.replace(
+        'event: push',
+        `event: push\n    filter: 'event.after == "${sourceCommit}"'`,
+      ),
+      config_path: configPath,
+      ref: MAIN_REF,
+      trigger: 'on_push',
+      event_ids: [sourceEvent.id, secondEvent.id],
+    });
+    expect(eventCheck.call.isError).not.toBe(true);
+    if (!eventCheck.envelope.ok) throw new Error('Event check returned an MCP error');
+    const eventCheckResult = checkWorkflowResultSchema.parse(eventCheck.envelope.result);
+    expect(eventCheckResult).toMatchObject({
+      valid: true,
+      ref: MAIN_REF,
+      commit: expect.stringMatching(COMMIT_SHA_PATTERN),
+      triggers: [expect.objectContaining({key: 'on_push', event: 'push'})],
+    });
+    expect(eventCheckResult.events?.map(({event_id, result}) => [event_id, result])).toEqual([
+      [sourceEvent.id, 'matched'],
+      [secondEvent.id, 'filtered'],
+    ]);
+    expect(eventCheckResult.event_counts).toMatchObject({matched: 1, filtered: 1});
+    // A check starts nothing and journals no replay.
+    await expectRunIdsToRemain(client, seeded.project.id, runIdsBeforeCheck);
+    expect((await getTriggerEvent(client, secondEvent.id)).replays_total_count).toBe(0);
   } finally {
     await client.close();
   }

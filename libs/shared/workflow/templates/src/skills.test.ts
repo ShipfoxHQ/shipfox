@@ -115,7 +115,7 @@ describe('shipped skill resources', () => {
     const testing = getShippedSkillResource('skill://shipfox/test-workflow-change/SKILL.md');
 
     expect(authoring?.revision).toBe(5);
-    expect(testing?.revision).toBe(3);
+    expect(testing?.revision).toBe(4);
     for (const identifier of ['get_workflow_template', 'get_workflow_authoring_context']) {
       expect(template?.text).toContain(identifier);
     }
@@ -135,6 +135,21 @@ describe('shipped skill resources', () => {
     ]) {
       expect(testing?.text).toContain(identifier);
     }
+  });
+
+  test('validates a workflow change with check_workflow instead of a dry run', () => {
+    const validation = getShippedSkillResource('skill://shipfox/validate-workflow-change/SKILL.md');
+
+    expect(validation?.revision).toBe(5);
+    for (const identifier of [
+      'check_workflow',
+      'event_ids',
+      'event_counts',
+      'list_trigger_events',
+    ]) {
+      expect(validation?.text).toContain(identifier);
+    }
+    expect(validation?.text).not.toContain('dry_run');
   });
 
   test('tells the agent to push prompt files and pass the ref', () => {

@@ -37,7 +37,19 @@ describe('definition at-ref metrics', () => {
   ] as const)('records the %s outcome', (outcome) => {
     metrics.recordDefinitionRefResolution(outcome);
 
-    expect(counterAdd('definitions_ref_resolutions')).toHaveBeenCalledWith(1, {outcome});
+    expect(counterAdd('definitions_ref_resolutions')).toHaveBeenCalledWith(1, {
+      outcome,
+      operation: 'resolve',
+    });
+  });
+
+  test('records validations under their own operation', () => {
+    metrics.recordDefinitionRefResolution('invalid-definition', 'validate');
+
+    expect(counterAdd('definitions_ref_resolutions')).toHaveBeenCalledWith(1, {
+      outcome: 'invalid-definition',
+      operation: 'validate',
+    });
   });
 
   test('does not let metric failures affect resolution callers', () => {

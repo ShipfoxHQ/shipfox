@@ -1,4 +1,10 @@
 export {
+  type CheckWorkflowEvent,
+  type CheckWorkflowParams,
+  type CheckWorkflowResult,
+  checkWorkflow,
+} from './check-workflow.js';
+export {
   type ComputeNextFireAtParams,
   computeNextFireAt,
 } from './compute-next-fire-at.js';
@@ -22,6 +28,8 @@ export {
 export type {CronSchedule} from './entities/cron-schedule.js';
 export type {TriggerSubscription} from './entities/subscription.js';
 export {
+  CheckWorkflowEventIdsNotAllowedError,
+  DevRunDefinitionInvalidError,
   DevRunInputsNotAllowedError,
   DevRunReplayEventMismatchError,
   DevRunReplayEventNotAllowedError,

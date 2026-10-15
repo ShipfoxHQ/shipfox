@@ -16,7 +16,10 @@ export {
   type ResolveDefinitionAtRefParams,
   type ResolvedDefinitionAtRef,
   resolveDefinitionAtRef,
+  type ValidateDefinitionAtRefParams,
+  type ValidatedDefinitionAtRef,
   type ValidationWarning,
+  validateDefinitionAtRef,
 } from './resolve-definition-at-ref.js';
 export {
   classifySyncFailure,

@@ -10,8 +10,11 @@ import {
 } from '@shipfox/api-workflows-dto/inter-module';
 import {createInterModuleKnownError, isInterModuleKnownError} from '@shipfox/inter-module';
 import {
+  CheckWorkflowEventIdsNotAllowedError,
+  DevRunDefinitionInvalidError,
   DevRunReplayEventMismatchError,
   DevRunTriggerFilteredError,
+  DevRunTriggerNotFoundError,
   ManualTriggerNotFoundError,
   SecretInputMissingError,
   SecretInputNotFoundError,
@@ -22,6 +25,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   checkDevRun: vi.fn(),
+  checkWorkflow: vi.fn(),
   createDevRun: vi.fn(),
   fireManualTrigger: vi.fn(),
   getTriggerEventById: vi.fn(),
@@ -38,6 +42,7 @@ vi.mock('#core/create-dev-run.js', () => ({
   checkDevRun: mocks.checkDevRun,
   createDevRun: mocks.createDevRun,
 }));
+vi.mock('#core/check-workflow.js', () => ({checkWorkflow: mocks.checkWorkflow}));
 vi.mock('#core/fire-manual.js', () => ({fireManualTrigger: mocks.fireManualTrigger}));
 vi.mock('#db/index.js', () => ({
   getTriggerEventById: mocks.getTriggerEventById,
@@ -77,6 +82,7 @@ function presentation() {
 describe('trigger command presentation', () => {
   beforeEach(() => {
     mocks.checkDevRun.mockReset();
+    mocks.checkWorkflow.mockReset();
     mocks.createDevRun.mockReset();
     mocks.fireManualTrigger.mockReset();
     mocks.requireProjectForWorkspace.mockReset();
@@ -537,5 +543,139 @@ describe('trigger command presentation', () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  test('maps an invalid dry-run definition to invalid-definition with its errors', async () => {
+    const errors = [{message: 'jobs is required', path: 'jobs'}];
+    mocks.checkDevRun.mockRejectedValue(new DevRunDefinitionInvalidError(errors));
+
+    const error = await rejection(
+      presentation().handlers.checkDevRun(
+        {
+          workspaceId: WORKSPACE_ID,
+          projectId: PROJECT_ID,
+          ref: 'main',
+          configPath: '.shipfox/workflows/main.yml',
+          triggerKey: 'on_push',
+          userId: USER_ID,
+        },
+        context,
+      ),
+    );
+
+    expect(isInterModuleKnownError(triggersInterModuleContract.methods.checkDevRun, error)).toBe(
+      true,
+    );
+    expect(error).toMatchObject({code: 'invalid-definition', details: {errors}});
+  });
+});
+
+describe('checkWorkflow presentation', () => {
+  const EVENT_ID = '00000000-0000-4000-8000-000000000007';
+  const input = {
+    workspaceId: WORKSPACE_ID,
+    projectId: PROJECT_ID,
+    content: 'name: CI\n',
+    configPath: '.shipfox/workflows/main.yml',
+    triggerKey: 'on_push',
+    eventIds: [EVENT_ID],
+  };
+  const validated = {
+    ref: 'main',
+    commit: 'a'.repeat(40),
+    valid: true,
+    errors: [],
+    errorCount: 0,
+    warnings: [],
+    triggers: {on_push: {source: 'github', event: 'push'}},
+  };
+
+  beforeEach(() => {
+    mocks.checkWorkflow.mockReset();
+    mocks.requireProjectForWorkspace.mockReset();
+    mocks.requireProjectForWorkspace.mockResolvedValue(undefined);
+  });
+
+  test('checks ownership, then returns the result with ISO event timestamps', async () => {
+    const receivedAt = new Date('2026-10-13T09:12:44.000Z');
+    mocks.checkWorkflow.mockResolvedValue({
+      ...validated,
+      events: [{eventId: EVENT_ID, result: 'matched', source: 'github', event: 'push', receivedAt}],
+      eventCounts: {
+        matched: 1,
+        filtered: 0,
+        'filter-error': 0,
+        'event-mismatch': 0,
+        'payload-unavailable': 0,
+        'not-found': 0,
+      },
+    });
+
+    const result = await presentation().handlers.checkWorkflow(input, context);
+
+    expect(mocks.requireProjectForWorkspace).toHaveBeenCalledWith({
+      projectId: PROJECT_ID,
+      workspaceId: WORKSPACE_ID,
+    });
+    expect(mocks.checkWorkflow).toHaveBeenCalledWith({...input, definitions: {}});
+    expect(result.events).toEqual([
+      {
+        eventId: EVENT_ID,
+        result: 'matched',
+        source: 'github',
+        event: 'push',
+        receivedAt: '2026-10-13T09:12:44.000Z',
+      },
+    ]);
+    expect(result.eventCounts?.matched).toBe(1);
+  });
+
+  test('refuses a project from another workspace before validating anything', async () => {
+    mocks.requireProjectForWorkspace.mockRejectedValue(
+      createInterModuleKnownError(
+        projectsInterModuleContract.methods.requireProjectForWorkspace,
+        'project-workspace-mismatch',
+        {projectId: PROJECT_ID, workspaceId: OTHER_WORKSPACE_ID},
+      ),
+    );
+
+    const error = await rejection(presentation().handlers.checkWorkflow(input, context));
+
+    expect(isInterModuleKnownError(triggersInterModuleContract.methods.checkWorkflow, error)).toBe(
+      true,
+    );
+    expect(error).toMatchObject({code: 'project-not-found', details: {projectId: PROJECT_ID}});
+    expect(mocks.checkWorkflow).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    [
+      new DevRunTriggerNotFoundError('on_push', ['on_demand']),
+      {
+        code: 'trigger-not-found',
+        details: {triggerKey: 'on_push', availableTriggerKeys: ['on_demand']},
+      },
+    ],
+    [
+      new CheckWorkflowEventIdsNotAllowedError('manual'),
+      {code: 'event-ids-not-allowed', details: {source: 'manual'}},
+    ],
+    [
+      createInterModuleKnownError(
+        definitionsInterModuleContract.methods.validateDefinitionAtRef,
+        'ref-moved',
+        {ref: 'main', expectedCommit: 'b'.repeat(40)},
+      ),
+      {code: 'ref-moved', details: {ref: 'main', expectedCommit: 'b'.repeat(40)}},
+    ],
+  ])('maps %s to a known error', async (thrown, expected) => {
+    mocks.checkWorkflow.mockRejectedValue(thrown);
+
+    const error = await rejection(presentation().handlers.checkWorkflow(input, context));
+
+    expect(isInterModuleKnownError(triggersInterModuleContract.methods.checkWorkflow, error)).toBe(
+      true,
+    );
+    expect(error).toMatchObject(expected);
   });
 });

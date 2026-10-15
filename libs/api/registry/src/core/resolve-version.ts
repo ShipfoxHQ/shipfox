@@ -43,9 +43,14 @@ interface VersionRequest {
  * keys. `kind` can be omitted when the caller only knows the package and version.
  */
 export async function resolveVersion(
-  params: VersionRequest & {kind?: RegistryPackageKind | undefined},
+  params: VersionRequest & {
+    kind?: RegistryPackageKind | undefined;
+    /** Without it, a fetched version is cached and a cached version that no longer verifies is deleted. */
+    persist?: boolean | undefined;
+  },
 ): Promise<RegistryVersion> {
   const {settings, package: packageName, version, kind} = params;
+  const persist = params.persist ?? true;
   if (settings.registry === '') throw new RegistryDisabledError();
 
   const key = {registry: settings.registry, package: packageName, version};
@@ -63,11 +68,11 @@ export async function resolveVersion(
       registryCacheHit.add(1, {kind: kind ?? 'any'});
       return {...cached, document};
     }
-    await deleteRegistryVersion(key);
+    if (persist) await deleteRegistryVersion(key);
   }
 
   const fetched = await fetchVersion(params);
-  await insertRegistryVersion(fetched);
+  if (persist) await insertRegistryVersion(fetched);
   return fetched;
 }
 

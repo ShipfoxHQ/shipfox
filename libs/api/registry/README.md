@@ -5,7 +5,7 @@
 ## What it does
 
 - **`createRegistryModule`**: Declares the `registry` module: its database, its inter-module presentation, and a startup task that purges cached rows of other registries.
-- **`resolveVersion`**: Returns a version whose signed document verifies under the instance's trusted keys, with its content bundle. A stored version is verified again on every read. When the check fails, the row is deleted and the version is fetched again.
+- **`resolveVersion`**: Returns a version whose signed document verifies under the instance's trusted keys, with its content bundle. A stored version is verified again on every read. When the check fails, the row is deleted and the version is fetched again. With `persist: false`, nothing is written: a fetched version is not stored, and a row that fails the check is kept.
 - **`getSource` and `getReadme`**: Return the source archive and the README of a version. Both are fetched on first use, checked against the signed digests, and stored.
 - **`getCatalog` and `getPackageIndex`**: Return the registry catalog and the index of one package. Both are stored, and a stale copy is refreshed in the background.
 

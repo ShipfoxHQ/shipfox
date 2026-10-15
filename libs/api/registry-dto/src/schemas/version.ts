@@ -17,6 +17,8 @@ export type RegistryVersionRefDto = z.infer<typeof registryVersionRefSchema>;
 
 export const resolveRegistryVersionRequestSchema = registryVersionRefSchema.extend({
   kind: registryPackageKindSchema,
+  /** Fills and repairs the local version cache. Defaults to true; checks that must not write pass false. */
+  persist: z.boolean().optional(),
 });
 export type ResolveRegistryVersionRequestDto = z.infer<typeof resolveRegistryVersionRequestSchema>;
 

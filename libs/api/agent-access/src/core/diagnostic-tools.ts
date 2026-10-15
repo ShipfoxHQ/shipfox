@@ -23,6 +23,7 @@ import {
   triggersInterModuleContract,
 } from '@shipfox/api-triggers-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
+import {createCheckWorkflowTool} from './check-workflow-tool.js';
 import {agentAccessError, agentAccessSuccess} from './envelope.js';
 import {fitAgentAccessResponseToCeiling} from './response.js';
 import type {AgentAccessTool} from './tools.js';
@@ -38,6 +39,7 @@ export function createAgentAccessDiagnosticTools(
   return [
     createGetTriggerEventTool(options.triggers),
     createGetTriggerEventFacetsTool(options.triggers),
+    createCheckWorkflowTool(options.triggers),
   ];
 }
 

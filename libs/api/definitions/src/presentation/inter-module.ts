@@ -16,7 +16,12 @@ import {
   isInterModuleKnownError,
 } from '@shipfox/inter-module';
 import type {FeatureFlags} from '@shipfox/node-feature-flags';
-import {DefinitionAtRefError, listDefinitionsAtRef, resolveDefinitionAtRef} from '#core/index.js';
+import {
+  DefinitionAtRefError,
+  listDefinitionsAtRef,
+  resolveDefinitionAtRef,
+  validateDefinitionAtRef,
+} from '#core/index.js';
 import {populateDefaultGateMaxAttempts} from '#core/workflow-model/populate-default-gate-max-attempts.js';
 import {getActionSnapshot} from '#db/action-snapshots.js';
 import {
@@ -129,6 +134,16 @@ export function createDefinitionsInterModulePresentation(
       } catch (error) {
         throw toDefinitionAtRefKnownError(
           definitionsInterModuleContract.methods.resolveDefinitionAtRef,
+          error,
+        );
+      }
+    },
+    validateDefinitionAtRef: async (input, context) => {
+      try {
+        return await validateDefinitionAtRef({...input, ...params, signal: context.signal});
+      } catch (error) {
+        throw toDefinitionAtRefKnownError(
+          definitionsInterModuleContract.methods.validateDefinitionAtRef,
           error,
         );
       }

@@ -8,7 +8,11 @@ import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {createTestFeatureFlags} from '@shipfox/node-feature-flags/testing';
 import {eq, sql} from 'drizzle-orm';
 import {DefinitionAtRefError} from '#core/errors.js';
-import {listDefinitionsAtRef, resolveDefinitionAtRef} from '#core/resolve-definition-at-ref.js';
+import {
+  listDefinitionsAtRef,
+  resolveDefinitionAtRef,
+  validateDefinitionAtRef,
+} from '#core/resolve-definition-at-ref.js';
 import {db} from '#db/db.js';
 import {definitionActionSnapshots} from '#db/schema/action-snapshots.js';
 import {workflowDefinitions} from '#db/schema/definitions.js';
@@ -605,6 +609,7 @@ describe('resolveDefinitionAtRef', () => {
     );
     expect(error.details).toEqual({
       errors: [{message: `Workflow file is not UTF-8 text: ${CONFIG_PATH}`}],
+      errorCount: 1,
     });
   });
 
@@ -1693,6 +1698,7 @@ jobs:
           path: 'jobs.review.steps.0.prompt.1',
         },
       ],
+      errorCount: 1,
     });
     expect(await countLineageRows(projectId)).toHaveLength(0);
   });
@@ -1714,6 +1720,243 @@ jobs:
     await expectRefError(
       resolveDefinitionAtRef({projectId, ref: 'fix-branch', configPath: CONFIG_PATH, ...clients}),
       'source-unavailable',
+    );
+  });
+});
+
+describe('validateDefinitionAtRef', () => {
+  const NOTIFY = './.shipfox/actions/notify';
+  const actionYaml = `
+name: Actions
+runner: ubuntu-latest
+triggers:
+  on_demand:
+    source: manual
+    event: fire
+jobs:
+  build:
+    steps:
+      - uses: ${NOTIFY}
+      - uses: ${REGISTRY_ACTION_REF}
+`;
+  const uploadedNotify = {
+    path: NOTIFY,
+    files: [
+      {path: 'action.yml', content: 'name: Notify\nmain: index.js\n'},
+      {path: 'index.js', content: 'console.log(1);\n'},
+    ],
+  };
+
+  async function countSnapshotRows(workspaceId: string) {
+    return await db()
+      .select({digest: definitionActionSnapshots.digest})
+      .from(definitionActionSnapshots)
+      .where(eq(definitionActionSnapshots.workspaceId, workspaceId));
+  }
+
+  test('returns the triggers and warnings of a valid definition and writes nothing', async () => {
+    const projectId = crypto.randomUUID();
+    const workspaceId = crypto.randomUUID();
+    const clients = makeClients(projectId, workspaceId);
+
+    const result = await validateDefinitionAtRef({
+      workspaceId,
+      projectId,
+      ref: 'fix-branch',
+      configPath: CONFIG_PATH,
+      ...clients,
+    });
+
+    expect(result).toMatchObject({
+      ref: 'fix-branch',
+      commit: COMMIT,
+      valid: true,
+      errors: [],
+      errorCount: 0,
+    });
+    expect(Object.keys(result.triggers)).toEqual(['on_demand', 'on_push']);
+    expect(result.warnings).toEqual([
+      expect.objectContaining({code: 'unknown-trigger-source', path: 'triggers.on_push'}),
+    ]);
+    expect(await countLineageRows(projectId)).toHaveLength(0);
+    expect(await countDefinitionRows(projectId)).toHaveLength(0);
+    expect(await countOutboxRows(projectId)).toHaveLength(0);
+    expect(metrics.recordDefinitionRefResolution).toHaveBeenCalledWith('resolved', 'validate');
+  });
+
+  test('returns an invalid definition as a result with the pinned commit', async () => {
+    const projectId = crypto.randomUUID();
+    const workspaceId = crypto.randomUUID();
+    const clients = makeClients(projectId, workspaceId);
+
+    const result = await validateDefinitionAtRef({
+      workspaceId,
+      projectId,
+      ref: 'fix-branch',
+      configPath: CONFIG_PATH,
+      content: invalidPredicateYaml,
+      ...clients,
+    });
+
+    expect(result).toMatchObject({
+      ref: 'fix-branch',
+      commit: COMMIT,
+      valid: false,
+      warnings: [],
+      triggers: {},
+    });
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.errorCount).toBe(result.errors.length);
+    expect(await countLineageRows(projectId)).toHaveLength(0);
+    expect(metrics.recordDefinitionRefResolution).toHaveBeenCalledWith(
+      'invalid-definition',
+      'validate',
+    );
+  });
+
+  test('counts every error even when the list is truncated', async () => {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const clients = makeClients(projectId, workspaceId);
+    const jobs = Array.from(
+      {length: 120},
+      (_, index) =>
+        `  job_${index}:\n    needs: [missing_${index}]\n    steps:\n      - run: echo\n`,
+    ).join('');
+
+    const result = await validateDefinitionAtRef({
+      workspaceId,
+      projectId,
+      ref: 'fix-branch',
+      configPath: CONFIG_PATH,
+      content: `name: Many errors\nrunner: ubuntu-latest\njobs:\n${jobs}`,
+      ...clients,
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toHaveLength(100);
+    expect(result.errorCount).toBeGreaterThan(100);
+  });
+
+  test('answers project-not-found for a project in another workspace before reading the repository', async () => {
+    const projectId = crypto.randomUUID();
+    const clients = makeClients(projectId, crypto.randomUUID());
+
+    const error = await expectRefError(
+      validateDefinitionAtRef({
+        workspaceId: crypto.randomUUID(),
+        projectId,
+        ref: 'fix-branch',
+        configPath: CONFIG_PATH,
+        ...clients,
+      }),
+      'project-not-found',
+    );
+
+    expect(error.details).toEqual({projectId});
+    expect(clients.integrations.resolveSourceRepository).not.toHaveBeenCalled();
+    expect(clients.integrations.resolveSourceRef).not.toHaveBeenCalled();
+    expect(clients.integrations.fetchSourceFile).not.toHaveBeenCalled();
+    expect(metrics.recordDefinitionRefResolution).toHaveBeenCalledWith(
+      'project-not-found',
+      'validate',
+    );
+  });
+
+  test('still throws the errors that mean the definition could not be read', async () => {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const clients = makeClients(projectId, workspaceId);
+
+    await expectRefError(
+      validateDefinitionAtRef({
+        workspaceId,
+        projectId,
+        ref: 'fix-branch',
+        configPath: CONFIG_PATH,
+        expectedCommit: 'f'.repeat(40),
+        ...clients,
+      }),
+      'ref-moved',
+    );
+  });
+
+  test('resolves local and registry actions without storing snapshots or registry versions', async () => {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const clients = makeClients(projectId, workspaceId);
+    const registry = fakeRegistry(await registryVersion());
+
+    const result = await validateDefinitionAtRef({
+      workspaceId,
+      projectId,
+      configPath: CONFIG_PATH,
+      content: actionYaml,
+      actions: [uploadedNotify],
+      actionsEnabled: true,
+      registryActionsEnabled: true,
+      registry,
+      ...clients,
+    });
+
+    expect(result.valid).toBe(true);
+    expect(registry.resolveVersion).toHaveBeenCalledWith(
+      expect.objectContaining({kind: 'action', persist: false}),
+    );
+    expect(await countSnapshotRows(workspaceId)).toHaveLength(0);
+    expect(await countLineageRows(projectId)).toHaveLength(0);
+  });
+
+  test('returns a registry failure as an invalid definition', async () => {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const clients = makeClients(projectId, workspaceId);
+
+    const result = await validateDefinitionAtRef({
+      workspaceId,
+      projectId,
+      configPath: CONFIG_PATH,
+      content: actionYaml,
+      actions: [uploadedNotify],
+      actionsEnabled: true,
+      registryActionsEnabled: true,
+      registry: fakeRegistry(registryError('registry-version-not-found')),
+      ...clients,
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual([
+      expect.objectContaining({message: expect.stringContaining(REGISTRY_ACTION_REF)}),
+    ]);
+    expect(await countSnapshotRows(workspaceId)).toHaveLength(0);
+  });
+});
+
+describe('resolveDefinitionAtRef registry cache', () => {
+  test('lets the registry fill its cache for a dev run', async () => {
+    const projectId = crypto.randomUUID();
+    const clients = makeClients(projectId);
+    const registry = fakeRegistry(await registryVersion());
+
+    await resolveDefinitionAtRef({
+      projectId,
+      configPath: CONFIG_PATH,
+      content: `
+name: Actions
+runner: ubuntu-latest
+jobs:
+  build:
+    steps:
+      - uses: ${REGISTRY_ACTION_REF}
+`,
+      actionsEnabled: true,
+      registryActionsEnabled: true,
+      registry,
+      ...clients,
+    });
+
+    expect(registry.resolveVersion).toHaveBeenCalledWith(
+      expect.not.objectContaining({persist: false}),
     );
   });
 });

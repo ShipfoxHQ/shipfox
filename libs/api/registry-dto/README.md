@@ -46,6 +46,7 @@ try {
 
 - Inter-module calls carry JSON only, so bundles travel as base64 strings. `content` is the gzip content bundle and `source` is the gzip source archive. Both were checked against the digests in the signed document.
 - `document` is the signed version document, verified against the instance's trusted keys.
+- `resolveVersion` takes an optional `persist` flag, which defaults to `true`. With `persist: false`, the registry module still reads and verifies its cache, but it does not store a fetched version or delete a cached version that fails verification. Validation calls use it to write nothing.
 - `getSource` and `getReadme` need no `kind`, because a package has one kind. `getReadme` returns `null` for a version without a README.
 - The catalog and package indexes are unsigned and mutable. `getPackageIndex` returns `{index: null}` for a package the registry does not know.
 

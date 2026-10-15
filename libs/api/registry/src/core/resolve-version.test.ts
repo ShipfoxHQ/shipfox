@@ -337,6 +337,68 @@ describe('resolveVersion', () => {
     });
   });
 
+  describe('without persisting', () => {
+    it('fetches and verifies a version on a miss without storing it', async () => {
+      const registry = await newRegistry();
+      const published = await publishVersion({registry, key});
+      const settings = settingsFor({registry, keys: [key]});
+
+      const resolved = await resolveVersion({
+        settings,
+        package: PACKAGE,
+        version: VERSION,
+        kind: 'action',
+        persist: false,
+      });
+
+      expect(resolved.digest).toBe(published.document.content.digest);
+      expect(await storedVersion(registry)).toBeUndefined();
+    });
+
+    it('serves a stored version that still verifies', async () => {
+      const registry = await newRegistry();
+      await publishVersion({registry, key});
+      const settings = settingsFor({registry, keys: [key]});
+      await resolveVersion({settings, package: PACKAGE, version: VERSION, kind: 'action'});
+      const requestsAfterMiss = registry.requests.length;
+
+      const resolved = await resolveVersion({
+        settings,
+        package: PACKAGE,
+        version: VERSION,
+        kind: 'action',
+        persist: false,
+      });
+
+      expect(resolved.version).toBe(VERSION);
+      expect(registry.requests).toHaveLength(requestsAfterMiss);
+    });
+
+    it('keeps a stored version that no longer verifies and fetches a fresh one', async () => {
+      const registry = await newRegistry();
+      await publishVersion({registry, key});
+      await resolveVersion({
+        settings: settingsFor({registry, keys: [key]}),
+        package: PACKAGE,
+        version: VERSION,
+        kind: 'action',
+      });
+      const before = await storedVersion(registry);
+      await publishVersion({registry, key: otherKey});
+
+      const resolved = await resolveVersion({
+        settings: settingsFor({registry, keys: [otherKey]}),
+        package: PACKAGE,
+        version: VERSION,
+        kind: 'action',
+        persist: false,
+      });
+
+      expect(resolved.envelope.signatures[0]?.keyid).toBe('reg-2');
+      expect(await storedVersion(registry)).toEqual(before);
+    });
+  });
+
   describe('changing registries', () => {
     it('reads only the rows of the configured registry', async () => {
       const first = await newRegistry();

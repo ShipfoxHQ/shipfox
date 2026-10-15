@@ -38,6 +38,9 @@ const definitions: DefinitionsInterModuleClient = {
   resolveDefinitionAtRef: () => {
     throw new Error('resolveDefinitionAtRef is not used by runWorkflow');
   },
+  validateDefinitionAtRef: () => {
+    throw new Error('validateDefinitionAtRef is not used by runWorkflow');
+  },
   listDefinitionsAtRef: () => {
     throw new Error('listDefinitionsAtRef is not used by runWorkflow');
   },

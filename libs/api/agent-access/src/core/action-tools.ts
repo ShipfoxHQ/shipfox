@@ -203,7 +203,7 @@ function createDevRunTool(
   return {
     name: 'create_dev_run',
     description:
-      "Check or start a development run from local YAML content or a repository ref. Supply project_id, config_path, trigger, and content, ref, or both; commit requires ref. To run local action code, add one actions entry per uses path with every file under that action directory, except node_modules, .git, *.test.*, *.spec.*, and git-ignored files. An uploaded directory replaces the ref's copy completely, so a file left out does not exist in the run; actions not uploaded are read from the ref. content and all action files share a 1 MiB limit. Only manual triggers accept inputs. Integration triggers require replay_event_id for real runs; omit it for manual and cron triggers. With dry_run: true, a shape check can omit replay_event_id and the result has check_passed and event_checked but no run_id. Without dry_run, it starts a real run and returns run_id and run_url when configured. Results include the resolved commit and may include ref and warnings.",
+      "Check or start a development run from local YAML content or a repository ref. Supply project_id, config_path, trigger, and content, ref, or both; commit requires ref. To run local action code, add one actions entry per uses path with every file under that action directory, except node_modules, .git, *.test.*, *.spec.*, and git-ignored files. An uploaded directory replaces the ref's copy completely, so a file left out does not exist in the run; actions not uploaded are read from the ref. content and all action files share a 1 MiB limit. Only manual triggers accept inputs. Integration triggers require replay_event_id for real runs; omit it for manual and cron triggers. To validate a workflow or check its trigger against past events without a run, use check_workflow instead. dry_run: true is still accepted: a shape check can omit replay_event_id and the result has check_passed and event_checked but no run_id. Without dry_run, it starts a real run and returns run_id and run_url when configured. Results include the resolved commit and may include ref and warnings.",
     inputSchema: createDevRunInputJsonSchema,
     outputSchema: agentAccessOutputSchema(createDevRunResultJsonSchema),
     validateInput: (input) => createDevRunInputSchema.safeParse(input).success,
@@ -322,7 +322,7 @@ function mapDevRunWarnings(
   return warnings.slice(0, createDevRunResultJsonSchema.properties.warnings.maxItems);
 }
 
-function mapProducerError(
+export function mapProducerError(
   code: string,
   details: Record<string, unknown>,
 ): ReturnType<typeof agentAccessError> {

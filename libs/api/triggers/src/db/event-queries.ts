@@ -115,6 +115,18 @@ export async function getTriggerEventById(id: string): Promise<TriggerReceivedEv
   return row ? toTriggerReceivedEvent(row) : undefined;
 }
 
+/** Loads up to a page of events by id; ids with no row are simply absent from the result. */
+export async function getTriggerEventsByIds(
+  ids: readonly string[],
+): Promise<TriggerReceivedEvent[]> {
+  if (ids.length === 0) return [];
+  const rows = await db()
+    .select()
+    .from(triggersReceivedEvents)
+    .where(inArray(triggersReceivedEvents.id, [...ids]));
+  return rows.map(toTriggerReceivedEvent);
+}
+
 export interface TriggerEventFacet {
   value: string;
   count: number;

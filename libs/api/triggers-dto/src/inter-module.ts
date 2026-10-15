@@ -2,6 +2,7 @@ import {
   actionUploadsSchema,
   definitionValidationErrorSchema,
   definitionValidationWarningSchema,
+  triggerDtoSchema,
 } from '@shipfox/api-definitions-dto';
 import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {
@@ -481,6 +482,87 @@ const devRunCheckOutputSchema = z.object({
   warnings: z.array(definitionValidationWarningSchema),
 });
 
+/** At most this many journaled events are checked against a trigger in one call. */
+export const CHECK_WORKFLOW_MAX_EVENT_IDS = 50;
+
+export const checkWorkflowEventResultSchema = z.enum([
+  'matched',
+  'filtered',
+  'filter-error',
+  'event-mismatch',
+  'payload-unavailable',
+  'not-found',
+]);
+export type CheckWorkflowEventResult = z.infer<typeof checkWorkflowEventResultSchema>;
+
+const checkWorkflowInputSchema = z
+  .object({
+    workspaceId: idSchema,
+    projectId: idSchema,
+    ref: refSchema.optional(),
+    content: z.string().optional(),
+    actions: actionUploadsSchema.optional(),
+    configPath: configPathSchema,
+    commit: z
+      .string()
+      .regex(/^[0-9a-f]{40}$/)
+      .optional(),
+    triggerKey: z.string().min(1).optional(),
+    eventIds: z
+      .array(idSchema)
+      .min(1)
+      .max(CHECK_WORKFLOW_MAX_EVENT_IDS)
+      .refine((ids) => new Set(ids).size === ids.length, 'eventIds must be unique')
+      .optional(),
+  })
+  .superRefine(({content, ref, commit, triggerKey, eventIds}, ctx) => {
+    if (ref === undefined && content === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ref'],
+        message: 'ref is required when content is not supplied',
+      });
+    }
+    if (ref === undefined && commit !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['commit'],
+        message: 'commit requires ref',
+      });
+    }
+    if (eventIds !== undefined && triggerKey === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['eventIds'],
+        message: 'eventIds requires triggerKey',
+      });
+    }
+  });
+
+const checkWorkflowOutputSchema = z.object({
+  ref: z.string(),
+  commit: z.string(),
+  valid: z.boolean(),
+  errors: z.array(definitionValidationErrorSchema),
+  errorCount: z.number().int().nonnegative(),
+  warnings: z.array(definitionValidationWarningSchema),
+  triggers: z.record(z.string(), triggerDtoSchema),
+  events: z
+    .array(
+      z.object({
+        eventId: idSchema,
+        result: checkWorkflowEventResultSchema,
+        source: z.string().optional(),
+        event: z.string().optional(),
+        receivedAt: isoDateTimeSchema.optional(),
+        reason: z.string().optional(),
+        diagnostic: triggerDecisionDiagnosticSchema.optional(),
+      }),
+    )
+    .optional(),
+  eventCounts: z.record(checkWorkflowEventResultSchema, z.number().int().nonnegative()).optional(),
+});
+
 export const triggersInterModuleContract = defineInterModuleContract({
   module: 'triggers',
   methods: {
@@ -532,6 +614,21 @@ export const triggersInterModuleContract = defineInterModuleContract({
       errors: {
         ...devRunDomainErrors,
         ...definitionResolutionErrors,
+      },
+    },
+    checkWorkflow: {
+      input: checkWorkflowInputSchema,
+      output: checkWorkflowOutputSchema,
+      errors: {
+        'project-not-found': definitionResolutionErrors['project-not-found'],
+        'ref-not-found': definitionResolutionErrors['ref-not-found'],
+        'ref-invalid': definitionResolutionErrors['ref-invalid'],
+        'ref-moved': definitionResolutionErrors['ref-moved'],
+        'file-not-found': definitionResolutionErrors['file-not-found'],
+        'content-too-large': definitionResolutionErrors['content-too-large'],
+        'source-unavailable': definitionResolutionErrors['source-unavailable'],
+        'trigger-not-found': devRunDomainErrors['trigger-not-found'],
+        'event-ids-not-allowed': z.object({source: z.string()}),
       },
     },
     listTriggerEvents: {

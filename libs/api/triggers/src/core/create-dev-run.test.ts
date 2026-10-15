@@ -20,6 +20,7 @@ import {
 } from './errors.js';
 
 const resolveDefinitionAtRef = vi.fn();
+const validateDefinitionAtRef = vi.fn();
 const startDevRun = vi.fn();
 const devRunsCount = vi.hoisted(() => ({add: vi.fn()}));
 const diagnosticCount = vi.hoisted(() => ({add: vi.fn()}));
@@ -30,6 +31,7 @@ const {checkDevRun, createDevRun} = await import('./create-dev-run.js');
 
 const definitions = {
   resolveDefinitionAtRef: (...args: unknown[]) => resolveDefinitionAtRef(...args),
+  validateDefinitionAtRef: (...args: unknown[]) => validateDefinitionAtRef(...args),
 } as never;
 const workflows = {startDevRun: (...args: unknown[]) => startDevRun(...args)} as never;
 
@@ -92,6 +94,19 @@ function resolvedDefinition(triggers: BaseParams['triggers']) {
   };
 }
 
+function validatedDefinition(triggers: BaseParams['triggers']) {
+  const {triggers: resolvedTriggers, warnings} = resolvedDefinition(triggers);
+  return {
+    ref: 'fix-triage-prompt',
+    commit: COMMIT,
+    valid: true,
+    errors: [],
+    errorCount: 0,
+    warnings,
+    triggers: resolvedTriggers,
+  };
+}
+
 const SYNTHESIZED_EVENT_REF = /^[0-9a-f-]{36}$/;
 
 function eventsForWorkspace(workspaceId: string) {
@@ -130,6 +145,7 @@ function subscriptionsForWorkspace(workspaceId: string) {
 describe('checkDevRun', () => {
   beforeEach(() => {
     resolveDefinitionAtRef.mockReset();
+    validateDefinitionAtRef.mockReset();
     startDevRun.mockReset();
     devRunsCount.add.mockReset();
     diagnosticCount.add.mockReset();
@@ -137,7 +153,7 @@ describe('checkDevRun', () => {
 
   test('returns the resolved trigger details without starting or journaling a run', async () => {
     const params = buildParams();
-    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(undefined));
+    validateDefinitionAtRef.mockResolvedValue(validatedDefinition(undefined));
 
     const result = await checkDevRun(params);
 
@@ -158,6 +174,39 @@ describe('checkDevRun', () => {
     });
   });
 
+  test('validates the definition without resolving it, so the check writes nothing', async () => {
+    const params = buildParams();
+    validateDefinitionAtRef.mockResolvedValue(validatedDefinition(undefined));
+
+    await checkDevRun(params);
+
+    expect(validateDefinitionAtRef).toHaveBeenCalledWith({
+      workspaceId: params.workspaceId,
+      projectId: params.projectId,
+      ref: params.ref,
+      configPath: params.configPath,
+    });
+    expect(resolveDefinitionAtRef).not.toHaveBeenCalled();
+  });
+
+  test('refuses an invalid definition with its validation errors', async () => {
+    const params = buildParams();
+    const errors = [{message: 'jobs.build.steps is required', path: 'jobs.build.steps'}];
+    validateDefinitionAtRef.mockResolvedValue({
+      ...validatedDefinition(undefined),
+      valid: false,
+      errors,
+      errorCount: 1,
+      triggers: {},
+    });
+
+    await expect(checkDevRun(params)).rejects.toMatchObject({
+      name: 'DevRunDefinitionInvalidError',
+      errors,
+    });
+    expect(devRunsCount.add).not.toHaveBeenCalled();
+  });
+
   test('accepts an event trigger shape check without loading an event or evaluating its filter', async () => {
     const params = buildParams({
       triggerKey: 'on_push',
@@ -169,7 +218,7 @@ describe('checkDevRun', () => {
         },
       },
     });
-    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(params.triggers));
+    validateDefinitionAtRef.mockResolvedValue(validatedDefinition(params.triggers));
 
     const result = await checkDevRun(params);
 
@@ -212,7 +261,7 @@ describe('checkDevRun', () => {
       connectionName: 'Acme Production',
       payload: {ref: 'refs/heads/main'},
     });
-    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(params.triggers));
+    validateDefinitionAtRef.mockResolvedValue(validatedDefinition(params.triggers));
 
     const result = await checkDevRun({...params, replayEventId: sourceEvent.id});
 
@@ -235,7 +284,7 @@ describe('checkDevRun', () => {
       deliveryId: 'delivery-check-mismatch',
       payload: {action: 'opened'},
     });
-    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(params.triggers));
+    validateDefinitionAtRef.mockResolvedValue(validatedDefinition(params.triggers));
 
     await expect(checkDevRun({...params, replayEventId: sourceEvent.id})).rejects.toThrow(
       DevRunReplayEventMismatchError,
@@ -272,7 +321,7 @@ describe('checkDevRun', () => {
       payload:
         reason === 'Trigger filter evaluated to false' ? {ref: 'refs/heads/other'} : {ref: null},
     });
-    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(params.triggers));
+    validateDefinitionAtRef.mockResolvedValue(validatedDefinition(params.triggers));
 
     await expect(checkDevRun({...params, replayEventId: sourceEvent.id})).rejects.toThrow(
       new DevRunTriggerFilteredError(reason),
@@ -546,11 +595,11 @@ describe('createDevRun', () => {
       {path: './.shipfox/actions/notify', files: [{path: 'action.yml', content: 'name: Notify\n'}]},
     ];
     const params = {...buildParams(), actions};
-    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(undefined));
+    validateDefinitionAtRef.mockResolvedValue(validatedDefinition(undefined));
 
     await checkDevRun(params);
 
-    expect(resolveDefinitionAtRef).toHaveBeenCalledWith(expect.objectContaining({actions}));
+    expect(validateDefinitionAtRef).toHaveBeenCalledWith(expect.objectContaining({actions}));
     expect(startDevRun).not.toHaveBeenCalled();
   });
 

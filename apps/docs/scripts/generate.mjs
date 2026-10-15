@@ -441,6 +441,7 @@ const mcpToolGroups = [
       'get_registry_package',
       'diff_registry_action',
       'get_workflow_authoring_context',
+      'check_workflow',
       'list_workspace_models',
     ],
   },

@@ -92,6 +92,35 @@ const refResolutionErrors = {
   'invalid-definition': z.object({errors: z.array(definitionValidationErrorSchema)}),
   'source-unavailable': z.object({}),
 };
+const {'invalid-definition': _invalidDefinition, ...refValidationErrors} = refResolutionErrors;
+const definitionAtRefInputSchema = z.object({
+  projectId: idSchema,
+  ref: refSchema.optional(),
+  configPath: configPathSchema,
+  content: z.string().optional(),
+  expectedCommit: z.string().optional(),
+  /** Replace the ref's copy of each action directory they name. */
+  actions: actionUploadsSchema.optional(),
+});
+function refineDefinitionAtRefInput(
+  {content, ref, expectedCommit}: z.infer<typeof definitionAtRefInputSchema>,
+  ctx: z.RefinementCtx,
+): void {
+  if (ref === undefined && content === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['ref'],
+      message: 'ref is required when content is not supplied',
+    });
+  }
+  if (ref === undefined && expectedCommit !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['expectedCommit'],
+      message: 'expectedCommit requires ref',
+    });
+  }
+}
 const refListingErrors = {
   'project-not-found': z.object({projectId: idSchema}),
   'ref-not-found': z.object({ref: refSchema}),
@@ -107,6 +136,16 @@ const resolvedDefinitionAtRefSchema = z.object({
   sourceSnapshot: z.object({content: z.string(), format: z.literal('yaml')}),
   triggers: z.record(z.string(), triggerDtoSchema),
   warnings: z.array(definitionValidationWarningSchema),
+});
+const validatedDefinitionAtRefSchema = z.object({
+  ref: refSchema,
+  commit: z.string(),
+  valid: z.boolean(),
+  errors: z.array(definitionValidationErrorSchema),
+  /** Errors found before the list was truncated. */
+  errorCount: z.number().int().nonnegative(),
+  warnings: z.array(definitionValidationWarningSchema),
+  triggers: z.record(z.string(), triggerDtoSchema),
 });
 const definitionAtRefFileSchema = z.object({
   configPath: configPathSchema,
@@ -164,34 +203,17 @@ export const definitionsInterModuleContract = defineInterModuleContract({
       },
     },
     resolveDefinitionAtRef: {
-      input: z
-        .object({
-          projectId: idSchema,
-          ref: refSchema.optional(),
-          configPath: configPathSchema,
-          content: z.string().optional(),
-          expectedCommit: z.string().optional(),
-          /** Replace the ref's copy of each action directory they name. */
-          actions: actionUploadsSchema.optional(),
-        })
-        .superRefine(({content, ref, expectedCommit}, ctx) => {
-          if (ref === undefined && content === undefined) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ['ref'],
-              message: 'ref is required when content is not supplied',
-            });
-          }
-          if (ref === undefined && expectedCommit !== undefined) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ['expectedCommit'],
-              message: 'expectedCommit requires ref',
-            });
-          }
-        }),
+      input: definitionAtRefInputSchema.superRefine(refineDefinitionAtRefInput),
       output: resolvedDefinitionAtRefSchema,
       errors: refResolutionErrors,
+    },
+    /** Validates like `resolveDefinitionAtRef` and writes nothing; an invalid definition is a result. */
+    validateDefinitionAtRef: {
+      input: definitionAtRefInputSchema
+        .extend({workspaceId: idSchema})
+        .superRefine(refineDefinitionAtRefInput),
+      output: validatedDefinitionAtRefSchema,
+      errors: refValidationErrors,
     },
     listDefinitionsAtRef: {
       input: z.object({projectId: idSchema, ref: refSchema}),

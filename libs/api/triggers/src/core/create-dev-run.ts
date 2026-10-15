@@ -1,14 +1,12 @@
 import {createHash, randomUUID} from 'node:crypto';
 import type {ActionUploadDto, TriggerDto} from '@shipfox/api-definitions-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
-import {SHIPFOX_PROVIDER} from '@shipfox/api-integration-shipfox-dto';
-import {workflowRunUrl} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
-import {config as triggersConfig} from '#config.js';
 import {getTriggerEventById} from '#db/event-queries.js';
 import {devRunsCount} from '#metrics/instance.js';
-import {evaluateTriggerFilter} from './config.js';
+import type {evaluateTriggerFilter} from './config.js';
 import {
+  DevRunDefinitionInvalidError,
   DevRunInputsNotAllowedError,
   DevRunReplayEventMismatchError,
   DevRunReplayEventNotAllowedError,
@@ -18,6 +16,7 @@ import {
   DevRunTriggerFilteredError,
   DevRunTriggerNotFoundError,
 } from './errors.js';
+import {matchTriggerEvent} from './match-trigger-event.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 import {
   isPermanentStartDevRunError,
@@ -161,11 +160,26 @@ export interface DevRunCheckResult {
   warnings: ResolvedDevRunDefinition['warnings'];
 }
 
+/**
+ * Checks a dev run without starting it. The definition is validated without
+ * writing anything, and an integration trigger with a replay event evaluates
+ * its filter as dispatch does. No journal entry is recorded.
+ */
 export async function checkDevRun(params: CreateDevRunParams): Promise<DevRunCheckResult> {
-  const {resolved, built, definitionSource, resolvedRef} = await prepareDevRun(params, {
-    allowShapeOnly: true,
+  const validated = await params.definitions.validateDefinitionAtRef({
+    workspaceId: params.workspaceId,
+    projectId: params.projectId,
+    ...(params.ref === undefined ? {} : {ref: params.ref}),
+    ...(params.content === undefined ? {} : {content: params.content}),
+    ...(params.actions === undefined ? {} : {actions: [...params.actions]}),
+    configPath: params.configPath,
+    ...(params.commit === undefined ? {} : {expectedCommit: params.commit}),
   });
-  recordDevRunMetric(built.triggerKind, 'dry-run', definitionSource);
+  if (!validated.valid) throw new DevRunDefinitionInvalidError(validated.errors);
+
+  const trigger = requireTrigger(validated.triggers, params.triggerKey);
+  const built = await buildDevRunTrigger(trigger, params, {allowShapeOnly: true});
+  recordDevRunMetric(built.triggerKind, 'dry-run', params.content === undefined ? 'ref' : 'local');
 
   if (built.kind === 'filtered' || built.kind === 'filter-error') {
     throw new DevRunTriggerFilteredError(built.reason);
@@ -175,16 +189,13 @@ export async function checkDevRun(params: CreateDevRunParams): Promise<DevRunChe
     checkPassed: true,
     triggerKind: built.triggerKind,
     eventChecked: built.eventChecked,
-    ref: resolvedRef,
-    commit: resolved.commit,
-    warnings: resolved.warnings,
+    ref: validated.ref,
+    commit: validated.commit,
+    warnings: validated.warnings,
   };
 }
 
-async function prepareDevRun(
-  params: CreateDevRunParams,
-  options: {allowShapeOnly?: boolean} = {},
-): Promise<DevRunPreparation> {
+async function prepareDevRun(params: CreateDevRunParams): Promise<DevRunPreparation> {
   const resolved = await params.definitions.resolveDefinitionAtRef({
     projectId: params.projectId,
     ...(params.ref === undefined ? {} : {ref: params.ref}),
@@ -195,21 +206,25 @@ async function prepareDevRun(
   });
   const definitionSource = params.content === undefined ? 'ref' : 'local';
   const resolvedRef = resolved.ref ?? params.ref ?? missingResolvedRef();
-
-  const trigger = Object.hasOwn(resolved.triggers, params.triggerKey)
-    ? resolved.triggers[params.triggerKey]
-    : undefined;
-  if (!trigger) {
-    throw new DevRunTriggerNotFoundError(params.triggerKey, Object.keys(resolved.triggers));
-  }
+  const trigger = requireTrigger(resolved.triggers, params.triggerKey);
 
   return {
     resolved,
-    built: await buildDevRunTrigger(trigger, params, options),
+    built: await buildDevRunTrigger(trigger, params, {}),
     definitionSource,
     resolvedRef,
     triggerSource: trigger.source,
   };
+}
+
+/** Answers `trigger-not-found` with the keys the definition does declare. */
+export function requireTrigger(
+  triggers: Record<string, TriggerDto>,
+  triggerKey: string,
+): TriggerDto {
+  const trigger = Object.hasOwn(triggers, triggerKey) ? triggers[triggerKey] : undefined;
+  if (!trigger) throw new DevRunTriggerNotFoundError(triggerKey, Object.keys(triggers));
+  return trigger;
 }
 
 async function startDevRunAndRecordFailure(
@@ -411,11 +426,13 @@ async function buildReplayTrigger(
   if (!sourceEvent || sourceEvent.workspaceId !== params.workspaceId) {
     throw new DevRunReplayEventNotFoundError(params.replayEventId);
   }
-  if (
-    sourceEvent.origin !== 'integration' ||
-    sourceEvent.source !== trigger.source ||
-    (trigger.event !== undefined && sourceEvent.event !== trigger.event)
-  ) {
+
+  // The filter is evaluated exactly as dispatch does: same predicate context,
+  // same fail-closed semantics, no override. A false result or an evaluation
+  // error refuses the replay with the reason. The orchestrator records the
+  // refusal as a terminal dev journal entry.
+  const match = matchTriggerEvent({trigger, event: sourceEvent});
+  if (match.result === 'event-mismatch') {
     throw new DevRunReplayEventMismatchError(params.replayEventId, {
       eventSource: sourceEvent.source,
       eventName: sourceEvent.event,
@@ -423,56 +440,40 @@ async function buildReplayTrigger(
       ...(trigger.event === undefined ? {} : {triggerEvent: trigger.event}),
     });
   }
-  // Integration rows always carry provider and delivery id (dispatch requires
-  // them); a pruned payload is the expected unavailability: `replayable`
-  // lists only rows with a stored payload, so a pruned row is a race.
-  if (
-    sourceEvent.payload === null ||
-    sourceEvent.provider === null ||
-    sourceEvent.deliveryId === null
-  ) {
+  // `replayable` lists only rows with a stored payload, so a pruned row is a race.
+  if (match.result === 'payload-unavailable') {
     throw new DevRunReplayEventUnavailableError(params.replayEventId);
   }
 
-  const payload = withRunUrl(sourceEvent.provider, sourceEvent.payload);
+  const {event} = match;
   const replaySource = {
-    provider: sourceEvent.provider,
-    deliveryId: sourceEvent.deliveryId,
-    connectionId: sourceEvent.connectionId,
-    connectionName: sourceEvent.connectionName,
-    payload,
-    replayOfEventId: sourceEvent.id,
+    provider: event.provider,
+    deliveryId: event.deliveryId,
+    connectionId: event.connectionId,
+    connectionName: event.connectionName,
+    payload: event.payload,
+    replayOfEventId: event.id,
   } satisfies ReplaySource;
 
-  // Evaluate the trigger filter exactly as dispatch does: same predicate
-  // context, same fail-closed semantics, no override. A false result or an
-  // evaluation error refuses the replay with the reason. The orchestrator
-  // records the refusal as a terminal dev journal entry.
-  const filterResult = evaluateTriggerFilter({
-    subscription: {config: {filter: trigger.filter}},
-    source: sourceEvent.source,
-    event: sourceEvent.event,
-    payload,
-  });
-  if (filterResult.kind === 'filtered') {
+  if (match.result === 'filtered') {
     return {
       kind: 'filtered',
       triggerKind: 'replay',
       eventChecked: true,
-      event: sourceEvent.event,
+      event: event.event,
       replaySource,
       reason: 'Trigger filter evaluated to false',
     };
   }
-  if (filterResult.kind === 'filter-error') {
+  if (match.result === 'filter-error') {
     return {
       kind: 'filter-error',
       triggerKind: 'replay',
       eventChecked: true,
-      event: sourceEvent.event,
+      event: event.event,
       replaySource,
-      reason: filterResult.reason,
-      diagnostic: filterResult.diagnostic,
+      reason: match.reason,
+      diagnostic: match.diagnostic,
     };
   }
 
@@ -481,30 +482,17 @@ async function buildReplayTrigger(
     triggerKind: 'replay',
     eventChecked: true,
     triggerPayload: {
-      provider: sourceEvent.provider,
-      source: sourceEvent.source,
-      event: sourceEvent.event,
-      deliveryId: sourceEvent.deliveryId,
-      data: payload,
+      provider: event.provider,
+      source: event.source,
+      event: event.event,
+      deliveryId: event.deliveryId,
+      data: event.payload,
     },
     // The trigger `with` block supplies run inputs, as dispatch passes the
     // subscription's `with` through for integration events.
     inputs: trigger.with,
-    event: sourceEvent.event,
+    event: event.event,
     replaySource,
-    triggerConnectionId: sourceEvent.connectionId ?? undefined,
-  };
-}
-
-// Shipfox events stored before `run.url` existed replay with the link a new event would carry.
-function withRunUrl(provider: string, payload: Record<string, unknown>): Record<string, unknown> {
-  if (provider !== SHIPFOX_PROVIDER) return payload;
-  const run = payload.run;
-  if (typeof run !== 'object' || run === null || Array.isArray(run)) return payload;
-  const {id, url} = run as {id?: unknown; url?: unknown};
-  if (typeof id !== 'string' || url !== undefined) return payload;
-  return {
-    ...payload,
-    run: {...run, url: workflowRunUrl({clientBaseUrl: triggersConfig.CLIENT_BASE_URL, runId: id})},
+    triggerConnectionId: event.connectionId ?? undefined,
   };
 }

@@ -70,6 +70,8 @@ export interface ResolveWorkflowActionsParams extends ActionSourceContext {
   uploads?: ReadonlyMap<string, readonly ActionBundleFile[]> | undefined;
   /** Resolves registry references. Without it, a registry reference fails. */
   registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
+  /** Lets the registry fill and repair its version cache. Defaults to true. */
+  persistRegistryVersions?: boolean | undefined;
 }
 
 /** The manifest, digest, and origin that validation and the workflow model read. */
@@ -121,6 +123,7 @@ export async function resolveWorkflowActions(
           ref: ref.ref,
           workflowPath,
           registry: params.registry,
+          persist: params.persistRegistryVersions ?? true,
         }),
       );
       continue;
@@ -270,6 +273,7 @@ async function resolveRegistryAction(params: {
   /** The workflow file that names the action, where its failures are reported. */
   workflowPath: string;
   registry: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
+  persist: boolean;
 }): Promise<ResolvedAction> {
   const {uses, ref, workflowPath} = params;
   const registryPackage = `${ref.namespace}/${ref.name}`;
@@ -291,6 +295,7 @@ async function resolveRegistryAction(params: {
       package: registryPackage,
       version: ref.version,
       kind: 'action',
+      ...(params.persist ? {} : {persist: false}),
     });
   } catch (error) {
     throw translateRegistryError({error, uses, fail});

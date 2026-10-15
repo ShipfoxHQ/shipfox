@@ -12,6 +12,7 @@ export {
 export {closeDb, db, type Executor, schema, type Tx} from './db.js';
 export {
   getTriggerEventById,
+  getTriggerEventsByIds,
   type ListTriggerEventFacetsResult,
   type ListTriggerEventsParams,
   type ListTriggerEventsResult,

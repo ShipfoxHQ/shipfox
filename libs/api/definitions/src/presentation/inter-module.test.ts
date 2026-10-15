@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   listDefinitionsAtRef: vi.fn(),
   requireProjectForWorkspace: vi.fn(),
   resolveDefinitionAtRef: vi.fn(),
+  validateDefinitionAtRef: vi.fn(),
 }));
 
 vi.mock('#db/definitions.js', () => ({
@@ -34,6 +35,7 @@ vi.mock('#core/index.js', async (importOriginal) => {
     ...original,
     listDefinitionsAtRef: mocks.listDefinitionsAtRef,
     resolveDefinitionAtRef: mocks.resolveDefinitionAtRef,
+    validateDefinitionAtRef: mocks.validateDefinitionAtRef,
   };
 });
 
@@ -58,6 +60,7 @@ async function rejection(promise: Promise<unknown> | unknown): Promise<unknown> 
 describe('definitions inter-module presentation', () => {
   beforeEach(() => {
     mocks.resolveDefinitionAtRef.mockReset();
+    mocks.validateDefinitionAtRef.mockReset();
     mocks.listDefinitionsAtRef.mockReset();
     mocks.getDefinitionByConfigPath.mockReset();
     mocks.getDefinitionById.mockReset();
@@ -617,6 +620,52 @@ describe('definitions inter-module presentation', () => {
       expect((error as {code: string}).code).toBe(code);
       expect((error as {details: unknown}).details).toEqual(expected);
     }
+  });
+
+  it('validates a definition at a ref for the caller workspace', async () => {
+    const validated = {
+      ref: REF,
+      commit: COMMIT,
+      valid: false,
+      errors: [{message: 'jobs is required'}],
+      errorCount: 1,
+      warnings: [],
+      triggers: {},
+    };
+    mocks.validateDefinitionAtRef.mockResolvedValue(validated);
+    const workspaceId = '00000000-0000-4000-8000-000000000009';
+
+    const result = await presentation().handlers.validateDefinitionAtRef(
+      {workspaceId, projectId: PROJECT_ID, ref: REF, configPath: CONFIG_PATH},
+      {signal: new AbortController().signal},
+    );
+
+    expect(result).toEqual(validated);
+    expect(mocks.validateDefinitionAtRef).toHaveBeenCalledWith(
+      expect.objectContaining({workspaceId, projectId: PROJECT_ID}),
+    );
+  });
+
+  it('maps a validation project-not-found to its known error', async () => {
+    const method = definitionsInterModuleContract.methods.validateDefinitionAtRef;
+    mocks.validateDefinitionAtRef.mockRejectedValue(
+      new DefinitionAtRefError('project-not-found', 'boom', {projectId: PROJECT_ID}),
+    );
+
+    const error = await rejection(
+      presentation().handlers.validateDefinitionAtRef(
+        {
+          workspaceId: '00000000-0000-4000-8000-000000000009',
+          projectId: PROJECT_ID,
+          ref: REF,
+          configPath: CONFIG_PATH,
+        },
+        {signal: new AbortController().signal},
+      ),
+    );
+
+    expect(isInterModuleKnownError(method, error)).toBe(true);
+    expect(error).toMatchObject({code: 'project-not-found', details: {projectId: PROJECT_ID}});
   });
 
   it('re-throws unknown errors without mapping them', async () => {

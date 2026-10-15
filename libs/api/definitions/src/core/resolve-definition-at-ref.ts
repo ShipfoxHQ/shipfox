@@ -158,9 +158,9 @@ interface ResolvedProjectSource {
  * Resolves a workflow definition at a git ref without persisting it.
  * The ref is pinned to a commit and the content is validated with the sync
  * pipeline. Referenced actions are read at that commit unless uploaded. Only
- * the workflow lineage row and the action snapshots are written, so the dev
- * run can be numbered and its runner can fetch the action code; no definition
- * row and no outbox event are written.
+ * the workflow lineage row, the action snapshots, and the registry cache are
+ * written, so the dev run can be numbered and its runner can fetch the action
+ * code; no definition row and no outbox event are written.
  */
 export async function resolveDefinitionAtRef(
   params: ResolveDefinitionAtRefParams,
@@ -178,6 +178,127 @@ export async function resolveDefinitionAtRef(
 async function resolveDefinitionAtRefUnsafe(
   params: ResolveDefinitionAtRefParams,
 ): Promise<ResolvedDefinitionAtRef> {
+  const prepared = await prepareDefinitionAtRef(params, {persistRegistryVersions: true});
+  const {outcome} = prepared;
+  if (outcome.kind === 'invalid') throw outcome.error;
+
+  // The model references snapshots by digest, so they exist before the run does.
+  for (const action of outcome.actions.values()) {
+    await upsertActionSnapshot({
+      workspaceId: prepared.source.workspaceId,
+      projectId: params.projectId,
+      manifest: action.manifest,
+      bundle: action.bundle,
+      source: snapshotSourceOf(action, outcome.uploadedPaths),
+    });
+  }
+  const workflowId = await findOrCreateWorkflowLineage({
+    projectId: params.projectId,
+    configPath: params.configPath,
+  });
+  recordDefinitionRefResolution('resolved');
+
+  return {
+    workflow: {id: workflowId, configPath: params.configPath},
+    ref: prepared.ref,
+    commit: prepared.commit,
+    model: createWorkflowModelSnapshot(outcome.parsed.model),
+    sourceSnapshot: {content: outcome.content, format: 'yaml'},
+    triggers: definitionTriggersFor(outcome.parsed.model),
+    warnings: outcome.warnings,
+  };
+}
+
+export interface ValidateDefinitionAtRefParams extends ResolveDefinitionAtRefParams {
+  /** The caller's workspace. A project in another workspace answers `project-not-found`. */
+  workspaceId: string;
+}
+
+export interface ValidatedDefinitionAtRef {
+  ref: string;
+  commit: string;
+  valid: boolean;
+  /** At most `DEFINITION_SYNC_DIAGNOSTICS_MAX_COUNT` errors, from the first stage that fails. */
+  errors: ValidationError[];
+  /** How many errors that stage found, before truncation. */
+  errorCount: number;
+  /** Empty when the definition is invalid: the validator reports warnings only for valid definitions. */
+  warnings: ValidationWarning[];
+  /** Empty when the definition is invalid. */
+  triggers: Record<string, TriggerDto>;
+}
+
+/**
+ * Validates a workflow definition at a git ref, the way `resolveDefinitionAtRef`
+ * does, and writes nothing: no lineage row, no action snapshot, and no registry
+ * cache row. An invalid definition is a result, not an error.
+ */
+export async function validateDefinitionAtRef(
+  params: ValidateDefinitionAtRefParams,
+): Promise<ValidatedDefinitionAtRef> {
+  let prepared: DefinitionAtRefPreparation;
+  try {
+    prepared = await prepareDefinitionAtRef(params, {persistRegistryVersions: false});
+  } catch (error) {
+    if (error instanceof DefinitionAtRefError) {
+      recordDefinitionRefResolution(error.code, 'validate');
+    }
+    throw error;
+  }
+
+  const {outcome} = prepared;
+  if (outcome.kind === 'invalid') {
+    recordDefinitionRefResolution('invalid-definition', 'validate');
+    const errors = (outcome.error.details.errors ?? []) as ValidationError[];
+    const errorCount = outcome.error.details.errorCount;
+    return {
+      ref: prepared.ref,
+      commit: prepared.commit,
+      valid: false,
+      errors,
+      errorCount: typeof errorCount === 'number' ? errorCount : errors.length,
+      warnings: [],
+      triggers: {},
+    };
+  }
+
+  recordDefinitionRefResolution('resolved', 'validate');
+  return {
+    ref: prepared.ref,
+    commit: prepared.commit,
+    valid: true,
+    errors: [],
+    errorCount: 0,
+    warnings: outcome.warnings,
+    triggers: definitionTriggersFor(outcome.parsed.model),
+  };
+}
+
+interface DefinitionAtRefPreparation {
+  source: ResolvedProjectSource;
+  ref: string;
+  commit: string;
+  outcome:
+    | {
+        kind: 'parsed';
+        content: string;
+        parsed: ParsedDefinition;
+        actions: Map<string, ResolvedAction>;
+        uploadedPaths: Set<string>;
+        warnings: ValidationWarning[];
+      }
+    | {kind: 'invalid'; error: DefinitionAtRefError};
+}
+
+/**
+ * Reads and validates the definition without writing anything. Once the ref is
+ * pinned to a commit, an invalid definition is returned as an outcome; every
+ * other failure still throws, because it means the definition could not be read.
+ */
+async function prepareDefinitionAtRef(
+  params: ResolveDefinitionAtRefParams & {workspaceId?: string | undefined},
+  options: {persistRegistryVersions: boolean},
+): Promise<DefinitionAtRefPreparation> {
   throwIfAborted(params.signal);
   const uploads = params.actions ?? [];
   assertLocalUploadSize({content: params.content, uploads, configPath: params.configPath});
@@ -187,6 +308,11 @@ async function resolveDefinitionAtRefUnsafe(
     undefined,
     params.signal,
   );
+  if (params.workspaceId !== undefined && source.workspaceId !== params.workspaceId) {
+    throw new DefinitionAtRefError('project-not-found', `Project not found: ${params.projectId}`, {
+      projectId: params.projectId,
+    });
+  }
   const ref = await resolveDefinitionRef({
     integrations: params.integrations,
     source,
@@ -209,12 +335,42 @@ async function resolveDefinitionAtRefUnsafe(
     );
   }
 
+  const pinned = {source, ref: resolved.ref, commit: resolved.commit};
+  try {
+    return {
+      ...pinned,
+      outcome: await parseDefinitionAtCommit({
+        params,
+        source,
+        ref,
+        commit: resolved.commit,
+        uploads,
+        persistRegistryVersions: options.persistRegistryVersions,
+      }),
+    };
+  } catch (error) {
+    if (error instanceof DefinitionAtRefError && error.code === 'invalid-definition') {
+      return {...pinned, outcome: {kind: 'invalid', error}};
+    }
+    throw error;
+  }
+}
+
+async function parseDefinitionAtCommit(input: {
+  params: ResolveDefinitionAtRefParams;
+  source: ResolvedProjectSource;
+  ref: string;
+  commit: string;
+  uploads: readonly ActionUpload[];
+  persistRegistryVersions: boolean;
+}): Promise<Extract<DefinitionAtRefPreparation['outcome'], {kind: 'parsed'}>> {
+  const {params, source, ref, commit, uploads} = input;
   const snapshot =
     params.content === undefined
       ? await fetchFileAtCommit({
           integrations: params.integrations,
           source,
-          commit: resolved.commit,
+          commit,
           ref,
           configPath: params.configPath,
           signal: params.signal,
@@ -243,18 +399,19 @@ async function resolveDefinitionAtRefUnsafe(
   const actions = await resolveDevRunActions({
     integrations: params.integrations,
     source,
-    commit: resolved.commit,
+    commit,
     configPath: params.configPath,
     document,
     uploads: new Map(uploads.map((upload) => [upload.path, upload.files])),
     registry: params.registry,
+    persistRegistryVersions: input.persistRegistryVersions,
     signal: params.signal,
   });
   const actionManifests = summarizeResolvedActions(actions);
   const promptFiles = await resolveDevRunPromptFiles({
     integrations: params.integrations,
     source,
-    commit: resolved.commit,
+    commit,
     configPath: params.configPath,
     document,
     signal: params.signal,
@@ -275,29 +432,13 @@ async function resolveDefinitionAtRefUnsafe(
     signal: params.signal,
   });
   throwIfAborted(params.signal);
-  // The model references snapshots by digest, so they exist before the run does.
-  for (const action of actions.values()) {
-    await upsertActionSnapshot({
-      workspaceId: source.workspaceId,
-      projectId: params.projectId,
-      manifest: action.manifest,
-      bundle: action.bundle,
-      source: snapshotSourceOf(action, uploadedPaths),
-    });
-  }
-  const workflowId = await findOrCreateWorkflowLineage({
-    projectId: params.projectId,
-    configPath: params.configPath,
-  });
-  recordDefinitionRefResolution('resolved');
 
   return {
-    workflow: {id: workflowId, configPath: params.configPath},
-    ref: resolved.ref,
-    commit: resolved.commit,
-    model: createWorkflowModelSnapshot(parsed.model),
-    sourceSnapshot: {content: snapshot.content, format: 'yaml'},
-    triggers: definitionTriggersFor(parsed.model),
+    kind: 'parsed',
+    content: snapshot.content,
+    parsed,
+    actions,
+    uploadedPaths,
     warnings: [...warningsFor(parsed.diagnostics), ...unusedUploadWarnings(document, uploads)],
   };
 }
@@ -581,7 +722,7 @@ async function fetchFileAtCommit(params: {
       }
       if (isBinaryFileError(error)) {
         const message = `Workflow file is not UTF-8 text: ${params.configPath}`;
-        throw new DefinitionAtRefError('invalid-definition', message, {errors: [{message}]});
+        throw invalidDefinition(message, [{message}]);
       }
       throw sourceUnavailable(error, 'The workflow file at the ref could not be fetched');
     }
@@ -632,11 +773,7 @@ function parseWorkflowDocumentAtRef(
     // Full validation fails the same way and reports the failure with its details.
     parseWorkflowDefinition(content, options);
     const message = error instanceof Error ? error.message : String(error);
-    throw new DefinitionAtRefError(
-      'invalid-definition',
-      `Invalid workflow definition: ${message}`,
-      {errors: boundedValidationErrors([{message}])},
-    );
+    throw invalidDefinition(`Invalid workflow definition: ${message}`, [{message}]);
   }
 }
 
@@ -648,6 +785,7 @@ async function resolveDevRunActions(params: {
   document: WorkflowDocument;
   uploads: ReadonlyMap<string, readonly ActionBundleFile[]>;
   registry: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
+  persistRegistryVersions: boolean;
   signal: AbortSignal | undefined;
 }): Promise<Map<string, ResolvedAction>> {
   if (collectActionReferences(params.document).length === 0) return new Map();
@@ -668,6 +806,7 @@ async function resolveDevRunActions(params: {
       workflows: [{path: params.configPath, document: params.document}],
       uploads: params.uploads,
       registry: params.registry,
+      persistRegistryVersions: params.persistRegistryVersions,
     });
   } catch (error) {
     throwIfAborted(params.signal);
@@ -681,13 +820,7 @@ async function resolveDevRunActions(params: {
     if (isInterModuleKnownError(registryInterModuleContract.methods.resolveVersion, error)) {
       // A dev run has no retry, so the caller reads the reason and tries again.
       const message = 'A registry action could not be resolved because the registry is unavailable';
-      throw new DefinitionAtRefError(
-        'invalid-definition',
-        `Invalid workflow definition: ${message}`,
-        {
-          errors: boundedValidationErrors([{message}]),
-        },
-      );
+      throw invalidDefinition(`Invalid workflow definition: ${message}`, [{message}]);
     }
     throw error;
   }
@@ -704,11 +837,7 @@ async function resolveDevRunActions(params: {
   }
   const [first] = errors;
   if (first !== undefined) {
-    throw new DefinitionAtRefError(
-      'invalid-definition',
-      `Invalid workflow definition: ${first.message}`,
-      {errors: boundedValidationErrors(errors)},
-    );
+    throw invalidDefinition(`Invalid workflow definition: ${first.message}`, errors);
   }
   return actions;
 }
@@ -739,11 +868,9 @@ async function resolveDevRunPromptFiles(params: {
   } catch (error) {
     throwIfAborted(params.signal);
     if (error instanceof PromptFileResolutionError) {
-      throw new DefinitionAtRefError(
-        'invalid-definition',
-        `Invalid workflow definition: ${error.message}`,
-        {errors: boundedValidationErrors([{message: error.message, path: error.path}])},
-      );
+      throw invalidDefinition(`Invalid workflow definition: ${error.message}`, [
+        {message: error.message, path: error.path},
+      ]);
     }
     if (isInterModuleKnownError(integrationsInterModuleContract.methods.fetchSourceFile, error)) {
       throw sourceUnavailable(error, 'The prompt files at the ref could not be read');
@@ -769,11 +896,7 @@ function invalidAction(error: ActionResolutionError): DefinitionAtRefError {
             ? detail
             : {...detail, message: `${error.filePath}: ${detail.message}`},
         );
-  return new DefinitionAtRefError(
-    'invalid-definition',
-    `Invalid workflow definition: ${error.message}`,
-    {errors: boundedValidationErrors(errors)},
-  );
+  return invalidDefinition(`Invalid workflow definition: ${error.message}`, errors);
 }
 
 async function parseDefinitionAtRef(params: {
@@ -807,14 +930,24 @@ function parseWorkflowDefinition(
     return parseDefinitionWithDiagnostics(content, options);
   } catch (error) {
     if (error instanceof DefinitionParseError) {
-      throw new DefinitionAtRefError(
-        'invalid-definition',
+      throw invalidDefinition(
         `Invalid workflow definition: ${error.message}`,
-        {errors: boundedValidationErrors((error.details ?? []) as ValidationError[])},
+        (error.details ?? []) as ValidationError[],
       );
     }
     throw error;
   }
+}
+
+/** Keeps the count before truncation, so a check can report how many errors it found. */
+function invalidDefinition(
+  message: string,
+  errors: readonly ValidationError[],
+): DefinitionAtRefError {
+  return new DefinitionAtRefError('invalid-definition', message, {
+    errors: boundedValidationErrors(errors),
+    errorCount: errors.length,
+  });
 }
 
 async function fetchListingFile(params: {

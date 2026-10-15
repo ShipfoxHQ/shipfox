@@ -5,10 +5,15 @@ const meter = instanceMetrics.getMeter('definitions');
 
 export type DefinitionRefResolutionOutcome = DefinitionAtRefErrorCode | 'resolved';
 
-const refResolutionCount = meter.createCounter<{outcome: DefinitionRefResolutionOutcome}>(
-  'definitions_ref_resolutions',
-  {description: 'Workflow definition resolutions at a git ref by outcome'},
-);
+/** `resolve` prepares a dev run; `validate` only checks the definition and writes nothing. */
+export type DefinitionRefResolutionOperation = 'resolve' | 'validate';
+
+const refResolutionCount = meter.createCounter<{
+  outcome: DefinitionRefResolutionOutcome;
+  operation: DefinitionRefResolutionOperation;
+}>('definitions_ref_resolutions', {
+  description: 'Workflow definition resolutions at a git ref by operation and outcome',
+});
 
 function recordMetric(record: () => void): void {
   try {
@@ -18,6 +23,9 @@ function recordMetric(record: () => void): void {
   }
 }
 
-export function recordDefinitionRefResolution(outcome: DefinitionRefResolutionOutcome): void {
-  recordMetric(() => refResolutionCount.add(1, {outcome}));
+export function recordDefinitionRefResolution(
+  outcome: DefinitionRefResolutionOutcome,
+  operation: DefinitionRefResolutionOperation = 'resolve',
+): void {
+  recordMetric(() => refResolutionCount.add(1, {outcome, operation}));
 }

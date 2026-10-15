@@ -714,6 +714,7 @@ describe('admin MCP endpoint', () => {
     // A new read tool reaches administrators through this list; review it before updating.
     expect(listed.tools.map((tool) => tool.name).sort()).toMatchInlineSnapshot(`
       [
+        "check_workflow",
         "diff_registry_action",
         "find_users",
         "get_execution_trigger_event",
@@ -756,6 +757,10 @@ describe('admin MCP endpoint', () => {
         .filter((tool) => tool.annotations?.readOnlyHint !== true)
         .map((tool) => tool.name),
     ).toEqual(['start_impersonation', 'stop_impersonation']);
+    const checkWorkflow = listed.tools.find((tool) => tool.name === 'check_workflow');
+    expect(checkWorkflow?.inputSchema.required).toEqual(
+      expect.arrayContaining(['workspace_id', 'project_id', 'config_path']),
+    );
   });
 
   test('serves additional admin tools behind the same role check', async () => {

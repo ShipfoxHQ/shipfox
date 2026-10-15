@@ -46,4 +46,4 @@ export {
   packageUpdateSchema,
   packageUpdatesResponseSchema,
 } from './package-updates.js';
-export type {TriggerDto} from './trigger.js';
+export {type TriggerDto, triggerDtoSchema} from './trigger.js';

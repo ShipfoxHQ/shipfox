@@ -95,6 +95,27 @@ export class DevRunTriggerNotFoundError extends Error {
   }
 }
 
+/** A dry run of a definition that does not validate; `errors` is already bounded. */
+export class DevRunDefinitionInvalidError extends Error {
+  readonly errors: {message: string; path?: string | undefined; reason?: string | undefined}[];
+
+  constructor(errors: DevRunDefinitionInvalidError['errors']) {
+    super('Workflow definition is invalid');
+    this.name = 'DevRunDefinitionInvalidError';
+    this.errors = errors;
+  }
+}
+
+export class CheckWorkflowEventIdsNotAllowedError extends Error {
+  readonly source: string;
+
+  constructor(source: string) {
+    super(`event_ids are only supported for integration triggers, not ${source}`);
+    this.name = 'CheckWorkflowEventIdsNotAllowedError';
+    this.source = source;
+  }
+}
+
 export class DevRunInputsNotAllowedError extends Error {
   constructor() {
     super(

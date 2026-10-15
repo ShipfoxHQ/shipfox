@@ -20,6 +20,7 @@ import {
   isInterModuleKnownError,
 } from '@shipfox/inter-module';
 import {createTimestampIdCursor, timestampIdCursorTimestamp} from '@shipfox/node-drizzle';
+import {checkWorkflow} from '#core/check-workflow.js';
 import {checkDevRun, createDevRun} from '#core/create-dev-run.js';
 import type {TriggerDecision} from '#core/entities/decision.js';
 import type {
@@ -28,6 +29,8 @@ import type {
   TriggerReceivedEventSummary,
 } from '#core/entities/received-event.js';
 import {
+  CheckWorkflowEventIdsNotAllowedError,
+  DevRunDefinitionInvalidError,
   DevRunInputsNotAllowedError,
   DevRunReplayEventMismatchError,
   DevRunReplayEventNotAllowedError,
@@ -101,6 +104,32 @@ export function createTriggersInterModulePresentation(params: {
         });
       } catch (error) {
         throw toCheckDevRunKnownError(error, input.projectId);
+      }
+    },
+    checkWorkflow: async (input) => {
+      try {
+        // Ownership comes first: the definitions validator loads projects by id alone.
+        await params.projects.requireProjectForWorkspace({
+          projectId: input.projectId,
+          workspaceId: input.workspaceId,
+        });
+        const {events, ...result} = await checkWorkflow({
+          ...input,
+          definitions: params.definitions,
+        });
+        return {
+          ...result,
+          ...(events === undefined
+            ? {}
+            : {
+                events: events.map(({receivedAt, ...event}) => ({
+                  ...event,
+                  ...(receivedAt === undefined ? {} : {receivedAt: receivedAt.toISOString()}),
+                })),
+              }),
+        };
+      } catch (error) {
+        throw toCheckWorkflowKnownError(error, input.projectId);
       }
     },
     listTriggerEvents: async ({workspaceId, limit, cursor, filters}) => {
@@ -262,10 +291,40 @@ function toCheckDevRunKnownError(error: unknown, projectId: string): unknown {
   if (error instanceof DevRunTriggerFilteredError) {
     return createInterModuleKnownError(method, 'trigger-filtered', {reason: error.reason});
   }
+  if (error instanceof DevRunDefinitionInvalidError) {
+    return createInterModuleKnownError(method, 'invalid-definition', {errors: error.errors});
+  }
 
   return (
     forwardKnownError(
-      definitionsInterModuleContract.methods.resolveDefinitionAtRef,
+      definitionsInterModuleContract.methods.validateDefinitionAtRef,
+      method,
+      error,
+    ) ?? error
+  );
+}
+
+function toCheckWorkflowKnownError(error: unknown, projectId: string): unknown {
+  const method = triggersInterModuleContract.methods.checkWorkflow;
+  if (
+    isInterModuleKnownError(projectsInterModuleContract.methods.requireProjectForWorkspace, error)
+  ) {
+    return createInterModuleKnownError(method, 'project-not-found', {projectId});
+  }
+  if (error instanceof DevRunTriggerNotFoundError) {
+    return createInterModuleKnownError(
+      method,
+      'trigger-not-found',
+      toTriggerNotFoundDetails(error),
+    );
+  }
+  if (error instanceof CheckWorkflowEventIdsNotAllowedError) {
+    return createInterModuleKnownError(method, 'event-ids-not-allowed', {source: error.source});
+  }
+
+  return (
+    forwardKnownError(
+      definitionsInterModuleContract.methods.validateDefinitionAtRef,
       method,
       error,
     ) ?? error
