@@ -2,6 +2,7 @@ import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {gzipSync} from 'node:zlib';
+import {runHashFilesRequest} from '@shipfox/actions/hash-files';
 import type {
   AgentConfigIssueDto,
   NextStepResponseDto,
@@ -1388,6 +1389,123 @@ describe('runJobSteps', () => {
           secretEnv: {REGISTRY_AUTH: 'npm-secret'},
           secretValues: ['npm-secret'],
         }),
+      );
+    });
+  });
+
+  describe('hashFiles() bindings', () => {
+    let workspace: string;
+
+    beforeEach(() => {
+      workspace = mkdtempSync(join(tmpdir(), 'shipfox-hash-files-'));
+      writeFileSync(join(workspace, 'lock.txt'), 'v1');
+    });
+
+    afterEach(() => {
+      rmSync(workspace, {recursive: true, force: true});
+    });
+
+    const keyBinding = {
+      target: 'KEY',
+      segments: [
+        {kind: 'literal', value: 'npm-'},
+        {kind: 'hash_files', patterns: ['lock.txt']},
+      ],
+    };
+
+    async function expectedHash(): Promise<string> {
+      const response = await runHashFilesRequest({patterns: ['lock.txt'], cwd: workspace});
+      if (!response.ok) throw new Error('Expected a hash');
+      return response.hash;
+    }
+
+    it('joins the hash into the binding, logs it, and requests no secrets', async () => {
+      const run = buildRunStep({config: {run: 'echo "$KEY"', secret_bindings: [keyBinding]}});
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(run, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+      const hash = await expectedHash();
+
+      await runLoop({signal: new AbortController().signal, cwd: workspace});
+
+      expect(requestStepSecretsMock).not.toHaveBeenCalled();
+      expect(executeRunStepMock).toHaveBeenCalledWith(
+        run,
+        expect.objectContaining({secretEnv: {KEY: `npm-${hash}`}}),
+      );
+      expect(streamFor(run.id).writeOutputLine).toHaveBeenCalledWith(
+        `hashFiles(lock.txt) = ${hash} (1 file)`,
+      );
+    });
+
+    it('fails the step before it starts when the patterns match no file', async () => {
+      const run = buildRunStep({
+        config: {
+          run: 'echo "$KEY"',
+          secret_bindings: [
+            {target: 'KEY', segments: [{kind: 'hash_files', patterns: ['missing.lock']}]},
+          ],
+        },
+      });
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(run, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'failed'});
+
+      await runLoop({signal: new AbortController().signal, cwd: workspace});
+
+      expect(executeRunStepMock).not.toHaveBeenCalled();
+      expect(reportStepMock).toHaveBeenCalledWith(
+        leaseClient,
+        expect.objectContaining({
+          stepId: run.id,
+          status: 'failed',
+          error: {
+            message: `hashFiles('missing.lock') matched no files in ${workspace}. A key built from nothing would be shared by every run.`,
+            reason: 'config_unresolvable',
+          },
+        }),
+      );
+    });
+
+    it('gives a post the hash its main attempt used, even after the file changed', async () => {
+      const main = buildStep({
+        id: '00000000-0000-0000-0000-0000000000b1',
+        type: 'action',
+        position: 1,
+        config: {secret_bindings: [keyBinding]},
+      });
+      const post = buildStep({
+        id: '00000000-0000-0000-0000-0000000000b9',
+        type: 'post',
+        position: 3,
+        config: {
+          post: {main_position: 1, failure: 'warn'},
+          state_source: {position: 1, attempt: 1},
+          secret_bindings: [keyBinding],
+        },
+      });
+      requestNextStepMock
+        .mockResolvedValueOnce(stepResponse(buildSetupStep(), 1))
+        .mockResolvedValueOnce(stepResponse(main, 1))
+        .mockResolvedValueOnce(stepResponse(post, 1))
+        .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+      const hash = await expectedHash();
+      executeActionStepMock.mockImplementationOnce(() => {
+        writeFileSync(join(workspace, 'lock.txt'), 'v2');
+        return Promise.resolve({success: true, error: null, exit_code: 0});
+      });
+      executeActionStepMock.mockResolvedValueOnce({success: true, error: null, exit_code: 0});
+      requestActionBundleMock.mockResolvedValue(new Uint8Array());
+
+      await runLoop({signal: new AbortController().signal, cwd: workspace});
+
+      expect(executeActionStepMock).toHaveBeenNthCalledWith(
+        2,
+        post,
+        expect.objectContaining({secretEnv: {KEY: `npm-${hash}`}}),
       );
     });
   });

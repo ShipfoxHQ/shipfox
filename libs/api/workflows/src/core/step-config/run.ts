@@ -1,10 +1,10 @@
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
+import {type SecretBindingTargetDto, secretStoreSchema} from '@shipfox/api-secrets-dto';
 import {
-  type MaterializedSecretBindingDto,
-  materializedSecretBindingSchema,
-  type SecretBindingSegmentDto,
-  secretStoreSchema,
-} from '@shipfox/api-secrets-dto';
+  type StepBindingDto,
+  type StepBindingSegmentDto,
+  stepBindingSchema,
+} from '@shipfox/api-workflows-dto';
 import {
   analyzeContextKeyAccess,
   type EvaluationTraceEntry,
@@ -111,7 +111,7 @@ export function completeRunDispatchConfig(params: {
   readonly trace: PersistedEvaluationTraceEntry[];
 }): void {
   const env = {...readConfigEnv(params.config)};
-  const secretBindings: MaterializedSecretBindingDto[] = [];
+  const secretBindings: StepBindingDto[] = [];
 
   if (params.plan.run !== undefined) {
     const resolved = completeRunCommand({
@@ -156,14 +156,14 @@ function completeRunCommand(params: {
 }): {
   readonly command: string;
   readonly env: Readonly<Record<string, string>>;
-  readonly secretBindings: readonly MaterializedSecretBindingDto[];
+  readonly secretBindings: readonly StepBindingDto[];
 } {
   const hoisted = hoistPlannedRunCommand({
     field: params.field,
     reservedNames: params.reservedNames,
   });
   const env: Record<string, string> = {};
-  const secretBindings: MaterializedSecretBindingDto[] = [];
+  const secretBindings: StepBindingDto[] = [];
 
   for (const binding of hoisted.bindings) {
     const completed = completeDispatchField({
@@ -185,7 +185,7 @@ function completeRunCommand(params: {
 
 type CompletedDispatchField =
   | {readonly kind: 'value'; readonly value: string}
-  | {readonly kind: 'binding'; readonly binding: MaterializedSecretBindingDto};
+  | {readonly kind: 'binding'; readonly binding: StepBindingDto};
 
 /**
  * Resolves a field at dispatch. A field made only of runner-filled secrets becomes
@@ -204,14 +204,14 @@ export function completeDispatchField(params: {
   readonly template: ResolvedField;
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
-  readonly target: MaterializedSecretBindingDto['target'];
+  readonly target: SecretBindingTargetDto;
   readonly trace: PersistedEvaluationTraceEntry[];
 }): CompletedDispatchField {
   const envKey = bindingEnvKey(params.target);
   const resolved = resolveStepField({...params, ...(envKey === undefined ? {} : {envKey})});
   params.trace.push(...tagTrace(resolved.trace, params.traceField, envKey));
   if (resolved.kind === 'frozen') return {kind: 'value', value: resolved.value};
-  if (containsOnlyRunnerSecretSegments(resolved.field)) {
+  if (containsOnlyRunnerBindableSegments(resolved.field)) {
     params.trace.push(...runnerSecretReferenceTrace(resolved.field, params.traceField, envKey));
     return {
       kind: 'binding',
@@ -229,37 +229,39 @@ export function completeDispatchField(params: {
   });
 }
 
-function bindingEnvKey(target: MaterializedSecretBindingDto['target']): string | undefined {
+function bindingEnvKey(target: SecretBindingTargetDto): string | undefined {
   if (typeof target === 'string') return target;
   return target.kind === 'container_env' || target.kind === 'mcp_server_env'
     ? target.name
     : undefined;
 }
 
-function containsOnlyRunnerSecretSegments(field: ResolvedField): boolean {
+// The runner fills bare secret references and `hashFiles()` calls, and nothing else.
+function containsOnlyRunnerBindableSegments(field: ResolvedField): boolean {
   return field.segments.every((segment) => {
     if (segment.kind === 'literal') return true;
-    return (
-      segment.fillTarget === runnerFillTarget &&
-      segment.roots.length === 1 &&
-      segment.roots[0] === 'secrets'
-    );
+    if (segment.fillTarget !== runnerFillTarget) return false;
+    if (segment.runnerCall !== undefined) return true;
+    return segment.roots.length === 1 && segment.roots[0] === 'secrets';
   });
 }
 
 function secretBindingFromField(
-  target: MaterializedSecretBindingDto['target'],
+  target: SecretBindingTargetDto,
   field: ResolvedField,
-): MaterializedSecretBindingDto {
+): StepBindingDto {
   const binding = {
     target,
     segments: field.segments.map(secretBindingSegment),
   };
-  return materializedSecretBindingSchema.parse(binding);
+  return stepBindingSchema.parse(binding);
 }
 
-function secretBindingSegment(segment: ResolvedFieldSegment): SecretBindingSegmentDto {
+function secretBindingSegment(segment: ResolvedFieldSegment): StepBindingSegmentDto {
   if (segment.kind === 'literal') return {kind: 'literal', value: segment.value};
+  if (segment.runnerCall !== undefined) {
+    return {kind: 'hash_files', patterns: [...segment.runnerCall.patterns]};
+  }
 
   const keyAccess = analyzeContextKeyAccess(segment.expression);
   const reference = keyAccess.references.find((candidate) => candidate.root === 'secrets');

@@ -457,6 +457,58 @@ describe('completeStepDispatchConfig', () => {
     ]);
   });
 
+  it('serializes hashFiles() calls as hash_files segments next to literals and secrets', async () => {
+    const pending = step({
+      config: {},
+      configPlan: {
+        env: {
+          KEY: plannedField(
+            `npm-${template("hashFiles('package-lock.json', '**/yarn.lock')")}-${template('secrets.SALT')}`,
+          ),
+        },
+      },
+    });
+
+    const result = await completeStepDispatchConfig({
+      step: pending,
+      context,
+      resolveAgentDefaults,
+      definitionId: 'def-1',
+    });
+
+    expect(result.config).toEqual({
+      secret_bindings: [
+        {
+          target: 'KEY',
+          segments: [
+            {kind: 'literal', value: 'npm-'},
+            {kind: 'hash_files', patterns: ['package-lock.json', '**/yarn.lock']},
+            {kind: 'literal', value: '-'},
+            {kind: 'secret', store: 'local', key: 'SALT'},
+          ],
+        },
+      ],
+    });
+  });
+
+  it('fills the runner context at step dispatch', async () => {
+    const pending = step({
+      config: {},
+      configPlan: {
+        env: {TARGET: plannedField(template('runner.arch == "arm64" ? "aarch64" : "x86_64"'))},
+      },
+    });
+
+    const result = await completeStepDispatchConfig({
+      step: pending,
+      context: {...context, values: {...context.values, runner: {os: 'linux', arch: 'arm64'}}},
+      resolveAgentDefaults,
+      definitionId: 'def-1',
+    });
+
+    expect(result.config).toEqual({env: {TARGET: 'aarch64'}});
+  });
+
   it('rejects secret env bindings with malformed target names', async () => {
     const pending = step({
       config: {},

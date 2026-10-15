@@ -1,8 +1,6 @@
 import type {WorkflowFieldTemplate, WorkflowModel} from '@shipfox/api-definitions-dto';
-import {
-  type MaterializedSecretBindingDto,
-  materializedSecretBindingSchema,
-} from '@shipfox/api-secrets-dto';
+import type {SecretBindingTargetDto} from '@shipfox/api-secrets-dto';
+import {type StepBindingDto, stepBindingSchema} from '@shipfox/api-workflows-dto';
 import type {ResolvedField} from '@shipfox/expression';
 import type {PersistedEvaluationTraceEntry, StepConfigDispatchPlan} from '#core/entities/step.js';
 import {
@@ -146,7 +144,7 @@ function resolveEnv(
 interface ContainerCompletion {
   readonly container: Record<string, unknown>;
   readonly env: Record<string, string>;
-  readonly bindings: MaterializedSecretBindingDto[];
+  readonly bindings: StepBindingDto[];
 }
 
 /**
@@ -243,7 +241,7 @@ function completeCredentials(params: {
     completion.bindings.push(
       completed.kind === 'binding'
         ? completed.binding
-        : materializedSecretBindingSchema.parse({
+        : stepBindingSchema.parse({
             target,
             segments: [{kind: 'literal', value: completed.value}],
           }),
@@ -254,7 +252,7 @@ function completeCredentials(params: {
 function completeSecretField(params: {
   readonly template: ResolvedField;
   readonly field: 'job.container.credentials' | 'job.container.env.value';
-  readonly target: MaterializedSecretBindingDto['target'];
+  readonly target: SecretBindingTargetDto;
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
   readonly trace: PersistedEvaluationTraceEntry[];

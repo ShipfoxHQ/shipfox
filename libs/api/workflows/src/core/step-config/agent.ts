@@ -12,11 +12,11 @@ import {
 } from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
-import type {MaterializedSecretBindingDto} from '@shipfox/api-secrets-dto';
 import {
   type AgentStepSessionIntentDto,
   agentStepSessionDescriptorSchema,
   agentStepSessionIntentSchema,
+  type StepBindingDto,
 } from '@shipfox/api-workflows-dto';
 import type {ResolvedField, SiteResolvedField} from '@shipfox/expression';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
@@ -222,7 +222,7 @@ function completeCustomMcpServers(params: {
     .array()
     .parse(params.config.customMcpServers)
     .map(copyCustomMcpServer);
-  const bindings: MaterializedSecretBindingDto[] = [];
+  const bindings: StepBindingDto[] = [];
   for (const server of servers) {
     for (const [name, template] of Object.entries(envPlan[server.name] ?? {})) {
       const completed = completeDispatchField({

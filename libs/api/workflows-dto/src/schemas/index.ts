@@ -108,6 +108,15 @@ export {
   stepAttemptDetailResponseSchema,
 } from './step-attempt-detail.js';
 export {
+  HASH_FILES_BINDING_MAX_PATTERNS,
+  type HashFilesBindingSegmentDto,
+  hashFilesBindingSegmentSchema,
+  type StepBindingDto,
+  type StepBindingSegmentDto,
+  stepBindingSchema,
+  stepBindingSegmentSchema,
+} from './step-binding.js';
+export {
   WORKFLOW_EXECUTION_TRIGGER_EVENT_METADATA_MAX_BYTES,
   WORKFLOW_EXECUTION_TRIGGER_EVENT_PAGE_LIMIT,
   WORKFLOW_EXECUTION_TRIGGER_EVENT_PAGE_MAX,

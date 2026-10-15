@@ -44,6 +44,7 @@ import {
 import {
   classifyReportedStep,
   nextStepForJob,
+  nextStepForLeasedJobExecution,
   recordStepResult as recordJobExecutionStepResult,
   TOOL_STEP_RETRY_AFTER_MS,
 } from './job-execution.js';
@@ -681,6 +682,66 @@ describe('nextStepForJob', () => {
     });
     expect(after.find((step) => step.id === runnableStep.id)?.status).toBe('running');
     expect(await getStepAttempts(jobId)).toMatchObject([{stepId: runnableStep.id}]);
+  });
+
+  test('fills the runner context from the claiming session when a step reads it', async () => {
+    const {steps} = await arrangeJobWithSteps(2);
+    const [armOnly, always] = steps;
+    if (!armOnly || !always) throw new Error('Expected arranged steps');
+    await db()
+      .update(stepsTable)
+      .set({condition: conditionExpression('runner.arch == "arm64"')})
+      .where(eq(stepsTable.id, armOnly.id));
+    const runnerPlatform = vi.fn(async () => ({os: 'linux' as const, arch: 'x64'}));
+
+    const result = await nextStepForLeasedJobExecution({
+      jobExecutionId: armOnly.jobExecutionId,
+      runnerPlatform,
+    });
+
+    expect(result).toEqual({
+      kind: 'step',
+      step: expect.objectContaining({id: always.id}),
+      dispatched: true,
+    });
+    expect(runnerPlatform).toHaveBeenCalledTimes(1);
+  });
+
+  test('fails only the step that reads the runner context when the runner has no platform', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const [readsRunner] = steps;
+    if (!readsRunner) throw new Error('Expected an arranged step');
+    await db()
+      .update(stepsTable)
+      .set({condition: conditionExpression('runner.os == "linux"')})
+      .where(eq(stepsTable.id, readsRunner.id));
+
+    await nextStepForLeasedJobExecution({
+      jobExecutionId: readsRunner.jobExecutionId,
+      runnerPlatform: async () => null,
+    });
+
+    const after = await getStepsByJobId(jobId);
+    expect(after.find((step) => step.id === readsRunner.id)).toMatchObject({
+      status: 'failed',
+      error: {
+        message:
+          'This runner does not report its platform. Upgrade the runner to use the runner context.',
+        reason: 'config_unresolvable',
+        field: 'runner',
+      },
+    });
+  });
+
+  test('does not read the runner platform for a step that does not use it', async () => {
+    const {steps} = await arrangeJobWithSteps(1);
+    const [only] = steps;
+    if (!only) throw new Error('Expected an arranged step');
+    const runnerPlatform = vi.fn(async () => null);
+
+    await nextStepForLeasedJobExecution({jobExecutionId: only.jobExecutionId, runnerPlatform});
+
+    expect(runnerPlatform).not.toHaveBeenCalled();
   });
 
   test('fails a step whose condition errors and skips the later default steps', async () => {

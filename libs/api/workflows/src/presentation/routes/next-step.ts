@@ -191,6 +191,8 @@ export function createNextStepRoute(params: {
       const next = await nextStepForLeasedJobExecution({
         jobExecutionId: leasedJob.jobExecutionId,
         agent: params.agent,
+        runnerPlatform: () =>
+          params.runners.getRunnerSessionPlatform({runnerSessionId: leasedJob.runnerSessionId}),
       });
 
       if (next.kind === 'wait') params.toolStepExecutor?.nudge();

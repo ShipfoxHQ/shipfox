@@ -1023,6 +1023,8 @@ export function assembleStepDispatchContext(params: {
   readonly executions?: readonly JobExecution[] | undefined;
   readonly jobs?: readonly JobContextInput[];
   readonly vars?: Record<string, string> | undefined;
+  /** The platform of the runner that claimed the job, loaded only when the step reads it. */
+  readonly runner?: {readonly os: string; readonly arch: string} | undefined;
 }): WorkflowEvaluationContext {
   const targetStep = params.steps.find((step) => step.id === params.targetStepId);
   const stepAttemptContext = buildStepAttemptContext(params);
@@ -1073,6 +1075,9 @@ export function assembleStepDispatchContext(params: {
             },
           }),
       steps: stepAttemptContext.stepsContext,
+      ...(params.runner === undefined
+        ? {}
+        : {runner: {os: params.runner.os, arch: params.runner.arch}}),
     },
   };
 }

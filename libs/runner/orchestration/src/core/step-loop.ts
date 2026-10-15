@@ -4,18 +4,19 @@ import {isAbsolute, join, relative, sep} from 'node:path';
 import {promisify} from 'node:util';
 import {gunzip, gzip} from 'node:zlib';
 import {
-  type MaterializedSecretBindingDto,
-  materializedSecretBindingSchema,
-  type SecretBindingSegmentDto,
+  type SecretBindingTargetDto,
   type StepSecretDto,
   secretBindingSegmentSchema,
 } from '@shipfox/api-secrets-dto';
-import type {
-  LogOutcomeDto,
-  NextStepResponseDto,
-  StepDto,
-  StepEnvSourceDto,
-  StepErrorReasonDto,
+import {
+  type LogOutcomeDto,
+  type NextStepResponseDto,
+  type StepBindingDto,
+  type StepBindingSegmentDto,
+  type StepDto,
+  type StepEnvSourceDto,
+  type StepErrorReasonDto,
+  stepBindingSchema,
 } from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {interruptibleSleep, nextBackoffInterval, withJitter} from '@shipfox/node-resilient-loop';
@@ -84,6 +85,12 @@ import {isTimeoutError, type KyInstance} from 'ky';
 import {z} from 'zod';
 import {config} from '#config.js';
 import {createInferenceCredentialSource} from '#core/inference-credential-source.js';
+import {
+  computeStepHashes,
+  hashFilesKey,
+  hashFilesLogLines,
+  type StepHashValues,
+} from '#core/step-hash-files.js';
 
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
@@ -169,6 +176,7 @@ export async function runJobSteps(params: {
     annotationContexts: createAnnotationContextRegistry(),
     carriedEnv: new Map(),
     actionState: new Map(),
+    stepHashes: new Map(),
     activeStream: undefined,
     checkoutRef: undefined,
   };
@@ -200,6 +208,8 @@ interface JobStepLoopState {
   carriedEnv: Map<string, CarriedEnv>;
   /** What each action attempt wrote to `$SHIPFOX_STATE`, for the post of the same step. */
   actionState: Map<string, string>;
+  /** The `hashFiles()` values of each step attempt, for the post of the same step. */
+  stepHashes: Map<string, StepHashValues>;
   activeStream: LogStreamLifecycle | undefined;
   checkoutRef: string | undefined;
 }
@@ -220,6 +230,7 @@ async function runJobStepIteration(
   const {step, attempt} = pulled;
   const carriedEnv = carriedEnvForStep(state.carriedEnv, pulled.envSources);
   const stateSeed = postStateSeed(state.actionState, step);
+  const hashSeed = postStateSeed(state.stepHashes, step);
   const credentialFailureCursor =
     isCredentialFailureAttributionStep(step) && params.credentialFailureEvents !== undefined
       ? params.credentialFailureEvents.getFailureEventCursor()
@@ -275,6 +286,7 @@ async function runJobStepIteration(
       : {}),
     ...(carriedEnv ? {carriedEnv} : {}),
     stateSeed,
+    hashSeed,
     ...(params.credentialHelper ? {credentialHelper: params.credentialHelper} : {}),
     ...preparation,
   };
@@ -353,6 +365,9 @@ function applyStepExecutionState(
   }
   if (execution.result.actionState !== undefined) {
     state.actionState.set(carriedEnvKey(step.position, attempt), execution.result.actionState);
+  }
+  if (execution.hashValues !== undefined && execution.hashValues.size > 0) {
+    state.stepHashes.set(carriedEnvKey(step.position, attempt), execution.hashValues);
   }
   if (execution.preparedWorkspace) state.workspacePrepared = true;
   if (execution.container) {
@@ -618,7 +633,7 @@ function carriedEnvKey(position: number, attempt: number): string {
 
 // The server names the main attempt a post runs for. Its state is read back from memory, so a
 // post only works on the runner that ran the main entry.
-function postStateSeed(stored: ReadonlyMap<string, string>, step: StepDto): string | undefined {
+function postStateSeed<T>(stored: ReadonlyMap<string, T>, step: StepDto): T | undefined {
   if (step.type !== 'post') return undefined;
   const source = stepStateSource(step);
   return source === undefined
@@ -743,6 +758,8 @@ export interface StepExecution {
   persistedCheckoutCredential?: PersistedCheckoutCredential | undefined;
   /** Set when a setup step started the job container. */
   container?: StartedSetupContainer | undefined;
+  /** The `hashFiles()` values the step's bindings used. */
+  hashValues?: StepHashValues | undefined;
 }
 
 /** The job container once it runs: where its steps start and the environment they begin with. */
@@ -809,6 +826,8 @@ export async function executeStep(params: {
   carriedEnv?: CarriedEnv | undefined;
   /** The state file text a post starts from. */
   stateSeed?: string | undefined;
+  /** The `hashFiles()` values of the main step a post runs for. */
+  hashSeed?: StepHashValues | undefined;
   jobId: string;
   stepLabel: string;
   prepareLogs?: (() => Promise<void>) | undefined;
@@ -1270,9 +1289,9 @@ async function executeAgentStepBranch(params: {
   }
   // MCP server secrets are pulled before the session stream opens, so it masks them from the
   // first entry.
-  let secretMaterial: StepSecretMaterial | undefined;
+  let secretMaterial: StepBindingMaterial | undefined;
   try {
-    secretMaterial = await loadStepSecretMaterial({
+    secretMaterial = await loadStepBindingMaterial({
       step: input.step,
       leaseClient: input.leaseClient,
       attempt: input.attempt,
@@ -1370,9 +1389,9 @@ async function executeAgentStepBranch(params: {
 }
 
 function customMcpServerOptions(
-  secretMaterial: StepSecretMaterial | undefined,
+  secretMaterial: StepBindingMaterial | undefined,
   secrets: string[],
-): {customMcpServerSecretEnv?: StepSecretMaterial['mcpServerEnv']; redactions?: string[]} {
+): {customMcpServerSecretEnv?: StepBindingMaterial['mcpServerEnv']; redactions?: string[]} {
   if (secretMaterial === undefined) return {};
   return {
     customMcpServerSecretEnv: secretMaterial.mcpServerEnv,
@@ -1694,7 +1713,7 @@ interface ProcessStepBranchParams {
 }
 
 interface OpenedProcessStep {
-  secretMaterial: StepSecretMaterial | undefined;
+  secretMaterial: StepBindingMaterial | undefined;
   stepSecrets: string[];
   stepStream: StepLogStream | undefined;
 }
@@ -1705,13 +1724,16 @@ async function openProcessStep(
   params: ProcessStepBranchParams,
 ): Promise<{ok: true; opened: OpenedProcessStep} | {ok: false; execution: StepExecution}> {
   const input = params.params;
-  let secretMaterial: StepSecretMaterial | undefined;
+  let secretMaterial: StepBindingMaterial | undefined;
   try {
-    secretMaterial = await loadStepSecretMaterial({
+    secretMaterial = await loadStepBindingMaterial({
       step: input.step,
       leaseClient: input.leaseClient,
       attempt: input.attempt,
       signal: input.signal,
+      cwd: params.stepCwd,
+      container: input.container,
+      hashSeed: input.hashSeed,
     });
   } catch (error) {
     return {
@@ -1736,14 +1758,18 @@ async function openProcessStep(
   const stepStream = createRunStepLogStream(input, stepSecrets, params.append);
   params.onStream(stepStream);
   params.registerStreamSecrets(stepStream);
+  for (const line of hashFilesLogLines(secretMaterial?.hashValues ?? new Map())) {
+    stepStream?.writeOutputLine(line);
+  }
   return {ok: true, opened: {secretMaterial, stepSecrets, stepStream}};
 }
 
 function finishProcessStep(
   params: ProcessStepBranchParams,
-  stepStream: StepLogStream | undefined,
+  opened: OpenedProcessStep,
   processResult: StepResult,
 ): StepExecution {
+  const {stepStream} = opened;
   const {maskedValues = [], ...unmaskedResult} = processResult;
   // Registered for the job before this step's own outputs are masked, so the values stay masked
   // in every later step, even when a gate restart skips the step that wrote them.
@@ -1767,6 +1793,9 @@ function finishProcessStep(
     ...textLogFinalizer(stepStream),
     logOutcome: stepStream ? undefined : 'abandoned',
     preparedWorkspace: false,
+    ...(opened.secretMaterial?.hashValues === undefined
+      ? {}
+      : {hashValues: opened.secretMaterial.hashValues}),
   };
 }
 
@@ -1800,7 +1829,7 @@ async function executeRunStepBranch(params: ProcessStepBranchParams): Promise<St
         onOutput: (chunk, source) => stepStream?.write(chunk, source),
       }),
   });
-  return finishProcessStep(params, stepStream, result);
+  return finishProcessStep(params, opening.opened, result);
 }
 
 async function outOfMemoryReportOptions(input: {
@@ -1925,7 +1954,7 @@ async function executeActionStepBranch(params: ProcessStepBranchParams): Promise
     cacheUpstream: {request: (request) => requestCacheRoute(input.leaseClient, request)},
     onToolRow: (row) => stepStream?.writeToolRow(row),
   }).finally(() => gatewayClient.close().catch(() => undefined));
-  return finishProcessStep(params, stepStream, result);
+  return finishProcessStep(params, opening.opened, result);
 }
 
 function createRunStepLogStream(
@@ -1993,23 +2022,30 @@ async function runSetupPreparation(
   }
 }
 
-interface StepSecretMaterial {
+interface StepBindingMaterial {
   secretEnv: Record<string, string>;
   /** Action inputs filled from secrets. Always empty for run steps. */
   secretInputs: Record<string, string>;
   /** Env of an agent step's MCP servers, by server name. Empty for other steps. */
   mcpServerEnv: Record<string, Record<string, string>>;
   secretValues: string[];
+  /** The `hashFiles()` values joined into the bindings. Not secrets, never masked. */
+  hashValues: StepHashValues;
 }
 
-const stepSecretBindingsSchema = materializedSecretBindingSchema.array();
+const stepBindingsSchema = stepBindingSchema.array();
 
-async function loadStepSecretMaterial(params: {
+// Bindings are assembled after the working directory is resolved and before the process starts,
+// so `hashFiles()` reads the files earlier steps wrote.
+async function loadStepBindingMaterial(params: {
   step: StepDto;
   leaseClient: KyInstance;
   attempt: number;
   signal: AbortSignal;
-}): Promise<StepSecretMaterial | undefined> {
+  cwd?: string | undefined;
+  container?: JobContainerRuntime | undefined;
+  hashSeed?: StepHashValues | undefined;
+}): Promise<StepBindingMaterial | undefined> {
   if (
     params.step.type !== 'run' &&
     params.step.type !== 'action' &&
@@ -2021,18 +2057,24 @@ async function loadStepSecretMaterial(params: {
   const bindings = parseStepSecretBindings(params.step);
   if (bindings.length === 0) return undefined;
 
-  const pulled = await requestStepSecrets(params.leaseClient, {
-    stepId: params.step.id,
-    attempt: params.attempt,
-    signal: params.signal,
-  });
+  const hashValues = await loadStepHashes({...params, bindings});
+  const readsSecrets = bindings.some((binding) =>
+    binding.segments.some((segment) => segment.kind === 'secret'),
+  );
+  const pulled = readsSecrets
+    ? await requestStepSecrets(params.leaseClient, {
+        stepId: params.step.id,
+        attempt: params.attempt,
+        signal: params.signal,
+      })
+    : {secrets: []};
   const values = new Map(pulled.secrets.map((secret) => [secretReferenceId(secret), secret.value]));
   const secretEnv: Record<string, string> = {};
   const secretInputs: Record<string, string> = {};
   const mcpServerEnv: Record<string, Record<string, string>> = {};
 
   for (const binding of bindings) {
-    const value = assembleSecretBinding(binding, values);
+    const value = assembleStepBinding(binding, values, hashValues);
     const {target} = binding;
     if (typeof target === 'string') secretEnv[target] = value;
     else if (target.kind === 'input') secretInputs[target.name] = value;
@@ -2046,7 +2088,31 @@ async function loadStepSecretMaterial(params: {
     secretInputs,
     mcpServerEnv,
     secretValues: pulled.secrets.map((secret) => secret.value),
+    hashValues,
   };
+}
+
+function loadStepHashes(params: {
+  bindings: readonly StepBindingDto[];
+  cwd?: string | undefined;
+  container?: JobContainerRuntime | undefined;
+  hashSeed?: StepHashValues | undefined;
+  signal: AbortSignal;
+}): Promise<StepHashValues> {
+  const callsHashFiles = params.bindings.some((binding) =>
+    binding.segments.some((segment) => segment.kind === 'hash_files'),
+  );
+  if (!callsHashFiles) return Promise.resolve(new Map());
+  if (params.cwd === undefined) {
+    return Promise.reject(new Error('hashFiles() needs the step working directory.'));
+  }
+  return computeStepHashes({
+    bindings: params.bindings,
+    cwd: params.cwd,
+    container: params.container,
+    seed: params.hashSeed,
+    signal: params.signal,
+  });
 }
 
 // The setup step of a container job has its own binding targets: the registry credentials and
@@ -2076,7 +2142,7 @@ async function loadContainerSecretMaterial(
   });
   const values = new Map(pulled.secrets.map((secret) => [secretReferenceId(secret), secret.value]));
   for (const binding of parsed.data) {
-    const value = assembleSecretBinding(binding, values);
+    const value = assembleStepBinding(binding, values);
     if (binding.target.kind === 'container_env') secrets.env[binding.target.name] = value;
     else secrets[binding.target.field] = value;
   }
@@ -2098,8 +2164,8 @@ function maskSetupFailure(result: StepResult, secrets: string[]): StepResult {
 // Environment variables are the target of run, action, and post steps; input targets belong to
 // action and post steps, and MCP server env targets to agent steps. Container targets belong to
 // the setup step, which this loader does not pull for yet.
-function parseStepSecretBindings(step: StepDto): MaterializedSecretBindingDto[] {
-  const parsed = stepSecretBindingsSchema.safeParse(step.config.secret_bindings ?? []);
+function parseStepSecretBindings(step: StepDto): StepBindingDto[] {
+  const parsed = stepBindingsSchema.safeParse(step.config.secret_bindings ?? []);
   if (
     !parsed.success ||
     parsed.data.some((binding) => !bindingTargetAllowed(binding.target, step.type))
@@ -2109,22 +2175,25 @@ function parseStepSecretBindings(step: StepDto): MaterializedSecretBindingDto[] 
   return parsed.data;
 }
 
-function bindingTargetAllowed(
-  target: MaterializedSecretBindingDto['target'],
-  stepType: StepDto['type'],
-): boolean {
+function bindingTargetAllowed(target: SecretBindingTargetDto, stepType: StepDto['type']): boolean {
   if (stepType === 'agent') return typeof target !== 'string' && target.kind === 'mcp_server_env';
   if (typeof target === 'string') return true;
   return (stepType === 'action' || stepType === 'post') && target.kind === 'input';
 }
 
-function assembleSecretBinding(
-  binding: {segments: SecretBindingSegmentDto[]},
+function assembleStepBinding(
+  binding: {segments: StepBindingSegmentDto[]},
   values: ReadonlyMap<string, string>,
+  hashValues: StepHashValues = new Map(),
 ): string {
   return binding.segments
     .map((segment) => {
       if (segment.kind === 'literal') return segment.value;
+      if (segment.kind === 'hash_files') {
+        const hashed = hashValues.get(hashFilesKey(segment.patterns));
+        if (hashed === undefined) throw new Error('A hashFiles() value was not computed.');
+        return hashed.hash;
+      }
       const value = values.get(secretReferenceId(segment));
       if (value === undefined) {
         throw new Error('Step secret response is missing a requested secret.');

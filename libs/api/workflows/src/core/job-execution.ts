@@ -1,6 +1,7 @@
 import {harnessSchema} from '@shipfox/api-agent-dto';
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
+import type {RunnerPlatformDto} from '@shipfox/api-runners-dto';
 import type {
   AgentStepSessionDescriptorDto,
   AgentStepSessionIntentDto,
@@ -10,6 +11,7 @@ import {
   coerceKeptStepOutputs,
   coerceStepOutputs,
   evaluatePlannedPredicateAtSite,
+  extractExactContextRoots,
   type StepOutputCoercionError,
 } from '@shipfox/expression';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
@@ -138,9 +140,13 @@ interface PendingSessionClaim {
   readonly evaluationTrace: readonly PersistedEvaluationTraceEntry[] | null;
   readonly workflowContext: Awaited<ReturnType<typeof getWorkflowContextForJob>>;
   readonly agent?: AgentInterModuleClient | undefined;
+  readonly runnerPlatform?: RunnerPlatformLoader | undefined;
 }
 
 type NextStepResolution = NextStep | PendingSessionClaim;
+
+/** Reads the platform of the runner that claimed the job. Called only for a step that reads it. */
+export type RunnerPlatformLoader = () => Promise<RunnerPlatformDto | null>;
 
 type DispatchConfigError =
   | InterpolationUnresolvableError
@@ -157,6 +163,7 @@ interface PendingStepDispatchParams {
   readonly context: WorkflowEvaluationContext;
   readonly tx: Tx;
   readonly agent?: AgentInterModuleClient | undefined;
+  readonly runnerPlatform?: RunnerPlatformLoader | undefined;
   readonly workflowContext: Awaited<ReturnType<typeof getWorkflowContextForJob>>;
   readonly steps: readonly Step[];
   readonly attempts: Awaited<ReturnType<typeof getStepAttemptsByJobExecutionId>>;
@@ -172,6 +179,7 @@ interface ResolvePendingStepParams {
   readonly vars: Record<string, string> | undefined;
   readonly tx: Tx;
   readonly agent?: AgentInterModuleClient | undefined;
+  readonly runnerPlatform?: RunnerPlatformLoader | undefined;
   readonly workflowContext: Awaited<ReturnType<typeof getWorkflowContextForJob>>;
 }
 
@@ -192,6 +200,7 @@ async function nextStepForJobExecutionInTransaction(
   jobExecutionId: string,
   tx: Tx,
   agent?: AgentInterModuleClient | undefined,
+  runnerPlatform?: RunnerPlatformLoader | undefined,
 ): Promise<NextStepResolution> {
   const steps = await getStepsByJobExecutionIdForUpdate(jobExecutionId, tx);
   const hasNoSteps = steps.length === 0;
@@ -205,7 +214,7 @@ async function nextStepForJobExecutionInTransaction(
   const running = steps.find((step) => step.status === 'running');
   const hasRunningStep = running !== undefined;
   if (hasRunningStep) {
-    return resolveRunningStep(jobExecutionId, running, tx, agent);
+    return resolveRunningStep(jobExecutionId, running, tx, agent, runnerPlatform);
   }
 
   const firstPending = steps.find((step) => step.status === 'pending');
@@ -233,6 +242,7 @@ async function nextStepForJobExecutionInTransaction(
     workflowContext,
     tx,
     agent,
+    runnerPlatform,
   });
 }
 
@@ -241,6 +251,7 @@ async function resolveRunningStep(
   running: Step,
   tx: Tx,
   agent?: AgentInterModuleClient | undefined,
+  runnerPlatform?: RunnerPlatformLoader | undefined,
 ): Promise<NextStepResolution> {
   if (running.type === 'tool') return {kind: 'wait', retryAfterMs: TOOL_STEP_RETRY_AFTER_MS};
 
@@ -284,6 +295,7 @@ async function resolveRunningStep(
     evaluationTrace: currentAttempt?.evaluationTrace ?? running.evaluationTrace,
     workflowContext,
     agent,
+    runnerPlatform,
   };
 }
 
@@ -298,6 +310,7 @@ async function resolveNextPendingStep({
   workflowContext,
   tx,
   agent,
+  runnerPlatform,
 }: ResolvePendingStepParams): Promise<NextStepResolution> {
   let skippedAny = false;
   let currentSteps = steps;
@@ -318,10 +331,19 @@ async function resolveNextPendingStep({
       return {kind: 'done', status};
     }
 
-    // Listening jobs can hold many executions, so load them only for a step that reads them.
-    if (executions === undefined && planReadsContext(pending.configPlan, 'executions')) {
-      const jobExecutions = await getJobExecutionsByJobId(jobExecution.jobId, tx);
-      executions = jobExecutions.filter((execution) => execution.sequence <= jobExecution.sequence);
+    executions = await executionsForStep({pending, jobExecution, executions, tx});
+
+    const runner = await stepRunnerPlatform(pending, runnerPlatform);
+    if (!runner.ok) {
+      return failPendingStep({
+        jobExecutionId,
+        pending,
+        jobExecution,
+        tx,
+        agent,
+        runnerPlatform,
+        error: runnerPlatformMissingError({step: pending, jobKey: workflowContext.jobKey}),
+      });
     }
 
     const context = assembleStepDispatchContext({
@@ -338,6 +360,7 @@ async function resolveNextPendingStep({
       executions,
       jobs,
       vars,
+      runner: runner.platform,
     });
     const condition = pendingStepCondition({
       pending,
@@ -354,6 +377,7 @@ async function resolveNextPendingStep({
         workflowContext,
         tx,
         agent,
+        runnerPlatform,
         steps: currentSteps,
         attempts,
       });
@@ -366,6 +390,7 @@ async function resolveNextPendingStep({
         jobExecution,
         tx,
         agent,
+        runnerPlatform,
         error: conditionErroredStepError({
           step: pending,
           jobKey: workflowContext.jobKey,
@@ -495,6 +520,7 @@ async function dispatchPendingStepWithConfigPlan({
   workflowContext,
   tx,
   agent,
+  runnerPlatform,
   attempts,
 }: PendingStepDispatchParams): Promise<NextStepResolution> {
   try {
@@ -551,6 +577,7 @@ async function dispatchPendingStepWithConfigPlan({
         evaluationTrace: completed.trace,
         workflowContext,
         agent,
+        runnerPlatform,
       };
     }
     if (pending.type === 'tool') {
@@ -588,6 +615,7 @@ async function dispatchPendingStepWithConfigPlan({
       jobExecution,
       tx,
       agent,
+      runnerPlatform,
       error: failureError,
     });
   }
@@ -599,10 +627,11 @@ async function failPendingStep(params: {
   readonly jobExecution: JobExecution;
   readonly tx: Tx;
   readonly agent?: AgentInterModuleClient | undefined;
+  readonly runnerPlatform?: RunnerPlatformLoader | undefined;
   readonly error: Record<string, unknown>;
   readonly evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | undefined;
 }): Promise<NextStepResolution> {
-  const {jobExecutionId, pending, jobExecution, tx, agent} = params;
+  const {jobExecutionId, pending, jobExecution, tx, agent, runnerPlatform} = params;
   await insertRunningStepAttempt(
     {
       jobExecutionId,
@@ -630,7 +659,7 @@ async function failPendingStep(params: {
   });
   if (status) recordWorkflowJobExecutionStepsSettled(status);
   return status === null
-    ? nextStepForJobExecutionInTransaction(jobExecutionId, tx, agent)
+    ? nextStepForJobExecutionInTransaction(jobExecutionId, tx, agent, runnerPlatform)
     : {kind: 'done', status};
 }
 
@@ -865,7 +894,12 @@ async function completePendingSessionClaim(
       // logic decide whether this job is complete or needs another claim.
       return {
         kind: 'release',
-        next: await nextStepForJobExecutionInTransaction(pending.jobExecutionId, tx, pending.agent),
+        next: await nextStepForJobExecutionInTransaction(
+          pending.jobExecutionId,
+          tx,
+          pending.agent,
+          pending.runnerPlatform,
+        ),
       };
     });
 
@@ -927,7 +961,12 @@ async function settlePreparedSessionClaimFailure(
   });
   if (status) recordWorkflowJobExecutionStepsSettled(status);
   return status === null
-    ? nextStepForJobExecutionInTransaction(pending.jobExecutionId, tx, pending.agent)
+    ? nextStepForJobExecutionInTransaction(
+        pending.jobExecutionId,
+        tx,
+        pending.agent,
+        pending.runnerPlatform,
+      )
     : {kind: 'done', status};
 }
 
@@ -960,7 +999,12 @@ async function continueAfterStalePendingSessionClaim(
   if (currentStep?.status === 'running') {
     return {kind: 'step', step: currentStep, dispatched: false};
   }
-  return nextStepForJobExecutionInTransaction(pending.jobExecutionId, tx, pending.agent);
+  return nextStepForJobExecutionInTransaction(
+    pending.jobExecutionId,
+    tx,
+    pending.agent,
+    pending.runnerPlatform,
+  );
 }
 
 function agentSessionClaimReason(
@@ -1102,6 +1146,49 @@ function interpolationConfigError(error: InterpolationUnresolvableError): Record
 
 const TRAILING_PERIOD = /\.$/u;
 
+// Listening jobs can hold many executions, so load them only for a step that reads them.
+async function executionsForStep(params: {
+  readonly pending: Step;
+  readonly jobExecution: JobExecution;
+  readonly executions: readonly JobExecution[] | undefined;
+  readonly tx: Tx;
+}): Promise<readonly JobExecution[] | undefined> {
+  if (params.executions !== undefined) return params.executions;
+  if (!planReadsContext(params.pending.configPlan, 'executions')) return undefined;
+  const jobExecutions = await getJobExecutionsByJobId(params.jobExecution.jobId, params.tx);
+  return jobExecutions.filter((execution) => execution.sequence <= params.jobExecution.sequence);
+}
+
+// Loaded only for a step that reads `runner`. The loader of a leased request reads the session once.
+async function stepRunnerPlatform(
+  step: Step,
+  load: RunnerPlatformLoader | undefined,
+): Promise<{ok: true; platform?: RunnerPlatformDto} | {ok: false}> {
+  if (!stepReadsContext(step, 'runner')) return {ok: true};
+  const platform = await load?.();
+  return platform ? {ok: true, platform} : {ok: false};
+}
+
+function stepReadsContext(step: Step, root: string): boolean {
+  if (planReadsContext(step.configPlan, root)) return true;
+  return step.condition !== null && extractExactContextRoots(step.condition.source).includes(root);
+}
+
+function runnerPlatformMissingError(params: {
+  readonly step: Step;
+  readonly jobKey: string;
+}): Record<string, unknown> {
+  return {
+    message:
+      'This runner does not report its platform. Upgrade the runner to use the runner context.',
+    reason: 'config_unresolvable',
+    field: 'runner',
+    source: 'workflows',
+    jobKey: params.jobKey,
+    stepIndex: params.step.position,
+  };
+}
+
 function conditionErroredStepError(params: {
   readonly step: Step;
   readonly jobKey: string;
@@ -1182,16 +1269,27 @@ function dispatchConfigError(error: DispatchConfigError): Record<string, unknown
 export interface NextStepForLeasedJobExecutionParams {
   jobExecutionId: string;
   agent?: AgentInterModuleClient | undefined;
+  runnerPlatform?: RunnerPlatformLoader | undefined;
 }
 
 export function nextStepForLeasedJobExecution(
   params: NextStepForLeasedJobExecutionParams,
 ): Promise<NextStep> {
+  const runnerPlatform = params.runnerPlatform && memoize(params.runnerPlatform);
   return resolveNextStepWithSessionClaims(() =>
     withTransaction((tx) =>
-      nextStepForJobExecutionInTransaction(params.jobExecutionId, tx, params.agent),
+      nextStepForJobExecutionInTransaction(params.jobExecutionId, tx, params.agent, runnerPlatform),
     ),
   );
+}
+
+// A session's platform never changes, so one read serves every step resolved in this request.
+function memoize(load: RunnerPlatformLoader): RunnerPlatformLoader {
+  let loaded: Promise<RunnerPlatformDto | null> | undefined;
+  return () => {
+    loaded ??= load();
+    return loaded;
+  };
 }
 
 export function nextStepForJob(

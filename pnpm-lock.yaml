@@ -9073,6 +9073,9 @@ importers:
 
   libs/runner/orchestration:
     dependencies:
+      '@shipfox/actions':
+        specifier: workspace:*
+        version: link:../../shared/workflow/actions
       '@shipfox/api-secrets-dto':
         specifier: workspace:*
         version: link:../../api/secrets-dto

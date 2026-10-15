@@ -371,7 +371,7 @@ describe('action step config', () => {
 
       await expect(completion).rejects.toMatchObject({
         name: 'ActionInputInvalidError',
-        message: 'Action input "token" receives a secret, so it must be a string input.',
+        message: 'Action input "token" is filled on the runner, so it must be a string input.',
         input: 'token',
       });
     });

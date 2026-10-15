@@ -1993,6 +1993,19 @@ describe('listener filter snapshots', () => {
 });
 
 describe('assembleStepDispatchContext', () => {
+  it('adds the runner platform when the step reads it', () => {
+    const targetStep = step({id: 'step-1', key: 'build'});
+
+    const context = assembleStepDispatchContext({
+      steps: [targetStep],
+      attempts: [],
+      targetStepId: targetStep.id,
+      runner: {os: 'linux', arch: 'arm64'},
+    });
+
+    expect(context.values.runner).toEqual({os: 'linux', arch: 'arm64'});
+  });
+
   it('wraps coherent step entities, the step self-root, and the current execution', () => {
     const targetStep = step({id: 'step-2', key: 'test', currentAttempt: 2});
     const steps = [
@@ -2019,8 +2032,12 @@ describe('assembleStepDispatchContext', () => {
       jobExecution: execution,
     });
 
+    // `runner` is loaded only for a step that reads it.
     expect(Object.keys(context.values).sort()).toEqual(
-      [...getWorkflowPredicateContextRoots('step.if'), 'needs'].sort(),
+      [
+        ...getWorkflowPredicateContextRoots('step.if').filter((root) => root !== 'runner'),
+        'needs',
+      ].sort(),
     );
     expect(context).toEqual({
       site: 'step-dispatch',

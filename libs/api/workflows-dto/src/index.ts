@@ -372,4 +372,13 @@ export {
   workflowsWorkflowRunTerminatedSchema,
 } from './events.js';
 export {workflowRunUrl} from './run-url.js';
+export {
+  HASH_FILES_BINDING_MAX_PATTERNS,
+  type HashFilesBindingSegmentDto,
+  hashFilesBindingSegmentSchema,
+  type StepBindingDto,
+  type StepBindingSegmentDto,
+  stepBindingSchema,
+  stepBindingSegmentSchema,
+} from './schemas/index.js';
 export {assertWorkingDirectory, InvalidWorkingDirectoryError} from './working-directory.js';

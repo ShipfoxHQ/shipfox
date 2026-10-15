@@ -3,7 +3,7 @@ import type {
   WorkflowModel,
   WorkflowModelActionInput,
 } from '@shipfox/api-definitions-dto';
-import type {MaterializedSecretBindingDto} from '@shipfox/api-secrets-dto';
+import type {StepBindingDto} from '@shipfox/api-workflows-dto';
 import {
   coerceStepOutputs,
   type ResolvedFieldSegment,
@@ -183,7 +183,7 @@ function splitSecretInputs(plan: WorkflowJsonTemplateTree | undefined): {
   const secretInputs: Record<string, readonly ResolvedFieldSegment[]> = {};
   const withPlan: Record<string, WorkflowJsonTemplateTree> = {};
   for (const [name, child] of Object.entries(plan as Record<string, WorkflowJsonTemplateTree>)) {
-    if (child !== undefined && isFieldTemplate(child) && readsSecrets(child)) {
+    if (child !== undefined && isFieldTemplate(child) && runnerFillsInput(child)) {
       secretInputs[name] = child;
     } else {
       withPlan[name] = child;
@@ -192,9 +192,12 @@ function splitSecretInputs(plan: WorkflowJsonTemplateTree | undefined): {
   return {secretInputs, withPlan};
 }
 
-function readsSecrets(segments: readonly ResolvedFieldSegment[]): boolean {
+// The runner fills an input that reads a secret or calls hashFiles(), so it becomes a binding.
+function runnerFillsInput(segments: readonly ResolvedFieldSegment[]): boolean {
   return segments.some(
-    (segment) => segment.kind === 'deferred' && segment.roots.includes('secrets'),
+    (segment) =>
+      segment.kind === 'deferred' &&
+      (segment.roots.includes('secrets') || segment.runnerCall !== undefined),
   );
 }
 
@@ -204,13 +207,13 @@ function completeSecretInputs(params: {
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
   readonly trace: PersistedEvaluationTraceEntry[];
-}): MaterializedSecretBindingDto[] {
-  const bindings: MaterializedSecretBindingDto[] = [];
+}): StepBindingDto[] {
+  const bindings: StepBindingDto[] = [];
   for (const [name, segments] of Object.entries(params.secretInputs)) {
     // The runner fills the secret as a string, so the input must accept one as is.
     if (params.declarations[name]?.type !== 'string') {
       throw new ActionInputInvalidError(
-        `Action input "${name}" receives a secret, so it must be a string input.`,
+        `Action input "${name}" is filled on the runner, so it must be a string input.`,
         name,
       );
     }

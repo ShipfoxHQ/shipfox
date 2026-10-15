@@ -1,6 +1,5 @@
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {
-  materializedSecretBindingSchema,
   type StepSecretDto,
   stepSecretsParamsSchema,
   stepSecretsQuerySchema,
@@ -10,6 +9,7 @@ import {
   type SecretsInterModuleClient,
   secretsInterModuleContract,
 } from '@shipfox/api-secrets-dto/inter-module';
+import {stepBindingSchema} from '@shipfox/api-workflows-dto';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {captureException} from '@shipfox/node-error-monitoring';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
@@ -17,7 +17,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {ZodError, z} from 'zod';
 import {loadRunningLeasedStep} from './leased-step.js';
 
-const secretBindingsSchema = z.array(materializedSecretBindingSchema);
+const secretBindingsSchema = z.array(stepBindingSchema);
 
 export function createGetStepSecretsRoute(
   runners: RunnersInterModuleClient,
@@ -171,7 +171,7 @@ function parseSecretBindings(value: unknown): z.infer<typeof secretBindingsSchem
 }
 
 function distinctSecretReferences(
-  bindings: ReadonlyArray<z.infer<typeof materializedSecretBindingSchema>>,
+  bindings: ReadonlyArray<z.infer<typeof stepBindingSchema>>,
 ): Array<Pick<StepSecretDto, 'store' | 'key'>> {
   const seen = new Set<string>();
   const references: Array<Pick<StepSecretDto, 'store' | 'key'>> = [];

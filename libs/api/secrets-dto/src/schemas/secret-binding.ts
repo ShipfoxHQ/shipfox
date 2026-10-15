@@ -32,26 +32,32 @@ export const secretBindingMcpServerEnvTargetSchema = z.object({
   name: secretBindingTargetSchema,
 });
 
+export const secretBindingLiteralSegmentSchema = z.object({
+  kind: z.literal('literal'),
+  value: z.string(),
+});
+
+export const secretBindingSecretSegmentSchema = z.object({
+  kind: z.literal('secret'),
+  store: secretStoreSchema,
+  key: secretKeySchema,
+});
+
 export const secretBindingSegmentSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('literal'),
-    value: z.string(),
-  }),
-  z.object({
-    kind: z.literal('secret'),
-    store: secretStoreSchema,
-    key: secretKeySchema,
-  }),
+  secretBindingLiteralSegmentSchema,
+  secretBindingSecretSegmentSchema,
+]);
+
+export const secretBindingAnyTargetSchema = z.union([
+  secretBindingTargetSchema,
+  secretBindingInputTargetSchema,
+  secretBindingContainerCredentialTargetSchema,
+  secretBindingContainerEnvTargetSchema,
+  secretBindingMcpServerEnvTargetSchema,
 ]);
 
 export const materializedSecretBindingSchema = z.object({
-  target: z.union([
-    secretBindingTargetSchema,
-    secretBindingInputTargetSchema,
-    secretBindingContainerCredentialTargetSchema,
-    secretBindingContainerEnvTargetSchema,
-    secretBindingMcpServerEnvTargetSchema,
-  ]),
+  target: secretBindingAnyTargetSchema,
   segments: z.array(secretBindingSegmentSchema),
 });
 
@@ -66,4 +72,5 @@ export type SecretBindingContainerEnvTargetDto = z.infer<
 export type SecretBindingMcpServerEnvTargetDto = z.infer<
   typeof secretBindingMcpServerEnvTargetSchema
 >;
+export type SecretBindingTargetDto = z.infer<typeof secretBindingAnyTargetSchema>;
 export type MaterializedSecretBindingDto = z.infer<typeof materializedSecretBindingSchema>;
