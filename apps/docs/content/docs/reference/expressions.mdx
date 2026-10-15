@@ -153,9 +153,10 @@ content of a file changes.
 
 ### Write the call
 
-Give the paths of the files to hash. A path starts from the step working
-directory. Put each path in quotes, and separate paths with commas. You can
-give up to 16 paths:
+Give the paths of the files to hash. Write each path from the root of your
+repository, or from the `working_directory` of the step when it has one. Put
+each path in quotes, and separate paths with commas. You can give up to 16
+paths:
 
 ```yaml
 key: deps-${{ hashFiles('package-lock.json') }}
@@ -175,8 +176,8 @@ A path can contain wildcards to match many files:
 
 Rules:
 
-- A path must name files in the step working directory. Do not start a path
-  with `~` or `/`. Do not use `..`.
+- A path must name files in that folder. Do not start a path with `~` or
+  `/`. Do not use `..`.
 - Put the call alone in its `${{ }}`. Write `npm-${{ hashFiles('x') }}`. Do
   not write `${{ 'npm-' + hashFiles('x') }}`.
 
