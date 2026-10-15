@@ -1,5 +1,6 @@
 import type {
   RunnerLifecycleCapabilitiesDto,
+  RunnerPlatformDto,
   RunnerToolCapabilitiesDto,
 } from '@shipfox/api-runners-dto';
 import {and, asc, eq, gt, inArray, isNull, lt, notExists, or, sql} from 'drizzle-orm';
@@ -27,6 +28,7 @@ export interface CreateRunnerSessionParams {
   labels: string[];
   toolCapabilities: RunnerToolCapabilitiesDto;
   lifecycleCapabilities: RunnerLifecycleCapabilitiesDto;
+  platform?: RunnerPlatformDto | null;
 }
 
 export async function createRunnerSession(
@@ -42,6 +44,8 @@ export async function createRunnerSession(
       labels: params.labels,
       toolCapabilities: params.toolCapabilities,
       lifecycleCapabilities: params.lifecycleCapabilities,
+      os: params.platform?.os ?? null,
+      arch: params.platform?.arch ?? null,
       maxClaims: null,
       claimsUsed: 0,
     })
@@ -68,6 +72,7 @@ export async function createRunnerSessionConsumingActivationToken(params: {
   labels: string[];
   toolCapabilities: RunnerToolCapabilitiesDto;
   lifecycleCapabilities: RunnerLifecycleCapabilitiesDto;
+  platform?: RunnerPlatformDto | null;
 }) {
   let assignmentToActivationObservation: ProviderRunnerLifecycleObservation | null = null;
   const session = await db().transaction(async (tx) => {
@@ -135,6 +140,8 @@ export async function createRunnerSessionConsumingActivationToken(params: {
         labels,
         toolCapabilities: params.toolCapabilities,
         lifecycleCapabilities: params.lifecycleCapabilities,
+        os: params.platform?.os ?? null,
+        arch: params.platform?.arch ?? null,
         maxClaims: 1,
         claimsUsed: 0,
       })

@@ -16,6 +16,7 @@ export const runnerSessionFactory = Factory.define<
       labels: session.labels,
       toolCapabilities: session.toolCapabilities,
       lifecycleCapabilities: session.lifecycleCapabilities,
+      platform: session.platform,
     });
   });
 
@@ -33,6 +34,7 @@ export const runnerSessionFactory = Factory.define<
       harnesses: {},
     },
     lifecycleCapabilities: ['local_execution_fence_v1'],
+    platform: null,
     maxClaims: null,
     claimsUsed: 0,
     revokedAt: null,

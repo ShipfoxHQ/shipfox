@@ -1,5 +1,6 @@
 import type {
   RunnerLifecycleCapabilitiesDto,
+  RunnerPlatformDto,
   RunnerToolCapabilitiesDto,
 } from '@shipfox/api-runners-dto';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
@@ -43,6 +44,8 @@ export const runnerSessions = pgTable(
     labels: text('labels').array().notNull(),
     toolCapabilities: jsonb('tool_capabilities').$type<PersistedRunnerToolCapabilities>(),
     lifecycleCapabilities: jsonb('lifecycle_capabilities').$type<RunnerLifecycleCapabilitiesDto>(),
+    os: text('os').$type<RunnerPlatformDto['os']>(),
+    arch: text('arch'),
     maxClaims: integer('max_claims'),
     claimsUsed: integer('claims_used').notNull().default(0),
     revokedAt: timestamp('revoked_at', {withTimezone: true}),
@@ -110,6 +113,7 @@ export function toRunnerSession(row: RunnerSessionDb): RunnerSession {
     labels: row.labels,
     toolCapabilities: normalizeRunnerToolCapabilities(row.toolCapabilities),
     lifecycleCapabilities: normalizeRunnerLifecycleCapabilities(row.lifecycleCapabilities),
+    platform: row.os && row.arch ? {os: row.os, arch: row.arch} : null,
     maxClaims: row.maxClaims,
     claimsUsed: row.claimsUsed,
     revokedAt: row.revokedAt,

@@ -327,6 +327,7 @@ describe('defaultModules', () => {
           contract: runnersInterModuleContract,
           handlers: {
             getEffectiveRunnerToolCapabilities: vi.fn(),
+            getRunnerSessionPlatform: vi.fn(),
             getWorkspaceJobCounts: vi.fn(),
             getWorkspaceCapacityUsage: vi.fn(),
             getPendingJobExecutionWait: vi.fn(),

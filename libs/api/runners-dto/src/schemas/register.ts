@@ -13,11 +13,18 @@ export const runnerLabelSchema = z
   .max(MAX_RUNNER_LABEL_LENGTH)
   .regex(new RegExp(RUNNER_LABEL_PATTERN.source, 'i'));
 
+export const runnerPlatformSchema = z.object({
+  os: z.enum(['linux', 'darwin', 'windows']),
+  arch: z.string().regex(/^[a-z0-9_]{1,16}$/),
+});
+
 export const registerRunnerBodySchema = z.object({
   labels: z.array(runnerLabelSchema).min(1).max(MAX_RUNNER_LABELS),
   // Runner images released before credential renewal became unconditional still send `features`.
   capabilities: runnerToolCapabilitiesSchema.extend({features: z.unknown().optional()}),
   lifecycle_capabilities: runnerLifecycleCapabilitiesSchema,
+  // Optional so runners released before platform reporting still register.
+  platform: runnerPlatformSchema.optional(),
 });
 
 export const registerRunnerResponseSchema = z.object({
@@ -27,5 +34,6 @@ export const registerRunnerResponseSchema = z.object({
   max_claims: z.number().int().positive().nullable(),
 });
 
+export type RunnerPlatformDto = z.infer<typeof runnerPlatformSchema>;
 export type RegisterRunnerBodyDto = z.infer<typeof registerRunnerBodySchema>;
 export type RegisterRunnerResponseDto = z.infer<typeof registerRunnerResponseSchema>;

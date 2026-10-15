@@ -48,6 +48,7 @@ import {
   writeStepAnnotations,
 } from '#api-client.js';
 import {config} from '#config.js';
+import {runnerPlatform} from '#runner-platform.js';
 
 const JOB_ID = crypto.randomUUID();
 const JOB_EXECUTION_ID = crypto.randomUUID();
@@ -213,6 +214,7 @@ describe('api-client auth contexts', () => {
       labels: ['linux', 'x64'],
       capabilities: TOOL_CAPABILITIES,
       lifecycle_capabilities: ['local_execution_fence_v1'],
+      platform: runnerPlatform(),
     });
   });
 

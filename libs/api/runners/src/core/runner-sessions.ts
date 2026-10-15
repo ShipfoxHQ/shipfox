@@ -1,6 +1,7 @@
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {
   RunnerLifecycleCapabilitiesDto,
+  RunnerPlatformDto,
   RunnerToolCapabilitiesDto,
 } from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -8,6 +9,7 @@ import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {
   createRunnerSession,
   createRunnerSessionConsumingActivationToken,
+  getRunnerSessionById,
 } from '#db/runner-sessions.js';
 import type {RunnerSession} from './entities/runner-session.js';
 import {EmptyRunnerLabelsError} from './errors.js';
@@ -34,6 +36,7 @@ export async function registerRunnerSession(params: {
   labels: string[];
   toolCapabilities: RunnerToolCapabilitiesDto;
   lifecycleCapabilities: RunnerLifecycleCapabilitiesDto;
+  platform?: RunnerPlatformDto | null;
 }): Promise<RegisterRunnerSessionResult> {
   const labels =
     params.credential.kind === 'manual'
@@ -55,12 +58,14 @@ export async function registerRunnerSession(params: {
           labels,
           toolCapabilities: params.toolCapabilities,
           lifecycleCapabilities: params.lifecycleCapabilities,
+          platform: params.platform ?? null,
         })
       : await createRunnerSessionConsumingActivationToken({
           activationTokenId: params.credential.activationTokenId,
           labels,
           toolCapabilities: params.toolCapabilities,
           lifecycleCapabilities: params.lifecycleCapabilities,
+          platform: params.platform ?? null,
         });
   logger().info(
     {
@@ -81,4 +86,12 @@ export async function registerRunnerSession(params: {
   });
 
   return {session, sessionToken, mode, maxClaims};
+}
+
+export async function getRunnerSessionPlatform(params: {
+  runnerSessionId: string;
+}): Promise<RunnerPlatformDto | null> {
+  const runnerSession = await getRunnerSessionById(params.runnerSessionId);
+  if (!runnerSession) throw new Error(`Runner session not found: ${params.runnerSessionId}`);
+  return runnerSession.platform;
 }

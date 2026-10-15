@@ -1,5 +1,6 @@
 import type {
   RunnerLifecycleCapabilitiesDto,
+  RunnerPlatformDto,
   RunnerToolCapabilitiesDto,
 } from '@shipfox/api-runners-dto';
 
@@ -15,6 +16,7 @@ export interface RunnerSession {
   labels: string[];
   toolCapabilities: RunnerToolCapabilitiesDto;
   lifecycleCapabilities: RunnerLifecycleCapabilitiesDto;
+  platform: RunnerPlatformDto | null;
   maxClaims: number | null;
   claimsUsed: number;
   revokedAt: Date | null;

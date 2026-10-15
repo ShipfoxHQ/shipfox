@@ -63,6 +63,7 @@ import {isUuid} from '@shipfox/regex';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import ky, {HTTPError, isTimeoutError, type KyInstance} from 'ky';
 import {config} from '#config.js';
+import {runnerPlatform} from '#runner-platform.js';
 
 /** Media type the append endpoint expects for the raw NDJSON request body. */
 const LOG_NDJSON_CONTENT_TYPE = 'application/x-ndjson';
@@ -210,6 +211,7 @@ export async function registerRunnerSession(options: {
     labels,
     capabilities: options.capabilities,
     lifecycle_capabilities: options.lifecycleCapabilities,
+    platform: runnerPlatform(),
   });
   const response = await createRegistrationApi(
     options.registrationToken ?? config.SHIPFOX_RUNNER_REGISTRATION_TOKEN,

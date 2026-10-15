@@ -162,6 +162,13 @@
       "when": 1791655390814,
       "tag": "0022_drop_running_job_renewable_inference",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792087255547,
+      "tag": "0023_runner_session_platform",
+      "breakpoints": true
     }
   ]
 }

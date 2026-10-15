@@ -1,6 +1,7 @@
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
 import {policyNoticeSchema} from '@shipfox/policy-notice';
 import {z} from 'zod';
+import {runnerPlatformSchema} from '#schemas/register.js';
 import {runnerToolCapabilitiesSchema} from '#schemas/tool-capabilities.js';
 
 const idSchema = z.string().uuid();
@@ -21,6 +22,10 @@ export const runnersInterModuleContract = defineInterModuleContract({
       output: z.object({
         capabilities: runnerToolCapabilitiesSchema,
       }),
+    },
+    getRunnerSessionPlatform: {
+      input: z.object({runnerSessionId: idSchema}),
+      output: runnerPlatformSchema.nullable(),
     },
     getWorkspaceJobCounts: {
       input: z.object({workspaceIds: z.array(idSchema).min(1).max(100)}),

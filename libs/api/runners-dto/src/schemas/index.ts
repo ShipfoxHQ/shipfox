@@ -137,9 +137,11 @@ export {
 export {
   type RegisterRunnerBodyDto,
   type RegisterRunnerResponseDto,
+  type RunnerPlatformDto,
   registerRunnerBodySchema,
   registerRunnerResponseSchema,
   runnerLabelSchema,
+  runnerPlatformSchema,
 } from './register.js';
 export {
   type ActiveRunnerDto,

@@ -1,5 +1,6 @@
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {defineInterModulePresentation, type InterModulePresentation} from '@shipfox/inter-module';
+import {getRunnerSessionPlatform} from '#core/runner-sessions.js';
 import {getEffectiveRunnerToolCapabilities} from '#core/runner-tool-capabilities.js';
 import {getWorkspaceCapacityUsage} from '#db/capacity-holds.js';
 import {
@@ -18,6 +19,7 @@ export function createRunnersInterModulePresentation(): InterModulePresentation<
       const result = await getEffectiveRunnerToolCapabilities(input);
       return {capabilities: result.capabilities};
     },
+    getRunnerSessionPlatform,
     getWorkspaceJobCounts: async ({workspaceIds}) => ({
       counts: await getWorkspaceJobCounts({workspaceIds}),
     }),

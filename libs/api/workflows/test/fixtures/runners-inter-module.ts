@@ -37,6 +37,7 @@ export function resetRunnersTestClient(): void {
 
 export const runnersTestClient: RunnersInterModuleClient = {
   getLeaseState: async (params) => ({active: activeLeases.has(leaseKey(params))}),
+  getRunnerSessionPlatform: async () => null,
   getEffectiveRunnerToolCapabilities: async ({runnerSessionId}) =>
     toolCapabilities.get(runnerSessionId) ?? {
       capabilities: {
