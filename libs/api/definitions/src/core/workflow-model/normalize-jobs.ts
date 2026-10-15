@@ -1,5 +1,4 @@
 import type {AgentValidationCatalogV2} from '@shipfox/api-agent-dto/inter-module';
-import {flattenJobSteps} from '@shipfox/api-definitions-dto';
 import {
   type AvailabilitySite,
   buildTypedRootsEnvironment,
@@ -58,6 +57,8 @@ import {normalizeAgentRepositoryContext} from './normalize-agent-repository-cont
 import {
   buildCompositeStep,
   compositeActionFor,
+  expandedStepCount,
+  MAX_EXPANDED_JOB_STEPS,
   type NormalizedCompositeFields,
   normalizeCompositeFields,
 } from './normalize-composite-step.js';
@@ -216,6 +217,7 @@ function normalizeJob(params: {
 }): WorkflowModelJob | undefined {
   const id = params.jobIdBySourceName.get(params.sourceName);
   if (id === undefined) return undefined;
+  if (!withinExpandedStepLimit(params)) return undefined;
 
   const dependencies = normalizeJobDependencies({
     sourceName: params.sourceName,
@@ -271,7 +273,6 @@ function normalizeJob(params: {
     sourceName: params.sourceName,
     issues: params.issues,
   });
-  validateExpandedStepCount({steps, sourceName: params.sourceName, issues: params.issues});
   const runner = normalizeRunner({
     document: params.document,
     job: params.job,
@@ -359,6 +360,30 @@ function normalizeJob(params: {
     success,
     steps,
   });
+}
+
+// Checked before any step is normalized, so a tree that expands too far is
+// rejected without being expanded.
+function withinExpandedStepLimit(params: {
+  sourceName: string;
+  job: WorkflowDocumentJob;
+  issues: WorkflowModelValidationIssue[];
+  context: NormalizeContext;
+}): boolean {
+  if (
+    expandedStepCount(params.job.steps, params.context.actionManifests) <= MAX_EXPANDED_JOB_STEPS
+  ) {
+    return true;
+  }
+  params.issues.push(
+    issue({
+      code: 'job-steps-too-many',
+      message: `Job "${params.sourceName}" runs more than ${MAX_EXPANDED_JOB_STEPS} steps once its composite actions are expanded.`,
+      path: ['jobs', params.sourceName, 'steps'],
+      details: {max: MAX_EXPANDED_JOB_STEPS},
+    }),
+  );
+  return false;
 }
 
 function normalizeJobNames(
@@ -1114,26 +1139,6 @@ function stepIdFor(
   const parentId = params.scope?.parentId;
   const local = stepKey === undefined ? `step-${params.index + 1}` : stableId(stepKey);
   return parentId === undefined ? `${params.jobId}-${local}` : `${parentId}.${local}`;
-}
-
-/** A job may run at most this many steps once its composite actions are expanded. */
-export const MAX_EXPANDED_JOB_STEPS = 200;
-
-function validateExpandedStepCount(params: {
-  steps: readonly WorkflowModelStep[];
-  sourceName: string;
-  issues: WorkflowModelValidationIssue[];
-}): void {
-  const count = flattenJobSteps(params).length;
-  if (count <= MAX_EXPANDED_JOB_STEPS) return;
-  params.issues.push(
-    issue({
-      code: 'job-steps-too-many',
-      message: `Job "${params.sourceName}" runs ${count} steps once its composite actions are expanded; the maximum is ${MAX_EXPANDED_JOB_STEPS}.`,
-      path: ['jobs', params.sourceName, 'steps'],
-      details: {count, max: MAX_EXPANDED_JOB_STEPS},
-    }),
-  );
 }
 
 function normalizeStepName(params: {

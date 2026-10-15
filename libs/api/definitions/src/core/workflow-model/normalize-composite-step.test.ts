@@ -16,7 +16,7 @@ import {
   InvalidWorkflowModelError,
   type WorkflowModelValidationIssue,
 } from './invalid-workflow-model-error.js';
-import {MAX_EXPANDED_JOB_STEPS} from './normalize-jobs.js';
+import {MAX_EXPANDED_JOB_STEPS} from './normalize-composite-step.js';
 import {normalizeWorkflowDocument} from './normalize-workflow-document.js';
 
 const expr = (source: string) => `$${'{{'} ${source} }}`;
@@ -596,6 +596,56 @@ describe('normalizeWorkflowDocument composite steps', () => {
     );
 
     expect(model.jobs[0]?.exportedOutputs).toEqual({files: {stepKey: 'setup', output: 'files'}});
+  });
+
+  test('lets an optional secret input stay optional through a nested composite', () => {
+    const publish = composite('./.shipfox/actions/publish', {
+      inputs: {token: {secret: true}},
+      steps: [{run: 'npm publish', env: {TOKEN: expr('inputs.token')}}],
+    });
+    const release = composite(SETUP, {
+      inputs: {npm_token: {secret: true}},
+      steps: [{uses: './.shipfox/actions/publish', with: {token: expr('inputs.npm_token')}}],
+    });
+
+    const model = normalize(document({uses: SETUP}), [release, publish]);
+
+    const nested = compositeStep(model).steps[0] as WorkflowModelCompositeStep;
+    expect(nested.with).toBeUndefined();
+    expect(nested.steps[0]).toMatchObject({kind: 'run', env: {TOKEN: ''}});
+  });
+
+  test('still requires a required nested secret input the caller left out', () => {
+    const publish = composite('./.shipfox/actions/publish', {
+      inputs: {token: {secret: true, required: true}},
+      steps: [{run: 'npm publish', env: {TOKEN: expr('inputs.token')}}],
+    });
+    const release = composite(SETUP, {
+      inputs: {npm_token: {secret: true}},
+      steps: [{uses: './.shipfox/actions/publish', with: {token: expr('inputs.npm_token')}}],
+    });
+
+    const issues = issuesFor(document({uses: SETUP}), [release, publish]);
+
+    expect(summarize(issues)).toEqual([
+      {code: 'action-input-missing', path: 'jobs.build.steps.0', at: 'steps.0.with.token'},
+    ]);
+  });
+
+  test('rejects a fan-out above the limit before expanding it', () => {
+    const leaf = composite('./.shipfox/actions/leaf', {
+      steps: Array.from({length: 10}, (_, index) => ({run: `echo ${index}`})),
+    });
+    const wide = composite(SETUP, {
+      steps: Array.from({length: 25}, () => ({uses: './.shipfox/actions/leaf'})),
+    });
+
+    const model = () => normalize(document({uses: SETUP}), [wide, leaf]);
+
+    expect(model).toThrow(InvalidWorkflowModelError);
+    expect(summarize(issuesFor(document({uses: SETUP}), [wide, leaf]))).toEqual([
+      {code: 'job-steps-too-many', path: 'jobs.build.steps', at: undefined},
+    ]);
   });
 
   test(`rejects a job above ${MAX_EXPANDED_JOB_STEPS} expanded steps`, () => {

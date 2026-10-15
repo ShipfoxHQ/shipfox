@@ -67,6 +67,68 @@ export function compositeActionFor(
   return {uses, resolved: resolved as ResolvedComposite};
 }
 
+/** A job may run at most this many steps once its composite actions are expanded. */
+export const MAX_EXPANDED_JOB_STEPS = 200;
+
+/**
+ * How many steps a list runs once its composite actions are expanded, read
+ * from the manifests before anything is normalized. Each composite is counted
+ * once, so a wide or deep tree stays cheap to reject. The count stops growing
+ * past the limit.
+ */
+export function expandedStepCount(
+  steps: readonly WorkflowDocumentStep[],
+  actions: ResolvedActions | undefined,
+): number {
+  const sizes = new Map<string, number>();
+  const visiting = new Set<string>();
+  const count = (
+    list: readonly WorkflowDocumentStep[],
+    parent: {key: string; isRegistry: boolean} | undefined,
+  ): number => {
+    let total = 0;
+    for (const step of list) {
+      total += 1 + compositeSize(step, parent);
+      if (total > MAX_EXPANDED_JOB_STEPS) break;
+    }
+    return total;
+  };
+  const compositeSize = (
+    step: WorkflowDocumentStep,
+    parent: {key: string; isRegistry: boolean} | undefined,
+  ): number => {
+    if (step.uses === undefined) return 0;
+    const key = compositeKey(step.uses, parent);
+    const composite = key === undefined ? undefined : compositeActionFor(actions, key);
+    // Resolution rejects cycles; the guard keeps a direct call from looping.
+    if (key === undefined || composite === undefined || visiting.has(key)) return 0;
+    const known = sizes.get(key);
+    if (known !== undefined) return known;
+    visiting.add(key);
+    const size = count(composite.resolved.manifest.steps, {
+      key,
+      isRegistry: composite.resolved.registry !== undefined,
+    });
+    visiting.delete(key);
+    sizes.set(key, size);
+    return size;
+  };
+  return count(steps, undefined);
+}
+
+function compositeKey(
+  uses: string,
+  parent: {key: string; isRegistry: boolean} | undefined,
+): string | undefined {
+  if (parent === undefined) return uses;
+  const result = resolveCompositeUses({
+    uses,
+    parentKey: parent.key,
+    parentIsRegistry: parent.isRegistry,
+  });
+  return result.ok ? result.key : undefined;
+}
+
 /** The manifest-derived fields of a composite step, resolved before its type overlay exists. */
 export interface NormalizedCompositeFields {
   readonly uses: string;
@@ -378,7 +440,7 @@ function prepareInnerSteps(params: {
   const steps = params.steps.map((authored, index) => {
     const path = ['jobs', params.sourceName, 'steps', index] as const;
     rejectSecretReferences(authored, path, context);
-    const step = mapStringLeaves(authored, (value) =>
+    const step = mapStringLeaves(dropUnboundSecretForwards(authored, context), (value) =>
       rewriteSecretInputs(value, context),
     ) as WorkflowDocumentStep;
     addActionPromptFiles(step, path, context, promptFiles);
@@ -434,6 +496,28 @@ function rewriteSecretInputs(value: string, context: PrepareContext): string {
     if (!context.secretInputs.has(name)) return match;
     return context.fields.secretBindings.get(name) ?? '';
   });
+}
+
+const wholeInputReferencePattern = /^\s*\$\{\{\s*inputs\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}\s*$/;
+
+// A nested action input that only forwards a secret input the caller left out
+// is left out too, so an optional secret stays optional through every level.
+function dropUnboundSecretForwards(
+  step: WorkflowDocumentStep,
+  context: PrepareContext,
+): WorkflowDocumentStep {
+  if (step.uses === undefined || step.with === undefined) return step;
+  const entries = Object.entries(step.with).filter(([, value]) => {
+    if (typeof value !== 'string') return true;
+    const name = wholeInputReferencePattern.exec(value)?.[1];
+    return (
+      name === undefined ||
+      !context.secretInputs.has(name) ||
+      context.fields.secretBindings.has(name)
+    );
+  });
+  if (entries.length === Object.keys(step.with).length) return step;
+  return {...step, with: Object.fromEntries(entries)};
 }
 
 function resolveStepUses(
