@@ -58,12 +58,14 @@ export function validatePredicateExpression(params: {
   if (!serverEvaluability.ok) {
     params.issues.push(
       ...serverEvaluability.violations.map((violation) =>
-        runnerContextInServerPredicateIssue({
-          ...params,
-          site,
-          contextRoots,
-          runnerRoots: violation.runnerRoots,
-        }),
+        violation.reason === 'runner-call-in-server-expression'
+          ? runnerCallInServerPredicateIssue({...params, site})
+          : runnerContextInServerPredicateIssue({
+              ...params,
+              site,
+              contextRoots,
+              runnerRoots: violation.runnerRoots,
+            }),
       ),
     );
     return undefined;
@@ -238,6 +240,22 @@ function runnerContextInServerPredicateIssue(params: {
       runnerRoots: params.runnerRoots,
       site: params.site,
     },
+  });
+}
+
+function runnerCallInServerPredicateIssue(params: {
+  field: WorkflowPredicateField;
+  source: string;
+  site: AvailabilitySite;
+  path: readonly WorkflowModelValidationIssuePathSegment[];
+}): WorkflowModelValidationIssue {
+  return issue({
+    code: 'hash-files-in-field',
+    message: `${fieldLabel(params.field)} cannot call hashFiles() because it is evaluated on the server at ${describeAvailabilitySite(
+      params.site,
+    )}. hashFiles() runs on the runner. Use it in env, with, or run.`,
+    path: params.path,
+    details: {field: params.field, source: params.source, site: params.site},
   });
 }
 

@@ -131,6 +131,15 @@ export {
   routeExpression,
 } from './plan/route-expression.js';
 export {
+  analyzeRunnerCalls,
+  HASH_FILES_MAX_PATTERNS,
+  type RunnerCall,
+  type RunnerCallAnalysis,
+  type RunnerCallFunction,
+  referencesRunnerCall,
+  runnerCallFunctions,
+} from './plan/runner-call.js';
+export {
   type ServerEvaluabilityResult,
   type ServerEvaluabilityViolation,
   validateServerEvaluable,
@@ -189,6 +198,7 @@ export {
   type RunnerWorkflowContextDefinition,
   resolveContextRootAvailability,
   resolveContextRootHost,
+  resolveContextRootLastSite,
   rootsAvailableAt,
   runnerFillTarget,
   type TypedWorkflowContextDefinition,
@@ -219,6 +229,7 @@ export {
   workflowContextSensitivities,
   workflowFieldFailurePolicies,
   workflowInterpolationFieldAcceptsHost,
+  workflowInterpolationFieldAcceptsRunnerCalls,
   workflowInterpolationFieldPolicies,
   workflowInterpolationFields,
   workflowPredicateContextRoots,

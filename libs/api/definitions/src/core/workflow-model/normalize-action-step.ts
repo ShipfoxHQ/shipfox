@@ -293,11 +293,27 @@ function validateSecretPlacement(
   template: WorkflowFieldTemplate,
   path: readonly WorkflowModelValidationIssuePathSegment[],
 ): void {
+  const topLevelInputDepth = stepPath(params, 'with').length + 1;
+  const callsRunner = template.some(
+    (segment) => segment.kind === 'deferred' && segment.runnerCall !== undefined,
+  );
+  // The runner assembles a whole top-level input, so hashFiles() can sit between literal text.
+  if (callsRunner && path.length !== topLevelInputDepth) {
+    params.issues.push(
+      issue({
+        code: 'hash-files-in-field',
+        message: 'hashFiles() in `with` must be in the value of a top-level input.',
+        path,
+        details: {uses: params.step.uses},
+      }),
+    );
+    return;
+  }
+
   const readsSecrets = template.some(
     (segment) => segment.kind === 'deferred' && segment.roots.includes('secrets'),
   );
   if (!readsSecrets) return;
-  const topLevelInputDepth = stepPath(params, 'with').length + 1;
   if (template.length === 1 && path.length === topLevelInputDepth) return;
 
   params.issues.push(

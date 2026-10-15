@@ -17,8 +17,10 @@ import {
   getWorkflowPredicateFieldMinimumFillTarget,
   getWorkflowPredicateFieldTypeEnvironment,
   projectWorkflowPredicateContext,
+  type ReservedRootDefinition,
   resolveContextRootAvailability,
   resolveContextRootHost,
+  resolveContextRootLastSite,
   rootsAvailableAt,
   runnerFillTarget,
   toolStepReportTypeEnvironment,
@@ -56,13 +58,13 @@ describe('workflow context registry', () => {
       'step',
       'vars',
       'secrets',
+      'runner',
     ]);
   });
 
   it('keeps future roots reserved out of the referenceable registry', () => {
     expect(workflowContextReservedRoots).toEqual({
       matrix: {host: 'server', availability: 'job-activation'},
-      runner: {host: 'runner'},
       result: {host: 'server', availability: 'step-report'},
     });
     expect(workflowContextNames).toContain('jobs');
@@ -70,7 +72,6 @@ describe('workflow context registry', () => {
     expect(workflowContextNames).toContain('step');
     expect(workflowContextNames).toContain('steps');
     expect(workflowContextNames).not.toContain('matrix');
-    expect(workflowContextNames).not.toContain('runner');
     expect(workflowContextNames).not.toContain('result');
   });
 
@@ -673,6 +674,7 @@ describe('workflow context registry', () => {
       'steps',
       'step',
       'vars',
+      'runner',
     ]);
     expect(rootsAvailableAt('step-report')).toEqual([
       'workflow',
@@ -721,6 +723,13 @@ describe('workflow context registry', () => {
     ]);
   });
 
+  it('reports runner as unavailable before and after step dispatch', () => {
+    expect(unavailableRootsAt(['runner'], 'job-activation')).toEqual(['runner']);
+    expect(unavailableRootsAt(['runner'], 'step-dispatch')).toEqual([]);
+    expect(unavailableRootsAt(['runner'], 'step-report')).toEqual(['runner']);
+    expect(unavailableRootsAt(['runner'], 'execution-resolution')).toEqual(['runner']);
+  });
+
   it('returns unavailable known roots at an availability site', () => {
     expect(unavailableRootsAt(['run', 'execution', 'executions', 'step'], 'run-creation')).toEqual([
       'execution',
@@ -761,7 +770,6 @@ describe('workflow context registry', () => {
       for (const root of availableRoots) {
         expect(workflowContextDefinitions[root].host).toBe('server');
       }
-      expect(availableRoots).not.toContain('runner');
       expect(availableRoots).not.toContain('secrets');
     }
   });
@@ -782,7 +790,12 @@ describe('workflow context registry', () => {
     ];
 
     for (const [previousSite, currentSite] of sitePairs) {
-      const previous = new Set(rootsAvailableAt(previousSite));
+      // A root with a last site, such as `runner`, stops being available after it by design.
+      const previous = new Set(
+        rootsAvailableAt(previousSite).filter(
+          (root) => resolveContextRootLastSite(root) === undefined,
+        ),
+      );
       const current = new Set(rootsAvailableAt(currentSite));
 
       for (const root of previous) {
@@ -821,22 +834,23 @@ describe('workflow context registry', () => {
               root,
               availability,
               reserved: false,
-              availableAt: availableAtReference(availability),
+              availableAt: availableAtReference(availability, resolveContextRootLastSite(root)),
             };
       }),
-      ...Object.entries(workflowContextReservedRoots).map(([root, definition]) =>
-        definition.host === 'runner'
-          ? {
-              root,
-              reserved: true,
-              availableAt: noServerAvailabilityReference(),
-            }
-          : {
-              root,
-              availability: definition.availability,
-              reserved: true,
-              availableAt: availableAtReference(definition.availability),
-            },
+      ...Object.entries(workflowContextReservedRoots).map(
+        ([root, definition]: [string, ReservedRootDefinition]) =>
+          definition.host === 'runner'
+            ? {
+                root,
+                reserved: true,
+                availableAt: noServerAvailabilityReference(),
+              }
+            : {
+                root,
+                availability: definition.availability,
+                reserved: true,
+                availableAt: availableAtReference(definition.availability),
+              },
       ),
     ];
 
@@ -854,8 +868,9 @@ describe('workflow context registry', () => {
     expect(resolveContextRootAvailability('vars')).toBe('run-creation');
     expect(resolveContextRootHost('secrets')).toBe('runner');
     expect(resolveContextRootAvailability('secrets')).toBeUndefined();
-    expect(resolveContextRootHost('runner')).toBe('runner');
-    expect(resolveContextRootAvailability('runner')).toBeUndefined();
+    expect(resolveContextRootHost('runner')).toBe('server');
+    expect(resolveContextRootAvailability('runner')).toBe('step-dispatch');
+    expect(resolveContextRootLastSite('runner')).toBe('step-dispatch');
     expect(resolveContextRootHost('result')).toBe('server');
     expect(resolveContextRootAvailability('result')).toBe('step-report');
     expect(resolveContextRootHost('unknown')).toBeUndefined();
@@ -974,7 +989,7 @@ describe('workflow context registry', () => {
         'listener.on': ['event', 'workflow', 'run', 'trigger', 'inputs', 'vars', 'job', 'jobs'],
         'listener.until': ['event', 'workflow', 'run', 'trigger', 'inputs', 'vars', 'job', 'jobs'],
         'job.if': ['workflow', 'run', 'trigger', 'event', 'inputs', 'vars', 'jobs', 'needs'],
-        'step.if': ['vars', 'jobs', 'execution', 'step', 'steps'],
+        'step.if': ['vars', 'jobs', 'execution', 'step', 'steps', 'runner'],
       });
       expect(getWorkflowPredicateContextRoots('listener.on')).toEqual([
         'event',
@@ -1289,10 +1304,16 @@ describe('workflow interpolation field policies', () => {
 
 function availableAtReference(
   availability: AvailabilitySite,
+  lastSite?: AvailabilitySite,
 ): Readonly<Record<AvailabilitySite, boolean>> {
   const availabilityIndex = availabilitySites.indexOf(availability);
+  const lastSiteIndex =
+    lastSite === undefined ? availabilitySites.length : availabilitySites.indexOf(lastSite);
   return Object.fromEntries(
-    availabilitySites.map((site) => [site, availabilitySites.indexOf(site) >= availabilityIndex]),
+    availabilitySites.map((site) => {
+      const index = availabilitySites.indexOf(site);
+      return [site, index >= availabilityIndex && index <= lastSiteIndex];
+    }),
   ) as Record<AvailabilitySite, boolean>;
 }
 

@@ -8,6 +8,7 @@ import {
 } from '../workflow-context/workflow-context.js';
 import {analyzeContextRootKeyAccess} from './context-key-access.js';
 import {extractExactContextRoots} from './extract-exact-context-roots.js';
+import {referencesRunnerCall} from './runner-call.js';
 
 export interface RoutedExpression {
   readonly roots: readonly string[];
@@ -20,7 +21,7 @@ export function routeExpression(expression: WorkflowExpression): RoutedExpressio
   const knownRoots = roots.filter((root) => resolveContextRootHost(root) !== undefined);
   const runnerRoots = knownRoots.filter((root) => resolveContextRootHost(root) === 'runner');
 
-  if (runnerRoots.length > 0) {
+  if (runnerRoots.length > 0 || referencesRunnerCall(expression.source)) {
     return {roots, runnerRoots, fillTarget: runnerFillTarget};
   }
 

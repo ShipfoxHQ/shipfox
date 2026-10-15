@@ -1,5 +1,6 @@
 import type {Environment, RegisteredFunctionHandler} from '@marcbachmann/cel-js';
 import {stringifyBigint} from './json.js';
+import {HASH_FILES_MAX_PATTERNS} from './plan/runner-call.js';
 
 /** Maximum number of values one evaluation's range calls may materialize. */
 export const MAX_RANGE_ELEMENTS = 1_000;
@@ -76,7 +77,18 @@ const workflowFunctionRegistry = [
     signature: DYNAMIC_LAST_FUNCTION_SIGNATURE,
     createHandler: (): RegisteredFunctionHandler => lastListElement,
   },
+  ...hashFilesDefinitions(),
 ] satisfies readonly WorkflowFunctionDefinition[];
+
+// Planning routes every call to the runner, so the server only needs the signatures to type-check.
+function hashFilesDefinitions(): WorkflowFunctionDefinition[] {
+  return Array.from({length: HASH_FILES_MAX_PATTERNS}, (_, index) => ({
+    signature: `hashFiles(${Array.from({length: index + 1}, () => 'string').join(', ')}): string`,
+    createHandler: (): RegisteredFunctionHandler => () => {
+      throw new Error('hashFiles() runs on the runner and cannot be evaluated on the server');
+    },
+  }));
+}
 
 function firstListElement(value: unknown): unknown {
   if (Array.isArray(value)) {

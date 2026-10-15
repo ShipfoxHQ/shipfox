@@ -113,6 +113,20 @@ function issuesFor(
 const stepPath = 'jobs.investigate.steps.0';
 
 describe('normalizeWorkflowDocument action steps', () => {
+  test('plans a hashFiles() call between literal text in a top-level input', () => {
+    const model = normalize(
+      document(actionStep({with: {channel_id: 'C1', thread_ts: `ts-$${"{{ hashFiles('a') }}"}`}})),
+    );
+
+    const step = model.jobs[0]?.steps[0];
+    expect(step?.kind === 'action' ? step.templates?.with : undefined).toMatchObject({
+      thread_ts: [
+        {kind: 'literal', value: 'ts-'},
+        {kind: 'deferred', fillTarget: 'runner-fill', runnerCall: {patterns: ['a']}},
+      ],
+    });
+  });
+
   test('normalizes an action step from its manifest', () => {
     const model = normalize(
       document(
@@ -401,6 +415,17 @@ describe('normalizeWorkflowDocument action steps', () => {
         with: {channel_id: 'C1', thread_ts: '1.0', token: `$${"{{ secrets.NPM_TOKEN + 'x' }}"}`},
       },
       expected: [{code: 'runner-context-not-bare', path: `${stepPath}.with.token`}],
+    },
+    {
+      name: 'a hashFiles() call nested inside an input',
+      step: {
+        with: {
+          channel_id: 'C1',
+          thread_ts: '1.0',
+          filter: {user: `$${"{{ hashFiles('lock.txt') }}"}`},
+        },
+      },
+      expected: [{code: 'hash-files-in-field', path: `${stepPath}.with.filter.user`}],
     },
     {
       name: 'a binding for an undeclared alias',

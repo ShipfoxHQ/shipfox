@@ -119,7 +119,9 @@ describe('validatePredicateExpression', () => {
   });
 
   it.each([
-    ['runner.os == "linux"', 'runner-context-in-server-predicate'],
+    ['secrets.local.TOKEN == "x"', 'runner-context-in-server-predicate'],
+    ['hashFiles("package-lock.json") == "x"', 'hash-files-in-field'],
+    ['runner.os == "linux"', 'context-unavailable-at-predicate-site'],
   ])('rejects forbidden server predicate roots: %s', (source, code) => {
     const result = validate({field: 'trigger.filter', source});
 
@@ -130,6 +132,15 @@ describe('validatePredicateExpression', () => {
         details: expect.objectContaining({field: 'trigger.filter', source}),
       }),
     ]);
+  });
+
+  it('accepts the runner context in step.if and type-checks it', () => {
+    const accepted = validate({field: 'step.if', source: 'runner.arch == "arm64"'});
+    const mistyped = validate({field: 'step.if', source: 'runner.arch == 1'});
+
+    expect(accepted.issues).toEqual([]);
+    expect(mistyped.issues).toHaveLength(1);
+    expect(mistyped.expression).toBeUndefined();
   });
 
   it.each([

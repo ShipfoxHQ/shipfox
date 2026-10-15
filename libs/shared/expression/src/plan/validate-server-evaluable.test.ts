@@ -4,7 +4,7 @@ import {validateServerEvaluable} from './validate-server-evaluable.js';
 describe('validateServerEvaluable', () => {
   it('rejects predicates that reference runner-host roots', () => {
     const expression = createWorkflowExpression({
-      source: 'runner.os == "linux"',
+      source: 'secrets.TOKEN == "x"',
       check: {mode: 'syntax'},
     });
 
@@ -15,11 +15,34 @@ describe('validateServerEvaluable', () => {
       violations: [
         {
           reason: 'runner-root-in-server-expression',
-          source: 'runner.os == "linux"',
-          runnerRoots: ['runner'],
+          source: 'secrets.TOKEN == "x"',
+          runnerRoots: ['secrets'],
         },
       ],
     });
+  });
+
+  it('rejects predicates that call a runner function', () => {
+    const source = 'hashFiles("package-lock.json") == "x"';
+    const expression = createWorkflowExpression({source, check: {mode: 'syntax'}});
+
+    const result = validateServerEvaluable(expression);
+
+    expect(result).toEqual({
+      ok: false,
+      violations: [{reason: 'runner-call-in-server-expression', source, function: 'hashFiles'}],
+    });
+  });
+
+  it('accepts the runner context, which the server fills', () => {
+    const expression = createWorkflowExpression({
+      source: 'runner.arch == "arm64"',
+      check: {mode: 'syntax'},
+    });
+
+    const result = validateServerEvaluable(expression);
+
+    expect(result).toEqual({ok: true});
   });
 
   it.each([

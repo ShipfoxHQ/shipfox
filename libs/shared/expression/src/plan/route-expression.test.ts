@@ -18,8 +18,12 @@ describe('routeExpression', () => {
     ['needs.exists(n, n.status == "failed")', ['needs'], [], 'job-activation'],
     ['steps.build.outputs.sha', ['steps'], [], 'step-dispatch'],
     ['step.status', ['step'], [], 'step-dispatch'],
-    ['runner.os', ['runner'], ['runner'], 'runner-fill'],
-    ['runner.os + step.status', ['runner', 'step'], ['runner'], 'runner-fill'],
+    ['runner.os', ['runner'], [], 'step-dispatch'],
+    ['runner.arch == "arm64" ? "a" : "b"', ['runner'], [], 'step-dispatch'],
+    ['secrets.TOKEN', ['secrets'], ['secrets'], 'runner-fill'],
+    ['secrets.TOKEN + step.status', ['secrets', 'step'], ['secrets'], 'runner-fill'],
+    ['hashFiles("package-lock.json")', [], [], 'runner-fill'],
+    ['"npm-" + hashFiles("package-lock.json")', [], [], 'runner-fill'],
     ['typo_root.value + run.id', ['run', 'typo_root'], [], 'run-creation'],
   ])('routes %s from known roots to %s', (source, roots, runnerRoots, fillTarget) => {
     const expression = createWorkflowExpression({source, check: {mode: 'syntax'}});

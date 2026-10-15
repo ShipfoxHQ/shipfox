@@ -118,8 +118,10 @@ describe('planInterpolationField', () => {
     });
   });
 
-  it('allows a bare runner reference as a runner-fill deferred segment', () => {
-    const segments = parseWorkflowTemplate(templateExpression(' runner.os '));
+  it('plans the runner context as a server context filled at step dispatch', () => {
+    const segments = parseWorkflowTemplate(
+      templateExpression(' runner.arch == "arm64" ? "aarch64" : "x86_64" '),
+    );
 
     const result = planInterpolationField({field: 'env.value', segments});
 
@@ -127,15 +129,102 @@ describe('planInterpolationField', () => {
       ok: true,
       plan: {
         field: {
+          segments: [{kind: 'deferred', roots: ['runner'], fillTarget: 'step-dispatch'}],
+        },
+      },
+    });
+  });
+
+  it('plans a hashFiles() call as a runner-fill segment that records its patterns', () => {
+    const segments = parseWorkflowTemplate(
+      `npm-${templateExpression(" hashFiles('**/package-lock.json', 'pnpm-workspace.yaml') ")}`,
+    );
+
+    const result = planInterpolationField({field: 'action.with', segments});
+
+    expect(result).toMatchObject({
+      ok: true,
+      plan: {
+        field: {
           segments: [
+            {kind: 'literal', value: 'npm-'},
             {
               kind: 'deferred',
-              roots: ['runner'],
+              roots: [],
               fillTarget: 'runner-fill',
+              runnerCall: {
+                function: 'hashFiles',
+                patterns: ['**/package-lock.json', 'pnpm-workspace.yaml'],
+              },
             },
           ],
         },
       },
+    });
+  });
+
+  it.each([
+    ['"npm-" + hashFiles("x")', 'runner-call-not-bare'],
+    ['hashFiles("x") + secrets.TOKEN', 'runner-call-not-bare'],
+    ['hashFiles(vars.LOCK)', 'runner-call-argument-not-literal'],
+  ])('rejects the hashFiles() call %s', (source, reason) => {
+    const segments = parseWorkflowTemplate(templateExpression(source));
+
+    const result = planInterpolationField({field: 'run', segments});
+
+    expect(result).toMatchObject({
+      ok: false,
+      violations: [{reason, source, function: 'hashFiles'}],
+    });
+  });
+
+  it.each([
+    ["hashFiles('~/.npmrc')", '~/.npmrc'],
+    ["hashFiles('/etc/hosts')", '/etc/hosts'],
+    ["hashFiles('../lock.json')", '../lock.json'],
+    ["hashFiles('a', 'src/../../b')", 'src/../../b'],
+  ])('rejects a hashFiles() pattern outside the workspace: %s', (source, pattern) => {
+    const segments = parseWorkflowTemplate(templateExpression(source));
+
+    const result = planInterpolationField({field: 'env.value', segments});
+
+    expect(result).toMatchObject({
+      ok: false,
+      violations: [{reason: 'runner-call-pattern-outside-workspace', source, pattern}],
+    });
+  });
+
+  it('rejects an empty hashFiles() pattern', () => {
+    const segments = parseWorkflowTemplate(templateExpression("hashFiles(' ')"));
+
+    const result = planInterpolationField({field: 'env.value', segments});
+
+    expect(result).toMatchObject({
+      ok: false,
+      violations: [{reason: 'runner-call-pattern-invalid', pattern: ' '}],
+    });
+  });
+
+  it.each([
+    'tool.with',
+    'agent.prompt',
+    'job.container.env.value',
+    'step.name',
+  ] as const)('rejects hashFiles() in %s', (field) => {
+    const segments = parseWorkflowTemplate(templateExpression('hashFiles("x")'));
+
+    const result = planInterpolationField({field, segments});
+
+    expect(result).toEqual({
+      ok: false,
+      violations: [
+        {
+          reason: 'runner-call-in-field',
+          source: 'hashFiles("x")',
+          function: 'hashFiles',
+          hint: 'hashFiles() runs on the runner. Use it in env, with, or run',
+        },
+      ],
     });
   });
 
@@ -182,9 +271,9 @@ describe('planInterpolationField', () => {
   });
 
   it.each([
-    'runner.os + steps.build.outputs.sha',
-    'runner.os + runner.arch',
-    'runner',
+    'secrets.TOKEN + steps.build.outputs.sha',
+    'secrets.A + secrets.B',
+    'secrets.TOKEN == "x"',
   ])('rejects runner-host expressions that are not bare references: %s', (source) => {
     const segments = parseWorkflowTemplate(templateExpression(source));
 
@@ -196,7 +285,7 @@ describe('planInterpolationField', () => {
         {
           reason: 'runner-root-not-bare',
           source,
-          runnerRoots: ['runner'],
+          runnerRoots: ['secrets'],
           hint: runnerRootNotBareHint,
         },
       ],
@@ -249,7 +338,7 @@ describe('planInterpolationField', () => {
 
   it('round-trips a field plan through JSON', () => {
     const segments = parseWorkflowTemplate(
-      `prefix-${templateExpression(' run.id ')}-${templateExpression(' runner.os ')}`,
+      `prefix-${templateExpression(' run.id ')}-${templateExpression(' secrets.TOKEN ')}`,
     );
     const result = planInterpolationField({field: 'env.value', segments});
 

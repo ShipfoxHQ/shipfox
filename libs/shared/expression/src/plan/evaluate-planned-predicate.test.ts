@@ -122,16 +122,16 @@ describe('evaluatePlannedPredicateAtSite', () => {
 
   it('fails closed for runner-fill predicates', () => {
     const result = evaluatePlannedPredicateAtSite({
-      expression: expression('runner.os == "linux"'),
+      expression: expression('secrets.TOKEN == "x"'),
       field: 'job.success',
       site: 'job-resolution',
-      context: {runner: {os: 'linux'}},
+      context: {secrets: {TOKEN: 'x'}},
     });
 
     expect(result).toEqual({
       value: false,
       evaluationFailed: true,
-      route: {roots: ['runner'], runnerRoots: ['runner'], fillTarget: 'runner-fill'},
+      route: {roots: ['secrets'], runnerRoots: ['secrets'], fillTarget: 'runner-fill'},
     });
   });
 });

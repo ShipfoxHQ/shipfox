@@ -45,9 +45,13 @@ CEL checks and run-time evaluation for Shipfox workflow expressions.
   execution events and historical metadata separate.
 - **Typed errors**: Reports bad text and run failures with stable error classes.
 - **`workflowContextDefinitions`**: Names the workflow contexts (`run`,
-  `trigger`, `event`, `inputs`, `job`, `executions`, `execution`, `jobs`, `step`) and
-  gives each a shape, availability site, sensitivity, and host.
-  Known-shape contexts ship a typed environment; open ones use `syntax`.
+  `trigger`, `event`, `inputs`, `job`, `executions`, `execution`, `jobs`, `step`,
+  `runner`) and gives each a shape, availability site, sensitivity, and host.
+  Known-shape contexts ship a typed environment; open ones use `syntax`. A
+  context with a `lastSite`, such as `runner`, is unavailable after that site.
+- **`analyzeRunnerCalls`**: Finds calls the runner computes, such as
+  `hashFiles()`, and returns the patterns of a call that fills a whole segment.
+  Planning gives such a segment the `runner-fill` target and a `runnerCall`.
 - **`buildTypedRootsEnvironment`**: Builds typed step and job roots. Tool steps
   expose `outputs.result` from their catalog schema and omit `exit_code`.
 - **`toolStepReportTypeEnvironment`** and **`WorkflowStepKind`**: Describe the
@@ -124,7 +128,9 @@ const passed = evaluateWorkflowPredicate(expression, {
   structural sink guarantees, while host and availability checks remain enforced.
 - Evaluation is deterministic and has no side effects.
 - Workflow evaluation includes the shared `list.first()`, `list.last()`,
-  `range()`, `toJson()`, and `fromJson()` functions. Use a caller-owned
+  `range()`, `toJson()`, and `fromJson()` functions. `hashFiles()` is declared
+  for type checks only: the runner computes it, and the server never evaluates
+  it. Use a caller-owned
   environment when a custom function is intentionally needed outside that
   registry.
 - `list.first()` and `list.last()` return the first or final element and

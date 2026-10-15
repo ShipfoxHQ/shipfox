@@ -39,6 +39,30 @@ describe('createWorkflowExpression', () => {
     });
   });
 
+  it('type-checks hashFiles() with one to sixteen string patterns', () => {
+    const one = createWorkflowExpression({
+      source: 'hashFiles("package-lock.json")',
+      check: {mode: 'typed', typeEnvironment: {}, expectedResultType: 'string'},
+    });
+    const sixteen = createWorkflowExpression({
+      source: `hashFiles(${Array.from({length: 16}, (_, index) => `"f${index}"`).join(', ')})`,
+      check: {mode: 'typed', typeEnvironment: {}, expectedResultType: 'string'},
+    });
+
+    expect(one.source).toBe('hashFiles("package-lock.json")');
+    expect(sixteen.source).toContain('"f15"');
+  });
+
+  it.each([
+    'hashFiles()',
+    'hashFiles(1)',
+    `hashFiles(${Array.from({length: 17}, (_, index) => `"f${index}"`).join(', ')})`,
+  ])('rejects the hashFiles() call %s', (source) => {
+    expect(() =>
+      createWorkflowExpression({source, check: {mode: 'typed', typeEnvironment: {}}}),
+    ).toThrow(InvalidWorkflowExpressionError);
+  });
+
   it('type-checks the shared workflow function registry', () => {
     const jsonExpression = createWorkflowExpression({
       source: 'toJson(event)',

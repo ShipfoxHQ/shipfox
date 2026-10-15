@@ -21,6 +21,7 @@ export const workflowContextNames = [
   'step',
   'vars',
   'secrets',
+  'runner',
 ] as const;
 export type WorkflowContextName = (typeof workflowContextNames)[number];
 
@@ -59,7 +60,6 @@ export type ReservedRootDefinition =
 
 export const workflowContextReservedRoots = {
   matrix: {host: 'server', availability: 'job-activation'},
-  runner: {host: 'runner'},
   // The result of a tool step call; readable only from `tool.outputs` mappings.
   result: {host: 'server', availability: 'step-report'},
 } as const satisfies Record<string, ReservedRootDefinition>;
@@ -69,6 +69,8 @@ export type WorkflowContextShape = 'known' | 'open';
 
 export interface TypedWorkflowContextDefinition {
   readonly availability: AvailabilitySite;
+  /** The last site that assembles this context. Later sites treat it as unavailable. */
+  readonly lastSite?: AvailabilitySite;
   readonly sensitivity: WorkflowContextSensitivity;
   readonly host: 'server';
   readonly shape: 'known';
@@ -346,6 +348,17 @@ const toolStepSelfTypeEnvironment = {
   },
 } as const satisfies ExpressionTypeEnvironment;
 
+// The runner that claimed the job, as reported when its session registered.
+const runnerTypeEnvironment = {
+  runner: {
+    kind: 'object',
+    fields: {
+      os: 'string',
+      arch: 'string',
+    },
+  },
+} as const satisfies ExpressionTypeEnvironment;
+
 const stepTypeEnvironment = {
   step: {
     kind: 'object',
@@ -498,6 +511,15 @@ export const workflowContextDefinitions = {
     checkMode: 'syntax',
     literalKeyOnly: true,
   },
+  runner: {
+    availability: 'step-dispatch',
+    lastSite: 'step-dispatch',
+    sensitivity: 'persistable',
+    host: 'server',
+    shape: 'known',
+    checkMode: 'typed',
+    typeEnvironment: runnerTypeEnvironment,
+  },
 } as const satisfies Record<WorkflowContextName, WorkflowContextDefinition>;
 
 export type WorkflowInterpolationField =
@@ -550,6 +572,8 @@ export interface WorkflowInterpolationFieldPolicy {
    * When present, callers should use this instead of the accepted-hosts filter.
    */
   readonly roots?: readonly (WorkflowContextName | WorkflowContextReservedRoot)[];
+  /** Whether the field accepts calls the runner computes when the step starts, such as `hashFiles()`. */
+  readonly acceptsRunnerCalls?: boolean;
 }
 
 const serverOnlyHosts: readonly WorkflowContextHost[] = ['server'];
@@ -560,10 +584,12 @@ export const workflowInterpolationFieldPolicies: Readonly<
 > = {
   run: {
     acceptedHosts: anyHost,
+    acceptsRunnerCalls: true,
     failurePolicy: 'fail',
   },
   'env.value': {
     acceptedHosts: anyHost,
+    acceptsRunnerCalls: true,
     failurePolicy: 'fail',
   },
   'agent.prompt': {
@@ -693,6 +719,7 @@ export const workflowInterpolationFieldPolicies: Readonly<
   // Action inputs accept bare secret references, which the runner fills.
   'action.with': {
     acceptedHosts: anyHost,
+    acceptsRunnerCalls: true,
     failurePolicy: 'fail',
   },
 };
@@ -737,7 +764,7 @@ export const workflowPredicateContextRoots = {
   'listener.on': listenerPredicateContextRoots,
   'listener.until': listenerPredicateContextRoots,
   'job.if': ['workflow', 'run', 'trigger', 'event', 'inputs', 'vars', 'jobs', 'needs'],
-  'step.if': ['vars', 'jobs', 'execution', 'step', 'steps'],
+  'step.if': ['vars', 'jobs', 'execution', 'step', 'steps', 'runner'],
 } as const satisfies Record<WorkflowPredicateField, readonly WorkflowContextName[]>;
 
 export type WorkflowPredicateContextRoot<
@@ -804,25 +831,30 @@ export function getWorkflowContextSensitivity(
 }
 
 export function rootsAvailableAt(site: AvailabilitySite): readonly WorkflowContextName[] {
-  const targetSiteIndex = availabilitySites.indexOf(site);
-  return workflowContextNames.filter((name) => {
-    const definition = workflowContextDefinitions[name];
-    return (
-      definition.host === 'server' &&
-      availabilitySites.indexOf(definition.availability) <= targetSiteIndex
-    );
-  });
+  return workflowContextNames.filter((name) => isRootAvailableAt(name, site));
 }
 
 export function unavailableRootsAt(
   roots: readonly (WorkflowContextName | WorkflowContextReservedRoot)[],
   site: AvailabilitySite,
 ): readonly (WorkflowContextName | WorkflowContextReservedRoot)[] {
+  return roots.filter((root) => !isRootAvailableAt(root, site));
+}
+
+/** The last site that assembles a root, when it is not available at every later site. */
+export function resolveContextRootLastSite(root: string): AvailabilitySite | undefined {
+  if (!isWorkflowContextName(root)) return undefined;
+  const definition = workflowContextDefinitions[root];
+  return 'lastSite' in definition ? definition.lastSite : undefined;
+}
+
+function isRootAvailableAt(root: string, site: AvailabilitySite): boolean {
+  const availability = resolveContextRootAvailability(root);
+  if (availability === undefined) return false;
   const targetSiteIndex = availabilitySites.indexOf(site);
-  return roots.filter((root) => {
-    const availability = resolveContextRootAvailability(root);
-    return availability === undefined || availabilitySites.indexOf(availability) > targetSiteIndex;
-  });
+  if (availabilitySites.indexOf(availability) > targetSiteIndex) return false;
+  const lastSite = resolveContextRootLastSite(root);
+  return lastSite === undefined || availabilitySites.indexOf(lastSite) >= targetSiteIndex;
 }
 
 export function getWorkflowContextTypeEnvironment(
@@ -848,6 +880,13 @@ export function workflowInterpolationFieldAcceptsHost(
   host: WorkflowContextHost,
 ): boolean {
   return workflowInterpolationFieldPolicies[field].acceptedHosts.includes(host);
+}
+
+export function workflowInterpolationFieldAcceptsRunnerCalls(
+  field: WorkflowInterpolationField,
+): boolean {
+  const policy: WorkflowInterpolationFieldPolicy = workflowInterpolationFieldPolicies[field];
+  return policy.acceptsRunnerCalls === true;
 }
 
 export function workflowContextRootRequiresLiteralKey(root: string): boolean {
@@ -955,17 +994,18 @@ export function workflowContextAvailabilityReference(): readonly WorkflowContext
       if (definition.host === 'runner') return noServerAvailabilityReferenceEntry(root, false);
       return availabilityReferenceEntry(root, definition.availability, false);
     }),
-    ...Object.entries(workflowContextReservedRoots).map(([root, definition]) => {
-      if (definition.host === 'runner') {
-        return noServerAvailabilityReferenceEntry(root as WorkflowContextReservedRoot, true);
-      }
-      return availabilityReferenceEntry(
-        root as WorkflowContextReservedRoot,
-        definition.availability,
-        true,
-      );
-    }),
+    ...Object.entries(workflowContextReservedRoots).map(([root, definition]) =>
+      reservedRootAvailabilityReferenceEntry(root as WorkflowContextReservedRoot, definition),
+    ),
   ];
+}
+
+function reservedRootAvailabilityReferenceEntry(
+  root: WorkflowContextReservedRoot,
+  definition: ReservedRootDefinition,
+): WorkflowContextAvailabilityReferenceEntry {
+  if (definition.host === 'runner') return noServerAvailabilityReferenceEntry(root, true);
+  return availabilityReferenceEntry(root, definition.availability, true);
 }
 
 function availabilityReferenceEntry(
@@ -973,9 +1013,8 @@ function availabilityReferenceEntry(
   availability: AvailabilitySite,
   reserved: boolean,
 ): WorkflowContextAvailabilityReferenceEntry {
-  const availabilityIndex = availabilitySites.indexOf(availability);
   const availableAt = Object.fromEntries(
-    availabilitySites.map((site) => [site, availabilitySites.indexOf(site) >= availabilityIndex]),
+    availabilitySites.map((site) => [site, isRootAvailableAt(root, site)]),
   ) as Record<AvailabilitySite, boolean>;
 
   return {root, availability, reserved, availableAt};

@@ -17,6 +17,7 @@ import {
   referencesStepLogPath,
   resolveContextRootAvailability,
   resolveContextRootHost,
+  resolveContextRootLastSite,
   unavailableRootsAt,
   type WorkflowContextName,
   type WorkflowContextReservedRoot,
@@ -485,6 +486,9 @@ function planViolationIssue(
   },
   violation: PlanViolation,
 ): WorkflowModelValidationIssue {
+  const runnerCallIssue = runnerCallViolationIssue(params, violation);
+  if (runnerCallIssue !== undefined) return runnerCallIssue;
+
   if (violation.reason === 'computed-context-key') {
     return issue({
       code: 'computed-context-key',
@@ -514,6 +518,63 @@ function planViolationIssue(
   });
 }
 
+function runnerCallViolationIssue(
+  params: {
+    field: WorkflowInterpolationField;
+    source: string;
+    path: readonly WorkflowModelValidationIssuePathSegment[];
+  },
+  violation: PlanViolation,
+): WorkflowModelValidationIssue | undefined {
+  const details = {field: params.field, source: params.source, expression: violation.source};
+  switch (violation.reason) {
+    case 'runner-call-in-field':
+      return issue({
+        code: 'hash-files-in-field',
+        message: `${fieldLabel(params.field)} cannot call hashFiles(): ${violation.hint}.`,
+        path: params.path,
+        details,
+      });
+    case 'runner-call-not-bare':
+      return issue({
+        code: 'hash-files-not-bare',
+        message: `${fieldLabel(params.field)} interpolation calls hashFiles() in a larger expression; ${violation.hint}.`,
+        path: params.path,
+        details,
+      });
+    case 'runner-call-arity':
+      return issue({
+        code: 'hash-files-argument-not-literal',
+        message: `${fieldLabel(params.field)} interpolation calls hashFiles() with the wrong number of patterns; ${violation.hint}.`,
+        path: params.path,
+        details,
+      });
+    case 'runner-call-argument-not-literal':
+      return issue({
+        code: 'hash-files-argument-not-literal',
+        message: `${fieldLabel(params.field)} interpolation calls hashFiles() with an argument that is not a string literal; ${violation.hint}.`,
+        path: params.path,
+        details,
+      });
+    case 'runner-call-pattern-invalid':
+      return issue({
+        code: 'hash-files-pattern-invalid',
+        message: `${fieldLabel(params.field)} interpolation calls hashFiles() with an invalid pattern: ${violation.hint}.`,
+        path: params.path,
+        details: {...details, pattern: violation.pattern},
+      });
+    case 'runner-call-pattern-outside-workspace':
+      return issue({
+        code: 'hash-files-pattern-outside-workspace',
+        message: `${fieldLabel(params.field)} interpolation calls hashFiles() with "${violation.pattern}"; ${violation.hint}.`,
+        path: params.path,
+        details: {...details, pattern: violation.pattern},
+      });
+    default:
+      return undefined;
+  }
+}
+
 function contextNoun(roots: readonly string[]): 'context' | 'contexts' {
   return roots.length === 1 ? 'context' : 'contexts';
 }
@@ -525,6 +586,10 @@ function availabilityVerb(roots: readonly string[]): 'is' | 'are' {
 function unavailableRootAvailabilityMessage(root: string): string {
   const availability = resolveContextRootAvailability(root);
   if (availability === undefined) return `"${root}" is not available at any server site.`;
+  const lastSite = resolveContextRootLastSite(root);
+  if (lastSite === availability) {
+    return `"${root}" is only available at ${describeAvailabilitySite(availability)}.`;
+  }
   return `"${root}" becomes available at ${describeAvailabilitySite(availability)}.`;
 }
 

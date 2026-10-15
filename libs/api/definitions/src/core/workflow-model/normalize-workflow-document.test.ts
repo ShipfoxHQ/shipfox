@@ -3213,7 +3213,8 @@ describe('normalizeWorkflowDocument', () => {
     ['steps root', 'steps.build.outputs.sha == "abc"', 'context-unavailable-at-predicate-site'],
     ['executions root', 'executions.size() > 0', 'context-unavailable-at-predicate-site'],
     ['matrix root', 'matrix.os == "linux"', 'context-unavailable-at-predicate-site'],
-    ['runner root', 'runner.os == "linux"', 'runner-context-in-server-predicate'],
+    ['runner root', 'runner.os == "linux"', 'context-unavailable-at-predicate-site'],
+    ['secrets root', 'secrets.local.TOKEN == "x"', 'runner-context-in-server-predicate'],
   ] as const)('reports invalid listener on filters for %s', (_label, filter, code) => {
     const document: WorkflowDocument = {
       name: 'invalid listener filter',
@@ -4028,7 +4029,7 @@ describe('normalizeWorkflowDocument', () => {
       name: 'runner-context gate',
       jobs: {
         build: {
-          steps: [{run: 'npm run build', gate: {success: 'runner.os == "linux"'}}],
+          steps: [{run: 'npm run build', gate: {success: 'secrets.local.TOKEN == "x"'}}],
         },
       },
     };
@@ -4038,14 +4039,35 @@ describe('normalizeWorkflowDocument', () => {
     expect(error.issues).toEqual([
       expect.objectContaining({
         code: 'runner-context-in-server-predicate',
-        message: expect.stringContaining('cannot reference runner context "runner"'),
+        message: expect.stringContaining('cannot reference runner context "secrets"'),
         path: ['jobs', 'build', 'steps', 0, 'gate', 'success'],
         details: expect.objectContaining({
           field: 'step.success',
-          source: 'runner.os == "linux"',
-          runnerRoots: ['runner'],
+          source: 'secrets.local.TOKEN == "x"',
+          runnerRoots: ['secrets'],
           site: 'step-report',
         }),
+      }),
+    ]);
+  });
+
+  it('rejects the runner context in gate success, which is read after the step', () => {
+    const document: WorkflowDocument = {
+      name: 'runner-context gate',
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build', gate: {success: 'runner.os == "linux"'}}],
+        },
+      },
+    };
+
+    const error = expectInvalid(document);
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'context-unavailable-at-predicate-site',
+        path: ['jobs', 'build', 'steps', 0, 'gate', 'success'],
+        details: expect.objectContaining({field: 'step.success', unavailableRoots: ['runner']}),
       }),
     ]);
   });
@@ -5169,7 +5191,7 @@ describe('normalizeWorkflowDocument', () => {
       jobs: {
         build: {
           if: interpolation('secrets.local.TOKEN != ""'),
-          steps: [{if: interpolation('runner.os == "linux"'), run: 'npm run build'}],
+          steps: [{if: interpolation('secrets.local.TOKEN == "x"'), run: 'npm run build'}],
         },
       },
     };
@@ -5186,7 +5208,7 @@ describe('normalizeWorkflowDocument', () => {
         expect.objectContaining({
           code: 'runner-context-in-server-predicate',
           path: ['jobs', 'build', 'steps', 0, 'if'],
-          details: expect.objectContaining({field: 'step.if', runnerRoots: ['runner']}),
+          details: expect.objectContaining({field: 'step.if', runnerRoots: ['secrets']}),
         }),
       ]),
     );
@@ -5475,7 +5497,7 @@ describe('normalizeWorkflowDocument', () => {
       name: 'runner-context job success',
       jobs: {
         build: {
-          success: 'runner.os == "linux"',
+          success: 'secrets.local.TOKEN == "x"',
           steps: [{run: 'npm run build'}],
         },
       },
@@ -5486,12 +5508,12 @@ describe('normalizeWorkflowDocument', () => {
     expect(error.issues).toEqual([
       expect.objectContaining({
         code: 'runner-context-in-server-predicate',
-        message: expect.stringContaining('cannot reference runner context "runner"'),
+        message: expect.stringContaining('cannot reference runner context "secrets"'),
         path: ['jobs', 'build', 'success'],
         details: expect.objectContaining({
           field: 'job.success',
-          source: 'runner.os == "linux"',
-          runnerRoots: ['runner'],
+          source: 'secrets.local.TOKEN == "x"',
+          runnerRoots: ['secrets'],
           site: 'job-resolution',
         }),
       }),
@@ -6217,12 +6239,12 @@ describe('normalizeWorkflowDocument', () => {
     [
       'runner root',
       'runner.os == "linux"',
-      'runner-context-in-server-predicate',
+      'context-unavailable-at-predicate-site',
       {
         field: 'trigger.filter',
         source: 'runner.os == "linux"',
         contextRoots: ['runner'],
-        runnerRoots: ['runner'],
+        unavailableRoots: ['runner'],
         site: 'ingest',
       },
     ],
