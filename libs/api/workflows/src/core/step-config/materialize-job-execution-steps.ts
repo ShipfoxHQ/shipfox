@@ -26,7 +26,7 @@ export interface MaterializedWorkflowStep {
   readonly name: string;
   readonly sourceLocation: WorkflowSourceLocation | null;
   readonly status: 'pending';
-  readonly type: WorkflowModelStep['kind'] | 'setup' | 'post';
+  readonly type: Exclude<WorkflowModelStep['kind'], 'composite'> | 'setup' | 'post';
   readonly config: Readonly<Record<string, unknown>>;
   readonly condition?: WorkflowExpression;
   readonly runAfter: StepRunAfter;
@@ -81,6 +81,10 @@ export async function materializeJobExecutionSteps(
 
   const authored = await Promise.all(
     job.steps.map(async (step, stepPosition) => {
+      // Sync rejects composite actions until the run engine expands them.
+      if (step.kind === 'composite') {
+        throw new Error(`Composite action step "${step.id}" cannot run yet`);
+      }
       const stepContext = {
         ...context.values,
         job: {key: job.key, name: job.name ?? job.key},
@@ -281,7 +285,7 @@ function materializedConfigPlan(
 }
 
 function stepDisplayName(
-  step: WorkflowModelStep,
+  step: Exclude<WorkflowModelStep, {kind: 'composite'}>,
   config: Readonly<Record<string, unknown>>,
 ): string {
   const {kind} = step;

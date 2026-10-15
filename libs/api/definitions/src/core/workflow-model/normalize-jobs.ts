@@ -1,4 +1,5 @@
 import type {AgentValidationCatalogV2} from '@shipfox/api-agent-dto/inter-module';
+import {flattenJobSteps} from '@shipfox/api-definitions-dto';
 import {
   type AvailabilitySite,
   buildTypedRootsEnvironment,
@@ -54,6 +55,12 @@ import {normalizeAgentIntegrations} from './normalize-agent-integrations.js';
 import {normalizeAgentMcpServers} from './normalize-agent-mcp-servers.js';
 import {normalizeAgentPrompt} from './normalize-agent-prompt.js';
 import {normalizeAgentRepositoryContext} from './normalize-agent-repository-context.js';
+import {
+  buildCompositeStep,
+  compositeActionFor,
+  type NormalizedCompositeFields,
+  normalizeCompositeFields,
+} from './normalize-composite-step.js';
 import {normalizeEnv} from './normalize-env.js';
 import {normalizeIfCondition} from './normalize-if-condition.js';
 import {
@@ -163,8 +170,18 @@ export function normalizeJobs(
     break;
   }
 
+  // Every use of a composite action reports the issues of its manifest again.
+  const seenCompositeIssues = new Set<string>();
   for (const [sourceName] of entries) {
-    issues.push(...(state.issuesBySourceName.get(sourceName) ?? []));
+    for (const jobIssue of state.issuesBySourceName.get(sourceName) ?? []) {
+      const location = jobIssue.details?.composite as {path?: unknown} | undefined;
+      if (location !== undefined) {
+        const key = [jobIssue.code, jobIssue.message, String(location.path)].join('\u0000');
+        if (seenCompositeIssues.has(key)) continue;
+        seenCompositeIssues.add(key);
+      }
+      issues.push(jobIssue);
+    }
   }
 
   validateAgentSessionSharing(document, issues, context.agentValidationCatalog.default_harness_id);
@@ -236,7 +253,7 @@ function normalizeJob(params: {
   const steps = normalizeJobSteps({
     sourceName: params.sourceName,
     jobId: id,
-    job: params.job,
+    steps: params.job.steps,
     workflowEnvKeys: Object.keys(params.document.env ?? {}),
     jobEnvKeys: Object.keys(params.job.env ?? {}),
     issues: params.issues,
@@ -254,6 +271,7 @@ function normalizeJob(params: {
     sourceName: params.sourceName,
     issues: params.issues,
   });
+  validateExpandedStepCount({steps, sourceName: params.sourceName, issues: params.issues});
   const runner = normalizeRunner({
     document: params.document,
     job: params.job,
@@ -656,10 +674,21 @@ export function inferJobOutputType(template: WorkflowFieldTemplate): ExpressionT
   return resultType;
 }
 
+/** Where a list of steps sits: the job itself, or one use of a composite action. */
+export interface StepScope {
+  /** The id of the composite step that holds these steps. Unset for job steps. */
+  readonly parentId?: string;
+  /** Typed roots that replace the job's: the composite action's `inputs` and `action`. */
+  readonly roots?: ExpressionTypeEnvironment;
+  /** The composite step's `env` keys, which the inner run steps inherit. */
+  readonly envKeys?: readonly string[];
+}
+
 function normalizeJobSteps(params: {
   sourceName: string;
   jobId: string;
-  job: WorkflowDocumentJob;
+  steps: readonly WorkflowDocumentStep[];
+  scope?: StepScope | undefined;
   workflowEnvKeys: readonly string[];
   jobEnvKeys: readonly string[];
   issues: WorkflowModelValidationIssue[];
@@ -674,13 +703,14 @@ function normalizeJobSteps(params: {
 }): readonly WorkflowModelStep[] {
   const usedStepIds = new Map<string, number>();
 
-  return params.job.steps.flatMap((step, index) => {
+  return params.steps.flatMap((step, index) => {
     const normalized = normalizeStep({
       step,
       index,
       sourceName: params.sourceName,
       jobId: params.jobId,
-      allSteps: params.job.steps,
+      scope: params.scope,
+      allSteps: params.steps,
       workflowEnvKeys: params.workflowEnvKeys,
       jobEnvKeys: params.jobEnvKeys,
       usedStepIds,
@@ -724,13 +754,17 @@ function previousStepTypeContext(params: NormalizeStepParams): {
   const shouldBuild =
     params.typeOverlay !== undefined ||
     params.upstreamJobs.length > 0 ||
-    params.toolOverlayByKey.size > 0;
+    params.toolOverlayByKey.size > 0 ||
+    params.scope?.roots !== undefined;
   const overlays = previousStepOverlays(params.allSteps, params.index, params.toolOverlayByKey);
   const environment = shouldBuild
-    ? buildTypedRootsEnvironment({
-        steps: overlays,
-        ...(params.upstreamJobs.length === 0 ? {} : {jobs: params.upstreamJobs}),
-      })
+    ? {
+        ...buildTypedRootsEnvironment({
+          steps: overlays,
+          ...(params.upstreamJobs.length === 0 ? {} : {jobs: params.upstreamJobs}),
+        }),
+        ...params.scope?.roots,
+      }
     : undefined;
   return {shouldBuild, overlays, environment};
 }
@@ -745,11 +779,14 @@ function currentStepTypeContext(
 } {
   const currentStepRoot = currentStep === undefined ? {} : {currentStep};
   const typeOverlay = previous.shouldBuild
-    ? buildTypedRootsEnvironment({
-        steps: previous.overlays,
-        ...currentStepRoot,
-        ...(params.upstreamJobs.length === 0 ? {} : {jobs: params.upstreamJobs}),
-      })
+    ? {
+        ...buildTypedRootsEnvironment({
+          steps: previous.overlays,
+          ...currentStepRoot,
+          ...(params.upstreamJobs.length === 0 ? {} : {jobs: params.upstreamJobs}),
+        }),
+        ...params.scope?.roots,
+      }
     : undefined;
   const conditionTypeOverlay = buildTypedRootsEnvironment({
     steps: previous.overlays,
@@ -785,6 +822,7 @@ function normalizeConcreteStep(params: {
   gate: ReturnType<typeof normalizeStepGate>;
   toolStepResult: ReturnType<typeof normalizeToolStep> | undefined;
   actionFields: ReturnType<typeof normalizeActionFields>;
+  compositeFields: NormalizedCompositeFields | undefined;
   name: WorkflowFieldTemplate | undefined;
   workingDirectory: WorkflowFieldTemplate | undefined;
   typeOverlay: ExpressionTypeEnvironment | undefined;
@@ -818,15 +856,45 @@ function normalizeConcreteStep(params: {
   if (params.actionFields !== undefined) {
     return buildActionStep({...shared, fields: params.actionFields});
   }
+  if (params.compositeFields !== undefined) {
+    return buildCompositeStep({
+      ...shared,
+      fields: params.compositeFields,
+      jobId: source.jobId,
+      scope: source.scope,
+      context: source.context,
+      normalizeSteps: (input) => {
+        const toolOverlayByKey = new Map<string, WorkflowStepTypeOverlay>();
+        const steps = normalizeJobSteps({
+          ...input,
+          sourceName: source.sourceName,
+          jobId: source.jobId,
+          workflowEnvKeys: source.workflowEnvKeys,
+          jobEnvKeys: source.jobEnvKeys,
+          fillSite: source.fillSite,
+          allowedJobReferences: source.allowedJobReferences,
+          typeOverlay: undefined,
+          upstreamJobs: source.upstreamJobs,
+          directNeedJobs: source.directNeedJobs,
+          toolOverlayByKey,
+        });
+        return {steps, overlays: allStepOverlays(input.steps, toolOverlayByKey)};
+      },
+    });
+  }
   if (source.step.run !== undefined) {
     return normalizeRunStep({
       ...shared,
       workflowEnvKeys: source.workflowEnvKeys,
-      jobEnvKeys: source.jobEnvKeys,
+      jobEnvKeys: [...source.jobEnvKeys, ...(source.scope?.envKeys ?? [])],
     });
   }
   if (source.step.prompt !== undefined)
-    return normalizeAgentStep({...shared, context: source.context});
+    return normalizeAgentStep({
+      ...shared,
+      context: source.context,
+      sessionScope: source.scope?.parentId,
+    });
   if (source.step.checkout !== undefined) return normalizeCheckoutStep(shared);
   throw new Error(
     `Workflow step "${params.stepId}" is neither a run, agent, tool, action, nor checkout step`,
@@ -845,6 +913,7 @@ function normalizeKindFields(
   | {
       toolStepResult: ReturnType<typeof normalizeToolStep> | undefined;
       actionFields: ReturnType<typeof normalizeActionFields>;
+      compositeFields: NormalizedCompositeFields | undefined;
       outputs: ReturnType<typeof normalizeStepOutputs>;
       currentStepOverlay: WorkflowStepTypeOverlay | undefined;
     }
@@ -867,20 +936,42 @@ function normalizeKindFields(
           stepBase,
           name: normalizeStepName({...params, typeOverlay: previousStepsOverlay}),
         });
-  const actionFields =
+  const compositeAction =
     params.step.uses === undefined
+      ? undefined
+      : compositeActionFor(params.context.actionManifests, params.step.uses);
+  const compositeFields =
+    compositeAction === undefined
+      ? undefined
+      : normalizeCompositeFields({
+          ...shared,
+          stepId,
+          uses: compositeAction.uses,
+          resolved: compositeAction.resolved,
+          actionManifests: params.context.actionManifests,
+        });
+  const actionFields =
+    params.step.uses === undefined || compositeFields !== undefined
       ? undefined
       : normalizeActionFields({
           ...shared,
           stepId,
           actionManifests: params.context.actionManifests,
         });
-  if (params.step.uses !== undefined && actionFields === undefined) return undefined;
+  if (
+    params.step.uses !== undefined &&
+    actionFields === undefined &&
+    compositeFields === undefined
+  ) {
+    return undefined;
+  }
 
-  const derivedOverlay = toolStepResult?.overlay ?? actionFields?.overlay;
+  const derivedOverlay =
+    toolStepResult?.overlay ?? actionFields?.overlay ?? compositeFields?.overlay;
   const outputs =
     toolStepResult === undefined
       ? (actionFields?.outputs ??
+        compositeFields?.outputs ??
         normalizeStepOutputs({
           step: params.step,
           sourceName: params.sourceName,
@@ -890,12 +981,13 @@ function normalizeKindFields(
       : undefined;
   const stepKey = params.step.key;
   if (stepKey === undefined) {
-    return {toolStepResult, actionFields, outputs, currentStepOverlay: undefined};
+    return {toolStepResult, actionFields, compositeFields, outputs, currentStepOverlay: undefined};
   }
   if (derivedOverlay !== undefined) params.toolOverlayByKey.set(stepKey, derivedOverlay);
   return {
     toolStepResult,
     actionFields,
+    compositeFields,
     outputs,
     currentStepOverlay: derivedOverlay ?? {
       key: stepKey,
@@ -909,6 +1001,7 @@ function normalizeStep(params: {
   index: number;
   sourceName: string;
   jobId: string;
+  scope?: StepScope | undefined;
   allSteps: readonly WorkflowDocumentStep[];
   workflowEnvKeys: readonly string[];
   jobEnvKeys: readonly string[];
@@ -924,10 +1017,7 @@ function normalizeStep(params: {
   context: NormalizeContext;
 }): WorkflowModelStep | undefined {
   const stepKey = params.step.key;
-  const stepId =
-    stepKey === undefined
-      ? `${params.jobId}-step-${params.index + 1}`
-      : `${params.jobId}-${stableId(stepKey)}`;
+  const stepId = stepIdFor(params, stepKey);
   registerStepId(params, stepId);
   // Compute the previous-steps overlay list once and reuse it in every typed
   // environment for this step; the environments differ only in the extra
@@ -948,7 +1038,7 @@ function normalizeStep(params: {
   const kindFields = normalizeKindFields(params, stepId, stepBase, previousStepsOverlay);
   // An unresolved action already reported its issue and has no model.
   if (kindFields === undefined) return undefined;
-  const {toolStepResult, actionFields, outputs, currentStepOverlay} = kindFields;
+  const {toolStepResult, actionFields, compositeFields, outputs, currentStepOverlay} = kindFields;
   const {typeOverlay, conditionTypeOverlay} = currentStepTypeContext(
     params,
     previousContext,
@@ -1008,10 +1098,42 @@ function normalizeStep(params: {
     gate,
     toolStepResult,
     actionFields,
+    compositeFields,
     name,
     workingDirectory: normalizeStepWorkingDirectory(params, typeOverlay),
     typeOverlay,
   });
+}
+
+// A composite's inner steps get path ids under the composite step's id.
+// `stableId` never emits `.`, so a path id cannot collide with a job step id.
+function stepIdFor(
+  params: {jobId: string; index: number; scope?: StepScope | undefined},
+  stepKey: string | undefined,
+): string {
+  const parentId = params.scope?.parentId;
+  const local = stepKey === undefined ? `step-${params.index + 1}` : stableId(stepKey);
+  return parentId === undefined ? `${params.jobId}-${local}` : `${parentId}.${local}`;
+}
+
+/** A job may run at most this many steps once its composite actions are expanded. */
+export const MAX_EXPANDED_JOB_STEPS = 200;
+
+function validateExpandedStepCount(params: {
+  steps: readonly WorkflowModelStep[];
+  sourceName: string;
+  issues: WorkflowModelValidationIssue[];
+}): void {
+  const count = flattenJobSteps(params).length;
+  if (count <= MAX_EXPANDED_JOB_STEPS) return;
+  params.issues.push(
+    issue({
+      code: 'job-steps-too-many',
+      message: `Job "${params.sourceName}" runs ${count} steps once its composite actions are expanded; the maximum is ${MAX_EXPANDED_JOB_STEPS}.`,
+      path: ['jobs', params.sourceName, 'steps'],
+      details: {count, max: MAX_EXPANDED_JOB_STEPS},
+    }),
+  );
 }
 
 function normalizeStepName(params: {
@@ -1229,6 +1351,8 @@ function reevaluatingCommandWarningMessage(
 function normalizeAgentStep(params: {
   step: WorkflowDocumentStep;
   stepBase: WorkflowModelStepBaseFields;
+  /** The id of the composite use that holds the step. */
+  sessionScope?: string | undefined;
   sourceName: string;
   stepIndex: number;
   name: WorkflowFieldTemplate | undefined;
@@ -1291,6 +1415,7 @@ function normalizeAgentStep(params: {
         });
   const session = normalizeAgentStepSession({
     step: params.step,
+    sessionScope: params.sessionScope,
     sourceName: params.sourceName,
     stepIndex: params.stepIndex,
     issues: params.issues,
@@ -1367,6 +1492,7 @@ function normalizeAgentStep(params: {
 
 function normalizeAgentStepSession(params: {
   step: WorkflowDocumentStep;
+  sessionScope?: string | undefined;
   sourceName: string;
   stepIndex: number;
   issues: WorkflowModelValidationIssue[];
@@ -1411,11 +1537,20 @@ function normalizeAgentStepSession(params: {
     );
   }
 
+  // Inside a composite action, a key is scoped to the use unless the caller
+  // picks the session by passing the whole key as an input.
+  const scope =
+    params.sessionScope === undefined || wholeInputReferencePattern.test(keySource.trim())
+      ? undefined
+      : params.sessionScope;
   return {
     key: template ?? [{kind: 'literal' as const, value: keySource}],
     mode: typeof session === 'string' ? 'resume' : (session.mode ?? 'resume'),
+    ...(scope === undefined ? {} : {scope}),
   };
 }
+
+const wholeInputReferencePattern = /^\$\{\{\s*inputs\.[A-Za-z_][A-Za-z0-9_]*\s*\}\}$/;
 
 interface SessionSharingStep {
   readonly jobName: string;

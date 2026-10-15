@@ -1363,6 +1363,39 @@ jobs:
     ]);
   });
 
+  test('uses an upload for an action a composite action uses', async () => {
+    const setup = './.shipfox/actions/setup';
+    const {projectId, workspaceId, clients} = clientsFor(
+      actionRepository({
+        '.shipfox/actions/setup/action.yml': `name: Setup\nsteps:\n  - uses: ${REPORT}\n`,
+      }),
+    );
+
+    const result = await resolveDefinitionAtRef({
+      projectId,
+      configPath: CONFIG_PATH,
+      content: actionWorkflowYaml.replace(NOTIFY, setup),
+      actions: [
+        {
+          path: REPORT,
+          files: [
+            {path: 'action.yml', content: 'name: Uploaded report\nmain: index.js\n'},
+            {path: 'index.js', content: 'console.log(2);\n'},
+          ],
+        },
+      ],
+      actionsEnabled: true,
+      compositeActionsEnabled: true,
+      ...clients,
+    });
+
+    expect(result.warnings).toEqual([]);
+    expect((await snapshotRows(workspaceId)).map((row) => row.source).sort()).toEqual([
+      'dev_local',
+      'vcs',
+    ]);
+  });
+
   test('caps content and action files at 1 MiB combined', async () => {
     const {projectId, clients} = clientsFor(actionRepository());
     // The upload alone stays under the cap; only the workflow content pushes it over.

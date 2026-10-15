@@ -1,5 +1,11 @@
 import slackThreadManifest from '#test/data/action-manifests/slack-thread.json' with {type: 'json'};
-import {actionManifestSchema, buildActionManifestJsonSchema} from './action-manifest.js';
+import {
+  actionManifestSchema,
+  buildActionManifestJsonSchema,
+  isCompositeActionManifest,
+  safeParseActionManifest,
+} from './action-manifest.js';
+import {workflowDocumentStepSchema} from './workflow-document.js';
 
 function manifestIssues(manifest: unknown) {
   const result = actionManifestSchema.safeParse(manifest);
@@ -280,8 +286,22 @@ describe('buildActionManifestJsonSchema', () => {
       $id: 'https://www.shipfox.io/docs/action.schema.json',
       title: 'Shipfox Action',
       type: 'object',
-      required: ['name', 'main'],
+      required: ['name'],
       additionalProperties: false,
+      oneOf: [
+        {required: ['main'], not: {required: ['steps']}},
+        {
+          required: ['steps'],
+          not: {
+            anyOf: [
+              {required: ['main']},
+              {required: ['runtime']},
+              {required: ['post']},
+              {required: ['post_failure']},
+            ],
+          },
+        },
+      ],
     });
     expect(Object.keys(schema.properties as object)).toEqual([
       'name',
@@ -290,6 +310,7 @@ describe('buildActionManifestJsonSchema', () => {
       'main',
       'post',
       'post_failure',
+      'steps',
       'inputs',
       'outputs',
       'integrations',
@@ -303,5 +324,213 @@ describe('buildActionManifestJsonSchema', () => {
     const schema = buildActionManifestJsonSchema({id: 'https://example.test/action.schema.json'});
 
     expect(schema.$id).toBe('https://example.test/action.schema.json');
+  });
+});
+
+describe('composite action manifests', () => {
+  const composite = {
+    name: 'Set up a pull request review',
+    inputs: {
+      base_sha: {type: 'string', required: true},
+      npm_token: {secret: true, required: true},
+    },
+    outputs: {
+      changed_files: {type: 'json', value: '$' + '{{ steps.changed_files.outputs.files }}'},
+    },
+    steps: [
+      {key: 'install', uses: 'shipfox/setup-mise@1.2.0'},
+      {
+        key: 'changed_files',
+        run: '$' + '{{ action.path }}/scripts/changed-files.sh',
+        outputs: {files: 'json'},
+      },
+    ],
+  };
+
+  it('parses a composite manifest', () => {
+    const manifest = actionManifestSchema.parse(composite);
+
+    expect(isCompositeActionManifest(manifest)).toBe(true);
+    expect(manifest.steps).toHaveLength(2);
+    expect(manifest.inputs?.npm_token).toEqual({type: 'string', required: true, secret: true});
+    expect(manifest.outputs?.changed_files?.value).toBe(
+      '$' + '{{ steps.changed_files.outputs.files }}',
+    );
+  });
+
+  it('keeps JavaScript manifests apart from composite ones', () => {
+    const manifest = actionManifestSchema.parse(slackThreadManifest);
+
+    expect(isCompositeActionManifest(manifest)).toBe(false);
+  });
+
+  it('rejects a manifest with both main and steps', () => {
+    const issues = manifestIssues({...composite, main: 'index.ts'});
+
+    expect(issues).toEqual([{path: 'main', message: 'Set either `main` or `steps`, not both.'}]);
+  });
+
+  it('rejects a manifest with neither main nor steps', () => {
+    const {main: _main, ...manifest} = slackThreadManifest;
+
+    const issues = manifestIssues(manifest);
+
+    expect(issues).toEqual([
+      {
+        path: 'main',
+        message: 'Set `main` for a JavaScript action, or `steps` for a composite action.',
+      },
+    ]);
+  });
+
+  it.each(['runtime', 'post', 'post_failure'] as const)('rejects %s on a composite', (field) => {
+    const value = {runtime: 'node24', post: 'post.ts', post_failure: 'warn'}[field];
+
+    const issues = manifestIssues({...composite, [field]: value});
+
+    expect(issues).toEqual([
+      {
+        path: field,
+        message: `\`${field}\` is only valid on a JavaScript action, which sets \`main\`.`,
+      },
+    ]);
+  });
+
+  it('requires a value on composite outputs', () => {
+    const issues = manifestIssues({...composite, outputs: {changed_files: {type: 'json'}}});
+
+    expect(issues).toEqual([
+      {
+        path: 'outputs.changed_files.value',
+        message:
+          'A composite action output needs `value`, an expression over `inputs` and `steps`.',
+      },
+    ]);
+  });
+
+  it('rejects a value on JavaScript outputs', () => {
+    const issues = manifestIssues({
+      ...slackThreadManifest,
+      outputs: {path: {type: 'string', value: 'x'}},
+    });
+
+    expect(issues).toEqual([
+      {
+        path: 'outputs.path.value',
+        message:
+          '`value` is only valid on composite action outputs. A JavaScript action sets them.',
+      },
+    ]);
+  });
+
+  it('rejects a secret input on a JavaScript action', () => {
+    const issues = manifestIssues({
+      ...slackThreadManifest,
+      inputs: {token: {type: 'string', secret: true}},
+    });
+
+    expect(issues).toEqual([expect.objectContaining({path: 'inputs.token.secret'})]);
+  });
+
+  it.each([
+    [{type: 'json', secret: true}, 'inputs.token.type', 'A secret input must be a string.'],
+    [{secret: true, default: 'x'}, 'inputs.token.default', 'A secret input cannot have a default.'],
+  ])('rejects the secret input %j', (input, path, message) => {
+    const issues = manifestIssues({...composite, inputs: {token: input}});
+
+    expect(issues).toEqual([{path, message}]);
+  });
+
+  it.each([
+    [{checkout: {repository: 'acme/app', path: 'app'}}, 'steps.0.checkout'],
+    [{key: 'x', run: 'true', outputs: {v: 'string'}, export: true}, 'steps.0.export'],
+    [{tool: 'read_issue'}, 'steps.0.connection'],
+  ])('rejects the inner step %j', (step, path) => {
+    const issues = manifestIssues({...composite, outputs: {}, steps: [step]});
+
+    expect(issues).toEqual([expect.objectContaining({path})]);
+  });
+
+  it.each([
+    '$' + '{{ action.path }}/steps/lint',
+    '$' + '{{action.path}}/steps/lint',
+    './.shipfox/actions/lint',
+    'shipfox/lint@1.0.0',
+  ])('accepts the inner uses %s', (uses) => {
+    const issues = manifestIssues({...composite, outputs: {}, steps: [{uses}]});
+
+    expect(issues).toEqual([]);
+  });
+
+  it.each([
+    ['$' + '{{ action.path }}/../lint', 'must stay inside the action directory'],
+    ['$' + '{{ action.path }}/', 'must stay inside the action directory'],
+    ['$' + '{{ action.path }}/$' + '{{ inputs.name }}', 'must be literal'],
+    ['$' + '{{ inputs.path }}/lint', 'Action path must be literal'],
+  ])('rejects the inner uses %s', (uses, message) => {
+    const issues = manifestIssues({...composite, outputs: {}, steps: [{uses}]});
+
+    expect(issues).toEqual([{path: 'steps.0.uses', message: expect.stringContaining(message)}]);
+  });
+
+  it.each([
+    '$' + '{{ action.path }}/prompts/review.md',
+    './REVIEW.md',
+  ])('accepts the inner prompt file %s', (file) => {
+    const issues = manifestIssues({...composite, outputs: {}, steps: [{prompt: [{file}]}]});
+
+    expect(issues).toEqual([]);
+  });
+
+  it('rejects an inner prompt file outside the action directory', () => {
+    const issues = manifestIssues({
+      ...composite,
+      outputs: {},
+      steps: [{prompt: [{file: '$' + '{{ action.path }}/../x.md'}]}],
+    });
+
+    expect(issues).toEqual([
+      {
+        path: 'steps.0.prompt.0.file',
+        message: expect.stringContaining('must stay inside the action directory'),
+      },
+    ]);
+  });
+
+  it.each([
+    {uses: '$' + '{{ action.path }}/steps/lint'},
+    {prompt: [{file: '$' + '{{ action.path }}/prompts/review.md'}]},
+  ])('keeps the action.path prefix out of workflow steps: %j', (step) => {
+    const result = workflowDocumentStepSchema.safeParse(step);
+
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('safeParseActionManifest', () => {
+  const composite = {name: 'Composite', steps: [{run: 'true'}]};
+
+  it('reports only that composites are unsupported without the option', () => {
+    const result = safeParseActionManifest({...composite, main: 'index.ts'});
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ['steps'],
+        message: 'Composite actions (`steps`) are not supported yet.',
+      }),
+    ]);
+  });
+
+  it('parses a composite with the option', () => {
+    const result = safeParseActionManifest(composite, {compositeActions: true});
+
+    expect(result.success).toBe(true);
+  });
+
+  it('parses a JavaScript action without the option', () => {
+    const result = safeParseActionManifest(slackThreadManifest);
+
+    expect(result.success).toBe(true);
   });
 });

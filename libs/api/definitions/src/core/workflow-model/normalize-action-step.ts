@@ -6,7 +6,12 @@ import {
   validateJsonSchema,
   type WorkflowStepTypeOverlay,
 } from '@shipfox/expression';
-import type {ActionManifest, WorkflowDocumentStep} from '@shipfox/workflow-document';
+import {
+  type ActionManifest,
+  isCompositeActionManifest,
+  type JavascriptActionManifest,
+  type WorkflowDocumentStep,
+} from '@shipfox/workflow-document';
 import type {ResolvedAction, ResolvedActions} from '../entities/action-snapshot.js';
 import type {IntegrationValidationContext} from '../entities/integration-context.js';
 import type {
@@ -40,7 +45,7 @@ export interface NormalizedActionFields {
   readonly overlay: WorkflowStepTypeOverlay;
 }
 
-interface ActionStepParams {
+export interface ActionStepParams {
   step: WorkflowDocumentStep;
   stepId: string;
   sourceName: string;
@@ -71,6 +76,9 @@ export function normalizeActionFields(
   }
 
   const {manifest} = resolved;
+  if (isCompositeActionManifest(manifest)) {
+    throw new Error(`Action "${uses}" is a composite action, which normalizes as a composite step`);
+  }
   const invalidSchemas = validateManifestSchemas(params, manifest);
   validateWithInputs(params, manifest, invalidSchemas);
   const withTemplates = normalizeWithTemplates({
@@ -83,7 +91,7 @@ export function normalizeActionFields(
   const outputs = manifestOutputs(manifest);
 
   return {
-    action: createModelAction(uses, resolved, integrations),
+    action: createModelAction({uses, resolved, manifest, integrations}),
     outputs,
     withTemplates,
     overlay: {key: params.step.key ?? params.stepId, outputs},
@@ -129,23 +137,13 @@ export function buildActionStep(params: {
   };
 }
 
-function createModelAction(
-  uses: string,
-  resolved: ResolvedAction,
-  integrations: Readonly<Record<string, WorkflowModelActionIntegration>>,
-): WorkflowModelAction {
-  const inputs: Record<string, WorkflowModelActionInput> = Object.create(null) as Record<
-    string,
-    WorkflowModelActionInput
-  >;
-  for (const [name, input] of Object.entries(resolved.manifest.inputs ?? {})) {
-    inputs[name] = {
-      type: input.type,
-      ...(input.schema === undefined ? {} : {schema: input.schema}),
-      required: input.required,
-      ...(input.default === undefined ? {} : {default: input.default as WorkflowJsonValue}),
-    };
-  }
+function createModelAction(params: {
+  uses: string;
+  resolved: ResolvedAction;
+  manifest: JavascriptActionManifest;
+  integrations: Readonly<Record<string, WorkflowModelActionIntegration>>;
+}): WorkflowModelAction {
+  const {uses, resolved, manifest, integrations} = params;
   return {
     uses,
     origin: resolved.registry === undefined ? 'local' : 'registry',
@@ -153,19 +151,38 @@ function createModelAction(
       ? {}
       : {package: resolved.registry.package, version: resolved.registry.version}),
     digest: resolved.digest,
-    name: resolved.manifest.name,
-    main: resolved.manifest.main,
-    ...(resolved.manifest.post === undefined
+    name: manifest.name,
+    main: manifest.main,
+    ...(manifest.post === undefined
       ? {}
-      : {post: resolved.manifest.post, postFailure: resolved.manifest.post_failure ?? 'warn'}),
-    inputs,
+      : {post: manifest.post, postFailure: manifest.post_failure ?? 'warn'}),
+    inputs: manifestInputs(manifest),
     integrations,
   };
 }
 
+export function manifestInputs(
+  manifest: ActionManifest,
+): Readonly<Record<string, WorkflowModelActionInput>> {
+  const inputs: Record<string, WorkflowModelActionInput> = Object.create(null) as Record<
+    string,
+    WorkflowModelActionInput
+  >;
+  for (const [name, input] of Object.entries(manifest.inputs ?? {})) {
+    inputs[name] = {
+      type: input.type,
+      ...(input.schema === undefined ? {} : {schema: input.schema}),
+      required: input.required,
+      ...(input.default === undefined ? {} : {default: input.default as WorkflowJsonValue}),
+      ...(input.secret === true ? {secret: true as const} : {}),
+    };
+  }
+  return inputs;
+}
+
 // The manifest default is `required: false`, and workflow step outputs treat an
 // absent flag as required, so the flag is always written.
-function manifestOutputs(manifest: ActionManifest): OutputDeclarations {
+export function manifestOutputs(manifest: ActionManifest): OutputDeclarations {
   const outputs: Record<string, OutputDeclarations[string]> = Object.create(null) as Record<
     string,
     OutputDeclarations[string]
@@ -181,7 +198,7 @@ function manifestOutputs(manifest: ActionManifest): OutputDeclarations {
 }
 
 // Invalid schemas cannot be compiled, so inputs using one skip the literal check.
-function validateManifestSchemas(
+export function validateManifestSchemas(
   params: ActionStepParams,
   manifest: ActionManifest,
 ): ReadonlySet<string> {
@@ -215,7 +232,7 @@ function validateManifestSchemas(
   return invalidInputs;
 }
 
-function validateWithInputs(
+export function validateWithInputs(
   params: ActionStepParams,
   manifest: ActionManifest,
   invalidSchemas: ReadonlySet<string>,
@@ -312,7 +329,7 @@ function validateSecretPlacement(
   );
 }
 
-function normalizeActionIntegrations(
+export function normalizeActionIntegrations(
   params: ActionStepParams,
   manifest: ActionManifest,
 ): Readonly<Record<string, WorkflowModelActionIntegration>> {
@@ -403,7 +420,7 @@ function containsInterpolation(value: unknown): boolean {
   return false;
 }
 
-function stepPath(
+export function stepPath(
   params: {sourceName: string; stepIndex: number},
   ...rest: readonly WorkflowModelValidationIssuePathSegment[]
 ): readonly WorkflowModelValidationIssuePathSegment[] {

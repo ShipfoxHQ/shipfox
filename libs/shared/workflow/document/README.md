@@ -16,8 +16,10 @@ Input shape for Shipfox workflow authoring.
   multiple kinds.
 - `parseWorkflowActionRef` classifies an action step's `uses` as a repository
   path or a registry reference.
-- `actionManifestSchema` defines the `action.yml` manifest of a repository
-  action, including the optional `post` entry and `post_failure`.
+- `actionManifestSchema` defines the `action.yml` manifest of an action: a
+  JavaScript action (`main`, with the optional `post` entry and
+  `post_failure`) or a composite action (`steps`).
+  `safeParseActionManifest` parses it with the `compositeActions` option, and
   `buildActionManifestJsonSchema` projects it for editors.
 - `encodeActionBundle` and `decodeActionBundle` store an action directory as
   one content-addressed bundle, so the API and the runner agree on its digest.
@@ -228,6 +230,35 @@ manifest.inputs?.channel_id?.type; // "string"
 manifest.integrations?.slack?.allow_write; // false
 ```
 
+A composite action sets `steps` instead of `main`. Its steps run in the job
+of the step that uses the action. Each output sets a `value` expression over
+the action's `inputs` and `steps`, and an input with `secret: true` receives a
+secret from the caller. `${{ action.path }}/` names a file of the action
+in `uses:` and prompt `file:`.
+
+```ts
+import {isCompositeActionManifest, safeParseActionManifest} from '@shipfox/workflow-document';
+
+const result = safeParseActionManifest(
+  {
+    name: 'Set up a pull request review',
+    inputs: {base_sha: {required: true}, npm_token: {secret: true, required: true}},
+    outputs: {files: {type: 'json', value: '${{ steps.changed.outputs.files }}'}},
+    steps: [
+      {uses: 'shipfox/setup-mise@1.2.0'},
+      {key: 'changed', run: '${{ action.path }}/changed.sh', outputs: {files: 'json'}},
+    ],
+  },
+  {compositeActions: true},
+);
+
+result.success && isCompositeActionManifest(result.data); // true
+```
+
+Without `{compositeActions: true}`, `safeParseActionManifest` fails a
+manifest with `steps` with "Composite actions (`steps`) are not supported
+yet." `actionManifestSchema` itself always accepts both forms.
+
 A job may name a Docker image with `container`. The value is an image string,
 or an object with `image`, `credentials` (`username` and `password`), `env`,
 `options`, and `docker_socket`. `volumes` and `ports` are rejected. The
@@ -348,8 +379,9 @@ const files = await decodeActionBundle({gzip: bundle.gzip, digest: bundle.digest
   model layer.
 - `buildWorkflowJsonSchema()` omits `uses` and `connections` unless called
   with `{actions: true}`.
-- The manifest requires `name` and `main`. `main` is a `.ts`, `.mts`, `.js`, or
-  `.mjs` path inside the action directory, without `./`. Inputs and outputs
+- The manifest requires `name` and exactly one of `main` and `steps`. `main`
+  is a `.ts`, `.mts`, `.js`, or `.mjs` path inside the action directory,
+  without `./`. `runtime`, `post`, and `post_failure` need `main`. Inputs and outputs
   use the step output types (`string`, `number`, `boolean`, `json` with an
   optional JSON Schema) and default to `string` and not required. An input
   `default` must match its type. Integration selectors name tools explicitly;
@@ -357,6 +389,14 @@ const files = await decodeActionBundle({gzip: bundle.gzip, digest: bundle.digest
   (registry package names, such as `shipfox/slack-thread-digest`) feed the
   registry page; local actions ignore them. Unknown keys are rejected
   everywhere.
+- A composite action's `steps` use the job step shape, with these changes:
+  `checkout` and `export` are rejected, a tool step needs `connection` (an
+  integration alias of the action), and `uses:` and prompt `file:` accept a
+  leading `${{ action.path }}/` followed by a literal path inside the
+  action directory. Its outputs need `value`, which a JavaScript action's
+  outputs reject. `secret: true` is valid only on a composite input of type
+  `string` without a `default`. Scoping, secret, and alias checks belong to
+  the model layer.
 - Job `outputs` and top-level workflow `outputs` map names to template strings
   and allow up to 128 entries each. Expression and job reference checks belong
   to the model layer.

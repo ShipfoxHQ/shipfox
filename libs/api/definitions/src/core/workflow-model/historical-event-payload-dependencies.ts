@@ -256,6 +256,19 @@ function scanWorkflowStep(
     }
     scanTemplateTree(step.templates?.with, [...path, 'with'], dependencies);
   }
+
+  scanCompositeSteps(step, path, dependencies);
+}
+
+function scanCompositeSteps(
+  step: WorkflowModelStep,
+  path: readonly (string | number)[],
+  dependencies: HistoricalEventPayloadDependency[],
+): void {
+  if (step.kind !== 'composite') return;
+  for (const [index, inner] of step.steps.entries()) {
+    scanWorkflowStep(inner, [...path, 'steps', index], dependencies);
+  }
 }
 
 function scanListeningExpressions(

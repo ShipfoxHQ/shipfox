@@ -8,11 +8,14 @@ import {
 } from '@shipfox/api-registry-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {boundedMap} from '@shipfox/node-module';
-import type {WorkflowDocument} from '@shipfox/workflow-document';
+import {isCompositeActionManifest, type WorkflowDocument} from '@shipfox/workflow-document';
 import {actionSupportFor} from './action-support.js';
 import {checkActionImports} from './check-action-imports.js';
-import {collectActionReferences} from './collect-action-references.js';
-import {collectPromptFilePaths} from './collect-prompt-file-references.js';
+import {collectReachableActions} from './collect-action-references.js';
+import {
+  collectCompositePromptFileReferences,
+  collectPromptFilePaths,
+} from './collect-prompt-file-references.js';
 import {collectRegistryRefs} from './collect-registry-refs.js';
 import type {ResolvedActions} from './entities/action-snapshot.js';
 import type {IntegrationValidationContext} from './entities/integration-context.js';
@@ -137,6 +140,8 @@ export interface FetchAndParseWorkflowsParams extends SyncSourceContext {
   registryActionsEnabled?: boolean | undefined;
   /** Resolves registry actions. Without it, a registry reference fails sync. */
   registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
+  /** Accepts composite actions (`steps` in `action.yml`). Defaults to off until they can run. */
+  compositeActionsEnabled?: boolean | undefined;
 }
 
 export interface ParsedWorkflows {
@@ -192,7 +197,7 @@ export async function fetchAndParseWorkflows(
 
   const resolvedActions = await resolveSyncActions(params, documents);
   const actionManifests = summarizeResolvedActions(resolvedActions);
-  const promptFiles = await resolveSyncPromptFiles(params, documents);
+  const promptFiles = await resolveSyncPromptFiles(params, documents, actionManifests);
 
   const integrationValidationContext =
     params.loadIntegrationValidationContext !== undefined &&
@@ -258,7 +263,11 @@ async function resolveSyncActions(
   workflows: readonly {path: string; document: WorkflowDocument}[],
 ): Promise<Map<string, ResolvedAction>> {
   try {
-    return await resolveWorkflowActions({...params, workflows});
+    return await resolveWorkflowActions({
+      ...params,
+      workflows,
+      compositeActions: params.compositeActionsEnabled,
+    });
   } catch (error) {
     if (!(error instanceof ActionResolutionError)) throw error;
     const details =
@@ -272,9 +281,10 @@ async function resolveSyncActions(
 async function resolveSyncPromptFiles(
   params: FetchAndParseWorkflowsParams,
   workflows: readonly {path: string; document: WorkflowDocument}[],
+  actions: ResolvedActions,
 ): Promise<Map<string, string>> {
   try {
-    return await resolvePromptFiles({...params, workflows});
+    return await resolvePromptFiles({...params, workflows, actions});
   } catch (error) {
     if (!(error instanceof PromptFileResolutionError)) throw error;
     throw new DefinitionSyncPermanentError(
@@ -290,7 +300,8 @@ async function resolveSyncPromptFiles(
  * Hashes the YAML alone when the workflow uses no action and no prompt file, so
  * existing rows keep their hash. Otherwise the action digests and the prompt
  * file digests join the hash, so a commit that changes only action code or only
- * a prompt file still produces a new definition.
+ * a prompt file still produces a new definition. The actions and repository
+ * prompt files of composite actions count too.
  */
 function workflowContentHash(params: {
   content: string;
@@ -298,8 +309,20 @@ function workflowContentHash(params: {
   actionManifests: ResolvedActions;
   promptFiles: ReadonlyMap<string, string>;
 }): string {
-  const uses = collectActionReferences(params.document);
-  const files = collectPromptFilePaths(params.document);
+  const uses = collectReachableActions(params.document, params.actionManifests);
+  const files = [
+    ...new Set([
+      ...collectPromptFilePaths(params.document),
+      ...uses.flatMap((key) => {
+        const action = params.actionManifests.get(key);
+        return action === undefined
+          ? []
+          : collectCompositePromptFileReferences(action.manifest).map(
+              (reference) => reference.file,
+            );
+      }),
+    ]),
+  ].sort();
   if (uses.length === 0 && files.length === 0) return sha256Hex(params.content);
 
   const actions = uses
@@ -316,8 +339,9 @@ async function actionImportDiagnostics(
 ): Promise<DefinitionSyncDiagnostic[]> {
   const diagnostics: DefinitionSyncDiagnostic[] = [];
   for (const action of actions) {
-    // Registry actions are bundled, and the runner loads them strictly.
-    if (action.registry !== undefined) continue;
+    // Registry actions are bundled, and the runner loads them strictly. The
+    // runner never loads a composite action's files as modules.
+    if (action.registry !== undefined || isCompositeActionManifest(action.manifest)) continue;
     const directory = action.uses.slice('./'.length);
     for (const issue of await checkActionImports({files: action.files})) {
       diagnostics.push({

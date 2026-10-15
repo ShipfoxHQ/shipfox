@@ -1,5 +1,11 @@
 import {z} from 'zod';
-import {parseWorkflowActionRef, REMOTE_ACTIONS_UNSUPPORTED_MESSAGE} from './action-ref.js';
+import {
+  actionPathRelativePart,
+  actionPathRelativePartIssue,
+  parseWorkflowActionRef,
+  REMOTE_ACTIONS_UNSUPPORTED_MESSAGE,
+  WORKFLOW_ACTION_PATH_PREFIX,
+} from './action-ref.js';
 import {checkoutTargetValidationIssues} from './checkout-target-validation.js';
 import {agentThinkingSchema, agentToolSurfaceSchema, harnessSchema} from './step-enums.js';
 
@@ -57,29 +63,43 @@ function promptFilePathIssue(path: string): string | undefined {
   return 'Prompt file paths must start with `./`.';
 }
 
-const workflowDocumentPromptFilePartSchema = z.strictObject({
-  file: z
-    .string()
-    .min(1)
-    .superRefine((path, ctx) => {
-      const message = promptFilePathIssue(path);
-      if (message !== undefined) ctx.addIssue({code: 'custom', message});
-    })
-    .meta({
-      description:
-        'Reads the part from this repository file. The path starts with `./` and stays inside the repository.',
-    }),
-});
+// Inside a composite action, `${{ action.path }}/` names a file of the action.
+function compositePromptFilePathIssue(path: string): string | undefined {
+  const relativePath = actionPathRelativePart(path);
+  if (relativePath === undefined) return promptFilePathIssue(path);
+  return actionPathRelativePartIssue(relativePath);
+}
+
+function promptFilePartSchema(mode: WorkflowDocumentStepMode) {
+  const pathIssue = mode === 'composite' ? compositePromptFilePathIssue : promptFilePathIssue;
+  return z.strictObject({
+    file: z
+      .string()
+      .min(1)
+      .superRefine((path, ctx) => {
+        const message = pathIssue(path);
+        if (message !== undefined) ctx.addIssue({code: 'custom', message});
+      })
+      .meta({
+        description:
+          mode === 'composite'
+            ? `Reads the part from a file. A path that starts with \`./\` reads the repository, and \`${WORKFLOW_ACTION_PATH_PREFIX}\` reads the action directory.`
+            : 'Reads the part from this repository file. The path starts with `./` and stays inside the repository.',
+      }),
+  });
+}
 
 // Lists do not nest: a part is a string or a file reference, so a YAML anchor
 // that holds a list (or a cyclic alias) is an invalid item, with no recursion.
-const workflowDocumentPromptSchema = z.union([
-  z.string().min(1),
-  z
-    .array(z.union([z.string().min(1), workflowDocumentPromptFilePartSchema]))
-    .min(1)
-    .max(WORKFLOW_PROMPT_PARTS_MAX_ITEMS),
-]);
+function promptSchema(mode: WorkflowDocumentStepMode) {
+  return z.union([
+    z.string().min(1),
+    z
+      .array(z.union([z.string().min(1), promptFilePartSchema(mode)]))
+      .min(1)
+      .max(WORKFLOW_PROMPT_PARTS_MAX_ITEMS),
+  ]);
+}
 
 const workflowNameSchema = literalNameSchema(
   'Workflow name must be literal. Move runtime interpolation to run_name.',
@@ -1151,6 +1171,13 @@ const runAfterSchema = z.enum(['success', 'failure', 'always']);
 // and emits one targeted issue per offending field (a plain union would surface
 // every branch's errors at once). The `agent` keyword is declared only so the reserved-keyword case
 // produces a clear message instead of a generic "unrecognized key".
+/**
+ * `composite` parses the steps of a composite action: `uses:` and prompt
+ * `file:` accept a `${{ action.path }}/` prefix, and the step kind rules
+ * differ (see `validateCompositeStep`).
+ */
+type WorkflowDocumentStepMode = 'workflow' | 'composite';
+
 const workflowDocumentStepBaseSchema = z.strictObject({
   key: z
     .string()
@@ -1181,7 +1208,7 @@ const workflowDocumentStepBaseSchema = z.strictObject({
   model: z.string().min(1).optional().meta({
     description: 'Selects the model that the agent uses.',
   }),
-  prompt: workflowDocumentPromptSchema.optional().meta({
+  prompt: promptSchema('workflow').optional().meta({
     description:
       'Gives the agent its instructions. Use a string, or a list of parts that Shipfox joins with a blank line. A part is a string or a `file` reference.',
   }),
@@ -1301,22 +1328,89 @@ export const workflowDocumentStepKindInvalidFields = {
 
 type WorkflowDocumentStepKind = keyof typeof workflowDocumentStepKindInvalidFields;
 
+function toStepSchemaOutput({
+  outputs,
+  ...step
+}: WorkflowDocumentStepInput): WorkflowDocumentStepSchemaOutput {
+  return {
+    ...step,
+    ...(outputs === undefined
+      ? {}
+      : {
+          outputs:
+            step.tool === undefined
+              ? (outputs as WorkflowDocumentStepOutputs)
+              : (outputs as WorkflowDocumentToolStepOutputs),
+        }),
+  } as WorkflowDocumentStepSchemaOutput;
+}
+
 export const workflowDocumentStepSchema = workflowDocumentStepBaseSchema
   .superRefine(validateWorkflowDocumentStep)
-  .transform<WorkflowDocumentStepSchemaOutput>(
-    ({outputs, ...step}) =>
-      ({
-        ...step,
-        ...(outputs === undefined
-          ? {}
-          : {
-              outputs:
-                step.tool === undefined
-                  ? (outputs as WorkflowDocumentStepOutputs)
-                  : (outputs as WorkflowDocumentToolStepOutputs),
-            }),
-      }) as WorkflowDocumentStepSchemaOutput,
-  );
+  .transform<WorkflowDocumentStepSchemaOutput>(toStepSchemaOutput);
+
+const compositeUsesSchema = z
+  .string()
+  .min(1)
+  .superRefine((uses, ctx) => {
+    const message = compositeUsesIssue(uses);
+    if (message !== undefined) ctx.addIssue({code: 'custom', message});
+  })
+  .meta({
+    description: `Runs an action. Use a repository path that starts with \`./\`, a path inside this action that starts with \`${WORKFLOW_ACTION_PATH_PREFIX}\`, or a registry reference.`,
+  });
+
+function compositeUsesIssue(uses: string): string | undefined {
+  const relativePath = actionPathRelativePart(uses);
+  if (relativePath !== undefined) return actionPathRelativePartIssue(relativePath);
+  if (WORKFLOW_LITERAL_NAME_PATTERN.test(uses)) return undefined;
+  return `Action path must be literal. Interpolation is rejected, except a leading \`${WORKFLOW_ACTION_PATH_PREFIX}\`.`;
+}
+
+/**
+ * A step of a composite action (`steps:` in `action.yml`). It has the shape
+ * of a job step, without `checkout` and `export`, and a tool step must name
+ * an integration alias in `connection`.
+ */
+export const workflowDocumentCompositeStepSchema = workflowDocumentStepBaseSchema
+  .extend({
+    prompt: promptSchema('composite').optional().meta({
+      description:
+        'Gives the agent its instructions. Use a string, or a list of parts that Shipfox joins with a blank line. A part is a string or a `file` reference.',
+    }),
+    uses: compositeUsesSchema.optional(),
+  })
+  .superRefine((step, ctx) => {
+    validateWorkflowDocumentStep(step, ctx);
+    validateCompositeStep(step, ctx);
+  })
+  .transform<WorkflowDocumentStepSchemaOutput>(toStepSchemaOutput);
+
+function validateCompositeStep(step: WorkflowDocumentStepInput, ctx: z.RefinementCtx): void {
+  if (step.checkout !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['checkout'],
+      message: 'A composite action cannot check out a repository. The job owns its checkout.',
+    });
+  }
+  if (step.export !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['export'],
+      message:
+        '`export` is not valid inside a composite action. Set `export` on the step that uses the action.',
+    });
+  }
+  if (step.tool !== undefined && step.connection === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['connection'],
+      message:
+        'A tool step inside a composite action needs `connection`, set to an integration alias of the action.',
+    });
+  }
+}
 
 function validateWorkflowDocumentStep(step: WorkflowDocumentStepInput, ctx: z.RefinementCtx): void {
   validateWorkflowDocumentStepExport(step, ctx);

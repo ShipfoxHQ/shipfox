@@ -1,5 +1,5 @@
 import type {AgentConfigInvalidReason} from '@shipfox/api-agent-dto';
-import type {WorkflowModel} from '@shipfox/api-definitions-dto';
+import {flattenJobSteps, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {RunIssue} from '@shipfox/api-workflows-dto/inter-module';
 import {shouldFillAtSite} from '@shipfox/expression';
 import type {AgentDefaultsResolver, ResolvedAgentDefaults} from './agent-defaults.js';
@@ -53,7 +53,7 @@ async function invalidStepsOf(
   params: {readonly definitionId: string; readonly resolveAgentDefaults: AgentDefaultsResolver},
 ): Promise<InvalidAgentStep[]> {
   const invalid: InvalidAgentStep[] = [];
-  for (const [index, step] of job.steps.entries()) {
+  for (const [index, step] of flattenJobSteps(job).entries()) {
     if (step.kind !== 'agent' || hasTemplatedConfig(step)) continue;
 
     const refusal = await refusalFor(step, params);

@@ -1,5 +1,6 @@
 import {
   DEFAULT_JOB_CHECKOUT,
+  flattenJobSteps,
   type WorkflowModel,
   type WorkflowOutputTemplates,
 } from '@shipfox/api-definitions-dto';
@@ -256,7 +257,7 @@ function completeOutputTemplate(params: {
 }
 
 export function modelHasAgentStep(model: WorkflowModel): boolean {
-  return model.jobs.some((job) => job.steps.some((step) => step.kind === 'agent'));
+  return model.jobs.some((job) => flattenJobSteps(job).some((step) => step.kind === 'agent'));
 }
 
 function dependencySourceNames(

@@ -60,6 +60,9 @@ export async function buildAction({
   const directory = join(root, path);
   const manifestText = await readFile(join(directory, 'action.yml'), 'utf8');
   const sourceManifest = actionManifestSchema.parse(parseDocument(manifestText).toJS());
+  if (sourceManifest.main === undefined) {
+    throw new Error(`${path}: composite actions (\`steps\`) cannot be released yet.`);
+  }
   const packageJson = actionPackageJsonSchema.parse(
     JSON.parse(await readFile(join(directory, 'package.json'), 'utf8')),
   );

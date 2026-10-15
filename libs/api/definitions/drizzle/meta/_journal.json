@@ -64,6 +64,13 @@
       "when": 1791406026879,
       "tag": "0008_prompt_file_invalid_sync_error_code",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792092442037,
+      "tag": "0009_composite_action_sync_error_codes",
+      "breakpoints": true
     }
   ]
 }

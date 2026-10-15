@@ -44,7 +44,7 @@ export const WORKFLOW_FIELD_YAML_KEYS = {
 };
 
 // Action steps stay out of the docs until they launch.
-export const UNDOCUMENTED_WORKFLOW_FIELDS = new Set(['action.with']);
+export const UNDOCUMENTED_WORKFLOW_FIELDS = new Set(['action.with', 'action.outputs']);
 
 // Keep the shape lookup here so generation and drift checking traverse the same
 // typed registry.

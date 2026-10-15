@@ -2,7 +2,7 @@ import type {
   MaterializedAgentIntegrationConfigDto,
   MaterializedAgentIntegrationToolConfigDto,
 } from '@shipfox/api-agent-dto';
-import type {WorkflowModel} from '@shipfox/api-definitions-dto';
+import {flattenJobSteps, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {AgentIntegrationMaterializationError} from './errors.js';
@@ -283,8 +283,8 @@ function resolveToolMethod(
 
 /**
  * Finds the frozen grants of a materialized action step. Step rows keep their
- * position in the model job, after the setup step at position 0, so the model
- * supplies the stable step id the snapshot is keyed by.
+ * position in the flattened model job, after the setup step at position 0, so
+ * the model supplies the stable step id the snapshot is keyed by.
  */
 export function findFrozenActionIntegrations(params: {
   readonly model: WorkflowModel;
@@ -293,7 +293,7 @@ export function findFrozenActionIntegrations(params: {
   readonly stepPosition: number;
 }): Readonly<Record<string, MaterializedActionIntegration>> | undefined {
   const job = params.model.jobs.find((candidate) => candidate.key === params.jobKey);
-  const step = job?.steps[params.stepPosition - 1];
+  const step = job === undefined ? undefined : flattenJobSteps(job)[params.stepPosition - 1];
   if (step?.kind !== 'action') return undefined;
   if (Object.keys(step.action.integrations).length === 0) return {};
   return findSnapshotStep({jobKey: params.jobKey, stepId: step.id, snapshot: params.snapshot})
@@ -371,7 +371,7 @@ export function createAgentToolMaterializationSnapshot(params: {
 
   const {context} = params;
   const steps = params.model.jobs.flatMap((job) =>
-    job.steps.flatMap((step, stepPosition) => {
+    flattenJobSteps(job).flatMap((step, stepPosition) => {
       try {
         return snapshotStep({jobKey: job.key, step, context}) ?? [];
       } catch (error) {
@@ -715,7 +715,7 @@ function hasIntegrationToolReferences(
 ): boolean {
   if (model === null) return false;
   return (jobs ?? model.jobs).some((job) =>
-    job.steps.some(
+    flattenJobSteps(job).some(
       (step) =>
         step.kind === 'tool' ||
         (step.kind === 'agent' && step.integrations !== undefined) ||

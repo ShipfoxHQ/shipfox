@@ -229,6 +229,11 @@ function phaseEntry(
   manifest: ActionManifest,
   phase: 'main' | 'post',
 ): {entry: string; declarations: ActionOutputDeclarations} {
+  if (manifest.main === undefined) {
+    throw new ActionTestSetupError(
+      'This action is a composite action (`steps`). Only JavaScript actions run in tests.',
+    );
+  }
   if (phase === 'main') return {entry: manifest.main, declarations: outputDeclarations(manifest)};
   if (manifest.post === undefined) {
     throw new ActionTestSetupError('The post phase needs a `post` entry in the action manifest.');

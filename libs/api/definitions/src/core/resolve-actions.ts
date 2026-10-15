@@ -15,13 +15,17 @@ import {
   type EncodedActionBundle,
   encodeActionBundle,
   InvalidActionBundleError,
+  isCompositeActionManifest,
   parseWorkflowActionRef,
+  safeParseActionManifest,
   type WorkflowActionRef,
   type WorkflowDocument,
 } from '@shipfox/workflow-document';
 import yaml from 'js-yaml';
 import {collectActionReferences} from './collect-action-references.js';
+import {compositeActionUses, resolveCompositeUses} from './composite-action-references.js';
 import type {ResolvedActions} from './entities/action-snapshot.js';
+import type {WorkflowSourceLocation} from './entities/workflow-model.js';
 import {ActionResolutionError, type ActionResolutionErrorCode} from './errors.js';
 import {
   type DefinitionsSourceControl,
@@ -29,11 +33,14 @@ import {
   isBinaryFileError,
 } from './integrations.js';
 import type {ValidationError} from './validate-definition.js';
+import {extractActionStepSourceLocations} from './workflow-yaml/index.js';
 
 export const MAX_ACTION_FILES = 100;
 export const MAX_ACTION_BYTES = 1024 * 1024;
 export const MAX_ACTION_FILE_BYTES = 1_000_000;
 export const MAX_ACTIONS_PER_WORKFLOW = 20;
+/** How many actions deep a chain of composite actions can go, the last action included. */
+export const MAX_ACTION_NESTING_DEPTH = 5;
 
 // GitHub resolves `action.yml` first, so a directory with both uses it.
 const ACTION_MANIFEST_FILE_NAMES = ['action.yml', 'action.yaml'] as const;
@@ -48,6 +55,7 @@ export interface ActionSourceContext {
 }
 
 export interface ResolvedAction {
+  /** The key the action is stored under: `uses` as written, or its repository path inside a composite. */
   uses: string;
   /** Set when `uses` names a registry version. Repository actions leave it out. */
   registry?: {package: string; version: string} | undefined;
@@ -57,6 +65,8 @@ export interface ResolvedAction {
   /** Paths relative to the action directory. */
   files: ActionBundleFile[];
   bundle: EncodedActionBundle;
+  /** Line ranges of a composite action's steps, by index. Unset on JavaScript actions. */
+  stepLocations?: ReadonlyMap<number, WorkflowSourceLocation> | undefined;
 }
 
 export interface ResolveWorkflowActionsParams extends ActionSourceContext {
@@ -72,6 +82,8 @@ export interface ResolveWorkflowActionsParams extends ActionSourceContext {
   registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
   /** Lets the registry fill and repair its version cache. Defaults to true. */
   persistRegistryVersions?: boolean | undefined;
+  /** Accepts composite actions (`steps`). Defaults to `false`. */
+  compositeActions?: boolean | undefined;
 }
 
 /** The manifest, digest, and origin that validation and the workflow model read. */
@@ -85,63 +97,178 @@ export function summarizeResolvedActions(
         manifest: action.manifest,
         digest: action.bundle.digest,
         ...(action.registry === undefined ? {} : {registry: action.registry}),
+        ...(isCompositeActionManifest(action.manifest)
+          ? {
+              composite: {
+                manifestPath: action.manifestPath,
+                manifestFile: action.manifestPath.slice(action.manifestPath.lastIndexOf('/') + 1),
+                stepLocations: action.stepLocations ?? new Map(),
+                files: new Map(action.files.map((file) => [file.path, file.content])),
+              },
+            }
+          : {}),
       },
     ]),
   );
 }
 
-/** Reads every action the workflows reference, once per `uses` path. */
+/**
+ * Reads every action the workflows reference, once per key, and the actions
+ * their composite actions reference, recursively.
+ */
 export async function resolveWorkflowActions(
   params: ResolveWorkflowActionsParams,
 ): Promise<Map<string, ResolvedAction>> {
-  // The first workflow file that names each action, so its failures point at a workflow.
-  const references = new Map<string, string>();
+  const walk: ActionTreeWalk = {params, resolved: new Map(), explored: new Map()};
   for (const workflow of params.workflows) {
     const uses = collectActionReferences(workflow.document);
-    if (uses.length > MAX_ACTIONS_PER_WORKFLOW) {
+    if (uses.length > MAX_ACTIONS_PER_WORKFLOW) throw tooManyActions(workflow.path);
+  }
+  for (const workflow of params.workflows) {
+    const reachable = new Set<string>();
+    for (const uses of collectActionReferences(workflow.document)) {
+      const subtree = await visitAction(walk, {
+        key: uses,
+        chain: [],
+        // Failures of a top-level action point at the workflow file that names it.
+        referencedFrom: workflow.path,
+      });
+      for (const key of subtree.keys) reachable.add(key);
+    }
+    if (reachable.size > MAX_ACTIONS_PER_WORKFLOW) throw tooManyActions(workflow.path);
+  }
+  return walk.resolved;
+}
+
+interface ActionTreeWalk {
+  readonly params: ResolveWorkflowActionsParams;
+  readonly resolved: Map<string, ResolvedAction>;
+  /** Actions whose whole tree is resolved: the keys it reaches and its depth. */
+  readonly explored: Map<string, ExploredAction>;
+}
+
+interface ExploredAction {
+  readonly keys: ReadonlySet<string>;
+  /** 1 for an action that uses no other action. */
+  readonly height: number;
+}
+
+async function visitAction(
+  walk: ActionTreeWalk,
+  params: {key: string; chain: readonly ResolvedAction[]; referencedFrom: string},
+): Promise<ExploredAction> {
+  const {key, chain} = params;
+  const cycleStart = chain.findIndex((action) => action.uses === key);
+  if (cycleStart !== -1) {
+    const path = [...chain.slice(cycleStart).map((action) => action.uses), key];
+    throw new ActionResolutionError({
+      code: 'action-cycle',
+      message: `Action ${key} uses itself: ${path.join(' -> ')}`,
+      filePath: params.referencedFrom,
+    });
+  }
+
+  const explored = walk.explored.get(key);
+  if (explored !== undefined) {
+    if (chain.length + explored.height > MAX_ACTION_NESTING_DEPTH) {
+      throw nestingTooDeep({key, chain, referencedFrom: params.referencedFrom});
+    }
+    return explored;
+  }
+  if (chain.length + 1 > MAX_ACTION_NESTING_DEPTH) {
+    throw nestingTooDeep({key, chain, referencedFrom: params.referencedFrom});
+  }
+
+  const action = walk.resolved.get(key) ?? (await resolveAction(walk, params));
+  walk.resolved.set(key, action);
+
+  const keys = new Set<string>([key]);
+  let height = 1;
+  for (const {stepIndex, uses} of compositeActionUses(action.manifest)) {
+    const inner = resolveCompositeUses({
+      uses,
+      parentKey: key,
+      parentIsRegistry: action.registry !== undefined,
+    });
+    const referencedFrom = diagnosticFileOf(action, params.referencedFrom);
+    if (!inner.ok) {
       throw new ActionResolutionError({
-        code: 'action-too-large',
-        message: `Workflow file references more than ${MAX_ACTIONS_PER_WORKFLOW} actions: ${workflow.path}`,
-        filePath: workflow.path,
+        code: 'action-invalid',
+        message: `Action ${key} has an invalid step: ${inner.message}`,
+        details: [{message: inner.message, path: `steps.${stepIndex}.uses`}],
+        filePath: referencedFrom,
       });
     }
-    for (const path of uses) {
-      if (!references.has(path)) references.set(path, workflow.path);
-    }
+    const subtree = await visitAction(walk, {
+      key: inner.key,
+      chain: [...chain, action],
+      referencedFrom,
+    });
+    for (const reached of subtree.keys) keys.add(reached);
+    height = Math.max(height, subtree.height + 1);
   }
 
-  const resolved = new Map<string, ResolvedAction>();
-  // One action at a time, so file fetches stay within FILE_FETCH_CONCURRENCY.
-  for (const [uses, workflowPath] of references) {
-    const ref = parseWorkflowActionRef(uses);
-    if (ref.ok && ref.ref.kind === 'registry') {
-      params.onProgress?.(uses);
-      resolved.set(
-        uses,
-        await resolveRegistryAction({
-          uses,
-          ref: ref.ref,
-          workflowPath,
-          registry: params.registry,
-          persist: params.persistRegistryVersions ?? true,
-        }),
-      );
-      continue;
-    }
+  const result = {keys, height};
+  walk.explored.set(key, result);
+  return result;
+}
 
-    const upload = params.uploads?.get(uses);
-    if (upload !== undefined) {
-      resolved.set(uses, await resolveUploadedAction({uses, files: upload}));
-      continue;
-    }
-    params.onProgress?.(uses);
-    resolved.set(uses, await readActionDirectory({...params, uses}));
+async function resolveAction(
+  walk: ActionTreeWalk,
+  params: {key: string; referencedFrom: string},
+): Promise<ResolvedAction> {
+  const {params: options} = walk;
+  const {key: uses} = params;
+  const compositeActions = options.compositeActions ?? false;
+  const ref = parseWorkflowActionRef(uses);
+  if (ref.ok && ref.ref.kind === 'registry') {
+    options.onProgress?.(uses);
+    return await resolveRegistryAction({
+      uses,
+      ref: ref.ref,
+      workflowPath: params.referencedFrom,
+      registry: options.registry,
+      persist: options.persistRegistryVersions ?? true,
+      compositeActions,
+    });
   }
-  return resolved;
+
+  const upload = options.uploads?.get(uses);
+  if (upload !== undefined) {
+    return await resolveUploadedAction({uses, files: upload, compositeActions});
+  }
+  options.onProgress?.(uses);
+  return await readActionDirectory({...options, uses, compositeActions});
+}
+
+// A registry action has no repository path, so the file that names it carries its failures.
+function diagnosticFileOf(action: ResolvedAction, referencedFrom: string): string {
+  return action.registry === undefined ? action.manifestPath : referencedFrom;
+}
+
+function nestingTooDeep(params: {
+  key: string;
+  chain: readonly ResolvedAction[];
+  referencedFrom: string;
+}): ActionResolutionError {
+  const path = [...params.chain.map((action) => action.uses), params.key];
+  return new ActionResolutionError({
+    code: 'action-nesting-too-deep',
+    message: `Actions are nested more than ${MAX_ACTION_NESTING_DEPTH} levels deep: ${path.join(' -> ')}`,
+    filePath: params.referencedFrom,
+  });
+}
+
+function tooManyActions(workflowPath: string): ActionResolutionError {
+  return new ActionResolutionError({
+    code: 'action-too-large',
+    message: `Workflow file references more than ${MAX_ACTIONS_PER_WORKFLOW} actions: ${workflowPath}`,
+    filePath: workflowPath,
+  });
 }
 
 export async function readActionDirectory(
-  params: ActionSourceContext & {uses: string},
+  params: ActionSourceContext & {uses: string; compositeActions?: boolean | undefined},
 ): Promise<ResolvedAction> {
   const {uses} = params;
   const prefix = actionDirectoryPrefix(uses);
@@ -198,13 +325,14 @@ export async function readActionDirectory(
     {stopOnError: true},
   );
 
-  return await assembleAction({uses, files});
+  return await assembleAction({uses, files, compositeActions: params.compositeActions});
 }
 
 /** Validates an uploaded action directory with the limits a synced one gets. */
 export async function resolveUploadedAction(params: {
   uses: string;
   files: readonly ActionBundleFile[];
+  compositeActions?: boolean | undefined;
 }): Promise<ResolvedAction> {
   const {uses, files} = params;
   if (files.length > MAX_ACTION_FILES) {
@@ -218,7 +346,11 @@ export async function resolveUploadedAction(params: {
   for (const file of files) {
     sizes.add(`${prefix}${file.path}`, Buffer.byteLength(file.content, 'utf8'));
   }
-  return await assembleAction({uses, files: [...files]});
+  return await assembleAction({
+    uses,
+    files: [...files],
+    compositeActions: params.compositeActions,
+  });
 }
 
 async function assembleAction(params: {
@@ -226,6 +358,7 @@ async function assembleAction(params: {
   files: ActionBundleFile[];
   /** Prefixes file paths in diagnostics. Defaults to the repository directory of `uses`. */
   prefix?: string | undefined;
+  compositeActions?: boolean | undefined;
 }): Promise<ResolvedAction> {
   const {uses, files} = params;
   const prefix = params.prefix ?? actionDirectoryPrefix(uses);
@@ -240,7 +373,11 @@ async function assembleAction(params: {
   }
 
   const manifestPath = `${prefix}${manifestFile.path}`;
-  const manifest = parseActionManifest({manifestPath, content: manifestFile.content});
+  const manifest = parseActionManifest({
+    manifestPath,
+    content: manifestFile.content,
+    compositeActions: params.compositeActions ?? false,
+  });
   for (const field of ['main', 'post'] as const) {
     const entry = manifest[field];
     if (entry === undefined || files.some((file) => file.path === entry)) continue;
@@ -264,7 +401,16 @@ async function assembleAction(params: {
     });
   }
 
-  return {uses, manifestPath, manifest, files, bundle};
+  return {
+    uses,
+    manifestPath,
+    manifest,
+    files,
+    bundle,
+    ...(isCompositeActionManifest(manifest)
+      ? {stepLocations: extractActionStepSourceLocations(manifestFile.content)}
+      : {}),
+  };
 }
 
 async function resolveRegistryAction(params: {
@@ -274,6 +420,7 @@ async function resolveRegistryAction(params: {
   workflowPath: string;
   registry: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
   persist: boolean;
+  compositeActions: boolean;
 }): Promise<ResolvedAction> {
   const {uses, ref, workflowPath} = params;
   const registryPackage = `${ref.namespace}/${ref.name}`;
@@ -319,7 +466,12 @@ async function resolveRegistryAction(params: {
 
   let action: ResolvedAction;
   try {
-    action = await assembleAction({uses, files, prefix: `${uses}/`});
+    action = await assembleAction({
+      uses,
+      files,
+      prefix: `${uses}/`,
+      compositeActions: params.compositeActions,
+    });
   } catch (error) {
     if (!(error instanceof ActionResolutionError)) throw error;
     // The bundle has no repository path, so the workflow file carries the failure.
@@ -438,7 +590,11 @@ async function fetchActionFile(params: ActionSourceContext, path: string): Promi
   }
 }
 
-function parseActionManifest(params: {manifestPath: string; content: string}): ActionManifest {
+function parseActionManifest(params: {
+  manifestPath: string;
+  content: string;
+  compositeActions: boolean;
+}): ActionManifest {
   let raw: unknown;
   try {
     raw = yaml.load(params.content);
@@ -453,7 +609,7 @@ function parseActionManifest(params: {manifestPath: string; content: string}): A
     });
   }
 
-  const result = actionManifestSchema.safeParse(raw);
+  const result = safeParseActionManifest(raw, {compositeActions: params.compositeActions});
   if (result.success) return result.data;
 
   const details: ValidationError[] = result.error.issues.map((issue) => {

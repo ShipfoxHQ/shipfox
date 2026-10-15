@@ -63,6 +63,7 @@ export {
   DEFAULT_JOB_CHECKOUT,
   DEFAULT_JOB_SUCCESS,
   DEFAULT_RUN_TIMEOUT_MS,
+  flattenJobSteps,
   gateFailureRules,
   readPersistedWorkflowModel,
   WORKFLOW_MODEL_CHECKOUT_TARGET_FIELDS,

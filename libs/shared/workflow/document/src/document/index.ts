@@ -10,9 +10,17 @@ export {
   actionManifestSchema,
   type BuildActionManifestJsonSchemaOptions,
   buildActionManifestJsonSchema,
+  type CompositeActionManifest,
+  isCompositeActionManifest,
+  type JavascriptActionManifest,
+  type ParseActionManifestOptions,
+  safeParseActionManifest,
 } from './action-manifest.js';
 export {
+  actionPathRelativePart,
+  actionPathRelativePartIssue,
   parseWorkflowActionRef,
+  WORKFLOW_ACTION_PATH_PREFIX,
   type WorkflowActionRef,
   type WorkflowActionRefResult,
 } from './action-ref.js';
@@ -76,6 +84,7 @@ export {
   workflowDocumentAgentMcpServerSchema,
   workflowDocumentAgentMcpServersSchema,
   workflowDocumentCheckoutSchema,
+  workflowDocumentCompositeStepSchema,
   workflowDocumentConcurrencySchema,
   workflowDocumentContainerSchema,
   workflowDocumentEnvSchema,

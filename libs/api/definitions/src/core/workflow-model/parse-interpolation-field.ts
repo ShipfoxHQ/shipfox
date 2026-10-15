@@ -25,6 +25,7 @@ import {
   type WorkflowTemplateSegment,
   workflowContextNames,
   workflowInterpolationFieldAcceptsHost,
+  workflowInterpolationFieldPolicies,
 } from '@shipfox/expression';
 import type {WorkflowFieldTemplate} from '../entities/workflow-model.js';
 import type {
@@ -63,7 +64,8 @@ export type StoredInterpolationField =
   | 'checkout.path'
   | 'tool.with'
   | 'tool.outputs'
-  | 'action.with';
+  | 'action.with'
+  | 'action.outputs';
 
 export function parseInterpolationField(params: {
   field: StoredInterpolationField;
@@ -169,7 +171,7 @@ function validateExpressionSegment(params: {
   typeOverlay?: ExpressionTypeEnvironment | undefined;
 }): WorkflowTemplateExprSegment | undefined {
   const contextRoots = uniqueStrings(params.segment.contextRoots);
-  const fieldRoots = new Set<string>(contextRootsForField(params.field));
+  const fieldRoots = fieldRootsFor(params.field, params.typeOverlay);
   const recognizedRoots = contextRoots.filter(isWorkflowContextRoot);
 
   const rejectedHostRoots = recognizedRoots.filter((root) => {
@@ -295,6 +297,21 @@ function validateExpressionSegment(params: {
     );
     return undefined;
   }
+}
+
+function fieldRootsFor(
+  field: StoredInterpolationField,
+  typeOverlay: ExpressionTypeEnvironment | undefined,
+): ReadonlySet<string> {
+  const roots = new Set<string>(contextRootsForField(field));
+  // Only a composite action's scope types `action`, so the root exists inside composites only.
+  if (
+    typeOverlay?.action !== undefined &&
+    workflowInterpolationFieldPolicies[field].roots === undefined
+  ) {
+    roots.add('action');
+  }
+  return roots;
 }
 
 function validateAllowedJobReferences(

@@ -97,6 +97,34 @@ function registryActionRef(uses: string): WorkflowActionRefResult {
   return {ok: true, ref: {kind: 'registry', namespace, name, version}};
 }
 
+const actionPathPrefixPattern = /^\$\{\{\s*action\.path\s*\}\}\//;
+
+/** How a composite action names its own directory in `uses:` and prompt `file:` paths. */
+export const WORKFLOW_ACTION_PATH_PREFIX = '$' + '{{ action.path }}/';
+
+/**
+ * The path after a leading `${{ action.path }}/`, or undefined when the value
+ * does not start with it. The rest is not validated here.
+ */
+export function actionPathRelativePart(value: string): string | undefined {
+  const match = actionPathPrefixPattern.exec(value);
+  return match === null ? undefined : value.slice(match[0].length);
+}
+
+/**
+ * Validates the path after `${{ action.path }}/`: literal, and inside the
+ * composite action directory.
+ */
+export function actionPathRelativePartIssue(relativePath: string): string | undefined {
+  if (relativePath.includes('$' + '{{')) {
+    return `Only \`${WORKFLOW_ACTION_PATH_PREFIX}\` may be interpolated. The rest of the path must be literal.`;
+  }
+  if (!isNormalizedRelativePath(relativePath)) {
+    return `The path after \`${WORKFLOW_ACTION_PATH_PREFIX}\` must stay inside the action directory: no empty, \`.\`, or \`..\` segments, no backslashes, and no trailing \`/\`.`;
+  }
+  return undefined;
+}
+
 export function isNormalizedRelativePath(path: string): boolean {
   if (path.length === 0 || path.includes('\\') || path.includes('\u0000')) return false;
   return path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');

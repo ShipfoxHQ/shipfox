@@ -142,7 +142,11 @@ export function actionDocument({
   const manifest =
     postFailure === undefined
       ? ACTION_MANIFEST
-      : {...ACTION_MANIFEST, post: 'post.mjs', post_failure: postFailure};
+      : actionManifestSchema.parse({
+          ...ACTION_MANIFEST,
+          post: 'post.mjs',
+          post_failure: postFailure,
+        });
   return {
     schema: 'shipfox.registry/version@1',
     package: 'shipfox/slack-thread-digest',

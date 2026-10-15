@@ -27,6 +27,19 @@ Code that turns a checked workflow document into the model used by definitions.
   optional integration context, it also checks that each connection exists,
   matches the alias provider, and serves agent tools. The step's outputs come
   from the manifest, with `required` always written.
+- **Composite steps**: A `uses` whose manifest sets `steps` becomes a
+  `composite` step that holds its inner steps, normalized once per use.
+  Inner ids are path ids under the composite step id. Inner steps read the
+  action's non-secret `inputs`, their own earlier `steps`, `action.path`, and
+  the run-wide roots. They cannot read `secrets`: each `${{ inputs.<secret> }}`
+  is rewritten to the caller's secret reference, so the usual secret rules
+  apply to it. Aliases bind to the caller's connections, and inner tool steps,
+  agent integrations, and nested actions must fit inside them. Inner agent
+  sessions are scoped to the use unless the key is a whole input. The
+  composite step keeps `env` and `working_directory` as the base for its
+  inner steps. An issue inside a composite names its manifest file and line,
+  points at the calling step, and is reported once per file and line. A job
+  runs at most 200 steps once composites are expanded.
 - **Step exports**: Expand each step `export` into a job output
   `steps.<key>.outputs.<name>`, typed through the single-expression path and
   recorded in the job's `exportedOutputs`. An unknown name is an error. A clash

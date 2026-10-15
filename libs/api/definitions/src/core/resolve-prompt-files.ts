@@ -2,7 +2,11 @@ import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {boundedMap} from '@shipfox/node-module';
 import type {WorkflowDocument} from '@shipfox/workflow-document';
-import {collectPromptFileReferences} from './collect-prompt-file-references.js';
+import {
+  collectCompositePromptFileReferences,
+  collectPromptFileReferences,
+} from './collect-prompt-file-references.js';
+import type {ResolvedActions} from './entities/action-snapshot.js';
 import {PromptFileResolutionError} from './errors.js';
 import {
   type DefinitionsSourceControl,
@@ -21,21 +25,31 @@ export interface PromptFileSourceContext {
 
 export interface ResolvePromptFilesParams extends PromptFileSourceContext {
   workflows: readonly {path: string; document: WorkflowDocument}[];
+  /** Resolved actions. The repository files their composite steps name are read too. */
+  actions?: ResolvedActions | undefined;
 }
 
 /**
- * Reads every prompt file the workflows name, once per path. A file that is
- * missing, empty, or not readable text fails with the first part that names it.
+ * Reads every repository prompt file the workflows and their composite actions
+ * name, once per path. A file that is missing, empty, or not readable text
+ * fails with the first part that names it.
  */
 export async function resolvePromptFiles(
   params: ResolvePromptFilesParams,
 ): Promise<Map<string, string>> {
   const firstUse = new Map<string, {path: string; filePath: string}>();
+  const use = (file: string, path: string, filePath: string) => {
+    if (!firstUse.has(file)) firstUse.set(file, {path, filePath});
+  };
   for (const workflow of params.workflows) {
     for (const reference of collectPromptFileReferences(workflow.document)) {
-      if (!firstUse.has(reference.file)) {
-        firstUse.set(reference.file, {path: reference.path, filePath: workflow.path});
-      }
+      use(reference.file, reference.path, workflow.path);
+    }
+  }
+  for (const action of params.actions?.values() ?? []) {
+    if (action.composite === undefined) continue;
+    for (const reference of collectCompositePromptFileReferences(action.manifest)) {
+      use(reference.file, reference.path, action.composite.manifestPath);
     }
   }
 

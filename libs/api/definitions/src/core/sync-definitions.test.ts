@@ -823,6 +823,7 @@ jobs:
     source?: DefinitionsSourceControl;
     onProgress?: (path: string) => void;
     loadIntegrationValidationContext?: () => Promise<IntegrationValidationContext>;
+    compositeActionsEnabled?: boolean;
   }) {
     return fetchAndParseWorkflowsBase({
       ...baseContext,
@@ -835,8 +836,92 @@ jobs:
       registry: params.registry,
       onProgress: params.onProgress,
       loadIntegrationValidationContext: params.loadIntegrationValidationContext,
+      compositeActionsEnabled: params.compositeActionsEnabled,
     });
   }
+
+  describe('composite actions', () => {
+    const compositeWorkflow = actionYaml.replace(
+      './.shipfox/actions/notify',
+      './.shipfox/actions/setup',
+    );
+
+    function compositeRepository(overrides: Record<string, string> = {}): Record<string, string> {
+      return actionRepository({
+        [workflowPath]: compositeWorkflow,
+        '.shipfox/actions/setup/action.yml': [
+          'name: Setup',
+          'steps:',
+          '  - uses: ./.shipfox/actions/notify',
+          '  - prompt:',
+          '      - file: ./REVIEW.md',
+          `      - file: $\{{ action.path }}/prompts/review.md`,
+        ].join('\n'),
+        '.shipfox/actions/setup/prompts/review.md': 'Review the change.',
+        'REVIEW.md': 'Follow the guide.',
+        ...overrides,
+      });
+    }
+
+    it('rejects a composite action while composite actions are off', async () => {
+      const error = await sync({repository: compositeRepository()}).catch((reason) => reason);
+
+      expect(error).toBeInstanceOf(DefinitionSyncPermanentError);
+      expect(error).toMatchObject({
+        code: 'action-invalid',
+        filePath: '.shipfox/actions/setup/action.yml',
+      });
+    });
+
+    it('expands a composite action and stores every action of its tree', async () => {
+      const result = await sync({repository: compositeRepository(), compositeActionsEnabled: true});
+
+      expect(result.actions.map((action) => action.uses)).toEqual([
+        './.shipfox/actions/setup',
+        './.shipfox/actions/notify',
+      ]);
+      const step = result.workflows[0]?.definition.model.jobs[0]?.steps[0];
+      expect(step).toMatchObject({
+        kind: 'composite',
+        steps: [
+          {kind: 'action', action: {uses: './.shipfox/actions/notify'}},
+          {kind: 'agent', prompt: 'Follow the guide.\n\nReview the change.'},
+        ],
+      });
+    });
+
+    it('changes the hash when only a nested action or a composite prompt file changes', async () => {
+      const before = await sync({repository: compositeRepository(), compositeActionsEnabled: true});
+      const nested = await sync({
+        repository: compositeRepository({
+          '.shipfox/actions/notify/lib/format.ts': 'export const format = 2;\n',
+        }),
+        compositeActionsEnabled: true,
+      });
+      const prompt = await sync({
+        repository: compositeRepository({'REVIEW.md': 'Follow the new guide.'}),
+        compositeActionsEnabled: true,
+      });
+
+      const hash = before.workflows[0]?.contentHash;
+      expect(nested.workflows[0]?.contentHash).not.toBe(hash);
+      expect(prompt.workflows[0]?.contentHash).not.toBe(hash);
+    });
+
+    it('fails with prompt-file-invalid on a missing repository file named by a composite', async () => {
+      const repository = compositeRepository();
+      delete repository['REVIEW.md'];
+
+      const error = await sync({repository, compositeActionsEnabled: true}).catch(
+        (reason) => reason,
+      );
+
+      expect(error).toMatchObject({
+        code: 'prompt-file-invalid',
+        filePath: '.shipfox/actions/setup/action.yml',
+      });
+    });
+  });
 
   it('reads the referenced action at the sync ref and normalizes the step', async () => {
     const source = repositorySourceControl(actionRepository());

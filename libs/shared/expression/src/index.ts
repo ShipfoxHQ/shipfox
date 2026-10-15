@@ -168,7 +168,9 @@ export type {
 export {
   type AvailabilitySite,
   availabilitySites,
+  buildCompositeScopeEnvironment,
   buildTypedRootsEnvironment,
+  compositeActionTypeEnvironment,
   contextRootsForField,
   type FillTarget,
   getWorkflowContextAvailability,

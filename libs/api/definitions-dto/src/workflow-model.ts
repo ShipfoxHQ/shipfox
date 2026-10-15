@@ -192,7 +192,8 @@ export type WorkflowModelStep =
   | WorkflowModelAgentStep
   | WorkflowModelCheckoutStep
   | WorkflowModelToolStep
-  | WorkflowModelActionStep;
+  | WorkflowModelActionStep
+  | WorkflowModelCompositeStep;
 interface WorkflowModelStepBase {
   readonly id: string;
   readonly key?: string;
@@ -316,12 +317,58 @@ export interface WorkflowModelActionInput extends OutputTypeDeclaration {
   readonly required: boolean;
   /** Applies only when the step omits the input. */
   readonly default?: WorkflowJsonValue;
+  /**
+   * Set on a composite action input that receives a secret. Its inner uses are
+   * rewritten to the caller's secret reference, so it never has a value.
+   */
+  readonly secret?: true;
 }
 export interface WorkflowModelActionIntegration {
   readonly provider: string;
   readonly connection: string;
   readonly include: readonly string[];
   readonly allowWrite: boolean;
+}
+/**
+ * A composite action step. Its inner steps are normalized for this use: their
+ * ids are path ids under `id`, they read the composite's `inputs`, their own
+ * `steps`, and `action`, and their integrations hold plain connection slugs.
+ * The step's `env` and `workingDirectory` are the base for the inner steps,
+ * which override them.
+ */
+export interface WorkflowModelCompositeStep extends WorkflowModelStepBase {
+  readonly kind: 'composite';
+  readonly composite: WorkflowModelComposite;
+  /** The authored `with`, without the secret inputs, which are rewritten into the inner steps. */
+  readonly with?: WorkflowJsonValue;
+  readonly env?: Readonly<Record<string, string>>;
+  readonly steps: readonly WorkflowModelStep[];
+  readonly templates?: {
+    readonly with?: WorkflowJsonTemplateTree;
+    readonly name?: WorkflowFieldTemplate;
+    readonly workingDirectory?: WorkflowFieldTemplate;
+    readonly env?: WorkflowEnvTemplates;
+  };
+}
+/** The composite action snapshot a step expands, with the manifest fields the run engine needs. */
+export interface WorkflowModelComposite {
+  readonly uses: string;
+  readonly origin: 'local' | 'registry';
+  /** Registry package name. Set when `origin` is `registry`. */
+  readonly package?: string;
+  /** Exact registry version. Set when `origin` is `registry`. */
+  readonly version?: string;
+  readonly digest: string;
+  readonly name: string;
+  readonly inputs: Readonly<Record<string, WorkflowModelActionInput>>;
+  /** Each output's declaration and its `value`, filled when the composite closes. */
+  readonly outputs: Readonly<Record<string, WorkflowModelCompositeOutput>>;
+  /** Keyed by manifest alias. Each alias is bound to a connection slug by the step. */
+  readonly integrations: Readonly<Record<string, WorkflowModelActionIntegration>>;
+}
+export interface WorkflowModelCompositeOutput {
+  readonly declaration: OutputTypeDeclaration & {readonly required: boolean};
+  readonly value: WorkflowFieldTemplate;
 }
 export interface WorkflowModelStepIntegration {
   readonly connection?: string;
@@ -333,10 +380,26 @@ export interface WorkflowModelStepIntegration {
 export interface WorkflowModelAgentStepSession {
   readonly key: WorkflowFieldTemplate;
   readonly mode: 'resume' | 'fork';
+  /**
+   * Set on an agent step inside a composite action whose key is not exactly
+   * `${{ inputs.<name> }}`: the id of the composite use. The run engine
+   * derives the stored key from it, so two uses never share a session.
+   */
+  readonly scope?: string;
 }
 export interface WorkflowSourceLocation {
   readonly startLine: number;
   readonly endLine: number;
+  /** The file that holds the lines. Absent means the workflow file. */
+  readonly file?: WorkflowSourceFile;
+}
+/** A composite action's manifest, the file that holds its inner steps. */
+export interface WorkflowSourceFile {
+  readonly kind: 'action';
+  readonly uses: string;
+  readonly digest: string;
+  /** The manifest path inside the action directory, `action.yml` or `action.yaml`. */
+  readonly path: string;
 }
 export type WorkflowStepSourceLocationMap = ReadonlyMap<
   string,
@@ -382,17 +445,43 @@ const workflowModelSchema = z.custom<WorkflowModel>(
 );
 
 export const workflowModelSnapshotSchema = z.object({
-  // v2 snapshots predate tool steps, v3 snapshots predate concurrency, and v4
-  // snapshots predate job containers. Historical versions stay readable while
-  // snapshots containing a job container use v5, then concurrency v4.
-  version: z.union([z.literal(5), z.literal(4), z.literal(3), z.literal(2)]),
+  // v2 snapshots predate tool steps, v3 snapshots predate concurrency, v4
+  // snapshots predate job containers, and v5 snapshots predate composite
+  // actions. Historical versions stay readable while snapshots containing a
+  // composite step use v6, then a job container v5, then concurrency v4.
+  version: z.union([z.literal(6), z.literal(5), z.literal(4), z.literal(3), z.literal(2)]),
   model: workflowModelSchema,
 });
 export type WorkflowModelSnapshot = z.infer<typeof workflowModelSnapshotSchema>;
 
 export function createWorkflowModelSnapshot(model: WorkflowModel): WorkflowModelSnapshot {
+  if (model.jobs.some((job) => job.steps.some((step) => step.kind === 'composite'))) {
+    return {version: 6, model};
+  }
   if (model.jobs.some((job) => job.container !== undefined)) return {version: 5, model};
   return {version: model.concurrency === undefined ? 3 : 4, model};
+}
+
+/**
+ * The steps of a job in run order: each composite step, then its inner steps,
+ * nested composites inline. A materialized step row's position is its index
+ * here plus one, after the setup step at position 0.
+ */
+export function flattenJobSteps(job: Pick<WorkflowModelJob, 'steps'>): WorkflowModelStep[] {
+  const steps: WorkflowModelStep[] = [];
+  const pending: WorkflowModelStep[] = [...job.steps].reverse();
+  while (pending.length > 0) {
+    const step = pending.pop();
+    if (step === undefined) continue;
+    steps.push(step);
+    if (step.kind === 'composite') {
+      for (let index = step.steps.length - 1; index >= 0; index -= 1) {
+        const inner = step.steps[index];
+        if (inner !== undefined) pending.push(inner);
+      }
+    }
+  }
+  return steps;
 }
 
 export function workflowModelFromSnapshot(snapshot: WorkflowModelSnapshot): WorkflowModel {
@@ -403,6 +492,7 @@ export function workflowModelFromSnapshot(snapshot: WorkflowModelSnapshot): Work
     case 3:
     case 4:
     case 5:
+    case 6:
       return snapshot.model;
     default:
       // Callers that bypass the zod boundary (or a future version) get a
@@ -410,7 +500,7 @@ export function workflowModelFromSnapshot(snapshot: WorkflowModelSnapshot): Work
       throw new Error(
         `Unsupported workflow model snapshot version ${String(
           snapshot.version,
-        )}; supported versions are 2, 3, 4, and 5.`,
+        )}; supported versions are 2, 3, 4, 5, and 6.`,
       );
   }
 }

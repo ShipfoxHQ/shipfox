@@ -21,6 +21,25 @@ export function extractWorkflowStepSourceLocations(source: string): WorkflowStep
   return locations;
 }
 
+/** Line ranges of the `steps` of a composite action manifest, by step index. */
+export function extractActionStepSourceLocations(
+  source: string,
+): ReadonlyMap<number, WorkflowSourceLocation> {
+  const lineCounter = new LineCounter();
+  const document = parseDocument(source, {lineCounter});
+  if (document.errors.length > 0 || !isMap(document.contents)) return new Map();
+
+  const steps = getMapValue(document.contents, 'steps');
+  if (!isSeq(steps)) return new Map();
+
+  const locations = new Map<number, WorkflowSourceLocation>();
+  for (const [index, step] of steps.items.entries()) {
+    const location = sourceLocationFor(step, lineCounter);
+    if (location) locations.set(index, location);
+  }
+  return locations;
+}
+
 function addJobStepLocations(
   key: unknown,
   value: unknown,

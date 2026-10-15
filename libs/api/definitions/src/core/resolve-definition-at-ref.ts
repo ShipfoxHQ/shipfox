@@ -25,16 +25,23 @@ import {
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import type {FeatureFlags} from '@shipfox/node-feature-flags';
 import {boundedMap} from '@shipfox/node-module';
-import type {ActionBundleFile, WorkflowDocument} from '@shipfox/workflow-document';
+import {
+  type ActionBundleFile,
+  isCompositeActionManifest,
+  type WorkflowDocument,
+} from '@shipfox/workflow-document';
 import {upsertActionSnapshot} from '#db/action-snapshots.js';
 import {definitionTriggersFor} from '#db/definition-triggers.js';
 import {findOrCreateWorkflowLineage} from '#db/definitions.js';
 import {recordDefinitionRefResolution} from '#metrics/index.js';
 import {readActionSupport} from './action-support.js';
 import {checkActionImports} from './check-action-imports.js';
-import {collectActionReferences} from './collect-action-references.js';
-import {collectPromptFilePaths} from './collect-prompt-file-references.js';
-import type {ActionSnapshotSource} from './entities/action-snapshot.js';
+import {collectActionReferences, collectReachableActions} from './collect-action-references.js';
+import {
+  collectCompositePromptFileReferences,
+  collectPromptFilePaths,
+} from './collect-prompt-file-references.js';
+import type {ActionSnapshotSource, ResolvedActions} from './entities/action-snapshot.js';
 import type {ValidationDiagnostic} from './entities/validation-diagnostic.js';
 import {
   ActionResolutionError,
@@ -97,6 +104,8 @@ export interface ResolveDefinitionAtRefParams {
   integrations: IntegrationsModuleClient;
   /** Resolves registry actions. Without it, a registry reference fails. */
   registry?: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
+  /** Accepts composite actions (`steps` in `action.yml`). Defaults to off until they can run. */
+  compositeActionsEnabled?: boolean | undefined;
   signal?: AbortSignal;
 }
 
@@ -405,6 +414,7 @@ async function parseDefinitionAtCommit(input: {
     uploads: new Map(uploads.map((upload) => [upload.path, upload.files])),
     registry: params.registry,
     persistRegistryVersions: input.persistRegistryVersions,
+    compositeActions: params.compositeActionsEnabled ?? false,
     signal: params.signal,
   });
   const actionManifests = summarizeResolvedActions(actions);
@@ -414,6 +424,7 @@ async function parseDefinitionAtCommit(input: {
     commit,
     configPath: params.configPath,
     document,
+    actions: actionManifests,
     signal: params.signal,
   });
 
@@ -439,7 +450,10 @@ async function parseDefinitionAtCommit(input: {
     parsed,
     actions,
     uploadedPaths,
-    warnings: [...warningsFor(parsed.diagnostics), ...unusedUploadWarnings(document, uploads)],
+    warnings: [
+      ...warningsFor(parsed.diagnostics),
+      ...unusedUploadWarnings(document, actionManifests, uploads),
+    ],
   };
 }
 
@@ -786,6 +800,7 @@ async function resolveDevRunActions(params: {
   uploads: ReadonlyMap<string, readonly ActionBundleFile[]>;
   registry: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
   persistRegistryVersions: boolean;
+  compositeActions: boolean;
   signal: AbortSignal | undefined;
 }): Promise<Map<string, ResolvedAction>> {
   if (collectActionReferences(params.document).length === 0) return new Map();
@@ -807,6 +822,7 @@ async function resolveDevRunActions(params: {
       uploads: params.uploads,
       registry: params.registry,
       persistRegistryVersions: params.persistRegistryVersions,
+      compositeActions: params.compositeActions,
     });
   } catch (error) {
     throwIfAborted(params.signal);
@@ -825,12 +841,20 @@ async function resolveDevRunActions(params: {
     throw error;
   }
 
-  // A dev run fails on an import the runner could not load, unlike sync, which
-  // only warns, so a forgotten upload is caught before any code runs.
+  await assertActionImportsResolve(actions);
+  return actions;
+}
+
+// A dev run fails on an import the runner could not load, unlike sync, which
+// only warns, so a forgotten upload is caught before any code runs.
+async function assertActionImportsResolve(
+  actions: ReadonlyMap<string, ResolvedAction>,
+): Promise<void> {
   const errors: ValidationError[] = [];
   for (const action of actions.values()) {
-    // Registry actions are bundled, and the runner loads them strictly.
-    if (action.registry !== undefined) continue;
+    // Registry actions are bundled, and the runner loads them strictly. The
+    // runner never loads a composite action's files as modules.
+    if (action.registry !== undefined || isCompositeActionManifest(action.manifest)) continue;
     for (const issue of await checkActionImports({files: action.files})) {
       errors.push({message: `Action ${action.uses}: ${issue.message}`});
     }
@@ -839,7 +863,6 @@ async function resolveDevRunActions(params: {
   if (first !== undefined) {
     throw invalidDefinition(`Invalid workflow definition: ${first.message}`, errors);
   }
-  return actions;
 }
 
 /** Reads the prompt files at the pinned commit, also for a local-file dev run. */
@@ -849,9 +872,15 @@ async function resolveDevRunPromptFiles(params: {
   commit: string;
   configPath: string;
   document: WorkflowDocument;
+  actions: ResolvedActions;
   signal: AbortSignal | undefined;
 }): Promise<Map<string, string>> {
-  if (collectPromptFilePaths(params.document).length === 0) return new Map();
+  const hasCompositePromptFiles = [...params.actions.values()].some(
+    (action) => collectCompositePromptFileReferences(action.manifest).length > 0,
+  );
+  if (collectPromptFilePaths(params.document).length === 0 && !hasCompositePromptFiles) {
+    return new Map();
+  }
 
   try {
     return await resolvePromptFiles({
@@ -864,6 +893,7 @@ async function resolveDevRunPromptFiles(params: {
           callWithSignal(params.integrations.fetchSourceFile, input, params.signal),
       },
       workflows: [{path: params.configPath, document: params.document}],
+      actions: params.actions,
     });
   } catch (error) {
     throwIfAborted(params.signal);
@@ -1034,9 +1064,10 @@ function warningsFor(diagnostics: readonly ValidationDiagnostic[]): ValidationWa
 
 function unusedUploadWarnings(
   document: WorkflowDocument,
+  actions: ResolvedActions,
   uploads: readonly ActionUpload[],
 ): ValidationWarning[] {
-  const used = new Set(collectActionReferences(document));
+  const used = new Set(collectReachableActions(document, actions));
   return uploads
     .filter((upload) => !used.has(upload.path))
     .map((upload) => ({

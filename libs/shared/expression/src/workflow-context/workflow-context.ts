@@ -62,6 +62,8 @@ export const workflowContextReservedRoots = {
   runner: {host: 'runner'},
   // The result of a tool step call; readable only from `tool.outputs` mappings.
   result: {host: 'server', availability: 'step-report'},
+  // A composite action's own directory; readable only inside a composite action.
+  action: {host: 'server', availability: 'step-dispatch'},
 } as const satisfies Record<string, ReservedRootDefinition>;
 export type WorkflowContextReservedRoot = keyof typeof workflowContextReservedRoots;
 
@@ -376,6 +378,25 @@ export interface WorkflowJobTypeOverlay {
   readonly outputs?: Readonly<Record<string, ExpressionType>>;
 }
 
+/** The `action` root inside a composite action. */
+export const compositeActionTypeEnvironment = {
+  action: {kind: 'object', fields: {path: 'string'}},
+} as const satisfies ExpressionTypeEnvironment;
+
+/**
+ * The roots a composite action replaces for its inner steps: `inputs` typed
+ * from the non-secret input declarations, and `action`. The inner `steps`
+ * root comes from `buildTypedRootsEnvironment` over the inner steps.
+ */
+export function buildCompositeScopeEnvironment(params: {
+  readonly inputs: OutputDeclarations;
+}): ExpressionTypeEnvironment {
+  return {
+    inputs: {kind: 'object', fields: outputDeclarationsToExpressionFields(params.inputs)},
+    ...compositeActionTypeEnvironment,
+  };
+}
+
 export function buildTypedRootsEnvironment(params: {
   readonly steps?: readonly WorkflowStepTypeOverlay[];
   readonly currentStep?: WorkflowStepTypeOverlay;
@@ -530,7 +551,8 @@ export type WorkflowInterpolationField =
   | 'checkout.path'
   | 'tool.with'
   | 'tool.outputs'
-  | 'action.with';
+  | 'action.with'
+  | 'action.outputs';
 
 export const workflowFieldFailurePolicies = ['fail', 'degrade', 'fail-closed'] as const;
 export type WorkflowFieldFailurePolicy = (typeof workflowFieldFailurePolicies)[number];
@@ -694,6 +716,12 @@ export const workflowInterpolationFieldPolicies: Readonly<
   'action.with': {
     acceptedHosts: anyHost,
     failurePolicy: 'fail',
+  },
+  // A composite action output `value`, filled when the composite's last inner step finishes.
+  'action.outputs': {
+    acceptedHosts: serverOnlyHosts,
+    failurePolicy: 'fail',
+    roots: ['inputs', 'steps'],
   },
 };
 

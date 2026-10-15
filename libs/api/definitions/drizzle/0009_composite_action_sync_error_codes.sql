@@ -1,0 +1,2 @@
+ALTER TYPE "public"."definitions_sync_error_code" ADD VALUE 'action-cycle' BEFORE 'unknown';--> statement-breakpoint
+ALTER TYPE "public"."definitions_sync_error_code" ADD VALUE 'action-nesting-too-deep' BEFORE 'unknown';

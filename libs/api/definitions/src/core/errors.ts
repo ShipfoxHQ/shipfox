@@ -39,7 +39,9 @@ export type ActionResolutionErrorCode =
   | 'action-not-found'
   | 'action-invalid'
   | 'action-too-large'
-  | 'action-unsupported-file';
+  | 'action-unsupported-file'
+  | 'action-cycle'
+  | 'action-nesting-too-deep';
 
 /**
  * Rejects an action directory referenced with `uses`. `filePath` names the

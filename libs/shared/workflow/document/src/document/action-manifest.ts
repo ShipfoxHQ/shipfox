@@ -8,8 +8,10 @@ import {
   validateWorkflowDocumentValueDeclaration,
   WORKFLOW_DOCUMENT_STEP_OUTPUT_KEY_PATTERN,
   WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES,
+  type WorkflowDocumentStep,
   type WorkflowDocumentStepOutputType,
   workflowDocumentActionAliasSchema,
+  workflowDocumentCompositeStepSchema,
   workflowDocumentStepOutputTypes,
 } from './workflow-document.js';
 
@@ -49,6 +51,14 @@ const actionManifestInputSchema = z
     default: z.unknown().optional().meta({
       description: 'Applies when the step omits the input. It does not replace `null`.',
     }),
+    secret: z
+      .boolean()
+      .optional()
+      .meta({
+        description:
+          'Set to `true` when the input receives a secret, such as `$' +
+          '{{ secrets.NPM_TOKEN }}`. Composite actions only. A secret input is a string without a default.',
+      }),
     description: actionManifestDescriptionSchema,
   })
   .superRefine((input, ctx) => {
@@ -67,6 +77,10 @@ const actionManifestOutputSchema = z
     schema: actionManifestValueSchemaField,
     required: z.boolean().default(false).meta({
       description: 'Set to `true` when the action must always set the output.',
+    }),
+    value: z.string().min(1).optional().meta({
+      description:
+        'Computes the output from the `inputs` and `steps` of a composite action. Required on composite actions, and not valid on JavaScript actions.',
     }),
     description: actionManifestDescriptionSchema,
   })
@@ -110,15 +124,16 @@ function valueRecordSchema<ValueSchema extends z.ZodType>(valueSchema: ValueSche
     });
 }
 
-export const actionManifestSchema = z
+const actionManifestObjectSchema = z
   .strictObject({
     name: z.string().min(1).max(128).meta({description: 'Names the action.'}),
     description: z.string().max(1024).optional().meta({description: 'Describes the action.'}),
     runtime: z.enum(ACTION_MANIFEST_RUNTIMES).optional().meta({
       description: 'Selects the runtime. Only `node24` is supported.',
     }),
-    main: actionManifestEntrySchema('main').meta({
-      description: 'Sets the entry file, relative to the action directory.',
+    main: actionManifestEntrySchema('main').optional().meta({
+      description:
+        'Sets the entry file of a JavaScript action, relative to the action directory. Set either `main` or `steps`.',
     }),
     post: actionManifestEntrySchema('post').optional().meta({
       description:
@@ -127,6 +142,10 @@ export const actionManifestSchema = z
     post_failure: z.enum(ACTION_MANIFEST_POST_FAILURES).optional().meta({
       description:
         'Decides what a failed `post` does. `warn` (the default) keeps the job result. `fail` fails the job. Requires `post`.',
+    }),
+    steps: z.array(workflowDocumentCompositeStepSchema).min(1).optional().meta({
+      description:
+        'Lists the steps of a composite action. They run in the job of the step that uses the action. Set either `main` or `steps`.',
     }),
     inputs: valueRecordSchema(actionManifestInputSchema).optional().meta({
       description: 'Declares the inputs that steps provide with `with`.',
@@ -160,23 +179,163 @@ export const actionManifestSchema = z
       .meta({description: 'Links other registry packages from the registry page.'}),
   })
   .superRefine((manifest, ctx) => {
-    if (manifest.post === undefined && manifest.post_failure !== undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['post_failure'],
-        message: '`post_failure` requires `post`.',
-      });
-    }
-    if (manifest.post !== undefined && manifest.post === manifest.main) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['post'],
-        message: '`post` must differ from `main`.',
-      });
+    if (manifest.steps === undefined) {
+      validateJavascriptManifest(manifest, ctx);
+    } else {
+      validateCompositeManifest(manifest, ctx);
     }
   });
 
-export type ActionManifest = z.infer<typeof actionManifestSchema>;
+type ParsedActionManifest = z.infer<typeof actionManifestObjectSchema>;
+type ActionManifestCommon = Omit<
+  ParsedActionManifest,
+  'main' | 'runtime' | 'post' | 'post_failure' | 'steps'
+>;
+
+/** An action whose body is JavaScript code (`main`). */
+export type JavascriptActionManifest = ActionManifestCommon & {
+  readonly main: string;
+  readonly runtime?: ParsedActionManifest['runtime'];
+  readonly post?: string;
+  readonly post_failure?: ParsedActionManifest['post_failure'];
+  readonly steps?: undefined;
+};
+
+/** An action whose body is a list of workflow steps (`steps`). */
+export type CompositeActionManifest = ActionManifestCommon & {
+  readonly steps: WorkflowDocumentStep[];
+  readonly main?: undefined;
+  readonly runtime?: undefined;
+  readonly post?: undefined;
+  readonly post_failure?: undefined;
+};
+
+export type ActionManifest = JavascriptActionManifest | CompositeActionManifest;
+
+export const actionManifestSchema = actionManifestObjectSchema.transform(
+  (manifest) => manifest as ActionManifest,
+);
+
+export function isCompositeActionManifest(
+  manifest: ActionManifest,
+): manifest is CompositeActionManifest {
+  return manifest.steps !== undefined;
+}
+
+export interface ParseActionManifestOptions {
+  /** Accepts composite actions (`steps`). Defaults to `false`. */
+  compositeActions?: boolean;
+}
+
+/**
+ * Parses an `action.yml` value like `actionManifestSchema.safeParse`. Without
+ * `compositeActions`, a manifest with `steps` reports only that composite
+ * actions are not supported yet.
+ */
+export function safeParseActionManifest(
+  input: unknown,
+  {compositeActions = false}: ParseActionManifestOptions = {},
+): z.ZodSafeParseResult<ActionManifest> {
+  if (!compositeActions && isRecord(input) && input.steps !== undefined) {
+    return {
+      success: false,
+      error: new z.ZodError([
+        {
+          code: 'custom',
+          input: input.steps,
+          path: ['steps'],
+          message: 'Composite actions (`steps`) are not supported yet.',
+        },
+      ]) as z.ZodError<ActionManifest>,
+    };
+  }
+  return actionManifestSchema.safeParse(input);
+}
+
+function validateJavascriptManifest(manifest: ParsedActionManifest, ctx: z.RefinementCtx): void {
+  if (manifest.main === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['main'],
+      message: 'Set `main` for a JavaScript action, or `steps` for a composite action.',
+    });
+  }
+  if (manifest.post === undefined && manifest.post_failure !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['post_failure'],
+      message: '`post_failure` requires `post`.',
+    });
+  }
+  if (manifest.post !== undefined && manifest.post === manifest.main) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['post'],
+      message: '`post` must differ from `main`.',
+    });
+  }
+  for (const [name, input] of Object.entries(manifest.inputs ?? {})) {
+    if (input.secret === undefined) continue;
+    ctx.addIssue({
+      code: 'custom',
+      path: ['inputs', name, 'secret'],
+      message:
+        '`secret` is only valid on composite action inputs. A JavaScript action input can already receive a secret.',
+    });
+  }
+  for (const [name, output] of Object.entries(manifest.outputs ?? {})) {
+    if (output.value === undefined) continue;
+    ctx.addIssue({
+      code: 'custom',
+      path: ['outputs', name, 'value'],
+      message: '`value` is only valid on composite action outputs. A JavaScript action sets them.',
+    });
+  }
+}
+
+function validateCompositeManifest(manifest: ParsedActionManifest, ctx: z.RefinementCtx): void {
+  for (const field of ['main', 'runtime', 'post', 'post_failure'] as const) {
+    if (manifest[field] === undefined) continue;
+    ctx.addIssue({
+      code: 'custom',
+      path: [field],
+      message:
+        field === 'main'
+          ? 'Set either `main` or `steps`, not both.'
+          : `\`${field}\` is only valid on a JavaScript action, which sets \`main\`.`,
+    });
+  }
+  validateSecretInputs(manifest, ctx);
+  for (const [name, output] of Object.entries(manifest.outputs ?? {})) {
+    if (output.value !== undefined) continue;
+    ctx.addIssue({
+      code: 'custom',
+      path: ['outputs', name, 'value'],
+      message: 'A composite action output needs `value`, an expression over `inputs` and `steps`.',
+    });
+  }
+}
+
+function validateSecretInputs(manifest: ParsedActionManifest, ctx: z.RefinementCtx): void {
+  for (const [name, input] of Object.entries(manifest.inputs ?? {})) {
+    if (input.secret !== true) continue;
+    if (input.type !== 'string') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['inputs', name, 'type'],
+        message: 'A secret input must be a string.',
+      });
+    }
+    if (input.default !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['inputs', name, 'default'],
+        message: 'A secret input cannot have a default.',
+      });
+    }
+  }
+}
+
 export type ActionManifestInput = z.input<typeof actionManifestSchema>;
 export type ActionManifestIntegration = z.infer<typeof actionManifestIntegrationSchema>;
 export type ActionManifestInputDeclaration = z.infer<typeof actionManifestInputSchema>;
@@ -193,10 +352,24 @@ export function buildActionManifestJsonSchema({
     io: 'input',
     unrepresentable: 'any',
   }) as JsonSchema;
+  // A JavaScript action sets `main`, a composite action sets `steps`.
+  schema.oneOf = [
+    {required: ['main'], not: {required: ['steps']}},
+    {
+      required: ['steps'],
+      not: {
+        anyOf: ['main', 'runtime', 'post', 'post_failure'].map((field) => ({required: [field]})),
+      },
+    },
+  ];
   schema.$schema = 'https://json-schema.org/draft/2020-12/schema';
   schema.$id = id;
   schema.title = 'Shipfox Action';
   return schema;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function matchesValueType(type: WorkflowDocumentStepOutputType, value: unknown): boolean {

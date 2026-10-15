@@ -9,3 +9,4 @@ export {
   parseWorkflowYaml,
   parseWorkflowYamlWithLocations,
 } from './parse-workflow-yaml.js';
+export {extractActionStepSourceLocations} from './source-locations.js';

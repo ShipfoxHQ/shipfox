@@ -8,15 +8,17 @@ import {
   registryError,
   registryVersion,
 } from '#test/fixtures/registry-action.js';
-import {collectActionReferences} from './collect-action-references.js';
+import {collectActionReferences, collectReachableActions} from './collect-action-references.js';
 import {ActionResolutionError} from './errors.js';
 import {
   MAX_ACTION_BYTES,
   MAX_ACTION_FILE_BYTES,
   MAX_ACTION_FILES,
+  MAX_ACTION_NESTING_DEPTH,
   MAX_ACTIONS_PER_WORKFLOW,
   readActionDirectory,
   resolveWorkflowActions,
+  summarizeResolvedActions,
 } from './resolve-actions.js';
 import {parseWorkflowYaml} from './workflow-yaml/index.js';
 
@@ -758,5 +760,291 @@ describe('resolveWorkflowActions with registry references', () => {
 
     expect(error.code).toBe('action-invalid');
     expect(error.filePath).toBe('.shipfox/workflows/a.yml');
+  });
+});
+
+function compositeYaml(steps: string[]): string {
+  return `name: Composite\nsteps:\n${steps.map((step) => `  - ${step}`).join('\n')}\n`;
+}
+
+function compositeAction(directory: string, steps: string[]): Record<string, RepositoryEntry> {
+  return {[`${directory}/action.yml`]: {content: compositeYaml(steps)}};
+}
+
+describe('resolveWorkflowActions with composite actions', () => {
+  it('rejects a composite manifest unless composite actions are on', async () => {
+    const context = sourceContext(compositeAction('.shipfox/actions/setup', ['run: echo hi']));
+
+    const error = await captureError(
+      resolveWorkflowActions({
+        ...context,
+        workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/setup'])],
+      }),
+    );
+
+    expect(error.code).toBe('action-invalid');
+    expect(error.details).toEqual([
+      {message: 'Composite actions (`steps`) are not supported yet.', path: 'steps'},
+    ]);
+  });
+
+  it('resolves nested local actions from the repository root and the action directory', async () => {
+    const context = sourceContext({
+      ...compositeAction('.shipfox/actions/setup', [
+        'uses: ./.shipfox/actions/slack',
+        `uses: \${{ action.path }}/lint`,
+      ]),
+      ...compositeAction('.shipfox/actions/setup/lint', ['run: echo lint']),
+      ...slackAction(),
+    });
+
+    const result = await resolveWorkflowActions({
+      ...context,
+      compositeActions: true,
+      workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/setup'])],
+    });
+
+    expect([...result.keys()]).toEqual([
+      './.shipfox/actions/setup',
+      './.shipfox/actions/slack',
+      './.shipfox/actions/setup/lint',
+    ]);
+    expect(result.get('./.shipfox/actions/setup')?.stepLocations).toEqual(
+      new Map([
+        [0, {startLine: 3, endLine: 3}],
+        [1, {startLine: 4, endLine: 4}],
+      ]),
+    );
+  });
+
+  it('summarizes a composite action with its manifest path and files', async () => {
+    const result = await resolveWorkflowActions({
+      ...sourceContext({
+        ...compositeAction('.shipfox/actions/setup', ['run: echo hi']),
+        '.shipfox/actions/setup/prompts/review.md': {content: 'Review it.'},
+      }),
+      compositeActions: true,
+      workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/setup'])],
+    });
+
+    const summary = summarizeResolvedActions(result).get('./.shipfox/actions/setup');
+
+    expect(summary?.composite).toEqual({
+      manifestPath: '.shipfox/actions/setup/action.yml',
+      manifestFile: 'action.yml',
+      stepLocations: new Map([[0, {startLine: 3, endLine: 3}]]),
+      files: new Map([
+        ['action.yml', compositeYaml(['run: echo hi'])],
+        ['prompts/review.md', 'Review it.'],
+      ]),
+    });
+  });
+
+  it('resolves a registry action nested in a local composite', async () => {
+    const registry = fakeRegistry(await registryVersion());
+
+    const result = await resolveWorkflowActions({
+      ...sourceContext(compositeAction('.shipfox/actions/setup', [`uses: ${REGISTRY_ACTION_REF}`])),
+      registry,
+      compositeActions: true,
+      workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/setup'])],
+    });
+
+    expect(result.get(REGISTRY_ACTION_REF)?.registry?.version).toBe('1.4.2');
+  });
+
+  it('resolves the registry actions a registry composite uses', async () => {
+    const compositeRef = 'shipfox/pr-setup@1.0.0';
+    const manifest = {name: 'PR setup', steps: [{uses: REGISTRY_ACTION_REF}]};
+    const composite = await registryVersion({
+      files: [
+        {path: 'action.yml', content: `name: PR setup\nsteps:\n  - uses: ${REGISTRY_ACTION_REF}\n`},
+      ],
+      manifest,
+    });
+    const nested = await registryVersion();
+    const registry = {
+      resolveVersion: vi.fn(({package: name}: {package: string}) =>
+        Promise.resolve(name === 'shipfox/pr-setup' ? composite : nested),
+      ),
+    };
+
+    const result = await resolveWorkflowActions({
+      ...sourceContext({}),
+      registry,
+      compositeActions: true,
+      workflows: [workflow('.shipfox/workflows/a.yml', [compositeRef])],
+    });
+
+    expect([...result.keys()]).toEqual([compositeRef, REGISTRY_ACTION_REF]);
+  });
+
+  it.each([
+    ['./.shipfox/actions/slack', 'not repository paths'],
+    [`\${{ action.path }}/lint`, 'cannot use'],
+  ])('rejects %s inside a registry composite', async (uses, message) => {
+    const yamlUses = uses.startsWith('$') ? `"${uses}"` : uses;
+    const composite = await registryVersion({
+      files: [{path: 'action.yml', content: `name: PR setup\nsteps:\n  - uses: ${yamlUses}\n`}],
+      manifest: {name: 'PR setup', steps: [{uses}]},
+    });
+
+    const error = await captureError(
+      resolveWorkflowActions({
+        ...sourceContext(slackAction()),
+        registry: fakeRegistry(composite),
+        compositeActions: true,
+        workflows: [workflow('.shipfox/workflows/a.yml', ['shipfox/pr-setup@1.0.0'])],
+      }),
+    );
+
+    expect(error.code).toBe('action-invalid');
+    expect(error.filePath).toBe('.shipfox/workflows/a.yml');
+    expect(error.details).toEqual([
+      {message: expect.stringContaining(message), path: 'steps.0.uses'},
+    ]);
+  });
+
+  it('rejects a composite that uses itself through another composite', async () => {
+    const context = sourceContext({
+      ...compositeAction('.shipfox/actions/a', ['uses: ./.shipfox/actions/b']),
+      ...compositeAction('.shipfox/actions/b', ['uses: ./.shipfox/actions/a']),
+    });
+
+    const error = await captureError(
+      resolveWorkflowActions({
+        ...context,
+        compositeActions: true,
+        workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/a'])],
+      }),
+    );
+
+    expect(error.code).toBe('action-cycle');
+    expect(error.message).toBe(
+      'Action ./.shipfox/actions/a uses itself: ./.shipfox/actions/a -> ./.shipfox/actions/b -> ./.shipfox/actions/a',
+    );
+    expect(error.filePath).toBe('.shipfox/actions/b/action.yml');
+  });
+
+  it(`accepts ${MAX_ACTION_NESTING_DEPTH} levels and rejects one more`, async () => {
+    const chain = (length: number) => {
+      const repository: Record<string, RepositoryEntry> = {};
+      for (let level = 1; level < length; level += 1) {
+        Object.assign(
+          repository,
+          compositeAction(`.shipfox/actions/l${level}`, [`uses: ./.shipfox/actions/l${level + 1}`]),
+        );
+      }
+      return {...repository, ...compositeAction(`.shipfox/actions/l${length}`, ['run: echo ok'])};
+    };
+    const resolve = (length: number) =>
+      resolveWorkflowActions({
+        ...sourceContext(chain(length)),
+        compositeActions: true,
+        workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/l1'])],
+      });
+
+    await expect(resolve(MAX_ACTION_NESTING_DEPTH)).resolves.toHaveProperty(
+      'size',
+      MAX_ACTION_NESTING_DEPTH,
+    );
+    const error = await captureError(resolve(MAX_ACTION_NESTING_DEPTH + 1));
+    expect(error.code).toBe('action-nesting-too-deep');
+    expect(error.filePath).toBe(`.shipfox/actions/l${MAX_ACTION_NESTING_DEPTH}/action.yml`);
+  });
+
+  it('checks the depth of an action already resolved under a shorter chain', async () => {
+    const repository: Record<string, RepositoryEntry> = {
+      ...compositeAction('.shipfox/actions/deep', ['run: echo ok']),
+    };
+    // l1 -> l2 -> l3 -> l4 -> deep is five levels; `deep` at the top is one.
+    for (let level = 1; level <= 4; level += 1) {
+      const next = level === 4 ? './.shipfox/actions/deep' : `./.shipfox/actions/l${level + 1}`;
+      Object.assign(repository, compositeAction(`.shipfox/actions/l${level}`, [`uses: ${next}`]));
+    }
+    Object.assign(
+      repository,
+      compositeAction('.shipfox/actions/top', ['uses: ./.shipfox/actions/l1']),
+    );
+
+    const error = await captureError(
+      resolveWorkflowActions({
+        ...sourceContext(repository),
+        compositeActions: true,
+        workflows: [
+          workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/l1', './.shipfox/actions/top']),
+        ],
+      }),
+    );
+
+    expect(error.code).toBe('action-nesting-too-deep');
+  });
+
+  it('counts the actions of the whole tree toward the per-workflow limit', async () => {
+    const leaves = Array.from({length: MAX_ACTIONS_PER_WORKFLOW}, (_, index) => `l${index}`);
+    const repository: Record<string, RepositoryEntry> = compositeAction(
+      '.shipfox/actions/all',
+      leaves.map((leaf) => `uses: ./.shipfox/actions/${leaf}`),
+    );
+    for (const leaf of leaves) {
+      Object.assign(repository, compositeAction(`.shipfox/actions/${leaf}`, ['run: echo ok']));
+    }
+
+    const error = await captureError(
+      resolveWorkflowActions({
+        ...sourceContext(repository),
+        compositeActions: true,
+        workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/all'])],
+      }),
+    );
+
+    expect(error.code).toBe('action-too-large');
+    expect(error.filePath).toBe('.shipfox/workflows/a.yml');
+  });
+
+  it('replaces a nested local action with its upload', async () => {
+    const context = sourceContext({
+      ...compositeAction('.shipfox/actions/setup', [`uses: \${{ action.path }}/lint`]),
+      ...compositeAction('.shipfox/actions/setup/lint', ['run: echo old']),
+    });
+
+    const result = await resolveWorkflowActions({
+      ...context,
+      compositeActions: true,
+      uploads: new Map([
+        [
+          './.shipfox/actions/setup/lint',
+          [{path: 'action.yml', content: compositeYaml(['run: echo new'])}],
+        ],
+      ]),
+      workflows: [workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/setup'])],
+    });
+
+    expect(result.get('./.shipfox/actions/setup/lint')?.manifest.steps).toEqual([
+      expect.objectContaining({run: 'echo new'}),
+    ]);
+  });
+});
+
+describe('collectReachableActions', () => {
+  it('walks composite actions', async () => {
+    const document = workflow('.shipfox/workflows/a.yml', ['./.shipfox/actions/setup']).document;
+    const resolved = await resolveWorkflowActions({
+      ...sourceContext({
+        ...compositeAction('.shipfox/actions/setup', [`uses: \${{ action.path }}/lint`]),
+        ...compositeAction('.shipfox/actions/setup/lint', ['uses: ./.shipfox/actions/slack']),
+        ...slackAction(),
+      }),
+      compositeActions: true,
+      workflows: [{path: '.shipfox/workflows/a.yml', document}],
+    });
+
+    const result = collectReachableActions(document, summarizeResolvedActions(resolved));
+
+    expect(result).toEqual([
+      './.shipfox/actions/setup',
+      './.shipfox/actions/setup/lint',
+      './.shipfox/actions/slack',
+    ]);
   });
 });
