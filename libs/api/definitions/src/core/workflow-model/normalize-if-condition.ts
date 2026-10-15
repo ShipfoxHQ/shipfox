@@ -30,6 +30,8 @@ export function normalizeIfCondition(params: {
   readonly issues: WorkflowModelValidationIssue[];
   readonly allowedJobReferences: ReadonlySet<string>;
   readonly typeOverlay: ExpressionTypeEnvironment;
+  /** Roots a scope adds, such as a composite action's `inputs` and `action`. */
+  readonly extraRoots?: readonly string[] | undefined;
 }): WorkflowExpression | undefined {
   if (params.source === undefined) return undefined;
   const source = params.source;
@@ -64,6 +66,7 @@ export function normalizeIfCondition(params: {
     issues: params.issues,
     allowedJobReferences: params.allowedJobReferences,
     typeOverlay: params.typeOverlay,
+    extraRoots: params.extraRoots,
   });
 }
 

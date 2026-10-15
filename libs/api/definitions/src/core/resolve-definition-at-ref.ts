@@ -415,6 +415,7 @@ async function parseDefinitionAtCommit(input: {
     registry: params.registry,
     persistRegistryVersions: input.persistRegistryVersions,
     compositeActions: params.compositeActionsEnabled ?? false,
+    registryActions: registryActionsEnabled,
     signal: params.signal,
   });
   const actionManifests = summarizeResolvedActions(actions);
@@ -801,6 +802,7 @@ async function resolveDevRunActions(params: {
   registry: Pick<RegistryInterModuleClient, 'resolveVersion'> | undefined;
   persistRegistryVersions: boolean;
   compositeActions: boolean;
+  registryActions: boolean;
   signal: AbortSignal | undefined;
 }): Promise<Map<string, ResolvedAction>> {
   if (collectActionReferences(params.document).length === 0) return new Map();
@@ -823,6 +825,7 @@ async function resolveDevRunActions(params: {
       registry: params.registry,
       persistRegistryVersions: params.persistRegistryVersions,
       compositeActions: params.compositeActions,
+      registryActions: params.registryActions,
     });
   } catch (error) {
     throwIfAborted(params.signal);
@@ -914,7 +917,11 @@ function snapshotSourceOf(
   uploadedPaths: ReadonlySet<string>,
 ): ActionSnapshotSource {
   if (action.registry !== undefined) return 'registry';
-  return uploadedPaths.has(action.uses) ? 'dev_local' : 'vcs';
+  // An action inside an uploaded directory comes from that upload too.
+  const uploaded = [...uploadedPaths].some(
+    (path) => action.uses === path || action.uses.startsWith(`${path}/`),
+  );
+  return uploaded ? 'dev_local' : 'vcs';
 }
 
 function invalidAction(error: ActionResolutionError): DefinitionAtRefError {

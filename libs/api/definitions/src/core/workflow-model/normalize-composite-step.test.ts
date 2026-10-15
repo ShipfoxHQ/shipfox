@@ -264,6 +264,35 @@ describe('normalizeWorkflowDocument composite steps', () => {
     expect(() => normalize(document({uses: SETUP}), [setup])).not.toThrow();
   });
 
+  test('types inner if conditions with the composite inputs and action', () => {
+    const setup = composite(SETUP, {
+      inputs: {lint: {type: 'boolean'}, token: {secret: true}},
+      steps: [
+        {run: 'lint', if: expr('inputs.lint')},
+        {run: 'x', if: expr("action.path != ''")},
+        {run: 'typo', if: expr('inputs.tpyo')},
+        {run: 'secret', if: expr("inputs.token != ''")},
+      ],
+    });
+
+    const issues = issuesFor(document({uses: SETUP, with: {lint: true}}), [setup]);
+
+    expect(summarize(issues)).toEqual([
+      {code: 'invalid-step-if', path: 'jobs.build.steps.0', at: 'steps.2.if'},
+      {code: 'invalid-step-if', path: 'jobs.build.steps.0', at: 'steps.3.if'},
+    ]);
+  });
+
+  test('reports an unresolved action.path action once', () => {
+    const setup = composite(SETUP, {steps: [{uses: `${expr('action.path')}/missing`}]});
+
+    const issues = issuesFor(document({uses: SETUP}), [setup]);
+
+    expect(summarize(issues)).toEqual([
+      {code: 'action-not-resolved', path: 'jobs.build.steps.0', at: 'steps.0.uses'},
+    ]);
+  });
+
   test('rejects secrets inside a composite', () => {
     const setup = composite(SETUP, {
       steps: [{run: 'npm publish', env: {TOKEN: expr('secrets.NPM_TOKEN')}}],

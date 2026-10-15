@@ -444,7 +444,7 @@ function prepareInnerSteps(params: {
       rewriteSecretInputs(value, context),
     ) as WorkflowDocumentStep;
     addActionPromptFiles(step, path, context, promptFiles);
-    return bindStepIntegrations(resolveStepUses(step, path, context), path, context);
+    return bindStepIntegrations(resolveStepUses(step, context), path, context);
   });
   return {steps, promptFiles};
 }
@@ -498,7 +498,9 @@ function rewriteSecretInputs(value: string, context: PrepareContext): string {
   });
 }
 
-const wholeInputReferencePattern = /^\s*\$\{\{\s*inputs\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}\s*$/;
+/** A value that is exactly one `${{ inputs.<name> }}` expression. */
+export const WHOLE_INPUT_REFERENCE_PATTERN =
+  /^\s*\$\{\{\s*inputs\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}\s*$/;
 
 // A nested action input that only forwards a secret input the caller left out
 // is left out too, so an optional secret stays optional through every level.
@@ -509,7 +511,7 @@ function dropUnboundSecretForwards(
   if (step.uses === undefined || step.with === undefined) return step;
   const entries = Object.entries(step.with).filter(([, value]) => {
     if (typeof value !== 'string') return true;
-    const name = wholeInputReferencePattern.exec(value)?.[1];
+    const name = WHOLE_INPUT_REFERENCE_PATTERN.exec(value)?.[1];
     return (
       name === undefined ||
       !context.secretInputs.has(name) ||
@@ -522,7 +524,6 @@ function dropUnboundSecretForwards(
 
 function resolveStepUses(
   step: WorkflowDocumentStep,
-  path: readonly WorkflowModelValidationIssuePathSegment[],
   context: PrepareContext,
 ): WorkflowDocumentStep {
   if (step.uses === undefined) return step;
@@ -531,17 +532,8 @@ function resolveStepUses(
     parentKey: context.fields.uses,
     parentIsRegistry: context.fields.resolved.registry !== undefined,
   });
-  if (result.ok) return {...step, uses: result.key};
-  // Resolution rejects the same `uses`, so this only shows without it.
-  context.issues.push(
-    issue({
-      code: 'action-not-resolved',
-      message: result.message,
-      path: [...path, 'uses'],
-      details: {uses: step.uses},
-    }),
-  );
-  return step;
+  // An unresolvable `uses` is reported once, when the step finds no action for it.
+  return result.ok ? {...step, uses: result.key} : step;
 }
 
 // `${{ action.path }}/` prompt files come from the action's own files, keyed

@@ -61,6 +61,7 @@ import {
   MAX_EXPANDED_JOB_STEPS,
   type NormalizedCompositeFields,
   normalizeCompositeFields,
+  WHOLE_INPUT_REFERENCE_PATTERN,
 } from './normalize-composite-step.js';
 import {normalizeEnv} from './normalize-env.js';
 import {normalizeIfCondition} from './normalize-if-condition.js';
@@ -813,12 +814,15 @@ function currentStepTypeContext(
         ...params.scope?.roots,
       }
     : undefined;
-  const conditionTypeOverlay = buildTypedRootsEnvironment({
-    steps: previous.overlays,
-    ...currentStepRoot,
-    jobs: params.directNeedJobs,
-    needs: params.directNeedJobs,
-  });
+  const conditionTypeOverlay = {
+    ...buildTypedRootsEnvironment({
+      steps: previous.overlays,
+      ...currentStepRoot,
+      jobs: params.directNeedJobs,
+      needs: params.directNeedJobs,
+    }),
+    ...params.scope?.roots,
+  };
   return {typeOverlay, conditionTypeOverlay};
 }
 
@@ -1079,6 +1083,7 @@ function normalizeStep(params: {
     issues: params.issues,
     allowedJobReferences: params.allowedJobReferences,
     typeOverlay: conditionTypeOverlay,
+    extraRoots: params.scope?.roots === undefined ? undefined : Object.keys(params.scope.roots),
   });
   if (
     condition !== undefined &&
@@ -1545,7 +1550,7 @@ function normalizeAgentStepSession(params: {
   // Inside a composite action, a key is scoped to the use unless the caller
   // picks the session by passing the whole key as an input.
   const scope =
-    params.sessionScope === undefined || wholeInputReferencePattern.test(keySource.trim())
+    params.sessionScope === undefined || WHOLE_INPUT_REFERENCE_PATTERN.test(keySource)
       ? undefined
       : params.sessionScope;
   return {
@@ -1554,8 +1559,6 @@ function normalizeAgentStepSession(params: {
     ...(scope === undefined ? {} : {scope}),
   };
 }
-
-const wholeInputReferencePattern = /^\$\{\{\s*inputs\.[A-Za-z_][A-Za-z0-9_]*\s*\}\}$/;
 
 interface SessionSharingStep {
   readonly jobName: string;

@@ -40,6 +40,8 @@ export function validatePredicateExpression(params: {
   stepKind?: WorkflowStepKind | undefined;
   /** Scope for the invalidCode issue; other issues keep the definition scope. */
   scope?: WorkflowModelValidationIssueScope | undefined;
+  /** Roots a scope adds to the field's roots, such as a composite action's `inputs` and `action`. */
+  extraRoots?: readonly string[] | undefined;
 }): WorkflowExpression | undefined {
   const site = getWorkflowPredicateFieldMinimumFillTarget(params.field);
   const syntaxExpression = createSyntaxExpression(params);
@@ -71,7 +73,11 @@ export function validatePredicateExpression(params: {
 
   const predicateContextRoots = getWorkflowPredicateContextRoots(params.field);
   const unavailableRoots = knownRoots.filter(
-    (root) => !predicateContextRoots.includes(root as (typeof predicateContextRoots)[number]),
+    (root) =>
+      !(
+        predicateContextRoots.includes(root as (typeof predicateContextRoots)[number]) ||
+        params.extraRoots?.includes(root)
+      ),
   );
   if (unavailableRoots.length > 0) {
     params.issues.push(

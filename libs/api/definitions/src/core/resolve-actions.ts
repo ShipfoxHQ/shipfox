@@ -23,7 +23,11 @@ import {
 } from '@shipfox/workflow-document';
 import yaml from 'js-yaml';
 import {collectActionReferences} from './collect-action-references.js';
-import {compositeActionUses, resolveCompositeUses} from './composite-action-references.js';
+import {
+  type CompositeUsesResult,
+  compositeActionUses,
+  resolveCompositeUses,
+} from './composite-action-references.js';
 import type {ResolvedActions} from './entities/action-snapshot.js';
 import type {WorkflowSourceLocation} from './entities/workflow-model.js';
 import {ActionResolutionError, type ActionResolutionErrorCode} from './errors.js';
@@ -84,6 +88,11 @@ export interface ResolveWorkflowActionsParams extends ActionSourceContext {
   persistRegistryVersions?: boolean | undefined;
   /** Accepts composite actions (`steps`). Defaults to `false`. */
   compositeActions?: boolean | undefined;
+  /**
+   * Accepts registry references inside composite actions. Defaults to `true`;
+   * the document parser already checks the workflow's own references.
+   */
+  registryActions?: boolean | undefined;
 }
 
 /** The manifest, digest, and origin that validation and the workflow model read. */
@@ -125,19 +134,24 @@ export async function resolveWorkflowActions(
     if (uses.length > MAX_ACTIONS_PER_WORKFLOW) throw tooManyActions(workflow.path);
   }
   for (const workflow of params.workflows) {
-    const reachable = new Set<string>();
+    const reach = {workflowPath: workflow.path, keys: new Set<string>()};
     for (const uses of collectActionReferences(workflow.document)) {
-      const subtree = await visitAction(walk, {
-        key: uses,
-        chain: [],
-        // Failures of a top-level action point at the workflow file that names it.
-        referencedFrom: workflow.path,
-      });
-      for (const key of subtree.keys) reachable.add(key);
+      // Failures of a top-level action point at the workflow file that names it.
+      await visitAction(walk, {key: uses, chain: [], referencedFrom: workflow.path, reach});
     }
-    if (reachable.size > MAX_ACTIONS_PER_WORKFLOW) throw tooManyActions(workflow.path);
   }
   return walk.resolved;
+}
+
+/** The actions one workflow reaches so far, checked against the limit before each read. */
+interface WorkflowReach {
+  readonly workflowPath: string;
+  readonly keys: Set<string>;
+}
+
+function addReached(reach: WorkflowReach, keys: Iterable<string>): void {
+  for (const key of keys) reach.keys.add(key);
+  if (reach.keys.size > MAX_ACTIONS_PER_WORKFLOW) throw tooManyActions(reach.workflowPath);
 }
 
 interface ActionTreeWalk {
@@ -155,7 +169,12 @@ interface ExploredAction {
 
 async function visitAction(
   walk: ActionTreeWalk,
-  params: {key: string; chain: readonly ResolvedAction[]; referencedFrom: string},
+  params: {
+    key: string;
+    chain: readonly ResolvedAction[];
+    referencedFrom: string;
+    reach: WorkflowReach;
+  },
 ): Promise<ExploredAction> {
   const {key, chain} = params;
   const cycleStart = chain.findIndex((action) => action.uses === key);
@@ -173,11 +192,13 @@ async function visitAction(
     if (chain.length + explored.height > MAX_ACTION_NESTING_DEPTH) {
       throw nestingTooDeep({key, chain, referencedFrom: params.referencedFrom});
     }
+    addReached(params.reach, explored.keys);
     return explored;
   }
   if (chain.length + 1 > MAX_ACTION_NESTING_DEPTH) {
     throw nestingTooDeep({key, chain, referencedFrom: params.referencedFrom});
   }
+  addReached(params.reach, [key]);
 
   const action = walk.resolved.get(key) ?? (await resolveAction(walk, params));
   walk.resolved.set(key, action);
@@ -185,11 +206,7 @@ async function visitAction(
   const keys = new Set<string>([key]);
   let height = 1;
   for (const {stepIndex, uses} of compositeActionUses(action.manifest)) {
-    const inner = resolveCompositeUses({
-      uses,
-      parentKey: key,
-      parentIsRegistry: action.registry !== undefined,
-    });
+    const inner = innerActionKey(walk, {uses, parentKey: key, parent: action});
     const referencedFrom = diagnosticFileOf(action, params.referencedFrom);
     if (!inner.ok) {
       throw new ActionResolutionError({
@@ -203,6 +220,7 @@ async function visitAction(
       key: inner.key,
       chain: [...chain, action],
       referencedFrom,
+      reach: params.reach,
     });
     for (const reached of subtree.keys) keys.add(reached);
     height = Math.max(height, subtree.height + 1);
@@ -210,6 +228,23 @@ async function visitAction(
 
   const result = {keys, height};
   walk.explored.set(key, result);
+  return result;
+}
+
+function innerActionKey(
+  walk: ActionTreeWalk,
+  params: {uses: string; parentKey: string; parent: ResolvedAction},
+): CompositeUsesResult {
+  const result = resolveCompositeUses({
+    uses: params.uses,
+    parentKey: params.parentKey,
+    parentIsRegistry: params.parent.registry !== undefined,
+  });
+  if (!result.ok || walk.params.registryActions !== false) return result;
+  const ref = parseWorkflowActionRef(result.key);
+  if (ref.ok && ref.ref.kind === 'registry') {
+    return {ok: false, message: 'Registry actions are not available on this instance.'};
+  }
   return result;
 }
 
@@ -233,12 +268,36 @@ async function resolveAction(
     });
   }
 
-  const upload = options.uploads?.get(uses);
+  const upload = uploadedDirectory(options.uploads, uses);
   if (upload !== undefined) {
     return await resolveUploadedAction({uses, files: upload, compositeActions});
   }
   options.onProgress?.(uses);
   return await readActionDirectory({...options, uses, compositeActions});
+}
+
+/**
+ * The uploaded files of an action directory: its own upload, or the part of
+ * an uploaded parent directory under it, so a composite's
+ * `${{ action.path }}/sub` actions come from the same upload.
+ */
+function uploadedDirectory(
+  uploads: ReadonlyMap<string, readonly ActionBundleFile[]> | undefined,
+  uses: string,
+): readonly ActionBundleFile[] | undefined {
+  if (uploads === undefined) return undefined;
+  const exact = uploads.get(uses);
+  if (exact !== undefined) return exact;
+  let parent: string | undefined;
+  for (const path of uploads.keys()) {
+    if (!uses.startsWith(`${path}/`)) continue;
+    if (parent === undefined || path.length > parent.length) parent = path;
+  }
+  if (parent === undefined) return undefined;
+  const prefix = `${uses.slice(parent.length + 1)}/`;
+  return (uploads.get(parent) ?? []).flatMap((file) =>
+    file.path.startsWith(prefix) ? [{...file, path: file.path.slice(prefix.length)}] : [],
+  );
 }
 
 // A registry action has no repository path, so the file that names it carries its failures.

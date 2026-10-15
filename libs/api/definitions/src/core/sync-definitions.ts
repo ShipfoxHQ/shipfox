@@ -195,7 +195,7 @@ export async function fetchAndParseWorkflows(
     }),
   }));
 
-  const resolvedActions = await resolveSyncActions(params, documents);
+  const resolvedActions = await resolveSyncActions(params, documents, registryActionsEnabled);
   const actionManifests = summarizeResolvedActions(resolvedActions);
   const promptFiles = await resolveSyncPromptFiles(params, documents, actionManifests);
 
@@ -261,12 +261,14 @@ function parseWorkflowDocumentForSync(params: {
 async function resolveSyncActions(
   params: FetchAndParseWorkflowsParams,
   workflows: readonly {path: string; document: WorkflowDocument}[],
+  registryActions: boolean,
 ): Promise<Map<string, ResolvedAction>> {
   try {
     return await resolveWorkflowActions({
       ...params,
       workflows,
       compositeActions: params.compositeActionsEnabled,
+      registryActions,
     });
   } catch (error) {
     if (!(error instanceof ActionResolutionError)) throw error;
